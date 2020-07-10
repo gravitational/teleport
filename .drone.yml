@@ -26,7 +26,7 @@ clone:
 
 steps:
   - name: Check out code
-    image: golang:1.13.2
+    image: docker:git
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
@@ -44,67 +44,64 @@ steps:
       - rm -f /root/.ssh/id_rsa
       - mkdir -p /go/cache
 
-  - name: Run linter
-    image: docker:dind
+  - name: Build buildbox
+    image: docker
     environment:
-      GOPATH: /gopath
+      QUAYIO_DOCKER_USERNAME:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      QUAYIO_DOCKER_PASSWORD:
+        from_secret: QUAYIO_DOCKER_PASSWORD
     volumes:
       - name: dockersock
         path: /var/run
     commands:
+      - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - >-
-        docker run --rm=true
-        -e GOCACHE=$GOPATH/cache
-        -v /go/cache:$GOPATH/cache
-        -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport
-        -w $GOPATH/src/github.com/gravitational/teleport
-        -h testbox
-        -u $UID:$GID
-        -t quay.io/gravitational/teleport-buildbox:$RUNTIME
-        /bin/bash -c "make lint"
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets buildbox
+
+  - name: Run linter
+    image: docker
+    environment:
+      GOPATH: /go
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets lint
 
   - name: Run unit tests
-    image: docker:dind
+    image: docker
     environment:
-      GOPATH: /gopath
+      GOPATH: /go
     volumes:
       - name: dockersock
         path: /var/run
     commands:
+      - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - >-
-        docker run --rm=true
-        -e GOCACHE=$GOPATH/cache
-        -v /go/cache:$GOPATH/cache
-        -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport
-        -w $GOPATH/src/github.com/gravitational/teleport
-        -h testbox
-        -u $UID:$GID
-        -t quay.io/gravitational/teleport-buildbox:$RUNTIME
-        /bin/bash -c "make FLAGS='-cover -count 1' test"
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets test
 
   - name: Run integration tests
-    image: docker:dind
+    image: docker
     environment:
-      GOPATH: /gopath
+      GOPATH: /go
     volumes:
       - name: dockersock
         path: /var/run
     commands:
+      - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - >-
-        docker run --rm=true
-        -e GOCACHE=$GOPATH/cache
-        -v /go/cache:$GOPATH/cache
-        -v /go/src/github.com/gravitational/teleport:$GOPATH/src/github.com/gravitational/teleport
-        -w $GOPATH/src/github.com/gravitational/teleport
-        -h testbox
-        -u $UID:$GID
-        -t quay.io/gravitational/teleport-buildbox:$RUNTIME
-        /bin/bash -c "make FLAGS='-cover -count 1' integration"
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets integration
 
-  - name: Send Slack notification
+  - name: Send Slack notification for build failures
     image: plugins/slack
     settings:
       webhook:
@@ -170,7 +167,7 @@ steps:
     commands:
       - |
         cd /go/src/github.com/gravitational/teleport
-        git diff --raw ${DRONE_TARGET_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
+        git diff --raw ${DRONE_COMMIT}..${DRONE_TARGET_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
         if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
           echo "Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
           for VERSION in $(cat /tmp/docs-versions-changed.txt); do
@@ -735,7 +732,6 @@ type: kubernetes
 name: build-buildboxes
 
 environment:
-  REPO: quay.io
   RUNTIME: go1.13.2
   UID: 1000
   GID: 1000
@@ -773,18 +769,11 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
+      - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-      - >-
-        docker build
-        --build-arg UID=$UID
-        --build-arg GID=$GID
-        --build-arg RUNTIME=$RUNTIME
-        --cache-from quay.io/gravitational/teleport-buildbox:$RUNTIME
-        -f /go/src/github.com/gravitational/teleport/build.assets/Dockerfile
-        -t quay.io/gravitational/teleport-buildbox:$RUNTIME
-        /go/src/github.com/gravitational/teleport/build.assets
+      - make -C build.assets buildbox
       - docker push quay.io/gravitational/teleport-buildbox:$RUNTIME
 
   - name: Build and push buildbox-fips container
@@ -798,18 +787,11 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
+      - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
-      - >-
-        docker build
-        --build-arg UID=$UID
-        --build-arg GID=$GID
-        --build-arg RUNTIME=$RUNTIME
-        --cache-from quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
-        -f /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-fips
-        -t quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
-        /go/src/github.com/gravitational/teleport/build.assets
+      - make -C build.assets buildbox-fips
       - docker push quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
 
   - name: Build and push buildbox-centos6 container
@@ -823,18 +805,11 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
+      - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME || true
-      - >-
-        docker build
-        --build-arg UID=$UID
-        --build-arg GID=$GID
-        --build-arg RUNTIME=$RUNTIME
-        --cache-from quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
-        -f /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-centos6
-        -t quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
-        /go/src/github.com/gravitational/teleport/build.assets
+      - make -C build.assets buildbox-centos6
       - docker push quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
 
   - name: Build and push buildbox-centos6-fips container
@@ -848,18 +823,11 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
+      - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" $REPO
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME || true
-      - >-
-        docker build
-        --build-arg UID=$UID
-        --build-arg GID=$GID
-        --build-arg RUNTIME=$RUNTIME
-        --cache-from quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
-        -f /go/src/github.com/gravitational/teleport/build.assets/Dockerfile-centos6-fips
-        -t quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
-        /go/src/github.com/gravitational/teleport/build.assets
+      - make -C build.assets buildbox-centos6-fips
       - docker push quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
 
 services:
@@ -878,9 +846,6 @@ volumes:
 kind: pipeline
 type: kubernetes
 name: docker-cron
-
-environment:
-  REPO: quay.io
 
 trigger:
   cron:
@@ -921,7 +886,6 @@ steps:
     environment:
       OS: linux
       ARCH: amd64
-      REPO: quay.io
     settings:
       username:
         from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
@@ -932,10 +896,10 @@ steps:
         path: /var/run
     commands:
       - export VERSION_TAG=$(cat /tmp/build/CURRENT_VERSION_TAG.txt)
-      - export OSS_IMAGE_NAME="$REPO/gravitational/teleport:$(cat /tmp/build/CURRENT_VERSION_TAG_GENERIC.txt)"
-      - export ENT_IMAGE_NAME="$REPO/gravitational/teleport-ent:$(cat /tmp/build/CURRENT_VERSION_TAG_GENERIC.txt)"
-      - export ENT_FIPS_IMAGE_NAME="$REPO/gravitational/teleport-ent:$(cat /tmp/build/CURRENT_VERSION_TAG_GENERIC.txt)-fips"
-      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" $REPO
+      - export OSS_IMAGE_NAME="quay.io/gravitational/teleport:$(cat /tmp/build/CURRENT_VERSION_TAG_GENERIC.txt)"
+      - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /tmp/build/CURRENT_VERSION_TAG_GENERIC.txt)"
+      - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /tmp/build/CURRENT_VERSION_TAG_GENERIC.txt)-fips"
+      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       # OSS
       - docker build --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /tmp/build/Dockerfile-cron /tmp/build
       - docker push $OSS_IMAGE_NAME
@@ -951,7 +915,6 @@ steps:
     environment:
       OS: linux
       ARCH: amd64
-      REPO: quay.io
     settings:
       username:
         from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
@@ -962,10 +925,10 @@ steps:
         path: /var/run
     commands:
       - export VERSION_TAG=$(cat /tmp/build/PREVIOUS_VERSION_ONE_TAG.txt)
-      - export OSS_IMAGE_NAME="$REPO/gravitational/teleport:$(cat /tmp/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
-      - export ENT_IMAGE_NAME="$REPO/gravitational/teleport-ent:$(cat /tmp/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
-      - export ENT_FIPS_IMAGE_NAME="$REPO/gravitational/teleport-ent:$(cat /tmp/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-fips"
-      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" $REPO
+      - export OSS_IMAGE_NAME="quay.io/gravitational/teleport:$(cat /tmp/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
+      - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /tmp/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
+      - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /tmp/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-fips"
+      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       # OSS
       - docker build --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /tmp/build/Dockerfile-cron /tmp/build
       - docker push $OSS_IMAGE_NAME
@@ -981,7 +944,6 @@ steps:
     environment:
       OS: linux
       ARCH: amd64
-      REPO: quay.io
     settings:
       username:
         from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
@@ -992,10 +954,10 @@ steps:
         path: /var/run
     commands:
       - export VERSION_TAG=$(cat /tmp/build/PREVIOUS_VERSION_TWO_TAG.txt)
-      - export OSS_IMAGE_NAME="$REPO/gravitational/teleport:$(cat /tmp/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
-      - export ENT_IMAGE_NAME="$REPO/gravitational/teleport-ent:$(cat /tmp/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
-      - export ENT_FIPS_IMAGE_NAME="$REPO/gravitational/teleport-ent:$(cat /tmp/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-fips"
-      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" $REPO
+      - export OSS_IMAGE_NAME="quay.io/gravitational/teleport:$(cat /tmp/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
+      - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /tmp/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
+      - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /tmp/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-fips"
+      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       # OSS
       - docker build --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /tmp/build/Dockerfile-cron /tmp/build
       - docker push $OSS_IMAGE_NAME
@@ -1066,6 +1028,6 @@ steps:
 
 ---
 kind: signature
-hmac: 1f1284ed43d98cc0551ca761dc0b119739c16b016fce58cac60d264597c8348e
+hmac: 0e70d638dcfea64019ed991453a1ccccf5825a268d795d6da1d5b83ab8309aa3
 
 ...
