@@ -8,19 +8,15 @@ environment:
   UID: 1000
   GID: 1000
 
-# TODO(gus): testing
-# trigger:
-#   branch:
-#     - master
-#     - branch/*
-#   event:
-#     exclude:
-#       - cron
-#       - promote
-#       - rollback
 trigger:
-  cron:
-    - never
+  branch:
+    - master
+    - branch/*
+  event:
+    exclude:
+      - cron
+      - promote
+      - rollback
 
 workspace:
   path: /go
@@ -136,19 +132,15 @@ kind: pipeline
 type: kubernetes
 name: test-docs
 
-# TODO(gus): testing
-# trigger:
-#   branch:
-#     - master
-#     - branch/*
-#   event:
-#     exclude:
-#       - cron
-#       - promote
-#       - rollback
 trigger:
-  cron:
-    - never
+  branch:
+    - master
+    - branch/*
+  event:
+    exclude:
+      - cron
+      - promote
+      - rollback
 
 workspace:
   path: /go
@@ -246,25 +238,15 @@ name: build-linux-amd64
 environment:
   RUNTIME: go1.14.4
 
-# TODO(gus): testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
+    - tag
+  ref:
     include:
-      - push
-      - pull_request
+      - refs/tags/v*
 
-# TODO(gus): testing
-# depends_on:
-#   - test
+depends_on:
+  - test
 
 workspace:
   path: /go
@@ -359,25 +341,15 @@ name: build-linux-amd64-fips
 environment:
   RUNTIME: go1.14.4
 
-# TODO(gus): testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
+    - tag
+  ref:
     include:
-      - push
-      - pull_request
+      - refs/tags/v*
 
-# TODO(gus): testing
-# depends_on:
-#   - test
+depends_on:
+  - test
 
 workspace:
   path: /go
@@ -474,25 +446,15 @@ name: build-linux-amd64-centos6
 environment:
   RUNTIME: go1.14.4
 
-# TODO(gus): testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
+    - tag
+  ref:
     include:
-      - push
-      - pull_request
+      - refs/tags/v*
 
-# TODO(gus): testing
-# depends_on:
-#   - test
+depends_on:
+  - test
 
 workspace:
   path: /go
@@ -591,25 +553,15 @@ environment:
 environment:
   RUNTIME: go1.13.2
 
-# TODO(gus): testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
+    - tag
+  ref:
     include:
-      - push
-      - pull_request
+      - refs/tags/v*
 
-# TODO(gus): testing
-# depends_on:
-#   - test
+depends_on:
+  - test
 
 workspace:
   path: /go
@@ -704,23 +656,13 @@ name: build-linux-amd64-rpm
 environment:
   RUNTIME: go1.14.4
 
-# TODO(gus): testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
+    - tag
+  ref:
     include:
-      - push
-      - pull_request
+      - refs/tags/v*
 
-# - test
 depends_on:
   - build-linux-amd64
 
@@ -823,23 +765,13 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-fips-rpm
 
-# TODO(gus): testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
+    - tag
+  ref:
     include:
-      - push
-      - pull_request
+      - refs/tags/v*
 
-# - test
 depends_on:
   - build-linux-amd64-fips
 
@@ -943,23 +875,13 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-deb
 
-# TODO(gus): testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
+    - tag
+  ref:
     include:
-      - push
-      - pull_request
+      - refs/tags/v*
 
-# - test
 depends_on:
   - build-linux-amd64
 
@@ -1062,23 +984,13 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-fips-deb
 
-# TODO(gus): testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
+    - tag
+  ref:
     include:
-      - push
-      - pull_request
+      - refs/tags/v*
 
-# - test
 depends_on:
   - build-linux-amd64-fips
 
@@ -1186,25 +1098,15 @@ name: build-linux-i386
 environment:
   RUNTIME: go1.13.2
 
-# TODO(gus): testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
+    - tag
+  ref:
     include:
-      - push
-      - pull_request
+      - refs/tags/v*
 
-# TODO(gus): testing
-# depends_on:
-#   - test
+depends_on:
+  - test
 
 workspace:
   path: /go
@@ -1296,23 +1198,13 @@ kind: pipeline
 type: kubernetes
 name: build-linux-i386-rpm
 
-# TODO(gus): testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
+    - tag
+  ref:
     include:
-      - push
-      - pull_request
+      - refs/tags/v*
 
-# - test
 depends_on:
   - build-linux-i386
 
@@ -1415,23 +1307,13 @@ kind: pipeline
 type: kubernetes
 name: build-linux-i386-deb
 
-# TODO(gus): testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
+    - tag
+  ref:
     include:
-      - push
-      - pull_request
+      - refs/tags/v*
 
-# - test
 depends_on:
   - build-linux-i386
 
@@ -1537,25 +1419,15 @@ name: build-windows
 environment:
   RUNTIME: go1.13.2
 
-# TODO(gus): testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
+    - tag
+  ref:
     include:
-      - push
-      - pull_request
+      - refs/tags/v*
 
-# TODO(gus): testing
-# depends_on:
-#   - test
+depends_on:
+  - test
 
 workspace:
   path: /go
@@ -1940,6 +1812,6 @@ steps:
 
 ---
 kind: signature
-hmac: 49c840996743f0e30184cd55618e256fa63886a962ca47d453d38cc3c05d7ce9
+hmac: ee1154fb03fb35ff1013d1b12cb06750f6ddcc6abdda8f6d439987ee59d41daa
 
 ...
