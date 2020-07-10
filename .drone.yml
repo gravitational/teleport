@@ -449,7 +449,7 @@ steps:
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # rename artifacts
       - export VERSION=$(cat /go/.version.txt)
-      - mv /go/artifacts/teleport-ent-**-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-${VERSION}-linux-amd64-fips-bin.tar.gz
+      - mv /go/artifacts/teleport-ent-${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-${VERSION}-linux-amd64-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
@@ -464,7 +464,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      target: teleport/tag/${VERSION}
+      target: teleport/tag/${DRONE_TAG}
       strip_prefix: /go/artifacts/
 
 services:
@@ -562,8 +562,8 @@ steps:
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/e \;
       # rename artifacts
       - export VERSION=$(cat /go/.version.txt)
-      - mv /go/artifacts/teleport-**-linux-amd64-bin.tar.gz /go/artifacts/teleport-${VERSION}-linux-amd64-centos6-bin.tar.gz
-      - mv /go/artifacts/e/teleport-**-linux-amd64-bin.tar.gz /go/artifacts/e/teleport-ent-${VERSION}-linux-amd64-centos6-bin.tar.gz
+      - mv /go/artifacts/teleport-${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-${VERSION}-linux-amd64-centos6-bin.tar.gz
+      - mv /go/artifacts/e/teleport-${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/e/teleport-ent-${VERSION}-linux-amd64-centos6-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
       - cd /go/artifacts/e && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
@@ -691,7 +691,7 @@ steps:
       - find e -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
       # rename artifact
       - export VERSION=$(cat /go/.version.txt)
-      - mv /go/artifacts/teleport-**-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-${VERSION}-linux-amd64-centos6-fips-bin.tar.gz
+      - mv /go/artifacts/teleport-${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-${VERSION}-linux-amd64-centos6-fips-bin.tar.gz
       # generate checksums
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
@@ -1955,6 +1955,6 @@ steps:
 
 ---
 kind: signature
-hmac: ca81ba02ff7dde4c3540436ef18bd62fcf0b2f04e63010ddc1eb5d3aa5087d89
+hmac: d2a5ae9efc090d9f85a4729163d8a0c6ea93569d00cb386f9d8d14bc3c7c1261
 
 ...
