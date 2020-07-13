@@ -39,7 +39,7 @@ implementation and it is _fully compatible with OpenSSH_ and can be used with
 | [Security Updates](https://groups.google.com/forum/#!forum/teleport-community-security) | Teleport Community Edition Security Updates|
 | [Community Forum](https://community.gravitational.com) | Teleport Community Forum|
 
-[![Teleport 4.3 Demo](/docs/4.3/img/readme/teleport-4.3-video-thumb.png)](http://www.youtube.com/watch?v=v8qvmjvZpBE)
+[![Teleport 4.3 Demo](docs/4.3/img/readme/teleport-4.3-video-thumb.png| width=400)](http://www.youtube.com/watch?v=v8qvmjvZpBE)
 
 ## Installing and Running
 
@@ -97,7 +97,7 @@ NOTE: The Go compiler is somewhat sensitive to amount of memory: you will need
 at least 1GB of virtual memory to compile Teleport. 512MB instance without swap
 will not work.
 
-NOTE: This will build the latest version of Teleport, regardless of whether it is stable. If you want to build the latest stable release, `git checkout` to that tag (e.g. `git checkout v4.2.0`) before running `make full`.
+NOTE: This will build the latest version of Teleport, regardless of whether it is stable. If you want to build the latest stable release, `git checkout` to that tag (e.g. `git checkout v4.3.0`) before running `make full`.
 
 ### Rebuilding Web UI
 
