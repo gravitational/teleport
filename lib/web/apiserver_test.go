@@ -1032,6 +1032,38 @@ func (s *WebSuite) TestActiveSessions(c *C) {
 	c.Assert(sess.ClusterName, Equals, s.server.ClusterName())
 }
 
+// DELETE IN: 4.5.0
+// Tests code snippet from apiserver.(*Handler).siteSessionGet.
+func (s *WebSuite) TestEmptySessionClusterNameIsSet(c *C) {
+	nodeClient, err := s.server.NewClient(auth.TestBuiltin(teleport.RoleNode))
+	c.Assert(err, IsNil)
+
+	// Create a session with empty ClusterName
+	sid := session.NewID()
+	date := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
+	sess := session.Session{
+		ClusterName:    "",
+		ID:             sid,
+		Namespace:      defaults.Namespace,
+		Login:          "foo",
+		Created:        date,
+		LastActive:     date,
+		TerminalParams: session.TerminalParams{W: 100, H: 100},
+	}
+	err = nodeClient.CreateSession(sess)
+	c.Assert(err, IsNil)
+
+	// Retrieve the session with the empty ClusterName
+	pack := s.authPack(c, "foo")
+	res, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "sessions", sid.String()), url.Values{})
+	c.Assert(err, IsNil)
+
+	// Test that empty ClusterName got set to value of the "site" param of URL
+	var result *session.Session
+	json.Unmarshal(res.Bytes(), &result)
+	c.Assert(result.ClusterName, Equals, s.server.ClusterName())
+}
+
 func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 	sid := session.NewID()
 	pack := s.authPack(c, "foo")
