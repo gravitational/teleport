@@ -52,6 +52,30 @@ Scenario | Max Recommended Count | Proxy | Auth server
 Teleport nodes connected to auth server | 10,000 |2x  2-4 vCPUs/8GB RAM | 2x 4-8 vCPUs/16GB RAM
 Teleport nodes connected to proxy server (IoT) | 2,000* | 2x 2-4 vCPUs/8GB RAM |2x 4-8 vCPUs/16+GB RAM
 
+### Which version of Teleport is supported?
+
+| Release       | LTS | Release Date         | Supported Until      | Minimum tsh version  |
+| --------------|-----| -------------------- | -------------------- | -------------------- |
+| 4.3           | Yes | July 8th, 2020       | July 8th, 2021       | 3.x                  |
+| 4.2           | Yes | December 19th, 2019  | December 19th, 2020  | 3.x                  |
+| 4.1           | Yes | October 1st, 2019    | October 1st, 2020    | 3.x                  |
+| 4.0           | Yes | June 18th, 2019      | June 18th, 2020      | 3.x                  |
+| 3.2           | Yes | April 1st, 2019      | April 1st, 2020      | 2.x                  |
+| 3.1           | Yes | December 12th, 2018  | December 12th, 2019  | 2.x                  |
+
+Teleport uses semantic versioning to release updates of software, with releases taking
+around 3-4 months, for MINOR releases. The team has these informal rules about releasing software:
+
+- Teleport Team will do its best to allow for a non-breaking upgrade even with MAJOR releases.
+- We aim to support versions for 3 releases (current and two back) or around 9 months.
+This means critical security fixes will be backported to earlier versions.
+- We provide Enterprise customers edge case support for older versions of Operating Systems. This might be a specific patch for an OSS in maintenance. This is provided on a somewhat ad-hoc basis.
+- We won’t support Teleport on an OS Distro that has stopped receiving maintenance updates and is EOL.
+
+**How should I upgrade my cluster?**
+Please follow our standard guidelines for [upgrading](admin-guide.md#upgrading-teleport).
+We recommend that the Auth Server should be upgraded first, and proxy is bumped after.
+
 ### Does Web UI support copy and paste?
 
 Yes. You can copy&paste using the mouse. For working with a keyboard, Teleport employs
