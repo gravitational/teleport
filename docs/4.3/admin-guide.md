@@ -481,7 +481,8 @@ connector. There are three possible values (types) of 2FA:
      or [Authy](https://www.authy.com/) or any other TOTP client.
 
   + `u2f` implements [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor)
-    standard for utilizing hardware (USB) keys for second factor.
+    standard for utilizing hardware (USB) keys for second factor. You can use [YubiKeys](https://www.yubico.com/),
+   [solokeys](https://solokeys.com/) or any other hardware token.
 
   + `off` turns off second factor authentication.
 
@@ -537,7 +538,7 @@ auth_service:
     type: oidc
 ```
 
-### FIDO U2F
+### Hardware Keys - YubiKey FIDO U2F
 
 Teleport supports [FIDO U2F](https://www.yubico.com/about/background/fido/)
 hardware keys as a second authentication factor. By default U2F is disabled. To
