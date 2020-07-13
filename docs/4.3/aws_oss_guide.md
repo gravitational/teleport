@@ -383,19 +383,20 @@ To upgrade to a newer version of Teleport:
 
 ## Accessing EKS using Teleport
 
-This guide is based on an orignial post from AWS Open Source Blog - [Authenticating to EKS Using GitHub Credentials with Teleport](https://aws.amazon.com/blogs/opensource/authenticating-eks-github-credentials-teleport/) but will be updated with latest Teleport version & best practices.
+In this section, we will set Kubernetes RBAC permissions needed by Teleport and configure the EC2 instance running Teleport to map to those permissions. This guide is based on an original post from AWS Open Source Blog - [Authenticating to EKS Using GitHub Credentials with Teleport](https://aws.amazon.com/blogs/opensource/authenticating-eks-github-credentials-teleport/) but will be updated with latest Teleport version & best practices.
 
 ### Prerequisites
 You’ll need a functioning EKS cluster, we recommend version 1.16.  If you’re unfamiliar
-with creating an EKS cluster, see [eksctl.io](https://eksctl.io). Make sure you have eksctl version 0.22.0.
+with creating an EKS cluster, view [AWS EKS getting started guide](https://aws.amazon.com/eks/getting-started/ ).
 
 - EKS Version: The below guide has been tested with [Kubernetes 1.16](https://docs.aws.amazon.com/eks/latest/userguide/kubernetes-versions.html)
-- [jq](https://stedolan.github.io/jq/) installed on you  local machine.
+- [`eksctl`](https://eksctl.io). Make sure you have eksctl version 0.22.0.
+- [`jq`](https://stedolan.github.io/jq/) installed on you  local machine.
 - An AWS Account with Root Access
 
 ### Create cluster role and role binding
 The first step is to create a cluster role and role binding that will allow the Teleport
-EC2 instance to impersonate other users, groups, and service accounts.
+EC2 instance to relay user requests to the Kubernetes API
 
 The below command is ran on a machine with `kubectl` access to the cluster.
 
@@ -432,8 +433,6 @@ roleRef:
 subjects:
 - kind: Group
   name: teleport-group
-- kind: User
-  name: system:anonymous
 EOF
 ```
 If successful the terminal should output.
@@ -464,7 +463,7 @@ EOF
 This will create a `.json` file locally, the below command should then be ran to create the role.
 
 ```bash
-$ ROLE_ARN=$(aws iam create-role --role-name teleport-roles --assume-role-policy-document file://teleport_assume_role.json | jq -r '.Role.Arn')
+$ aws iam create-role --role-name teleport-role --assume-role-policy-document file://teleport_assume_role.json
 ```
 
 ### Create IAM policy granting list-clusters and describe-cluster permissions (optional)
@@ -494,7 +493,7 @@ POLICY_ARN=$(aws iam create-policy --policy-name teleport-policy --policy-docume
 aws iam attach-role-policy --role-name teleport-role --policy-arn $POLICY_ARN
 ```
 
-### Update aws-auth configmap
+### Map IAM role to Kubernetes group
 
 This maps the IAM role **teleport-role** to the Kubernetes group **teleport-group**.
 
@@ -517,11 +516,10 @@ To check, run  `kubectl describe configmap -n kube-system aws-auth`
 
 ### Installing Teleport
 #### Create EC2 instance
-Create an EC2 instance using the [Teleport Community AMI](https://aws.amazon.com/marketplace/pp/Gravitational-Teleport-Community-Edition/B07FYTZB9B) on a public subnet in your VPC. Modify the security group associated with that instance to allow port 22 inbound, so you can SSH to the instancea fter it’s running. You will need security group rules to allow access to ports `3080`  and `3022-3026` so that users can access theTeleport server from the Internet.
+Create an EC2 instance using the [Teleport Community AMI](https://aws.amazon.com/marketplace/pp/Gravitational-Teleport-Community-Edition/B07FYTZB9B) on a public subnet in your VPC. Modify the security group associated with that instance to allow port 22 inbound, so you can SSH to the instance after it’s running. You will need security group rules to allow access to ports `3080`  and `3022-3026` so that users can access theTeleport server from the Internet.
 
-This  also allows GitHub to post a response back to the Teleport server. You’ll also
-need to open port 80 to allow Let’s Encrypt to complete HTTP validation when issuing
-SSL certificates.
+This will let GitHub to post a response back to the Teleport server. You’ll
+need to open port 80 to allow Let’s Encrypt to complete HTTP validation when using SSL certificates/unless you provide pre-provisioned TLS certificates.
 
 | Type   | Protocol | Port Range | Source    |
 |--------|----------|------------|-----------|
@@ -530,9 +528,7 @@ SSL certificates.
 | HTTP   | TCP      | 80         | 0.0.0.0/0 |
 | SSH    | TCP      | 22         | your IP   |
 
-If you don’t modify the EKS control plane security group to allow port 443 inbound
-from the Teleport security group, your Teleport instance will not be able to communicate
-with the Kubernetes API.
+You must modify the EKS control plane security group to allow port 443 inbound from the Teleport security group, to allow your Teleport instance to communicate with the Kubernetes API.
 
 Assign role to instance:
 
@@ -552,10 +548,10 @@ aws ec2 associate-iam-instance-profile --iam-instance-profile Name=teleport-role
 {!examples/aws/eks/teleport.yaml!}
 ```
 
-#### 2. Download Kubectl on Teleport Server
-Kubectl is required to obtain the correct Kube config, so Teleport can access the EKS Cluster.
+#### Download Kubectl on Teleport Server
+Kubectl is required to obtain the correct kubeconfig, so Teleport can access the EKS Cluster.
 
-Instruction are below, or can be found on [AWS Docs](https://docs.aws.amazon.com/eks/latest/userguide/install-kubectl.html).
+Instructions are below, or can be found on [AWS Docs](https://docs.aws.amazon.com/eks/latest/userguide/install-kubectl.html).
 
 ```bash
 # Download the Amazon EKS-vended kubectl binary for your cluster's Kubernetes version from Amazon S3:
@@ -563,7 +559,7 @@ curl -o kubectl https://amazon-eks.s3.us-west-2.amazonaws.com/1.16.8/2020-04-16/
 # (Optional) Verify the downloaded binary with the SHA-256 sum for your binary.
 curl -o kubectl.sha256 https://amazon-eks.s3.us-west-2.amazonaws.com/1.16.8/2020-04-16/bin/linux/amd64/kubectl.sha256
 # Check the SHA-256 sum for your downloaded binary.
-openssl sha1 -sha256 kubectl
+openssl sha256 kubectl
 # Apply execute permissions to the binary.
 chmod +x ./kubectl
 # Copy the binary to a folder in your PATH. If you have already installed a version of kubectl, then we recommend creating a $HOME/bin/kubectl and ensuring that $HOME/bin comes first in your $PATH.
@@ -578,7 +574,9 @@ aws eks update-kubeconfig --name [teleport-cluster] --region us-west-2
 # Added new context arn:aws:eks:us-west-2:480176057099:cluster/teleport-eks-cluster to /home/ec2-user/.kube/config
 ```
 
-Create SSL certificate for HTTPs. It is absolutely crucial to properly configure TLS
+#### Creating TLS certificate for Teleport
+
+Create TLS certificate for HTTPs. It is absolutely crucial to properly configure TLS
 for HTTPS when you use Teleport Proxy in production. For simplicity, we are using Let’s
 Encrypt to issue certificates and simple DNS resolution.
 
@@ -606,7 +604,7 @@ sudo certbot certonly --standalone \
                       --email=$EMAIL
 ```
 
-#### 4. Setup Github Auth
+#### Setup Github Auth
 
 Run this on the Teleport EC2 Host, see [Github Auth](admin-guide.md#github-oauth-20) for more info.
 
@@ -635,6 +633,8 @@ spec:
   # mapping of org/team memberships onto allowed logins and roles
   teams_to_logins:
   - kubernetes_groups:
+  # change this to restrict the access of users logging in via GitHub;
+  # system:masters gives everyone full access to the entire cluster
     - system:masters
     logins:
     - github
@@ -648,6 +648,9 @@ Use `tctl` to create the github auth connector.
 ```bash
 sudo /usr/local/bin/tctl create -f ./github.yaml
 ```
+
+#### Testing Teleport & EKS Setup
+
 
 ```
 ➜  ~ tsh login --proxy=[teleport-proxy-url].practice.io:3080
