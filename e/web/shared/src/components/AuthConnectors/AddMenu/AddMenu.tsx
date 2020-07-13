@@ -3,20 +3,24 @@ import PropTypes from 'prop-types';
 import * as Icons from 'design/Icon';
 import Menu, { MenuItem } from 'design/Menu';
 import { ButtonPrimary } from 'design/Button';
-import { AuthProviderTypeEnum } from 'shared/services/enums';
 
-class AddMenu extends React.Component {
+class AddMenu extends React.Component<Props> {
   static displayName = 'AddMenu';
 
   static propTypes = {
     onClick: PropTypes.func.isRequired,
   };
 
+  anchorEl = null;
+
+  state = {
+    open: false,
+  };
+
   constructor(props) {
     super(props);
     this.state = {
       open: Boolean(props.open),
-      anchorEl: null,
     };
   }
 
@@ -28,7 +32,7 @@ class AddMenu extends React.Component {
     this.setState({ open: false });
   };
 
-  onItemClick = kind => {
+  onItemClick = (kind: AuthConnector) => {
     this.onClose();
     this.props.onClick(kind);
   };
@@ -39,7 +43,7 @@ class AddMenu extends React.Component {
 
   render() {
     const { open } = this.state;
-    const { disabled } = this.props;
+    const { disabled = false } = this.props;
     return (
       <React.Fragment>
         <ButtonPrimary
@@ -65,15 +69,13 @@ class AddMenu extends React.Component {
             horizontal: 'right',
           }}
         >
-          <MenuItem onClick={() => this.onItemClick(AuthProviderTypeEnum.OIDC)}>
+          <MenuItem onClick={() => this.onItemClick('oidc')}>
             OIDC CONNECTOR
           </MenuItem>
-          <MenuItem
-            onClick={() => this.onItemClick(AuthProviderTypeEnum.GITHUB)}
-          >
+          <MenuItem onClick={() => this.onItemClick('github')}>
             GITHUB CONNECTOR
           </MenuItem>
-          <MenuItem onClick={() => this.onItemClick(AuthProviderTypeEnum.SAML)}>
+          <MenuItem onClick={() => this.onItemClick('saml')}>
             SAML CONNECTOR
           </MenuItem>
         </Menu>
@@ -81,6 +83,13 @@ class AddMenu extends React.Component {
     );
   }
 }
+
+type AuthConnector = 'github' | 'oidc' | 'saml';
+
+type Props = {
+  disabled?: boolean;
+  onClick(kind: AuthConnector): void;
+};
 
 const menuListCss = ({ theme }) => `
   width: 240px;
@@ -94,4 +103,5 @@ const menuListCss = ({ theme }) => `
     }
   }
 `;
+
 export default AddMenu;

@@ -1,13 +1,13 @@
 import React from 'react';
 import * as Icons from 'design/Icon';
 import Image from 'design/Image';
-import { AuthProviderTypeEnum } from 'shared/services/enums';
-import samlSvg from './saml-logo.svg';
+import { AuthProviderType } from 'shared/services';
 
-export default function getSsoIcon(kind) {
+const samlSvg = require('./saml-logo.svg').default;
+
+export default function getSsoIcon(kind: AuthProviderType) {
   const desc = formatConnectorTypeDesc(kind);
-
-  if (kind === AuthProviderTypeEnum.GITHUB) {
+  if (kind === 'github') {
     return {
       SsoIcon: props => (
         <Icons.Github
@@ -21,7 +21,7 @@ export default function getSsoIcon(kind) {
     };
   }
 
-  if (kind === AuthProviderTypeEnum.SAML) {
+  if (kind === 'saml') {
     return {
       SsoIcon: props => (
         <Image height="50px" width="100px" src={samlSvg} {...props} />
@@ -49,5 +49,3 @@ function formatConnectorTypeDesc(kind) {
   kind = kind.toUpperCase();
   return `${kind} Connector`;
 }
-
-export { AuthProviderTypeEnum };

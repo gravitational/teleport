@@ -2,20 +2,25 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import * as Icons from 'design/Icon';
 import { Menu, MenuItem, ButtonPrimary } from 'design';
-import { AuthProviderTypeEnum } from 'shared/services/enums';
+import { AuthProviderType } from 'shared/services';
 
-class AddMenu extends React.Component {
+class AddMenu extends React.Component<Props> {
   static displayName = 'AddMenu';
 
   static propTypes = {
     onClick: PropTypes.func.isRequired,
   };
 
+  anchorEl = null;
+
+  state = {
+    open: false,
+  };
+
   constructor(props) {
     super(props);
     this.state = {
       open: Boolean(props.open),
-      anchorEl: null,
     };
   }
 
@@ -27,7 +32,7 @@ class AddMenu extends React.Component {
     this.setState({ open: false });
   };
 
-  onItemClick = kind => {
+  onItemClick = (kind: AuthProviderType) => {
     this.onClose();
     this.props.onClick(kind);
   };
@@ -64,15 +69,13 @@ class AddMenu extends React.Component {
             horizontal: 'right',
           }}
         >
-          <MenuItem onClick={() => this.onItemClick(AuthProviderTypeEnum.OIDC)}>
+          <MenuItem onClick={() => this.onItemClick('oidc')}>
             OIDC CONNECTOR
           </MenuItem>
-          <MenuItem
-            onClick={() => this.onItemClick(AuthProviderTypeEnum.GITHUB)}
-          >
+          <MenuItem onClick={() => this.onItemClick('github')}>
             GITHUB CONNECTOR
           </MenuItem>
-          <MenuItem onClick={() => this.onItemClick(AuthProviderTypeEnum.SAML)}>
+          <MenuItem onClick={() => this.onItemClick('saml')}>
             SAML CONNECTOR
           </MenuItem>
         </Menu>
@@ -80,6 +83,11 @@ class AddMenu extends React.Component {
     );
   }
 }
+
+type Props = {
+  disabled: boolean;
+  onClick(provider: AuthProviderType): any;
+};
 
 const menuListCss = ({ theme }) => `
   width: 240px;
@@ -93,4 +101,5 @@ const menuListCss = ({ theme }) => `
     }
   }
 `;
+
 export default AddMenu;
