@@ -482,7 +482,7 @@ connector. There are three possible values (types) of 2FA:
 
   + `u2f` implements [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor)
     standard for utilizing hardware (USB) keys for second factor. You can use [YubiKeys](https://www.yubico.com/),
-   [solokeys](https://solokeys.com/) or any other hardware token.
+   [SoloKeys](https://solokeys.com/) or any other hardware token which implements the FIDO U2F standard.
 
   + `off` turns off second factor authentication.
 
