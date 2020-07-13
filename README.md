@@ -39,7 +39,7 @@ implementation and it is _fully compatible with OpenSSH_ and can be used with
 | [Security Updates](https://groups.google.com/forum/#!forum/teleport-community-security) | Teleport Community Edition Security Updates|
 | [Community Forum](https://community.gravitational.com) | Teleport Community Forum|
 
-[![Teleport 4.3 Demo](http://img.youtube.com/vi/v8qvmjvZpBE/0.jpg)](http://www.youtube.com/watch?v=v8qvmjvZpBE)
+[![Teleport 4.3 Demo](/docs/4.3/img/readme/teleport-4.3-video-thumb.png)](http://www.youtube.com/watch?v=v8qvmjvZpBE)
 
 ## Installing and Running
 
