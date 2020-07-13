@@ -540,7 +540,7 @@ aws ec2 associate-iam-instance-profile --iam-instance-profile Name=teleport-role
 ```
 
 #### Install Teleport.
-1. [Download and Install Teleport](installation.md/#install-pre-built-binaries)
+1. [Download and Install Teleport](installation.md#install-pre-built-binaries)
 2. [Setup systemd](production.md#running-teleport-in-production)
 3. Setup Teleport config file. `sudo cp teleport.yaml /etc/teleport.yaml`. An example is below.
 
