@@ -63,17 +63,17 @@ Teleport nodes connected to proxy server (IoT) | 2,000* | 2x 2-4 vCPUs/8GB RAM |
 | 3.2           | Yes | April 1st, 2019      | April 1st, 2020      | 2.x                  |
 | 3.1           | Yes | December 12th, 2018  | December 12th, 2019  | 2.x                  |
 
-Teleport uses a semantic versioning to release updates of software. With releases taking
-around 3-4 months, for MINOR releases. The team has these informal rules about releasing software.
+Teleport uses semantic versioning to release updates of software, with releases taking
+around 3-4 months, for MINOR releases. The team has these informal rules about releasing software:
 
-- Teleport Team will do it’s best to allow for a non-breaking upgrade even with MAJOR releases.
+- Teleport Team will do its best to allow for a non-breaking upgrade even with MAJOR releases.
 - We aim to support versions for 3 releases (current and two back) or around 9 months.
 This means critical security fixes will be backported to earlier versions.
 - We provide Enterprise customers edge case support for older versions of Operating Systems. This might be a specific patch for an OSS in maintenance. This is provided on a somewhat ad-hoc basis.
 - We won’t support Teleport on an OS Distro that has stopped receiving maintenance updates and is EOL.
 
 **How should I upgrade my cluster?**
-Please follow our standard guidelines to [upgrading](amin-guide.md#upgrading-teleport).
+Please follow our standard guidelines for [upgrading](admin-guide.md#upgrading-teleport).
 We recommend that the Auth Server should be upgraded first, and proxy is bumped after.
 
 ### Does Web UI support copy and paste?
