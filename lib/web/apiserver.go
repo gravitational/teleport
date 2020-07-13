@@ -1546,6 +1546,14 @@ func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// DELETE IN: 4.5.0
+	// Teleport Nodes < v4.3 does not set clusterName with new sessions,
+	// which 4.3 UI client relies on to set clusterId in URL.
+	if sess.ClusterName == "" {
+		sess.ClusterName = p.ByName("site")
+	}
+
 	return *sess, nil
 }
 
