@@ -712,11 +712,14 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 			return ConvertGRPCError(err)
 		}
 
-		meta := adminpb.IndexOperationMetadata{}
-		if err := proto.Unmarshal(operation.Metadata.Value, &meta); err != nil {
-			return trace.Wrap(err)
+		// operation can be nil if error code is codes.AlreadyExists.
+		if operation != nil {
+			meta := adminpb.IndexOperationMetadata{}
+			if err := proto.Unmarshal(operation.Metadata.Value, &meta); err != nil {
+				return trace.Wrap(err)
+			}
+			tuplesToIndexNames[tuple] = meta.Index
 		}
-		tuplesToIndexNames[tuple] = meta.Index
 	}
 
 	// Instead of polling the Index state, we should wait for the Operation to
