@@ -698,8 +698,8 @@ correct binary.
 
 We've a few other resources for Enterprise customers such as our
 
-- [Running Teleport Enterprise in HA mode on AWS using Terraform](/aws_terraform_guide.md)
-- [Teleport Enterprise Quickstart](/enterprise/quickstart-enterprise.md)
+- [Running Teleport Enterprise in HA mode on AWS using Terraform](aws_terraform_guide.md)
+- [Teleport Enterprise Quickstart](enterprise/quickstart-enterprise.md)
 
 If you would like help setting up Teleport Enterprise on AWS, please mail us at [info@gravitational.com](mailto:info@gravitational.com)
 
