@@ -1518,26 +1518,12 @@ name: build-docker-images
 environment:
   RUNTIME: go1.14.4
 
-# TODO(gus): testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
-
-# TODO(gus): testing
-# depends_on:
-#   - test
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
 
 workspace:
   path: /go
@@ -1575,17 +1561,21 @@ steps:
       GOPATH: /go
       OS: linux
       ARCH: amd64
+    settings:
+      username:
+        from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      password:
+        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
     volumes:
       - name: dockersock
         path: /var/run
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
+      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      - make image
-      # TODO(gus): testing
-      # - make image publish
+      - make image publish
 
   - name: Build FIPS Docker image
     image: docker
@@ -1595,19 +1585,23 @@ steps:
       GOPATH: /go
       OS: linux
       ARCH: amd64
+    settings:
+      username:
+        from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      password:
+        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
     volumes:
       - name: dockersock
         path: /var/run
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
+       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       # version needs to be set manually when running in the e directory
       - export VERSION=$(cat /go/.version.txt)
-      - make -C e image-fips
-      # TODO(gus): testing
-      # - make -C e image-fips publish-fips
+      - make -C e image-fips publish-fips
 
 services:
   - name: Start Docker
@@ -1924,6 +1918,6 @@ steps:
 
 ---
 kind: signature
-hmac: 174436d72fa1125bf016110e5d728cb559713f614af3d03798f5513333d8f947
+hmac: 59775bca0786c5d7a9101358c6511250549dfa11abb6553dbadb2cc920379090
 
 ...
