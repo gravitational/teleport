@@ -366,6 +366,8 @@ tsh bench -i --duration=4h --threads=10 user@teleport-monster-6757d7b487-x226b p
 
 Observe prometheus metrics for goroutines, open files, RAM, CPU, Timers and make sure there are no leaks
 
+- [ ] Verify that prometheus metrics are accurate. 
+
 **Breaking load tests**
 
 Load system with tsh bench to the capacity and publish maximum numbers of concurrent sessions with interactive
