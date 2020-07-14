@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import * as Icons from 'design/Icon';
 import Menu, { MenuItem } from 'design/Menu';
 import { ButtonPrimary } from 'design/Button';
+import { AuthProviderType } from 'shared/services';
 
 class AddMenu extends React.Component<Props> {
   static displayName = 'AddMenu';
@@ -32,7 +33,7 @@ class AddMenu extends React.Component<Props> {
     this.setState({ open: false });
   };
 
-  onItemClick = (kind: AuthConnector) => {
+  onItemClick = (kind: AuthProviderType) => {
     this.onClose();
     this.props.onClick(kind);
   };
@@ -84,11 +85,9 @@ class AddMenu extends React.Component<Props> {
   }
 }
 
-type AuthConnector = 'github' | 'oidc' | 'saml';
-
 type Props = {
   disabled?: boolean;
-  onClick(kind: AuthConnector): void;
+  onClick(kind: AuthProviderType): void;
 };
 
 const menuListCss = ({ theme }) => `

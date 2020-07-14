@@ -1,12 +1,19 @@
 import React from 'react';
 import styled from 'styled-components';
 import { Text, Box, Flex } from 'design';
+import { AuthProviderType } from 'shared/services';
 import Card from 'design/Card';
-import getSsoIcon, { AuthProviderTypeEnum } from './../getSsoIcon';
+import getSsoIcon from '../getSsoIcon';
 
-export default function EmptyList({ onCreate }) {
+export default function EmptyList({ onCreate }: Props) {
   return (
-    <Card color="text.primary" bg="primary.light" p="5" textAlign="center" style={{boxShadow: 'none'}}>
+    <Card
+      color="text.primary"
+      bg="primary.light"
+      p="5"
+      textAlign="center"
+      style={{ boxShadow: 'none' }}
+    >
       <Text typography="h3" textAlign="center">
         Create Your First Auth Connector
         <Text typography="subtitle1" mt="2">
@@ -15,15 +22,15 @@ export default function EmptyList({ onCreate }) {
         </Text>
       </Text>
       <Flex mt="6" flexWrap="wrap">
-        {renderItem(AuthProviderTypeEnum.GITHUB, onCreate)}
-        {renderItem(AuthProviderTypeEnum.OIDC, onCreate)}
-        {renderItem(AuthProviderTypeEnum.SAML, onCreate)}
+        {renderItem('github', onCreate)}
+        {renderItem('oidc', onCreate)}
+        {renderItem('saml', onCreate)}
       </Flex>
     </Card>
   );
 }
 
-function renderItem(kind, onClick) {
+function renderItem(kind: AuthProviderType, onClick: Props['onCreate']) {
   const { desc, SsoIcon } = getSsoIcon(kind);
   const onBtnClick = () => onClick(kind);
   return (
@@ -79,3 +86,7 @@ const StyledConnectorBox = styled(Box)(
   text-transform: uppercase;
 `
 );
+
+type Props = {
+  onCreate(kind: AuthProviderType): void;
+};
