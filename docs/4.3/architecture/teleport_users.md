@@ -72,10 +72,10 @@ connector and it is enforced by default.
 
  There are two types of 2FA supported:
 
-* [TOTP](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
-* [U2F](https://en.wikipedia.org/wiki/Universal_2nd_Factor)
+* [TOTP - e.g. Google Authenticator](https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm)
+* [U2F - e.g. YubiKey](https://en.wikipedia.org/wiki/Universal_2nd_Factor)
 
-  TOTP is the default. You can use [Google
+  `TOTP` is the default. You can use [Google
   Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator) or
   [Authy](https://www.authy.com/) or any other TOTP client.
 
