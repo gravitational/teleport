@@ -16,11 +16,13 @@ limitations under the License.
 
 import React from 'react';
 import FormLogin from './FormLogin';
-import { AuthProviderTypeEnum } from './../../services/enums';
 
 const defaultProps = {
   attempt: {
     isFailed: false,
+    isSuccess: undefined,
+    isProcessing: undefined,
+    message: undefined,
   },
   cb() {},
 };
@@ -53,7 +55,6 @@ export const ServerError = () => {
     <FormLogin
       title="Welcome!"
       authProviders={[]}
-      auth2faType="off"
       onLoginWithSso={defaultProps.cb}
       onLoginWithU2f={defaultProps.cb}
       onLogin={defaultProps.cb}
@@ -67,39 +68,38 @@ export const SSOProviders = () => {
     {
       displayName: 'github',
       name: 'github',
-      type: AuthProviderTypeEnum.OIDC,
+      type: 'oidc',
       url: '',
-    },
+    } as const,
     {
       displayName: 'google',
       name: 'google',
-      type: AuthProviderTypeEnum.OIDC,
+      type: 'oidc',
       url: '',
-    },
+    } as const,
     {
       displayName: 'bitbucket',
       name: 'bitbucket',
-      type: AuthProviderTypeEnum.OIDC,
+      type: 'oidc',
       url: '',
-    },
+    } as const,
     {
       name: 'Mission Control',
-      type: AuthProviderTypeEnum.OIDC,
+      type: 'oidc',
       url: '',
-    },
+    } as const,
     {
       displayName: 'microsoft',
       name: 'microsoft',
-      type: AuthProviderTypeEnum.OIDC,
+      type: 'oidc',
       url: '',
-    },
+    } as const,
   ];
 
   return (
     <FormLogin
       title="Welcome!"
       authProviders={ssoProvider}
-      auth2faType="off"
       onLoginWithSso={defaultProps.cb}
       onLoginWithU2f={defaultProps.cb}
       onLogin={defaultProps.cb}
@@ -129,8 +129,8 @@ export const Universal2ndFactor = () => {
 
 export const LocalAuthDisabled = () => {
   const ssoProvider = [
-    { name: 'github', type: AuthProviderTypeEnum.OIDC, url: '' },
-    { name: 'google', type: AuthProviderTypeEnum.OIDC, url: '' },
+    { name: 'github', type: 'oidc', url: '' } as const,
+    { name: 'google', type: 'oidc', url: '' } as const,
   ];
 
   return (

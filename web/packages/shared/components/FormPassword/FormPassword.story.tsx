@@ -17,7 +17,6 @@ limitations under the License.
 import React from 'react';
 import { storiesOf } from '@storybook/react';
 import FormPassword from './FormPassword';
-import { Auth2faTypeEnum } from '../../services/enums';
 
 const onChangePass = () => Promise.resolve();
 const onChangePassWithU2f = () => Promise.reject(new Error('server error'));
@@ -26,7 +25,6 @@ storiesOf('Shared/FormPassword', module)
   .add('FormPassword', () => {
     return (
       <FormPassword
-        auth2faType
         onChangePass={onChangePass}
         onChangePassWithU2f={onChangePassWithU2f}
       />
@@ -35,7 +33,7 @@ storiesOf('Shared/FormPassword', module)
   .add('With OTP', () => {
     return (
       <FormPassword
-        auth2faType={Auth2faTypeEnum.OTP}
+        auth2faType="otp"
         onChangePass={onChangePass}
         onChangePassWithU2f={onChangePassWithU2f}
       />
@@ -44,7 +42,7 @@ storiesOf('Shared/FormPassword', module)
   .add('With U2F', () => {
     return (
       <FormPassword
-        auth2faType={Auth2faTypeEnum.UTF}
+        auth2faType="u2f"
         onChangePass={onChangePass}
         onChangePassWithU2f={onChangePassWithU2f}
       />

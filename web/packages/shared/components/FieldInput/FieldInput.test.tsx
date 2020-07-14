@@ -17,10 +17,8 @@
 import React from 'react';
 import FieldInput from './FieldInput';
 import { render, fireEvent } from 'design/utils/testing';
-import { useRule } from '../Validation';
-import theme from '../../../design/src/theme';
-
-jest.mock('./../Validation/useRule');
+import * as useRule from '../Validation/useRule';
+import theme from 'design/theme';
 
 test('valid values, autofocus, onChange, onKeyPress', () => {
   const rule = jest.fn();
@@ -28,7 +26,7 @@ test('valid values, autofocus, onChange, onKeyPress', () => {
   const onKeyPress = jest.fn();
 
   // mock positive validation
-  useRule.mockImplementation(() => ({ valid: true, message: '' }));
+  jest.spyOn(useRule, 'default').mockReturnValue({ valid: true, message: '' });
 
   const { getByText, getByPlaceholderText } = render(
     <FieldInput
@@ -62,10 +60,17 @@ test('input validation error state', () => {
   const errorColor = theme.colors.error.main;
 
   // mock negative validation
-  useRule.mockImplementation(() => ({ valid: false, message: 'errorMsg' }));
+  jest
+    .spyOn(useRule, 'default')
+    .mockReturnValue({ valid: false, message: 'errorMsg' });
 
   const { getByText, getByPlaceholderText } = render(
-    <FieldInput placeholder="placeholderText" label="labelText" rule={rule} />
+    <FieldInput
+      placeholder="placeholderText"
+      label="labelText"
+      rule={rule}
+      onChange={jest.fn()}
+    />
   );
 
   // test !valid values renders with error message

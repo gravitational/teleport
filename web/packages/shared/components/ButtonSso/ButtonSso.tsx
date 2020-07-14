@@ -18,13 +18,12 @@ import React from 'react';
 import styled from 'styled-components';
 import Button from 'design/Button';
 import { fade } from 'design/theme/utils/colorManipulator';
-import Icon from 'design/Icon';
-import { TypeEnum, pickSsoIcon } from './utils';
-import PropTypes from 'prop-types';
+import * as Icons from 'design/Icon';
+import { AuthProviderType } from 'shared/services';
 
-const ButtonSso = props => {
-  const { ssoType, title, ...rest } = props;
-  const { color, Icon } = pickSsoIcon(ssoType);
+const ButtonSso = (props: Props) => {
+  const { ssoType = 'unknown', title, ...rest } = props;
+  const { color, Icon } = getSSOIcon(ssoType);
   return (
     <StyledButton color={color} block {...rest}>
       {Boolean(Icon) && (
@@ -37,16 +36,63 @@ const ButtonSso = props => {
   );
 };
 
-ButtonSso.propTypes = {
-  /**
-   * ssoType specifies single sign on service type defined in TypeEnum
-   */
-  ssoType: PropTypes.string,
+type Props = {
+  ssoType: SSOType;
+  title: string;
+  // TS: temporary handles ...styles
+  [key: string]: any;
 };
 
-ButtonSso.defaultProps = {
-  ssoType: 'unknown',
-};
+type SSOType =
+  | 'microsoft'
+  | 'github'
+  | 'bitbucket'
+  | 'google'
+  | 'openid'
+  | 'unknown';
+
+function getSSOIcon(type: SSOType) {
+  switch (type) {
+    case 'microsoft':
+      return { color: '#2672ec', Icon: Icons.Windows, type };
+    case 'github':
+      return { color: '#444444', Icon: Icons.Github, type };
+    case 'bitbucket':
+      return { color: '#205081', Icon: Icons.BitBucket, type };
+    case 'google':
+      return { color: '#dd4b39', Icon: Icons.Google, type };
+    default:
+      // provide default icon for unknown social providers
+      return { color: '#f7931e', Icon: Icons.OpenID };
+  }
+}
+
+export function guessProviderType(
+  name = '',
+  providerType: AuthProviderType
+): SSOType {
+  if (name.indexOf('microsoft') !== -1) {
+    return 'microsoft';
+  }
+
+  if (name.indexOf('bitbucket') !== -1) {
+    return 'bitbucket';
+  }
+
+  if (name.indexOf('google') !== -1) {
+    return 'google';
+  }
+
+  if (name.indexOf('github') !== -1 || providerType === 'github') {
+    return 'github';
+  }
+
+  if (providerType === 'oidc') {
+    return 'openid';
+  }
+
+  return 'unknown';
+}
 
 const StyledButton = styled(Button)`
   background-color: ${props => props.color};
@@ -61,7 +107,7 @@ const StyledButton = styled(Button)`
   position: relative;
   box-sizing: border-box;
 
-  ${Icon} {
+  ${Icons.default} {
     font-size: 20px;
     opacity: 0.87;
   }
@@ -82,4 +128,3 @@ const IconBox = styled.div`
 `;
 
 export default ButtonSso;
-export { TypeEnum, pickSsoIcon };

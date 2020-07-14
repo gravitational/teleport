@@ -15,24 +15,24 @@ limitations under the License.
 */
 
 import React from 'react';
+import Select, { Props as SelectProps } from './../Select';
 import { Box, LabelInput } from 'design';
-import { useRule } from './../Validation';
-import Select from './../Select';
+import { useRule } from 'shared/components/Validation';
 
 export default function FieldSelect({
-  rule,
   label,
   value,
   options,
   onChange,
-  maxMenuHeight,
   placeholder,
+  maxMenuHeight,
+  clearable,
+  isMulti,
+  rule = defaultRule,
   isSearchable = false,
-  isMulti = false,
-  isSimpleValue,
-  clearable = false,
+  isSimpleValue = false,
   ...styles
-}) {
+}: Props) {
   const { valid, message } = useRule(rule(value));
   const hasError = Boolean(!valid);
   const labelText = hasError ? message : label;
@@ -54,3 +54,11 @@ export default function FieldSelect({
     </Box>
   );
 }
+
+const defaultRule = () => () => ({ valid: true });
+
+type Props = SelectProps & {
+  autoFocus?: boolean;
+  label?: string;
+  rule?: Function;
+};

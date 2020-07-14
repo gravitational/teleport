@@ -17,10 +17,8 @@
 import React from 'react';
 import FieldSelect from './FieldSelect';
 import { render, fireEvent } from 'design/utils/testing';
-import { useRule } from '../Validation';
-import theme from '../../../design/src/theme';
-
-jest.mock('./../Validation/useRule');
+import * as useRule from '../Validation/useRule';
+import theme from '@gravitational/design/src/theme';
 
 test('valid values and onChange prop', () => {
   const rule = jest.fn();
@@ -30,7 +28,8 @@ test('valid values and onChange prop', () => {
     { value: 'b', label: 'B' },
   ];
 
-  useRule.mockImplementation(() => ({ valid: true, message: '' }));
+  jest.spyOn(useRule, 'default').mockReturnValue({ valid: true, message: '' });
+
   const { getByText, container } = render(
     <FieldSelect
       label="labelText"
@@ -38,6 +37,7 @@ test('valid values and onChange prop', () => {
       options={options}
       rule={rule}
       onChange={onChange}
+      value={null}
     />
   );
 
@@ -59,9 +59,19 @@ test('select element validation error state', () => {
   const rule = jest.fn();
   const errorColor = theme.colors.error.main;
 
-  useRule.mockImplementation(() => ({ valid: false, message: 'errorMsg' }));
+  jest
+    .spyOn(useRule, 'default')
+    .mockReturnValue({ valid: false, message: 'errorMsg' });
+
   const { getByText, container } = render(
-    <FieldSelect label="labelText" placeholder="placeholderText" rule={rule} />
+    <FieldSelect
+      label="labelText"
+      placeholder="placeholderText"
+      rule={rule}
+      onChange={jest.fn()}
+      value={null}
+      options={null}
+    />
   );
 
   // test !valid values renders with error message

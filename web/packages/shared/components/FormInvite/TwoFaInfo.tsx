@@ -16,23 +16,22 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { Auth2faTypeEnum } from '../../services/enums';
 import { Box, Text, ButtonLink } from 'design';
+import { Auth2faType } from 'shared/services';
 
 const U2F_HELP_URL = 'https://support.google.com/accounts/answer/6103523?hl=en';
 
-export default function TwoFAData(props) {
-  const { auth2faType, qr } = props;
+export default function TwoFAData({ auth2faType, qr }: Props) {
   const imgSrc = `data:image/png;base64,${qr}`;
 
-  if (auth2faType === Auth2faTypeEnum.OTP) {
+  if (auth2faType === 'otp') {
     return (
       <div>
         <Text typography="paragraph2" mb={3}>
           Scan the bar code with Google Authenticator to generate a two factor
           token.
         </Text>
-        <img width="152" src={imgSrc} border="8" />
+        <img width="152" src={imgSrc} style={{ border: '8px solid' }} />
         <ButtonLink
           width="100%"
           kind="secondary"
@@ -47,7 +46,7 @@ export default function TwoFAData(props) {
     );
   }
 
-  if (auth2faType === Auth2faTypeEnum.UTF) {
+  if (auth2faType === 'u2f') {
     return (
       <div>
         <Text typography="h5" mb="2">
@@ -75,3 +74,8 @@ export default function TwoFAData(props) {
 const StyledLink = styled.a`
   color: ${props => props.theme.colors.light};
 `;
+
+type Props = {
+  qr: string;
+  auth2faType: Auth2faType;
+};

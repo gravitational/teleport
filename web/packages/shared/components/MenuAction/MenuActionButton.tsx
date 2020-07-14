@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2020 Gravitational, Inc.
+Copyright 2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,20 +16,23 @@ limitations under the License.
 
 import React from 'react';
 import Menu from 'design/Menu';
-import { ButtonIcon } from 'design';
-import { Ellipsis } from 'design/Icon';
-import PropTypes from 'prop-types';
+import { ButtonBorder } from 'design';
+import { CarrotDown } from 'design/Icon';
+import { MenuProps, AnchorProps } from './types';
 
-export default class MenuActionIcon extends React.Component {
-  constructor(props) {
+export default class MenuActionIcon extends React.Component<Props> {
+  anchorEl = null;
+
+  state = {
+    open: false,
+  };
+
+  constructor(props: Props) {
     super(props);
-    this.state = {
-      open: props.open,
-      anchorEl: null,
-    };
+    this.state.open = props.defaultOpen || false;
   }
 
-  onOpen = e => {
+  onOpen = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     this.setState({ open: true });
   };
@@ -40,29 +43,32 @@ export default class MenuActionIcon extends React.Component {
 
   render() {
     const { open } = this.state;
-    const { children, buttonIconProps, menuProps } = this.props;
+    const { children, menuProps, buttonProps } = this.props;
     return (
       <>
-        <ButtonIcon
-          {...buttonIconProps}
+        <ButtonBorder
+          height="24px"
+          size="small"
           setRef={e => (this.anchorEl = e)}
           onClick={this.onOpen}
-          data-testid="button"
+          {...buttonProps}
         >
-          <Ellipsis />
-        </ButtonIcon>
+          OPTIONS
+          <CarrotDown ml={2} mr={-2} fontSize="2" color="text.secondary" />
+        </ButtonBorder>
         <Menu
+          getContentAnchorEl={null}
           menuListCss={menuListCss}
           anchorEl={this.anchorEl}
           open={open}
           onClose={this.onClose}
-          anchorOrigin={{
-            vertical: 'center',
-            horizontal: 'center',
-          }}
           transformOrigin={{
             vertical: 'top',
-            horizontal: 'center',
+            horizontal: 'right',
+          }}
+          anchorOrigin={{
+            vertical: 'center',
+            horizontal: 'right',
           }}
           {...menuProps}
         >
@@ -74,7 +80,7 @@ export default class MenuActionIcon extends React.Component {
 
   renderItems(children) {
     const filtered = React.Children.toArray(children);
-    const cloned = filtered.map(child => {
+    const cloned = filtered.map((child: React.ReactElement) => {
       return React.cloneElement(child, {
         onClick: this.makeOnClick(child.props.onClick),
       });
@@ -92,21 +98,12 @@ export default class MenuActionIcon extends React.Component {
   }
 }
 
-MenuActionIcon.propTypes = {
-  /** displays menu */
-  open: PropTypes.bool,
-
-  /** the list of items for menu */
-  children: PropTypes.node,
-
-  /** wrap in style object to provide inline css to position button */
-  buttonIconProps: PropTypes.object,
-};
-
-MenuActionIcon.defaultProps = {
-  open: false,
-};
-
 const menuListCss = () => `
   min-width: 100px;
 `;
+
+type Props = MenuProps & {
+  defaultOpen?: boolean;
+  buttonProps?: AnchorProps;
+  menuProps?: MenuProps;
+};

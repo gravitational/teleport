@@ -28,16 +28,21 @@ import theme from 'design/theme';
 import '@testing-library/jest-dom';
 import 'jest-styled-components';
 
-function Providers({ children }) {
+function Providers({ children }: { children: React.ReactElement }) {
   return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
 }
 
-function render(ui, options) {
+function render(ui: React.ReactElement<any>, options?: RenderOptions) {
   return testingRender(ui, { wrapper: Providers, ...options });
 }
 
 screen.debug = () => {
   window.console.log(prettyDOM());
+};
+
+type RenderOptions = {
+  wrapper: React.FC;
+  container: HTMLElement;
 };
 
 export {

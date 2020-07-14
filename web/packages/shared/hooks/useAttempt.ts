@@ -26,8 +26,8 @@ const defaultState = {
 };
 
 export default function useAttempt(
-  initialState: Partial<AttemptState>
-): [AttemptState, AttemptActions] {
+  initialState: Partial<State>
+): [State, Actions] {
   const [attempt, setState] = React.useState(() => ({
     ...defaultState,
     ...initialState,
@@ -79,8 +79,9 @@ function makeActions(setState) {
   };
 }
 
-type AttemptState = typeof defaultState;
-type AttemptActions = {
+type State = typeof defaultState;
+
+type Actions = {
   do: (fn: Callback) => Promise<any>;
   stop: (message?: string) => void;
   start: () => void;

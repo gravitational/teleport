@@ -15,16 +15,16 @@
  */
 
 import React from 'react';
-import ButtonSso, { TypeEnum } from '.';
+import ButtonSso from '.';
 import { render } from 'design/utils/testing';
 
 test.each`
-  ssoType               | expectedIcon
-  ${'default type'}     | ${'icon-openid'}
-  ${TypeEnum.MICROSOFT} | ${'icon-windows'}
-  ${TypeEnum.GITHUB}    | ${'icon-github'}
-  ${TypeEnum.BITBUCKET} | ${'icon-bitbucket'}
-  ${TypeEnum.GOOGLE}    | ${'icon-google-plus'}
+  ssoType           | expectedIcon
+  ${'default type'} | ${'icon-openid'}
+  ${'microsoft'}    | ${'icon-windows'}
+  ${'github'}       | ${'icon-github'}
+  ${'bitbucket'}    | ${'icon-bitbucket'}
+  ${'google'}       | ${'icon-google-plus'}
 `('rendering of $ssoType', ({ ssoType, expectedIcon }) => {
   const { getByTestId, getByText } = render(
     <ButtonSso ssoType={ssoType} title="hello" />

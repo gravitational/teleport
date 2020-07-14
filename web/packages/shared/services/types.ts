@@ -14,9 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import Validator, { Validation, useValidation } from './Validation';
-import useRule from './useRule';
+export type AuthProviderType = 'oidc' | 'saml' | 'github';
 
-export default Validation;
+export type Auth2faType = 'u2f' | 'otp' | 'off';
 
-export { useValidation, useRule, Validator };
+export type AuthProvider = {
+  displayName?: string;
+  name: string;
+  type: AuthProviderType;
+  url: string;
+};

@@ -60,4 +60,4 @@ const menuProps = {
     vertical: 'top',
     horizontal: 'center',
   },
-};
+} as const;

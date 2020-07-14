@@ -16,20 +16,20 @@ limitations under the License.
 
 import React from 'react';
 import { Box, Input, LabelInput } from 'design';
-import { useRule } from './../Validation';
+import { useRule } from 'shared/components/Validation';
 
 export default function FieldInput({
-  placeholder,
-  rule,
-  type,
-  value,
-  autoFocus,
-  autoComplete = 'off',
   label,
+  value,
   onChange,
   onKeyPress,
+  placeholder,
+  rule = defaultRule,
+  type = 'text',
+  autoFocus = false,
+  autoComplete = 'off',
   ...styles
-}) {
+}: Props) {
   const { valid, message } = useRule(rule(value));
   const hasError = !valid;
   const labelText = hasError ? message : label;
@@ -49,3 +49,19 @@ export default function FieldInput({
     </Box>
   );
 }
+
+const defaultRule = () => () => ({ valid: true });
+
+type Props = {
+  value?: string;
+  label?: string;
+  placeholder?: string;
+  autoFocus?: boolean;
+  autoComplete?: 'off' | 'on';
+  type?: 'email' | 'text' | 'password' | 'number' | 'date' | 'week';
+  rule?: Function;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onKeyPress?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  // TS: temporary handles ...styles
+  [key: string]: any;
+};

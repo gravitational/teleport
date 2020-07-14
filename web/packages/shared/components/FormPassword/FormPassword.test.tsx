@@ -17,7 +17,6 @@
 import React from 'react';
 import FormPassword from './FormPassword';
 import { render, fireEvent, wait } from 'design/utils/testing';
-import { Auth2faTypeEnum } from '../../services/enums';
 
 jest.mock('../../libs/logger', () => {
   const mockLogger = {
@@ -39,12 +38,12 @@ const inputValText = 'aaaaaa';
 const inputVal = { target: { value: inputValText } };
 
 test('input validation error states', async () => {
-  const onChangePass = jest.fn().mockResolvedValue();
-  const onChangePassWithU2f = jest.fn().mockResolvedValue();
+  const onChangePass = jest.fn().mockResolvedValue(null);
+  const onChangePassWithU2f = jest.fn().mockResolvedValue(null);
 
   const { getByText } = render(
     <FormPassword
-      auth2faType={Auth2faTypeEnum.OTP}
+      auth2faType={'otp'}
       onChangePass={onChangePass}
       onChangePassWithU2f={onChangePassWithU2f}
     />
@@ -62,12 +61,12 @@ test('input validation error states', async () => {
 });
 
 test('prop auth2faType: disabled', async () => {
-  const onChangePass = jest.fn().mockResolvedValue();
-  const onChangePassWithU2f = jest.fn().mockResolvedValue();
+  const onChangePass = jest.fn().mockResolvedValue(null);
+  const onChangePassWithU2f = jest.fn().mockResolvedValue(null);
 
   const { getByText, getByPlaceholderText } = render(
     <FormPassword
-      auth2faType={Auth2faTypeEnum.DISABLED}
+      auth2faType="off"
       onChangePass={onChangePass}
       onChangePassWithU2f={onChangePassWithU2f}
     />
@@ -87,18 +86,18 @@ test('prop auth2faType: disabled', async () => {
   expect(getByText(/your password has been changed!/i)).toBeInTheDocument();
 
   // test clearing of form values after submit
-  expect(getByPlaceholderText(placeholdCurrPass).value).toBe('');
-  expect(getByPlaceholderText(placeholdNewPass).value).toBe('');
-  expect(getByPlaceholderText(placeholdConfirm).value).toBe('');
+  expect(getByPlaceholderText(placeholdCurrPass)).toHaveAttribute('value', '');
+  expect(getByPlaceholderText(placeholdNewPass)).toHaveAttribute('value', '');
+  expect(getByPlaceholderText(placeholdConfirm)).toHaveAttribute('value', '');
 });
 
 test('prop auth2faType: OTP form', async () => {
-  const onChangePass = jest.fn().mockResolvedValue();
-  const onChangePassWithU2f = jest.fn().mockResolvedValue();
+  const onChangePass = jest.fn().mockResolvedValue(null);
+  const onChangePassWithU2f = jest.fn().mockResolvedValue(null);
 
   const { getByText, getByPlaceholderText } = render(
     <FormPassword
-      auth2faType={Auth2faTypeEnum.OTP}
+      auth2faType="otp"
       onChangePass={onChangePass}
       onChangePassWithU2f={onChangePassWithU2f}
     />
@@ -123,19 +122,19 @@ test('prop auth2faType: OTP form', async () => {
   expect(onChangePassWithU2f).not.toHaveBeenCalled();
 
   // test clearing of form values after submit
-  expect(getByPlaceholderText(placeholdCurrPass).value).toBe('');
-  expect(getByPlaceholderText(placeholdNewPass).value).toBe('');
-  expect(getByPlaceholderText(placeholdConfirm).value).toBe('');
-  expect(getByPlaceholderText(/otp token/i).value).toBe('');
+  expect(getByPlaceholderText(placeholdCurrPass)).toHaveAttribute('value', '');
+  expect(getByPlaceholderText(placeholdNewPass)).toHaveAttribute('value', '');
+  expect(getByPlaceholderText(placeholdConfirm)).toHaveAttribute('value', '');
+  expect(getByPlaceholderText(/otp token/i)).toHaveAttribute('value', '');
 });
 
 test('prop auth2faType: U2f form with mocked error', async () => {
-  const onChangePass = jest.fn().mockResolvedValue();
+  const onChangePass = jest.fn().mockResolvedValue(null);
   const onChangePassWithU2f = jest.fn().mockRejectedValue(new Error('errMsg'));
 
   const { getByText, getByPlaceholderText } = render(
     <FormPassword
-      auth2faType={Auth2faTypeEnum.UTF}
+      auth2faType={'u2f'}
       onChangePass={onChangePass}
       onChangePassWithU2f={onChangePassWithU2f}
     />
@@ -164,7 +163,16 @@ test('prop auth2faType: U2f form with mocked error', async () => {
   expect(getByText(/errMsg/i)).toBeInTheDocument();
 
   // test forms are NOT cleared with processing errors
-  expect(getByPlaceholderText(placeholdCurrPass).value).not.toBe('');
-  expect(getByPlaceholderText(placeholdNewPass).value).not.toBe('');
-  expect(getByPlaceholderText(placeholdConfirm).value).not.toBe('');
+  expect(getByPlaceholderText(placeholdCurrPass)).not.toHaveAttribute(
+    'value',
+    ''
+  );
+  expect(getByPlaceholderText(placeholdNewPass)).not.toHaveAttribute(
+    'value',
+    ''
+  );
+  expect(getByPlaceholderText(placeholdConfirm)).not.toHaveAttribute(
+    'value',
+    ''
+  );
 });

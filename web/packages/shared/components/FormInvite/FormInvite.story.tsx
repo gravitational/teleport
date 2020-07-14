@@ -25,7 +25,7 @@ export default {
 export function Off() {
   const props = {
     ...defaultProps,
-    auth2faType: 'off',
+    auth2faType: 'off' as const,
   };
 
   return <FormInvite {...props} />;
@@ -39,6 +39,7 @@ export function OtpError() {
   const props = {
     ...defaultProps,
     attempt: {
+      ...defaultProps.attempt,
       isFailed: true,
       message: 'Server error with a long teeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeext',
     },
@@ -51,9 +52,10 @@ export function U2f() {
   const props = {
     ...defaultProps,
     attempt: {
+      ...defaultProps.attempt,
       isProcessing: true,
     },
-    auth2faType: 'u2f',
+    auth2faType: 'u2f' as const,
   };
 
   return <FormInvite {...props} />;
@@ -67,10 +69,11 @@ export function U2fError() {
   const props = {
     ...defaultProps,
     attempt: {
+      ...defaultProps.attempt,
       isFailed: true,
       message: 'Message whic has [U2F] word',
     },
-    auth2faType: 'u2f',
+    auth2faType: 'u2f' as const,
   };
 
   return <FormInvite {...props} />;
@@ -127,10 +130,15 @@ const userToken = {
 };
 
 const defaultProps = {
-  auth2faType: 'otp',
+  auth2faType: 'otp' as const,
   authType: '',
   onSubmitWithU2f() {},
   onSubmit() {},
-  attempt: {},
+  attempt: {
+    isProcessing: false,
+    isFailed: false,
+    isSuccess: false,
+    message: '',
+  },
   ...userToken,
 };

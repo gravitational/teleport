@@ -18,30 +18,41 @@ import React from 'react';
 import ReactSelect from 'react-select';
 import ReactSelectAsync from 'react-select/async';
 import styled from 'styled-components';
+import { Props, AsyncProps } from './types';
 
-export default function Select({ hasError, ...props }) {
+export default function Select(props: Props) {
+  const { hasError = false, ...restOfProps } = props;
   return (
     <StyledSelect hasError={hasError}>
       <ReactSelect
         className="react-select-container"
         classNamePrefix="react-select"
         clearable={false}
+        isMulti={false}
+        isSearchable={true}
+        maxMenuHeight={300}
         placeholder="Select..."
-        {...props}
+        {...restOfProps}
       />
     </StyledSelect>
   );
 }
 
-export function SelectAsync({ hasError, ...props }) {
+export function SelectAsync(props: AsyncProps) {
+  const { hasError = false, ...restOfProps } = props;
   return (
     <StyledSelect hasError={hasError}>
       <ReactSelectAsync
         className="react-select-container"
         classNamePrefix="react-select"
         clearable={false}
+        isSearchable={true}
+        maxMenuHeight={300}
+        defaultOptions={false}
+        cacheOptions={false}
+        defaultMenuIsOpen={false}
         placeholder="Select..."
-        {...props}
+        {...restOfProps}
       />
     </StyledSelect>
   );

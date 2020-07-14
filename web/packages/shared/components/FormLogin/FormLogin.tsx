@@ -16,28 +16,29 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import PropTypes from 'prop-types';
 import { Card, Text, Flex, ButtonLink, ButtonPrimary } from 'design';
 import * as Alerts from 'design/Alert';
-import { isU2f, isOtp } from './../../services/enums';
-import SsoButtonList from './SsoButtons';
-import Validation from '../Validation';
+import { AuthProvider, Auth2faType } from 'shared/services';
+import SSOButtonList from './SsoButtons';
+import Validation, { Validator } from '../Validation';
 import FieldInput from '../FieldInput';
 import { requiredToken, requiredField } from '../Validation/rules';
+import { useAttempt } from 'shared/hooks';
 
-export default function LoginForm(props) {
+export default function LoginForm(props: Props) {
   const {
     title,
     attempt,
-    auth2faType,
     onLoginWithU2f,
     onLogin,
     onLoginWithSso,
     authProviders,
+    auth2faType = 'off',
     isLocalAuthEnabled = true,
   } = props;
-  const u2fEnabled = isU2f(auth2faType);
-  const otpEnabled = isOtp(auth2faType);
+
+  const u2fEnabled = auth2faType === 'u2f';
+  const otpEnabled = auth2faType === 'otp';
   const ssoEnabled = authProviders && authProviders.length > 0;
 
   const [pass, setPass] = React.useState('');
@@ -48,7 +49,10 @@ export default function LoginForm(props) {
   );
   const { isFailed, isProcessing, message } = attempt;
 
-  function onLoginClick(e, validator) {
+  function onLoginClick(
+    e: React.MouseEvent<HTMLButtonElement>,
+    validator: Validator
+  ) {
     e.preventDefault();
     if (!validator.validate()) {
       return;
@@ -78,7 +82,7 @@ export default function LoginForm(props) {
             </Alerts.Danger>
           )}
           {ssoEnabled && (
-            <SsoButtonList
+            <SSOButtonList
               prefixText="Login with"
               isDisabled={isProcessing}
               providers={authProviders}
@@ -174,7 +178,7 @@ const FlexBordered = props => (
   />
 );
 
-const CardLogin = ({ title, children, ...styles }) => (
+const CardLogin = ({ title = '', children, ...styles }) => (
   <Card bg="primary.light" my="5" mx="auto" width="464px" {...styles}>
     <Text typography="h3" pt={5} textAlign="center" color="light">
       {title}
@@ -207,31 +211,13 @@ const StyledOr = styled.div`
   z-index: 1;
 `;
 
-LoginForm.propTypes = {
-  /**
-   * authProviders is an array of Single Sign On (SSO) Providers.
-   * eg: github, google, bitbucket, microsoft, unknown, etc.
-   *
-   * enums are defined in shared/ButtonSso/utils.js
-   */
-  authProviders: PropTypes.array,
-
-  /**
-   * auth2faType defines login type.
-   * eg: u2f, otp, off (disabled).
-   *
-   * enums are defined in shared/services/enums.js
-   */
-  auth2faType: PropTypes.string,
-
-  /**
-   * attempt contains props that indicate login processing status.
-   *
-   * fmt: {isFailed: bool, isProcessing: bool, message: string}
-   */
-  attempt: PropTypes.object.isRequired,
-
-  onLoginWithU2f: PropTypes.func.isRequired,
-  onLogin: PropTypes.func.isRequired,
-  onLoginWithSso: PropTypes.func.isRequired,
+type Props = {
+  title?: string;
+  isLocalAuthEnabled?: boolean;
+  authProviders?: AuthProvider[];
+  auth2faType?: Auth2faType;
+  attempt: ReturnType<typeof useAttempt>[0];
+  onLoginWithSso(provider: AuthProvider): void;
+  onLoginWithU2f(username: string, password: string): void;
+  onLogin(username: string, password: string, token: string): void;
 };

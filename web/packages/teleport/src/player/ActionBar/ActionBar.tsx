@@ -21,10 +21,7 @@ import { MenuIcon, MenuItem, MenuItemIcon } from 'shared/components/MenuAction';
 import * as Icons from 'design/Icon';
 import cfg from 'teleport/config';
 
-export default function ActionBar({
-  clusterId = '',
-  onLogout,
-}: ActionBarProps) {
+export default function ActionBar({ clusterId = '', onLogout }: Props) {
   return (
     <Flex alignItems="center">
       <MenuIcon
@@ -45,9 +42,9 @@ export default function ActionBar({
   );
 }
 
-type ActionBarProps = {
+type Props = {
   clusterId?: string;
-  onLogout: () => void;
+  onLogout(): void;
 };
 
 const menuListCss = () => `
@@ -64,4 +61,4 @@ const menuProps = {
     vertical: 'top',
     horizontal: 'center',
   },
-};
+} as const;

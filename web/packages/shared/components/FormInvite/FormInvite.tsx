@@ -15,23 +15,23 @@ limitations under the License.
 */
 
 import React from 'react';
-import PropTypes from 'prop-types';
 import { Text, Card, ButtonPrimary, Flex, Box } from 'design';
 import * as Alerts from 'design/Alert';
-import FieldInput from './../FieldInput';
-import Validation from './../Validation';
-import { isOtp, isU2f } from '../../services/enums';
+import FieldInput from '../FieldInput';
+import Validation, { Validator } from '../Validation';
+import { Auth2faType } from 'shared/services';
 import TwoFAData from './TwoFaInfo';
 import {
   requiredToken,
   requiredPassword,
   requiredConfirmedPassword,
-} from './../Validation/rules';
+} from '../Validation/rules';
+import { useAttempt } from 'shared/hooks';
 
 const U2F_ERROR_CODES_URL =
   'https://developers.yubico.com/U2F/Libraries/Client_error_codes.html';
 
-export default function FormInvite(props) {
+export default function FormInvite(props: Props) {
   const {
     auth2faType,
     onSubmitWithU2f,
@@ -39,20 +39,23 @@ export default function FormInvite(props) {
     attempt,
     user,
     qr,
-    title,
-    submitBtnText,
+    title = '',
+    submitBtnText = 'Submit',
   } = props;
   const [password, setPassword] = React.useState('');
   const [passwordConfirmed, setPasswordConfirmed] = React.useState('');
   const [token, setToken] = React.useState('');
 
-  const otpEnabled = isOtp(auth2faType);
-  const u2fEnabled = isU2f(auth2faType);
+  const otpEnabled = auth2faType === 'otp';
+  const u2fEnabled = auth2faType === 'u2f';
   const secondFactorEnabled = otpEnabled || u2fEnabled;
   const { isProcessing, isFailed, message } = attempt;
   const boxWidth = (secondFactorEnabled ? 720 : 464) + 'px';
 
-  function onBtnClick(e, validator) {
+  function onBtnClick(
+    e: React.MouseEvent<HTMLButtonElement>,
+    validator: Validator
+  ) {
     e.preventDefault();
     if (!validator.validate()) {
       return;
@@ -131,7 +134,13 @@ export default function FormInvite(props) {
               )}
             </Box>
             {secondFactorEnabled && (
-              <Box flex="1" bg="primary.main" p="6" borderTopRightRadius="3" borderBottomRightRadius="3">
+              <Box
+                flex="1"
+                bg="primary.main"
+                p="6"
+                borderTopRightRadius="3"
+                borderBottomRightRadius="3"
+              >
                 <TwoFAData auth2faType={auth2faType} qr={qr} />
               </Box>
             )}
@@ -142,18 +151,15 @@ export default function FormInvite(props) {
   );
 }
 
-FormInvite.propTypes = {
-  submitBtnText: PropTypes.string,
-  auth2faType: PropTypes.string,
-  onSubmitWithU2f: PropTypes.func.isRequired,
-  onSubmit: PropTypes.func.isRequired,
-  attempt: PropTypes.object.isRequired,
-  user: PropTypes.string.isRequired,
-  qr: PropTypes.string,
-};
-
-FormInvite.defaultProps = {
-  submitBtnText: 'Submit',
+type Props = {
+  title?: string;
+  submitBtnText?: string;
+  user: string;
+  qr: string;
+  auth2faType: Auth2faType;
+  attempt: ReturnType<typeof useAttempt>[0];
+  onSubmitWithU2f(password: string): void;
+  onSubmit(password: string, optToken: string): void;
 };
 
 function ErrorMessage({ message = '' }) {

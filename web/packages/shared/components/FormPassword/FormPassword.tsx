@@ -15,30 +15,29 @@ limitations under the License.
 */
 
 import React from 'react';
-import PropTypes from 'prop-types';
 import { Card, ButtonPrimary } from 'design';
 import * as Alerts from 'design/Alert';
-import useAttempt from './../../hooks/useAttempt';
-import FieldInput from './../FieldInput';
-import Validation from '../Validation';
+import useAttempt from 'shared/hooks/useAttempt';
+import FieldInput from '../FieldInput';
+import Validation, { Validator } from '../Validation';
 import {
   requiredToken,
   requiredPassword,
   requiredField,
   requiredConfirmedPassword,
-} from './../Validation/rules';
-import { isOtp, isU2f } from './../../services/enums';
+} from '../Validation/rules';
+import { Auth2faType } from 'shared/services';
 
-function FormPassword(props) {
-  const { onChangePassWithU2f, onChangePass, auth2faType } = props;
-  const [attempt, attemptActions] = useAttempt();
+function FormPassword(props: Props) {
+  const { onChangePassWithU2f, onChangePass, auth2faType = 'off' } = props;
+  const [attempt, attemptActions] = useAttempt({});
   const [token, setToken] = React.useState('');
   const [oldPass, setOldPass] = React.useState('');
   const [newPass, setNewPass] = React.useState('');
   const [newPassConfirmed, setNewPassConfirmed] = React.useState('');
 
-  const otpEnabled = isOtp(auth2faType);
-  const u2fEnabled = isU2f(auth2faType);
+  const otpEnabled = auth2faType === 'otp';
+  const u2fEnabled = auth2faType === 'u2f';
   const { isProcessing } = attempt;
 
   function submit() {
@@ -56,7 +55,10 @@ function FormPassword(props) {
     setToken('');
   }
 
-  function onSubmit(e, validator) {
+  function onSubmit(
+    e: React.MouseEvent<HTMLButtonElement>,
+    validator: Validator
+  ) {
     e.preventDefault();
     if (!validator.validate()) {
       return;
@@ -79,7 +81,7 @@ function FormPassword(props) {
     <Validation>
       {({ validator }) => (
         <Card as="form" bg="primary.light" width="456px" p="6">
-          <Status u2f={u2fEnabled} attempt={attempt} />
+          <Status isU2F={u2fEnabled} attempt={attempt} />
           <FieldInput
             rule={requiredField('Current Password is required')}
             label="Current Password"
@@ -130,31 +132,16 @@ function FormPassword(props) {
   );
 }
 
-FormPassword.propTypes = {
-  onChangePass: PropTypes.func.isRequired,
-  onChangePassWithU2f: PropTypes.func.isRequired,
-
-  /**
-   * auth2faType defines login type.
-   * eg: u2f, otp, off (disabled).
-   *
-   * enums are defined in shared/services/enums.js
-   */
-  auth2faType: PropTypes.string,
-};
-
-function Status({ attempt, u2f }) {
-  const { isProcessing, isFailed, message, isSuccess } = attempt;
-
-  if (isFailed) {
-    return <Alerts.Danger>{message}</Alerts.Danger>;
+function Status({ attempt, isU2F }: StatusProps) {
+  if (attempt.isFailed) {
+    return <Alerts.Danger>{attempt.message}</Alerts.Danger>;
   }
 
-  if (isSuccess) {
+  if (attempt.isSuccess) {
     return <Alerts.Success>Your password has been changed!</Alerts.Success>;
   }
 
-  const waitForU2fKeyResponse = isProcessing && u2f;
+  const waitForU2fKeyResponse = attempt.isProcessing && isU2F;
   if (waitForU2fKeyResponse) {
     return (
       <Alerts.Info>
@@ -165,5 +152,16 @@ function Status({ attempt, u2f }) {
 
   return null;
 }
+
+type StatusProps = {
+  attempt: ReturnType<typeof useAttempt>[0];
+  isU2F: boolean;
+};
+
+type Props = {
+  auth2faType?: Auth2faType;
+  onChangePass(oldPass: string, newPass: string, token: string): Promise<any>;
+  onChangePassWithU2f(oldPass: string, newPass: string): Promise<any>;
+};
 
 export default FormPassword;

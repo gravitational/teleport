@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import ButtonSso, { TypeEnum } from './ButtonSso';
+import ButtonSso from './ButtonSso';
 
 export default {
   title: 'Shared',
@@ -23,10 +23,10 @@ export default {
 
 export const Button = () => (
   <div style={{ width: '300px' }}>
-    <ButtonSso mt={3} title="Valdez" ssoType={TypeEnum.MICROSOFT} />
-    <ButtonSso mt={3} title="Norman" ssoType={TypeEnum.GITHUB} />
-    <ButtonSso mt={3} title="Barnes" ssoType={TypeEnum.GOOGLE} />
-    <ButtonSso mt={3} title="Norton" ssoType={TypeEnum.BITBUCKET} />
+    <ButtonSso mt={3} title="Valdez" ssoType="microsoft" />
+    <ButtonSso mt={3} title="Norman" ssoType="github" />
+    <ButtonSso mt={3} title="Barnes" ssoType="google" />
+    <ButtonSso mt={3} title="Norton" ssoType="bitbucket" />
     <ButtonSso mt={3} title="Russell" ssoType="unknown" />
   </div>
 );
