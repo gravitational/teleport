@@ -20,10 +20,6 @@ export TELEPORT_CLUSTER_NAME="[teleport-cluster-name]"
       enabled: "yes"
       authentication:
           type: github
-          # IP and the port to bind to. Other Teleport nodes will be connecting to
-          # this port (AKA "Auth API" or "Cluster API") to validate client
-          # certificates
-          listen_addr: 0.0.0.0:3025
     ssh_service:
       enabled: "no"
     proxy_service:

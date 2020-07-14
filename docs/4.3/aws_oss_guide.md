@@ -383,20 +383,23 @@ To upgrade to a newer version of Teleport:
 
 ## Accessing EKS using Teleport
 
-In this section, we will set Kubernetes RBAC permissions needed by Teleport and configure the EC2 instance running Teleport to map to those permissions. This guide is based on an original post from AWS Open Source Blog - [Authenticating to EKS Using GitHub Credentials with Teleport](https://aws.amazon.com/blogs/opensource/authenticating-eks-github-credentials-teleport/) but will be updated with latest Teleport version & best practices.
+In this section, we will set Kubernetes RBAC permissions needed by Teleport and
+configure the EC2 instance running Teleport to map to those permissions. This guide
+is based on an original post from AWS Open Source Blog - [Authenticating to EKS Using GitHub Credentials with Teleport](https://aws.amazon.com/blogs/opensource/authenticating-eks-github-credentials-teleport/)
+but will be updated with latest Teleport version & best practices.
 
 ### Prerequisites
 You’ll need a functioning EKS cluster, we recommend version 1.16.  If you’re unfamiliar
-with creating an EKS cluster, view [AWS EKS getting started guide](https://aws.amazon.com/eks/getting-started/ ).
+with creating an EKS cluster, view [AWS EKS getting started guide](https://aws.amazon.com/eks/getting-started/).
 
 - EKS Version: The below guide has been tested with [Kubernetes 1.16](https://docs.aws.amazon.com/eks/latest/userguide/kubernetes-versions.html)
 - [`eksctl`](https://eksctl.io). Make sure you have eksctl version 0.22.0.
-- [`jq`](https://stedolan.github.io/jq/) installed on you  local machine.
+- [`jq`](https://stedolan.github.io/jq/) installed on your local machine.
 - An AWS Account with Root Access
 
 ### Create cluster role and role binding
 The first step is to create a cluster role and role binding that will allow the Teleport
-EC2 instance to relay user requests to the Kubernetes API
+EC2 instance to relay user requests to the Kubernetes API.
 
 The below command is ran on a machine with `kubectl` access to the cluster.
 
@@ -435,7 +438,7 @@ subjects:
   name: teleport-group
 EOF
 ```
-If successful the terminal should output.
+If successful the terminal should output:
 ```
 # clusterrole.rbac.authorization.k8s.io/teleport-impersonation created
 # clusterrolebinding.rbac.authorization.k8s.io/teleport-crb created
@@ -460,7 +463,7 @@ $ cat > teleport_assume_role.json << 'EOF'
 }
 EOF
 ```
-This will create a `.json` file locally, the below command should then be ran to create the role.
+This will create a `.json` file locally, the below command should then be run to create the role.
 
 ```bash
 $ aws iam create-role --role-name teleport-role --assume-role-policy-document file://teleport_assume_role.json
@@ -511,15 +514,19 @@ kubectl get -n kube-system configmap/aws-auth -o yaml | awk "/mapRoles: \|/{prin
 kubectl patch configmap/aws-auth -n kube-system --patch "$(cat /tmp/aws-auth-patch.yml)"
 ```
 
-To check, run  `kubectl describe configmap -n kube-system aws-auth`
-
+To check, run `kubectl describe configmap -n kube-system aws-auth`
 
 ### Installing Teleport
 #### Create EC2 instance
-Create an EC2 instance using the [Teleport Community AMI](https://aws.amazon.com/marketplace/pp/Gravitational-Teleport-Community-Edition/B07FYTZB9B) on a public subnet in your VPC. Modify the security group associated with that instance to allow port 22 inbound, so you can SSH to the instance after it’s running. You will need security group rules to allow access to ports `3080`  and `3022-3026` so that users can access theTeleport server from the Internet.
+Create an EC2 instance using the [Teleport Community AMI](https://aws.amazon.com/marketplace/pp/Gravitational-Teleport-Community-Edition/B07FYTZB9B) on a public subnet in your VPC.
+Modify the security group associated with that instance to allow port 22 inbound, so
+you can SSH to the instance after it’s running. You will need security group rules
+to allow access to ports `3080` and `3022-3026` so that users can access the Teleport
+server from the Internet.
 
-This will let GitHub to post a response back to the Teleport server. You’ll
-need to open port 80 to allow Let’s Encrypt to complete HTTP validation when using SSL certificates/unless you provide pre-provisioned TLS certificates.
+This will allow GitHub to post a response back to the Teleport server. You’ll
+need to open port 80 to allow Let’s Encrypt to complete HTTP validation when using
+SSL certificates/unless you provide pre-provisioned TLS certificates.
 
 | Type   | Protocol | Port Range | Source    |
 |--------|----------|------------|-----------|
@@ -528,7 +535,8 @@ need to open port 80 to allow Let’s Encrypt to complete HTTP validation when u
 | HTTP   | TCP      | 80         | 0.0.0.0/0 |
 | SSH    | TCP      | 22         | your IP   |
 
-You must modify the EKS control plane security group to allow port 443 inbound from the Teleport security group, to allow your Teleport instance to communicate with the Kubernetes API.
+You must modify the EKS control plane security group to allow port 443 inbound from
+the Teleport security group, to allow your Teleport instance to communicate with the Kubernetes API.
 
 Assign role to instance:
 
@@ -580,7 +588,8 @@ Create TLS certificate for HTTPs. It is absolutely crucial to properly configure
 for HTTPS when you use Teleport Proxy in production. For simplicity, we are using Let’s
 Encrypt to issue certificates and simple DNS resolution.
 
-However, using an Elastic IP and a Route53 domain name would be appropriate for production use cases.
+However, using an Elastic IP and a Route53 domain name would be appropriate for
+production use cases.
 
 Install certbot:
 
@@ -683,7 +692,16 @@ kube-system   kube-proxy-c5nv2           1/1     Running   0          5h28m
 ```
 
 ## Running Teleport Enterprise on AWS
-Most of this guide has been designed for OSS Teleport. Most of this guide also applies to Teleport Enterprise with a few extra notes around adding a license and getting the correct binary. If you would like help setting up Teleport Enterprise on AWS, please mail us at [info@gravitational.com](mailto:info@gravitational.com)
+Most of this guide has been designed for OSS Teleport. Most of this guide also applies
+to Teleport Enterprise with a few extra notes around adding a license and getting the
+correct binary.
+
+We've a few other resources for Enterprise customers such as our
+
+- [Running Teleport Enterprise in HA mode on AWS using Terraform](/aws_terraform_guide.md)
+- [Teleport Enterprise Quickstart](/enterprise/quickstart-enterprise.md)
+
+If you would like help setting up Teleport Enterprise on AWS, please mail us at [info@gravitational.com](mailto:info@gravitational.com)
 
 ## Teleport AWS Tips & Tricks
 
