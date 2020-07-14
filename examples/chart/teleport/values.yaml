@@ -7,12 +7,12 @@ license:
 
 # Docker image to use
 image:
-  #Used if license is enabled
+  # Used if license is enabled
   enterpriseRepository: quay.io/gravitational/teleport-ent
-  #Used if license is disabled
+  # Used if license is disabled
   communityRepository: quay.io/gravitational/teleport
-  #Version of Teleport
-  tag: 4.2.10
+  # Version of Teleport
+  tag: 4.3.0
   pullPolicy: IfNotPresent
   # Optionally specify an array of imagePullSecrets.
   # Secrets must be manually created in the namespace.
