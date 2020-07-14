@@ -154,7 +154,7 @@ config:
       kubernetes:
         enabled: yes
 
-#Alternatively you can provide your teleport configuration under teleportConfig with static text.  No variable substituion
+# Alternatively you can provide your teleport configuration under teleportConfig with static text.  No variable substituion
 otherConfig:
   useOtherConfig: false
   teleportConfig:
