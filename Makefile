@@ -326,7 +326,7 @@ docker:
 
 # Dockerized build: useful for making Linux binaries on OSX
 .PHONY:docker-binaries
-docker-binaries:
+docker-binaries: clean
 	make -C build.assets build-binaries
 
 # Interactively enters a Docker container (which you can build and run Teleport inside of)
