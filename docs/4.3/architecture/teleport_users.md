@@ -2,6 +2,9 @@
 
 <!--TODO: This doc is incomplete, pending addition of Enterprise topics-->
 
+**Table of Contents**
+
+[TOC]
 
 ## Types of Users
 
@@ -60,7 +63,7 @@ is present on all nodes.
 joe | root, joe | grav-00, grav-01, grav-02
 tara | tara | grav-01, grav-02
 teleport | teleport  | grav-00, grav-02
-sandra | ops | grav-00, grav-02
+sandra | ops | grav-00, grav-01
 
 Teleport supports second factor authentication (2FA) when using a local auth
 connector and it is enforced by default.

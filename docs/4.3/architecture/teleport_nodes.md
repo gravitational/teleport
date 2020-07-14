@@ -1,5 +1,8 @@
 ## Teleport Nodes
 
+**Table of Contents**
+
+[TOC]
 
 ## The Node Service
 
@@ -49,7 +52,7 @@ This certificate contains information about the node including:
 * The node **role** (i.e. `node,proxy`) encoded as a certificate extension
 * The cert **TTL** (time-to-live)
 
-A Teleport Cluster is a set of one or more machines whose public keys are signed
+A Teleport Cluster is a set of one or more machines whose certificates are signed
 by the same certificate authority (CA) operating in the Auth Server. A
 certificate is issued to a node when it joins the cluster for the first time.
 Learn more about this process in the [Auth
@@ -96,10 +99,10 @@ By default, nodes submit SSH session traffic to the Auth server
 for storage. These recorded sessions can be replayed later via `tsh play`
 command or in a web browser.
 
-Some Teleport users mistakenly believe that audit and session recording happen
-by default on the Teleport proxy server. This is not the case because a proxy
-cannot see the encrypted traffic, it is encrypted end-to-end, i.e. from an SSH
-client to an SSH server/node, see the diagram below:
+Some Teleport users assume that audit and session recording happen by default
+on the Teleport proxy server. This is not the case in default configuration
+because a proxy cannot see the encrypted traffic, it is encrypted end-to-end,
+i.e. from an SSH client to an SSH server/node, see the diagram below:
 
 ![session-recording-diagram](../img/session-recording.svg)
 
@@ -109,9 +112,8 @@ Teleport proxy to enable "recording proxy mode".
 ## Trusted Clusters
 
 Teleport Auth Service can allow 3rd party users or nodes to connect to cluster
-nodes if their public keys are signed by a trusted CA. A "trusted cluster" is a
-pair of public keys of the trusted CA. It can be configured via `teleport.yaml`
-file.
+nodes if their certificates are signed by a trusted CA. A "trusted cluster" is
+a public key of the trusted CA. It can be configured via `teleport.yaml` file.
 
 <!--TODO: incomplete, write more on this-->
 

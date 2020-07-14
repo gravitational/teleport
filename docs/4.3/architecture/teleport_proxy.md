@@ -1,5 +1,9 @@
 ## The Proxy Service
 
+**Table of Contents**
+
+[TOC]
+
 The proxy is a stateless service which performs three main functions in a
 Teleport cluster:
 
@@ -97,6 +101,8 @@ its own SSH connection to the final destination server, effectively becoming an
 authorized "man in the middle". This allows the proxy server to forward SSH
 session data to the auth server to be recorded, as shown below:
 
+![recording-proxy](../img/recording-proxy.svg)
+
 The recording proxy mode, although _less secure_, was added to allow Teleport
 users to enable session recording for OpenSSH's servers running `sshd`, which is
 helpful when gradually transitioning large server fleets to Teleport.
@@ -119,8 +125,9 @@ prevent sessions logs from reaching the Auth Server. With sessions recorded at
 the proxy, users with root privileges on nodes have no way of disabling the
 audit.
 
-See the [admin guide](../admin-guide.md#recorded-sessions) to learn how to turn on
-the recording proxy mode.
+See the [admin guide](../admin-guide.md#recorded-sessions) to learn how to turn
+on the recording proxy mode. Note that the recording mode is configured on the
+Auth Server.
 
 ## More Concepts
 

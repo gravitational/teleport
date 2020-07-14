@@ -50,7 +50,7 @@ with verbose logging by typing [ `teleport start -d` ](cli-docs.md#teleport-star
 In production, we recommend starting teleport daemon via an init system like
 `systemd` . Here's the recommended Teleport service unit file for systemd:
 
-``` yaml
+``` systemd
 [Unit]
 Description=Teleport SSH Service
 After=network.target
@@ -586,7 +586,7 @@ pointing to a JSON file that mirrors `facets` in the auth config.
 For logging in via the CLI, you must first install
 [u2f-host](https://developers.yubico.com/libu2f-host/). Installing:
 
-``` yaml
+``` bash
 # OSX:
 $ brew install libu2f-host
 
@@ -596,8 +596,8 @@ $ apt-get install u2f-host
 
 Then invoke `tsh ssh` as usual to authenticate:
 
-```
-tsh --proxy <proxy-addr> ssh <hostname>
+``` bash
+$ tsh --proxy <proxy-addr> ssh <hostname>
 ```
 
 !!! tip "Version Warning"
@@ -624,20 +624,20 @@ Let's look at this table:
 |------------------|---------------|-----------------------------
 |joe    | joe, root | Teleport user 'joe' can login into member nodes as OS user 'joe' or 'root'
 |bob    | bob      | Teleport user 'bob' can login into member nodes only as OS user 'bob'
-|ross   |          | If no OS login is specified, it defaults to the same name as the Teleport user.
+|ross   |          | If no OS login is specified, it defaults to the same name as the Teleport user - 'ross'.
 
 To add a new user to Teleport, you have to use the [ `tctl` ](cli-docs.md#tctl)
 tool on the same node where the auth server is running, i.e.
 [ `teleport` ](cli-docs.md#teleport) was started with `--roles=auth` .
 
-``` bsh
+``` bash
 $ tctl users add joe joe,root
 ```
 
 Teleport generates an auto-expiring token (with a TTL of 1 hour) and prints the
 token URL which must be used before the TTL expires.
 
-``` bsh
+``` bash
 Signup token has been created. Share this URL with the user:
 https://<proxy>:3080/web/newuser/xxxxxxxxxxxx
 
@@ -653,7 +653,7 @@ need to log back in with her credentials. This TTL can be configured to a
 different value. Once authenticated, the account will become visible via `tctl`
 :
 
-``` bsh
+``` bash
 $ tctl users ls
 
 User           Allowed Logins
@@ -666,13 +666,13 @@ joe            joe,root
 Joe would then use the `tsh` client tool to log in to member node "luna" via
 bastion "work" _as root_:
 
-``` yaml
+``` bash
 $ tsh --proxy=work --user=joe root@luna
 ```
 
 To delete this user:
 
-``` yaml
+``` bash
 $ tctl users rm joe
 ```
 
@@ -682,13 +682,13 @@ Users entries can be manipulated using the generic [resource
 commands](#resources) via [ `tctl` ](cli-docs.md#tctl) . For example, to see the
 full list of user records, an administrator can execute:
 
-``` yaml
+``` bash
 $ tctl get users
 ```
 
 To edit the user "joe":
 
-``` yaml
+``` bash
 # dump the user definition into a file:
 $ tctl get user/joe > joe.yaml
 # ... edit the contents of joe.yaml
@@ -744,14 +744,14 @@ Use the [ `tctl` ](cli-docs.md#tctl) tool to register a new invitation token (or
 it can also generate a new token for you). In the following example a new token
 is created with a TTL of 5 minutes:
 
-``` bsh
+``` bash
 $ tctl nodes add --ttl=5m --roles=node,proxy --token=secret-value
 The invite token: secret-value
 ```
 
 If `--token` is not provided, [ `tctl` ](cli-docs.md#tctl) will generate one:
 
-``` bsh
+``` bash
 # generate a short-lived invitation token for a new node:
 $ tctl nodes add --ttl=5m --roles=node,proxy
 The invite token: e94d68a8a1e5821dbd79d03a960644f0
@@ -771,7 +771,7 @@ $ tctl tokens rm e94d68a8a1e5821dbd79d03a960644f0
 Both static and short-lived tokens are used the same way. Execute the following
 command on a new node to add it to a cluster:
 
-``` bsh
+``` bash
 # adding a new regular SSH node to the cluster:
 $ teleport start --roles=node --token=secret-token-value --auth-server=10.0.10.5
 
@@ -785,7 +785,7 @@ $ teleport start --roles=proxy --token=secret-token-value --auth-server=10.0.10.
 As new nodes come online, they start sending ping requests every few seconds to
 the CA of the cluster. This allows users to explore cluster membership and size:
 
-``` bsh
+``` bash
 $ tctl nodes ls
 
 Node Name     Node ID                                  Address            Labels
@@ -803,8 +803,9 @@ e.g. `10.0.10.5` .
 
 To prevent this from happening, you need to supply every new node with an
 additional bit of information about the auth server. This technique is called
-"CA Pinning". It works by asking the auth server to produce a "CA Pin", which is
-a hashed value of its private key, i.e. it cannot be forged by an attacker.
+"CA Pinning". It works by asking the auth server to produce a "CA Pin", which
+is a hashed value of its public key, i.e. for which an attacker can't forge a
+matching private key.
 
 On the auth server:
 
@@ -859,7 +860,7 @@ As you have seen above, Teleport uses tokens to invite users to a cluster
 Both types of tokens can be revoked before they can be used. To see a list of
 outstanding tokens, run this command:
 
-``` bsh
+``` bash
 $ tctl tokens ls
 
 Token                                Role       Expiry Time (UTC)
@@ -878,7 +879,7 @@ cluster. And the 3rd token was generated to invite a new user.
 The latter two tokens can be deleted (revoked) via [`tctl tokens
 del`](cli-docs.md#tctl-tokens-rm) command:
 
-``` yaml
+``` bash
 $ tctl tokens del 696c0471453e75882ff70a761c1a8bfa
 Token 696c0471453e75882ff70a761c1a8bfa has been deleted
 ```
@@ -892,11 +893,11 @@ Teleport Node Tunneling lets you add a node to an existing Teleport Cluster. Thi
 useful for IoT applications or for managing a couple of servers in a different network.
 
 Similar to [Adding Nodes to Cluster](#adding-nodes-to-the-cluster), use `tctl` to
-create a single-use token for a node, but this time you'll replace the auth server IP with
-the URL of the Proxy Server. In the Example below, we've replaced the auth server IP with the Proxy#adding-nodes-to-the-cluster
-web endpoint `teleport.example.com`.
+create a single-use token for a node, but this time you'll replace the auth
+server IP with the URL of the Proxy Server. In the Example below, we've
+replaced the auth server IP with the Proxy web endpoint `teleport.example.com`.
 
-```bash
+``` bash
 $ sudo tctl nodes add
 
 The invite token: n92bb958ce97f761da978d08c35c54a5c
@@ -938,7 +939,7 @@ There are two ways to configure node labels.
 To define labels as command line arguments, use `--labels` flag like shown
 below. This method works well for static labels or simple commands:
 
-``` yaml
+``` bash
 $ teleport start --labels uptime=[1m:"uptime -p"],kernel=[1h:"uname -r"]
 ```
 
@@ -1024,7 +1025,7 @@ Let's examine the Teleport audit log using the `dir` backend. The event log is
 stored in `data_dir` under `log` directory, usually `/var/lib/teleport/log` .
 Each day is represented as a file:
 
-``` yaml
+``` bash
 $ ls -l /var/lib/teleport/log/
 total 104
 -rw-r----- 1 root root  31638 Jan 22 20:00 2017-01-23.00:00:00.log
@@ -1097,7 +1098,7 @@ The recorded sessions are stored as raw bytes in the `sessions` directory under
 
 2. `.log` file or `.events.gz` compressed file contains the copies of the event log entries that are            related to this session.
 
-``` yaml
+``` bash
 $ ls /var/lib/teleport/log/sessions/default
 -rw-r----- 1 root root 506192 Feb 4 00:46 4c146ec8-eab6-11e6-b1b3-40167e68e931.session.bytes
 -rw-r----- 1 root root  44943 Feb 4 00:46 4c146ec8-eab6-11e6-b1b3-40167e68e931.session.log
@@ -1105,7 +1106,7 @@ $ ls /var/lib/teleport/log/sessions/default
 
 To replay this session via CLI:
 
-``` yaml
+``` bash
 $ tsh --proxy=proxy play 4c146ec8-eab6-11e6-b1b3-40167e68e931
 ```
 
@@ -1116,8 +1117,8 @@ session recording works. By default, the recording is not available if a cluster
 runs `sshd` (the OpenSSH daemon) on the nodes.
 
 To enable session recording for `sshd` nodes, the cluster must be switched to
-"recording proxy" mode. In this mode, the recording will be done on the proxy
-level:
+["recording proxy" mode](architecture/teleport_proxy.md#recording-proxy-mode).
+In this mode, the recording will be done on the proxy level:
 
 ``` yaml
 # snippet from /etc/teleport.yaml
@@ -1128,7 +1129,7 @@ auth_service:
 Next, `sshd` must be told to allow users to log in with certificates generated
 by the Teleport User CA. Start by exporting the Teleport CA public key:
 
-``` yaml
+``` bash
 $ tctl auth export --type=user
 ```
 
@@ -1165,7 +1166,7 @@ auth_service:
 The recommended solution is to ask Teleport to issue valid host certificates for
 all OpenSSH nodes. To generate a host certificate run this on your auth server:
 
-``` yaml
+``` bash
 $ tctl auth sign \
       --host=node.example.com \
       --format=openssh
@@ -1180,16 +1181,16 @@ HostCertificate /etc/ssh/teleport_host_key-cert.pub
 
 Now you can use [ `tsh ssh user@host.example.com` ](cli-docs.md#tsh) to login
 into any `sshd` node in the cluster and the session will be recorded. If you
-want to use [OpenSSH `ssh` client](#using-teleport-with-openssh) for logging
-into `sshd` servers behind a proxy in "recording mode", you have to tell the
-`ssh` client to use the jump host and enable the agent forwarding, otherwise a
-recording proxy will not be able to terminate the SSH connection to record it:
+want to use OpenSSH `ssh` client for logging into `sshd` servers behind a proxy
+in "recording mode", you have to tell the `ssh` client to use the jump host and
+enable the agent forwarding, otherwise a recording proxy will not be able to
+terminate the SSH connection to record it:
 
-``` bsh
+``` bash
 # Note that agent forwarding is enabled twice: one from a client to a proxy
 # (mandatory if using a recording proxy), and then optionally from a proxy
 # to the end server if you want your agent running on the end server or not
-ssh -o "ForwardAgent yes" \
+$ ssh -o "ForwardAgent yes" \
     -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@p.example.com -s proxy:%h:%p" \
     user@host.example.com
 ```
@@ -1228,7 +1229,7 @@ When using a Teleport proxy in "recording mode", be aware of OpenSSH built-in
 rate limiting. On large number of proxy connections you may encounter errors
 like:
 
-``` bsh
+``` bash
 channel 0: open failed: connect failed: ssh: handshake failed: EOF
 ```
 
@@ -1259,7 +1260,7 @@ trust, [ `tctl` ](cli-docs.md#tctl) offers the more powerful, although
 lower-level CLI interface called `resources` .
 
 The concept is borrowed from the REST programming pattern. A cluster is composed
-of different objects (aka, resources) and there are just four common operations
+of different objects (aka, resources) and there are just three common operations
 that can be performed on them: `get` , `create` , `remove` .
 
 A resource is defined as a [YAML](https://en.wikipedia.org/wiki/YAML) file.
@@ -1380,7 +1381,7 @@ to have a direct connection to other clusters' proxy servers. Trusted clusters
 also have their own restrictions on user access. The user experience looks like
 this:
 
-``` yaml
+``` bash
 # login using the "main" cluster credentials:
 $ tsh login --proxy=main.example.com
 
@@ -1401,7 +1402,7 @@ To avoid using `--cluster` switch with [ `tsh` ](cli-docs.md#tsh) commands, you
 can also specify which trusted cluster you want to become the default from the
 start:
 
-``` yaml
+``` bash
 # login into "main" but request "east" to be the default for subsequent
 # tsh commands:
 $ tsh login --proxy=main.example.com east
@@ -1475,7 +1476,7 @@ auth_service:
 If you wish to use auto-expiring cluster tokens, execute this CLI command on the
 "main" side:
 
-``` yaml
+``` bash
 $ tctl tokens add --type=trusted_cluster
 The cluster invite token: generated-token-to-add-new-clusters
 ```
@@ -1512,7 +1513,7 @@ spec:
 
 Then, use [ `tctl create` ](cli-docs.md#tctl-create) to add the file:
 
-``` yaml
+``` bash
 $ tctl create cluster.yaml
 ```
 
@@ -1535,7 +1536,7 @@ users from the "main" (trusted cluster) can now access nodes in the "east"
 (trusting cluster). Users in the "east" cluster will not be able to access the
 "main" cluster.
 
-``` bsh
+``` bash
 # login into the main cluster:
 $ tsh --proxy=proxy.main login joe
 
@@ -1565,13 +1566,13 @@ To temporarily disable trust between clusters, i.e.to disconnect the "east"
 cluster from "main", edit the YAML definition of the trusted cluster resource
 and set `enabled` to "false", then update it:
 
-``` yaml
+``` bash
 $ tctl create --force cluster.yaml
 ```
 
 If you want to _permanently_ disconnect one cluster from the other:
 
-``` yaml
+``` bash
 # execute this command on "main" side to disconnect "east":
 $ tctl rm tc/east
 ```
@@ -1588,7 +1589,7 @@ directions. If you remove "east" from "main", the following will happen:
 If you wish to permanently remove all trust relationships and the connections
 between both clusters:
 
-``` yaml
+``` bash
 # execute on "main":
 $ tctl rm tc/east
 # execute on "east":
@@ -1667,7 +1668,7 @@ OAuth scope, you can read more about Github scopes
 Finally, create the connector using [ `tctl` ](cli-docs.md#tctl)
 [resource](#resources) management command:
 
-``` yaml
+``` bash
 $ tctl create github.yaml
 ```
 
@@ -1801,7 +1802,7 @@ certificate authorities for each cluster individually.
 Make sure you are running OpenSSH's `ssh-agent` , and have logged in to the
 Teleport proxy:
 
-``` yaml
+``` bash
 $ eval `ssh-agent`
 $ tsh --proxy=work.example.com login
 ```
@@ -1816,7 +1817,7 @@ Lastly, configure the OpenSSH client to use the Teleport proxy when connecting
 to nodes with matching names. Edit `~/.ssh/config` for your user or
 `/etc/ssh/ssh_config` for global changes:
 
-``` bsh
+``` bash
 # work.example.com is the jump host (proxy). credentials will be obtained from the
 # openssh agent.
 Host work.example.com
@@ -1842,7 +1843,7 @@ Host *.remote-cluster.example.com
 When everything is configured properly, you can use ssh to connect to any node
 behind `work.example.com` :
 
-``` bsh
+``` bash
 $ ssh root@database.work.example.com
 ```
 
@@ -1861,7 +1862,7 @@ you have to configure `sshd` to trust the Teleport CA.
 
 Export the Teleport CA certificate into a file:
 
-``` bsh
+``` bash
 $ tctl auth export --type=user > teleport-user-ca.pub
 ```
 
@@ -1895,7 +1896,7 @@ will show you how to implement certificate rotation in practice.
 The easiest way to start the rotation is to execute this command on a cluster's
 _auth server_:
 
-``` bsh
+``` bash
 $ tctl auth rotate
 ```
 
@@ -1904,7 +1905,7 @@ period_ of 48 hours.
 
 This can be customized, i.e.
 
-``` bsh
+``` bash
 # rotate only user certificates with a grace period of 200 hours:
 $ tctl auth rotate --type=user --grace-period=200h
 
@@ -1927,7 +1928,7 @@ certificate for itself before the grace period ends.
 
 To check the status of certificate rotation:
 
-``` bsh
+``` bash
 $ tctl status
 ```
 
@@ -1941,9 +1942,9 @@ $ tctl status
 
 !!! warning "CA Pinning Warning"
 
-    If you are using [CA Pinning](#untrusted-auth-servers)
-    when adding new nodes, the CA pin will
-    changes after the rotation.
+    If you are using [CA Pinning](#untrusted-auth-servers) when adding new
+    nodes, the CA pin will changes after the rotation. Make sure you use the
+    _new_ CA pin when adding nodes after rotation.
 
 ## Ansible Integration
 
@@ -1954,7 +1955,7 @@ Teleport Proxy:
 * configure your OpenSSH to connect to Teleport proxy and use `ssh-agent` socket
 * enable scp mode in the Ansible config file (default is `/etc/ansible/ansible.cfg` ):
 
-```bsh
+```bash
 scp_if_ssh = True
 ```
 
@@ -1976,16 +1977,16 @@ chapter.
 
 In the scenario illustrated above a user would execute the following commands:
 
-``` bsh
+``` bash
 # Authentication step to retrieve the certificates. tsh login places the SSH
 # certificate into `~/.tsh` as usual and updates kubeconfig with Kubernetes
 # credentials:
 $ tsh --proxy=teleport.example.com login
 
-# Execute SSH commands to access SSH nodes:
+# You can execute SSH commands on your local client to access SSH nodes:
 $ tsh ssh login@ssh-node
 
-# Execute any kubectl commands to access the Kubernetes cluster:
+# You can also execute any kubectl commands on your local client to access the Kubernetes cluster:
 $ kubectl get pods
 ```
 
@@ -2019,7 +2020,7 @@ API endpoint. This can be done either by:
 When adding new local users you have to specify which Kubernetes groups they
 belong to:
 
-``` bsh
+``` bash
 $ tctl users add joe --k8s-groups="system:masters"
 ```
 
@@ -2058,7 +2059,7 @@ login`](cli-docs.md#tsh-login) .
 
 In this scenario, users usually login using this command:
 
-``` bsh
+``` bash
 # Using login without arguments
 $ tsh --proxy=main.example.com login
 
@@ -2096,7 +2097,7 @@ highly available secrets back-end first. Also, you must tell each node in a
 cluster that there is more than one auth server available. There are two ways to
 do this:
 
-  + Use a load balancer to to create a single auth API access point (AP) and
+  * Use a load balancer to create a single auth API access point (AP) and
     specify this AP in `auth_servers` section of Teleport configuration for all
     nodes in a cluster. This load balancer should do TCP level forwarding.
 
@@ -2122,9 +2123,9 @@ Teleport will handle its own SSL on top of that with its own certificates.
 !!! tip "NOTE"
 
     If you terminate TLS with your own certificate at a load
-    balancer you'll need to Teleport with `--insecure-no-tls`
+    balancer you'll need to run Teleport with `--insecure-no-tls`
 
-If your load balancer supports health checks, configure it to hit the
+If your load balancer supports HTTP health checks, configure it to hit the
 `/webapi/ping` endpoint on the proxy. This endpoint will reply `200 OK` if the
 proxy is running without problems.
 
@@ -2263,7 +2264,9 @@ teleport:
 
     # This setting configures Teleport to send the audit events to three places:
     # To keep a copy on a local filesystem, in DynamoDB and to Stdout.
-    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'dynamodb://table_name', 'stdout://']
+    # NOTE: The DynamoDB events table has a different schema to the regular Teleport
+    # database table, so attempting to use same table for both will result in errors.
+    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'dynamodb://events_table_name', 'stdout://']
 
     # This setting configures Teleport to save the recorded sessions in an S3 bucket:
     audit_sessions_uri: s3://Example_TELEPORT_S3_BUCKET/records
@@ -2271,6 +2274,9 @@ teleport:
 
 * Replace `us-east-1` and `Example_TELEPORT_DYNAMO_TABLE_NAME`
   with your own settings.  Teleport will create the table automatically.
+* `Example_TELEPORT_DYNAMO_TABLE_NAME` and `events_table_name` **must** be different
+  DynamoDB tables. The schema is different for each. Using the same table name for both
+  will result in errors.
 * The AWS authentication setting above can be omitted if the machine itself is
   running on an EC2 instance with an IAM role.
 * Audit log settings above are optional. If specified, Teleport will store the
@@ -2306,7 +2312,7 @@ teleport:
 }
 ```
 
-### Using GCP Storage
+### Using GCS
 
 !!! tip "Tip"
 
@@ -2315,15 +2321,16 @@ teleport:
     Architecture documentation.
 
 
-GCP object storage can only be used as a storage for the recorded sessions. GCP Storage
-cannot store the audit log or the cluster state. Below is an example of how to
-configure a Teleport auth server to store the recorded sessions in an GCP bucket.
+Google Cloud Storage (GCS) can only be used as a storage for the recorded
+sessions. GCS cannot store the audit log or the cluster state. Below is an
+example of how to configure a Teleport auth server to store the recorded
+sessions in a GCS bucket.
 
 ``` yaml
 teleport:
   storage:
-      # Path to GCP Storage to store the recorded sessions in.
-      audit_sessions_uri: "sgs://Example_TELEPORT_STORAGE/records"
+      # Path to GCS to store the recorded sessions in.
+      audit_sessions_uri: "gs://Example_TELEPORT_STORAGE/records"
       credentials_path: /var/lib/teleport/gcs_creds
 ```
 
@@ -2342,8 +2349,9 @@ high availability. Firestore back-end supports two types of Teleport data:
 * Cluster state
 * Audit log events
 
-Firestore cannot store the recorded sessions. You are advised to use GCP Storage for
-that as shown above. To configure Teleport to use Firestore:
+Firestore cannot store the recorded sessions. You are advised to use Google
+Cloud Storage (GCS) for that as shown above. To configure Teleport to use
+Firestore:
 
 * Configure all Teleport Auth servers to use Firestore back-end in the "storage"
   section of `teleport.yaml` as shown below.
@@ -2367,7 +2375,9 @@ teleport:
 
     # This setting configures Teleport to send the audit events to three places:
     # To keep a copy on a local filesystem, in Firestore and to Stdout.
-    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'firestore://Example_TELEPORT_FIRESTORE_TABLE_NAME', 'stdout://']
+    # NOTE: The Firestore events table has a different schema to the regular Teleport
+    # database table, so attempting to use same table for both will result in errors.
+    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'firestore://Example_TELEPORT_FIRESTORE_EVENTS_TABLE_NAME', 'stdout://']
 
     # This setting configures Teleport to save the recorded sessions in GCP storage:
     audit_sessions_uri: gs://Example_TELEPORT_S3_BUCKET/records
@@ -2375,14 +2385,20 @@ teleport:
 
 * Replace `Example_GCP_Project_Name` and `Example_TELEPORT_FIRESTORE_TABLE_NAME`
   with your own settings. Teleport will create the table automatically.
-* The AWS authentication setting above can be omitted if the machine itself is
-  running on an EC2 instance with an IAM role.
+
+* `Example_TELEPORT_FIRESTORE_TABLE_NAME` and `Example_TELEPORT_FIRESTORE_EVENTS_TABLE_NAME`
+  **must** be different Firestore tables. The schema is different for each. Using the same
+  table name for both will result in errors.
+
+* The GCP authentication setting above can be omitted if the machine itself is
+  running on a GCE instance with a Service Account that has access to the
+  Firestore table.
 
 * Audit log settings above are optional. If specified, Teleport will store the
   audit log in Firestore and the session recordings **must** be stored in a GCP
   bucket, i.e.both `audit_xxx` settings must be present. If they are not set,
   Teleport will default to a local file  system for the audit log, i.e.
-`/var/lib/teleport/log` on an auth server.
+  `/var/lib/teleport/log` on an auth server.
 
 
 ## Upgrading Teleport
@@ -2415,7 +2431,7 @@ clients, etc), the following rules apply:
   upgrade to 4.2 first.
 
 * Teleport clients [`tsh`](cli-docs.md#tsh) for users and [`tctl`](cli-docs.md#tctl) for admins
-  may not be compatible
+  may not be compatible with different versions of the `teleport` service.
 
 As an extra precaution you might want to backup your application prior to upgrading. We provide more instructions in [Backup before upgrading](#backup-before-upgrading).
 
@@ -2491,22 +2507,22 @@ When backing up Teleport you'll need to backup up your auth server's `data_dir/s
 
 **Example of backing up and restoring a cluster.**
 
-```
+``` bash
 # export dynamic configuration state from old cluster
-tctl get all > state.yaml
+$ tctl get all > state.yaml
 
 # prepare a new uninitialized backend (make sure to port
 # any non-default config values from the old config file)
-mkdir fresh && cat > fresh.yaml << EOF
+$ mkdir fresh && cat > fresh.yaml << EOF
 teleport:
   data_dir: fresh
 EOF
 
 # bootstrap fresh server (kill the old one first!)
-teleport start --config fresh.yaml --bootstrap state.yaml
+$ teleport start --config fresh.yaml --bootstrap state.yaml
 
 # from another terminal, verify state transferred correctly
-tctl --config fresh.yaml get all
+$ tctl --config fresh.yaml get all
 # <your state here!>
 ```
 
@@ -2571,14 +2587,14 @@ run with verbose logging enabled by passing it `-d` flag.
     It is not recommended to run Teleport in production with verbose
     logging as it generates a substantial amount of data.
 
-Sometimes you may want to reset [ `teleport` ](cli-docs.md#teleport) to a clean
+Sometimes you may want to reset [`teleport`](cli-docs.md#teleport) to a clean
 state. This can be accomplished by erasing everything under `"data_dir"`
 directory. Assuming the default location, `rm -rf /var/lib/teleport/*` will do.
 
 Teleport also supports HTTP endpoints for monitoring purposes. They are disabled
 by default, but you can enable them:
 
-``` yaml
+``` bash
 $ teleport start --diag-addr=127.0.0.1:3000
 ```
 

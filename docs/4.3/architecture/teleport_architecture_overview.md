@@ -4,6 +4,10 @@ This guide is for those looking for a deeper understanding of Teleport. If you
 are looking for hands-on instructions on how to set up Teleport for your team,
 check out the [Admin Guide](../admin-guide.md)
 
+**Table of Contents**
+
+[TOC]
+
 ## Design Principles
 
 Teleport was designed in accordance with the following principles:
@@ -41,8 +45,8 @@ Here are definitions of the key concepts you will use in Teleport.
 | Certificate Authority (CA) | A Certificate Authority issues SSL certificates in the form of public/private keypairs.
 | [Teleport Node](teleport_nodes.md)    | A Teleport Node is a regular node that is running the Teleport Node service. Teleport Nodes can be accessed by authorized Teleport Users. A Teleport Node is always considered a member of a Teleport Cluster, even if it's a single-node cluster.
 | [Teleport User](teleport_users.md)    | A Teleport User represents someone who needs access to a Teleport Cluster. Users have stored usernames and passwords, and are mapped to OS users on each node. User data is stored locally or in an external store.
-| Teleport Cluster | A Teleport Cluster is comprised of one or more nodes, each of which hold public keys signed by the same [Auth Server CA](teleport_auth.md). The CA cryptographically signs the public key of a node, establishing cluster membership.
-| [Teleport CA](teleport_auth.md) | Teleport operates two internal CAs as a function of the Auth service. One is used to sign User public keys and the other signs Node public keys. Each certificate is used to prove identity, cluster membership and manage access.
+| Teleport Cluster | A Teleport Cluster is comprised of one or more nodes, each of which hold certificates signed by the same [Auth Server CA](teleport_auth.md). The CA cryptographically signs the certificate of a node, establishing cluster membership.
+| [Teleport CA](teleport_auth.md) | Teleport operates two internal CAs as a function of the Auth service. One is used to sign User certificates and the other signs Node certificates. Each certificate is used to prove identity, cluster membership and manage access.
 
 ## Teleport Services
 
@@ -90,7 +94,7 @@ steps are explained below the diagram.
     clarity, but Teleport services do not have to run on separate nodes.
     Teleport can be run as a binary on a single-node cluster with no external
     storage backend. We demonstrate this minimal setup in the [Quickstart
-    Guide](../quickstart).
+    Guide](../quickstart.md).
 
 ## Detailed Architecture Overview
 
@@ -114,7 +118,7 @@ steps are explained in detail below the diagram.
 
 The client tries to establish an SSH connection to a proxy using the CLI
 interface or a web browser. When establishing a connection, the client offers
-its public key. Clients must always connect through a proxy for two reasons:
+its certificate. Clients must always connect through a proxy for two reasons:
 
 1. Individual nodes may not always be reachable from outside a secure network.
 2. Proxies always record SSH sessions and keep track of active user sessions.
@@ -131,9 +135,9 @@ auth server.
 
 ![Client obtains new certificate](../img/cert_invalid.svg)
 
-If there was no key previously offered (first time login) or if the certificate
-has expired, the proxy denies the connection and asks the client to login
-interactively using a password and a 2nd factor if enabled.
+If there was no certificate previously offered (first time login) or if the
+certificate has expired, the proxy denies the connection and asks the client to
+login interactively using a password and a 2nd factor if enabled.
 
 Teleport supports
 [Google Authenticator](https://support.google.com/accounts/answer/1066447?hl=en),
@@ -148,8 +152,8 @@ proper HTTPS certificate on a proxy.
     Do not use self-signed SSL/HTTPS certificates in production!
 
 If the credentials are correct, the auth server generates and signs a new
-certificate and returns it to the client via the proxy. The client stores this key
-and will use it for subsequent logins. The key will automatically expire after
+certificate and returns it to the client via the proxy. The client stores this certificate
+and will use it for subsequent logins. The certificate will automatically expire after
 12 hours by default. This [TTL](https://en.wikipedia.org/wiki/Time_to_live) can be [configured](../cli-docs.md#tctl-users-add)
 to another value by the cluster administrator.
 
@@ -181,8 +185,7 @@ sending the session history to the auth server to be stored.
 ![Node Membership Authentication](../img/node_cluster_auth.svg)
 
 When the node receives a connection request, it checks with the Auth Server to
-validate the node's public key certificate and validate the Node's cluster
-membership.
+validate the node's certificate and validate the Node's cluster membership.
 
 If the node certificate is valid, the node is allowed to access the Auth Server
 API which provides access to information about nodes and users in the cluster.
@@ -215,11 +218,11 @@ $ tsh --proxy=p scp -P example.txt user@host/destination/dir
 ```
 
 Unlike `ssh`, `tsh` is very opinionated about authentication: it always uses
-auto-expiring keys and it always connects to Teleport nodes via a proxy.
+auto-expiring certificates and it always connects to Teleport nodes via a proxy.
 
-When `tsh` logs in, the auto-expiring key is stored in `~/.tsh` and is valid for
-12 hours by default, unless you specify another interval via the `--ttl` flag
-(capped by the server-side configuration).
+When `tsh` logs in, the auto-expiring certificate is stored in `~/.tsh` and is
+valid for 12 hours by default, unless you specify another interval via the
+`--ttl` flag (capped by the server-side configuration).
 
 You can learn more about `tsh` in the [User Manual](../user-manual.md).
 
