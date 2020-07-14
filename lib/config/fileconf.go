@@ -162,6 +162,7 @@ var (
 		"disk_buffer_size":        false,
 		"network_buffer_size":     false,
 		"cgroup_path":             false,
+		"reuse_conn_iot_mode":     false,
 	}
 )
 
@@ -712,6 +713,7 @@ type SSH struct {
 	Commands              []CommandLabel    `yaml:"commands,omitempty"`
 	PermitUserEnvironment bool              `yaml:"permit_user_env,omitempty"`
 	PAM                   *PAM              `yaml:"pam,omitempty"`
+	ReuseConnIotMode      bool              `yaml:"reuse_conn_iot_mode,omitempty"`
 	// PublicAddr sets SSH host principals for SSH service
 	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
 

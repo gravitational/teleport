@@ -607,6 +607,9 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.SSH.PermitUserEnvironment {
 		cfg.SSH.PermitUserEnvironment = true
 	}
+	if fc.SSH.ReuseConnIotMode {
+		cfg.SSH.ReuseConnIotMode = true
+	}
 	if fc.SSH.PAM != nil {
 		cfg.SSH.PAM = fc.SSH.PAM.Parse()
 

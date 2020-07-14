@@ -874,10 +874,17 @@ func tunnelAddr(settings client.ProxySettings) (string, error) {
 
 func (process *TeleportProcess) newClientThroughTunnel(servers []utils.NetAddr, identity *auth.Identity) (*auth.Client, error) {
 	// Discover address of SSH reverse tunnel server.
-	proxyAddr, err := process.findReverseTunnel(servers)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	proxyAddr := ""
+	if process.Config.SSH.ReuseConnIotMode == true {
+		proxyAddr = servers[0].String()
+	} else {
+		ret, err := process.findReverseTunnel(servers)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		proxyAddr = ret
 	}
+
 	log.Debugf("Discovered address for reverse tunnel server: %v.", proxyAddr)
 
 	tlsConfig, err := identity.TLSConfig(process.Config.CipherSuites)
