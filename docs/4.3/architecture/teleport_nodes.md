@@ -1,9 +1,5 @@
 ## Teleport Nodes
 
-**Table of Contents**
-
-[TOC]
-
 ## The Node Service
 
 A regular node becomes a Teleport Node when the node joins a cluster with a
