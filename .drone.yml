@@ -1513,6 +1513,118 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
+name: build-docker-images
+
+environment:
+  RUNTIME: go1.14.4
+
+# TODO(gus): testing
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+trigger:
+  branch:
+    - master
+    - branch/*
+  event:
+    exclude:
+      - cron
+      - promote
+      - rollback
+
+# TODO(gus): testing
+# depends_on:
+#   - test
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # fetch enterprise submodules
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+
+  - name: Build Docker image
+    image: docker
+    environment:
+      UID: 1000
+      GID: 1000
+      GOPATH: /go
+      OS: linux
+      ARCH: amd64
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - make image
+      # TODO(gus): testing
+      # - make publish
+
+  - name: Build FIPS Docker image
+    image: docker
+    environment:
+      UID: 1000
+      GID: 1000
+      GOPATH: /go
+      OS: linux
+      ARCH: amd64
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      # version needs to be set manually when running in the e directory
+      - export VERSION=$(cat /go/.version.txt)
+      - make -C e image-fips
+      # TODO(gus): testing
+      # - make -C e publish-fips
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+
+---
+kind: pipeline
+type: kubernetes
 name: build-buildboxes
 
 environment:
@@ -1812,6 +1924,6 @@ steps:
 
 ---
 kind: signature
-hmac: 25c7a61e243c14c2c4830f892aca1e72b756fe7f538c7b266d49e27d0f20402a
+hmac: 725652a1a0095ed86c91752357885ea4982dddd266f5ddb91f79cafb7536147d
 
 ...
