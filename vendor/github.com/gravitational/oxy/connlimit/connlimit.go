@@ -9,7 +9,7 @@ import (
 	"github.com/gravitational/oxy/utils"
 )
 
-// Limiter tracks concurrent connection per token
+// ConnLimiter tracks concurrent connection per token
 // and is capable of rejecting connections if they are failed
 type ConnLimiter struct {
 	mutex            *sync.Mutex
@@ -23,6 +23,7 @@ type ConnLimiter struct {
 	log        utils.Logger
 }
 
+// New returns a new connection limiter
 func New(next http.Handler, extract utils.SourceExtractor, maxConnections int64, options ...ConnLimitOption) (*ConnLimiter, error) {
 	if extract == nil {
 		return nil, fmt.Errorf("Extract function can not be nil")
@@ -49,10 +50,13 @@ func New(next http.Handler, extract utils.SourceExtractor, maxConnections int64,
 	return cl, nil
 }
 
+// Wrap wraps HTTP handler
 func (cl *ConnLimiter) Wrap(h http.Handler) {
 	cl.next = h
 }
 
+// ServeHTTP reserves a connection, sends requests to handler and releases
+// the connection
 func (cl *ConnLimiter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	token, amount, err := cl.extract.Extract(r)
 	if err != nil {
@@ -60,18 +64,19 @@ func (cl *ConnLimiter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		cl.errHandler.ServeHTTP(w, r, err)
 		return
 	}
-	if err := cl.acquire(token, amount); err != nil {
+	if err := cl.Acquire(token, amount); err != nil {
 		cl.log.Infof("limiting request source %s: %v", token, err)
 		cl.errHandler.ServeHTTP(w, r, err)
 		return
 	}
 
-	defer cl.release(token, amount)
+	defer cl.Release(token, amount)
 
 	cl.next.ServeHTTP(w, r)
 }
 
-func (cl *ConnLimiter) acquire(token string, amount int64) error {
+// Acquire tries to acquire connections for a token
+func (cl *ConnLimiter) Acquire(token string, amount int64) error {
 	cl.mutex.Lock()
 	defer cl.mutex.Unlock()
 
@@ -85,7 +90,8 @@ func (cl *ConnLimiter) acquire(token string, amount int64) error {
 	return nil
 }
 
-func (cl *ConnLimiter) release(token string, amount int64) {
+// Release releases connections for token
+func (cl *ConnLimiter) Release(token string, amount int64) {
 	cl.mutex.Lock()
 	defer cl.mutex.Unlock()
 

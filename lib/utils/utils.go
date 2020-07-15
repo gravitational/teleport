@@ -17,6 +17,7 @@ limitations under the License.
 package utils
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -38,6 +39,47 @@ import (
 	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 )
+
+// WriteContextCloser provides close method with context
+type WriteContextCloser interface {
+	Close(ctx context.Context) error
+	io.Writer
+}
+
+// WriteCloserWithContext converts ContextCloser to io.Closer,
+// whenever new Close method will be called, the ctx will be passed to it
+func WriteCloserWithContext(ctx context.Context, closer WriteContextCloser) io.WriteCloser {
+	return &closerWithContext{
+		WriteContextCloser: closer,
+		ctx:                ctx,
+	}
+}
+
+type closerWithContext struct {
+	WriteContextCloser
+	ctx context.Context
+}
+
+// Close closes all resources and returns the result
+func (c *closerWithContext) Close() error {
+	return c.WriteContextCloser.Close(c.ctx)
+}
+
+// NilCloser returns closer if it's not nil
+// otherwise returns a nop closer
+func NilCloser(r io.Closer) io.Closer {
+	if r == nil {
+		return &nilCloser{}
+	}
+	return r
+}
+
+type nilCloser struct {
+}
+
+func (*nilCloser) Close() error {
+	return nil
+}
 
 // NopWriteCloser returns a WriteCloser with a no-op Close method wrapping
 // the provided Writer w

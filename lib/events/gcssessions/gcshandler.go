@@ -1,6 +1,5 @@
-package gcssessions
-
 /*
+Copyright 2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,8 +12,9 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
 */
+
+package gcssessions
 
 import (
 	"context"
@@ -105,6 +105,12 @@ type Config struct {
 	KMSKeyName string
 	// Endpoint
 	Endpoint string
+	// OnComposerRun is used for fault injection in tests
+	// runs (or doesn't run composer and returns error
+	OnComposerRun func(ctx context.Context, composer *storage.Composer) (*storage.ObjectAttrs, error)
+	// AfterObjectDelete is used for fault injection in tests
+	// runs (or doesn't run object delete) and returns error
+	AfterObjectDelete func(ctx context.Context, object *storage.ObjectHandle, error error) error
 }
 
 // SetFromURL sets values on the Config from the supplied URI
@@ -134,17 +140,36 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 	if projectIDParamString == "" {
 		return trace.BadParameter("parameter %s with value '%s' is invalid",
 			projectID, projectIDParamString)
-	} else {
-		cfg.ProjectID = projectIDParamString
 	}
+	cfg.ProjectID = projectIDParamString
 
 	if url.Host == "" {
 		return trace.BadParameter("host should be set to the bucket name for recording storage")
-	} else {
-		cfg.Bucket = url.Host
 	}
+	cfg.Bucket = url.Host
 
 	return nil
+}
+
+// CheckAndSetDefaults checks and sets default values
+func (cfg *Config) CheckAndSetDefaults() error {
+	if cfg.OnComposerRun == nil {
+		cfg.OnComposerRun = composerRun
+	}
+	if cfg.AfterObjectDelete == nil {
+		cfg.AfterObjectDelete = afterObjectDelete
+	}
+	return nil
+}
+
+// afterObjectDelete is a passthrough function to delete an object
+func afterObjectDelete(ctx context.Context, object *storage.ObjectHandle, err error) error {
+	return nil
+}
+
+// ComposerRun is a passthrough function that runs composer
+func composerRun(ctx context.Context, composer *storage.Composer) (*storage.ObjectAttrs, error) {
+	return composer.Run(ctx)
 }
 
 // DefaultNewHandler returns a new handler with default GCS client settings derived from the config
@@ -168,6 +193,9 @@ func DefaultNewHandler(cfg Config) (*Handler, error) {
 
 // NewHandler returns a new handler with specific context, cancelFunc, and client
 func NewHandler(ctx context.Context, cancelFunc context.CancelFunc, cfg Config, client *storage.Client) (*Handler, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	h := &Handler{
 		Entry: log.WithFields(log.Fields{
 			trace.Component: teleport.Component(teleport.SchemeGCS),
@@ -200,7 +228,7 @@ type Handler struct {
 	clientCancel context.CancelFunc
 }
 
-// Closer releases connection and resources associated with log if any
+// Close releases connection and resources associated with log if any
 func (h *Handler) Close() error {
 	h.clientCancel()
 	return h.gcsClient.Close()
@@ -210,7 +238,7 @@ func (h *Handler) Close() error {
 // and returns the target GCS bucket path in case of successful upload.
 func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
 	path := h.path(sessionID)
-	h.Logger.Debugf("uploading %s", path)
+	h.Logger.Debugf("Uploading %s.", path)
 
 	// Make sure we don't overwrite an existing recording.
 	_, err := h.gcsClient.Bucket(h.Config.Bucket).Object(path).Attrs(ctx)
@@ -241,7 +269,7 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 // return trace.NotFound error is object is not found
 func (h *Handler) Download(ctx context.Context, sessionID session.ID, writerAt io.WriterAt) error {
 	path := h.path(sessionID)
-	h.Logger.Debugf("downloading %s", path)
+	h.Logger.Debugf("Downloading %s.", path)
 	writer, ok := writerAt.(io.Writer)
 	if !ok {
 		return trace.BadParameter("the provided writerAt is %T which does not implement io.Writer", writerAt)

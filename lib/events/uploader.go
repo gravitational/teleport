@@ -45,10 +45,18 @@ type UploadHandler interface {
 	Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error
 }
 
+// MultipartHandler handles both multipart uploads and downloads
+type MultipartHandler interface {
+	UploadHandler
+	MultipartUploader
+}
+
 // UploadEvent is emitted by uploader and is used in tests
 type UploadEvent struct {
 	// SessionID is a session ID
 	SessionID string
+	// UploadID specifies upload ID for a successful upload
+	UploadID string
 	// Error is set in case if event resulted in error
 	Error error
 }
@@ -73,7 +81,7 @@ type UploaderConfig struct {
 	AuditLog IAuditLog
 	// EventsC is an event channel used to signal events
 	// used in tests
-	EventsC chan *UploadEvent
+	EventsC chan UploadEvent
 }
 
 // CheckAndSetDefaults checks and sets default values of UploaderConfig
@@ -211,7 +219,7 @@ func (u *Uploader) emitEvent(e UploadEvent) {
 		return
 	}
 	select {
-	case u.EventsC <- &e:
+	case u.EventsC <- e:
 		return
 	default:
 		u.Warningf("Skip send event on a blocked channel.")

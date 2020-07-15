@@ -39,12 +39,19 @@ func (s *AuthServer) UpsertSAMLConnector(ctx context.Context, connector services
 	if err := s.Identity.UpsertSAMLConnector(connector); err != nil {
 		return trace.Wrap(err)
 	}
-
-	if err := s.EmitAuditEvent(events.SAMLConnectorCreated, events.EventFields{
-		events.FieldName: connector.GetName(),
-		events.EventUser: clientUsername(ctx),
+	if err := s.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorCreate{
+		Metadata: events.Metadata{
+			Type: events.SAMLConnectorCreatedEvent,
+			Code: events.SAMLConnectorCreatedCode,
+		},
+		UserMetadata: events.UserMetadata{
+			User: clientUsername(ctx),
+		},
+		ResourceMetadata: events.ResourceMetadata{
+			Name: connector.GetName(),
+		},
 	}); err != nil {
-		log.Warnf("Failed to emit SAML connector create event: %v", err)
+		log.WithError(err).Warn("Failed to emit SAML connector create event.")
 	}
 
 	return nil
@@ -55,12 +62,19 @@ func (s *AuthServer) DeleteSAMLConnector(ctx context.Context, connectorName stri
 	if err := s.Identity.DeleteSAMLConnector(connectorName); err != nil {
 		return trace.Wrap(err)
 	}
-
-	if err := s.EmitAuditEvent(events.SAMLConnectorDeleted, events.EventFields{
-		events.FieldName: connectorName,
-		events.EventUser: clientUsername(ctx),
+	if err := s.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorDelete{
+		Metadata: events.Metadata{
+			Type: events.SAMLConnectorDeletedEvent,
+			Code: events.SAMLConnectorDeletedCode,
+		},
+		UserMetadata: events.UserMetadata{
+			User: clientUsername(ctx),
+		},
+		ResourceMetadata: events.ResourceMetadata{
+			Name: connectorName,
+		},
 	}); err != nil {
-		log.Warnf("Failed to emit SAML connector delete event: %v", err)
+		log.WithError(err).Warn("Failed to emit SAML connector delete event.")
 	}
 
 	return nil
@@ -304,31 +318,36 @@ type SAMLAuthResponse struct {
 
 // ValidateSAMLResponse consumes attribute statements from SAML identity provider
 func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthResponse, error) {
+	event := &events.UserLogin{
+		Metadata: events.Metadata{
+			Type: events.UserLoginEvent,
+		},
+		Method: events.LoginMethodSAML,
+	}
 	re, err := a.validateSAMLResponse(samlResponse)
+	if re != nil && re.attributeStatements != nil {
+		attributes, err := events.EncodeMapStrings(re.attributeStatements)
+		if err != nil {
+			log.WithError(err).Warn("Failed to encode identity attributes.")
+		} else {
+			event.IdentityAttributes = attributes
+		}
+	}
 	if err != nil {
-		fields := events.EventFields{
-			events.LoginMethod:        events.LoginMethodSAML,
-			events.AuthAttemptSuccess: false,
-			events.AuthAttemptErr:     err.Error(),
-		}
-		if re != nil && re.attributeStatements != nil {
-			fields[events.IdentityAttributes] = re.attributeStatements
-		}
-		if err := a.EmitAuditEvent(events.UserSSOLoginFailure, fields); err != nil {
-			log.Warnf("Failed to emit SAML login failure event: %v", err)
+		event.Code = events.UserSSOLoginFailureCode
+		event.Status.Success = false
+		event.Status.Error = trace.Unwrap(err).Error()
+		event.Status.UserMessage = err.Error()
+		if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
+			log.WithError(err).Warn("Failed to emit SAML login success event.")
 		}
 		return nil, trace.Wrap(err)
 	}
-	fields := events.EventFields{
-		events.EventUser:          re.auth.Username,
-		events.AuthAttemptSuccess: true,
-		events.LoginMethod:        events.LoginMethodSAML,
-	}
-	if re.attributeStatements != nil {
-		fields[events.IdentityAttributes] = re.attributeStatements
-	}
-	if err := a.EmitAuditEvent(events.UserSSOLogin, fields); err != nil {
-		log.Warnf("Failed to emit SAML user login event: %v", err)
+	event.Status.Success = true
+	event.User = re.auth.Username
+	event.Code = events.UserSSOLoginCode
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
+		log.WithError(err).Warn("Failed to emit SAML login failure event.")
 	}
 	return &re.auth, nil
 }

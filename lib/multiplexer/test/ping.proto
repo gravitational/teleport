@@ -1,0 +1,9 @@
+syntax = "proto3";
+package test;
+
+message Request { string Payload = 1; }
+
+message Response { string Payload = 1; }
+
+// Pinger is a service used in tests
+service Pinger { rpc Ping(Request) returns (Response); }

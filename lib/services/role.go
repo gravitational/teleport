@@ -1451,7 +1451,7 @@ func ExtractFromCertificate(access UserGetter, cert *ssh.Certificate) ([]string,
 // ExtractFromIdentity will extract roles and traits from the *x509.Certificate
 // which Teleport passes along as a *tlsca.Identity. If roles and traits do not
 // exist in the certificates, they are extracted from the backend.
-func ExtractFromIdentity(access UserGetter, identity *tlsca.Identity) ([]string, wrappers.Traits, error) {
+func ExtractFromIdentity(access UserGetter, identity tlsca.Identity) ([]string, wrappers.Traits, error) {
 	// For legacy certificates, fetch roles and traits from the services.User
 	// object in the backend.
 	if missingIdentity(identity) {
@@ -1501,7 +1501,7 @@ func isFormatOld(cert *ssh.Certificate) bool {
 
 // missingIdentity returns true if the identity is missing or the identity
 // has no roles or traits.
-func missingIdentity(identity *tlsca.Identity) bool {
+func missingIdentity(identity tlsca.Identity) bool {
 	if len(identity.Groups) == 0 || len(identity.Traits) == 0 {
 		return true
 	}

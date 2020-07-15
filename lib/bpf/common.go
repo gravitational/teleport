@@ -22,6 +22,7 @@ package bpf
 import "C"
 
 import (
+	"context"
 	"unsafe"
 
 	"github.com/gravitational/teleport"
@@ -52,6 +53,9 @@ type BPF interface {
 // srv.ServerContext, unfortunately due to circular imports with lib/srv and
 // lib/bpf, part of that structure is reproduced in SessionContext.
 type SessionContext struct {
+	// Context is a cancel context, scoped to a server, and not a session.
+	Context context.Context
+
 	// Namespace is the namespace within which this session occurs.
 	Namespace string
 
@@ -71,8 +75,8 @@ type SessionContext struct {
 	// used by Teleport to find itself by cgroup.
 	PID int
 
-	// AuditLog is used to store events for a particular sessionl
-	AuditLog events.IAuditLog
+	// Emitter is used to record events for a particular session
+	Emitter events.Emitter
 
 	// Events is the set of events (command, disk, or network) to record for
 	// this session.

@@ -1,5 +1,5 @@
 /*
-Copyright 2017-2019 Gravitational, Inc.
+Copyright 2017-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -102,13 +102,19 @@ func (s *AuthServer) createOIDCClient(conn services.OIDCConnector) (*oidc.Client
 				"unknown problem with connector %v, most likely URL %q is not valid or not accessible, check configuration and try to re-create the connector",
 				conn.GetName(), conn.GetIssuerURL())
 		}
-		if err := s.EmitAuditEvent(events.UserSSOLoginFailure, events.EventFields{
-			events.LoginMethod:        events.LoginMethodOIDC,
-			events.AuthAttemptSuccess: false,
-			events.AuthAttemptErr:     trace.Unwrap(ctx.Err()).Error(),
-			events.AuthAttemptMessage: err.Error(),
+		if err := s.emitter.EmitAuditEvent(ctx, &events.UserLogin{
+			Metadata: events.Metadata{
+				Type: events.UserLoginEvent,
+				Code: events.UserSSOLoginFailureCode,
+			},
+			Method: events.LoginMethodOIDC,
+			Status: events.Status{
+				Success:     false,
+				Error:       trace.Unwrap(ctx.Err()).Error(),
+				UserMessage: err.Error(),
+			},
 		}); err != nil {
-			log.Warnf("Failed to emit OIDC login failure event: %v", err)
+			log.WithError(err).Warn("Failed to emit OIDC login failure event.")
 		}
 		// return user-friendly error hiding the actual error in the event
 		// logs for security purposes
@@ -142,12 +148,19 @@ func (s *AuthServer) UpsertOIDCConnector(ctx context.Context, connector services
 	if err := s.Identity.UpsertOIDCConnector(connector); err != nil {
 		return trace.Wrap(err)
 	}
-
-	if err := s.EmitAuditEvent(events.OIDCConnectorCreated, events.EventFields{
-		events.FieldName: connector.GetName(),
-		events.EventUser: clientUsername(ctx),
+	if err := s.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorCreate{
+		Metadata: events.Metadata{
+			Type: events.OIDCConnectorCreatedEvent,
+			Code: events.OIDCConnectorCreatedCode,
+		},
+		UserMetadata: events.UserMetadata{
+			User: clientUsername(ctx),
+		},
+		ResourceMetadata: events.ResourceMetadata{
+			Name: connector.GetName(),
+		},
 	}); err != nil {
-		log.Warnf("Failed to emit OIDC connector create event: %v", err)
+		log.WithError(err).Warn("Failed to emit OIDC connector create event.")
 	}
 
 	return nil
@@ -158,14 +171,20 @@ func (s *AuthServer) DeleteOIDCConnector(ctx context.Context, connectorName stri
 	if err := s.Identity.DeleteOIDCConnector(connectorName); err != nil {
 		return trace.Wrap(err)
 	}
-
-	if err := s.EmitAuditEvent(events.OIDCConnectorDeleted, events.EventFields{
-		events.FieldName: connectorName,
-		events.EventUser: clientUsername(ctx),
+	if err := s.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorDelete{
+		Metadata: events.Metadata{
+			Type: events.OIDCConnectorDeletedEvent,
+			Code: events.OIDCConnectorDeletedCode,
+		},
+		UserMetadata: events.UserMetadata{
+			User: clientUsername(ctx),
+		},
+		ResourceMetadata: events.ResourceMetadata{
+			Name: connectorName,
+		},
 	}); err != nil {
-		log.Warnf("Failed to emit OIDC connector delete event: %v", err)
+		log.WithError(err).Warn("Failed to emit OIDC connector delete event.")
 	}
-
 	return nil
 }
 
@@ -221,31 +240,41 @@ func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*servi
 // will respond with OIDCAuthResponse, otherwise it will return error
 func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
 	re, err := a.validateOIDCAuthCallback(q)
+	event := &events.UserLogin{
+		Metadata: events.Metadata{
+			Type: events.UserLoginEvent,
+		},
+		Method: events.LoginMethodOIDC,
+	}
 	if err != nil {
-		fields := events.EventFields{
-			events.LoginMethod:        events.LoginMethodOIDC,
-			events.AuthAttemptSuccess: false,
-			// log the original internal error in audit log
-			events.AuthAttemptErr: trace.Unwrap(err).Error(),
-		}
+		event.Code = events.UserSSOLoginFailureCode
+		event.Status.Success = false
+		event.Status.Error = trace.Unwrap(err).Error()
+		event.Status.UserMessage = err.Error()
 		if re != nil && re.claims != nil {
-			fields[events.IdentityAttributes] = re.claims
+			attributes, err := events.EncodeMap(re.claims)
+			if err != nil {
+				log.WithError(err).Debugf("Failed to encode identity attributes.")
+			} else {
+				event.IdentityAttributes = attributes
+			}
 		}
-		if err := a.EmitAuditEvent(events.UserSSOLoginFailure, fields); err != nil {
-			log.Warnf("Failed to emit OIDC login failure event: %v", err)
-		}
+		a.emitter.EmitAuditEvent(a.closeCtx, event)
 		return nil, trace.Wrap(err)
 	}
-	fields := events.EventFields{
-		events.EventUser:          re.auth.Username,
-		events.AuthAttemptSuccess: true,
-		events.LoginMethod:        events.LoginMethodOIDC,
-	}
+	event.Code = events.UserSSOLoginCode
+	event.User = re.auth.Username
+	event.Status.Success = true
 	if re.claims != nil {
-		fields[events.IdentityAttributes] = re.claims
+		attributes, err := events.EncodeMap(re.claims)
+		if err != nil {
+			log.WithError(err).Debugf("Failed to encode identity attributes.")
+		} else {
+			event.IdentityAttributes = attributes
+		}
 	}
-	if err := a.EmitAuditEvent(events.UserSSOLogin, fields); err != nil {
-		log.Warnf("Failed to emit OIDC login event: %v", err)
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
+		log.WithError(err).Warn("Failed to emit OIDC login event.")
 	}
 	return &re.auth, nil
 }
@@ -635,11 +664,12 @@ func (a *AuthServer) newGsuiteClient(config *jwt.Config, issuerURL string, userE
 
 	return &gsuiteClient{
 		domain:    domain,
-		client:    config.Client(context.TODO()),
+		client:    config.Client(a.closeCtx),
 		url:       *u,
 		userEmail: userEmail,
 		config:    config,
-		auditLog:  a,
+		emitter:   a.emitter,
+		ctx:       a.closeCtx,
 	}, nil
 }
 
@@ -649,7 +679,8 @@ type gsuiteClient struct {
 	userEmail string
 	domain    string
 	config    *jwt.Config
-	auditLog  events.IAuditLog
+	emitter   events.Emitter
+	ctx       context.Context
 }
 
 // fetchGroups fetches GSuite groups a user belongs to and returns
@@ -666,11 +697,18 @@ collect:
 
 			// Print warning to Teleport logs as well as the Audit Log.
 			log.Warnf(warningMessage)
-			if err := g.auditLog.EmitAuditEvent(events.UserSSOLoginFailure, events.EventFields{
-				events.LoginMethod:        events.LoginMethodOIDC,
-				events.AuthAttemptMessage: warningMessage,
+			if err := g.emitter.EmitAuditEvent(g.ctx, &events.UserLogin{
+				Metadata: events.Metadata{
+					Type: events.UserLoginEvent,
+					Code: events.UserSSOLoginFailureCode,
+				},
+				Method: events.LoginMethodOIDC,
+				Status: events.Status{
+					Success: false,
+					Error:   warningMessage,
+				},
 			}); err != nil {
-				log.Warnf("Failed to emit OIDC login failure event: %v", err)
+				log.WithError(err).Warnf("Failed to emit OIDC login failure event.")
 			}
 			break collect
 		}

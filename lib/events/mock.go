@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2017-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -69,10 +69,9 @@ func (d *MockAuditLog) Close() error {
 	return nil
 }
 
-// EmitAuditEvent is a mock that records even and fields inside a struct.
-func (d *MockAuditLog) EmitAuditEvent(ev Event, fields EventFields) error {
+// EmitAuditEventLegacy is a mock that records event and fields inside a struct.
+func (d *MockAuditLog) EmitAuditEventLegacy(ev Event, fields EventFields) error {
 	d.EmittedEvent = &EmittedEvent{ev, fields}
-
 	return nil
 }
 
@@ -108,4 +107,64 @@ func (d *MockAuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) 
 // Reset resets state to zero values.
 func (d *MockAuditLog) Reset() {
 	d.EmittedEvent = nil
+}
+
+// MockEmitter is emitter that stores last audit event
+type MockEmitter struct {
+	mtx       sync.RWMutex
+	lastEvent AuditEvent
+}
+
+// CreateAuditStream creates a stream that discards all events
+func (e *MockEmitter) CreateAuditStream(ctx context.Context, sid session.ID) (Stream, error) {
+	return e, nil
+}
+
+// ResumeAuditStream resumes a stream that discards all events
+func (e *MockEmitter) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (Stream, error) {
+	return e, nil
+}
+
+// EmitAuditEvent emits audit event
+func (e *MockEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	e.lastEvent = event
+	return nil
+}
+
+// LastEvent returns last emitted event
+func (e *MockEmitter) LastEvent() AuditEvent {
+	e.mtx.RLock()
+	defer e.mtx.RUnlock()
+	return e.lastEvent
+}
+
+// Reset resets state to zero values.
+func (e *MockEmitter) Reset() {
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
+	e.lastEvent = nil
+}
+
+// Status returns a channel that always blocks
+func (e *MockEmitter) Status() <-chan StreamStatus {
+	return nil
+}
+
+// Done returns channel closed when streamer is closed
+// should be used to detect sending errors
+func (e *MockEmitter) Done() <-chan struct{} {
+	return nil
+}
+
+// Close flushes non-uploaded flight stream data without marking
+// the stream completed and closes the stream instance
+func (e *MockEmitter) Close(ctx context.Context) error {
+	return nil
+}
+
+// Complete does nothing
+func (e *MockEmitter) Complete(ctx context.Context) error {
+	return nil
 }

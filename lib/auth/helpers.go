@@ -76,8 +76,16 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 
 // CreateUploaderDir creates directory for file uploader service
 func CreateUploaderDir(dir string) error {
+	// DELETE IN(5.1.0)
+	// this folder is no longer used past 5.0 upgrade
 	err := os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
 		events.SessionLogsDir, defaults.Namespace), teleport.SharedDirMode)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	err = os.MkdirAll(filepath.Join(dir, teleport.LogsDir, teleport.ComponentUpload,
+		events.StreamingLogsDir, defaults.Namespace), teleport.SharedDirMode)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
@@ -124,14 +132,16 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	// Wrap backend in sanitizer like in production.
 	srv.Backend = backend.NewSanitizer(b)
 
-	srv.AuditLog, err = events.NewAuditLog(events.AuditLogConfig{
+	localLog, err := events.NewAuditLog(events.AuditLogConfig{
 		DataDir:        cfg.Dir,
 		RecordSessions: true,
 		ServerID:       cfg.ClusterName,
+		UploadHandler:  events.NewMemoryUploader(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	srv.AuditLog = localLog
 
 	srv.SessionServer, err = session.New(srv.Backend)
 	if err != nil {
@@ -155,6 +165,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		Identity:               identity,
 		AuditLog:               srv.AuditLog,
 		SkipPeriodicOperations: true,
+		Emitter:                localLog,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -455,7 +466,13 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	srv.Listener, err = net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	srv.TLSServer, err = NewTLSServer(TLSServerConfig{
+		Listener:      srv.Listener,
 		AccessPoint:   accessPoint,
 		TLS:           tlsConfig,
 		APIConfig:     *srv.APIConfig,
@@ -592,14 +609,7 @@ func (t *TestTLSServer) Addr() net.Addr {
 
 // Start starts TLS server on loopback address on the first lisenting socket
 func (t *TestTLSServer) Start() error {
-	var err error
-	if t.Listener == nil {
-		t.Listener, err = net.Listen("tcp", "127.0.0.1:0")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	go t.TLSServer.Serve(t.Listener)
+	go t.TLSServer.Serve()
 	return nil
 }
 

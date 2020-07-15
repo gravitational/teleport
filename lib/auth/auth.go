@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -89,6 +90,12 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 	if cfg.AuditLog == nil {
 		cfg.AuditLog = events.NewDiscardAuditLog()
 	}
+	if cfg.Emitter == nil {
+		cfg.Emitter = events.NewDiscardEmitter()
+	}
+	if cfg.Streamer == nil {
+		cfg.Streamer = events.NewDiscardEmitter()
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.LimiterConfig{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -109,6 +116,8 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 		caSigningAlg:    cfg.CASigningAlg,
 		cancelFunc:      cancelFunc,
 		closeCtx:        closeCtx,
+		emitter:         cfg.Emitter,
+		streamer:        cfg.Streamer,
 		AuthServices: AuthServices{
 			Trust:                cfg.Trust,
 			Presence:             cfg.Presence,
@@ -217,6 +226,13 @@ type AuthServer struct {
 	cache AuthCache
 
 	limiter *limiter.ConnectionsLimiter
+
+	// Emitter is events emitter, used to submit discrete events
+	emitter events.Emitter
+
+	// streamer is events sessionstreamer, used to create continuous
+	// session related streams
+	streamer events.Streamer
 }
 
 // SetCache sets cache used by auth server
@@ -554,9 +570,9 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		Principals:       allowedLogins,
 		Usage:            req.usage,
 		RouteToCluster:   req.routeToCluster,
+		Traits:           req.traits,
 		KubernetesGroups: kubeGroups,
 		KubernetesUsers:  kubeUsers,
-		Traits:           req.traits,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -643,7 +659,7 @@ func (s *AuthServer) WithUserLock(username string, authenticateFn func() error) 
 
 // PreAuthenticatedSignIn is for 2-way authentication methods like U2F where the password is
 // already checked before issuing the second factor challenge
-func (s *AuthServer) PreAuthenticatedSignIn(user string, identity *tlsca.Identity) (services.WebSession, error) {
+func (s *AuthServer) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (services.WebSession, error) {
 	roles, traits, err := services.ExtractFromIdentity(s, identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -735,7 +751,7 @@ func (s *AuthServer) CheckU2FSignResponse(user string, response *u2f.SignRespons
 
 // ExtendWebSession creates a new web session for a user based on a valid previous sessionID,
 // method is used to renew the web session for a user
-func (s *AuthServer) ExtendWebSession(user string, prevSessionID string, identity *tlsca.Identity) (services.WebSession, error) {
+func (s *AuthServer) ExtendWebSession(user string, prevSessionID string, identity tlsca.Identity) (services.WebSession, error) {
 	prevSession, err := s.GetWebSession(user, prevSessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -837,10 +853,16 @@ func (a *AuthServer) GenerateToken(ctx context.Context, req GenerateTokenRequest
 	user := clientUsername(ctx)
 	for _, role := range req.Roles {
 		if role == teleport.RoleTrustedCluster {
-			if err := a.EmitAuditEvent(events.TrustedClusterTokenCreate, events.EventFields{
-				events.EventUser: user,
+			if err := a.emitter.EmitAuditEvent(ctx, &events.TrustedClusterTokenCreate{
+				Metadata: events.Metadata{
+					Type: events.TrustedClusterTokenCreateEvent,
+					Code: events.TrustedClusterTokenCreateCode,
+				},
+				UserMetadata: events.UserMetadata{
+					User: user,
+				},
 			}); err != nil {
-				log.Warnf("Failed to emit trusted cluster token create event: %v", err)
+				log.WithError(err).Warn("Failed to emit trusted cluster token create event.")
 			}
 		}
 	}
@@ -1397,11 +1419,20 @@ func (a *AuthServer) DeleteRole(ctx context.Context, name string) error {
 		return trace.Wrap(err)
 	}
 
-	if err := a.EmitAuditEvent(events.RoleDeleted, events.EventFields{
-		events.FieldName: name,
-		events.EventUser: clientUsername(ctx),
-	}); err != nil {
-		log.Warnf("Failed to emit role deleted event: %v", err)
+	err = a.emitter.EmitAuditEvent(a.closeCtx, &events.RoleDelete{
+		Metadata: events.Metadata{
+			Type: events.RoleDeletedEvent,
+			Code: events.RoleDeletedCode,
+		},
+		UserMetadata: events.UserMetadata{
+			User: clientUsername(ctx),
+		},
+		ResourceMetadata: events.ResourceMetadata{
+			Name: name,
+		},
+	})
+	if err != nil {
+		log.WithError(err).Warnf("Failed to emit role deleted event.")
 	}
 
 	return nil
@@ -1413,13 +1444,21 @@ func (a *AuthServer) upsertRole(ctx context.Context, role services.Role) error {
 		return trace.Wrap(err)
 	}
 
-	if err := a.EmitAuditEvent(events.RoleCreated, events.EventFields{
-		events.FieldName: role.GetName(),
-		events.EventUser: clientUsername(ctx),
-	}); err != nil {
-		log.Warnf("Failed to emit role created event: %v", err)
+	err := a.emitter.EmitAuditEvent(a.closeCtx, &events.RoleCreate{
+		Metadata: events.Metadata{
+			Type: events.RoleCreatedEvent,
+			Code: events.RoleCreatedCode,
+		},
+		UserMetadata: events.UserMetadata{
+			User: clientUsername(ctx),
+		},
+		ResourceMetadata: events.ResourceMetadata{
+			Name: role.GetName(),
+		},
+	})
+	if err != nil {
+		log.WithError(err).Warnf("Failed to emit role create event.")
 	}
-
 	return nil
 }
 
@@ -1451,11 +1490,17 @@ func (a *AuthServer) CreateAccessRequest(ctx context.Context, req services.Acces
 	if err := a.DynamicAccess.CreateAccessRequest(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.EmitAuditEvent(events.AccessRequestCreated, events.EventFields{
-		events.AccessRequestID:    req.GetName(),
-		events.EventUser:          req.GetUser(),
-		events.UserRoles:          req.GetRoles(),
-		events.AccessRequestState: req.GetState().String(),
+	err = a.emitter.EmitAuditEvent(a.closeCtx, &events.AccessRequestCreate{
+		Metadata: events.Metadata{
+			Type: events.AccessRequestCreateEvent,
+			Code: events.AccessRequestCreateCode,
+		},
+		UserMetadata: events.UserMetadata{
+			User: req.GetUser(),
+		},
+		Roles:        req.GetRoles(),
+		RequestID:    req.GetName(),
+		RequestState: req.GetState().String(),
 	})
 	return trace.Wrap(err)
 }
@@ -1464,15 +1509,24 @@ func (a *AuthServer) SetAccessRequestState(ctx context.Context, reqID string, st
 	if err := a.DynamicAccess.SetAccessRequestState(ctx, reqID, state); err != nil {
 		return trace.Wrap(err)
 	}
-	fields := events.EventFields{
-		events.AccessRequestID:    reqID,
-		events.AccessRequestState: state.String(),
-		events.UpdatedBy:          clientUsername(ctx),
+	event := &events.AccessRequestCreate{
+		Metadata: events.Metadata{
+			Type: events.AccessRequestUpdateEvent,
+			Code: events.AccessRequestUpdateCode,
+		},
+		ResourceMetadata: events.ResourceMetadata{
+			UpdatedBy: clientUsername(ctx),
+		},
+		RequestID:    reqID,
+		RequestState: state.String(),
 	}
 	if delegator := getDelegator(ctx); delegator != "" {
-		fields[events.AccessRequestDelegator] = delegator
+		event.Delegator = delegator
 	}
-	err := a.EmitAuditEvent(events.AccessRequestUpdated, fields)
+	err := a.emitter.EmitAuditEvent(a.closeCtx, event)
+	if err != nil {
+		log.WithError(err).Warn("Failed to emit access request update event.")
+	}
 	return trace.Wrap(err)
 }
 
@@ -1586,6 +1640,43 @@ func (a *AuthServer) GetTunnelConnections(clusterName string, opts ...services.M
 // to be called periodically and always return fresh data
 func (a *AuthServer) GetAllTunnelConnections(opts ...services.MarshalOption) (conns []services.TunnelConnection, err error) {
 	return a.GetCache().GetAllTunnelConnections(opts...)
+}
+
+// CreateAuditStream creates audit event stream
+func (a *AuthServer) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
+	streamer, err := a.modeStreamer()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return streamer.CreateAuditStream(ctx, sid)
+}
+
+// ResumeAuditStream resumes the stream that has been created
+func (a *AuthServer) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (events.Stream, error) {
+	streamer, err := a.modeStreamer()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return streamer.ResumeAuditStream(ctx, sid, uploadID)
+}
+
+// modeStreamer creates streamer based on the event mode
+func (a *AuthServer) modeStreamer() (events.Streamer, error) {
+	clusterConfig, err := a.GetClusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	mode := clusterConfig.GetSessionRecording()
+	// In sync mode, auth server forwards session control to the event log
+	// in addition to sending them and data events to the record storage.
+	if services.IsRecordSync(mode) {
+		return events.NewTeeStreamer(a.streamer, a.emitter), nil
+	}
+	// In async mode, clients submit session control events
+	// during the session in addition to writing a local
+	// session recording to be uploaded at the end of the session,
+	// so forwarding events here will result in duplicate events.
+	return a.streamer, nil
 }
 
 // authKeepAliver is a keep aliver using auth server directly

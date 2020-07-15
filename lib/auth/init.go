@@ -143,6 +143,13 @@ type InitConfig struct {
 	// handshake) signatures for both host and user CAs. This option only
 	// affects newly-created CAs.
 	CASigningAlg *string
+
+	// Emitter is events emitter, used to submit discrete events
+	Emitter events.Emitter
+
+	// Streamer is events sessionstreamer, used to create continuous
+	// session related streams
+	Streamer events.Streamer
 }
 
 // Init instantiates and configures an instance of AuthServer

@@ -32,395 +32,492 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/multiplexer/test"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"gopkg.in/check.v1"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func Test(t *testing.T) { check.TestingT(t) }
+// TestMux tests multiplexing protocols
+// using the same listener.
+func TestMux(t *testing.T) {
+	utils.InitLoggerForTests(testing.Verbose())
 
-type MuxSuite struct {
-	signer ssh.Signer
+	_, signer, err := utils.CreateCertificate("foo", ssh.HostCert)
+	assert.Nil(t, err)
+
+	// TestMux tests basic use case of multiplexing TLS
+	// and SSH on the same listener socket
+	t.Run("TLSSSH", func(t *testing.T) {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		assert.Nil(t, err)
+
+		mux, err := New(Config{
+			Listener:            listener,
+			EnableProxyProtocol: true,
+		})
+		assert.Nil(t, err)
+		go mux.Serve()
+		defer mux.Close()
+
+		backend1 := &httptest.Server{
+			Listener: mux.TLS(),
+			Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprintf(w, "backend 1")
+			}),
+			},
+		}
+		backend1.StartTLS()
+		defer backend1.Close()
+
+		called := false
+		sshHandler := sshutils.NewChanHandlerFunc(func(_ context.Context, _ *sshutils.ConnectionContext, nch ssh.NewChannel) {
+			called = true
+			err := nch.Reject(ssh.Prohibited, "nothing to see here")
+			assert.Nil(t, err)
+		})
+
+		srv, err := sshutils.NewServer(
+			"test",
+			utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+			sshHandler,
+			[]ssh.Signer{signer},
+			sshutils.AuthMethods{Password: pass("abc123")},
+		)
+		assert.Nil(t, err)
+		go srv.Serve(mux.SSH())
+		defer srv.Close()
+		clt, err := ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
+			Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
+			Timeout:         time.Second,
+			HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
+		})
+		assert.Nil(t, err)
+		defer clt.Close()
+
+		// call new session to initiate opening new channel
+		_, err = clt.NewSession()
+		assert.NotNil(t, err)
+		// make sure the channel handler was called OK
+		assert.Equal(t, called, true)
+
+		client := testClient(backend1)
+		re, err := client.Get(backend1.URL)
+		assert.Nil(t, err)
+		defer re.Body.Close()
+		bytes, err := ioutil.ReadAll(re.Body)
+		assert.Nil(t, err)
+		assert.Equal(t, string(bytes), "backend 1")
+
+		// Close mux, new requests should fail
+		mux.Close()
+		mux.Wait()
+
+		// use new client to use new connection pool
+		client = testClient(backend1)
+		re, err = client.Get(backend1.URL)
+		if err == nil {
+			re.Body.Close()
+		}
+		assert.NotNil(t, err)
+	})
+
+	// ProxyLine tests proxy line protocol
+	t.Run("ProxyLine", func(t *testing.T) {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		assert.Nil(t, err)
+
+		mux, err := New(Config{
+			Listener:            listener,
+			EnableProxyProtocol: true,
+		})
+		assert.Nil(t, err)
+		go mux.Serve()
+		defer mux.Close()
+
+		backend1 := &httptest.Server{
+			Listener: mux.TLS(),
+			Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprintf(w, r.RemoteAddr)
+			}),
+			},
+		}
+		backend1.StartTLS()
+		defer backend1.Close()
+
+		remoteAddr := net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8000}
+		proxyLine := ProxyLine{
+			Protocol:    TCP4,
+			Source:      remoteAddr,
+			Destination: net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 9000},
+		}
+
+		parsedURL, err := url.Parse(backend1.URL)
+		assert.Nil(t, err)
+
+		conn, err := net.Dial("tcp", parsedURL.Host)
+		assert.Nil(t, err)
+		defer conn.Close()
+		// send proxy line first before establishing TLS connection
+		_, err = fmt.Fprint(conn, proxyLine.String())
+		assert.Nil(t, err)
+
+		// upgrade connection to TLS
+		tlsConn := tls.Client(conn, clientConfig(backend1))
+		defer tlsConn.Close()
+
+		// make sure the TLS call succeeded and we got remote address
+		// correctly
+		out, err := utils.RoundtripWithConn(tlsConn)
+		assert.Nil(t, err)
+		assert.Equal(t, out, remoteAddr.String())
+	})
+
+	// TestDisabledProxy makes sure the connection gets dropped
+	// when Proxy line support protocol is turned off
+	t.Run("DisabledProxy", func(t *testing.T) {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		assert.Nil(t, err)
+
+		mux, err := New(Config{
+			Listener:            listener,
+			EnableProxyProtocol: false,
+		})
+		assert.Nil(t, err)
+		go mux.Serve()
+		defer mux.Close()
+
+		backend1 := &httptest.Server{
+			Listener: mux.TLS(),
+			Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprintf(w, r.RemoteAddr)
+			}),
+			},
+		}
+		backend1.StartTLS()
+		defer backend1.Close()
+
+		remoteAddr := net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8000}
+		proxyLine := ProxyLine{
+			Protocol:    TCP4,
+			Source:      remoteAddr,
+			Destination: net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 9000},
+		}
+
+		parsedURL, err := url.Parse(backend1.URL)
+		assert.Nil(t, err)
+
+		conn, err := net.Dial("tcp", parsedURL.Host)
+		assert.Nil(t, err)
+		defer conn.Close()
+		// send proxy line first before establishing TLS connection
+		_, err = fmt.Fprint(conn, proxyLine.String())
+		assert.Nil(t, err)
+
+		// upgrade connection to TLS
+		tlsConn := tls.Client(conn, clientConfig(backend1))
+		defer tlsConn.Close()
+
+		// make sure the TLS call failed
+		_, err = utils.RoundtripWithConn(tlsConn)
+		assert.NotNil(t, err)
+	})
+
+	// Timeout tests client timeout - client dials, but writes nothing
+	// make sure server hangs up
+	t.Run("Timeout", func(t *testing.T) {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		assert.Nil(t, err)
+
+		config := Config{
+			Listener:            listener,
+			ReadDeadline:        time.Millisecond,
+			EnableProxyProtocol: true,
+		}
+		mux, err := New(config)
+		assert.Nil(t, err)
+		go mux.Serve()
+		defer mux.Close()
+
+		backend1 := &httptest.Server{
+			Listener: mux.TLS(),
+			Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprintf(w, r.RemoteAddr)
+			}),
+			},
+		}
+		backend1.StartTLS()
+		defer backend1.Close()
+
+		parsedURL, err := url.Parse(backend1.URL)
+		assert.Nil(t, err)
+
+		conn, err := net.Dial("tcp", parsedURL.Host)
+		assert.Nil(t, err)
+		defer conn.Close()
+
+		time.Sleep(config.ReadDeadline + 5*time.Millisecond)
+		// upgrade connection to TLS
+		tlsConn := tls.Client(conn, clientConfig(backend1))
+		defer tlsConn.Close()
+
+		// roundtrip should fail on the timeout
+		_, err = utils.RoundtripWithConn(tlsConn)
+		assert.NotNil(t, err)
+	})
+
+	// UnknownProtocol make sure that multiplexer closes connection
+	// with unknown protocol
+	t.Run("UnknownProtocol", func(t *testing.T) {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		assert.Nil(t, err)
+
+		mux, err := New(Config{
+			Listener:            listener,
+			EnableProxyProtocol: true,
+		})
+		assert.Nil(t, err)
+		go mux.Serve()
+		defer mux.Close()
+
+		conn, err := net.Dial("tcp", listener.Addr().String())
+		assert.Nil(t, err)
+		defer conn.Close()
+
+		// try plain HTTP
+		_, err = fmt.Fprintf(conn, "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+		assert.Nil(t, err)
+
+		// connection should be closed
+		_, err = conn.Read(make([]byte, 1))
+		assert.Equal(t, err, io.EOF)
+	})
+
+	// DisableSSH disables SSH
+	t.Run("DisableSSH", func(t *testing.T) {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		assert.Nil(t, err)
+
+		mux, err := New(Config{
+			Listener:            listener,
+			EnableProxyProtocol: true,
+			DisableSSH:          true,
+		})
+		assert.Nil(t, err)
+		go mux.Serve()
+		defer mux.Close()
+
+		backend1 := &httptest.Server{
+			Listener: mux.TLS(),
+			Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprintf(w, "backend 1")
+			}),
+			},
+		}
+		backend1.StartTLS()
+		defer backend1.Close()
+
+		_, err = ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
+			Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
+			Timeout:         time.Second,
+			HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
+		})
+		assert.NotNil(t, err)
+
+		// TLS requests will succeed
+		client := testClient(backend1)
+		re, err := client.Get(backend1.URL)
+		assert.Nil(t, err)
+		defer re.Body.Close()
+		bytes, err := ioutil.ReadAll(re.Body)
+		assert.Nil(t, err)
+		assert.Equal(t, string(bytes), "backend 1")
+
+		// Close mux, new requests should fail
+		mux.Close()
+		mux.Wait()
+
+		// use new client to use new connection pool
+		client = testClient(backend1)
+		re, err = client.Get(backend1.URL)
+		if err == nil {
+			re.Body.Close()
+		}
+		assert.NotNil(t, err)
+	})
+
+	// TestDisableTLS tests scenario with disabled TLS
+	t.Run("DisableTLS", func(t *testing.T) {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		assert.Nil(t, err)
+
+		mux, err := New(Config{
+			Listener:            listener,
+			EnableProxyProtocol: true,
+			DisableTLS:          true,
+		})
+		assert.Nil(t, err)
+		go mux.Serve()
+		defer mux.Close()
+
+		backend1 := &httptest.Server{
+			Listener: mux.TLS(),
+			Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprintf(w, "backend 1")
+			}),
+			},
+		}
+		backend1.StartTLS()
+		defer backend1.Close()
+
+		called := false
+		sshHandler := sshutils.NewChanHandlerFunc(func(_ context.Context, _ *sshutils.ConnectionContext, nch ssh.NewChannel) {
+			called = true
+			err := nch.Reject(ssh.Prohibited, "nothing to see here")
+			assert.Nil(t, err)
+		})
+
+		srv, err := sshutils.NewServer(
+			"test",
+			utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+			sshHandler,
+			[]ssh.Signer{signer},
+			sshutils.AuthMethods{Password: pass("abc123")},
+		)
+		assert.Nil(t, err)
+		go srv.Serve(mux.SSH())
+		defer srv.Close()
+		clt, err := ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
+			Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
+			Timeout:         time.Second,
+			HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
+		})
+		assert.Nil(t, err)
+		defer clt.Close()
+
+		// call new session to initiate opening new channel
+		_, err = clt.NewSession()
+		assert.NotNil(t, err)
+		// make sure the channel handler was called OK
+		assert.Equal(t, called, true)
+
+		client := testClient(backend1)
+		re, err := client.Get(backend1.URL)
+		if err == nil {
+			re.Body.Close()
+		}
+		assert.NotNil(t, err)
+
+		// Close mux, new requests should fail
+		mux.Close()
+		mux.Wait()
+	})
+
+	// NextProto tests multiplexing using NextProto selector
+	t.Run("NextProto", func(t *testing.T) {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		assert.Nil(t, err)
+
+		mux, err := New(Config{
+			Listener:            listener,
+			EnableProxyProtocol: true,
+		})
+		assert.Nil(t, err)
+		go mux.Serve()
+		defer mux.Close()
+
+		cfg, err := fixtures.LocalTLSConfig()
+		assert.Nil(t, err)
+
+		tlsLis, err := NewTLSListener(TLSListenerConfig{
+			Listener: tls.NewListener(mux.TLS(), cfg.TLS),
+		})
+		assert.Nil(t, err)
+		go tlsLis.Serve()
+
+		opts := []grpc.ServerOption{
+			grpc.Creds(&httplib.TLSCreds{
+				Config: cfg.TLS,
+			})}
+		s := grpc.NewServer(opts...)
+		test.RegisterPingerServer(s, &server{})
+
+		errCh := make(chan error, 2)
+
+		go func() {
+			errCh <- s.Serve(tlsLis.HTTP2())
+		}()
+
+		httpServer := http.Server{
+			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprintf(w, "http backend")
+			}),
+		}
+		go func() {
+			err := httpServer.Serve(tlsLis.HTTP())
+			if err == nil || err == http.ErrServerClosed {
+				errCh <- nil
+				return
+			}
+			errCh <- err
+		}()
+
+		url := fmt.Sprintf("https://%s", listener.Addr())
+		client := cfg.NewClient()
+		re, err := client.Get(url)
+		assert.Nil(t, err)
+		defer re.Body.Close()
+		bytes, err := ioutil.ReadAll(re.Body)
+		assert.Nil(t, err)
+		assert.Equal(t, string(bytes), "http backend")
+
+		creds := credentials.NewClientTLSFromCert(cfg.CertPool, "")
+
+		// Set up a connection to the server.
+		conn, err := grpc.Dial(listener.Addr().String(), grpc.WithTransportCredentials(creds), grpc.WithBlock())
+		assert.Nil(t, err)
+		defer conn.Close()
+
+		gclient := test.NewPingerClient(conn)
+
+		out, err := gclient.Ping(context.TODO(), &test.Request{})
+		assert.Nil(t, err)
+		assert.Equal(t, out.GetPayload(), "grpc backend")
+
+		// Close mux, new requests should fail
+		mux.Close()
+		mux.Wait()
+
+		// use new client to use new connection pool
+		client = cfg.NewClient()
+		re, err = client.Get(url)
+		if err == nil {
+			re.Body.Close()
+		}
+		assert.NotNil(t, err)
+
+		httpServer.Close()
+		s.Stop()
+		// wait for both servers to finish
+		for i := 0; i < 2; i++ {
+			err := <-errCh
+			assert.Nil(t, err)
+		}
+	})
 }
 
-var _ = fmt.Printf
-var _ = check.Suite(&MuxSuite{})
-
-func (s *MuxSuite) SetUpSuite(c *check.C) {
-	var err error
-
-	utils.InitLoggerForTests()
-
-	_, s.signer, err = utils.CreateCertificate("foo", ssh.HostCert)
-	c.Assert(err, check.IsNil)
+// server is used to implement test.PingerServer
+type server struct {
 }
 
-// TestMultiplexing tests basic use case of multiplexing TLS
-// and SSH on the same listener socket
-func (s *MuxSuite) TestMultiplexing(c *check.C) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	c.Assert(err, check.IsNil)
-
-	mux, err := New(Config{
-		Listener:            listener,
-		EnableProxyProtocol: true,
-	})
-	c.Assert(err, check.IsNil)
-	go mux.Serve()
-	defer mux.Close()
-
-	backend1 := &httptest.Server{
-		Listener: mux.TLS(),
-		Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(w, "backend 1")
-		}),
-		},
-	}
-	backend1.StartTLS()
-	defer backend1.Close()
-
-	called := false
-	sshHandler := sshutils.NewChanHandlerFunc(func(_ context.Context, _ *sshutils.ConnectionContext, nch ssh.NewChannel) {
-		called = true
-		err := nch.Reject(ssh.Prohibited, "nothing to see here")
-		c.Assert(err, check.IsNil)
-	})
-
-	srv, err := sshutils.NewServer(
-		"test",
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
-		sshHandler,
-		[]ssh.Signer{s.signer},
-		sshutils.AuthMethods{Password: pass("abc123")},
-	)
-	c.Assert(err, check.IsNil)
-	go srv.Serve(mux.SSH())
-	defer srv.Close()
-	clt, err := ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
-		Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
-		Timeout:         time.Second,
-		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
-	})
-	c.Assert(err, check.IsNil)
-	defer clt.Close()
-
-	// call new session to initiate opening new channel
-	_, err = clt.NewSession()
-	c.Assert(err, check.NotNil)
-	// make sure the channel handler was called OK
-	c.Assert(called, check.Equals, true)
-
-	client := testClient(backend1)
-	re, err := client.Get(backend1.URL)
-	c.Assert(err, check.IsNil)
-	defer re.Body.Close()
-	bytes, err := ioutil.ReadAll(re.Body)
-	c.Assert(err, check.IsNil)
-	c.Assert(string(bytes), check.Equals, "backend 1")
-
-	// Close mux, new requests should fail
-	mux.Close()
-	mux.Wait()
-
-	// use new client to use new connection pool
-	client = testClient(backend1)
-	re, err = client.Get(backend1.URL)
-	if err == nil {
-		re.Body.Close()
-	}
-	c.Assert(err, check.NotNil)
-}
-
-// TestProxy tests Proxy line support protocol
-func (s *MuxSuite) TestProxy(c *check.C) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	c.Assert(err, check.IsNil)
-
-	mux, err := New(Config{
-		Listener:            listener,
-		EnableProxyProtocol: true,
-	})
-	c.Assert(err, check.IsNil)
-	go mux.Serve()
-	defer mux.Close()
-
-	backend1 := &httptest.Server{
-		Listener: mux.TLS(),
-		Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(w, r.RemoteAddr)
-		}),
-		},
-	}
-	backend1.StartTLS()
-	defer backend1.Close()
-
-	remoteAddr := net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8000}
-	proxyLine := ProxyLine{
-		Protocol:    TCP4,
-		Source:      remoteAddr,
-		Destination: net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 9000},
-	}
-
-	parsedURL, err := url.Parse(backend1.URL)
-	c.Assert(err, check.IsNil)
-
-	conn, err := net.Dial("tcp", parsedURL.Host)
-	c.Assert(err, check.IsNil)
-	defer conn.Close()
-	// send proxy line first before establishing TLS connection
-	_, err = fmt.Fprint(conn, proxyLine.String())
-	c.Assert(err, check.IsNil)
-
-	// upgrade connection to TLS
-	tlsConn := tls.Client(conn, clientConfig(backend1))
-	defer tlsConn.Close()
-
-	// make sure the TLS call succeeded and we got remote address
-	// correctly
-	out, err := utils.RoundtripWithConn(tlsConn)
-	c.Assert(err, check.IsNil)
-	c.Assert(out, check.Equals, remoteAddr.String())
-}
-
-// TestDisabledProxy makes sure the connection gets dropped
-// when Proxy line support protocol is turned off
-func (s *MuxSuite) TestDisabledProxy(c *check.C) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	c.Assert(err, check.IsNil)
-
-	mux, err := New(Config{
-		Listener:            listener,
-		EnableProxyProtocol: false,
-	})
-	c.Assert(err, check.IsNil)
-	go mux.Serve()
-	defer mux.Close()
-
-	backend1 := &httptest.Server{
-		Listener: mux.TLS(),
-		Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(w, r.RemoteAddr)
-		}),
-		},
-	}
-	backend1.StartTLS()
-	defer backend1.Close()
-
-	remoteAddr := net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8000}
-	proxyLine := ProxyLine{
-		Protocol:    TCP4,
-		Source:      remoteAddr,
-		Destination: net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 9000},
-	}
-
-	parsedURL, err := url.Parse(backend1.URL)
-	c.Assert(err, check.IsNil)
-
-	conn, err := net.Dial("tcp", parsedURL.Host)
-	c.Assert(err, check.IsNil)
-	defer conn.Close()
-	// send proxy line first before establishing TLS connection
-	_, err = fmt.Fprint(conn, proxyLine.String())
-	c.Assert(err, check.IsNil)
-
-	// upgrade connection to TLS
-	tlsConn := tls.Client(conn, clientConfig(backend1))
-	defer tlsConn.Close()
-
-	// make sure the TLS call failed
-	_, err = utils.RoundtripWithConn(tlsConn)
-	c.Assert(err, check.NotNil)
-}
-
-// TestTimeout tests client timeout - client dials, but writes nothing
-// make sure server hangs up
-func (s *MuxSuite) TestTimeout(c *check.C) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	c.Assert(err, check.IsNil)
-
-	config := Config{
-		Listener:            listener,
-		ReadDeadline:        time.Millisecond,
-		EnableProxyProtocol: true,
-	}
-	mux, err := New(config)
-	c.Assert(err, check.IsNil)
-	go mux.Serve()
-	defer mux.Close()
-
-	backend1 := &httptest.Server{
-		Listener: mux.TLS(),
-		Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(w, r.RemoteAddr)
-		}),
-		},
-	}
-	backend1.StartTLS()
-	defer backend1.Close()
-
-	parsedURL, err := url.Parse(backend1.URL)
-	c.Assert(err, check.IsNil)
-
-	conn, err := net.Dial("tcp", parsedURL.Host)
-	c.Assert(err, check.IsNil)
-	defer conn.Close()
-
-	time.Sleep(config.ReadDeadline + 5*time.Millisecond)
-	// upgrade connection to TLS
-	tlsConn := tls.Client(conn, clientConfig(backend1))
-	defer tlsConn.Close()
-
-	// roundtrip should fail on the timeout
-	_, err = utils.RoundtripWithConn(tlsConn)
-	c.Assert(err, check.NotNil)
-}
-
-// TestUnknownProtocol make sure that multiplexer closes connection
-// with unknown protocol
-func (s *MuxSuite) TestUnknownProtocol(c *check.C) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	c.Assert(err, check.IsNil)
-
-	mux, err := New(Config{
-		Listener:            listener,
-		EnableProxyProtocol: true,
-	})
-	c.Assert(err, check.IsNil)
-	go mux.Serve()
-	defer mux.Close()
-
-	conn, err := net.Dial("tcp", listener.Addr().String())
-	c.Assert(err, check.IsNil)
-	defer conn.Close()
-
-	// try plain HTTP
-	_, err = fmt.Fprintf(conn, "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
-	c.Assert(err, check.IsNil)
-
-	// connection should be closed
-	_, err = conn.Read(make([]byte, 1))
-	c.Assert(err, check.Equals, io.EOF)
-}
-
-// TestDisableSSH disables SSH
-func (s *MuxSuite) TestDisableSSH(c *check.C) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	c.Assert(err, check.IsNil)
-
-	mux, err := New(Config{
-		Listener:            listener,
-		EnableProxyProtocol: true,
-		DisableSSH:          true,
-	})
-	c.Assert(err, check.IsNil)
-	go mux.Serve()
-	defer mux.Close()
-
-	backend1 := &httptest.Server{
-		Listener: mux.TLS(),
-		Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(w, "backend 1")
-		}),
-		},
-	}
-	backend1.StartTLS()
-	defer backend1.Close()
-
-	_, err = ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
-		Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
-		Timeout:         time.Second,
-		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
-	})
-	c.Assert(err, check.NotNil)
-
-	// TLS requests will succeed
-	client := testClient(backend1)
-	re, err := client.Get(backend1.URL)
-	c.Assert(err, check.IsNil)
-	defer re.Body.Close()
-	bytes, err := ioutil.ReadAll(re.Body)
-	c.Assert(err, check.IsNil)
-	c.Assert(string(bytes), check.Equals, "backend 1")
-
-	// Close mux, new requests should fail
-	mux.Close()
-	mux.Wait()
-
-	// use new client to use new connection pool
-	client = testClient(backend1)
-	re, err = client.Get(backend1.URL)
-	if err == nil {
-		re.Body.Close()
-	}
-	c.Assert(err, check.NotNil)
-}
-
-// TestDisableTLS tests scenario with disabled TLS
-func (s *MuxSuite) TestDisableTLS(c *check.C) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	c.Assert(err, check.IsNil)
-
-	mux, err := New(Config{
-		Listener:            listener,
-		EnableProxyProtocol: true,
-		DisableTLS:          true,
-	})
-	c.Assert(err, check.IsNil)
-	go mux.Serve()
-	defer mux.Close()
-
-	backend1 := &httptest.Server{
-		Listener: mux.TLS(),
-		Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			fmt.Fprintf(w, "backend 1")
-		}),
-		},
-	}
-	backend1.StartTLS()
-	defer backend1.Close()
-
-	called := false
-	sshHandler := sshutils.NewChanHandlerFunc(func(_ context.Context, _ *sshutils.ConnectionContext, nch ssh.NewChannel) {
-		called = true
-		err := nch.Reject(ssh.Prohibited, "nothing to see here")
-		c.Assert(err, check.IsNil)
-	})
-
-	srv, err := sshutils.NewServer(
-		"test",
-		utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
-		sshHandler,
-		[]ssh.Signer{s.signer},
-		sshutils.AuthMethods{Password: pass("abc123")},
-	)
-	c.Assert(err, check.IsNil)
-	go srv.Serve(mux.SSH())
-	defer srv.Close()
-	clt, err := ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
-		Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
-		Timeout:         time.Second,
-		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
-	})
-	c.Assert(err, check.IsNil)
-	defer clt.Close()
-
-	// call new session to initiate opening new channel
-	_, err = clt.NewSession()
-	c.Assert(err, check.NotNil)
-	// make sure the channel handler was called OK
-	c.Assert(called, check.Equals, true)
-
-	client := testClient(backend1)
-	re, err := client.Get(backend1.URL)
-	if err == nil {
-		re.Body.Close()
-	}
-	c.Assert(err, check.NotNil)
-
-	// Close mux, new requests should fail
-	mux.Close()
-	mux.Wait()
+func (s *server) Ping(ctx context.Context, req *test.Request) (*test.Response, error) {
+	return &test.Response{Payload: "grpc backend"}, nil
 }
 
 // clientConfig returns tls client config from test http server

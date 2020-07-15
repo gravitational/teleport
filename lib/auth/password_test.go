@@ -42,9 +42,9 @@ import (
 )
 
 type PasswordSuite struct {
-	bk             backend.Backend
-	a              *AuthServer
-	mockedAuditLog *events.MockAuditLog
+	bk          backend.Backend
+	a           *AuthServer
+	mockEmitter *events.MockEmitter
 }
 
 var _ = fmt.Printf
@@ -96,8 +96,8 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 	err = s.a.SetStaticTokens(staticTokens)
 	c.Assert(err, IsNil)
 
-	s.mockedAuditLog = events.NewMockAuditLog(0)
-	s.a.IAuditLog = s.mockedAuditLog
+	s.mockEmitter = &events.MockEmitter{}
+	s.a.emitter = s.mockEmitter
 }
 
 func (s *PasswordSuite) TearDownTest(c *C) {
@@ -191,8 +191,8 @@ func (s *PasswordSuite) TestChangePassword(c *C) {
 
 	err = s.a.ChangePassword(req)
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.UserPasswordChange)
-	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.EventUser], Equals, "user1")
+	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.UserPasswordChangeEvent)
+	c.Assert(s.mockEmitter.LastEvent().(*events.UserPasswordChange).User, Equals, "user1")
 
 	s.shouldLockAfterFailedAttempts(c, req)
 

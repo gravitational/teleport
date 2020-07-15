@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
+Copyright 2015-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package auth
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"encoding/hex"
@@ -55,9 +56,14 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	ggzip "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 )
+
+func init() {
+	ggzip.SetLevel(gzip.BestSpeed)
+}
 
 const (
 	// CurrentVersion is a current API version
@@ -307,13 +313,14 @@ func (c *Client) grpc() (proto.AuthServiceClient, error) {
 	})
 	tlsConfig := c.TLS.Clone()
 	tlsConfig.NextProtos = []string{http2.NextProtoTLS}
-	log.Debugf("GRPC(): keep alive %v count: %v.", c.KeepAlivePeriod, c.KeepAliveCount)
+	log.Debugf("GRPC(CLIENT): keep alive %v count: %v.", c.KeepAlivePeriod, c.KeepAliveCount)
 	conn, err := grpc.Dial(teleport.APIDomain,
 		dialer,
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:    c.KeepAlivePeriod,
-			Timeout: c.KeepAlivePeriod * time.Duration(c.KeepAliveCount),
+			Time:                c.KeepAlivePeriod,
+			Timeout:             c.KeepAlivePeriod * time.Duration(c.KeepAliveCount),
+			PermitWithoutStream: true,
 		}),
 	)
 	if err != nil {
@@ -2037,8 +2044,160 @@ func (c *Client) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, 
 	return &response, nil
 }
 
-// EmitAuditEvent sends an auditable event to the auth server (part of evets.IAuditLog interface)
-func (c *Client) EmitAuditEvent(event events.Event, fields events.EventFields) error {
+// ResumeAuditStream resumes existing audit stream
+func (c *Client) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (events.Stream, error) {
+	return c.createOrResumeAuditStream(ctx, proto.AuditStreamRequest{
+		Request: &proto.AuditStreamRequest_ResumeStream{
+			ResumeStream: &proto.ResumeStream{
+				SessionID: string(sid),
+				UploadID:  uploadID,
+			}},
+	})
+}
+
+// CreateAuditStream creates new audit stream
+func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
+	return c.createOrResumeAuditStream(ctx, proto.AuditStreamRequest{
+		Request: &proto.AuditStreamRequest_CreateStream{
+			CreateStream: &proto.CreateStream{SessionID: string(sid)}},
+	})
+}
+
+// createOrResumeAuditStream creates or resumes audit stream
+func (c *Client) createOrResumeAuditStream(ctx context.Context, request proto.AuditStreamRequest) (events.Stream, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	closeCtx, cancel := context.WithCancel(ctx)
+	stream, err := clt.CreateAuditStream(closeCtx, grpc.UseCompressor(ggzip.Name))
+	if err != nil {
+		cancel()
+		return nil, trail.FromGRPC(err)
+	}
+	s := &auditStreamer{
+		stream:   stream,
+		statusCh: make(chan events.StreamStatus, 1),
+		closeCtx: closeCtx,
+		cancel:   cancel,
+	}
+	go s.recv()
+	err = s.stream.Send(&request)
+	if err != nil {
+		return nil, trace.NewAggregate(s.Close(ctx), trail.FromGRPC(err))
+	}
+	return s, nil
+}
+
+type auditStreamer struct {
+	statusCh chan events.StreamStatus
+	sync.RWMutex
+	stream   proto.AuthService_CreateAuditStreamClient
+	err      error
+	closeCtx context.Context
+	cancel   context.CancelFunc
+}
+
+// Close flushes non-uploaded flight stream data without marking
+// the stream completed and closes the stream instance
+func (s *auditStreamer) Close(ctx context.Context) error {
+	defer s.closeWithError(nil)
+	return trail.FromGRPC(s.stream.Send(&proto.AuditStreamRequest{
+		Request: &proto.AuditStreamRequest_FlushAndCloseStream{
+			FlushAndCloseStream: &proto.FlushAndCloseStream{},
+		},
+	}))
+}
+
+// Complete completes stream
+func (s *auditStreamer) Complete(ctx context.Context) error {
+	return trail.FromGRPC(s.stream.Send(&proto.AuditStreamRequest{
+		Request: &proto.AuditStreamRequest_CompleteStream{
+			CompleteStream: &proto.CompleteStream{},
+		},
+	}))
+}
+
+// Status returns channel receiving updates about stream status
+// last event index that was uploaded and upload ID
+func (s *auditStreamer) Status() <-chan events.StreamStatus {
+	return s.statusCh
+}
+
+// EmitAuditEvent emits audit event
+func (s *auditStreamer) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
+	oneof, err := events.ToOneOf(event)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = trail.FromGRPC(s.stream.Send(&proto.AuditStreamRequest{
+		Request: &proto.AuditStreamRequest_Event{Event: oneof},
+	}))
+	if err != nil {
+		log.WithError(err).Errorf("Failed to send event.")
+		s.closeWithError(err)
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// Done returns channel closed when streamer is closed
+// should be used to detect sending errors
+func (s *auditStreamer) Done() <-chan struct{} {
+	return s.closeCtx.Done()
+}
+
+// Error returns last error of the stream
+func (s *auditStreamer) Error() error {
+	s.RLock()
+	defer s.RUnlock()
+	return s.err
+}
+
+// recv is necessary to receive errors from the
+// server, otherwise no errors will be propagated
+func (s *auditStreamer) recv() {
+	for {
+		status, err := s.stream.Recv()
+		if err != nil {
+			s.closeWithError(trail.FromGRPC(err))
+			return
+		}
+		select {
+		case <-s.closeCtx.Done():
+			return
+		case s.statusCh <- *status:
+		default:
+		}
+	}
+}
+
+func (s *auditStreamer) closeWithError(err error) {
+	s.cancel()
+	s.Lock()
+	defer s.Unlock()
+	s.err = err
+}
+
+// EmitAuditEvent sends an auditable event to the auth server
+func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) error {
+	grpcEvent, err := events.ToOneOf(event)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = clt.EmitAuditEvent(ctx, grpcEvent)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// EmitAuditEventLegacy sends an auditable event to the auth server (part of events.IAuditLog interface)
+func (c *Client) EmitAuditEventLegacy(event events.Event, fields events.EventFields) error {
 	_, err := c.PostJSON(c.Endpoint("events"), &auditEventReq{
 		Event:  event,
 		Fields: fields,
@@ -2938,6 +3097,8 @@ type ClientI interface {
 	ProvisioningService
 	services.Trust
 	events.IAuditLog
+	events.Streamer
+	events.Emitter
 	services.Presence
 	services.Access
 	services.DynamicAccess

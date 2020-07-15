@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -93,7 +93,7 @@ func NewExecRequest(ctx *ServerContext, command string) (Exec, error) {
 
 	// When in recording mode, return an *remoteExec which will execute the
 	// command on a remote host. This is used by in-memory forwarding nodes.
-	if ctx.ClusterConfig.GetSessionRecording() == services.RecordAtProxy {
+	if services.IsRecordAtProxy(ctx.ClusterConfig.GetSessionRecording()) == true {
 		return &remoteExec{
 			ctx:     ctx,
 			command: command,
@@ -354,33 +354,40 @@ func (r *remoteExec) PID() int {
 }
 
 func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
-	// Report the result of this exec event to the audit logger.
-	auditLog := ctx.srv.GetAuditLog()
-	if auditLog == nil {
-		log.Warnf("No audit log")
-		return
+	// Create common fields for event.
+	serverMeta := events.ServerMetadata{
+		ServerID:        ctx.srv.HostUUID(),
+		ServerNamespace: ctx.srv.GetNamespace(),
 	}
 
-	var event events.Event
+	sessionMeta := events.SessionMetadata{}
+	if ctx.session != nil {
+		sessionMeta.SessionID = string(ctx.session.id)
+	}
 
-	// Create common fields for event.
-	fields := events.EventFields{
-		events.EventUser:      ctx.Identity.TeleportUser,
-		events.EventLogin:     ctx.Identity.Login,
-		events.LocalAddr:      ctx.ServerConn.LocalAddr().String(),
-		events.RemoteAddr:     ctx.ServerConn.RemoteAddr().String(),
-		events.EventNamespace: ctx.srv.GetNamespace(),
+	userMeta := events.UserMetadata{
+		User:  ctx.Identity.TeleportUser,
+		Login: ctx.Identity.Login,
+	}
+
+	connectionMeta := events.ConnectionMetadata{
+		RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
+		LocalAddr:  ctx.ServerConn.LocalAddr().String(),
+	}
+
+	commandMeta := events.CommandMetadata{
+		Command: cmd,
 		// Due to scp being inherently vulnerable to command injection, always
 		// make sure the full command and exit code is recorded for accountability.
 		// For more details, see the following.
 		//
 		// https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=327019
 		// https://bugzilla.mindrot.org/show_bug.cgi?id=1998
-		events.ExecEventCode:    strconv.Itoa(exitCode(execErr)),
-		events.ExecEventCommand: cmd,
+		ExitCode: strconv.Itoa(exitCode(execErr)),
 	}
+
 	if execErr != nil {
-		fields[events.ExecEventError] = execErr.Error()
+		commandMeta.Error = execErr.Error()
 	}
 
 	// Parse the exec command to find out if it was SCP or not.
@@ -392,33 +399,55 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 
 	// Update appropriate fields based off if the request was SCP or not.
 	if isSCP {
-		fields[events.SCPPath] = path
-		fields[events.SCPAction] = action
+		scpEvent := &events.SCP{
+			Metadata: events.Metadata{
+				Type: events.SCPEvent,
+			},
+			ServerMetadata:     serverMeta,
+			SessionMetadata:    sessionMeta,
+			UserMetadata:       userMeta,
+			ConnectionMetadata: connectionMeta,
+			CommandMetadata:    commandMeta,
+			Path:               path,
+			Action:             action,
+		}
+
 		switch action {
 		case events.SCPActionUpload:
 			if execErr != nil {
-				event = events.SCPUploadFailure
+				scpEvent.Code = events.SCPUploadFailureCode
 			} else {
-				event = events.SCPUpload
+				scpEvent.Code = events.SCPUploadCode
 			}
 		case events.SCPActionDownload:
 			if execErr != nil {
-				event = events.SCPDownloadFailure
+				scpEvent.Code = events.SCPDownloadFailureCode
 			} else {
-				event = events.SCPDownload
+				scpEvent.Code = events.SCPDownloadCode
 			}
 		}
-	} else {
-		if execErr != nil {
-			event = events.ExecFailure
-		} else {
-			event = events.Exec
+		if err := ctx.srv.EmitAuditEvent(ctx.srv.Context(), scpEvent); err != nil {
+			log.WithError(err).Warn("Failed to emit scp event.")
 		}
-	}
-
-	// Emit the event.
-	if err := auditLog.EmitAuditEvent(event, fields); err != nil {
-		log.Warnf("Failed to emit exec audit event: %v", err)
+	} else {
+		execEvent := &events.Exec{
+			Metadata: events.Metadata{
+				Type: events.ExecEvent,
+			},
+			ServerMetadata:     serverMeta,
+			SessionMetadata:    sessionMeta,
+			UserMetadata:       userMeta,
+			ConnectionMetadata: connectionMeta,
+			CommandMetadata:    commandMeta,
+		}
+		if execErr != nil {
+			execEvent.Code = events.ExecFailureCode
+		} else {
+			execEvent.Code = events.ExecCode
+		}
+		if err := ctx.srv.EmitAuditEvent(ctx.srv.Context(), execEvent); err != nil {
+			log.WithError(err).Warn("Failed to emit exec event.")
+		}
 	}
 }
 

@@ -1,5 +1,3 @@
-// +build dynamodb
-
 /*
 Copyright 2018 Gravitational, Inc.
 
@@ -21,9 +19,12 @@ package dynamoevents
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -43,19 +44,26 @@ type DynamoeventsSuite struct {
 var _ = check.Suite(&DynamoeventsSuite{})
 
 func (s *DynamoeventsSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
+
+	testEnabled := os.Getenv(teleport.AWSRunTests)
+	if ok, _ := strconv.ParseBool(testEnabled); !ok {
+		c.Skip("Skipping AWS-dependent test suite.")
+	}
+
 	fakeClock := clockwork.NewFakeClock()
 	log, err := New(Config{
-		Region:    "us-west-1",
-		Tablename: fmt.Sprintf("teleport-test-%v", uuid.New()),
-		Clock:     fakeClock,
-		UID:       utils.NewFakeUID(),
+		Region:       "us-west-1",
+		Tablename:    fmt.Sprintf("teleport-test-%v", uuid.New()),
+		Clock:        fakeClock,
+		UIDGenerator: utils.NewFakeUID(),
 	})
 	c.Assert(err, check.IsNil)
 	s.log = log
 	s.EventsSuite.Log = log
 	s.EventsSuite.Clock = fakeClock
 	s.EventsSuite.QueryDelay = time.Second
+
 }
 
 func (s *DynamoeventsSuite) SetUpTest(c *check.C) {

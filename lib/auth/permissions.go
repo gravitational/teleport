@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/services"
@@ -70,8 +71,9 @@ type AuthContext struct {
 	User services.User
 	// Checker is access checker
 	Checker services.AccessChecker
-	// Identity is x509 derived identity
-	Identity tlsca.Identity
+	// Identity holds user identity - whether it's a local or remote user,
+	// local or remote node, proxy or auth server
+	Identity IdentityGetter
 }
 
 // Authorize authorizes user based on identity supplied via context
@@ -84,12 +86,11 @@ func (a *authorizer) Authorize(ctx context.Context) (*AuthContext, error) {
 	if !ok {
 		return nil, trace.AccessDenied("unsupported context type %T", userI)
 	}
-	identity := userWithIdentity.GetIdentity()
 	authContext, err := a.fromUser(userI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authContext.Identity = identity
+	authContext.Identity = userWithIdentity
 	return authContext, nil
 }
 
@@ -258,7 +259,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 	case teleport.RoleProxy:
 		// if in recording mode, return a different set of permissions than regular
 		// mode. recording proxy needs to be able to generate host certificates.
-		if clusterConfig.GetSessionRecording() == services.RecordAtProxy {
+		if services.IsRecordAtProxy(clusterConfig.GetSessionRecording()) {
 			return services.FromSpec(
 				role.String(),
 				services.RoleSpecV3{
@@ -442,7 +443,7 @@ func contextForLocalUser(u LocalUser, identity services.UserGetter, access servi
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roles, traits, err := services.ExtractFromIdentity(identity, &u.Identity)
+	roles, traits, err := services.ExtractFromIdentity(identity, u.Identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -506,6 +507,14 @@ type IdentityGetter interface {
 	GetIdentity() tlsca.Identity
 }
 
+// WrapIdentity wraps identity to return identity getter function
+type WrapIdentity tlsca.Identity
+
+// GetIdentity returns identity
+func (i WrapIdentity) GetIdentity() tlsca.Identity {
+	return tlsca.Identity(i)
+}
+
 // BuiltinRole is the role of the Teleport service.
 type BuiltinRole struct {
 	// GetClusterConfig fetches cluster configuration.
@@ -522,6 +531,24 @@ type BuiltinRole struct {
 
 	// Identity is source x509 used to build this role
 	Identity tlsca.Identity
+}
+
+// IsServer returns true if the role is one of auth, proxy or node
+func (r BuiltinRole) IsServer() bool {
+	return r.Role == teleport.RoleProxy || r.Role == teleport.RoleNode || r.Role == teleport.RoleAuth
+}
+
+// GetServerID extracts the identity from the full name. The username
+// extracted from the node's identity (x.509 certificate) is expected to
+// consist of "<server-id>.<cluster-name>" so strip the cluster name suffix
+// to get the server id.
+//
+// Note that as of right now Teleport expects server id to be a UUID4 but
+// older Gravity clusters used to override it with strings like
+// "192_168_1_1.<cluster-name>" so this code can't rely on it being
+// UUID4 to account for clusters upgraded from older versions.
+func (r BuiltinRole) GetServerID() string {
+	return strings.TrimSuffix(r.Identity.Username, "."+r.ClusterName)
 }
 
 // GetIdentity returns client identity

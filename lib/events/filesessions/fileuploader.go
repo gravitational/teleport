@@ -22,8 +22,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -35,6 +37,13 @@ import (
 type Config struct {
 	// Directory is a directory with files
 	Directory string
+	// OnBeforeComplete can be used to inject failures during tests
+	OnBeforeComplete func(ctx context.Context, upload events.StreamUpload) error
+}
+
+// nopBeforeComplete does nothing
+func nopBeforeComplete(ctx context.Context, upload events.StreamUpload) error {
+	return nil
 }
 
 // CheckAndSetDefaults checks and sets default values of file handler config
@@ -42,8 +51,11 @@ func (s *Config) CheckAndSetDefaults() error {
 	if s.Directory == "" {
 		return trace.BadParameter("missing parameter Directory")
 	}
-	if !utils.IsDir(s.Directory) {
+	if utils.IsDir(s.Directory) == false {
 		return trace.BadParameter("path %q does not exist or is not a directory", s.Directory)
+	}
+	if s.OnBeforeComplete == nil {
+		s.OnBeforeComplete = nopBeforeComplete
 	}
 	return nil
 }
@@ -110,5 +122,18 @@ func (l *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 }
 
 func (l *Handler) path(sessionID session.ID) string {
-	return filepath.Join(l.Directory, string(sessionID)+".tar")
+	return filepath.Join(l.Directory, string(sessionID)+tarExt)
+}
+
+// sessionIDFromPath extracts session ID from the filename
+func sessionIDFromPath(path string) (session.ID, error) {
+	base := filepath.Base(path)
+	if filepath.Ext(base) != tarExt {
+		return session.ID(""), trace.BadParameter("expected extension %v, got %v", tarExt, base)
+	}
+	sid := session.ID(strings.TrimSuffix(base, tarExt))
+	if err := sid.Check(); err != nil {
+		return session.ID(""), trace.Wrap(err)
+	}
+	return sid, nil
 }

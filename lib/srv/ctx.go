@@ -69,6 +69,10 @@ func init() {
 
 // Server is regular or forwarding SSH server.
 type Server interface {
+	// Emitter allows server to emit audit events and create
+	// event streams for recording sessions
+	events.StreamEmitter
+
 	// ID is the unique ID of the server.
 	ID() string
 
@@ -88,12 +92,6 @@ type Server interface {
 	// PermitUserEnvironment returns if reading environment variables upon
 	// startup is allowed.
 	PermitUserEnvironment() bool
-
-	// EmitAuditEvent emits an Audit Event to the Auth Server.
-	EmitAuditEvent(events.Event, events.EventFields)
-
-	// GetAuditLog returns the Audit Log for this cluster.
-	GetAuditLog() events.IAuditLog
 
 	// GetAccessPoint returns an auth.AccessPoint for this cluster.
 	GetAccessPoint() auth.AccessPoint
@@ -119,6 +117,9 @@ type Server interface {
 
 	// GetBPF returns the BPF service used for enhanced session recording.
 	GetBPF() bpf.BPF
+
+	// Context returns server shutdown context
+	Context() context.Context
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -240,6 +241,9 @@ type ServerContext struct {
 	// on client inactivity, set to 0 if not setup
 	clientIdleTimeout time.Duration
 
+	// cancelContext signals closure to all outstanding operations
+	cancelContext context.Context
+
 	// cancel is called whenever server context is closed
 	cancel context.CancelFunc
 
@@ -287,7 +291,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		return nil, nil, trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
+	cancelContext, cancel := context.WithCancel(ctx)
 
 	child := &ServerContext{
 		ConnectionContext: parent,
@@ -300,6 +304,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		ClusterConfig:     clusterConfig,
 		Identity:          identityContext,
 		clientIdleTimeout: identityContext.RoleSet.AdjustClientIdleTimeout(clusterConfig.GetClientIdleTimeout()),
+		cancelContext:     cancelContext,
 		cancel:            cancel,
 	}
 
@@ -333,12 +338,12 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 			Clock:                 child.srv.GetClock(),
 			Tracker:               child,
 			Conn:                  child.ServerConn,
-			Context:               ctx,
+			Context:               cancelContext,
 			TeleportUser:          child.Identity.TeleportUser,
 			Login:                 child.Identity.Login,
 			ServerID:              child.srv.ID(),
-			Audit:                 child.srv.GetAuditLog(),
 			Entry:                 child.Entry,
+			Emitter:               child.srv,
 		})
 		if err != nil {
 			child.Close()
@@ -517,7 +522,7 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 	if c.GetServer().Component() == teleport.ComponentProxy {
 		return
 	}
-	if c.ClusterConfig.GetSessionRecording() == services.RecordAtProxy &&
+	if services.IsRecordAtProxy(c.ClusterConfig.GetSessionRecording()) &&
 		c.GetServer().Component() == teleport.ComponentNode {
 		return
 	}
@@ -529,23 +534,34 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 	// below, that is because the connection is held from the perspective of
 	// the server not the client, but the logs are from the perspective of the
 	// client.
-	eventFields := events.EventFields{
-		events.DataTransmitted: rxBytes,
-		events.DataReceived:    txBytes,
-		events.SessionServerID: c.GetServer().HostUUID(),
-		events.EventLogin:      c.Identity.Login,
-		events.EventUser:       c.Identity.TeleportUser,
-		events.RemoteAddr:      c.ServerConn.RemoteAddr().String(),
-		events.EventIndex:      events.SessionDataIndex,
+	sessionDataEvent := &events.SessionData{
+		Metadata: events.Metadata{
+			Index: events.SessionDataIndex,
+			Type:  events.SessionDataEvent,
+			Code:  events.SessionDataCode,
+		},
+		ServerMetadata: events.ServerMetadata{
+			ServerID:        c.GetServer().HostUUID(),
+			ServerNamespace: c.GetServer().GetNamespace(),
+		},
+		UserMetadata: events.UserMetadata{
+			User:  c.Identity.TeleportUser,
+			Login: c.Identity.Login,
+		},
+		ConnectionMetadata: events.ConnectionMetadata{
+			RemoteAddr: c.ServerConn.RemoteAddr().String(),
+		},
+		BytesTransmitted: rxBytes,
+		BytesReceived:    txBytes,
 	}
 	if !c.srv.UseTunnel() {
-		eventFields[events.LocalAddr] = c.ServerConn.LocalAddr().String()
+		sessionDataEvent.ConnectionMetadata.LocalAddr = c.ServerConn.LocalAddr().String()
 	}
 	if c.session != nil {
-		eventFields[events.SessionEventID] = c.session.id
+		sessionDataEvent.SessionMetadata.SessionID = string(c.session.id)
 	}
-	if err := c.GetServer().GetAuditLog().EmitAuditEvent(events.SessionData, eventFields); err != nil {
-		c.Warnf("Failed to emit SessionData audit event: %v", err)
+	if err := c.GetServer().EmitAuditEvent(c.GetServer().Context(), sessionDataEvent); err != nil {
+		c.WithError(err).Warn("Failed to emit session data event.")
 	}
 
 	// Emit TX and RX bytes to their respective Prometheus counters.
@@ -570,6 +586,12 @@ func (c *ServerContext) Close() error {
 	}
 
 	return nil
+}
+
+// CancelContext is a context associated with server context,
+// closed whenever this server context is closed
+func (c *ServerContext) CancelContext() context.Context {
+	return c.cancelContext
 }
 
 // CancelFunc gets the context.CancelFunc associated with

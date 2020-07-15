@@ -113,8 +113,29 @@ type FileLog struct {
 	fileTime time.Time
 }
 
-// EmitAuditEvent adds a new event to the log. Part of auth.IFileLog interface.
-func (l *FileLog) EmitAuditEvent(event Event, fields EventFields) error {
+// EmitAuditEvent adds a new event to the log.
+func (l *FileLog) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+	// see if the log needs to be rotated
+	err := l.rotateLog()
+	if err != nil {
+		log.Error(err)
+	}
+	// line is the text to be logged
+	line, err := utils.FastMarshal(event)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if l.file == nil {
+		return trace.NotFound(
+			"file log is not found due to permission or disk issue")
+	}
+	// log it to the main log file:
+	_, err = fmt.Fprintln(l.file, string(line))
+	return trace.ConvertSystemError(err)
+}
+
+// EmitAuditEventLegacy adds a new event to the log. Part of auth.IFileLog interface.
+func (l *FileLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 	// see if the log needs to be rotated
 	err := l.rotateLog()
 	if err != nil {
@@ -272,7 +293,7 @@ func (l *FileLog) processSlice(sl SessionLogger, slice *SessionSlice) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := l.EmitAuditEvent(Event{Name: chunk.EventType}, fields); err != nil {
+		if err := l.EmitAuditEventLegacy(Event{Name: chunk.EventType}, fields); err != nil {
 			return trace.Wrap(err)
 		}
 	}

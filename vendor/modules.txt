@@ -160,6 +160,7 @@ github.com/gizak/termui/widgets
 # github.com/gogo/protobuf v1.2.2-0.20190723190241-65acae22fc9d
 ## explicit
 github.com/gogo/protobuf/gogoproto
+github.com/gogo/protobuf/jsonpb
 github.com/gogo/protobuf/proto
 github.com/gogo/protobuf/protoc-gen-gogo/descriptor
 github.com/gogo/protobuf/sortkeys
@@ -222,7 +223,7 @@ github.com/gravitational/kingpin
 ## explicit
 github.com/gravitational/license
 github.com/gravitational/license/constants
-# github.com/gravitational/oxy v0.0.0-20180629203109-e4a7e35311e6
+# github.com/gravitational/oxy v0.0.0-20200916204440-3eb06d921a1d
 ## explicit
 github.com/gravitational/oxy/connlimit
 github.com/gravitational/oxy/forward
@@ -543,7 +544,7 @@ google.golang.org/genproto/googleapis/rpc/status
 google.golang.org/genproto/googleapis/type/expr
 google.golang.org/genproto/googleapis/type/latlng
 google.golang.org/genproto/protobuf/field_mask
-# google.golang.org/grpc v1.23.0
+# google.golang.org/grpc v1.23.1
 ## explicit
 google.golang.org/grpc
 google.golang.org/grpc/balancer
@@ -566,6 +567,7 @@ google.golang.org/grpc/credentials/google
 google.golang.org/grpc/credentials/internal
 google.golang.org/grpc/credentials/oauth
 google.golang.org/grpc/encoding
+google.golang.org/grpc/encoding/gzip
 google.golang.org/grpc/encoding/proto
 google.golang.org/grpc/grpclog
 google.golang.org/grpc/internal

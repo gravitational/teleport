@@ -55,14 +55,14 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 		},
 		AuthContext: auth.AuthContext{
 			User: user,
-			Identity: tlsca.Identity{
+			Identity: auth.WrapIdentity(tlsca.Identity{
 				Username:         "bob",
 				Groups:           []string{"group a", "group b"},
 				Usage:            []string{"usage a", "usage b"},
 				Principals:       []string{"principal a", "principal b"},
 				KubernetesGroups: []string{"k8s group a", "k8s group b"},
 				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
-			},
+			}),
 		},
 	}
 
@@ -83,7 +83,7 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 	c.Assert(err, check.IsNil)
 	idFromCSR, err := tlsca.FromSubject(csr.Subject, time.Time{})
 	c.Assert(err, check.IsNil)
-	c.Assert(*idFromCSR, check.DeepEquals, ctx.Identity)
+	c.Assert(*idFromCSR, check.DeepEquals, ctx.Identity.GetIdentity())
 }
 
 func (s ForwarderSuite) TestGetClusterSession(c *check.C) {
@@ -263,7 +263,7 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 		authCtx := auth.AuthContext{
 			User:     user,
 			Checker:  roles,
-			Identity: tlsca.Identity{RouteToCluster: tt.routeToCluster},
+			Identity: auth.WrapIdentity(tlsca.Identity{RouteToCluster: tt.routeToCluster}),
 		}
 		authz := mockAuthorizer{ctx: &authCtx}
 		if tt.authzErr {
@@ -446,14 +446,14 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 	authCtx := authContext{
 		AuthContext: auth.AuthContext{
 			User: user,
-			Identity: tlsca.Identity{
+			Identity: auth.WrapIdentity(tlsca.Identity{
 				Username:         "bob",
 				Groups:           []string{"group a", "group b"},
 				Usage:            []string{"usage a", "usage b"},
 				Principals:       []string{"principal a", "principal b"},
 				KubernetesGroups: []string{"k8s group a", "k8s group b"},
 				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
-			},
+			}),
 		},
 		cluster: cluster{
 			RemoteSite: mockRemoteSite{name: "local"},
@@ -475,14 +475,14 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 	authCtx = authContext{
 		AuthContext: auth.AuthContext{
 			User: user,
-			Identity: tlsca.Identity{
+			Identity: auth.WrapIdentity(tlsca.Identity{
 				Username:         "bob",
 				Groups:           []string{"group a", "group b"},
 				Usage:            []string{"usage a", "usage b"},
 				Principals:       []string{"principal a", "principal b"},
 				KubernetesGroups: []string{"k8s group a", "k8s group b"},
 				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
-			},
+			}),
 		},
 		cluster: cluster{
 			RemoteSite: mockRemoteSite{name: "local"},
@@ -503,14 +503,14 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 	authCtx = authContext{
 		AuthContext: auth.AuthContext{
 			User: user,
-			Identity: tlsca.Identity{
+			Identity: auth.WrapIdentity(tlsca.Identity{
 				Username:         "bob",
 				Groups:           []string{"group a", "group b"},
 				Usage:            []string{"usage a", "usage b"},
 				Principals:       []string{"principal a", "principal b"},
 				KubernetesGroups: []string{"k8s group a", "k8s group b"},
 				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
-			},
+			}),
 		},
 		cluster: cluster{
 			RemoteSite: mockRemoteSite{name: "remote"},

@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
+Copyright 2015-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -48,7 +48,15 @@ const (
 	// in /var/lib/teleport/logs/sessions
 	SessionLogsDir = "sessions"
 
-	// PlaybacksDir is a directory for playbacks
+	// StreamingLogsDir is a subdirectory of sessions /var/lib/teleport/logs/streaming
+	// is used in new versions of the uploader
+	StreamingLogsDir = "streaming"
+
+	// RecordsDir is a subdirectory with default records /var/lib/teleport/logs/records
+	// is used in new versions of the uploader
+	RecordsDir = "records"
+
+	// PlaybackDir is a directory for playbacks
 	PlaybackDir = "playbacks"
 
 	// LogfileExt defines the ending of the daily event log file
@@ -192,6 +200,9 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 	if a.ServerID == "" {
 		return trace.BadParameter("missing parameter ServerID")
 	}
+	if a.UploadHandler == nil {
+		return trace.BadParameter("missing parameter UploadHandler")
+	}
 	if a.Clock == nil {
 		a.Clock = clockwork.NewRealClock()
 	}
@@ -325,13 +336,6 @@ func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
 		return trace.Wrap(err)
 	}
 
-	// This function runs on the Auth Server. If no upload handler is defined
-	// (for example, not going to S3) then unarchive it to Auth Server disk.
-	if l.UploadHandler == nil {
-		err := utils.Extract(r.Recording, filepath.Join(l.DataDir, l.ServerID, SessionLogsDir, r.Namespace))
-		return trace.Wrap(err)
-	}
-
 	// Upload session recording to endpoint defined in file configuration. Like S3.
 	start := time.Now()
 	url, err := l.UploadHandler.Upload(context.TODO(), r.SessionID, r.Recording)
@@ -340,7 +344,7 @@ func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
 		return trace.Wrap(err)
 	}
 	l.WithFields(log.Fields{"duration": time.Since(start), "session-id": r.SessionID}).Debugf("Session upload completed.")
-	return l.EmitAuditEvent(SessionUpload, EventFields{
+	return l.EmitAuditEventLegacy(SessionUploadE, EventFields{
 		SessionEventID: string(r.SessionID),
 		URL:            url,
 		EventIndex:     SessionUploadIndex,
@@ -376,16 +380,16 @@ func (l *AuditLog) processSlice(sl SessionLogger, slice *SessionSlice) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := l.EmitAuditEvent(Event{Name: chunk.EventType}, fields); err != nil {
+		if err := l.EmitAuditEventLegacy(Event{Name: chunk.EventType}, fields); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	return nil
 }
 
-func (l *AuditLog) getAuthServers() ([]string, error) {
+func getAuthServers(dataDir string) ([]string, error) {
 	// scan the log directory:
-	df, err := os.Open(l.DataDir)
+	df, err := os.Open(dataDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -403,7 +407,7 @@ func (l *AuditLog) getAuthServers() ([]string, error) {
 			// can be colliding with customer-picked names, so consider
 			// moving the folders to a folder level up and keep the servers
 			// one small
-			if fileName != PlaybackDir && fileName != teleport.ComponentUpload {
+			if fileName != PlaybackDir && fileName != teleport.ComponentUpload && fileName != RecordsDir {
 				authServers = append(authServers, fileName)
 			}
 		}
@@ -504,14 +508,20 @@ func (idx *sessionIndex) chunksFileName(index int) string {
 }
 
 func (l *AuditLog) readSessionIndex(namespace string, sid session.ID) (*sessionIndex, error) {
-	authServers, err := l.getAuthServers()
+	index, err := readSessionIndex(l.DataDir, []string{PlaybackDir}, namespace, sid)
+	if err == nil {
+		return index, nil
+	}
+	if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	// some legacy records may be stored unpacked in the JSON format
+	// in the data dir, under server format
+	authServers, err := getAuthServers(l.DataDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if l.UploadHandler == nil {
-		return readSessionIndex(l.DataDir, authServers, namespace, sid)
-	}
-	return readSessionIndex(l.DataDir, []string{PlaybackDir}, namespace, sid)
+	return readSessionIndex(l.DataDir, authServers, namespace, sid)
 }
 
 func readSessionIndex(dataDir string, authServers []string, namespace string, sid session.ID) (*sessionIndex, error) {
@@ -646,14 +656,40 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 	}
 	l.WithFields(log.Fields{"duration": time.Since(start)}).Debugf("Downloaded %v to %v.", sid, tarballPath)
 
-	start = time.Now()
 	_, err = tarball.Seek(0, 0)
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	if err := utils.Extract(tarball, l.playbackDir); err != nil {
+	format, err := DetectFormat(tarball)
+	if err != nil {
+		l.WithError(err).Debugf("Failed to detect playback %v format.", tarballPath)
 		return trace.Wrap(err)
 	}
+	_, err = tarball.Seek(0, 0)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	switch {
+	case format.Proto == true:
+		start = time.Now()
+		l.Debugf("Converting %v to playback format.", tarballPath)
+		protoReader := NewProtoReader(tarball)
+		err = WriteForPlayback(l.Context, sid, protoReader, l.playbackDir)
+		if err != nil {
+			l.WithError(err).Error("Failed to convert.")
+			return trace.Wrap(err)
+		}
+		stats := protoReader.GetStats().ToFields()
+		stats["duration"] = time.Since(start)
+		l.WithFields(stats).Debugf("Converted %v to %v.", tarballPath, l.playbackDir)
+	case format.Tar == true:
+		if err := utils.Extract(tarball, l.playbackDir); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.BadParameter("Unexpected format %v.", format)
+	}
+
 	// Extract every chunks file on disk while holding the context,
 	// otherwise parallel downloads will try to unpack the file at the same time.
 	idx, err := l.readSessionIndex(namespace, sid)
@@ -677,10 +713,8 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 // to receive a live stream of a given session. The reader allows access to a
 // session stream range from offsetBytes to offsetBytes+maxBytes
 func (l *AuditLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	if l.UploadHandler != nil {
-		if err := l.downloadSession(namespace, sid); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err := l.downloadSession(namespace, sid); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	var data []byte
 	for {
@@ -847,10 +881,8 @@ func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int
 	}
 	// If code has to fetch print events (for playback) it has to download
 	// the playback from external storage first
-	if l.UploadHandler != nil {
-		if err := l.downloadSession(namespace, sid); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err := l.downloadSession(namespace, sid); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	idx, err := l.readSessionIndex(namespace, sid)
 	if err != nil {
@@ -909,16 +941,26 @@ func (l *AuditLog) fetchSessionEvents(fileName string, afterN int) ([]EventField
 	return retval, nil
 }
 
-// EmitAuditEvent adds a new event to the log. If emitting fails, a Prometheus
+// EmitAuditEvent adds a new event to the local file log
+func (l *AuditLog) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+	err := l.localLog.EmitAuditEvent(ctx, event)
+	if err != nil {
+		auditFailedEmit.Inc()
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// EmitAuditEventLegacy adds a new event to the log. If emitting fails, a Prometheus
 // counter is incremented.
-func (l *AuditLog) EmitAuditEvent(event Event, fields EventFields) error {
+func (l *AuditLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 	// If an external logger has been set, use it as the emitter, otherwise
 	// fallback to the local disk based emitter.
 	var emitAuditEvent func(event Event, fields EventFields) error
 	if l.ExternalLog != nil {
-		emitAuditEvent = l.ExternalLog.EmitAuditEvent
+		emitAuditEvent = l.ExternalLog.EmitAuditEventLegacy
 	} else {
-		emitAuditEvent = l.localLog.EmitAuditEvent
+		emitAuditEvent = l.localLog.EmitAuditEventLegacy
 	}
 
 	// Emit the event. If it fails for any reason a Prometheus counter is
@@ -934,7 +976,7 @@ func (l *AuditLog) EmitAuditEvent(event Event, fields EventFields) error {
 
 // auditDirs returns directories used for audit log storage
 func (l *AuditLog) auditDirs() ([]string, error) {
-	authServers, err := l.getAuthServers()
+	authServers, err := getAuthServers(l.DataDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1038,4 +1080,59 @@ func (l *AuditLog) periodicSpaceMonitor() {
 			return
 		}
 	}
+}
+
+// LegacyHandlerConfig configures
+// legacy local handler adapter
+type LegacyHandlerConfig struct {
+	// Handler is a handler that local handler wraps
+	Handler MultipartHandler
+	// Dir is a root directory with unpacked session records
+	// stored in legacy format
+	Dir string
+}
+
+// CheckAndSetDefaults checks and sets default values
+func (cfg *LegacyHandlerConfig) CheckAndSetDefaults() error {
+	if cfg.Handler == nil {
+		return trace.BadParameter("missing parameter Handler")
+	}
+	if cfg.Dir == "" {
+		return trace.BadParameter("missing parameter Dir")
+	}
+	return nil
+}
+
+// NewLegacyHandler returns new legacy handler
+func NewLegacyHandler(cfg LegacyHandlerConfig) (*LegacyHandler, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &LegacyHandler{
+		MultipartHandler: cfg.Handler,
+		cfg:              cfg,
+	}, nil
+}
+
+// LegacyHandler wraps local file uploader and handles
+// old style uploads stored directly on disk
+type LegacyHandler struct {
+	MultipartHandler
+	cfg LegacyHandlerConfig
+}
+
+// Download downloads session tarball and writes it to writer
+func (l *LegacyHandler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+	// legacy format stores unpacked records in the directory
+	// in one of the sub-folders set up for the auth server ID
+	// if the file is present there, there no need to unpack and convert it
+	authServers, err := getAuthServers(l.cfg.Dir)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = readSessionIndex(l.cfg.Dir, authServers, defaults.Namespace, sessionID)
+	if err == nil {
+		return nil
+	}
+	return l.cfg.Handler.Download(ctx, sessionID, writer)
 }

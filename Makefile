@@ -119,6 +119,15 @@ ifneq ("$(OS)", "windows")
 endif
 
 #
+# make full-ent - Builds Teleport enterprise binaries
+#
+.PHONY:full-ent
+full-ent:
+ifneq ("$(OS)", "windows")
+	@if [ -f e/Makefile ]; then $(MAKE) -C e full; fi
+endif
+
+#
 # make clean - Removed all build artifacts.
 #
 .PHONY: clean
@@ -383,6 +392,10 @@ buildbox-grpc:
     *.proto
 
 	cd lib/wrappers && protoc -I=.:$$PROTO_INCLUDE \
+	  --gofast_out=plugins=grpc:.\
+    *.proto
+
+	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
 	  --gofast_out=plugins=grpc:.\
     *.proto
 

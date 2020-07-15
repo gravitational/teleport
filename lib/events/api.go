@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,6 +24,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/session"
+
+	"github.com/gravitational/trace"
 )
 
 const (
@@ -362,6 +364,188 @@ const (
 	V3 = 3
 )
 
+// AuditEvent represents audit event
+type AuditEvent interface {
+	// ProtoMarshaler implements efficient
+	// protobuf marshaling methods
+	ProtoMarshaler
+
+	// GetID returns unique event ID
+	GetID() string
+	// SetID sets unique event ID
+	SetID(id string)
+
+	// GetCode returns event short diagnostic code
+	GetCode() string
+	// SetCode sets unique event diagnostic code
+	SetCode(string)
+
+	// GetType returns event type
+	GetType() string
+	// SetCode sets unique type
+	SetType(string)
+
+	// GetTime returns event time
+	GetTime() time.Time
+	// SetTime sets event time
+	SetTime(time.Time)
+
+	// GetIndex gets event index - a non-unique
+	// monotonically incremented number
+	// in the event sequence
+	GetIndex() int64
+	// SetIndex sets event index
+	SetIndex(idx int64)
+}
+
+// ProtoMarshaler implements marshaler interface
+type ProtoMarshaler interface {
+	// Size returns size of the object when marshaled
+	Size() (n int)
+
+	// MarshalTo marshals the object to sized buffer
+	MarshalTo(dAtA []byte) (int, error)
+}
+
+// ServerMetadataGetter represents interface
+// that provides information about its server id
+type ServerMetadataGetter interface {
+	// GetServerID returns event server ID
+	GetServerID() string
+
+	// GetServerNamespace returns event server namespace
+	GetServerNamespace() string
+}
+
+// ServerMetadataSetter represents interface
+// that provides information about its server id
+type ServerMetadataSetter interface {
+	// SetServerID sets server ID of the event
+	SetServerID(string)
+
+	// SetServerNamespace returns event server namespace
+	SetServerNamespace(string)
+}
+
+// SessionMetadataGetter represents interface
+// that provides information about events' session metadata
+type SessionMetadataGetter interface {
+	// GetSessionID returns event session ID
+	GetSessionID() string
+}
+
+// SessionMetadataSetter represents interface
+// that sets session metadata
+type SessionMetadataSetter interface {
+	// SetSessionID sets event session ID
+	SetSessionID(string)
+}
+
+// SetCode is a shortcut that sets code for the audit event
+func SetCode(event AuditEvent, code string) AuditEvent {
+	event.SetCode(code)
+	return event
+}
+
+// Emitter creates and manages audit log streams
+type Emitter interface {
+	// Emit emits a single audit event
+	EmitAuditEvent(context.Context, AuditEvent) error
+}
+
+// Streamer creates and resumes event streams for session IDs
+type Streamer interface {
+	// CreateAuditStream creates event stream
+	CreateAuditStream(context.Context, session.ID) (Stream, error)
+	// ResumeAuditStream resumes the stream for session upload that
+	// has not been completed yet.
+	ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (Stream, error)
+}
+
+// StreamPart represents uploaded stream part
+type StreamPart struct {
+	// Number is a part number
+	Number int64
+	// ETag is a part e-tag
+	ETag string
+}
+
+// StreamUpload represents stream multipart upload
+type StreamUpload struct {
+	// ID is unique upload ID
+	ID string
+	// SessionID is a session ID of the upload
+	SessionID session.ID
+	// Initiated contains the timestamp of when the upload
+	// was initiated, not always initialized
+	Initiated time.Time
+}
+
+// String returns user friendly representation of the upload
+func (u StreamUpload) String() string {
+	return fmt.Sprintf("Upload(session=%v, id=%v, initiated=%v)", u.SessionID, u.ID, u.Initiated)
+}
+
+// CheckAndSetDefaults checks and sets default values
+func (u *StreamUpload) CheckAndSetDefaults() error {
+	if u.ID == "" {
+		return trace.BadParameter("missing parameter ID")
+	}
+	if u.SessionID == "" {
+		return trace.BadParameter("missing parameter SessionID")
+	}
+	return nil
+}
+
+// MultipartUploader handles multipart uploads and downloads for session streams
+type MultipartUploader interface {
+	// CreateUpload creates a multipart upload
+	CreateUpload(ctx context.Context, sessionID session.ID) (*StreamUpload, error)
+	// CompleteUpload completes the upload
+	CompleteUpload(ctx context.Context, upload StreamUpload, parts []StreamPart) error
+	// UploadPart uploads part and returns the part
+	UploadPart(ctx context.Context, upload StreamUpload, partNumber int64, partBody io.ReadSeeker) (*StreamPart, error)
+	// ListParts returns all uploaded parts for the completed upload in sorted order
+	ListParts(ctx context.Context, upload StreamUpload) ([]StreamPart, error)
+	// ListUploads lists uploads that have been initiated but not completed with
+	// earlier uploads returned first
+	ListUploads(ctx context.Context) ([]StreamUpload, error)
+}
+
+// Stream is used to create continuous ordered sequence of events
+// associated with a session.
+type Stream interface {
+	// Emitter allows stream to emit audit event in the context of the event stream
+	Emitter
+	// Status returns channel broadcasting updates about the stream state:
+	// last event index that was uploaded and the upload ID
+	Status() <-chan StreamStatus
+	// Done returns channel closed when streamer is closed
+	// should be used to detect sending errors
+	Done() <-chan struct{}
+	// Complete closes the stream and marks it finalized,
+	// releases associated resources, in case of failure,
+	// closes this stream on the client side
+	Complete(ctx context.Context) error
+	// Close flushes non-uploaded flight stream data without marking
+	// the stream completed and closes the stream instance
+	Close(ctx context.Context) error
+}
+
+// StreamWriter implements io.Writer to be plugged into the multi-writer
+// associated with every session. It forwards session stream to the audit log
+type StreamWriter interface {
+	io.Writer
+	Stream
+}
+
+// StreamEmitter supports submitting single events and streaming
+// session events
+type StreamEmitter interface {
+	Emitter
+	Streamer
+}
+
 // IAuditLog is the primary (and the only external-facing) interface for AuditLogger.
 // If you wish to implement a different kind of logger (not filesystem-based), you
 // have to implement this interface
@@ -369,8 +553,9 @@ type IAuditLog interface {
 	// Closer releases connection and resources associated with log if any
 	io.Closer
 
-	// EmitAuditEvent emits audit event
-	EmitAuditEvent(Event, EventFields) error
+	// EmitAuditEventLegacy emits audit in legacy format
+	// DELETE IN: 5.0.0
+	EmitAuditEventLegacy(Event, EventFields) error
 
 	// DELETE IN: 2.7.0
 	// This method is no longer necessary as nodes and proxies >= 2.7.0

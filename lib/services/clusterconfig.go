@@ -171,7 +171,25 @@ const (
 
 	// RecordOff is used to disable session recording completely.
 	RecordOff string = "off"
+
+	// RecordAtNodeSync enables the nodes to stream sessions in sync mode
+	// to the auth server
+	RecordAtNodeSync string = "node-sync"
+
+	// RecordAtProxySync enables the recording proxy which intercepts and records
+	// all sessions, streams the records synchronously
+	RecordAtProxySync string = "proxy-sync"
 )
+
+// IsRecordAtProxy returns true if recording is sync or async at proxy
+func IsRecordAtProxy(mode string) bool {
+	return mode == RecordAtProxy || mode == RecordAtProxySync
+}
+
+// IsRecordSync returns true if recording is sync or async for proxy or node
+func IsRecordSync(mode string) bool {
+	return mode == RecordAtProxySync || mode == RecordAtNodeSync
+}
 
 const (
 	// HostKeyCheckYes is the default. The proxy will check the host key of the
@@ -361,7 +379,7 @@ func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 	}
 
 	// check if the recording type is valid
-	all := []string{RecordAtNode, RecordAtProxy, RecordOff}
+	all := []string{RecordAtNode, RecordAtProxy, RecordAtNodeSync, RecordAtProxySync, RecordOff}
 	ok := utils.SliceContainsStr(all, c.Spec.SessionRecording)
 	if !ok {
 		return trace.BadParameter("session_recording must either be: %v", strings.Join(all, ","))

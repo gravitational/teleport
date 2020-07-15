@@ -20,6 +20,7 @@ package s3sessions
 import (
 	"fmt"
 	"net/http/httptest"
+	"testing"
 
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
@@ -29,52 +30,43 @@ import (
 	"github.com/johannesboyne/gofakes3"
 	"github.com/johannesboyne/gofakes3/backend/s3mem"
 	"github.com/pborman/uuid"
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/assert"
 )
 
-type S3ThirdPartySuite struct {
-	backend gofakes3.Backend
-	faker   *gofakes3.GoFakeS3
-	server  *httptest.Server
-	handler *Handler
-	test.HandlerSuite
-}
+// TestThirdpartyStreams tests various streaming upload scenarios
+// implemented by third party backends using fake backend
+func TestThirdpartyStreams(t *testing.T) {
+	utils.InitLoggerForTests(testing.Verbose())
 
-var _ = check.Suite(&S3ThirdPartySuite{})
-
-func (s *S3ThirdPartySuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
-
-	//fakes3
 	var timeSource gofakes3.TimeSource
-	s.backend = s3mem.New(s3mem.WithTimeSource(timeSource))
-	s.faker = gofakes3.New(s.backend, gofakes3.WithLogger(gofakes3.GlobalLog()))
-	s.server = httptest.NewServer(s.faker.Server())
+	backend := s3mem.New(s3mem.WithTimeSource(timeSource))
+	faker := gofakes3.New(backend, gofakes3.WithLogger(gofakes3.GlobalLog()))
+	server := httptest.NewServer(faker.Server())
 
-	var err error
-	s.HandlerSuite.Handler, err = NewHandler(Config{
+	handler, err := NewHandler(Config{
 		Credentials:                 credentials.NewStaticCredentials("YOUR-ACCESSKEYID", "YOUR-SECRETACCESSKEY", ""),
 		Region:                      "us-west-1",
 		Path:                        "/test/",
 		Bucket:                      fmt.Sprintf("teleport-test-%v", uuid.New()),
-		Endpoint:                    s.server.URL,
+		Endpoint:                    server.URL,
 		DisableServerSideEncryption: true,
 	})
-	c.Assert(err, check.IsNil)
-}
+	assert.Nil(t, err)
 
-func (s *S3ThirdPartySuite) TestUploadDownload(c *check.C) {
-	s.UploadDownload(c)
-}
-
-func (s *S3ThirdPartySuite) TestDownloadNotFound(c *check.C) {
-	s.DownloadNotFound(c)
-}
-
-func (s *S3ThirdPartySuite) TearDownSuite(c *check.C) {
-	if s.handler != nil {
-		if err := s.handler.deleteBucket(); err != nil {
-			c.Fatalf("Failed to delete bucket: %#v", trace.DebugReport(err))
+	defer func() {
+		if err := handler.deleteBucket(); err != nil {
+			t.Fatalf("Failed to delete bucket: %#v", trace.DebugReport(err))
 		}
-	}
+	}()
+
+	// Stream with handler and many parts
+	t.Run("StreamManyParts", func(t *testing.T) {
+		test.Stream(t, handler)
+	})
+	t.Run("UploadDownload", func(t *testing.T) {
+		test.UploadDownload(t, handler)
+	})
+	t.Run("DownloadNotFound", func(t *testing.T) {
+		test.DownloadNotFound(t, handler)
+	})
 }

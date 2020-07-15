@@ -247,7 +247,6 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 		inForwardAgent   bool
 		auditSessionsURI string
 	}{
-
 		// normal teleport
 		{
 			inRecordLocation: services.RecordAtNode,
@@ -268,6 +267,16 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 			inRecordLocation: services.RecordAtProxy,
 			inForwardAgent:   false,
 			auditSessionsURI: c.MkDir(),
+		},
+		// normal teleport, sync recording
+		{
+			inRecordLocation: services.RecordAtNodeSync,
+			inForwardAgent:   false,
+		},
+		// recording proxy, sync recording
+		{
+			inRecordLocation: services.RecordAtProxySync,
+			inForwardAgent:   true,
 		},
 	}
 
@@ -518,7 +527,7 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 		// the ID of the node. If sessions are being recorded at the proxy, then
 		// SessionServerID should be that of the proxy.
 		expectedServerID := nodeProcess.Config.HostUUID
-		if tt.inRecordLocation == services.RecordAtProxy {
+		if services.IsRecordAtProxy(tt.inRecordLocation) {
 			expectedServerID = t.Process.Config.HostUUID
 		}
 		c.Assert(start.GetString(events.SessionServerID), check.Equals, expectedServerID)
