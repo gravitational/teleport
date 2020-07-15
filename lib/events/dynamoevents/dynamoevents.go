@@ -217,7 +217,49 @@ const (
 )
 
 // EmitAuditEvent emits audit event
-func (l *Log) EmitAuditEvent(ev events.Event, fields events.EventFields) error {
+func (l *Log) EmitAuditEvent(ctx context.Context, in events.AuditEvent) error {
+	data, err := utils.FastMarshal(in)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var sessionID string
+	getter, ok := in.(events.SessionMetadataGetter)
+	if ok && getter.GetSessionID() != "" {
+		sessionID = getter.GetSessionID()
+	} else {
+		// no session id - global event gets a random uuid to get a good partition
+		// key distribution
+		sessionID = uuid.New()
+	}
+
+	e := event{
+		SessionID:      sessionID,
+		EventIndex:     in.GetIndex(),
+		EventType:      in.GetType(),
+		EventNamespace: defaults.Namespace,
+		CreatedAt:      in.GetTime().Unix(),
+		Fields:         string(data),
+	}
+	l.setExpiry(&e)
+	av, err := dynamodbattribute.MarshalMap(e)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	input := dynamodb.PutItemInput{
+		Item:      av,
+		TableName: aws.String(l.Tablename),
+	}
+	_, err = l.svc.PutItemWithContext(ctx, &input)
+	err = convertError(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// EmitAuditEventLegacy emits audit event
+func (l *Log) EmitAuditEventLegacy(ev events.Event, fields events.EventFields) error {
 	sessionID := fields.GetString(events.SessionEventID)
 	eventIndex := fields.GetInt(events.EventIndex)
 	// no session id - global event gets a random uuid to get a good partition
@@ -585,6 +627,53 @@ func (b *Log) createTable(tableName string) error {
 
 // Close the DynamoDB driver
 func (b *Log) Close() error {
+	return nil
+}
+
+// deleteAllItems deletes all items from the database, used in tests
+func (b *Log) deleteAllItems() error {
+	out, err := b.svc.Scan(&dynamodb.ScanInput{TableName: aws.String(b.Tablename)})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	var requests []*dynamodb.WriteRequest
+	for _, item := range out.Items {
+		requests = append(requests, &dynamodb.WriteRequest{
+			DeleteRequest: &dynamodb.DeleteRequest{
+				Key: map[string]*dynamodb.AttributeValue{
+					keySessionID:  item[keySessionID],
+					keyEventIndex: item[keyEventIndex],
+				},
+			},
+		})
+	}
+	if len(requests) == 0 {
+		return nil
+	}
+	req, _ := b.svc.BatchWriteItemRequest(&dynamodb.BatchWriteItemInput{
+		RequestItems: map[string][]*dynamodb.WriteRequest{
+			b.Tablename: requests,
+		},
+	})
+	err = req.Send()
+	err = convertError(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// deleteTable deletes DynamoDB table with a given name
+func (b *Log) deleteTable(tableName string, wait bool) error {
+	tn := aws.String(tableName)
+	_, err := b.svc.DeleteTable(&dynamodb.DeleteTableInput{TableName: tn})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if wait {
+		return trace.Wrap(
+			b.svc.WaitUntilTableNotExists(&dynamodb.DescribeTableInput{TableName: tn}))
+	}
 	return nil
 }
 

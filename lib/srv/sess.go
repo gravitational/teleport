@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,9 +30,11 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
@@ -122,22 +124,35 @@ func (s *SessionRegistry) Close() {
 // emitSessionJoinEvent emits a session join event to both the Audit Log as
 // well as sending a "x-teleport-event" global request on the SSH connection.
 func (s *SessionRegistry) emitSessionJoinEvent(ctx *ServerContext) {
-	sessionJoinEvent := events.EventFields{
-		events.EventType:       events.SessionJoinEvent,
-		events.SessionEventID:  string(ctx.session.id),
-		events.EventNamespace:  s.srv.GetNamespace(),
-		events.EventLogin:      ctx.Identity.Login,
-		events.EventUser:       ctx.Identity.TeleportUser,
-		events.RemoteAddr:      ctx.ServerConn.RemoteAddr().String(),
-		events.SessionServerID: ctx.srv.HostUUID(),
+	sessionJoinEvent := &events.SessionJoin{
+		Metadata: events.Metadata{
+			Type: events.SessionJoinEvent,
+			Code: events.SessionJoinCode,
+		},
+		ServerMetadata: events.ServerMetadata{
+			ServerID:        ctx.srv.HostUUID(),
+			ServerNamespace: s.srv.GetNamespace(),
+		},
+		SessionMetadata: events.SessionMetadata{
+			SessionID: string(ctx.session.id),
+		},
+		UserMetadata: events.UserMetadata{
+			User:  ctx.Identity.TeleportUser,
+			Login: ctx.Identity.Login,
+		},
+		ConnectionMetadata: events.ConnectionMetadata{
+			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
+		},
 	}
 	// Local address only makes sense for non-tunnel nodes.
 	if !ctx.srv.UseTunnel() {
-		sessionJoinEvent[events.LocalAddr] = ctx.ServerConn.LocalAddr().String()
+		sessionJoinEvent.ConnectionMetadata.LocalAddr = ctx.ServerConn.LocalAddr().String()
 	}
 
 	// Emit session join event to Audit Log.
-	ctx.session.emitAuditEvent(events.SessionJoin, sessionJoinEvent)
+	if err := ctx.session.recorder.EmitAuditEvent(ctx.srv.Context(), sessionJoinEvent); err != nil {
+		s.log.WithError(err).Warn("Failed to emit session join event.")
+	}
 
 	// Notify all members of the party that a new member has joined over the
 	// "x-teleport-event" channel.
@@ -227,21 +242,32 @@ func (s *SessionRegistry) OpenExecSession(channel ssh.Channel, req *ssh.Request,
 // emitSessionLeaveEvent emits a session leave event to both the Audit Log as
 // well as sending a "x-teleport-event" global request on the SSH connection.
 func (s *SessionRegistry) emitSessionLeaveEvent(party *party) {
-	sessionLeaveEvent := events.EventFields{
-		events.EventType:       events.SessionLeaveEvent,
-		events.SessionEventID:  party.id.String(),
-		events.EventUser:       party.user,
-		events.SessionServerID: party.ctx.srv.HostUUID(),
-		events.EventNamespace:  s.srv.GetNamespace(),
+	sessionLeaveEvent := &events.SessionLeave{
+		Metadata: events.Metadata{
+			Type: events.SessionLeaveEvent,
+			Code: events.SessionLeaveCode,
+		},
+		ServerMetadata: events.ServerMetadata{
+			ServerID:        party.ctx.srv.HostUUID(),
+			ServerNamespace: s.srv.GetNamespace(),
+		},
+		SessionMetadata: events.SessionMetadata{
+			SessionID: party.id.String(),
+		},
+		UserMetadata: events.UserMetadata{
+			User: party.user,
+		},
 	}
 
 	// Emit session leave event to Audit Log.
-	party.s.emitAuditEvent(events.SessionLeave, sessionLeaveEvent)
+	if err := party.s.recorder.EmitAuditEvent(s.srv.Context(), sessionLeaveEvent); err != nil {
+		s.log.WithError(err).Warn("Failed to emit session leave event.")
+	}
 
 	// Notify all members of the party that a new member has left over the
 	// "x-teleport-event" channel.
 	for _, p := range s.getParties(party.s) {
-		eventPayload, err := json.Marshal(sessionLeaveEvent)
+		eventPayload, err := utils.FastMarshal(sessionLeaveEvent)
 		if err != nil {
 			s.log.Warnf("Unable to marshal %v for %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
 			continue
@@ -292,24 +318,37 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 		start, end := sess.startTime, time.Now().UTC()
 
 		// Emit a session.end event for this (interactive) session.
-		eventFields := events.EventFields{
-			events.SessionEventID:           string(sess.id),
-			events.SessionServerID:          party.ctx.srv.HostUUID(),
-			events.EventUser:                party.user,
-			events.EventNamespace:           s.srv.GetNamespace(),
-			events.SessionInteractive:       true,
-			events.SessionEnhancedRecording: sess.hasEnhancedRecording,
-			events.SessionParticipants:      sess.exportParticipants(),
-			events.SessionServerHostname:    s.srv.GetInfo().GetHostname(),
-			events.SessionServerAddr:        s.srv.GetInfo().GetAddr(),
-			events.SessionStartTime:         start,
-			events.SessionEndTime:           end,
+		sessionEndEvent := &events.SessionEnd{
+			Metadata: events.Metadata{
+				Type: events.SessionEndEvent,
+				Code: events.SessionEndCode,
+			},
+			ServerMetadata: events.ServerMetadata{
+				ServerID:        party.ctx.srv.HostUUID(),
+				ServerNamespace: s.srv.GetNamespace(),
+				ServerHostname:  s.srv.GetInfo().GetHostname(),
+				ServerAddr:      s.srv.GetInfo().GetAddr(),
+			},
+			SessionMetadata: events.SessionMetadata{
+				SessionID: string(sess.id),
+			},
+			UserMetadata: events.UserMetadata{
+				User: party.user,
+			},
+			EnhancedRecording: sess.hasEnhancedRecording,
+			Participants:      sess.exportParticipants(),
+			Interactive:       true,
+			StartTime:         start,
+			EndTime:           end,
 		}
-		sess.emitAuditEvent(events.SessionEnd, eventFields)
+		if err := sess.recorder.EmitAuditEvent(s.srv.Context(), sessionEndEvent); err != nil {
+			s.log.WithError(err).Warn("Failed to emit session end event.")
+		}
 
-		// close recorder to free up associated resources
-		// and flush data
-		sess.recorder.Close()
+		// close recorder to free up associated resources and flush data
+		if err := sess.recorder.Close(s.srv.Context()); err != nil {
+			s.log.WithError(err).Warn("Failed to close recorder.")
+		}
 
 		if err := sess.Close(); err != nil {
 			s.log.Errorf("Unable to close session %v: %v", sess.id, err)
@@ -359,19 +398,30 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 	sid := ctx.session.id
 
 	// Build the resize event.
-	resizeEvent := events.EventFields{
-		events.EventType:       events.ResizeEvent,
-		events.EventNamespace:  s.srv.GetNamespace(),
-		events.SessionEventID:  sid,
-		events.SessionServerID: ctx.srv.HostUUID(),
-		events.EventLogin:      ctx.Identity.Login,
-		events.EventUser:       ctx.Identity.TeleportUser,
-		events.TerminalSize:    params.Serialize(),
+	resizeEvent := &events.Resize{
+		Metadata: events.Metadata{
+			Type: events.ResizeEvent,
+			Code: events.TerminalResizeCode,
+		},
+		ServerMetadata: events.ServerMetadata{
+			ServerID:        ctx.srv.HostUUID(),
+			ServerNamespace: s.srv.GetNamespace(),
+		},
+		SessionMetadata: events.SessionMetadata{
+			SessionID: string(sid),
+		},
+		UserMetadata: events.UserMetadata{
+			User:  ctx.Identity.TeleportUser,
+			Login: ctx.Identity.Login,
+		},
+		TerminalSize: params.Serialize(),
 	}
 
 	// Report the updated window size to the event log (this is so the sessions
 	// can be replayed correctly).
-	ctx.session.emitAuditEvent(events.TerminalResize, resizeEvent)
+	if err := ctx.session.recorder.EmitAuditEvent(s.srv.Context(), resizeEvent); err != nil {
+		s.log.WithError(err).Warn("Failed to emit resize audit event.")
+	}
 
 	// Update the size of the server side PTY.
 	err := ctx.session.term.SetWinSize(params)
@@ -382,7 +432,7 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 	// If sessions are being recorded at the proxy, sessions can not be shared.
 	// In that situation, PTY size information does not need to be propagated
 	// back to all clients and we can return right away.
-	if ctx.ClusterConfig.GetSessionRecording() == services.RecordAtProxy {
+	if services.IsRecordAtProxy(ctx.ClusterConfig.GetSessionRecording()) {
 		return nil
 	}
 
@@ -471,7 +521,7 @@ type session struct {
 
 	closeOnce sync.Once
 
-	recorder events.SessionRecorder
+	recorder events.StreamWriter
 
 	// hasEnhancedRecording returns true if this session has enhanced session
 	// recording events associated.
@@ -561,6 +611,12 @@ func (s *session) PID() int {
 	return s.term.PID()
 }
 
+// Recorder returns a events.SessionRecorder which can be used to emit events
+// to a session as well as the audit log.
+func (s *session) Recorder() events.StreamWriter {
+	return s.recorder
+}
+
 // Close ends the active session forcing all clients to disconnect and freeing all resources
 func (s *session) Close() error {
 	s.closeOnce.Do(func() {
@@ -569,7 +625,7 @@ func (s *session) Close() error {
 		// (session writer) will try to close this session, causing a deadlock
 		// because of closeOnce
 		go func() {
-			s.log.Infof("Closing session %v", s.id)
+			s.log.Infof("Closing session %v.", s.id)
 			if s.term != nil {
 				s.term.Close()
 			}
@@ -579,7 +635,7 @@ func (s *session) Close() error {
 			s.writer.Lock()
 			defer s.writer.Unlock()
 			for writerName, writer := range s.writer.writers {
-				s.log.Infof("Closing session writer: %v", writerName)
+				s.log.Debugf("Closing session writer: %v.", writerName)
 				closer, ok := io.Writer(writer).(io.WriteCloser)
 				if ok {
 					closer.Close()
@@ -607,26 +663,32 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	// create a new "party" (connected client)
 	p := newParty(s, ch, ctx)
 
-	// Get the audit log from the server and create a session recorder. this will
-	// be a discard audit log if the proxy is in recording mode and a teleport
-	// node so we don't create double recordings.
-	auditLog := s.registry.srv.GetAuditLog()
-	if auditLog == nil || isDiscardAuditLog(auditLog) {
-		s.recorder = &events.DiscardRecorder{}
+	// Nodes discard events in cases when proxies are already recording them.
+	if s.registry.srv.Component() == teleport.ComponentNode &&
+		services.IsRecordAtProxy(ctx.ClusterConfig.GetSessionRecording()) {
+		s.recorder = &events.DiscardStream{}
 	} else {
-		s.recorder, err = events.NewForwardRecorder(events.ForwardRecorderConfig{
-			DataDir:        filepath.Join(ctx.srv.GetDataDir(), teleport.LogsDir),
-			SessionID:      s.id,
-			Namespace:      ctx.srv.GetNamespace(),
-			RecordSessions: ctx.ClusterConfig.GetSessionRecording() != services.RecordOff,
-			Component:      teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
-			ForwardTo:      auditLog,
+		streamer, err := s.newStreamer(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		s.recorder, err = events.NewAuditWriter(events.AuditWriterConfig{
+			// Audit stream is using server context, not session context,
+			// to make sure that session is uploaded even after it is closed
+			Context:      ctx.srv.Context(),
+			Streamer:     streamer,
+			Clock:        ctx.srv.GetClock(),
+			SessionID:    s.id,
+			Namespace:    ctx.srv.GetNamespace(),
+			ServerID:     ctx.srv.HostUUID(),
+			RecordOutput: ctx.ClusterConfig.GetSessionRecording() != services.RecordOff,
+			Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	s.writer.addWriter("session-recorder", s.recorder, true)
+	s.writer.addWriter("session-recorder", utils.WriteCloserWithContext(ctx.srv.Context(), s.recorder), true)
 
 	// allocate a terminal or take the one previously allocated via a
 	// seaprate "allocate TTY" SSH request
@@ -651,8 +713,9 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	// Open a BPF recording session. If BPF was not configured, not available,
 	// or running in a recording proxy, OpenSession is a NOP.
 	sessionContext := &bpf.SessionContext{
+		Context:   ctx.srv.Context(),
 		PID:       s.term.PID(),
-		AuditLog:  s.recorder.GetAuditLog(),
+		Emitter:   s.recorder,
 		Namespace: ctx.srv.GetNamespace(),
 		SessionID: s.id.String(),
 		ServerID:  ctx.srv.HostUUID(),
@@ -677,22 +740,37 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	params := s.term.GetTerminalParams()
 
 	// Emit "new session created" event for the interactive session.
-	eventFields := events.EventFields{
-		events.EventNamespace:        ctx.srv.GetNamespace(),
-		events.SessionEventID:        string(s.id),
-		events.SessionServerID:       ctx.srv.HostUUID(),
-		events.EventLogin:            ctx.Identity.Login,
-		events.EventUser:             ctx.Identity.TeleportUser,
-		events.RemoteAddr:            ctx.ServerConn.RemoteAddr().String(),
-		events.TerminalSize:          params.Serialize(),
-		events.SessionServerHostname: ctx.srv.GetInfo().GetHostname(),
-		events.SessionServerLabels:   ctx.srv.GetInfo().GetAllLabels(),
+	sessionStartEvent := &events.SessionStart{
+		Metadata: events.Metadata{
+			Type: events.SessionStartEvent,
+			Code: events.SessionStartCode,
+		},
+		ServerMetadata: events.ServerMetadata{
+			ServerID:        ctx.srv.HostUUID(),
+			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
+			ServerHostname:  ctx.srv.GetInfo().GetHostname(),
+			ServerNamespace: ctx.srv.GetNamespace(),
+		},
+		SessionMetadata: events.SessionMetadata{
+			SessionID: string(s.id),
+		},
+		UserMetadata: events.UserMetadata{
+			User:  ctx.Identity.TeleportUser,
+			Login: ctx.Identity.Login,
+		},
+		ConnectionMetadata: events.ConnectionMetadata{
+			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
+		},
+		TerminalSize: params.Serialize(),
 	}
+
 	// Local address only makes sense for non-tunnel nodes.
 	if !ctx.srv.UseTunnel() {
-		eventFields[events.LocalAddr] = ctx.ServerConn.LocalAddr().String()
+		sessionStartEvent.ConnectionMetadata.LocalAddr = ctx.ServerConn.LocalAddr().String()
 	}
-	s.emitAuditEvent(events.SessionStart, eventFields)
+	if err := s.recorder.EmitAuditEvent(ctx.srv.Context(), sessionStartEvent); err != nil {
+		s.log.WithError(err).Warn("Failed to emit session start event.")
+	}
 
 	// Start a heartbeat that marks this session as active with current members
 	// of party in the backend.
@@ -771,20 +849,26 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 	var err error
 
-	// Get the audit log from the server and create a session recorder. this will
-	// be a discard audit log if the proxy is in recording mode and a teleport
-	// node so we don't create double recordings.
-	auditLog := s.registry.srv.GetAuditLog()
-	if auditLog == nil || isDiscardAuditLog(auditLog) {
-		s.recorder = &events.DiscardRecorder{}
+	// Nodes discard events in cases when proxies are already recording them.
+	if s.registry.srv.Component() == teleport.ComponentNode &&
+		services.IsRecordAtProxy(ctx.ClusterConfig.GetSessionRecording()) {
+		s.recorder = &events.DiscardStream{}
 	} else {
-		s.recorder, err = events.NewForwardRecorder(events.ForwardRecorderConfig{
-			DataDir:        filepath.Join(ctx.srv.GetDataDir(), teleport.LogsDir),
-			SessionID:      s.id,
-			Namespace:      ctx.srv.GetNamespace(),
-			RecordSessions: ctx.ClusterConfig.GetSessionRecording() != services.RecordOff,
-			Component:      teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
-			ForwardTo:      auditLog,
+		streamer, err := s.newStreamer(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		s.recorder, err = events.NewAuditWriter(events.AuditWriterConfig{
+			// Audit stream is using server context, not session context,
+			// to make sure that session is uploaded even after it is closed
+			Context:      ctx.srv.Context(),
+			Streamer:     streamer,
+			SessionID:    s.id,
+			Clock:        ctx.srv.GetClock(),
+			Namespace:    ctx.srv.GetNamespace(),
+			ServerID:     ctx.srv.HostUUID(),
+			RecordOutput: ctx.ClusterConfig.GetSessionRecording() != services.RecordOff,
+			Component:    teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -792,21 +876,35 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 	}
 
 	// Emit a session.start event for the exec session.
-	eventFields := events.EventFields{
-		events.EventNamespace:        ctx.srv.GetNamespace(),
-		events.SessionEventID:        string(s.id),
-		events.SessionServerID:       ctx.srv.HostUUID(),
-		events.EventLogin:            ctx.Identity.Login,
-		events.EventUser:             ctx.Identity.TeleportUser,
-		events.RemoteAddr:            ctx.ServerConn.RemoteAddr().String(),
-		events.SessionServerHostname: ctx.srv.GetInfo().GetHostname(),
-		events.SessionServerLabels:   ctx.srv.GetInfo().GetAllLabels(),
+	sessionStartEvent := &events.SessionStart{
+		Metadata: events.Metadata{
+			Type: events.SessionStartEvent,
+			Code: events.SessionStartCode,
+		},
+		ServerMetadata: events.ServerMetadata{
+			ServerID:        ctx.srv.HostUUID(),
+			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
+			ServerHostname:  ctx.srv.GetInfo().GetHostname(),
+			ServerNamespace: ctx.srv.GetNamespace(),
+		},
+		SessionMetadata: events.SessionMetadata{
+			SessionID: string(s.id),
+		},
+		UserMetadata: events.UserMetadata{
+			User:  ctx.Identity.TeleportUser,
+			Login: ctx.Identity.Login,
+		},
+		ConnectionMetadata: events.ConnectionMetadata{
+			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
+		},
 	}
 	// Local address only makes sense for non-tunnel nodes.
 	if !ctx.srv.UseTunnel() {
-		eventFields[events.LocalAddr] = ctx.ServerConn.LocalAddr().String()
+		sessionStartEvent.ConnectionMetadata.LocalAddr = ctx.ServerConn.LocalAddr().String()
 	}
-	s.emitAuditEvent(events.SessionStart, eventFields)
+	if err := s.recorder.EmitAuditEvent(ctx.srv.Context(), sessionStartEvent); err != nil {
+		ctx.WithError(err).Warn("Failed to emit session start event.")
+	}
 
 	// Start execution. If the program failed to start, send that result back.
 	// Note this is a partial start. Teleport will have re-exec'ed itself and
@@ -823,8 +921,9 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 	// Open a BPF recording session. If BPF was not configured, not available,
 	// or running in a recording proxy, OpenSession is a NOP.
 	sessionContext := &bpf.SessionContext{
+		Context:   ctx.srv.Context(),
 		PID:       ctx.ExecRequest.PID(),
-		AuditLog:  s.recorder.GetAuditLog(),
+		Emitter:   s.recorder,
 		Namespace: ctx.srv.GetNamespace(),
 		SessionID: string(s.id),
 		ServerID:  ctx.srv.HostUUID(),
@@ -870,22 +969,40 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		start, end := s.startTime, time.Now().UTC()
 
 		// Emit a session.end event for this (exec) session.
-		eventFields := events.EventFields{
-			events.SessionEventID:           string(s.id),
-			events.SessionServerID:          ctx.srv.HostUUID(),
-			events.EventNamespace:           ctx.srv.GetNamespace(),
-			events.SessionInteractive:       false,
-			events.SessionEnhancedRecording: s.hasEnhancedRecording,
-			events.SessionServerHostname:    ctx.srv.GetInfo().GetHostname(),
-			events.SessionServerAddr:        ctx.srv.GetInfo().GetAddr(),
-			events.SessionStartTime:         start,
-			events.SessionEndTime:           end,
-			events.EventUser:                ctx.Identity.TeleportUser,
+		sessionEndEvent := &events.SessionEnd{
+			Metadata: events.Metadata{
+				Type: events.SessionEndEvent,
+				Code: events.SessionEndCode,
+			},
+			ServerMetadata: events.ServerMetadata{
+				ServerID:        ctx.srv.HostUUID(),
+				ServerNamespace: ctx.srv.GetNamespace(),
+				ServerHostname:  ctx.srv.GetInfo().GetHostname(),
+				ServerAddr:      ctx.srv.GetInfo().GetAddr(),
+			},
+			SessionMetadata: events.SessionMetadata{
+				SessionID: string(s.id),
+			},
+			UserMetadata: events.UserMetadata{
+				User:  ctx.Identity.TeleportUser,
+				Login: ctx.Identity.Login,
+			},
+			EnhancedRecording: s.hasEnhancedRecording,
+			Interactive:       false,
+			Participants: []string{
+				ctx.Identity.TeleportUser,
+			},
+			StartTime: start,
+			EndTime:   end,
 		}
-		s.emitAuditEvent(events.SessionEnd, eventFields)
+		if err := s.recorder.EmitAuditEvent(ctx.srv.Context(), sessionEndEvent); err != nil {
+			ctx.WithError(err).Warn("Failed to emit session end event.")
+		}
 
 		// Close recorder to free up associated resources and flush data.
-		s.recorder.Close()
+		if err := s.recorder.Close(ctx.srv.Context()); err != nil {
+			ctx.WithError(err).Warn("Failed to close recorder.")
+		}
 
 		// Close the session.
 		err = s.Close()
@@ -905,6 +1022,34 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 	}()
 
 	return nil
+}
+
+// newStreamer returns sync or async streamer based on the configuration
+// of the server and the session, sync streamer sends the events
+// directly to the auth server and blocks if the events can not be received,
+// async streamer buffers the events to disk and uploads the events later
+func (s *session) newStreamer(ctx *ServerContext) (events.Streamer, error) {
+	mode := ctx.ClusterConfig.GetSessionRecording()
+	if services.IsRecordSync(mode) {
+		s.log.Debugf("Using sync streamer for session %v.", s.id)
+		return ctx.srv, nil
+	}
+	s.log.Debugf("Using async streamer for session %v.", s.id)
+	fileStreamer, err := filesessions.NewStreamer(sessionsStreamingUploadDir(ctx))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// TeeStreamer sends non-print and non disk events
+	// to the audit log in async mode, while buffering all
+	// events on disk for further upload at the end of the session
+	return events.NewTeeStreamer(fileStreamer, ctx.srv), nil
+}
+
+func sessionsStreamingUploadDir(ctx *ServerContext) string {
+	return filepath.Join(
+		ctx.srv.GetDataDir(), teleport.LogsDir, teleport.ComponentUpload,
+		events.StreamingLogsDir, ctx.srv.GetNamespace(),
+	)
 }
 
 func (s *session) broadcastResult(r ExecResult) {
@@ -995,7 +1140,7 @@ func (s *session) exportParticipants() []string {
 func (s *session) heartbeat(ctx *ServerContext) {
 	// If sessions are being recorded at the proxy, an identical version of this
 	// goroutine is running in the proxy, which means it does not need to run here.
-	if ctx.ClusterConfig.GetSessionRecording() == services.RecordAtProxy &&
+	if services.IsRecordAtProxy(ctx.ClusterConfig.GetSessionRecording()) &&
 		s.registry.srv.Component() == teleport.ComponentNode {
 		return
 	}
@@ -1094,12 +1239,6 @@ func (s *session) join(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) (*p
 		return nil, trace.Wrap(err)
 	}
 	return p, nil
-}
-
-func (s *session) emitAuditEvent(e events.Event, f events.EventFields) {
-	if err := s.recorder.GetAuditLog().EmitAuditEvent(e, f); err != nil {
-		s.log.Warningf("Failed to emit audit event: %v", err)
-	}
 }
 
 func newMultiWriter() *multiWriter {
@@ -1248,9 +1387,4 @@ func (p *party) Close() (err error) {
 		close(p.termSizeC)
 	})
 	return err
-}
-
-func isDiscardAuditLog(alog events.IAuditLog) bool {
-	_, ok := alog.(*events.DiscardAuditLog)
-	return ok
 }

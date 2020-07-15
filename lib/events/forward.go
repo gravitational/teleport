@@ -117,8 +117,8 @@ func (l *Forwarder) Close() error {
 	return l.sessionLogger.Finalize()
 }
 
-// EmitAuditEvent emits audit event
-func (l *Forwarder) EmitAuditEvent(event Event, fields EventFields) error {
+// EmitAuditEventLegacy emits audit event
+func (l *Forwarder) EmitAuditEventLegacy(event Event, fields EventFields) error {
 	err := UpdateEventFields(event, fields, l.Clock, l.UID)
 	if err != nil {
 		return trace.Wrap(err)

@@ -209,7 +209,7 @@ func (s *ExecSuite) TestLoginDefsParser(c *check.C) {
 // TestEmitExecAuditEvent make sure the full command and exit code for a
 // command is always recorded.
 func (s *ExecSuite) TestEmitExecAuditEvent(c *check.C) {
-	fakeLog, ok := s.ctx.srv.GetAuditLog().(*fakeLog)
+	fakeServer, ok := s.ctx.srv.(*fakeServer)
 	c.Assert(ok, check.Equals, true)
 
 	var tests = []struct {
@@ -242,8 +242,9 @@ func (s *ExecSuite) TestEmitExecAuditEvent(c *check.C) {
 	}
 	for _, tt := range tests {
 		emitExecAuditEvent(s.ctx, tt.inCommand, tt.inError)
-		c.Assert(fakeLog.lastEvent.GetString(events.ExecEventCommand), check.Equals, tt.outCommand)
-		c.Assert(fakeLog.lastEvent.GetString(events.ExecEventCode), check.Equals, tt.outCode)
+		execEvent := fakeServer.LastEvent().(*events.Exec)
+		c.Assert(execEvent.Command, check.Equals, tt.outCommand)
+		c.Assert(execEvent.ExitCode, check.Equals, tt.outCode)
 	}
 }
 
@@ -409,9 +410,14 @@ func (f *fakeTerminal) SetTermType(string) {
 
 // fakeServer is stub for tests
 type fakeServer struct {
-	auditLog    events.IAuditLog
+	auditLog events.IAuditLog
+	events.MockEmitter
 	accessPoint auth.AccessPoint
 	id          string
+}
+
+func (f *fakeServer) Context() context.Context {
+	return context.TODO()
 }
 
 func (f *fakeServer) ID() string {
@@ -436,13 +442,6 @@ func (f *fakeServer) Component() string {
 
 func (f *fakeServer) PermitUserEnvironment() bool {
 	return true
-}
-
-func (s *fakeServer) EmitAuditEvent(events.Event, events.EventFields) {
-}
-
-func (f *fakeServer) GetAuditLog() events.IAuditLog {
-	return f.auditLog
 }
 
 func (f *fakeServer) GetAccessPoint() auth.AccessPoint {
@@ -479,12 +478,10 @@ func (f *fakeServer) GetBPF() bpf.BPF {
 
 // fakeLog is used in tests to obtain the last event emit to the Audit Log.
 type fakeLog struct {
-	lastEvent events.EventFields
 }
 
-func (a *fakeLog) EmitAuditEvent(e events.Event, f events.EventFields) error {
-	a.lastEvent = f
-	return nil
+func (a *fakeLog) EmitAuditEventLegacy(e events.Event, f events.EventFields) error {
+	return trace.NotImplemented("not implemented")
 }
 
 func (a *fakeLog) PostSessionSlice(s events.SessionSlice) error {

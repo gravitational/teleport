@@ -158,7 +158,7 @@ type Handler struct {
 	client     *s3.S3
 }
 
-// Closer releases connection and resources associated with log if any
+// Close releases connection and resources associated with log if any
 func (l *Handler) Close() error {
 	return nil
 }
@@ -283,6 +283,10 @@ func (l *Handler) path(sessionID session.ID) string {
 		return string(sessionID) + ".tar"
 	}
 	return strings.TrimPrefix(filepath.Join(l.Path, string(sessionID)+".tar"), "/")
+}
+
+func (l *Handler) fromPath(path string) session.ID {
+	return session.ID(strings.TrimSuffix(filepath.Base(path), ".tar"))
 }
 
 // ensureBucket makes sure bucket exists, and if it does not, creates it

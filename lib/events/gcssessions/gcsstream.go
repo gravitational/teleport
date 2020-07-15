@@ -1,0 +1,381 @@
+/*
+Copyright 2020 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package gcssessions
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"io"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/session"
+
+	"cloud.google.com/go/storage"
+	"github.com/pborman/uuid"
+	"google.golang.org/api/iterator"
+
+	"github.com/gravitational/trace"
+)
+
+// CreateUpload creates a multipart upload
+func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
+	upload := events.StreamUpload{
+		ID:        uuid.New(),
+		SessionID: sessionID,
+		Initiated: time.Now().UTC(),
+	}
+	if err := upload.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uploadPath := h.uploadPath(upload)
+
+	h.Logger.Debugf("Creating upload at %s", uploadPath)
+	// Make sure we don't overwrite an existing upload
+	_, err := h.gcsClient.Bucket(h.Config.Bucket).Object(uploadPath).Attrs(ctx)
+	if err != storage.ErrObjectNotExist {
+		if err != nil {
+			return nil, convertGCSError(err)
+		}
+		return nil, trace.AlreadyExists("upload %v for session %q already exists in GCS", upload.ID, sessionID)
+	}
+
+	writer := h.gcsClient.Bucket(h.Config.Bucket).Object(uploadPath).NewWriter(ctx)
+	start := time.Now()
+	_, err = io.Copy(writer, strings.NewReader(string(sessionID)))
+	// Always close the writer, even if upload failed.
+	closeErr := writer.Close()
+	if err == nil {
+		err = closeErr
+	}
+	uploadLatencies.Observe(time.Since(start).Seconds())
+	uploadRequests.Inc()
+	if err != nil {
+		return nil, convertGCSError(err)
+	}
+	return &upload, nil
+}
+
+// UploadPart uploads part
+func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
+	if err := upload.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	partPath := h.partPath(upload, partNumber)
+	writer := h.gcsClient.Bucket(h.Config.Bucket).Object(partPath).NewWriter(ctx)
+	start := time.Now()
+	_, err := io.Copy(writer, partBody)
+	// Always close the writer, even if upload failed.
+	closeErr := writer.Close()
+	if err == nil {
+		err = closeErr
+	}
+	uploadLatencies.Observe(time.Since(start).Seconds())
+	uploadRequests.Inc()
+	if err != nil {
+		return nil, convertGCSError(err)
+	}
+	return &events.StreamPart{Number: partNumber}, nil
+}
+
+// CompleteUpload completes the upload
+func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
+	if err := upload.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// If the session has been already created, move to cleanup
+	sessionPath := h.path(upload.SessionID)
+	_, err := h.gcsClient.Bucket(h.Config.Bucket).Object(sessionPath).Attrs(ctx)
+	if err != storage.ErrObjectNotExist {
+		if err != nil {
+			return convertGCSError(err)
+		}
+		return h.cleanupUpload(ctx, upload)
+	}
+
+	// Makes sure that upload has been properly initiated,
+	// checks the .upload file
+	uploadPath := h.uploadPath(upload)
+	bucket := h.gcsClient.Bucket(h.Config.Bucket)
+	_, err = bucket.Object(uploadPath).Attrs(ctx)
+	if err != nil {
+		return convertGCSError(err)
+	}
+
+	objects := h.partsToObjects(upload, parts)
+	for len(objects) > maxParts {
+		h.Logger.Debugf("Got %v objects for upload %v, performing temp merge.",
+			len(objects), upload)
+		objectsToMerge := objects[:maxParts]
+		mergeID := hashOfNames(objectsToMerge)
+		mergePath := h.mergePath(upload, mergeID)
+		mergeObject := bucket.Object(mergePath)
+		composer := mergeObject.ComposerFrom(objectsToMerge...)
+		_, err = h.OnComposerRun(ctx, composer)
+		if err != nil {
+			return convertGCSError(err)
+		}
+		objects = append([]*storage.ObjectHandle{mergeObject}, objects[maxParts:]...)
+	}
+	composer := bucket.Object(sessionPath).ComposerFrom(objects...)
+	_, err = h.OnComposerRun(ctx, composer)
+	if err != nil {
+		return convertGCSError(err)
+	}
+	h.Logger.Debugf("Got %v objects for upload %v, performed merge.",
+		len(objects), upload)
+	return h.cleanupUpload(ctx, upload)
+}
+
+// cleanupUpload iterates through all upload related objects
+// and deletes them in parallel
+func (h *Handler) cleanupUpload(ctx context.Context, upload events.StreamUpload) error {
+	prefixes := []string{
+		h.partsPrefix(upload),
+		h.mergesPrefix(upload),
+		h.uploadPrefix(upload),
+	}
+
+	bucket := h.gcsClient.Bucket(h.Config.Bucket)
+	var objects []*storage.ObjectHandle
+	for _, prefix := range prefixes {
+		i := bucket.Objects(ctx, &storage.Query{Prefix: prefix, Versions: false})
+		for {
+			attrs, err := i.Next()
+			if err == iterator.Done {
+				break
+			}
+			if err != nil {
+				return convertGCSError(err)
+			}
+			objects = append(objects, bucket.Object(attrs.Name))
+		}
+	}
+
+	// batch delete objects to speed up the process
+	semCh := make(chan struct{}, maxParts)
+	errorsCh := make(chan error, maxParts)
+	for i := range objects {
+		select {
+		case semCh <- struct{}{}:
+			go func(object *storage.ObjectHandle) {
+				defer func() { <-semCh }()
+				err := h.AfterObjectDelete(ctx, object, object.Delete(ctx))
+				select {
+				case errorsCh <- convertGCSError(err):
+				case <-ctx.Done():
+				}
+			}(objects[i])
+		case <-ctx.Done():
+			return trace.ConnectionProblem(ctx.Err(), "context closed")
+		}
+	}
+
+	var errors []error
+	for range objects {
+		select {
+		case err := <-errorsCh:
+			if !trace.IsNotFound(err) {
+				errors = append(errors, err)
+			}
+		case <-ctx.Done():
+			return trace.ConnectionProblem(ctx.Err(), "context closed")
+		}
+	}
+	return trace.NewAggregate(errors...)
+}
+
+func (h *Handler) partsToObjects(upload events.StreamUpload, parts []events.StreamPart) []*storage.ObjectHandle {
+	objects := make([]*storage.ObjectHandle, len(parts))
+	bucket := h.gcsClient.Bucket(h.Config.Bucket)
+	for i := 0; i < len(parts); i++ {
+		objects[i] = bucket.Object(h.partPath(upload, parts[i].Number))
+	}
+	return objects
+}
+
+// ListParts lists upload parts
+func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]events.StreamPart, error) {
+	if err := upload.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	i := h.gcsClient.Bucket(h.Config.Bucket).Objects(ctx, &storage.Query{
+		Prefix: h.partsPrefix(upload),
+	})
+	var parts []events.StreamPart
+	for {
+		attrs, err := i.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, convertGCSError(err)
+		}
+		// Skip entries that are not parts
+		if filepath.Ext(attrs.Name) != partExt {
+			continue
+		}
+		part, err := partFromPath(attrs.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		parts = append(parts, *part)
+	}
+	return parts, nil
+}
+
+// ListUploads lists uploads that have been initiated but not completed with
+// earlier uploads returned first
+func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error) {
+	i := h.gcsClient.Bucket(h.Config.Bucket).Objects(ctx, &storage.Query{
+		Prefix: h.uploadsPrefix(),
+	})
+	var uploads []events.StreamUpload
+	for {
+		attrs, err := i.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, convertGCSError(err)
+		}
+		// Skip entries that are not uploads
+		if filepath.Ext(attrs.Name) != uploadExt {
+			continue
+		}
+		upload, err := uploadFromPath(attrs.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		upload.Initiated = attrs.Created
+		uploads = append(uploads, *upload)
+	}
+	return uploads, nil
+}
+
+const (
+	// uploadsKey is a key that holds all upload-related objects
+	uploadsKey = "uploads"
+	// partsKey is a key that holds all part-related objects
+	partsKey = "parts"
+	// mergesKey is a key that holds temp merges to workaround
+	// google max parts limit
+	mergesKey = "merges"
+	// partExt is a part extension
+	partExt = ".part"
+	// mergeExt is a merge extension
+	mergeExt = ".merge"
+	// uploadExt is upload extension
+	uploadExt = ".upload"
+	// slash is a forward slash
+	slash = "/"
+	// Maximum parts per compose as set by
+	// https://cloud.google.com/storage/docs/composite-objects
+	maxParts = 32
+)
+
+// uploadsPrefix is "path/uploads"
+func (h *Handler) uploadsPrefix() string {
+	return strings.TrimPrefix(filepath.Join(h.Path, uploadsKey), slash)
+}
+
+// uploadPrefix is "path/uploads/<upload-id>"
+func (h *Handler) uploadPrefix(upload events.StreamUpload) string {
+	return filepath.Join(h.uploadsPrefix(), upload.ID)
+}
+
+// uploadPath is "path/uploads/<upload-id>/<session-id>.upload"
+func (h *Handler) uploadPath(upload events.StreamUpload) string {
+	return filepath.Join(h.uploadPrefix(upload), string(upload.SessionID)) + uploadExt
+}
+
+// partsPrefix is "path/parts/<upload-id>"
+// this path is under different tree from upload to make prefix
+// iteration of uploads more efficient (that otherwise would have
+// scan and skip the parts that could be 5K parts per upload)
+func (h *Handler) partsPrefix(upload events.StreamUpload) string {
+	return strings.TrimPrefix(filepath.Join(h.Path, partsKey, upload.ID), slash)
+}
+
+// partPath is "path/parts/<upload-id>/<part-number>.part"
+func (h *Handler) partPath(upload events.StreamUpload, partNumber int64) string {
+	return filepath.Join(h.partsPrefix(upload), fmt.Sprintf("%v%v", partNumber, partExt))
+}
+
+// mergesPrefix is "path/merges/<upload-id>"
+// this path is under different tree from upload to make prefix
+// iteration of uploads more efficient (that otherwise would have
+// scan and skip the parts that could be 5K parts per upload)
+func (h *Handler) mergesPrefix(upload events.StreamUpload) string {
+	return strings.TrimPrefix(filepath.Join(h.Path, mergesKey, upload.ID), slash)
+}
+
+// mergePath is "path/merges/<upload-id>/<merge-id>.merge"
+func (h *Handler) mergePath(upload events.StreamUpload, mergeID string) string {
+	return filepath.Join(h.mergesPrefix(upload), fmt.Sprintf("%v%v", mergeID, mergeExt))
+}
+
+// hashOfNames creates an object with hash of names
+// to avoid generating new objects for consecutive merge attempts
+func hashOfNames(objects []*storage.ObjectHandle) string {
+	hash := sha256.New()
+	for _, object := range objects {
+		hash.Write([]byte(object.ObjectName()))
+	}
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
+func uploadFromPath(path string) (*events.StreamUpload, error) {
+	dir, file := filepath.Split(path)
+	if filepath.Ext(file) != uploadExt {
+		return nil, trace.BadParameter("expected extension %v, got %v", uploadExt, file)
+	}
+	sessionID := session.ID(strings.TrimSuffix(file, uploadExt))
+	if err := sessionID.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	parts := strings.Split(dir, slash)
+	if len(parts) < 2 {
+		return nil, trace.BadParameter("expected format uploads/<upload-id>, got %v", dir)
+	}
+	uploadID := parts[len(parts)-1]
+	return &events.StreamUpload{
+		SessionID: sessionID,
+		ID:        uploadID,
+	}, nil
+}
+
+func partFromPath(path string) (*events.StreamPart, error) {
+	base := filepath.Base(path)
+	if filepath.Ext(base) != partExt {
+		return nil, trace.BadParameter("expected extension %v, got %v", partExt, base)
+	}
+	numberString := strings.TrimSuffix(base, partExt)
+	partNumber, err := strconv.ParseInt(numberString, 10, 0)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &events.StreamPart{Number: partNumber}, nil
+}

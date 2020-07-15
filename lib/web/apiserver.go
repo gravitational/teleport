@@ -653,7 +653,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	if err != nil {
 		log.Errorf("Cannot retrieve ClusterConfig: %v.", err)
 	} else {
-		canJoinSessions = clsCfg.GetSessionRecording() != services.RecordAtProxy
+		canJoinSessions = services.IsRecordAtProxy(clsCfg.GetSessionRecording()) == false
 	}
 
 	authSettings := ui.WebConfigAuthSettings{

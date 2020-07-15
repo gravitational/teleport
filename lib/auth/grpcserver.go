@@ -1,5 +1,5 @@
 /*
-Copyright 2018-2019 Gravitational, Inc.
+Copyright 2018-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,15 +18,17 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
 	"io"
-	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/golang/protobuf/ptypes/empty"
@@ -34,6 +36,8 @@ import (
 	"github.com/gravitational/trace/trail"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	_ "google.golang.org/grpc/encoding/gzip"
+	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/peer"
 )
 
@@ -41,10 +45,24 @@ import (
 type GRPCServer struct {
 	*logrus.Entry
 	APIConfig
-	// httpHandler is a server serving HTTP API
-	httpHandler http.Handler
-	// grpcHandler is golang GRPC handler
-	grpcHandler *grpc.Server
+	server *grpc.Server
+}
+
+// EmitAuditEvent emits audit event
+func (g *GRPCServer) EmitAuditEvent(ctx context.Context, req *events.OneOf) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	event, err := events.FromOneOf(*req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	err = auth.EmitAuditEvent(ctx, event)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
 }
 
 // SendKeepAlives allows node to send a stream of keep alive requests
@@ -71,6 +89,127 @@ func (g *GRPCServer) SendKeepAlives(stream proto.AuthService_SendKeepAlivesServe
 		}
 	}
 }
+
+// CreateAuditStream creates or resumes audit event stream
+func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStreamServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+
+	var eventStream events.Stream
+	g.Debugf("CreateAuditStream connection from %v.", auth.User.GetName())
+	streamStart := time.Now()
+	processed := int64(0)
+	counter := 0
+	forwardEvents := func(eventStream events.Stream) {
+		for {
+			select {
+			case <-stream.Context().Done():
+				return
+			case statusUpdate := <-eventStream.Status():
+				if err := stream.Send(&statusUpdate); err != nil {
+					g.WithError(err).Debugf("Failed to send status update.")
+				}
+			}
+		}
+	}
+
+	closeStream := func(eventStream events.Stream) {
+		if err := eventStream.Close(auth.Context()); err != nil {
+			g.WithError(err).Warningf("Failed to flush close the stream.")
+		} else {
+			g.Debugf("Flushed and closed the stream.")
+		}
+	}
+
+	for {
+		request, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			g.WithError(err).Debugf("Failed to receive stream request.")
+			return trail.ToGRPC(err)
+		}
+		if create := request.GetCreateStream(); create != nil {
+			if eventStream != nil {
+				return trail.ToGRPC(trace.BadParameter("stream is already created or resumed"))
+			}
+			eventStream, err = auth.CreateAuditStream(stream.Context(), session.ID(create.SessionID))
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			g.Debugf("Created stream: %v.", err)
+			go forwardEvents(eventStream)
+			defer closeStream(eventStream)
+		} else if resume := request.GetResumeStream(); resume != nil {
+			if eventStream != nil {
+				return trail.ToGRPC(trace.BadParameter("stream is already created or resumed"))
+			}
+			eventStream, err = auth.ResumeAuditStream(stream.Context(), session.ID(resume.SessionID), resume.UploadID)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			g.Debugf("Resumed stream: %v.", err)
+			go forwardEvents(eventStream)
+			defer closeStream(eventStream)
+		} else if complete := request.GetCompleteStream(); complete != nil {
+			if eventStream == nil {
+				return trail.ToGRPC(trace.BadParameter("stream is not initialized yet, cannot complete"))
+			}
+			// do not use stream context to give the auth server finish the upload
+			// even if the stream's context is cancelled
+			err := eventStream.Complete(auth.Context())
+			g.Debugf("Completed stream: %v.", err)
+			if err != nil {
+				return trail.ToGRPC(err)
+			}
+			return nil
+		} else if flushAndClose := request.GetFlushAndCloseStream(); flushAndClose != nil {
+			if eventStream == nil {
+				return trail.ToGRPC(trace.BadParameter("stream is not initialized yet, cannot flush and close"))
+			}
+			// flush and close is always done
+			return nil
+		} else if oneof := request.GetEvent(); oneof != nil {
+			if eventStream == nil {
+				return trail.ToGRPC(
+					trace.BadParameter("stream cannot receive an event without first being created or resumed"))
+			}
+			event, err := events.FromOneOf(*oneof)
+			if err != nil {
+				g.WithError(err).Debugf("Failed to decode event.")
+				return trail.ToGRPC(err)
+			}
+			start := time.Now()
+			err = eventStream.EmitAuditEvent(stream.Context(), event)
+			if err != nil {
+				return trail.ToGRPC(err)
+			}
+			event.Size()
+			processed += int64(event.Size())
+			seconds := time.Since(streamStart) / time.Second
+			counter++
+			if counter%logInterval == 0 {
+				if seconds > 0 {
+					kbytes := float64(processed) / 1000
+					g.Debugf("Processed %v events, tx rate kbytes %v/second.", counter, kbytes/float64(seconds))
+				}
+			}
+			diff := time.Since(start)
+			if diff > 100*time.Millisecond {
+				log.Warningf("EmitAuditEvent(%v) took longer than 100ms: %v", event.GetType(), time.Since(event.GetTime()))
+			}
+		} else {
+			g.Errorf("Rejecting unsupported stream request: %v.", request)
+			return trail.ToGRPC(trace.BadParameter("unsupported stream request"))
+		}
+	}
+}
+
+// logInterval is used to log stats after this many events
+const logInterval = 10000
 
 // WatchEvents returns a new stream of cluster events
 func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_WatchEventsServer) error {
@@ -524,38 +663,76 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 		AuthContext: authContext,
 		AuthWithRoles: &AuthWithRoles{
 			authServer: g.AuthServer,
-			user:       authContext.User,
-			checker:    authContext.Checker,
-			identity:   authContext.Identity,
+			context:    *authContext,
 			sessions:   g.SessionService,
 			alog:       g.AuthServer.IAuditLog,
 		},
 	}, nil
 }
 
+// GRPCServerConfig specifies GRPC server configuration
+type GRPCServerConfig struct {
+	// APIConfig is GRPC server API configuration
+	APIConfig
+	// TLS is GRPC server config
+	TLS *tls.Config
+	// UnaryInterceptor intercepts individual GRPC requests
+	// for authentication and rate limiting
+	UnaryInterceptor grpc.UnaryServerInterceptor
+	// UnaryInterceptor intercepts GRPC streams
+	// for authentication and rate limiting
+	StreamInterceptor grpc.StreamServerInterceptor
+}
+
+// CheckAndSetDefaults checks and sets default values
+func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
+	if cfg.TLS == nil {
+		return trace.BadParameter("missing parameter TLS")
+	}
+	if cfg.UnaryInterceptor == nil {
+		return trace.BadParameter("missing parameter UnaryInterceptor")
+	}
+	if cfg.StreamInterceptor == nil {
+		return trace.BadParameter("missing parameter StreamInterceptor")
+	}
+	return nil
+}
+
 // NewGRPCServer returns a new instance of GRPC server
-func NewGRPCServer(cfg APIConfig) http.Handler {
+func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Debugf("GRPC(SERVER): keep alive %v count: %v.", cfg.KeepAlivePeriod, cfg.KeepAliveCount)
+	opts := []grpc.ServerOption{
+		grpc.Creds(&httplib.TLSCreds{
+			Config: cfg.TLS,
+		}),
+		grpc.UnaryInterceptor(cfg.UnaryInterceptor),
+		grpc.StreamInterceptor(cfg.StreamInterceptor),
+		grpc.KeepaliveParams(
+			keepalive.ServerParameters{
+				Time:    cfg.KeepAlivePeriod,
+				Timeout: cfg.KeepAlivePeriod * time.Duration(cfg.KeepAliveCount),
+			},
+		),
+		grpc.KeepaliveEnforcementPolicy(
+			keepalive.EnforcementPolicy{
+				MinTime:             cfg.KeepAlivePeriod,
+				PermitWithoutStream: true,
+			},
+		),
+	}
+	server := grpc.NewServer(opts...)
 	authServer := &GRPCServer{
-		APIConfig: cfg,
+		APIConfig: cfg.APIConfig,
 		Entry: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.Component(teleport.ComponentAuth, teleport.ComponentGRPC),
 		}),
-		httpHandler: NewAPIServer(&cfg),
-		grpcHandler: grpc.NewServer(),
+		server: server,
 	}
-	proto.RegisterAuthServiceServer(authServer.grpcHandler, authServer)
-	return authServer
-}
-
-// ServeHTTP dispatches requests based on the request type
-func (g *GRPCServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// magic combo match signifying GRPC request
-	// https://grpc.io/blog/coreos
-	if r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
-		g.grpcHandler.ServeHTTP(w, r)
-	} else {
-		g.httpHandler.ServeHTTP(w, r)
-	}
+	proto.RegisterAuthServiceServer(authServer.server, authServer)
+	return authServer, nil
 }
 
 func eventToGRPC(in services.Event) (*proto.Event, error) {

@@ -21,53 +21,36 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/fsouza/fake-gcs-server/fakestorage"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/fsouza/fake-gcs-server/fakestorage"
 	"github.com/pborman/uuid"
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestGCS(t *testing.T) { check.TestingT(t) }
-
-type GCSSuite struct {
-	handler *Handler
-	test.HandlerSuite
-	gcsServer *fakestorage.Server
-}
-
-var _ = check.Suite(&GCSSuite{})
-
-func (s *GCSSuite) SetUpSuite(c *check.C) {
+// TestFakeStreams tests various streaming upload scenarios
+// using fake GCS background
+func TestFakeStreams(t *testing.T) {
+	utils.InitLoggerForTests(testing.Verbose())
 
 	server := *fakestorage.NewServer([]fakestorage.Object{})
-	s.gcsServer = &server
+	defer server.Stop()
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
 
-	utils.InitLoggerForTests()
-
-	var err error
-	s.HandlerSuite.Handler, err = NewHandler(ctx, cancelFunc, Config{
+	handler, err := NewHandler(ctx, cancelFunc, Config{
 		Endpoint: server.URL(),
 		Bucket:   fmt.Sprintf("teleport-test-%v", uuid.New()),
 	}, server.Client())
-	c.Assert(err, check.IsNil)
-}
+	assert.Nil(t, err)
+	defer handler.Close()
 
-func (s *GCSSuite) TestUploadDownload(c *check.C) {
-	s.UploadDownload(c)
-}
-
-func (s *GCSSuite) TestDownloadNotFound(c *check.C) {
-	s.DownloadNotFound(c)
-}
-
-func (s *GCSSuite) TearDownSuite(c *check.C) {
-	if s.gcsServer != nil {
-		s.gcsServer.Stop()
-	}
-	if s.handler != nil {
-		s.handler.Close()
-	}
+	t.Run("UploadDownload", func(t *testing.T) {
+		test.UploadDownload(t, handler)
+	})
+	t.Run("DownloadNotFound", func(t *testing.T) {
+		test.DownloadNotFound(t, handler)
+	})
 }

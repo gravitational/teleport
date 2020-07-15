@@ -26,17 +26,13 @@ import (
 	"net/http/httptest"
 	"os"
 	os_exec "os/exec"
-	"sync"
 	"testing"
 	"time"
 	"unsafe"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/pborman/uuid"
@@ -80,7 +76,7 @@ func (s *Suite) TestWatch(c *check.C) {
 	})
 
 	// Create a fake audit log that can be used to capture the events emitted.
-	auditLog := newFakeLog()
+	emitter := &events.MockEmitter{}
 
 	// Create and start a program that does nothing. Since sleep will run longer
 	// than we wait below, nothing should be emit to the Audit Log.
@@ -97,7 +93,7 @@ func (s *Suite) TestWatch(c *check.C) {
 		Login:     "foo",
 		User:      "foo@example.com",
 		PID:       cmd.Process.Pid,
-		AuditLog:  auditLog,
+		Emitter:   emitter,
 		Events: map[string]bool{
 			teleport.EnhancedRecordingCommand: true,
 			teleport.EnhancedRecordingDisk:    true,
@@ -131,7 +127,7 @@ func (s *Suite) TestWatch(c *check.C) {
 	for {
 		select {
 		case <-time.Tick(250 * time.Millisecond):
-			c.Assert(auditLog.events, check.HasLen, 0)
+			c.Assert(emitter.LastEvent(), check.IsNil)
 		case <-timer.C:
 			return
 		}
@@ -445,58 +441,6 @@ func executeHTTP(c *check.C, doneContext context.Context, endpoint string) {
 
 		time.Sleep(250 * time.Millisecond)
 	}
-}
-
-// fakeLog is used in tests to obtain events emitted to the Audit Log.
-type fakeLog struct {
-	mu     sync.Mutex
-	events []events.EventFields
-}
-
-func newFakeLog() *fakeLog {
-	return &fakeLog{
-		events: make([]events.EventFields, 0),
-	}
-}
-
-func (a *fakeLog) EmitAuditEvent(e events.Event, f events.EventFields) error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	a.events = append(a.events, f)
-	return nil
-}
-
-func (a *fakeLog) PostSessionSlice(s events.SessionSlice) error {
-	return trace.NotImplemented("not implemented")
-}
-
-func (a *fakeLog) UploadSessionRecording(r events.SessionRecording) error {
-	return trace.NotImplemented("not implemented")
-}
-
-func (a *fakeLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes int, maxBytes int) ([]byte, error) {
-	return nil, trace.NotFound("")
-}
-
-func (a *fakeLog) GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error) {
-	return nil, trace.NotFound("")
-}
-
-func (a *fakeLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]events.EventFields, error) {
-	return nil, trace.NotFound("")
-}
-
-func (a *fakeLog) SearchSessionEvents(fromUTC time.Time, toUTC time.Time, limit int) ([]events.EventFields, error) {
-	return nil, trace.NotFound("")
-}
-
-func (a *fakeLog) WaitForDelivery(context.Context) error {
-	return trace.NotImplemented("not implemented")
-}
-
-func (a *fakeLog) Close() error {
-	return trace.NotFound("")
 }
 
 // isRoot returns a boolean if the test is being run as root or not. Tests

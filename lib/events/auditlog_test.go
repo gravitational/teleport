@@ -30,7 +30,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -60,12 +59,20 @@ func (a *AuditTestSuite) makeLog(c *check.C, dataDir string, recordSessions bool
 // creates a file-based audit log and returns a proper *AuditLog pointer
 // instead of the usual IAuditLog interface
 func (a *AuditTestSuite) makeLogWithClock(c *check.C, dataDir string, recordSessions bool, clock clockwork.Clock) (*AuditLog, error) {
+	handler, err := NewLegacyHandler(LegacyHandlerConfig{
+		Handler: NewMemoryUploader(),
+		Dir:     dataDir,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	alog, err := NewAuditLog(AuditLogConfig{
 		DataDir:        dataDir,
 		RecordSessions: recordSessions,
 		ServerID:       "server1",
 		Clock:          clock,
 		UIDGenerator:   utils.NewFakeUID(),
+		UploadHandler:  handler,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -94,18 +101,14 @@ func (a *AuditTestSuite) TestNew(c *check.C) {
 func (a *AuditTestSuite) TestSessionsOnOneAuthServer(c *check.C) {
 	fakeClock := clockwork.NewFakeClock()
 
-	storageDir := c.MkDir()
-	fileHandler, err := filesessions.NewHandler(filesessions.Config{
-		Directory: storageDir,
-	})
-	c.Assert(err, check.IsNil)
+	uploader := NewMemoryUploader()
 
 	alog, err := NewAuditLog(AuditLogConfig{
 		Clock:          fakeClock,
 		DataDir:        a.dataDir,
 		RecordSessions: true,
 		ServerID:       "server1",
-		UploadHandler:  fileHandler,
+		UploadHandler:  uploader,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -114,7 +117,7 @@ func (a *AuditTestSuite) TestSessionsOnOneAuthServer(c *check.C) {
 		DataDir:        a.dataDir,
 		RecordSessions: true,
 		ServerID:       "server2",
-		UploadHandler:  fileHandler,
+		UploadHandler:  uploader,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -139,7 +142,7 @@ func (a *AuditTestSuite) TestSessionsOnOneAuthServer(c *check.C) {
 		Namespace: defaults.Namespace,
 		SessionID: sessionID,
 		Chunks: []*SessionChunk{
-			// start the seession
+			// start the session
 			&SessionChunk{
 				Time:       fakeClock.Now().UTC().UnixNano(),
 				EventIndex: 0,
@@ -195,7 +198,7 @@ func (a *AuditTestSuite) TestSessionsOnOneAuthServer(c *check.C) {
 
 func upload(c *check.C, uploadDir string, clock clockwork.Clock, auditLog IAuditLog) {
 	// start uploader process
-	eventsC := make(chan *UploadEvent, 100)
+	eventsC := make(chan UploadEvent, 100)
 	uploader, err := NewUploader(UploaderConfig{
 		ServerID:   "upload",
 		DataDir:    uploadDir,
@@ -222,12 +225,6 @@ func upload(c *check.C, uploadDir string, clock clockwork.Clock, auditLog IAudit
 }
 
 func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
-	storageDir := c.MkDir()
-	fileHandler, err := filesessions.NewHandler(filesessions.Config{
-		Directory: storageDir,
-	})
-	c.Assert(err, check.IsNil)
-
 	now := time.Now().In(time.UTC).Round(time.Second)
 
 	// create audit log with session recording disabled
@@ -238,7 +235,7 @@ func (a *AuditTestSuite) TestSessionRecordingOff(c *check.C) {
 		DataDir:        a.dataDir,
 		RecordSessions: true,
 		ServerID:       "server1",
-		UploadHandler:  fileHandler,
+		UploadHandler:  NewMemoryUploader(),
 	})
 	c.Assert(err, check.IsNil)
 
@@ -321,7 +318,7 @@ func (a *AuditTestSuite) TestBasicLogging(c *check.C) {
 	alog.Clock = clockwork.NewFakeClockAt(now)
 
 	// emit regular event:
-	err = alog.EmitAuditEvent(Event{Name: "user.joined"}, EventFields{"apples?": "yes"})
+	err = alog.EmitAuditEventLegacy(Event{Name: "user.joined"}, EventFields{"apples?": "yes"})
 	c.Assert(err, check.IsNil)
 	logfile := alog.localLog.file.Name()
 	c.Assert(alog.Close(), check.IsNil)
@@ -352,7 +349,7 @@ func (a *AuditTestSuite) TestLogRotation(c *check.C) {
 		clock.Advance(duration)
 
 		// emit regular event:
-		err = alog.EmitAuditEvent(Event{Name: "user.joined"}, EventFields{"apples?": "yes"})
+		err = alog.EmitAuditEventLegacy(Event{Name: "user.joined"}, EventFields{"apples?": "yes"})
 		c.Assert(err, check.IsNil)
 		logfile := alog.localLog.file.Name()
 
@@ -381,19 +378,13 @@ func (a *AuditTestSuite) TestLogRotation(c *check.C) {
 // TestForwardAndUpload tests forwarding server and upload
 // server case
 func (a *AuditTestSuite) TestForwardAndUpload(c *check.C) {
-	storageDir := c.MkDir()
-	fileHandler, err := filesessions.NewHandler(filesessions.Config{
-		Directory: storageDir,
-	})
-	c.Assert(err, check.IsNil)
-
 	fakeClock := clockwork.NewFakeClock()
 	alog, err := NewAuditLog(AuditLogConfig{
 		DataDir:        a.dataDir,
 		RecordSessions: true,
 		Clock:          fakeClock,
 		ServerID:       "remote",
-		UploadHandler:  fileHandler,
+		UploadHandler:  NewMemoryUploader(),
 	})
 	c.Assert(err, check.IsNil)
 	defer alog.Close()
@@ -404,12 +395,6 @@ func (a *AuditTestSuite) TestForwardAndUpload(c *check.C) {
 // TestExternalLog tests forwarding server and upload
 // server case
 func (a *AuditTestSuite) TestExternalLog(c *check.C) {
-	storageDir := c.MkDir()
-	fileHandler, err := filesessions.NewHandler(filesessions.Config{
-		Directory: storageDir,
-	})
-	c.Assert(err, check.IsNil)
-
 	fileLog, err := NewFileLog(FileLogConfig{
 		Dir: c.MkDir(),
 	})
@@ -421,7 +406,7 @@ func (a *AuditTestSuite) TestExternalLog(c *check.C) {
 		RecordSessions: true,
 		Clock:          fakeClock,
 		ServerID:       "remote",
-		UploadHandler:  fileHandler,
+		UploadHandler:  NewMemoryUploader(),
 		ExternalLog:    fileLog,
 	})
 	c.Assert(err, check.IsNil)

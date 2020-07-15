@@ -34,9 +34,9 @@ import (
 )
 
 type ResetPasswordTokenTest struct {
-	bk             backend.Backend
-	a              *AuthServer
-	mockedAuditLog *events.MockAuditLog
+	bk          backend.Backend
+	a           *AuthServer
+	mockEmitter *events.MockEmitter
 }
 
 var _ = check.Suite(&ResetPasswordTokenTest{})
@@ -77,8 +77,8 @@ func (s *ResetPasswordTokenTest) SetUpTest(c *check.C) {
 	err = s.a.SetClusterConfig(clusterConfig)
 	c.Assert(err, check.IsNil)
 
-	s.mockedAuditLog = events.NewMockAuditLog(0)
-	s.a.IAuditLog = s.mockedAuditLog
+	s.mockEmitter = &events.MockEmitter{}
+	s.a.emitter = s.mockEmitter
 }
 
 func (s *ResetPasswordTokenTest) TestCreateResetPasswordToken(c *check.C) {
@@ -96,9 +96,11 @@ func (s *ResetPasswordTokenTest) TestCreateResetPasswordToken(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(token.GetUser(), check.Equals, username)
 	c.Assert(token.GetURL(), check.Equals, "https://<proxyhost>:3080/web/reset/"+token.GetName())
-	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, check.DeepEquals, events.ResetPasswordTokenCreated)
-	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.FieldName], check.Equals, "joe@example.com")
-	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.EventUser], check.Equals, teleport.UserSystem)
+	event := s.mockEmitter.LastEvent()
+
+	c.Assert(event.GetType(), check.DeepEquals, events.ResetPasswordTokenCreateEvent)
+	c.Assert(event.(*events.ResetPasswordTokenCreate).Name, check.Equals, "joe@example.com")
+	c.Assert(event.(*events.ResetPasswordTokenCreate).User, check.Equals, teleport.UserSystem)
 
 	// verify that password was reset
 	err = s.a.CheckPasswordWOToken(username, []byte(pass))

@@ -169,7 +169,7 @@ func (s *localSite) Dial(params DialParams) (net.Conn, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if clusterConfig.GetSessionRecording() == services.RecordAtProxy {
+	if services.IsRecordAtProxy(clusterConfig.GetSessionRecording()) {
 		return s.dialWithAgent(params)
 	}
 
@@ -235,6 +235,8 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 		Address:         params.Address,
 		UseTunnel:       useTunnel,
 		HostUUID:        s.srv.ID,
+		Emitter:         s.srv.Config.Emitter,
+		ParentContext:   s.srv.Context,
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {

@@ -286,23 +286,35 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 		argv := args.([]string)
 
 		// Emit "command" event.
-		eventFields := events.EventFields{
-			// Common fields.
-			events.EventNamespace:  ctx.Namespace,
-			events.SessionEventID:  ctx.SessionID,
-			events.SessionServerID: ctx.ServerID,
-			events.EventLogin:      ctx.Login,
-			events.EventUser:       ctx.User,
-			// Command fields.
-			events.PID:        event.PID,
-			events.PPID:       event.PPID,
-			events.CgroupID:   event.CgroupID,
-			events.Program:    convertString(unsafe.Pointer(&event.Command)),
-			events.Path:       argv[0],
-			events.Argv:       argv[1:],
-			events.ReturnCode: event.ReturnCode,
+		sessionCommandEvent := &events.SessionCommand{
+			Metadata: events.Metadata{
+				Type: events.SessionCommandEvent,
+				Code: events.SessionCommandCode,
+			},
+			ServerMetadata: events.ServerMetadata{
+				ServerID:        ctx.ServerID,
+				ServerNamespace: ctx.Namespace,
+			},
+			SessionMetadata: events.SessionMetadata{
+				SessionID: ctx.SessionID,
+			},
+			UserMetadata: events.UserMetadata{
+				User:  ctx.User,
+				Login: ctx.Login,
+			},
+			BPFMetadata: events.BPFMetadata{
+				CgroupID: event.CgroupID,
+				Program:  convertString(unsafe.Pointer(&event.Command)),
+				PID:      event.PID,
+			},
+			PPID:       event.PPID,
+			ReturnCode: event.ReturnCode,
+			Path:       argv[0],
+			Argv:       argv[1:],
 		}
-		ctx.AuditLog.EmitAuditEvent(events.SessionCommand, eventFields)
+		if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionCommandEvent); err != nil {
+			log.WithError(err).Warn("Failed to emit command event.")
+		}
 
 		// Now that the event has been processed, remove from cache.
 		s.argsCache.Remove(strconv.FormatUint(event.PID, 10))
@@ -331,22 +343,33 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 		return
 	}
 
-	eventFields := events.EventFields{
-		// Common fields.
-		events.EventNamespace:  ctx.Namespace,
-		events.SessionEventID:  ctx.SessionID,
-		events.SessionServerID: ctx.ServerID,
-		events.EventLogin:      ctx.Login,
-		events.EventUser:       ctx.User,
-		// Disk fields.
-		events.PID:        event.PID,
-		events.CgroupID:   event.CgroupID,
-		events.Program:    convertString(unsafe.Pointer(&event.Command)),
-		events.Path:       convertString(unsafe.Pointer(&event.Path)),
-		events.Flags:      event.Flags,
-		events.ReturnCode: event.ReturnCode,
+	sessionDiskEvent := &events.SessionDisk{
+		Metadata: events.Metadata{
+			Type: events.SessionDiskEvent,
+			Code: events.SessionDiskCode,
+		},
+		ServerMetadata: events.ServerMetadata{
+			ServerID:        ctx.ServerID,
+			ServerNamespace: ctx.Namespace,
+		},
+		SessionMetadata: events.SessionMetadata{
+			SessionID: ctx.SessionID,
+		},
+		UserMetadata: events.UserMetadata{
+			User:  ctx.User,
+			Login: ctx.Login,
+		},
+		BPFMetadata: events.BPFMetadata{
+			CgroupID: event.CgroupID,
+			Program:  convertString(unsafe.Pointer(&event.Command)),
+			PID:      event.PID,
+		},
+		Flags:      event.Flags,
+		Path:       convertString(unsafe.Pointer(&event.Path)),
+		ReturnCode: event.ReturnCode,
 	}
-	ctx.AuditLog.EmitAuditEvent(events.SessionDisk, eventFields)
+	// Logs can be DoS by event failures here
+	_ = ctx.Emitter.EmitAuditEvent(ctx.Context, sessionDiskEvent)
 }
 
 // emit4NetworkEvent will parse and emit IPv4 events to the Audit Log.
@@ -381,23 +404,35 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 	binary.LittleEndian.PutUint32(dst, uint32(event.DstAddr))
 	dstAddr := net.IP(dst)
 
-	eventFields := events.EventFields{
-		// Common fields.
-		events.EventNamespace:  ctx.Namespace,
-		events.SessionEventID:  ctx.SessionID,
-		events.SessionServerID: ctx.ServerID,
-		events.EventLogin:      ctx.Login,
-		events.EventUser:       ctx.User,
-		// Network fields.
-		events.PID:        event.PID,
-		events.CgroupID:   event.CgroupID,
-		events.Program:    convertString(unsafe.Pointer(&event.Command)),
-		events.SrcAddr:    srcAddr,
-		events.DstAddr:    dstAddr,
-		events.DstPort:    event.DstPort,
-		events.TCPVersion: 4,
+	sessionNetworkEvent := &events.SessionNetwork{
+		Metadata: events.Metadata{
+			Type: events.SessionNetworkEvent,
+			Code: events.SessionNetworkCode,
+		},
+		ServerMetadata: events.ServerMetadata{
+			ServerID:        ctx.ServerID,
+			ServerNamespace: ctx.Namespace,
+		},
+		SessionMetadata: events.SessionMetadata{
+			SessionID: ctx.SessionID,
+		},
+		UserMetadata: events.UserMetadata{
+			User:  ctx.User,
+			Login: ctx.Login,
+		},
+		BPFMetadata: events.BPFMetadata{
+			CgroupID: event.CgroupID,
+			Program:  convertString(unsafe.Pointer(&event.Command)),
+			PID:      uint64(event.PID),
+		},
+		DstPort:    int32(event.DstPort),
+		DstAddr:    dstAddr.String(),
+		SrcAddr:    srcAddr.String(),
+		TCPVersion: 4,
 	}
-	ctx.AuditLog.EmitAuditEvent(events.SessionNetwork, eventFields)
+	if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionNetworkEvent); err != nil {
+		log.WithError(err).Warn("Failed to emit network event.")
+	}
 }
 
 // emit6NetworkEvent will parse and emit IPv6 events to the Audit Log.
@@ -438,23 +473,35 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 	binary.LittleEndian.PutUint32(dst[12:], event.DstAddr[3])
 	dstAddr := net.IP(dst)
 
-	eventFields := events.EventFields{
-		// Common fields.
-		events.EventNamespace:  ctx.Namespace,
-		events.SessionEventID:  ctx.SessionID,
-		events.SessionServerID: ctx.ServerID,
-		events.EventLogin:      ctx.Login,
-		events.EventUser:       ctx.User,
-		// Connect fields.
-		events.PID:        event.PID,
-		events.CgroupID:   event.CgroupID,
-		events.Program:    convertString(unsafe.Pointer(&event.Command)),
-		events.SrcAddr:    srcAddr,
-		events.DstAddr:    dstAddr,
-		events.DstPort:    event.DstPort,
-		events.TCPVersion: 6,
+	sessionNetworkEvent := &events.SessionNetwork{
+		Metadata: events.Metadata{
+			Type: events.SessionNetworkEvent,
+			Code: events.SessionNetworkCode,
+		},
+		ServerMetadata: events.ServerMetadata{
+			ServerID:        ctx.ServerID,
+			ServerNamespace: ctx.Namespace,
+		},
+		SessionMetadata: events.SessionMetadata{
+			SessionID: ctx.SessionID,
+		},
+		UserMetadata: events.UserMetadata{
+			User:  ctx.User,
+			Login: ctx.Login,
+		},
+		BPFMetadata: events.BPFMetadata{
+			CgroupID: event.CgroupID,
+			Program:  convertString(unsafe.Pointer(&event.Command)),
+			PID:      uint64(event.PID),
+		},
+		DstPort:    int32(event.DstPort),
+		DstAddr:    dstAddr.String(),
+		SrcAddr:    srcAddr.String(),
+		TCPVersion: 6,
 	}
-	ctx.AuditLog.EmitAuditEvent(events.SessionNetwork, eventFields)
+	if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionNetworkEvent); err != nil {
+		log.WithError(err).Warn("Failed to emit network event.")
+	}
 }
 
 func (s *Service) getWatch(cgoupID uint64) (ctx *SessionContext, ok bool) {

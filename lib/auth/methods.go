@@ -84,23 +84,26 @@ type SessionCreds struct {
 // AuthenticateUser authenticates user based on the request type
 func (s *AuthServer) AuthenticateUser(req AuthenticateUserRequest) error {
 	err := s.authenticateUser(req)
-	var emitErr error
-	if err != nil {
-		emitErr = s.EmitAuditEvent(events.UserLocalLoginFailure, events.EventFields{
-			events.EventUser:          req.Username,
-			events.LoginMethod:        events.LoginMethodLocal,
-			events.AuthAttemptSuccess: false,
-			events.AuthAttemptErr:     err.Error(),
-		})
-	} else {
-		emitErr = s.EmitAuditEvent(events.UserLocalLogin, events.EventFields{
-			events.EventUser:          req.Username,
-			events.LoginMethod:        events.LoginMethodLocal,
-			events.AuthAttemptSuccess: true,
-		})
+	event := &events.UserLogin{
+		Metadata: events.Metadata{
+			Type: events.UserLoginEvent,
+			Code: events.UserLocalLoginFailureCode,
+		},
+		UserMetadata: events.UserMetadata{
+			User: req.Username,
+		},
+		Method: events.LoginMethodLocal,
 	}
-	if emitErr != nil {
-		log.Warnf("Failed to emit user login event: %v", err)
+	if err != nil {
+		event.Code = events.UserLocalLoginFailureCode
+		event.Status.Success = false
+		event.Status.Error = err.Error()
+	} else {
+		event.Code = events.UserLocalLoginCode
+		event.Status.Success = true
+	}
+	if err := s.emitter.EmitAuditEvent(s.closeCtx, event); err != nil {
+		log.WithError(err).Warn("Failed to emit login event.")
 	}
 	return err
 }
@@ -359,16 +362,20 @@ func (s *AuthServer) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginR
 
 // emitNoLocalAuthEvent creates and emits a local authentication is disabled message.
 func (s *AuthServer) emitNoLocalAuthEvent(username string) {
-	fields := events.EventFields{
-		events.AuthAttemptSuccess: false,
-		events.AuthAttemptErr:     noLocalAuth,
-	}
-	if username != "" {
-		fields[events.EventUser] = username
-	}
-
-	if err := s.IAuditLog.EmitAuditEvent(events.AuthAttemptFailure, fields); err != nil {
-		log.Warnf("Failed to emit no local auth event: %v", err)
+	if err := s.emitter.EmitAuditEvent(s.closeCtx, &events.AuthAttempt{
+		Metadata: events.Metadata{
+			Type: events.AuthAttemptEvent,
+			Code: events.AuthAttemptFailureCode,
+		},
+		UserMetadata: events.UserMetadata{
+			User: username,
+		},
+		Status: events.Status{
+			Success: false,
+			Error:   noLocalAuth,
+		},
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit no local auth event.")
 	}
 }
 

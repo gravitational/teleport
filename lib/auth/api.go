@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,9 +20,11 @@ import (
 	"context"
 	"io"
 
-	"github.com/gravitational/trace"
-
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
+
+	"github.com/gravitational/trace"
 )
 
 // Announcer specifies interface responsible for announcing presence
@@ -102,6 +104,8 @@ type AccessPoint interface {
 	ReadAccessPoint
 	// Announcer adds methods used to announce presence
 	Announcer
+	// Streamer creates and manages audit streams
+	events.Streamer
 
 	// Semaphores provides semaphore operations
 	services.Semaphores
@@ -159,6 +163,16 @@ func NewWrapper(base AccessPoint, cache ReadAccessPoint) AccessPoint {
 type Wrapper struct {
 	ReadAccessPoint
 	NoCache AccessPoint
+}
+
+// ResumeAuditStream resumes existing audit stream
+func (w *Wrapper) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (events.Stream, error) {
+	return w.NoCache.ResumeAuditStream(ctx, sid, uploadID)
+}
+
+// CreateAuditStream creates new audit stream
+func (w *Wrapper) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
+	return w.NoCache.CreateAuditStream(ctx, sid)
 }
 
 // Close closes all associated resources

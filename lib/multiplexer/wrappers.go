@@ -60,7 +60,7 @@ func newListener(parent context.Context, addr net.Addr) *Listener {
 	context, cancel := context.WithCancel(parent)
 	return &Listener{
 		addr:    addr,
-		connC:   make(chan *Conn),
+		connC:   make(chan net.Conn),
 		cancel:  cancel,
 		context: context,
 	}
@@ -70,7 +70,7 @@ func newListener(parent context.Context, addr net.Addr) *Listener {
 // connections from multiplexer based on the connection type
 type Listener struct {
 	addr    net.Addr
-	connC   chan *Conn
+	connC   chan net.Conn
 	cancel  context.CancelFunc
 	context context.Context
 }

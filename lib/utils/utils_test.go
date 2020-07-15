@@ -507,3 +507,34 @@ func (s *UtilsSuite) TestStringsSet(c *check.C) {
 	c.Assert(out, check.HasLen, 0)
 	c.Assert(out, check.NotNil)
 }
+
+// TestRepeatReader tests repeat reader
+func (s *UtilsSuite) TestRepeatReader(c *check.C) {
+	type tc struct {
+		repeat   byte
+		count    int
+		expected string
+	}
+	tcs := []tc{
+		{
+			repeat:   byte('a'),
+			count:    1,
+			expected: "a",
+		},
+		{
+			repeat:   byte('a'),
+			count:    0,
+			expected: "",
+		},
+		{
+			repeat:   byte('a'),
+			count:    3,
+			expected: "aaa",
+		},
+	}
+	for _, tc := range tcs {
+		data, err := ioutil.ReadAll(NewRepeatReader(tc.repeat, tc.count))
+		c.Assert(err, check.IsNil)
+		c.Assert(string(data), check.Equals, tc.expected)
+	}
+}

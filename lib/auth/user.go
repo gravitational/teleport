@@ -56,14 +56,22 @@ func (s *AuthServer) CreateUser(ctx context.Context, user services.User) error {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
 
-	if err := s.EmitAuditEvent(events.UserCreate, events.EventFields{
-		events.EventUser:     user.GetCreatedBy().User.Name,
-		events.UserExpires:   user.Expiry(),
-		events.UserRoles:     user.GetRoles(),
-		events.FieldName:     user.GetName(),
-		events.UserConnector: connectorName,
+	if err := s.emitter.EmitAuditEvent(ctx, &events.UserCreate{
+		Metadata: events.Metadata{
+			Type: events.UserCreateEvent,
+			Code: events.UserCreateCode,
+		},
+		UserMetadata: events.UserMetadata{
+			User: user.GetCreatedBy().User.Name,
+		},
+		ResourceMetadata: events.ResourceMetadata{
+			Name:    user.GetName(),
+			Expires: user.Expiry(),
+		},
+		Connector: connectorName,
+		Roles:     user.GetRoles(),
 	}); err != nil {
-		log.Warnf("Failed to emit user create event: %v", err)
+		log.WithError(err).Warn("Failed to emit user create event.")
 	}
 
 	return nil
@@ -82,14 +90,22 @@ func (s *AuthServer) UpdateUser(ctx context.Context, user services.User) error {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
 
-	if err := s.EmitAuditEvent(events.UserUpdate, events.EventFields{
-		events.EventUser:     clientUsername(ctx),
-		events.FieldName:     user.GetName(),
-		events.UserExpires:   user.Expiry(),
-		events.UserRoles:     user.GetRoles(),
-		events.UserConnector: connectorName,
+	if err := s.emitter.EmitAuditEvent(ctx, &events.UserCreate{
+		Metadata: events.Metadata{
+			Type: events.UserUpdatedEvent,
+			Code: events.UserUpdateCode,
+		},
+		UserMetadata: events.UserMetadata{
+			User: clientUsername(ctx),
+		},
+		ResourceMetadata: events.ResourceMetadata{
+			Name:    user.GetName(),
+			Expires: user.Expiry(),
+		},
+		Connector: connectorName,
+		Roles:     user.GetRoles(),
 	}); err != nil {
-		log.Warnf("Failed to emit user update event: %v", err)
+		log.WithError(err).Warn("Failed to emit user update event.")
 	}
 
 	return nil
@@ -109,13 +125,22 @@ func (s *AuthServer) UpsertUser(user services.User) error {
 		connectorName = user.GetCreatedBy().Connector.ID
 	}
 
-	if err := s.EmitAuditEvent(events.UserUpdate, events.EventFields{
-		events.EventUser:     user.GetName(),
-		events.UserExpires:   user.Expiry(),
-		events.UserRoles:     user.GetRoles(),
-		events.UserConnector: connectorName,
+	if err := s.emitter.EmitAuditEvent(s.closeCtx, &events.UserCreate{
+		Metadata: events.Metadata{
+			Type: events.UserCreateEvent,
+			Code: events.UserCreateCode,
+		},
+		UserMetadata: events.UserMetadata{
+			User: user.GetName(),
+		},
+		ResourceMetadata: events.ResourceMetadata{
+			Name:    user.GetName(),
+			Expires: user.Expiry(),
+		},
+		Connector: connectorName,
+		Roles:     user.GetRoles(),
 	}); err != nil {
-		log.Warnf("Failed to emit user update event: %v", err)
+		log.WithError(err).Warn("Failed to emit user upsert event.")
 	}
 
 	return nil
@@ -142,11 +167,19 @@ func (s *AuthServer) DeleteUser(ctx context.Context, user string) error {
 	}
 
 	// If the user was successfully deleted, emit an event.
-	if err := s.EmitAuditEvent(events.UserDelete, events.EventFields{
-		events.FieldName: user,
-		events.EventUser: clientUsername(ctx),
+	if err := s.emitter.EmitAuditEvent(s.closeCtx, &events.UserDelete{
+		Metadata: events.Metadata{
+			Type: events.UserDeleteEvent,
+			Code: events.UserDeleteCode,
+		},
+		UserMetadata: events.UserMetadata{
+			User: clientUsername(ctx),
+		},
+		ResourceMetadata: events.ResourceMetadata{
+			Name: user,
+		},
 	}); err != nil {
-		log.Warnf("Failed to emit user delete event: %v", err)
+		log.WithError(err).Warn("Failed to emit user delete event.")
 	}
 
 	return nil

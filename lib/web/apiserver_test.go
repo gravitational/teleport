@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -71,7 +71,6 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/jonboulle/clockwork"
 	lemma_secret "github.com/mailgun/lemma/secret"
-	"github.com/pborman/uuid"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
@@ -164,7 +163,13 @@ func (s *WebSuite) SetUpTest(c *C) {
 	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
 	c.Assert(err, IsNil)
 
-	nodeClient, err := s.server.NewClient(auth.TestBuiltin(teleport.RoleNode))
+	nodeID := "node"
+	nodeClient, err := s.server.NewClient(auth.TestIdentity{
+		I: auth.BuiltinRole{
+			Role:     teleport.RoleNode,
+			Username: nodeID,
+		},
+	})
 	c.Assert(err, IsNil)
 
 	// create SSH service:
@@ -177,10 +182,11 @@ func (s *WebSuite) SetUpTest(c *C) {
 		nodeDataDir,
 		"",
 		utils.NetAddr{},
+		regular.SetUUID(nodeID),
 		regular.SetNamespace(defaults.Namespace),
 		regular.SetShell("/bin/sh"),
 		regular.SetSessionServer(nodeClient),
-		regular.SetAuditLog(nodeClient),
+		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 	)
@@ -192,7 +198,13 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(auth.CreateUploaderDir(nodeDataDir), IsNil)
 
 	// create reverse tunnel service:
-	s.proxyClient, err = s.server.NewClient(auth.TestBuiltin(teleport.RoleProxy))
+	proxyID := "proxy"
+	s.proxyClient, err = s.server.NewClient(auth.TestIdentity{
+		I: auth.BuiltinRole{
+			Role:     teleport.RoleProxy,
+			Username: proxyID,
+		},
+	})
 	c.Assert(err, IsNil)
 
 	revTunListener, err := net.Listen("tcp", fmt.Sprintf("%v:0", s.server.ClusterName()))
@@ -206,6 +218,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		HostSigners:           []ssh.Signer{signer},
 		LocalAuthClient:       s.proxyClient,
 		LocalAccessPoint:      s.proxyClient,
+		Emitter:               s.proxyClient,
 		NewCachingAccessPoint: auth.NoCache,
 		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 		DataDir:               c.MkDir(),
@@ -222,9 +235,10 @@ func (s *WebSuite) SetUpTest(c *C) {
 		c.MkDir(),
 		"",
 		utils.NetAddr{},
+		regular.SetUUID(proxyID),
 		regular.SetProxyMode(revTunServer),
 		regular.SetSessionServer(s.proxyClient),
-		regular.SetAuditLog(s.proxyClient),
+		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(defaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
 	)
@@ -1679,40 +1693,19 @@ func (s *WebSuite) TestConstructSSHResponseLegacy(c *C) {
 
 // TestSearchClusterEvents makes sure web API allows querying events by type.
 func (s *WebSuite) TestSearchClusterEvents(c *C) {
-	e1 := events.EventFields{
-		events.EventID:   uuid.New(),
-		events.EventType: "event.1",
-		events.EventCode: "event.1",
-		events.EventTime: s.clock.Now().Format(time.RFC3339),
-	}
-	e2 := events.EventFields{
-		events.EventID:   uuid.New(),
-		events.EventType: "event.2",
-		events.EventCode: "event.2",
-		events.EventTime: s.clock.Now().Format(time.RFC3339),
-	}
-	e3 := events.EventFields{
-		events.EventID:   uuid.New(),
-		events.EventType: "event.3",
-		events.EventCode: "event.3",
-		events.EventTime: s.clock.Now().Format(time.RFC3339),
-	}
-	e4 := events.EventFields{
-		events.EventID:   uuid.New(),
-		events.EventType: "event.3",
-		events.EventCode: "event.3",
-		events.EventTime: s.clock.Now().Format(time.RFC3339),
-	}
-	e5 := events.EventFields{
-		events.EventID:   uuid.New(),
-		events.EventType: "event.1",
-		events.EventCode: "event.1",
-		events.EventTime: s.clock.Now().Format(time.RFC3339),
+	sessionEvents := events.GenerateTestSession(events.SessionParams{
+		PrintEvents: 3,
+		Clock:       s.clock,
+		ServerID:    s.proxy.ID(),
+	})
+
+	for _, e := range sessionEvents {
+		c.Assert(s.proxyClient.EmitAuditEvent(context.TODO(), e), IsNil)
 	}
 
-	for _, e := range []events.EventFields{e1, e2, e3, e4, e5} {
-		c.Assert(s.proxyClient.EmitAuditEvent(events.Event{Name: e.GetType()}, e), IsNil)
-	}
+	sessionStart := sessionEvents[0]
+	sessionPrint := sessionEvents[1]
+	sessionEnd := sessionEvents[4]
 
 	testCases := []struct {
 		// Comment is the test case description.
@@ -1720,34 +1713,41 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 		// Query is the search query sent to the API.
 		Query url.Values
 		// Result is the expected returned list of events.
-		Result []events.EventFields
+		Result []events.AuditEvent
 	}{
 		{
 			Comment: "Empty query",
 			Query:   url.Values{},
-			Result:  []events.EventFields{e1, e2, e3, e4, e5},
+			Result:  sessionEvents,
 		},
 		{
-			Comment: "Query by single event type",
-			Query:   url.Values{"include": []string{"event.1"}},
-			Result:  []events.EventFields{e1, e5},
+			Comment: "Query by session start event",
+			Query:   url.Values{"include": []string{sessionStart.GetType()}},
+			Result:  sessionEvents[:1],
 		},
 		{
-			Comment: "Query by two event types",
-			Query:   url.Values{"include": []string{"event.2;event.3"}},
-			Result:  []events.EventFields{e2, e3, e4},
+			Comment: "Query session start and session end events",
+			Query:   url.Values{"include": []string{sessionEnd.GetType() + ";" + sessionStart.GetType()}},
+			Result:  []events.AuditEvent{sessionStart, sessionEnd},
 		},
 		{
-			Comment: "Query with limit",
-			Query:   url.Values{"include": []string{"event.2;event.3"}, "limit": []string{"1"}},
-			Result:  []events.EventFields{e2},
+			Comment: "Query events with filter by type and limit",
+			Query: url.Values{
+				"include": []string{sessionPrint.GetType() + ";" + sessionEnd.GetType()},
+				"limit":   []string{"1"},
+			},
+			Result: []events.AuditEvent{sessionPrint},
 		},
 	}
 
 	pack := s.authPack(c, "foo")
 	for _, tc := range testCases {
-		result := s.searchEvents(c, pack.clt, tc.Query, []string{"event.1", "event.2", "event.3"})
-		c.Assert(result, DeepEquals, tc.Result, Commentf(tc.Comment))
+		result := s.searchEvents(c, pack.clt, tc.Query, []string{sessionStart.GetType(), sessionPrint.GetType(), sessionEnd.GetType()})
+		c.Assert(result, HasLen, len(tc.Result), Commentf(tc.Comment))
+		for i, resultEvent := range result {
+			c.Assert(resultEvent.GetType(), Equals, tc.Result[i].GetType(), Commentf(tc.Comment))
+			c.Assert(resultEvent.GetID(), Equals, tc.Result[i].GetID(), Commentf(tc.Comment))
+		}
 	}
 }
 

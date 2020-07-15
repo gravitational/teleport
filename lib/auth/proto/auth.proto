@@ -1,11 +1,11 @@
 syntax = "proto3";
 package proto;
 
-import "github.com/gravitational/teleport/lib/services/types.proto";
-
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
+import "github.com/gravitational/teleport/lib/services/types.proto";
+import "github.com/gravitational/teleport/lib/events/events.proto";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
@@ -208,6 +208,52 @@ message Semaphores {
     repeated services.SemaphoreV3 Semaphores = 1 [ (gogoproto.jsontag) = "semaphores" ];
 }
 
+// AuditStreamRequest contains stream request - event or stream control request
+message AuditStreamRequest {
+    // Request is either stream request - create, resume or complete stream
+    // or event submitted as a part of the stream
+    oneof Request {
+        // CreateStream creates the stream for session ID
+        // should be the first message sent to the stream
+        CreateStream CreateStream = 1;
+        // ResumeStream resumes existing stream, should be the
+        // first message sent to the stream
+        ResumeStream ResumeStream = 2;
+        // CompleteStream completes the stream
+        CompleteStream CompleteStream = 3;
+        // FlushAndClose flushes and closes the stream
+        FlushAndCloseStream FlushAndCloseStream = 4;
+        // Event contains the stream event
+        events.OneOf Event = 5;
+    }
+}
+
+// AuditStreamStatus returns audit stream status
+// with corresponding upload ID
+message AuditStreamStatus {
+    // UploadID is upload ID associated with the stream,
+    // can be used to resume the stream
+    string UploadID = 1;
+}
+
+// CreateStream creates stream for a new session ID
+message CreateStream { string SessionID = 1; }
+
+// ResumeStream resumes stream that was previously created
+message ResumeStream {
+    // SessionID is a session ID of the stream
+    string SessionID = 1;
+    // UploadID is upload ID to resume
+    string UploadID = 2;
+}
+
+// CompleteStream completes the stream
+// and uploads it to the session server
+message CompleteStream {}
+
+// FlushAndCloseStream flushes the stream data and closes the stream
+message FlushAndCloseStream {}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -253,6 +299,7 @@ service AuthService {
     rpc UpdateUser(services.UserV2) returns (google.protobuf.Empty);
     // DeleteUser deletes an existing user in a backend by username.
     rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
+
     // AcquireSemaphore acquires lease with requested resources from semaphore.
     rpc AcquireSemaphore(services.AcquireSemaphoreRequest) returns (services.SemaphoreLease);
     // KeepAliveSemaphoreLease updates semaphore lease.
@@ -263,4 +310,9 @@ service AuthService {
     rpc GetSemaphores(services.SemaphoreFilter) returns (Semaphores);
     // DeleteSemaphore deletes a semaphore matching the supplied filter.
     rpc DeleteSemaphore(services.SemaphoreFilter) returns (google.protobuf.Empty);
+
+    // EmitAuditEvent emits audit event
+    rpc EmitAuditEvent(events.OneOf) returns (google.protobuf.Empty);
+    // CreateAuditStream creates or resumes audit events streams
+    rpc CreateAuditStream(stream AuditStreamRequest) returns (stream events.StreamStatus);
 }

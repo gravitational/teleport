@@ -25,240 +25,240 @@ type Event struct {
 }
 
 var (
-	// UserLocalLogin is emitted when a local user successfully logs in.
-	UserLocalLogin = Event{
+	// UserLocalLoginE is emitted when a local user successfully logs in.
+	UserLocalLoginE = Event{
 		Name: UserLoginEvent,
 		Code: UserLocalLoginCode,
 	}
-	// UserLocalLoginFailure is emitted when a local user login attempt fails.
-	UserLocalLoginFailure = Event{
+	// UserLocalLoginFailureE is emitted when a local user login attempt fails.
+	UserLocalLoginFailureE = Event{
 		Name: UserLoginEvent,
 		Code: UserLocalLoginFailureCode,
 	}
-	// UserSSOLogin is emitted when an SSO user successfully logs in.
-	UserSSOLogin = Event{
+	// UserSSOLoginE is emitted when an SSO user successfully logs in.
+	UserSSOLoginE = Event{
 		Name: UserLoginEvent,
 		Code: UserSSOLoginCode,
 	}
-	// UserSSOLoginFailure is emitted when an SSO user login attempt fails.
-	UserSSOLoginFailure = Event{
+	// UserSSOLoginFailureE is emitted when an SSO user login attempt fails.
+	UserSSOLoginFailureE = Event{
 		Name: UserLoginEvent,
 		Code: UserSSOLoginFailureCode,
 	}
-	// UserUpdate is emitted when a user is updated.
-	UserUpdate = Event{
+	// UserUpdateE is emitted when a user is updated.
+	UserUpdateE = Event{
 		Name: UserUpdatedEvent,
 		Code: UserUpdateCode,
 	}
-	// UserDelete is emitted when a user is deleted.
-	UserDelete = Event{
+	// UserDeleteE is emitted when a user is deleted.
+	UserDeleteE = Event{
 		Name: UserDeleteEvent,
 		Code: UserDeleteCode,
 	}
-	// UserCreate is emitted when a user is created.
-	UserCreate = Event{
+	// UserCreateE is emitted when a user is created.
+	UserCreateE = Event{
 		Name: UserCreateEvent,
 		Code: UserCreateCode,
 	}
-	// UserPasswordChange is emitted when a user changes their own password.
-	UserPasswordChange = Event{
+	// UserPasswordChangeE is emitted when a user changes their own password.
+	UserPasswordChangeE = Event{
 		Name: UserPasswordChangeEvent,
 		Code: UserPasswordChangeCode,
 	}
-	// SessionStart is emitted when a user starts a new session.
-	SessionStart = Event{
+	// SessionStartE is emitted when a user starts a new session.
+	SessionStartE = Event{
 		Name: SessionStartEvent,
 		Code: SessionStartCode,
 	}
-	// SessionJoin is emitted when a user joins the session.
-	SessionJoin = Event{
+	// SessionJoinE is emitted when a user joins the session.
+	SessionJoinE = Event{
 		Name: SessionJoinEvent,
 		Code: SessionJoinCode,
 	}
-	// TerminalResize is emitted when a user resizes the terminal.
-	TerminalResize = Event{
+	// TerminalResizeE is emitted when a user resizes the terminal.
+	TerminalResizeE = Event{
 		Name: ResizeEvent,
 		Code: TerminalResizeCode,
 	}
-	// SessionLeave is emitted when a user leaves the session.
-	SessionLeave = Event{
+	// SessionLeaveE is emitted when a user leaves the session.
+	SessionLeaveE = Event{
 		Name: SessionLeaveEvent,
 		Code: SessionLeaveCode,
 	}
-	// SessionEnd is emitted when a user ends the session.
-	SessionEnd = Event{
+	// SessionEndE is emitted when a user ends the session.
+	SessionEndE = Event{
 		Name: SessionEndEvent,
 		Code: SessionEndCode,
 	}
-	// SessionUpload is emitted after a session recording has been uploaded.
-	SessionUpload = Event{
+	// SessionUploadE is emitted after a session recording has been uploaded.
+	SessionUploadE = Event{
 		Name: SessionUploadEvent,
 		Code: SessionUploadCode,
 	}
-	// SessionData is emitted to report session data usage.
-	SessionData = Event{
+	// SessionDataE is emitted to report session data usage.
+	SessionDataE = Event{
 		Name: SessionDataEvent,
 		Code: SessionDataCode,
 	}
-	// Subsystem is emitted when a user requests a new subsystem.
-	Subsystem = Event{
+	// SubsystemE is emitted when a user requests a new subsystem.
+	SubsystemE = Event{
 		Name: SubsystemEvent,
 		Code: SubsystemCode,
 	}
-	// SubsystemFailure is emitted when a user subsystem request fails.
-	SubsystemFailure = Event{
+	// SubsystemFailureE is emitted when a user subsystem request fails.
+	SubsystemFailureE = Event{
 		Name: SubsystemEvent,
 		Code: SubsystemFailureCode,
 	}
-	// Exec is emitted when a user executes a command on a node.
-	Exec = Event{
+	// ExecE is emitted when a user executes a command on a node.
+	ExecE = Event{
 		Name: ExecEvent,
 		Code: ExecCode,
 	}
-	// ExecFailure is emitted when a user command execution fails.
-	ExecFailure = Event{
+	// ExecFailureE is emitted when a user command execution fails.
+	ExecFailureE = Event{
 		Name: ExecEvent,
 		Code: ExecFailureCode,
 	}
-	// X11Forward is emitted when a user requests X11 forwarding.
-	X11Forward = Event{
+	// X11ForwardE is emitted when a user requests X11 forwarding.
+	X11ForwardE = Event{
 		Name: X11ForwardEvent,
 		Code: X11ForwardCode,
 	}
-	// X11ForwardFailure is emitted when an X11 forwarding request fails.
-	X11ForwardFailure = Event{
+	// X11ForwardFailureE is emitted when an X11 forwarding request fails.
+	X11ForwardFailureE = Event{
 		Name: X11ForwardEvent,
 		Code: X11ForwardFailureCode,
 	}
-	// PortForward is emitted when a user requests port forwarding.
-	PortForward = Event{
+	// PortForwardE is emitted when a user requests port forwarding.
+	PortForwardE = Event{
 		Name: PortForwardEvent,
 		Code: PortForwardCode,
 	}
-	// PortForwardFailure is emitted when a port forward request fails.
-	PortForwardFailure = Event{
+	// PortForwardFailureE is emitted when a port forward request fails.
+	PortForwardFailureE = Event{
 		Name: PortForwardEvent,
 		Code: PortForwardFailureCode,
 	}
-	// SCPDownload is emitted when a user downloads a file.
-	SCPDownload = Event{
+	// SCPDownloadE is emitted when a user downloads a file.
+	SCPDownloadE = Event{
 		Name: SCPEvent,
 		Code: SCPDownloadCode,
 	}
-	// SCPDownloadFailure is emitted when a file download fails.
-	SCPDownloadFailure = Event{
+	// SCPDownloadFailureE is emitted when a file download fails.
+	SCPDownloadFailureE = Event{
 		Name: SCPEvent,
 		Code: SCPDownloadFailureCode,
 	}
-	// SCPUpload is emitted when a user uploads a file.
-	SCPUpload = Event{
+	// SCPUploadE is emitted when a user uploads a file.
+	SCPUploadE = Event{
 		Name: SCPEvent,
 		Code: SCPUploadCode,
 	}
-	// SCPUploadFailure is emitted when a file upload fails.
-	SCPUploadFailure = Event{
+	// SCPUploadFailureE is emitted when a file upload fails.
+	SCPUploadFailureE = Event{
 		Name: SCPEvent,
 		Code: SCPUploadFailureCode,
 	}
-	// ClientDisconnect is emitted when a user session is disconnected.
-	ClientDisconnect = Event{
+	// ClientDisconnectE is emitted when a user session is disconnected.
+	ClientDisconnectE = Event{
 		Name: ClientDisconnectEvent,
 		Code: ClientDisconnectCode,
 	}
-	// AuthAttemptFailure is emitted upon a failed authentication attempt.
-	AuthAttemptFailure = Event{
+	// AuthAttemptFailureE is emitted upon a failed authentication attempt.
+	AuthAttemptFailureE = Event{
 		Name: AuthAttemptEvent,
 		Code: AuthAttemptFailureCode,
 	}
-	// AccessRequestCreated is emitted when an access request is created.
-	AccessRequestCreated = Event{
+	// AccessRequestCreatedE is emitted when an access request is created.
+	AccessRequestCreatedE = Event{
 		Name: AccessRequestCreateEvent,
 		Code: AccessRequestCreateCode,
 	}
-	AccessRequestUpdated = Event{
+	AccessRequestUpdatedE = Event{
 		Name: AccessRequestUpdateEvent,
 		Code: AccessRequestUpdateCode,
 	}
-	// SessionCommand is emitted upon execution of a command when using enhanced
+	// SessionCommandE is emitted upon execution of a command when using enhanced
 	// session recording.
-	SessionCommand = Event{
+	SessionCommandE = Event{
 		Name: SessionCommandEvent,
 		Code: SessionCommandCode,
 	}
-	// SessionDisk is emitted upon open of a file when using enhanced session recording.
-	SessionDisk = Event{
+	// SessionDiskE is emitted upon open of a file when using enhanced session recording.
+	SessionDiskE = Event{
 		Name: SessionDiskEvent,
 		Code: SessionDiskCode,
 	}
-	// SessionNetwork is emitted when a network requests is is issued when
+	// SessionNetworkE is emitted when a network request is issued when
 	// using enhanced session recording.
-	SessionNetwork = Event{
+	SessionNetworkE = Event{
 		Name: SessionNetworkEvent,
 		Code: SessionNetworkCode,
 	}
-	// ResetPasswordTokenCreated is emitted when token is created.
-	ResetPasswordTokenCreated = Event{
+	// ResetPasswordTokenCreatedE is emitted when a password reset token is created.
+	ResetPasswordTokenCreatedE = Event{
 		Name: ResetPasswordTokenCreateEvent,
 		Code: ResetPasswordTokenCreateCode,
 	}
-	// RoleCreated is emitted when a role is created/updated.
-	RoleCreated = Event{
+	// RoleCreatedE is emitted when a role is created/updated.
+	RoleCreatedE = Event{
 		Name: RoleCreatedEvent,
 		Code: RoleCreatedCode,
 	}
-	// RoleDeleted is emitted when a role is deleted.
-	RoleDeleted = Event{
+	// RoleDeletedE is emitted when a role is deleted.
+	RoleDeletedE = Event{
 		Name: RoleDeletedEvent,
 		Code: RoleDeletedCode,
 	}
-	// TrustedClusterCreate is emitted when a trusted cluster relationship is created.
-	TrustedClusterCreate = Event{
+	// TrustedClusterCreateE is emitted when a trusted cluster relationship is created.
+	TrustedClusterCreateE = Event{
 		Name: TrustedClusterCreateEvent,
 		Code: TrustedClusterCreateCode,
 	}
-	// TrustedClusterDelete is emitted when a trusted cluster is removed from the root cluster.
-	TrustedClusterDelete = Event{
+	// TrustedClusterDeleteE is emitted when a trusted cluster is removed from the root cluster.
+	TrustedClusterDeleteE = Event{
 		Name: TrustedClusterDeleteEvent,
 		Code: TrustedClusterDeleteCode,
 	}
-	// TrustedClusterTokenCreate is emitted when a new join
+	// TrustedClusterTokenCreateE is emitted when a new join
 	// token for trusted cluster is created.
-	TrustedClusterTokenCreate = Event{
+	TrustedClusterTokenCreateE = Event{
 		Name: TrustedClusterTokenCreateEvent,
 		Code: TrustedClusterTokenCreateCode,
 	}
-	// GithubConnectorCreated is emitted when a Github connector is created/updated.
-	GithubConnectorCreated = Event{
+	// GithubConnectorCreatedE is emitted when a Github connector is created/updated.
+	GithubConnectorCreatedE = Event{
 		Name: GithubConnectorCreatedEvent,
 		Code: GithubConnectorCreatedCode,
 	}
-	// GithubConnectorDeleted is emitted when a Github connector is deleted.
-	GithubConnectorDeleted = Event{
+	// GithubConnectorDeletedE is emitted when a Github connector is deleted.
+	GithubConnectorDeletedE = Event{
 		Name: GithubConnectorDeletedEvent,
 		Code: GithubConnectorDeletedCode,
 	}
-	// OIDCConnectorCreated is emitted when an OIDC connector is created/updated.
-	OIDCConnectorCreated = Event{
+	// OIDCConnectorCreatedE is emitted when an OIDC connector is created/updated.
+	OIDCConnectorCreatedE = Event{
 		Name: OIDCConnectorCreatedEvent,
 		Code: OIDCConnectorCreatedCode,
 	}
-	// OIDCConnectorDeleted is emitted when an OIDC connector is deleted.
-	OIDCConnectorDeleted = Event{
+	// OIDCConnectorDeletedE is emitted when an OIDC connector is deleted.
+	OIDCConnectorDeletedE = Event{
 		Name: OIDCConnectorDeletedEvent,
 		Code: OIDCConnectorDeletedCode,
 	}
-	// SAMLConnectorCreated is emitted when a SAML connector is created/updated.
-	SAMLConnectorCreated = Event{
+	// SAMLConnectorCreatedE is emitted when a SAML connector is created/updated.
+	SAMLConnectorCreatedE = Event{
 		Name: SAMLConnectorCreatedEvent,
 		Code: SAMLConnectorCreatedCode,
 	}
-	// SAMLConnectorDeleted is emitted when a SAML connector is deleted.
-	SAMLConnectorDeleted = Event{
+	// SAMLConnectorDeletedE is emitted when a SAML connector is deleted.
+	SAMLConnectorDeletedE = Event{
 		Name: SAMLConnectorDeletedEvent,
 		Code: SAMLConnectorDeletedCode,
 	}
-	// SessionRejected is emitted when a user hits `max_connections`.
-	SessionRejected = Event{
+	// SessionRejectedE is emitted when a user hits `max_connections`.
+	SessionRejectedE = Event{
 		Name: SessionRejectedEvent,
 		Code: SessionRejectedCode,
 	}

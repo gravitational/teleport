@@ -127,12 +127,21 @@ func (s *AuthServer) CreateResetPasswordToken(ctx context.Context, req CreateRes
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.EmitAuditEvent(events.ResetPasswordTokenCreated, events.EventFields{
-		events.FieldName:             req.Name,
-		events.ResetPasswordTokenTTL: req.TTL.String(),
-		events.EventUser:             clientUsername(ctx),
+	if err := s.emitter.EmitAuditEvent(ctx, &events.ResetPasswordTokenCreate{
+		Metadata: events.Metadata{
+			Type: events.ResetPasswordTokenCreateEvent,
+			Code: events.ResetPasswordTokenCreateCode,
+		},
+		UserMetadata: events.UserMetadata{
+			User: clientUsername(ctx),
+		},
+		ResourceMetadata: events.ResourceMetadata{
+			Name:    req.Name,
+			TTL:     req.TTL.String(),
+			Expires: s.GetClock().Now().UTC().Add(req.TTL),
+		},
 	}); err != nil {
-		log.Warnf("Failed to emit create reset password token event: %v", err)
+		log.WithError(err).Warn("Failed to emit create reset password token event.")
 	}
 
 	return s.GetResetPasswordToken(ctx, token.GetName())

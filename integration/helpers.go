@@ -100,7 +100,7 @@ type TeleInstance struct {
 	Nodes []*service.TeleportProcess
 
 	// UploadEventsC is a channel for upload events
-	UploadEventsC chan *events.UploadEvent
+	UploadEventsC chan events.UploadEvent
 }
 
 type User struct {
@@ -218,7 +218,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 	i := &TeleInstance{
 		Ports:         cfg.Ports,
 		Hostname:      cfg.NodeName,
-		UploadEventsC: make(chan *events.UploadEvent, 100),
+		UploadEventsC: make(chan events.UploadEvent, 100),
 	}
 	secrets := InstanceSecrets{
 		SiteName:     cfg.ClusterName,

@@ -50,10 +50,10 @@ import (
 func TestAPI(t *testing.T) { TestingT(t) }
 
 type AuthSuite struct {
-	bk             backend.Backend
-	a              *AuthServer
-	dataDir        string
-	mockedAuditLog *events.MockAuditLog
+	bk          backend.Backend
+	a           *AuthServer
+	dataDir     string
+	mockEmitter *events.MockEmitter
 }
 
 var _ = Suite(&AuthSuite{})
@@ -106,8 +106,8 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	err = s.a.SetClusterConfig(services.DefaultClusterConfig())
 	c.Assert(err, IsNil)
 
-	s.mockedAuditLog = events.NewMockAuditLog(0)
-	s.a.IAuditLog = s.mockedAuditLog
+	s.mockEmitter = &events.MockEmitter{}
+	s.a.emitter = s.mockEmitter
 }
 
 func (s *AuthSuite) TearDownTest(c *C) {
@@ -466,8 +466,8 @@ func (s *AuthSuite) TestGenerateTokenEventsEmitted(c *C) {
 	// test trusted cluster token emit
 	_, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleTrustedCluster}})
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.TrustedClusterTokenCreate)
-	s.mockedAuditLog.Reset()
+	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.TrustedClusterTokenCreateEvent)
+	s.mockEmitter.Reset()
 
 	// test emit with multiple roles
 	_, err = s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{
@@ -476,7 +476,7 @@ func (s *AuthSuite) TestGenerateTokenEventsEmitted(c *C) {
 		teleport.RoleAuth,
 	}})
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.TrustedClusterTokenCreate)
+	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.TrustedClusterTokenCreateEvent)
 }
 
 func (s *AuthSuite) TestBuildRolesInvalid(c *C) {
@@ -707,35 +707,35 @@ func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
 	})
 	err = s.a.CreateUser(ctx, user)
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.UserCreate)
-	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.EventUser], Equals, "some-auth-user")
-	s.mockedAuditLog.Reset()
+	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.UserCreateEvent)
+	c.Assert(s.mockEmitter.LastEvent().(*events.UserCreate).User, Equals, "some-auth-user")
+	s.mockEmitter.Reset()
 
 	// test create user with existing user
 	err = s.a.CreateUser(ctx, user)
 	c.Assert(trace.IsAlreadyExists(err), Equals, true)
-	c.Assert(s.mockedAuditLog.EmittedEvent, IsNil)
+	c.Assert(s.mockEmitter.LastEvent(), IsNil)
 
 	// test createdBy gets set to default
 	user2, err := services.NewUser("some-other-user")
 	c.Assert(err, IsNil)
 	err = s.a.CreateUser(ctx, user2)
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.EventUser], Equals, teleport.UserSystem)
-	s.mockedAuditLog.Reset()
+	c.Assert(s.mockEmitter.LastEvent().(*events.UserCreate).User, Equals, teleport.UserSystem)
+	s.mockEmitter.Reset()
 
 	// test update on non-existent user
 	user3, err := services.NewUser("non-existent-user")
 	c.Assert(err, IsNil)
 	err = s.a.UpdateUser(ctx, user3)
 	c.Assert(trace.IsNotFound(err), Equals, true)
-	c.Assert(s.mockedAuditLog.EmittedEvent, IsNil)
+	c.Assert(s.mockEmitter.LastEvent(), IsNil)
 
 	// test update user
 	err = s.a.UpdateUser(ctx, user)
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.UserUpdate)
-	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.EventUser], Equals, teleport.UserSystem)
+	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.UserUpdatedEvent)
+	c.Assert(s.mockEmitter.LastEvent().(*events.UserCreate).User, Equals, teleport.UserSystem)
 }
 
 func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
@@ -749,9 +749,9 @@ func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
 
 	err = s.a.upsertRole(ctx, roleTest)
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.RoleCreated)
-	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.FieldName], Equals, "test")
-	s.mockedAuditLog.Reset()
+	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.RoleCreatedEvent)
+	c.Assert(s.mockEmitter.LastEvent().(*events.RoleCreate).Name, Equals, "test")
+	s.mockEmitter.Reset()
 
 	roleRetrieved, err := s.a.GetRole("test")
 	c.Assert(err, IsNil)
@@ -761,16 +761,16 @@ func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
 	err = s.a.upsertRole(ctx, roleTest)
 	c.Assert(err, IsNil)
 	c.Assert(roleRetrieved.Equals(roleTest), Equals, true)
-	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.RoleCreated)
-	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.FieldName], Equals, "test")
-	s.mockedAuditLog.Reset()
+	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.RoleCreatedEvent)
+	c.Assert(s.mockEmitter.LastEvent().(*events.RoleCreate).Name, Equals, "test")
+	s.mockEmitter.Reset()
 
 	// test delete role
 	err = s.a.DeleteRole(ctx, "test")
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.RoleDeleted)
-	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.FieldName], Equals, "test")
-	s.mockedAuditLog.Reset()
+	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.RoleDeletedEvent)
+	c.Assert(s.mockEmitter.LastEvent().(*events.RoleDelete).Name, Equals, "test")
+	s.mockEmitter.Reset()
 
 	// test role has been deleted
 	roleRetrieved, err = s.a.GetRole("test")
@@ -780,12 +780,12 @@ func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
 	// test role that doesn't exist
 	err = s.a.DeleteRole(ctx, "test")
 	c.Assert(trace.IsNotFound(err), Equals, true)
-	c.Assert(s.mockedAuditLog.EmittedEvent, IsNil)
+	c.Assert(s.mockEmitter.LastEvent(), IsNil)
 }
 
 func (s *AuthSuite) TestTrustedClusterCRUDEventEmitted(c *C) {
 	ctx := context.Background()
-	s.a.IAuditLog = s.mockedAuditLog
+	s.a.emitter = s.mockEmitter
 
 	// set up existing cluster to bypass switch cases that
 	// makes a network request when creating new clusters
@@ -809,21 +809,21 @@ func (s *AuthSuite) TestTrustedClusterCRUDEventEmitted(c *C) {
 
 	_, err = s.a.UpsertTrustedCluster(ctx, tc)
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.TrustedClusterCreate)
-	s.mockedAuditLog.Reset()
+	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.TrustedClusterCreateEvent)
+	s.mockEmitter.Reset()
 
 	// test create event for switch case: when tc exists but enabled is true
 	tc.SetEnabled(true)
 
 	_, err = s.a.UpsertTrustedCluster(ctx, tc)
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.TrustedClusterCreate)
-	s.mockedAuditLog.Reset()
+	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.TrustedClusterCreateEvent)
+	s.mockEmitter.Reset()
 
 	// test delete event
 	err = s.a.DeleteTrustedCluster(ctx, "test")
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.TrustedClusterDelete)
+	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.TrustedClusterDeleteEvent)
 }
 
 func (s *AuthSuite) TestGithubConnectorCRUDEventsEmitted(c *C) {
@@ -832,19 +832,19 @@ func (s *AuthSuite) TestGithubConnectorCRUDEventsEmitted(c *C) {
 	github := services.NewGithubConnector("test", services.GithubConnectorSpecV3{})
 	err := s.a.upsertGithubConnector(ctx, github)
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.GithubConnectorCreated)
-	s.mockedAuditLog.Reset()
+	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.GithubConnectorCreatedEvent)
+	s.mockEmitter.Reset()
 
 	// test github update event
 	err = s.a.upsertGithubConnector(ctx, github)
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.GithubConnectorCreated)
-	s.mockedAuditLog.Reset()
+	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.GithubConnectorCreatedEvent)
+	s.mockEmitter.Reset()
 
 	// test github delete event
 	err = s.a.deleteGithubConnector(ctx, "test")
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.GithubConnectorDeleted)
+	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.GithubConnectorDeletedEvent)
 }
 
 func (s *AuthSuite) TestOIDCConnectorCRUDEventsEmitted(c *C) {
@@ -853,19 +853,19 @@ func (s *AuthSuite) TestOIDCConnectorCRUDEventsEmitted(c *C) {
 	oidc := services.NewOIDCConnector("test", services.OIDCConnectorSpecV2{ClientID: "a"})
 	err := s.a.UpsertOIDCConnector(ctx, oidc)
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.OIDCConnectorCreated)
-	s.mockedAuditLog.Reset()
+	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.OIDCConnectorCreatedEvent)
+	s.mockEmitter.Reset()
 
 	// test oidc update event
 	err = s.a.UpsertOIDCConnector(ctx, oidc)
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.OIDCConnectorCreated)
-	s.mockedAuditLog.Reset()
+	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.OIDCConnectorCreatedEvent)
+	s.mockEmitter.Reset()
 
 	// test oidc delete event
 	err = s.a.DeleteOIDCConnector(ctx, "test")
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.OIDCConnectorDeleted)
+	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.OIDCConnectorDeletedEvent)
 }
 
 func (s *AuthSuite) TestSAMLConnectorCRUDEventsEmitted(c *C) {
@@ -896,17 +896,17 @@ func (s *AuthSuite) TestSAMLConnectorCRUDEventsEmitted(c *C) {
 
 	err = s.a.UpsertSAMLConnector(ctx, saml)
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.SAMLConnectorCreated)
-	s.mockedAuditLog.Reset()
+	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.SAMLConnectorCreatedEvent)
+	s.mockEmitter.Reset()
 
 	// test saml update event
 	err = s.a.UpsertSAMLConnector(ctx, saml)
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.SAMLConnectorCreated)
-	s.mockedAuditLog.Reset()
+	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.SAMLConnectorCreatedEvent)
+	s.mockEmitter.Reset()
 
 	// test saml delete event
 	err = s.a.DeleteSAMLConnector(ctx, "test")
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.SAMLConnectorDeleted)
+	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.SAMLConnectorDeletedEvent)
 }

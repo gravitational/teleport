@@ -593,7 +593,7 @@ type printEvent struct {
 // gzipWriter wraps file, on close close both gzip writer and file
 type gzipWriter struct {
 	*gzip.Writer
-	file *os.File
+	inner io.WriteCloser
 }
 
 // Close closes gzip writer and file
@@ -605,9 +605,9 @@ func (f *gzipWriter) Close() error {
 		writerPool.Put(f.Writer)
 		f.Writer = nil
 	}
-	if f.file != nil {
-		errors = append(errors, f.file.Close())
-		f.file = nil
+	if f.inner != nil {
+		errors = append(errors, f.inner.Close())
+		f.inner = nil
 	}
 	return trace.NewAggregate(errors...)
 }
@@ -623,13 +623,44 @@ var writerPool = sync.Pool{
 	},
 }
 
-func newGzipWriter(file *os.File) *gzipWriter {
+func newGzipWriter(writer io.WriteCloser) *gzipWriter {
 	g := writerPool.Get().(*gzip.Writer)
-	g.Reset(file)
+	g.Reset(writer)
 	return &gzipWriter{
 		Writer: g,
-		file:   file,
+		inner:  writer,
 	}
+}
+
+// gzipReader wraps file, on close close both gzip writer and file
+type gzipReader struct {
+	io.ReadCloser
+	inner io.Closer
+}
+
+// Close closes file and gzip writer
+func (f *gzipReader) Close() error {
+	var errors []error
+	if f.ReadCloser != nil {
+		errors = append(errors, f.ReadCloser.Close())
+		f.ReadCloser = nil
+	}
+	if f.inner != nil {
+		errors = append(errors, f.inner.Close())
+		f.inner = nil
+	}
+	return trace.NewAggregate(errors...)
+}
+
+func newGzipReader(reader io.ReadCloser) (*gzipReader, error) {
+	gzReader, err := gzip.NewReader(reader)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &gzipReader{
+		ReadCloser: gzReader,
+		inner:      reader,
+	}, nil
 }
 
 const (

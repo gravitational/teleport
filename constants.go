@@ -52,6 +52,13 @@ const (
 )
 
 const (
+	// HTTPNextProtoTLS is the NPN/ALPN protocol negotiated during
+	// HTTP/1.1.'s TLS setup.
+	// https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml#alpn-protocol-ids
+	HTTPNextProtoTLS = "http/1.1"
+)
+
+const (
 	// HTTPSProxy is an environment variable pointing to a HTTPS proxy.
 	HTTPSProxy = "HTTPS_PROXY"
 
@@ -323,6 +330,12 @@ const (
 	// SchemeGCS is GCS file scheme, means upload or download to GCS like object
 	// storage
 	SchemeGCS = "gs"
+
+	// GCSTestURI turns on GCS tests
+	GCSTestURI = "TEST_GCS_URI"
+
+	// AWSRunTests turns on tests executed against AWS directly
+	AWSRunTests = "TEST_AWS"
 
 	// Region is AWS region parameter
 	Region = "region"
