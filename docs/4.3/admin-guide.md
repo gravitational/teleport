@@ -2152,6 +2152,9 @@ To configure Teleport for using etcd as a storage back-end:
 * Make sure you are using **etcd version 3.3** or newer.
 * Install etcd and configure peer and client TLS authentication using the [etcd
   security guide](https://etcd.io/docs/v3.4.0/op-guide/security/).
+    * You can use [this script provided by
+      etcd](https://github.com/etcd-io/etcd/tree/master/hack/tls-setup) if you
+      don't already have a TLS setup.
 * Configure all Teleport Auth servers to use etcd in the "storage" section of the config file as shown below.
 * Deploy several auth servers connected to etcd back-end.
 * Deploy several proxy nodes that have `auth_servers` pointed to list of auth
@@ -2166,18 +2169,28 @@ teleport:
      peers: ["https://172.17.0.1:4001", "https://172.17.0.2:4001"]
 
      # required path to TLS client certificate and key files to connect to etcd
+     #
+     # to create these, follow
+     # https://coreos.com/os/docs/latest/generate-self-signed-certificates.html
+     # or use the etcd-provided script
+     # https://github.com/etcd-io/etcd/tree/master/hack/tls-setup
      tls_cert_file: /var/lib/teleport/etcd-cert.pem
      tls_key_file: /var/lib/teleport/etcd-key.pem
 
-     # optional password based authentication
+     # optional file with trusted CA authority
+     # file to authenticate etcd nodes
+     #
+     # if you used the script above to generate the client TLS certificate,
+     # this CA certificate should be one of the other generated files
+     tls_ca_file: /var/lib/teleport/etcd-ca.pem
+
+     # alternative password based authentication, if not using TLS client
+     # certificate
+     #
      # See https://etcd.io/docs/v3.4.0/op-guide/authentication/ for setting
      # up a new user
      username: username
      password_file: /mnt/secrets/etcd-pass
-
-     # optional file with trusted CA authority
-     # file to authenticate etcd nodes
-     tls_ca_file: /var/lib/teleport/etcd-ca.pem
 
      # etcd key (location) where teleport will be storing its state under:
      prefix: teleport
