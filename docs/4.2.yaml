@@ -25,8 +25,7 @@ extra_css: []
 plugins:
     - search:
         separator: '[\s\-\.]'
-    - markdownextradata: {
-    }
+    - markdownextradata: {}
 extra_javascript: []
 extra:
     version: 4.2
