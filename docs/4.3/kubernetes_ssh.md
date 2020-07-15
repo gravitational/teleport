@@ -48,8 +48,25 @@ There are two options for setting up Teleport to access Kubernetes:
 ## Deploy Inside Kubernetes as a pod
 
 Deploy Teleport Proxy service as a Kubernetes pod inside the Kubernetes cluster you
-want the proxy to have access to.inside the Kubernetes cluster you want the proxy
-to have access to. No Teleport configuration changes are required in this case.
+want the proxy to have access to inside the Kubernetes cluster you want the proxy
+to have access to.
+
+```yaml
+# snippet from /etc/teleport.yaml on the Teleport proxy service:
+proxy_service:
+    # create the 'kubernetes' section and set 'enabled' to 'yes':
+    kubernetes:
+        enabled: yes
+```
+
+If you're using Helm, we've a chart that you can use. Run these commands:
+
+```bash
+$ helm repo add gravitational https://charts.gravitational.io
+$ helm install teleport gravitational/teleport
+```
+You will still need a correctly configured `values.yaml` file for this to work. See
+our [Helm Docs](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport#introduction) for more information.
 
 ![teleport-kubernetes-inside](img/teleport-k8s-pod.svg)
 
@@ -60,9 +77,6 @@ Proxy configuration with Kubernetes credentials. and update the Teleport Proxy
 configuration with Kubernetes credentials. In this case, we need to update `/etc/teleport.yaml`
 for the proxy service as shown below:
 
-![teleport-ssh-kubernetes-integration](img/teleport-kubernetes-outside.svg)
-
-
 ```yaml
 # snippet from /etc/teleport.yaml on the Teleport proxy service:
 proxy_service:
@@ -71,11 +85,13 @@ proxy_service:
     enabled: yes
     public_addr: [teleport.example.com:3026]
     listen_addr: 0.0.0.0:3026
-    kubeconfig_file: /path/to/kubeconfig
+    kubeconfig_file: /path/to/.kube/config
 ```
 
+![teleport-ssh-kubernetes-integration](img/teleport-kubernetes-outside.svg)
+
 To retrieve the Kubernetes credentials for the Teleport proxy service, you have to authenticate against your Kubernetes
-cluster directly then copy the file to `/path/to/kubeconfig` on the Teleport proxy server.
+cluster directly then copy the file to `/path/to/.kube/config` on the Teleport proxy server.
 
 !!! tip "Google Cloud - GKE Users"
 
