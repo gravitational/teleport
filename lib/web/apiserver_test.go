@@ -1060,7 +1060,8 @@ func (s *WebSuite) TestEmptySessionClusterHostnameIsSet(c *C) {
 
 	// Test that empty ClusterName and ServerHostname got set.
 	var sessionResult *session.Session
-	json.Unmarshal(res.Bytes(), &sessionResult)
+	err = json.Unmarshal(res.Bytes(), &sessionResult)
+	c.Assert(err, IsNil)
 	c.Assert(sessionResult.ClusterName, Equals, s.server.ClusterName())
 	c.Assert(sessionResult.ServerHostname, Equals, sess1.ServerID)
 
@@ -1076,7 +1077,8 @@ func (s *WebSuite) TestEmptySessionClusterHostnameIsSet(c *C) {
 	c.Assert(err, IsNil)
 
 	var sessionList *siteSessionsGetResponse
-	json.Unmarshal(res.Bytes(), &sessionList)
+	err = json.Unmarshal(res.Bytes(), &sessionList)
+	c.Assert(err, IsNil)
 
 	s1 := sessionList.Sessions[0]
 	s2 := sessionList.Sessions[1]
