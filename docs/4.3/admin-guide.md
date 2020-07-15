@@ -1969,7 +1969,7 @@ Kubernetes API.
 Below is a high-level diagram of how Teleport can be deployed in front of a
 Kubernetes cluster:
 
-![teleport-kubernetes-integration](img/teleport-kube.png)
+![teleport-ssh-kubernetes-integration](img/teleport-kubernetes-outside.svg)
 
 For more detailed information, please take a look at [Kubernetes Integration
 with SSH](admin-guide.md#kubernetes-integration) section in the Architecture
@@ -2026,7 +2026,8 @@ $ tctl users add joe --k8s-groups="system:masters"
 
 !!! tip "NOTE"
 
-    The above command is for the Teleport OSS version. Teleport Enterprise customers manage `k8s-groups` through RBAC.
+    The above command is for the Teleport OSS version. Teleport Enterprise customers
+    manage `k8s-groups` through RBAC.
 
 If using Teleport Community SSO with Github, Kubernetes groups can be assigned
 to Github teams with a Teleport connector. See example above in [Github OAuth

@@ -5,7 +5,7 @@ access to Kubernetes clusters. This enables the following capabilities:
 
 * A Teleport Proxy can act as a single authentication endpoint for both SSH and
   Kubernetes. Users can authenticate against a Teleport proxy using Teleport's
-  [`tsh login`](cli-docs.md/#tsh-login) command
+  [`tsh login`](cli-docs.md#tsh-login) command
   and retrieve credentials for both SSH and Kubernetes API.
 * Users RBAC roles are always synchronized between SSH and Kubernetes, making
   it easier to implement policies like _developers must not access production
@@ -173,6 +173,13 @@ Teleport provides support for
 * Kubernetes Users, using `kubernetes_users: ['barent', 'jane']`. If a Kubernetes
 user isn't set the user will impersonate themselves.
 
+When adding new local users you have to specify which Kubernetes groups they
+belong to:
+
+``` bash
+$ tctl users add joe --k8s-groups="system:masters"
+```
+
 ### Github Auth
 
 When configuring Teleport to authenticate against Github, you have to create a
@@ -278,4 +285,4 @@ sequence, their `kubeconfig` will be updated with their Kubernetes credentials.
     [Okta integration guide](enterprise/sso/ssh_okta.md).
 
 ## AWS EKS
-We've a complete guide on setting up Teleport with EKS. Please see the [Using Teleport with EKS Guide](aws_oss_guide/#using-teleport-with-eks.md).
+We've a complete guide on setting up Teleport with EKS. Please see the [Using Teleport with EKS Guide](aws_oss_guide.md#using-teleport-with-eks).
