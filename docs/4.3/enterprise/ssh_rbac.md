@@ -120,16 +120,26 @@ spec:
       # of the list example above can be expressed as:
       'environment': '^test|staging$'
 
+    # defines roles that this user can can request.
+    # needed for teleport's request workflow
+    # https://gravitational.com/teleport/docs/enterprise/workflow/
+    request:
+      roles:
+      - dba
+
     # list of allow-rules. see below for more information.
     rules:
     - resources: [role]
       verbs: [list, create, read, update, delete]
     - resources: [auth_connector]
-      verbs: [connect, list, create, read, update, delete]
+      verbs: [list, create, read, update, delete]
     - resources: [session]
       verbs: [list, read]
     - resources: [trusted_cluster]
-      verbs: [connect, list, create, read, update, delete]
+      verbs: [list, create, read, update, delete]
+    # list and read audit log, including audit events and recorded sessions
+    - resources: [event]
+      verbs: [list, read]
 
   # the deny section uses the identical format as the 'allow' section.
   # the deny rules always override allow rules.
