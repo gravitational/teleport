@@ -1514,6 +1514,20 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// DELETE IN: 5.0.0
+	// Teleport Nodes < v4.3 does not set ClusterName, ServerHostname with new sessions,
+	// which 4.3 UI client relies on to create URL's and display node inform.
+	clusterName := p.ByName("site")
+	for i, session := range sessions {
+		if session.ClusterName == "" {
+			sessions[i].ClusterName = clusterName
+		}
+		if session.ServerHostname == "" {
+			sessions[i].ServerHostname = session.ServerID
+		}
+	}
+
 	return siteSessionsGetResponse{Sessions: sessions}, nil
 }
 
@@ -1548,10 +1562,13 @@ func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	// DELETE IN: 5.0.0
-	// Teleport Nodes < v4.3 does not set clusterName with new sessions,
-	// which 4.3 UI client relies on to set clusterId in URL.
+	// Teleport Nodes < v4.3 does not set ClusterName, ServerHostname with new sessions,
+	// which 4.3 UI client relies on to create URL's and display node inform.
 	if sess.ClusterName == "" {
 		sess.ClusterName = p.ByName("site")
+	}
+	if sess.ServerHostname == "" {
+		sess.ServerHostname = sess.ServerID
 	}
 
 	return *sess, nil

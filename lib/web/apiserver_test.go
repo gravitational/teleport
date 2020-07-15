@@ -1033,36 +1033,58 @@ func (s *WebSuite) TestActiveSessions(c *C) {
 }
 
 // DELETE IN: 5.0.0
-// Tests the code snippet from apiserver.(*Handler).siteSessionGet that
-// tests empty clusterName is set to URL params "site".
-func (s *WebSuite) TestEmptySessionClusterNameIsSet(c *C) {
+// Tests the code snippet from apiserver.(*Handler).siteSessionGet/siteSessionsGet
+// that tests empty ClusterName and ServerHostname gets set.
+func (s *WebSuite) TestEmptySessionClusterHostnameIsSet(c *C) {
 	nodeClient, err := s.server.NewClient(auth.TestBuiltin(teleport.RoleNode))
 	c.Assert(err, IsNil)
 
 	// Create a session with empty ClusterName.
-	sid := session.NewID()
-	date := time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC)
-	sess := session.Session{
+	sess1 := session.Session{
 		ClusterName:    "",
-		ID:             sid,
+		ServerID:       string(session.NewID()),
+		ID:             session.NewID(),
 		Namespace:      defaults.Namespace,
 		Login:          "foo",
-		Created:        date,
-		LastActive:     date,
+		Created:        time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+		LastActive:     time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
 		TerminalParams: session.TerminalParams{W: 100, H: 100},
 	}
-	err = nodeClient.CreateSession(sess)
+	err = nodeClient.CreateSession(sess1)
 	c.Assert(err, IsNil)
 
 	// Retrieve the session with the empty ClusterName.
-	pack := s.authPack(c, "foo")
-	res, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "sessions", sid.String()), url.Values{})
+	pack := s.authPack(c, "baz")
+	res, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "sessions", sess1.ID.String()), url.Values{})
 	c.Assert(err, IsNil)
 
-	// Test that empty ClusterName got set to value of the "site" param of URL.
-	var result *session.Session
-	json.Unmarshal(res.Bytes(), &result)
-	c.Assert(result.ClusterName, Equals, s.server.ClusterName())
+	// Test that empty ClusterName and ServerHostname got set.
+	var sessionResult *session.Session
+	json.Unmarshal(res.Bytes(), &sessionResult)
+	c.Assert(sessionResult.ClusterName, Equals, s.server.ClusterName())
+	c.Assert(sessionResult.ServerHostname, Equals, sess1.ServerID)
+
+	// Create another session to test sessions list.
+	sess2 := sess1
+	sess2.ID = session.NewID()
+	sess2.ServerID = string(session.NewID())
+	err = nodeClient.CreateSession(sess2)
+	c.Assert(err, IsNil)
+
+	// Retrieve sessions list.
+	res, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "sessions"), url.Values{})
+	c.Assert(err, IsNil)
+
+	var sessionList *siteSessionsGetResponse
+	json.Unmarshal(res.Bytes(), &sessionList)
+
+	s1 := sessionList.Sessions[0]
+	s2 := sessionList.Sessions[1]
+
+	c.Assert(s1.ClusterName, Equals, s.server.ClusterName())
+	c.Assert(s2.ClusterName, Equals, s.server.ClusterName())
+	c.Assert(s1.ServerHostname, Equals, s1.ServerID)
+	c.Assert(s2.ServerHostname, Equals, s2.ServerID)
 }
 
 func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
