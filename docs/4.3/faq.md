@@ -52,9 +52,9 @@ Scenario | Max Recommended Count | Proxy | Auth server
 Teleport nodes connected to auth server | 10,000 |2x  2-4 vCPUs/8GB RAM | 2x 4-8 vCPUs/16GB RAM
 Teleport nodes connected to proxy server (IoT) | 2,000* | 2x 2-4 vCPUs/8GB RAM |2x 4-8 vCPUs/16+GB RAM
 
-### Which version of Teleport is supported?
+## Which version of Teleport is supported?
 
-| Release       | LTS | Release Date         | Supported Until      | Minimum tsh version  |
+| Release       | Long Term Support | Release Date         | Supported Until      | Min tsh version  |
 | --------------|-----| -------------------- | -------------------- | -------------------- |
 | 4.3           | Yes | July 8th, 2020       | July 8th, 2021       | 3.x                  |
 | 4.2           | Yes | December 19th, 2019  | December 19th, 2020  | 3.x                  |
