@@ -1,6 +1,6 @@
 # Kubernetes and SSH Integration Guide
 
-Teleport v.3.0+ has the ability to act as a compliance gateway for managing privileged access to Kubernetes clusters. This enables the following capabilities:
+Teleport has the ability to act as a compliance gateway for managing privileged access to Kubernetes clusters. This enables the following capabilities:
 
 * A Teleport Proxy can act as a single authentication endpoint for both SSH and
   Kubernetes. Users can authenticate against a Teleport proxy using Teleport's `tsh login` command and retrieve credentials for both SSH and Kubernetes API.
@@ -12,18 +12,23 @@ Teleport v.3.0+ has the ability to act as a compliance gateway for managing priv
   interactive commands are recorded as regular sessions that can be stored and replayed in the
   future.
 
-![ssh-kubernetes-integration](img/teleport-kube.png)
+### Connecting the Teleport proxy to Kubernetes
 
-This guide will walk you through the steps required to configure Teleport to
-work as a unified gateway for both SSH and Kubernetes. We will cover both the open
-source and enterprise editions of Teleport.
+There are two ways this can be done:
 
-For this guide, we'll be using an instance of Kubernetes running on [Google's GKE](https://cloud.google.com/kubernetes-engine/)
-but this guide should apply with any upstream Kubernetes instance.
+## Deploy Inside Kubernetes as a pod
 
-## Teleport Proxy Service
+inside the Kubernetes cluster you want the proxy to have access to. No Teleport configuration changes are required in this case.
 
-By default, the Kubernetes integration is turned off in Teleport. The configuration setting to enable the integration is the `proxy_service/kubernetes/enabled` setting which can be found in the proxy service section in the `/etc/teleport.yaml` file, as shown below:
+ ![ssh-kubernetes-integration](img/teleport-k8s-pod.svg)
+
+## Deploy Outside of Kubernetes
+
+ and update the Teleport Proxy configuration with Kubernetes
+   credentials. In this case, we need to update `/etc/teleport.yaml` for the proxy service as shown below:
+
+   ![ssh-kubernetes-integration](img/teleport-kubernetes-outside.svg)
+
 
 ```yaml
 # snippet from /etc/teleport.yaml on the Teleport proxy service:
@@ -33,33 +38,7 @@ proxy_service:
         enabled: yes
         public_addr: [teleport.example.com:3026]
         listen_addr: 0.0.0.0:3026
-```
-
-Let's take a closer look at the available Kubernetes settings:
-
-* `public_addr` defines the publicly accessible address which Kubernetes API
-  clients like `kubectl` will connect to. This address will be placed inside of
-  `kubeconfig` on a client's machine when a client executes `tsh login` command
-  to retrieve its certificate. If you intend to run multiple Teleport proxies behind
-  a load balancer, this must be the load balancer's public address.
-
-* `listen_addr` defines which network interface and port the Teleport proxy server
-  should bind to. It defaults to port 3026 on all NICs.
-
-## Connecting the Teleport proxy to Kubernetes
-
-There are two ways this can be done:
-
-1. Deploy Teleport Proxy service as a Kubernetes pod inside the Kubernetes cluster you want the proxy to have access to.
-   No Teleport configuration changes are required in this case.
-2. Deploy the Teleport proxy service outside of Kubernetes and update the Teleport Proxy configuration with Kubernetes
-   credentials. In this case, we need to update `/etc/teleport.yaml` for the proxy service as shown below:
-
-```yaml
-# snippet from /etc/teleport.yaml on the proxy service deployed outside k8s:
-proxy_service:
-  kubernetes:
-    kubeconfig_file: /path/to/kubeconfig
+        kubeconfig_file: /path/to/kubeconfig
 ```
 
 To retrieve the Kubernetes credentials for the Teleport proxy service, you have to authenticate against your Kubernetes
@@ -244,3 +223,12 @@ sequence, their `kubeconfig` will be updated with their Kubernetes credentials.
 
     For more information on integrating Teleport with Okta, please see the
     [Okta integration guide](enterprise/sso/ssh_okta.md).
+
+## AWS EKS
+...
+
+## GCP GKS
+...
+
+## Azure AKS
+...
