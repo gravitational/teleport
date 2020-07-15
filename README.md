@@ -143,7 +143,7 @@ Dependencies are managed using [Go
 modules](https://blog.golang.org/using-go-modules). Here are instructions for
 some common tasks:
 
-#### add a new dependency
+#### Add a new dependency
 
 Latest version:
 
@@ -161,28 +161,28 @@ go get github.com/new/dependency@version
 make update-vendor
 ```
 
-#### set dependency to a specific version
+#### Set dependency to a specific version
 
 ```
 go get github.com/new/dependency@version
 make update-vendor
 ```
 
-#### update dependency to the latest version
+#### Update dependency to the latest version
 
 ```
 go get -u github.com/new/dependency
 make update-vendor
 ```
 
-#### update all dependencies
+#### Update all dependencies
 
 ```
 go get -u all
 make update-vendor
 ```
 
-#### debugging dependencies
+#### Debugging dependencies
 
 Why is a specific package imported: `go mod why $pkgname`.
 
