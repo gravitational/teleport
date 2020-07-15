@@ -161,6 +161,7 @@ exports[`render cluster nodes 1`] = `
   padding-right: 40px;
   display: flex;
   flex-direction: column;
+  overflow: auto;
   width: 100%;
   height: 100%;
 }

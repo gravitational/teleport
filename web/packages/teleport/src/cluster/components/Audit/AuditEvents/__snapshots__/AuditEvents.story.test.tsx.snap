@@ -33,6 +33,15 @@ exports[`rendering of Events 1`] = `
   font-size: 16px;
 }
 
+.c13 {
+  display: inline-block;
+  transition: color .3s;
+  margin-left: 8px;
+  margin-right: -8px;
+  color: rgba(255,255,255,0.56);
+  font-size: 14px;
+}
+
 .c7 {
   background: #222C59;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
@@ -96,7 +105,56 @@ exports[`rendering of Events 1`] = `
   line-height: 16px;
 }
 
-.c11 {
+.c12 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  height: 24px;
+}
+
+.c12:active {
+  opacity: 0.56;
+}
+
+.c12:hover,
+.c12:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
+}
+
+.c12:active {
+  opacity: 0.24;
+}
+
+.c12:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c14 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -125,22 +183,22 @@ exports[`rendering of Events 1`] = `
   width: 87px;
 }
 
-.c11:active {
+.c14:active {
   opacity: 0.56;
 }
 
-.c11:hover,
-.c11:focus {
+.c14:hover,
+.c14:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c11:active {
+.c14:active {
   opacity: 0.24;
 }
 
-.c11:disabled {
+.c14:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -196,6 +254,33 @@ exports[`rendering of Events 1`] = `
   background: #222C59;
   border-top-left-radius: 8px;
   border-top-right-radius: 8px;
+}
+
+.c11 {
+  background: #000;
+  border: 2px solid #651FFF;
+  color: rgba(255,255,255,0.87);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 100px;
+  transition: all 0.3s;
+}
+
+.c11:hover,
+.c11:active,
+.c11:focus {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  color: #FFFFFF;
+}
+
+.c11:active {
+  box-shadow: none;
+  opacity: 0.56;
 }
 
 .c9 {
@@ -267,12 +352,12 @@ exports[`rendering of Events 1`] = `
         </strong>
          - 
         <strong>
-          31
+          32
         </strong>
          
         of 
         <strong>
-          31
+          32
         </strong>
       </div>
       <div
@@ -335,6 +420,53 @@ exports[`rendering of Events 1`] = `
             <div
               class="c9"
             >
+              <a
+                href="/web/cluster/localhost/session/941a4c65-c6cd-11ea-9bef-482ae3513733"
+                style="text-decoration: none;"
+                target="_blank"
+                title="Open Session Player"
+              >
+                <span
+                  class="c5 c10 icon icon-terminal c11"
+                  color="light"
+                  font-size="3"
+                />
+              </a>
+              Session Ended
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [root] has ended an interactive session lasting 2 minutes [941a4c65-c6cd-11ea-9bef-482ae3513733] on node [im-a-nodename]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2020-07-15 19:03:05
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c12"
+              height="24px"
+              kind="border"
+            >
+              OPTIONS
+              <span
+                class="c5 c13 icon icon-caret-down "
+                color="text.secondary"
+                font-size="2"
+              />
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
               <span
                 class="c5 c10 icon icon-info_outline c5 c10"
                 color="light"
@@ -357,7 +489,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -392,7 +524,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -427,7 +559,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -462,7 +594,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -497,7 +629,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -532,7 +664,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -567,7 +699,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -602,7 +734,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -637,7 +769,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -672,7 +804,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -707,7 +839,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -742,7 +874,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -777,7 +909,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -812,7 +944,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -847,7 +979,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -882,7 +1014,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -917,7 +1049,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -952,7 +1084,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -987,7 +1119,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -1022,7 +1154,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -1057,7 +1189,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -1092,7 +1224,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -1127,7 +1259,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -1162,7 +1294,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -1197,7 +1329,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -1232,7 +1364,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -1267,7 +1399,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -1302,7 +1434,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -1337,7 +1469,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -1361,7 +1493,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User [admin@example.com] has ended non-interactive session [9febab45-6491-11e9-80a1-427cfde50f5a] on node [undefined] 
+            User [admin@example.com] has ended a non-interactive session [9febab45-6491-11e9-80a1-427cfde50f5a] on node [node-hostname] 
           </td>
           <td
             style="min-width: 120px;"
@@ -1372,7 +1504,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >
@@ -1396,7 +1528,7 @@ exports[`rendering of Events 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User [admin@example.com] has ended non-interactive session [9febab45-6491-11e9-80a1-427cfde50f5a] on node [undefined] 
+            User [admin@example.com] has ended a non-interactive session [9febab45-6491-11e9-80a1-427cfde50f5a] on node [undefined] 
           </td>
           <td
             style="min-width: 120px;"
@@ -1407,7 +1539,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c11"
+              class="c14"
               kind="border"
               width="87px"
             >

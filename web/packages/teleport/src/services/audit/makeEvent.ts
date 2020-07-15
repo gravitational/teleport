@@ -397,13 +397,13 @@ export const formatters: Formatters = {
         event.server_hostname || event.server_addr || event.server_id;
 
       if (!event.interactive) {
-        return `User [${user}] has ended non-interactive session [${event.sid}] on node [${node}] `;
+        return `User [${user}] has ended a non-interactive session [${event.sid}] on node [${node}] `;
       }
 
       if (event.session_start && event.session_stop) {
         const duration = moment(event.session_stop).diff(event.session_start);
         const durationText = moment.duration(duration).humanize();
-        return `User [${user}] has ended ${durationText} interactive session [${event.sid}] on node [${node}]`;
+        return `User [${user}] has ended an interactive session lasting ${durationText} [${event.sid}] on node [${node}]`;
       }
 
       return `User [${user}] has ended interactive session [${event.sid}] on node [${node}] `;
