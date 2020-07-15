@@ -121,7 +121,7 @@ spec:
       'environment': '^test|staging$'
 
     # defines roles that this user can can request.
-    # needed for teleports request workflow
+    # needed for teleport's request workflow
     # https://gravitational.com/teleport/docs/enterprise/workflow/
     request:
       roles:
