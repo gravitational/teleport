@@ -20,14 +20,12 @@ import { Session } from 'teleport/services/ssh';
 
 export default function DescCell(props: any) {
   const { rowIndex, data } = props;
-  const { hostname, addr, serverId } = data[rowIndex] as Session;
-  // DELETE IN: 5.2 remove check for hostname/addr.
-  // Older teleport versions do not set/retrieve hostname or addr.
-  const nodeName = hostname || serverId;
+  const { hostname, addr } = data[rowIndex] as Session;
   const nodeAddr = addr ? `[${addr}]` : '';
+
   return (
     <Cell>
-      {nodeName} {nodeAddr}
+      {hostname} {nodeAddr}
     </Cell>
   );
 }

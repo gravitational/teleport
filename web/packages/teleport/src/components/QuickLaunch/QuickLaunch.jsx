@@ -31,11 +31,11 @@ export default function FieldInputSsh({
   function onKeyPress(e) {
     const value = e.target.value;
     if ((e.key === 'Enter' || e.type === 'click') && value) {
-      const valid = check(value);
-      setHasError(!valid);
-      if (valid) {
-        const [login, serverId] = value.split('@');
-        onPress(login, serverId);
+      const match = check(value);
+      setHasError(!match);
+      if (match) {
+        const { username, host } = match.groups;
+        onPress(username, host);
       }
     } else {
       setHasError(false);
@@ -63,10 +63,11 @@ export default function FieldInputSsh({
   );
 }
 
-const SSH_STR_REGEX = /(^(\w+-?\w+)+@(\S+)$)/;
+// Checks for spaces between chars, and
+// captures two named groups: username and host.
+const SSH_STR_REGEX = /^(?:(?<username>[^\s]+)@)(?<host>[^\s]+)$/;
 const check = value => {
-  const match = SSH_STR_REGEX.exec(value);
-  return match !== null;
+  return SSH_STR_REGEX.exec(value.trim());
 };
 
 const StyledInput = styled(Input)(

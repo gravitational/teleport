@@ -19,26 +19,23 @@ import styled, { useTheme } from 'styled-components';
 import { Cell } from 'design/DataTable';
 import { Session } from 'teleport/services/ssh';
 import * as Icons from 'design/Icon/Icon';
-import { NavLink } from 'react-router-dom';
 import cfg from 'teleport/config';
 
 export default function TypeCell(props: any) {
   const { rowIndex, data } = props;
-  const { sid, serverId, login, hostname } = data[rowIndex] as Session;
+  const { sid, login, hostname } = data[rowIndex] as Session;
 
-  // DELETE IN: 5.2 remove check for hostname.
-  // Older teleport versions do not set/retrieve hostname.
-  const nodeDesc = hostname || serverId;
   const url = cfg.getSshSessionRoute({ sid });
   const theme = useTheme();
-  const text = `Session is in progress [${login}@${nodeDesc}]`;
+  const text = `Session is in progress [${login}@${hostname}]`;
 
   return (
     <Cell>
       <StyledEventType>
         <Icons.Cli
-          as={NavLink}
-          to={url}
+          as="a"
+          href={url}
+          target="_blank"
           p="1"
           mr="3"
           bg="bgTerminal"

@@ -82,7 +82,7 @@ export default class StoreDocs extends Store<State> {
   }
 
   findByUrl(url: string) {
-    return this.state.items.find(i => i.url === url);
+    return this.state.items.find(i => i.url === encodeURI(url));
   }
 
   getNodeDocuments() {

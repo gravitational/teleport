@@ -129,8 +129,8 @@ const LoginCell: React.FC<Required<{
   [key: string]: any;
 }>> = props => {
   const { rowIndex, data, onOpen, onSelect } = props;
-  const { hostname, id } = data[rowIndex] as Node;
-  const serverId = hostname || id;
+  const { id } = data[rowIndex] as Node;
+  const serverId = id;
   function handleOnOpen() {
     return onOpen(serverId);
   }

@@ -72,23 +72,4 @@ const sessions = [
       },
     ],
   },
-  {
-    id: 'AB',
-    namespace: 'AG',
-    login: 'root',
-    active: 'AZ',
-    created: new Date('2019-04-22T00:00:51.543Z'),
-    durationText: '5 min',
-    serverId: '10_128_0_6.demo.gravitational.io',
-    clusterId: '',
-    hostname: undefined,
-    sid: 'sid1',
-    addr: undefined,
-    parties: [
-      {
-        user: 'hehwawe@aw.sg',
-        remoteAddr: '129.232.123.132',
-      },
-    ],
-  },
 ];
