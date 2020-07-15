@@ -162,8 +162,13 @@ stop-houston:
 	docker stop $$(docker ps -q --filter ancestor=houston:0.0.1)
 	@rm start-houston
 
+# Dockerized build: useful for making Linux binaries on OSX
+.PHONY:docker-binaries
+docker-binaries: clean
+	make -C ../build.assets build-enterprise-binaries
+
 .PHONY: image
-image:
+image: clean docker-binaries
 	cp ../build.assets/charts/Dockerfile $(BUILDDIR)/
 	cd $(BUILDDIR) && docker build --no-cache . -t quay.io/gravitational/teleport-ent:$(VERSION)
 
