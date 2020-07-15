@@ -25,12 +25,12 @@ $ curl https://get.gravitational.com/teleport-$version-$os-$arch-bin.tar.gz.sha2
 # <checksum> <filename>
 ```
 
-## Install Pre-built Binaries
+### Install Pre-built Binaries
 
 !!! info "sudo"
     You may need to use `sudo` to run the installation commands.
 
-### Linux
+## Linux
 
 The following examples install the 64-bit version of Teleport binaries, but
 32-bit (i386) and ARM binaries are also available. Check the [Latest
@@ -75,7 +75,19 @@ $ which teleport
 /usr/local/bin/teleport
 ```
 
-### MacOS
+## Docker
+```bash
+$ docker pull quay.io/gravitational/teleport:{{ teleport.version }}
+```
+
+## Helm
+Please follow our [Helm Chart Readme](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport) for install and setup instructions.
+```bash
+$ helm repo add gravitational https://charts.gravitational.io
+$ helm install teleport gravitational/teleport
+```
+
+## MacOS
 
 **Package**
 
@@ -107,7 +119,7 @@ $ which teleport
 /usr/local/bin/teleport
 ```
 
-### Windows (tsh client only)
+## Windows (tsh client only)
 
 As of version v3.0.1 we have `tsh` client binary available for Windows 64-bit
 architecture - `teleport` and `tctl` are not supported.
