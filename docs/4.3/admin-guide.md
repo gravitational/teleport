@@ -127,7 +127,7 @@ Docs](cli-docs.md#teleport-start) or run `teleport start --help`
 
 Teleport uses the YAML file format for configuration. A sample configuration
 file is shown below. By default, it is stored in `/etc/teleport.yaml`, below is
-an expanded an commented version from `teleport configure`.
+an expanded and commented version from `teleport configure`.
 
 For a complete reference, see our [Configuration Reference - teleport.yaml](config_reference.md#teleportyaml)
 
@@ -224,7 +224,7 @@ proxy_service:
   web_listen_addr: 0.0.0.0:3080
   tunnel_listen_addr: 0.0.0.0:3024
 
-  # The DNS name the proxy HTTPS endpoint as accessible by cluster users.
+  # The DNS name of the proxy HTTPS endpoint as accessible by cluster users.
   # Defaults to the proxy's hostname if not specified. If running multiple
   # proxies behind a load balancer, this name must point to the load balancer
   # (see public_addr section below)
