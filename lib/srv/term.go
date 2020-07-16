@@ -156,6 +156,9 @@ func newLocalTerminal(ctx *ServerContext) (*terminal, error) {
 	err = t.setOwner()
 	if err != nil {
 		log.Debugf("Unable to set TTY owner: %v.\n", err)
+		if trace.IsNotFound(err) {
+			return nil, err
+		}
 	}
 
 	return t, nil
@@ -345,6 +348,9 @@ func getOwner(login string, lookupUser LookupUser, lookupGroup LookupGroup) (int
 	// Lookup the Unix login for the UID and fallback GID.
 	u, err := lookupUser(login)
 	if err != nil {
+		if _, ok := err.(user.UnknownUserError); ok {
+			return 0, 0, 0, trace.NotFound(err.Error())
+		}
 		return 0, 0, 0, trace.Wrap(err)
 	}
 	uid, err = strconv.Atoi(u.Uid)
