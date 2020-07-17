@@ -60,7 +60,6 @@ $ cd teleport-ent
 * Copy `teleport` binary to a bin directory on the node server.
 * Copy `tsh` binary to a bin directory on the client computer.
 
-
 ### License File
 
 The Teleport license file contains a X.509 certificate and the corresponding
