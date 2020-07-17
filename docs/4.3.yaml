@@ -87,3 +87,4 @@ nav:
         - YAML: config_reference.md
         - CLI: cli-docs.md
         - API: api_reference.md
+        - Metrics & Logs: metrics_logs_reference.md

@@ -1,0 +1,99 @@
+# Metrics
+
+## Teleport Prometheus Endpoint
+
+Teleport provides HTTP endpoints for monitoring purposes. They are disabled
+by default, but you can enable them:
+
+```bash
+$ teleport start --diag-addr=127.0.0.1:3000
+```
+
+Now you can see the monitoring information by visiting several endpoints:
+
+* `http://127.0.0.1:3000/metrics` is the list of internal metrics Teleport is
+   tracking. It is compatible with [Prometheus](https://prometheus.io/)
+   collectors.
+
+<!-- Help: Edit this table https://docs.google.com/spreadsheets/d/1lYEGjENdsEoMXGg6LO71-U5Y6PDzPbplut255aacGWo/edit#gid=0 and put the table into https://www.tablesgenerator.com/markdown_tables  -->
+
+| Name | Type | Component | Description  |
+|-|-|-|-|
+| `backend_batch_read_requests_total` | counter | cache | Number of read requests to the backend |
+| `backend_batch_read_seconds` | histogram | cache | Latency for batch read operations |
+| `backend_batch_write_requests_total` | counter | cache | Number of batch write requests to the backend |
+| `backend_batch_read_seconds` | histogram | cache | Latency for batch read operations |
+| `backend_batch_write_requests_total` | counter | cache | Number of batch write requests to the backend |
+| `backend_batch_write_seconds` | histogram | cache | Latency for backend batch write operations |
+| `backend_read_requests_total` | counter | cache | Number of read requests to the backend |
+| `backend_read_seconds` | histogram | cache | Latency for read operations |
+| `backend_write_requests_total` | counter | cache | Number of write requests to the backend |
+| `backend_write_seconds` | histogram | cache | Latency for backend write operations |
+| `etcd_backend_batch_read_requests` | counter | etcd | Number of read requests to the etcd database |
+| `etcd_backend_batch_read_seconds` | histogram | etcd | Latency for etcd read operations |
+| `etcd_backend_read_requests` | counter | etcd | Number of read requests to the etcd database |
+| `etcd_backend_read_seconds` | histogram | etcd | Latency for etcd read operations |
+| `etcd_backend_tx_requests` | counter | etcd | Number of transaction requests to the database |
+| `etcd_backend_tx_seconds` | histogram | etcd | Latency for etcd transaction operations |
+| `etcd_backend_write_requests` | counter | etcd | Number of write requests to the database |
+| `etcd_backend_write_seconds` | histogram | etcd | Latency for etcd write operations |
+| `firestore_events_backend_batch_read_requests` | counter | GCP Cloud Firestore | Number of batch read requests to Cloud Firestore events |
+| `firestore_events_backend_batch_read_seconds` | histogram | GCP Cloud Firestore | Latency for Cloud Firestore events batch read operations |
+| `firestore_events_backend_batch_write_requests` | counter | GCP Cloud Firestore | Number of batch write requests to Cloud Firestore events |
+| `firestore_events_backend_batch_write_seconds` | histogram | GCP Cloud Firestore | Latency for Cloud Firestore events batch write operations |
+| `gcs_event_storage_downloads` | counter | GCP GCS | Number of downloads from the GCS backend |
+| `gcs_event_storage_downloads_seconds` | histogram | Internal GoLang | Latency for GCS download operations |
+| `gcs_event_storage_uploads` | counter | Internal GoLang | Number of uploads to the GCS backend |
+| `gcs_event_storage_uploads_seconds` | histogram | Internal GoLang | Latency for GCS upload operations |
+| `go_gc_duration_seconds` | summary | Internal GoLang | A summary of the GC invocation durations. |
+| `go_goroutines` | gauge | Internal GoLang | Number of goroutines that currently exist. |
+| `go_info` | gauge | Internal GoLang | Information about the Go environment. |
+| `go_memstats_alloc_bytes` | gauge | Internal GoLang | Number of bytes allocated and still in use. |
+| `go_memstats_alloc_bytes_total` | counter | Internal GoLang | Total number of bytes allocated, even if freed. |
+| `go_memstats_buck_hash_sys_bytes` | gauge | Internal GoLang | Number of bytes used by the profiling bucket hash table. |
+| `go_memstats_frees_total` | counter | Internal GoLang | Total number of frees. |
+| `go_memstats_gc_cpu_fraction` | gauge | Internal GoLang | The fraction of this program's available CPU time used by the GC since the program started. |
+| `go_memstats_gc_sys_bytes` | gauge | Internal GoLang | Number of bytes used for garbage collection system metadata. |
+| `go_memstats_heap_alloc_bytes` | gauge | Internal GoLang | Number of heap bytes allocated and still in use. |
+| `go_memstats_heap_idle_bytes` | gauge | Internal GoLang | Number of heap bytes waiting to be used. |
+| `go_memstats_heap_inuse_bytes` | gauge | Internal GoLang | Number of heap bytes that are in use. |
+| `go_memstats_heap_objects` | gauge | Internal GoLang | Number of allocated objects. |
+| `go_memstats_heap_released_bytes` | gauge | Internal GoLang | Number of heap bytes released to OS. |
+| `go_memstats_heap_sys_bytes` | gauge | Internal GoLang | Number of heap bytes obtained from system. |
+| `go_memstats_last_gc_time_seconds` | gauge | Internal GoLang | Number of seconds since 1970 of last garbage collection. |
+| `go_memstats_lookups_total` | counter | Internal GoLang | Total number of pointer lookups. |
+| `go_memstats_mallocs_total` | counter | Internal GoLang | Total number of mallocs. |
+| `go_memstats_mcache_inuse_bytes` | gauge | Internal GoLang | Number of bytes in use by mcache structures. |
+| `go_memstats_mcache_sys_bytes` | gauge | Internal GoLang | Number of bytes used for mcache structures obtained from system. |
+| `go_memstats_mspan_inuse_bytes` | gauge | Internal GoLang | Number of bytes in use by mspan structures. |
+| `go_memstats_mspan_sys_bytes` | gauge | Internal GoLang | Number of bytes used for mspan structures obtained from system. |
+| `go_memstats_next_gc_bytes` | gauge | Internal GoLang | Number of heap bytes when next garbage collection will take place. |
+| `go_memstats_other_sys_bytes` | gauge | Internal GoLang | Number of bytes used for other system allocations. |
+| `go_memstats_stack_inuse_bytes` | gauge | Internal GoLang | Number of bytes in use by the stack allocator. |
+| `go_memstats_stack_sys_bytes` | gauge | Internal GoLang | Number of bytes obtained from system for stack allocator. |
+| `go_memstats_sys_bytes` | gauge | Internal GoLang | Number of bytes obtained from system. |
+| `go_threads` | gauge | Internal GoLang | Number of OS threads created. |
+| `process_cpu_seconds_total` | counter | Internal GoLang | Total user and system CPU time spent in seconds. |
+| `process_max_fds` | gauge | Internal GoLang | Maximum number of open file descriptors. |
+| `process_open_fds` | gauge | Internal GoLang | Number of open file descriptors. |
+| `process_resident_memory_bytes` | gauge | Internal GoLang | Resident memory size in bytes. |
+| `process_start_time_seconds` | gauge | Internal GoLang | Start time of the process since unix epoch in seconds. |
+| `process_virtual_memory_bytes` | gauge | Internal GoLang | Virtual memory size in bytes. |
+| `process_virtual_memory_max_bytes` | gauge | Internal GoLang | Maximum amount of virtual memory available in bytes. |
+| `promhttp_metric_handler_requests_in_flight` | gauge | prometheus | Current number of scrapes being served. |
+| `promhttp_metric_handler_requests_total` | counter | prometheus | Total number of scrapes by HTTP status code. |
+| `reversetunnel_connected_proxies` | gauge | Teleport | Number of known proxies being sought. |
+| `rx` | counter | Teleport | Number of bytes received. |
+| `server_interactive_sessions_total` | gauge | Teleport | Number of active sessions |
+| `trusted_clusters` | gauge | Teleport | Number of tunnels per state |
+| `tx` | counter | Teleport | Number of bytes transmitted. |
+| `audit_failed_disk_monitoring` | counter | Teleport Audit Log | Number of times disk monitoring failed. |
+| `audit_failed_emit_events` | counter | Teleport Audit Log | Number of times emitting audit event failed. |
+| `audit_percentage_disk_space_used` | gauge | Teleport Audit Log | Percentage disk space used. |
+| `audit_failed_emit_events` | counter | Teleport Audit Log | Number of times emitting audit event failed. |
+| `audit_percentage_disk_space_used` | gauge | Teleport Audit Log | Percentage disk space used. |
+| `audit_server_open_files` | gauge | Teleport Audit Log | Number of open audit files |
+| `auth_generate_requests` | gauge | Teleport Auth | Number of current generate requests |
+| `auth_generate_requests_throttled_total` | counter | Teleport Auth | Number of throttled requests to generate new server keys |
+| `auth_generate_requests_total` | counter | Teleport Auth | Number of requests to generate new server keys |
+| `auth_generate_seconds` | `histogram` | Teleport Auth | Latency for generate requests |
