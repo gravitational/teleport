@@ -40,6 +40,7 @@ steps:
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
       - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       - mkdir -p /go/cache
@@ -269,6 +270,7 @@ steps:
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
       - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
@@ -373,6 +375,7 @@ steps:
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
       - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
@@ -477,6 +480,7 @@ steps:
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
       - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
@@ -584,6 +588,7 @@ steps:
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
       - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
@@ -687,6 +692,7 @@ steps:
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
       - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
@@ -796,6 +802,7 @@ steps:
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
       - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
@@ -906,6 +913,7 @@ steps:
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
       - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
@@ -1015,6 +1023,7 @@ steps:
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
       - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
@@ -1096,7 +1105,7 @@ type: kubernetes
 name: build-linux-i386
 
 environment:
-  RUNTIME: go1.13.2
+  RUNTIME: go1.14.4
 
 trigger:
   event:
@@ -1129,6 +1138,7 @@ steps:
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
       - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
@@ -1229,6 +1239,7 @@ steps:
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
       - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
@@ -1338,6 +1349,7 @@ steps:
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
       - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
@@ -1417,7 +1429,7 @@ type: kubernetes
 name: build-windows
 
 environment:
-  RUNTIME: go1.13.2
+  RUNTIME: go1.14.4
 
 trigger:
   event:
@@ -1450,6 +1462,7 @@ steps:
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
       - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
       # create necessary directories
@@ -1918,6 +1931,6 @@ steps:
 
 ---
 kind: signature
-hmac: 59775bca0786c5d7a9101358c6511250549dfa11abb6553dbadb2cc920379090
+hmac: a2955cca01b359e31f75c63b5e11d92c7c7726974fd3217bfac9f825ea5fa9c5
 
 ...

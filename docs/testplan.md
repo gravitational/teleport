@@ -342,6 +342,65 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
   - [ ] Verify that a user is redirected to the login page.
   - [ ] Verify that after successful login, a user is redirected to the Node List.
 
+
+Add the following resource to enable read access to the audit log
+```
+  rules:
+  - resources:
+      - event
+      verbs:
+      - list
+```
+- [ ] Verify that the audit log is accessible via UI.
+- [ ] Verify that access to recorded sessions is denied (by opening a session player).
+
+
+Add the following resource to enable read access to recorded sessions
+```
+  rules:
+  - resources:
+      - session
+      verbs:
+      - read
+```
+- [ ] Verify that a user can re-play a session (session.end).
+
+Add the following resource to enable read access to the roles
+
+```
+- resources:
+      - role
+      verbs:
+      - list
+      - read
+```
+- [ ] Verify that a user can see the roles
+- [ ] Verify that a user cannot create/delete/update a role
+
+Add the following resource to enable read access to the auth connectors
+
+```
+- resources:
+      - auth_connector
+      verbs:
+      - list
+      - read
+```
+- [ ] Verify that a user can see the list of auth connectors.
+- [ ] Verify that a user cannot create/delete/update the connectors.
+
+Add the following resource to enable read access to trusted clusters
+```
+  - resources:
+      - trusted_cluster
+      verbs:
+      - list
+      - create
+```
+- [ ] Verify that a user can see the list of trusted clusters.
+- [ ] Verify that a user cannot create/delete/update a trusted cluster.
+
+
 ## Performance/Soak Test
 
 Using `tsh bench` tool, perform the soak tests and benchmark tests on the following configurations:
