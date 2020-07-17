@@ -1609,7 +1609,7 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
+      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
       # version needs to be set manually when running in the e directory
@@ -1933,6 +1933,6 @@ steps:
 
 ---
 kind: signature
-hmac: 485abfa566e17ab115678214976f410d7f1daf71b6a3cfac491e48d3ca4e34be
+hmac: 6966b3013ec023233eaac5b570186e75375ae7ee51da4b6954a59dfb2b989840
 
 ...
