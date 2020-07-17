@@ -295,7 +295,7 @@ They are stable, and we recommend their use to easily keep your Teleport install
 
 | Image name | Community or Enterprise? | Teleport version | Image automatically updated? | Image base |
 |---|---|---|---|---|
-| `quay.io/gravitational/teleport:4.3` | Community | The latest version of Teleport Community 4.3 | Yes | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu)) |
+| `quay.io/gravitational/teleport:4.3` | Community | The latest version of Teleport Community 4.3 | Yes | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
 | `quay.io/gravitational/teleport:4.3.0` | Community | 4.3.0 | No | [Ubuntu 18.04](https://hub.docker.com/_/ubuntu) |
 
 For testing, we always recommend that you use the latest release version of Teleport, which is currently `{{teleport.latest_oss_docker_image}}`.
@@ -328,10 +328,17 @@ mkdir -p ~/teleport/config ~/teleport/data
 
 # generate a sample teleport config and write it to the local config directory
 # this container will write the config and immediately exit - this is expected
-docker run --hostname localhost --rm --entrypoint=/usr/local/bin/teleport -v ~/teleport/config:/etc/teleport {{teleport.latest_oss_docker_image}} configure > /etc/teleport/teleport.yaml
+docker run --hostname localhost --rm \
+  --entrypoint=/bin/sh \
+  -v ~/teleport/config:/etc/teleport \
+  {{teleport.latest_oss_docker_image}} -c "teleport configure > /etc/teleport/teleport.yaml"
 
 # start teleport with mounted config and data directories, plus all ports
-docker run --hostname localhost --name teleport -v ~/teleport/config:/etc/teleport -v ~/teleport/data:/var/lib/teleport -p 3023:3023 -p 3025:3025 -p 3080:3080 {{teleport.latest_oss_docker_image}}
+docker run --hostname localhost --name teleport \
+  -v ~/teleport/config:/etc/teleport \
+  -v ~/teleport/data:/var/lib/teleport \
+  -p 3023:3023 -p 3025:3025 -p 3080:3080 \
+  {{teleport.latest_oss_docker_image}}
 ```
 
 ### Creating a Teleport user when using Docker quickstart

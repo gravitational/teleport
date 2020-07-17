@@ -337,8 +337,8 @@ They are stable, and we recommend their use to easily keep your Teleport Enterpr
 
 | Image name | Community or Enterprise? | Teleport version | Image automatically updated? | Image base |
 |---|---|---|---|---|
-| `quay.io/gravitational/teleport-ent:4.3` | Enterprise | The latest version of Teleport Enterprise 4.3 | Yes | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu)) |
-| `quay.io/gravitational/teleport-ent:4.3-fips` | Enterprise FIPS | The latest version of Teleport Enterprise 4.3 FIPS | Yes | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu)) |
+| `quay.io/gravitational/teleport-ent:4.3` | Enterprise | The latest version of Teleport Enterprise 4.3 | Yes | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
+| `quay.io/gravitational/teleport-ent:4.3-fips` | Enterprise FIPS | The latest version of Teleport Enterprise 4.3 FIPS | Yes | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
 | `quay.io/gravitational/teleport-ent:4.3.0` | Enterprise | 4.3.0 | No | [Ubuntu 18.04](https://hub.docker.com/_/ubuntu) |
 | `quay.io/gravitational/teleport-ent:4.3.0-fips` | Enterprise FIPS | 4.3.0 | No | [Ubuntu 18.04](https://hub.docker.com/_/ubuntu) |
 
@@ -371,12 +371,26 @@ If you'd prefer to complete these steps manually, here's some sample `docker run
 # create local config and data directories for teleport, which will be mounted into the container
 mkdir -p ~/teleport/config ~/teleport/data
 
+# download your license file from the Gravitational dashboard and put it in the correct directory
+# the file needs to be named license.pem
+cp ~/downloads/downloaded-license.pem ~/teleport/data/license.pem
+
 # generate a sample teleport config and write it to the local config directory
 # this container will write the config and immediately exit - this is expected
-docker run --hostname localhost --rm --entrypoint=/usr/local/bin/teleport -v ~/teleport/config:/etc/teleport {{teleport.latest_ent_docker_image}} configure > /etc/teleport/teleport.yaml
+docker run --hostname localhost --rm \
+  --entrypoint=/bin/sh \
+  -v ~/teleport/config:/etc/teleport \
+  {{teleport.latest_ent_docker_image}} -c "teleport configure > /etc/teleport/teleport.yaml"
 
-# start teleport with mounted config and data directories, plus all ports
-docker run --hostname localhost --name teleport -v ~/teleport/config:/etc/teleport -v ~/teleport/data:/var/lib/teleport -v license.pem:/var/lib/teleport/license.pem -p 3023:3023 -p 3025:3025 -p 3080:3080 {{teleport.latest_ent-docker_image}}
+# change the path to the license file in the sample config
+sed -i 's_/path/to/license-if-using-teleport-enterprise.pem_/var/lib/teleport/license.pem_g' ~/teleport/config/teleport.yaml
+
+# start teleport with mounted license, config and data directories, plus all ports
+docker run --hostname localhost --name teleport \
+  -v ~/teleport/config:/etc/teleport \
+  -v ~/teleport/data:/var/lib/teleport \
+  -p 3023:3023 -p 3025:3025 -p 3080:3080 \
+  {{teleport.latest_ent_docker_image}}
 ```
 
 ### Creating a Teleport user when using Docker quickstart
