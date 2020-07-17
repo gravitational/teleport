@@ -1647,16 +1647,17 @@ func tryCreateTrustedCluster(c *check.C, authServer *auth.AuthServer, trustedClu
 // the backend and then waits for the auth server's self-healing to converge
 // to a consistent configuration state.
 func tryCreateTrustedClusterInvalid(c *check.C, authServer *auth.AuthServer, trustedCluster services.TrustedCluster) {
+	ctx := context.TODO()
 	tunnels, err := authServer.GetReverseTunnels()
 	if err != nil {
 		c.Fatalf("Failed to load reverse tunnels: %v", err)
 	}
-	if _, err := authServer.Presence.UpsertTrustedCluster(trustedCluster); err != nil {
+	if _, err := authServer.Presence.UpsertTrustedCluster(ctx, trustedCluster); err != nil {
 		c.Fatalf("Failed to directly inject trusted cluster: %v", trustedCluster)
 	}
 	for i := 0; i < 10; i++ {
 		// run self-healing routines
-		authServer.EnsureTrustedClusters()
+		authServer.EnsureTrustedClusters(ctx)
 		// check if an additional reversetunnel has been created (this is the last step
 		// in establishing an active trusted cluster configuration).  We don't attempt
 		// to load the tunnel by name because the tunnel is stored under the true cluster

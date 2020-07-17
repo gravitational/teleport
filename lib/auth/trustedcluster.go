@@ -152,7 +152,7 @@ func (a *AuthServer) UpsertTrustedCluster(ctx context.Context, trustedCluster se
 
 // EnsureTrustedClusters attempts to ensure that all currently registered
 // trusted clusters configurations have been correctly applied.
-func (a *AuthServer) EnsureTrustedClusters() error {
+func (a *AuthServer) EnsureTrustedClusters(ctx context.Context) error {
 	tcs, err := a.GetTrustedClusters()
 	if err != nil {
 		return trace.Wrap(err)
@@ -174,11 +174,11 @@ func (a *AuthServer) EnsureTrustedClusters() error {
 		}
 		// if the trusted cluster was renamed, first store it, then delete
 		// the entry under the old name.
-		if _, err = a.Presence.UpsertTrustedCluster(tc); err != nil {
+		if _, err = a.Presence.UpsertTrustedCluster(ctx, tc); err != nil {
 			errs = append(errs, err)
 			continue
 		}
-		if err := a.Presence.DeleteTrustedCluster(name); err != nil {
+		if err := a.Presence.DeleteTrustedCluster(ctx, name); err != nil {
 			errs = append(errs, err)
 			continue
 		}
