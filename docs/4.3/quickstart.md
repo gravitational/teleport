@@ -317,6 +317,7 @@ docker-compose -f teleport-quickstart.yml up
 - It will also start `teleport` using this config file, with Teleport's data directory set to `./docker/teleport/data` and mounted under `/var/lib/teleport`
 - By default, `docker-compose` will output Teleport's logs to the console for you to observe.
     - If you would rather run the Teleport container in the background, use `docker-compose -f teleport-quickstart.yml up -d`
+    - You can stop the Teleport container using `docker-compose -f teleport-quickstart.yml down`
 
 ### Quickstart using docker run
 

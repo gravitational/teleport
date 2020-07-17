@@ -362,6 +362,7 @@ docker-compose -f teleport-ent-quickstart.yml up
 - It will mount your license file (named `license.pem`) from the current directory into the Docker container
 - By default, `docker-compose` will output Teleport's logs to the console for you to observe.
     - If you would rather run the Teleport container in the background, use `docker-compose -f teleport-ent-quickstart.yml up -d`
+    - You can stop the Teleport container using `docker-compose -f teleport-ent-quickstart.yml down`
 
 ### Quickstart using docker run
 
