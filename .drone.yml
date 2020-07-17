@@ -240,27 +240,32 @@ steps:
       ARCH: amd64
     settings:
       username:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+        # from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+        from_secret: QUAYIO_DOCKER_USERNAME
       password:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+        # from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+        from_secret: QUAYIO_DOCKER_PASSWORD
     volumes:
       - name: dockersock
         path: /var/run
     commands:
       - export VERSION_TAG=$(cat /go/build/CURRENT_VERSION_TAG.txt)
-      - export OSS_IMAGE_NAME="quay.io/gravitational/teleport:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
-      - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
-      - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)-fips"
+      # - export OSS_IMAGE_NAME="quay.io/gravitational/teleport:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
+      # - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
+      # - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)-fips"
+      - export OSS_IMAGE_NAME="quay.io/gravitational/teleport-cron:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)"
+      - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-cron:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)-ent"
+      - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-cron:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)-ent-fips"
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       # OSS
       - docker build --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
-      #- docker push $OSS_IMAGE_NAME
+      - docker push $OSS_IMAGE_NAME
       # Enterprise
       - docker build --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
-      #- docker push $ENT_IMAGE_NAME
+      - docker push $ENT_IMAGE_NAME
       # Enterprise FIPS
       - docker build --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
-      #- docker push $ENT_FIPS_IMAGE_NAME
+      - docker push $ENT_FIPS_IMAGE_NAME
 
   - name: Build and push Teleport containers (PREVIOUS_VERSION_ONE)
     image: docker
@@ -269,27 +274,32 @@ steps:
       ARCH: amd64
     settings:
       username:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+        # from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+        from_secret: QUAYIO_DOCKER_USERNAME
       password:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+        # from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+        from_secret: QUAYIO_DOCKER_PASSWORD
     volumes:
       - name: dockersock
         path: /var/run
     commands:
       - export VERSION_TAG=$(cat /go/build/PREVIOUS_VERSION_ONE_TAG.txt)
-      - export OSS_IMAGE_NAME="quay.io/gravitational/teleport:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
-      - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
-      - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-fips"
+      # - export OSS_IMAGE_NAME="quay.io/gravitational/teleport:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
+      # - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
+      # - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-fips"
+      - export OSS_IMAGE_NAME="quay.io/gravitational/teleport-cron:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
+      - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-cron:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-ent"
+      - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-cron:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-ent-fips"
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       # OSS
       - docker build --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
-      #- docker push $OSS_IMAGE_NAME
+      - docker push $OSS_IMAGE_NAME
       # Enterprise
       - docker build --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
-      #- docker push $ENT_IMAGE_NAME
+      - docker push $ENT_IMAGE_NAME
       # Enterprise FIPS
       - docker build --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
-      #- docker push $ENT_FIPS_IMAGE_NAME
+      - docker push $ENT_FIPS_IMAGE_NAME
 
   - name: Build and push Teleport containers (PREVIOUS_VERSION_TWO)
     image: docker
@@ -298,27 +308,32 @@ steps:
       ARCH: amd64
     settings:
       username:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+        # from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+        from_secret: QUAYIO_DOCKER_USERNAME
       password:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+        # from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+        from_secret: QUAYIO_DOCKER_PASSWORD
     volumes:
       - name: dockersock
         path: /var/run
     commands:
       - export VERSION_TAG=$(cat /go/build/PREVIOUS_VERSION_TWO_TAG.txt)
-      - export OSS_IMAGE_NAME="quay.io/gravitational/teleport:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
-      - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
-      - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-fips"
+      # - export OSS_IMAGE_NAME="quay.io/gravitational/teleport:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
+      # - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
+      # - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-fips"
+      - export OSS_IMAGE_NAME="quay.io/gravitational/teleport-cron:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
+      - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-cron:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-ent"
+      - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-cron:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-ent-fips"
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       # OSS
       - docker build --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
-      #- docker push $OSS_IMAGE_NAME
+      - docker push $OSS_IMAGE_NAME
       # Enterprise
       - docker build --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
-      #- docker push $ENT_IMAGE_NAME
+      - docker push $ENT_IMAGE_NAME
       # Enterprise FIPS
       - docker build --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
-      #- docker push $ENT_FIPS_IMAGE_NAME
+      - docker push $ENT_FIPS_IMAGE_NAME
 
 services:
   - name: Start Docker
@@ -337,19 +352,9 @@ kind: pipeline
 type: kubernetes
 name: teleport-helm-cron
 
-# trigger:
-#   cron:
-#     - teleport-helm-cron
-# TODO(gus): testing
 trigger:
-  branch:
-    - master
-    - branch/*
-  event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+  cron:
+    - teleport-helm-cron
 
 workspace:
   path: /go
@@ -375,20 +380,19 @@ steps:
       - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport
       - helm repo index /go/chart
 
-  # TODO(gus): testing
-  # - name: Upload to S3
-  #   image: plugins/s3
-  #   settings:
-  #     bucket: charts.gravitational.io
-  #     access_key:
-  #       from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
-  #     secret_key:
-  #       from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
-  #     region: us-east-2
-  #     acl: public-read
-  #     source: /go/chart/*
-  #     target: /
-  #     strip_prefix: /go/chart
+  - name: Upload to S3
+    image: plugins/s3
+    settings:
+      bucket: charts.gravitational.io
+      access_key:
+        from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
+      region: us-east-2
+      acl: public-read
+      source: /go/chart/*
+      target: /
+      strip_prefix: /go/chart
 
 ---
 kind: pipeline
@@ -1840,6 +1844,6 @@ steps:
 
 ---
 kind: signature
-hmac: 220cb6346fbb7ef80e50600f183469a031a8b1c2122f1dc101c980ed0c587c30
+hmac: 8a8743b996e9791da890f2c62f08d04c240d108467c5e942df887878ef5f5904
 
 ...
