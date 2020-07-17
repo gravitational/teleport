@@ -430,6 +430,7 @@ endif
 # build .pkg
 .PHONY: pkg
 pkg:
+	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	# arch and runtime are currently ignored on OS X
@@ -440,6 +441,7 @@ pkg:
 # build tsh client-only .pkg
 .PHONY: pkg-tsh
 pkg-tsh:
+	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	# arch and runtime are currently ignored on OS X
@@ -449,6 +451,7 @@ pkg-tsh:
 # build .rpm
 .PHONY: rpm
 rpm:
+	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p rpm -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
@@ -457,6 +460,7 @@ rpm:
 # build .deb
 .PHONY: deb
 deb:
+	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
