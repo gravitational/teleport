@@ -53,7 +53,7 @@ func (s *ProcessSuite) TestAuthNoLicense(c *check.C) {
 			StaticTokens:  services.DefaultStaticTokens(),
 			NoAudit:       true,
 			Preference:    authPreference,
-			SSHAddr:       *utils.MustParseAddr("tcp://127.0.0.1:3023"),
+			SSHAddr:       *utils.MustParseAddr("tcp://127.0.0.1:0"),
 		},
 		Hostname: "localhost",
 		AuthServers: []utils.NetAddr{
