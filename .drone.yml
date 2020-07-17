@@ -1585,7 +1585,10 @@ steps:
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      - make image publish
+      # TODO
+      # this should be changed to "make image publish" when we want to actually cut over
+      # to building public-facing Docker images using Drone
+      - make image
 
   - name: Build FIPS Docker image
     image: docker
@@ -1611,7 +1614,10 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       # version needs to be set manually when running in the e directory
       - export VERSION=$(cat /go/.version.txt)
-      - make -C e image-fips publish-fips
+      # TODO
+      # this should be changed to "make -C e image-fips publish-fips" when we want to
+      # actually cut over to building public-facing Docker images using Drone
+      - make -C e image-fips
 
 services:
   - name: Start Docker
@@ -1624,7 +1630,6 @@ services:
 volumes:
   - name: dockersock
     temp: {}
-
 
 ---
 kind: pipeline
@@ -1928,6 +1933,6 @@ steps:
 
 ---
 kind: signature
-hmac: 9bc50146d6713ae43876112aeeb956df9ce567018d1fece09d471c986cb45f4a
+hmac: 485abfa566e17ab115678214976f410d7f1daf71b6a3cfac491e48d3ca4e34be
 
 ...
