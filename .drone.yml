@@ -554,9 +554,6 @@ name: build-linux-amd64-centos6-fips
 environment:
   RUNTIME: go1.14.4
 
-environment:
-  RUNTIME: go1.13.2
-
 trigger:
   event:
     - tag
@@ -1931,6 +1928,6 @@ steps:
 
 ---
 kind: signature
-hmac: a2955cca01b359e31f75c63b5e11d92c7c7726974fd3217bfac9f825ea5fa9c5
+hmac: 9bc50146d6713ae43876112aeeb956df9ce567018d1fece09d471c986cb45f4a
 
 ...
