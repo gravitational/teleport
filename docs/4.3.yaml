@@ -83,5 +83,7 @@ nav:
     - Advanced Features:
         - Enhanced Session Rec.: features/enhanced_session_recording.md
         - Using Teleport with PAM: features/ssh_pam.md
-    - CLI Reference:
-        - CLI Reference: cli-docs.md
+    - Reference:
+        - YAML: config_reference.md
+        - CLI: cli-docs.md
+        - API: api_reference.md

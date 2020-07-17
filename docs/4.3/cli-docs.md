@@ -1,8 +1,10 @@
 # CLI Docs
 
-[teleport](#teleport)<br>
-[tsh](#tsh)<br>
-[tctl](#tctl)
+Teleport is made up of three CLI tools.
+
+- [teleport](#teleport): The Teleport daemon that runs the Teleport Service, and acts as a daemon on a node allowing SSH connections.
+- [tsh](#tsh): A tool that let's end users interact with Teleport nodes. This replaces `ssh`.
+- [tctl](#tctl): An administrative tool that can configure Teleport Auth Service.
 
 ## teleport
 
