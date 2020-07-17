@@ -435,21 +435,19 @@ and non interactive tsh bench loads.
 
 ## Teleport with Cloud Providers
 
-### AWS 
+### AWS
 
 - [ ] Deploy Teleport to AWS. Using DynamoDB & S3
-- [ ] Deploy Teleport Entperise to AWS. Using HA Setup https://gravitational.com/teleport/docs/aws_terraform_guide/
+- [ ] Deploy Teleport Enterprise to AWS. Using HA Setup https://gravitational.com/teleport/docs/aws_terraform_guide/
 
-### GCP 
+### GCP
 
 - [ ] Deploy Teleport to GCP. Using Cloud Firestore & Cloud Storage
-- [ ] Deploy Teleport to GKE. Google Kubernetes engine. 
-- [ ] Deploy Teleport Entperise to GCP.
+- [ ] Deploy Teleport to GKE. Google Kubernetes engine.
+- [ ] Deploy Teleport Enterprise to GCP.
 
 ### IBM
 
 - [ ] Deploy Teleport to IBM Cloud. Using IBM Database for etcd & IBM Object Store
-- [ ] Deploy Teleport to IBM Cloud Kubernetes. 
-- [ ] Deploy Teleport Entperise to IBM Cloud.
-
-
+- [ ] Deploy Teleport to IBM Cloud Kubernetes.
+- [ ] Deploy Teleport Enterprise to IBM Cloud.
