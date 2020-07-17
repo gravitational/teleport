@@ -284,7 +284,6 @@ $ echo "Awesome!"
 We provide pre-built Docker images for every version of Teleport. These images are hosted on quay.io.
 
 - [All tags under `quay.io/gravitational/teleport` are Teleport Community images](https://quay.io/repository/gravitational/teleport?tag=latest&tab=tags)
-- [All tags under `quay.io/gravitational/teleport-ent` are Teleport Enterprise images](https://quay.io/repository/gravitational/teleport-ent?tag=latest&tab=tags)
 
 We currently only offer Docker images for `x86_64` architectures.
 
@@ -296,14 +295,10 @@ They are stable, and we recommend their use to easily keep your Teleport install
 
 | Image name | Community or Enterprise? | Teleport version | Image automatically updated? | Image base |
 |---|---|---|---|---|
-| `quay.io/gravitational/teleport:4.3` | Community | The latest version of Teleport Community 4.3 | Yes | [alpine](https://hub.docker.com/_/alpine) |
-| `quay.io/gravitational/teleport-ent:4.2` | Enterprise | The latest version of Teleport Enterprise 4.2 | Yes | [alpine](https://hub.docker.com/_/alpine) |
-| `quay.io/gravitational/teleport-ent:4.1-fips` | Enterprise FIPS | The latest version of Teleport Enterprise 4.1 FIPS | Yes | [alpine](https://hub.docker.com/_/alpine) |
+| `quay.io/gravitational/teleport:4.3` | Community | The latest version of Teleport Community 4.3 | Yes | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu)) |
 | `quay.io/gravitational/teleport:4.3.0` | Community | 4.3.0 | No | [Ubuntu 18.04](https://hub.docker.com/_/ubuntu) |
-| `quay.io/gravitational/teleport-ent:4.2.8` | Enterprise | 4.2.8 | No | [Ubuntu 18.04](https://hub.docker.com/_/ubuntu) |
-| `quay.io/gravitational/teleport-ent:4.2.0-fips` | Enterprise FIPS | 4.2.0 | No | [Ubuntu 18.04](https://hub.docker.com/_/ubuntu) |
 
-For testing, we always recommend that you use the latest release version of Teleport, which is currently `{{teleport.latest_docker_image}}`.
+For testing, we always recommend that you use the latest release version of Teleport, which is currently `{{teleport.latest_oss_docker_image}}`.
 
 ### Quickstart using docker-compose
 
