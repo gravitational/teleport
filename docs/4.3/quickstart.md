@@ -328,10 +328,10 @@ mkdir -p ~/teleport/config ~/teleport/data
 
 # generate a sample teleport config and write it to the local config directory
 # this container will write the config and immediately exit - this is expected
-docker run --hostname localhost --rm --entrypoint=/usr/local/bin/teleport -v ~/teleport/config:/etc/teleport {{teleport.latest_docker_image}} configure > /etc/teleport/teleport.yaml
+docker run --hostname localhost --rm --entrypoint=/usr/local/bin/teleport -v ~/teleport/config:/etc/teleport {{teleport.latest_oss_docker_image}} configure > /etc/teleport/teleport.yaml
 
 # start teleport with mounted config and data directories, plus all ports
-docker run --hostname localhost --name teleport -v ~/teleport/config:/etc/teleport -v ~/teleport/data:/var/lib/teleport -p 3023:3023 -p 3025:3025 -p 3080:3080 {{teleport.latest_docker_image}}
+docker run --hostname localhost --name teleport -v ~/teleport/config:/etc/teleport -v ~/teleport/data:/var/lib/teleport -p 3023:3023 -p 3025:3025 -p 3080:3080 {{teleport.latest_oss_docker_image}}
 ```
 
 ### Creating a Teleport user when using Docker quickstart
