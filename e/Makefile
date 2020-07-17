@@ -14,7 +14,7 @@ ARCH ?= $(shell go env GOARCH)
 ifneq ("$(FIPS)","")
 FIPS_TAG := fips
 # See the comment in tool/modules/fips.go.hide for explanation.
-$(shell ln -s tool/modules/fips.go.hide tool/modules/fips.go)
+$(shell ln -sf fips.go.hide tool/modules/fips.go)
 else
 # See the comment in tool/modules/fips.go.hide for explanation.
 $(shell rm tool/modules/fips.go)
