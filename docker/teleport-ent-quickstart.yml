@@ -1,7 +1,7 @@
 version: '2'
 services:
   configure:
-    image: quay.io/gravitational/teleport:4.3
+    image: quay.io/gravitational/teleport-ent:4.3
     container_name: teleport-configure
     entrypoint: /bin/sh
     hostname: localhost
@@ -10,7 +10,7 @@ services:
       - ./teleport/config:/etc/teleport
 
   teleport:
-    image: quay.io/gravitational/teleport:4.3
+    image: quay.io/gravitational/teleport-ent:4.3
     container_name: teleport
     entrypoint: /bin/sh
     hostname: localhost
@@ -22,5 +22,6 @@ services:
     volumes:
       - ./teleport/config:/etc/teleport
       - ./teleport/data:/var/lib/teleport
+      - ./license.pem:/var/lib/teleport/license.pem
     depends_on:
       - configure
