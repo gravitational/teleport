@@ -231,7 +231,7 @@ steps:
       - echo "$(cat /go/build/PREVIOUS_VERSION_TWO_TAG.txt | cut -d. -f1-2 | cut -dv -f2)" > /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt
       - for FILE in /go/build/*.txt; do echo $FILE; cat $FILE; done
       # get Dockerfile
-      - curl -Ls -o /go/build/Dockerfile-cron https://raw.githubusercontent.com/gravitational/teleport/master/build.assets/Dockerfile-cron
+      - curl -Ls -o /go/build/Dockerfile-cron https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron
 
   - name: Build and push Teleport containers (CURRENT_VERSION)
     image: docker
@@ -1844,6 +1844,6 @@ steps:
 
 ---
 kind: signature
-hmac: 8a8743b996e9791da890f2c62f08d04c240d108467c5e942df887878ef5f5904
+hmac: 3d28b5458a796f019a790fb4641afbdc02056f64c721bd1984d507999d3730ac
 
 ...
