@@ -501,3 +501,8 @@ init-webapps-submodules-e:
 init-submodules-e: init-webapps-submodules-e
 	git submodule init e
 	git submodule update
+
+.PHONY: update-vendor
+update-vendor:
+	go mod tidy
+	go mod vendor
