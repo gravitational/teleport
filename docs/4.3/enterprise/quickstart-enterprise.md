@@ -328,10 +328,13 @@ We provide pre-built Docker images for every version of Teleport Enterprise. The
 
 We currently only offer Docker images for `x86_64` architectures.
 
+!!! note
+    This setup will not let you SSH into the node that is running Teleport without additional configuration.
+
 ### Pick your image
 
 This table gives an idea of how our image naming scheme works. We offer images which point to a static version of Teleport Enterprise, as well as images which are
-automatically rebuilt every night. These nightly images point to the latest version of Teleport Enterprise from the current release branch, plus the two previous release branches.
+automatically rebuilt every night. These nightly images point to the latest version of Teleport Enterprise from the three most recent release branches.
 They are stable, and we recommend their use to easily keep your Teleport Enterprise installation up to date.
 
 | Image name | Community or Enterprise? | Teleport version | Image automatically updated? | Image base |
