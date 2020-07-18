@@ -6,8 +6,9 @@ Teleport exports Prometheus Metrics endpoints.
 
 To start teleport with prometheus endpoint enabled:
 
-```
-teleport start --diag-addr=127.0.0.1:3434
+```bash
+teleport start --diag-addr=127.0.0.1:3000
+# http://127.0.0.1:3000/metrics
 ```
 
 To start monitoring stack, simply `docker-compose up`
@@ -29,30 +30,41 @@ python convert.py health-raw.json health-dashboard.json
 
 ## Low level monitoring
 
-Teleport adds `gops` as a low level debugging solution:
+Teleport can be started with Golang's standard profiler.
 
 ```bash
-teleport start --gops --gops-addr=127.0.0.1:4321
+$ teleport start -d --diag-addr=127.0.0.1:3000
+# http://127.0.0.1:3000/debug/pprof/
 ```
 
-Then to use gops:
+When teleport is started in debug mode (with teleport start -d flag) Golang’s CPU,
+memory and go routines dumps could be collected on the host.
 
-```bash
-go get github.com/google/gops
-gops stack $(pidof teleport
+Assuming debugging endpoint address is set to `127.0.0.1:3000`, the following key profiles
+can be collected:
+
+CPU profile (it will observe the system for 30 seconds and collect metrics) about CPU usage
+per function:
+
+`curl -o cpu.profile http://127.0.0.1:3000/debug/pprof/profile`
+
+Note: This curl command will hang for 30 seconds collecting the CPU profile
+
+Goroutine profile shows how many concurrent Golang “lightweight threads” are used
+in the system:
+
+`curl -o goroutine.profile http://127.0.0.1:3000/debug/pprof/goroutine`
+
+Heap profile shows allocated objects in the system:
+
+`curl -o heap.profile http://127.0.0.1:3000/debug/pprof/heap`
+
+The resulting profiles go tool pprof tool:
+
 ```
-
-#### Diffing goroutine dumps
-
-We have a tool to give you idea of the difference between two teleport stack dumps,
-so we can see what's the overhead and difference to detect leaks:
-
-```bash
-gops stack $(pidof teleport) | python gops.py collect > /tmp/a
-# take a second diff
-gops stack $(pidof teleport) | python gops.py collect > /tmp/b
-# compare two diffs
-python gops.py diff /tmp/a /tmp/b
+go tool pprof cpu.profile
+go tool pprof heap.profile
+go tool pprof goroutine.profile
 ```
 
 ### Performance Testing
@@ -91,15 +103,3 @@ tsh bench --interactive --threads=100 --duration=300s --rate=10 localhost ls -l
 ```
 
 The performance difference is huge between interactive and non interactive modes.
-
-
-**Debugging the debugger**
-
-Sometimes it is useful to see how many gorotuines `tsh bench` produces itself,
-you can launch it with `gops` endpoint. (Used by https://github.com/google/gops) tool
-
-```bash
-tsh --gops --gops-addr=127.0.0.1:4322 bench --threads=100 --duration=300s --rate=10 localhost ls -l
-# then use gops tool to inspect
-gops stack <pid>
-```
