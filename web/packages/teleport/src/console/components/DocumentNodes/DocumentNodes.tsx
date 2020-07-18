@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+import styled from 'styled-components';
 import { Indicator, Flex, Box } from 'design';
 import * as Alerts from 'design/Alert';
 import NodeList from 'teleport/components/NodeList';
@@ -69,14 +70,7 @@ export default function DocumentNodes(props: Props) {
   return (
     <ThemeProvider>
       <Document visible={visible}>
-        <Flex
-          flex="1"
-          maxWidth="1024px"
-          flexDirection="column"
-          mx="auto"
-          mt="4"
-          px="5"
-        >
+        <Container mx="auto" mt="4" px="5">
           <Flex justifyContent="space-between" mb="4">
             <ClusterSelector
               value={doc.clusterId}
@@ -100,8 +94,19 @@ export default function DocumentNodes(props: Props) {
               nodes={nodes}
             />
           )}
-        </Flex>
+        </Container>
       </Document>
     </ThemeProvider>
   );
 }
+
+const Container = styled(Box)`
+  flex-direction: column;
+  display: flex;
+  flex: 1;
+  max-width: 1024px;
+  ::after {
+    content: ' ';
+    padding-bottom: 24px;
+  }
+`;

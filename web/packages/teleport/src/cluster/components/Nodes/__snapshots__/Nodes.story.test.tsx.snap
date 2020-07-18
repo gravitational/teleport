@@ -332,7 +332,7 @@ exports[`loaded 1`] = `
   padding-bottom: 0;
   padding-top: 0;
   text-align: left;
-  opacity: .75;
+  opacity: 0.75;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -346,6 +346,14 @@ exports[`loaded 1`] = `
 .c14 > tbody > tr > td {
   color: rgba(255,255,255,0.87);
   line-height: 16px;
+}
+
+.c14 tbody tr {
+  border-bottom: 1px solid #1C254D;
+}
+
+.c14 tbody tr:hover {
+  background-color: rgb(37,49,98);
 }
 
 .c11 {
@@ -461,9 +469,7 @@ exports[`loaded 1`] = `
       />
     </div>
   </div>
-  <div
-    style="width: 100%;"
-  >
+  <div>
     <div
       class="c7"
     >

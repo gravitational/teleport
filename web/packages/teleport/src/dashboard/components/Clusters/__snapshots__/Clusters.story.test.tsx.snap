@@ -218,7 +218,7 @@ exports[`render cluster nodes 1`] = `
   padding-bottom: 0;
   padding-top: 0;
   text-align: left;
-  opacity: .75;
+  opacity: 0.75;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -232,6 +232,14 @@ exports[`render cluster nodes 1`] = `
 .c10 > tbody > tr > td {
   color: rgba(255,255,255,0.87);
   line-height: 16px;
+}
+
+.c10 tbody tr {
+  border-bottom: 1px solid #1C254D;
+}
+
+.c10 tbody tr:hover {
+  background-color: rgb(37,49,98);
 }
 
 .c7 {
@@ -281,14 +289,6 @@ exports[`render cluster nodes 1`] = `
 
 .c11 td {
   height: 22px;
-}
-
-.c11 tbody tr {
-  border-bottom: 1px solid #1C254D;
-}
-
-.c11 tbody tr:hover {
-  background-color: #2c3a7357;
 }
 
 .c14 {

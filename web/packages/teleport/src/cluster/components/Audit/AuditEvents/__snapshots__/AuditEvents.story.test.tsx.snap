@@ -89,7 +89,7 @@ exports[`rendering of Events 1`] = `
   padding-bottom: 0;
   padding-top: 0;
   text-align: left;
-  opacity: .75;
+  opacity: 0.75;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -103,6 +103,14 @@ exports[`rendering of Events 1`] = `
 .c7 > tbody > tr > td {
   color: rgba(255,255,255,0.87);
   line-height: 16px;
+}
+
+.c7 tbody tr {
+  border-bottom: 1px solid #1C254D;
+}
+
+.c7 tbody tr:hover {
+  background-color: rgb(37,49,98);
 }
 
 .c12 {

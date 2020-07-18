@@ -246,14 +246,6 @@ const StyledTable = styled(Table)`
   td {
     height: 22px;
   }
-
-  tbody tr {
-    border-bottom: 1px solid ${props => props.theme.colors.primary.main};
-  }
-
-  tbody tr:hover {
-    background-color: #2c3a7357;
-  }
 `;
 
 const StyledLink = styled(Text)(

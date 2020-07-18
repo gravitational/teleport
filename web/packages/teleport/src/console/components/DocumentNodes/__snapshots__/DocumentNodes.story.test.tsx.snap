@@ -134,19 +134,6 @@ exports[`render DocumentNodes 1`] = `
   display: flex;
 }
 
-.c2 {
-  box-sizing: border-box;
-  max-width: 1024px;
-  margin-top: 24px;
-  margin-left: auto;
-  margin-right: auto;
-  padding-left: 32px;
-  padding-right: 32px;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
 .c3 {
   box-sizing: border-box;
   margin-bottom: 24px;
@@ -209,7 +196,7 @@ exports[`render DocumentNodes 1`] = `
   padding-bottom: 0;
   padding-top: 0;
   text-align: left;
-  opacity: .75;
+  opacity: 0.75;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -223,6 +210,14 @@ exports[`render DocumentNodes 1`] = `
 .c17 > tbody > tr > td {
   color: rgba(255,255,255,0.87);
   line-height: 16px;
+}
+
+.c17 tbody tr {
+  border-bottom: 1px solid #010B1C;
+}
+
+.c17 tbody tr:hover {
+  background-color: rgb(7,40,70);
 }
 
 .c14 {
@@ -506,6 +501,24 @@ exports[`render DocumentNodes 1`] = `
   border-top-right-radius: 0;
 }
 
+.c2 {
+  box-sizing: border-box;
+  margin-top: 24px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 32px;
+  padding-right: 32px;
+  flex-direction: column;
+  display: flex;
+  flex: 1;
+  max-width: 1024px;
+}
+
+.c2::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
 <div
   class="c0"
   height="100%"
@@ -624,9 +637,7 @@ exports[`render DocumentNodes 1`] = `
           />
         </div>
       </div>
-      <div
-        style="width: 100%;"
-      >
+      <div>
         <div
           class="c10"
         >

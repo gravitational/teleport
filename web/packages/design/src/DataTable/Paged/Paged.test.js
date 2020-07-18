@@ -15,27 +15,29 @@
  */
 
 import React from 'react';
-import TablePaged from './Paged';
+import Table from './Paged';
 import { render } from 'design/utils/testing';
 
-const data = [1, 2, 3, 4, 5, 6, 7];
-const pageSize = 2;
-
 test('pagerPosition set to bottom', () => {
-  let { container } = render(
-    <TablePaged pageSize={pageSize} data={data} pagerPosition={'bottom'} />
+  const { container } = render(
+    <Table pageSize={2} data={[1, 2, 3]} pagerPosition={'bottom'} />
   );
   expect(container.firstChild.children[1].nodeName).toEqual('NAV');
 });
 
 test('pagerPosition set to top', () => {
-  let { container } = render(
-    <TablePaged pageSize={pageSize} data={data} pagerPosition={'top'} />
+  const { container } = render(
+    <Table pageSize={2} data={[1]} pagerPosition={'top'} />
   );
   expect(container.firstChild.children[0].nodeName).toEqual('NAV');
 });
 
 test('pagerPosition prop default (show only top)', () => {
-  let { container } = render(<TablePaged pageSize={pageSize} data={data} />);
+  const { container } = render(<Table pageSize={2} data={[]} />);
   expect(container.querySelectorAll('nav')).toHaveLength(1);
+});
+
+test('pager is shown on top and bottom when page count > 0', () => {
+  const { container } = render(<Table pageSize={2} data={[1, 2, 3, 4]} />);
+  expect(container.querySelectorAll('nav')).toHaveLength(2);
 });

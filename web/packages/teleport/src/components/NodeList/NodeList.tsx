@@ -31,7 +31,7 @@ import MenuSshLogin, { LoginItem } from 'shared/components/MenuSshLogin';
 import { Node } from 'teleport/services/nodes';
 import InputSearch from 'teleport/components/InputSearch';
 
-function NodeList(props: NodeListProps) {
+function NodeList(props: Props) {
   const { nodes = [], onLoginMenuOpen, onLoginSelect, pageSize = 100 } = props;
   const [searchValue, setSearchValue] = React.useState('');
   const [sortDir, setSortDir] = React.useState<Record<string, string>>({
@@ -66,7 +66,7 @@ function NodeList(props: NodeListProps) {
   const data = sortAndFilter(searchValue);
 
   return (
-    <div style={{ width: '100%' }}>
+    <div>
       <Flex mb={4} alignItems="center" justifyContent="flex-start">
         <InputSearch height="30px" mr="3" onChange={onSearchChange} />
       </Flex>
@@ -194,7 +194,7 @@ const StyledTable = styled(Table)`
   }
 `;
 
-type NodeListProps = {
+type Props = {
   nodes: Node[];
   onLoginMenuOpen: (serverId: string) => { login: string; url: string }[];
   onLoginSelect: (

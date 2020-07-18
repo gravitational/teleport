@@ -37,9 +37,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-/* eslint-disable no-use-before-define */
-import warning from './warning';
-
 /**
  * Returns a number whose value is limited to the given range.
  *
@@ -49,11 +46,6 @@ import warning from './warning';
  * @returns {number} A number in the range [min, max]
  */
 function clamp(value, min = 0, max = 1) {
-  warning(
-    value >= min && value <= max,
-    `Shared components: the value provided ${value} is out of range [${min}, ${max}].`
-  );
-
   if (value < min) {
     return min;
   }
@@ -226,13 +218,6 @@ export function emphasize(color, coefficient = 0.15) {
  * @returns {string} A CSS color string. Hex input values are returned as rgb
  */
 export function fade(color, value) {
-  warning(
-    color,
-    `Shared components: missing color argument in fade(${color}, ${value}).`
-  );
-
-  if (!color) return color;
-
   color = decomposeColor(color);
   value = clamp(value);
 
@@ -252,13 +237,6 @@ export function fade(color, value) {
  * @returns {string} A CSS color string. Hex input values are returned as rgb
  */
 export function darken(color, coefficient) {
-  warning(
-    color,
-    `Shared components: missing color argument in darken(${color}, ${coefficient}).`
-  );
-
-  if (!color) return color;
-
   color = decomposeColor(color);
   coefficient = clamp(coefficient);
 
@@ -280,13 +258,6 @@ export function darken(color, coefficient) {
  * @returns {string} A CSS color string. Hex input values are returned as rgb
  */
 export function lighten(color, coefficient) {
-  warning(
-    color,
-    `Shared components: missing color argument in lighten(${color}, ${coefficient}).`
-  );
-
-  if (!color) return color;
-
   color = decomposeColor(color);
   coefficient = clamp(coefficient);
 

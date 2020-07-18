@@ -65,7 +65,7 @@ const Label = styled.div`
 `;
 
 Label.propTypes = {
-  pagerPosition: PropTypes.oneOf(['primary', 'secondary', 'warning', 'danger']),
+  kind: PropTypes.oneOf(['primary', 'secondary', 'warning', 'danger']),
 };
 
 export default Label;
