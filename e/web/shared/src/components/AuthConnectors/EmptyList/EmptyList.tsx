@@ -34,11 +34,11 @@ function renderItem(kind: AuthProviderType, onClick: Props['onCreate']) {
   const { desc, SsoIcon } = getSsoIcon(kind);
   const onBtnClick = () => onClick(kind);
   return (
-    <StyledConnectorBox
+    <ConnectorBox
       px="5"
       py="4"
       mx="2"
-      mb="0"
+      mb="3"
       bg="primary.light"
       as="button"
       onClick={onBtnClick}
@@ -47,11 +47,11 @@ function renderItem(kind: AuthProviderType, onClick: Props['onCreate']) {
       <Text typography="body2" bold>
         {desc}
       </Text>
-    </StyledConnectorBox>
+    </ConnectorBox>
   );
 }
 
-const StyledConnectorBox = styled(Box)(
+const ConnectorBox = styled(Box)(
   props => `
   display: flex;
   align-items: center;
@@ -59,7 +59,6 @@ const StyledConnectorBox = styled(Box)(
   transition: all 0.3s;
   border-radius: 4px;
   width: 160px;
-  margin-bottom: 16px;
   border: 2px solid ${props.theme.colors.primary.main};
   &:hover {
     border: 2px solid ${props.theme.colors.secondary.main};
@@ -74,7 +73,6 @@ const StyledConnectorBox = styled(Box)(
     background: ${props.theme.colors.primary.lighter};
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.56);
   }
-
 
   color: inherit;
   cursor: pointer;

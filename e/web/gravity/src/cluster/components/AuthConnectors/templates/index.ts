@@ -1,7 +1,7 @@
 import { AuthProviderType } from 'shared/services';
-const saml = require('!raw-loader!./saml.yaml').default;
-const github = require('!raw-loader!./github.yaml').default;
-const oidc = require('!raw-loader!./oidc.yaml').default;
+const saml = require('!raw-loader!./saml.yaml');
+const github = require('!raw-loader!./github.yaml');
+const oidc = require('!raw-loader!./oidc.yaml');
 
 export function getTemplate(kind: AuthProviderType) {
   if (kind === 'saml') {
