@@ -287,10 +287,16 @@ We provide pre-built Docker images for every version of Teleport. These images a
 
 We currently only offer Docker images for `x86_64` architectures.
 
+!!! note
+    You will need a recent version of [Docker](https://hub.docker.com/search?q=&type=edition&offering=community) installed to follow this section of the quick start guide.
+
+!!! warning
+    This setup will not let you 'SSH into' the node that is running Teleport without additional configuration.
+
 ### Pick your image
 
 This table gives an idea of how our image naming scheme works. We offer images which point to a static version of Teleport, as well as images which are
-automatically rebuilt every night. These nightly images point to the latest version of Teleport from the current release branch, plus the two previous release branches.
+automatically rebuilt every night. These nightly images point to the latest version of Teleport from the three most recent release branches.
 They are stable, and we recommend their use to easily keep your Teleport installation up to date.
 
 | Image name | Community or Enterprise? | Teleport version | Image automatically updated? | Image base |
@@ -301,6 +307,9 @@ They are stable, and we recommend their use to easily keep your Teleport install
 For testing, we always recommend that you use the latest release version of Teleport, which is currently `{{teleport.latest_oss_docker_image}}`.
 
 ### Quickstart using docker-compose
+
+!!! note
+    You will need a recent version of [`docker-compose`](https://docs.docker.com/compose/install/) installed to follow this section of the quick start guide.
 
 The easiest way to start Teleport quickly is to use `docker-compose` with our [`teleport-quickstart.yml`](https://github.com/gravitational/teleport/blob/master/docker/teleport-quickstart.yml) file:
 

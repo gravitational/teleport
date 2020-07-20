@@ -1,5 +1,7 @@
 version: '2'
 services:
+  # The configure container starts, generates a config, writes it to
+  # /etc/teleport/teleport.yaml and then immediately exits.
   configure:
     image: quay.io/gravitational/teleport:4.3
     container_name: teleport-configure
@@ -9,6 +11,8 @@ services:
     volumes:
       - ./teleport/config:/etc/teleport
 
+  # This container depends on the config written by the configure container above, so it
+  # sleeps for a second on startup to allow the configure container to run first.
   teleport:
     image: quay.io/gravitational/teleport:4.3
     container_name: teleport
