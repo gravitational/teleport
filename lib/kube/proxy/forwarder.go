@@ -514,15 +514,18 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			H: 100,
 		}
 		if err := recorder.GetAuditLog().EmitAuditEvent(events.SessionStart, events.EventFields{
-			events.EventProtocol:   events.EventProtocolKube,
-			events.EventNamespace:  f.Namespace,
-			events.SessionEventID:  string(sessionID),
-			events.SessionServerID: f.ServerID,
-			events.EventLogin:      ctx.User.GetName(),
-			events.EventUser:       ctx.User.GetName(),
-			events.LocalAddr:       sess.cluster.targetAddr,
-			events.RemoteAddr:      req.RemoteAddr,
-			events.TerminalSize:    termParams.Serialize(),
+			events.EventProtocol:         events.EventProtocolKube,
+			events.EventNamespace:        f.Namespace,
+			events.SessionEventID:        string(sessionID),
+			events.SessionServerID:       f.ServerID,
+			events.SessionServerHostname: sess.cluster.GetName(),
+			events.SessionServerAddr:     sess.cluster.targetAddr,
+			events.SessionInteractive:    true,
+			events.EventLogin:            ctx.User.GetName(),
+			events.EventUser:             ctx.User.GetName(),
+			events.LocalAddr:             sess.cluster.targetAddr,
+			events.RemoteAddr:            req.RemoteAddr,
+			events.TerminalSize:          termParams.Serialize(),
 		}); err != nil {
 			f.Warnf("Failed to emit session start event: %v", err)
 		}
@@ -561,10 +564,18 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	if request.tty {
 		// send an event indicating that this session has ended
 		if err := recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, events.EventFields{
-			events.EventProtocol:  events.EventProtocolKube,
-			events.SessionEventID: sessionID,
-			events.EventUser:      ctx.User.GetName(),
-			events.EventNamespace: f.Namespace,
+			events.EventProtocol:         events.EventProtocolKube,
+			events.SessionEventID:        sessionID,
+			events.SessionServerID:       f.ServerID,
+			events.SessionServerHostname: sess.cluster.GetName(),
+			events.SessionServerAddr:     sess.cluster.targetAddr,
+			events.SessionInteractive:    true,
+			events.SessionStartTime:      sess.startTime,
+			events.SessionEndTime:        time.Now().UTC(),
+			// There can only be 1 participant, k8s sessions are not join-able.
+			events.SessionParticipants: []string{ctx.User.GetName()},
+			events.EventUser:           ctx.User.GetName(),
+			events.EventNamespace:      f.Namespace,
 		}); err != nil {
 			f.Warnf("Failed to emit session end event: %v", err)
 		}
@@ -837,6 +848,7 @@ type clusterSession struct {
 	parent    *Forwarder
 	tlsConfig *tls.Config
 	forwarder *forward.Forwarder
+	startTime time.Time
 }
 
 func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error) {
@@ -997,6 +1009,7 @@ func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) 
 		parent:      f,
 		authContext: ctx,
 		tlsConfig:   tlsConfig,
+		startTime:   time.Now().UTC(),
 	}
 
 	var transport http.RoundTripper = f.newTransport(sess.Dial, tlsConfig)
