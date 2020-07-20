@@ -13,7 +13,7 @@ teleport start --diag-addr=127.0.0.1:3000
 
 To start monitoring stack, simply `docker-compose up`
 
-Then go to `http://localhost:3000`
+Then go to `http://localhost:3001`
 
 ```
 Username: admin
@@ -22,7 +22,7 @@ Password: admin
 
 ### Grafana Dashboard
 
-Modify and export grafana dashboard, then convert to the format that Grafana can auto import using this tool
+Modify and export Grafana dashboard, then convert to the format that Grafana can auto import using this tool
 
 ```bash
 python convert.py health-raw.json health-dashboard.json
