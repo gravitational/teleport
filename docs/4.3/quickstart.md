@@ -23,6 +23,11 @@ environment, and showcase a few basic tasks you can do with Teleport.
 **You should not follow this guide if you want to set up Teleport in production.
 Instead follow the [Admin Guide](admin-guide.md)**
 
+## Optional: Quickstart using Docker
+
+The instructions below describe how to install Teleport directly onto your test system. You can also [run Teleport using Docker](#run-teleport-using-docker)
+if you don't want to install Teleport binaries straight away.
+
 ## Step 1: Install Teleport
 
 This guide installs teleport v{{ teleport.version }} on the CLI. Previous versions are documented
@@ -273,6 +278,100 @@ Session URL : https://grav-00:3080/web/cluster/grav-00/node/a3f67090-99cc-45cf-8
 $ echo "Awesome!"
 # check out your shared ssh session between two CLI windows
 ```
+
+## Run Teleport using Docker
+
+We provide pre-built Docker images for every version of Teleport. These images are hosted on quay.io.
+
+- [All tags under `quay.io/gravitational/teleport` are Teleport Community images](https://quay.io/repository/gravitational/teleport?tag=latest&tab=tags)
+
+We currently only offer Docker images for `x86_64` architectures.
+
+!!! note
+    You will need a recent version of [Docker](https://hub.docker.com/search?q=&type=edition&offering=community) installed to follow this section of the quick start guide.
+
+!!! warning
+    This setup will not let you 'SSH into' the node that is running Teleport without additional configuration.
+
+### Pick your image
+
+This table gives an idea of how our image naming scheme works. We offer images which point to a static version of Teleport, as well as images which are
+automatically rebuilt every night. These nightly images point to the latest version of Teleport from the three most recent release branches.
+They are stable, and we recommend their use to easily keep your Teleport installation up to date.
+
+| Image name | Community or Enterprise? | Teleport version | Image automatically updated? | Image base |
+|---|---|---|---|---|
+| `quay.io/gravitational/teleport:4.3` | Community | The latest version of Teleport Community 4.3 | Yes | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
+| `quay.io/gravitational/teleport:4.3.0` | Community | 4.3.0 | No | [Ubuntu 18.04](https://hub.docker.com/_/ubuntu) |
+
+For testing, we always recommend that you use the latest release version of Teleport, which is currently `{{teleport.latest_oss_docker_image}}`.
+
+### Quickstart using docker-compose
+
+!!! note
+    You will need a recent version of [`docker-compose`](https://docs.docker.com/compose/install/) installed to follow this section of the quick start guide.
+
+The easiest way to start Teleport quickly is to use `docker-compose` with our [`teleport-quickstart.yml`](https://github.com/gravitational/teleport/blob/master/docker/teleport-quickstart.yml) file:
+
+```bash
+# download the quickstart file from our Github repo
+curl -Lso teleport-quickstart.yml https://raw.githubusercontent.com/gravitational/teleport/master/docker/teleport-quickstart.yml
+
+# start teleport quickstart using docker-compose
+docker-compose -f teleport-quickstart.yml up
+```
+
+- The `docker-compose` quickstart will automatically create a config file for you at `./docker/teleport/config/teleport.yaml`
+- This config is mounted into the container under `/etc/teleport/teleport.yaml`
+- It will also start `teleport` using this config file, with Teleport's data directory set to `./docker/teleport/data` and mounted under `/var/lib/teleport`
+- By default, `docker-compose` will output Teleport's logs to the console for you to observe.
+    - If you would rather run the Teleport container in the background, use `docker-compose -f teleport-quickstart.yml up -d`
+    - You can stop the Teleport container using `docker-compose -f teleport-quickstart.yml down`
+
+### Quickstart using docker run
+
+If you'd prefer to complete these steps manually, here's some sample `docker run` commands:
+
+```bash
+# create local config and data directories for teleport, which will be mounted into the container
+mkdir -p ~/teleport/config ~/teleport/data
+
+# generate a sample teleport config and write it to the local config directory
+# this container will write the config and immediately exit - this is expected
+docker run --hostname localhost --rm \
+  --entrypoint=/bin/sh \
+  -v ~/teleport/config:/etc/teleport \
+  {{teleport.latest_oss_docker_image}} -c "teleport configure > /etc/teleport/teleport.yaml"
+
+# start teleport with mounted config and data directories, plus all ports
+docker run --hostname localhost --name teleport \
+  -v ~/teleport/config:/etc/teleport \
+  -v ~/teleport/data:/var/lib/teleport \
+  -p 3023:3023 -p 3025:3025 -p 3080:3080 \
+  {{teleport.latest_oss_docker_image}}
+```
+
+### Creating a Teleport user when using Docker quickstart
+
+To create a user inside your Teleport container, use `docker exec`.
+
+This example command will create a Teleport user called `testuser` which is allowed to log in as either OS user `root` or `ubuntu`. Feel free to change these to suit your needs -
+[there are more instructions above in Step 3](#step-3-create-a-user-signup-token) if you'd like additional details):
+
+```bash
+docker exec teleport tctl users add testuser root,ubuntu
+```
+
+When you run this command, Teleport will output a URL which you must open to complete the user signup process:
+
+```bash
+User testuser has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h0m0s:
+https://localhost:3080/web/invite/4f2718a52ce107568b191f222ba069f7
+
+NOTE: Make sure localhost:3080 points at a Teleport proxy which users can access.
+```
+
+You can now [follow this guide from Step 4 onwards](#step-4-register-a-user) to create your user and log into Teleport.
 
 ## Next Steps
 

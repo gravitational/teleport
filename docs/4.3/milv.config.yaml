@@ -29,6 +29,8 @@ white-list-external:
   - "https://teleport.example.com:8443"
   - "https://teleport.example.com"
   - "https://[route53_domain](#route53_domain"
+  - "https://github.com/gravitational/teleport/blob/master/docker/teleport-quickstart.yml"
+  - "https://github.com/gravitational/teleport/blob/master/docker/teleport-ent-quickstart.yml"
   - "https://kubernetes.io/docs/reference/access-authn-authz/rbac/"
   - "https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation"
 black-list:

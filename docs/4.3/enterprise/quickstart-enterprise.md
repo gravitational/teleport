@@ -41,6 +41,11 @@ _"node.example.com"_  | 10.1.1.11      | This server will only run the SSH servi
 This Quick Start Guide assumes that both servers are running a [systemd-based](https://www.freedesktop.org/wiki/Software/systemd/)
 Linux distribution such as Debian, Ubuntu or a RHEL derivative.
 
+## Optional: Quickstart using Docker
+
+The instructions below describe how to install Teleport Enterprise directly onto your test system. You can also [run Teleport Enterprise using Docker](#run-teleport-enterprise-using-docker)
+if you don't want to install Teleport Enterprise binaries straight away.
+
 ## Installing
 
 To start using Teleport Enterprise, you will need to Download the binaries and the license file from the [customer portal](https://dashboard.gravitational.com).
@@ -314,6 +319,110 @@ configuring SSO providers:
 Any SAML-compliant provider can be configured with Teleport by following the
 same steps.  There are Teleport Enterprise customers who are using Oracle IDM,
 SailPoint and others.
+
+## Run Teleport Enterprise using Docker
+
+We provide pre-built Docker images for every version of Teleport Enterprise. These images are hosted on quay.io.
+
+- [All tags under `quay.io/gravitational/teleport-ent` are Teleport Enterprise images](https://quay.io/repository/gravitational/teleport-ent?tag=latest&tab=tags)
+
+We currently only offer Docker images for `x86_64` architectures.
+
+!!! note
+    You will need a recent version of [Docker](https://hub.docker.com/search?q=&type=edition&offering=community) installed to follow this section of the quick start guide.
+
+!!! warning
+    This setup will not let you 'SSH into' the node that is running Teleport without additional configuration.
+
+### Pick your image
+
+This table gives an idea of how our image naming scheme works. We offer images which point to a static version of Teleport Enterprise, as well as images which are
+automatically rebuilt every night. These nightly images point to the latest version of Teleport Enterprise from the three most recent release branches.
+They are stable, and we recommend their use to easily keep your Teleport Enterprise installation up to date.
+
+| Image name | Community or Enterprise? | Teleport version | Image automatically updated? | Image base |
+|---|---|---|---|---|
+| `quay.io/gravitational/teleport-ent:4.3` | Enterprise | The latest version of Teleport Enterprise 4.3 | Yes | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
+| `quay.io/gravitational/teleport-ent:4.3-fips` | Enterprise FIPS | The latest version of Teleport Enterprise 4.3 FIPS | Yes | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
+| `quay.io/gravitational/teleport-ent:4.3.0` | Enterprise | 4.3.0 | No | [Ubuntu 18.04](https://hub.docker.com/_/ubuntu) |
+| `quay.io/gravitational/teleport-ent:4.3.0-fips` | Enterprise FIPS | 4.3.0 | No | [Ubuntu 18.04](https://hub.docker.com/_/ubuntu) |
+
+For testing, we always recommend that you use the latest release version of Teleport Enterprise, which is currently `{{teleport.latest_ent_docker_image}}`.
+
+### Quickstart using docker-compose
+
+!!! note
+    You will need a recent version of [`docker-compose`](https://docs.docker.com/compose/install/) installed to follow this section of the quick start guide.
+
+The easiest way to start Teleport Enterprise quickly is to use `docker-compose` with our [`teleport-ent-quickstart.yml`](https://github.com/gravitational/teleport/blob/master/docker/teleport-ent-quickstart.yml) file:
+
+```bash
+# download the quickstart file from our Github repo
+curl -Lso teleport-ent-quickstart.yml https://raw.githubusercontent.com/gravitational/teleport/master/docker/teleport-ent-quickstart.yml
+
+# start teleport quickstart using docker-compose
+docker-compose -f teleport-ent-quickstart.yml up
+```
+
+- The `docker-compose` quickstart will automatically create a config file for you at `./docker/teleport/config/teleport.yaml`
+- This config is mounted into the container under `/etc/teleport/teleport.yaml`
+- It will also start `teleport` using this config file, with Teleport's data directory set to `./docker/teleport/data` and mounted under `/var/lib/teleport`
+- It will mount your license file (named `license.pem`) from the current directory into the Docker container
+- By default, `docker-compose` will output Teleport's logs to the console for you to observe.
+    - If you would rather run the Teleport container in the background, use `docker-compose -f teleport-ent-quickstart.yml up -d`
+    - You can stop the Teleport container using `docker-compose -f teleport-ent-quickstart.yml down`
+
+### Quickstart using docker run
+
+If you'd prefer to complete these steps manually, here's some sample `docker run` commands:
+
+```bash
+# create local config and data directories for teleport, which will be mounted into the container
+mkdir -p ~/teleport/config ~/teleport/data
+
+# download your license file from the Gravitational dashboard and put it in the correct directory
+# the file needs to be named license.pem
+cp ~/downloads/downloaded-license.pem ~/teleport/data/license.pem
+
+# generate a sample teleport config and write it to the local config directory
+# this container will write the config and immediately exit - this is expected
+docker run --hostname localhost --rm \
+  --entrypoint=/bin/sh \
+  -v ~/teleport/config:/etc/teleport \
+  {{teleport.latest_ent_docker_image}} -c "teleport configure > /etc/teleport/teleport.yaml"
+
+# change the path to the license file in the sample config
+sed -i 's_/path/to/license-if-using-teleport-enterprise.pem_/var/lib/teleport/license.pem_g' ~/teleport/config/teleport.yaml
+
+# start teleport with mounted license, config and data directories, plus all ports
+docker run --hostname localhost --name teleport \
+  -v ~/teleport/config:/etc/teleport \
+  -v ~/teleport/data:/var/lib/teleport \
+  -p 3023:3023 -p 3025:3025 -p 3080:3080 \
+  {{teleport.latest_ent_docker_image}}
+```
+
+### Creating a Teleport user when using Docker quickstart
+
+To create a user inside your Teleport Enterprise container, use `docker exec`.
+
+This example command will create a Teleport user called `testuser` which has the `admin` role. Feel free to change these to suit your needs.
+
+```bash
+docker exec teleport tctl users add testuser --roles=admin
+```
+
+When you run this command, Teleport will output a URL which you must open to complete the user signup process:
+
+```bash
+User testuser has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h0m0s:
+https://localhost:3080/web/invite/4f2718a52ce107568b191f222ba069f7
+
+NOTE: Make sure localhost:3080 points at a Teleport proxy which users can access.
+```
+
+You can now [follow this guide from "Adding Users"](#adding-users) onwards to create your user and log into Teleport Enterprise.
+
 
 ## Troubleshooting
 

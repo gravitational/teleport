@@ -36,6 +36,8 @@ extra:
         sha: 1c14362c9ba10f28088c7228b357dc6a70072d3d4afaa5510c70a8734068684c
         plugin:
             version: 0.1.0
+        latest_oss_docker_image: quay.io/gravitational/teleport:4.3
+        latest_ent_docker_image: quay.io/gravitational/teleport-ent:4.3
 nav:
     - Documentation:
         - Introduction: index.md
