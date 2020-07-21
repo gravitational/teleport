@@ -651,18 +651,18 @@ func (r *reader) read() error {
 
 var reSCP = regexp.MustCompile(
 	// optional username, note that outside group
-	// is a non-capturing as it includes @ sign we don't want
-	`(?:(?P<username>[^@]+)@)?` +
+	// is a non-capturing as it includes @ signs we don't want
+	`(?:(?P<username>.+)@)?` +
 		// either some stuff in brackets - [ipv6]
 		// or some stuff without brackets and colons
 		`(?P<host>` +
 		// this says: [stuff in brackets that is not brackets] - loose definition of the IP address
-		`(?:\[[^\[\]]+\])` +
+		`(?:\[[^@\[\]]+\])` +
 		// or
 		`|` +
 		// some stuff without brackets or colons to make sure the OR condition
 		// is not ambiguous
-		`(?:[^\[\:\]]+)` +
+		`(?:[^@\[\:\]]+)` +
 		`)` +
 		// after colon, there is a path that could consist technically of
 		// any char
