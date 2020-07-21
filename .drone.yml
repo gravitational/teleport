@@ -66,18 +66,17 @@ steps:
       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
   - name: Upload to S3
-    image: plugins/s3
-    settings:
-      bucket:
+    environment:
+      AWS_S3_BUCKET:
         from_secret: AWS_S3_BUCKET
-      access_key:
+      AWS_ACCESS_KEY_ID:
         from_secret: AWS_ACCESS_KEY_ID
-      secret_key:
+      AWS_SECRET_ACCESS_KEY:
         from_secret: AWS_SECRET_ACCESS_KEY
-      region: us-west-2
-      source: /go/artifacts/*
-      target: teleport/tag/${DRONE_TAG}
-      strip_prefix: /go/artifacts/
+      AWS_REGION: us-west-2
+    commands:
+      - cd /go/artifacts
+      - aws s3 . sync s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
 
 ---
 kind: pipeline
@@ -89,15 +88,19 @@ environment:
   UID: 1000
   GID: 1000
 
+# TOOD(gus): testing
+# trigger:
+#   branch:
+#     - master
+#     - branch/*
+#   event:
+#     exclude:
+#       - cron
+#       - promote
+#       - rollback
 trigger:
-  branch:
-    - master
-    - branch/*
-  event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+  cron:
+    - never
 
 workspace:
   path: /go
@@ -214,15 +217,19 @@ kind: pipeline
 type: kubernetes
 name: test-docs
 
+# TOOD(gus): testing
+# trigger:
+#   branch:
+#     - master
+#     - branch/*
+#   event:
+#     exclude:
+#       - cron
+#       - promote
+#       - rollback
 trigger:
-  branch:
-    - master
-    - branch/*
-  event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+  cron:
+    - never
 
 workspace:
   path: /go
@@ -2014,6 +2021,6 @@ steps:
 
 ---
 kind: signature
-hmac: 4be25d10a366a83da10ba9b4a3c0073a3ecd6bb9a621d59dadf17518fc806c0c
+hmac: 8a29abb1705ceac1a66ade938fb540252083c407f7dd59aa6c486eabcbc65f7b
 
 ...
