@@ -934,9 +934,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	var labels map[string]string
 	if cf.UserHost != "" {
 		parts := strings.Split(cf.UserHost, "@")
-		if len(parts) > 1 {
-			hostLogin = parts[0]
-			cf.UserHost = parts[1]
+		partsLength := len(parts)
+		if partsLength > 1 {
+			hostLogin = strings.Join(parts[:partsLength-1], "@")
+			cf.UserHost = parts[partsLength-1]
 		}
 		// see if remote host is specified as a set of labels
 		if strings.Contains(cf.UserHost, "=") {
