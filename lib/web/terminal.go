@@ -299,8 +299,7 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 	// either an error occurs or it completes successfully.
 	err := tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
 
-	// Catches remote command exit errors to prevent sending a close event to UI,
-	// which prevents the UI terminal from closing the tab before user sees errors.
+	// Handle remote processes that exit with error codes, eg: RemoteCommandFailure (255).
 	if t.sshSession != nil {
 		if err := t.sshSession.Wait(); err != nil {
 			if exitErr, ok := err.(*ssh.ExitError); ok {
