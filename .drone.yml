@@ -48,7 +48,7 @@ steps:
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f ~/.ssh/id_rsa
-      - mkdir -p /tmp/go/cache
+      - mkdir -p /tmp/go/cache /tmp/go/artifacts
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /tmp/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/go/.version.txt; fi; cat /tmp/go/.version.txt
 
   - name: Build Mac release artifacts
@@ -64,10 +64,11 @@ steps:
     commands:
       - cd /tmp/go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
+      - mkdir -p /tmp/go/artifacts
       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /tmp/go/artifacts \;
       - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /tmp/go/artifacts \;
-      # generate checksums
-      - cd /tmp/go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
+      # generate checksums (for mac)
+      - cd /tmp/go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
 
   - name: Upload to S3
     environment:
@@ -2025,6 +2026,6 @@ steps:
 
 ---
 kind: signature
-hmac: f23284cd4d009d727e861741114ce9488d3287aecb56ad266469759e64437b91
+hmac: 0c6c6a0bd0e1fb67efcd8b18319fc10b1a871d569481912277e963b0bf5cd444
 
 ...
