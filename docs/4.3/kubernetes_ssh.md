@@ -94,17 +94,62 @@ proxy_service:
 
 ![teleport-ssh-kubernetes-integration](img/teleport-kubernetes-outside.svg)
 
-To retrieve the Kubernetes credentials for the Teleport proxy service, you have to
-authenticate against your Kubernetes cluster directly then copy the file to `/path/to/.kube/config`
- on the Teleport proxy server.
+To generate the `kubeconfig_file` for the Teleport proxy service:
+1. Configure your `kubectl` to point at the Kubernetes cluster and have admin-level access.
+2. Use [this
+   script](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh)
+   to generate `kubeconfig`:
+```bash
+# Download the script.
+$ curl -o get-kubeconfig.sh https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh
 
-!!! tip "Google Cloud - GKE Users"
+# Make it executable.
+$ chmod +x get-kubeconfig.sh
 
-    Unfortunately for Google Cloud GKE users, GKE requires its own client-side extensions
-    to authenticate, so we've created a [simple script](https://github.com/gravitational/teleport/blob/master/examples/gke-auth/get-kubeconfig.sh) you can run to generate a `kubeconfig` file for
-    the Teleport proxy service.
+# Run the script, it will write the generated kubeconfig to the current
+# directory.
+$ ./get-kubeconfig.sh
+
+# Check that the generated kubeconfig has the right permissions.
+# The output should look similar to this.
+$ kubectl --kubeconfig kubeconfig auth can-i --list
+Resources                                       Non-Resource URLs   Resource Names   Verbs
+selfsubjectaccessreviews.authorization.k8s.io   []                  []               [create create]
+selfsubjectrulesreviews.authorization.k8s.io    []                  []               [create create]
+                                                [/api/*]            []               [get]
+                                                [/api]              []               [get]
+                                                [/apis/*]           []               [get]
+                                                [/apis]             []               [get]
+                                                [/healthz]          []               [get]
+                                                [/healthz]          []               [get]
+                                                [/openapi/*]        []               [get]
+                                                [/openapi]          []               [get]
+                                                [/version/]         []               [get]
+                                                [/version/]         []               [get]
+                                                [/version]          []               [get]
+                                                [/version]          []               [get]
+groups                                          []                  []               [impersonate]
+serviceaccounts                                 []                  []               [impersonate]
+users                                           []                  []               [impersonate]
+```
+3. Copy the generated `kubeconfig` file to the host running the Teleport proxy
+   service.
+4. Update `kubeconfig_file` path in `teleport.yaml` to where you copied the
+   `kubeconfig`.
+
+Alternatively, you can use your existing local config from `~/.kube/config`.
+However, it will result in Teleport proxy using your personal Kubernetes
+credentials. This is risky: your credentials can expire or get revoked (such as
+when leaving your company).
 
 ## Impersonation
+
+!!! note
+
+    If you used [the script from Option
+    2](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh)
+    above, you can skip this step. The script already configured impersonation
+    permissions.
 
 The next step is to configure the Teleport Proxy to be able to impersonate Kubernetes principals within a given group
 using [Kubernetes Impersonation Headers](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation).
