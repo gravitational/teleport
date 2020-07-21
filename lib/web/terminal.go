@@ -299,6 +299,17 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 	// either an error occurs or it completes successfully.
 	err := tc.SSH(t.terminalContext, t.params.InteractiveCommand, false)
 
+	// Catches remote command exit errors to prevent sending a close event to UI,
+	// which prevents the UI terminal from closing the tab before user sees errors.
+	if t.sshSession != nil {
+		if err := t.sshSession.Wait(); err != nil {
+			if exitErr, ok := err.(*ssh.ExitError); ok {
+				t.log.Warnf("Remote shell exited with error code: %v", exitErr.ExitStatus())
+				return
+			}
+		}
+	}
+
 	// TODO IN: 5.0
 	//
 	// Make connecting by UUID the default instead of the fallback.
