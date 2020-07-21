@@ -28,7 +28,6 @@ import (
 	"crypto"
 	"crypto/subtle"
 	"fmt"
-	"math/rand"
 	"net/url"
 	"strings"
 	"sync"
@@ -243,16 +242,17 @@ func (a *AuthServer) runPeriodicOperations() {
 	// to avoid contention on the database in case if there are multiple
 	// auth servers running - so they don't compete trying
 	// to update the same resources.
-	r := rand.New(rand.NewSource(a.GetClock().Now().UnixNano()))
-	period := defaults.HighResPollingPeriod + time.Duration(r.Intn(int(defaults.HighResPollingPeriod/time.Second)))*time.Second
-	log.Debugf("Ticking with period: %v.", period)
-	ticker := time.NewTicker(period)
+	//
+	// note that we double the default period since it is a minimum value
+	// and the jitter operates on a range of [n/2,n).
+	ticker := utils.NewJitterTicker(defaults.HighResPollingPeriod * 2)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-a.closeCtx.Done():
 			return
 		case <-ticker.C:
+			log.Infof("Running periodic operations...")
 			if err := a.autoRotateCertAuthorities(); err != nil {
 				if trace.IsCompareFailed(err) {
 					log.Debugf("Cert authority has been updated concurrently: %v.", err)
