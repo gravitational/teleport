@@ -65,6 +65,8 @@ To view the resulting profiles, use go tool pprof:
 go tool pprof cpu.profile
 go tool pprof heap.profile
 go tool pprof goroutine.profile
+# Use --web flag to create a SVG diagram in the browser, for high-level view of whats going on.
+go tool pprof --web heap.profile
 ```
 
 ### Performance Testing
