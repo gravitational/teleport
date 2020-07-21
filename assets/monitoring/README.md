@@ -30,14 +30,14 @@ python convert.py health-raw.json health-dashboard.json
 
 ## Low level monitoring
 
-Teleport can be started with Golang's standard profiler.
+Teleport can be started with Go's standard profiler [pprof](https://golang.org/pkg/net/http/pprof/).
 
 ```bash
 $ teleport start -d --diag-addr=127.0.0.1:3000
 # http://127.0.0.1:3000/debug/pprof/
 ```
 
-When teleport is started in debug mode (with teleport start -d flag) Golang’s CPU,
+When teleport is started in debug mode (with teleport start -d flag) Go’s CPU,
 memory and go routines dumps could be collected on the host.
 
 Assuming debugging endpoint address is set to `127.0.0.1:3000`, the following key profiles
@@ -59,7 +59,7 @@ Heap profile shows allocated objects in the system:
 
 `curl -o heap.profile http://127.0.0.1:3000/debug/pprof/heap`
 
-The resulting profiles go tool pprof tool:
+To view the resulting profiles, use go tool pprof:
 
 ```
 go tool pprof cpu.profile

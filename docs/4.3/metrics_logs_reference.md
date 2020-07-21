@@ -3,7 +3,7 @@
 ## Teleport Prometheus Endpoint
 
 Teleport provides HTTP endpoints for monitoring purposes. They are disabled
-by default, but you can enable them:
+by default, but you can enable them using the `--diag-addr` flag to `teleport start`:
 
 ```bash
 $ teleport start --diag-addr=127.0.0.1:3000
@@ -15,7 +15,16 @@ Now you can see the monitoring information by visiting several endpoints:
    tracking. It is compatible with [Prometheus](https://prometheus.io/)
    collectors.
 
-<!-- Help: Edit this table https://docs.google.com/spreadsheets/d/1lYEGjENdsEoMXGg6LO71-U5Y6PDzPbplut255aacGWo/edit#gid=0 and put the table into https://www.tablesgenerator.com/markdown_tables  -->
+* `http://127.0.0.1:3000/healthz` returns "OK" if the process is healthy or
+  `503` otherwise.
+
+* `http://127.0.0.1:3000/readyz` is similar to `/healthz` , but it returns "OK"
+  _only after_ the node successfully joined the cluster, i.e.it draws the
+  difference between "healthy" and "ready".
+
+* `http://127.0.0.1:3000/debug/pprof/` is Golang's standard profiler. It's only
+  available when `-d` flag is given in addition to `--diag-addr`
+
 
 | Name | Type | Component | Description  |
 |-|-|-|-|
