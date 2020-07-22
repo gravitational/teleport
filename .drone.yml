@@ -3,6 +3,9 @@ kind: pipeline
 type: exec
 name: mac-test
 
+concurrency:
+  limit: 1
+
 platform:
   os: darwin
   arch: amd64
@@ -24,9 +27,9 @@ clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner
+  - name: Clean up exec runner storage
     commands:
-      - rm -rf /tmp/go/src /tmp/go/artifacts /tmp/go/.*.txt
+      - rm -rf /tmp/go/artifacts /tmp/go/cache /tmp/go/src /tmp/go/.*.txt
 
   - name: Check out code
     environment:
@@ -45,12 +48,13 @@ steps:
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f ~/.ssh/id_rsa
-      - mkdir -p /tmp/go/cache /tmp/go/artifacts
+      - mkdir -p /tmp/go/artifacts /tmp/go/cache
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /tmp/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/go/.version.txt; fi; cat /tmp/go/.version.txt
 
   - name: Build Mac release artifacts
     environment:
       GOPATH: /tmp/go
+      GOCACHE: /tmp/go/cache
       OS: darwin
       ARCH: amd64
     commands:
@@ -85,9 +89,17 @@ kind: pipeline
 type: exec
 name: arm-test
 
+concurrency:
+  limit: 1
+
 platform:
   os: linux
   arch: arm
+
+# use ramfs for go build cache
+# saves wear and tear on the SD card, plus it's faster
+environment:
+  TMPDIR: /dev/shm
 
 trigger:
   branch:
@@ -100,7 +112,7 @@ trigger:
       - rollback
 
 workspace:
-  path: /tmp/go
+  path: /dev/shm/tmp/go
 
 clone:
   disable: true
@@ -108,18 +120,18 @@ clone:
 steps:
   - name: Clean up exec runner
     commands:
-      - rm -rf /tmp/go/src /tmp/go/artifacts /tmp/go/.*.txt
+      - rm -rf /dev/shm/tmp/go/artifacts /dev/shm/tmp/go/cache /dev/shm/tmp/go/src /dev/shm/tmp/go/.*.txt
 
   - name: Check out code
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
     commands:
-      - mkdir -p /tmp/go/src/github.com/gravitational/teleport
-      - cd /tmp/go/src/github.com/gravitational/teleport
+      - mkdir -p /dev/shm/tmp/go/src/github.com/gravitational/teleport
+      - cd /dev/shm/tmp/go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout $DRONE_COMMIT
-      - echo $DRONE_SOURCE_BRANCH > /tmp/go/.drone_source_branch.txt
+      - echo $DRONE_SOURCE_BRANCH > /dev/shm/tmp/go/.drone_source_branch.txt
       # fetch enterprise submodules
       - mkdir -m 0700 ~/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
       - ssh-keyscan -H github.com > ~/.ssh/known_hosts 2>/dev/null && chmod 600 ~/.ssh/known_hosts
@@ -127,27 +139,28 @@ steps:
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f ~/.ssh/id_rsa
-      - mkdir -p /tmp/go/cache /tmp/go/artifacts
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /tmp/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/go/.version.txt; fi; cat /tmp/go/.version.txt
+      - mkdir -p /dev/shm/tmp/go/cache /dev/shm/tmp/go/artifacts
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /dev/shm/tmp/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /dev/shm/tmp/go/.version.txt; fi; cat /dev/shm/tmp/go/.version.txt
 
-  - name: Build Mac release artifacts
+  - name: Build ARM release artifacts
     environment:
-      GOPATH: /tmp/go
+      GOPATH: /dev/shm/tmp/go
+      GOCACHE: /dev/shm/tmp/go/cache
       OS: linux
       ARCH: arm
     commands:
-      - cd /tmp/go/src/github.com/gravitational/teleport
+      - cd /dev/shm/tmp/go/src/github.com/gravitational/teleport
       - make clean release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
 
-  - name: Copy Mac artifacts
+  - name: Copy ARM artifacts
     commands:
-      - cd /tmp/go/src/github.com/gravitational/teleport
+      - cd /dev/shm/tmp/go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
-      - mkdir -p /tmp/go/artifacts
-      - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /tmp/go/artifacts \;
-      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /tmp/go/artifacts \;
-      # generate checksums (for mac)
-      - cd /tmp/go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
+      - mkdir -p /dev/shm/tmp/go/artifacts
+      - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /dev/shm/tmp/go/artifacts \;
+      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /dev/shm/tmp/go/artifacts \;
+      # generate checksums
+      - cd /dev/shm/tmp/go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
   - name: Upload to S3
     environment:
@@ -159,8 +172,13 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       AWS_REGION: us-west-2
     commands:
-      - cd /tmp/go/artifacts
+      - cd /dev/shm/tmp/go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
+
+  # arm-specific step to avoid wasting RAM
+  - name: Clean up ramfs
+    commands:
+      - rm -rf /dev/shm/tmp
 
 ---
 kind: pipeline
@@ -2105,6 +2123,6 @@ steps:
 
 ---
 kind: signature
-hmac: cb065c51e4288414d02f512c9c5b48961c43535e6324457c64d4b8e90c9b8f95
+hmac: 557275bfb86209e682f80e69bbe97705a159e58fb6e01aaf2c3321e2e95e77cb
 
 ...
