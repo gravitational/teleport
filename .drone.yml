@@ -1760,8 +1760,8 @@ steps:
     commands:
       - cd /tmp/teleport-pkg/go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
-      - find . -maxdepth 1 -iname "teleport*.pkg" -print -exec cp {} /tmp/teleport-pkg/go/artifacts \;
-      - find e/ -maxdepth 1 -iname "teleport*.pkg" -print -exec cp {} /tmp/teleport-pkg/go/artifacts \;
+      - find build -maxdepth 1 -iname "teleport*.pkg" -print -exec cp {} /tmp/teleport-pkg/go/artifacts \;
+      - find e/build -maxdepth 1 -iname "teleport*.pkg" -print -exec cp {} /tmp/teleport-pkg/go/artifacts \;
       # generate checksums (for mac)
       - cd /tmp/teleport-pkg/go/artifacts && for FILE in teleport*.pkg; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
 
@@ -1879,7 +1879,7 @@ steps:
     commands:
       - cd /tmp/teleport-pkg-tsh/go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
-      - find . -maxdepth 1 -iname "teleport*.pkg" -print -exec cp {} /tmp/teleport-pkg-tsh/go/artifacts \;
+      - find build -maxdepth 1 -iname "teleport*.pkg" -print -exec cp {} /tmp/teleport-pkg-tsh/go/artifacts \;
       # generate checksums (for mac)
       - cd /tmp/teleport-pkg-tsh/go/artifacts && for FILE in teleport*.pkg; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
 
@@ -2382,6 +2382,6 @@ steps:
 
 ---
 kind: signature
-hmac: ae9334c1b9641af8028d66ea5a015bb7683a6213fa51c88b99f1f45bf207a7d9
+hmac: ab410e59955e90816a5e8791dbf96c788ae83ea07ecf18b1c3be27304a115ef8
 
 ...
