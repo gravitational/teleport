@@ -1814,8 +1814,8 @@ trigger:
       - promote
       - rollback
 
-# depends_on:
-#   - build-darwin-amd64
+depends_on:
+  - build-darwin-amd64
 
 workspace:
   path: /tmp/teleport-pkg-tsh
@@ -1892,9 +1892,9 @@ steps:
       # delete temporary tarball artifacts so we don't re-upload them in the next stage
       - rm -rf /tmp/teleport-pkg-tsh/go/artifacts/*.tar.gz
       # copy release archives to artifact directory
-      - find build -maxdepth 1 -iname "teleport*.pkg" -print -exec cp {} /tmp/teleport-pkg-tsh/go/artifacts \;
+      - find build -maxdepth 1 -iname "tsh*.pkg" -print -exec cp {} /tmp/teleport-pkg-tsh/go/artifacts \;
       # generate checksums (for mac)
-      - cd /tmp/teleport-pkg-tsh/go/artifacts && for FILE in teleport*.pkg; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
+      - cd /tmp/teleport-pkg-tsh/go/artifacts && for FILE in tsh*.pkg; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
 
   - name: Upload to S3
     environment:
@@ -2395,6 +2395,6 @@ steps:
 
 ---
 kind: signature
-hmac: 61639e30457faaab13f75030606e5e51ad31298b2f0ad3c21b7f3be8b1eb9066
+hmac: a550ded35e4cd3a3f4ce6380d65782a38d9412b28743a05c02ba5da3cd66aae0
 
 ...
