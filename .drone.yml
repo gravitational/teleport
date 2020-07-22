@@ -1871,10 +1871,17 @@ steps:
         from_secret: APPLE_USERNAME
       APPLE_PASSWORD:
         from_secret: APPLE_PASSWORD
+      BUILDBOX_PASSWORD:
+        from_secret: BUILDBOX_PASSWORD
       OSS_TARBALL_PATH: /tmp/teleport-pkg-tsh/go/artifacts
     commands:
       - cd /tmp/teleport-pkg-tsh/go/src/github.com/gravitational/teleport
       - export VERSION=$(cat tmp/teleport-pkg-tsh/go/.version.txt)
+      # unlock login keychain
+      - security unlock-keychain -p ${BUILDBOX_PASSWORD} login.keychain
+      # show available certificates
+      - security find-identity -v
+      # build pkg
       - make pkg-tsh OS=$OS ARCH=$ARCH
 
   - name: Copy Mac tsh pkg artifacts
@@ -2386,6 +2393,6 @@ steps:
 
 ---
 kind: signature
-hmac: 8dae4cb1e37177ce9f4bfc2591081101cc89b144148f2a2f0606bc7640acf939
+hmac: b2ea442b4d92e41b7a433c75412ea4a80fbd8f2030f5963ef2ca929b695a8b72
 
 ...
