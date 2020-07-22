@@ -112,7 +112,7 @@ trigger:
       - rollback
 
 workspace:
-  path: /dev/shm/tmp/go
+  path: /dev/shm/tmp
 
 clone:
   disable: true
@@ -2123,6 +2123,6 @@ steps:
 
 ---
 kind: signature
-hmac: 0e8101913647453cfb16b41aa592a375f8c919c6d79aa73b7335735ccd3afdcc
+hmac: 74a433c3fce0c2027bd3b5e2cfc135e21cf03b26ad461d75327fd1b23d987cdd
 
 ...
