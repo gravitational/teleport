@@ -135,7 +135,7 @@ spec:
 ```
 
 **DBA Role**
-This role limits the contractor to request the role DBA for 1hr.
+This role limits the contractor to request the role DBA for 1 hour.
 
 ```yaml
 kind: role
@@ -144,8 +144,8 @@ metadata:
 spec:
   options:
     # ...
-    # Only allows the contractor to use this role for 1hr from time of request.
-    options.max_session_ttl: 1hr
+    # Only allows the contractor to use this role for 1 hour from time of request.
+    max_session_ttl: 1h
   allow:
     # ...
   deny:
