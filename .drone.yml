@@ -1605,7 +1605,7 @@ clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner storage (pre)
+  - name: Clean up exec runner storage
     commands:
       - rm -rf /tmp/tarball/go
 
@@ -1660,11 +1660,6 @@ steps:
       - cd /tmp/tarball/go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
 
-  - name: Clean up exec runner storage (post)
-    commands:
-      - cd /tmp
-      - rm -rf /tmp/tarball/go
-
 ---
 kind: pipeline
 type: exec
@@ -1704,7 +1699,7 @@ clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner storage (pre)
+  - name: Clean up exec runner storage
     commands:
       - rm -rf /tmp/teleport-pkg/go
 
@@ -1776,11 +1771,6 @@ steps:
       - cd /tmp/teleport-pkg/go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
 
-  - name: Clean up exec runner storage (post)
-    commands:
-      - cd /tmp
-      - rm -rf /tmp/teleport-pkg/go
-
 ---
 kind: pipeline
 type: exec
@@ -1820,7 +1810,7 @@ clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner storage (pre)
+  - name: Clean up exec runner storage
     commands:
       - rm -rf /tmp/teleport-pkg-tsh/go
 
@@ -1892,11 +1882,6 @@ steps:
       - cd /tmp/teleport-pkg-tsh/go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
 
-  - name: Clean up exec runner storage (post)
-    commands:
-      - cd /tmp
-      - rm -rf /tmp/teleport-pkg-tsh/go
-
 ---
 kind: pipeline
 type: exec
@@ -1941,7 +1926,7 @@ clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner storage (pre)
+  - name: Clean up exec runner storage
     commands:
       - rm -rf /dev/shm/tmp/go
 
@@ -1996,11 +1981,6 @@ steps:
     commands:
       - cd /dev/shm/tmp/go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
-
-  - name: Clean up exec runner storage (post)
-    commands:
-      - cd /tmp
-      - rm -rf /dev/shm/tmp/go
 
 ---
 kind: pipeline
@@ -2377,6 +2357,6 @@ steps:
 
 ---
 kind: signature
-hmac: 9a1fe55fbd3bb2e4f4cf7f2513bb061e7444d3bfdbbf222e3b10592f71e40f5d
+hmac: 8673b1b23b7f30328e9fbc4d6c5b6a9535bd0a881156c1a694a1f55ef10adcb6
 
 ...
