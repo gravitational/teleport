@@ -1607,7 +1607,7 @@ clone:
 steps:
   - name: Clean up exec runner storage (pre)
     commands:
-      - chmod -R u+rw /tmp/tarball/go
+      - chmod -R u+rw /tmp/tarball
       - rm -rf /tmp/tarball/go
 
   - name: Check out code
@@ -1663,7 +1663,7 @@ steps:
 
   - name: Clean up exec runner storage (post)
     commands:
-      - chmod -R u+rw /tmp/tarball/go
+      - chmod -R u+rw /tmp/tarball
       - rm -rf /tmp/tarball/go
 
 ---
@@ -1707,7 +1707,7 @@ clone:
 steps:
   - name: Clean up exec runner storage (pre)
     commands:
-      - chmod -R u+rw /tmp/teleport-pkg/go
+      - chmod -R u+rw /tmp/teleport-pkg
       - rm -rf /tmp/teleport-pkg/go
 
   - name: Check out code
@@ -1780,7 +1780,7 @@ steps:
 
   - name: Clean up exec runner storage (post)
     commands:
-      - chmod -R u+rw /tmp/teleport-pkg/go
+      - chmod -R u+rw /tmp/teleport-pkg
       - rm -rf /tmp/teleport-pkg/go
 
 ---
@@ -1824,7 +1824,7 @@ clone:
 steps:
   - name: Clean up exec runner storage (pre)
     commands:
-      - chmod -R u+rw /tmp/teleport-pkg-tsh/go
+      - chmod -R u+rw /tmp/teleport-pkg-tsh
       - rm -rf /tmp/teleport-pkg-tsh/go
 
   - name: Check out code
@@ -1897,7 +1897,7 @@ steps:
 
   - name: Clean up exec runner storage (post)
     commands:
-      - chmod -R u+rw /tmp/teleport-pkg-tsh/go
+      - chmod -R u+rw /tmp/teleport-pkg-tsh
       - rm -rf /tmp/teleport-pkg-tsh/go
 
 ---
@@ -1946,7 +1946,7 @@ clone:
 steps:
   - name: Clean up exec runner storage (pre)
     commands:
-      - chmod -R u+rw /dev/shm/tmp/go
+      - chmod -R u+rw /dev/shm/tmp
       - rm -rf /dev/shm/tmp/go
 
   - name: Check out code
@@ -2003,7 +2003,7 @@ steps:
 
   - name: Clean up exec runner storage (post)
     commands:
-      - chmod -R u+rw /dev/shm/tmp/go
+      - chmod -R u+rw /dev/shm/tmp
       - rm -rf /dev/shm/tmp/go
 
 ---
@@ -2381,6 +2381,6 @@ steps:
 
 ---
 kind: signature
-hmac: dded50c0841689a0b070940837ded012f33cc88fb8fce4ecbd3f5dfa6a10c922
+hmac: af2ba0a74b925140c84e0e5fb864c543cb44a4db92d1a4d983784925000692eb
 
 ...
