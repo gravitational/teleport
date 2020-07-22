@@ -1759,6 +1759,8 @@ steps:
   - name: Copy Mac pkg artifacts
     commands:
       - cd /tmp/teleport-pkg/go/src/github.com/gravitational/teleport
+      # delete temporary tarball artifacts so we don't re-upload them in the next stage
+      - rm -rf /tmp/teleport-pkg/go/artifacts/*.tar.gz
       # copy release archives to artifact directory
       - find build -maxdepth 1 -iname "teleport*.pkg" -print -exec cp {} /tmp/teleport-pkg/go/artifacts \;
       - find e/build -maxdepth 1 -iname "teleport*.pkg" -print -exec cp {} /tmp/teleport-pkg/go/artifacts \;
@@ -1878,6 +1880,8 @@ steps:
   - name: Copy Mac tsh pkg artifacts
     commands:
       - cd /tmp/teleport-pkg-tsh/go/src/github.com/gravitational/teleport
+      # delete temporary tarball artifacts so we don't re-upload them in the next stage
+      - rm -rf /tmp/teleport-pkg-tsh/go/artifacts/*.tar.gz
       # copy release archives to artifact directory
       - find build -maxdepth 1 -iname "teleport*.pkg" -print -exec cp {} /tmp/teleport-pkg-tsh/go/artifacts \;
       # generate checksums (for mac)
@@ -2382,6 +2386,6 @@ steps:
 
 ---
 kind: signature
-hmac: ab410e59955e90816a5e8791dbf96c788ae83ea07ecf18b1c3be27304a115ef8
+hmac: 8dae4cb1e37177ce9f4bfc2591081101cc89b144148f2a2f0606bc7640acf939
 
 ...
