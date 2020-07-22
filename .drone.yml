@@ -178,7 +178,7 @@ steps:
   # arm-specific step to avoid wasting RAM
   - name: Clean up ramfs
     commands:
-      - rm -rf /dev/shm/tmp
+      - rm -rf /dev/shm/tmp/go
 
 ---
 kind: pipeline
@@ -2123,6 +2123,6 @@ steps:
 
 ---
 kind: signature
-hmac: 557275bfb86209e682f80e69bbe97705a159e58fb6e01aaf2c3321e2e95e77cb
+hmac: 0e8101913647453cfb16b41aa592a375f8c919c6d79aa73b7335735ccd3afdcc
 
 ...
