@@ -1755,7 +1755,6 @@ steps:
       - cd /tmp/teleport-pkg/go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /tmp/teleport-pkg/go/.version.txt)
       - make pkg OS=$OS ARCH=$ARCH
-      - make -C e pkg OS=$OS ARCH=$ARCH
 
   - name: Copy Mac pkg artifacts
     commands:
@@ -2383,6 +2382,6 @@ steps:
 
 ---
 kind: signature
-hmac: aee66a659924d9ad42c65175bdff65d969f2876d38629c04a62f2e7349cec1af
+hmac: ae9334c1b9641af8028d66ea5a015bb7683a6213fa51c88b99f1f45bf207a7d9
 
 ...
