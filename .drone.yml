@@ -1578,7 +1578,7 @@ platform:
   os: darwin
   arch: amd64
 
-# TODO(gus): testing
+# TODO(gus): testing, add depends_on back
 # trigger:
 #   event:
 #     - tag
@@ -1594,9 +1594,6 @@ trigger:
       - cron
       - promote
       - rollback
-
-# depends_on:
-#   - test
 
 workspace:
   path: /tmp/tarball
@@ -1677,7 +1674,7 @@ platform:
   os: darwin
   arch: amd64
 
-# TODO(gus): testing
+# TODO(gus): testing, add depends on test
 # trigger:
 #   event:
 #     - tag
@@ -1694,13 +1691,11 @@ trigger:
       - promote
       - rollback
 
-# depends_on:
-#   - test
 depends_on:
   - build-darwin-amd64
 
 workspace:
-  path: /tmp/teleportpkg
+  path: /tmp/teleport-pkg
 
 clone:
   disable: true
@@ -1749,8 +1744,8 @@ steps:
     environment:
       OS: darwin
       ARCH: amd64
-      OSS_TARBALL_PATH: /tmp/teleportpkg/go/artifacts
-      ENT_TARBALL_PATH: /tmp/teleportpkg/go/artifacts
+      OSS_TARBALL_PATH: /tmp/teleport-pkg/go/artifacts
+      ENT_TARBALL_PATH: /tmp/teleport-pkg/go/artifacts
     commands:
       - cd go/src/github.com/gravitational/teleport
       - make pkg OS=$OS ARCH=$ARCH
@@ -1763,7 +1758,7 @@ steps:
       - find . -maxdepth 1 -iname "teleport*.pkg" -print -exec cp {} go/artifacts \;
       - find e/ -maxdepth 1 -iname "teleport*.pkg" -print -exec cp {} go/artifacts \;
       # generate checksums (for mac)
-      - cd go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
+      - cd go/artifacts && for FILE in teleport*.pkg; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
 
   - name: Upload to S3
     environment:
@@ -1794,7 +1789,7 @@ platform:
   os: darwin
   arch: amd64
 
-# TODO(gus): testing
+# TODO(gus): testing, add depends on test
 # trigger:
 #   event:
 #     - tag
@@ -1811,13 +1806,11 @@ trigger:
       - promote
       - rollback
 
-# depends_on:
-#   - test
 depends_on:
   - build-darwin-amd64
 
 workspace:
-  path: /tmp/teleportpkgtsh
+  path: /tmp/teleport-pkg-tsh
 
 clone:
   disable: true
@@ -1847,7 +1840,7 @@ steps:
       - mkdir -p go/artifacts go/cache
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > go/.version.txt; fi; cat go/.version.txt
 
-  - name: Download built tarball artifacts from S3
+  - name: Download built tarball artifact from S3
     environment:
       AWS_S3_BUCKET:
         from_secret: AWS_S3_BUCKET
@@ -1860,7 +1853,6 @@ steps:
       - export VERSION=$(cat go/.version.txt)
       - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-darwin-amd64-bin.tar.gz go/artifacts/
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-darwin-amd64-bin.tar.gz go/artifacts/
 
   - name: Build Mac tsh pkg release artifacts
     environment:
@@ -1870,7 +1862,7 @@ steps:
         from_secret: APPLE_USERNAME
       APPLE_PASSWORD:
         from_secret: APPLE_PASSWORD
-      OSS_TARBALL_PATH: /tmp/teleportpkgtsh/go/artifacts
+      OSS_TARBALL_PATH: /tmp/teleport-pkg-tsh/go/artifacts
     commands:
       - cd go/src/github.com/gravitational/teleport
       - make pkg-tsh OS=$OS ARCH=$ARCH
@@ -1880,9 +1872,8 @@ steps:
       - cd go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
       - find . -maxdepth 1 -iname "teleport*.pkg" -print -exec cp {} go/artifacts \;
-      - find e/ -maxdepth 1 -iname "teleport*.pkg" -print -exec cp {} go/artifacts \;
       # generate checksums (for mac)
-      - cd go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
+      - cd go/artifacts && for FILE in teleport*.pkg; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
 
   - name: Upload to S3
     environment:
@@ -1918,7 +1909,7 @@ platform:
 environment:
   TMPDIR: /dev/shm
 
-# TODO(gus): testing
+# TODO(gus): testing, add depends on test
 # trigger:
 #   event:
 #     - tag
@@ -2377,6 +2368,6 @@ steps:
 
 ---
 kind: signature
-hmac: 38f3151fea90db7f36c5e8d1500e7d2a38eae14ac1f2c404da645a4ebefbc04d
+hmac: 9e54e0486f0dc13e65065dd47dd2a1578b975d55ba2056088b7093df9efee26d
 
 ...
