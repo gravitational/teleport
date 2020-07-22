@@ -1696,6 +1696,8 @@ trigger:
 
 # depends_on:
 #   - test
+depends_on:
+  - build-darwin-amd64
 
 workspace:
   path: /tmp/teleportpkg
@@ -1728,12 +1730,27 @@ steps:
       - mkdir -p go/artifacts go/cache
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > go/.version.txt; fi; cat go/.version.txt
 
+  - name: Download built tarball artifacts from S3
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat go/.version.txt)
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-darwin-amd64-bin.tar.gz go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-darwin-amd64-bin.tar.gz go/artifacts/
+
   - name: Build Mac pkg release artifacts
     environment:
-      GOPATH: /tmp/teleportpkg/go
-      GOCACHE: /tmp/teleportpkg/go/cache
       OS: darwin
       ARCH: amd64
+      OSS_TARBALL_PATH: /tmp/teleportpkg/go/artifacts
+      ENT_TARBALL_PATH: /tmp/teleportpkg/go/artifacts
     commands:
       - cd go/src/github.com/gravitational/teleport
       - make pkg OS=$OS ARCH=$ARCH
@@ -1796,6 +1813,8 @@ trigger:
 
 # depends_on:
 #   - test
+depends_on:
+  - build-darwin-amd64
 
 workspace:
   path: /tmp/teleportpkgtsh
@@ -1828,6 +1847,21 @@ steps:
       - mkdir -p go/artifacts go/cache
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > go/.version.txt; fi; cat go/.version.txt
 
+  - name: Download built tarball artifacts from S3
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat go/.version.txt)
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-darwin-amd64-bin.tar.gz go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-darwin-amd64-bin.tar.gz go/artifacts/
+
   - name: Build Mac tsh pkg release artifacts
     environment:
       OS: darwin
@@ -1836,6 +1870,7 @@ steps:
         from_secret: APPLE_USERNAME
       APPLE_PASSWORD:
         from_secret: APPLE_PASSWORD
+      OSS_TARBALL_PATH: /tmp/teleportpkgtsh/go/artifacts
     commands:
       - cd go/src/github.com/gravitational/teleport
       - make pkg-tsh OS=$OS ARCH=$ARCH
@@ -2342,6 +2377,6 @@ steps:
 
 ---
 kind: signature
-hmac: c6480a59aa3194d7980c8d97f90a8d34a80a8ae8f788b171f4c9b2c789cfe0e1
+hmac: 38f3151fea90db7f36c5e8d1500e7d2a38eae14ac1f2c404da645a4ebefbc04d
 
 ...
