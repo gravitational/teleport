@@ -1753,6 +1753,7 @@ steps:
       ENT_TARBALL_PATH: /tmp/teleport-pkg/go/artifacts
     commands:
       - cd /tmp/teleport-pkg/go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /tmp/teleport-pkg/go/.version.txt)
       - make pkg OS=$OS ARCH=$ARCH
       - make -C e pkg OS=$OS ARCH=$ARCH
 
@@ -1872,6 +1873,7 @@ steps:
       OSS_TARBALL_PATH: /tmp/teleport-pkg-tsh/go/artifacts
     commands:
       - cd /tmp/teleport-pkg-tsh/go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat tmp/teleport-pkg-tsh/go/.version.txt)
       - make pkg-tsh OS=$OS ARCH=$ARCH
 
   - name: Copy Mac tsh pkg artifacts
@@ -2381,6 +2383,6 @@ steps:
 
 ---
 kind: signature
-hmac: af2ba0a74b925140c84e0e5fb864c543cb44a4db92d1a4d983784925000692eb
+hmac: aee66a659924d9ad42c65175bdff65d969f2876d38629c04a62f2e7349cec1af
 
 ...
