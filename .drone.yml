@@ -1602,7 +1602,7 @@ clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner storage
+  - name: Clean up exec runner storage (pre)
     commands:
       - rm -rf go
 
@@ -1658,7 +1658,7 @@ steps:
       - cd go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
 
-  - name: Clean up exec runner storage
+  - name: Clean up exec runner storage (post)
     commands:
       - rm -rf go
 
@@ -1933,7 +1933,7 @@ clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner storage
+  - name: Clean up exec runner storage (pre)
     commands:
       - rm -rf go
 
@@ -1989,7 +1989,7 @@ steps:
       - cd go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
 
-  - name: Clean up exec runner storage
+  - name: Clean up exec runner storage (post)
     commands:
       - rm -rf go
 
@@ -2368,6 +2368,6 @@ steps:
 
 ---
 kind: signature
-hmac: 3550babe2bfca1c550da6f009d7244a616d8617afb96abafb3270dc6ebce6012
+hmac: 67acf7e3d9af161db5ce30da4b543f26381178b956e53c597acdb902a94020f3
 
 ...
