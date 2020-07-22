@@ -306,8 +306,14 @@ func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack 
 
 // authPack returns new authenticated package consisting of created valid
 // user, otp token, created web session and authenticated client.
-func (s *WebSuite) authPack(c *C, user string) *authPack {
-	login := s.user
+func (s *WebSuite) authPack(c *C, user string, loginName string) *authPack {
+	var login string
+	if loginName != "" {
+		login = loginName
+	} else {
+		login = s.user
+	}
+
 	pass := "abc123"
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
@@ -490,7 +496,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 }
 
 func (s *WebSuite) TestWebSessionsCRUD(c *C) {
-	pack := s.authPack(c, "foo")
+	pack := s.authPack(c, "foo", "")
 
 	// make sure we can use client to make authenticated requests
 	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
@@ -512,7 +518,7 @@ func (s *WebSuite) TestWebSessionsCRUD(c *C) {
 }
 
 func (s *WebSuite) TestNamespace(c *C) {
-	pack := s.authPack(c, "foo")
+	pack := s.authPack(c, "foo", "")
 
 	_, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "..%252fevents%3f", "nodes"), url.Values{})
 	c.Assert(err, NotNil)
@@ -566,7 +572,7 @@ func (s *WebSuite) TestCSRF(c *C) {
 }
 
 func (s *WebSuite) TestPasswordChange(c *C) {
-	pack := s.authPack(c, "foo")
+	pack := s.authPack(c, "foo", "")
 	fakeClock := clockwork.NewFakeClock()
 	s.server.AuthServer.AuthServer.SetClock(fakeClock)
 
@@ -584,7 +590,7 @@ func (s *WebSuite) TestPasswordChange(c *C) {
 }
 
 func (s *WebSuite) TestWebSessionsRenew(c *C) {
-	pack := s.authPack(c, "foo")
+	pack := s.authPack(c, "foo", "")
 
 	// make sure we can use client to make authenticated requests
 	// before we issue this request, we will recover session id and bearer token
@@ -681,7 +687,7 @@ type getSiteNodeResponse struct {
 }
 
 func (s *WebSuite) TestGetSiteNodes(c *C) {
-	pack := s.authPack(c, "foo")
+	pack := s.authPack(c, "foo", "")
 
 	// get site nodes
 	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "nodes"), url.Values{})
@@ -702,7 +708,7 @@ func (s *WebSuite) TestGetSiteNodes(c *C) {
 }
 
 func (s *WebSuite) TestSiteNodeConnectInvalidSessionID(c *C) {
-	_, err := s.makeTerminal(s.authPack(c, "foo"), session.ID("/../../../foo"))
+	_, err := s.makeTerminal(s.authPack(c, "foo", ""), session.ID("/../../../foo"))
 	c.Assert(err, NotNil)
 }
 
@@ -888,7 +894,7 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 
 	// Create a new user "foo", open a terminal to a new session, and wait for
 	// it to be ready.
-	pack1 := s.authPack(c, "foo")
+	pack1 := s.authPack(c, "foo", "")
 	ws1, err := s.makeTerminal(pack1, sid)
 	c.Assert(err, IsNil)
 	defer ws1.Close()
@@ -897,7 +903,7 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 
 	// Create a new user "bar", open a terminal to the session created above,
 	// and wait for it to be ready.
-	pack2 := s.authPack(c, "bar")
+	pack2 := s.authPack(c, "bar", "")
 	ws2, err := s.makeTerminal(pack2, sid)
 	c.Assert(err, IsNil)
 	defer ws2.Close()
@@ -949,7 +955,7 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 }
 
 func (s *WebSuite) TestTerminal(c *C) {
-	ws, err := s.makeTerminal(s.authPack(c, "foo"))
+	ws, err := s.makeTerminal(s.authPack(c, "foo", ""))
 	c.Assert(err, IsNil)
 	defer ws.Close()
 
@@ -965,7 +971,7 @@ func (s *WebSuite) TestTerminal(c *C) {
 }
 
 func (s *WebSuite) TestWebAgentForward(c *C) {
-	ws, err := s.makeTerminal(s.authPack(c, "foo"))
+	ws, err := s.makeTerminal(s.authPack(c, "foo", ""))
 	c.Assert(err, IsNil)
 	defer ws.Close()
 
@@ -980,9 +986,33 @@ func (s *WebSuite) TestWebAgentForward(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *WebSuite) TestRemoteProcessExitErrorGetsHandled(c *C) {
+	// Create a nonexistent system user.
+	pack := s.authPack(c, "foo", "baz")
+	ws, err := s.makeTerminal(pack, session.NewID())
+	c.Assert(err, IsNil)
+
+	defer ws.Close()
+
+	// Receive "Failed to launch: user: unknown user baz."
+	err = s.waitForRawEvent(ws, 5*time.Second)
+	c.Assert(err, IsNil)
+
+	// This seems to trigger reading of the next incoming message:
+	// "the connection was closed on the remote side on..."
+	websocket.Message.Send(ws, []byte{})
+	err = s.waitForRawEvent(ws, 5*time.Second)
+	c.Assert(err, IsNil)
+
+	// If process exits with error codes,
+	// no close event is sent and this will timeout.
+	err = s.waitForCloseEvent(ws, 5*time.Second)
+	c.Assert(err, NotNil)
+}
+
 func (s *WebSuite) TestActiveSessions(c *C) {
 	sid := session.NewID()
-	pack := s.authPack(c, "foo")
+	pack := s.authPack(c, "foo", "")
 
 	ws, err := s.makeTerminal(pack, sid)
 	c.Assert(err, IsNil)
@@ -1054,7 +1084,7 @@ func (s *WebSuite) TestEmptySessionClusterHostnameIsSet(c *C) {
 	c.Assert(err, IsNil)
 
 	// Retrieve the session with the empty ClusterName.
-	pack := s.authPack(c, "baz")
+	pack := s.authPack(c, "baz", "")
 	res, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "sessions", sess1.ID.String()), url.Values{})
 	c.Assert(err, IsNil)
 
@@ -1091,7 +1121,7 @@ func (s *WebSuite) TestEmptySessionClusterHostnameIsSet(c *C) {
 
 func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 	sid := session.NewID()
-	pack := s.authPack(c, "foo")
+	pack := s.authPack(c, "foo", "")
 
 	ws, err := s.makeTerminal(pack, sid)
 	c.Assert(err, IsNil)
@@ -1136,7 +1166,7 @@ func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 }
 
 func (s *WebSuite) TestCreateSession(c *C) {
-	pack := s.authPack(c, "foo")
+	pack := s.authPack(c, "foo", "")
 
 	sess := session.Session{
 		TerminalParams: session.TerminalParams{W: 300, H: 120},
@@ -1156,7 +1186,7 @@ func (s *WebSuite) TestCreateSession(c *C) {
 }
 
 func (s *WebSuite) TestPlayback(c *C) {
-	pack := s.authPack(c, "foo")
+	pack := s.authPack(c, "foo", "")
 	sid := session.NewID()
 	ws, err := s.makeTerminal(pack, sid)
 	c.Assert(err, IsNil)
@@ -1686,7 +1716,7 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 		},
 	}
 
-	pack := s.authPack(c, "foo")
+	pack := s.authPack(c, "foo", "")
 	for _, tc := range testCases {
 		result := s.searchEvents(c, pack.clt, tc.Query, []string{"event.1", "event.2", "event.3"})
 		c.Assert(result, DeepEquals, tc.Result, Commentf(tc.Comment))
@@ -1845,6 +1875,45 @@ func (s *WebSuite) waitForRawEvent(ws *websocket.Conn, timeout time.Duration) er
 		select {
 		case <-timeoutContext.Done():
 			return trace.BadParameter("timeout waiting for resize event")
+		case <-doneContext.Done():
+			return nil
+		}
+	}
+}
+
+func (s *WebSuite) waitForCloseEvent(ws *websocket.Conn, timeout time.Duration) error {
+	timeoutContext, timeoutCancel := context.WithTimeout(context.Background(), timeout)
+	defer timeoutCancel()
+	doneContext, doneCancel := context.WithCancel(context.Background())
+	defer doneCancel()
+
+	go func() {
+		for {
+			time.Sleep(250 * time.Millisecond)
+
+			var raw []byte
+			err := websocket.Message.Receive(ws, &raw)
+			if err != nil {
+				continue
+			}
+
+			var envelope Envelope
+			err = proto.Unmarshal(raw, &envelope)
+			if err != nil {
+				continue
+			}
+
+			if envelope.GetType() == defaults.WebsocketClose {
+				doneCancel()
+				return
+			}
+		}
+	}()
+
+	for {
+		select {
+		case <-timeoutContext.Done():
+			return trace.BadParameter("timeout waiting for close event")
 		case <-doneContext.Done():
 			return nil
 		}
