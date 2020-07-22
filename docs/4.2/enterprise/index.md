@@ -145,7 +145,7 @@ spec:
   options:
     # ...
     # Only allows the contractor to use this role for 1 hour from time of request.
-    options.max_session_ttl: 1h
+    max_session_ttl: 1h
   allow:
     # ...
   deny:
