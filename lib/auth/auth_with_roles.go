@@ -120,6 +120,14 @@ func (a *AuthWithRoles) hasLocalUserRole(checker services.AccessChecker) bool {
 	return true
 }
 
+// hasMachineRole returns true of the role is a local or remote machine role.
+func (a *AuthWithRoles) hasMachineRole() bool {
+	_, okLocal := a.checker.(BuiltinRoleSet)
+	_, okRemote := a.checker.(RemoteBuiltinRoleSet)
+
+	return okLocal || okRemote
+}
+
 // AuthenticateWebUser authenticates web user, creates and  returns web session
 // in case if authentication is successful
 func (a *AuthWithRoles) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error) {
@@ -379,7 +387,7 @@ func (a *AuthWithRoles) KeepAliveNode(ctx context.Context, handle services.KeepA
 	if err != nil {
 		return trace.AccessDenied("[10] access denied")
 	}
-	if serverName != handle.ServerName {
+	if serverName != handle.Name {
 		return trace.AccessDenied("[10] access denied")
 	}
 	if err := a.action(defaults.Namespace, services.KindNode, services.VerbUpdate); err != nil {
@@ -462,6 +470,10 @@ func (a *AuthWithRoles) NewWatcher(ctx context.Context, watch services.Watch) (s
 				if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbRead); err != nil {
 					return nil, trace.Wrap(err)
 				}
+			}
+		case services.KindApp:
+			if err := a.action(defaults.Namespace, services.KindApp, services.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
 			}
 		default:
 			return nil, trace.AccessDenied("not authorized to watch %v events", kind.Kind)
@@ -1776,6 +1788,117 @@ func (a *AuthWithRoles) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 	return a.authServer.ProcessKubeCSR(req)
+}
+
+// GetApps returns all registered applications. This endpoint can only be
+// called by machine roles as it does not filter access to an application
+// based on identity.
+func (a *AuthWithRoles) GetApps(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	if err := a.action(namespace, services.KindApp, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(namespace, services.KindApp, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !a.hasMachineRole() {
+		return nil, trace.AccessDenied("identity does not have access to apps")
+	}
+
+	apps, err := a.authServer.GetApps(ctx, namespace, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return apps, nil
+}
+
+// UpsertApp registers an application in the backend. This endpoint can only be
+// called by machine roles as it does not filter access to an application
+// based on identity.
+func (a *AuthWithRoles) UpsertApp(ctx context.Context, app services.Server) (*services.KeepAlive, error) {
+	if err := a.action(app.GetNamespace(), services.KindApp, services.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(app.GetNamespace(), services.KindApp, services.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !a.hasMachineRole() {
+		return nil, trace.AccessDenied("identity does not have access to apps")
+	}
+
+	return a.authServer.UpsertApp(ctx, app)
+}
+
+// DeleteApp removes an application from the backend. Note that if the
+// application is still running, it will be added to the backend again.
+// This endpoint can only be called by machine roles as it does not filter
+// access to an application based on identity.
+func (a *AuthWithRoles) DeleteApp(ctx context.Context, namespace string, name string) error {
+	if err := a.action(namespace, services.KindApp, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	if !a.hasMachineRole() {
+		return trace.AccessDenied("identity does not have access to apps")
+	}
+
+	if err := a.authServer.DeleteApp(ctx, namespace, name); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteAllApps removes all applications from a namespace. This endpoint can
+// only be called by machine roles as it does not filter access to an application
+// based on identity.
+func (a *AuthWithRoles) DeleteAllApps(ctx context.Context, namespace string) error {
+	if err := a.action(namespace, services.KindApp, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	if !a.hasMachineRole() {
+		return trace.AccessDenied("identity does not have access to apps")
+	}
+
+	if err := a.authServer.DeleteAllApps(ctx, namespace); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetApps returns all registered applications for the calling identity.
+func (a *AuthWithRoles) GetAppsWithIdentity(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	if err := a.action(namespace, services.KindApp, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(namespace, services.KindApp, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fetch full list of applications from backend.
+	apps, err := a.authServer.GetApps(ctx, namespace, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fetch roles for identity and filter out any applications the user does
+	// not have access to.
+	roleset, err := services.FetchRoles(a.user.GetRoles(), a.authServer, a.user.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	filteredApps := make([]services.Server, 0, len(apps))
+	for _, app := range apps {
+		err := roleset.CheckAccessToApp(app)
+		if err != nil {
+			if trace.IsAccessDenied(err) {
+				continue
+			}
+			return nil, trace.Wrap(err)
+		}
+
+		filteredApps = append(filteredApps, app)
+	}
+
+	return filteredApps, nil
 }
 
 func (a *AuthWithRoles) Close() error {

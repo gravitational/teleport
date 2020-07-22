@@ -347,6 +347,9 @@ var (
 	// NodeQueueSize is node service queue size
 	NodeQueueSize = 128
 
+	// AppsQueueSize is apps service queue size.
+	AppsQueueSize = 128
+
 	// CASignatureAlgorithm is the default signing algorithm to use when
 	// creating new SSH CAs.
 	CASignatureAlgorithm = ssh.SigAlgoRSASHA2512
@@ -402,6 +405,8 @@ const (
 	// RoleAuthService is authentication and authorization service,
 	// the only stateful role in the system
 	RoleAuthService = "auth"
+	// RoleApp is a application proxy.
+	RoleApp = "app"
 )
 
 const (

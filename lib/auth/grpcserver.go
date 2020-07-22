@@ -428,6 +428,112 @@ func (g *GRPCServer) DeleteUser(ctx context.Context, req *proto.DeleteUserReques
 	return &empty.Empty{}, nil
 }
 
+// GetApps returns all registered applications.
+func (g *GRPCServer) GetApps(ctx context.Context, req *proto.GetAppsRequest) (*proto.GetAppsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var opts []services.MarshalOption
+	if req.GetSkipValidation() {
+		opts = append(opts, services.SkipValidation())
+	}
+
+	applications, err := auth.GetApps(ctx, req.GetNamespace(), opts...)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var apps []*services.ServerV2
+	for _, application := range applications {
+		app, ok := application.(*services.ServerV2)
+		if !ok {
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected app type %T", app))
+		}
+		apps = append(apps, app)
+	}
+
+	return &proto.GetAppsResponse{
+		Apps: apps,
+	}, nil
+}
+
+// GetApps returns all registered applications.
+func (g *GRPCServer) GetAppsWithIdentity(ctx context.Context, req *proto.GetAppsRequest) (*proto.GetAppsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var opts []services.MarshalOption
+	if req.GetSkipValidation() {
+		opts = append(opts, services.SkipValidation())
+	}
+
+	applications, err := auth.GetAppsWithIdentity(ctx, req.GetNamespace(), opts...)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var apps []*services.ServerV2
+	for _, application := range applications {
+		app, ok := application.(*services.ServerV2)
+		if !ok {
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected app type %T", app))
+		}
+		apps = append(apps, app)
+	}
+
+	return &proto.GetAppsResponse{
+		Apps: apps,
+	}, nil
+}
+
+// UpsertApp registers an application in the backend.
+func (g *GRPCServer) UpsertApp(ctx context.Context, req *proto.UpsertAppRequest) (*services.KeepAlive, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	keepAlive, err := auth.UpsertApp(ctx, req.GetApp())
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return keepAlive, nil
+}
+
+// DeleteApp un-registers an application.
+func (g *GRPCServer) DeleteApp(ctx context.Context, req *proto.DeleteAppRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	err = auth.DeleteApp(ctx, req.GetNamespace(), req.GetName())
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllApps removes all applications from a namespace.
+func (g *GRPCServer) DeleteAllApps(ctx context.Context, req *proto.DeleteAllAppsRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	err = auth.DeleteAllApps(ctx, req.GetNamespace())
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
 type grpcContext struct {
 	*AuthContext
 	*AuthWithRoles

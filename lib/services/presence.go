@@ -20,7 +20,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+
 	"github.com/gravitational/trace"
 )
 
@@ -159,6 +161,18 @@ type Presence interface {
 
 	// DeleteAllRemoteClusters deletes all remote clusters
 	DeleteAllRemoteClusters() error
+
+	// GetApps returns all applications.
+	GetApps(context.Context, string, ...MarshalOption) ([]Server, error)
+
+	// UpsertApp registers an application with a TTL.
+	UpsertApp(context.Context, Server) (*KeepAlive, error)
+
+	// DeleteAllApps deletes all applications within a namespace.
+	DeleteAllApps(context.Context, string) error
+
+	// DeleteApp deletes a specific application within a namespace.
+	DeleteApp(context.Context, string, string) error
 }
 
 // NewNamespace returns new namespace
@@ -186,7 +200,19 @@ type Site struct {
 // IsEmpty returns true if keepalive is empty,
 // used to indicate that keepalive is not supported
 func (s *KeepAlive) IsEmpty() bool {
-	return s.LeaseID == 0 && s.ServerName == ""
+	return s.LeaseID == 0 && s.Name == ""
+}
+
+// GetType return the type of keep alive: either application or server.
+func (s *KeepAlive) GetType() string {
+	switch s.Type {
+	case KeepAlive_SERVER:
+		return teleport.KeepAliveServer
+	case KeepAlive_APP:
+		return teleport.KeepAliveApp
+	default:
+		return teleport.KeepAliveServer
+	}
 }
 
 func (s *KeepAlive) CheckAndSetDefaults() error {

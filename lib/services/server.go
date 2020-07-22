@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -78,6 +79,21 @@ type Server interface {
 	LabelsString() string
 	// CheckAndSetDefaults checks and set default values for any missing fields.
 	CheckAndSetDefaults() error
+
+	// GetProtocol gets the protocol supported by this server.
+	GetProtocol() string
+	// SetProtocol sets the protocol supported by this server.
+	SetProtocol(string) error
+
+	// GetAppName gets the name of the application being proxied.
+	GetAppName() string
+	// SetAppName sets the name of the application being proxied.
+	SetAppName(string)
+
+	// GetInternalAddr gets the internal address of the application.
+	GetInternalAddr() string
+	// SetInternalAddr sets the internal address of the application.
+	SetInternalAddr(string)
 }
 
 // ServersToV1 converts list of servers to slice of V1 style ones
@@ -249,6 +265,51 @@ func (s *ServerV2) GetCmdLabels() map[string]CommandLabel {
 	return out
 }
 
+// GetProtocol gets the protocol supported by this server.
+func (s *ServerV2) GetProtocol() string {
+	switch s.Spec.Protocol {
+	case ServerSpecV2_SSH:
+		return teleport.ServerProtocolSSH
+	case ServerSpecV2_HTTPS:
+		return teleport.ServerProtocolHTTPS
+	default:
+		return teleport.ServerProtocolSSH
+	}
+}
+
+// SetProtocol sets the protocol supported by this server.
+func (s *ServerV2) SetProtocol(protocol string) error {
+	switch protocol {
+	case teleport.ServerProtocolSSH:
+		s.Spec.Protocol = ServerSpecV2_SSH
+	case teleport.ServerProtocolHTTPS:
+		s.Spec.Protocol = ServerSpecV2_HTTPS
+	default:
+		return trace.BadParameter("unknown protocol: %v", protocol)
+	}
+	return nil
+}
+
+// GetAppName gets the name of the application being proxied.
+func (s *ServerV2) GetAppName() string {
+	return s.Spec.AppName
+}
+
+// SetAppName sets the name of the application being proxied.
+func (s *ServerV2) SetAppName(appName string) {
+	s.Spec.AppName = appName
+}
+
+// GetInternalAddr gets the internal address of the application.
+func (s *ServerV2) GetInternalAddr() string {
+	return s.Spec.InternalAddr
+}
+
+// SetInternalAddr sets the internal address of the application.
+func (s *ServerV2) SetInternalAddr(internalAddr string) {
+	s.Spec.InternalAddr = internalAddr
+}
+
 func (s *ServerV2) String() string {
 	return fmt.Sprintf("Server(name=%v, namespace=%v, addr=%v, labels=%v)", s.Metadata.Name, s.Metadata.Namespace, s.Spec.Addr, s.Metadata.Labels)
 }
@@ -362,6 +423,19 @@ func CompareServers(a, b Server) int {
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
 		return Different
 	}
+	if a.GetProtocol() != b.GetProtocol() {
+		return Different
+	}
+
+	if a.GetProtocol() == teleport.ServerProtocolHTTPS {
+		if a.GetAppName() != b.GetAppName() {
+			return Different
+		}
+		if a.GetInternalAddr() != b.GetInternalAddr() {
+			return Different
+		}
+	}
+
 	return Equal
 }
 
@@ -390,7 +464,10 @@ const ServerSpecV2Schema = `{
   "properties": {
 	"version": {"type": "string"},
     "addr": {"type": "string"},
+    "protocol": {"type": "integer"},
     "public_addr": {"type": "string"},
+    "internal_addr": {"type": "string"},
+    "app_name": {"type": "string"},
     "hostname": {"type": "string"},
     "use_tunnel": {"type": "boolean"},
     "labels": {

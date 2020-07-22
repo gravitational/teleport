@@ -88,6 +88,9 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 				return nil, trace.Wrap(err)
 			}
 			parser = p
+		case services.KindApp:
+			parser = newAppParser()
+
 		default:
 			return nil, trace.BadParameter("watcher on object kind %v is not supported", kind)
 		}
@@ -609,6 +612,48 @@ func (p *nodeParser) match(key []byte) bool {
 
 func (p *nodeParser) parse(event backend.Event) (services.Resource, error) {
 	return parseServer(event, services.KindNode)
+}
+
+func newAppParser() *appParser {
+	return &appParser{
+		matchPrefix: backend.Key(appsPrefix, defaults.Namespace),
+	}
+}
+
+type appParser struct {
+	matchPrefix []byte
+}
+
+func (p *appParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *appParser) match(key []byte) bool {
+	return bytes.HasPrefix(key, p.matchPrefix)
+}
+
+func (p *appParser) parse(event backend.Event) (services.Resource, error) {
+	return parseApp(event, services.KindApp)
+}
+
+func parseApp(event backend.Event, kind string) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		return resourceHeader(event, kind, services.V3, 0)
+	case backend.OpPut:
+		resource, err := services.GetServerMarshaler().UnmarshalServer(event.Item.Value,
+			kind,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+			services.SkipValidation(),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
 }
 
 func newProxyParser() *proxyParser {

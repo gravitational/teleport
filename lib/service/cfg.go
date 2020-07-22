@@ -74,18 +74,21 @@ type Config struct {
 	// in case if they loose connection to auth servers
 	CachePolicy CachePolicy
 
-	// SSH role an SSH endpoint server
+	// Auth service configuration. Manages cluster state and configuration.
+	Auth AuthConfig
+
+	// Proxy service configuration. Manages incoming and outbound
+	// connections to the cluster.
+	Proxy ProxyConfig
+
+	// SSH service configuration. Manages SSH servers running within the cluster.
 	SSH SSHConfig
 
-	// Auth server authentication and authorization server config
-	Auth AuthConfig
+	// App service configuration. Manages applications running within the cluster.
+	Apps AppsConfig
 
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
-
-	// Proxy is SSH proxy that manages incoming and outbound connections
-	// via multiple reverse tunnels
-	Proxy ProxyConfig
 
 	// HostUUID is a unique UUID of this host (it will be known via this UUID within
 	// a teleport cluster). It's automatically generated on 1st start
@@ -445,6 +448,39 @@ type SSHConfig struct {
 	BPF *bpf.Config
 }
 
+// AppsConfig configures application proxy service.
+type AppsConfig struct {
+	// Enabled enables application proxying service.
+	Enabled bool
+
+	// Apps is the list of applications that are being proxied.
+	Apps []App
+}
+
+// App is the specific application that will be proxied by the application
+// service.
+type App struct {
+	// Name of the application.
+	Name string `yaml:"name"`
+
+	// Protocol used to proxy this application. At the moment only HTTPS is
+	// supported.
+	Protocol string `yaml:"protocol"`
+
+	// InternalAddr is the internal address of the application.
+	InternalAddr utils.NetAddr `yaml:"internal_addr"`
+
+	// Public address of the application. This is the address users will access
+	// the application at.
+	PublicAddr utils.NetAddr `yaml:"public_addr"`
+
+	// StaticLabels is a map of static labels to apply to this application.
+	StaticLabels map[string]string `yaml:"labels,omitempty"`
+
+	// DynamicLabels is a list of dynamic labels to apply to this application.
+	DynamicLabels services.CommandLabels `yaml:"commands,omitempty"`
+}
+
 // MakeDefaultConfig creates a new Config structure and populates it with defaults
 func MakeDefaultConfig() (config *Config) {
 	config = &Config{}
@@ -516,6 +552,9 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 	cfg.SSH.PAM = &pam.Config{Enabled: false}
 	cfg.SSH.BPF = &bpf.Config{Enabled: false}
+
+	// Apps service defaults. It's disabled by default.
+	cfg.Apps.Enabled = false
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

@@ -661,3 +661,17 @@ const (
 
 // UserSystem defines a user as system.
 const UserSystem = "system"
+
+const (
+	// ServerProtocolSSH is the protocol used by auth, node, and proxy servers.
+	ServerProtocolSSH = "ssh"
+	// ServerProtocolHTTPS is the protocol used for application proxy server.
+	ServerProtocolHTTPS = "https"
+)
+
+const (
+	// KeepAliveServer is the keep alive type for auth, node, and proxy servers.
+	KeepAliveServer = "server"
+	// KeepAliveApp is the keep alive type for application proxy server.
+	KeepAliveApp = "app"
+)

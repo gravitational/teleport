@@ -2690,6 +2690,90 @@ func (c *Client) Ping(ctx context.Context) (proto.PingResponse, error) {
 	return *rsp, nil
 }
 
+// GetApps returns all registered applications.
+func (c *Client) GetApps(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg, err := services.CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.GetApps(ctx, &proto.GetAppsRequest{
+		Namespace:      namespace,
+		SkipValidation: cfg.SkipValidation,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	var apps []services.Server
+	for _, app := range resp.GetApps() {
+		apps = append(apps, app)
+	}
+
+	return apps, nil
+}
+
+// UpsertApp is used by applications to report their presence to the backend.
+func (c *Client) UpsertApp(ctx context.Context, app services.Server) (*services.KeepAlive, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	protoApp, ok := app.(*services.ServerV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type for app: %T", app)
+	}
+
+	keepAlive, err := clt.UpsertApp(ctx, &proto.UpsertAppRequest{
+		App: protoApp,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return keepAlive, nil
+}
+
+// DeleteApp un-registers an application.
+func (c *Client) DeleteApp(ctx context.Context, namespace string, name string) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = clt.DeleteApp(ctx, &proto.DeleteAppRequest{
+		Namespace: namespace,
+		Name:      name,
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
+}
+
+// DeleteAllApps removes all applications from a namespace.
+func (c *Client) DeleteAllApps(ctx context.Context, namespace string) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = clt.DeleteAllApps(ctx, &proto.DeleteAllAppsRequest{
+		Namespace: namespace,
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if

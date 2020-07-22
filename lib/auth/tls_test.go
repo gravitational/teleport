@@ -830,6 +830,17 @@ func (s *TLSSuite) TestServersCRUD(c *check.C) {
 	suite.ServerCRUD(c)
 }
 
+// AppCRUD tests CRUD functionality for services.App using an auth client.
+func (s *TLSSuite) TestAppsCRUD(c *check.C) {
+	clt, err := s.server.NewClient(TestBuiltin(teleport.RoleApp))
+	c.Assert(err, check.IsNil)
+
+	suite := &suite.ServicesTestSuite{
+		PresenceS: clt,
+	}
+	suite.AppCRUD(c)
+}
+
 func (s *TLSSuite) TestReverseTunnelsCRUD(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)

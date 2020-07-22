@@ -218,6 +218,14 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(conf.Proxy.ListenAddress, check.Equals, "tcp://proxy_ssh_addr")
 	c.Assert(conf.Proxy.WebAddr, check.Equals, "tcp://web_addr")
 	c.Assert(conf.Proxy.TunAddr, check.Equals, "reverse_tunnel_address:3311")
+	c.Assert(conf.Apps.Configured(), check.Equals, true)
+	c.Assert(conf.Apps.Enabled(), check.Equals, true)
+	c.Assert(conf.Apps.Apps[0].Name, check.Equals, "foo")
+	c.Assert(conf.Apps.Apps[0].Protocol, check.Equals, teleport.ServerProtocolHTTPS)
+	c.Assert(conf.Apps.Apps[0].URI, check.Equals, "1.1.1.1:1234")
+	c.Assert(conf.Apps.Apps[0].PublicAddr, check.Equals, "2.2.2.2:5678")
+	c.Assert(conf.Apps.Apps[0].Labels, check.DeepEquals, Labels)
+	c.Assert(conf.Apps.Apps[0].Commands, check.DeepEquals, CommandLabels)
 
 	// good config from file
 	conf, err = ReadFromFile(s.configFileStatic)
@@ -435,6 +443,7 @@ func (s *ConfigTestSuite) TestApplyConfigNoneEnabled(c *check.C) {
 	c.Assert(cfg.Proxy.PublicAddrs, check.HasLen, 0)
 	c.Assert(cfg.SSH.Enabled, check.Equals, false)
 	c.Assert(cfg.SSH.PublicAddrs, check.HasLen, 0)
+	c.Assert(cfg.Apps.Enabled, check.Equals, false)
 }
 
 func (s *ConfigTestSuite) TestBackendDefaults(c *check.C) {
@@ -680,6 +689,19 @@ func makeConfigFixture() string {
 	conf.Proxy.WebAddr = "tcp://web_addr"
 	conf.Proxy.TunAddr = "reverse_tunnel_address:3311"
 
+	// Application service.
+	conf.Apps.EnabledFlag = "yes"
+	conf.Apps.Apps = []App{
+		{
+			Name:       "foo",
+			Protocol:   teleport.ServerProtocolHTTPS,
+			URI:        "1.1.1.1:1234",
+			PublicAddr: "2.2.2.2:5678",
+			Labels:     Labels,
+			Commands:   CommandLabels,
+		},
+	}
+
 	return conf.DebugDumpToYAML()
 }
 
@@ -826,5 +848,73 @@ func (s *ConfigTestSuite) TestFIPS(c *check.C) {
 		} else {
 			c.Assert(err, check.IsNil, comment)
 		}
+	}
+}
+
+func (s *ConfigTestSuite) TestApps(c *check.C) {
+	tests := []struct {
+		inConfigString string
+		inComment      check.CommentInterface
+		outError       bool
+	}{
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    -
+      name: foo
+      public_addr: "foo.example.com:443"
+      uri: "127.0.0.1:8080"
+`,
+			inComment: check.Commentf("config is valid"),
+			outError:  false,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    -
+      public_addr: "foo.example.com:443"
+      uri: "127.0.0.1:8080"
+`,
+			inComment: check.Commentf("config is missing name"),
+			outError:  true,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    -
+      name: foo
+      uri: "127.0.0.1:8080"
+`,
+			inComment: check.Commentf("config is missing public address"),
+			outError:  true,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    -
+      name: foo
+      public_addr: "foo.example.com:443"
+`,
+			inComment: check.Commentf("config is missing internal address"),
+			outError:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		clf := CommandLineFlags{
+			ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
+		}
+		cfg := service.MakeDefaultConfig()
+
+		err := Configure(&clf, cfg)
+		c.Assert(err != nil, check.Equals, tt.outError, tt.inComment)
 	}
 }

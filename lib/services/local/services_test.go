@@ -101,6 +101,11 @@ func (s *ServicesSuite) TestServerCRUD(c *check.C) {
 	s.suite.ServerCRUD(c)
 }
 
+// TestAppCRUD tests CRUD functionality for services.App.
+func (s *ServicesSuite) TestAppCRUD(c *check.C) {
+	s.suite.AppCRUD(c)
+}
+
 func (s *ServicesSuite) TestReverseTunnelsCRUD(c *check.C) {
 	s.suite.ReverseTunnelsCRUD(c)
 }

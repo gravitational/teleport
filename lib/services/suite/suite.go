@@ -356,6 +356,56 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	c.Assert(out, check.DeepEquals, []services.Server{auth})
 }
 
+// NewApp creates a new server resource.
+func NewApp(name string, internalAddr string, publicAddr string) *services.ServerV2 {
+	return &services.ServerV2{
+		Kind:    services.KindApp,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      name,
+			Namespace: defaults.Namespace,
+		},
+		Spec: services.ServerSpecV2{
+			Protocol:     services.ServerSpecV2_HTTPS,
+			InternalAddr: internalAddr,
+			PublicAddr:   publicAddr,
+		},
+	}
+}
+
+// AppCRUD tests CRUD functionality for services.App.
+func (s *ServicesTestSuite) AppCRUD(c *check.C) {
+	ctx := context.Background()
+
+	// Create application.
+	app := NewApp("foo", "127.0.0.1:8080", "foo.example.com")
+
+	// Expect not to be returned any applications and trace.NotFound.
+	out, err := s.PresenceS.GetApps(ctx, defaults.Namespace)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(out), check.Equals, 0)
+
+	// Upsert application.
+	_, err = s.PresenceS.UpsertApp(ctx, app)
+	c.Assert(err, check.IsNil)
+
+	// Check again, expect a single application to be found.
+	out, err = s.PresenceS.GetApps(ctx, app.GetNamespace())
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+	app.SetResourceID(out[0].GetResourceID())
+	fixtures.DeepCompare(c, out, []services.Server{app})
+
+	// Remove the application.
+	err = s.PresenceS.DeleteApp(ctx, app.Metadata.Namespace, app.GetName())
+	c.Assert(err, check.IsNil)
+
+	// Now expect no applications to be returned.
+	out, err = s.PresenceS.GetApps(ctx, app.Metadata.Namespace)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 0)
+}
+
 func newReverseTunnel(clusterName string, dialAddrs []string) *services.ReverseTunnelV2 {
 	return &services.ReverseTunnelV2{
 		Kind:    services.KindReverseTunnel,
@@ -543,6 +593,7 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 			Allow: services.RoleConditions{
 				Logins:     []string{"root", "bob"},
 				NodeLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+				AppLabels:  services.Labels{services.Wildcard: []string{services.Wildcard}},
 				Namespaces: []string{defaults.Namespace},
 				Rules: []services.Rule{
 					services.NewRule(services.KindRole, services.RO()),

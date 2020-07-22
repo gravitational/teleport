@@ -101,6 +101,15 @@ type CommandLineFlags struct {
 	// FIPS mode means Teleport starts in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
 	FIPS bool
+
+	// AppName is the name of the application to proxy.
+	AppName string
+
+	// AppURI is the internal address of the application to proxy.
+	AppURI string
+
+	// AppPublicAddr is the public address of the application to proxy.
+	AppPublicAddr string
 }
 
 // readConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -168,6 +177,9 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	if fc.Proxy.Disabled() {
 		cfg.Proxy.Enabled = false
+	}
+	if fc.Apps.Disabled() {
+		cfg.Apps.Enabled = false
 	}
 	applyString(fc.NodeName, &cfg.Hostname)
 
@@ -318,8 +330,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
-	// Apply configuration for "auth_service", "proxy_service", and
-	// "ssh_service" if it's enabled.
+	// Apply configuration for "auth_service", "proxy_service", "ssh_service",
+	// and "app_service" if they are enabled.
 	if fc.Auth.Enabled() {
 		err = applyAuthConfig(fc, cfg)
 		if err != nil {
@@ -335,6 +347,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.SSH.Enabled() {
 		err = applySSHConfig(fc, cfg)
 		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if fc.Apps.Enabled() {
+		if err := applyAppsConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -642,6 +659,62 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) error {
 	return nil
 }
 
+// applyAppsConfig applies file configuration for the "app_service" section.
+func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
+	// Apps are enabled.
+	cfg.Apps.Enabled = true
+
+	// Loop over all apps and load app configuration.
+	for _, application := range fc.Apps.Apps {
+		err := application.CheckAndSetDefaults()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Parse the internal address of the application.
+		uriAddr, err := utils.ParseHostPortAddr(application.URI, -1)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Parse the external address of the application.
+		publicAddr, err := utils.ParseHostPortAddr(application.PublicAddr, -1)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Parse the static labels of the application.
+		labels := make(map[string]string)
+		if application.Labels != nil {
+			labels = application.Labels
+		}
+
+		// Parse the dynamic labels of the application.
+		commands := make(services.CommandLabels)
+		if application.Commands != nil {
+			for _, v := range application.Commands {
+				commands[v.Name] = &services.CommandLabelV2{
+					Period:  services.NewDuration(v.Period),
+					Command: v.Command,
+					Result:  "",
+				}
+			}
+		}
+
+		// Add the application to the list of proxied applications.
+		cfg.Apps.Apps = append(cfg.Apps.Apps, service.App{
+			Name:          application.Name,
+			Protocol:      application.Protocol,
+			InternalAddr:  *uriAddr,
+			PublicAddr:    *publicAddr,
+			StaticLabels:  labels,
+			DynamicLabels: commands,
+		})
+	}
+
+	return nil
+}
+
 // parseAuthorizedKeys parses keys in the authorized_keys format and
 // returns a services.CertAuthority.
 func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (services.CertAuthority, services.Role, error) {
@@ -863,6 +936,32 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		}
 	}
 
+	// If application name was specified on command line, add to configuration.
+	if clf.AppName != "" {
+		cfg.Apps.Enabled = true
+
+		// Parse the internal address of the application.
+		uriAddr, err := utils.ParseHostPortAddr(clf.AppURI, -1)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Parse the external address of the application.
+		publicAddr, err := utils.ParseHostPortAddr(clf.AppPublicAddr, -1)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		cfg.Apps.Apps = append(cfg.Apps.Apps, service.App{
+			Name:          clf.AppName,
+			Protocol:      teleport.ServerProtocolHTTPS,
+			InternalAddr:  *uriAddr,
+			PublicAddr:    *publicAddr,
+			StaticLabels:  make(map[string]string),
+			DynamicLabels: make(services.CommandLabels),
+		})
+	}
+
 	if err = ApplyFileConfig(fileConf, cfg); err != nil {
 		return trace.Wrap(err)
 	}
@@ -935,6 +1034,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		cfg.SSH.Enabled = strings.Contains(clf.Roles, defaults.RoleNode)
 		cfg.Auth.Enabled = strings.Contains(clf.Roles, defaults.RoleAuthService)
 		cfg.Proxy.Enabled = strings.Contains(clf.Roles, defaults.RoleProxy)
+		cfg.Apps.Enabled = strings.Contains(clf.Roles, defaults.RoleApp)
 	}
 
 	// apply --auth-server flag:
@@ -1123,7 +1223,8 @@ func validateRoles(roles string) error {
 		switch role {
 		case defaults.RoleAuthService,
 			defaults.RoleNode,
-			defaults.RoleProxy:
+			defaults.RoleProxy,
+			defaults.RoleApp:
 			break
 		default:
 			return trace.Errorf("unknown role: '%s'", role)

@@ -162,6 +162,10 @@ var (
 		"disk_buffer_size":        false,
 		"network_buffer_size":     false,
 		"cgroup_path":             false,
+		"app_service":             true,
+		"protocol":                false,
+		"uri":                     false,
+		"apps":                    false,
 	}
 )
 
@@ -180,6 +184,10 @@ type FileConfig struct {
 	Auth   Auth  `yaml:"auth_service,omitempty"`
 	SSH    SSH   `yaml:"ssh_service,omitempty"`
 	Proxy  Proxy `yaml:"proxy_service,omitempty"`
+
+	// Apps is the "app_service" section in Teleport file configuration which
+	// defines AAP configuration.
+	Apps Apps `yaml:"app_service,omitempty"`
 }
 
 type YAMLMap map[interface{}]interface{}
@@ -776,6 +784,63 @@ func (b *BPF) Parse() *bpf.Config {
 		NetworkBufferSize: b.NetworkBufferSize,
 		CgroupPath:        b.CgroupPath,
 	}
+}
+
+// Apps represents the configuration for the collection of applications this
+// service will start. In file configuration this would be the "app_service"
+// section.
+type Apps struct {
+	// Service contains fields common to all services like "enabled" and
+	// "listen_addr".
+	Service `yaml:",inline"`
+
+	// Apps is a list of applications that will be run by this service.
+	Apps []App `yaml:"apps"`
+}
+
+// App is the specific application that will be proxied by the application
+// service.
+type App struct {
+	// Name of the application.
+	Name string `yaml:"name"`
+
+	// Protocol used to proxy this application. At the moment only HTTPS is
+	// supported.
+	Protocol string `yaml:"protocol"`
+
+	// URI is the internal address of the application.
+	URI string `yaml:"uri"`
+
+	// Public address of the application. This is the address users will access
+	// the application at.
+	PublicAddr string `yaml:"public_addr"`
+
+	// Labels is a map of static labels to apply to this application.
+	Labels map[string]string `yaml:"labels,omitempty"`
+
+	// Commands is a list of dynamic labels to apply to this application.
+	Commands []CommandLabel `yaml:"commands,omitempty"`
+}
+
+func (a App) CheckAndSetDefaults() error {
+	if a.Protocol == "" {
+		a.Protocol = teleport.ServerProtocolHTTPS
+	}
+
+	if a.Name == "" {
+		return trace.BadParameter("missing name")
+	}
+	if a.Protocol != teleport.ServerProtocolHTTPS {
+		return trace.BadParameter("invalid protocol: %q", a.Protocol)
+	}
+	if a.URI == "" {
+		return trace.BadParameter("missing URI")
+	}
+	if a.PublicAddr == "" {
+		return trace.BadParameter("missing public address")
+	}
+
+	return nil
 }
 
 // Proxy is a `proxy_service` section of the config file:
