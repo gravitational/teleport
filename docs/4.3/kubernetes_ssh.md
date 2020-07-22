@@ -349,6 +349,12 @@ sequence, their `kubeconfig` will be updated with their Kubernetes credentials.
     For more information on integrating Teleport with Okta, please see the
     [Okta integration guide](enterprise/sso/ssh_okta.md).
 
+## Kubernetes Automation
+
+https://github.com/gravitational/teleport/pull/3614
+
+
+
 ## AWS EKS
 
 We've a complete guide on setting up Teleport with EKS. Please see the [Using Teleport with EKS Guide](aws_oss_guide.md#using-teleport-with-eks).
