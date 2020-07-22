@@ -95,10 +95,12 @@ proxy_service:
 ![teleport-ssh-kubernetes-integration](img/teleport-kubernetes-outside.svg)
 
 To generate the `kubeconfig_file` for the Teleport proxy service:
+
 1. Configure your `kubectl` to point at the Kubernetes cluster and have admin-level access.
 2. Use [this
    script](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh)
    to generate `kubeconfig`:
+
 ```bash
 # Download the script.
 $ curl -o get-kubeconfig.sh https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh
@@ -117,21 +119,12 @@ Resources                                       Non-Resource URLs   Resource Nam
 selfsubjectaccessreviews.authorization.k8s.io   []                  []               [create create]
 selfsubjectrulesreviews.authorization.k8s.io    []                  []               [create create]
                                                 [/api/*]            []               [get]
-                                                [/api]              []               [get]
-                                                [/apis/*]           []               [get]
-                                                [/apis]             []               [get]
-                                                [/healthz]          []               [get]
-                                                [/healthz]          []               [get]
-                                                [/openapi/*]        []               [get]
-                                                [/openapi]          []               [get]
-                                                [/version/]         []               [get]
-                                                [/version/]         []               [get]
-                                                [/version]          []               [get]
-                                                [/version]          []               [get]
+                                                ...                 []               [...]
 groups                                          []                  []               [impersonate]
 serviceaccounts                                 []                  []               [impersonate]
 users                                           []                  []               [impersonate]
 ```
+
 3. Copy the generated `kubeconfig` file to the host running the Teleport proxy
    service.
 4. Update `kubeconfig_file` path in `teleport.yaml` to where you copied the
@@ -142,14 +135,14 @@ However, it will result in Teleport proxy using your personal Kubernetes
 credentials. This is risky: your credentials can expire or get revoked (such as
 when leaving your company).
 
-## Impersonation
-
-!!! note
+!!! tip
 
     If you used [the script from Option
     2](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh)
     above, you can skip this step. The script already configured impersonation
     permissions.
+
+## Impersonation
 
 The next step is to configure the Teleport Proxy to be able to impersonate Kubernetes principals within a given group
 using [Kubernetes Impersonation Headers](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation).
@@ -349,11 +342,48 @@ sequence, their `kubeconfig` will be updated with their Kubernetes credentials.
     For more information on integrating Teleport with Okta, please see the
     [Okta integration guide](enterprise/sso/ssh_okta.md).
 
-## Kubernetes Automation
+## Using Teleport Kubernetes with Automation
 
-https://github.com/gravitational/teleport/pull/3614
+Teleport can integrate with CI/CD tooling for greater visibility and audibility of
+these tools. For this we recommend creating a local Teleport user, then exporting
+a kubeconfig using [`tctl auth sign`](cli-docs.md#tctl-auth-sign)
 
+An example setup is below.
 
+```bash
+# Create a new local user for Jenkins`
+$ tctl users add jenkins
+# Option 1: Creates a token for 1 year
+$ tctl auth sign --user=jenkins --format=kubernetes --out=kubeconfig --ttl=8760h
+# Recommend Option 2: Creates a token for 25hrs
+$ tctl auth sign --user=jenkins --format=kubernetes --out=kubeconfig --ttl=25h
+
+  The credentials have been written to kubeconfig
+
+$ cat kubeconfig
+  apiVersion: v1
+  clusters:
+  - cluster:
+      certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZ....
+# This kubeconfig can now be exported and will provide access to the automation tooling.
+```
+
+!!! tip "How long should TTL be?"
+
+    In the above example we've provided two options. One with 1yr (8760h) time to live
+    and one for just 25hrs. As proponents of short lived SSH certificates we recommend
+    the same for automation.
+
+    Handling secrets is out of scope of our docs, but at a high level we recommend
+    using providers secrets managers. Such as [AWS Secrets Manager](https://aws.amazon.com/secrets-manager/),
+    [GCP Secrets Manager](https://cloud.google.com/secret-manager), or on prem using
+    a project like [Vault](https://www.vaultproject.io/).  Then running a nightly
+    job on the auth server to sign and publish a new kubeconfig. In our example, we've
+    added 1hr, and during this time both kubeconfigs will be valid.
+
+    Taking this a step further you could build a system to request a very short lived
+    token for each CI run. We plan to make this easier for operators to integrate in
+    the future by exposing and documenting more our our API.
 
 ## AWS EKS
 
