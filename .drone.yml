@@ -1814,8 +1814,8 @@ trigger:
       - promote
       - rollback
 
-depends_on:
-  - build-darwin-amd64
+# depends_on:
+#   - build-darwin-amd64
 
 workspace:
   path: /tmp/teleport-pkg-tsh
@@ -1877,6 +1877,9 @@ steps:
     commands:
       - cd /tmp/teleport-pkg-tsh/go/src/github.com/gravitational/teleport
       - export VERSION=$(cat tmp/teleport-pkg-tsh/go/.version.txt)
+      # list keychains
+      - whoami
+      - security list-keychains
       # unlock login keychain
       - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
       # show available certificates
@@ -2393,6 +2396,6 @@ steps:
 
 ---
 kind: signature
-hmac: a9811d4cb0dd48724c518927882246e7e46f8e0f1dd5bc0c72c9a8e1d192c2f0
+hmac: 4e1dc27a7b6379674ef4bbc0f77149df1e8d5733f7c91adda7e5a08ff3a3b00c
 
 ...
