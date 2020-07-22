@@ -1662,6 +1662,7 @@ steps:
 
   - name: Clean up exec runner storage (post)
     commands:
+      - cd /tmp
       - rm -rf /tmp/tarball/go
 
 ---
@@ -1777,6 +1778,7 @@ steps:
 
   - name: Clean up exec runner storage (post)
     commands:
+      - cd /tmp
       - rm -rf /tmp/teleport-pkg/go
 
 ---
@@ -1892,6 +1894,7 @@ steps:
 
   - name: Clean up exec runner storage (post)
     commands:
+      - cd /tmp
       - rm -rf /tmp/teleport-pkg-tsh/go
 
 ---
@@ -1996,6 +1999,7 @@ steps:
 
   - name: Clean up exec runner storage (post)
     commands:
+      - cd /tmp
       - rm -rf /dev/shm/tmp/go
 
 ---
@@ -2373,6 +2377,6 @@ steps:
 
 ---
 kind: signature
-hmac: cf01d9ed48a432879b9194c5d55bdbf8bdc5cd3869cc56c2675a7cd3a8843c16
+hmac: 9a1fe55fbd3bb2e4f4cf7f2513bb061e7444d3bfdbbf222e3b10592f71e40f5d
 
 ...
