@@ -145,7 +145,7 @@ const getDocURLs = (version = '') => {
    * @param anchorHash the hash in URL that predefines scroll location in the page.
    */
   const withUTM = (url = '', anchorHash = '') =>
-    `${url}?utm_source=teleport&utm_medium=${verPrefix}_${version}${anchorHash}`;
+    `${url}?product=teleport&version=${verPrefix}_${version}${anchorHash}`;
 
   return {
     quickstart: withUTM('https://gravitational.com/teleport/docs/quickstart'),

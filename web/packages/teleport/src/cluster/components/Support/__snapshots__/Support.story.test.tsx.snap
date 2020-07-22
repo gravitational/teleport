@@ -249,19 +249,19 @@ exports[`support Enterprise 1`] = `
         </div>
         <a
           class="c10"
-          href="https://gravitational.com/teleport/docs/quickstart?utm_source=teleport&utm_medium=e_5.0.0"
+          href="https://gravitational.com/teleport/docs/quickstart?product=teleport&version=e_5.0.0"
         >
           Quickstart Guide
         </a>
         <a
           class="c10"
-          href="https://gravitational.com/teleport/docs/user-manual?utm_source=teleport&utm_medium=e_5.0.0"
+          href="https://gravitational.com/teleport/docs/user-manual?product=teleport&version=e_5.0.0"
         >
           tsh User Guide
         </a>
         <a
           class="c10"
-          href="https://gravitational.com/teleport/docs/admin-guide?utm_source=teleport&utm_medium=e_5.0.0"
+          href="https://gravitational.com/teleport/docs/admin-guide?product=teleport&version=e_5.0.0"
         >
           Admin Guide
         </a>
@@ -273,7 +273,7 @@ exports[`support Enterprise 1`] = `
         </a>
         <a
           class="c10"
-          href="https://gravitational.com/teleport/docs/faq?utm_source=teleport&utm_medium=e_5.0.0"
+          href="https://gravitational.com/teleport/docs/faq?product=teleport&version=e_5.0.0"
         >
           FAQ
         </a>
@@ -302,19 +302,19 @@ exports[`support Enterprise 1`] = `
         </div>
         <a
           class="c10"
-          href="https://gravitational.com/teleport/docs/admin-guide?utm_source=teleport&utm_medium=e_5.0.0#troubleshooting"
+          href="https://gravitational.com/teleport/docs/admin-guide?product=teleport&version=e_5.0.0#troubleshooting"
         >
           Monitoring Teleport
         </a>
         <a
           class="c10"
-          href="https://gravitational.com/teleport/docs/admin-guide?utm_source=teleport&utm_medium=e_5.0.0#troubleshooting"
+          href="https://gravitational.com/teleport/docs/admin-guide?product=teleport&version=e_5.0.0#troubleshooting"
         >
           Collecting Debug Data
         </a>
         <a
           class="c10"
-          href="https://gravitational.com/teleport/docs/admin-guide?utm_source=teleport&utm_medium=e_5.0.0#troubleshooting"
+          href="https://gravitational.com/teleport/docs/admin-guide?product=teleport&version=e_5.0.0#troubleshooting"
         >
           Troubleshooting FAQ
         </a>
@@ -676,19 +676,19 @@ exports[`support OSS 1`] = `
         </div>
         <a
           class="c10"
-          href="https://gravitational.com/teleport/docs/quickstart?utm_source=teleport&utm_medium=oss_5.0.0"
+          href="https://gravitational.com/teleport/docs/quickstart?product=teleport&version=oss_5.0.0"
         >
           Quickstart Guide
         </a>
         <a
           class="c10"
-          href="https://gravitational.com/teleport/docs/user-manual?utm_source=teleport&utm_medium=oss_5.0.0"
+          href="https://gravitational.com/teleport/docs/user-manual?product=teleport&version=oss_5.0.0"
         >
           tsh User Guide
         </a>
         <a
           class="c10"
-          href="https://gravitational.com/teleport/docs/admin-guide?utm_source=teleport&utm_medium=oss_5.0.0"
+          href="https://gravitational.com/teleport/docs/admin-guide?product=teleport&version=oss_5.0.0"
         >
           Admin Guide
         </a>
@@ -700,7 +700,7 @@ exports[`support OSS 1`] = `
         </a>
         <a
           class="c10"
-          href="https://gravitational.com/teleport/docs/faq?utm_source=teleport&utm_medium=oss_5.0.0"
+          href="https://gravitational.com/teleport/docs/faq?product=teleport&version=oss_5.0.0"
         >
           FAQ
         </a>
@@ -729,19 +729,19 @@ exports[`support OSS 1`] = `
         </div>
         <a
           class="c10"
-          href="https://gravitational.com/teleport/docs/admin-guide?utm_source=teleport&utm_medium=oss_5.0.0#troubleshooting"
+          href="https://gravitational.com/teleport/docs/admin-guide?product=teleport&version=oss_5.0.0#troubleshooting"
         >
           Monitoring Teleport
         </a>
         <a
           class="c10"
-          href="https://gravitational.com/teleport/docs/admin-guide?utm_source=teleport&utm_medium=oss_5.0.0#troubleshooting"
+          href="https://gravitational.com/teleport/docs/admin-guide?product=teleport&version=oss_5.0.0#troubleshooting"
         >
           Collecting Debug Data
         </a>
         <a
           class="c10"
-          href="https://gravitational.com/teleport/docs/admin-guide?utm_source=teleport&utm_medium=oss_5.0.0#troubleshooting"
+          href="https://gravitational.com/teleport/docs/admin-guide?product=teleport&version=oss_5.0.0#troubleshooting"
         >
           Troubleshooting FAQ
         </a>
