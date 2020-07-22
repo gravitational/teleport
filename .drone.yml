@@ -1665,7 +1665,7 @@ steps:
 ---
 kind: pipeline
 type: exec
-name: build-darwin-amd64-pkg
+name: build-darwin-pkg
 
 concurrency:
   limit: 1
@@ -1780,7 +1780,7 @@ steps:
 ---
 kind: pipeline
 type: exec
-name: build-darwin-amd64-pkg-tsh
+name: build-darwin-tsh
 
 concurrency:
   limit: 1
@@ -2368,6 +2368,6 @@ steps:
 
 ---
 kind: signature
-hmac: 9e54e0486f0dc13e65065dd47dd2a1578b975d55ba2056088b7093df9efee26d
+hmac: 156b5734379b049ef93d524fc0161f106760711d22436b3f28d2761f4985163b
 
 ...
