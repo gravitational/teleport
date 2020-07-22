@@ -1877,8 +1877,8 @@ steps:
     commands:
       - cd /tmp/teleport-pkg-tsh/go/src/github.com/gravitational/teleport
       - export VERSION=$(cat tmp/teleport-pkg-tsh/go/.version.txt)
-      # list keychains
-      - security list-keychains -d user -s login.keychain
+      # set HOME explicitly (as Drone overrides it normally)
+      - export HOME=/Users/build
       # unlock login keychain
       - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
       # show available certificates
@@ -2395,6 +2395,6 @@ steps:
 
 ---
 kind: signature
-hmac: 5cbeba7ca02fb0c92f2724d9f5cbe33bb006e7ada3a868d52c4866283d6c3a73
+hmac: 61639e30457faaab13f75030606e5e51ad31298b2f0ad3c21b7f3be8b1eb9066
 
 ...
