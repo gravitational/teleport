@@ -18,7 +18,6 @@ package lite
 
 import (
 	"database/sql"
-	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
 
@@ -28,7 +27,7 @@ import (
 const notSet = -2
 
 func (l *LiteBackend) runPeriodicOperations() {
-	t := time.NewTicker(l.PollStreamPeriod)
+	t := l.clock.NewTicker(l.PollStreamPeriod)
 	defer t.Stop()
 
 	rowid := int64(notSet)
@@ -39,7 +38,7 @@ func (l *LiteBackend) runPeriodicOperations() {
 				l.Warningf("Error closing database: %v", err)
 			}
 			return
-		case <-t.C:
+		case <-t.Chan():
 			err := l.removeExpiredKeys()
 			if err != nil {
 				// connection problem means that database is closed
