@@ -1665,7 +1665,7 @@ steps:
 ---
 kind: pipeline
 type: exec
-name: build-darwin-pkg
+name: build-darwin-amd64-pkg
 
 concurrency:
   limit: 1
@@ -1691,8 +1691,8 @@ trigger:
       - promote
       - rollback
 
-depends_on:
-  - build-darwin-amd64
+# depends_on:
+#   - build-darwin-amd64
 
 workspace:
   path: /tmp/teleport-pkg
@@ -1780,7 +1780,7 @@ steps:
 ---
 kind: pipeline
 type: exec
-name: build-darwin-tsh
+name: build-darwin-amd64-pkg-tsh
 
 concurrency:
   limit: 1
@@ -1806,8 +1806,8 @@ trigger:
       - promote
       - rollback
 
-depends_on:
-  - build-darwin-amd64
+# depends_on:
+#   - build-darwin-amd64
 
 workspace:
   path: /tmp/teleport-pkg-tsh
@@ -2368,6 +2368,6 @@ steps:
 
 ---
 kind: signature
-hmac: 156b5734379b049ef93d524fc0161f106760711d22436b3f28d2761f4985163b
+hmac: f3744c79396aaea4dcca2ef55d3b5cda2037baa22e160f248ba68fd36e8c03d8
 
 ...
