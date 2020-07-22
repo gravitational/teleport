@@ -1691,8 +1691,8 @@ trigger:
       - promote
       - rollback
 
-# depends_on:
-#   - build-darwin-amd64
+depends_on:
+  - build-darwin-amd64
 
 workspace:
   path: /tmp/teleport-pkg
@@ -1701,7 +1701,7 @@ clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner storage
+  - name: Clean up exec runner storage (pre)
     commands:
       - rm -rf go
 
@@ -1773,7 +1773,7 @@ steps:
       - cd go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
 
-  - name: Clean up exec runner storage
+  - name: Clean up exec runner storage (post)
     commands:
       - rm -rf go
 
@@ -1806,8 +1806,8 @@ trigger:
       - promote
       - rollback
 
-# depends_on:
-#   - build-darwin-amd64
+depends_on:
+  - build-darwin-amd64
 
 workspace:
   path: /tmp/teleport-pkg-tsh
@@ -1816,7 +1816,7 @@ clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner storage
+  - name: Clean up exec runner storage (pre)
     commands:
       - rm -rf go
 
@@ -1888,7 +1888,7 @@ steps:
       - cd go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
 
-  - name: Clean up exec runner storage
+  - name: Clean up exec runner storage (post)
     commands:
       - rm -rf go
 
@@ -2368,6 +2368,6 @@ steps:
 
 ---
 kind: signature
-hmac: f3744c79396aaea4dcca2ef55d3b5cda2037baa22e160f248ba68fd36e8c03d8
+hmac: 3550babe2bfca1c550da6f009d7244a616d8617afb96abafb3270dc6ebce6012
 
 ...
