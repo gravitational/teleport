@@ -1878,7 +1878,7 @@ steps:
       - cd /tmp/teleport-pkg-tsh/go/src/github.com/gravitational/teleport
       - export VERSION=$(cat tmp/teleport-pkg-tsh/go/.version.txt)
       # unlock login keychain
-      - security unlock-keychain -p $${BUILDBOX_PASSWORD} /Users/build/Library/Keychains/login.keychain-db
+      - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
       # show available certificates
       - security find-identity -v
       # build pkg
@@ -2393,6 +2393,6 @@ steps:
 
 ---
 kind: signature
-hmac: 6dcfbe256e05d1b267aed5280a1b67d670cba529936a9edf658cdaa96c3a743e
+hmac: a9811d4cb0dd48724c518927882246e7e46f8e0f1dd5bc0c72c9a8e1d192c2f0
 
 ...
