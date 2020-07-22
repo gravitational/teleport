@@ -1605,8 +1605,9 @@ clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner storage
+  - name: Clean up exec runner storage (pre)
     commands:
+      - chmod -R u+rw /tmp/tarball/go
       - rm -rf /tmp/tarball/go
 
   - name: Check out code
@@ -1660,6 +1661,11 @@ steps:
       - cd /tmp/tarball/go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
 
+  - name: Clean up exec runner storage (post)
+    commands:
+      - chmod -R u+rw /tmp/tarball/go
+      - rm -rf /tmp/tarball/go
+
 ---
 kind: pipeline
 type: exec
@@ -1699,8 +1705,9 @@ clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner storage
+  - name: Clean up exec runner storage (pre)
     commands:
+      - chmod -R u+rw /tmp/teleport-pkg/go
       - rm -rf /tmp/teleport-pkg/go
 
   - name: Check out code
@@ -1771,6 +1778,11 @@ steps:
       - cd /tmp/teleport-pkg/go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
 
+  - name: Clean up exec runner storage (post)
+    commands:
+      - chmod -R u+rw /tmp/teleport-pkg/go
+      - rm -rf /tmp/teleport-pkg/go
+
 ---
 kind: pipeline
 type: exec
@@ -1810,8 +1822,9 @@ clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner storage
+  - name: Clean up exec runner storage (pre)
     commands:
+      - chmod -R u+rw /tmp/teleport-pkg-tsh/go
       - rm -rf /tmp/teleport-pkg-tsh/go
 
   - name: Check out code
@@ -1882,6 +1895,11 @@ steps:
       - cd /tmp/teleport-pkg-tsh/go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
 
+  - name: Clean up exec runner storage (post)
+    commands:
+      - chmod -R u+rw /tmp/teleport-pkg-tsh/go
+      - rm -rf /tmp/teleport-pkg-tsh/go
+
 ---
 kind: pipeline
 type: exec
@@ -1926,8 +1944,9 @@ clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner storage
+  - name: Clean up exec runner storage (pre)
     commands:
+      - chmod -R u+rw /dev/shm/tmp/go
       - rm -rf /dev/shm/tmp/go
 
   - name: Check out code
@@ -1981,6 +2000,11 @@ steps:
     commands:
       - cd /dev/shm/tmp/go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
+
+  - name: Clean up exec runner storage (post)
+    commands:
+      - chmod -R u+rw /dev/shm/tmp/go
+      - rm -rf /dev/shm/tmp/go
 
 ---
 kind: pipeline
@@ -2357,6 +2381,6 @@ steps:
 
 ---
 kind: signature
-hmac: 8673b1b23b7f30328e9fbc4d6c5b6a9535bd0a881156c1a694a1f55ef10adcb6
+hmac: dded50c0841689a0b070940837ded012f33cc88fb8fce4ecbd3f5dfa6a10c922
 
 ...
