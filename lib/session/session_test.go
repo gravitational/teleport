@@ -52,10 +52,8 @@ func (s *SessionSuite) SetUpTest(c *C) {
 	s.clock = clockwork.NewFakeClockAt(time.Date(2016, 9, 8, 7, 6, 5, 0, time.UTC))
 	s.dir = c.MkDir()
 
-	s.bk, err = lite.New(context.TODO(), backend.Params{"path": s.dir})
+	s.bk, err = lite.NewWithConfig(context.TODO(), lite.Config{Clock: s.clock, Path: s.dir})
 	c.Assert(err, IsNil)
-
-	(s.bk.(*lite.LiteBackend)).SetClock(s.clock)
 
 	srv, err := New(s.bk)
 	srv.(*server).clock = s.clock
