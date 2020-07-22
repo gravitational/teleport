@@ -48,6 +48,7 @@ require (
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/kr/pty v1.1.1
 	github.com/kylelemons/godebug v0.0.0-20160406211939-eadb3ce320cb
+	github.com/magicmatatjahu/milv v0.0.6 // indirect
 	github.com/mailgun/lemma v0.0.0-20160211003854-e8b0cd607f58
 	github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd // indirect
 	github.com/mailgun/minheap v0.0.0-20131208021033-7c28d80e2ada // indirect
@@ -66,6 +67,7 @@ require (
 	github.com/russellhaering/gosaml2 v0.0.0-20170515204909-8908227c114a
 	github.com/russellhaering/goxmldsig v0.0.0-20170515183101-605161228693
 	github.com/satori/go.uuid v1.1.1-0.20170321230731-5bf94b69c6b6 // indirect
+	github.com/schollz/closestmatch v2.1.0+incompatible // indirect
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
 	github.com/sirupsen/logrus v1.4.2

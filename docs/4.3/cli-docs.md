@@ -127,10 +127,13 @@ Run shell or execute a command on a remote SSH node
 | `-A, --forward-agent` | none | none | Forward agent to target node like `ssh -A`
 | `-L, --forward` | none | none | Forward localhost connections to remote server
 | `-D, --dynamic-forward ` | none | none | Forward localhost connections to remote server using SOCKS5
+| `-N, -no-remote-exec` | none | none | Don't execute remote command, useful for port forwarding
 | `--local` | none |  | Execute command on localhost after connecting to SSH node
 | `-t, --tty` | `file` |  | Allocate TTY
 | `--cluster` | none |  | Specify the cluster to connect
 | `-o, --option` | `local` |  |  OpenSSH options in the format used in the configuration file
+| `--enable-escape-sequences` | false | true/false | Enable support for SSH escape sequences. Type '~?' during an SSH session to list supported sequences.
+| `--use-local-ssh-agent` | none | true/false | Load generated SSH certificates into the local ssh-agent (specified via `$SSH_AUTH_SOCK`). You can also set `TELEPORT_USE_LOCAL_SSH_AGENT` environment variable. Default is true.
 
 ### [Global Flags](#tsh-global-flags)
 
@@ -342,8 +345,9 @@ interval via `--ttl` flag (capped by the server-side configuration).
 |------|---------|----------------|----------------------------|
 | `--bind-addr` | none | host:port | Address in the form of host:port to bind to for login command webhook
 | `-o, --out` | none | filepath | Identity output filepath
-| `--format` | `file` | `file` or `openssh` | Identity format
+| `--format` | `file` | `file`, `openssh` or `kubernetes` | Identity format: file, openssh (for OpenSSH compatibility) or kubernetes (for kubeconfig)
 | `--browser` | none | `none` | Set to 'none' to suppress opening system default browser for `tsh login` commands
+| `--request-roles`  | none |  | R Request one or more extra roles
 
 ### [Global Flags](#tsh-global-flags)
 
@@ -354,8 +358,7 @@ Section](#tsh-global-flags)
 
 ### Examples
 
-_The proxy endpoint can take a https and ssh port in this format
-`host:https_port[,ssh_proxy_port]` _
+_The proxy endpoint can take a https and ssh port in this format `host:https_port[,ssh_proxy_port]`_
 
 ``` bsh
 # Use ports 8080 and 8023 for https and SSH proxy:
@@ -384,6 +387,9 @@ $ tsh --proxy=proxy.example.com --auth=github --user=admin login
 
 # Suppress the opening of the system default browser for external provider logins
 $ tsh --proxy=proxy.example.com --browser=none
+
+# Login to cluster and output a local kubeconfig
+$ tsh0 login --proxy=proxy.example.com --format=kubernetes -o kubeconfig
 ```
 
 ## tsh logout
@@ -454,6 +460,7 @@ Generates a user invitation token.
 | Name | Default Value(s) | Allowed Value(s) | Description
 |------|---------|----------------|----------------------------|
 | `--k8s-groups` | none | a kubernetes group | Kubernetes groups to assign to a user.e.g. `system:masters`
+| `--k8s-users` | none | a kubernetes user | Kubernetes user to assign to a user.e.g. `jenkins`
 | `--ttl` | 1h | relative duration like 5s, 2m, or 3h, **maximum 48h** | Set expiration time for token
 
 ### [Global Flags](#tctl-global-flags)
@@ -602,7 +609,7 @@ Create an invitation token
 
 | Name | Default Value(s) | Allowed Value(s) | Description
 |------|---------|----------------|----------------------------|
-| `--type` | none | `trusted_cluster` , `node` , `signup` <!--TODO Confirm this.are any other types valid in /Users/heather/teleport/roles.go--> | Type of token to add
+| `--type` | none | `trusted_cluster` , `node`   | Type of token to add
 | `--value` | none | **string** token value | Value of token to add
 | `--ttl` | 1h | relative duration like 5s, 2m, or 3h, **maximum 48h** | Set expiration time for token
 
@@ -693,11 +700,12 @@ Create an identity file(s) for a given user
 `--user` | none | existing user | Teleport user name
 `--host` | none | auth host | Teleport host name
 `-o, --out` | none | filepath | identity output
-`--format` | `file` | `file` or `openssh` |  identity format
+`--format` | `file` | `file`, `openssh`, `tls` or `kubernetes` |  identity format
 `--identity` | `file` | `file` |  identity format
 `--auth-server` | none | auth host & port | Remote Teleport host name
 `--ttl` | none | relative duration like 5s, 2m, or 3h | TTL (time to live) for the generated certificate
 `--compat` | `""` | `standard` or `oldssh` | OpenSSH compatibility flag
+`--proxy` | `""` |  Address of the teleport proxy. | When --format is set to "kubernetes", this address will be set as cluster address in the generated kubeconfig file
 
 ### [Global Flags](#tctl-global-flags)
 
@@ -721,6 +729,12 @@ error: --user or --host must be specified
 # create a certificate with a TTL of 10 years for the jenkins user
 # the jenkins.pem file can later be used with `tsh`
 $ tctl auth sign --ttl=87600h --user=jenkins --out=jenkins.pem
+# create a certificate with a TTL of 1 day for the jenkins user
+# the jenkins.pem file can later be used with `tsh`
+$ tctl auth sign --ttl=24h --user=jenkins --out=jenkins.pem
+# create a certificate with a TTL of 1 day for the jenkins user
+# the kubeconf file can later be used with `tsh` or compatible systems.
+$ tctl auth sign --ttl=24h --user=jenkins --out=kubeconfig --format=kubernetes
 # Exports an identity from the Auth Server in preparation for remote
 # tctl execution.
 $ tctl auth sign --user=admin --out=identity.pem
