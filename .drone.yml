@@ -1570,18 +1570,27 @@ platform:
   os: darwin
   arch: amd64
 
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
 trigger:
+  branch:
+    - master
+    - branch/*
   event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
+    exclude:
+      - cron
+      - promote
+      - rollback
 
 depends_on:
   - test
 
 workspace:
-  path: /tmp/tarball
+  path: /tmp/build-darwin-amd64
 
 clone:
   disable: true
@@ -1589,17 +1598,17 @@ clone:
 steps:
   - name: Set up exec runner storage
     commands:
-      - mkdir -p /tmp/tarball
-      - chmod -R u+rw /tmp/tarball
-      - rm -rf /tmp/tarball/go
+      - mkdir -p /tmp/build-darwin-amd64
+      - chmod -R u+rw /tmp/build-darwin-amd64
+      - rm -rf /tmp/build-darwin-amd64/go
 
   - name: Check out code
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
     commands:
-      - mkdir -p /tmp/tarball/go/src/github.com/gravitational/teleport
-      - cd /tmp/tarball/go/src/github.com/gravitational/teleport
+      - mkdir -p /tmp/build-darwin-amd64/go/src/github.com/gravitational/teleport
+      - cd /tmp/build-darwin-amd64/go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout $DRONE_COMMIT
       # fetch enterprise submodules
@@ -1609,27 +1618,27 @@ steps:
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f ~/.ssh/id_rsa
-      - mkdir -p /tmp/tarball/go/artifacts /tmp/tarball/go/cache
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /tmp/tarball/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/tarball/go/.version.txt; fi; cat /tmp/tarball/go/.version.txt
+      - mkdir -p /tmp/build-darwin-amd64/go/artifacts /tmp/build-darwin-amd64/go/cache
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /tmp/build-darwin-amd64/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/build-darwin-amd64/go/.version.txt; fi; cat /tmp/build-darwin-amd64/go/.version.txt
 
   - name: Build Mac release artifacts
     environment:
-      GOPATH: /tmp/tarball/go
-      GOCACHE: /tmp/tarball/go/cache
+      GOPATH: /tmp/build-darwin-amd64/go
+      GOCACHE: /tmp/build-darwin-amd64/go/cache
       OS: darwin
       ARCH: amd64
     commands:
-      - cd /tmp/tarball/go/src/github.com/gravitational/teleport
+      - cd /tmp/build-darwin-amd64/go/src/github.com/gravitational/teleport
       - make clean release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
 
   - name: Copy Mac artifacts
     commands:
-      - cd /tmp/tarball/go/src/github.com/gravitational/teleport
+      - cd /tmp/build-darwin-amd64/go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
-      - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /tmp/tarball/go/artifacts \;
-      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /tmp/tarball/go/artifacts \;
+      - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /tmp/build-darwin-amd64/go/artifacts \;
+      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /tmp/build-darwin-amd64/go/artifacts \;
       # generate checksums (for mac)
-      - cd /tmp/tarball/go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
+      - cd /tmp/build-darwin-amd64/go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
 
   - name: Upload to S3
     environment:
@@ -1641,13 +1650,13 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       AWS_REGION: us-west-2
     commands:
-      - cd /tmp/tarball/go/artifacts
+      - cd /tmp/build-darwin-amd64/go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
 
   - name: Clean up exec runner storage (post)
     commands:
-      - chmod -R u+rw /tmp/tarball
-      - rm -rf /tmp/tarball/go
+      - chmod -R u+rw /tmp/build-darwin-amd64
+      - rm -rf /tmp/build-darwin-amd64/go
 
 ---
 kind: pipeline
@@ -1661,12 +1670,21 @@ platform:
   os: darwin
   arch: amd64
 
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
 trigger:
+  branch:
+    - master
+    - branch/*
   event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
+    exclude:
+      - cron
+      - promote
+      - rollback
 
 depends_on:
   - build-darwin-amd64
@@ -1682,18 +1700,18 @@ steps:
     commands:
       - mkdir -p /tmp/teleport-pkg
       - chmod -R u+rw /tmp/teleport-pkg
-      - rm -rf /tmp/teleport-pkg/go
+      - rm -rf /tmp/build-darwin-amd64-pkg/go
 
   - name: Check out code
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
     commands:
-      - mkdir -p /tmp/teleport-pkg/go/src/github.com/gravitational/teleport
-      - cd /tmp/teleport-pkg/go/src/github.com/gravitational/teleport
+      - mkdir -p /tmp/build-darwin-amd64-pkg/go/src/github.com/gravitational/teleport
+      - cd /tmp/build-darwin-amd64-pkg/go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout $DRONE_COMMIT
-      - echo $DRONE_SOURCE_BRANCH > /tmp/teleport-pkg/go/.drone_source_branch.txt
+      - echo $DRONE_SOURCE_BRANCH > /tmp/build-darwin-amd64-pkg/go/.drone_source_branch.txt
       # fetch enterprise submodules
       - mkdir -m 0700 ~/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
       - ssh-keyscan -H github.com > ~/.ssh/known_hosts 2>/dev/null && chmod 600 ~/.ssh/known_hosts
@@ -1701,8 +1719,8 @@ steps:
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f ~/.ssh/id_rsa
-      - mkdir -p /tmp/teleport-pkg/go/artifacts /tmp/teleport-pkg/go/cache
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /tmp/teleport-pkg/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/teleport-pkg/go/.version.txt; fi; cat /tmp/teleport-pkg/go/.version.txt
+      - mkdir -p /tmp/build-darwin-amd64-pkg/go/artifacts /tmp/build-darwin-amd64-pkg/go/cache
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /tmp/build-darwin-amd64-pkg/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/build-darwin-amd64-pkg/go/.version.txt; fi; cat /tmp/build-darwin-amd64-pkg/go/.version.txt
 
   - name: Download built tarball artifacts from S3
     environment:
@@ -1714,32 +1732,32 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       AWS_REGION: us-west-2
     commands:
-      - export VERSION=$(cat /tmp/teleport-pkg/go/.version.txt)
+      - export VERSION=$(cat /tmp/build-darwin-amd64-pkg/go/.version.txt)
       - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-darwin-amd64-bin.tar.gz /tmp/teleport-pkg/go/artifacts/
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-darwin-amd64-bin.tar.gz /tmp/teleport-pkg/go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-darwin-amd64-bin.tar.gz /tmp/build-darwin-amd64-pkg/go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-darwin-amd64-bin.tar.gz /tmp/build-darwin-amd64-pkg/go/artifacts/
 
   - name: Build Mac pkg release artifacts
     environment:
       OS: darwin
       ARCH: amd64
-      OSS_TARBALL_PATH: /tmp/teleport-pkg/go/artifacts
-      ENT_TARBALL_PATH: /tmp/teleport-pkg/go/artifacts
+      OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
+      ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
     commands:
-      - cd /tmp/teleport-pkg/go/src/github.com/gravitational/teleport
-      - export VERSION=$(cat /tmp/teleport-pkg/go/.version.txt)
+      - cd /tmp/build-darwin-amd64-pkg/go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /tmp/build-darwin-amd64-pkg/go/.version.txt)
       - make pkg OS=$OS ARCH=$ARCH
 
   - name: Copy Mac pkg artifacts
     commands:
-      - cd /tmp/teleport-pkg/go/src/github.com/gravitational/teleport
+      - cd /tmp/build-darwin-amd64-pkg/go/src/github.com/gravitational/teleport
       # delete temporary tarball artifacts so we don't re-upload them in the next stage
-      - rm -rf /tmp/teleport-pkg/go/artifacts/*.tar.gz
+      - rm -rf /tmp/build-darwin-amd64-pkg/go/artifacts/*.tar.gz
       # copy release archives to artifact directory
-      - find build -maxdepth 1 -iname "teleport*.pkg" -print -exec cp {} /tmp/teleport-pkg/go/artifacts \;
-      - find e/build -maxdepth 1 -iname "teleport*.pkg" -print -exec cp {} /tmp/teleport-pkg/go/artifacts \;
+      - find build -maxdepth 1 -iname "teleport*.pkg" -print -exec cp {} /tmp/build-darwin-amd64-pkg/go/artifacts \;
+      - find e/build -maxdepth 1 -iname "teleport*.pkg" -print -exec cp {} /tmp/build-darwin-amd64-pkg/go/artifacts \;
       # generate checksums (for mac)
-      - cd /tmp/teleport-pkg/go/artifacts && for FILE in teleport*.pkg; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
+      - cd /tmp/build-darwin-amd64-pkg/go/artifacts && for FILE in teleport*.pkg; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
 
   - name: Upload to S3
     environment:
@@ -1751,13 +1769,13 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       AWS_REGION: us-west-2
     commands:
-      - cd /tmp/teleport-pkg/go/artifacts
+      - cd /tmp/build-darwin-amd64-pkg/go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
 
   - name: Clean up exec runner storage
     commands:
       - chmod -R u+rw /tmp/teleport-pkg
-      - rm -rf /tmp/teleport-pkg/go
+      - rm -rf /tmp/build-darwin-amd64-pkg/go
 
 ---
 kind: pipeline
@@ -1771,18 +1789,27 @@ platform:
   os: darwin
   arch: amd64
 
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
 trigger:
+  branch:
+    - master
+    - branch/*
   event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
+    exclude:
+      - cron
+      - promote
+      - rollback
 
 depends_on:
   - build-darwin-amd64
 
 workspace:
-  path: /tmp/teleport-pkg-tsh
+  path: /tmp/build-darwin-amd64-pkg-tsh
 
 clone:
   disable: true
@@ -1790,20 +1817,20 @@ clone:
 steps:
   - name: Set up exec runner storage
     commands:
-      - mkdir -p /tmp/teleport-pkg-tsh
-      - chmod -R u+rw /tmp/teleport-pkg-tsh
-      - rm -rf /tmp/teleport-pkg-tsh/go
+      - mkdir -p /tmp/build-darwin-amd64-pkg-tsh
+      - chmod -R u+rw /tmp/build-darwin-amd64-pkg-tsh
+      - rm -rf /tmp/build-darwin-amd64-pkg-tsh/go
 
   - name: Check out code
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
     commands:
-      - mkdir -p /tmp/teleport-pkg-tsh/go/src/github.com/gravitational/teleport
-      - cd /tmp/teleport-pkg-tsh/go/src/github.com/gravitational/teleport
+      - mkdir -p /tmp/build-darwin-amd64-pkg-tsh/go/src/github.com/gravitational/teleport
+      - cd /tmp/build-darwin-amd64-pkg-tsh/go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout $DRONE_COMMIT
-      - echo $DRONE_SOURCE_BRANCH > /tmp/teleport-pkg-tsh/go/.drone_source_branch.txt
+      - echo $DRONE_SOURCE_BRANCH > /tmp/build-darwin-amd64-pkg-tsh/go/.drone_source_branch.txt
       # fetch enterprise submodules
       - mkdir -m 0700 ~/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
       - ssh-keyscan -H github.com > ~/.ssh/known_hosts 2>/dev/null && chmod 600 ~/.ssh/known_hosts
@@ -1811,8 +1838,8 @@ steps:
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f ~/.ssh/id_rsa
-      - mkdir -p /tmp/teleport-pkg-tsh/go/artifacts /tmp/teleport-pkg-tsh/go/cache
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /tmp/teleport-pkg-tsh/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/teleport-pkg-tsh/go/.version.txt; fi; cat /tmp/teleport-pkg-tsh/go/.version.txt
+      - mkdir -p /tmp/build-darwin-amd64-pkg-tsh/go/artifacts /tmp/build-darwin-amd64-pkg-tsh/go/cache
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt; fi; cat /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt
 
   - name: Download built tarball artifact from S3
     environment:
@@ -1824,9 +1851,9 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       AWS_REGION: us-west-2
     commands:
-      - export VERSION=$(cat /tmp/teleport-pkg-tsh/go/.version.txt)
+      - export VERSION=$(cat /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt)
       - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-darwin-amd64-bin.tar.gz /tmp/teleport-pkg-tsh/go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-darwin-amd64-bin.tar.gz /tmp/build-darwin-amd64-pkg-tsh/go/artifacts/
 
   - name: Build Mac tsh pkg release artifacts
     environment:
@@ -1838,9 +1865,9 @@ steps:
         from_secret: APPLE_PASSWORD
       BUILDBOX_PASSWORD:
         from_secret: BUILDBOX_PASSWORD
-      OSS_TARBALL_PATH: /tmp/teleport-pkg-tsh/go/artifacts
+      OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
     commands:
-      - cd /tmp/teleport-pkg-tsh/go/src/github.com/gravitational/teleport
+      - cd /tmp/build-darwin-amd64-pkg-tsh/go/src/github.com/gravitational/teleport
       - export VERSION=$(cat tmp/teleport-pkg-tsh/go/.version.txt)
       # set HOME explicitly (as Drone overrides it normally)
       - export HOME=/Users/build
@@ -1853,13 +1880,13 @@ steps:
 
   - name: Copy Mac tsh pkg artifacts
     commands:
-      - cd /tmp/teleport-pkg-tsh/go/src/github.com/gravitational/teleport
+      - cd /tmp/build-darwin-amd64-pkg-tsh/go/src/github.com/gravitational/teleport
       # delete temporary tarball artifacts so we don't re-upload them in the next stage
-      - rm -rf /tmp/teleport-pkg-tsh/go/artifacts/*.tar.gz
+      - rm -rf /tmp/build-darwin-amd64-pkg-tsh/go/artifacts/*.tar.gz
       # copy release archives to artifact directory
-      - find build -maxdepth 1 -iname "tsh*.pkg" -print -exec cp {} /tmp/teleport-pkg-tsh/go/artifacts \;
+      - find build -maxdepth 1 -iname "tsh*.pkg" -print -exec cp {} /tmp/build-darwin-amd64-pkg-tsh/go/artifacts \;
       # generate checksums (for mac)
-      - cd /tmp/teleport-pkg-tsh/go/artifacts && for FILE in tsh*.pkg; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
+      - cd /tmp/build-darwin-amd64-pkg-tsh/go/artifacts && for FILE in tsh*.pkg; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
 
   - name: Upload to S3
     environment:
@@ -1871,13 +1898,13 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       AWS_REGION: us-west-2
     commands:
-      - cd /tmp/teleport-pkg-tsh/go/artifacts
+      - cd /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
 
   - name: Clean up exec runner storage
     commands:
-      - chmod -R u+rw /tmp/teleport-pkg-tsh
-      - rm -rf /tmp/teleport-pkg-tsh/go
+      - chmod -R u+rw /tmp/build-darwin-amd64-pkg-tsh
+      - rm -rf /tmp/build-darwin-amd64-pkg-tsh/go
 
 ---
 kind: pipeline
@@ -2350,6 +2377,6 @@ steps:
 
 ---
 kind: signature
-hmac: 9c3f7a0e413d1b252160fba8cdd51e8965ac801f28145ad5b4cd76e107d98efc
+hmac: 3492260da309c84c95a5a18fb5e5d252738ca4a49f05b706c17adabfea772d33
 
 ...
