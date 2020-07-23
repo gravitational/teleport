@@ -1931,22 +1931,21 @@ platform:
 environment:
   TMPDIR: /dev/shm
 
-# TODO(gus): testing, add depends on test
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+# trigger:
+#   branch:
+#     - master
+#     - branch/*
+#   event:
+#     exclude:
+#       - cron
+#       - promote
+#       - rollback
 
 # depends_on:
 #   - test
@@ -2395,6 +2394,6 @@ steps:
 
 ---
 kind: signature
-hmac: a550ded35e4cd3a3f4ce6380d65782a38d9412b28743a05c02ba5da3cd66aae0
+hmac: 86adbe07fbca0bfc2ce9e04cf7c9f4047f8c8ed36eabb05e1ace37331c5e2bc6
 
 ...
