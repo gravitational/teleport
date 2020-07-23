@@ -2262,7 +2262,7 @@ When upgrading multiple clusters:
 ## Backing Up Teleport
 
 When planning a backup of Teleport, it's important to know what is where and the
-importance of each component. Teleports Proxies and Nodes are stateless, and thus
+importance of each component. Teleport's Proxies and Nodes are stateless, and thus
 only `teleport.yaml` should be backed up.
 
 The Auth server is Teleports brains, and depending on the backend should be backup
