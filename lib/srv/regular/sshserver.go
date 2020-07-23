@@ -338,17 +338,30 @@ func SetProxyMode(tsrv reversetunnel.Server) ServerOption {
 func SetLabels(labels map[string]string,
 	cmdLabels services.CommandLabels) ServerOption {
 	return func(s *Server) error {
-		// make sure to clone labels to avoid
-		// concurrent writes to the map during reloads
+		// clone and validate labels and cmdLabels.  in theory,
+		// only cmdLabels should experience concurrent writes,
+		// but this operation is only run once on startup
+		// so a little defensive cloning is harmless.
+		labelsClone := make(map[string]string, len(labels))
+		for name, label := range labels {
+			if !services.IsValidLabelKey(name) {
+				return trace.BadParameter("invalid label key: %q", name)
+			}
+			labelsClone[name] = label
+		}
+		s.labels = labelsClone
+
 		cmdLabels = cmdLabels.Clone()
 		for name, label := range cmdLabels {
+			if !services.IsValidLabelKey(name) {
+				return trace.BadParameter("invalid label key: %q", name)
+			}
 			if label.GetPeriod() < time.Second {
 				label.SetPeriod(time.Second)
 				cmdLabels[name] = label
 				log.Warningf("label period can't be less that 1 second. Period for label '%v' was set to 1 second", name)
 			}
 		}
-		s.labels = labels
 		s.cmdLabels = cmdLabels
 		return nil
 	}

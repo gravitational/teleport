@@ -80,3 +80,22 @@ func (s *ServicesSuite) TestCommandLabels(c *check.C) {
 	label.Command[0] = "/bin/ls"
 	c.Assert(label.Command[0], check.Not(check.Equals), out["a"].GetCommand())
 }
+
+func (s *ServicesSuite) TestLabelKeyValidation(c *check.C) {
+	tts := []struct {
+		label string
+		ok    bool
+	}{
+		{label: "somelabel", ok: true},
+		{label: "foo.bar", ok: true},
+		{label: "this-that", ok: true},
+		{label: "8675309", ok: true},
+		{label: "", ok: false},
+		{label: "spam:eggs", ok: false},
+		{label: "cats dogs", ok: false},
+		{label: "wut?", ok: false},
+	}
+	for _, tt := range tts {
+		c.Assert(IsValidLabelKey(tt.label), check.Equals, tt.ok, check.Commentf("tt=%+v", tt))
+	}
+}
