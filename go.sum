@@ -222,8 +222,6 @@ github.com/kr/text v0.1.0 h1:45sCR5RtlFHMR4UwH9sdQ5TC8v0qDQCHnXt+kaKSTVE=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
 github.com/kylelemons/godebug v0.0.0-20160406211939-eadb3ce320cb h1:iiMILPl9HQFqdFXIuwfYT73NYtH0KApnCmyF7y5wYhs=
 github.com/kylelemons/godebug v0.0.0-20160406211939-eadb3ce320cb/go.mod h1:B69LEHPfb2qLo0BaaOLcbitczOKLWTsrBG9LczfCD4k=
-github.com/magicmatatjahu/milv v0.0.6 h1:RdIvRL2KDeaSzI6Y3hXo/xCyiov9byq4kuvDPTf7vOg=
-github.com/magicmatatjahu/milv v0.0.6/go.mod h1:ZxJ1sjdKjn0i9YRwZnUWDo78Jzq7Si11wbY4DT/EwIE=
 github.com/mailgun/lemma v0.0.0-20160211003854-e8b0cd607f58 h1:3ybhF5kzP0sdM06s8pPgHmUPx6IXFBXiBNA/2JCGnp4=
 github.com/mailgun/lemma v0.0.0-20160211003854-e8b0cd607f58/go.mod h1:2+eAliypGoT5/vXx9ufZ7N9I3H8Z/tXVGqyNVzCOfKQ=
 github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd h1:yCc0lIUQncZ7luEMtOpYjYYcIOh1d/eQOGWnMKRHuoI=
@@ -262,7 +260,6 @@ github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRW
 github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f/go.mod h1:ZdcZmHo+o7JKHSa8/e818NopupXU1YMK5fe1lsApnBw=
 github.com/nsf/termbox-go v0.0.0-20190121233118-02980233997d h1:x3S6kxmy49zXVVyhcnrFqxvNVCBPb2KZ9hV2RBdS840=
 github.com/nsf/termbox-go v0.0.0-20190121233118-02980233997d/go.mod h1:IuKpRQcYE1Tfu+oAQqaLisqDeXgjyyltCfsaoYN18NQ=
-github.com/olekukonko/tablewriter v0.0.0-20170122224234-a0225b3f23b5 h1:58+kh9C6jJVXYjt8IE48G2eWl6BjwU5Gj0gqY84fy78=
 github.com/olekukonko/tablewriter v0.0.0-20170122224234-a0225b3f23b5/go.mod h1:vsDQFd/mU46D+Z4whnwzcISnGGzXWMclvtLoiIKAKIo=
 github.com/onsi/ginkgo v0.0.0-20170829012221-11459a886d9c/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=
 github.com/onsi/ginkgo v1.6.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=
@@ -304,9 +301,6 @@ github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46 h1:GHRpF1pTW19a
 github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46/go.mod h1:uAQ5PCi+MFsC7HjREoAz1BU+Mq60+05gifQSsHSDG/8=
 github.com/satori/go.uuid v1.1.1-0.20170321230731-5bf94b69c6b6 h1:oZag5hylqWwZrDdj/laMwWQnXaeWBQf66qm4PGQI6Wc=
 github.com/satori/go.uuid v1.1.1-0.20170321230731-5bf94b69c6b6/go.mod h1:dA0hQrYB0VpLJoorglMZABFdXlWrHn1NEOzdhQKdks0=
-github.com/schollz/closestmatch v1.0.0 h1:Lp1xErBTptwH+nA8T6kntnroosYL2bsdnZKmqt2Gsug=
-github.com/schollz/closestmatch v2.1.0+incompatible h1:Uel2GXEpJqOWBrlyI+oY9LTiyyjYS17cCYRqP13/SHk=
-github.com/schollz/closestmatch v2.1.0+incompatible/go.mod h1:RtP1ddjLong6gTkbtmuhtR2uUrrJOpYzYRvbcPAid+g=
 github.com/sergi/go-diff v1.1.0 h1:we8PVUC3FE2uYfodKH/nBHMSetSfHDR6scGdBi+erh0=
 github.com/sergi/go-diff v1.1.0/go.mod h1:STckp+ISIX8hZLjrqAeVduY0gWCT9IjLuqbuNXdaHfM=
 github.com/shabbyrobe/gocovmerge v0.0.0-20180507124511-f6ea450bfb63/go.mod h1:n+VKSARF5y/tS9XFSP7vWDfS+GUC5vs/YT7M5XDTUEM=
