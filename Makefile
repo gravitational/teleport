@@ -54,7 +54,7 @@ ifeq ("$(OS)","darwin")
 ifneq ("$(wildcard /usr/local/include/security/pam_appl.h)","")
 PAM_TAG := pam
 PAM_MESSAGE := "with PAM support"
-CGOFLAG := $(CGOFLAG) -I/usr/local/include/security
+CGOFLAG := $(CGOFLAG) CGO_CFLAGS="-I/usr/local/include/security"
 endif
 endif
 
