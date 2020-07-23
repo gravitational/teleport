@@ -235,9 +235,115 @@ func (a *AuthServer) GetCache() AuthCache {
 	return a.cache
 }
 
+// suspectedOrphanCA is a certificate authority which is suspected
+// of being in an orphaned/dangline state - not associated with any
+// valid trusted cluster resource.
+type suspectedOrphanCA struct {
+	ca    services.CertAuthority
+	since time.Time
+	seen  bool
+}
+
+// trustController manages state for periodic trusted
+// cluster operations.
+type trustController struct {
+	// orphanAfter is the duration after which a CA is
+	// considered orphaned and is removed from the backend.
+	orphanAfter time.Duration
+	// suspectedOrphanCAs are trusted CAs which don't appear to
+	// belong either to this cluster.
+	suspectedOrphanCAs []suspectedOrphanCA
+}
+
+func (c *trustController) cycle(ctx context.Context, auth *AuthServer, t time.Time) error {
+	if err := auth.EnsureTrustedClusters(ctx); err != nil {
+		log.Warnf("EnsureTrustedClusters failed: %v", err)
+	}
+
+	domainName, err := auth.GetDomainName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// get trusted clusters from the *backend*, not the cache.  This is very
+	// important, since reading the trusted cluster list from a flaky cache
+	// could cause us to erroneously prune CAs.
+	tcs, err := auth.AuthServices.GetTrustedClusters()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// reset seen tag for all existing suspects
+	for _, sus := range c.suspectedOrphanCAs {
+		sus.seen = false
+	}
+
+	var nextSuspects []suspectedOrphanCA
+
+	for _, caType := range []services.CertAuthType{services.UserCA, services.HostCA} {
+		cas, err := auth.GetCertAuthorities(caType, false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		//
+	Processing:
+		for _, ca := range cas {
+			if ca.GetClusterName() == domainName {
+				// CA is associated with the local cluster - not orphaned.
+				continue Processing
+			}
+			for _, tc := range tcs {
+				if tc.GetName() == ca.GetClusterName() {
+					// CA is associated with a trusted cluster - not orphaned.
+					continue Processing
+				}
+			}
+			// if we got this far, the ca *might* be in an orphaned/dangling state.
+			for _, sus := range c.suspectedOrphanCAs {
+				if ca.Equals(sus.ca) {
+					// we are already tracking this suspect, mark it as seen
+					// and continue processing.
+					sus.seen = true
+					continue Processing
+				}
+			}
+			// we are not currently tracking this suspect, add it to the
+			// upcoming suspect set.
+			nextSuspects = append(nextSuspects, suspectedOrphanCA{
+				ca:    ca,
+				seen:  true,
+				since: t,
+			})
+		}
+	}
+
+	for _, sus := range c.suspectedOrphanCAs {
+		if !sus.seen {
+			// suspect was either removed, or its associated trusted
+			// cluster configuration is now present.
+			continue
+		}
+		if t.After(sus.since) && t.Sub(sus.since) > c.orphanAfter {
+			// orphan cutoff reached, attempt to remove CA
+			if err := auth.DeleteCertAuthority(sus.ca.GetID()); err != nil && !trace.IsNotFound(err) {
+				log.Warnf("Failed to remove orphan %s CA: %q", sus.ca.GetType(), sus.ca.GetName())
+			}
+			continue
+		}
+		// still a suspect, but not yet past the cutoff
+		nextSuspects = append(nextSuspects, sus)
+	}
+	c.suspectedOrphanCAs = nextSuspects
+	return nil
+}
+
 // runPeriodicOperations runs some periodic bookkeeping operations
 // performed by auth server
 func (a *AuthServer) runPeriodicOperations() {
+	// errCorrectModulo is the modulo on which the less frequent
+	// error-correcting periodics are run.
+	const errCorrectModulo = 7
+
 	// run periodic functions with a semi-random period
 	// to avoid contention on the database in case if there are multiple
 	// auth servers running - so they don't compete trying
@@ -247,12 +353,11 @@ func (a *AuthServer) runPeriodicOperations() {
 	// and the jitter operates on a range of [n/2,n).
 	ticker := utils.NewJitterTicker(defaults.HighResPollingPeriod * 2)
 	defer ticker.Stop()
-	for {
+	for p := uint(0); true; p++ {
 		select {
 		case <-a.closeCtx.Done():
 			return
 		case <-ticker.C:
-			log.Infof("Running periodic operations...")
 			if err := a.autoRotateCertAuthorities(); err != nil {
 				if trace.IsCompareFailed(err) {
 					log.Debugf("Cert authority has been updated concurrently: %v.", err)
@@ -260,8 +365,10 @@ func (a *AuthServer) runPeriodicOperations() {
 					log.Errorf("Failed to perform cert rotation check: %v.", err)
 				}
 			}
-			if err := a.EnsureTrustedClusters(a.closeCtx); err != nil {
-				log.Errorf("Periodic trusted cluster ops failure: %v", err)
+			if p%errCorrectModulo == 0 {
+				if err := a.EnsureTrustedClusters(a.closeCtx); err != nil {
+					log.Errorf("Periodic trusted cluster ops failure: %v", err)
+				}
 			}
 		}
 	}

@@ -247,6 +247,8 @@ type CertAuthority interface {
 	SetSigningAlg(string)
 	// Clone returns a copy of the cert authority object.
 	Clone() CertAuthority
+	// Equals checks if the supplied CA resource is equivalent.
+	Equals(ca CertAuthority) bool
 }
 
 // CertPoolFromCertAuthorities returns certificate pools from TLS certificates
@@ -375,6 +377,20 @@ func (c *CertAuthorityV2) Clone() CertAuthority {
 	}
 	out.Spec.Roles = utils.CopyStrings(c.Spec.Roles)
 	return &out
+}
+
+func (c *CertAuthorityV2) Equals(ca CertAuthority) bool {
+	other, ok := ca.(*CertAuthorityV2)
+	if !ok {
+		return false
+	}
+	if c.GetName() != other.GetName() {
+		return false
+	}
+	if !c.Spec.Equal(&other.Spec) {
+		return false
+	}
+	return true
 }
 
 // GetRotation returns rotation state.

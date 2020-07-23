@@ -59,8 +59,8 @@ type Trust interface {
 	GetCertAuthorities(caType CertAuthType, loadSigningKeys bool, opts ...MarshalOption) ([]CertAuthority, error)
 
 	// ActivateCertAuthority moves a CertAuthority from the deactivated list to
-	// the normal list.
-	ActivateCertAuthority(id CertAuthID) error
+	// the normal list and returns its public component.
+	ActivateCertAuthority(id CertAuthID) (CertAuthority, error)
 
 	// DeactivateCertAuthority moves a CertAuthority from the normal list to
 	// the deactivated list.

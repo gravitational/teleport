@@ -583,9 +583,9 @@ func (c *Client) DeleteCertAuthority(id services.CertAuthID) error {
 }
 
 // ActivateCertAuthority moves a CertAuthority from the deactivated list to
-// the normal list.
-func (c *Client) ActivateCertAuthority(id services.CertAuthID) error {
-	return trace.NotImplemented("not implemented")
+// the normal list and returns its public component.
+func (c *Client) ActivateCertAuthority(id services.CertAuthID) (services.CertAuthority, error) {
+	return nil, trace.NotImplemented("not implemented")
 }
 
 // DeactivateCertAuthority moves a CertAuthority from the normal list to

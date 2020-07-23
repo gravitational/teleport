@@ -50,6 +50,7 @@ message Metadata {
 message Rotation {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
+    option (gogoproto.equal) = true;
 
     // State could be one of "init" or "in_progress".
     string State = 1 [ (gogoproto.jsontag) = "state,omitempty" ];
@@ -86,6 +87,7 @@ message Rotation {
 // RotationSchedule is a rotation schedule setting time switches
 // for different phases.
 message RotationSchedule {
+    option (gogoproto.equal) = true;
     // UpdateClients specifies time to switch to the "Update clients" phase
     google.protobuf.Timestamp UpdateClients = 1 [
         (gogoproto.nullable) = false,
@@ -171,6 +173,7 @@ message CommandLabelV2 {
 
 // TLSKeyPair is a TLS key pair
 message TLSKeyPair {
+    option (gogoproto.equal) = true;
     // Cert is a PEM encoded TLS cert
     bytes Cert = 1 [ (gogoproto.jsontag) = "cert,omitempty" ];
     // Key is a PEM encoded TLS key
@@ -196,6 +199,7 @@ message CertAuthorityV2 {
 // CertAuthoritySpecV2 is a host or user certificate authority that
 // can check and if it has private key stored as well, sign it too
 message CertAuthoritySpecV2 {
+    option (gogoproto.equal) = true;
     // Type is either user or host certificate authority
     string Type = 1 [ (gogoproto.jsontag) = "type", (gogoproto.casttype) = "CertAuthType" ];
     // DELETE IN(2.7.0) this field is deprecated,

@@ -134,33 +134,47 @@ func (s *CA) DeleteCertAuthority(id services.CertAuthID) error {
 }
 
 // ActivateCertAuthority moves a CertAuthority from the deactivated list to
-// the normal list.
-func (s *CA) ActivateCertAuthority(id services.CertAuthID) error {
+// the normal list and returns its public component.
+func (s *CA) ActivateCertAuthority(id services.CertAuthID) (services.CertAuthority, error) {
 	item, err := s.Get(context.TODO(), backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return trace.NotFound("no inactive CA matching %q", id.DomainName)
+			return nil, trace.NotFound("no inactive %s CA matching %q", string(id.Type), id.DomainName)
 		}
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	certAuthority, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(
 		item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	err = s.UpsertCertAuthority(certAuthority)
+	err = s.CreateCertAuthority(certAuthority)
+	if trace.IsAlreadyExists(err) {
+		if existant, gerr := s.GetCertAuthority(id, true); gerr == nil {
+			if existant.Equals(certAuthority) {
+				// The existant CA is equivalent to the CA that is being
+				// activated.  This likely indicates that either an error
+				// occurred during a previous activation attempt, or we
+				// are racing with another teleport instance.  If we are
+				// racing, only one of the two teleport instances should
+				// continue, but that contest is better resolved by the
+				// Delete operation below.
+				err = nil
+			}
+		}
+	}
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	err = s.Delete(context.TODO(), backend.Key(authoritiesPrefix, deactivatedPrefix, string(id.Type), id.DomainName))
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return nil
+	return certAuthority.WithoutSecrets().(services.CertAuthority), nil
 }
 
 // DeactivateCertAuthority moves a CertAuthority from the normal list to

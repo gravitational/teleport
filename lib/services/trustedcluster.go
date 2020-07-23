@@ -240,6 +240,15 @@ func (r RoleMapping) Equals(o RoleMapping) bool {
 	return true
 }
 
+// Equal is a pointer-based alternative to Equals (expected by
+// gogoproto when deriving equality methods).
+func (r *RoleMapping) Equal(o *RoleMapping) bool {
+	if r == nil || o == nil {
+		return r == nil && o == nil
+	}
+	return r.Equals(*o)
+}
+
 // Check checks validity of all parameters and sets defaults
 func (c *TrustedClusterV2) CheckAndSetDefaults() error {
 	// make sure we have defaults for all fields

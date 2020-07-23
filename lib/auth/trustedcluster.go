@@ -221,6 +221,35 @@ func (a *AuthServer) ensureEnabled(tc services.TrustedCluster) (renamed bool, er
 	return renamed, trace.Wrap(a.createReverseTunnel(tc))
 }
 
+/*
+func (a *AuthServer) ensureTrustEnabled(tc services.TrustedCluster) (renamed bool, err error) {
+	if _, err := a.getCertAuthorities(tc); !trace.IsNotFound(err) {
+		// either the CAs aleardy exist, or an unrelated error occurred.
+		return renamed, trace.Wrap(err)
+	}
+
+	if err := a.activateCertAuthority(tc); !trace.IsNotFound(err) {
+		// either the CAs were successfully enabled, or an unrelated error occurred.
+		return renamed, trace.Wrap(err)
+	}
+
+	// if we get to this point, no CAs existed in either an active or
+	// inactive state.  trust is being established for the first time.
+	cas, err = a.establishTrust(tc)
+	if err != nil {
+		return renamed, trace.Wrap(err)
+	}
+	if name := cas[0].GetClusterName(); name != tc.GetName() {
+		tc.SetName(name)
+		renamed = true
+	}
+	if err := a.addCertAuthorities(tc, cas); err != nil {
+		return renamed, trace.Wrap(err)
+	}
+
+	return renamed, nil
+}*/
+
 // ensureDisabled ensures that the supplied trusted cluster has had its associated
 // state disabled.  This function does not differentiate between associated state
 // which is already disabled, and assocaited state which does not exist.
@@ -706,12 +735,20 @@ func (v *ValidateTrustedClusterResponseRaw) ToNative() (*ValidateTrustedClusterR
 // activateCertAuthority will activate both the user and host certificate
 // authority given in the services.TrustedCluster resource.
 func (a *AuthServer) activateCertAuthority(t services.TrustedCluster) error {
-	err := a.ActivateCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: t.GetName()})
+	// TODO(fspmarshall): This function needs work.  We can currently get ourselves
+	// into a bad state if an error occurs between the first and second activations.
+	// ActivateCertAuthority should probably have a variant which does not fail if
+	// the CA is already activated.
+	_, err := a.ActivateCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: t.GetName()})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(a.ActivateCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: t.GetName()}))
+	_, err = a.ActivateCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: t.GetName()})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // getCertAuthorities loads the user and host CAs associated with a trusted cluster.

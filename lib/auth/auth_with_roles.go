@@ -298,8 +298,8 @@ func (a *AuthWithRoles) DeleteCertAuthority(id services.CertAuthID) error {
 	return a.authServer.DeleteCertAuthority(id)
 }
 
-func (a *AuthWithRoles) ActivateCertAuthority(id services.CertAuthID) error {
-	return trace.NotImplemented("not implemented")
+func (a *AuthWithRoles) ActivateCertAuthority(id services.CertAuthID) (services.CertAuthority, error) {
+	return nil, trace.NotImplemented("not implemented")
 }
 
 func (a *AuthWithRoles) DeactivateCertAuthority(id services.CertAuthID) error {
