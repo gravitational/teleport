@@ -1570,15 +1570,24 @@ platform:
   os: darwin
   arch: amd64
 
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
 trigger:
+  branch:
+    - master
+    - branch/*
   event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
+    exclude:
+      - cron
+      - promote
+      - rollback
 
-depends_on:
-  - test
+# depends_on:
+#   - test
 
 workspace:
   path: /tmp/tarball
@@ -1587,8 +1596,9 @@ clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner storage (pre)
+  - name: Set up exec runner storage
     commands:
+      - mkdir -p /tmp/tarball
       - chmod -R u+rw /tmp/tarball
       - rm -rf /tmp/tarball/go
 
@@ -1660,12 +1670,21 @@ platform:
   os: darwin
   arch: amd64
 
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
 trigger:
+  branch:
+    - master
+    - branch/*
   event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
+    exclude:
+      - cron
+      - promote
+      - rollback
 
 depends_on:
   - build-darwin-amd64
@@ -1677,8 +1696,9 @@ clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner storage (pre)
+  - name: Set up exec runner storage
     commands:
+      - mkdir -p /tmp/teleport-pkg
       - chmod -R u+rw /tmp/teleport-pkg
       - rm -rf /tmp/teleport-pkg/go
 
@@ -1752,7 +1772,7 @@ steps:
       - cd /tmp/teleport-pkg/go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
 
-  - name: Clean up exec runner storage (post)
+  - name: Clean up exec runner storage
     commands:
       - chmod -R u+rw /tmp/teleport-pkg
       - rm -rf /tmp/teleport-pkg/go
@@ -1769,12 +1789,21 @@ platform:
   os: darwin
   arch: amd64
 
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
 trigger:
+  branch:
+    - master
+    - branch/*
   event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
+    exclude:
+      - cron
+      - promote
+      - rollback
 
 depends_on:
   - build-darwin-amd64
@@ -1786,8 +1815,9 @@ clone:
   disable: true
 
 steps:
-  - name: Clean up exec runner storage (pre)
+  - name: Set up exec runner storage
     commands:
+      - mkdir -p /tmp/teleport-pkg-tsh
       - chmod -R u+rw /tmp/teleport-pkg-tsh
       - rm -rf /tmp/teleport-pkg-tsh/go
 
@@ -1871,7 +1901,7 @@ steps:
       - cd /tmp/teleport-pkg-tsh/go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
 
-  - name: Clean up exec runner storage (post)
+  - name: Clean up exec runner storage
     commands:
       - chmod -R u+rw /tmp/teleport-pkg-tsh
       - rm -rf /tmp/teleport-pkg-tsh/go
@@ -2347,6 +2377,6 @@ steps:
 
 ---
 kind: signature
-hmac: 33e01e87ed4040be858bcddec5e5b1ada607054afd10ad131caa37a27cf82053
+hmac: b7fef605f7f6e34eeea8fc1691eb02d4777af78c45f00ae4a110b8e6ea0b3630
 
 ...
