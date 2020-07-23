@@ -1570,21 +1570,12 @@ platform:
   os: darwin
   arch: amd64
 
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
 
 depends_on:
   - test
@@ -1670,27 +1661,18 @@ platform:
   os: darwin
   arch: amd64
 
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
 
 depends_on:
   - build-darwin-amd64
 
 workspace:
-  path: /tmp/teleport-pkg
+  path: /tmp/build-darwin-amd64-pkg
 
 clone:
   disable: true
@@ -1698,8 +1680,8 @@ clone:
 steps:
   - name: Set up exec runner storage
     commands:
-      - mkdir -p /tmp/teleport-pkg
-      - chmod -R u+rw /tmp/teleport-pkg
+      - mkdir -p /tmp/build-darwin-amd64-pkg
+      - chmod -R u+rw /tmp/build-darwin-amd64-pkg
       - rm -rf /tmp/build-darwin-amd64-pkg/go
 
   - name: Check out code
@@ -1774,7 +1756,7 @@ steps:
 
   - name: Clean up exec runner storage
     commands:
-      - chmod -R u+rw /tmp/teleport-pkg
+      - chmod -R u+rw /tmp/build-darwin-amd64-pkg
       - rm -rf /tmp/build-darwin-amd64-pkg/go
 
 ---
@@ -1789,21 +1771,12 @@ platform:
   os: darwin
   arch: amd64
 
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
 
 depends_on:
   - build-darwin-amd64
@@ -2377,6 +2350,6 @@ steps:
 
 ---
 kind: signature
-hmac: 3492260da309c84c95a5a18fb5e5d252738ca4a49f05b706c17adabfea772d33
+hmac: daf7a1bc352cabcb4c4ac54bf5d879f2bf69ac093d94ddaf6cb2c847e13e393c
 
 ...
