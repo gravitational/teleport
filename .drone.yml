@@ -8,19 +8,15 @@ environment:
   UID: 1000
   GID: 1000
 
-# TOOD(gus): testing
-# trigger:
-#   branch:
-#     - master
-#     - branch/*
-#   event:
-#     exclude:
-#       - cron
-#       - promote
-#       - rollback
 trigger:
-  cron:
-    - never
+  branch:
+    - master
+    - branch/*
+  event:
+    exclude:
+      - cron
+      - promote
+      - rollback
 
 workspace:
   path: /go
@@ -137,19 +133,15 @@ kind: pipeline
 type: kubernetes
 name: test-docs
 
-# TOOD(gus): testing
-# trigger:
-#   branch:
-#     - master
-#     - branch/*
-#   event:
-#     exclude:
-#       - cron
-#       - promote
-#       - rollback
 trigger:
-  cron:
-    - never
+  branch:
+    - master
+    - branch/*
+  event:
+    exclude:
+      - cron
+      - promote
+      - rollback
 
 workspace:
   path: /go
@@ -1578,25 +1570,15 @@ platform:
   os: darwin
   arch: amd64
 
-# TODO(gus): testing, add depends_on back
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
 
-# depends_on:
-#   - test
+depends_on:
+  - test
 
 workspace:
   path: /tmp/tarball
@@ -1678,22 +1660,12 @@ platform:
   os: darwin
   arch: amd64
 
-# TODO(gus): testing, add depends on test
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
 
 depends_on:
   - build-darwin-amd64
@@ -1797,22 +1769,12 @@ platform:
   os: darwin
   arch: amd64
 
-# TODO(gus): testing, add depends on test
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
 
 depends_on:
   - build-darwin-amd64
@@ -1937,18 +1899,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
-# trigger:
-#   branch:
-#     - master
-#     - branch/*
-#   event:
-#     exclude:
-#       - cron
-#       - promote
-#       - rollback
 
-# depends_on:
-#   - test
+depends_on:
+  - test
 
 workspace:
   path: /dev/shm/tmp
@@ -2394,6 +2347,6 @@ steps:
 
 ---
 kind: signature
-hmac: 86adbe07fbca0bfc2ce9e04cf7c9f4047f8c8ed36eabb05e1ace37331c5e2bc6
+hmac: 33e01e87ed4040be858bcddec5e5b1ada607054afd10ad131caa37a27cf82053
 
 ...
