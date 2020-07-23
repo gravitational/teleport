@@ -40,11 +40,11 @@ FIPS_MESSAGE := "with FIPS support"
 endif
 
 # PAM support will only be built into Teleport if headers exist at build time.
-PAM_MESSAGE = "without PAM support"
+PAM_MESSAGE := "without PAM support"
 ifneq ("$(OS)","darwin")
 ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
-PAM_TAG = pam
-PAM_MESSAGE = "with PAM support"
+PAM_TAG := pam
+PAM_MESSAGE := "with PAM support"
 endif
 endif
 
