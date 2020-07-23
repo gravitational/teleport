@@ -2268,7 +2268,7 @@ only `teleport.yaml` should be backed up.
 The Auth server is Teleports brains, and depending on the backend should be backup
 in a regular cadance.
 
-For example a customer running Teleport on AWS with etd have these key items of data:
+For example a customer running Teleport on AWS with DynamoDB have these key items of data:
 
 | What | Where ( Example AWS Customer ) |
 |-|-|
@@ -2280,16 +2280,19 @@ For example a customer running Teleport on AWS with etd have these key items of 
 | teleport.yaml | File System |
 | teleport.service | File System |
 | license.pem | File System |
-| TLS /. | ( File System / Outside Scope )  |
+| TLS key/certificate | ( File System / Outside Scope )  |
+| Audit log | DynamoDB  |
+| Session recordings| S3  |
 
-For this customer, we would Recommend using [AWS best practices](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BackupRestore.html) for backing up DynamoDB. If DynamoDB is used for
+
+For this customer, we would recommend using [AWS best practices](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BackupRestore.html) for backing up DynamoDB. If DynamoDB is used for
 the audit log, logged events have a TTL of 1 year.
 
-| Backend | Recommend Backup Strategy  |
+| Backend | Recommend backup strategy  |
 |-|-|
 | dir ( local filesystem )   | Copy `data_dir/storage` and use `tctl get all` to get local state. |
 | DynamoDB | [Follow AWS Guidelines for Backup & Restore](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BackupRestore.html) |
-| etcD | [Follow etcD Guidleines for Disaster Recovery ](https://etcd.io/docs/v2/admin_guide) |
+| etcd | [Follow etcD Guidleines for Disaster Recovery ](https://etcd.io/docs/v2/admin_guide) |
 | Firestore | [Follow GCP Guidlines for Automated Backups](https://firebase.google.com/docs/database/backups) |
 
 ### Config Files
@@ -2305,7 +2308,7 @@ restore Teleport. At a high level, this is our recommend approach:
 - Share that backend among auth servers
 - Store your configs as discrete files in git
 - Have your CI run `tctl create -f *.yaml` from that git directory, without restarting teleport service / pods in k8s
-- If you lose your backend, this setup still restores the essential configs
+
 
 ## Migrating Backends.
 As of version v4.1 you can now quickly export a collection of resources from
