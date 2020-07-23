@@ -267,7 +267,7 @@ func Run(args []string) {
 	ls := app.Command("ls", "List remote SSH nodes")
 	ls.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
 	ls.Arg("labels", "List of labels to filter node list").StringVar(&cf.UserHost)
-	ls.Flag("verbose", clusterHelp).Short('v').BoolVar(&cf.Verbose)
+	ls.Flag("verbose", "Enable verbose, one-line output, including node UUIDs").Short('v').BoolVar(&cf.Verbose)
 	// clusters
 	clusters := app.Command("clusters", "List available Teleport clusters")
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
