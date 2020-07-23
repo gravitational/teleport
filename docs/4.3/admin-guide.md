@@ -2265,7 +2265,7 @@ When planning a backup of Teleport, it's important to know what is where and the
 importance of each component. Teleport's Proxies and Nodes are stateless, and thus
 only `teleport.yaml` should be backed up.
 
-The Auth server is Teleports brains, and depending on the backend should be backup
+The Auth server is Teleport's brains, and depending on the backend should be backed up
 in a regular cadance.
 
 For example a customer running Teleport on AWS with DynamoDB have these key items of data:
