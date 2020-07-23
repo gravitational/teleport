@@ -71,7 +71,7 @@ After configuring both of these options run the install.  In the example below y
 ``` bash
 $ helm install --name teleport ./
 
-$ kubectl get pods 
+$ kubectl get pods
 NAME                            READY   STATUS    RESTARTS   AGE
 teleport-d67584df8-8vfls        1/1     Running   0          62m
 teleport-d67584df8-p9l2g        1/1     Running   0          62m
