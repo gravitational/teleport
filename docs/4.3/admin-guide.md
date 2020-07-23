@@ -2373,7 +2373,7 @@ Now you can see the monitoring information by visiting several endpoints:
 
 * `http://127.0.0.1:3000/metrics` is the list of internal metrics Teleport is
    tracking. It is compatible with [Prometheus](https://prometheus.io/)
-   collectors.
+   collectors. For a full list of metrics review our [metrics reference](metrics_logs_reference.md).
 
 * `http://127.0.0.1:3000/healthz` returns "OK" if the process is healthy or
   `503` otherwise.

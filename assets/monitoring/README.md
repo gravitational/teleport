@@ -6,13 +6,14 @@ Teleport exports Prometheus Metrics endpoints.
 
 To start teleport with prometheus endpoint enabled:
 
-```
-teleport start --diag-addr=127.0.0.1:3434
+```bash
+teleport start --diag-addr=127.0.0.1:3000
+# http://127.0.0.1:3000/metrics
 ```
 
 To start monitoring stack, simply `docker-compose up`
 
-Then go to `http://localhost:3000`
+Then go to `http://localhost:3001`
 
 ```
 Username: admin
@@ -21,7 +22,7 @@ Password: admin
 
 ### Grafana Dashboard
 
-Modify and export grafana dashboard, then convert to the format that Grafana can auto import using this tool
+Modify and export Grafana dashboard, then convert to the format that Grafana can auto import using this tool
 
 ```bash
 python convert.py health-raw.json health-dashboard.json
@@ -29,30 +30,43 @@ python convert.py health-raw.json health-dashboard.json
 
 ## Low level monitoring
 
-Teleport adds `gops` as a low level debugging solution:
+Teleport can be started with Go's standard profiler [pprof](https://golang.org/pkg/net/http/pprof/).
 
 ```bash
-teleport start --gops --gops-addr=127.0.0.1:4321
+$ teleport start -d --diag-addr=127.0.0.1:3000
+# http://127.0.0.1:3000/debug/pprof/
 ```
 
-Then to use gops:
+When teleport is started in debug mode (with teleport start -d flag) Go’s CPU,
+memory and go routines dumps could be collected on the host.
 
-```bash
-go get github.com/google/gops
-gops stack $(pidof teleport
+Assuming debugging endpoint address is set to `127.0.0.1:3000`, the following key profiles
+can be collected:
+
+CPU profile (it will observe the system for 30 seconds and collect metrics) about CPU usage
+per function:
+
+`curl -o cpu.profile http://127.0.0.1:3000/debug/pprof/profile`
+
+Note: This curl command will hang for 30 seconds collecting the CPU profile
+
+Goroutine profile shows how many concurrent Golang “lightweight threads” are used
+in the system:
+
+`curl -o goroutine.profile http://127.0.0.1:3000/debug/pprof/goroutine`
+
+Heap profile shows allocated objects in the system:
+
+`curl -o heap.profile http://127.0.0.1:3000/debug/pprof/heap`
+
+To view the resulting profiles, use go tool pprof:
+
 ```
-
-#### Diffing goroutine dumps
-
-We have a tool to give you idea of the difference between two teleport stack dumps,
-so we can see what's the overhead and difference to detect leaks:
-
-```bash
-gops stack $(pidof teleport) | python gops.py collect > /tmp/a
-# take a second diff
-gops stack $(pidof teleport) | python gops.py collect > /tmp/b
-# compare two diffs
-python gops.py diff /tmp/a /tmp/b
+go tool pprof cpu.profile
+go tool pprof heap.profile
+go tool pprof goroutine.profile
+# Use --web flag to create a SVG diagram in the browser, for high-level view of whats going on.
+go tool pprof --web heap.profile
 ```
 
 ### Performance Testing
@@ -91,15 +105,3 @@ tsh bench --interactive --threads=100 --duration=300s --rate=10 localhost ls -l
 ```
 
 The performance difference is huge between interactive and non interactive modes.
-
-
-**Debugging the debugger**
-
-Sometimes it is useful to see how many gorotuines `tsh bench` produces itself,
-you can launch it with `gops` endpoint. (Used by https://github.com/google/gops) tool
-
-```bash
-tsh --gops --gops-addr=127.0.0.1:4322 bench --threads=100 --duration=300s --rate=10 localhost ls -l
-# then use gops tool to inspect
-gops stack <pid>
-```
