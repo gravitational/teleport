@@ -8,9 +8,12 @@ import (
 	"github.com/gravitational/teleport/e/lib/constants"
 	"github.com/gravitational/teleport/e/lib/fixtures"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/reporting/types"
+	"github.com/jonboulle/clockwork"
 	check "gopkg.in/check.v1"
 )
 
@@ -18,18 +21,36 @@ func TestPro(t *testing.T) { check.TestingT(t) }
 
 type EnforcerSuite struct {
 	enforcer *Enforcer
+	clock    clockwork.FakeClock
 }
 
 var _ = check.Suite(&EnforcerSuite{})
 
 func (s *EnforcerSuite) SetUpSuite(c *check.C) {
 	directory := c.MkDir()
+	s.clock = clockwork.NewFakeClock()
 
-	backend, err := lite.NewWithConfig(context.TODO(), lite.Config{Path: directory})
+	backend, err := lite.NewWithConfig(context.TODO(), lite.Config{
+		Clock:            s.clock,
+		Path:             directory,
+		PollStreamPeriod: 50 * time.Millisecond,
+	})
 	c.Assert(err, check.IsNil)
 
 	clusterID := "test"
 	anonymizer, err := utils.NewHMACAnonymizer(clusterID)
+	c.Assert(err, check.IsNil)
+
+	presence := local.NewPresenceService(backend)
+
+	namespace := &services.Namespace{}
+	namespace.SetName(clusterID)
+	err = presence.UpsertNamespace(*namespace)
+	c.Assert(err, check.IsNil)
+
+	server := &services.ServerV2{}
+	server.SetNamespace(clusterID)
+	_, err = presence.UpsertNode(server)
 	c.Assert(err, check.IsNil)
 
 	s.enforcer, err = NewEnforcer(context.Background(), EnforcerConfig{
@@ -75,4 +96,46 @@ func (s *EnforcerSuite) TestEnforcerUnreachable(c *check.C) {
 	res, err := s.enforcer.GetLicenseCheckResult(context.TODO())
 	c.Assert(err, check.IsNil)
 	c.Assert(len(res.Spec.Notifications), check.Equals, 1)
+}
+
+// TestSequentialRecording checks that the basic usage record (using one auth instance) works as expected
+func (s *EnforcerSuite) TestSequentialRecording(c *check.C) {
+	// The SQLite backend has an asynchronous job that cleans expired records. Unfortunately, we cannot use a fake
+	// ticker for that job, so we wait a bit until we can be somewhat sure that the job has run.
+	advance := func() {
+		s.clock.Advance(30 * time.Minute)
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	ctx := context.Background()
+	s.enforcer.RecordUsage(ctx, 30*time.Minute)
+	advance()
+	s.enforcer.RecordUsage(ctx, 30*time.Minute)
+	advance()
+	s.enforcer.RecordUsage(ctx, 30*time.Minute)
+
+	record, err := s.enforcer.GetUsageRecord(ctx)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(record), check.Equals, 1)
+
+	for _, v := range record {
+		c.Assert(v, check.Equals, 90*time.Minute)
+	}
+}
+
+// TestConcurrentRecording checks that multiple teleport instances don't end up recording the same usage multiple times
+// We emulate parallelism by not advancing the clock in-between the calls to `RecordUsage`
+func (s *EnforcerSuite) TestConcurrentRecording(c *check.C) {
+	ctx := context.Background()
+	s.enforcer.RecordUsage(ctx, 30*time.Minute)
+	s.enforcer.RecordUsage(ctx, 30*time.Minute)
+	s.enforcer.RecordUsage(ctx, 30*time.Minute)
+
+	record, err := s.enforcer.GetUsageRecord(ctx)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(record), check.Equals, 1)
+
+	for _, v := range record {
+		c.Assert(v, check.Equals, 30*time.Minute)
+	}
 }

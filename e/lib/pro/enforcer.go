@@ -159,6 +159,15 @@ func (e *Enforcer) startReportingUsage(ctx context.Context) {
 
 // RecordUsage records additional usage in the datastore
 func (e *Enforcer) RecordUsage(ctx context.Context, newUsage time.Duration) {
+	if err := e.acquireRecordingLock(ctx, newUsage-(10*time.Second)); err != nil {
+		if !trace.IsAlreadyExists(err) {
+			log.WithError(err).Error("Failed to set recording lock.")
+		} else {
+			log.Info("Encountered active usage recording lock.")
+		}
+		return
+	}
+
 	record, err := e.GetUsageRecord(ctx)
 	if err != nil {
 		log.WithError(err).Error("Failed to retrieve existing usage record.")
@@ -264,6 +273,7 @@ const (
 	heartbeatPrefix = "heartbeat"
 	valPrefix       = "val"
 	usagePrefix     = "usage"
+	lockPrefix      = "lock"
 )
 
 // SetUsageRecord sets the unreported usage record to a new value
@@ -392,6 +402,21 @@ func (e *Enforcer) GetLicenseCheckResult(ctx context.Context) (*types.Heartbeat,
 			})
 	}
 	return heartbeat, nil
+}
+
+// acquireRecordingLock attempts to set a lock for recording new usage. Returns an isAlreadyExists error in case the
+// lock already exists.
+// The lock will expire in time for the next hearbeat, but prevents other teleport processes to record their usage in
+// between.
+func (e *Enforcer) acquireRecordingLock(ctx context.Context, ttl time.Duration) error {
+	item := backend.Item{
+		Key:     backend.Key(heartbeatPrefix, lockPrefix),
+		Value:   []byte{1},
+		Expires: e.Backend.Clock().Now().UTC().Add(ttl),
+	}
+
+	_, err := e.Backend.Create(ctx, item)
+	return trace.Wrap(err)
 }
 
 // processLicenseCheckResult implements "enforcement" policies, right now it
