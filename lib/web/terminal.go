@@ -316,8 +316,11 @@ func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
 	for {
 		select {
 		case <-tickerCh.C:
+			// Pongs are internally handled by the websocket library.
+			// https://github.com/golang/net/blob/master/websocket/hybi.go#L291
 			if err := codec.Send(ws, nil); err != nil {
 				t.log.Errorf("Unable to send ping frame to web client: %v.", err)
+				t.terminalCancel()
 				return
 			}
 		case <-t.terminalContext.Done():
