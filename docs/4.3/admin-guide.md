@@ -2315,7 +2315,7 @@ As of version v4.1 you can now quickly export a collection of resources from
 Teleport. This feature was designed to help customers migrate from local storage
 to etcd.
 
-Using `tctl get all` will retrive the below items:
+Using `tctl get all` will retrieve the below items:
 
 - Users
 - Certificate Authorities
