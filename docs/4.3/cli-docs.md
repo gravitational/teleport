@@ -389,7 +389,7 @@ $ tsh --proxy=proxy.example.com --auth=github --user=admin login
 $ tsh --proxy=proxy.example.com --browser=none
 
 # Login to cluster and output a local kubeconfig
-$ tsh0 login --proxy=proxy.example.com --format=kubernetes -o kubeconfig
+$ tsh login --proxy=proxy.example.com --format=kubernetes -o kubeconfig
 ```
 
 ## tsh logout
@@ -609,7 +609,7 @@ Create an invitation token
 
 | Name | Default Value(s) | Allowed Value(s) | Description
 |------|---------|----------------|----------------------------|
-| `--type` | none | `trusted_cluster` , `node`   | Type of token to add
+| `--type` | none | `trusted_cluster`, `node`, `proxy`   | Type of token to add
 | `--value` | none | **string** token value | Value of token to add
 | `--ttl` | 1h | relative duration like 5s, 2m, or 3h, **maximum 48h** | Set expiration time for token
 
