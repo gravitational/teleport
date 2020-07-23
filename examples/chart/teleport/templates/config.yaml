@@ -6,14 +6,14 @@ metadata:
 {{ include "teleport.labels" . | indent 4 }}
 data:
   teleport.yaml: |
-{{- if .Values.otherConfig.useOtherConfig }} 
+{{- if .Values.otherConfig.useOtherConfig }}
 {{ toYaml .Values.otherConfig.teleportConfig | indent 4 }}
 {{- else }}
     teleport:
 {{- if not .Values.config.highAvailability }}
       nodename: {{ template "teleport.fullname" . }}
 {{- end }}
-{{- if  .Values.config.auth_service_connection }} 
+{{- if  .Values.config.auth_service_connection }}
 {{ toYaml .Values.config.auth_service_connection | indent 6 }}
 {{- end }}
       pid_file: {{ .Values.config.teleport.pid_file }}
@@ -26,7 +26,7 @@ data:
       storage:
 {{ toYaml .Values.config.teleport.storage | indent 8 }}
 
-      connection_limits:    
+      connection_limits:
 {{ toYaml .Values.config.teleport.connection_limits | indent 8 }}
     auth_service:
 {{- if .Values.config.highAvailability }}
@@ -49,7 +49,7 @@ data:
       keep_alive_interval: {{ .Values.config.teleport.auth_service.keep_alive_interval }}
       keep_alive_count_max: {{ .Values.config.teleport.auth_service.keep_alive_count_max }}
 {{- end }}
-      
+
     ssh_service:
 {{- if not .Values.config.highAvailability }}
       enabled: {{ .Values.config.teleport.ssh_service.enabled }}
@@ -66,24 +66,32 @@ data:
 {{ toYaml .Values.config.teleport.ssh_service.enhanced_recording | indent 8 }}
       pam:
 {{ toYaml .Values.config.teleport.ssh_service.pam | indent 8 }}
-      
+
     proxy_service:
       enabled: {{ .Values.config.teleport.proxy_service.enabled }}
+{{- if .Values.ingress.enabled }}
+      {{- if .Values.ingress.tls }}
+      public_addr: {{ .Values.config.public_address }}:443
+      {{- else }}
+      public_addr: {{ .Values.config.public_address }}:80
+      {{- end -}}
+{{- else }}
       public_addr: {{ .Values.config.public_address }}:{{ .Values.service.ports.proxyweb.port }}
+{{- end }}
       web_listen_addr: {{ .Values.config.listen_addr }}:{{ .Values.ports.proxyweb.containerPort }}
       listen_addr:  {{ .Values.config.listen_addr }}:{{ .Values.ports.proxyssh.containerPort }}
       tunnel_listen_addr:  {{ .Values.config.listen_addr }}:{{ .Values.ports.proxytunnel.containerPort }}
 
       ssh_public_addr: {{ .Values.config.public_address }}:{{ .Values.service.ports.proxyssh.port }}
       tunnel_public_addr: {{ .Values.config.public_address }}:{{ .Values.service.ports.proxytunnel.port }}
-{{- if .Values.proxy.tls.usetlssecret}} 
+{{- if .Values.proxy.tls.usetlssecret}}
       https_key_file: {{ .Values.config.teleport.proxy_service.https_key_file }}
       https_cert_file: {{ .Values.config.teleport.proxy_service.https_cert_file }}
-{{- end }}      
+{{- end }}
 
       # kubernetes section configures
       # kubernetes proxy protocol support
-      kubernetes:        
+      kubernetes:
         enabled: {{ .Values.config.teleport.proxy_service.kubernetes.enabled }}
         public_addr: {{ .Values.config.public_address }}:{{ .Values.service.ports.proxykube.port }}
         listen_addr: {{ .Values.config.listen_addr }}:{{ .Values.ports.proxykube.containerPort }}
@@ -99,7 +107,7 @@ metadata:
 {{ include "teleport.labels" . | indent 4 }}
 data:
   teleport.yaml: |
-{{- if .Values.otherConfigHA.useOtherConfig }} 
+{{- if .Values.otherConfigHA.useOtherConfig }}
 {{ toYaml .Values.otherConfigHA.teleportConfig | indent 4 }}
 {{- else }}
     teleport:
@@ -113,7 +121,7 @@ data:
       storage:
 {{ toYaml .Values.config.teleport.storage | indent 8 }}
 
-      connection_limits:    
+      connection_limits:
 {{ toYaml .Values.config.teleport.connection_limits | indent 8 }}
     auth_service:
       enabled: true
@@ -134,11 +142,11 @@ data:
       disconnect_expired_cert: {{ .Values.config.teleport.auth_service.disconnect_expired_cert }}
       keep_alive_interval: {{ .Values.config.teleport.auth_service.keep_alive_interval }}
       keep_alive_count_max: {{ .Values.config.teleport.auth_service.keep_alive_count_max }}
-      
+
     ssh_service:
       enabled: false
-      
+
     proxy_service:
-      enabled: false 
+      enabled: false
 {{- end }}
 {{- end }}
