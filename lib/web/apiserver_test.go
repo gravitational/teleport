@@ -981,7 +981,7 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 	c.Assert(err, IsNil)
 
 	// flush out raw event (pty texts)
-	err = s.waitForRawEvent(ws, 5*time.Second)
+	err = s.waitForRawEvent(ws, 1*time.Second)
 	c.Assert(err, IsNil)
 
 	// next frames should be just pings sent out by ping loop
