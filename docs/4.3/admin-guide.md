@@ -2288,7 +2288,7 @@ For example a customer running Teleport on AWS with DynamoDB have these key item
 For this customer, we would recommend using [AWS best practices](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BackupRestore.html) for backing up DynamoDB. If DynamoDB is used for
 the audit log, logged events have a TTL of 1 year.
 
-| Backend | Recommend backup strategy  |
+| Backend | Recommended backup strategy  |
 |-|-|
 | dir ( local filesystem )   | Copy `data_dir/storage` and use `tctl get all` to get local state. |
 | DynamoDB | [Follow AWS Guidelines for Backup & Restore](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BackupRestore.html) |
