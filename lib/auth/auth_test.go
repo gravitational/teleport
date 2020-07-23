@@ -768,6 +768,57 @@ func (s *AuthSuite) TestUpsertDeleteRoleEventsEmitted(c *C) {
 	c.Assert(s.mockedAuditLog.EmittedEvent, IsNil)
 }
 
+func (s *AuthSuite) TestTrustController(c *C) {
+	ctx := context.Background()
+	tc := trustController{
+		orphanAfter: time.Millisecond,
+	}
+	getAllCAs := func(c *C) []services.CertAuthority {
+		var allCAs []services.CertAuthority
+		for _, t := range []services.CertAuthType{services.UserCA, services.HostCA} {
+			cas, err := s.a.GetCertAuthorities(t, false)
+			c.Assert(err, IsNil)
+			allCAs = append(allCAs, cas...)
+		}
+		return allCAs
+	}
+
+	// add CAs matching cluster name
+	c.Assert(s.a.UpsertCertAuthority(
+		suite.NewTestCA(services.UserCA, "me.localhost")), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(
+		suite.NewTestCA(services.HostCA, "me.localhost")), IsNil)
+
+	original := getAllCAs(c)
+
+	// verify that we are able to load the CAs
+	c.Assert(len(original), Equals, 2)
+
+	// add some CAs that shouldn't exist
+	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.UserCA, "controller-test")), IsNil)
+	c.Assert(s.a.UpsertCertAuthority(suite.NewTestCA(services.HostCA, "controller-test")), IsNil)
+
+	withInvalid := getAllCAs(c)
+	c.Assert(len(withInvalid), Equals, len(original)+2)
+
+	// cycle the trustController once to allow it to
+	// register the suspect CAs.
+	t := time.Now()
+	c.Assert(tc.cycle(ctx, s.a, t), IsNil)
+
+	// ensure that suspect cache has picked up the CAs.
+	c.Assert(len(tc.suspectedOrphanCAs), Equals, 2)
+
+	// cycle the trust controller again with t sufficiently
+	// in the future to be past the orphan cutoff.
+	t = t.Add(time.Second)
+	c.Assert(tc.cycle(ctx, s.a, t), IsNil)
+
+	// ensure that suspect cache is cleared and CAs are removed.
+	c.Assert(len(tc.suspectedOrphanCAs), Equals, 0)
+	c.Assert(len(original), Equals, len(getAllCAs(c)))
+}
+
 func (s *AuthSuite) TestTrustedClusterCRUDEventEmitted(c *C) {
 	ctx := context.Background()
 	s.a.IAuditLog = s.mockedAuditLog

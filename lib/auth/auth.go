@@ -256,9 +256,6 @@ type trustController struct {
 }
 
 func (c *trustController) cycle(ctx context.Context, auth *AuthServer, t time.Time) error {
-	if err := auth.EnsureTrustedClusters(ctx); err != nil {
-		log.Warnf("EnsureTrustedClusters failed: %v", err)
-	}
 
 	domainName, err := auth.GetDomainName()
 	if err != nil {
@@ -271,6 +268,14 @@ func (c *trustController) cycle(ctx context.Context, auth *AuthServer, t time.Ti
 	tcs, err := auth.AuthServices.GetTrustedClusters()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	// first, attempt to ensure that all existant trusted clusters have
+	// had their configurations correctly applied.
+	if err := auth.EnsureTrustedClusters(ctx, tcs...); err != nil {
+		// this is a best-effort operation, so just log the error
+		// and keep working.
+		log.Warnf("EnsureTrustedClusters failed: %v", err)
 	}
 
 	// reset seen tag for all existing suspects
@@ -353,11 +358,15 @@ func (a *AuthServer) runPeriodicOperations() {
 	// and the jitter operates on a range of [n/2,n).
 	ticker := utils.NewJitterTicker(defaults.HighResPollingPeriod * 2)
 	defer ticker.Stop()
+
+	tc := trustController{
+		orphanAfter: time.Minute * 5,
+	}
 	for p := uint(0); true; p++ {
 		select {
 		case <-a.closeCtx.Done():
 			return
-		case <-ticker.C:
+		case t := <-ticker.C:
 			if err := a.autoRotateCertAuthorities(); err != nil {
 				if trace.IsCompareFailed(err) {
 					log.Debugf("Cert authority has been updated concurrently: %v.", err)
@@ -366,8 +375,8 @@ func (a *AuthServer) runPeriodicOperations() {
 				}
 			}
 			if p%errCorrectModulo == 0 {
-				if err := a.EnsureTrustedClusters(a.closeCtx); err != nil {
-					log.Errorf("Periodic trusted cluster ops failure: %v", err)
+				if err := tc.cycle(a.closeCtx, a, t); err != nil {
+					log.Errorf("Periodic trust ops failure: %v", err)
 				}
 			}
 		}

@@ -151,11 +151,22 @@ func (a *AuthServer) UpsertTrustedCluster(ctx context.Context, trustedCluster se
 }
 
 // EnsureTrustedClusters attempts to ensure that all currently registered
-// trusted clusters configurations have been correctly applied.
-func (a *AuthServer) EnsureTrustedClusters(ctx context.Context) error {
-	tcs, err := a.GetTrustedClusters()
-	if err != nil {
-		return trace.Wrap(err)
+// trusted clusters are correctly configured.
+//
+// Trusted clusters are loaded if not supplied.
+//
+// This method may be called with a subset of the total trusted clusters
+// present in the backend, but should not be called with a trusted cluster
+// that does not already exist in the backend or which was not freshly loaded.
+//
+// This method is only public in order to facilitate certain integration tests.
+func (a *AuthServer) EnsureTrustedClusters(ctx context.Context, tcs ...services.TrustedCluster) error {
+	var err error
+	if len(tcs) == 0 {
+		tcs, err = a.GetTrustedClusters()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	var errs []error
 	for _, tc := range tcs {
