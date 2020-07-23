@@ -2301,7 +2301,7 @@ We would recommend you store configs as discrete files in git.
 
 ### GitOps
 
-If running Teleport at scale it's important for teams to have an automated way to
+If running Teleport at scale, it's important for teams to have an automated way to
 restore Teleport. At a high level, this is our recommended approach:
 
 - Persist and backup your backend
