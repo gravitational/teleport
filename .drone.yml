@@ -1570,24 +1570,15 @@ platform:
   os: darwin
   arch: amd64
 
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
 
-# depends_on:
-#   - test
+depends_on:
+  - test
 
 workspace:
   path: /tmp/tarball
@@ -1670,21 +1661,12 @@ platform:
   os: darwin
   arch: amd64
 
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
 
 depends_on:
   - build-darwin-amd64
@@ -1789,21 +1771,12 @@ platform:
   os: darwin
   arch: amd64
 
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
 
 depends_on:
   - build-darwin-amd64
@@ -2377,6 +2350,6 @@ steps:
 
 ---
 kind: signature
-hmac: b7fef605f7f6e34eeea8fc1691eb02d4777af78c45f00ae4a110b8e6ea0b3630
+hmac: 9c3f7a0e413d1b252160fba8cdd51e8965ac801f28145ad5b4cd76e107d98efc
 
 ...
