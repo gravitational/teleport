@@ -237,6 +237,11 @@ func (p *ProxyWatcher) watch() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if len(proxies) == 0 {
+		// at least 1 proxy aught to exist; yield back to the outer
+		// retry loop and try again.
+		return trace.NotFound("empty proxy list")
+	}
 	proxySet := make(map[string]Server, len(proxies))
 	for i := range proxies {
 		proxySet[proxies[i].GetName()] = proxies[i]
