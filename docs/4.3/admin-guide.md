@@ -2290,27 +2290,28 @@ the audit log, logged events have a TTL of 1 year.
 
 | Backend | Recommended backup strategy  |
 |-|-|
-| dir ( local filesystem )   | Copy `data_dir/storage` and use `tctl get all` to get local state. |
+| dir ( local filesystem )   | Backup `/var/lib/teleport/storage` directory and the output of `tctl get all`. |
 | DynamoDB | [Follow AWS Guidelines for Backup & Restore](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BackupRestore.html) |
 | etcd | [Follow etcD Guidleines for Disaster Recovery ](https://etcd.io/docs/v2/admin_guide) |
 | Firestore | [Follow GCP Guidlines for Automated Backups](https://firebase.google.com/docs/database/backups) |
 
-### Config Files
+### Teleport Resources
 
-We would recommend you store configs as discrete files in git.
+Teleport uses YAML resources for roles, trusted clusters, local users and auth connectors.
+These could be created via `tctl` or via the UI.
 
-### GitOps
+## GitOps
 
 If running Teleport at scale, it's important for teams to have an automated way to
 restore Teleport. At a high level, this is our recommended approach:
 
 - Persist and backup your backend
 - Share that backend among auth servers
-- Store your configs as discrete files in git
-- Have your CI run `tctl create -f *.yaml` from that git directory, without restarting teleport service / pods in k8s
-
+- Store your configs as discrete files in VCS
+- Have your CI run `tctl create -f *.yaml` from that git directory
 
 ## Migrating Backends.
+
 As of version v4.1 you can now quickly export a collection of resources from
 Teleport. This feature was designed to help customers migrate from local storage
 to etcd.
@@ -2326,7 +2327,7 @@ Using `tctl get all` will retrieve the below items:
     - OIDC [Teleport Enterprise]
     - Roles [Teleport Enterprise]
 
-When migrating backend you'll should backup up your auth server's `data_dir/storage` directly.
+When migrating backend you should backup up your auth server's `data_dir/storage` directly.
 
 **Example of backing up and restoring a cluster.**
 
