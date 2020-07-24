@@ -777,7 +777,7 @@ command: ["/bin/uname -m"]
 
 # if you want to pipe several bash commands together, here's how to do it:
 # notice how ' and " are interchangeable and you can use it for quoting:
-command: ["/bin/sh", "-c", "uname -a | egrep -o '[0-9]+\.[0-9]+\.[0-9]+'"]
+command: ["/bin/sh", "-c", "uname -a | egrep -o '[0-9]+\\.[0-9]+\\.[0-9]+'"]
 ```
 
 ## Audit Log
