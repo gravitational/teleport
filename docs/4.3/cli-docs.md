@@ -133,7 +133,7 @@ Run shell or execute a command on a remote SSH node
 | `--cluster` | none |  | Specify the cluster to connect
 | `-o, --option` | `local` |  |  OpenSSH options in the format used in the configuration file
 | `--enable-escape-sequences` | | | Enable support for SSH escape sequences. Type '~?' during an SSH session to list supported sequences.
-| `--use-local-ssh-agent` | | | Load generated SSH certificates into the local ssh-agent (specified via `$SSH_AUTH_SOCK`). You can also set `TELEPORT_USE_LOCAL_SSH_AGENT` environment variable. Default is true.
+| `--no-use-local-ssh-agent` | | | Do not load generated SSH certificates into the local ssh-agent (specified via `$SSH_AUTH_SOCK`). Useful when using `gpg-agent` or Yubikeys. You can also set the `TELEPORT_USE_LOCAL_SSH_AGENT` environment variable to `false` (default `true`)
 
 ### [Global Flags](#tsh-global-flags)
 
@@ -459,8 +459,8 @@ Generates a user invitation token.
 
 | Name | Default Value(s) | Allowed Value(s) | Description
 |------|---------|----------------|----------------------------|
-| `--k8s-groups` | none | a kubernetes group | Kubernetes groups to assign to a user.e.g. `system:masters`
-| `--k8s-users` | none | a kubernetes user | Kubernetes user to assign to a user.e.g. `jenkins`
+| `--k8s-groups` | none | a kubernetes group | Kubernetes groups to assign to a user, e.g. `system:masters`
+| `--k8s-users` | none | a kubernetes user | Kubernetes user to assign to a user, e.g. `jenkins`
 | `--ttl` | 1h | relative duration like 5s, 2m, or 3h, **maximum 48h** | Set expiration time for token
 
 ### [Global Flags](#tctl-global-flags)
@@ -609,7 +609,7 @@ Create an invitation token
 
 | Name | Default Value(s) | Allowed Value(s) | Description
 |------|---------|----------------|----------------------------|
-| `--type` | none | `trusted_cluster`, `node`, `proxy`   | Type of token to add
+| `--type` | none | `trusted_cluster`, `node`, `proxy` | Type of token to add
 | `--value` | none | **string** token value | Value of token to add
 | `--ttl` | 1h | relative duration like 5s, 2m, or 3h, **maximum 48h** | Set expiration time for token
 
@@ -700,7 +700,7 @@ Create an identity file(s) for a given user
 `--user` | none | existing user | Teleport user name
 `--host` | none | auth host | Teleport host name
 `-o, --out` | none | filepath | identity output
-`--format` | `file` | `file`, `openssh`, `tls` or `kubernetes` |  identity format
+`--format` | `file` | `file`, `openssh`, `tls` or `kubernetes` | identity format
 `--identity` | `file` | `file` |  identity format
 `--auth-server` | none | auth host & port | Remote Teleport host name
 `--ttl` | none | relative duration like 5s, 2m, or 3h | TTL (time to live) for the generated certificate
@@ -733,7 +733,7 @@ $ tctl auth sign --ttl=87600h --user=jenkins --out=jenkins.pem
 # the jenkins.pem file can later be used with `tsh`
 $ tctl auth sign --ttl=24h --user=jenkins --out=jenkins.pem
 # create a certificate with a TTL of 1 day for the jenkins user
-# The kubeconfig file can later be used with kubectl or compatible tooling.
+# The kubeconfig file can later be used with `kubectl` or compatible tooling.
 $ tctl auth sign --ttl=24h --user=jenkins --out=kubeconfig --format=kubernetes
 # Exports an identity from the Auth Server in preparation for remote
 # tctl execution.
