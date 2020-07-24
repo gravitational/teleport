@@ -1,6 +1,4 @@
-# Quickstart
-
-Welcome to the Teleport Quickstart!
+# Teleport Quick Start
 
 This tutorial will guide you through the steps needed to install and run
 Teleport on a single node, which could be your local machine but we recommend a
@@ -8,7 +6,7 @@ VM.
 
 ### Prerequisites
 
-* In this tutorial you will start a web UI which must be accessible via a web
+* In this tutorial you will start a UI which must be accessible via a
   browser. If you run this tutorial on a remote machine without a GUI, first
   make sure that this machine's IP can be reached over your network and that
   it accepts incoming traffic on port `3080` .
@@ -20,37 +18,10 @@ VM.
 This guide is only meant to demonstrate how to run Teleport in a sandbox or demo
 environment, and showcase a few basic tasks you can do with Teleport.
 
-**You should not follow this guide if you want to set up Teleport in production.
-Instead follow the [Admin Guide](admin-guide.md)**
-
 ## Step 1: Install Teleport
 
-This guide installs teleport v{{ teleport.version }} on the CLI. Previous versions are documented
-in [Release History](https://gravitational.com/teleport/releases/). You can
-download pre-built binaries from our
-[Downloads](https://gravitational.com/teleport/download/) page or you can [build
-it from source](installation.md#installing-from-source).
-
-You can also download `.deb` , `.rpm` , and `.pkg` files from
-[Downloads](https://gravitational.com/teleport/download/).
-
-``` bash
-$ export version=v{{ teleport.version }}
-$ export os=linux # 'darwin' 'linux' or 'windows'
-$ export arch=amd64 # '386' 'arm' on linux or 'amd64' for all distros
-# Automated way to retrieve the checksum, just append .sha256
-$ curl https://get.gravitational.com/teleport-$version-$os-$arch-bin.tar.gz.sha256
-[Checksum output]
-$ curl -O https://get.gravitational.com/teleport-$version-$os-$arch-bin.tar.gz
-$ shasum -a 256 teleport-$version-$os-$arch-bin.tar.gz
-# ensure the checksum matches the sha256 checksum on the download page!
-$ tar -xzf teleport-$version-$os-$arch-bin.tar.gz
-$ cd teleport
-$ ./install
-# this copies teleport binaries to /usr/local/bin
-$ which teleport
-/usr/local/bin/teleport
-```
+Follow our [Installation page](installation.md) for how to install Teleport. You can
+download pre-built binaries from our [Downloads](https://gravitational.com/teleport/download/).
 
 ## Step 2: Start Teleport
 

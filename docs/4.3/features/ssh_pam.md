@@ -115,113 +115,95 @@ ssh_service:
 When PAM is enabled it will use the default `sshd` config file. This can differ per
 distro.
 
-=== "Debian"
+```bash
+$ cat /etc/pam.d/sshd
+# PAM configuration for the Secure Shell service
 
-    ```bash
-    $ cat /etc/pam.d/sshd
-    # PAM configuration for the Secure Shell service
+# Standard Un*x authentication.
+@include common-auth
 
-    # Standard Un*x authentication.
-    @include common-auth
+# Disallow non-root logins when /etc/nologin exists.
+account    required     pam_nologin.so
 
-    # Disallow non-root logins when /etc/nologin exists.
-    account    required     pam_nologin.so
+# Uncomment and edit /etc/security/access.conf if you need to set complex
+# access limits that are hard to express in sshd_config.
+# account  required     pam_access.so
 
-    # Uncomment and edit /etc/security/access.conf if you need to set complex
-    # access limits that are hard to express in sshd_config.
-    # account  required     pam_access.so
+# Standard Un*x authorization.
+@include common-account
 
-    # Standard Un*x authorization.
-    @include common-account
+# SELinux needs to be the first session rule.  This ensures that any
+# lingering context has been cleared.  Without this it is possible that a
+# module could execute code in the wrong domain.
+session [success=ok ignore=ignore module_unknown=ignore default=bad]        pam_selinux.so close
 
-    # SELinux needs to be the first session rule.  This ensures that any
-    # lingering context has been cleared.  Without this it is possible that a
-    # module could execute code in the wrong domain.
-    session [success=ok ignore=ignore module_unknown=ignore default=bad]        pam_selinux.so close
+# Set the loginuid process attribute.
+session    required     pam_loginuid.so
 
-    # Set the loginuid process attribute.
-    session    required     pam_loginuid.so
+# Create a new session keyring.
+session    optional     pam_keyinit.so force revoke
 
-    # Create a new session keyring.
-    session    optional     pam_keyinit.so force revoke
+# Standard Un*x session setup and teardown.
+@include common-session
 
-    # Standard Un*x session setup and teardown.
-    @include common-session
+# Print the message of the day upon successful login.
+# This includes a dynamically generated part from /run/motd.dynamic
+# and a static (admin-editable) part from /etc/motd.
+session    optional     pam_motd.so  motd=/run/motd.dynamic
+session    optional     pam_motd.so noupdate
 
-    # Print the message of the day upon successful login.
-    # This includes a dynamically generated part from /run/motd.dynamic
-    # and a static (admin-editable) part from /etc/motd.
-    session    optional     pam_motd.so  motd=/run/motd.dynamic
-    session    optional     pam_motd.so noupdate
+# Print the status of the user's mailbox upon successful login.
+session    optional     pam_mail.so standard noenv # [1]
 
-    # Print the status of the user's mailbox upon successful login.
-    session    optional     pam_mail.so standard noenv # [1]
+# Set up user limits from /etc/security/limits.conf.
+session    required     pam_limits.so
 
-    # Set up user limits from /etc/security/limits.conf.
-    session    required     pam_limits.so
+# Read environment variables from /etc/environment and
+# /etc/security/pam_env.conf.
+session    required     pam_env.so # [1]
+# In Debian 4.0 (etch), locale-related environment variables were moved to
+# /etc/default/locale, so read that as well.
+session    required     pam_env.so user_readenv=1 envfile=/etc/default/locale
 
-    # Read environment variables from /etc/environment and
-    # /etc/security/pam_env.conf.
-    session    required     pam_env.so # [1]
-    # In Debian 4.0 (etch), locale-related environment variables were moved to
-    # /etc/default/locale, so read that as well.
-    session    required     pam_env.so user_readenv=1 envfile=/etc/default/locale
+# SELinux needs to intervene at login time to ensure that the process starts
+# in the proper default security context.  Only sessions which are intended
+# to run in the user's context should be run after this.
+session [success=ok ignore=ignore module_unknown=ignore default=bad]        pam_selinux.so open
 
-    # SELinux needs to intervene at login time to ensure that the process starts
-    # in the proper default security context.  Only sessions which are intended
-    # to run in the user's context should be run after this.
-    session [success=ok ignore=ignore module_unknown=ignore default=bad]        pam_selinux.so open
+# Standard Un*x password updating.
+@include common-password
+```
 
-    # Standard Un*x password updating.
-    @include common-password
-    ```
+The default `sshd` will call two `pam_motd` files, one dynamic. That prints the machine
+info, and a static MOTD that can be set by an admin.
 
-    The default `sshd` will call two `pam_motd` files, one dynamic. That prints the machine
-    info, and a static MOTD that can be set by an admin.
+```
+session    optional     pam_motd.so  motd=/run/motd.dynamic
+session    optional     pam_motd.so noupdate
+```
 
-    ```
-    session    optional     pam_motd.so  motd=/run/motd.dynamic
-    session    optional     pam_motd.so noupdate
-    ```
+Below, we show the default admin MOTD.
 
-    Below, we show the default admin MOTD.
+```bash
+$ cat /etc/motd
 
-    ```bash
-    $ cat /etc/motd
+The programs included with the Debian GNU/Linux system are free software;
+the exact distribution terms for each program are described in the
+individual files in /usr/share/doc/*/copyright.
 
-    The programs included with the Debian GNU/Linux system are free software;
-    the exact distribution terms for each program are described in the
-    individual files in /usr/share/doc/*/copyright.
+Debian GNU/Linux comes with ABSOLUTELY NO WARRANTY, to the extent
+permitted by applicable law.
+```
 
-    Debian GNU/Linux comes with ABSOLUTELY NO WARRANTY, to the extent
-    permitted by applicable law.
-    ```
+I've updated this to provide a message to users of Teleport, so they know they are
+being audited.
 
-    I've updated this to provide a message to users of Teleport, so they know they are
-    being audited.
+```bash
+$ cat /etc/motd
+WARNING: All activity on this node is being recorded by Teleport
+```
 
-    ```bash
-    $ cat /etc/motd
-    WARNING: All activity on this node is being recorded by Teleport
-    ```
-
-    ![Teleport SSH with updated MOTD](../img/motd/teleport-with-updated-MOTD.png)
-
-=== "Ubuntu"
-    More Markdown **content**.
-
-    - list item a
-    - list item b
-
-=== "Amazon Linux 2"
-    More Markdown **content**.
-
-    - list item a
-    - list item b
-
-
-
-
+![Teleport SSH with updated MOTD](../img/motd/teleport-with-updated-MOTD.png)
 
 ## Creating local users with Teleport
 
