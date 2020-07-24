@@ -2219,8 +2219,10 @@ As an extra precaution you might want to backup your application prior to upgrad
     to SHA-512 based signatures. To upgrade an existing cluster, set the following in
     your teleport.yaml:
 
+    ```bash
     teleport:
-      ca_signature_algo: “rsa-sha2-512”
+      ca_signature_algo: "rsa-sha2-512"
+    ```
 
     After updating to 4.3+ rotate the cluster CA [following these docs](#certificate-rotation).
 
@@ -2259,11 +2261,62 @@ When upgrading multiple clusters:
 
 ## Backing Up Teleport
 
-As of version v4.1 you can now quickly export a collection of resources from
-Teleport. This feature set works best for local and etcd, it's currently experimental
-for AWS/GCP.
+When planning a backup of Teleport, it's important to know what is where and the
+importance of each component. Teleport's Proxies and Nodes are stateless, and thus
+only `teleport.yaml` should be backed up.
 
-Using `tctl get all` will backup.
+The Auth server is Teleport's brains, and depending on the backend should be backed up
+regularly.
+
+For example a customer running Teleport on AWS with DynamoDB have these key items of data:
+
+| What | Where ( Example AWS Customer ) |
+|-|-|
+| Local Users ( not SSO )  | DynamoDB |
+| Certificate Authorities | DynamoDB |
+| Trusted Clusters | DynamoDB |
+| Connectors: SSO | DynamoDB / File System  |
+| RBAC | DynamoDB / File System |
+| teleport.yaml | File System |
+| teleport.service | File System |
+| license.pem | File System |
+| TLS key/certificate | ( File System / Outside Scope )  |
+| Audit log | DynamoDB  |
+| Session recordings| S3  |
+
+
+For this customer, we would recommend using [AWS best practices](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BackupRestore.html) for backing up DynamoDB. If DynamoDB is used for
+the audit log, logged events have a TTL of 1 year.
+
+| Backend | Recommended backup strategy  |
+|-|-|
+| dir ( local filesystem )   | Backup `/var/lib/teleport/storage` directory and the output of `tctl get all`. |
+| DynamoDB | [Follow AWS Guidelines for Backup & Restore](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BackupRestore.html) |
+| etcd | [Follow etcD Guidleines for Disaster Recovery ](https://etcd.io/docs/v2/admin_guide) |
+| Firestore | [Follow GCP Guidlines for Automated Backups](https://firebase.google.com/docs/database/backups) |
+
+### Teleport Resources
+
+Teleport uses YAML resources for roles, trusted clusters, local users and auth connectors.
+These could be created via `tctl` or via the UI.
+
+## GitOps
+
+If running Teleport at scale, it's important for teams to have an automated way to
+restore Teleport. At a high level, this is our recommended approach:
+
+- Persist and backup your backend
+- Share that backend among auth servers
+- Store your configs as discrete files in VCS
+- Have your CI run `tctl create -f *.yaml` from that git directory
+
+## Migrating Backends.
+
+As of version v4.1 you can now quickly export a collection of resources from
+Teleport. This feature was designed to help customers migrate from local storage
+to etcd.
+
+Using `tctl get all` will retrieve the below items:
 
 - Users
 - Certificate Authorities
@@ -2274,7 +2327,7 @@ Using `tctl get all` will backup.
     - OIDC [Teleport Enterprise]
     - Roles [Teleport Enterprise]
 
-When backing up Teleport you'll need to backup up your auth server's `data_dir/storage` directly.
+When migrating backends, you should back up your auth server's `data_dir/storage` directly.
 
 **Example of backing up and restoring a cluster.**
 
