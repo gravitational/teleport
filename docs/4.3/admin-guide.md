@@ -2221,7 +2221,7 @@ As an extra precaution you might want to backup your application prior to upgrad
 
     ```bash
     teleport:
-      ca_signature_algo: “rsa-sha2-512”
+      ca_signature_algo: "rsa-sha2-512"
     ```
 
     After updating to 4.3+ rotate the cluster CA [following these docs](#certificate-rotation).
@@ -2266,7 +2266,7 @@ importance of each component. Teleport's Proxies and Nodes are stateless, and th
 only `teleport.yaml` should be backed up.
 
 The Auth server is Teleport's brains, and depending on the backend should be backed up
-in a regular cadance.
+regularly.
 
 For example a customer running Teleport on AWS with DynamoDB have these key items of data:
 
@@ -2327,7 +2327,7 @@ Using `tctl get all` will retrieve the below items:
     - OIDC [Teleport Enterprise]
     - Roles [Teleport Enterprise]
 
-When migrating backend you should backup up your auth server's `data_dir/storage` directly.
+When migrating backends, you should back up your auth server's `data_dir/storage` directly.
 
 **Example of backing up and restoring a cluster.**
 
