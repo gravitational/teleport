@@ -100,6 +100,8 @@ $ helm install teleport gravitational/teleport
 
       [Download MacOS .pkg installer](https://get.gravitational.com/tsh-{{ teleport.version }}.pkg) (tsh client only, signed) file, double-click to run the Installer.
 
+!!! note
+    This method only installs the `tsh` client for interacting with Teleport clusters. If you need the `teleport` server or `tctl` admin tool, use the "Terminal" method instead.
 === "Terminal"
 
     ```bash
@@ -119,12 +121,12 @@ $ helm install teleport gravitational/teleport
 As of version v3.0.1 we have `tsh` client binary available for Windows 64-bit
 architecture - `teleport` and `tctl` are not supported.
 
-=== "Poweshell"
+=== "Powershell"
 
     ```bash
     > curl https://get.gravitational.com/teleport-v{{ teleport.version }}-windows-amd64-bin.zip.sha256
     # <checksum> <filename>
-    > curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-windows-amd64-bin.zip
+    > curl -O teleport-v{{ teleport.version }}-windows-amd64-bin.zip https://get.gravitational.com/teleport-v{{ teleport.version }}-windows-amd64-bin.zip
     > echo %PATH% # Edit %PATH% if necessary
     > certUtil -hashfile teleport-v{{ teleport.version }}-windows-amd64-bin.zip SHA256
     SHA256 hash of teleport-v{{ teleport.version }}-windows-amd64-bin.zip:
