@@ -53,8 +53,9 @@ up-to-date information.
 === "Amazon Linux 2"
 
     ```bash
-    $ wget https://get.gravitational.com/teleport-{{ teleport.version }}-1.x86_64.rpm
-    $ tar -xzf teleport-v{{ teleport.version }}-1.x86_64.rpm
+    $ yum install https://get.gravitational.com/teleport-{{ teleport.version }}-1.x86_64.rpm.sha256
+    $ which teleport
+    /usr/local/bin/teleport
     $ cd teleport
     $ sudo ./install
     $ which teleport
