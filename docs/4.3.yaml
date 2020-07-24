@@ -19,6 +19,8 @@ markdown_extensions:
   - admonition
   - def_list
   - footnotes
+  - pymdownx.tabbed
+  - pymdownx.superfences
   - toc:
       marker: '[TOC]'
       toc_depth: 2
