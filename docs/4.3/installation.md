@@ -78,7 +78,7 @@ up-to-date information.
 
 ## Docker
 
-Please follow our [Docker Quickstart](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport) for install and setup instructions.
+Please follow our [OSS Docker Quickstart](docs/4.3/quickstart_docker.md) or [Enterprise Docker Quickstart](enterprise/quickstart-enterprise/#run-teleport-enterprise-using-docker) for install and setup instructions.
 
 ```bash
 $ docker pull quay.io/gravitational/teleport:{{ teleport.version }}
