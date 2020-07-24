@@ -43,13 +43,12 @@ steps:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
     commands:
-      - cd /go/src/github.com/gravitational/teleport
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
       - git submodule update --init e
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init webassets/e || true
+      - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
     when:
       repo:
@@ -2423,6 +2422,6 @@ steps:
 
 ---
 kind: signature
-hmac: 6dc0c904211ffaf44d6c68e7559d0bea082ee29f60faa328961118f8d8130400
+hmac: 2a5e781eaee851ac7270f4fea10cac02ca072d091e52a14b75afe33439ecb16b
 
 ...
