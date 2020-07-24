@@ -8,15 +8,19 @@ environment:
   UID: 1000
   GID: 1000
 
+# TODO(gus): restore triggers, commented for testing
+# trigger:
+#   branch:
+#     - master
+#     - branch/*
+#   event:
+#     exclude:
+#       - cron
+#       - promote
+#       - rollback
 trigger:
-  branch:
-    - master
-    - branch/*
-  event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+  cron:
+    - never
 
 workspace:
   path: /go
@@ -133,15 +137,19 @@ kind: pipeline
 type: kubernetes
 name: test-docs
 
+# TODO(gus): restore triggers, commented for testing
+# trigger:
+#   branch:
+#     - master
+#     - branch/*
+#   event:
+#     exclude:
+#       - cron
+#       - promote
+#       - rollback
 trigger:
-  branch:
-    - master
-    - branch/*
-  event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+  cron:
+    - never
 
 workspace:
   path: /go
@@ -1795,7 +1803,7 @@ concurrency:
 
 platform:
   os: darwin
-  arch: amd
+  arch: amd64
 
 # TODO(gus): replace trigger, commented for testing
 # trigger:
