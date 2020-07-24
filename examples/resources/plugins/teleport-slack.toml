@@ -6,9 +6,9 @@ client_crt = "/var/lib/teleport/plugins/slack/auth.crt" # Teleport GRPC client c
 root_cas = "/var/lib/teleport/plugins/slack/auth.cas"   # Teleport cluster CA certs
 
 [slack]
-token = "api_token"             # Slack Bot OAuth token
-secret = "signing-secret-value" # Slack API Signing Secret
-channel = "channel-name"        # Slack Channel name to post requests to
+token = "xoxb-xxxxx-xxxxx-xxxxx" # Slack Bot OAuth token (starts with xoxb)
+secret = "signing-secret-value"  # Slack API Signing Secret
+channel = "channel-name"         # Slack Channel name to post requests to
 
 [http]
 # listen_addr = ":8081" # Network address in format [addr]:port on which callback server listens, e.g. 0.0.0.0:443
