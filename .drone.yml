@@ -8,19 +8,15 @@ environment:
   UID: 1000
   GID: 1000
 
-# TODO(gus): restore triggers, commented for testing
-# trigger:
-#   branch:
-#     - master
-#     - branch/*
-#   event:
-#     exclude:
-#       - cron
-#       - promote
-#       - rollback
 trigger:
-  cron:
-    - never
+  branch:
+    - master
+    - branch/*
+  event:
+    exclude:
+      - cron
+      - promote
+      - rollback
 
 workspace:
   path: /go
@@ -137,19 +133,15 @@ kind: pipeline
 type: kubernetes
 name: test-docs
 
-# TODO(gus): restore triggers, commented for testing
-# trigger:
-#   branch:
-#     - master
-#     - branch/*
-#   event:
-#     exclude:
-#       - cron
-#       - promote
-#       - rollback
 trigger:
-  cron:
-    - never
+  branch:
+    - master
+    - branch/*
+  event:
+    exclude:
+      - cron
+      - promote
+      - rollback
 
 workspace:
   path: /go
@@ -1578,25 +1570,15 @@ platform:
   os: darwin
   arch: amd64
 
-# TODO(gus): replace trigger, commented for testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - test
@@ -1682,25 +1664,15 @@ platform:
   os: darwin
   arch: amd64
 
-# TODO(gus): replace trigger, commented for testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-darwin-amd64
@@ -1805,25 +1777,15 @@ platform:
   os: darwin
   arch: amd64
 
-# TODO(gus): replace trigger, commented for testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-darwin-amd64
@@ -1943,25 +1905,15 @@ platform:
 environment:
   TMPDIR: /dev/shm
 
-# TODO(gus): replace trigger, commented for testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - test
@@ -2410,6 +2362,6 @@ steps:
 
 ---
 kind: signature
-hmac: 6dd9da78171ea7f849aecbc43c2cd895fb6618fac025d4211beb94bd3206c37f
+hmac: 3f2380e4436102f8f24e4a07cfa57373c8e0ed734ab6558cdb1bce6797719982
 
 ...
