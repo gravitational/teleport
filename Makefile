@@ -44,6 +44,13 @@ PAM_MESSAGE := "without PAM support"
 ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
 PAM_TAG := pam
 PAM_MESSAGE := "with PAM support"
+else
+# PAM headers for Darwin live under /usr/local/include/security instead, as SIP
+# prevents us from modifying/creating /usr/include/security on newer versions of MacOS
+ifneq ("$(wildcard /usr/local/include/security/pam_appl.h)","")
+PAM_TAG := pam
+PAM_MESSAGE := "with PAM support"
+endif
 endif
 
 # BPF support will only be built into Teleport if headers exist at build time.

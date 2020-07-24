@@ -75,20 +75,20 @@ DEVELOPER_ID_INSTALLER="Developer ID Installer: Gravitational Inc." # used for s
 DOWNLOAD_ROOT="https://get.gravitational.com"
 
 # check that curl is installed
-if [ ! $(type curl) ]; then
+if [[ ! $(type curl) ]]; then
     echo "curl must be installed"
     exit 2
 fi
 
 # check that tar is installed
-if [ ! $(type tar) ]; then
+if [[ ! $(type tar) ]]; then
     echo "tar must be installed"
     exit 11
 fi
 
 # check that docker is installed when fpm is needed to build
 if [[ "${PACKAGE_TYPE}" != "pkg" ]]; then
-    if [ ! $(type docker) ]; then
+    if [[ ! $(type docker) ]]; then
         echo "docker must be installed to build non-OSX packages"
         exit 3
     fi
@@ -110,26 +110,26 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
     fi
     PLATFORM="darwin"
     ARCH="amd64"
-    if [ ! $(type pkgbuild) ]; then
+    if [[ ! $(type pkgbuild) ]]; then
         echo "You need to install pkgbuild"
         echo "Run: xcode-select --install"
         exit 5
     fi
 
     if [[ "${BUILD_MODE}" == "tsh" ]]; then
-        if [ ! $(type codesign) ]; then
+        if [[ ! $(type codesign) ]]; then
             echo "You need to install codesign"
             echo "Run: xcode-select --install or sudo xcode-select --reset"
             exit 6
         fi
 
-        if [ ! $(type productsign) ]; then
+        if [[ ! $(type productsign) ]]; then
             echo "You need to install productsign"
             echo "Run: xcode-select --install or sudo xcode-select --reset"
             exit 7
         fi
 
-        if [ ! $(type gon) ]; then
+        if [[ ! $(type gon) ]]; then
             echo "You need to install gon"
             echo "Install a binary from https://github.com/mitchellh/gon and make sure it's present in the system PATH"
             exit 8
