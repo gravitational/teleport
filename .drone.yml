@@ -2157,6 +2157,9 @@ trigger:
     include:
       - gravitational/*
 
+depends_on:
+  - test
+
 workspace:
   path: /go
 
@@ -2423,6 +2426,6 @@ steps:
 
 ---
 kind: signature
-hmac: df40098806bb16ef8cb7e752c40990101166797f2ffd4cd0959543e959958068
+hmac: 51a74c966af0424f054f4903279844cb68d6ec956c04eb4e933d5e1ad323659d
 
 ...
