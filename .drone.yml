@@ -2013,7 +2013,7 @@ steps:
       - cd /dev/shm/tmp/go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
       - cp teleport*.tar.gz /dev/shm/tmp/go/artifacts
-      - cp e/teleport-ent*.tar.gz" /dev/shm/tmp/go/artifacts
+      - cp e/teleport-ent*.tar.gz /dev/shm/tmp/go/artifacts
       # generate checksums
       - cd /dev/shm/tmp/go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
@@ -2410,6 +2410,6 @@ steps:
 
 ---
 kind: signature
-hmac: 7f16b23a7a4e0f1e38fb2e0ed5ef2f2582866b366901ef2325ee4d4fbe159152
+hmac: 6dd9da78171ea7f849aecbc43c2cd895fb6618fac025d4211beb94bd3206c37f
 
 ...
