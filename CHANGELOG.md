@@ -1,5 +1,17 @@
 # Changelog
 
+### 4.3.1
+
+This release of Teleport contains multiple bug fixes.
+
+* Reverted base OS in container images to Ubuntu. [#4054](https://github.com/gravitational/teleport/issues/4054)
+* Fixed an issue that prevented changing the path for the Audit Log. [#3771](https://github.com/gravitational/teleport/issues/3771)
+* Fixed an issue that allowed servers with invalid labels to be added to the cluster. [#4034](https://github.com/gravitational/teleport/issues/4034)
+* Fixed an issue that caused Cloud Firestore to panic on startup. [#4041](https://github.com/gravitational/teleport/pull/4041)
+* Fixed an error that would cause Teleport to fail to load with the error "list of proxies empty". [#4005](https://github.com/gravitational/teleport/issues/4005)
+* Fixed an issue that would prevent playback of Kubernetes session [#4055](https://github.com/gravitational/teleport/issues/4055)
+* Fixed regressions in the UI. [#4013](https://github.com/gravitational/teleport/issues/4013) [#4012](https://github.com/gravitational/teleport/issues/4012)  [#4035](https://github.com/gravitational/teleport/issues/4035)  [#4051](https://github.com/gravitational/teleport/issues/4051)  [#4044](https://github.com/gravitational/teleport/issues/4044)
+
 ### 4.3.0
 
 This is a major Teleport release with a focus on new features, functionality, and bug fixes. It’s a substantial release and users can review [4.3 closed issues](https://github.com/gravitational/teleport/milestone/37?closed=1) on Github for details of all items. We would love your feedback - please pick a [time slot for a remote UX feedback session](https://calendly.com/benarent-gravitational/teleport-4-3-feedback-session?month=2020-06) if you’re interested.
