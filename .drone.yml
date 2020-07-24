@@ -1576,6 +1576,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - test
@@ -1667,6 +1670,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-darwin-amd64
@@ -1777,6 +1783,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-darwin-amd64
@@ -1841,7 +1850,7 @@ steps:
       OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
     commands:
       - cd /tmp/build-darwin-amd64-pkg-tsh/go/src/github.com/gravitational/teleport
-      - export VERSION=$(cat tmp/teleport-pkg-tsh/go/.version.txt)
+      - export VERSION=$(cat /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt)
       # set HOME explicitly (as Drone overrides it normally)
       - export HOME=/Users/build
       # unlock login keychain
@@ -1902,6 +1911,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - test
@@ -2350,6 +2362,6 @@ steps:
 
 ---
 kind: signature
-hmac: daf7a1bc352cabcb4c4ac54bf5d879f2bf69ac093d94ddaf6cb2c847e13e393c
+hmac: f3225fcf25d1a6893b79e3dd4282c9058a57a8f27743c86da571f6129ecaaa46
 
 ...
