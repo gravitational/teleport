@@ -27,23 +27,33 @@ clone:
 steps:
   - name: Check out code
     image: docker:git
-    environment:
-      GITHUB_PRIVATE_KEY:
-        from_secret: GITHUB_PRIVATE_KEY
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout $DRONE_COMMIT
       - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init webassets || true
+      - mkdir -p /go/cache
+
+  - name: Check out Enterprise code
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - cd /go/src/github.com/gravitational/teleport
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
       - git submodule update --init e
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init --recursive webassets || true
+      - git submodule update --init webassets/e || true
       - rm -f /root/.ssh/id_rsa
-      - mkdir -p /go/cache
+    when:
+      repo:
+        include: ["gravitational/*"]
 
   - name: Build buildbox
     image: docker
@@ -192,6 +202,9 @@ name: teleport-docker-cron
 trigger:
   cron:
     - teleport-docker-cron
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go
@@ -330,6 +343,9 @@ name: teleport-helm-cron
 trigger:
   cron:
     - teleport-helm-cron
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go
@@ -383,6 +399,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - test
@@ -487,6 +506,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - test
@@ -593,6 +615,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - test
@@ -698,6 +723,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - test
@@ -802,6 +830,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-linux-amd64
@@ -912,6 +943,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-linux-amd64-fips
@@ -1023,6 +1057,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-linux-amd64
@@ -1133,6 +1170,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-linux-amd64-fips
@@ -1248,6 +1288,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - test
@@ -1349,6 +1392,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-linux-i386
@@ -1459,6 +1505,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-linux-i386
@@ -2001,6 +2050,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - test
@@ -2101,6 +2153,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go
@@ -2213,6 +2268,9 @@ trigger:
     - master
   event:
     - push
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go/src/github.com/gravitational/teleport
@@ -2324,6 +2382,9 @@ trigger:
     - promote
   target:
     - production
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go/src/github.com/gravitational/teleport
@@ -2362,6 +2423,6 @@ steps:
 
 ---
 kind: signature
-hmac: 3f2380e4436102f8f24e4a07cfa57373c8e0ed734ab6558cdb1bce6797719982
+hmac: 6dc0c904211ffaf44d6c68e7559d0bea082ee29f60faa328961118f8d8130400
 
 ...
