@@ -24,7 +24,7 @@ up-to-date information.
     /usr/local/bin/teleport
     ```
 
-=== "Debian"
+=== "DEB"
 
     ```bash
     $ curl https://get.gravitational.com/teleport_{{ teleport.version }}_amd64.deb.sha256
@@ -53,8 +53,8 @@ up-to-date information.
 === "Amazon Linux 2"
 
     ```bash
-    $ wget https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
-    $ tar -xzf teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+    $ wget https://get.gravitational.com/teleport-{{ teleport.version }}-1.x86_64.rpm
+    $ tar -xzf teleport-v{{ teleport.version }}-1.x86_64.rpm
     $ cd teleport
     $ sudo ./install
     $ which teleport
@@ -77,6 +77,9 @@ up-to-date information.
     ```
 
 ## Docker
+
+Please follow our [Docker Quickstart](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport) for install and setup instructions.
+
 ```bash
 $ docker pull quay.io/gravitational/teleport:{{ teleport.version }}
 ```
@@ -98,10 +101,12 @@ $ helm install teleport gravitational/teleport
 
 === "Download"
 
-      [Download MacOS .pkg installer](https://get.gravitational.com/tsh-{{ teleport.version }}.pkg) (tsh client only, signed) file, double-click to run the Installer.
+      [Download MacOS .pkg installer](https://gravitational.com/teleport/download) (tsh client only, signed) file, double-click to run the Installer.
 
-!!! note
-    This method only installs the `tsh` client for interacting with Teleport clusters. If you need the `teleport` server or `tctl` admin tool, use the "Terminal" method instead.
+    !!! note
+        This method only installs the `tsh` client for interacting with Teleport clusters.
+        If you need the `teleport` server or `tctl` admin tool, use the "Terminal" method instead.
+
 === "Terminal"
 
     ```bash
