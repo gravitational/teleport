@@ -7,7 +7,7 @@ a deep dive into how to setup and run Teleport in production.
 We have split this guide into:
 
 - [Teleport on AWS FAQ](#teleport-on-aws-faq)
-- [Authenticating to EKS Using GitHub Credentials with Teleport Community Edition](#accessing-eks-using-teleport)
+- [Authenticating to EKS Using GitHub Credentials with Teleport Community Edition](#using-teleport-with-eks)
 - [Setting up Teleport Enterprise on AWS](#running-teleport-enterprise-on-aws)
 - [Teleport AWS Tips & Tricks](#teleport-aws-tips-tricks)
 
@@ -381,7 +381,7 @@ To upgrade to a newer version of Teleport:
 - Copy  and its contents should also be backed up and copied over to the new instance.
 - Either restart the instance, or log in via SSH and run `sudo systemctl restart teleport.service`
 
-## Accessing EKS using Teleport
+## Using Teleport with EKS
 
 In this section, we will set Kubernetes RBAC permissions needed by Teleport and
 configure the EC2 instance running Teleport to map to those permissions. This guide

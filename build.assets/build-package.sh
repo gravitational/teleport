@@ -75,14 +75,20 @@ DEVELOPER_ID_INSTALLER="Developer ID Installer: Gravitational Inc." # used for s
 DOWNLOAD_ROOT="https://get.gravitational.com"
 
 # check that curl is installed
-if [ ! $(command -v curl) ]; then
+if [ ! $(type curl) ]; then
     echo "curl must be installed"
     exit 2
 fi
 
+# check that tar is installed
+if [ ! $(type tar) ]; then
+    echo "tar must be installed"
+    exit 11
+fi
+
 # check that docker is installed when fpm is needed to build
 if [[ "${PACKAGE_TYPE}" != "pkg" ]]; then
-    if [ ! $(command -v docker) ]; then
+    if [ ! $(type docker) ]; then
         echo "docker must be installed to build non-OSX packages"
         exit 3
     fi
@@ -104,26 +110,26 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
     fi
     PLATFORM="darwin"
     ARCH="amd64"
-    if [ ! $(command -v pkgbuild) ]; then
+    if [ ! $(type pkgbuild) ]; then
         echo "You need to install pkgbuild"
         echo "Run: xcode-select --install"
         exit 5
     fi
 
     if [[ "${BUILD_MODE}" == "tsh" ]]; then
-        if [ ! $(command -v codesign) ]; then
+        if [ ! $(type codesign) ]; then
             echo "You need to install codesign"
             echo "Run: xcode-select --install or sudo xcode-select --reset"
             exit 6
         fi
 
-        if [ ! $(command -v productsign) ]; then
+        if [ ! $(type productsign) ]; then
             echo "You need to install productsign"
             echo "Run: xcode-select --install or sudo xcode-select --reset"
             exit 7
         fi
 
-        if [ ! $(command -v gon) ]; then
+        if [ ! $(type gon) ]; then
             echo "You need to install gon"
             echo "Install a binary from https://github.com/mitchellh/gon and make sure it's present in the system PATH"
             exit 8
@@ -251,10 +257,10 @@ fi
 
 # create a temporary directory and download specified Teleport version
 pushd $(mktemp -d)
-TMPDIR=$(pwd)
+PACKAGE_TEMPDIR=$(pwd)
 # automatically clean up on exit
-trap "rm -rf ${TMPDIR}" EXIT
-mkdir -p ${TMPDIR}/buildroot
+trap "rm -rf ${PACKAGE_TEMPDIR}" EXIT
+mkdir -p ${PACKAGE_TEMPDIR}/buildroot
 
 # implement a rudimentary download cache for repeat builds on the same host
 mkdir -p ${TARBALL_DIRECTORY}
@@ -277,20 +283,20 @@ tar -C $(pwd) -xvzf ${TARBALL_DIRECTORY}/${TARBALL_FILENAME} ${FILE_LIST}
 # move files into correct locations before building the package
 if [[ "${PACKAGE_TYPE}" != "pkg" ]]; then
     if [[ "${LINUX_BINARY_FILE_LIST}" != "" ]]; then
-        mkdir -p ${TMPDIR}/buildroot${LINUX_BINARY_DIR}
-        mv -v ${LINUX_BINARY_FILE_LIST} ${TMPDIR}/buildroot${LINUX_BINARY_DIR}
+        mkdir -p ${PACKAGE_TEMPDIR}/buildroot${LINUX_BINARY_DIR}
+        mv -v ${LINUX_BINARY_FILE_LIST} ${PACKAGE_TEMPDIR}/buildroot${LINUX_BINARY_DIR}
     fi
     if [[ "${LINUX_SYSTEMD_FILE_LIST}" != "" ]]; then
-        mkdir -p ${TMPDIR}/buildroot${LINUX_SYSTEMD_DIR}
-        mv -v ${LINUX_SYSTEMD_FILE_LIST} ${TMPDIR}/buildroot${LINUX_SYSTEMD_DIR}
+        mkdir -p ${PACKAGE_TEMPDIR}/buildroot${LINUX_SYSTEMD_DIR}
+        mv -v ${LINUX_SYSTEMD_FILE_LIST} ${PACKAGE_TEMPDIR}/buildroot${LINUX_SYSTEMD_DIR}
     fi
     if [[ "${LINUX_CONFIG_FILE}" != "" ]]; then
-        mkdir -p ${TMPDIR}/buildroot${LINUX_CONFIG_DIR}
-        mv -v ${LINUX_CONFIG_FILE} ${TMPDIR}/buildroot${LINUX_CONFIG_DIR}
+        mkdir -p ${PACKAGE_TEMPDIR}/buildroot${LINUX_CONFIG_DIR}
+        mv -v ${LINUX_CONFIG_FILE} ${PACKAGE_TEMPDIR}/buildroot${LINUX_CONFIG_DIR}
         CONFIG_FILE_STANZA="--config-files /src/buildroot${LINUX_CONFIG_DIR}/${LINUX_CONFIG_FILE} "
     fi
     # /var/lib/teleport
-    mkdir -p -m0700 ${TMPDIR}/buildroot${LINUX_DATA_DIR}
+    mkdir -p -m0700 ${PACKAGE_TEMPDIR}/buildroot${LINUX_DATA_DIR}
 fi
 popd
 
@@ -306,13 +312,13 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
                 -v \
                 --timestamp \
                 --options runtime \
-                ${TMPDIR}/${FILE}
+                ${PACKAGE_TEMPDIR}/${FILE}
         done
     fi
 
     # build the package for OS X
     pkgbuild \
-        --root ${TMPDIR}/${TAR_PATH} \
+        --root ${PACKAGE_TEMPDIR}/${TAR_PATH} \
         --identifier ${BUNDLE_ID} \
         --version ${TELEPORT_VERSION} \
         --install-location /usr/local/bin \
@@ -345,10 +351,10 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
                 \"username\": \"${APPLE_USERNAME}\",
                 \"password\": \"${APPLE_PASSWORD}\"
             }
-        }" > ${TMPDIR}/gon-config.json
+        }" > ${PACKAGE_TEMPDIR}/gon-config.json
 
         # notarise built package using gon
-        gon ${TMPDIR}/gon-config.json
+        gon ${PACKAGE_TEMPDIR}/gon-config.json
     fi
 
     # checksum created packages
@@ -360,7 +366,7 @@ else
     rm -vf ${OUTPUT_FILENAME}
 
     # build for other platforms
-    docker run -v ${TMPDIR}:/src --rm ${DOCKER_IMAGE} \
+    docker run -v ${PACKAGE_TEMPDIR}:/src --rm ${DOCKER_IMAGE} \
         fpm \
         --input-type dir \
         --output-type ${PACKAGE_TYPE} \
@@ -382,7 +388,7 @@ else
         ${FILE_PERMISSIONS_STANZA} .
 
     # copy created package back to current directory
-    cp ${TMPDIR}/*.${PACKAGE_TYPE} .
+    cp ${PACKAGE_TEMPDIR}/*.${PACKAGE_TYPE} .
 
     # checksum created packages
     for FILE in *.${PACKAGE_TYPE}; do

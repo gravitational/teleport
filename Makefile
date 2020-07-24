@@ -326,7 +326,7 @@ docker:
 
 # Dockerized build: useful for making Linux binaries on OSX
 .PHONY:docker-binaries
-docker-binaries:
+docker-binaries: clean
 	make -C build.assets build-binaries
 
 # Interactively enters a Docker container (which you can build and run Teleport inside of)
@@ -399,7 +399,7 @@ install: build
 # Docker image build. Always build the binaries themselves within docker (see
 # the "docker" rule) to avoid dependencies on the host libc version.
 .PHONY: image
-image: docker-binaries
+image: clean docker-binaries
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
 	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e image; fi
@@ -430,6 +430,7 @@ endif
 # build .pkg
 .PHONY: pkg
 pkg:
+	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	# arch and runtime are currently ignored on OS X
@@ -440,6 +441,7 @@ pkg:
 # build tsh client-only .pkg
 .PHONY: pkg-tsh
 pkg-tsh:
+	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	# arch and runtime are currently ignored on OS X
@@ -449,6 +451,7 @@ pkg-tsh:
 # build .rpm
 .PHONY: rpm
 rpm:
+	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p rpm -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
@@ -457,6 +460,7 @@ rpm:
 # build .deb
 .PHONY: deb
 deb:
+	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
@@ -497,3 +501,8 @@ init-webapps-submodules-e:
 init-submodules-e: init-webapps-submodules-e
 	git submodule init e
 	git submodule update
+
+.PHONY: update-vendor
+update-vendor:
+	go mod tidy
+	go mod vendor

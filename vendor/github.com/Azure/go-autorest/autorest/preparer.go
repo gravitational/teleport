@@ -523,7 +523,7 @@ func parseURL(u *url.URL, path string) (*url.URL, error) {
 // WithQueryParameters returns a PrepareDecorators that encodes and applies the query parameters
 // given in the supplied map (i.e., key=value).
 func WithQueryParameters(queryParameters map[string]interface{}) PrepareDecorator {
-	parameters := MapToValues(queryParameters)
+	parameters := ensureValueStrings(queryParameters)
 	return func(p Preparer) Preparer {
 		return PreparerFunc(func(r *http.Request) (*http.Request, error) {
 			r, err := p.Prepare(r)
@@ -531,16 +531,14 @@ func WithQueryParameters(queryParameters map[string]interface{}) PrepareDecorato
 				if r.URL == nil {
 					return r, NewError("autorest", "WithQueryParameters", "Invoked with a nil URL")
 				}
+
 				v := r.URL.Query()
 				for key, value := range parameters {
-					for i := range value {
-						d, err := url.QueryUnescape(value[i])
-						if err != nil {
-							return r, err
-						}
-						value[i] = d
+					d, err := url.QueryUnescape(value)
+					if err != nil {
+						return r, err
 					}
-					v[key] = value
+					v.Add(key, d)
 				}
 				r.URL.RawQuery = v.Encode()
 			}

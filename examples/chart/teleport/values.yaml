@@ -198,7 +198,7 @@ service:
   # external-dns.alpha.kubernetes.io/hostname: teleport.my-org.com
 
 # Use ingress in addition to service to terminate TLS outside of Teleport while using external-dns
-# You can safely use `service` only and disable `ingress`, when you just want to terminate TLS outside of Teleporty
+# You can safely use `service` only and disable `ingress`, when you just want to terminate TLS outside of Teleport
 ingress:
   enabled: false
   # annotations:

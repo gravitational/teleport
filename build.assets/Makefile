@@ -56,6 +56,14 @@ build-binaries: buildbox
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' all
 
 #
+# Build 'teleport' Enterprise release inside a docker container
+#
+.PHONY:build-enterprise-binaries
+build-enterprise-binaries: buildbox
+	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) $(BUILDBOX) \
+		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' all
+
+#
 # Build 'teleport' FIPS release inside a docker container
 # This builds Enterprise binaries only.
 #
@@ -137,7 +145,7 @@ clean:
 #
 .PHONY:test
 test: buildbox
-	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
+	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c \
 		"examples/etcd/start-etcd.sh & sleep 1; \
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
@@ -145,7 +153,7 @@ test: buildbox
 
 .PHONY:integration
 integration: buildbox
-	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
+	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration"
 
 #
@@ -153,7 +161,7 @@ integration: buildbox
 #
 .PHONY:lint
 lint: buildbox
-	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
+	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) lint"
 
 #
@@ -228,7 +236,7 @@ release-centos6: buildbox-centos6
 		/usr/bin/make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(RUNTIME)
 
 #
-# Create a Teleport FIPS package using the build container.
+# Create a Teleport FIPS package for CentOS 6 using the build container.
 # This is a special case because it only builds and packages the Enterprise FIPS binaries, no OSS.
 #
 .PHONY:release-centos6-fips

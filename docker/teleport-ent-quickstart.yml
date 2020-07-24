@@ -1,0 +1,31 @@
+version: '2'
+services:
+  # The configure container starts, generates a config, writes it to
+  # /etc/teleport/teleport.yaml and then immediately exits.
+  configure:
+    image: quay.io/gravitational/teleport-ent:4.3
+    container_name: teleport-configure
+    entrypoint: /bin/sh
+    hostname: localhost
+    command: -c "if [ ! -f /etc/teleport/teleport.yaml ]; then /usr/local/bin/teleport configure > /etc/teleport/teleport.yaml; fi"
+    volumes:
+      - ./teleport/config:/etc/teleport
+
+  # This container depends on the config written by the configure container above, so it
+  # sleeps for a second on startup to allow the configure container to run first.
+  teleport:
+    image: quay.io/gravitational/teleport-ent:4.3
+    container_name: teleport
+    entrypoint: /bin/sh
+    hostname: localhost
+    command: -c "sleep 1 && /usr/local/bin/teleport start"
+    ports:
+      - "3023:3023"
+      - "3025:3025"
+      - "3080:3080"
+    volumes:
+      - ./teleport/config:/etc/teleport
+      - ./teleport/data:/var/lib/teleport
+      - ./license.pem:/var/lib/teleport/license.pem
+    depends_on:
+      - configure

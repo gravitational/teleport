@@ -8,6 +8,10 @@
 /examples/ @webvictim @russjones @awly
 /vagrant/ @webvictim @russjones @awly
 .drone.yml @webvictim @russjones @awly
+.gitattributes @webvictim @russjones @awly
+.gitignore @webvictim @russjones @awly
+.gitmodules @webvictim @russjones @awly
+Makefile @webvictim @russjones @awly
 
 # Product.
 *.md @benarent @webvictim
@@ -22,7 +26,9 @@
 /modules/ @klizhentas @russjones @fspmarshall @webvictim @awly
 /tool/ @klizhentas @russjones @fspmarshall @webvictim @awly
 /vendor/ @klizhentas @russjones @fspmarshall @webvictim @awly
+go.mod @klizhentas @russjones @fspmarshall @webvictim @awly
+go.sum @klizhentas @russjones @fspmarshall @webvictim @awly
 
 # Frontend Engineering.
 /lib/web/ @alex-kovoy @russjones @fspmarshall @webvictim @awly @kimlisa
-/web/ @alex-kovoy @kimlisa
+/webassets/ @alex-kovoy @kimlisa

@@ -100,9 +100,9 @@ and Teleport Auth access.  We currently only provide linux-amd64 binaries, you c
 compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/mattermost).
 
 ```bash
-$ wget https://get.gravitational.com/teleport-mattermost-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
-$ tar -xzf teleport-mattermost-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
-$ cd teleport-mattermost
+$ wget https://get.gravitational.com/teleport-access-mattermost-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
+$ tar -xzf teleport-access-mattermost-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
+$ cd teleport-access-mattermost
 $ ./install
 $ which teleport-mattermost
 /usr/local/bin/teleport-mattermost

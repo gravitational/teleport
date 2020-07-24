@@ -43,8 +43,8 @@ metadata:
 spec:
   options:
     # ...
-    # Only allows the contractor to use this role for 1hr from time of request.
-    max_session_ttl: 1hr
+    # Only allows the contractor to use this role for 1 hour from time of request.
+    max_session_ttl: 1h
   allow:
     # ...
   deny:

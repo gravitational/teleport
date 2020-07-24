@@ -1,6 +1,12 @@
 # This Dockerfile makes the "build box": the container used to build official
 # releases of Teleport and its documentation.
-FROM ubuntu:20.04
+
+# Use Ubuntu 18.04 as base to get an older glibc version.
+# Using a newer base image will build against a newer glibc, which creates a
+# runtime requirement for the host to have newer glibc too. For example,
+# teleport built on any newer Ubuntu version will not run on Centos 7 because
+# of this.
+FROM ubuntu:18.04
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
@@ -13,7 +19,7 @@ ENV LANGUAGE="en_US.UTF-8" \
 
 RUN apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
-    apt-get install -q -y apt-utils curl gcc git gzip libbpfcc-dev libc6-dev libpam-dev libsqlite3-0 locales make net-tools tar tree zip && \
+    apt-get install -q -y apt-utils curl gcc gcc-multilib git gzip libbpfcc-dev libc6-dev libpam-dev libsqlite3-0 locales make net-tools tar tree zip && \
     dpkg-reconfigure locales && \
     apt-get -y autoclean && apt-get -y clean
 

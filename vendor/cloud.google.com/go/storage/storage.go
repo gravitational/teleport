@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"reflect"
 	"regexp"
 	"sort"
@@ -82,6 +83,12 @@ func setClientHeader(headers http.Header) {
 type Client struct {
 	hc  *http.Client
 	raw *raw.Service
+	// Scheme describes the scheme under the current host.
+	scheme string
+	// EnvHost is the host set on the STORAGE_EMULATOR_HOST variable.
+	envHost string
+	// ReadHost is the default host used on the reader.
+	readHost string
 }
 
 // NewClient creates a new Google Cloud Storage client.
@@ -103,9 +110,20 @@ func NewClient(ctx context.Context, opts ...option.ClientOption) (*Client, error
 	if ep != "" {
 		rawService.BasePath = ep
 	}
+	scheme := "https"
+	var host, readHost string
+	if host = os.Getenv("STORAGE_EMULATOR_HOST"); host != "" {
+		scheme = "http"
+		readHost = host
+	} else {
+		readHost = "storage.googleapis.com"
+	}
 	return &Client{
-		hc:  hc,
-		raw: rawService,
+		hc:       hc,
+		raw:      rawService,
+		scheme:   scheme,
+		envHost:  host,
+		readHost: readHost,
 	}, nil
 }
 
