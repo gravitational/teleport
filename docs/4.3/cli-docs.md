@@ -132,8 +132,8 @@ Run shell or execute a command on a remote SSH node
 | `-t, --tty` | `file` |  | Allocate TTY
 | `--cluster` | none |  | Specify the cluster to connect
 | `-o, --option` | `local` |  |  OpenSSH options in the format used in the configuration file
-| `--enable-escape-sequences` | false | true/false | Enable support for SSH escape sequences. Type '~?' during an SSH session to list supported sequences.
-| `--use-local-ssh-agent` | none | true/false | Load generated SSH certificates into the local ssh-agent (specified via `$SSH_AUTH_SOCK`). You can also set `TELEPORT_USE_LOCAL_SSH_AGENT` environment variable. Default is true.
+| `--enable-escape-sequences` | | | Enable support for SSH escape sequences. Type '~?' during an SSH session to list supported sequences.
+| `--use-local-ssh-agent` | | | Load generated SSH certificates into the local ssh-agent (specified via `$SSH_AUTH_SOCK`). You can also set `TELEPORT_USE_LOCAL_SSH_AGENT` environment variable. Default is true.
 
 ### [Global Flags](#tsh-global-flags)
 
@@ -347,7 +347,7 @@ interval via `--ttl` flag (capped by the server-side configuration).
 | `-o, --out` | none | filepath | Identity output filepath
 | `--format` | `file` | `file`, `openssh` or `kubernetes` | Identity format: file, openssh (for OpenSSH compatibility) or kubernetes (for kubeconfig)
 | `--browser` | none | `none` | Set to 'none' to suppress opening system default browser for `tsh login` commands
-| `--request-roles`  | none |  | R Request one or more extra roles
+| `--request-roles`  | none |  | Request one or more extra roles
 
 ### [Global Flags](#tsh-global-flags)
 
@@ -733,7 +733,7 @@ $ tctl auth sign --ttl=87600h --user=jenkins --out=jenkins.pem
 # the jenkins.pem file can later be used with `tsh`
 $ tctl auth sign --ttl=24h --user=jenkins --out=jenkins.pem
 # create a certificate with a TTL of 1 day for the jenkins user
-# the kubeconf file can later be used with `tsh` or compatible systems.
+# The kubeconfig file can later be used with kubectl or compatible tooling.
 $ tctl auth sign --ttl=24h --user=jenkins --out=kubeconfig --format=kubernetes
 # Exports an identity from the Auth Server in preparation for remote
 # tctl execution.

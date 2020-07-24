@@ -135,14 +135,15 @@ However, it will result in Teleport proxy using your personal Kubernetes
 credentials. This is risky: your credentials can expire or get revoked (such as
 when leaving your company).
 
-!!! tip
+
+
+## Impersonation
+
+!!! note
 
     If you used [the script from Option
     2](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh)
-    above, you can skip this step. The script already configured impersonation
-    permissions.
-
-## Impersonation
+    above, you can skip this step. The script already configured impersonation permissions.
 
 The next step is to configure the Teleport Proxy to be able to impersonate Kubernetes principals within a given group
 using [Kubernetes Impersonation Headers](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation).
@@ -344,18 +345,18 @@ sequence, their `kubeconfig` will be updated with their Kubernetes credentials.
 
 ## Using Teleport Kubernetes with Automation
 
-Teleport can integrate with CI/CD tooling for greater visibility and audibility of
+Teleport can integrate with CI/CD tooling for greater visibility and auditability of
 these tools. For this we recommend creating a local Teleport user, then exporting
 a kubeconfig using [`tctl auth sign`](cli-docs.md#tctl-auth-sign)
 
 An example setup is below.
 
 ```bash
-# Create a new local user for Jenkins`
+# Create a new local user for Jenkins
 $ tctl users add jenkins
 # Option 1: Creates a token for 1 year
 $ tctl auth sign --user=jenkins --format=kubernetes --out=kubeconfig --ttl=8760h
-# Recommend Option 2: Creates a token for 25hrs
+# Recommended Option 2: Creates a token for 25hrs
 $ tctl auth sign --user=jenkins --format=kubernetes --out=kubeconfig --ttl=25h
 
   The credentials have been written to kubeconfig
@@ -366,6 +367,9 @@ $ cat kubeconfig
   - cluster:
       certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZ....
 # This kubeconfig can now be exported and will provide access to the automation tooling.
+
+# Uses kubectl to get pods, using the provided kubeconfig.
+$ kubectl --kubeconfig /path/to/kubeconfig get pods
 ```
 
 !!! tip "How long should TTL be?"
@@ -383,7 +387,7 @@ $ cat kubeconfig
 
     Taking this a step further you could build a system to request a very short lived
     token for each CI run. We plan to make this easier for operators to integrate in
-    the future by exposing and documenting more our our API.
+    the future by exposing and documenting more of our API.
 
 ## AWS EKS
 
