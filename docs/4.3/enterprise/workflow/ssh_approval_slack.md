@@ -145,7 +145,7 @@ Teleport Slack uses a config file in TOML format. Generate a boilerplate config 
 running the following command:
 
 ```bash
-$ teleport-slack configure > teleport-slackbot.toml
+$ teleport-slack configure > teleport-slack.toml
 $ sudo mv teleport-slack.toml /etc
 ```
 
