@@ -320,7 +320,6 @@ func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
 			// https://github.com/golang/net/blob/master/websocket/hybi.go#L291
 			if err := codec.Send(ws, nil); err != nil {
 				t.log.Errorf("Unable to send ping frame to web client: %v.", err)
-				t.Close()
 				return
 			}
 		case <-t.terminalContext.Done():
