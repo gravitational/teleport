@@ -37,23 +37,23 @@ steps:
       - git submodule update --init webassets || true
       - mkdir -p /go/cache
 
-  - name: Check out Enterprise code
-    image: docker:git
-    environment:
-      GITHUB_PRIVATE_KEY:
-        from_secret: GITHUB_PRIVATE_KEY
-    commands:
-      - cd /go/src/github.com/gravitational/teleport
-      # fetch enterprise submodules
-      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      - git submodule update --init e
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init --recursive webassets || true
-      - rm -f /root/.ssh/id_rsa
-    when:
-      repo:
-        include: ["gravitational/*"]
+  # - name: Check out Enterprise code
+  #   image: docker:git
+  #   environment:
+  #     GITHUB_PRIVATE_KEY:
+  #       from_secret: GITHUB_PRIVATE_KEY
+  #   commands:
+  #     - cd /go/src/github.com/gravitational/teleport
+  #     # fetch enterprise submodules
+  #     - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+  #     - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  #     - git submodule update --init e
+  #     # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+  #     - git submodule update --init --recursive webassets || true
+  #     - rm -f /root/.ssh/id_rsa
+  #   when:
+  #     repo:
+  #       include: ["gravitational/*"]
 
   - name: Build buildbox
     image: docker
@@ -2423,6 +2423,6 @@ steps:
 
 ---
 kind: signature
-hmac: e42ddc2aa495bdbe5e3573c9b482727128a208d525bcb3eec4e1fbbea096c791
+hmac: bd930979c12e8782b7f5b16d4ffb87701dea6462b3232fe99de4324008a5a7e0
 
 ...
