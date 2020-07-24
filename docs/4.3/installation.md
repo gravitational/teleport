@@ -1,15 +1,6 @@
 # Installation
 
-Teleport core service [`teleport`](cli-docs.md#teleport) and admin tool [`tctl`](cli-docs.md#tctl) have been designed to run on **Linux** and **Mac** operating systems.
-
-The Teleport client [`tsh`](cli-docs.md#tsh) and Web UI are available for **Linux, Mac**
-and **Windows** operating systems. Our examples install Teleport v{{ teleport.version }} but you can
-install any version listed in our [Release History](https://gravitational.com/teleport/releases/).
-
-### Install Pre-built Binaries
-
-!!! info "sudo"
-    You may need to use `sudo` to run the installation commands.
+Teleport core service [`teleport`](cli-docs.md#teleport) and admin tool [`tctl`](cli-docs.md#tctl) have been designed to run on **Linux** and **Mac** operating systems. The Teleport user client [`tsh`](cli-docs.md#tsh) and UI are available for **Linux, Mac** and **Windows** operating systems.
 
 ## Linux
 
@@ -55,6 +46,17 @@ up-to-date information.
     $ sha256sum teleport-{{ teleport.version }}-1.x86_64.rpm
     # Verify that the checksums match
     $ rpm -i teleport-{{ teleport.version }}-1.x86_64.rpm
+    $ which teleport
+    /usr/local/bin/teleport
+    ```
+
+=== "Amazon Linux 2"
+
+    ```bash
+    $ wget https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+    $ tar -xzf teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+    $ cd teleport
+    $ sudo ./install
     $ which teleport
     /usr/local/bin/teleport
     ```
