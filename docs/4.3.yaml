@@ -56,6 +56,7 @@ nav:
         - GCP: gcp_guide.md
         - IBM: ibm_cloud_guide.md
         - Kubernetes Guide: kubernetes_ssh.md
+        - OpenSSH Guide: openssh_teleport.md
     - Teleport Enterprise :
         - Introduction: enterprise/introduction.md
         - Quick Start Guide: enterprise/quickstart-enterprise.md
