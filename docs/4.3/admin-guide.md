@@ -129,6 +129,13 @@ Teleport uses the YAML file format for configuration. A sample configuration
 file is shown below. By default, it is stored in `/etc/teleport.yaml`, below is
 an expanded and commented version from `teleport configure`.
 
+Teleport will use a config file if it's found in `/etc/teleport.yaml`, you can change
+the path and set it expliclyy with
+
+```bash
+$ teleport start --config="/etc/teleport.yaml"
+```
+
 For a complete reference, see our [Configuration Reference - teleport.yaml](config_reference.md#teleportyaml)
 
 !!! note "IMPORTANT"

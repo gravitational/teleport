@@ -12,6 +12,9 @@ Teleport and often is used as the first step. We'll outline how to set it up her
 ## Architecture
 
 ~ blah ~
+~ fix these
+~ https://gravitational.com/blog/how-to-record-ssh-sessions/
+
 
 ## Setting up OpenSSH Recording Proxy Mode
 
@@ -22,6 +25,7 @@ In this mode, the recording will be done on the proxy level:
 ``` yaml
 # snippet from /etc/teleport.yaml
 auth_service:
+   # Session Recording must be set to Proxy to work with OpenSSH
    session_recording: "proxy"  # can also be "off" and "node" (default)
 ```
 
@@ -31,6 +35,7 @@ by the Teleport User CA. Start by exporting the Teleport CA public key:
 Export the Teleport CA certificate into a file:
 
 ``` bash
+# tctl needs to be ran on the auth server.
 $ tctl auth export --type=user > teleport_user_ca.pub
 ```
 
@@ -44,11 +49,6 @@ To allow access for all users:
   + Copy `teleport_user_ca.pub` to `/etc/ssh/teleport-user-ca.pub`
   + Update `sshd` configuration (usually `/etc/ssh/sshd_config` ) to point to
     this file: `TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub`
-
-To allow access to a single user, copy the above output to
-`~/.ssh/authorized_keys` . To apply this for all users, remove "cert-authority"
-from the start of [ `tctl` ](cli-docs.md#tctl) output and copy it to
-`/etc/ssh/teleport_user_ca.pub` .
 
 Add the following line to `/etc/ssh/sshd_config` :
 
@@ -87,11 +87,11 @@ $ tctl auth sign \
 Then add the following lines to `/etc/ssh/sshd_config` and restart sshd.
 
 ``` yaml
-HostKey /etc/ssh/teleport_host_key
-HostCertificate /etc/ssh/teleport_host_key-cert.pub
+HostKey /etc/ssh/node.example.com
+HostCertificate /etc/ssh/node.example.com-cert.pub
 ```
 
-Now you can use [ `tsh ssh user@host.example.com` ](cli-docs.md#tsh) to login
+Now you can use [ `tsh ssh --port=22 user@host.example.com` ](cli-docs.md#tsh) to login
 into any `sshd` node in the cluster and the session will be recorded. If you
 want to use OpenSSH `ssh` client for logging into `sshd` servers behind a proxy
 in "recording mode", you have to tell the `ssh` client to use the jump host and
@@ -120,7 +120,7 @@ logging in:
 
 ``` bsh
 # Login as Joe
-$ tsh login --proxy=proxy.example.com joe
+$ tsh login --proxy=proxy.example.com --user=joe
 # see if the certificate is present (look for "teleport:joe") at the end of the cert
 $ ssh-add -L
 ```
@@ -142,13 +142,12 @@ Teleport cluster. Teleport supports SSH subsystems and includes a `proxy`
 subsystem that can be used like `netcat` is with `ProxyCommand` to connect
 through a jump host.
 
-
 On your client machine, you need to import these keys. It will allow your
 OpenSSH client to verify that host's certificates are signed by the trusted CA
 key:
 
 ``` yaml
-$ cat cluster_host_ca >> ~/.ssh/known_hosts
+$ cat teleport_user_ca.pub >> ~/.ssh/known_hosts
 ```
 
 If you have multiple Teleport clusters, you have to export and set up these
