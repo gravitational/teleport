@@ -42,14 +42,14 @@ steps:
       - |
         export DRONE_FORK=false
         # handle PRs
-        if [ "{$DRONE_BUILD_EVENT}" == "pull_request" ]; then
+        if [ "${DRONE_BUILD_EVENT}" == "pull_request" ]; then
           apk add --no-cache curl jq
           export PR_REPO=$(curl https://api.github.com/repos/gravitational/teleport/pulls/${DRONE_PULL_REQUEST} | jq -r '.head.repo.full_name)
           # if the source repo for the PR doesn't match DRONE_REPO, then this is a PR raised from a fork
           if [ "$PR_REPO" != "${DRONE_REPO}" ]; then
             export DRONE_FORK=true
           fi
-          git fetch ${FLAGS} origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+          git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
           git checkout ${DRONE_COMMIT_BRANCH}
           git fetch origin ${DRONE_COMMIT_REF}:
           git merge ${DRONE_COMMIT}
@@ -192,8 +192,8 @@ steps:
       - git init && git remote add origin ${DRONE_REMOTE_URL}
       - |
         # handle pull requests
-        if [ "{$DRONE_BUILD_EVENT}" == "pull_request" ]; then
-          git fetch ${FLAGS} origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+        if [ "${DRONE_BUILD_EVENT}" == "pull_request" ]; then
+          git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
           git checkout ${DRONE_COMMIT_BRANCH}
           git fetch origin ${DRONE_COMMIT_REF}:
           git merge ${DRONE_COMMIT}
@@ -2462,6 +2462,6 @@ steps:
 
 ---
 kind: signature
-hmac: 77d6a76b6327715a1930f4ea187a42b608f44790bf26228ebfd89afb566e763d
+hmac: f326951fe513237a860e855baccc4e6ef87af6bea98b10d65053e5992c8ee151
 
 ...
