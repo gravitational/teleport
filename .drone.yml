@@ -40,14 +40,15 @@ steps:
       # use the Github API to check whether this PR comes from a forked repo or not
       # if it does, we specifically fetch the PR ref before checking out and don't add the Enterprise submodule
       - |
-        export DRONE_FORK=false
+        export DRONE_NO_FORK=false
         # handle PRs
         if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
           apk add --no-cache curl jq
           export PR_REPO=$(curl -Ls https://api.github.com/repos/gravitational/teleport/pulls/${DRONE_PULL_REQUEST} | jq -r '.head.repo.full_name')
+          echo "Source repo for PR ${DRONE_PULL_REQUEST}: $${PR_REPO}"
           # if the source repo for the PR doesn't match DRONE_REPO, then this is a PR raised from a fork
-          if [ "$${PR_REPO}" != "${DRONE_REPO}" ]; then
-            export DRONE_FORK=true
+          if [ "$${PR_REPO}" == "${DRONE_REPO}" ]; then
+            export DRONE_NO_FORK=true
           fi
           git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
           git checkout ${DRONE_COMMIT_BRANCH}
@@ -67,7 +68,7 @@ steps:
       - mkdir -p /go/cache
       # only clone Enterprise code if this isn't a fork
       - |
-        if [ "$${DRONE_FORK}" = "false" ]; then
+        if [ "$${DRONE_NO_FORK}" == "true" ]; then
           mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
           ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
           git submodule update --init e
@@ -2462,6 +2463,6 @@ steps:
 
 ---
 kind: signature
-hmac: 7e7c30fa4507fdd89adcdca5dac9be3288084c9b4ce485cad70a18dd1414cfc4
+hmac: ca4a8ed2ca4d49989e7eaec92277585eef1ba411732f8ddc16e0fdcd447b5adc
 
 ...
