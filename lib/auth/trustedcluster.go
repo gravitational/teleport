@@ -821,6 +821,9 @@ type trustController struct {
 }
 
 func (c *trustController) cycle(ctx context.Context, auth *AuthServer, t time.Time) error {
+	// take the suspect list to prevent storing suspects across failed cycles.
+	suspects := c.suspectedOrphanCAs
+	c.suspectedOrphanCAs = nil
 
 	domainName, err := auth.GetDomainName()
 	if err != nil {
@@ -844,7 +847,7 @@ func (c *trustController) cycle(ctx context.Context, auth *AuthServer, t time.Ti
 	}
 
 	// reset seen tag for all existing suspects
-	for _, sus := range c.suspectedOrphanCAs {
+	for _, sus := range suspects {
 		sus.seen = false
 	}
 
@@ -869,7 +872,7 @@ func (c *trustController) cycle(ctx context.Context, auth *AuthServer, t time.Ti
 				}
 			}
 			// if we got this far, the ca *might* be in an orphaned/dangling state.
-			for _, sus := range c.suspectedOrphanCAs {
+			for _, sus := range suspects {
 				if ca.Equals(sus.ca) {
 					// we are already tracking this suspect, mark it as seen
 					// and continue processing.
@@ -887,7 +890,7 @@ func (c *trustController) cycle(ctx context.Context, auth *AuthServer, t time.Ti
 		}
 	}
 
-	for _, sus := range c.suspectedOrphanCAs {
+	for _, sus := range suspects {
 		if !sus.seen {
 			// suspect was either removed, or its associated trusted
 			// cluster configuration is now present.
