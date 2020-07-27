@@ -175,7 +175,7 @@ steps:
         cd /go/src/github.com/$DRONE_REPO
         # If we're running against a fork rather than the gravitational/teleport repo
         # then check that repo out as 'upstream' to compare with it
-        if [[ "$(git remote get-url origin)" != "https://github.com/gravitational/teleport.git" ]]; then
+        if [ "$(git remote get-url origin)" != "https://github.com/gravitational/teleport.git" ]; then
           git remote add upstream https://github.com/gravitational/teleport.git
           git fetch upstream
           export DIFF_REF="upstream/${DRONE_TARGET_BRANCH:-master}"
@@ -2437,6 +2437,6 @@ steps:
 
 ---
 kind: signature
-hmac: 9d13a97204ea2f4badaac398fe36bdb41edbc5d3f59890bde90d47169da9d75d
+hmac: 1940c6d5b95e41f04e7dbc968a2c44267ef11b6e9fcc4239bb4f639ed60923d4
 
 ...
