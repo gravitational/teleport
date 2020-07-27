@@ -28,9 +28,9 @@ steps:
   - name: Check out code
     image: docker:git
     commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport
-      - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - mkdir -p /go/src/github.com/$DRONE_REPO
+      - cd /go/src/github.com/$DRONE_REPO
+      - git clone https://github.com/$DRONE_REPO.git .
       - git checkout $DRONE_COMMIT
       - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
@@ -43,7 +43,7 @@ steps:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
     commands:
-      - cd /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/$DRONE_REPO
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
@@ -64,7 +64,7 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-      - cd /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/$DRONE_REPO
       - make -C build.assets buildbox
 
   - name: Run linter
@@ -77,7 +77,7 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - cd /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/$DRONE_REPO
       - make -C build.assets lint
 
   - name: Run unit tests
@@ -90,7 +90,7 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - cd /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/$DRONE_REPO
       - make -C build.assets test
 
   - name: Run integration tests
@@ -103,7 +103,7 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - cd /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/$DRONE_REPO
       - make -C build.assets integration
 
   - name: Send Slack notification for build failures
@@ -163,17 +163,28 @@ steps:
   - name: Check out code
     image: golang:1.14.4
     commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport
-      - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
+      - mkdir -p /go/src/github.com/$DRONE_REPO
+      - cd /go/src/github.com/$DRONE_REPO
+      - git clone https://github.com/$DRONE_REPO.git .
       - git checkout $DRONE_COMMIT
 
   - name: Run docs tests
     image: golang:1.14.4
     commands:
       - |
-        cd /go/src/github.com/gravitational/teleport
-        git diff --raw ${DRONE_COMMIT}..${DRONE_TARGET_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
+        cd /go/src/github.com/$DRONE_REPO
+        # If we're running against a fork rather than the gravitational/teleport repo
+        # then check that repo out as 'upstream' to compare with it
+        if [[ "$(git remote get-url origin)" != "https://github.com/gravitational/teleport.git" ]]; then
+          git remote add upstream https://github.com/gravitational/teleport.git
+          git fetch upstream
+          export DIFF_REF="upstream/${DRONE_TARGET_BRANCH:-master}"
+        else
+          export DIFF_REF="origin/${DRONE_TARGET_BRANCH:-master}"
+        fi
+        # We only run milv on subdirectories with a .milv.config.yaml file, so
+        # filter the list here to remove irrelevant extra entries
+        git diff --raw ${DRONE_COMMIT}..${DIFF_REF} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq | grep -Ev'(\.md$|\.yaml$|theme)' > /tmp/docs-versions-changed.txt
         if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
           echo "Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
           # Check trailing whitespace
@@ -2426,6 +2437,6 @@ steps:
 
 ---
 kind: signature
-hmac: 51a74c966af0424f054f4903279844cb68d6ec956c04eb4e933d5e1ad323659d
+hmac: 1a2383070410fb7d703b67515a995aa12927b38d2db98f168d14688d3a0655bc
 
 ...
