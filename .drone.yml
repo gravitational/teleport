@@ -480,7 +480,7 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts/e
       # set version
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
   - name: Build release artifacts
     image: docker
@@ -524,7 +524,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      target: teleport/tag/${DRONE_TAG}
+      target: teleport/tag/${DRONE_TAG##v}
       strip_prefix: /go/artifacts/
 
 services:
@@ -577,7 +577,6 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-      - echo $DRONE_TAG > /go/.drone_tag.txt
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
@@ -588,7 +587,7 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
       # set version
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
   - name: Build FIPS release artifacts
     image: docker
@@ -696,7 +695,7 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts/e
       # set version
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
   - name: Build CentOS 6 release artifacts
     image: docker
@@ -741,7 +740,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      target: teleport/tag/${DRONE_TAG}
+      target: teleport/tag/${DRONE_TAG##v}
       strip_prefix: /go/artifacts/
 
 services:
@@ -804,7 +803,7 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
       # set version
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
   - name: Build CentOS 6 FIPS release artifacts
     image: docker
@@ -848,7 +847,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      target: teleport/tag/${DRONE_TAG}
+      target: teleport/tag/${DRONE_TAG##v}
       strip_prefix: /go/artifacts/
 
 services:
@@ -911,7 +910,7 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
       # set version
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
   - name: Download built tarball artifacts from S3
     image: amazon/aws-cli
@@ -925,7 +924,7 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /go/.version.txt)
-      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
 
@@ -964,7 +963,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      target: teleport/tag/${DRONE_TAG}
+      target: teleport/tag/${DRONE_TAG##v}
       strip_prefix: /go/artifacts/
 
 services:
@@ -1024,7 +1023,7 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
       # set version
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
   - name: Download built tarball artifacts from S3
     image: amazon/aws-cli
@@ -1038,7 +1037,7 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /go/.version.txt)
-      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
 
   - name: Build FIPS RPM artifacts
@@ -1078,7 +1077,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      target: teleport/tag/${DRONE_TAG}
+      target: teleport/tag/${DRONE_TAG##v}
       strip_prefix: /go/artifacts/
 
 services:
@@ -1138,7 +1137,7 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
       # set version
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
   - name: Download built tarball artifacts from S3
     image: amazon/aws-cli
@@ -1152,7 +1151,7 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /go/.version.txt)
-      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
 
@@ -1191,7 +1190,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      target: teleport/tag/${DRONE_TAG}
+      target: teleport/tag/${DRONE_TAG##v}
       strip_prefix: /go/artifacts/
 
 services:
@@ -1251,7 +1250,7 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
       # set version
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
   - name: Download built tarball artifacts from S3
     image: amazon/aws-cli
@@ -1265,7 +1264,7 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /go/.version.txt)
-      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
 
   - name: Build FIPS DEB artifacts
@@ -1306,7 +1305,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      target: teleport/tag/${DRONE_TAG}
+      target: teleport/tag/${DRONE_TAG##v}
       strip_prefix: /go/artifacts/
 
 services:
@@ -1369,7 +1368,7 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts/e
       # set version
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
   - name: Build i386 release artifacts
     image: docker
@@ -1413,7 +1412,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      target: teleport/tag/${DRONE_TAG}
+      target: teleport/tag/${DRONE_TAG##v}
       strip_prefix: /go/artifacts/
 
 services:
@@ -1473,7 +1472,7 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
       # set version
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
   - name: Download built tarball artifacts from S3
     image: amazon/aws-cli
@@ -1487,7 +1486,7 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /go/.version.txt)
-      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
 
@@ -1526,7 +1525,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      target: teleport/tag/${DRONE_TAG}
+      target: teleport/tag/${DRONE_TAG##v}
       strip_prefix: /go/artifacts/
 
 services:
@@ -1586,7 +1585,7 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
       # set version
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
   - name: Download built tarball artifacts from S3
     image: amazon/aws-cli
@@ -1600,7 +1599,7 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /go/.version.txt)
-      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
 
@@ -1639,7 +1638,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      target: teleport/tag/${DRONE_TAG}
+      target: teleport/tag/${DRONE_TAG##v}
       strip_prefix: /go/artifacts/
 
 services:
@@ -1709,7 +1708,7 @@ steps:
       - git submodule update --init --recursive webassets || true
       - rm -f ~/.ssh/id_rsa
       - mkdir -p /tmp/build-darwin-amd64/go/artifacts /tmp/build-darwin-amd64/go/cache
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /tmp/build-darwin-amd64/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/build-darwin-amd64/go/.version.txt; fi; cat /tmp/build-darwin-amd64/go/.version.txt
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /tmp/build-darwin-amd64/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/build-darwin-amd64/go/.version.txt; fi; cat /tmp/build-darwin-amd64/go/.version.txt
 
   - name: Build Mac release artifacts
     environment:
@@ -1741,7 +1740,7 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - cd /tmp/build-darwin-amd64/go/artifacts
-      - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
+      - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
 
   - name: Clean up exec runner storage (post)
     commands:
@@ -1803,7 +1802,7 @@ steps:
       - git submodule update --init --recursive webassets || true
       - rm -f ~/.ssh/id_rsa
       - mkdir -p /tmp/build-darwin-amd64-pkg/go/artifacts /tmp/build-darwin-amd64-pkg/go/cache
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /tmp/build-darwin-amd64-pkg/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/build-darwin-amd64-pkg/go/.version.txt; fi; cat /tmp/build-darwin-amd64-pkg/go/.version.txt
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /tmp/build-darwin-amd64-pkg/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/build-darwin-amd64-pkg/go/.version.txt; fi; cat /tmp/build-darwin-amd64-pkg/go/.version.txt
 
   - name: Download built tarball artifacts from S3
     environment:
@@ -1816,7 +1815,7 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /tmp/build-darwin-amd64-pkg/go/.version.txt)
-      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-darwin-amd64-bin.tar.gz /tmp/build-darwin-amd64-pkg/go/artifacts/
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-darwin-amd64-bin.tar.gz /tmp/build-darwin-amd64-pkg/go/artifacts/
 
@@ -1853,7 +1852,7 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - cd /tmp/build-darwin-amd64-pkg/go/artifacts
-      - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
+      - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
 
   - name: Clean up exec runner storage
     commands:
@@ -1915,7 +1914,7 @@ steps:
       - git submodule update --init --recursive webassets || true
       - rm -f ~/.ssh/id_rsa
       - mkdir -p /tmp/build-darwin-amd64-pkg-tsh/go/artifacts /tmp/build-darwin-amd64-pkg-tsh/go/cache
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt; fi; cat /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt; fi; cat /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt
 
   - name: Download built tarball artifact from S3
     environment:
@@ -1928,7 +1927,7 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt)
-      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-darwin-amd64-bin.tar.gz /tmp/build-darwin-amd64-pkg-tsh/go/artifacts/
 
   - name: Build Mac tsh pkg release artifacts
@@ -1975,7 +1974,7 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - cd /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
-      - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
+      - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
 
   - name: Clean up exec runner storage
     commands:
@@ -2041,7 +2040,7 @@ steps:
       - git submodule update --init --recursive webassets || true
       - rm -f ~/.ssh/id_rsa
       - mkdir -p /dev/shm/tmp/go/artifacts /dev/shm/tmp/go/cache
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /dev/shm/tmp/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /dev/shm/tmp/go/.version.txt; fi; cat /dev/shm/tmp/go/.version.txt
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /dev/shm/tmp/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /dev/shm/tmp/go/.version.txt; fi; cat /dev/shm/tmp/go/.version.txt
 
   - name: Build ARM release artifacts
     environment:
@@ -2073,7 +2072,7 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - cd /dev/shm/tmp/go/artifacts
-      - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
+      - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
 
   - name: Clean up exec runner storage (post)
     commands:
@@ -2128,7 +2127,7 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
       # set version
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
   - name: Build Windows release artifacts
     image: docker
@@ -2168,7 +2167,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      target: teleport/tag/${DRONE_TAG}
+      target: teleport/tag/${DRONE_TAG##v}
       strip_prefix: /go/artifacts/
 
 services:
@@ -2230,7 +2229,7 @@ steps:
       # create necessary directories
       - mkdir -p /go/cache /go/artifacts
       # set version
-      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
   - name: Build OSS/Enterprise Docker images
     image: docker
@@ -2635,7 +2634,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       AWS_REGION: us-west-2
     commands:
-      - aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG/ .
+      - aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/ .
 
   - name: Upload artifacts to production S3 bucket with public read access
     image: plugins/s3
@@ -2649,11 +2648,15 @@ steps:
       region: us-east-1
       acl: public-read
       source: /go/src/github.com/gravitational/teleport/*
-      target: teleport/${DRONE_TAG##*-v}/
+      target: teleport/${DRONE_TAG##v}/
       strip_prefix: /go/src/github.com/gravitational/teleport/
 
 ---
 kind: signature
+<<<<<<< HEAD
 hmac: bf426a3c13e2347a4ada6c5ad4c2218e34743b61db44cccc8b39b03c25f2a468
+=======
+hmac: ccfa2d090819a63d5869c1b14fbae04507a4839d7bf93fba01c999eb3430611d
+>>>>>>> Remove v from all DRONE_TAG references
 
 ...
