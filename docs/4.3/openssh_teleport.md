@@ -92,8 +92,16 @@ HostCertificate /etc/ssh/node.example.com-cert.pub
 ```
 
 Now you can use [ `tsh ssh --port=22 user@host.example.com` ](cli-docs.md#tsh) to login
-into any `sshd` node in the cluster and the session will be recorded. If you
-want to use OpenSSH `ssh` client for logging into `sshd` servers behind a proxy
+into any `sshd` node in the cluster and the session will be recorded.
+
+```bash
+# tsh ssh to use default ssh port:22
+$ tsh ssh --port=22 user@host.example.com
+# Example for a Amazon EC2 Host
+# tsh ssh --port=22 ec2-user@ec2-54-EXAMPLE.us-west-2.compute.amazonaws.com
+```
+
+If you want to use OpenSSH `ssh` client for logging into `sshd` servers behind a proxy
 in "recording mode", you have to tell the `ssh` client to use the jump host and
 enable the agent forwarding, otherwise a recording proxy will not be able to
 terminate the SSH connection to record it:
@@ -223,7 +231,10 @@ $ ssh root@database.work.example.com
 To connect to the OpenSSH server via `tsh`, add `--port=<ssh port>` with the `tsh ssh` command:
 
 Example ssh to `database.work.example.com` as `root` with a OpenSSH server on port 22 via `tsh`:
-   tsh ssh --port=22 root@database.work.example.com
+
+```bash
+tsh ssh --port=22 root@database.work.example.com
+```
 
 !!! warning "Warning"
 
