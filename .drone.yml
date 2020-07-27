@@ -184,7 +184,7 @@ steps:
         fi
         # We only run milv on subdirectories with a .milv.config.yaml file, so
         # filter the list here to remove irrelevant extra entries
-        git diff --raw ${DRONE_COMMIT}..$${DIFF_REF} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq | grep -Ev'(\.md$|\.yaml$|theme)' > /tmp/docs-versions-changed.txt
+        git diff --raw ${DRONE_COMMIT}..$${DIFF_REF} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq | grep -Ev '(\.md$|\.yaml$|theme)' > /tmp/docs-versions-changed.txt
         if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
           echo "Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
           # Check trailing whitespace
@@ -2437,6 +2437,6 @@ steps:
 
 ---
 kind: signature
-hmac: 1940c6d5b95e41f04e7dbc968a2c44267ef11b6e9fcc4239bb4f639ed60923d4
+hmac: f1d97ff0b197553754103382a231d99601e26da121f10618132e549ecec9b62d
 
 ...
