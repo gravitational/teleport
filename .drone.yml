@@ -184,7 +184,7 @@ steps:
         fi
         # We only run milv on subdirectories with a .milv.config.yaml file, so
         # filter the list here to remove irrelevant extra entries
-        git diff --raw ${DRONE_COMMIT}..$${DIFF_REF} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq | grep -Ev '(\.md$|\.yaml$|theme)' > /tmp/docs-versions-changed.txt
+        git diff --raw ${DRONE_COMMIT}..$${DIFF_REF} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
         cat /tmp/docs-versions-changed.txt
         if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
           echo "Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
@@ -2438,6 +2438,6 @@ steps:
 
 ---
 kind: signature
-hmac: 9b4cde39589d9a8ce9b5bbb98ae288da0cfc776794c3aa14bd4243bca905aab1
+hmac: d2c952ebccced9859c7d8ea51992f2c43929ef3f35965c2c40537ac58d4ef990
 
 ...
