@@ -22,7 +22,7 @@ limitations under the License.
 //
 // This approach allows cache to be up to date without
 // time based expiration and avoid re-fetching all
-// resources reducing bandwitdh.
+// resources reducing bandwidth.
 //
 // There are two types of cache backends used:
 //

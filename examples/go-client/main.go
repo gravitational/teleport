@@ -46,9 +46,10 @@ func main() {
 		log.Fatalf("Failed to create client: %v", err)
 	}
 
+	ctx := context.Background()
 	// make an API call to generate a cluster join token for
 	// adding another proxy to a cluster.
-	token, err := client.GenerateToken(auth.GenerateTokenRequest{
+	token, err := client.GenerateToken(ctx, auth.GenerateTokenRequest{
 		Token: "mytoken-proxy",
 		Roles: teleport.Roles{teleport.RoleProxy},
 		TTL:   time.Hour,

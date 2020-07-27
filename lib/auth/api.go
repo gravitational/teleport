@@ -62,7 +62,7 @@ type ReadAccessPoint interface {
 	// GetNamespace returns namespace by name
 	GetNamespace(name string) (*services.Namespace, error)
 
-	// GetServers returns a list of registered servers
+	// GetNodes returns a list of registered servers for this cluster.
 	GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster

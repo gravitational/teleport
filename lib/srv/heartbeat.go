@@ -58,7 +58,7 @@ const (
 	// HeartbeatStateAnnounce is set when full
 	// state has to be announced back to the auth server
 	HeartbeatStateAnnounce KeepAliveState = iota
-	// HeartbeatStateAnnounceWait is set after successfull
+	// HeartbeatStateAnnounceWait is set after successful
 	// announce, heartbeat will wait until server updates
 	// information, or time for next announce comes
 	HeartbeatStateAnnounceWait KeepAliveState = iota
@@ -297,7 +297,7 @@ func (h *Heartbeat) fetch() error {
 		return trace.Wrap(err)
 	}
 	switch h.state {
-	// in case of successfull state fetch, move to announce from init
+	// in case of successful state fetch, move to announce from init
 	case HeartbeatStateInit:
 		h.current = server
 		h.reset(HeartbeatStateAnnounce)

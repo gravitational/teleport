@@ -102,16 +102,18 @@ func (s *AuthServer) createOIDCClient(conn services.OIDCConnector) (*oidc.Client
 				"unknown problem with connector %v, most likely URL %q is not valid or not accessible, check configuration and try to re-create the connector",
 				conn.GetName(), conn.GetIssuerURL())
 		}
-		s.EmitAuditEvent(events.UserSSOLoginFailure, events.EventFields{
+		if err := s.EmitAuditEvent(events.UserSSOLoginFailure, events.EventFields{
 			events.LoginMethod:        events.LoginMethodOIDC,
 			events.AuthAttemptSuccess: false,
 			events.AuthAttemptErr:     trace.Unwrap(ctx.Err()).Error(),
 			events.AuthAttemptMessage: err.Error(),
-		})
+		}); err != nil {
+			log.Warnf("Failed to emit OIDC login failure event: %v", err)
+		}
 		// return user-friendly error hiding the actual error in the event
 		// logs for security purposes
 		return nil, trace.ConnectionProblem(nil,
-			"failed to login with %v, please contact your system administrator to check audit logs",
+			"failed to login with %v",
 			conn.GetDisplay())
 	}
 
@@ -135,12 +137,36 @@ func oidcConfig(conn services.OIDCConnector) oidc.ClientConfig {
 	}
 }
 
-func (s *AuthServer) UpsertOIDCConnector(connector services.OIDCConnector) error {
-	return s.Identity.UpsertOIDCConnector(connector)
+// UpsertOIDCConnector creates or updates an OIDC connector.
+func (s *AuthServer) UpsertOIDCConnector(ctx context.Context, connector services.OIDCConnector) error {
+	if err := s.Identity.UpsertOIDCConnector(connector); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.EmitAuditEvent(events.OIDCConnectorCreated, events.EventFields{
+		events.FieldName: connector.GetName(),
+		events.EventUser: clientUsername(ctx),
+	}); err != nil {
+		log.Warnf("Failed to emit OIDC connector create event: %v", err)
+	}
+
+	return nil
 }
 
-func (s *AuthServer) DeleteOIDCConnector(connectorName string) error {
-	return s.Identity.DeleteOIDCConnector(connectorName)
+// DeleteOIDCConnector deletes an OIDC connector by name.
+func (s *AuthServer) DeleteOIDCConnector(ctx context.Context, connectorName string) error {
+	if err := s.Identity.DeleteOIDCConnector(connectorName); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.EmitAuditEvent(events.OIDCConnectorDeleted, events.EventFields{
+		events.FieldName: connectorName,
+		events.EventUser: clientUsername(ctx),
+	}); err != nil {
+		log.Warnf("Failed to emit OIDC connector delete event: %v", err)
+	}
+
+	return nil
 }
 
 func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
@@ -205,7 +231,9 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 		if re != nil && re.claims != nil {
 			fields[events.IdentityAttributes] = re.claims
 		}
-		a.EmitAuditEvent(events.UserSSOLoginFailure, fields)
+		if err := a.EmitAuditEvent(events.UserSSOLoginFailure, fields); err != nil {
+			log.Warnf("Failed to emit OIDC login failure event: %v", err)
+		}
 		return nil, trace.Wrap(err)
 	}
 	fields := events.EventFields{
@@ -216,7 +244,9 @@ func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, 
 	if re.claims != nil {
 		fields[events.IdentityAttributes] = re.claims
 	}
-	a.EmitAuditEvent(events.UserSSOLogin, fields)
+	if err := a.EmitAuditEvent(events.UserSSOLogin, fields); err != nil {
+		log.Warnf("Failed to emit OIDC login event: %v", err)
+	}
 	return &re.auth, nil
 }
 
@@ -338,7 +368,7 @@ func (a *AuthServer) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, 
 
 	// If a public key was provided, sign it and return a certificate.
 	if len(req.PublicKey) != 0 {
-		sshCert, tlsCert, err := a.createSessionCert(user, params.sessionTTL, req.PublicKey, req.Compatibility)
+		sshCert, tlsCert, err := a.createSessionCert(user, params.sessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -450,13 +480,13 @@ func (a *AuthServer) createOIDCUser(p *createUserParams) (services.User, error) 
 			Roles:  p.roles,
 			Traits: p.traits,
 			OIDCIdentities: []services.ExternalIdentity{
-				services.ExternalIdentity{
+				{
 					ConnectorID: p.connectorName,
 					Username:    p.username,
 				},
 			},
 			CreatedBy: services.CreatedBy{
-				User: services.UserRef{Name: "system"},
+				User: services.UserRef{Name: teleport.UserSystem},
 				Time: a.clock.Now().UTC(),
 				Connector: &services.ConnectorRef{
 					Type:     teleport.ConnectorOIDC,
@@ -472,11 +502,11 @@ func (a *AuthServer) createOIDCUser(p *createUserParams) (services.User, error) 
 
 	// Get the user to check if it already exists or not.
 	existingUser, err := a.Identity.GetUser(p.username, false)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
 	}
+
+	ctx := context.TODO()
 
 	// Overwrite exisiting user if it was created from an external identity provider.
 	if existingUser != nil {
@@ -484,18 +514,20 @@ func (a *AuthServer) createOIDCUser(p *createUserParams) (services.User, error) 
 
 		// If the exisiting user is a local user, fail and advise how to fix the problem.
 		if connectorRef == nil {
-			return nil, trace.AlreadyExists("local user with name '%v' already exists. Either change "+
+			return nil, trace.AlreadyExists("local user with name %q already exists. Either change "+
 				"email in OIDC identity or remove local user and try again.", existingUser.GetName())
 		}
 
-		log.Debugf("Overwriting existing user '%v' created with %v connector %v.",
+		log.Debugf("Overwriting existing user %q created with %v connector %v.",
 			existingUser.GetName(), connectorRef.Type, connectorRef.ID)
-	}
 
-	// Upsert the new user creating or updating whatever is in the database.
-	err = a.UpsertUser(user)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		if err := a.UpdateUser(ctx, user); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := a.CreateUser(ctx, user); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return user, nil
@@ -634,10 +666,12 @@ collect:
 
 			// Print warning to Teleport logs as well as the Audit Log.
 			log.Warnf(warningMessage)
-			g.auditLog.EmitAuditEvent(events.UserSSOLoginFailure, events.EventFields{
+			if err := g.auditLog.EmitAuditEvent(events.UserSSOLoginFailure, events.EventFields{
 				events.LoginMethod:        events.LoginMethodOIDC,
 				events.AuthAttemptMessage: warningMessage,
-			})
+			}); err != nil {
+				log.Warnf("Failed to emit OIDC login failure event: %v", err)
+			}
 			break collect
 		}
 		response, err := g.fetchGroupsPage(nextPageToken)

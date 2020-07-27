@@ -30,8 +30,8 @@ import (
 
 // GithubConnector defines an interface for a Github OAuth2 connector
 type GithubConnector interface {
-	// Resource is a common interface for all resources
-	Resource
+	// ResourceWithSecrets is a common interface for all resources
+	ResourceWithSecrets
 	// CheckAndSetDefaults validates the connector and sets some defaults
 	CheckAndSetDefaults() error
 	// GetClientID returns the connector client ID
@@ -181,6 +181,16 @@ func (c *GithubConnectorV3) SetTTL(clock clockwork.Clock, ttl time.Duration) {
 // GetMetadata returns the connector metadata
 func (c *GithubConnectorV3) GetMetadata() Metadata {
 	return c.Metadata
+}
+
+// WithoutSecrets returns an instance of resource without secrets.
+func (c *GithubConnectorV3) WithoutSecrets() Resource {
+	if c.GetClientSecret() == "" {
+		return c
+	}
+	c2 := *c
+	c2.SetClientSecret("")
+	return &c2
 }
 
 // CheckAndSetDefaults verifies the connector is valid and sets some defaults

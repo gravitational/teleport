@@ -79,7 +79,7 @@ func (p *PTYReqParams) TerminalModes() (ssh.TerminalModes, error) {
 	chunkSize := 5
 	for i := 0; i < len(p.Modes); i = i + chunkSize {
 		// the first byte of the chunk is the key
-		key := uint8(p.Modes[i])
+		key := p.Modes[i]
 
 		// a key with value 0 means is the termination of the stream
 		if key == 0 {
@@ -160,6 +160,12 @@ const (
 
 	// AuthAgentRequest is a request to a SSH client to open an agent channel.
 	AuthAgentRequest = "auth-agent@openssh.com"
+
+	// X11ForwardRequest is a request to initiate X11 forwarding.
+	X11ForwardRequest = "x11-req"
+
+	// X11ChannelRequest is the type of an X11 forwarding channel.
+	X11ChannelRequest = "x11"
 )
 
 const (

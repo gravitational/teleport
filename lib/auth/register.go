@@ -119,9 +119,13 @@ func Register(params RegisterParams) (*Identity, error) {
 			return nil, trace.Wrap(err)
 		}
 
+		log.Errorf("Failed to register through auth server: %v; falling back to trying the proxy server", err)
+
+		// params.AuthServers could contain a proxy address, to deal with nodes
+		// behind NAT. Try registering using the proxy API.
 		ident, err = registerThroughProxy(token, params)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(err, "failed to register through proxy server: %v", err)
 		}
 
 		log.Debugf("Successfully registered through proxy server.")

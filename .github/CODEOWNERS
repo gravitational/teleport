@@ -2,17 +2,23 @@
 * @klizhentas @russjones
 
 # Release Engineering.
-/assets/ @webvictim @russjones
-/build.assets/ @webvictim @russjones
-/docker/ @webvictim @russjones
-/examples/ @webvictim @russjones
-/vagrant/ @webvictim @russjones
+/assets/ @webvictim @russjones @awly
+/build.assets/ @webvictim @russjones @awly
+/docker/ @webvictim @russjones @awly
+/examples/ @webvictim @russjones @awly
+/vagrant/ @webvictim @russjones @awly
+.drone.yml @webvictim @russjones @awly
+.gitattributes @webvictim @russjones @awly
+.gitignore @webvictim @russjones @awly
+.gitmodules @webvictim @russjones @awly
+Makefile @webvictim @russjones @awly
 
 # Product.
 *.md @benarent @webvictim
 /docs/ @benarent @webvictim
 
 # Backend Engineering.
+/*.go @klizhentas @russjones @fspmarshall @webvictim @awly
 /e/ @klizhentas @russjones @fspmarshall @webvictim @awly
 /fixtures/ @klizhentas @russjones @fspmarshall @webvictim @awly
 /integration/ @klizhentas @russjones @fspmarshall @webvictim @awly
@@ -20,7 +26,9 @@
 /modules/ @klizhentas @russjones @fspmarshall @webvictim @awly
 /tool/ @klizhentas @russjones @fspmarshall @webvictim @awly
 /vendor/ @klizhentas @russjones @fspmarshall @webvictim @awly
+go.mod @klizhentas @russjones @fspmarshall @webvictim @awly
+go.sum @klizhentas @russjones @fspmarshall @webvictim @awly
 
 # Frontend Engineering.
-/lib/web/ @alex-kovoy @russjones @fspmarshall @webvictim @awly
-/web/ @alex-kovoy
+/lib/web/ @alex-kovoy @russjones @fspmarshall @webvictim @awly @kimlisa
+/webassets/ @alex-kovoy @kimlisa

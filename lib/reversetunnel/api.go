@@ -18,12 +18,12 @@ package reversetunnel
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"time"
 
-	"golang.org/x/crypto/ssh/agent"
-
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/teleagent"
 )
 
 // DialParams is a list of parameters used to Dial to a node within a cluster.
@@ -34,9 +34,9 @@ type DialParams struct {
 	// To is the destination address.
 	To net.Addr
 
-	// UserAgent is SSH agent used to connect to the remote host. Used by the
+	// GetUserAgent gets an SSH agent for use in connecting to the remote host. Used by the
 	// forwarding proxy.
-	UserAgent agent.Agent
+	GetUserAgent teleagent.Getter
 
 	// Address is used by the forwarding proxy to generate a host certificate for
 	// the target node. This is needed because while dialing occurs via IP
@@ -44,7 +44,7 @@ type DialParams struct {
 	// validates the host certificate.
 	Address string
 
-	// Principals are additonal principals that need to be added to the host
+	// Principals are additional principals that need to be added to the host
 	// certificate. Used by the recording proxy to correctly generate a host
 	// certificate.
 	Principals []string
@@ -52,6 +52,14 @@ type DialParams struct {
 	// ServerID the hostUUID.clusterName of a Teleport node. Used with nodes
 	// that are connected over a reverse tunnel.
 	ServerID string
+}
+
+func (params DialParams) String() string {
+	to := params.To.String()
+	if to == "" {
+		to = params.ServerID
+	}
+	return fmt.Sprintf("from: %q to: %q", params.From, to)
 }
 
 // RemoteSite represents remote teleport site that can be accessed via
@@ -83,6 +91,9 @@ type RemoteSite interface {
 	// GetTunnelsCount returns the amount of active inbound tunnels
 	// from the remote cluster
 	GetTunnelsCount() int
+	// IsClosed reports whether this RemoteSite has been closed and should no
+	// longer be used.
+	IsClosed() bool
 }
 
 // Server is a TCP/IP SSH server which listens on an SSH endpoint and remote/local

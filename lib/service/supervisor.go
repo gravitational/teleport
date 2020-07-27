@@ -145,6 +145,7 @@ func NewSupervisor(id string) Supervisor {
 	reloadContext, signalReload := context.WithCancel(context.TODO())
 
 	srv := &LocalSupervisor{
+		state:        stateCreated,
 		id:           id,
 		services:     []Service{},
 		wg:           &sync.WaitGroup{},
@@ -383,9 +384,7 @@ func (s *LocalSupervisor) getWaiters(name string) []*waiter {
 
 	waiters := s.eventWaiters[name]
 	out := make([]*waiter, len(waiters))
-	for i := range waiters {
-		out[i] = waiters[i]
-	}
+	copy(out, waiters)
 	return out
 }
 

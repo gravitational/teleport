@@ -144,7 +144,7 @@ func (r *Role) Set(v string) error {
 func (r *Role) String() string {
 	switch string(*r) {
 	case string(RoleSignup):
-		return "User signup"
+		return "Password"
 	case string(RoleTrustedCluster), string(LegacyClusterTokenType):
 		return "trusted_cluster"
 	default:

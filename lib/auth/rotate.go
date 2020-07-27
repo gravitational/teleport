@@ -121,6 +121,8 @@ type rotationReq struct {
 	// privateKey is passed by tests to supply private key for cert authorities
 	// instead of generating them on each iteration
 	privateKey []byte
+	// caSigningAlg is an SSH signing algorithm to use with the new CA.
+	caSigningAlg *string
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process.
@@ -214,13 +216,14 @@ func (a *AuthServer) RotateCertAuthority(req RotateRequest) error {
 			return trace.Wrap(err)
 		}
 		rotated, err := processRotationRequest(rotationReq{
-			ca:          existing,
-			clock:       a.clock,
-			targetPhase: req.TargetPhase,
-			schedule:    *req.Schedule,
-			gracePeriod: *req.GracePeriod,
-			mode:        req.Mode,
-			privateKey:  a.privateKey,
+			ca:           existing,
+			clock:        a.clock,
+			targetPhase:  req.TargetPhase,
+			schedule:     *req.Schedule,
+			gracePeriod:  *req.GracePeriod,
+			mode:         req.Mode,
+			privateKey:   a.privateKey,
+			caSigningAlg: a.caSigningAlg,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -266,7 +269,9 @@ func (a *AuthServer) RotateExternalCertAuthority(ca services.CertAuthority) erro
 	}
 
 	updated := existing.Clone()
-	updated.SetCheckingKeys(ca.GetCheckingKeys())
+	if err := updated.SetCheckingKeys(ca.GetCheckingKeys()); err != nil {
+		return trace.Wrap(err)
+	}
 	updated.SetTLSKeyPairs(ca.GetTLSKeyPairs())
 	updated.SetRotation(ca.GetRotation())
 
@@ -536,10 +541,20 @@ func startNewRotation(req rotationReq, ca services.CertAuthority) error {
 		rotation.Phase = services.RotationPhaseInit
 	}
 
-	ca.SetSigningKeys(signingKeys)
-	ca.SetCheckingKeys(checkingKeys)
+	if err := ca.SetSigningKeys(signingKeys); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := ca.SetCheckingKeys(checkingKeys); err != nil {
+		return trace.Wrap(err)
+	}
 	ca.SetTLSKeyPairs(keyPairs)
 	ca.SetRotation(rotation)
+	// caSigningAlg is only set when signing algorithm was explicitly set in
+	// the config file. When config file doesn't set a value, preserve the
+	// signing algorithm of the existing CA.
+	if req.caSigningAlg != nil {
+		ca.SetSigningAlg(*req.caSigningAlg)
+	}
 	return nil
 }
 
@@ -564,8 +579,12 @@ func updateClients(ca services.CertAuthority, mode string) error {
 	rotation.Phase = services.RotationPhaseUpdateClients
 	rotation.Mode = mode
 
-	ca.SetSigningKeys(signingKeys)
-	ca.SetCheckingKeys(checkingKeys)
+	if err := ca.SetSigningKeys(signingKeys); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := ca.SetCheckingKeys(checkingKeys); err != nil {
+		return trace.Wrap(err)
+	}
 	ca.SetTLSKeyPairs(keyPairs)
 	ca.SetRotation(rotation)
 	return nil
@@ -593,8 +612,12 @@ func startRollingBackRotation(ca services.CertAuthority) error {
 	rotation.State = services.RotationStateInProgress
 	rotation.Phase = services.RotationPhaseRollback
 
-	ca.SetSigningKeys(signingKeys)
-	ca.SetCheckingKeys(checkingKeys)
+	if err := ca.SetSigningKeys(signingKeys); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := ca.SetCheckingKeys(checkingKeys); err != nil {
+		return trace.Wrap(err)
+	}
 	ca.SetTLSKeyPairs(keyPairs)
 	ca.SetRotation(rotation)
 	return nil
@@ -618,8 +641,12 @@ func completeRotation(clock clockwork.Clock, ca services.CertAuthority) error {
 	rotation.Mode = ""
 	rotation.Schedule = services.RotationSchedule{}
 
-	ca.SetSigningKeys(signingKeys)
-	ca.SetCheckingKeys(checkingKeys)
+	if err := ca.SetSigningKeys(signingKeys); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := ca.SetCheckingKeys(checkingKeys); err != nil {
+		return trace.Wrap(err)
+	}
 	ca.SetTLSKeyPairs(keyPairs)
 	ca.SetRotation(rotation)
 	return nil

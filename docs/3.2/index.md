@@ -35,10 +35,10 @@ or a commercial edition ("Teleport Enterprise Edition").
 ## Operating System Support
 
 Teleport is officially supported on the platforms listed below, it is worth noting
-that the open source community has been successful building and running Teleport on 
+that the open source community has been successful building and running Teleport on
 UNIX variants other than Linux [2].
 
-Operating System      |  Teleport Client   | Teleport Server 
+Operating System      |  Teleport Client   | Teleport Server
 ----------------------|--------------------|-----------------
 Linux v2.6+           |  yes               | yes
 MacOS v10.12+         |  yes               | yes
@@ -49,7 +49,7 @@ Windows [1]           |  yes [1]           | no
   certificate and use it with `ssh`, the OpenSSH client, running on a Windows
   client machine._
 
-[2] _Teleport is written in Go and it is theoretically possible to build it on 
+[2] _Teleport is written in Go and it is theoretically possible to build it on
     any OS supported by the [Golang toolchain](https://github.com/golang/go/wiki/MinimumRequirements)_.
 
 ## Teleport Community
@@ -97,7 +97,7 @@ We also have several guides that go through the most typical configurations and 
 
 ## Support and Contributing
 
-We offer a few different options for support. First of all, we try to provide clear and comprehensive documentation. documentation is also available in [the Github repository](https://github.com/gravitational/teleport/tree/master/docs), so feel free to create a PR or file an issue if you think improvements can be made. 
+We offer a few different options for support. First of all, we try to provide clear and comprehensive documentation. documentation is also available in [the Github repository](https://github.com/gravitational/teleport/tree/master/docs), so feel free to create a PR or file an issue if you think improvements can be made.
 
 If you still have questions after reviewing our docs, you can also:
 

@@ -44,6 +44,7 @@ usermod -a -G adm teleport
 
 # Setup teleport run dir for pid files
 mkdir -p /run/teleport/ /var/lib/teleport /etc/teleport.d
+chmod 0700 /var/lib/teleport
 chown -R teleport:adm /run/teleport /var/lib/teleport /etc/teleport.d/
 
 # Download and install teleport binaries
@@ -57,7 +58,7 @@ if [ -f /tmp/teleport-fips ]; then
         rm -rf /tmp/teleport.tar.gz /tmp/teleport-ent
         # add --fips to 'teleport start' commands in FIPS mode
         sed -i -E "s_ExecStart=/usr/bin/teleport start(.*)_ExecStart=/usr/bin/teleport start --fips\1_g" /etc/systemd/system/teleport*.service
-else 
+else
     if [[ "${TELEPORT_TYPE}" == "oss" ]]; then
         echo "Installing OSS Teleport version ${TELEPORT_VERSION}"
         curl ${CURL_OPTS} -o teleport.tar.gz https://s3.amazonaws.com/clientbuilds.gravitational.io/teleport/${TELEPORT_VERSION}/teleport-v${TELEPORT_VERSION}-linux-amd64-bin.tar.gz

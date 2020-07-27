@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
+	"golang.org/x/crypto/ssh"
 )
 
 // Default port numbers used by all teleport tools
@@ -130,6 +131,15 @@ const (
 	// clients can reduce this time, not increase it
 	MaxSignupTokenTTL = 48 * time.Hour
 
+	// MaxChangePasswordTokenTTL is a maximum TTL for password change token
+	MaxChangePasswordTokenTTL = 24 * time.Hour
+
+	// ChangePasswordTokenTTL is a default password change token expiry time
+	ChangePasswordTokenTTL = 8 * time.Hour
+
+	// ResetPasswordLength is the length of the reset user password
+	ResetPasswordLength = 16
+
 	// ProvisioningTokenTTL is a the default TTL for server provisioning
 	// tokens. When a user generates a token without an explicit TTL, this
 	// value is used.
@@ -194,7 +204,7 @@ const (
 
 	// AccountLockInterval defines a time interval during which a user account
 	// is locked after MaxLoginAttempts
-	AccountLockInterval = time.Duration(20 * time.Minute)
+	AccountLockInterval = 20 * time.Minute
 
 	// Namespace is default namespace
 	Namespace = "default"
@@ -336,6 +346,10 @@ var (
 
 	// NodeQueueSize is node service queue size
 	NodeQueueSize = 128
+
+	// CASignatureAlgorithm is the default signing algorithm to use when
+	// creating new SSH CAs.
+	CASignatureAlgorithm = ssh.SigAlgoRSASHA2512
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

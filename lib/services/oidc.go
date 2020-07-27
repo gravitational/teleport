@@ -35,8 +35,8 @@ import (
 // OIDCConnector specifies configuration for Open ID Connect compatible external
 // identity provider, e.g. google in some organisation
 type OIDCConnector interface {
-	// Resource provides common methods for objects
-	Resource
+	// ResourceWithSecrets provides common methods for objects
+	ResourceWithSecrets
 	// Issuer URL is the endpoint of the provider, e.g. https://accounts.google.com
 	GetIssuerURL() string
 	// ClientID is id for authentication client (in our case it's our Auth server)
@@ -295,6 +295,16 @@ func (o *OIDCConnectorV2) GetResourceID() int64 {
 // SetResourceID sets resource ID
 func (o *OIDCConnectorV2) SetResourceID(id int64) {
 	o.Metadata.ID = id
+}
+
+// WithoutSecrets returns an instance of resource without secrets.
+func (o *OIDCConnectorV2) WithoutSecrets() Resource {
+	if o.GetClientSecret() == "" {
+		return o
+	}
+	o2 := *o
+	o2.SetClientSecret("")
+	return &o2
 }
 
 // V2 returns V2 version of the resource

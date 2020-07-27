@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -111,6 +112,7 @@ func NewAdminRole() Role {
 		},
 	}
 	role.SetLogins(Allow, modules.GetModules().DefaultAllowedLogins())
+	role.SetKubeUsers(Allow, modules.GetModules().DefaultKubeUsers())
 	role.SetKubeGroups(Allow, modules.GetModules().DefaultKubeGroups())
 	return role
 }
@@ -207,7 +209,7 @@ type Access interface {
 	CreateRole(role Role) error
 
 	// UpsertRole creates or updates role
-	UpsertRole(role Role) error
+	UpsertRole(ctx context.Context, role Role) error
 
 	// DeleteAllRoles deletes all roles
 	DeleteAllRoles() error
@@ -216,7 +218,7 @@ type Access interface {
 	GetRole(name string) (Role, error)
 
 	// DeleteRole deletes role by name
-	DeleteRole(name string) error
+	DeleteRole(ctx context.Context, name string) error
 }
 
 const (
@@ -391,7 +393,8 @@ func applyValueTraits(val string, traits map[string][]string) ([]string, error) 
 		return []string{val}, nil
 	}
 
-	// For internal traits, only internal.logins and internal.kubernetes_groups is supported at the moment.
+	// For internal traits, only internal.logins, internal.kubernetes_users and
+	// internal.kubernetes_groups are supported at the moment.
 	if variable.Namespace() == teleport.TraitInternalPrefix {
 		if variable.Name() != teleport.TraitLogins && variable.Name() != teleport.TraitKubeGroups && variable.Name() != teleport.TraitKubeUsers {
 			return nil, trace.BadParameter("unsupported variable %q", variable.Name())
@@ -1353,6 +1356,9 @@ type AccessChecker interface {
 	// CanPortForward returns true if this RoleSet can forward ports.
 	CanPortForward() bool
 
+	// PermitX11Forwarding returns true if this RoleSet allows X11 Forwarding.
+	PermitX11Forwarding() bool
+
 	// CertificateFormat returns the most permissive certificate format in a
 	// RoleSet.
 	CertificateFormat() string
@@ -1696,7 +1702,7 @@ func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration) ([]string, []strin
 		return nil, nil, trace.AccessDenied("this user cannot request kubernetes access for %v", ttl)
 	}
 	if len(groups) == 0 && len(users) == 0 {
-		return nil, nil, trace.AccessDenied("this user cannot request kubernetes access, has no assigned groups or users")
+		return nil, nil, trace.NotFound("this user cannot request kubernetes access, has no assigned groups or users")
 	}
 	return utils.StringsSliceFromSet(groups), utils.StringsSliceFromSet(users), nil
 }
@@ -1800,6 +1806,16 @@ func (set RoleSet) CanForwardAgents() bool {
 func (set RoleSet) CanPortForward() bool {
 	for _, role := range set {
 		if BoolDefaultTrue(role.GetOptions().PortForwarding) {
+			return true
+		}
+	}
+	return false
+}
+
+// PermitX11Forwarding returns true if this RoleSet allows X11 Forwarding.
+func (set RoleSet) PermitX11Forwarding() bool {
+	for _, role := range set {
+		if role.GetOptions().PermitX11Forwarding.Value() {
 			return true
 		}
 	}
@@ -2192,7 +2208,7 @@ func (b *BoolOption) UnmarshalJSON(data []byte) error {
 
 // MarshalYAML marshals bool into yaml value
 func (b *BoolOption) MarshalYAML() (interface{}, error) {
-	return bool(b.Value), nil
+	return b.Value, nil
 }
 
 func (b *BoolOption) UnmarshalYAML(unmarshal func(interface{}) error) error {
@@ -2276,12 +2292,13 @@ const RoleSpecV3SchemaTemplate = `{
       "additionalProperties": false,
       "properties": {
         "forward_agent": { "type": ["boolean", "string"] },
+        "permit_x11_forwarding": { "type": ["boolean", "string"] },
         "max_session_ttl": { "type": "string" },
         "port_forwarding": { "type": ["boolean", "string"] },
         "cert_format": { "type": "string" },
         "client_idle_timeout": { "type": "string" },
         "disconnect_expired_cert": { "type": ["boolean", "string"] },
-        "enhanced_recording": { 
+        "enhanced_recording": {
           "type": "array",
           "items": { "type": "string" }
         }

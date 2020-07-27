@@ -19,6 +19,7 @@ package auth
 import (
 	"bytes"
 	"compress/flate"
+	"context"
 	"encoding/base64"
 	"io/ioutil"
 
@@ -33,12 +34,36 @@ import (
 	saml2 "github.com/russellhaering/gosaml2"
 )
 
-func (s *AuthServer) UpsertSAMLConnector(connector services.SAMLConnector) error {
-	return s.Identity.UpsertSAMLConnector(connector)
+// UpsertSAMLConnector creates or updates a SAML connector.
+func (s *AuthServer) UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
+	if err := s.Identity.UpsertSAMLConnector(connector); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.EmitAuditEvent(events.SAMLConnectorCreated, events.EventFields{
+		events.FieldName: connector.GetName(),
+		events.EventUser: clientUsername(ctx),
+	}); err != nil {
+		log.Warnf("Failed to emit SAML connector create event: %v", err)
+	}
+
+	return nil
 }
 
-func (s *AuthServer) DeleteSAMLConnector(connectorName string) error {
-	return s.Identity.DeleteSAMLConnector(connectorName)
+// DeleteSAMLConnector deletes a SAML connector by name.
+func (s *AuthServer) DeleteSAMLConnector(ctx context.Context, connectorName string) error {
+	if err := s.Identity.DeleteSAMLConnector(connectorName); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.EmitAuditEvent(events.SAMLConnectorDeleted, events.EventFields{
+		events.FieldName: connectorName,
+		events.EventUser: clientUsername(ctx),
+	}); err != nil {
+		log.Warnf("Failed to emit SAML connector delete event: %v", err)
+	}
+
+	return nil
 }
 
 func (s *AuthServer) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
@@ -162,14 +187,14 @@ func (a *AuthServer) createSAMLUser(p *createUserParams) (services.User, error) 
 			Roles:  p.roles,
 			Traits: p.traits,
 			SAMLIdentities: []services.ExternalIdentity{
-				services.ExternalIdentity{
+				{
 					ConnectorID: p.connectorName,
 					Username:    p.username,
 				},
 			},
 			CreatedBy: services.CreatedBy{
 				User: services.UserRef{
-					Name: "system",
+					Name: teleport.UserSystem,
 				},
 				Time: a.clock.Now().UTC(),
 				Connector: &services.ConnectorRef{
@@ -186,11 +211,11 @@ func (a *AuthServer) createSAMLUser(p *createUserParams) (services.User, error) 
 
 	// Get the user to check if it already exists or not.
 	existingUser, err := a.Identity.GetUser(p.username, false)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
 	}
+
+	ctx := context.TODO()
 
 	// Overwrite exisiting user if it was created from an external identity provider.
 	if existingUser != nil {
@@ -198,18 +223,20 @@ func (a *AuthServer) createSAMLUser(p *createUserParams) (services.User, error) 
 
 		// If the exisiting user is a local user, fail and advise how to fix the problem.
 		if connectorRef == nil {
-			return nil, trace.AlreadyExists("local user with name '%v' already exists. Either change "+
+			return nil, trace.AlreadyExists("local user with name %q already exists. Either change "+
 				"NameID in assertion or remove local user and try again.", existingUser.GetName())
 		}
 
-		log.Debugf("Overwriting existing user '%v' created with %v connector %v.",
+		log.Debugf("Overwriting existing user %q created with %v connector %v.",
 			existingUser.GetName(), connectorRef.Type, connectorRef.ID)
-	}
 
-	// Upsert the new user creating or updating whatever is in the database.
-	err = a.UpsertUser(user)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		if err := a.UpdateUser(ctx, user); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := a.CreateUser(ctx, user); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return user, nil
@@ -287,7 +314,9 @@ func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 		if re != nil && re.attributeStatements != nil {
 			fields[events.IdentityAttributes] = re.attributeStatements
 		}
-		a.EmitAuditEvent(events.UserSSOLoginFailure, fields)
+		if err := a.EmitAuditEvent(events.UserSSOLoginFailure, fields); err != nil {
+			log.Warnf("Failed to emit SAML login failure event: %v", err)
+		}
 		return nil, trace.Wrap(err)
 	}
 	fields := events.EventFields{
@@ -295,10 +324,12 @@ func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthRespons
 		events.AuthAttemptSuccess: true,
 		events.LoginMethod:        events.LoginMethodSAML,
 	}
-	if re != nil && re.attributeStatements != nil {
+	if re.attributeStatements != nil {
 		fields[events.IdentityAttributes] = re.attributeStatements
 	}
-	a.EmitAuditEvent(events.UserSSOLogin, fields)
+	if err := a.EmitAuditEvent(events.UserSSOLogin, fields); err != nil {
+		log.Warnf("Failed to emit SAML user login event: %v", err)
+	}
 	return &re.auth, nil
 }
 
@@ -326,7 +357,7 @@ func (a *AuthServer) validateSAMLResponse(samlResponse string) (*samlAuthRespons
 	}
 	assertionInfo, err := provider.RetrieveAssertionInfo(samlResponse)
 	if err != nil {
-		log.Warnf("Failed to retrieve SAML AssertionInfo from response: %v.", err)
+		log.Warnf("Received response with incorrect or no claims/attribute statements. Please check the identity provider configuration to make sure that mappings for claims/attribute statements are set up correctly. <See: https://gravitational.com/teleport/docs/enterprise/ssh_sso/>. Failed to retrieve SAML AssertionInfo from response: %v.", err)
 		return nil, trace.AccessDenied("bad SAML response")
 	}
 
@@ -393,7 +424,7 @@ func (a *AuthServer) validateSAMLResponse(samlResponse string) (*samlAuthRespons
 
 	// If a public key was provided, sign it and return a certificate.
 	if len(request.PublicKey) != 0 {
-		sshCert, tlsCert, err := a.createSessionCert(user, params.sessionTTL, request.PublicKey, request.Compatibility)
+		sshCert, tlsCert, err := a.createSessionCert(user, params.sessionTTL, request.PublicKey, request.Compatibility, request.RouteToCluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

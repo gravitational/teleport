@@ -90,7 +90,7 @@ client `ssh` or using `tsh`:
    client certificate.
 
 !!! tip "NOTE"
-    
+
     Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`. It also supports OpenSSH's ProxyJump/ssh -J implementation as of Teleport 4.1. See [User Manual](../user-manual.md#ssh-proxy-configuration)
 
 ## Recording Proxy Mode
@@ -126,7 +126,7 @@ the proxy, users with root privileges on nodes have no way of disabling the
 audit.
 
 See the [admin guide](../admin-guide.md#recorded-sessions) to learn how to turn
-on the recording proxy mode. Note that the recording more is configured on the
+on the recording proxy mode. Note that the recording mode is configured on the
 Auth Server.
 
 ## More Concepts

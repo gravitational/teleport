@@ -19,7 +19,6 @@ package sshutils
 import (
 	"context"
 	"fmt"
-	"net"
 	"testing"
 	"time"
 
@@ -52,9 +51,10 @@ func (s *ServerSuite) SetUpSuite(c *check.C) {
 
 func (s *ServerSuite) TestStartStop(c *check.C) {
 	called := false
-	fn := NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
+	fn := NewChanHandlerFunc(func(_ context.Context, _ *ConnectionContext, nch ssh.NewChannel) {
 		called = true
-		nch.Reject(ssh.Prohibited, "nothing to see here")
+		err := nch.Reject(ssh.Prohibited, "nothing to see here")
+		c.Assert(err, check.IsNil)
 	})
 
 	srv, err := NewServer(
@@ -75,8 +75,10 @@ func (s *ServerSuite) TestStartStop(c *check.C) {
 	c.Assert(err, check.IsNil)
 	defer clt.Close()
 
-	// call new session to initiate opening new channel
-	clt.NewSession()
+	// Call new session to initiate opening new channel. This should get
+	// rejected and fail.
+	_, err = clt.NewSession()
+	c.Assert(err, check.NotNil)
 
 	c.Assert(srv.Close(), check.IsNil)
 	wait(c, srv)
@@ -86,14 +88,13 @@ func (s *ServerSuite) TestStartStop(c *check.C) {
 // TestShutdown tests graceul shutdown feature
 func (s *ServerSuite) TestShutdown(c *check.C) {
 	closeContext, cancel := context.WithCancel(context.TODO())
-	fn := NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
+	fn := NewChanHandlerFunc(func(_ context.Context, ccx *ConnectionContext, nch ssh.NewChannel) {
 		ch, _, err := nch.Accept()
-		defer ch.Close()
 		c.Assert(err, check.IsNil)
-		select {
-		case <-closeContext.Done():
-			conn.Close()
-		}
+		defer ch.Close()
+
+		<-closeContext.Done()
+		ccx.ServerConn.Close()
 	})
 
 	srv, err := NewServer(
@@ -116,7 +117,8 @@ func (s *ServerSuite) TestShutdown(c *check.C) {
 	defer clt.Close()
 
 	// call new session to initiate opening new channel
-	clt.NewSession()
+	_, err = clt.NewSession()
+	c.Assert(err, check.IsNil)
 
 	// context will timeout because there is a connection around
 	ctx, ctxc := context.WithTimeout(context.TODO(), 50*time.Millisecond)
@@ -136,8 +138,9 @@ func (s *ServerSuite) TestShutdown(c *check.C) {
 }
 
 func (s *ServerSuite) TestConfigureCiphers(c *check.C) {
-	fn := NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
-		nch.Reject(ssh.Prohibited, "nothing to see here")
+	fn := NewChanHandlerFunc(func(_ context.Context, _ *ConnectionContext, nch ssh.NewChannel) {
+		err := nch.Reject(ssh.Prohibited, "nothing to see here")
+		c.Assert(err, check.IsNil)
 	})
 
 	// create a server that only speaks aes128-ctr
@@ -160,7 +163,7 @@ func (s *ServerSuite) TestConfigureCiphers(c *check.C) {
 		Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
 		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
-	clt, err := ssh.Dial("tcp", srv.Addr(), &cc)
+	_, err = ssh.Dial("tcp", srv.Addr(), &cc)
 	c.Assert(err, check.NotNil, check.Commentf("cipher mismatch, should fail, got nil"))
 
 	// client only speaks aes128-ctr, should succeed
@@ -171,7 +174,7 @@ func (s *ServerSuite) TestConfigureCiphers(c *check.C) {
 		Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
 		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
-	clt, err = ssh.Dial("tcp", srv.Addr(), &cc)
+	clt, err := ssh.Dial("tcp", srv.Addr(), &cc)
 	c.Assert(err, check.IsNil, check.Commentf("cipher match, should not fail, got error: %v", err))
 	defer clt.Close()
 }
@@ -182,8 +185,9 @@ func (s *ServerSuite) TestHostSignerFIPS(c *check.C) {
 	_, ellipticSigner, err := utils.CreateEllipticCertificate("foo", ssh.HostCert)
 	c.Assert(err, check.IsNil)
 
-	newChanHandler := NewChanHandlerFunc(func(_ net.Conn, conn *ssh.ServerConn, nch ssh.NewChannel) {
-		nch.Reject(ssh.Prohibited, "nothing to see here")
+	newChanHandler := NewChanHandlerFunc(func(_ context.Context, _ *ConnectionContext, nch ssh.NewChannel) {
+		err := nch.Reject(ssh.Prohibited, "nothing to see here")
+		c.Assert(err, check.IsNil)
 	})
 
 	var tests = []struct {

@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -69,7 +70,7 @@ func (s *KeyAgentTestSuite) SetUpSuite(c *check.C) {
 	pemBytes, ok := fixtures.PEMBytes["rsa"]
 	c.Assert(ok, check.Equals, true)
 
-	s.tlsca, err = newSelfSignedCA(pemBytes)
+	s.tlsca, _, err = newSelfSignedCA(pemBytes)
 	c.Assert(err, check.IsNil)
 
 	// temporary key to use during tests
@@ -82,8 +83,7 @@ func (s *KeyAgentTestSuite) SetUpSuite(c *check.C) {
 }
 
 func (s *KeyAgentTestSuite) TearDownSuite(c *check.C) {
-	var err error
-	err = os.RemoveAll(s.keyDir)
+	err := os.RemoveAll(s.keyDir)
 	c.Assert(err, check.IsNil)
 }
 
@@ -100,7 +100,7 @@ func (s *KeyAgentTestSuite) SetUpTest(c *check.C) {
 //     a teleport key with the teleport username.
 func (s *KeyAgentTestSuite) TestAddKey(c *check.C) {
 	// make a new local agent
-	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username)
+	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username, true)
 	c.Assert(err, check.IsNil)
 
 	// add the key to the local agent, this should write the key
@@ -159,7 +159,7 @@ func (s *KeyAgentTestSuite) TestLoadKey(c *check.C) {
 	userdata := []byte("hello, world")
 
 	// make a new local agent
-	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username)
+	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username, true)
 	c.Assert(err, check.IsNil)
 
 	// unload any keys that might be in the agent for this user
@@ -205,9 +205,9 @@ func (s *KeyAgentTestSuite) TestLoadKey(c *check.C) {
 	sshPublicKey := sshSigner.PublicKey()
 
 	// verify data signed by both the teleport agent and system agent was signed correctly
-	sshPublicKey.Verify(userdata, teleportAgentSignature)
+	err = sshPublicKey.Verify(userdata, teleportAgentSignature)
 	c.Assert(err, check.IsNil)
-	sshPublicKey.Verify(userdata, systemAgentSignature)
+	err = sshPublicKey.Verify(userdata, systemAgentSignature)
 	c.Assert(err, check.IsNil)
 
 	// unload all keys from the teleport agent and system agent
@@ -217,7 +217,7 @@ func (s *KeyAgentTestSuite) TestLoadKey(c *check.C) {
 
 func (s *KeyAgentTestSuite) TestHostCertVerification(c *check.C) {
 	// Make a new local agent.
-	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username)
+	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username, true)
 	c.Assert(err, check.IsNil)
 
 	// By default user has not refused any hosts.
@@ -240,6 +240,7 @@ func (s *KeyAgentTestSuite) TestHostCertVerification(c *check.C) {
 	c.Assert(err, check.IsNil)
 	hostCertBytes, err := keygen.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: caPriv,
+		CASigningAlg:        defaults.CASignatureAlgorithm,
 		PublicHostKey:       hostPub,
 		HostID:              "5ff40d80-9007-4f28-8f49-7d4fda2f574d",
 		NodeName:            "server01",
@@ -297,7 +298,7 @@ func (s *KeyAgentTestSuite) TestHostCertVerification(c *check.C) {
 
 func (s *KeyAgentTestSuite) TestHostKeyVerification(c *check.C) {
 	// make a new local agent
-	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username)
+	lka, err := NewLocalAgent(s.keyDir, s.hostname, s.username, true)
 	c.Assert(err, check.IsNil)
 
 	// by default user has not refused any hosts:
@@ -351,7 +352,7 @@ func (s *KeyAgentTestSuite) TestHostKeyVerification(c *check.C) {
 func (s *KeyAgentTestSuite) TestDefaultHostPromptFunc(c *check.C) {
 	keygen := testauthority.New()
 
-	a, err := NewLocalAgent(s.keyDir, s.hostname, s.username)
+	a, err := NewLocalAgent(s.keyDir, s.hostname, s.username, true)
 	c.Assert(err, check.IsNil)
 
 	_, keyBytes, err := keygen.GenerateKeyPair("")
@@ -430,6 +431,7 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 
 	certificate, err := keygen.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey:   pemBytes,
+		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         publicKey,
 		Username:              username,
 		AllowedLogins:         allowedLogins,

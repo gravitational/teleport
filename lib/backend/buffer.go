@@ -70,7 +70,7 @@ func NewCircularBuffer(ctx context.Context, size int) (*CircularBuffer, error) {
 func (c *CircularBuffer) Reset() {
 	c.Lock()
 	defer c.Unlock()
-	// could close mulitple times
+	// could close multiple times
 	c.watchers.walk(func(w *BufferWatcher) {
 		w.closeWatcher()
 	})
@@ -294,9 +294,8 @@ func (w *BufferWatcher) Close() error {
 }
 
 // closeWatcher closes watcher
-func (w *BufferWatcher) closeWatcher() error {
+func (w *BufferWatcher) closeWatcher() {
 	w.cancel()
-	return nil
 }
 
 const (
@@ -306,16 +305,15 @@ const (
 
 // closeAndRemove closes the watcher, could
 // be called multiple times, removes the watcher
-// from the buffer queue syncronously (used in tests)
+// from the buffer queue synchronously (used in tests)
 // or asyncronously, used in prod, to avoid potential deadlocks
-func (w *BufferWatcher) closeAndRemove(sync bool) error {
+func (w *BufferWatcher) closeAndRemove(sync bool) {
 	w.closeWatcher()
 	if sync {
 		w.buffer.removeWatcherWithLock(w)
 	} else {
 		go w.buffer.removeWatcherWithLock(w)
 	}
-	return nil
 }
 
 func newWatcherTree() *watcherTree {

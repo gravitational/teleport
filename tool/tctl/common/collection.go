@@ -385,8 +385,8 @@ func (c *samlCollection) writeText(w io.Writer) error {
 	for _, conn := range c.connectors {
 		t.AddRow([]string{conn.GetName(), conn.GetSSO()})
 	}
-	t.AsBuffer().WriteTo(w)
-	return nil
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
 }
 
 func (c *samlCollection) writeJSON(w io.Writer) error {

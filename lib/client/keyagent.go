@@ -68,7 +68,7 @@ type LocalKeyAgent struct {
 
 // NewLocalAgent reads all Teleport certificates from disk (using FSLocalKeyStore),
 // creates a LocalKeyAgent, loads all certificates into it, and returns the agent.
-func NewLocalAgent(keyDir string, proxyHost string, username string) (a *LocalKeyAgent, err error) {
+func NewLocalAgent(keyDir, proxyHost, username string, useLocalSSHAgent bool) (a *LocalKeyAgent, err error) {
 	keystore, err := NewFSLocalKeyStore(keyDir)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -80,10 +80,15 @@ func NewLocalAgent(keyDir string, proxyHost string, username string) (a *LocalKe
 		}),
 		Agent:     agent.NewKeyring(),
 		keyStore:  keystore,
-		sshAgent:  connectToSSHAgent(),
 		noHosts:   make(map[string]bool),
 		username:  username,
 		proxyHost: proxyHost,
+	}
+
+	if useLocalSSHAgent {
+		a.sshAgent = connectToSSHAgent()
+	} else {
+		log.Debug("Skipping connection to the local ssh-agent.")
 	}
 
 	// unload all teleport keys from the agent first to ensure
@@ -139,9 +144,9 @@ func (a *LocalKeyAgent) LoadKey(key Key) (*agent.AddedKey, error) {
 	}
 
 	// iterate over all teleport and system agent and load key
-	for i, _ := range agents {
+	for _, agent := range agents {
 		for _, agentKey := range agentKeys {
-			err = agents[i].Add(*agentKey)
+			err = agent.Add(*agentKey)
 			if err != nil {
 				a.log.Warnf("Unable to communicate with agent and add key: %v", err)
 			}
@@ -162,9 +167,9 @@ func (a *LocalKeyAgent) UnloadKey() error {
 	}
 
 	// iterate over all agents we have and unload keys for this user
-	for i, _ := range agents {
+	for _, agent := range agents {
 		// get a list of all keys in the agent
-		keyList, err := agents[i].List()
+		keyList, err := agent.List()
 		if err != nil {
 			a.log.Warnf("Unable to communicate with agent and list keys: %v", err)
 		}
@@ -172,7 +177,7 @@ func (a *LocalKeyAgent) UnloadKey() error {
 		// remove any teleport keys we currently have loaded in the agent for this user
 		for _, key := range keyList {
 			if key.Comment == fmt.Sprintf("teleport:%v", a.username) {
-				err = agents[i].Remove(key)
+				err = agent.Remove(key)
 				if err != nil {
 					a.log.Warnf("Unable to communicate with agent and remove key: %v", err)
 				}
@@ -192,9 +197,9 @@ func (a *LocalKeyAgent) UnloadKeys() error {
 	}
 
 	// iterate over all agents we have
-	for i, _ := range agents {
+	for _, agent := range agents {
 		// get a list of all keys in the agent
-		keyList, err := agents[i].List()
+		keyList, err := agent.List()
 		if err != nil {
 			a.log.Warnf("Unable to communicate with agent and list keys: %v", err)
 		}
@@ -202,7 +207,7 @@ func (a *LocalKeyAgent) UnloadKeys() error {
 		// remove any teleport keys we currently have loaded in the agent
 		for _, key := range keyList {
 			if strings.HasPrefix(key.Comment, "teleport:") {
-				err = agents[i].Remove(key)
+				err = agent.Remove(key)
 				if err != nil {
 					a.log.Warnf("Unable to communicate with agent and remove key: %v", err)
 				}
@@ -251,7 +256,7 @@ func (a *LocalKeyAgent) GetCerts() (*x509.CertPool, error) {
 	return a.keyStore.GetCerts(a.proxyHost)
 }
 
-func (a *LocalKeyAgent) GetCertsPEM() ([]byte, error) {
+func (a *LocalKeyAgent) GetCertsPEM() ([][]byte, error) {
 	return a.keyStore.GetCertsPEM(a.proxyHost)
 }
 
@@ -300,10 +305,7 @@ func (a *LocalKeyAgent) checkHostCertificate(key ssh.PublicKey, addr string) boo
 	// If this certificate was not seen before, prompt the user essentially
 	// treating it like a key.
 	err = a.checkHostKey(addr, nil, key)
-	if err != nil {
-		return false
-	}
-	return true
+	return err == nil
 }
 
 // checkHostKey validates a host key. First checks the

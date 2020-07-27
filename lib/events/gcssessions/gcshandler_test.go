@@ -1,5 +1,3 @@
-// +build gcs
-
 /*
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,7 +24,6 @@ import (
 	"github.com/fsouza/fake-gcs-server/fakestorage"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 	"gopkg.in/check.v1"
 )
@@ -71,8 +68,6 @@ func (s *GCSSuite) TearDownSuite(c *check.C) {
 		s.gcsServer.Stop()
 	}
 	if s.handler != nil {
-		if err := s.handler.deleteBucket(); err != nil {
-			c.Fatalf("Failed to delete bucket: %#v", trace.DebugReport(err))
-		}
+		s.handler.Close()
 	}
 }

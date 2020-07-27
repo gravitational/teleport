@@ -1,0 +1,118 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "teleport.fullname" . }}
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+{{- if .Values.labels }}
+{{ toYaml .Values.labels | indent 4 }}
+{{- end }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: {{ .Values.strategy }}
+  selector:
+    matchLabels:
+      app: {{ template "teleport.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "teleport.name" . }}
+        release: {{ .Release.Name }}
+        heritage: {{ .Release.Service }}
+      annotations:
+        checksum/config: {{ toYaml .Values.config | sha256sum }}
+{{- if .Values.annotations }}
+{{ toYaml .Values.annotations | indent 8 }}
+{{- end }}
+    spec:
+      automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
+      containers:
+      - name: {{ .Chart.Name }}-sidecar
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["/usr/bin/dumb-init"]
+        args: ["/bin/bash", "/usr/local/bin/teleport-scripts/bootstrap.sh"]
+        env:
+        {{- range $key, $value := .Values.trustedCluster.extraVars }}
+        - name: {{ $key }}
+          value: {{ $value }}
+        {{- end}}
+        volumeMounts:
+        - mountPath: /usr/local/bin/teleport-scripts
+          name: {{ template "teleport.fullname" . }}-bootstrap-script
+          readOnly: true
+        - mountPath: /etc/teleport
+          name: {{ template "teleport.fullname" . }}-config
+          readOnly: true
+        - mountPath: /var/lib/teleport
+          name: {{ template "teleport.fullname" . }}-storage
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        args:
+{{- if .Values.extraArgs }}
+{{ toYaml .Values.extraArgs | indent 8 }}
+{{- end }}
+{{- if not .Values.proxy.tls.enabled }}
+        - --insecure-no-tls
+{{- end }}
+        env:
+{{- range $key, $value := .Values.extraVars }}
+        - name: {{ $key }}
+          value: {{ $value }}
+{{- end }}
+        # See https://gravitational.com/teleport/docs/admin-guide/#ports
+        ports:
+{{- range $key, $port := .Values.ports }}
+        - name: {{ $key }}
+{{ toYaml $port | indent 10 }}
+{{- end }}
+        resources:
+{{ toYaml .Values.resources | indent 10 }}
+        volumeMounts:
+        - mountPath: /etc/teleport
+          name: {{ template "teleport.fullname" . }}-config
+          readOnly: true
+{{- if .Values.license.enabled }}
+        - mountPath: {{ .Values.license.mountPath }}
+          name: {{ template "teleport.fullname" . }}-license
+          readOnly: true
+{{- end }}
+        - mountPath: /var/lib/teleport
+          name: {{ template "teleport.fullname" . }}-storage
+{{- if .Values.extraVolumeMounts }}
+{{ toYaml .Values.extraVolumeMounts | indent 8 }}
+{{- end }}
+      volumes:
+{{- if .Values.license.enabled }}
+      - name: {{ template "teleport.fullname" . }}-license
+        secret:
+          secretName: {{ .Values.license.secretName }}
+{{- end }}
+      - name: {{ template "teleport.fullname" . }}-config
+        configMap:
+          name: {{ template "teleport.fullname" . }}
+      - name: {{ template "teleport.fullname" . }}-storage
+        {{- if .Values.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ .Values.persistence.existingClaim | default (printf "%s-%s" (include "teleport.fullname" .) "storage") }}
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+{{- if .Values.extraVolumes }}
+{{ toYaml .Values.extraVolumes | indent 6 }}
+{{- end }}
+{{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.image.pullSecrets | indent 6 }}
+{{- end }}
+{{- if .Values.affinity }}
+      affinity:
+{{ toYaml .Values.affinity | indent 8 }}
+{{- end }}
+{{- if .Values.tolerations }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 6 }}
+{{- end }}
+      serviceAccountName: {{ template "teleport.serviceAccountName" . }}

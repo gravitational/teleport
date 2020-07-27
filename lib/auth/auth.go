@@ -106,6 +106,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 		oidcClients:     make(map[string]*oidcClient),
 		samlProviders:   make(map[string]*samlProvider),
 		githubClients:   make(map[string]*githubClient),
+		caSigningAlg:    cfg.CASigningAlg,
 		cancelFunc:      cancelFunc,
 		closeCtx:        closeCtx,
 		AuthServices: AuthServices{
@@ -206,6 +207,9 @@ type AuthServer struct {
 
 	// cipherSuites is a list of ciphersuites that the auth server supports.
 	cipherSuites []uint16
+
+	// caSigningAlg is an SSH signing algorithm to use when generating new CAs.
+	caSigningAlg *string
 
 	// cache is a fast cache that allows auth server
 	// to use cache for most frequent operations,
@@ -370,6 +374,7 @@ func (s *AuthServer) GenerateHostCert(hostPublicKey []byte, hostID, nodeName str
 	// create and sign!
 	return s.Authority.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: caPrivateKey,
+		CASigningAlg:        ca.GetSigningAlg(),
 		PublicHostKey:       hostPublicKey,
 		HostID:              hostID,
 		NodeName:            nodeName,
@@ -507,6 +512,7 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 	}
 	sshCert, err := s.Authority.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey:   privateKey,
+		CASigningAlg:          ca.GetSigningAlg(),
 		PublicUserKey:         req.publicKey,
 		Username:              req.user.GetName(),
 		AllowedLogins:         allowedLogins,
@@ -515,11 +521,19 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		CertificateFormat:     certificateFormat,
 		PermitPortForwarding:  req.checker.CanPortForward(),
 		PermitAgentForwarding: req.checker.CanForwardAgents(),
+		PermitX11Forwarding:   req.checker.PermitX11Forwarding(),
 		RouteToCluster:        req.routeToCluster,
 		Traits:                req.traits,
 		ActiveRequests:        req.activeRequests,
 	})
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	kubeGroups, kubeUsers, err := req.checker.CheckKubeGroupsAndUsers(sessionTTL)
+	// NotFound errors are acceptable - this user may have no k8s access
+	// granted and that shouldn't prevent us from issuing a TLS cert.
+	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
 	userCA, err := s.Trust.GetCertAuthority(services.CertAuthID{
@@ -535,12 +549,14 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		return nil, trace.Wrap(err)
 	}
 	identity := tlsca.Identity{
-		Username:       req.user.GetName(),
-		Groups:         req.checker.RoleNames(),
-		Principals:     allowedLogins,
-		Usage:          req.usage,
-		RouteToCluster: req.routeToCluster,
-		Traits:         req.traits,
+		Username:         req.user.GetName(),
+		Groups:           req.checker.RoleNames(),
+		Principals:       allowedLogins,
+		Usage:            req.usage,
+		RouteToCluster:   req.routeToCluster,
+		KubernetesGroups: kubeGroups,
+		KubernetesUsers:  kubeUsers,
+		Traits:           req.traits,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -569,6 +585,12 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 func (s *AuthServer) WithUserLock(username string, authenticateFn func() error) error {
 	user, err := s.Identity.GetUser(username, false)
 	if err != nil {
+		if trace.IsNotFound(err) {
+			// If user is not found, still call authenticateFn. It should
+			// always return an error. This prevents username oracles and
+			// timing attacks.
+			return authenticateFn()
+		}
 		return trace.Wrap(err)
 	}
 	status := user.GetStatus()
@@ -799,18 +821,30 @@ func (req *GenerateTokenRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
-// GenerateToken generates multi-purpose authentication token
-func (s *AuthServer) GenerateToken(req GenerateTokenRequest) (string, error) {
+// GenerateToken generates multi-purpose authentication token.
+func (a *AuthServer) GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return "", trace.Wrap(err)
 	}
-	token, err := services.NewProvisionToken(req.Token, req.Roles, s.clock.Now().UTC().Add(req.TTL))
+	token, err := services.NewProvisionToken(req.Token, req.Roles, a.clock.Now().UTC().Add(req.TTL))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	if err := s.Provisioner.UpsertToken(token); err != nil {
+	if err := a.Provisioner.UpsertToken(token); err != nil {
 		return "", trace.Wrap(err)
 	}
+
+	user := clientUsername(ctx)
+	for _, role := range req.Roles {
+		if role == teleport.RoleTrustedCluster {
+			if err := a.EmitAuditEvent(events.TrustedClusterTokenCreate, events.EventFields{
+				events.EventUser: user,
+			}); err != nil {
+				log.Warnf("Failed to emit trusted cluster token create event: %v", err)
+			}
+		}
+	}
+
 	return req.Token, nil
 }
 
@@ -985,6 +1019,7 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 	// generate hostSSH certificate
 	hostSSHCert, err := s.Authority.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: caPrivateKey,
+		CASigningAlg:        ca.GetSigningAlg(),
 		PublicHostKey:       pubSSHKey,
 		HostID:              req.HostID,
 		NodeName:            req.NodeName,
@@ -1017,7 +1052,7 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) {
 		certRequest.DNSNames = append(certRequest.DNSNames, "*."+teleport.APIDomain, teleport.APIDomain)
 	}
-	// Unlike additional pricinpals, DNS Names is x509 specific
+	// Unlike additional principals, DNS Names is x509 specific
 	// and is limited to auth servers and proxies
 	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) || req.Roles.Include(teleport.RoleProxy) {
 		certRequest.DNSNames = append(certRequest.DNSNames, req.DNSNames...)
@@ -1194,8 +1229,8 @@ func (s *AuthServer) DeleteToken(token string) (err error) {
 			return trace.BadParameter("token %s is statically configured and cannot be removed", token)
 		}
 	}
-	// delete user token:
-	if err = s.Identity.DeleteSignupToken(token); err == nil {
+	// delete reset password token:
+	if err = s.Identity.DeleteResetPasswordToken(context.TODO(), token); err == nil {
 		return nil
 	}
 	// delete node token:
@@ -1221,15 +1256,15 @@ func (s *AuthServer) GetTokens(opts ...services.MarshalOption) (tokens []service
 	if err == nil {
 		tokens = append(tokens, tkns.GetStaticTokens()...)
 	}
-	// get user tokens:
-	userTokens, err := s.Identity.GetSignupTokens()
+	// get reset password tokens:
+	resetPasswordTokens, err := s.Identity.GetResetPasswordTokens(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// convert user tokens to machine tokens:
-	for _, t := range userTokens {
+	// convert reset password tokens to machine tokens:
+	for _, t := range resetPasswordTokens {
 		roles := teleport.Roles{teleport.RoleSignup}
-		tok, err := services.NewProvisionToken(t.Token, roles, t.Expires)
+		tok, err := services.NewProvisionToken(t.GetName(), roles, t.Expiry())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1324,7 +1359,8 @@ func (a *AuthServer) NewWatcher(ctx context.Context, watch services.Watch) (serv
 	return a.GetCache().NewWatcher(ctx, watch)
 }
 
-func (a *AuthServer) DeleteRole(name string) error {
+// DeleteRole deletes a role by name of the role.
+func (a *AuthServer) DeleteRole(ctx context.Context, name string) error {
 	// check if this role is used by CA or Users
 	users, err := a.Identity.GetUsers(false)
 	if err != nil {
@@ -1356,7 +1392,35 @@ func (a *AuthServer) DeleteRole(name string) error {
 			}
 		}
 	}
-	return a.Access.DeleteRole(name)
+
+	if err := a.Access.DeleteRole(ctx, name); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.EmitAuditEvent(events.RoleDeleted, events.EventFields{
+		events.FieldName: name,
+		events.EventUser: clientUsername(ctx),
+	}); err != nil {
+		log.Warnf("Failed to emit role deleted event: %v", err)
+	}
+
+	return nil
+}
+
+// UpsertRole creates or updates role.
+func (a *AuthServer) upsertRole(ctx context.Context, role services.Role) error {
+	if err := a.UpsertRole(ctx, role); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.EmitAuditEvent(events.RoleCreated, events.EventFields{
+		events.FieldName: role.GetName(),
+		events.EventUser: clientUsername(ctx),
+	}); err != nil {
+		log.Warnf("Failed to emit role created event: %v", err)
+	}
+
+	return nil
 }
 
 func (a *AuthServer) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
@@ -1400,15 +1464,15 @@ func (a *AuthServer) SetAccessRequestState(ctx context.Context, reqID string, st
 	if err := a.DynamicAccess.SetAccessRequestState(ctx, reqID, state); err != nil {
 		return trace.Wrap(err)
 	}
-	updateBy, err := getUpdateBy(ctx)
-	if err != nil {
-		return trace.Wrap(err)
+	fields := events.EventFields{
+		events.AccessRequestID:    reqID,
+		events.AccessRequestState: state.String(),
+		events.UpdatedBy:          clientUsername(ctx),
 	}
-	err = a.EmitAuditEvent(events.AccessRequestUpdated, events.EventFields{
-		events.AccessRequestID:       reqID,
-		events.AccessRequestState:    state.String(),
-		events.AccessRequestUpdateBy: updateBy,
-	})
+	if delegator := getDelegator(ctx); delegator != "" {
+		fields[events.AccessRequestDelegator] = delegator
+	}
+	err := a.EmitAuditEvent(events.AccessRequestUpdated, fields)
 	return trace.Wrap(err)
 }
 

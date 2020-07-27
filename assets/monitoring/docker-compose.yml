@@ -13,7 +13,7 @@ services:
   telegraf:
     image: telegraf:latest
     container_name: telegraf
-    network_mode: "host"  
+    network_mode: "host"
     volumes:
       - ./telegraf.conf:/etc/telegraf/telegraf.conf:ro
 
@@ -21,7 +21,7 @@ services:
     image: grafana/grafana:latest
     container_name: grafana
     ports:
-      - "3000:3000"
+      - "3001:3000"
     links:
       - influxdb
 
@@ -33,4 +33,4 @@ services:
     links:
       - grafana
     depends_on:
-      - grafana 
+      - grafana

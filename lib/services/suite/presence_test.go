@@ -17,12 +17,15 @@ limitations under the License.
 package suite
 
 import (
+	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/services"
 
 	"gopkg.in/check.v1"
 )
+
+func Test(t *testing.T) { check.TestingT(t) }
 
 type PresenceSuite struct {
 }

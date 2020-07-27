@@ -31,7 +31,7 @@ import (
 	"gopkg.in/check.v1"
 )
 
-func TestS3(t *testing.T) { check.TestingT(t) }
+func Test(t *testing.T) { check.TestingT(t) }
 
 type S3Suite struct {
 	handler *Handler

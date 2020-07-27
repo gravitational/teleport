@@ -7,7 +7,7 @@
 # NOTE: this file is also used to run etcd tests.
 #
 
-EXAMPLES_DIR=$GOPATH/src/github.com/gravitational/teleport/examples/etcd
+EXAMPLES_DIR=$(go env GOPATH)/src/github.com/gravitational/teleport/examples/etcd
 
 HERE=$(readlink -f $0)
 cd $(dirname $HERE)

@@ -10,7 +10,7 @@
 # Naming convention:
 #	for stable releases we use "1.0.0" format
 #   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=4.2.2-alpha.1
+VERSION=4.4.0-dev
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 
@@ -25,6 +25,7 @@ TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
 CGOFLAG ?= CGO_ENABLED=1
+GO_LINTERS ?= "unused,govet,typecheck,deadcode,goimports,varcheck,structcheck,bodyclose,staticcheck,ineffassign,unconvert,misspell,gosimple"
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
@@ -43,6 +44,13 @@ PAM_MESSAGE := "without PAM support"
 ifneq ("$(wildcard /usr/include/security/pam_appl.h)","")
 PAM_TAG := pam
 PAM_MESSAGE := "with PAM support"
+else
+# PAM headers for Darwin live under /usr/local/include/security instead, as SIP
+# prevents us from modifying/creating /usr/include/security on newer versions of MacOS
+ifneq ("$(wildcard /usr/local/include/security/pam_appl.h)","")
+PAM_TAG := pam
+PAM_MESSAGE := "with PAM support"
+endif
 endif
 
 # BPF support will only be built into Teleport if headers exist at build time.
@@ -88,7 +96,7 @@ $(BUILDDIR)/tctl:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/tctl $(BUILDFLAGS) ./tool/tctl
 
 .PHONY: $(BUILDDIR)/teleport
-$(BUILDDIR)/teleport:
+$(BUILDDIR)/teleport: ensure-webassets
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
 
 .PHONY: $(BUILDDIR)/tsh
@@ -178,7 +186,7 @@ release-windows: clean all
 # Builds docs using containerized mkdocs
 #
 .PHONY:docs
-docs:
+docs: docs-test
 	$(MAKE) -C build.assets docs
 
 #
@@ -190,21 +198,64 @@ run-docs:
 	$(MAKE) -C build.assets run-docs
 
 #
+# Remove trailing whitespace in all markdown files under docs/.
+#
+# Note: this runs in a busybox container to avoid incompatibilities between
+# linux and macos CLI tools.
+#
+.PHONY:docs-fix-whitespace
+docs-fix-whitespace:
+	docker run --rm -v $(PWD):/teleport busybox \
+		find /teleport/docs/ -type f -name '*.md' -exec sed -E -i 's/\s+$$//g' '{}' \;
+
+#
+# Test docs for trailing whitespace and broken links
+#
+.PHONY:docs-test
+docs-test: docs-test-whitespace docs-test-links
+
+#
+# Check for trailing whitespace in all markdown files under docs/
+#
+.PHONY:docs-test-whitespace
+docs-test-whitespace:
+	if find docs/ -type f -name '*.md' | xargs grep -E '\s+$$'; then \
+		echo "trailing whitespace found in docs/ (see above)"; \
+		echo "run 'make docs-fix-whitespace' to fix it"; \
+		exit 1; \
+	fi
+
+#
+# Run milv in docs to detect broken links.
+# milv is installed if missing.
+#
+.PHONY:docs-test-links
+docs-test-links: DOCS_FOLDERS := $(shell find . -name milv.config.yaml -exec dirname {} \;)
+docs-test-links:
+	go get -v github.com/magicmatatjahu/milv
+	for docs_dir in $(DOCS_FOLDERS); do \
+		echo "running milv in $${docs_dir}"; \
+		cd $${docs_dir} && milv ; cd $(PWD); \
+	done
+
+#
 # tests everything: called by Jenkins
 #
 .PHONY: test
+test: ensure-webassets
 test: FLAGS ?= '-race'
 test: PACKAGES := $(shell go list ./... | grep -v integration)
 test: $(VERSRC)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
 
 #
-# integration tests. need a TTY to work and not compatible with a race detector
+# Integration tests. Need a TTY to work.
 #
 .PHONY: integration
+integration: FLAGS ?= -v -race
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	go test -v -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" ./integration/...
+	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" ./integration/... $(FLAGS)
 
 #
 # Lint the Go code.
@@ -217,9 +268,13 @@ lint:
 	golangci-lint run \
 		--disable-all \
 		--exclude-use-default \
+		--exclude='S1002: should omit comparison to bool constant' \
 		--skip-dirs vendor \
+		--uniq-by-line=false \
+		--max-same-issues=0 \
 		--max-issues-per-linter 0 \
-		--enable unused \
+		--timeout=5m \
+		--enable $(GO_LINTERS) \
 		$(FLAGS)
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
@@ -243,7 +298,7 @@ tag:
 $(BUILDDIR)/webassets.zip:
 ifneq ("$(OS)", "windows")
 	@echo "---> Building OSS web assets."
-	cd web/dist ; zip -qr ../../$(BUILDDIR)/webassets.zip .
+	cd webassets/teleport/ ; zip -qr ../../$(BUILDDIR)/webassets.zip .
 endif
 
 .PHONY: test-package
@@ -271,10 +326,15 @@ sloccount:
 remove-temp-files:
 	find . -name flymake_* -delete
 
-# Dockerized build: usefule for making Linux releases on OSX
+# Dockerized build: useful for making Linux releases on OSX
 .PHONY:docker
 docker:
-	make -C build.assets
+	make -C build.assets build
+
+# Dockerized build: useful for making Linux binaries on OSX
+.PHONY:docker-binaries
+docker-binaries: clean
+	make -C build.assets build-binaries
 
 # Interactively enters a Docker container (which you can build and run Teleport inside of)
 .PHONY:enter
@@ -298,13 +358,18 @@ buildbox:
 # proto generates GRPC defs from service definitions
 .PHONY: grpc
 grpc: buildbox
-	docker run -v $(shell pwd):/go/src/github.com/gravitational/teleport $(BUILDBOX_TAG) make -C /go/src/github.com/gravitational/teleport buildbox-grpc
+	docker run \
+		--rm \
+		-v $(shell pwd):/go/src/github.com/gravitational/teleport $(BUILDBOX_TAG) \
+		make -C /go/src/github.com/gravitational/teleport buildbox-grpc
 
 # proto generates GRPC stuff inside buildbox
 .PHONY: buildbox-grpc
 buildbox-grpc:
 # standard GRPC output
 	echo $$PROTO_INCLUDE
+	find lib/ -iname *.proto | xargs clang-format -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
+
 	cd lib/events && protoc -I=.:$$PROTO_INCLUDE \
 	  --gofast_out=plugins=grpc:.\
     *.proto
@@ -338,14 +403,16 @@ install: build
 	mkdir -p $(DATADIR)
 
 
+# Docker image build. Always build the binaries themselves within docker (see
+# the "docker" rule) to avoid dependencies on the host libc version.
 .PHONY: image
-image:
+image: clean docker-binaries
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
 	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e image; fi
 
 .PHONY: publish
-publish:
+publish: image
 	docker push $(DOCKER_IMAGE):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish; fi
 
@@ -370,6 +437,7 @@ endif
 # build .pkg
 .PHONY: pkg
 pkg:
+	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	# arch and runtime are currently ignored on OS X
@@ -380,6 +448,7 @@ pkg:
 # build tsh client-only .pkg
 .PHONY: pkg-tsh
 pkg-tsh:
+	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	# arch and runtime are currently ignored on OS X
@@ -389,6 +458,7 @@ pkg-tsh:
 # build .rpm
 .PHONY: rpm
 rpm:
+	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p rpm -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
@@ -397,6 +467,7 @@ rpm:
 # build .deb
 .PHONY: deb
 deb:
+	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
@@ -410,3 +481,35 @@ deb:
 update-helm-charts:
 	sed -i -E "s/^  tag: [a-z0-9.-]+$$/  tag: $(VERSION)/" examples/chart/teleport/values.yaml
 	sed -i -E "s/^teleportVersion: [a-z0-9.-]+$$/teleportVersion: $(VERSION)/" examples/chart/teleport-demo/values.yaml
+
+.PHONY: ensure-webassets
+ensure-webassets:
+	@if [ ! -d $(shell pwd)/webassets/teleport/ ]; then \
+		$(MAKE) init-webapps-submodules; \
+	fi;
+
+.PHONY: ensure-webassets-e
+ensure-webassets-e:
+	@if [ ! -d $(shell pwd)/webassets/e/teleport ]; then \
+		$(MAKE) init-webapps-submodules-e; \
+	fi;
+
+.PHONY: init-webapps-submodules
+init-webapps-submodules:
+	echo "init webassets submodule"
+	git submodule update --init webassets
+
+.PHONY: init-webapps-submodules-e
+init-webapps-submodules-e:
+	echo "init webassets oss and enterprise submodules"
+	git submodule update --init --recursive webassets
+
+.PHONY: init-submodules-e
+init-submodules-e: init-webapps-submodules-e
+	git submodule init e
+	git submodule update
+
+.PHONY: update-vendor
+update-vendor:
+	go mod tidy
+	go mod vendor

@@ -138,6 +138,7 @@ var (
 		"ciphers":                 false,
 		"kex_algos":               false,
 		"mac_algos":               false,
+		"ca_signature_algo":       false,
 		"connector_name":          false,
 		"session_recording":       false,
 		"read_capacity_units":     false,
@@ -163,6 +164,12 @@ var (
 		"cgroup_path":             false,
 	}
 )
+
+var validCASigAlgos = []string{
+	ssh.SigAlgoRSA,
+	ssh.SigAlgoRSASHA2256,
+	ssh.SigAlgoRSASHA2512,
+}
 
 // FileConfig structre represents the teleport configuration stored in a config file
 // in YAML format (usually /etc/teleport.yaml)
@@ -274,18 +281,17 @@ func MakeSampleFileConfig() (fc *FileConfig, err error) {
 	s.Commands = []CommandLabel{
 		{
 			Name:    "hostname",
-			Command: []string{"/usr/bin/hostname"},
+			Command: []string{"hostname"},
 			Period:  time.Minute,
 		},
 		{
 			Name:    "arch",
-			Command: []string{"/usr/bin/uname", "-p"},
+			Command: []string{"uname", "-p"},
 			Period:  time.Hour,
 		},
 	}
 	s.Labels = map[string]string{
-		"db_type": "postgres",
-		"db_role": "master",
+		"env": "staging",
 	}
 
 	// sample Auth config:
@@ -328,19 +334,22 @@ func (conf *FileConfig) Check() error {
 	sc.SetDefaults()
 
 	for _, c := range conf.Ciphers {
-		if utils.SliceContainsStr(sc.Ciphers, c) == false {
-			return trace.BadParameter("cipher %q not supported", c)
+		if !utils.SliceContainsStr(sc.Ciphers, c) {
+			return trace.BadParameter("cipher algorithm %q is not supported; supported algorithms: %q", c, sc.Ciphers)
 		}
 	}
 	for _, k := range conf.KEXAlgorithms {
-		if utils.SliceContainsStr(sc.KeyExchanges, k) == false {
-			return trace.BadParameter("KEX %q not supported", k)
+		if !utils.SliceContainsStr(sc.KeyExchanges, k) {
+			return trace.BadParameter("KEX algorithm %q is not supported; supported algorithms: %q", k, sc.KeyExchanges)
 		}
 	}
 	for _, m := range conf.MACAlgorithms {
-		if utils.SliceContainsStr(sc.MACs, m) == false {
-			return trace.BadParameter("MAC %q not supported", m)
+		if !utils.SliceContainsStr(sc.MACs, m) {
+			return trace.BadParameter("MAC algorithm %q is not supported; supported algorithms: %q", m, sc.MACs)
 		}
+	}
+	if conf.CASignatureAlgorithm != nil && !utils.SliceContainsStr(validCASigAlgos, *conf.CASignatureAlgorithm) {
+		return trace.BadParameter("CA signature algorithm %q is not supported; supported algorithms: %q", *conf.CASignatureAlgorithm, validCASigAlgos)
 	}
 
 	return nil
@@ -399,6 +408,11 @@ type Global struct {
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string `yaml:"mac_algos,omitempty"`
 
+	// CASignatureAlgorithm is an SSH Certificate Authority (CA) signature
+	// algorithm that the server uses for signing user and host certificates.
+	// If omitted, the default will be used.
+	CASignatureAlgorithm *string `yaml:"ca_signature_algo,omitempty"`
+
 	// CAPin is the SKPI hash of the CA used to verify the Auth Server.
 	CAPin string `yaml:"ca_pin"`
 }
@@ -432,10 +446,7 @@ func (c *CachePolicy) Enabled() bool {
 
 // NeverExpires returns if cache never expires by itself
 func (c *CachePolicy) NeverExpires() bool {
-	if isNever(c.TTL) {
-		return true
-	}
-	return false
+	return isNever(c.TTL)
 }
 
 // Parse parses cache policy from Teleport config

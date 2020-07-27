@@ -103,6 +103,7 @@ func (s *GithubSuite) TestMapClaims(c *check.C) {
 	})
 	c.Assert(logins, check.DeepEquals, []string{"dev", "test"})
 	c.Assert(kubeGroups, check.DeepEquals, []string{"kube-devs"})
+	c.Assert(kubeUsers, check.DeepEquals, []string(nil))
 
 	logins, kubeGroups, kubeUsers = connector.MapClaims(GithubClaims{
 		OrganizationToTeams: map[string][]string{
@@ -111,4 +112,5 @@ func (s *GithubSuite) TestMapClaims(c *check.C) {
 	})
 	c.Assert(logins, check.DeepEquals, []string{"admin", "dev", "test"})
 	c.Assert(kubeGroups, check.DeepEquals, []string{"system:masters", "kube-devs"})
+	c.Assert(kubeUsers, check.DeepEquals, []string{"alice@example.com"})
 }

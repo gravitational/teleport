@@ -39,6 +39,8 @@ type WebConfig struct {
 	Auth WebConfigAuthSettings `json:"auth,omitempty"`
 	// CanJoinSessions disables joining sessions
 	CanJoinSessions bool `json:"canJoinSessions"`
+	// ProxyClusterName is the name of the local cluster
+	ProxyClusterName string `json:"proxyCluster,omitempty"`
 }
 
 // WebConfigAuthProvider describes auth. provider
@@ -59,4 +61,6 @@ type WebConfigAuthSettings struct {
 	SecondFactor string `json:"second_factor,omitempty"`
 	// Providers contains a list of configured auth providers
 	Providers []WebConfigAuthProvider `json:"providers,omitempty"`
+	// LocalAuthEnabled is a flag that enables local authentication
+	LocalAuthEnabled bool `json:"localAuthEnabled"`
 }

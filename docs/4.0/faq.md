@@ -6,7 +6,7 @@
 Teleport has been deployed on server clusters with thousands of nodes at
 Fortune 500 companies. It has been through several security audits from
 nationally recognized technology security companies, so we are comfortable with
-the stability of Teleport from a security perspective. 
+the stability of Teleport from a security perspective.
 
 ### Can Teleport be deployed in agentless mode?
 
@@ -17,29 +17,29 @@ available unless the Teleport SSH daemon is present on all cluster nodes.
 
 ### Can I use OpenSSH with a Teleport cluster?
 
-Yes, this question comes up often and is related to the previous one. Take a 
-look at [Using OpenSSH client](user-manual.md##using-teleport-with-openssh) 
-section in the User Manual and [Using OpenSSH servers](admin-guide.md) in the 
+Yes, this question comes up often and is related to the previous one. Take a
+look at [Using OpenSSH client](user-manual.md##using-teleport-with-openssh)
+section in the User Manual and [Using OpenSSH servers](admin-guide.md) in the
 Admin Manual.
 
 ### Can I connect to nodes behind a firewall?
 
 Yes, Teleport supports reverse SSH tunnels out of the box. To configure
-behind-firewall clusters refer to [Trusted Clusters](admin-guide.md#trusted-clusters) 
+behind-firewall clusters refer to [Trusted Clusters](admin-guide.md#trusted-clusters)
 section of the Admin Manual.
 
-### Can individual nodes create reverse tunnels to a proxy server without creating a new cluster? 
+### Can individual nodes create reverse tunnels to a proxy server without creating a new cluster?
 
 This has been a long standing [request](https://github.com/gravitational/teleport/issues/803) of Teleport and
 it has been fixed with Teleport 4.0.   Once you've upgraded your Teleport Cluster, change the node config
-option `--auth-server` to point to web proxy address (this would be `public_addr` and `web_listen_addr` 
+option `--auth-server` to point to web proxy address (this would be `public_addr` and `web_listen_addr`
 in file configuration). As defined in [Adding a node located behind NAT - Teleport Node Tunneling](quickstart/#adding-a-node-located-behind-nat-teleport-node-tunneling)
 
 ### What's Teleport scalability and hardware recommendations?
 
 We recommend setting up Teleport with a [High Availability configuration](admin-guide.md#high-availability). Below is our
-recommended hardware for the Proxy and Auth server. If you plan to connect more than 10,000 nodes, please 
-[get in touch](mailto:info@gravitational.com) and we can help architect the best solution for you. 
+recommended hardware for the Proxy and Auth server. If you plan to connect more than 10,000 nodes, please
+[get in touch](mailto:info@gravitational.com) and we can help architect the best solution for you.
 
 Scenario | Max Recommended Count | Proxy | Auth server
 ------------ | -------------|---------|-------
@@ -53,11 +53,11 @@ Teleport nodes connected to proxy server (IoT) | 2,000* | 2x 2-4 vCPUs/8GB RAM |
 
 ### Does Web UI support copy and paste?
 
-Yes. You can copy&paste using the mouse. For working with a keyboard, Teleport employs 
+Yes. You can copy&paste using the mouse. For working with a keyboard, Teleport employs
 `tmux`-like "prefix" mode. To enter prefix mode, press `Ctrl+A`.
 
 While in prefix mode, you can press `Ctrl+V` to paste, or enter text selection
-mode by pressing `[`. When in text selection mode, move around using `hjkl`, select 
+mode by pressing `[`. When in text selection mode, move around using `hjkl`, select
 text by toggling `space` and copy it via `Ctrl+C`.
 
 ### What TCP ports does Teleport use?

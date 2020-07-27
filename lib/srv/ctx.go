@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
@@ -170,6 +169,9 @@ func (c IdentityContext) GetCertificate() (*ssh.Certificate, error) {
 // used to access resources on the underlying server. SessionContext can also
 // be used to attach resources that should be closed once the session closes.
 type ServerContext struct {
+	// ConnectionContext is the parent context which manages connection-level
+	// resources.
+	*sshutils.ConnectionContext
 	*log.Entry
 
 	sync.RWMutex
@@ -186,12 +188,6 @@ type ServerContext struct {
 	// term holds PTY if it was requested by the session.
 	term Terminal
 
-	// agent is a client to remote SSH agent.
-	agent agent.Agent
-
-	// agentCh is SSH channel using SSH agent protocol.
-	agentChannel ssh.Channel
-
 	// session holds the active session (if there's an active one).
 	session *session
 
@@ -199,12 +195,6 @@ type ServerContext struct {
 	// this is handy as sometimes client closes session, in this case resources
 	// will be properly closed and deallocated, otherwise they could be kept hanging.
 	closers []io.Closer
-
-	// Conn is the underlying *ssh.ServerConn.
-	Conn *ssh.ServerConn
-
-	// Connection is the underlying net.Conn for the connection.
-	Connection net.Conn
 
 	// Identity holds the identity of the user that is currently logged in on
 	// the Conn.
@@ -250,9 +240,6 @@ type ServerContext struct {
 	// on client inactivity, set to 0 if not setup
 	clientIdleTimeout time.Duration
 
-	// cancelContext signals closure to all outstanding operations
-	cancelContext context.Context
-
 	// cancel is called whenever server context is closed
 	cancel context.CancelFunc
 
@@ -290,91 +277,102 @@ type ServerContext struct {
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
-// manage resources.
-func NewServerContext(srv Server, conn *ssh.ServerConn, identityContext IdentityContext) (*ServerContext, error) {
+// manage resources, and an associated context.Context which is canceled when
+// the ServerContext is closed.  The ctx parameter should be a child of the ctx
+// associated with the scope of the parent ConnectionContext to ensure that
+// cancellation of the ConnectionContext propagates to the ServerContext.
+func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, srv Server, identityContext IdentityContext) (context.Context, *ServerContext, error) {
 	clusterConfig, err := srv.GetAccessPoint().GetClusterConfig()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	cancelContext, cancel := context.WithCancel(context.TODO())
+	ctx, cancel := context.WithCancel(ctx)
 
-	ctx := &ServerContext{
+	child := &ServerContext{
+		ConnectionContext: parent,
 		id:                int(atomic.AddInt32(&ctxID, int32(1))),
 		env:               make(map[string]string),
 		srv:               srv,
-		Conn:              conn,
 		ExecResultCh:      make(chan ExecResult, 10),
 		SubsystemResultCh: make(chan SubsystemResult, 10),
-		ClusterName:       conn.Permissions.Extensions[utils.CertTeleportClusterName],
+		ClusterName:       parent.ServerConn.Permissions.Extensions[utils.CertTeleportClusterName],
 		ClusterConfig:     clusterConfig,
 		Identity:          identityContext,
 		clientIdleTimeout: identityContext.RoleSet.AdjustClientIdleTimeout(clusterConfig.GetClientIdleTimeout()),
-		cancelContext:     cancelContext,
 		cancel:            cancel,
 	}
 
 	disconnectExpiredCert := identityContext.RoleSet.AdjustDisconnectExpiredCert(clusterConfig.GetDisconnectExpiredCert())
 	if !identityContext.CertValidBefore.IsZero() && disconnectExpiredCert {
-		ctx.disconnectExpiredCert = identityContext.CertValidBefore
+		child.disconnectExpiredCert = identityContext.CertValidBefore
 	}
 
 	fields := log.Fields{
-		"local":        conn.LocalAddr(),
-		"remote":       conn.RemoteAddr(),
-		"login":        ctx.Identity.Login,
-		"teleportUser": ctx.Identity.TeleportUser,
-		"id":           ctx.id,
+		"local":        child.ServerConn.LocalAddr(),
+		"remote":       child.ServerConn.RemoteAddr(),
+		"login":        child.Identity.Login,
+		"teleportUser": child.Identity.TeleportUser,
+		"id":           child.id,
 	}
-	if !ctx.disconnectExpiredCert.IsZero() {
-		fields["cert"] = ctx.disconnectExpiredCert
+	if !child.disconnectExpiredCert.IsZero() {
+		fields["cert"] = child.disconnectExpiredCert
 	}
-	if ctx.clientIdleTimeout != 0 {
-		fields["idle"] = ctx.clientIdleTimeout
+	if child.clientIdleTimeout != 0 {
+		fields["idle"] = child.clientIdleTimeout
 	}
-	ctx.Entry = log.WithFields(log.Fields{
+	child.Entry = log.WithFields(log.Fields{
 		trace.Component:       srv.Component(),
 		trace.ComponentFields: fields,
 	})
 
-	if !ctx.disconnectExpiredCert.IsZero() || ctx.clientIdleTimeout != 0 {
+	if !child.disconnectExpiredCert.IsZero() || child.clientIdleTimeout != 0 {
 		mon, err := NewMonitor(MonitorConfig{
-			DisconnectExpiredCert: ctx.disconnectExpiredCert,
-			ClientIdleTimeout:     ctx.clientIdleTimeout,
-			Clock:                 ctx.srv.GetClock(),
-			Tracker:               ctx,
-			Conn:                  conn,
-			Context:               cancelContext,
-			TeleportUser:          ctx.Identity.TeleportUser,
-			Login:                 ctx.Identity.Login,
-			ServerID:              ctx.srv.ID(),
-			Audit:                 ctx.srv.GetAuditLog(),
-			Entry:                 ctx.Entry,
+			DisconnectExpiredCert: child.disconnectExpiredCert,
+			ClientIdleTimeout:     child.clientIdleTimeout,
+			Clock:                 child.srv.GetClock(),
+			Tracker:               child,
+			Conn:                  child.ServerConn,
+			Context:               ctx,
+			TeleportUser:          child.Identity.TeleportUser,
+			Login:                 child.Identity.Login,
+			ServerID:              child.srv.ID(),
+			Audit:                 child.srv.GetAuditLog(),
+			Entry:                 child.Entry,
 		})
 		if err != nil {
-			ctx.Close()
-			return nil, trace.Wrap(err)
+			child.Close()
+			return nil, nil, trace.Wrap(err)
 		}
 		go mon.Start()
 	}
 
 	// Create pipe used to send command to child process.
-	ctx.cmdr, ctx.cmdw, err = os.Pipe()
+	child.cmdr, child.cmdw, err = os.Pipe()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		child.Close()
+		return nil, nil, trace.Wrap(err)
 	}
-	ctx.AddCloser(ctx.cmdr)
-	ctx.AddCloser(ctx.cmdw)
+	child.AddCloser(child.cmdr)
+	child.AddCloser(child.cmdw)
 
 	// Create pipe used to signal continue to child process.
-	ctx.contr, ctx.contw, err = os.Pipe()
+	child.contr, child.contw, err = os.Pipe()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		child.Close()
+		return nil, nil, trace.Wrap(err)
 	}
-	ctx.AddCloser(ctx.contr)
-	ctx.AddCloser(ctx.contw)
+	child.AddCloser(child.contr)
+	child.AddCloser(child.contw)
 
-	return ctx, nil
+	return ctx, child, nil
+}
+
+// Parent grants access to the connection-level context of which this
+// is a subcontext.  Useful for unambiguously accessing methods which
+// this subcontext overrides (e.g. child.Parent().SetEnv(...)).
+func (c *ServerContext) Parent() *sshutils.ConnectionContext {
+	return c.ConnectionContext
 }
 
 // ID returns ID of this context
@@ -416,9 +414,9 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 	// update ctx with a session ID
 	c.session, _ = findSession()
 	if c.session == nil {
-		log.Debugf("Will create new session for SSH connection %v.", c.Conn.RemoteAddr())
+		log.Debugf("Will create new session for SSH connection %v.", c.ServerConn.RemoteAddr())
 	} else {
-		log.Debugf("Will join session %v for SSH connection %v.", c.session, c.Conn.RemoteAddr())
+		log.Debugf("Will join session %v for SSH connection %v.", c.session, c.ServerConn.RemoteAddr())
 	}
 
 	return nil
@@ -447,32 +445,6 @@ func (c *ServerContext) AddCloser(closer io.Closer) {
 	c.closers = append(c.closers, closer)
 }
 
-// GetAgent returns a agent.Agent which represents the capabilities of an SSH agent.
-func (c *ServerContext) GetAgent() agent.Agent {
-	c.RLock()
-	defer c.RUnlock()
-	return c.agent
-}
-
-// GetAgentChannel returns the channel over which communication with the agent occurs.
-func (c *ServerContext) GetAgentChannel() ssh.Channel {
-	c.RLock()
-	defer c.RUnlock()
-	return c.agentChannel
-}
-
-// SetAgent sets the agent and channel over which communication with the agent occurs.
-func (c *ServerContext) SetAgent(a agent.Agent, channel ssh.Channel) {
-	c.Lock()
-	defer c.Unlock()
-	if c.agentChannel != nil {
-		c.Infof("closing previous agent channel")
-		c.agentChannel.Close()
-	}
-	c.agentChannel = channel
-	c.agent = a
-}
-
 // GetTerm returns a Terminal.
 func (c *ServerContext) GetTerm() Terminal {
 	c.RLock()
@@ -489,6 +461,16 @@ func (c *ServerContext) SetTerm(t Terminal) {
 	c.term = t
 }
 
+// VisitEnv grants visitor-style access to env variables.
+func (c *ServerContext) VisitEnv(visit func(key, val string)) {
+	// visit the parent env first since locally defined variables
+	// effectively "override" parent defined variables.
+	c.Parent().VisitEnv(visit)
+	for key, val := range c.env {
+		visit(key, val)
+	}
+}
+
 // SetEnv sets a environment variable within this context.
 func (c *ServerContext) SetEnv(key, val string) {
 	c.env[key] = val
@@ -497,7 +479,10 @@ func (c *ServerContext) SetEnv(key, val string) {
 // GetEnv returns a environment variable within this context.
 func (c *ServerContext) GetEnv(key string) (string, bool) {
 	val, ok := c.env[key]
-	return val, ok
+	if ok {
+		return val, true
+	}
+	return c.Parent().GetEnv(key)
 }
 
 // takeClosers returns all resources that should be closed and sets the properties to null
@@ -511,10 +496,6 @@ func (c *ServerContext) takeClosers() []io.Closer {
 	if c.term != nil {
 		closers = append(closers, c.term)
 		c.term = nil
-	}
-	if c.agentChannel != nil {
-		closers = append(closers, c.agentChannel)
-		c.agentChannel = nil
 	}
 	closers = append(closers, c.closers...)
 	c.closers = nil
@@ -548,16 +529,18 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 		events.SessionServerID: c.GetServer().HostUUID(),
 		events.EventLogin:      c.Identity.Login,
 		events.EventUser:       c.Identity.TeleportUser,
-		events.RemoteAddr:      c.Conn.RemoteAddr().String(),
+		events.RemoteAddr:      c.ServerConn.RemoteAddr().String(),
 		events.EventIndex:      events.SessionDataIndex,
 	}
 	if !c.srv.UseTunnel() {
-		eventFields[events.LocalAddr] = c.Conn.LocalAddr().String()
+		eventFields[events.LocalAddr] = c.ServerConn.LocalAddr().String()
 	}
 	if c.session != nil {
 		eventFields[events.SessionEventID] = c.session.id
 	}
-	c.GetServer().GetAuditLog().EmitAuditEvent(events.SessionData, eventFields)
+	if err := c.GetServer().GetAuditLog().EmitAuditEvent(events.SessionData, eventFields); err != nil {
+		c.Warnf("Failed to emit SessionData audit event: %v", err)
+	}
 
 	// Emit TX and RX bytes to their respective Prometheus counters.
 	serverTX.Add(float64(txBytes))
@@ -567,7 +550,7 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 func (c *ServerContext) Close() error {
 	// If the underlying connection is holding tracking information, report that
 	// to the audit log at close.
-	if stats, ok := c.Connection.(*utils.TrackingConn); ok {
+	if stats, ok := c.NetConn.(*utils.TrackingConn); ok {
 		defer c.reportStats(stats)
 	}
 
@@ -583,14 +566,10 @@ func (c *ServerContext) Close() error {
 	return nil
 }
 
-// CancelContext is a context associated with server context,
-// closed whenever this server context is closed
-func (c *ServerContext) CancelContext() context.Context {
-	return c.cancelContext
-}
-
-// Cancel is a function that triggers closure
-func (c *ServerContext) Cancel() context.CancelFunc {
+// CancelFunc gets the context.CancelFunc associated with
+// this context.  Not a substitute for calling the
+// ServerContext.Close method.
+func (c *ServerContext) CancelFunc() context.CancelFunc {
 	return c.cancel
 }
 
@@ -641,7 +620,7 @@ func (c *ServerContext) ProxyPublicAddress() string {
 }
 
 func (c *ServerContext) String() string {
-	return fmt.Sprintf("ServerContext(%v->%v, user=%v, id=%v)", c.Conn.RemoteAddr(), c.Conn.LocalAddr(), c.Conn.User(), c.id)
+	return fmt.Sprintf("ServerContext(%v->%v, user=%v, id=%v)", c.ServerConn.RemoteAddr(), c.ServerConn.LocalAddr(), c.ServerConn.User(), c.id)
 }
 
 // ExecCommand takes a *ServerContext and extracts the parts needed to create
@@ -703,18 +682,18 @@ func (c *ServerContext) ExecCommand() (*execCommand, error) {
 func buildEnvironment(ctx *ServerContext) []string {
 	var env []string
 
-	// Apply environment variables passed in from client.
-	for k, v := range ctx.env {
-		env = append(env, fmt.Sprintf("%s=%s", k, v))
-	}
+	// gather all dynamically defined environment variables
+	ctx.VisitEnv(func(key, val string) {
+		env = append(env, fmt.Sprintf("%s=%s", key, val))
+	})
 
 	// Parse the local and remote addresses to build SSH_CLIENT and
 	// SSH_CONNECTION environment variables.
-	remoteHost, remotePort, err := net.SplitHostPort(ctx.Conn.RemoteAddr().String())
+	remoteHost, remotePort, err := net.SplitHostPort(ctx.ServerConn.RemoteAddr().String())
 	if err != nil {
 		log.Debugf("Failed to split remote address: %v.", err)
 	} else {
-		localHost, localPort, err := net.SplitHostPort(ctx.Conn.LocalAddr().String())
+		localHost, localPort, err := net.SplitHostPort(ctx.ServerConn.LocalAddr().String())
 		if err != nil {
 			log.Debugf("Failed to split local address: %v.", err)
 		} else {
@@ -726,8 +705,8 @@ func buildEnvironment(ctx *ServerContext) []string {
 
 	// If a session has been created try and set TERM, SSH_TTY, and SSH_SESSION_ID.
 	if ctx.session != nil {
-		env = append(env, fmt.Sprintf("TERM=%v", ctx.session.term.GetTermType()))
 		if ctx.session.term != nil {
+			env = append(env, fmt.Sprintf("TERM=%v", ctx.session.term.GetTermType()))
 			env = append(env, fmt.Sprintf("SSH_TTY=%s", ctx.session.term.TTY().Name()))
 		}
 		if ctx.session.id != "" {

@@ -57,12 +57,6 @@ func (s *Wrapper) SetReadError(err error) {
 	s.readErr = err
 }
 
-// Backend returns the underlying backend. Useful when knowing the type of
-// backend is important (for example, can the backend support forking).
-func (s *Wrapper) Backend() Backend {
-	return s.backend
-}
-
 // GetRange returns query range
 func (s *Wrapper) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*GetResult, error) {
 	if err := s.GetReadError(); err != nil {
@@ -142,3 +136,6 @@ func (s *Wrapper) CloseWatchers() {
 func (s *Wrapper) Clock() clockwork.Clock {
 	return s.backend.Clock()
 }
+
+// Migrate runs the necessary data migrations for this backend.
+func (s *Wrapper) Migrate(ctx context.Context) error { return s.backend.Migrate(ctx) }

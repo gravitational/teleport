@@ -350,6 +350,9 @@ func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlc
 		":eventIndex": after,
 	}
 	attributeValues, err := dynamodbattribute.MarshalMap(attributes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	input := dynamodb.QueryInput{
 		KeyConditionExpression:    aws.String(query),
 		TableName:                 aws.String(l.Tablename),
@@ -403,6 +406,9 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) (
 		":end":            toUTC.Unix(),
 	}
 	attributeValues, err := dynamodbattribute.MarshalMap(attributes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	input := dynamodb.QueryInput{
 		KeyConditionExpression:    aws.String(query),
 		TableName:                 aws.String(l.Tablename),
@@ -414,7 +420,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	g.WithFields(log.Fields{"duration": time.Now().Sub(start), "items": len(out.Items)}).Debugf("Query completed.")
+	g.WithFields(log.Fields{"duration": time.Since(start), "items": len(out.Items)}).Debugf("Query completed.")
 	var total int
 	for _, item := range out.Items {
 		var e event

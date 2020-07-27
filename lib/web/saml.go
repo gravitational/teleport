@@ -82,6 +82,7 @@ func (m *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httpr
 			PublicKey:         req.PublicKey,
 			CertTTL:           req.CertTTL,
 			Compatibility:     req.Compatibility,
+			RouteToCluster:    req.RouteToCluster,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -102,7 +103,7 @@ func (m *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 	if err != nil {
 		log.Warningf("error while processing callback: %v", err)
 
-		message := "Unable to process callback from SAML provider. Ask your system administrator to check audit logs for details."
+		message := "Unable to process callback from SAML provider."
 		// for not implemented errors it's ok to provide a more specific
 		// message as it could give more guidance on what's not enabled
 		if trace.IsNotImplemented(err) {
@@ -130,8 +131,7 @@ func (m *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 		if err := SetSession(w, response.Username, response.Session.GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
-		return nil, nil
+		return nil, httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
 	}
 	l.Debugf("samlCallback redirecting to console login")
 	if len(response.Req.PublicKey) == 0 {

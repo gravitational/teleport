@@ -223,7 +223,7 @@ type TeleportProcess struct {
 
 	// registeredListeners keeps track of all listeners created by the process
 	// used to pass listeners to child processes during live reload
-	registeredListeners []RegisteredListener
+	registeredListeners []registeredListener
 	// importedDescriptors is a list of imported file descriptors
 	// passed by the parent process
 	importedDescriptors []FileDescriptor
@@ -345,6 +345,9 @@ func (process *TeleportProcess) GetIdentity(role teleport.Role) (i *auth.Identit
 				return nil, trace.Wrap(err)
 			}
 			i, err = auth.GenerateIdentity(process.localAuth, id, principals, dnsNames)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		} else {
 			// try to locate static identity provided in the file
 			i, err = process.findStaticIdentity(id)
@@ -777,7 +780,9 @@ func initUploadHandler(auditConfig services.AuditConfig) (events.UploadHandler, 
 	switch uri.Scheme {
 	case teleport.SchemeGCS:
 		config := gcssessions.Config{}
-		config.SetFromURL(uri)
+		if err := config.SetFromURL(uri); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		handler, err := gcssessions.DefaultNewHandler(config)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -785,7 +790,9 @@ func initUploadHandler(auditConfig services.AuditConfig) (events.UploadHandler, 
 		return handler, nil
 	case teleport.SchemeS3:
 		config := s3sessions.Config{}
-		config.SetFromURL(uri, auditConfig.Region)
+		if err := config.SetFromURL(uri, auditConfig.Region); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		handler, err := s3sessions.NewHandler(config)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -810,17 +817,19 @@ func initUploadHandler(auditConfig services.AuditConfig) (events.UploadHandler, 
 }
 
 // initExternalLog initializes external storage, if the storage is not
-// setup, returns nil
+// setup, returns (nil, nil).
 func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error) {
+	//
+	// DELETE IN: 5.0
+	// We could probably just remove AuditTableName now (its been deprecated for a while), but
+	// its probably more polite to delete it on a major release transition.
+	//
 	if auditConfig.AuditTableName != "" {
 		log.Warningf("Please note that 'audit_table_name' is deprecated and will be removed in several releases. Use audit_events_uri: '%v://%v' instead.", dynamo.GetName(), auditConfig.AuditTableName)
 		if len(auditConfig.AuditEventsURI) != 0 {
 			return nil, trace.BadParameter("Detected configuration specifying 'audit_table_name' and 'audit_events_uri' at the same time. Please migrate your config to use 'audit_events_uri' only.")
 		}
 		auditConfig.AuditEventsURI = []string{fmt.Sprintf("%v://%v", dynamo.GetName(), auditConfig.AuditTableName)}
-	}
-	if len(auditConfig.AuditEventsURI) > 0 && !auditConfig.ShouldUploadSessions() {
-		return nil, trace.BadParameter("please specify audit_sessions_uri when using external audit backends")
 	}
 	var hasNonFileLog bool
 	var loggers []events.IAuditLog
@@ -859,6 +868,12 @@ func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error)
 			}
 			loggers = append(loggers, logger)
 		case teleport.SchemeFile:
+			if uri.Path == "" {
+				return nil, trace.BadParameter("unsupported audit uri: %q (missing path component)", uri)
+			}
+			if uri.Host != "" && uri.Host != "localhost" {
+				return nil, trace.BadParameter("unsupported audit uri: %q (nonlocal host component: %q)", uri, uri.Host)
+			}
 			if err := os.MkdirAll(uri.Path, teleport.SharedDirMode); err != nil {
 				return nil, trace.ConvertSystemError(err)
 			}
@@ -878,28 +893,22 @@ func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error)
 				uri.Scheme, dynamo.GetName(), teleport.SchemeFile)
 		}
 	}
-	// only file external loggers are prohibited (they are not supposed
-	// to be used on their own, only in combo with external loggers)
-	// they also don't implement certain features, so they are going
-	// to be inefficient
-	switch len(loggers) {
-	case 0:
-		return nil, trace.NotFound("no external log is defined")
-	case 1:
-		if !hasNonFileLog {
-			return nil, trace.BadParameter(
-				"file:// or stdout:// log can not be used on it's own, " +
-					"can be only used in combination with external session logs, e.g. dynamodb://")
-		}
-		return loggers[0], nil
-	default:
-		if !hasNonFileLog {
-			return nil, trace.BadParameter(
-				"file:// or stdout:// log can not be used on it's own, " +
-					"can be only used in combination with external session logs, e.g. dynamodb://")
-		}
+
+	if len(loggers) < 1 {
+		return nil, nil
+	}
+
+	if !auditConfig.ShouldUploadSessions() && hasNonFileLog {
+		// if audit events are being exported, session recordings should
+		// be exported as well.
+		return nil, trace.BadParameter("please specify audit_sessions_uri when using external audit backends")
+	}
+
+	if len(loggers) > 1 {
 		return events.NewMultiLog(loggers...), nil
 	}
+
+	return loggers[0], nil
 }
 
 // initAuthService can be called to initialize auth server service
@@ -945,11 +954,11 @@ func (process *TeleportProcess) initAuthService() error {
 			}
 		}
 
+		// initialize external loggers.  may return (nil, nil) if no
+		// external loggers have been defined.
 		externalLog, err := initExternalLog(auditConfig)
 		if err != nil {
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
+			return trace.Wrap(err)
 		}
 
 		auditServiceConfig := events.AuditLogConfig{
@@ -996,6 +1005,7 @@ func (process *TeleportProcess) initAuthService() error {
 		OIDCConnectors:       cfg.OIDCConnectors,
 		AuditLog:             process.auditLog,
 		CipherSuites:         cfg.CipherSuites,
+		CASigningAlg:         cfg.CASignatureAlgorithm,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1064,7 +1074,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	// auth server listens on SSH and TLS, reusing the same socket
-	listener, err := process.importOrCreateListener(teleport.ComponentAuth, cfg.Auth.SSHAddr.Addr)
+	listener, err := process.importOrCreateListener(listenerAuthSSH, cfg.Auth.SSHAddr.Addr)
 	if err != nil {
 		log.Errorf("PID: %v Failed to bind to address %v: %v, exiting.", os.Getpid(), cfg.Auth.SSHAddr.Addr, err)
 		return trace.Wrap(err)
@@ -1158,6 +1168,7 @@ func (process *TeleportProcess) initAuthService() error {
 				Spec: services.ServerSpecV2{
 					Addr:     authAddr,
 					Hostname: process.Config.Hostname,
+					Version:  teleport.Version,
 				},
 			}
 			state, err := process.storage.GetState(teleport.RoleAdmin)
@@ -1222,10 +1233,9 @@ func (process *TeleportProcess) onExit(serviceName string, callback func(interfa
 	process.RegisterFunc(serviceName, func() error {
 		eventC := make(chan Event)
 		process.WaitForEvent(context.TODO(), TeleportExitEvent, eventC)
-		select {
-		case event := <-eventC:
-			callback(event.Payload)
-		}
+
+		event := <-eventC
+		callback(event.Payload)
 		return nil
 	})
 }
@@ -1346,7 +1356,7 @@ func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheNam
 	return process.newLocalCache(clt, cache.ForProxy, cacheName)
 }
 
-// newAccessPointCache returns new instance of access point
+// newLocalCache returns new instance of access point
 func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (auth.AccessPoint, error) {
 	// if caching is disabled, return access point
 	if !process.Config.CachePolicy.Enabled {
@@ -1431,7 +1441,7 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 		if clusterConfig.GetSessionRecording() == services.RecordOff &&
-			cfg.SSH.BPF.Enabled == true {
+			cfg.SSH.BPF.Enabled {
 			return trace.BadParameter("session recording is disabled at the cluster " +
 				"level. To enable enhanced session recording, enable session recording at " +
 				"the cluster level, then restart Teleport.")
@@ -1518,7 +1528,7 @@ func (process *TeleportProcess) initSSH() error {
 		}
 
 		if !conn.UseTunnel() {
-			listener, err := process.importOrCreateListener(teleport.ComponentNode, cfg.SSH.Addr.Addr)
+			listener, err := process.importOrCreateListener(listenerNodeSSH, cfg.SSH.Addr.Addr)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1537,7 +1547,9 @@ func (process *TeleportProcess) initSSH() error {
 		} else {
 			// Start the SSH server. This kicks off updating labels and starting the
 			// heartbeat.
-			s.Start()
+			if err := s.Start(); err != nil {
+				return trace.Wrap(err)
+			}
 
 			// Create and start an agent pool.
 			agentPool, err = reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
@@ -1587,12 +1599,14 @@ func (process *TeleportProcess) initSSH() error {
 				warnOnErr(s.Shutdown(payloadContext(payload)))
 			}
 		}
-		if conn.UseTunnel() {
+		if conn != nil && conn.UseTunnel() {
 			agentPool.Stop()
 		}
 
-		// Close BPF service.
-		warnOnErr(ebpf.Close())
+		if ebpf != nil {
+			// Close BPF service.
+			warnOnErr(ebpf.Close())
+		}
 
 		log.Infof("Exited.")
 	})
@@ -1736,6 +1750,10 @@ func (process *TeleportProcess) initDiagnosticService() error {
 			roundtrip.ReplyJSON(w, http.StatusBadRequest, map[string]interface{}{
 				"status": "teleport is recovering from a degraded state, check logs for details",
 			})
+		case stateStarting:
+			roundtrip.ReplyJSON(w, http.StatusBadRequest, map[string]interface{}{
+				"status": "teleport is starting and hasn't joined the cluster yet",
+			})
 		// 200
 		case stateOK:
 			roundtrip.ReplyJSON(w, http.StatusOK, map[string]interface{}{
@@ -1744,7 +1762,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 		}
 	})
 
-	listener, err := process.importOrCreateListener(teleport.ComponentDiagnostic, process.Config.DiagnosticAddr.Addr)
+	listener, err := process.importOrCreateListener(listenerDiagnostic, process.Config.DiagnosticAddr.Addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1913,7 +1931,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 
 	if cfg.Proxy.Kube.Enabled {
 		process.Debugf("Setup Proxy: turning on Kubernetes proxy.")
-		listener, err := process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "kube"), cfg.Proxy.Kube.ListenAddr.Addr)
+		listener, err := process.importOrCreateListener(listenerProxyKube, cfg.Proxy.Kube.ListenAddr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1926,7 +1944,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		return &listeners, nil
 	case cfg.Proxy.ReverseTunnelListenAddr.Equals(cfg.Proxy.WebAddr) && !cfg.Proxy.DisableTLS:
 		process.Debugf("Setup Proxy: Reverse tunnel proxy and web proxy listen on the same port, multiplexing is on.")
-		listener, err := process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "tunnel", "web"), cfg.Proxy.WebAddr.Addr)
+		listener, err := process.importOrCreateListener(listenerProxyTunnelAndWeb, cfg.Proxy.WebAddr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1947,7 +1965,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		return &listeners, nil
 	case cfg.Proxy.EnableProxyProtocol && !cfg.Proxy.DisableWebService && !cfg.Proxy.DisableTLS:
 		process.Debugf("Setup Proxy: Proxy protocol is enabled for web service, multiplexing is on.")
-		listener, err := process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "web"), cfg.Proxy.WebAddr.Addr)
+		listener, err := process.importOrCreateListener(listenerProxyWeb, cfg.Proxy.WebAddr.Addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1963,7 +1981,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			return nil, trace.Wrap(err)
 		}
 		listeners.web = listeners.mux.TLS()
-		listeners.reverseTunnel, err = process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "tunnel"), cfg.Proxy.ReverseTunnelListenAddr.Addr)
+		listeners.reverseTunnel, err = process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 		if err != nil {
 			listener.Close()
 			listeners.Close()
@@ -1974,14 +1992,14 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 	default:
 		process.Debugf("Proxy and reverse tunnel are listening on separate ports.")
 		if !cfg.Proxy.DisableReverseTunnel {
-			listeners.reverseTunnel, err = process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "tunnel"), cfg.Proxy.ReverseTunnelListenAddr.Addr)
+			listeners.reverseTunnel, err = process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 			if err != nil {
 				listeners.Close()
 				return nil, trace.Wrap(err)
 			}
 		}
 		if !cfg.Proxy.DisableWebService {
-			listeners.web, err = process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "web"), cfg.Proxy.WebAddr.Addr)
+			listeners.web, err = process.importOrCreateListener(listenerProxyWeb, cfg.Proxy.WebAddr.Addr)
 			if err != nil {
 				listeners.Close()
 				return nil, trace.Wrap(err)
@@ -1993,7 +2011,11 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 
 func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// clean up unused descriptors passed for proxy, but not used by it
-	defer process.closeImportedDescriptors(teleport.ComponentProxy)
+	defer func() {
+		if err := process.closeImportedDescriptors(teleport.ComponentProxy); err != nil {
+			process.Warnf("Failed closing imported file descriptors: %v", err)
+		}
+	}()
 	var err error
 	cfg := process.Config
 
@@ -2097,6 +2119,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if len(cfg.Proxy.TunnelPublicAddrs) > 0 {
 			proxySettings.SSH.TunnelPublicAddr = cfg.Proxy.TunnelPublicAddrs[0].String()
 		}
+		if cfg.Proxy.Kube.Enabled {
+			proxySettings.Kube.ListenAddr = cfg.Proxy.Kube.ListenAddr.String()
+		}
 		if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
 			proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
 		}
@@ -2145,7 +2170,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	// Register SSH proxy server - SSH jumphost proxy server
-	listener, err := process.importOrCreateListener(teleport.Component(teleport.ComponentProxy, "ssh"), cfg.Proxy.SSHAddr.Addr)
+	listener, err := process.importOrCreateListener(listenerProxySSH, cfg.Proxy.SSHAddr.Addr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2321,25 +2346,29 @@ func warnOnErr(err error) {
 
 // initAuthStorage initializes the storage backend for the auth service.
 func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error) {
+	ctx := context.TODO()
 	bc := &process.Config.Auth.StorageConfig
 	process.Debugf("Using %v backend.", bc.Type)
 	switch bc.Type {
 	// SQLite backend (or alt name dir).
 	case lite.GetName():
-		bk, err = lite.New(context.TODO(), bc.Params)
+		bk, err = lite.New(ctx, bc.Params)
 	// Firestore backend:
 	case firestore.GetName():
-		bk, err = firestore.New(context.TODO(), bc.Params)
+		bk, err = firestore.New(ctx, bc.Params)
 	// DynamoDB backend.
 	case dynamo.GetName():
-		bk, err = dynamo.New(context.TODO(), bc.Params)
+		bk, err = dynamo.New(ctx, bc.Params)
 	// etcd backend.
 	case etcdbk.GetName():
-		bk, err = etcdbk.New(context.TODO(), bc.Params)
+		bk, err = etcdbk.New(ctx, bc.Params)
 	default:
 		err = trace.BadParameter("unsupported secrets storage type: %q", bc.Type)
 	}
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := bk.Migrate(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
@@ -2365,12 +2394,12 @@ func (process *TeleportProcess) WaitWithContext(ctx context.Context) {
 	local, cancel := context.WithCancel(ctx)
 	go func() {
 		defer cancel()
-		process.Supervisor.Wait()
+		if err := process.Supervisor.Wait(); err != nil {
+			process.Warnf("Error waiting for all services to complete: %v", err)
+		}
 	}()
-	select {
-	case <-local.Done():
-		return
-	}
+
+	<-local.Done()
 }
 
 // StartShutdown launches non-blocking graceful shutdown process that signals
@@ -2380,7 +2409,9 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 	localCtx, cancel := context.WithCancel(ctx)
 	go func() {
 		defer cancel()
-		process.Supervisor.Wait()
+		if err := process.Supervisor.Wait(); err != nil {
+			process.Warnf("Error waiting for all services to complete: %v", err)
+		}
 		process.Debugf("All supervisor functions are completed.")
 		localAuth := process.getLocalAuth()
 		if localAuth != nil {
@@ -2398,10 +2429,8 @@ func (process *TeleportProcess) StartShutdown(ctx context.Context) context.Conte
 func (process *TeleportProcess) Shutdown(ctx context.Context) {
 	localCtx := process.StartShutdown(ctx)
 	// wait until parent context closes
-	select {
-	case <-localCtx.Done():
-		process.Debugf("Process completed.")
-	}
+	<-localCtx.Done()
+	process.Debugf("Process completed.")
 }
 
 // Close broadcasts close signals and exits immediately

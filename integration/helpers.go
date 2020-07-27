@@ -26,7 +26,6 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
@@ -57,7 +56,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -159,7 +157,10 @@ type InstanceConfig struct {
 	MultiplexProxy bool
 }
 
-// NewInstance creates a new Teleport process instance
+// NewInstance creates a new Teleport process instance.
+//
+// The caller is responsible for calling StopAll on the returned instance to
+// clean up spawned processes.
 func NewInstance(cfg InstanceConfig) *TeleInstance {
 	var err error
 	if len(cfg.Ports) < 5 {
@@ -186,17 +187,19 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 
 	cert, err := keygen.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: cfg.Priv,
+		CASigningAlg:        defaults.CASignatureAlgorithm,
 		PublicHostKey:       cfg.Pub,
 		HostID:              cfg.HostID,
 		NodeName:            cfg.NodeName,
 		ClusterName:         cfg.ClusterName,
 		Roles:               teleport.Roles{teleport.RoleAdmin},
-		TTL:                 time.Duration(time.Hour * 24),
+		TTL:                 24 * time.Hour,
 	})
 	fatalIf(err)
 	tlsCA, err := tlsca.New(tlsCACert, tlsCAKey)
 	fatalIf(err)
 	cryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
+	fatalIf(err)
 	identity := tlsca.Identity{
 		Username: fmt.Sprintf("%v.%v", cfg.HostID, cfg.ClusterName),
 		Groups:   []string{string(teleport.RoleAdmin)},
@@ -253,11 +256,25 @@ func (s *InstanceSecrets) GetRoles() []services.Role {
 // case we always return hard-coded userCA + hostCA (and they share keys
 // for simplicity)
 func (s *InstanceSecrets) GetCAs() []services.CertAuthority {
-	hostCA := services.NewCertAuthority(services.HostCA, s.SiteName, [][]byte{s.PrivKey}, [][]byte{s.PubKey}, []string{})
+	hostCA := services.NewCertAuthority(
+		services.HostCA,
+		s.SiteName,
+		[][]byte{s.PrivKey},
+		[][]byte{s.PubKey},
+		[]string{},
+		services.CertAuthoritySpecV2_RSA_SHA2_512,
+	)
 	hostCA.SetTLSKeyPairs([]services.TLSKeyPair{{Cert: s.TLSCACert, Key: s.PrivKey}})
 	return []services.CertAuthority{
 		hostCA,
-		services.NewCertAuthority(services.UserCA, s.SiteName, [][]byte{s.PrivKey}, [][]byte{s.PubKey}, []string{services.RoleNameForCertAuthority(s.SiteName)}),
+		services.NewCertAuthority(
+			services.UserCA,
+			s.SiteName,
+			[][]byte{s.PrivKey},
+			[][]byte{s.PubKey},
+			[]string{services.RoleNameForCertAuthority(s.SiteName)},
+			services.CertAuthoritySpecV2_RSA_SHA2_512,
+		),
 	}
 }
 
@@ -376,6 +393,7 @@ func SetupUserCreds(tc *client.TeleportClient, proxyHost string, creds UserCreds
 
 // SetupUser sets up user in the cluster
 func SetupUser(process *service.TeleportProcess, username string, roles []services.Role) error {
+	ctx := context.TODO()
 	auth := process.GetAuthServer()
 	teleUser, err := services.NewUser(username)
 	if err != nil {
@@ -390,15 +408,14 @@ func SetupUser(process *service.TeleportProcess, username string, roles []servic
 		roleOptions.ForwardAgent = services.NewBool(true)
 		role.SetOptions(roleOptions)
 
-		err = auth.UpsertRole(role)
+		err = auth.UpsertRole(ctx, role)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		teleUser.AddRole(role.GetMetadata().Name)
-		roles = append(roles, role)
 	} else {
 		for _, role := range roles {
-			err := auth.UpsertRole(role)
+			err := auth.UpsertRole(ctx, role)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -551,6 +568,7 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 // Unlike Create() it allows for greater customization because it accepts
 // a full Teleport config structure
 func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *service.Config) error {
+	ctx := context.TODO()
 	tconf, err := i.GenerateConfig(trustedSecrets, tconf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -578,7 +596,6 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 		}
 		// set hardcode traits to trigger new style certificates
 		teleUser.SetTraits(map[string][]string{"testing": []string{"integration"}})
-		var roles []services.Role
 		if len(user.Roles) == 0 {
 			role := services.RoleForUser(teleUser)
 			role.SetLogins(services.Allow, user.AllowedLogins)
@@ -588,16 +605,14 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 			roleOptions.ForwardAgent = services.NewBool(true)
 			role.SetOptions(roleOptions)
 
-			err = auth.UpsertRole(role)
+			err = auth.UpsertRole(ctx, role)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			teleUser.AddRole(role.GetMetadata().Name)
-			roles = append(roles, role)
 		} else {
-			roles = user.Roles
 			for _, role := range user.Roles {
-				err := auth.UpsertRole(role)
+				err := auth.UpsertRole(ctx, role)
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -628,13 +643,28 @@ func (i *TeleInstance) CreateEx(trustedSecrets []*InstanceSecrets, tconf *servic
 
 // StartNode starts a SSH node and connects it to the cluster.
 func (i *TeleInstance) StartNode(tconf *service.Config) (*service.TeleportProcess, error) {
+	return i.startNode(tconf, false)
+}
+
+// StartReverseTunnelNode starts a SSH node and connects it to the cluster via reverse tunnel.
+func (i *TeleInstance) StartReverseTunnelNode(tconf *service.Config) (*service.TeleportProcess, error) {
+	return i.startNode(tconf, true)
+}
+
+// startNode starts a node and connects it to the cluster.
+func (i *TeleInstance) startNode(tconf *service.Config, reverseTunnel bool) (*service.TeleportProcess, error) {
 	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	tconf.DataDir = dataDir
 
-	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, i.GetPortAuth()))
+	authPort := i.GetPortAuth()
+	if reverseTunnel {
+		authPort = i.GetPortWeb()
+	}
+
+	authServer := utils.MustParseAddr(net.JoinHostPort(i.Hostname, authPort))
 	tconf.AuthServers = append(tconf.AuthServers, *authServer)
 	tconf.Token = "token"
 	tconf.UploadEventsC = i.UploadEventsC
@@ -845,6 +875,11 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 // Reset re-creates the teleport instance based on the same configuration
 // This is needed if you want to stop the instance, reset it and start again
 func (i *TeleInstance) Reset() (err error) {
+	if i.Process != nil {
+		if err := i.Process.Close(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	i.Process, err = service.NewTeleport(i.Config)
 	if err != nil {
 		return trace.Wrap(err)
@@ -944,6 +979,8 @@ type ClientConfig struct {
 	ForwardAgent bool
 	// JumpHost turns on jump host mode
 	JumpHost bool
+	// Labels represents host labels
+	Labels map[string]string
 }
 
 // NewClientWithCreds creates client with credentials
@@ -993,6 +1030,7 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		KeysDir:            keyDir,
 		SiteName:           cfg.Cluster,
 		ForwardAgent:       cfg.ForwardAgent,
+		Labels:             cfg.Labels,
 		WebProxyAddr:       webProxyAddr,
 		SSHProxyAddr:       sshProxyAddr,
 	}
@@ -1077,7 +1115,9 @@ func (i *TeleInstance) StopNodes() error {
 	return trace.NewAggregate(errors...)
 }
 
-func (i *TeleInstance) Stop(removeData bool) error {
+// StopAuth stops the auth server process. If removeData is true, the data
+// directory is also cleaned up.
+func (i *TeleInstance) StopAuth(removeData bool) error {
 	if i.Config != nil && removeData {
 		err := os.RemoveAll(i.Config.DataDir)
 		if err != nil {
@@ -1095,6 +1135,16 @@ func (i *TeleInstance) Stop(removeData bool) error {
 		log.Infof("Teleport instance '%v' stopped!", i.Secrets.SiteName)
 	}()
 	return i.Process.Wait()
+}
+
+// StopAll stops all spawned processes (auth server, nodes, proxies). StopAll
+// should always be called at the end of TeleInstance's usage.
+func (i *TeleInstance) StopAll() error {
+	var errors []error
+	errors = append(errors, i.StopNodes())
+	errors = append(errors, i.StopProxy())
+	errors = append(errors, i.StopAuth(true))
+	return trace.NewAggregate(errors...)
 }
 
 func startAndWait(process *service.TeleportProcess, expectedEvents []string) ([]service.Event, error) {
@@ -1247,11 +1297,11 @@ func (s *discardServer) Stop() {
 	s.sshServer.Close()
 }
 
-func (s *discardServer) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, newChannel ssh.NewChannel) {
+func (s *discardServer) HandleNewChan(_ context.Context, ccx *sshutils.ConnectionContext, newChannel ssh.NewChannel) {
 	channel, reqs, err := newChannel.Accept()
 	if err != nil {
-		sconn.Close()
-		conn.Close()
+		ccx.ServerConn.Close()
+		ccx.NetConn.Close()
 		return
 	}
 
@@ -1261,23 +1311,17 @@ func (s *discardServer) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, newC
 func (s *discardServer) handleChannel(channel ssh.Channel, reqs <-chan *ssh.Request) {
 	defer channel.Close()
 
-	for {
-		select {
-		case req := <-reqs:
-			if req == nil {
-				return
-			}
-			if req.Type == "exec" {
-				successPayload := ssh.Marshal(struct{ C uint32 }{C: uint32(0)})
-				channel.SendRequest("exit-status", false, successPayload)
-				if req.WantReply {
-					req.Reply(true, nil)
-				}
-				return
-			}
+	for req := range reqs {
+		if req.Type == "exec" {
+			successPayload := ssh.Marshal(struct{ C uint32 }{C: uint32(0)})
+			channel.SendRequest("exit-status", false, successPayload)
 			if req.WantReply {
 				req.Reply(true, nil)
 			}
+			return
+		}
+		if req.WantReply {
+			req.Reply(true, nil)
 		}
 	}
 }
@@ -1391,8 +1435,13 @@ func createAgent(me *user.User, privateKeyByte []byte, certificateBytes []byte) 
 	}
 
 	// create a (unstarted) agent and add the key to it
-	teleAgent := teleagent.NewServer()
-	teleAgent.Add(agentKey)
+	keyring := agent.NewKeyring()
+	if err := keyring.Add(agentKey); err != nil {
+		return nil, "", "", trace.Wrap(err)
+	}
+	teleAgent := teleagent.NewServer(func() (teleagent.Agent, error) {
+		return teleagent.NopCloser(keyring), nil
+	})
 
 	// start the SSH agent
 	err = teleAgent.ListenUnixSocket(sockPath, uid, gid, 0600)
@@ -1416,24 +1465,6 @@ func closeAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {
 	}
 
 	return nil
-}
-
-// createWebClient builds a *client.WebClient that is used to simulate
-// browser requests.
-func createWebClient(cluster *TeleInstance, opts ...roundtrip.ClientParam) (*client.WebClient, error) {
-	// Craft URL to Web UI.
-	u := &url.URL{
-		Scheme: "https",
-		Host:   cluster.Config.Proxy.WebAddr.Addr,
-	}
-
-	opts = append(opts, roundtrip.HTTPClient(client.NewInsecureWebClient()))
-	wc, err := client.NewWebClient(u.String(), opts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return wc, nil
 }
 
 func fatalIf(err error) {

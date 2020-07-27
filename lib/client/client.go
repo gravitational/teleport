@@ -19,7 +19,6 @@ package client
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"io"
 	"io/ioutil"
@@ -85,7 +84,9 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	}
 	done := make(chan struct{})
 	go func() {
-		io.Copy(stdout, reader)
+		if _, err := io.Copy(stdout, reader); err != nil {
+			log.Warningf("Error reading STDOUT from proxy: %v", err)
+		}
 		close(done)
 	}()
 	// this function is async because,
@@ -166,7 +167,7 @@ func (proxy *ProxyClient) GenerateCertsForCluster(ctx context.Context, routeToCl
 	return trace.Wrap(err)
 }
 
-// ReissueParams encodes optional paramters for
+// ReissueParams encodes optional parameters for
 // user certificate reissue.
 type ReissueParams struct {
 	RouteToCluster string
@@ -350,28 +351,14 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 		})
 	}
 
-	// Because Teleport clients can't be configured (yet), they take the default
-	// list of cipher suites from Go.
-	tlsConfig := utils.TLSConfig(nil)
 	localAgent := proxy.teleportClient.LocalAgent()
-	pool, err := localAgent.GetCerts()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsConfig.RootCAs = pool
 	key, err := localAgent.GetKey()
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", proxy.teleportClient.Username)
 	}
-	if len(key.TLSCert) != 0 {
-		tlsCert, err := tls.X509KeyPair(key.TLSCert, key.Priv)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse TLS cert and key")
-		}
-		tlsConfig.Certificates = append(tlsConfig.Certificates, tlsCert)
-	}
-	if len(tlsConfig.Certificates) == 0 {
-		return nil, trace.BadParameter("no TLS keys found for user %v, please relogin to get new credentials", proxy.teleportClient.Username)
+	tlsConfig, err := key.ClientTLSConfig()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to generate client TLS config")
 	}
 	clt, err := auth.NewTLSClient(auth.ClientConfig{
 		Dialer: dialer,
@@ -865,7 +852,11 @@ func (client *NodeClient) ExecuteSCP(cmd scp.Command) error {
 	return trace.Wrap(err)
 }
 
-func (client *NodeClient) proxyConnection(ctx context.Context, conn net.Conn, remoteAddr string) error {
+type netDialer interface {
+	Dial(string, string) (net.Conn, error)
+}
+
+func proxyConnection(ctx context.Context, conn net.Conn, remoteAddr string, dialer netDialer) error {
 	defer conn.Close()
 	defer log.Debugf("Finished proxy from %v to %v.", conn.RemoteAddr(), remoteAddr)
 
@@ -876,7 +867,7 @@ func (client *NodeClient) proxyConnection(ctx context.Context, conn net.Conn, re
 
 	log.Debugf("Attempting to connect proxy from %v to %v.", conn.RemoteAddr(), remoteAddr)
 	for attempt := 1; attempt <= 5; attempt++ {
-		remoteConn, err = client.Client.Dial("tcp", remoteAddr)
+		remoteConn, err = dialer.Dial("tcp", remoteAddr)
 		if err != nil {
 			log.Debugf("Proxy connection attempt %v: %v.", attempt, err)
 
@@ -904,29 +895,33 @@ func (client *NodeClient) proxyConnection(ctx context.Context, conn net.Conn, re
 	errCh := make(chan error, 2)
 	go func() {
 		defer conn.Close()
+		defer remoteConn.Close()
+
 		_, err := io.Copy(conn, remoteConn)
 		errCh <- err
 	}()
 	go func() {
 		defer conn.Close()
+		defer remoteConn.Close()
+
 		_, err := io.Copy(remoteConn, conn)
 		errCh <- err
 	}()
 
-	var lastErr error
+	var errs []error
 	for i := 0; i < 2; i++ {
 		select {
 		case err := <-errCh:
-			if err != nil && err != io.EOF {
+			if err != nil && err != io.EOF && !strings.Contains(err.Error(), "use of closed network connection") {
 				log.Warnf("Failed to proxy connection: %v.", err)
-				lastErr = err
+				errs = append(errs, err)
 			}
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
 		}
 	}
 
-	return lastErr
+	return trace.NewAggregate(errs...)
 }
 
 // listenAndForward listens on a given socket and forwards all incoming
@@ -945,7 +940,7 @@ func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, remo
 
 		// Proxy the connection to the remote address.
 		go func() {
-			err := c.proxyConnection(ctx, conn, remoteAddr)
+			err := proxyConnection(ctx, conn, remoteAddr, c.Client)
 			if err != nil {
 				log.Warnf("Failed to proxy connection: %v.", err)
 			}
@@ -979,7 +974,7 @@ func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listene
 
 		// Proxy the connection to the remote address.
 		go func() {
-			err := c.proxyConnection(ctx, conn, remoteAddr)
+			err := proxyConnection(ctx, conn, remoteAddr, c.Client)
 			if err != nil {
 				log.Warnf("Failed to proxy connection: %v.", err)
 			}

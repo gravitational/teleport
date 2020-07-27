@@ -1,0 +1,40 @@
+{{- if .Values.usePSP -}}
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: {{ template "teleport.fullname" . }}-daemonset-psp
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+spec:
+  allowedHostPaths:
+  - pathPrefix: "/etc/systemd/system"
+  - pathPrefix: "/etc/teleport"
+  - pathPrefix: "/run"
+  - pathPrefix: "/sys/fs/cgroup"
+  - pathPrefix: "/sys/fs/cgroup/systemd"
+  - pathPrefix: "/usr/local/bin"
+  - pathPrefix: "/var/lib/teleport"
+  - pathPrefix: "/var/log/teleport.log"
+    readOnly: true
+  - pathPrefix: "/var/run/dbus"
+  fsGroup:
+    rule: 'RunAsAny'
+  hostNetwork: false
+  hostIPC: false
+  hostPID: true
+  privileged: false
+  runAsUser:
+    rule: 'RunAsAny'
+  seLinux:
+    rule: 'RunAsAny'
+  supplementalGroups:
+    rule: 'RunAsAny'
+  volumes:
+  - configMap
+  - downwardAPI
+  - emptyDir
+  - hostPath
+  - persistentVolumeClaim
+  - secret
+  - projected
+{{- end -}}

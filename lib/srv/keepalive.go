@@ -28,7 +28,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// RequestSender is an interface that impliments SendRequest. It is used so
+// RequestSender is an interface that implements SendRequest. It is used so
 // server and client connections can be passed to functions to send requests.
 type RequestSender interface {
 	// SendRequest is used to send a out-of-band request.

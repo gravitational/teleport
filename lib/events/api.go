@@ -92,6 +92,15 @@ const (
 	// SessionServerHostname is the hostname of the server the session occurred on.
 	SessionServerHostname = "server_hostname"
 
+	// SessionServerAddr is the address of the server the session occurred on.
+	SessionServerAddr = "server_addr"
+
+	// SessionStartTime is the timestamp at which the session began.
+	SessionStartTime = "session_start"
+
+	// SessionEndTime is the timestamp at which the session ended.
+	SessionEndTime = "session_stop"
+
 	// SessionEnhancedRecording is used to indicate if the recording was an
 	// enhanced recording or not.
 	SessionEnhancedRecording = "enhanced_recording"
@@ -144,17 +153,24 @@ const (
 	// LoginMethodGithub represents login with Github
 	LoginMethodGithub = "github"
 
-	// UserUpdatedEvent is emitted when the user is created or updated (upsert).
+	// UserUpdatedEvent is emitted when the user is updated.
 	UserUpdatedEvent = "user.update"
 
 	// UserDeleteEvent is emitted when the user is deleted.
 	UserDeleteEvent = "user.delete"
+
+	// UserCreateEvent is emitted when the user is created.
+	UserCreateEvent = "user.create"
+
+	// UserPasswordChangeEvent is when the user changes their own password.
+	UserPasswordChangeEvent = "user.password_change"
 
 	// UserExpires is when the user will expire.
 	UserExpires = "expires"
 
 	// UserRoles is a list of roles for the user.
 	UserRoles = "roles"
+
 	// IdentityAttributes is a map of user attributes
 	// received from identity provider
 	IdentityAttributes = "attributes"
@@ -166,12 +182,26 @@ const (
 	AccessRequestCreateEvent = "access_request.create"
 	// AccessRequestUpdateEvent is emitted when a request's state is updated.
 	AccessRequestUpdateEvent = "access_request.update"
-	// AccessRequestUpdateBy indicates the user that updated the request state.
-	AccessRequestUpdateBy = "updated_by"
+	// AccessRequestDelegator is used by teleport plugins to indicate the identity
+	// which caused them to update state.
+	AccessRequestDelegator = "delegator"
 	// AccessRequestState is the state of a request.
 	AccessRequestState = "state"
 	// AccessRequestID is the ID of an access request.
 	AccessRequestID = "id"
+
+	// UpdatedBy indicates the user who modified some resource:
+	//  - updating a request state
+	//  - updating a user record
+	UpdatedBy = "updated_by"
+
+	// ResetPasswordTokenCreateEvent is emitted when a new reset password token is created.
+	ResetPasswordTokenCreateEvent = "reset_password_token.create"
+	// ResetPasswordTokenTTL is TTL of reset password token.
+	ResetPasswordTokenTTL = "ttl"
+
+	// FieldName contains name, e.g. resource name, etc.
+	FieldName = "name"
 
 	// ExecEvent is an exec command executed by script or user on
 	// the server side
@@ -184,6 +214,11 @@ const (
 	SubsystemEvent = "subsystem"
 	SubsystemName  = "name"
 	SubsystemError = "exitError"
+
+	// X11 forwarding event
+	X11ForwardEvent   = "x11-forward"
+	X11ForwardSuccess = "success"
+	X11ForwardErr     = "error"
 
 	// Port forwarding event
 	PortForwardEvent   = "port"
@@ -265,6 +300,32 @@ const (
 
 	// TCPVersion is the version of TCP (4 or 6).
 	TCPVersion = "version"
+
+	// RoleCreatedEvent fires when role is created/updated.
+	RoleCreatedEvent = "role.created"
+	// RoleDeletedEvent fires when role is deleted.
+	RoleDeletedEvent = "role.deleted"
+
+	// TrustedClusterCreateEvent is the event for creating a trusted cluster.
+	TrustedClusterCreateEvent = "trusted_cluster.create"
+	// TrustedClusterDeleteEvent is the event for removing a trusted cluster.
+	TrustedClusterDeleteEvent = "trusted_cluster.delete"
+	// TrustedClusterTokenCreateEvent is the event for
+	// creating new join token for a trusted cluster.
+	TrustedClusterTokenCreateEvent = "trusted_cluster_token.create"
+
+	// GithubConnectorCreatedEvent fires when a Github connector is created/updated.
+	GithubConnectorCreatedEvent = "github.created"
+	// GithubConnectorDeletedEvent fires when a Github connector is deleted.
+	GithubConnectorDeletedEvent = "github.deleted"
+	// OIDCConnectorCreatedEvent fires when OIDC connector is created/updated.
+	OIDCConnectorCreatedEvent = "oidc.created"
+	// OIDCConnectorDeletedEvent fires when OIDC connector is deleted.
+	OIDCConnectorDeletedEvent = "oidc.deleted"
+	// SAMLConnectorCreatedEvent fires when SAML connector is created/updated.
+	SAMLConnectorCreatedEvent = "saml.created"
+	// SAMLConnectorDeletedEvent fires when SAML connector is deleted.
+	SAMLConnectorDeletedEvent = "saml.deleted"
 )
 
 const (

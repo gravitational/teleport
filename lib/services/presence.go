@@ -116,7 +116,7 @@ type Presence interface {
 	DeleteNamespace(name string) error
 
 	// UpsertTrustedCluster creates or updates a TrustedCluster in the backend.
-	UpsertTrustedCluster(TrustedCluster) (TrustedCluster, error)
+	UpsertTrustedCluster(ctx context.Context, tc TrustedCluster) (TrustedCluster, error)
 
 	// GetTrustedCluster returns a single TrustedCluster by name.
 	GetTrustedCluster(string) (TrustedCluster, error)
@@ -125,7 +125,7 @@ type Presence interface {
 	GetTrustedClusters() ([]TrustedCluster, error)
 
 	// DeleteTrustedCluster removes a TrustedCluster from the backend by name.
-	DeleteTrustedCluster(string) error
+	DeleteTrustedCluster(ctx context.Context, name string) error
 
 	// UpsertTunnelConnection upserts tunnel connection
 	UpsertTunnelConnection(TunnelConnection) error

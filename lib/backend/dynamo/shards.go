@@ -293,7 +293,6 @@ func (b *DynamoDBBackend) asyncPollShard(ctx context.Context, streamArn *string,
 		}
 	}()
 	err = b.pollShard(ctx, streamArn, shard, eventsC)
-	return
 }
 
 func (b *DynamoDBBackend) turnOnTimeToLive(ctx context.Context) error {

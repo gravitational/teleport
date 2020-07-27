@@ -88,11 +88,6 @@ func FullProfilePath(pDir string) string {
 
 }
 
-// If there's a current profile symlink, remove it
-func UnlinkCurrentProfile() error {
-	return trace.Wrap(os.Remove(filepath.Join(FullProfilePath(""), CurrentProfileSymlink)))
-}
-
 // ProfileFromDir reads the user (yaml) profile from a given directory. The
 // default is to use the ~/<dir-path>/profile symlink unless another profile
 // is explicitly asked for. It works by looking for a "profile" symlink in

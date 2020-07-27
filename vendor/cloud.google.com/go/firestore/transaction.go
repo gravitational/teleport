@@ -21,7 +21,6 @@ import (
 	"cloud.google.com/go/internal/trace"
 	gax "github.com/googleapis/gax-go/v2"
 	pb "google.golang.org/genproto/googleapis/firestore/v1"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -144,7 +143,7 @@ func (c *Client) RunTransaction(ctx context.Context, f func(context.Context, *Tr
 		})
 		// If a read-write transaction returns Aborted, retry.
 		// On success or other failures, return here.
-		if t.readOnly || grpc.Code(err) != codes.Aborted {
+		if t.readOnly || status.Code(err) != codes.Aborted {
 			// According to the Firestore team, we should not roll back here
 			// if err != nil. But spanner does.
 			// See https://code.googlesource.com/gocloud/+/master/spanner/transaction.go#740.

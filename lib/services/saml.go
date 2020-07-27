@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	saml2 "github.com/russellhaering/gosaml2"
@@ -42,8 +43,8 @@ import (
 
 // SAMLConnector specifies configuration for SAML 2.0 dentity providers
 type SAMLConnector interface {
-	// Resource provides common methods for objects
-	Resource
+	// ResourceWithSecrets provides common methods for objects
+	ResourceWithSecrets
 	// GetDisplay returns display - friendly name for this provider.
 	GetDisplay() string
 	// SetDisplay sets friendly name for this provider.
@@ -264,6 +265,19 @@ func (o *SAMLConnectorV2) SetResourceID(id int64) {
 	o.Metadata.ID = id
 }
 
+// WithoutSecrets returns an instance of resource without secrets.
+func (o *SAMLConnectorV2) WithoutSecrets() Resource {
+	k := o.GetSigningKeyPair()
+	if k == nil {
+		return o
+	}
+	k2 := *k
+	k2.PrivateKey = ""
+	o2 := *o
+	o2.SetSigningKeyPair(&k2)
+	return &o2
+}
+
 // GetServiceProviderIssuer returns service provider issuer
 func (o *SAMLConnectorV2) GetServiceProviderIssuer() string {
 	return o.Spec.ServiceProviderIssuer
@@ -380,10 +394,7 @@ func (o *SAMLConnectorV2) Equals(other SAMLConnector) bool {
 			return false
 		}
 	}
-	if o.GetSSO() != other.GetSSO() {
-		return false
-	}
-	return true
+	return o.GetSSO() == other.GetSSO()
 }
 
 // V2 returns V2 version of the resource
@@ -570,7 +581,7 @@ func (o *SAMLConnectorV2) GetServiceProvider(clock clockwork.Clock) (*saml2.SAML
 		return nil, trace.BadParameter("no SSO set either explicitly or via entity_descriptor spec")
 	}
 	if o.Spec.Cert != "" {
-		cert, err := utils.ParseCertificatePEM([]byte(o.Spec.Cert))
+		cert, err := tlsca.ParseCertificatePEM([]byte(o.Spec.Cert))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

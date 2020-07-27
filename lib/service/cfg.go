@@ -57,8 +57,9 @@ type Config struct {
 	// Token is used to register this Teleport instance with the auth server
 	Token string
 
-	// AuthServers is a list of auth servers nodes, proxies and peer auth servers
-	// connect to
+	// AuthServers is a list of auth servers, proxies and peer auth servers to
+	// connect to. Yes, this is not just auth servers, the field name is
+	// misleading.
 	AuthServers []utils.NetAddr
 
 	// Identities is an optional list of pre-generated key pairs
@@ -139,6 +140,11 @@ type Config struct {
 	// MACAlgorithms is a list of SSH message authentication codes (MAC) that
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string
+
+	// CASignatureAlgorithm is an SSH Certificate Authority (CA) signature
+	// algorithm that the server uses for signing user and host certificates.
+	// If omitted, the default will be used.
+	CASignatureAlgorithm *string
 
 	// DiagnosticAddr is an address for diagnostic and healthz endpoint service
 	DiagnosticAddr utils.NetAddr

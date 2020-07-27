@@ -45,7 +45,7 @@ var (
 		Name: UserLoginEvent,
 		Code: UserSSOLoginFailureCode,
 	}
-	// UserUpdate is emitted when a user is upserted.
+	// UserUpdate is emitted when a user is updated.
 	UserUpdate = Event{
 		Name: UserUpdatedEvent,
 		Code: UserUpdateCode,
@@ -54,6 +54,16 @@ var (
 	UserDelete = Event{
 		Name: UserDeleteEvent,
 		Code: UserDeleteCode,
+	}
+	// UserCreate is emitted when a user is created.
+	UserCreate = Event{
+		Name: UserCreateEvent,
+		Code: UserCreateCode,
+	}
+	// UserPasswordChange is emitted when a user changes their own password.
+	UserPasswordChange = Event{
+		Name: UserPasswordChangeEvent,
+		Code: UserPasswordChangeCode,
 	}
 	// SessionStart is emitted when a user starts a new session.
 	SessionStart = Event{
@@ -109,6 +119,16 @@ var (
 	ExecFailure = Event{
 		Name: ExecEvent,
 		Code: ExecFailureCode,
+	}
+	// X11Forward is emitted when a user requests X11 forwarding.
+	X11Forward = Event{
+		Name: X11ForwardEvent,
+		Code: X11ForwardCode,
+	}
+	// X11ForwardFailure is emitted when an X11 forwarding request fails.
+	X11ForwardFailure = Event{
+		Name: X11ForwardEvent,
+		Code: X11ForwardFailureCode,
 	}
 	// PortForward is emitted when a user requests port forwarding.
 	PortForward = Event{
@@ -176,9 +196,79 @@ var (
 		Name: SessionNetworkEvent,
 		Code: SessionNetworkCode,
 	}
+	// ResetPasswordTokenCreated is emitted when token is created.
+	ResetPasswordTokenCreated = Event{
+		Name: ResetPasswordTokenCreateEvent,
+		Code: ResetPasswordTokenCreateCode,
+	}
+	// RoleCreated is emitted when a role is created/updated.
+	RoleCreated = Event{
+		Name: RoleCreatedEvent,
+		Code: RoleCreatedCode,
+	}
+	// RoleDeleted is emitted when a role is deleted.
+	RoleDeleted = Event{
+		Name: RoleDeletedEvent,
+		Code: RoleDeletedCode,
+	}
+	// TrustedClusterCreate is emitted when a trusted cluster relationship is created.
+	TrustedClusterCreate = Event{
+		Name: TrustedClusterCreateEvent,
+		Code: TrustedClusterCreateCode,
+	}
+	// TrustedClusterDelete is emitted when a trusted cluster is removed from the root cluster.
+	TrustedClusterDelete = Event{
+		Name: TrustedClusterDeleteEvent,
+		Code: TrustedClusterDeleteCode,
+	}
+	// TrustedClusterTokenCreate is emitted when a new join
+	// token for trusted cluster is created.
+	TrustedClusterTokenCreate = Event{
+		Name: TrustedClusterTokenCreateEvent,
+		Code: TrustedClusterTokenCreateCode,
+	}
+	// GithubConnectorCreated is emitted when a Github connector is created/updated.
+	GithubConnectorCreated = Event{
+		Name: GithubConnectorCreatedEvent,
+		Code: GithubConnectorCreatedCode,
+	}
+	// GithubConnectorDeleted is emitted when a Github connector is deleted.
+	GithubConnectorDeleted = Event{
+		Name: GithubConnectorDeletedEvent,
+		Code: GithubConnectorDeletedCode,
+	}
+	// OIDCConnectorCreated is emitted when an OIDC connector is created/updated.
+	OIDCConnectorCreated = Event{
+		Name: OIDCConnectorCreatedEvent,
+		Code: OIDCConnectorCreatedCode,
+	}
+	// OIDCConnectorDeleted is emitted when an OIDC connector is deleted.
+	OIDCConnectorDeleted = Event{
+		Name: OIDCConnectorDeletedEvent,
+		Code: OIDCConnectorDeletedCode,
+	}
+	// SAMLConnectorCreated is emitted when a SAML connector is created/updated.
+	SAMLConnectorCreated = Event{
+		Name: SAMLConnectorCreatedEvent,
+		Code: SAMLConnectorCreatedCode,
+	}
+	// SAMLConnectorDeleted is emitted when a SAML connector is deleted.
+	SAMLConnectorDeleted = Event{
+		Name: SAMLConnectorDeletedEvent,
+		Code: SAMLConnectorDeletedCode,
+	}
 )
 
-var (
+// There is no strict algorithm for picking an event code, however existing
+// event codes are currently loosely categorized as follows:
+//
+//  * Teleport event codes start with "T" and belong in this const block.
+//
+//  * Related events are grouped starting with the same number.
+//		eg: All user related events are grouped under 1xxx.
+//
+//  * Suffix code with one of these letters: I (info), W (warn), E (error).
+const (
 	// UserLocalLoginCode is the successful local user login event code.
 	UserLocalLoginCode = "T1000I"
 	// UserLocalLoginFailureCode is the unsuccessful local user login event code.
@@ -187,10 +277,15 @@ var (
 	UserSSOLoginCode = "T1001I"
 	// UserSSOLoginFailureCode is the unsuccessful SSO user login event code.
 	UserSSOLoginFailureCode = "T1001W"
+	// UserCreateCode is the user create event code.
+	UserCreateCode = "T1002I"
 	// UserUpdateCode is the user update event code.
-	UserUpdateCode = "T1002I"
+	UserUpdateCode = "T1003I"
 	// UserDeleteCode is the user delete event code.
-	UserDeleteCode = "T1003I"
+	UserDeleteCode = "T1004I"
+	// UserPasswordChangeCode is an event code for when user changes their own password.
+	UserPasswordChangeCode = "T1005I"
+
 	// SessionStartCode is the session start event code.
 	SessionStartCode = "T2000I"
 	// SessionJoinCode is the session join event code.
@@ -205,6 +300,7 @@ var (
 	SessionUploadCode = "T2005I"
 	// SessionDataCode is the session data event code.
 	SessionDataCode = "T2006I"
+
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"
 	// SubsystemFailureCode is the subsystem failure event code.
@@ -229,14 +325,51 @@ var (
 	ClientDisconnectCode = "T3006I"
 	// AuthAttemptFailureCode is the auth attempt failure event code.
 	AuthAttemptFailureCode = "T3007W"
+	// X11ForwardCode is the x11 forward event code.
+	X11ForwardCode = "T3008I"
+	// X11ForwardFailureCode is the x11 forward failure event code.
+	X11ForwardFailureCode = "T3008W"
+
 	// SessionCommandCode is a session command code.
 	SessionCommandCode = "T4000I"
 	// SessionDiskCode is a session disk code.
 	SessionDiskCode = "T4001I"
 	// SessionNetworkCode is a session network code.
 	SessionNetworkCode = "T4002I"
+
 	// AccessRequestCreateCode is the the access request creation code.
 	AccessRequestCreateCode = "T5000I"
 	// AccessRequestUpdateCode is the access request state update code.
 	AccessRequestUpdateCode = "T5001I"
+
+	// ResetPasswordTokenCreateCode is the token create event code.
+	ResetPasswordTokenCreateCode = "T6000I"
+
+	// TrustedClusterCreateCode is the event code for creating a trusted cluster.
+	TrustedClusterCreateCode = "T7000I"
+	// TrustedClusterDeleteCode is the event code for removing a trusted cluster.
+	TrustedClusterDeleteCode = "T7001I"
+	// TrustedClusterTokenCreateCode is the event code for
+	// creating new join token for a trusted cluster.
+	TrustedClusterTokenCreateCode = "T7002I"
+
+	// GithubConnectorCreatedCode is the Github connector created event code.
+	GithubConnectorCreatedCode = "T8000I"
+	// GithubConnectorDeletedCode is the Github connector deleted event code.
+	GithubConnectorDeletedCode = "T8001I"
+
+	// OIDCConnectorCreatedCode is the OIDC connector created event code.
+	OIDCConnectorCreatedCode = "T8100I"
+	// OIDCConnectorDeletedCode is the OIDC connector deleted event code.
+	OIDCConnectorDeletedCode = "T8101I"
+
+	// SAMLConnectorCreatedCode is the SAML connector created event code.
+	SAMLConnectorCreatedCode = "T8200I"
+	// SAMLConnectorDeletedCode is the SAML connector deleted event code.
+	SAMLConnectorDeletedCode = "T8201I"
+
+	// RoleCreatedCode is the role created event code.
+	RoleCreatedCode = "T9000I"
+	// RoleDeletedCode is the role deleted event code.
+	RoleDeletedCode = "T9001I"
 )

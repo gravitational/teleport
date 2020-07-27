@@ -143,7 +143,7 @@ func NewHandler(cfg Config) (*Handler, error) {
 	if err := h.ensureBucket(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	h.WithFields(log.Fields{"duration": time.Now().Sub(start)}).Infof("Setup bucket %q completed.", h.Bucket)
+	h.WithFields(log.Fields{"duration": time.Since(start)}).Infof("Setup bucket %q completed.", h.Bucket)
 	return h, nil
 }
 
@@ -296,7 +296,8 @@ func (h *Handler) ensureBucket() error {
 		return nil
 	}
 	if !trace.IsNotFound(err) {
-		return trace.Wrap(err)
+		h.Errorf("Failed to ensure that bucket %q exists (%v). S3 session uploads may fail. If you've set up the bucket already and gave Teleport write-only access, feel free to ignore this error.", h.Bucket, err)
+		return nil
 	}
 	input := &s3.CreateBucketInput{
 		Bucket: aws.String(h.Bucket),

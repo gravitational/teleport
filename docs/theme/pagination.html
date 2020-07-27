@@ -1,10 +1,11 @@
-<nav class="pagination l-pad-top-4" aria-label="footer navigation">
 {% if page.next_page or page.previous_page %}
-  {% if page.next_page %}
-    <a href="{{ page.next_page.url|url }}" class="button button-secondary button-bor is-medium l-right is-wide" title="{{ page.next_page.title }}">Next Page<i class="material-icons l-right">chevron_right</i></a>
-  {% endif %}
+<nav class="pagination l-pad-top-4" aria-label="footer navigation">
   {% if page.previous_page %}
-    <a href="{{ page.previous_page.url|url }}" class="button button-secondary is-medium is-wide" title="{{ page.previous_page.title }}"><i class="material-icons l-left">chevron_left</i>Previous Page</a>
+    <a href="{{ page.previous_page.url|url }}" class="button button-secondary l-left button-border" title="{{ page.previous_page.title }}"><i class="material-icons">chevron_left</i>Previous Page</a>
   {% endif %}
-{% endif %}
+
+  {% if page.next_page %}
+    <a href="{{ page.next_page.url|url }}" class="button button-secondary l-right" title="{{ page.next_page.title }}">Next Page <i class="material-icons">chevron_right</i></a>
+  {% endif %}
 </nav>
+{% endif %}

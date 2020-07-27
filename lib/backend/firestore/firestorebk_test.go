@@ -59,12 +59,24 @@ func (s *FirestoreSuite) SetUpSuite(c *check.C) {
 	s.suite.NewBackend = newBackend
 }
 
-func (s *FirestoreSuite) SetUpTest(c *check.C) {
-	s.bk.deleteAllItems()
+func (s *FirestoreSuite) TearDownTest(c *check.C) {
+	// Delete all documents.
+	ctx := context.Background()
+	docSnaps, err := s.bk.svc.Collection(s.bk.CollectionName).Documents(ctx).GetAll()
+	c.Assert(err, check.IsNil)
+	if len(docSnaps) == 0 {
+		return
+	}
+	batch := s.bk.svc.Batch()
+	for _, docSnap := range docSnaps {
+		batch.Delete(docSnap.Ref)
+	}
+	_, err = batch.Commit(ctx)
+	c.Assert(err, check.IsNil)
 }
 
 func (s *FirestoreSuite) TearDownSuite(c *check.C) {
-	s.bk.deleteAllItems()
+	s.bk.Close()
 }
 
 func (s *FirestoreSuite) TestCRUD(c *check.C) {

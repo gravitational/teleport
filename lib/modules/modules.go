@@ -35,7 +35,9 @@ type Modules interface {
 	EmptyRolesHandler() error
 	// DefaultAllowedLogins returns default allowed logins for a new admin role
 	DefaultAllowedLogins() []string
-	// DefaultKubeGroups returns default kuberentes groups for a new admin role
+	// DefaultKubeUsers returns default kubernetes users for a new admin role
+	DefaultKubeUsers() []string
+	// DefaultKubeGroups returns default kubernetes groups for a new admin role
 	DefaultKubeGroups() []string
 	// PrintVersion prints teleport version
 	PrintVersion()
@@ -44,7 +46,7 @@ type Modules interface {
 	RolesFromLogins([]string) []string
 	// TraitsFromLogins returns traits for external user based on the logins
 	// and kubernetes groups extracted from the connector
-	TraitsFromLogins(logins []string, kubeGroups []string, kubeUsers []string) map[string][]string
+	TraitsFromLogins(user string, logins []string, kubeGroups []string, kubeUsers []string) map[string][]string
 	// SupportsKubernetes returns true if this cluster supports kubernetes
 	SupportsKubernetes() bool
 	// IsBoringBinary checks if the binary was compiled with BoringCrypto.
@@ -73,7 +75,12 @@ func (p *defaultModules) EmptyRolesHandler() error {
 	return nil
 }
 
-// DefaultKubeGroups returns default kuberentes groups for a new admin role
+// DefaultKubeUsers returns default kubernetes users for a new admin role
+func (p *defaultModules) DefaultKubeUsers() []string {
+	return []string{teleport.TraitInternalKubeUsersVariable}
+}
+
+// DefaultKubeGroups returns default kubernetes groups for a new admin role
 func (p *defaultModules) DefaultKubeGroups() []string {
 	return []string{teleport.TraitInternalKubeGroupsVariable}
 }
@@ -107,7 +114,7 @@ func (p *defaultModules) RolesFromLogins(logins []string) []string {
 // extracted from the connector
 //
 // By default logins are treated as allowed logins user traits.
-func (p *defaultModules) TraitsFromLogins(logins []string, kubeGroups, kubeUsers []string) map[string][]string {
+func (p *defaultModules) TraitsFromLogins(_ string, logins, kubeGroups, kubeUsers []string) map[string][]string {
 	return map[string][]string{
 		teleport.TraitLogins:     logins,
 		teleport.TraitKubeGroups: kubeGroups,

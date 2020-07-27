@@ -19,6 +19,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -165,8 +166,11 @@ const (
 	// to proxy
 	KindRemoteCluster = "remote_cluster"
 
-	// KindInviteToken is a local user invite token
-	KindInviteToken = "invite_token"
+	// KindResetPasswordToken is a token used to change user passwords
+	KindResetPasswordToken = "user_token"
+
+	// KindResetPasswordTokenSecrets is reset password token secrets
+	KindResetPasswordTokenSecrets = "reset_password_token_secrets"
 
 	// KindIdentity is local on disk identity resource
 	KindIdentity = "identity"
@@ -333,7 +337,7 @@ func GetResourceMarshalerKinds() []string {
 	marshalerMutex.Lock()
 	defer marshalerMutex.Unlock()
 	kinds := make([]string, 0, len(resourceMarshalers))
-	for kind, _ := range resourceMarshalers {
+	for kind := range resourceMarshalers {
 		kinds = append(kinds, kind)
 	}
 	return kinds
@@ -508,7 +512,9 @@ const V2SchemaTemplate = `{
 }`
 
 // MetadataSchema is a schema for resource metadata
-const MetadataSchema = `{
+var MetadataSchema = fmt.Sprintf(baseMetadataSchema, labelPattern)
+
+const baseMetadataSchema = `{
   "type": "object",
   "additionalProperties": false,
   "default": {},
@@ -523,7 +529,7 @@ const MetadataSchema = `{
       "type": "object",
       "additionalProperties": false,
       "patternProperties": {
-         "^[a-zA-Z/.0-9_*-]+$":  { "type": "string" }
+         "%s":  { "type": "string" }
       }
     }
   }
@@ -639,6 +645,16 @@ type Resource interface {
 	SetResourceID(int64)
 }
 
+// ResourceWithSecrets includes additional properties which must
+// be provided by resources which *may* contain secrets.
+type ResourceWithSecrets interface {
+	Resource
+	// WithoutSecrets returns an instance of the resource which
+	// has had all secrets removed.  If the current resource has
+	// already had its secrets removed, this may be a no-op.
+	WithoutSecrets() Resource
+}
+
 // GetID returns resource ID
 func (m *Metadata) GetID() int64 {
 	return m.ID
@@ -695,6 +711,12 @@ func (m *Metadata) CheckAndSetDefaults() error {
 	// adjust expires time to utc if it's set
 	if m.Expires != nil {
 		utils.UTC(m.Expires)
+	}
+
+	for key := range m.Labels {
+		if !IsValidLabelKey(key) {
+			return trace.BadParameter("invalid label key: %q", key)
+		}
 	}
 
 	return nil
@@ -905,4 +927,14 @@ func fieldsFunc(s string, f func(rune) bool) []string {
 	}
 
 	return a
+}
+
+const labelPattern = `^[a-zA-Z/.0-9_*-]+$`
+
+var validLabelKey = regexp.MustCompile(labelPattern)
+
+// IsValidLabelKey checks if the supplied string matches the
+// label key regexp.
+func IsValidLabelKey(s string) bool {
+	return validLabelKey.MatchString(s)
 }

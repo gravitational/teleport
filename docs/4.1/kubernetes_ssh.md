@@ -71,8 +71,8 @@ to generate a `kubeconfig` file for the Teleport proxy service.
 
 ## Impersonation
 
-The next step is to configure the Teleport Proxy to be able to impersonate Kubernetes principals within a given group 
-using [Kubernetes Impersonation Headers](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation). 
+The next step is to configure the Teleport Proxy to be able to impersonate Kubernetes principals within a given group
+using [Kubernetes Impersonation Headers](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation).
 
 If Teleport is running inside the cluster using a Kubernetes `ServiceAccount`, here's an example of the permissions that
 the `ServiceAccount` will need to be able to use impersonation (change `teleport-serviceaccount` to the name of the

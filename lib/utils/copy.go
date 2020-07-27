@@ -38,17 +38,6 @@ func CopyByteSlices(in [][]byte) [][]byte {
 	return out
 }
 
-// JoinStringSlices joins two string slices and returns a resulting slice
-func JoinStringSlices(a []string, b []string) []string {
-	if len(a)+len(b) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(a)+len(b))
-	out = append(out, a...)
-	out = append(out, b...)
-	return out
-}
-
 // CopyStrings makes a deep copy of the passed in string slice and returns
 // the copy.
 func CopyStrings(in []string) []string {
@@ -58,52 +47,6 @@ func CopyStrings(in []string) []string {
 
 	out := make([]string, len(in))
 	copy(out, in)
-
-	return out
-}
-
-// CopyStringMapSlices makes a deep copy of the passed in map[string][]string
-// and returns the copy.
-func CopyStringMapSlices(a map[string][]string) map[string][]string {
-	if a == nil {
-		return nil
-	}
-
-	out := make(map[string][]string)
-	for key, values := range a {
-		vout := make([]string, len(values))
-		copy(vout, values)
-		out[key] = vout
-	}
-
-	return out
-}
-
-// CopyStringMap makes a deep copy of a map[string]string and returns the copy.
-func CopyStringMap(a map[string]string) map[string]string {
-	if a == nil {
-		return nil
-	}
-
-	out := make(map[string]string)
-	for key, value := range a {
-		out[key] = value
-	}
-
-	return out
-}
-
-// CopyStringMapInterface makes a deep copy of the passed in map[string]interface{}
-// and returns the copy.
-func CopyStringMapInterface(a map[string]interface{}) map[string]interface{} {
-	if a == nil {
-		return nil
-	}
-
-	out := make(map[string]interface{})
-	for key, value := range a {
-		out[key] = value
-	}
 
 	return out
 }

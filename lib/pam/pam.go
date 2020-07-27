@@ -30,6 +30,7 @@ package pam
 // extern void writeCallback(int n, int s, char* c);
 // extern struct pam_conv *make_pam_conv(int);
 // extern int _pam_start(void *, const char *, const char *, const struct pam_conv *, pam_handle_t **);
+// extern int _pam_putenv(void *, pam_handle_t *, const char *);
 // extern int _pam_end(void *, pam_handle_t *, int);
 // extern int _pam_authenticate(void *, pam_handle_t *, int);
 // extern int _pam_acct_mgmt(void *, pam_handle_t *, int);
@@ -43,7 +44,9 @@ import "C"
 
 import (
 	"bufio"
+	"fmt"
 	"io"
+	"os"
 	"strings"
 	"sync"
 	"syscall"
@@ -280,6 +283,24 @@ func Open(config *Config) (*PAM, error) {
 		return nil, p.codeToError(p.retval)
 	}
 
+	for k, v := range config.Env {
+		// Set a regular OS env var on this process which should be available
+		// to child PAM processes.
+		os.Setenv(k, v)
+
+		// Also set it via PAM-specific pam_putenv, which is respected by
+		// pam_exec (and possibly others), where parent env vars are not.
+		kv := C.CString(fmt.Sprintf("%s=%s", k, v))
+		// pam_putenv makes a copy of kv, so we can free it right away.
+		defer C.free(unsafe.Pointer(kv))
+		retval := C._pam_putenv(pamHandle, p.pamh, kv)
+		if retval != C.PAM_SUCCESS {
+			return nil, p.codeToError(retval)
+		}
+	}
+
+	// Trigger the "account" PAM hooks for this login.
+	//
 	// Check that the *nix account is valid. Checking an account varies based off
 	// the PAM modules used in the account stack. Typically this consists of
 	// checking if the account is expired or has access restrictions.
@@ -290,6 +311,17 @@ func Open(config *Config) (*PAM, error) {
 		return nil, p.codeToError(retval)
 	}
 
+	// Trigger the "auth" PAM hooks for this login.
+	//
+	// These would perform any extra authentication steps configured in the PAM
+	// stack, like per-session 2FA.
+	retval = C._pam_authenticate(pamHandle, p.pamh, 0)
+	if retval != C.PAM_SUCCESS {
+		return nil, p.codeToError(retval)
+	}
+
+	// Trigger the "session" PAM hooks for this login.
+	//
 	// Open a user session. Opening a session varies based off the PAM modules
 	// used in the "session" stack. Opening a session typically consists of
 	// printing the MOTD, mounting a home directory, updating auth.log.
@@ -395,7 +427,9 @@ func (p *PAM) writeStream(stream int, s string) (int, error) {
 // TODO(russjones): At some point in the future if this becomes an issue, we
 // should consider supporting echo = false.
 func (p *PAM) readStream(echo bool) (string, error) {
-	reader := bufio.NewReader(p.stdin)
+	// Limit the reader in case stdin is from /dev/zero or other infinite
+	// source.
+	reader := bufio.NewReader(io.LimitReader(p.stdin, int64(C.PAM_MAX_RESP_SIZE)-1))
 	text, err := reader.ReadString('\n')
 	if err != nil {
 		return "", trace.Wrap(err)

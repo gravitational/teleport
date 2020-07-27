@@ -102,13 +102,6 @@ func DualPipeNetConn(srcAddr net.Addr, dstAddr net.Addr) (*PipeNetConn, *PipeNet
 	return serverConn, clientConn
 }
 
-func SplitReaders(r1 io.Reader, r2 io.Reader) io.Reader {
-	reader, writer := io.Pipe()
-	go io.Copy(writer, r1)
-	go io.Copy(writer, r2)
-	return reader
-}
-
 // NewChConn returns a new net.Conn implemented over
 // SSH channel
 func NewChConn(conn ssh.Conn, ch ssh.Channel) *ChConn {

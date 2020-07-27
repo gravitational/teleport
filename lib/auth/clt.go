@@ -56,6 +56,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -85,6 +86,9 @@ type Client struct {
 	// closedFlag is set to indicate that the services are closed
 	closedFlag int32
 }
+
+// Make sure Client implements all the necessary methods.
+var _ ClientI = &Client{}
 
 // TLSConfig returns TLS config used by the client, could return nil
 // if the client is not using TLS
@@ -291,11 +295,11 @@ func (c *Client) grpc() (proto.AuthServiceClient, error) {
 	if c.grpcClient != nil {
 		return c.grpcClient, nil
 	}
-	dialer := grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
+	dialer := grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
 		if c.isClosed() {
 			return nil, trace.ConnectionProblem(nil, "client is closed")
 		}
-		c, err := c.Dialer.DialContext(context.TODO(), "tcp", addr)
+		c, err := c.Dialer.DialContext(ctx, "tcp", addr)
 		if err != nil {
 			log.Debugf("Dial to addr %v failed: %v.", addr, err)
 		}
@@ -326,22 +330,17 @@ func (c *Client) GetTransport() *http.Transport {
 }
 
 // PostJSON is a generic method that issues http POST request to the server
-func (c *Client) PostJSON(
-	endpoint string, val interface{}) (*roundtrip.Response, error) {
+func (c *Client) PostJSON(endpoint string, val interface{}) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(c.Client.PostJSON(context.TODO(), endpoint, val))
 }
 
 // PutJSON is a generic method that issues http PUT request to the server
-func (c *Client) PutJSON(
-	endpoint string, val interface{}) (*roundtrip.Response, error) {
+func (c *Client) PutJSON(endpoint string, val interface{}) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(c.Client.PutJSON(context.TODO(), endpoint, val))
 }
 
 // PostForm is a generic method that issues http POST request to the server
-func (c *Client) PostForm(
-	endpoint string,
-	vals url.Values,
-	files ...roundtrip.File) (*roundtrip.Response, error) {
+func (c *Client) PostForm(endpoint string, vals url.Values, files ...roundtrip.File) (*roundtrip.Response, error) {
 	return httplib.ConvertResponse(c.Client.PostForm(context.TODO(), endpoint, vals, files...))
 }
 
@@ -356,7 +355,7 @@ func (c *Client) Delete(u string) (*roundtrip.Response, error) {
 }
 
 // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
-// signed certificate if sucessful.
+// signed certificate if successful.
 func (c *Client) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -603,7 +602,7 @@ func (c *Client) DeactivateCertAuthority(id services.CertAuthID) error {
 //
 // If token is not supplied, it will be auto generated and returned.
 // If TTL is not supplied, token will be valid until removed.
-func (c *Client) GenerateToken(req GenerateTokenRequest) (string, error) {
+func (c *Client) GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error) {
 	out, err := c.PostJSON(c.Endpoint("tokens"), req)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -686,7 +685,7 @@ func (c *Client) GetToken(token string) (services.ProvisionToken, error) {
 }
 
 // DeleteToken deletes a given provisioning token on the auth server (CA). It
-// could be a user token or a machine token
+// could be a reset password token or a machine token
 func (c *Client) DeleteToken(token string) error {
 	_, err := c.Delete(c.Endpoint("tokens", token))
 	return trace.Wrap(err)
@@ -1312,7 +1311,45 @@ func (c *Client) UpsertPassword(user string, password []byte) error {
 	return nil
 }
 
-// UpsertUser user updates or inserts user entry
+// CreateUser inserts a new user entry in a backend.
+func (c *Client) CreateUser(ctx context.Context, user services.User) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	userV2, ok := user.(*services.UserV2)
+	if !ok {
+		return trace.BadParameter("unsupported user type %T", user)
+	}
+
+	if _, err := clt.CreateUser(ctx, userV2); err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
+}
+
+// UpdateUser updates an existing user in a backend.
+func (c *Client) UpdateUser(ctx context.Context, user services.User) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	userV2, ok := user.(*services.UserV2)
+	if !ok {
+		return trace.BadParameter("unsupported user type %T", user)
+	}
+
+	if _, err := clt.UpdateUser(ctx, userV2); err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
+}
+
+// UpsertUser user updates user entry.
 func (c *Client) UpsertUser(user services.User) error {
 	data, err := services.GetUserMarshaler().MarshalUser(user)
 	if err != nil {
@@ -1322,7 +1359,7 @@ func (c *Client) UpsertUser(user services.User) error {
 	return trace.Wrap(err)
 }
 
-// ChangePassword changes user password
+// ChangePassword updates users password based on the old password.
 func (c *Client) ChangePassword(req services.ChangePasswordReq) error {
 	_, err := c.PutJSON(c.Endpoint("users", req.User, "web", "password"), req)
 	return trace.Wrap(err)
@@ -1440,7 +1477,7 @@ func (c *Client) GetUser(name string, withSecrets bool) (services.User, error) {
 	if err == nil {
 		return user, nil
 	}
-	if grpc.Code(err) != codes.Unimplemented {
+	if status.Code(err) != codes.Unimplemented {
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
@@ -1478,7 +1515,7 @@ func (c *Client) GetUsers(withSecrets bool) ([]services.User, error) {
 	if err == nil {
 		return users, nil
 	}
-	if grpc.Code(err) != codes.Unimplemented {
+	if status.Code(err) != codes.Unimplemented {
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
@@ -1528,10 +1565,30 @@ func (c *Client) grpcGetUsers(withSecrets bool) ([]services.User, error) {
 	return users, nil
 }
 
-// DeleteUser deletes a user by username
-func (c *Client) DeleteUser(user string) error {
-	_, err := c.Delete(c.Endpoint("users", user))
-	return trace.Wrap(err)
+// DeleteUser deletes a user by username.
+func (c *Client) DeleteUser(ctx context.Context, user string) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	req := &proto.DeleteUserRequest{Name: user}
+	_, err = clt.DeleteUser(ctx, req)
+	if err == nil {
+		return nil
+	}
+
+	// Allows cross-version compatibility.
+	// DELETE IN: 5.2 REST method is replaced by grpc with context.
+	if status.Code(err) != codes.Unimplemented {
+		return trace.Wrap(trail.FromGRPC(err))
+	}
+
+	if _, err := c.Delete(c.Endpoint("users", user)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // GenerateKeyPair generates SSH private/public key pair optionally protected
@@ -1577,41 +1634,6 @@ func (c *Client) GenerateHostCert(
 	return []byte(cert), nil
 }
 
-// CreateSignupToken creates one time token for creating account for the user
-// For each token it creates username and otp generator
-func (c *Client) CreateSignupToken(user services.UserV1, ttl time.Duration) (string, error) {
-	if err := user.Check(); err != nil {
-		return "", trace.Wrap(err)
-	}
-	out, err := c.PostJSON(c.Endpoint("signuptokens"), createSignupTokenReq{
-		User: user,
-		TTL:  ttl,
-	})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	var token string
-	if err := json.Unmarshal(out.Bytes(), &token); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return token, nil
-}
-
-// GetSignupTokenData returns token data for a valid token
-func (c *Client) GetSignupTokenData(token string) (user string, otpQRCode []byte, e error) {
-	out, err := c.Get(c.Endpoint("signuptokens", token), url.Values{})
-	if err != nil {
-		return "", nil, err
-	}
-
-	var tokenData getSignupTokenDataResponse
-	if err := json.Unmarshal(out.Bytes(), &tokenData); err != nil {
-		return "", nil, err
-	}
-
-	return tokenData.User, tokenData.QRImg, nil
-}
-
 // GenerateUserCerts takes the public key in the OpenSSH `authorized_keys` plain
 // text format, signs it using User Certificate Authority signing key and
 // returns the resulting certificates.
@@ -1640,41 +1662,9 @@ func (c *Client) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *
 	return &u2fRegReq, nil
 }
 
-// CreateUserWithOTP creates account with provided token and password.
-// Account username and OTP key are taken from token data.
-// Deletes token after account creation.
-func (c *Client) CreateUserWithOTP(token, password, otpToken string) (services.WebSession, error) {
-	out, err := c.PostJSON(c.Endpoint("signuptokens", "users"), createUserWithTokenReq{
-		Token:    token,
-		Password: password,
-		OTPToken: otpToken,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
-}
-
-// CreateUserWithoutOTP validates a given token creates a user
-// with the given password and deletes the token afterwards.
-func (c *Client) CreateUserWithoutOTP(token string, password string) (services.WebSession, error) {
-	out, err := c.PostJSON(c.Endpoint("signuptokens", "users"), createUserWithTokenReq{
-		Token:    token,
-		Password: password,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
-}
-
-// CreateUserWithU2FToken creates user account with provided token and U2F sign response
-func (c *Client) CreateUserWithU2FToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (services.WebSession, error) {
-	out, err := c.PostJSON(c.Endpoint("u2f", "users"), createUserWithU2FTokenReq{
-		Token:               token,
-		Password:            password,
-		U2FRegisterResponse: u2fRegisterResponse,
-	})
+// ChangePasswordWithToken changes user password with ResetPasswordToken
+func (c *Client) ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.WebSession, error) {
+	out, err := c.PostJSON(c.Endpoint("web", "password", "token"), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1682,7 +1672,7 @@ func (c *Client) CreateUserWithU2FToken(token string, password string, u2fRegist
 }
 
 // UpsertOIDCConnector updates or creates OIDC connector
-func (c *Client) UpsertOIDCConnector(connector services.OIDCConnector) error {
+func (c *Client) UpsertOIDCConnector(ctx context.Context, connector services.OIDCConnector) error {
 	data, err := services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1732,7 +1722,7 @@ func (c *Client) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, 
 }
 
 // DeleteOIDCConnector deletes OIDC connector by ID
-func (c *Client) DeleteOIDCConnector(connectorID string) error {
+func (c *Client) DeleteOIDCConnector(ctx context.Context, connectorID string) error {
 	if connectorID == "" {
 		return trace.BadParameter("missing connector id")
 	}
@@ -1793,7 +1783,7 @@ func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 }
 
 // CreateOIDCConnector creates SAML connector
-func (c *Client) CreateSAMLConnector(connector services.SAMLConnector) error {
+func (c *Client) CreateSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
 	data, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1808,7 +1798,7 @@ func (c *Client) CreateSAMLConnector(connector services.SAMLConnector) error {
 }
 
 // UpsertSAMLConnector updates or creates OIDC connector
-func (c *Client) UpsertSAMLConnector(connector services.SAMLConnector) error {
+func (c *Client) UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
 	data, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1858,7 +1848,7 @@ func (c *Client) GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, 
 }
 
 // DeleteSAMLConnector deletes SAML connector by ID
-func (c *Client) DeleteSAMLConnector(connectorID string) error {
+func (c *Client) DeleteSAMLConnector(ctx context.Context, connectorID string) error {
 	if connectorID == "" {
 		return trace.BadParameter("missing connector id")
 	}
@@ -1934,7 +1924,7 @@ func (c *Client) CreateGithubConnector(connector services.GithubConnector) error
 }
 
 // UpsertGithubConnector creates or updates a Github connector
-func (c *Client) UpsertGithubConnector(connector services.GithubConnector) error {
+func (c *Client) UpsertGithubConnector(ctx context.Context, connector services.GithubConnector) error {
 	bytes, err := services.GetGithubConnectorMarshaler().Marshal(connector)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1983,7 +1973,7 @@ func (c *Client) GetGithubConnector(id string, withSecrets bool) (services.Githu
 }
 
 // DeleteGithubConnector deletes the specified Github connector
-func (c *Client) DeleteGithubConnector(id string) error {
+func (c *Client) DeleteGithubConnector(ctx context.Context, id string) error {
 	_, err := c.Delete(c.Endpoint("github", "connectors", id))
 	if err != nil {
 		return trace.Wrap(err)
@@ -2066,7 +2056,7 @@ func (c *Client) PostSessionSlice(slice events.SessionSlice) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	r, err := http.NewRequest("POST", c.Endpoint("namespaces", slice.Namespace, "sessions", string(slice.SessionID), "slice"), bytes.NewReader(data))
+	r, err := http.NewRequest("POST", c.Endpoint("namespaces", slice.Namespace, "sessions", slice.SessionID, "slice"), bytes.NewReader(data))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2254,7 +2244,7 @@ func (c *Client) CreateRole(role services.Role) error {
 }
 
 // UpsertRole creates or updates role
-func (c *Client) UpsertRole(role services.Role) error {
+func (c *Client) UpsertRole(ctx context.Context, role services.Role) error {
 	data, err := services.GetRoleMarshaler().MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2280,7 +2270,7 @@ func (c *Client) GetRole(name string) (services.Role, error) {
 }
 
 // DeleteRole deletes role by name
-func (c *Client) DeleteRole(name string) error {
+func (c *Client) DeleteRole(ctx context.Context, name string) error {
 	_, err := c.Delete(c.Endpoint("roles", name))
 	return trace.Wrap(err)
 }
@@ -2496,7 +2486,8 @@ func (c *Client) GetTrustedClusters() ([]services.TrustedCluster, error) {
 	return trustedClusters, nil
 }
 
-func (c *Client) UpsertTrustedCluster(trustedCluster services.TrustedCluster) (services.TrustedCluster, error) {
+// UpsertTrustedCluster creates or updates a trusted cluster.
+func (c *Client) UpsertTrustedCluster(ctx context.Context, trustedCluster services.TrustedCluster) (services.TrustedCluster, error) {
 	trustedClusterBytes, err := services.GetTrustedClusterMarshaler().Marshal(trustedCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2535,7 +2526,8 @@ func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterR
 	return validateResponse, nil
 }
 
-func (c *Client) DeleteTrustedCluster(name string) error {
+// DeleteTrustedCluster deletes a trusted cluster by name.
+func (c *Client) DeleteTrustedCluster(ctx context.Context, name string) error {
 	_, err := c.Delete(c.Endpoint("trustedclusters", name))
 	return trace.Wrap(err)
 }
@@ -2572,6 +2564,57 @@ func (c *Client) CreateAccessRequest(ctx context.Context, req services.AccessReq
 	return nil
 }
 
+func (c *Client) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (services.ResetPasswordTokenSecrets, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	secrets, err := clt.RotateResetPasswordTokenSecrets(ctx, &proto.RotateResetPasswordTokenSecretsRequest{
+		TokenID: tokenID,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return secrets, nil
+}
+
+func (c *Client) GetResetPasswordToken(ctx context.Context, tokenID string) (services.ResetPasswordToken, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := clt.GetResetPasswordToken(ctx, &proto.GetResetPasswordTokenRequest{
+		TokenID: tokenID,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return token, nil
+}
+
+// CreateResetPasswordToken creates reset password token
+func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := clt.CreateResetPasswordToken(ctx, &proto.CreateResetPasswordTokenRequest{
+		Name: req.Name,
+		TTL:  proto.Duration(req.TTL),
+		Type: req.Type,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return token, nil
+}
+
 func (c *Client) DeleteAccessRequest(ctx context.Context, reqID string) error {
 	clt, err := c.grpc()
 	if err != nil {
@@ -2591,10 +2634,14 @@ func (c *Client) SetAccessRequestState(ctx context.Context, reqID string, state 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = clt.SetAccessRequestState(ctx, &proto.RequestStateSetter{
+	setter := proto.RequestStateSetter{
 		ID:    reqID,
 		State: state,
-	})
+	}
+	if d := getDelegator(ctx); d != "" {
+		setter.Delegator = d
+	}
+	_, err = clt.SetAccessRequestState(ctx, &setter)
 	if err != nil {
 		return trail.FromGRPC(err)
 	}
@@ -2663,7 +2710,7 @@ type IdentityService interface {
 	UpsertPassword(user string, password []byte) error
 
 	// UpsertOIDCConnector updates or creates OIDC connector
-	UpsertOIDCConnector(connector services.OIDCConnector) error
+	UpsertOIDCConnector(ctx context.Context, connector services.OIDCConnector) error
 
 	// GetOIDCConnector returns OIDC connector information by id
 	GetOIDCConnector(id string, withSecrets bool) (services.OIDCConnector, error)
@@ -2672,7 +2719,7 @@ type IdentityService interface {
 	GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error)
 
 	// DeleteOIDCConnector deletes OIDC connector by ID
-	DeleteOIDCConnector(connectorID string) error
+	DeleteOIDCConnector(ctx context.Context, connectorID string) error
 
 	// CreateOIDCAuthRequest creates OIDCAuthRequest
 	CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error)
@@ -2681,10 +2728,10 @@ type IdentityService interface {
 	ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error)
 
 	// CreateSAMLConnector creates SAML connector
-	CreateSAMLConnector(connector services.SAMLConnector) error
+	CreateSAMLConnector(ctx context.Context, connector services.SAMLConnector) error
 
 	// UpsertSAMLConnector updates or creates SAML connector
-	UpsertSAMLConnector(connector services.SAMLConnector) error
+	UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error
 
 	// GetSAMLConnector returns SAML connector information by id
 	GetSAMLConnector(id string, withSecrets bool) (services.SAMLConnector, error)
@@ -2693,7 +2740,7 @@ type IdentityService interface {
 	GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, error)
 
 	// DeleteSAMLConnector deletes SAML connector by ID
-	DeleteSAMLConnector(connectorID string) error
+	DeleteSAMLConnector(ctx context.Context, connectorID string) error
 
 	// CreateSAMLAuthRequest creates SAML AuthnRequest
 	CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error)
@@ -2704,13 +2751,13 @@ type IdentityService interface {
 	// CreateGithubConnector creates a new Github connector
 	CreateGithubConnector(connector services.GithubConnector) error
 	// UpsertGithubConnector creates or updates a Github connector
-	UpsertGithubConnector(connector services.GithubConnector) error
+	UpsertGithubConnector(ctx context.Context, connector services.GithubConnector) error
 	// GetGithubConnectors returns all configured Github connectors
 	GetGithubConnectors(withSecrets bool) ([]services.GithubConnector, error)
 	// GetGithubConnector returns the specified Github connector
 	GetGithubConnector(id string, withSecrets bool) (services.GithubConnector, error)
 	// DeleteGithubConnector deletes the specified Github connector
-	DeleteGithubConnector(id string) error
+	DeleteGithubConnector(ctx context.Context, id string) error
 	// CreateGithubAuthRequest creates a new request for Github OAuth2 flow
 	CreateGithubAuthRequest(services.GithubAuthRequest) (*services.GithubAuthRequest, error)
 	// ValidateGithubAuthCallback validates Github auth callback
@@ -2722,17 +2769,20 @@ type IdentityService interface {
 	// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite token
 	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterRequest, error)
 
-	// CreateUserWithU2FToken creates user account with provided token and U2F sign response
-	CreateUserWithU2FToken(token string, password string, u2fRegisterResponse u2f.RegisterResponse) (services.WebSession, error)
-
 	// GetUser returns user by name
 	GetUser(name string, withSecrets bool) (services.User, error)
+
+	// CreateUser inserts a new entry in a backend.
+	CreateUser(ctx context.Context, user services.User) error
+
+	// UpdateUser updates an existing user in a backend.
+	UpdateUser(ctx context.Context, user services.User) error
 
 	// UpsertUser user updates or inserts user entry
 	UpsertUser(user services.User) error
 
-	// DeleteUser deletes a user by username
-	DeleteUser(user string) error
+	// DeleteUser deletes an existng user in a backend by username.
+	DeleteUser(ctx context.Context, user string) error
 
 	// GetUsers returns a list of usernames registered in the system
 	GetUsers(withSecrets bool) ([]services.User, error)
@@ -2743,15 +2793,6 @@ type IdentityService interface {
 	// CheckPassword checks if the suplied web access password is valid.
 	CheckPassword(user string, password []byte, otpToken string) error
 
-	// CreateUserWithOTP creates account with provided token and password.
-	// Account username and OTP key are taken from token data.
-	// Deletes token after account creation.
-	CreateUserWithOTP(token, password, otpToken string) (services.WebSession, error)
-
-	// CreateUserWithoutOTP validates a given token creates a user
-	// with the given password and deletes the token afterwards.
-	CreateUserWithoutOTP(token string, password string) (services.WebSession, error)
-
 	// GenerateToken creates a special provisioning token for a new SSH server
 	// that is valid for ttl period seconds.
 	//
@@ -2760,7 +2801,7 @@ type IdentityService interface {
 	//
 	// If token is not supplied, it will be auto generated and returned.
 	// If TTL is not supplied, token will be valid until removed.
-	GenerateToken(GenerateTokenRequest) (string, error)
+	GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error)
 
 	// GenerateKeyPair generates SSH private/public key pair optionally protected
 	// by password. If the pass parameter is an empty string, the key pair
@@ -2777,15 +2818,20 @@ type IdentityService interface {
 	// returns the resulting certificates.
 	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 
-	// GetSignupTokenData returns token data for a valid token
-	GetSignupTokenData(token string) (user string, otpQRCode []byte, e error)
-
-	// CreateSignupToken creates one time token for creating account for the user
-	// For each token it creates username and OTP key
-	CreateSignupToken(user services.UserV1, ttl time.Duration) (string, error)
-
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers() error
+
+	// CreateResetPasswordToken creates a new user reset token
+	CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error)
+
+	// ChangePasswordWithToken changes password with token
+	ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.WebSession, error)
+
+	// GetResetPasswordToken returns token
+	GetResetPasswordToken(ctx context.Context, username string) (services.ResetPasswordToken, error)
+
+	// RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID
+	RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (services.ResetPasswordTokenSecrets, error)
 }
 
 // ProvisioningService is a service in control
@@ -2798,7 +2844,7 @@ type ProvisioningService interface {
 	GetToken(token string) (services.ProvisionToken, error)
 
 	// DeleteToken deletes a given provisioning token on the auth server (CA). It
-	// could be a user token or a machine token
+	// could be a reset password token or a machine token
 	DeleteToken(token string) error
 
 	// DeleteAllTokens deletes all provisioning tokens
@@ -2862,7 +2908,7 @@ type ClientI interface {
 	AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error)
 
 	// ProcessKubeCSR processes CSR request against Kubernetes CA, returns
-	// signed certificate if sucessful.
+	// signed certificate if successful.
 	ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error)
 
 	// Ping gets basic info about the auth server.

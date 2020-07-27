@@ -35,17 +35,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// ListenTLS sets up TLS listener for the http handler, starts listening
-// on a TCP socket and returns the socket which is ready to be used
-// for http.Serve
-func ListenTLS(address string, certFile, keyFile string, cipherSuites []uint16) (net.Listener, error) {
-	tlsConfig, err := CreateTLSConfiguration(certFile, keyFile, cipherSuites)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return tls.Listen("tcp", address, tlsConfig)
-}
-
 // TLSConfig returns default TLS configuration strong defaults.
 func TLSConfig(cipherSuites []uint16) *tls.Config {
 	config := &tls.Config{}

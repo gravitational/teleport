@@ -110,7 +110,7 @@ func (s *IdentityService) CreateUser(user services.User) error {
 	if err := user.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.GetUserMarshaler().MarshalUser(user)
+	value, err := services.GetUserMarshaler().MarshalUser(user.WithoutSecrets().(services.User))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -124,20 +124,46 @@ func (s *IdentityService) CreateUser(user services.User) error {
 		return trace.Wrap(err)
 	}
 	if auth := user.GetLocalAuth(); auth != nil {
-		err = s.upsertLocalAuthSecrets(user.GetName(), *auth)
-		if err != nil {
+		if err = s.upsertLocalAuthSecrets(user.GetName(), *auth); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	return nil
 }
 
-// UpsertUser updates parameters about user
+// UpdateUser updates an existing user.
+func (s *IdentityService) UpdateUser(ctx context.Context, user services.User) error {
+	if err := user.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	value, err := services.GetUserMarshaler().MarshalUser(user.WithoutSecrets().(services.User))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
+		Value:   value,
+		Expires: user.Expiry(),
+		ID:      user.GetResourceID(),
+	}
+	_, err = s.Update(ctx, item)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if auth := user.GetLocalAuth(); auth != nil {
+		if err = s.upsertLocalAuthSecrets(user.GetName(), *auth); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// UpsertUser updates parameters about user, or creates an entry if not exist.
 func (s *IdentityService) UpsertUser(user services.User) error {
 	if err := user.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.GetUserMarshaler().MarshalUser(user)
+	value, err := services.GetUserMarshaler().MarshalUser(user.WithoutSecrets().(services.User))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -152,8 +178,7 @@ func (s *IdentityService) UpsertUser(user services.User) error {
 		return trace.Wrap(err)
 	}
 	if auth := user.GetLocalAuth(); auth != nil {
-		err = s.upsertLocalAuthSecrets(user.GetName(), *auth)
-		if err != nil {
+		if err = s.upsertLocalAuthSecrets(user.GetName(), *auth); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -287,13 +312,13 @@ func (s *IdentityService) GetUserByGithubIdentity(id services.ExternalIdentity) 
 }
 
 // DeleteUser deletes a user with all the keys from the backend
-func (s *IdentityService) DeleteUser(user string) error {
+func (s *IdentityService) DeleteUser(ctx context.Context, user string) error {
 	_, err := s.GetUser(user, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	startKey := backend.Key(webPrefix, usersPrefix, user)
-	err = s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
+	err = s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	return trace.Wrap(err)
 }
 
@@ -414,7 +439,7 @@ func (s *IdentityService) GetTOTP(user string) (string, error) {
 	item, err := s.Get(context.TODO(), backend.Key(webPrefix, usersPrefix, user, totpPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return "", trace.NotFound("user %q is not found", user)
+			return "", trace.NotFound("OTP key for user(%q) is not found", user)
 		}
 		return "", trace.Wrap(err)
 	}
@@ -591,74 +616,6 @@ func (s *IdentityService) UpsertPassword(user string, password []byte) error {
 	}
 
 	return nil
-}
-
-// UpsertSignupToken upserts signup token - one time token that lets user to create a user account
-func (s *IdentityService) UpsertSignupToken(token string, tokenData services.SignupToken, ttl time.Duration) error {
-	if ttl < time.Second || ttl > defaults.MaxSignupTokenTTL {
-		ttl = defaults.MaxSignupTokenTTL
-	}
-	tokenData.Expires = time.Now().UTC().Add(ttl)
-	value, err := json.Marshal(tokenData)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key(userTokensPrefix, token),
-		Value:   value,
-		Expires: tokenData.Expires,
-	}
-	_, err = s.Put(context.TODO(), item)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-
-}
-
-// GetSignupToken returns signup token data
-func (s *IdentityService) GetSignupToken(token string) (*services.SignupToken, error) {
-	if token == "" {
-		return nil, trace.BadParameter("missing token")
-	}
-	item, err := s.Get(context.TODO(), backend.Key(userTokensPrefix, token))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var signupToken services.SignupToken
-	err = json.Unmarshal(item.Value, &signupToken)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &signupToken, nil
-}
-
-// GetSignupTokens returns all non-expired user tokens
-func (s *IdentityService) GetSignupTokens() ([]services.SignupToken, error) {
-	startKey := backend.Key(userTokensPrefix)
-	result, err := s.GetRange(context.TODO(), startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tokens := make([]services.SignupToken, len(result.Items))
-	for i, item := range result.Items {
-		var signupToken services.SignupToken
-		err = json.Unmarshal(item.Value, &signupToken)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		tokens[i] = signupToken
-	}
-	return tokens, nil
-}
-
-// DeleteSignupToken deletes signup token from the storage
-func (s *IdentityService) DeleteSignupToken(token string) error {
-	if token == "" {
-		return trace.BadParameter("missing parameter token")
-	}
-	err := s.Delete(context.TODO(), backend.Key(userTokensPrefix, token))
-	return trace.Wrap(err)
 }
 
 func (s *IdentityService) UpsertU2FRegisterChallenge(token string, u2fChallenge *u2f.Challenge) error {
@@ -1243,7 +1200,6 @@ const (
 	samlPrefix                   = "saml"
 	githubPrefix                 = "github"
 	requestsPrefix               = "requests"
-	userTokensPrefix             = "addusertokens"
 	u2fRegChalPrefix             = "adduseru2fchallenges"
 	usedTOTPPrefix               = "used_totp"
 	usedTOTPTTL                  = 30 * time.Second

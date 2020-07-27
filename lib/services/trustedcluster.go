@@ -406,27 +406,30 @@ func (c *TrustedClusterV2) SetReverseTunnelAddress(e string) {
 // CanChangeState checks if the state change is allowed or not. If not, returns
 // an error explaining the reason.
 func (c *TrustedClusterV2) CanChangeStateTo(t TrustedCluster) error {
+	immutableFieldErr := func(name string) error {
+		return trace.BadParameter("can not update %s for existing leaf cluster, delete and re-create this leaf cluster with updated %s", name, name)
+	}
 	if c.GetToken() != t.GetToken() {
-		return trace.BadParameter("can not update token for existing trusted cluster")
+		return immutableFieldErr("token")
 	}
 	if c.GetProxyAddress() != t.GetProxyAddress() {
-		return trace.BadParameter("can not update proxy address for existing trusted cluster")
+		return immutableFieldErr("web_proxy_address")
 	}
 	if c.GetReverseTunnelAddress() != t.GetReverseTunnelAddress() {
-		return trace.BadParameter("can not update proxy address for existing trusted cluster")
+		return immutableFieldErr("tunnel_addr")
 	}
 	if !utils.StringSlicesEqual(c.GetRoles(), t.GetRoles()) {
-		return trace.BadParameter("can not update roles for existing trusted cluster")
+		return immutableFieldErr("roles")
 	}
 	if !c.GetRoleMap().Equals(t.GetRoleMap()) {
-		return trace.BadParameter("can not update role map for existing trusted cluster")
+		return immutableFieldErr("role_map")
 	}
 
 	if c.GetEnabled() == t.GetEnabled() {
-		if t.GetEnabled() == true {
-			return trace.AlreadyExists("trusted cluster is already enabled")
+		if t.GetEnabled() {
+			return trace.AlreadyExists("leaf cluster is already enabled, this update would have no effect")
 		}
-		return trace.AlreadyExists("trusted cluster state is already disabled")
+		return trace.AlreadyExists("leaf cluster is already disabled, this update would have no effect")
 	}
 
 	return nil

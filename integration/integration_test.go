@@ -35,6 +35,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -44,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -141,7 +141,7 @@ func (s *IntSuite) SetUpTest(c *check.C) {
 func (s *IntSuite) newUnstartedTeleport(c *check.C, logins []string, enableSSH bool) *TeleInstance {
 	t := NewInstance(InstanceConfig{ClusterName: Site, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
 	// use passed logins, but use suite's default login if nothing was passed
-	if logins == nil || len(logins) == 0 {
+	if len(logins) == 0 {
 		logins = []string{s.me.Username}
 	}
 	for _, login := range logins {
@@ -163,6 +163,54 @@ func (s *IntSuite) newTeleport(c *check.C, logins []string, enableSSH bool) *Tel
 	return t
 }
 
+// newTeleportIoT helper returns a running Teleport instance with Host as a
+// reversetunnel node.
+func (s *IntSuite) newTeleportIoT(c *check.C, logins []string) *TeleInstance {
+	// Create a Teleport instance with Auth/Proxy.
+	mainConfig := func() *service.Config {
+		tconf := service.MakeDefaultConfig()
+
+		tconf.Console = nil
+
+		tconf.Auth.Enabled = true
+
+		tconf.Proxy.Enabled = true
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+
+		tconf.SSH.Enabled = false
+
+		return tconf
+	}
+	main := s.newTeleportWithConfig(c, logins, nil, mainConfig())
+
+	// Create a Teleport instance with a Node.
+	nodeConfig := func() *service.Config {
+		tconf := service.MakeDefaultConfig()
+		tconf.Hostname = Host
+		tconf.Console = nil
+		tconf.Token = "token"
+		tconf.AuthServers = []utils.NetAddr{
+			utils.NetAddr{
+				AddrNetwork: "tcp",
+				Addr:        net.JoinHostPort(Loopback, main.GetPortWeb()),
+			},
+		}
+
+		tconf.Auth.Enabled = false
+
+		tconf.Proxy.Enabled = false
+
+		tconf.SSH.Enabled = true
+
+		return tconf
+	}
+	_, err := main.StartReverseTunnelNode(nodeConfig())
+	c.Assert(err, check.IsNil)
+
+	return main
+}
+
 // newTeleportWithConfig is a helper function that will create a running
 // Teleport instance with the passed in user, instance secrets, and Teleport
 // configuration.
@@ -170,7 +218,7 @@ func (s *IntSuite) newTeleportWithConfig(c *check.C, logins []string, instanceSe
 	t := NewInstance(InstanceConfig{ClusterName: Site, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
 
 	// use passed logins, but use suite's default login if nothing was passed
-	if logins == nil || len(logins) == 0 {
+	if len(logins) == 0 {
 		logins = []string{s.me.Username}
 	}
 	for _, login := range logins {
@@ -242,7 +290,7 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 			return c, nil, nil, tconf
 		}
 		t := s.newTeleportWithConfig(makeConfig())
-		defer t.Stop(true)
+		defer t.StopAll()
 
 		// Start a node.
 		nodeSSHPort := s.getPorts(1)[0]
@@ -293,7 +341,7 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 		c.Assert(len(sessions), check.Equals, 0)
 
 		// create interactive session (this goroutine is this user's terminal time)
-		endC := make(chan error, 0)
+		endC := make(chan error)
 		myTerm := NewTerminal(250)
 		go func() {
 			cl, err := t.NewClient(ClientConfig{
@@ -304,8 +352,8 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 				ForwardAgent: tt.inForwardAgent,
 			})
 			c.Assert(err, check.IsNil)
-			cl.Stdout = &myTerm
-			cl.Stdin = &myTerm
+			cl.Stdout = myTerm
+			cl.Stdin = myTerm
 			err = cl.SSH(context.TODO(), []string{}, false)
 			endC <- err
 		}()
@@ -520,7 +568,7 @@ func (s *IntSuite) TestInteroperability(c *check.C) {
 
 	// create new teleport server that will be used by all tests
 	t := s.newTeleport(c, nil, true)
-	defer t.Stop(true)
+	defer t.StopAll()
 
 	var tests = []struct {
 		inCommand   string
@@ -567,14 +615,15 @@ func (s *IntSuite) TestInteroperability(c *check.C) {
 		cl.Stderr = outbuf
 
 		// run command and wait a maximum of 10 seconds for it to complete
-		sessionEndC := make(chan interface{}, 0)
+		sessionEndC := make(chan interface{})
 		go func() {
 			// don't check for err, because sometimes this process should fail
 			// with an error and that's what the test is checking for.
 			cl.SSH(context.TODO(), []string{tt.inCommand}, false)
 			sessionEndC <- true
 		}()
-		waitFor(sessionEndC, time.Second*10)
+		err = waitFor(sessionEndC, time.Second*10)
+		c.Assert(err, check.IsNil)
 
 		// if we are looking for the output in a file, look in the file
 		// otherwise check stdout and stderr for the expected output
@@ -598,7 +647,7 @@ func (s *IntSuite) TestUUIDBasedProxy(c *check.C) {
 	defer tr.Stop()
 
 	t := s.newTeleport(c, nil, true)
-	defer t.Stop(true)
+	defer t.StopAll()
 
 	site := t.GetSiteAPI(Site)
 
@@ -675,14 +724,37 @@ func (s *IntSuite) TestUUIDBasedProxy(c *check.C) {
 }
 
 // TestInteractive covers SSH into shell and joining the same session from another client
-func (s *IntSuite) TestInteractive(c *check.C) {
+// against a standard teleport node.
+func (s *IntSuite) TestInteractiveRegular(c *check.C) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
 	t := s.newTeleport(c, nil, true)
-	defer t.Stop(true)
+	defer t.StopAll()
 
-	sessionEndC := make(chan interface{}, 0)
+	s.verifySessionJoin(c, t)
+}
+
+// TestInteractive covers SSH into shell and joining the same session from another client
+// against a reversetunnel node.
+func (s *IntSuite) TestInteractiveReverseTunnel(c *check.C) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	// InsecureDevMode needed for IoT node handshake
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	t := s.newTeleportIoT(c, nil)
+	defer t.StopAll()
+
+	s.verifySessionJoin(c, t)
+}
+
+// TestInteractive covers SSH into shell and joining the same session from another client
+func (s *IntSuite) verifySessionJoin(c *check.C, t *TeleInstance) {
+
+	sessionEndC := make(chan interface{})
 
 	// get a reference to site obj:
 	site := t.GetSiteAPI(Site)
@@ -693,10 +765,10 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 
 	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
 	openSession := func() {
-		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host, Port: t.GetPortSSHInt()})
+		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host})
 		c.Assert(err, check.IsNil)
-		cl.Stdout = &personA
-		cl.Stdin = &personA
+		cl.Stdout = personA
+		cl.Stdin = personA
 		// Person A types something into the terminal (including "exit")
 		personA.Type("\aecho hi\n\r\aexit\n\r\a")
 		err = cl.SSH(context.TODO(), []string{}, false)
@@ -717,11 +789,11 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 			sessionID = string(sessions[0].ID)
 			break
 		}
-		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host, Port: t.GetPortSSHInt()})
+		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host})
 		c.Assert(err, check.IsNil)
-		cl.Stdout = &personB
+		cl.Stdout = personB
 		for i := 0; i < 10; i++ {
-			err = cl.Join(context.TODO(), defaults.Namespace, session.ID(sessionID), &personB)
+			err = cl.Join(context.TODO(), defaults.Namespace, session.ID(sessionID), personB)
 			if err == nil {
 				break
 			}
@@ -733,11 +805,12 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 	go joinSession()
 
 	// wait for the session to end
-	waitFor(sessionEndC, time.Second*10)
+	err := waitFor(sessionEndC, time.Second*10)
+	c.Assert(err, check.IsNil)
 
 	// make sure the output of B is mirrored in A
-	outputOfA := string(personA.Output(100))
-	outputOfB := string(personB.Output(100))
+	outputOfA := personA.Output(100)
+	outputOfB := personB.Output(100)
 	c.Assert(strings.Contains(outputOfA, outputOfB), check.Equals, true)
 }
 
@@ -756,14 +829,14 @@ func (s *IntSuite) TestShutdown(c *check.C) {
 	person := NewTerminal(250)
 
 	// commandsC receive commands
-	commandsC := make(chan string, 0)
+	commandsC := make(chan string)
 
 	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
 	openSession := func() {
 		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host, Port: t.GetPortSSHInt()})
 		c.Assert(err, check.IsNil)
-		cl.Stdout = &person
-		cl.Stdin = &person
+		cl.Stdout = person
+		cl.Stdin = person
 
 		go func() {
 			for command := range commandsC {
@@ -784,7 +857,7 @@ func (s *IntSuite) TestShutdown(c *check.C) {
 		var matched bool
 		var output string
 		for {
-			output = string(replaceNewlines(person.Output(1000)))
+			output = replaceNewlines(person.Output(1000))
 			matched, _ = regexp.MatchString(pattern, output)
 			if matched {
 				break
@@ -840,6 +913,7 @@ func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
 		{
 			recordingMode: services.RecordAtProxy,
 			options: services.RoleOptions{
+				ForwardAgent:      services.NewBool(true),
 				ClientIdleTimeout: services.NewDuration(500 * time.Millisecond),
 			},
 			disconnectTimeout: time.Second,
@@ -855,6 +929,7 @@ func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
 		{
 			recordingMode: services.RecordAtProxy,
 			options: services.RoleOptions{
+				ForwardAgent:          services.NewBool(true),
 				DisconnectExpiredCert: services.NewBool(true),
 				MaxSessionTTL:         services.NewDuration(2 * time.Second),
 			},
@@ -876,7 +951,6 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 		Pub:         s.pub,
 	})
 
-	// devs role gets disconnected after 1 second idle time
 	username := s.me.Username
 	role, err := services.NewRole("devs", services.RoleSpecV3{
 		Options: tc.options,
@@ -888,7 +962,7 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 	t.AddUserWithRole(username, role)
 
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-		SessionRecording: services.RecordAtNode,
+		SessionRecording: tc.recordingMode,
 		LocalAuth:        services.NewBool(true),
 	})
 	c.Assert(err, check.IsNil)
@@ -903,7 +977,7 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 
 	c.Assert(t.CreateEx(nil, cfg), check.IsNil)
 	c.Assert(t.Start(), check.IsNil)
-	defer t.Stop(true)
+	defer t.StopAll()
 
 	// get a reference to site obj:
 	site := t.GetSiteAPI(Site)
@@ -911,23 +985,14 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 
 	person := NewTerminal(250)
 
-	// commandsC receive commands
-	commandsC := make(chan string, 0)
-
 	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
 	sessionCtx, sessionCancel := context.WithCancel(context.TODO())
 	openSession := func() {
 		defer sessionCancel()
 		cl, err := t.NewClient(ClientConfig{Login: username, Cluster: Site, Host: Host, Port: t.GetPortSSHInt()})
 		c.Assert(err, check.IsNil)
-		cl.Stdout = &person
-		cl.Stdin = &person
-
-		go func() {
-			for command := range commandsC {
-				person.Type(command)
-			}
-		}()
+		cl.Stdout = person
+		cl.Stdin = person
 
 		err = cl.SSH(context.TODO(), []string{}, false)
 		if err != nil && err != io.EOF {
@@ -937,8 +1002,7 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 
 	go openSession()
 
-	enterInput(c, &person, "echo start \r\n", ".*start.*")
-	time.Sleep(tc.disconnectTimeout)
+	enterInput(c, person, "echo start \r\n", ".*start.*")
 	select {
 	case <-time.After(tc.disconnectTimeout):
 		c.Fatalf("timeout waiting for session to exit")
@@ -953,7 +1017,7 @@ func enterInput(c *check.C, person *Terminal, command, pattern string) {
 	var matched bool
 	var output string
 	for {
-		output = string(replaceNewlines(person.Output(1000)))
+		output = replaceNewlines(person.Output(1000))
 		matched, _ = regexp.MatchString(pattern, output)
 		if matched {
 			break
@@ -975,7 +1039,7 @@ func (s *IntSuite) TestEnvironmentVariables(c *check.C) {
 	defer tr.Stop()
 
 	t := s.newTeleport(c, nil, true)
-	defer t.Stop(true)
+	defer t.StopAll()
 
 	testKey, testVal := "TELEPORT_TEST_ENV", "howdy"
 	cmd := []string{"printenv", testKey}
@@ -1001,7 +1065,7 @@ func (s *IntSuite) TestInvalidLogins(c *check.C) {
 	defer tr.Stop()
 
 	t := s.newTeleport(c, nil, true)
-	defer t.Stop(true)
+	defer t.StopAll()
 
 	cmd := []string{"echo", "success"}
 
@@ -1098,7 +1162,7 @@ func (s *IntSuite) TestTwoClustersTunnel(c *check.C) {
 
 		// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 		abortTime := time.Now().Add(time.Second * 10)
-		for len(b.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
+		for len(a.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
 			time.Sleep(time.Millisecond * 200)
 			if time.Now().After(abortTime) {
 				c.Fatalf("Two clusters do not see each other: tunnels are not working.")
@@ -1168,13 +1232,14 @@ func (s *IntSuite) TestTwoClustersTunnel(c *check.C) {
 		c.Assert(outputA.String(), check.DeepEquals, outputB.String())
 
 		// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
-		a.Stop(false)
+		err = a.StopAuth(false)
+		c.Assert(err, check.IsNil)
 		err = tc.SSH(context.TODO(), cmd, false)
-		// debug mode will add more lines, so this check has to be flexible
-		c.Assert(strings.Replace(err.Error(), "\n", "", -1), check.Matches, fmt.Sprintf(`.*%v is offline.*`, a.Secrets.SiteName))
+		c.Assert(err, check.FitsTypeOf, trace.ConnectionProblem(nil, ""))
 
 		// Reset and start "Site-A" again
-		a.Reset()
+		err = a.Reset()
+		c.Assert(err, check.IsNil)
 		err = a.Start()
 		c.Assert(err, check.IsNil)
 
@@ -1224,8 +1289,8 @@ func (s *IntSuite) TestTwoClustersTunnel(c *check.C) {
 		c.Assert(err, check.IsNil)
 
 		// stop both sites for real
-		c.Assert(b.Stop(true), check.IsNil)
-		c.Assert(a.Stop(true), check.IsNil)
+		c.Assert(b.StopAll(), check.IsNil)
+		c.Assert(a.StopAll(), check.IsNil)
 	}
 }
 
@@ -1273,8 +1338,8 @@ func (s *IntSuite) TestTwoClustersProxy(c *check.C) {
 	c.Assert(ps.Count() > 0, check.Equals, true, check.Commentf("proxy did not intercept any connection"))
 
 	// stop both sites for real
-	c.Assert(b.Stop(true), check.IsNil)
-	c.Assert(a.Stop(true), check.IsNil)
+	c.Assert(b.StopAll(), check.IsNil)
+	c.Assert(a.StopAll(), check.IsNil)
 }
 
 // TestHA tests scenario when auth server for the cluster goes down
@@ -1335,7 +1400,7 @@ func (s *IntSuite) TestHA(c *check.C) {
 	c.Assert(output.String(), check.Equals, "hello world\n")
 
 	// stop auth server a now
-	c.Assert(a.Stop(true), check.IsNil)
+	c.Assert(a.StopAuth(true), check.IsNil)
 
 	// try to execute an SSH command using the same old client  to Site-B
 	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
@@ -1350,12 +1415,13 @@ func (s *IntSuite) TestHA(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// stop cluster and remaining nodes
-	c.Assert(b.Stop(true), check.IsNil)
-	c.Assert(b.StopNodes(), check.IsNil)
+	c.Assert(b.StopAll(), check.IsNil)
+	c.Assert(b.StopAll(), check.IsNil)
 }
 
 // TestMapRoles tests local to remote role mapping and access patterns
 func (s *IntSuite) TestMapRoles(c *check.C) {
+	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -1403,7 +1469,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 		},
 	})
 	c.Assert(err, check.IsNil)
-	err = aux.Process.GetAuthServer().UpsertRole(role)
+	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-cluster-token"
 	err = main.Process.GetAuthServer().UpsertToken(
@@ -1432,7 +1498,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(main.Tunnel.GetSites()) < 2 && len(main.Tunnel.GetSites()) < 2 {
+	for len(main.Tunnel.GetSites()) < 2 && len(aux.Tunnel.GetSites()) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two clusters do not see each other: tunnels are not working")
@@ -1547,17 +1613,18 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 	}
 
 	// stop clusters and remaining nodes
-	c.Assert(main.Stop(true), check.IsNil)
-	c.Assert(aux.Stop(true), check.IsNil)
+	c.Assert(main.StopAll(), check.IsNil)
+	c.Assert(aux.StopAll(), check.IsNil)
 }
 
 // tryCreateTrustedCluster performs several attempts to create a trusted cluster,
 // retries on connection problems and access denied errors to let caches
 // propagate and services to start
 func tryCreateTrustedCluster(c *check.C, authServer *auth.AuthServer, trustedCluster services.TrustedCluster) {
+	ctx := context.TODO()
 	for i := 0; i < 10; i++ {
 		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
-		_, err := authServer.UpsertTrustedCluster(trustedCluster)
+		_, err := authServer.UpsertTrustedCluster(ctx, trustedCluster)
 		if err == nil {
 			return
 		}
@@ -1614,6 +1681,7 @@ func (s *IntSuite) TestMultiplexingTrustedClusters(c *check.C) {
 }
 
 func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
+	ctx := context.Background()
 	username := s.me.Username
 
 	clusterMain := "cluster-main"
@@ -1636,6 +1704,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 			Logins: []string{"superuser"},
 		},
 	})
+	c.Assert(err, check.IsNil)
 
 	main.AddUserWithRole(username, devsRole, adminsRole)
 
@@ -1666,7 +1735,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 		},
 	})
 	c.Assert(err, check.IsNil)
-	err = aux.Process.GetAuthServer().UpsertRole(auxRole)
+	err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-cluster-token"
 	err = main.Process.GetAuthServer().UpsertToken(
@@ -1697,7 +1766,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(main.Tunnel.GetSites()) < 2 && len(main.Tunnel.GetSites()) < 2 {
+	for len(main.Tunnel.GetSites()) < 2 && len(aux.Tunnel.GetSites()) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two clusters do not see each other: tunnels are not working")
@@ -1737,7 +1806,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	c.Assert(err, check.IsNil)
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(context.TODO(), cmd, false)
+		err = tc.SSH(ctx, cmd, false)
 		if err == nil {
 			break
 		}
@@ -1747,7 +1816,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 
 	// ListNodes expect labels as a value of host
 	tc.Host = ""
-	servers, err := tc.ListNodes(context.TODO())
+	servers, err := tc.ListNodes(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(servers, check.HasLen, 2)
 	tc.Host = Loopback
@@ -1763,7 +1832,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	c.Assert(err, check.IsNil)
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(context.TODO(), cmd, false)
+		err = tc.SSH(ctx, cmd, false)
 		if err != nil {
 			break
 		}
@@ -1772,9 +1841,9 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 
 	// remove trusted cluster from aux cluster side, and recrete right after
 	// this should re-establish connection
-	err = aux.Process.GetAuthServer().DeleteTrustedCluster(trustedCluster.GetName())
+	err = aux.Process.GetAuthServer().DeleteTrustedCluster(ctx, trustedCluster.GetName())
 	c.Assert(err, check.IsNil)
-	_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(trustedCluster)
+	_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)
 	c.Assert(err, check.IsNil)
 
 	// check that remote cluster has been re-provisioned
@@ -1797,7 +1866,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	tc.Stdout = output
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond * 50)
-		err = tc.SSH(context.TODO(), cmd, false)
+		err = tc.SSH(ctx, cmd, false)
 		if err == nil {
 			break
 		}
@@ -1806,11 +1875,12 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	c.Assert(output.String(), check.Equals, "hello world\n")
 
 	// stop clusters and remaining nodes
-	c.Assert(main.Stop(true), check.IsNil)
-	c.Assert(aux.Stop(true), check.IsNil)
+	c.Assert(main.StopAll(), check.IsNil)
+	c.Assert(aux.StopAll(), check.IsNil)
 }
 
 func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
+	ctx := context.Background()
 	username := s.me.Username
 
 	clusterMain := "cluster-main"
@@ -1855,7 +1925,7 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 		},
 	})
 	c.Assert(err, check.IsNil)
-	err = aux.Process.GetAuthServer().UpsertRole(role)
+	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-cluster-token"
 	err = main.Process.GetAuthServer().UpsertToken(
@@ -1901,7 +1971,7 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(main.Tunnel.GetSites()) < 2 && len(main.Tunnel.GetSites()) < 2 {
+	for len(main.Tunnel.GetSites()) < 2 && len(aux.Tunnel.GetSites()) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two clusters do not see each other: tunnels are not working")
@@ -1958,8 +2028,8 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 	c.Assert(tunnelOutput.String(), check.Equals, "hello world\n")
 
 	// Stop clusters and remaining nodes.
-	c.Assert(main.Stop(true), check.IsNil)
-	c.Assert(aux.Stop(true), check.IsNil)
+	c.Assert(main.StopAll(), check.IsNil)
+	c.Assert(aux.StopAll(), check.IsNil)
 }
 
 // TestDiscoveryRecovers ensures that discovery protocol recovers from a bad discovery
@@ -2030,7 +2100,8 @@ func (s *IntSuite) TestDiscoveryRecovers(c *check.C) {
 				continue
 			}
 			if p.Config.Hostname == name {
-				lb.RemoveBackend(*utils.MustParseAddr(p.Config.Proxy.ReverseTunnelListenAddr.Addr))
+				reverseTunnelPort := utils.MustParseAddr(p.Config.Proxy.ReverseTunnelListenAddr.Addr).Port(0)
+				c.Assert(lb.RemoveBackend(*utils.MustParseAddr(net.JoinHostPort(Loopback, strconv.Itoa(reverseTunnelPort)))), check.IsNil)
 				c.Assert(p.Close(), check.IsNil)
 				c.Assert(p.Wait(), check.IsNil)
 				return
@@ -2073,12 +2144,12 @@ func (s *IntSuite) TestDiscoveryRecovers(c *check.C) {
 	// create first numbered proxy
 	_, c0 := addNewMainProxy(pname(0))
 	// check that we now have two tunnel connections
-	waitForProxyCount(remote, "cluster-main", 2)
+	c.Assert(waitForProxyCount(remote, "cluster-main", 2), check.IsNil)
 	// check that first numbered proxy is OK.
 	testProxyConn(&c0, false)
 	// remove the initial proxy.
-	lb.RemoveBackend(mainProxyAddr)
-	waitForProxyCount(remote, "cluster-main", 1)
+	c.Assert(lb.RemoveBackend(mainProxyAddr), check.IsNil)
+	c.Assert(waitForProxyCount(remote, "cluster-main", 1), check.IsNil)
 
 	// force bad state by iteratively removing previous proxy before
 	// adding next proxy; this ensures that discovery protocol's list of
@@ -2086,15 +2157,15 @@ func (s *IntSuite) TestDiscoveryRecovers(c *check.C) {
 	for i := 0; i < 6; i++ {
 		prev, next := pname(i), pname(i+1)
 		killMainProxy(prev)
-		waitForProxyCount(remote, "cluster-main", 0)
+		c.Assert(waitForProxyCount(remote, "cluster-main", 0), check.IsNil)
 		_, cn := addNewMainProxy(next)
-		waitForProxyCount(remote, "cluster-main", 1)
+		c.Assert(waitForProxyCount(remote, "cluster-main", 1), check.IsNil)
 		testProxyConn(&cn, false)
 	}
 
 	// Stop both clusters and remaining nodes.
-	c.Assert(remote.Stop(true), check.IsNil)
-	c.Assert(main.Stop(true), check.IsNil)
+	c.Assert(remote.StopAll(), check.IsNil)
+	c.Assert(main.StopAll(), check.IsNil)
 }
 
 // TestDiscovery tests case for multiple proxies and a reverse tunnel
@@ -2186,11 +2257,11 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	c.Assert(output, check.Equals, "hello world\n")
 
 	// Now disconnect the main proxy and make sure it will reconnect eventually.
-	lb.RemoveBackend(mainProxyAddr)
+	c.Assert(lb.RemoveBackend(mainProxyAddr), check.IsNil)
 	waitForActiveTunnelConnections(c, secondProxy, "cluster-remote", 1)
 
 	// Requests going via main proxy should fail.
-	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 1)
+	_, err = runCommand(main, []string{"echo", "hello world"}, cfg, 1)
 	c.Assert(err, check.NotNil)
 
 	// Requests going via second proxy should succeed.
@@ -2218,11 +2289,11 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Wait for the remote cluster to detect the outbound connection is gone.
-	waitForProxyCount(remote, "cluster-main", 1)
+	c.Assert(waitForProxyCount(remote, "cluster-main", 1), check.IsNil)
 
 	// Stop both clusters and remaining nodes.
-	c.Assert(remote.Stop(true), check.IsNil)
-	c.Assert(main.Stop(true), check.IsNil)
+	c.Assert(remote.StopAll(), check.IsNil)
+	c.Assert(main.StopAll(), check.IsNil)
 }
 
 // TestDiscoveryNode makes sure the discovery protocol works with nodes.
@@ -2264,7 +2335,7 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 		return c, nil, nil, tconf
 	}
 	main := s.newTeleportWithConfig(mainConfig())
-	defer main.Stop(true)
+	defer main.StopAll()
 
 	// Create a Teleport instance with a Proxy.
 	nodePorts := s.getPorts(3)
@@ -2337,7 +2408,7 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	c.Assert(output, check.Equals, "hello world\n")
 
 	// Remove second proxy from LB.
-	lb.RemoveBackend(*proxyTwoBackend)
+	c.Assert(lb.RemoveBackend(*proxyTwoBackend), check.IsNil)
 	waitForActiveTunnelConnections(c, main.Tunnel, Site, 1)
 
 	// Requests going via main proxy will succeed. Requests going via second
@@ -2345,7 +2416,7 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	output, err = runCommand(main, []string{"echo", "hello world"}, cfg, 1)
 	c.Assert(err, check.IsNil)
 	c.Assert(output, check.Equals, "hello world\n")
-	output, err = runCommand(main, []string{"echo", "hello world"}, cfgProxy, 1)
+	_, err = runCommand(main, []string{"echo", "hello world"}, cfgProxy, 1)
 	c.Assert(err, check.NotNil)
 
 	// Add second proxy to LB, both should have a connection.
@@ -2364,7 +2435,7 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	// Stop everything.
 	err = proxyTunnel.Shutdown(context.Background())
 	c.Assert(err, check.IsNil)
-	err = main.Stop(true)
+	err = main.StopAll()
 	c.Assert(err, check.IsNil)
 }
 
@@ -2391,17 +2462,17 @@ func waitForActiveTunnelConnections(c *check.C, tunnel reversetunnel.Server, clu
 // reach some value.
 func waitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 	var counts map[string]int
-
-	for i := 0; i < 20; i++ {
+	start := time.Now()
+	for time.Since(start) < 17*time.Second {
 		counts = t.Pool.Counts()
 		if counts[clusterName] == count {
 			return nil
 		}
 
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 	}
 
-	return trace.BadParameter("proxy count on %v: %v", clusterName, counts[clusterName])
+	return trace.BadParameter("proxy count on %v: %v (wanted %v)", clusterName, counts[clusterName], count)
 }
 
 // waitForNodeCount waits for a certain number of nodes to show up in the remote site.
@@ -2525,7 +2596,7 @@ func (s *IntSuite) TestExternalClient(c *check.C) {
 			return c, nil, nil, tconf
 		}
 		t := s.newTeleportWithConfig(makeConfig())
-		defer t.Stop(true)
+		defer t.StopAll()
 
 		// Start (and defer close) a agent that runs during this integration test.
 		teleAgent, socketDirPath, socketPath, err := createAgent(
@@ -2618,7 +2689,7 @@ func (s *IntSuite) TestControlMaster(c *check.C) {
 			return c, nil, nil, tconf
 		}
 		t := s.newTeleportWithConfig(makeConfig())
-		defer t.Stop(true)
+		defer t.StopAll()
 
 		// Start (and defer close) a agent that runs during this integration test.
 		teleAgent, socketDirPath, socketPath, err := createAgent(
@@ -2715,7 +2786,7 @@ func (s *IntSuite) TestProxyHostKeyCheck(c *check.C) {
 			return c, nil, nil, tconf
 		}
 		t := s.newTeleportWithConfig(makeConfig())
-		defer t.Stop(true)
+		defer t.StopAll()
 
 		// create a teleport client and exec a command
 		clientConfig := ClientConfig{
@@ -2766,7 +2837,7 @@ func (s *IntSuite) TestAuditOff(c *check.C) {
 		return c, nil, nil, tconf
 	}
 	t := s.newTeleportWithConfig(makeConfig())
-	defer t.Stop(true)
+	defer t.StopAll()
 
 	// get access to a authClient for the cluster
 	site := t.GetSiteAPI(Site)
@@ -2788,8 +2859,8 @@ func (s *IntSuite) TestAuditOff(c *check.C) {
 			Port:    t.GetPortSSHInt(),
 		})
 		c.Assert(err, check.IsNil)
-		cl.Stdout = &myTerm
-		cl.Stdin = &myTerm
+		cl.Stdout = myTerm
+		cl.Stdin = myTerm
 		err = cl.SSH(context.TODO(), []string{}, false)
 		endCh <- err
 	}()
@@ -2843,16 +2914,16 @@ func (s *IntSuite) TestPAM(c *check.C) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	// Check if TestPAM can run. For PAM tests to run, the binary must have been
-	// built with PAM support and the system running the tests must have libpam
-	// installed, and have the policy files installed. This test is always run
-	// in a container as part of the CI/CD pipeline. To run this test locally,
-	// install the pam_teleport.so module by running 'make && sudo make install'
-	// from the modules/pam_teleport directory. This will install the PAM module
-	// as well as the policy files.
+	// Check if TestPAM can run. For PAM tests to run, the binary must have
+	// been built with PAM support and the system running the tests must have
+	// libpam installed, and have the policy files installed. This test is
+	// always run in a container as part of the CI/CD pipeline. To run this
+	// test locally, install the pam_teleport.so module by running 'sudo make
+	// install' from the build.assets/pam/ directory. This will install the PAM
+	// module as well as the policy files.
 	if !pam.BuildHasPAM() || !pam.SystemHasPAM() || !hasPAMPolicy() {
 		skipMessage := "Skipping TestPAM: no policy found. To run PAM tests run " +
-			"'make && sudo make install' from the modules/pam_teleport directory."
+			"'sudo make install' from the build.assets/pam/ directory."
 		c.Skip(skipMessage)
 	}
 
@@ -2872,8 +2943,10 @@ func (s *IntSuite) TestPAM(c *check.C) {
 			inEnabled:     true,
 			inServiceName: "teleport-success",
 			outContains: []string{
-				"Account opened successfully.",
-				"Session open successfully.",
+				"pam_sm_acct_mgmt OK",
+				"pam_sm_authenticate OK",
+				"pam_sm_open_session OK",
+				"pam_sm_close_session OK",
 			},
 		},
 		// 2 - PAM enabled, module account functions fail.
@@ -2908,7 +2981,7 @@ func (s *IntSuite) TestPAM(c *check.C) {
 			return c, nil, nil, tconf
 		}
 		t := s.newTeleportWithConfig(makeConfig())
-		defer t.Stop(true)
+		defer t.StopAll()
 
 		termSession := NewTerminal(250)
 
@@ -2923,8 +2996,8 @@ func (s *IntSuite) TestPAM(c *check.C) {
 			})
 			c.Assert(err, check.IsNil)
 
-			cl.Stdout = &termSession
-			cl.Stdin = &termSession
+			cl.Stdout = termSession
+			cl.Stdin = termSession
 
 			termSession.Type("\aecho hi\n\r\aexit\n\r\a")
 			err = cl.SSH(context.TODO(), []string{}, false)
@@ -2943,7 +3016,8 @@ func (s *IntSuite) TestPAM(c *check.C) {
 		// If any output is expected, check to make sure it was output.
 		if len(tt.outContains) > 0 {
 			for _, expectedOutput := range tt.outContains {
-				output := string(termSession.Output(100))
+				output := termSession.Output(1024)
+				c.Logf("got output: %q; want output to contain: %q", output, expectedOutput)
 				c.Assert(strings.Contains(output, expectedOutput), check.Equals, true)
 			}
 		}
@@ -2969,10 +3043,9 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 
 	serviceC := make(chan *service.TeleportProcess, 20)
 
-	runCtx, runCancel := context.WithCancel(context.TODO())
+	runErrCh := make(chan error, 1)
 	go func() {
-		defer runCancel()
-		service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
+		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				serviceC <- svc
@@ -3031,7 +3104,7 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// client works as is before servers have been rotated
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Setting rotation state to %v", services.RotationPhaseUpdateServers)
@@ -3059,7 +3132,7 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// new client works
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Setting rotation state to %v.", services.RotationPhaseStandby)
@@ -3080,7 +3153,7 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// new client still works
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Rotation has completed. Shuttting down service.")
@@ -3091,7 +3164,8 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	svc.Close()
 
 	select {
-	case <-runCtx.Done():
+	case err := <-runErrCh:
+		c.Assert(err, check.IsNil)
 	case <-time.After(20 * time.Second):
 		c.Fatalf("failed to shut down the server")
 	}
@@ -3116,10 +3190,9 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 
 	serviceC := make(chan *service.TeleportProcess, 20)
 
-	runCtx, runCancel := context.WithCancel(context.TODO())
+	runErrCh := make(chan error, 1)
 	go func() {
-		defer runCancel()
-		service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
+		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				serviceC <- svc
@@ -3175,7 +3248,7 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// client works as is before servers have been rotated
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Setting rotation state to %v", services.RotationPhaseUpdateServers)
@@ -3205,7 +3278,7 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// old client works
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Rotation has completed. Shuttting down service.")
@@ -3216,7 +3289,8 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	svc.Close()
 
 	select {
-	case <-runCtx.Done():
+	case err := <-runErrCh:
+		c.Assert(err, check.IsNil)
 	case <-time.After(20 * time.Second):
 		c.Fatalf("failed to shut down the server")
 	}
@@ -3245,10 +3319,9 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	serviceC := make(chan *service.TeleportProcess, 20)
-	runCtx, runCancel := context.WithCancel(context.TODO())
+	runErrCh := make(chan error, 1)
 	go func() {
-		defer runCancel()
-		service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
+		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				serviceC <- svc
@@ -3288,7 +3361,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 		},
 	})
 	c.Assert(err, check.IsNil)
-	err = aux.Process.GetAuthServer().UpsertRole(role)
+	err = aux.Process.GetAuthServer().UpsertRole(ctx, role)
 	c.Assert(err, check.IsNil)
 	trustedClusterToken := "trusted-clsuter-token"
 	err = svc.GetAuthServer().UpsertToken(
@@ -3323,7 +3396,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	clt, err := main.NewClientWithCreds(cfg, *initialCreds)
 	c.Assert(err, check.IsNil)
 
-	err = runAndMatch(clt, 6, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Setting rotation state to %v", services.RotationPhaseInit)
@@ -3375,7 +3448,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// old client should work as is
-	err = runAndMatch(clt, 6, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Setting rotation state to %v", services.RotationPhaseUpdateServers)
@@ -3402,7 +3475,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// new client works
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Setting rotation state to %v.", services.RotationPhaseStandby)
@@ -3425,7 +3498,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	l.Infof("Phase completed.")
 
 	// new client still works
-	err = runAndMatch(clt, 3, []string{"echo", "hello world"}, ".*hello world.*")
+	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
 	l.Infof("Service reloaded. Rotation has completed. Shuttting down service.")
@@ -3436,7 +3509,155 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	svc.Close()
 
 	select {
-	case <-runCtx.Done():
+	case err := <-runErrCh:
+		c.Assert(err, check.IsNil)
+	case <-time.After(20 * time.Second):
+		c.Fatalf("failed to shut down the server")
+	}
+}
+
+// TestRotateChangeSigningAlg tests the change of CA signing algorithm on
+// manual rotation.
+func (s *IntSuite) TestRotateChangeSigningAlg(c *check.C) {
+	// Start with an instance using default signing alg.
+	tconf := rotationConfig(true)
+	t := NewInstance(InstanceConfig{ClusterName: Site, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
+	logins := []string{s.me.Username}
+	for _, login := range logins {
+		t.AddUser(login, []string{login})
+	}
+	config, err := t.GenerateConfig(nil, tconf)
+	c.Assert(err, check.IsNil)
+
+	serviceC := make(chan *service.TeleportProcess, 20)
+	runErrCh := make(chan error, 1)
+
+	restart := func(svc *service.TeleportProcess, cancel func()) (*service.TeleportProcess, func()) {
+		if svc != nil && cancel != nil {
+			// shut down the service
+			cancel()
+			// close the service without waiting for the connections to drain
+			err := svc.Close()
+			c.Assert(err, check.IsNil)
+			err = svc.Wait()
+			c.Assert(err, check.IsNil)
+
+			select {
+			case err := <-runErrCh:
+				c.Assert(err, check.IsNil)
+			case <-time.After(20 * time.Second):
+				c.Fatalf("failed to shut down the server")
+			}
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
+				svc, err := service.NewTeleport(cfg)
+				if err == nil {
+					serviceC <- svc
+				}
+				return svc, err
+			})
+		}()
+
+		svc, err = waitForProcessStart(serviceC)
+		c.Assert(err, check.IsNil)
+		return svc, cancel
+	}
+
+	assertSigningAlg := func(svc *service.TeleportProcess, alg string) {
+		hostCA, err := svc.GetAuthServer().GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: Site}, false)
+		c.Assert(err, check.IsNil)
+		c.Assert(hostCA.GetSigningAlg(), check.Equals, alg)
+
+		userCA, err := svc.GetAuthServer().GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: Site}, false)
+		c.Assert(err, check.IsNil)
+		c.Assert(userCA.GetSigningAlg(), check.Equals, alg)
+	}
+
+	rotate := func(svc *service.TeleportProcess, mode string) *service.TeleportProcess {
+		c.Logf("rotation phase: %q", services.RotationPhaseInit)
+		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+			TargetPhase: services.RotationPhaseInit,
+			Mode:        mode,
+		})
+		c.Assert(err, check.IsNil)
+
+		// wait until service phase update to be broadcasted (init phase does not trigger reload)
+		err = waitForProcessEvent(svc, service.TeleportPhaseChangeEvent, 10*time.Second)
+		c.Assert(err, check.IsNil)
+
+		c.Logf("rotation phase: %q", services.RotationPhaseUpdateClients)
+		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+			TargetPhase: services.RotationPhaseUpdateClients,
+			Mode:        mode,
+		})
+		c.Assert(err, check.IsNil)
+
+		// wait until service reload
+		svc, err = waitForReload(serviceC, svc)
+		c.Assert(err, check.IsNil)
+
+		c.Logf("rotation phase: %q", services.RotationPhaseUpdateServers)
+		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+			TargetPhase: services.RotationPhaseUpdateServers,
+			Mode:        mode,
+		})
+		c.Assert(err, check.IsNil)
+
+		// wait until service reloaded
+		svc, err = waitForReload(serviceC, svc)
+		c.Assert(err, check.IsNil)
+
+		c.Logf("rotation phase: %q", services.RotationPhaseStandby)
+		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+			TargetPhase: services.RotationPhaseStandby,
+			Mode:        mode,
+		})
+		c.Assert(err, check.IsNil)
+
+		// wait until service reloaded
+		svc, err = waitForReload(serviceC, svc)
+		c.Assert(err, check.IsNil)
+
+		return svc
+	}
+
+	// Start the instance.
+	svc, cancel := restart(nil, nil)
+
+	c.Log("default signature algorithm due to empty config value")
+	// Verify the default signing algorithm with config value empty.
+	assertSigningAlg(svc, defaults.CASignatureAlgorithm)
+
+	c.Log("change signature algorithm with custom config value and manual rotation")
+	// Change the signing algorithm in config file.
+	signingAlg := ssh.SigAlgoRSA
+	config.CASignatureAlgorithm = &signingAlg
+	svc, cancel = restart(svc, cancel)
+	// Do a manual rotation - this should change the signing algorithm.
+	svc = rotate(svc, services.RotationModeManual)
+	assertSigningAlg(svc, ssh.SigAlgoRSA)
+
+	c.Log("preserve signature algorithm with empty config value and manual rotation")
+	// Unset the config value.
+	config.CASignatureAlgorithm = nil
+	svc, cancel = restart(svc, cancel)
+
+	// Do a manual rotation - this should leave the signing algorithm
+	// unaffected because config value is not set.
+	svc = rotate(svc, services.RotationModeManual)
+	assertSigningAlg(svc, ssh.SigAlgoRSA)
+
+	// shut down the service
+	cancel()
+	// close the service without waiting for the connections to drain
+	svc.Close()
+
+	select {
+	case err := <-runErrCh:
+		c.Assert(err, check.IsNil)
 	case <-time.After(20 * time.Second):
 		c.Fatalf("failed to shut down the server")
 	}
@@ -3525,16 +3746,17 @@ func runAndMatch(tc *client.TeleportClient, attempts int, command []string, patt
 	for i := 0; i < attempts; i++ {
 		err = tc.SSH(context.TODO(), command, false)
 		if err != nil {
+			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 		out := output.String()
-		out = string(replaceNewlines(out))
+		out = replaceNewlines(out)
 		matched, _ := regexp.MatchString(pattern, out)
 		if matched {
 			return nil
 		}
 		err = trace.CompareFailed("output %q did not match pattern %q", out, pattern)
-		time.Sleep(250 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 	}
 	return err
 }
@@ -3546,7 +3768,7 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 	defer tr.Stop()
 
 	t := s.newTeleport(c, nil, true)
-	defer t.Stop(true)
+	defer t.StopAll()
 
 	site := t.GetSiteAPI(Site)
 	c.Assert(site, check.NotNil)
@@ -3564,8 +3786,8 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 		})
 		c.Assert(err, check.IsNil)
 
-		cl.Stdout = &personA
-		cl.Stdin = &personA
+		cl.Stdout = personA
+		cl.Stdin = personA
 
 		err = cl.SSH(context.TODO(), []string{}, false)
 		c.Assert(err, check.IsNil)
@@ -3593,8 +3815,8 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 		})
 		c.Assert(err, check.IsNil)
 
-		cl.Stdout = &personB
-		cl.Stdin = &personB
+		cl.Stdout = personB
+		cl.Stdin = personB
 
 		// Change the size of the window immediately after it is created.
 		cl.OnShellCreated = func(s *ssh.Session, c *ssh.Client, terminal io.ReadWriteCloser) (exit bool, err error) {
@@ -3606,7 +3828,7 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 		}
 
 		for i := 0; i < 10; i++ {
-			err = cl.Join(context.TODO(), defaults.Namespace, session.ID(sessionID), &personB)
+			err = cl.Join(context.TODO(), defaults.Namespace, session.ID(sessionID), personB)
 			if err == nil {
 				break
 			}
@@ -3614,19 +3836,22 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 		c.Assert(err, check.IsNil)
 	}
 
-	// waitForOutput checks the output of the passed in terminal of a string until
-	// some timeout has occurred.
-	waitForOutput := func(t Terminal, s string) error {
+	// waitForOutput checks that the output of the passed in terminal contains
+	// one of the strings in `outputs` until some timeout has occurred.
+	waitForOutput := func(t *Terminal, outputs ...string) error {
 		tickerCh := time.Tick(500 * time.Millisecond)
 		timeoutCh := time.After(30 * time.Second)
 		for {
 			select {
 			case <-tickerCh:
-				if strings.Contains(t.Output(500), s) {
-					return nil
+				out := t.Output(5000)
+				for _, s := range outputs {
+					if strings.Contains(out, s) {
+						return nil
+					}
 				}
 			case <-timeoutCh:
-				return trace.BadParameter("timed out waiting for output")
+				return trace.BadParameter("timed out waiting for output, last output: %q doesn't contain any of the expected substrings: %q", t.Output(5000), outputs)
 			}
 		}
 
@@ -3637,8 +3862,8 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 
 	// Use the "printf" command to print the terminal size on the screen and
 	// make sure it is 80x25.
-	personA.Type("\aprintf '%s %s\n' $(tput cols) $(tput lines)\n\r\a")
-	err := waitForOutput(personA, "80 25")
+	personA.Type("\atput cols; tput lines\n\r\a")
+	err := waitForOutput(personA, "80\r\n25", "80\n\r25", "80\n25")
 	c.Assert(err, check.IsNil)
 
 	// As soon as person B joins the session, the terminal is resized to 160x48.
@@ -3648,8 +3873,8 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 
 	// Use the "printf" command to print the window size again and make sure it's
 	// 160x48.
-	personA.Type("\aprintf '%s %s\n' $(tput cols) $(tput lines)\n\r\a")
-	err = waitForOutput(personA, "160 48")
+	personA.Type("\atput cols; tput lines\n\r\a")
+	err = waitForOutput(personA, "160\r\n48", "160\n\r48", "160\n48")
 	c.Assert(err, check.IsNil)
 
 	// Close the session.
@@ -3684,7 +3909,7 @@ func (s *IntSuite) TestList(c *check.C) {
 		return c, nil, nil, tconf
 	}
 	t := s.newTeleportWithConfig(makeConfig())
-	defer t.Stop(true)
+	defer t.StopAll()
 
 	// Create and start a Teleport node.
 	nodeSSHPort := s.getPorts(1)[0]
@@ -3795,67 +4020,90 @@ func (s *IntSuite) TestList(c *check.C) {
 	}
 }
 
-// TestMultipleSignup makes sure that multiple users can create Teleport accounts.
-func (s *IntSuite) TestMultipleSignup(c *check.C) {
+// TestCmdLabels verifies the behavior of running commands via labels
+// with a mixture of regular and reversetunnel nodes.
+func (s *IntSuite) TestCmdLabels(c *check.C) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	type createNewUserReq struct {
-		InviteToken string `json:"invite_token"`
-		Pass        string `json:"pass"`
-	}
+	// InsecureDevMode needed for IoT node handshake
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
 
-	// Create and start a Teleport cluster.
-	makeConfig := func() (*check.C, []string, []*InstanceSecrets, *service.Config) {
+	// Create and start a Teleport cluster with auth, proxy, and node.
+	makeConfig := func() *service.Config {
 		clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
-			SessionRecording: services.RecordAtNode,
+			SessionRecording: services.RecordOff,
 			LocalAuth:        services.NewBool(true),
 		})
 		c.Assert(err, check.IsNil)
 
 		tconf := service.MakeDefaultConfig()
-		tconf.Auth.Preference.SetSecondFactor("off")
+		tconf.Hostname = "server-01"
 		tconf.Auth.Enabled = true
 		tconf.Auth.ClusterConfig = clusterConfig
 		tconf.Proxy.Enabled = true
 		tconf.Proxy.DisableWebService = false
 		tconf.Proxy.DisableWebInterface = true
 		tconf.SSH.Enabled = true
-		return c, nil, nil, tconf
+		tconf.SSH.Labels = map[string]string{
+			"role": "worker",
+			"spam": "eggs",
+		}
+
+		return tconf
 	}
-	main := s.newTeleportWithConfig(makeConfig())
-	defer main.Stop(true)
+	t := s.newTeleportWithConfig(c, nil, nil, makeConfig())
+	defer t.StopAll()
 
-	mainAuth := main.Process.GetAuthServer()
+	// Create and start a reversetunnel node.
+	nodeConfig := func() *service.Config {
+		tconf := service.MakeDefaultConfig()
+		tconf.Hostname = "server-02"
+		tconf.SSH.Enabled = true
+		tconf.SSH.Labels = map[string]string{
+			"role": "database",
+			"spam": "eggs",
+		}
 
-	// Create a few users to make sure the proxy uses the correct identity
-	// when connecting to the auth server.
-	for i := 0; i < 5; i++ {
-		// Create a random username.
-		username, err := utils.CryptoRandomHex(16)
+		return tconf
+	}
+	_, err := t.StartReverseTunnelNode(nodeConfig())
+	c.Assert(err, check.IsNil)
+
+	// test label patterns that match both nodes, and each
+	// node individually.
+	tts := []struct {
+		command []string
+		labels  map[string]string
+		expect  string
+	}{
+		{
+			command: []string{"echo", "two"},
+			labels:  map[string]string{"spam": "eggs"},
+			expect:  "two\ntwo\n",
+		},
+		{
+			command: []string{"echo", "worker"},
+			labels:  map[string]string{"role": "worker"},
+			expect:  "worker\n",
+		},
+		{
+			command: []string{"echo", "database"},
+			labels:  map[string]string{"role": "database"},
+			expect:  "database\n",
+		},
+	}
+
+	for _, tt := range tts {
+		cfg := ClientConfig{
+			Login:  s.me.Username,
+			Labels: tt.labels,
+		}
+
+		output, err := runCommand(t, tt.command, cfg, 1)
 		c.Assert(err, check.IsNil)
-
-		// Create signup token, this is like doing "tctl users add foo foo".
-		token, err := mainAuth.CreateSignupToken(services.UserV1{
-			Name:          username,
-			AllowedLogins: []string{username},
-		}, backend.Forever)
-		c.Assert(err, check.IsNil)
-
-		// Create client that will simulate web browser.
-		clt, err := createWebClient(main)
-		c.Assert(err, check.IsNil)
-
-		// Render the signup page.
-		_, err = clt.Get(context.Background(), clt.Endpoint("webapi", "users", "invites", token), url.Values{})
-		c.Assert(err, check.IsNil)
-
-		// Make sure signup is successful.
-		_, err = clt.PostJSON(context.Background(), clt.Endpoint("webapi", "users"), createNewUserReq{
-			InviteToken: token,
-			Pass:        "fake-password-123",
-		})
-		c.Assert(err, check.IsNil)
+		c.Assert(output, check.Equals, tt.expect)
 	}
 }
 
@@ -3870,7 +4118,7 @@ func (s *IntSuite) TestDataTransfer(c *check.C) {
 
 	// Create a Teleport cluster.
 	main := s.newTeleport(c, nil, true)
-	defer main.Stop(true)
+	defer main.StopAll()
 
 	// Create a client to the above Teleport cluster.
 	clientConfig := ClientConfig{
@@ -3974,7 +4222,7 @@ func (s *IntSuite) TestBPFInteractive(c *check.C) {
 			return c, nil, nil, tconf
 		}
 		main := s.newTeleportWithConfig(makeConfig())
-		defer main.Stop(true)
+		defer main.StopAll()
 
 		// Create a client terminal and context to signal when the client is done
 		// with the terminal.
@@ -3991,8 +4239,8 @@ func (s *IntSuite) TestBPFInteractive(c *check.C) {
 			c.Assert(err, check.IsNil)
 
 			// Connect terminal to std{in,out} of client.
-			client.Stdout = &term
-			client.Stdin = &term
+			client.Stdout = term
+			client.Stdin = term
 
 			// "Type" a command into the terminal.
 			term.Type(fmt.Sprintf("\a%v\n\r\aexit\n\r\a", lsPath))
@@ -4099,7 +4347,7 @@ func (s *IntSuite) TestBPFExec(c *check.C) {
 			return c, nil, nil, tconf
 		}
 		main := s.newTeleportWithConfig(makeConfig())
-		defer main.Stop(true)
+		defer main.StopAll()
 
 		// Create a client to the above Teleport cluster.
 		clientConfig := ClientConfig{
@@ -4176,7 +4424,7 @@ func (s *IntSuite) TestBPFSessionDifferentiation(c *check.C) {
 		return c, nil, nil, tconf
 	}
 	main := s.newTeleportWithConfig(makeConfig())
-	defer main.Stop(true)
+	defer main.StopAll()
 
 	// Create two client terminals and channel to signal when the clients are
 	// done with the terminals.
@@ -4185,7 +4433,7 @@ func (s *IntSuite) TestBPFSessionDifferentiation(c *check.C) {
 	doneCh := make(chan bool, 2)
 
 	// Open a terminal and type "ls" into both and exit.
-	writeTerm := func(term Terminal) {
+	writeTerm := func(term *Terminal) {
 		client, err := main.NewClient(ClientConfig{
 			Login:   s.me.Username,
 			Cluster: Site,
@@ -4195,8 +4443,8 @@ func (s *IntSuite) TestBPFSessionDifferentiation(c *check.C) {
 		c.Assert(err, check.IsNil)
 
 		// Connect terminal to std{in,out} of client.
-		client.Stdout = &term
-		client.Stdin = &term
+		client.Stdout = term
+		client.Stdin = term
 
 		// "Type" a command into the terminal.
 		term.Type(fmt.Sprintf("\a%v\n\r\aexit\n\r\a", lsPath))
@@ -4337,8 +4585,17 @@ func runCommand(instance *TeleInstance, cmd []string, cfg ClientConfig, attempts
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+	// since this helper is sometimes used for running commands on
+	// multiple nodes concurrently, we use io.Pipe to protect our
+	// output buffer from concurrent writes.
+	read, write := io.Pipe()
 	output := &bytes.Buffer{}
-	tc.Stdout = output
+	doneC := make(chan struct{})
+	go func() {
+		io.Copy(output, read)
+		close(doneC)
+	}()
+	tc.Stdout = write
 	for i := 0; i < attempts; i++ {
 		err = tc.SSH(context.TODO(), cmd, false)
 		if err == nil {
@@ -4346,7 +4603,12 @@ func runCommand(instance *TeleInstance, cmd []string, cfg ClientConfig, attempts
 		}
 		time.Sleep(1 * time.Second)
 	}
-	return output.String(), trace.Wrap(err)
+	write.Close()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	<-doneC
+	return output.String(), nil
 }
 
 // getPorts helper returns a range of unallocated ports available for litening on
@@ -4364,17 +4626,16 @@ func (s *IntSuite) getPorts(num int) []int {
 
 // Terminal emulates stdin+stdout for integration testing
 type Terminal struct {
-	io.Writer
-	io.Reader
-
-	written *bytes.Buffer
 	typed   chan byte
+	mu      *sync.Mutex
+	written *bytes.Buffer
 }
 
-func NewTerminal(capacity int) Terminal {
-	return Terminal{
+func NewTerminal(capacity int) *Terminal {
+	return &Terminal{
 		typed:   make(chan byte, capacity),
-		written: bytes.NewBuffer([]byte{}),
+		mu:      &sync.Mutex{},
+		written: bytes.NewBuffer(nil),
 	}
 }
 
@@ -4386,6 +4647,8 @@ func (t *Terminal) Type(data string) {
 
 // Output returns a number of first 'limit' bytes printed into this fake terminal
 func (t *Terminal) Output(limit int) string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	buff := t.written.Bytes()
 	if len(buff) > limit {
 		buff = buff[:limit]
@@ -4395,6 +4658,8 @@ func (t *Terminal) Output(limit int) string {
 }
 
 func (t *Terminal) Write(data []byte) (n int, err error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	return t.written.Write(data)
 }
 

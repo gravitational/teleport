@@ -33,7 +33,7 @@ func (m *StringValues) Reset()         { *m = StringValues{} }
 func (m *StringValues) String() string { return proto.CompactTextString(m) }
 func (*StringValues) ProtoMessage()    {}
 func (*StringValues) Descriptor() ([]byte, []int) {
-	return fileDescriptor_wrappers_b4e6428cd870cf3a, []int{0}
+	return fileDescriptor_wrappers_27e842bc8bd4b60d, []int{0}
 }
 func (m *StringValues) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -76,7 +76,7 @@ func (m *LabelValues) Reset()         { *m = LabelValues{} }
 func (m *LabelValues) String() string { return proto.CompactTextString(m) }
 func (*LabelValues) ProtoMessage()    {}
 func (*LabelValues) Descriptor() ([]byte, []int) {
-	return fileDescriptor_wrappers_b4e6428cd870cf3a, []int{1}
+	return fileDescriptor_wrappers_27e842bc8bd4b60d, []int{1}
 }
 func (m *LabelValues) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -607,9 +607,9 @@ var (
 	ErrIntOverflowWrappers   = fmt.Errorf("proto: integer overflow")
 )
 
-func init() { proto.RegisterFile("wrappers.proto", fileDescriptor_wrappers_b4e6428cd870cf3a) }
+func init() { proto.RegisterFile("wrappers.proto", fileDescriptor_wrappers_27e842bc8bd4b60d) }
 
-var fileDescriptor_wrappers_b4e6428cd870cf3a = []byte{
+var fileDescriptor_wrappers_27e842bc8bd4b60d = []byte{
 	// 211 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xe2, 0x2b, 0x2f, 0x4a, 0x2c,
 	0x28, 0x48, 0x2d, 0x2a, 0xd6, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0xe2, 0x80, 0xf1, 0xa5, 0x44,

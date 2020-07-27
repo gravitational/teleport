@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/base32"
 	"fmt"
+	"math"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -27,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
@@ -39,8 +42,9 @@ import (
 )
 
 type PasswordSuite struct {
-	bk backend.Backend
-	a  *AuthServer
+	bk             backend.Backend
+	a              *AuthServer
+	mockedAuditLog *events.MockAuditLog
 }
 
 var _ = fmt.Printf
@@ -76,6 +80,14 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 	err = s.a.SetClusterName(clusterName)
 	c.Assert(err, IsNil)
 
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		LocalAuth: services.NewBool(true),
+	})
+	c.Assert(err, IsNil)
+
+	err = s.a.SetClusterConfig(clusterConfig)
+	c.Assert(err, IsNil)
+
 	// set static tokens
 	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
 		StaticTokens: []services.ProvisionTokenV1{},
@@ -83,6 +95,9 @@ func (s *PasswordSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	err = s.a.SetStaticTokens(staticTokens)
 	c.Assert(err, IsNil)
+
+	s.mockedAuditLog = events.NewMockAuditLog(0)
+	s.a.IAuditLog = s.mockedAuditLog
 }
 
 func (s *PasswordSuite) TearDownTest(c *C) {
@@ -95,26 +110,75 @@ func (s *PasswordSuite) TestTiming(c *C) {
 	err := s.a.UpsertPassword(username, []byte(password))
 	c.Assert(err, IsNil)
 
-	var elapsedExists time.Duration
-	for i := 0; i < 10; i++ {
-		start := time.Now()
-		s.a.CheckPasswordWOToken(username, []byte(password))
-		elapsed := time.Since(start)
-		elapsedExists = elapsedExists + elapsed
+	type res struct {
+		exists  bool
+		elapsed time.Duration
+		err     error
 	}
 
-	var elapsedNotExists time.Duration
+	// Run multiple password checks in parallel, for both existing and
+	// non-existing user. This should ensure that there's always contention and
+	// that both checking paths are subject to it together.
+	//
+	// This should result in timing results being more similar to each other
+	// and reduce test flakiness.
+	wg := sync.WaitGroup{}
+	resCh := make(chan res)
 	for i := 0; i < 10; i++ {
-		start := time.Now()
-		s.a.CheckPasswordWOToken("blah", []byte(password))
-		elapsed := time.Since(start)
-		elapsedNotExists = elapsedNotExists + elapsed
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			start := time.Now()
+			err := s.a.CheckPasswordWOToken(username, []byte(password))
+			resCh <- res{
+				exists:  true,
+				elapsed: time.Since(start),
+				err:     err,
+			}
+		}()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			start := time.Now()
+			err := s.a.CheckPasswordWOToken("blah", []byte(password))
+			resCh <- res{
+				exists:  false,
+				elapsed: time.Since(start),
+				err:     err,
+			}
+		}()
+	}
+	go func() {
+		wg.Wait()
+		close(resCh)
+	}()
+
+	var elapsedExists, elapsedNotExists time.Duration
+	for r := range resCh {
+		if r.exists {
+			c.Assert(r.err, IsNil)
+			elapsedExists += r.elapsed
+		} else {
+			c.Assert(r.err, NotNil)
+			elapsedNotExists += r.elapsed
+		}
 	}
 
-	// elapsedDifference must be less than 40 ms (with some leeway for delays in runtime)
-	elapsedDifference := elapsedExists/10 - elapsedNotExists/10
-	comment := Commentf("elapsed difference (%v) greater than 40 ms", elapsedDifference)
-	c.Assert(elapsedDifference.Seconds() < 0.040, Equals, true, comment)
+	// Get the relative percentage difference in runtimes of password check
+	// with real and non-existent users. It should be <10%.
+	diffFraction := math.Abs(1.0 - (float64(elapsedExists) / float64(elapsedNotExists)))
+	comment := Commentf("elapsed difference (%v%%) greater than 10%%", 100*diffFraction)
+	c.Assert(diffFraction < 0.1, Equals, true, comment)
+}
+
+func (s *PasswordSuite) TestUserNotFound(c *C) {
+	username := "unknown-user"
+	password := "barbaz"
+
+	err := s.a.CheckPasswordWOToken(username, []byte(password))
+	c.Assert(err, NotNil)
+	// Make sure the error is not a NotFound. That would be a username oracle.
+	c.Assert(trace.IsBadParameter(err), Equals, true)
 }
 
 func (s *PasswordSuite) TestChangePassword(c *C) {
@@ -127,6 +191,8 @@ func (s *PasswordSuite) TestChangePassword(c *C) {
 
 	err = s.a.ChangePassword(req)
 	c.Assert(err, IsNil)
+	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.UserPasswordChange)
+	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.EventUser], Equals, "user1")
 
 	s.shouldLockAfterFailedAttempts(c, req)
 
@@ -169,6 +235,163 @@ func (s *PasswordSuite) TestChangePasswordWithOTP(c *C) {
 	req.SecondFactorToken = validToken
 	err = s.a.ChangePassword(req)
 	c.Assert(err, IsNil)
+}
+
+func (s *PasswordSuite) TestChangePasswordWithToken(c *C) {
+	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         teleport.Local,
+		SecondFactor: teleport.OFF,
+	})
+	c.Assert(err, IsNil)
+
+	err = s.a.SetAuthPreference(authPreference)
+	c.Assert(err, IsNil)
+
+	username := "joe@example.com"
+	password := []byte("qweqweqwe")
+	_, _, err = CreateUserAndRole(s.a, username, []string{username})
+	c.Assert(err, IsNil)
+
+	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
+		Name: username,
+	})
+	c.Assert(err, IsNil)
+
+	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
+		TokenID:  token.GetName(),
+		Password: password,
+	})
+	c.Assert(err, IsNil)
+
+	// password should be updated
+	err = s.a.CheckPasswordWOToken(username, password)
+	c.Assert(err, IsNil)
+}
+
+func (s *PasswordSuite) TestChangePasswordWithTokenOTP(c *C) {
+	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         teleport.Local,
+		SecondFactor: teleport.OTP,
+	})
+	c.Assert(err, IsNil)
+
+	err = s.a.SetAuthPreference(authPreference)
+	c.Assert(err, IsNil)
+
+	username := "joe@example.com"
+	password := []byte("qweqweqwe")
+	_, _, err = CreateUserAndRole(s.a, username, []string{username})
+	c.Assert(err, IsNil)
+
+	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
+		Name: username,
+	})
+	c.Assert(err, IsNil)
+
+	secrets, err := s.a.RotateResetPasswordTokenSecrets(context.TODO(), token.GetName())
+	c.Assert(err, IsNil)
+
+	otpToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.bk.Clock().Now())
+	c.Assert(err, IsNil)
+
+	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
+		TokenID:           token.GetName(),
+		Password:          password,
+		SecondFactorToken: otpToken,
+	})
+	c.Assert(err, IsNil)
+
+	err = s.a.CheckPasswordWOToken(username, password)
+	c.Assert(err, IsNil)
+}
+
+func (s *PasswordSuite) TestChangePasswordWithTokenErrors(c *C) {
+	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         teleport.Local,
+		SecondFactor: teleport.OTP,
+	})
+	c.Assert(err, IsNil)
+
+	username := "joe@example.com"
+	_, _, err = CreateUserAndRole(s.a, username, []string{username})
+	c.Assert(err, IsNil)
+
+	token, err := s.a.CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
+		Name: username,
+	})
+	c.Assert(err, IsNil)
+
+	validPassword := []byte("qweQWE1")
+	validTokenID := token.GetName()
+
+	type testCase struct {
+		desc         string
+		secondFactor string
+		req          ChangePasswordWithTokenRequest
+	}
+
+	testCases := []testCase{
+		{
+			secondFactor: teleport.OFF,
+			desc:         "invalid tokenID value",
+			req: ChangePasswordWithTokenRequest{
+				TokenID:  "what_token",
+				Password: validPassword,
+			},
+		},
+		{
+			secondFactor: teleport.OFF,
+			desc:         "invalid password",
+			req: ChangePasswordWithTokenRequest{
+				TokenID:  validTokenID,
+				Password: []byte("short"),
+			},
+		},
+		{
+			secondFactor: teleport.OTP,
+			desc:         "missing second factor",
+			req: ChangePasswordWithTokenRequest{
+				TokenID:  validTokenID,
+				Password: validPassword,
+			},
+		},
+		{
+			secondFactor: teleport.OTP,
+			desc:         "invalid OTP value",
+			req: ChangePasswordWithTokenRequest{
+				TokenID:           validTokenID,
+				Password:          validPassword,
+				SecondFactorToken: "invalid",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		// set new auth preference settings
+		authPreference.SetSecondFactor(tc.secondFactor)
+		err = s.a.SetAuthPreference(authPreference)
+		c.Assert(err, IsNil)
+
+		_, err = s.a.changePasswordWithToken(context.TODO(), tc.req)
+		c.Assert(err, NotNil, Commentf("test case %q", tc.desc))
+	}
+
+	authPreference.SetSecondFactor(teleport.OFF)
+	err = s.a.SetAuthPreference(authPreference)
+	c.Assert(err, IsNil)
+
+	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
+		TokenID:  validTokenID,
+		Password: validPassword,
+	})
+	c.Assert(err, IsNil)
+
+	// invite token cannot be reused
+	_, err = s.a.changePasswordWithToken(context.TODO(), ChangePasswordWithTokenRequest{
+		TokenID:  validTokenID,
+		Password: validPassword,
+	})
+	c.Assert(err, NotNil)
 }
 
 func (s *PasswordSuite) shouldLockAfterFailedAttempts(c *C, req services.ChangePasswordReq) {

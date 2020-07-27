@@ -63,10 +63,10 @@ type SrvSuite struct {
 	srvPort     string
 	srvHostPort string
 	clt         *ssh.Client
+	cltConfig   *ssh.ClientConfig
 	up          *upack
 	signer      ssh.Signer
 	user        string
-	freePorts   utils.PortList
 	server      *auth.TestTLSServer
 	proxyClient *auth.Client
 	nodeClient  *auth.Client
@@ -82,7 +82,6 @@ var wildcardAllow = services.Labels{
 	services.Wildcard: []string{services.Wildcard},
 }
 
-var _ = fmt.Printf
 var _ = Suite(&SrvSuite{})
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
@@ -99,12 +98,7 @@ func TestMain(m *testing.M) {
 }
 
 func (s *SrvSuite) SetUpSuite(c *C) {
-	var err error
-
 	utils.InitLoggerForTests(testing.Verbose())
-
-	s.freePorts, err = utils.GetFreeTCPPorts(100)
-	c.Assert(err, IsNil)
 }
 
 const hostID = "00000000-0000-0000-0000-000000000000"
@@ -147,16 +141,12 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	s.signer, err = sshutils.NewSigner(certs.Key, certs.Cert)
 	c.Assert(err, IsNil)
 
-	s.srvPort = s.freePorts.Pop()
-	s.srvAddress = "127.0.0.1:" + s.srvPort
-
 	s.nodeClient, err = s.server.NewClient(auth.TestBuiltin(teleport.RoleNode))
 	c.Assert(err, IsNil)
 
-	s.srvHostPort = fmt.Sprintf("%v:%v", s.server.ClusterName(), s.srvPort)
 	nodeDir := c.MkDir()
 	srv, err := New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: s.srvAddress},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
 		[]ssh.Signer{s.signer},
 		s.nodeClient,
@@ -185,6 +175,11 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(s.srv.Start(), IsNil)
 	c.Assert(s.srv.heartbeat.ForceSend(time.Second), IsNil)
 
+	s.srvAddress = s.srv.Addr()
+	_, s.srvPort, err = net.SplitHostPort(s.srvAddress)
+	c.Assert(err, IsNil)
+	s.srvHostPort = fmt.Sprintf("%v:%v", s.server.ClusterName(), s.srvPort)
+
 	// set up an agent server and a client that uses agent for forwarding
 	keyring := agent.NewKeyring()
 	addedKey := agent.AddedKey{
@@ -193,13 +188,13 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	}
 	c.Assert(keyring.Add(addedKey), IsNil)
 	s.up = up
-	sshConfig := &ssh.ClientConfig{
+	s.cltConfig = &ssh.ClientConfig{
 		User:            s.user,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
 		HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 	}
 
-	client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
+	client, err := ssh.Dial("tcp", s.srv.Addr(), s.cltConfig)
 	c.Assert(err, IsNil)
 	c.Assert(agent.ForwardToAgent(client, keyring), IsNil)
 	s.clt = client
@@ -255,15 +250,35 @@ func (s *SrvSuite) TestDirectTCPIP(c *C) {
 }
 
 func (s *SrvSuite) TestAdvertiseAddr(c *C) {
-	c.Assert(strings.Index(s.srv.AdvertiseAddr(), "127.0.0.1:"), Equals, 0)
-	s.srv.setAdvertiseIP("10.10.10.1")
-	c.Assert(strings.Index(s.srv.AdvertiseAddr(), "10.10.10.1:"), Equals, 0)
-	s.srv.setAdvertiseIP("")
+	// No advertiseAddr was set in SetUpTest, should default to srvAddress.
+	c.Assert(s.srv.AdvertiseAddr(), Equals, s.srvAddress)
+
+	var (
+		advIP      = utils.MustParseAddr("10.10.10.1")
+		advIPPort  = utils.MustParseAddr("10.10.10.1:1234")
+		advBadAddr = utils.MustParseAddr("localhost:badport")
+	)
+	// IP-only advertiseAddr should use the port from srvAddress.
+	s.srv.setAdvertiseAddr(advIP)
+	c.Assert(s.srv.AdvertiseAddr(), Equals, fmt.Sprintf("%s:%s", advIP, s.srvPort))
+
+	// IP and port advertiseAddr should fully override srvAddress.
+	s.srv.setAdvertiseAddr(advIPPort)
+	c.Assert(s.srv.AdvertiseAddr(), Equals, advIPPort.String())
+
+	// nil advertiseAddr should default to srvAddress.
+	s.srv.setAdvertiseAddr(nil)
+	c.Assert(s.srv.AdvertiseAddr(), Equals, s.srvAddress)
+
+	// Invalid advertiseAddr should fall back to srvAddress.
+	s.srv.setAdvertiseAddr(advBadAddr)
+	c.Assert(s.srv.AdvertiseAddr(), Equals, s.srvAddress)
 }
 
 // TestAgentForwardPermission makes sure if RBAC rules don't allow agent
 // forwarding, we don't start an agent even if requested.
 func (s *SrvSuite) TestAgentForwardPermission(c *C) {
+	ctx := context.Background()
 	// make sure the role does not allow agent forwarding
 	roleName := services.RoleNameForUser(s.user)
 	role, err := s.server.Auth().GetRole(roleName)
@@ -271,7 +286,7 @@ func (s *SrvSuite) TestAgentForwardPermission(c *C) {
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = services.NewBool(false)
 	role.SetOptions(roleOptions)
-	err = s.server.Auth().UpsertRole(role)
+	err = s.server.Auth().UpsertRole(ctx, role)
 	c.Assert(err, IsNil)
 
 	se, err := s.clt.NewSession()
@@ -289,15 +304,30 @@ func (s *SrvSuite) TestAgentForwardPermission(c *C) {
 	c.Assert(strings.Contains(string(output), "SSH_AUTH_SOCK"), Equals, false)
 }
 
+// TestOpenExecSessionSetsSession tests that OpenExecSession()
+// sets ServerContext session.
+func (s *SrvSuite) TestOpenExecSessionSetsSession(c *C) {
+	se, err := s.clt.NewSession()
+	c.Assert(err, IsNil)
+	defer se.Close()
+
+	// This will trigger an exec request, which will start a non-interactive session,
+	// which then triggers setting env for SSH_SESSION_ID.
+	output, err := se.Output("env")
+	c.Assert(err, IsNil)
+	c.Assert(strings.Contains(string(output), teleport.SSHSessionID), Equals, true)
+}
+
 // TestAgentForward tests agent forwarding via unix sockets
 func (s *SrvSuite) TestAgentForward(c *C) {
+	ctx := context.Background()
 	roleName := services.RoleNameForUser(s.user)
 	role, err := s.server.Auth().GetRole(roleName)
 	c.Assert(err, IsNil)
 	roleOptions := role.GetOptions()
 	roleOptions.ForwardAgent = services.NewBool(true)
 	role.SetOptions(roleOptions)
-	err = s.server.Auth().UpsertRole(role)
+	err = s.server.Auth().UpsertRole(ctx, role)
 	c.Assert(err, IsNil)
 
 	se, err := s.clt.NewSession()
@@ -352,8 +382,21 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 	err = client.Close()
 	c.Assert(err, IsNil)
 
-	// make sure the socket is gone after we closed the session
-	se.Close()
+	// make sure the socket persists after the session is closed.
+	// (agents are started from specific sessions, but apply to all
+	// sessions on the connection).
+	err = se.Close()
+	c.Assert(err, IsNil)
+	// Pause to allow closure to propagate.
+	time.Sleep(150 * time.Millisecond)
+	_, err = net.Dial("unix", socketPath)
+	c.Assert(err, IsNil)
+
+	// make sure the socket is gone after we closed the connection.
+	err = s.clt.Close()
+	c.Assert(err, IsNil)
+	// clt must be nullified to prevent double-close during test cleanup
+	s.clt = nil
 	for i := 0; i < 4; i++ {
 		_, err = net.Dial("unix", socketPath)
 		if err != nil {
@@ -585,12 +628,11 @@ func (s *SrvSuite) testClient(c *C, proxyAddr, targetAddr, remoteAddr string, ss
 	c.Assert(string(out), Equals, "hello\n")
 }
 
-func mustListen(a utils.NetAddr) net.Listener {
-	l, err := net.Listen("tcp", a.Addr)
-	if err != nil {
-		panic(err)
-	}
-	return l
+func (s *SrvSuite) mustListen(c *C) (net.Listener, utils.NetAddr) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, IsNil)
+	addr := utils.NetAddr{AddrNetwork: "tcp", Addr: l.Addr().String()}
+	return l, addr
 }
 
 func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
@@ -606,13 +648,13 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	proxySigner, err := sshutils.NewSigner(proxyKeys.Key, proxyKeys.Cert)
 	c.Assert(err, IsNil)
 
-	reverseTunnelPort := s.freePorts.Pop()
-	reverseTunnelAddress := utils.NetAddr{AddrNetwork: "tcp", Addr: fmt.Sprintf("%v:%v", s.server.ClusterName(), reverseTunnelPort)}
+	listener, reverseTunnelAddress := s.mustListen(c)
+	defer listener.Close()
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClientTLS:             s.proxyClient.TLSConfig(),
 		ID:                    hostID,
 		ClusterName:           s.server.ClusterName(),
-		Listener:              mustListen(reverseTunnelAddress),
+		Listener:              listener,
 		HostSigners:           []ssh.Signer{proxySigner},
 		LocalAuthClient:       s.proxyClient,
 		LocalAccessPoint:      s.proxyClient,
@@ -656,6 +698,9 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	err = agentPool.Start()
+	c.Assert(err, IsNil)
+
 	// Create a reverse tunnel and remote cluster simulating what the trusted
 	// cluster exchange does.
 	err = s.server.Auth().UpsertReverseTunnel(
@@ -686,9 +731,8 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	s.testClient(c, proxy.Addr(), s.srvHostPort, s.srv.Addr(), sshConfig)
 
 	// adding new node
-	bobAddr := "127.0.0.1:" + s.freePorts.Pop()
 	srv2, err := New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: bobAddr},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		"bob",
 		[]ssh.Signer{s.signer},
 		s.nodeClient,
@@ -711,7 +755,6 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetAuditLog(s.nodeClient),
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
-		SetUUID(bobAddr),
 		SetBPF(&bpf.NOP{}),
 	)
 	c.Assert(err, IsNil)
@@ -732,15 +775,16 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	c.Assert(err, IsNil)
 	done := make(chan struct{})
 	go func() {
-		io.Copy(stdout, reader)
+		_, err := io.Copy(stdout, reader)
+		c.Assert(err, IsNil)
 		close(done)
 	}()
 
 	// to make sure  labels have the right output
 	s.srv.syncUpdateLabels()
 	srv2.syncUpdateLabels()
-	s.srv.heartbeat.ForceSend(time.Second)
-	s.srv.heartbeat.ForceSend(time.Second)
+	c.Assert(s.srv.heartbeat.ForceSend(time.Second), IsNil)
+	c.Assert(srv2.heartbeat.ForceSend(time.Second), IsNil)
 	// request "list of sites":
 	c.Assert(se3.RequestSubsystem("proxysites"), IsNil)
 	<-done
@@ -766,16 +810,12 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 	log.Infof("[TEST START] TestProxyRoundRobin")
 
-	reverseTunnelPort := s.freePorts.Pop()
-	reverseTunnelAddress := utils.NetAddr{
-		AddrNetwork: "tcp",
-		Addr:        fmt.Sprintf("%v:%v", s.server.ClusterName(), reverseTunnelPort),
-	}
+	listener, reverseTunnelAddress := s.mustListen(c)
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClusterName:           s.server.ClusterName(),
 		ClientTLS:             s.proxyClient.TLSConfig(),
 		ID:                    hostID,
-		Listener:              mustListen(reverseTunnelAddress),
+		Listener:              listener,
 		HostSigners:           []ssh.Signer{s.signer},
 		LocalAuthClient:       s.proxyClient,
 		LocalAccessPoint:      s.proxyClient,
@@ -871,15 +911,12 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 // TestProxyDirectAccess tests direct access via proxy bypassing
 // reverse tunnel
 func (s *SrvSuite) TestProxyDirectAccess(c *C) {
-	reverseTunnelAddress := utils.NetAddr{
-		AddrNetwork: "tcp",
-		Addr:        fmt.Sprintf("%v:0", s.server.ClusterName()),
-	}
+	listener, _ := s.mustListen(c)
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClientTLS:             s.proxyClient.TLSConfig(),
 		ID:                    hostID,
 		ClusterName:           s.server.ClusterName(),
-		Listener:              mustListen(reverseTunnelAddress),
+		Listener:              listener,
 		HostSigners:           []ssh.Signer{s.signer},
 		LocalAuthClient:       s.proxyClient,
 		LocalAccessPoint:      s.proxyClient,
@@ -997,10 +1034,9 @@ func (s *SrvSuite) TestLimiter(c *C) {
 	)
 	c.Assert(err, IsNil)
 
-	srvAddress := "127.0.0.1:" + s.freePorts.Pop()
 	nodeStateDir := c.MkDir()
 	srv, err := New(
-		utils.NetAddr{AddrNetwork: "tcp", Addr: srvAddress},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
 		[]ssh.Signer{s.signer},
 		s.nodeClient,
@@ -1127,6 +1163,222 @@ func (s *SrvSuite) TestGlobalRequestRecordingProxy(c *C) {
 	c.Assert(response, Equals, true)
 }
 
+// rawNode is a basic non-teleport node which holds a
+// valid teleport cert and allows any client to connect.
+// useful for simulating basic behaviors of openssh nodes.
+type rawNode struct {
+	listener net.Listener
+	cfg      ssh.ServerConfig
+	addr     string
+}
+
+// accept an incoming connection and perform a basic ssh handshake
+func (r *rawNode) accept() (*ssh.ServerConn, <-chan ssh.NewChannel, <-chan *ssh.Request, error) {
+	netConn, err := r.listener.Accept()
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+	srvConn, chs, reqs, err := ssh.NewServerConn(netConn, &r.cfg)
+	if err != nil {
+		netConn.Close()
+		return nil, nil, nil, trace.Wrap(err)
+	}
+	return srvConn, chs, reqs, nil
+}
+
+func (r *rawNode) Close() error {
+	return trace.Wrap(r.listener.Close())
+}
+
+// newRawNode constructs a new raw node instance.
+func (s *SrvSuite) newRawNode(c *C) *rawNode {
+	hostname, err := os.Hostname()
+	c.Assert(err, IsNil)
+
+	// Create host key and certificate for node.
+	keys, err := s.server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
+		HostID:               "raw-node",
+		NodeName:             "raw-node",
+		Roles:                teleport.Roles{teleport.RoleNode},
+		AdditionalPrincipals: []string{hostname},
+		DNSNames:             []string{hostname},
+	})
+	c.Assert(err, IsNil)
+
+	signer, err := sshutils.NewSigner(keys.Key, keys.Cert)
+	c.Assert(err, IsNil)
+
+	// configure a server which allows any client to connect
+	cfg := ssh.ServerConfig{
+		NoClientAuth: true,
+		PasswordCallback: func(conn ssh.ConnMetadata, password []byte) (*ssh.Permissions, error) {
+			return &ssh.Permissions{}, nil
+		},
+		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			return &ssh.Permissions{}, nil
+		},
+	}
+	cfg.AddHostKey(signer)
+
+	listener, err := net.Listen("tcp", ":0")
+	c.Assert(err, IsNil)
+
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	c.Assert(err, IsNil)
+
+	addr := net.JoinHostPort(hostname, port)
+
+	return &rawNode{
+		listener: listener,
+		cfg:      cfg,
+		addr:     addr,
+	}
+}
+
+// startX11EchoServer starts a fake node which, for each incomging SSH connection, accepts an
+// X11 forwarding request and then dials a single X11 channel which echoes all bytes written
+// to it.  Used to verify the behavior of X11 forwarding in recording proxies.
+func (s *SrvSuite) startX11EchoServer(ctx context.Context, c *C) *rawNode {
+	node := s.newRawNode(c)
+	go func() {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		for {
+			conn, chs, _, err := node.accept()
+			if err != nil {
+				log.Warnf("X11 echo server closing: %v", err)
+				return
+			}
+			go func() {
+				defer conn.Close()
+
+				// expect client to open a session channel
+				var nch ssh.NewChannel
+				select {
+				case nch = <-chs:
+				case <-time.After(time.Second * 3):
+					c.Fatalf("Timeout waiting for session channel")
+				case <-ctx.Done():
+					return
+				}
+				c.Assert(nch.ChannelType(), Equals, teleport.ChanSession)
+
+				sch, creqs, err := nch.Accept()
+				c.Assert(err, IsNil)
+				defer sch.Close()
+
+				// expect client to send an X11 forwarding request
+				var req *ssh.Request
+				select {
+				case req = <-creqs:
+				case <-time.After(time.Second * 3):
+					c.Fatalf("Timeout waiting for x11 forwarding request")
+				case <-ctx.Done():
+					return
+				}
+
+				c.Assert(req.Type, Equals, sshutils.X11ForwardRequest)
+				c.Assert(req.Reply(true, nil), IsNil)
+
+				// start a fake X11 channel
+				xch, _, err := conn.OpenChannel(sshutils.X11ChannelRequest, nil)
+				c.Assert(err, IsNil)
+
+				defer xch.Close()
+				// echo all bytes back across the X11 channel
+				_, err = io.Copy(xch, xch)
+				if err == nil {
+					xch.CloseWrite()
+				} else {
+					log.Errorf("X11 channel error: %v", err)
+				}
+			}()
+		}
+	}()
+	return node
+}
+
+// TestX11ProxySupport verifies that recording proxies correctly forward
+// X11 request/channels.
+func (s *SrvSuite) TestX11ProxySupport(c *C) {
+	// set cluster config to record at the proxy
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		SessionRecording: services.RecordAtProxy,
+	})
+	c.Assert(err, IsNil)
+	err = s.server.Auth().SetClusterConfig(clusterConfig)
+	c.Assert(err, IsNil)
+
+	// verify that the proxy is in recording mode
+	ok, responseBytes, err := s.clt.SendRequest(teleport.RecordingProxyReqType, true, nil)
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+	response, err := strconv.ParseBool(string(responseBytes))
+	c.Assert(err, IsNil)
+	c.Assert(response, Equals, true)
+
+	// setup our fake X11 echo server
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+	node := s.startX11EchoServer(ctx, c)
+
+	// Create a direct TCP/IP connection from proxy to our X11 test server.
+	netConn, err := s.clt.Dial("tcp", node.addr)
+	c.Assert(err, IsNil)
+	defer netConn.Close()
+
+	// make an insecure version of our client config (this test is only about X11 forwarding,
+	// so we don't bother to verify recording proxy key generation here).
+	cltConfig := *s.cltConfig
+	cltConfig.HostKeyCallback = ssh.InsecureIgnoreHostKey()
+
+	// Perform ssh handshake and setup client for X11 test server.
+	cltConn, chs, reqs, err := ssh.NewClientConn(netConn, node.addr, &cltConfig)
+	c.Assert(err, IsNil)
+	clt := ssh.NewClient(cltConn, chs, reqs)
+
+	sess, err := clt.NewSession()
+	c.Assert(err, IsNil)
+
+	// register X11 channel handler before requesting forwarding to avoid races
+	xchs := clt.HandleChannelOpen(sshutils.X11ChannelRequest)
+	c.Assert(xchs, NotNil)
+
+	// Send an X11 forwarding request to the server
+	ok, err = sess.SendRequest(sshutils.X11ForwardRequest, true, nil)
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+
+	// wait for server to start an X11 channel
+	var xnc ssh.NewChannel
+	select {
+	case xnc = <-xchs:
+	case <-time.After(time.Second * 3):
+		c.Fatalf("Timeout waiting for X11 channel open from %v", node.addr)
+	}
+	c.Assert(xnc, NotNil)
+	c.Assert(xnc.ChannelType(), Equals, sshutils.X11ChannelRequest)
+
+	xch, _, err := xnc.Accept()
+	c.Assert(err, IsNil)
+
+	defer xch.Close()
+
+	// write some data to the channel
+	msg := []byte("testing!")
+	_, err = xch.Write(msg)
+	c.Assert(err, IsNil)
+
+	// send EOF
+	c.Assert(xch.CloseWrite(), IsNil)
+
+	// expect node to successfully echo the data
+	rsp := make([]byte, len(msg))
+	_, err = io.ReadFull(xch, rsp)
+	c.Assert(err, IsNil)
+	c.Assert(string(msg), Equals, string(rsp))
+}
+
 // upack holds all ssh signing artefacts needed for signing and checking user keys
 type upack struct {
 	// key is a raw private user key
@@ -1152,6 +1404,7 @@ type upack struct {
 }
 
 func (s *SrvSuite) newUpack(username string, allowedLogins []string, allowedLabels services.Labels) (*upack, error) {
+	ctx := context.Background()
 	auth := s.server.Auth()
 	upriv, upub, err := auth.GenerateKeyPair("")
 	if err != nil {
@@ -1165,9 +1418,12 @@ func (s *SrvSuite) newUpack(username string, allowedLogins []string, allowedLabe
 	rules := role.GetRules(services.Allow)
 	rules = append(rules, services.NewRule(services.Wildcard, services.RW()))
 	role.SetRules(services.Allow, rules)
+	opts := role.GetOptions()
+	opts.PermitX11Forwarding = services.NewBool(true)
+	role.SetOptions(opts)
 	role.SetLogins(services.Allow, allowedLogins)
 	role.SetNodeLabels(services.Allow, allowedLabels)
-	err = auth.UpsertRole(role)
+	err = auth.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

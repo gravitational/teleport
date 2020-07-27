@@ -108,7 +108,7 @@ node:
     for the two-step authentication. The password + 2nd factor are submitted to a proxy via HTTPS, therefore it is critical for a secure configuration of Teleport to install a proper HTTPS certificate on a proxy.
 
 !!! warning "Warning":
-	Do not use a self-signed SSL/HTTPS certificates when creating production! 
+	Do not use a self-signed SSL/HTTPS certificates when creating production!
 
 If the credentials are correct, the auth server generates and signs a new certificate and returns
 it to a client via the proxy. The client stores this key and will use it for subsequent

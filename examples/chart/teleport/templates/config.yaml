@@ -6,4 +6,141 @@ metadata:
 {{ include "teleport.labels" . | indent 4 }}
 data:
   teleport.yaml: |
-{{ toYaml .Values.config | indent 4 }}
+{{- if .Values.otherConfig.useOtherConfig }} 
+{{ toYaml .Values.otherConfig.teleportConfig | indent 4 }}
+{{- else }}
+    teleport:
+{{- if not .Values.config.highAvailability }}
+      nodename: {{ template "teleport.fullname" . }}
+{{- end }}
+{{- if  .Values.config.auth_service_connection }} 
+{{ toYaml .Values.config.auth_service_connection | indent 6 }}
+{{- end }}
+      pid_file: {{ .Values.config.teleport.pid_file }}
+      data_dir: {{ .Values.config.teleport.data_dir  }}
+{{- if .Values.config.teleport.log }}
+      log:
+{{ toYaml .Values.config.teleport.log | indent 8 }}
+{{- end }}
+      # storage settings included
+      storage:
+{{ toYaml .Values.config.teleport.storage | indent 8 }}
+
+      connection_limits:    
+{{ toYaml .Values.config.teleport.connection_limits | indent 8 }}
+    auth_service:
+{{- if .Values.config.highAvailability }}
+      enabled: false
+{{- else }}
+      enabled: {{ .Values.config.teleport.auth_service.enabled }}
+{{- if .Values.license.enabled }}
+      license_file: {{ .Values.config.teleport.auth_service.license_file }}
+{{- end }}
+      authentication:
+{{ toYaml .Values.config.teleport.auth_service.authentication | indent 8 }}
+      tokens:
+{{ toYaml .Values.config.teleport.auth_service.tokens | indent 8 }}
+
+      public_addr: {{ .Values.config.public_address }}:{{ .Values.ports.authssh.containerPort }}
+      cluster_name: {{ .Values.config.public_address }}
+      listen_addr: {{ .Values.config.listen_addr }}:{{ .Values.ports.authssh.containerPort }}
+      client_idle_timeout: {{ .Values.config.teleport.auth_service.client_idle_timeout }}
+      disconnect_expired_cert: {{ .Values.config.teleport.auth_service.disconnect_expired_cert }}
+      keep_alive_interval: {{ .Values.config.teleport.auth_service.keep_alive_interval }}
+      keep_alive_count_max: {{ .Values.config.teleport.auth_service.keep_alive_count_max }}
+{{- end }}
+      
+    ssh_service:
+{{- if not .Values.config.highAvailability }}
+      enabled: {{ .Values.config.teleport.ssh_service.enabled }}
+{{- else }}
+      enabled: false
+{{- end }}
+      public_addr: {{ template "teleport.fullname" . }}node:{{ .Values.ports.nodessh.containerPort }}
+      listen_addr: {{ .Values.config.listen_addr }}:{{ .Values.ports.nodessh.containerPort }}
+      commands:
+{{ toYaml .Values.config.teleport.ssh_service.commands | indent 8 }}
+      labels:
+{{ toYaml .Values.config.teleport.ssh_service.labels | indent 8 }}
+      enhanced_recording:
+{{ toYaml .Values.config.teleport.ssh_service.enhanced_recording | indent 8 }}
+      pam:
+{{ toYaml .Values.config.teleport.ssh_service.pam | indent 8 }}
+      
+    proxy_service:
+      enabled: {{ .Values.config.teleport.proxy_service.enabled }}
+      public_addr: {{ .Values.config.public_address }}:{{ .Values.ports.proxyweb.containerPort }}
+      web_listen_addr: {{ .Values.config.listen_addr }}:{{ .Values.ports.proxyweb.containerPort }}
+      listen_addr:  {{ .Values.config.listen_addr }}:{{ .Values.ports.proxyssh.containerPort }}
+      tunnel_listen_addr:  {{ .Values.config.listen_addr }}:{{ .Values.ports.proxytunnel.containerPort }}
+
+      ssh_public_addr: {{ .Values.config.public_address }}:{{ .Values.ports.proxyssh.containerPort }}
+      tunnel_public_addr: {{ .Values.config.public_address }}:{{ .Values.ports.proxytunnel.containerPort }}
+{{- if .Values.proxy.tls.usetlssecret}} 
+      https_key_file: {{ .Values.config.teleport.proxy_service.https_key_file }}
+      https_cert_file: {{ .Values.config.teleport.proxy_service.https_cert_file }}
+{{- end }}      
+
+      # kubernetes section configures
+      # kubernetes proxy protocol support
+      kubernetes:        
+        enabled: {{ .Values.config.teleport.proxy_service.kubernetes.enabled }}
+        public_addr: {{ .Values.config.public_address }}:{{ .Values.ports.proxykube.containerPort }}
+        listen_addr: {{ .Values.config.listen_addr }}:{{ .Values.ports.proxykube.containerPort }}
+{{- end }}
+{{- if .Values.config.highAvailability }}
+---
+#Configuration for additional deployments used for high performance
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "teleport.fullname" . }}auth
+  labels:
+{{ include "teleport.labels" . | indent 4 }}
+data:
+  teleport.yaml: |
+{{- if .Values.otherConfigHA.useOtherConfig }} 
+{{ toYaml .Values.otherConfigHA.teleportConfig | indent 4 }}
+{{- else }}
+    teleport:
+      pid_file: {{ .Values.config.teleport.pid_file }}
+      data_dir: {{ .Values.config.teleport.data_dir  }}
+      # storage settings included
+{{- if .Values.config.teleport.log }}
+      log:
+{{ toYaml .Values.config.teleport.log | indent 8 }}
+{{- end }}
+      storage:
+{{ toYaml .Values.config.teleport.storage | indent 8 }}
+
+      connection_limits:    
+{{ toYaml .Values.config.teleport.connection_limits | indent 8 }}
+    auth_service:
+      enabled: true
+{{- if .Values.license.enabled }}
+      license_file: {{ .Values.config.teleport.auth_service.license_file }}
+{{- end }}
+      authentication:
+{{ toYaml .Values.config.teleport.auth_service.authentication | indent 8 }}
+{{- if .Values.config.teleport.auth_service.tokens }}
+      tokens:
+{{ toYaml .Values.config.teleport.auth_service.tokens | indent 8 }}
+{{- end }}
+
+      public_addr: {{ .Values.config.auth_public_address }}:{{ .Values.ports.authssh.containerPort }}
+      cluster_name: {{ .Values.config.public_address }}
+      
+      listen_addr: {{ .Values.config.listen_addr }}:{{ .Values.ports.authssh.containerPort }}
+
+      client_idle_timeout: {{ .Values.config.teleport.auth_service.client_idle_timeout }}
+      disconnect_expired_cert: {{ .Values.config.teleport.auth_service.disconnect_expired_cert }}
+      keep_alive_interval: {{ .Values.config.teleport.auth_service.keep_alive_interval }}
+      keep_alive_count_max: {{ .Values.config.teleport.auth_service.keep_alive_count_max }}
+      
+    ssh_service:
+      enabled: false
+      
+    proxy_service:
+      enabled: false 
+{{- end }}
+{{- end }}

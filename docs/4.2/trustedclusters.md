@@ -288,8 +288,8 @@ $ tsh ls --cluster=east
 
 Node Name Node ID            Address        Labels
 --------- ------------------ -------------- -----------
-db1.east  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-master
-db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-slave
+db1.east  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-leader
+db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-follower
 ```
 
 ```bsh
@@ -314,12 +314,12 @@ $ tctl create --force cluster.yaml
 
 ## Sharing Kubernetes groups between Trusted Clusters
 
-Below is an example of how to share a kubernetes group between trusted clusters. 
+Below is an example of how to share a kubernetes group between trusted clusters.
 
 In this example, we have a root trusted cluster with a role `root` and kubernetes groups:
 
 ```yaml
-kubernetes_groups: ["system:masters"] 
+kubernetes_groups: ["system:masters"]
 ```
 SSH logins:
 
@@ -331,7 +331,7 @@ The leaf cluster can choose to map this `root` cluster to its own cluster. The `
 ```yaml
 role_map:
   - remote: "root"
-    local: [admin] 
+    local: [admin]
 ```
 The role `admin` of the leaf cluster can now be set up to use the root cluster role logins and `kubernetes_groups` using the following variables:
 
@@ -341,7 +341,7 @@ kubernetes_groups: ["{% raw %}{{internal.kubernetes_groups}}{% endraw %}"]
 ```
 !!! tip "Note"
 
-    In order to pass logins from a root trusted cluster to a leaf cluster, you must use the variable `{% raw %}{{internal.logins}}{% endraw %}`. 
+    In order to pass logins from a root trusted cluster to a leaf cluster, you must use the variable `{% raw %}{{internal.logins}}{% endraw %}`.
 
 ## How does it work?
 

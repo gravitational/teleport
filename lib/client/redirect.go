@@ -34,8 +34,8 @@ import (
 
 // Redirector handles SSH redirect flow with the Teleport server
 type Redirector struct {
-	// SSHLogin contains SSH login parameters
-	SSHLogin
+	// SSHLoginSSO contains SSH login parameters
+	SSHLoginSSO
 	server *httptest.Server
 	mux    *http.ServeMux
 	// redirectURL will be set based on the response from the Teleport
@@ -66,7 +66,7 @@ type Redirector struct {
 }
 
 // NewRedirector returns new local web server redirector
-func NewRedirector(login SSHLogin) (*Redirector, error) {
+func NewRedirector(ctx context.Context, login SSHLoginSSO) (*Redirector, error) {
 	clt, proxyURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -79,13 +79,13 @@ func NewRedirector(login SSHLogin) (*Redirector, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	context, cancel := context.WithCancel(login.Context)
+	context, cancel := context.WithCancel(ctx)
 	rd := &Redirector{
 		context:     context,
 		cancel:      cancel,
 		proxyClient: clt,
 		proxyURL:    proxyURL,
-		SSHLogin:    login,
+		SSHLoginSSO: login,
 		mux:         http.NewServeMux(),
 		key:         key,
 		shortPath:   "/" + uuid.New(),
@@ -133,12 +133,13 @@ func (rd *Redirector) Start() error {
 	query.Set("secret_key", rd.key.String())
 	u.RawQuery = query.Encode()
 
-	out, err := rd.proxyClient.PostJSON(rd.Context, rd.proxyClient.Endpoint("webapi", rd.Protocol, "login", "console"), SSOLoginConsoleReq{
-		RedirectURL:   u.String(),
-		PublicKey:     rd.PubKey,
-		CertTTL:       rd.TTL,
-		ConnectorID:   rd.ConnectorID,
-		Compatibility: rd.Compatibility,
+	out, err := rd.proxyClient.PostJSON(rd.context, rd.proxyClient.Endpoint("webapi", rd.Protocol, "login", "console"), SSOLoginConsoleReq{
+		RedirectURL:    u.String(),
+		PublicKey:      rd.PubKey,
+		CertTTL:        rd.TTL,
+		ConnectorID:    rd.ConnectorID,
+		Compatibility:  rd.Compatibility,
+		RouteToCluster: rd.RouteToCluster,
 	})
 	if err != nil {
 		return trace.Wrap(err)

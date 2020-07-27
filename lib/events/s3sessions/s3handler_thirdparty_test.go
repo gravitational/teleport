@@ -20,7 +20,6 @@ package s3sessions
 import (
 	"fmt"
 	"net/http/httptest"
-	"testing"
 
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
@@ -32,8 +31,6 @@ import (
 	"github.com/pborman/uuid"
 	"gopkg.in/check.v1"
 )
-
-func TestS3ThirdParty(t *testing.T) { check.TestingT(t) }
 
 type S3ThirdPartySuite struct {
 	backend gofakes3.Backend

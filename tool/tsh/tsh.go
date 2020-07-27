@@ -34,10 +34,12 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
-	kubeclient "github.com/gravitational/teleport/lib/kube/client"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -76,10 +78,6 @@ type CLIConf struct {
 	NodeLogin string
 	// InsecureSkipVerify bypasses verification of HTTPS certificate when talking to web proxy
 	InsecureSkipVerify bool
-	// IsUnderTest is set to true for unit testing
-	IsUnderTest bool
-	// AgentSocketAddr is address for agent listeing socket
-	AgentSocketAddr utils.NetAddrVal
 	// Remote SSH session to join
 	SessionID string
 	// Src:dest parameter for SCP
@@ -108,10 +106,6 @@ type CLIConf struct {
 	Namespace string
 	// NoCache is used to turn off client cache for nodes discovery
 	NoCache bool
-	// LoadSystemAgentOnly when set to true will cause tsh agent to load keys into the system agent and
-	// then exit. This is useful when calling tsh agent from a script (for example ~/.bash_profile)
-	// to load keys into your system agent.
-	LoadSystemAgentOnly bool
 	// BenchThreads is amount of concurrent threads to run
 	BenchThreads int
 	// BenchDuration is a duration for the benchmark
@@ -137,7 +131,7 @@ type CLIConf struct {
 	IdentityFileOut string
 	// IdentityFormat (used for --format flag for 'tsh login') defines which
 	// format to use with --out to store a fershly retreived certificate
-	IdentityFormat client.IdentityFileFormat
+	IdentityFormat identityfile.Format
 
 	// BindAddr is an address in the form of host:port to bind to
 	// during `tsh login` command
@@ -162,11 +156,24 @@ type CLIConf struct {
 
 	// Debug sends debug logs to stdout.
 	Debug bool
+
+	// Browser can be used to pass the name of a browser to override the system default
+	// (not currently implemented), or set to 'none' to suppress browser opening entirely.
+	Browser string
+
+	// UseLocalSSHAgent set to false will prevent this client from attempting to
+	// connect to the local ssh-agent (or similar) socket at $SSH_AUTH_SOCK.
+	UseLocalSSHAgent bool
+
+	// EnableEscapeSequences will scan stdin for SSH escape sequences during
+	// command/shell execution. This also requires stdin to be an interactive
+	// terminal.
+	EnableEscapeSequences bool
 }
 
 func main() {
 	cmdLineOrig := os.Args[1:]
-	cmdLine := []string{}
+	var cmdLine []string
 
 	// lets see: if the executable name is 'ssh' or 'scp' we convert
 	// that to "tsh ssh" or "tsh scp"
@@ -178,20 +185,21 @@ func main() {
 	default:
 		cmdLine = cmdLineOrig
 	}
-	Run(cmdLine, false)
+	Run(cmdLine)
 }
 
 const (
-	clusterEnvVar  = "TELEPORT_SITE"
-	clusterHelp    = "Specify the cluster to connect"
-	bindAddrEnvVar = "TELEPORT_LOGIN_BIND_ADDR"
-	authEnvVar     = "TELEPORT_AUTH"
+	clusterEnvVar          = "TELEPORT_SITE"
+	clusterHelp            = "Specify the cluster to connect"
+	bindAddrEnvVar         = "TELEPORT_LOGIN_BIND_ADDR"
+	authEnvVar             = "TELEPORT_AUTH"
+	browserHelp            = "Set to 'none' to suppress browser opening on login"
+	useLocalSSHAgentEnvVar = "TELEPORT_USE_LOCAL_SSH_AGENT"
 )
 
 // Run executes TSH client. same as main() but easier to test
-func Run(args []string, underTest bool) {
+func Run(args []string) {
 	var cf CLIConf
-	cf.IsUnderTest = underTest
 	utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
 
 	// configure CLI argument parser:
@@ -216,6 +224,14 @@ func Run(args []string, underTest bool) {
 	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
 	app.Flag("skip-version-check", "Skip version checking between server and client.").BoolVar(&cf.SkipVersionCheck)
 	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
+	app.Flag("use-local-ssh-agent", "Load generated SSH certificates into the local ssh-agent (specified via $SSH_AUTH_SOCK). You can also set TELEPORT_USE_LOCAL_SSH_AGENT environment variable. Default is true.").
+		Envar(useLocalSSHAgentEnvVar).
+		Default("true").
+		BoolVar(&cf.UseLocalSSHAgent)
+	app.Flag("enable-escape-sequences", "Enable support for SSH escape sequences. Type '~?' during an SSH session to list supported sequences. Default is enabled.").
+		Default("true").
+		BoolVar(&cf.EnableEscapeSequences)
+	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
 	app.HelpFlag.Short('h')
 	ver := app.Command("version", "Print the version")
 	// ssh
@@ -252,7 +268,7 @@ func Run(args []string, underTest bool) {
 	ls := app.Command("ls", "List remote SSH nodes")
 	ls.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
 	ls.Arg("labels", "List of labels to filter node list").StringVar(&cf.UserHost)
-	ls.Flag("verbose", clusterHelp).Short('v').BoolVar(&cf.Verbose)
+	ls.Flag("verbose", "One-line output, including node UUIDs").Short('v').BoolVar(&cf.Verbose)
 	// clusters
 	clusters := app.Command("clusters", "List available Teleport clusters")
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
@@ -260,13 +276,15 @@ func Run(args []string, underTest bool) {
 	// login logs in with remote proxy and obtains a "session certificate" which gets
 	// stored in ~/.tsh directory
 	login := app.Command("login", "Log in to a cluster and retrieve the session certificate")
-	login.Flag("bind-addr", "Address in the form of host:port to bind to for login command webhook").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
 	login.Flag("out", "Identity output").Short('o').AllowDuplicate().StringVar(&cf.IdentityFileOut)
-	login.Flag("format", fmt.Sprintf("Identity format [%s] or %s (for OpenSSH compatibility)",
-		client.DefaultIdentityFormat,
-		client.IdentityFormatOpenSSH)).Default(string(client.DefaultIdentityFormat)).StringVar((*string)(&cf.IdentityFormat))
+	login.Flag("format", fmt.Sprintf("Identity format: %s, %s (for OpenSSH compatibility) or %s (for kubeconfig)",
+		identityfile.DefaultFormat,
+		identityfile.FormatOpenSSH,
+		identityfile.FormatKubernetes,
+	)).Default(string(identityfile.DefaultFormat)).StringVar((*string)(&cf.IdentityFormat))
 	login.Flag("request-roles", "Request one or more extra roles").StringVar(&cf.DesiredRoles)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
+	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	login.Alias(loginUsageFooter)
 
 	// logout deletes obtained session certificates in ~/.tsh
@@ -317,11 +335,9 @@ func Run(args []string, underTest bool) {
 		exitSignals := make(chan os.Signal, 1)
 		signal.Notify(exitSignals, syscall.SIGTERM, syscall.SIGINT)
 
-		select {
-		case sig := <-exitSignals:
-			log.Debugf("signal: %v", sig)
-			cancel()
-		}
+		sig := <-exitSignals
+		log.Debugf("signal: %v", sig)
+		cancel()
 	}()
 	cf.Context = ctx
 
@@ -392,7 +408,9 @@ func onLogin(cf *CLIConf) {
 		utils.FatalError(trace.BadParameter("-i flag cannot be used here"))
 	}
 
-	if cf.IdentityFormat != client.IdentityFormatOpenSSH && cf.IdentityFormat != client.IdentityFormatFile {
+	switch cf.IdentityFormat {
+	case identityfile.FormatFile, identityfile.FormatOpenSSH, identityfile.FormatKubernetes:
+	default:
 		utils.FatalError(trace.BadParameter("invalid identity format: %s", cf.IdentityFormat))
 	}
 
@@ -434,8 +452,10 @@ func onLogin(cf *CLIConf) {
 			if err != nil {
 				utils.FatalError(err)
 			}
-			tc.SaveProfile("", "")
-			if err := kubeclient.UpdateKubeconfig(tc); err != nil {
+			if err := tc.SaveProfile("", ""); err != nil {
+				utils.FatalError(err)
+			}
+			if err := kubeconfig.UpdateWithClient("", tc); err != nil {
 				utils.FatalError(err)
 			}
 			onStatus(cf)
@@ -468,24 +488,34 @@ func onLogin(cf *CLIConf) {
 		if err := setupNoninteractiveClient(tc, key); err != nil {
 			utils.FatalError(err)
 		}
+		// key.TrustedCA at this point only has the CA of the root cluster we
+		// logged into. We need to fetch all the CAs for leaf clusters too, to
+		// make them available in the identity file.
 		authorities, err := tc.GetTrustedCA(cf.Context, key.ClusterName)
 		if err != nil {
 			utils.FatalError(err)
 		}
-		client.MakeIdentityFile(cf.IdentityFileOut, key, cf.IdentityFormat, authorities)
-		fmt.Printf("\nThe certificate has been written to %s\n", cf.IdentityFileOut)
+		key.TrustedCA = auth.AuthoritiesToTrustedCerts(authorities)
+
+		filesWritten, err := identityfile.Write(cf.IdentityFileOut, key, cf.IdentityFormat, tc.KubeClusterAddr())
+		if err != nil {
+			utils.FatalError(err)
+		}
+		fmt.Printf("\nThe certificate has been written to %s\n", strings.Join(filesWritten, ","))
 		return
 	}
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
-		if err := kubeclient.UpdateKubeconfig(tc); err != nil {
+		if err := kubeconfig.UpdateWithClient("", tc); err != nil {
 			utils.FatalError(err)
 		}
 	}
 
 	// Regular login without -i flag.
-	tc.SaveProfile(key.ProxyHost, "")
+	if err := tc.SaveProfile(key.ProxyHost, ""); err != nil {
+		utils.FatalError(err)
+	}
 
 	// Print status to show information of the logged in user. Update the
 	// command line flag (used to print status) for the proxy to make sure any
@@ -583,7 +613,7 @@ func onLogout(cf *CLIConf) {
 
 		// Remove Teleport related entries from kubeconfig.
 		log.Debugf("Removing Teleport related entries for '%v' from kubeconfig.", clusterName)
-		err = kubeclient.RemoveKubeconifg(tc, clusterName)
+		err = kubeconfig.Remove("", clusterName)
 		if err != nil {
 			utils.FatalError(err)
 			return
@@ -605,7 +635,7 @@ func onLogout(cf *CLIConf) {
 		// Remove Teleport related entries from kubeconfig for all clusters.
 		for _, profile := range profiles {
 			log.Debugf("Removing Teleport related entries for '%v' from kubeconfig.", profile.Cluster)
-			err = kubeclient.RemoveKubeconifg(tc, profile.Cluster)
+			err = kubeconfig.Remove("", profile.Cluster)
 			if err != nil {
 				utils.FatalError(err)
 				return
@@ -841,7 +871,9 @@ func onBenchmark(cf *CLIConf) {
 			fmt.Sprintf("%v ms", result.Histogram.ValueAtQuantile(quantile)),
 		})
 	}
-	io.Copy(os.Stdout, t.AsBuffer())
+	if _, err := io.Copy(os.Stdout, t.AsBuffer()); err != nil {
+		utils.FatalError(err)
+	}
 	fmt.Printf("\n")
 }
 
@@ -885,7 +917,7 @@ func onSCP(cf *CLIConf) {
 
 // makeClient takes the command-line configuration and constructs & returns
 // a fully configured TeleportClient object
-func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, err error) {
+func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, error) {
 	// Parse OpenSSH style options.
 	options, err := parseOptions(cf.Options)
 	if err != nil {
@@ -902,9 +934,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	var labels map[string]string
 	if cf.UserHost != "" {
 		parts := strings.Split(cf.UserHost, "@")
-		if len(parts) > 1 {
-			hostLogin = parts[0]
-			cf.UserHost = parts[1]
+		partsLength := len(parts)
+		if partsLength > 1 {
+			hostLogin = strings.Join(parts[:partsLength-1], "@")
+			cf.UserHost = parts[partsLength-1]
 		}
 		// see if remote host is specified as a set of labels
 		if strings.Contains(cf.UserHost, "=") {
@@ -1057,7 +1090,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 
 	// If the caller does not want to check host keys, pass in a insecure host
 	// key checker.
-	if options.StrictHostKeyChecking == false {
+	if !options.StrictHostKeyChecking {
 		c.HostKeyCallback = client.InsecureSkipHostKeyChecking
 	}
 	c.BindAddr = cf.BindAddr
@@ -1065,7 +1098,34 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (tc *client.TeleportClient, e
 	// Don't execute remote command, used when port forwarding.
 	c.NoRemoteExec = cf.NoRemoteExec
 
-	return client.NewClient(c)
+	// Allow the default browser used to open tsh login links to be overridden
+	// (not currently implemented) or set to 'none' to suppress browser opening entirely.
+	c.Browser = cf.Browser
+
+	// Do not write SSH certs into the local ssh-agent if user requested it.
+	//
+	// This is specifically for gpg-agent, which doesn't support SSH
+	// certificates (https://dev.gnupg.org/T1756)
+	c.UseLocalSSHAgent = cf.UseLocalSSHAgent
+
+	c.EnableEscapeSequences = cf.EnableEscapeSequences
+
+	tc, err := client.NewClient(c)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// If identity file was provided, we skip loading the local profile info
+	// (above). This profile info provides the proxy-advertised listening
+	// addresses.
+	// To compensate, when using an identity file, explicitly fetch these
+	// addresses from the proxy (this is what Ping does).
+	if cf.IdentityFileIn != "" {
+		log.Debug("Pinging the proxy to fetch listening addresses for non-web ports.")
+		if _, err := tc.Ping(cf.Context); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return tc, nil
 }
 
 func parseCertificateCompatibilityFlag(compatibility string, certificateFormat string) (string, error) {
@@ -1146,7 +1206,7 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 	} else {
 		prefix = "  "
 	}
-	duration := p.ValidUntil.Sub(time.Now())
+	duration := time.Until(p.ValidUntil)
 	humanDuration := "EXPIRED"
 	if duration.Nanoseconds() > 0 {
 		humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))
@@ -1304,7 +1364,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 	if err := tc.SaveProfile("", ""); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := kubeclient.UpdateKubeconfig(tc); err != nil {
+	if err := kubeconfig.UpdateWithClient("", tc); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

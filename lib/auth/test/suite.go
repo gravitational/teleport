@@ -18,10 +18,10 @@ limitations under the License.
 package test
 
 import (
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 
@@ -30,8 +30,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/check.v1"
 )
-
-func TestAuth(t *testing.T) { check.TestingT(t) }
 
 type AuthSuite struct {
 	A     sshca.Authority
@@ -67,6 +65,7 @@ func (s *AuthSuite) GenerateHostCert(c *check.C) {
 	cert, err := s.A.GenerateHostCert(
 		services.HostCertParams{
 			PrivateCASigningKey: priv,
+			CASigningAlg:        defaults.CASignatureAlgorithm,
 			PublicHostKey:       pub,
 			HostID:              "00000000-0000-0000-0000-000000000000",
 			NodeName:            "auth.example.com",
@@ -97,6 +96,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 
 	cert, err := s.A.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey:   priv,
+		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              "user",
 		AllowedLogins:         []string{"centos", "root"},
@@ -126,6 +126,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 
 	_, err = s.A.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey:   priv,
+		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              "user",
 		AllowedLogins:         []string{"root"},
@@ -138,6 +139,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 
 	_, err = s.A.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey:   priv,
+		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              "user",
 		AllowedLogins:         []string{"root"},
@@ -150,6 +152,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 
 	_, err = s.A.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey:   priv,
+		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              "user",
 		AllowedLogins:         []string{"root"},
@@ -163,6 +166,7 @@ func (s *AuthSuite) GenerateUserCert(c *check.C) {
 	inRoles := []string{"role-1", "role-2"}
 	cert, err = s.A.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey:   priv,
+		CASigningAlg:          defaults.CASignatureAlgorithm,
 		PublicUserKey:         pub,
 		Username:              "user",
 		AllowedLogins:         []string{"root"},

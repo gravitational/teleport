@@ -1,14 +1,14 @@
-# The base image (buildbox:latest) is built by running `make -C build.assets` 
+# The base image (buildbox:latest) is built by running `make -C build.assets`
 # from the base repo directory $GOPATH/gravitational.com/teleport
-FROM teleport-buildbox:go1.13.2
+FROM teleport-buildbox:go1.14.4
 RUN apt-get update
-# DEBUG=1 is needed for the Web UI to be loaded from static assets instead 
+# DEBUG=1 is needed for the Web UI to be loaded from static assets instead
 # of the binary
 ENV DEBUG=1 GOPATH=/root/go PATH=$PATH:/root/go/src/github.com/gravitational/teleport/build:/root/go/bin
 
 # htop is useful for testing terminal resizing
 RUN apt-get update; apt-get install -y htop vim screen; \
-    mkdir -p /root/go/src/github.com/gravitational/teleport 
+    mkdir -p /root/go/src/github.com/gravitational/teleport
 
 # allows ansible and ssh testing
 RUN apt-get install -y ansible ssh inetutils-syslogd

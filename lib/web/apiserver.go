@@ -119,10 +119,6 @@ type RewritingHandler struct {
 	handler *Handler
 }
 
-func (r *RewritingHandler) GetHandler() *Handler {
-	return r.handler
-}
-
 func (r *RewritingHandler) Close() error {
 	return r.handler.Close()
 }
@@ -166,10 +162,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
 	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
 
-	// Users
-	h.GET("/webapi/users/invites/:token", httplib.MakeHandler(h.renderUserInvite))
-	h.POST("/webapi/users", httplib.MakeHandler(h.createNewUser))
+	h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
+	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changePasswordWithToken))
 	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
+	h.POST("/webapi/sites/:site/namespaces/:namespace/users/password/token", h.WithClusterAuth(h.createResetPasswordToken))
 
 	// Issues SSH temp certificates based on 2FA access creds
 	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
@@ -201,6 +197,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 	h.POST("/webapi/sites/:site/namespaces/:namespace/nodes/:server/:login/scp", h.WithClusterAuth(h.transferFile))
 
+	// web context
+	h.GET("/webapi/sites/:site/context", h.WithClusterAuth(h.getUserContext))
+
 	// OIDC related callback handlers
 	h.GET("/webapi/oidc/login/web", httplib.MakeHandler(h.oidcLoginWeb))
 	h.POST("/webapi/oidc/login/console", httplib.MakeHandler(h.oidcLoginConsole))
@@ -218,7 +217,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// U2F related APIs
 	h.GET("/webapi/u2f/signuptokens/:token", httplib.MakeHandler(h.u2fRegisterRequest))
-	h.POST("/webapi/u2f/users", httplib.MakeHandler(h.createNewU2FUser))
 	h.POST("/webapi/u2f/password/changerequest", h.WithAuth(h.u2fChangePasswordRequest))
 	h.POST("/webapi/u2f/signrequest", httplib.MakeHandler(h.u2fSignRequest))
 	h.POST("/webapi/u2f/sessions", httplib.MakeHandler(h.createSessionWithU2FSignResponse))
@@ -229,7 +227,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// User Status (used by client to check if user session is valid)
 	h.GET("/webapi/user/status", h.WithAuth(h.getUserStatus))
-	h.GET("/webapi/user/context", h.WithAuth(h.getUserContext))
 
 	// Issue host credentials.
 	h.POST("/webapi/host/credentials", httplib.MakeHandler(h.hostCredentials))
@@ -281,30 +278,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 			return
 		}
 
-		// check proxy and auth node versions (breaking change from v5).
-		// If there is a mismatch with the current proxy client, redirect users to an error page to update proxy.
-		//
-		// DELETE IN 5.0: this block only serves to notify users of v4.3+ to upgrade to v5.0.0
-		if strings.HasPrefix(r.URL.Path, "/web/newuser") {
-			res, err := h.auth.Ping(context.TODO())
-			if err != nil {
-				log.WithError(err).Debugf("Could not ping auth server")
-			} else {
-				isProxyV4x := strings.Index(teleport.Version, "4.") == 0
-				isAuthV5x := strings.Index(res.GetServerVersion(), "5.") == 0
-
-				if isAuthV5x && isProxyV4x {
-					message := fmt.Sprintf("Your Teleport proxy and auth service versions are incompatible. Please upgrade your Teleport proxy service to version %v", res.GetServerVersion())
-					pathToError := url.URL{
-						Path:     "/web/msg/error",
-						RawQuery: url.Values{"details": []string{message}}.Encode(),
-					}
-					http.Redirect(w, r, pathToError.String(), http.StatusFound)
-					return
-				}
-			}
-		}
-
 		// serve Web UI:
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
 			httplib.SetStaticFileHeaders(w.Header())
@@ -319,8 +292,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 				Session string
 				XCSRF   string
 			}{
-				XCSRF:   csrfToken,
-				Session: base64.StdEncoding.EncodeToString([]byte("{}")),
+				XCSRF: csrfToken,
 			}
 
 			ctx, err := h.AuthenticateRequest(w, r, false)
@@ -336,7 +308,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 				}
 			}
 			httplib.SetIndexHTMLHeaders(w.Header())
-			indexPage.Execute(w, session)
+			if err := indexPage.Execute(w, session); err != nil {
+				log.Errorf("Failed to execute index page template: %v", err)
+			}
 		} else {
 			http.NotFound(w, r)
 		}
@@ -377,7 +351,7 @@ func (h *Handler) getUserStatus(w http.ResponseWriter, r *http.Request, _ httpro
 //
 // GET /webapi/user/context
 //
-func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, _ httprouter.Params, c *SessionContext) (interface{}, error) {
+func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := c.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -401,7 +375,13 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, _ httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	userContext, err := ui.NewUserContext(user, roleset)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userContext.Cluster, err = ui.GetClusterDetails(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -677,13 +657,21 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	}
 
 	authSettings := ui.WebConfigAuthSettings{
-		Providers:    authProviders,
-		SecondFactor: secondFactor,
+		Providers:        authProviders,
+		SecondFactor:     secondFactor,
+		LocalAuthEnabled: clsCfg.GetLocalAuth(),
 	}
 
 	webCfg := ui.WebConfig{
 		Auth:            authSettings,
 		CanJoinSessions: canJoinSessions,
+	}
+
+	resource, err := h.cfg.ProxyClient.GetClusterName()
+	if err != nil {
+		log.Warn(err)
+	} else {
+		webCfg.ProxyClusterName = resource.GetClusterName()
 	}
 
 	out, err := json.Marshal(webCfg)
@@ -782,6 +770,7 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 			CertTTL:           req.CertTTL,
 			ClientRedirectURL: req.RedirectURL,
 			Compatibility:     req.Compatibility,
+			RouteToCluster:    req.RouteToCluster,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -819,8 +808,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
-		return nil, nil
+		return nil, httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
 	}
 	logger.Infof("Callback is redirecting to console login.")
 	if len(response.Req.PublicKey) == 0 {
@@ -861,6 +849,7 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 			CertTTL:           req.CertTTL,
 			CheckUser:         true,
 			Compatibility:     req.Compatibility,
+			RouteToCluster:    req.RouteToCluster,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -877,7 +866,7 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 	if err != nil {
 		log.Warningf("[OIDC] Error while processing callback: %v", err)
 
-		message := "Unable to process callback from OIDC provider. Ask your system administrator to check audit logs for details."
+		message := "Unable to process callback from OIDC provider."
 		// redirect to an error page
 		pathToError := url.URL{
 			Path:     "/web/msg/error/login_failed",
@@ -898,8 +887,7 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 		if err := SetSession(w, response.Username, response.Session.GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
-		return nil, nil
+		return nil, httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
 	}
 	log.Infof("oidcCallback redirecting to console login")
 	if len(response.Req.PublicKey) == 0 {
@@ -1039,19 +1027,6 @@ type CreateSessionResponse struct {
 	ExpiresIn int `json:"expires_in"`
 }
 
-type createSessionResponseRaw struct {
-	// Type is token type (bearer)
-	Type string `json:"type"`
-	// Token value
-	Token string `json:"token"`
-	// ExpiresIn sets seconds before this token is not valid
-	ExpiresIn int `json:"expires_in"`
-}
-
-func (r createSessionResponseRaw) response() (*CreateSessionResponse, error) {
-	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn}, nil
-}
-
 func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
@@ -1078,7 +1053,7 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	return &CreateSessionResponse{
 		Type:      roundtrip.AuthBearer,
 		Token:     webSession.GetBearerToken(),
-		ExpiresIn: int(webSession.GetBearerTokenExpiryTime().Sub(time.Now()) / time.Second),
+		ExpiresIn: int(time.Until(webSession.GetBearerTokenExpiryTime()) / time.Second),
 	}, nil
 }
 
@@ -1117,6 +1092,7 @@ func (h *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 		return nil, trace.AccessDenied("unknown second factor type: %q", cap.GetSecondFactor())
 	}
 	if err != nil {
+		log.Warningf("access attempt denied for user %q: %v", req.User, err)
 		return nil, trace.AccessDenied("bad auth credentials")
 	}
 
@@ -1126,6 +1102,7 @@ func (h *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 
 	ctx, err := h.auth.ValidateSession(req.User, webSession.GetName())
 	if err != nil {
+		log.Warningf("access attempt denied for user %q: %v", req.User, err)
 		return nil, trace.AccessDenied("need auth")
 	}
 
@@ -1153,9 +1130,7 @@ func (h *Handler) logout(w http.ResponseWriter, ctx *SessionContext) error {
 	if err := ctx.Invalidate(); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := ClearSession(w); err != nil {
-		return trace.Wrap(err)
-	}
+	ClearSession(w)
 
 	return nil
 }
@@ -1189,32 +1164,85 @@ func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, _ httprou
 	return NewSessionResponse(newContext)
 }
 
-type renderUserInviteResponse struct {
-	InviteToken string `json:"invite_token"`
-	User        string `json:"user"`
-	QR          []byte `json:"qr"`
+func (h *Handler) changePasswordWithToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	var req auth.ChangePasswordWithTokenRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sess, err := h.auth.proxyClient.ChangePasswordWithToken(r.Context(), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ctx, err := h.auth.ValidateSession(sess.GetUser(), sess.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := SetSession(w, sess.GetUser(), sess.GetName()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return NewSessionResponse(ctx)
 }
 
-// renderUserInvite is called to show user the new user invitation page
-//
-// GET /v1/webapi/users/invites/:token
-//
-// Response:
-//
-// {"invite_token": "token", "user": "alex", qr: "base64-encoded-qr-code image"}
-//
-//
-func (h *Handler) renderUserInvite(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	token := p[0].Value
-	user, qrCodeBytes, err := h.auth.GetUserInviteInfo(token)
+func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &renderUserInviteResponse{
-		InviteToken: token,
-		User:        user,
-		QR:          qrCodeBytes,
+	var req auth.CreateResetPasswordTokenRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token, err := clt.CreateResetPasswordToken(context.TODO(),
+		auth.CreateResetPasswordTokenRequest{
+			Name: req.Name,
+			Type: req.Type,
+		})
+
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.ResetPasswordToken{
+		URL:    token.GetURL(),
+		Expiry: token.Expiry(),
+	}, nil
+}
+
+func (h *Handler) getResetPasswordTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	result, err := h.getResetPasswordToken(context.TODO(), p.ByName("token"))
+	if err != nil {
+		log.Warnf("Failed to fetch a reset password token: %v.", err)
+		// We hide the error from the remote user to avoid giving any hints.
+		return nil, trace.AccessDenied("bad or expired token")
+	}
+
+	return result, nil
+}
+
+func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (interface{}, error) {
+	token, err := h.auth.proxyClient.GetResetPasswordToken(ctx, tokenID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// RotateResetPasswordTokenSecrets rotates secrets for a given tokenID.
+	// It gets called every time a user fetches 2nd-factor secrets during registration attempt.
+	// This ensures that an attacker that gains the ResetPasswordToken link can not view it,
+	// extract the OTP key from the QR code, then allow the user to signup with
+	// the same OTP token.
+	secrets, err := h.auth.proxyClient.RotateResetPasswordTokenSecrets(ctx, tokenID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.ResetPasswordToken{
+		TokenID: token.GetName(),
+		User:    token.GetUser(),
+		QRCode:  secrets.GetQRCode(),
 	}, nil
 }
 
@@ -1227,7 +1255,7 @@ func (h *Handler) renderUserInvite(w http.ResponseWriter, r *http.Request, p htt
 // {"version":"U2F_V2","challenge":"randombase64string","appId":"https://mycorp.com:3080"}
 //
 func (h *Handler) u2fRegisterRequest(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	token := p[0].Value
+	token := p.ByName("token")
 	u2fRegisterRequest, err := h.auth.GetUserInviteU2FRegisterRequest(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1295,77 +1323,7 @@ func (h *Handler) createSessionWithU2FSignResponse(w http.ResponseWriter, r *htt
 	return NewSessionResponse(ctx)
 }
 
-// createNewUser req is a request to create a new Teleport user
-type createNewUserReq struct {
-	InviteToken       string `json:"invite_token"`
-	Pass              string `json:"pass"`
-	SecondFactorToken string `json:"second_factor_token,omitempty"`
-}
-
-// createNewUser creates new user entry based on the invite token
-//
-// POST /v1/webapi/users
-//
-// {"invite_token": "unique invite token", "pass": "user password", "second_factor_token": "valid second factor token"}
-//
-// Successful response: (session cookie is set)
-//
-// {"type": "bearer", "token": "bearer token", "user": "alex", "expires_in": 20}
-func (h *Handler) createNewUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *createNewUserReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sess, err := h.auth.CreateNewUser(req.InviteToken, req.Pass, req.SecondFactorToken)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ctx, err := h.auth.ValidateSession(sess.GetUser(), sess.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := SetSession(w, sess.GetUser(), sess.GetName()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return NewSessionResponse(ctx)
-}
-
-// A request to create a new user which uses U2F as the second factor
-type createNewU2FUserReq struct {
-	InviteToken         string               `json:"invite_token"`
-	Pass                string               `json:"pass"`
-	U2FRegisterResponse u2f.RegisterResponse `json:"u2f_register_response"`
-}
-
-// createNewU2FUser creates a new user configured to use U2F as the second factor
-//
-// POST /webapi/u2f/users
-//
-// {"invite_token": "unique invite token", "pass": "user password", "u2f_register_response": {"registrationData":"verylongbase64string","clientData":"longbase64string"}}
-//
-// Successful response: (session cookie is set)
-//
-// {"type": "bearer", "token": "bearer token", "user": "alex", "expires_in": 20}
-func (h *Handler) createNewU2FUser(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *createNewU2FUserReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	sess, err := h.auth.CreateNewU2FUser(req.InviteToken, req.Pass, req.U2FRegisterResponse)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	ctx, err := h.auth.ValidateSession(sess.GetUser(), sess.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := SetSession(w, sess.GetUser(), sess.GetName()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return NewSessionResponse(ctx)
-}
-
-// getClusters returns a list of clusters
+// getClusters returns a list of cluster and its data.
 //
 // GET /v1/webapi/sites
 //
@@ -1374,15 +1332,12 @@ func (h *Handler) createNewU2FUser(w http.ResponseWriter, r *http.Request, p htt
 // {"sites": {"name": "localhost", "last_connected": "RFC3339 time", "status": "active"}}
 //
 func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
-	resource, err := h.cfg.ProxyClient.GetClusterName()
+	clusters, err := ui.NewClusters(h.cfg.Proxy.GetSites())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	response := ui.NewAvailableClusters(resource.GetClusterName(),
-		h.cfg.Proxy.GetSites())
-
-	return response, nil
+	return clusters, nil
 }
 
 type getSiteNamespacesResponse struct {
@@ -1470,6 +1425,19 @@ func (h *Handler) siteNodeConnect(
 	log.Debugf("[WEB] new terminal request for ns=%s, server=%s, login=%s, sid=%s",
 		req.Namespace, req.Server, req.Login, req.SessionID)
 
+	authAccessPoint, err := site.CachingAccessPoint()
+	if err != nil {
+		log.Debugf("[WEB] Unable to get auth access point: %v.", err)
+		return nil, trace.Wrap(err)
+	}
+
+	clusterConfig, err := authAccessPoint.GetClusterConfig()
+	if err != nil {
+		log.Debugf("[WEB] Unable to fetch cluster config: %v.", err)
+		return nil, trace.Wrap(err)
+	}
+
+	req.KeepAliveInterval = clusterConfig.GetKeepAliveInterval()
 	req.Namespace = namespace
 	req.ProxyHostPort = h.ProxyHostPort()
 	req.Cluster = site.GetName()
@@ -1559,6 +1527,20 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// DELETE IN: 5.0.0
+	// Teleport Nodes < v4.3 does not set ClusterName, ServerHostname with new sessions,
+	// which 4.3 UI client relies on to create URL's and display node inform.
+	clusterName := p.ByName("site")
+	for i, session := range sessions {
+		if session.ClusterName == "" {
+			sessions[i].ClusterName = clusterName
+		}
+		if session.ServerHostname == "" {
+			sessions[i].ServerHostname = session.ServerID
+		}
+	}
+
 	return siteSessionsGetResponse{Sessions: sessions}, nil
 }
 
@@ -1591,6 +1573,17 @@ func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// DELETE IN: 5.0.0
+	// Teleport Nodes < v4.3 does not set ClusterName, ServerHostname with new sessions,
+	// which 4.3 UI client relies on to create URL's and display node inform.
+	if sess.ClusterName == "" {
+		sess.ClusterName = p.ByName("site")
+	}
+	if sess.ServerHostname == "" {
+		sess.ServerHostname = sess.ServerID
+	}
+
 	return *sess, nil
 }
 
@@ -1736,8 +1729,7 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	var site reversetunnel.RemoteSite
 	onError := func(err error) {
 		logger.Debugf("Unable to retrieve session chunk: %v.", err)
-		w.WriteHeader(trace.ErrorToCode(err))
-		w.Write([]byte(err.Error()))
+		http.Error(w, err.Error(), trace.ErrorToCode(err))
 	}
 	// authenticate first:
 	ctx, err := h.AuthenticateRequest(w, r, true)
@@ -2001,7 +1993,7 @@ func (h *Handler) validateTrustedCluster(w http.ResponseWriter, r *http.Request,
 }
 
 func (h *Handler) String() string {
-	return fmt.Sprintf("multi site")
+	return "multi site"
 }
 
 // currentSiteShortcut is a special shortcut that will return the first
@@ -2023,17 +2015,17 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 			log.Info(err)
 			return nil, trace.Wrap(err)
 		}
-		siteName := p.ByName("site")
-		if siteName == currentSiteShortcut {
+		clusterName := p.ByName("site")
+		if clusterName == currentSiteShortcut {
 			res, err := h.cfg.ProxyClient.GetClusterName()
 			if err != nil {
 				log.Warn(err)
 				return nil, trace.Wrap(err)
 			}
 
-			siteName = res.GetClusterName()
+			clusterName = res.GetClusterName()
 		}
-		site, err := h.cfg.Proxy.GetSite(siteName)
+		site, err := h.cfg.Proxy.GetSite(clusterName)
 		if err != nil {
 			log.Warn(err)
 			return nil, trace.Wrap(err)
@@ -2114,32 +2106,6 @@ func message(msg string) interface{} {
 
 func ok() interface{} {
 	return message("ok")
-}
-
-// CreateSignupLink generates and returns a URL which is given to a new
-// user to complete registration with Teleport via Web UI
-func CreateSignupLink(client auth.ClientI, token string) (string, string) {
-	proxyHost := "<proxyhost>:3080"
-
-	proxies, err := client.GetProxies()
-	if err != nil {
-		log.Errorf("Unable to retrieve proxy list: %v", err)
-	}
-
-	if len(proxies) > 0 {
-		proxyHost = proxies[0].GetPublicAddr()
-		if proxyHost == "" {
-			proxyHost = fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
-			log.Debugf("public_address not set for proxy, returning proxyHost: %q", proxyHost)
-		}
-	}
-
-	u := &url.URL{
-		Scheme: "https",
-		Host:   proxyHost,
-		Path:   "web/newuser/" + token,
-	}
-	return u.String(), proxyHost
 }
 
 type responseData struct {

@@ -21,14 +21,10 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
-	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -55,7 +51,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 	"k8s.io/apimachinery/pkg/util/httpstream"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/transport/spdy"
 	utilexec "k8s.io/client-go/util/exec"
@@ -73,8 +68,6 @@ type ForwarderConfig struct {
 	Auth auth.Authorizer
 	// Client is a proxy client
 	Client auth.ClientI
-	// TargetAddr is a target address
-	TargetAddr string
 	// DataDir is a data dir to store logs
 	DataDir string
 	// Namespace is a namespace of the proxy server (not a K8s namespace)
@@ -94,7 +87,7 @@ type ForwarderConfig struct {
 	Context context.Context
 	// KubeconfigPath is a path to kubernetes configuration
 	KubeconfigPath string
-	// Clock is a server clock, could be overriden in tests
+	// Clock is a server clock, could be overridden in tests
 	Clock clockwork.Clock
 }
 
@@ -124,9 +117,6 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	if f.ServerID == "" {
 		return trace.BadParameter("missing parameter ServerID")
 	}
-	if f.TargetAddr == "" {
-		f.TargetAddr = teleport.KubeServiceAddr
-	}
 	if f.Namespace == "" {
 		f.Namespace = defaults.Namespace
 	}
@@ -145,8 +135,11 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	log := log.WithFields(log.Fields{
+		trace.Component: teleport.Component(teleport.ComponentKube),
+	})
 
-	creds, err := getKubeCreds(cfg.KubeconfigPath)
+	creds, err := getKubeCreds(log, cfg.KubeconfigPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -157,10 +150,8 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	}
 	closeCtx, close := context.WithCancel(cfg.Context)
 	fwd := &Forwarder{
-		creds: *creds,
-		Entry: log.WithFields(log.Fields{
-			trace.Component: teleport.Component(teleport.ComponentKube),
-		}),
+		creds:           creds,
+		Entry:           log,
 		Router:          *httprouter.New(),
 		ForwarderConfig: cfg,
 		clusterSessions: clusterSessions,
@@ -206,8 +197,10 @@ type Forwarder struct {
 	// ctx is a global context signalling exit
 	ctx context.Context
 	// creds contain kubernetes credentials shared with a proxy process,
-	// could be a service account token or client X509 credentials
-	creds kubeCreds
+	// could be a service account token or client X509 credentials.
+	//
+	// Note: creds can be nil.
+	creds *kubeCreds
 }
 
 // Close signals close to all outstanding or background operations
@@ -286,6 +279,7 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 		isRemoteUser = true
 	case auth.BuiltinRole:
 		f.Warningf("Denying proxy access to unauthenticated user of type %T - this can sometimes be caused by inadvertently using an HTTP load balancer instead of a TCP load balancer on the Kubernetes port.", userTypeI)
+		return nil, trace.AccessDenied(accessDeniedMsg)
 	default:
 		f.Warningf("Denying proxy access to unsupported user type: %T.", userTypeI)
 		return nil, trace.AccessDenied(accessDeniedMsg)
@@ -412,6 +406,12 @@ func (f *Forwarder) setupContext(ctx auth.AuthContext, req *http.Request, isRemo
 	if targetCluster.GetName() != f.ClusterName && isRemoteUser {
 		return nil, trace.AccessDenied("access denied: remote user can not access remote cluster")
 	}
+	// If this proxy didn't get a kubeconfig at startup, it can only forward
+	// requests to remote clusters. Since this is not a remote cluster request,
+	// we can't process this request.
+	if f.creds == nil && !isRemoteCluster {
+		return nil, trace.NotFound("this Teleport proxy is not configured for direct Kubernetes access; you likely need to 'tsh login' into a leaf cluster")
+	}
 
 	authCtx := &authContext{
 		clientIdleTimeout: roles.AdjustClientIdleTimeout(clusterConfig.GetClientIdleTimeout()),
@@ -423,7 +423,6 @@ func (f *Forwarder) setupContext(ctx auth.AuthContext, req *http.Request, isRemo
 		cluster: cluster{
 			remoteAddr: utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
 			RemoteSite: targetCluster,
-			targetAddr: f.TargetAddr,
 			isRemote:   isRemoteCluster,
 		},
 	}
@@ -493,7 +492,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 			// Report the updated window size to the event log (this is so the sessions
 			// can be replayed correctly).
-			recorder.GetAuditLog().EmitAuditEvent(events.TerminalResize, resizeEvent)
+			if err := recorder.GetAuditLog().EmitAuditEvent(events.TerminalResize, resizeEvent); err != nil {
+				f.Warnf("Failed to emit terminal resize event: %v", err)
+			}
 		}
 	}
 
@@ -512,20 +513,25 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			W: 100,
 			H: 100,
 		}
-		recorder.GetAuditLog().EmitAuditEvent(events.SessionStart, events.EventFields{
-			events.EventProtocol:   events.EventProtocolKube,
-			events.EventNamespace:  f.Namespace,
-			events.SessionEventID:  string(sessionID),
-			events.SessionServerID: f.ServerID,
-			events.EventLogin:      ctx.User.GetName(),
-			events.EventUser:       ctx.User.GetName(),
-			events.LocalAddr:       sess.cluster.targetAddr,
-			events.RemoteAddr:      req.RemoteAddr,
-			events.TerminalSize:    termParams.Serialize(),
-		})
+		if err := recorder.GetAuditLog().EmitAuditEvent(events.SessionStart, events.EventFields{
+			events.EventProtocol:         events.EventProtocolKube,
+			events.EventNamespace:        f.Namespace,
+			events.SessionEventID:        string(sessionID),
+			events.SessionServerID:       f.ServerID,
+			events.SessionServerHostname: sess.cluster.GetName(),
+			events.SessionServerAddr:     sess.cluster.targetAddr,
+			events.SessionInteractive:    true,
+			events.EventLogin:            ctx.User.GetName(),
+			events.EventUser:             ctx.User.GetName(),
+			events.LocalAddr:             sess.cluster.targetAddr,
+			events.RemoteAddr:            req.RemoteAddr,
+			events.TerminalSize:          termParams.Serialize(),
+		}); err != nil {
+			f.Warnf("Failed to emit session start event: %v", err)
+		}
 	}
 
-	if err := f.setupForwardingHeaders(ctx, sess, req); err != nil {
+	if err := f.setupForwardingHeaders(sess, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -557,12 +563,22 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 	if request.tty {
 		// send an event indicating that this session has ended
-		recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, events.EventFields{
-			events.EventProtocol:  events.EventProtocolKube,
-			events.SessionEventID: sessionID,
-			events.EventUser:      ctx.User.GetName(),
-			events.EventNamespace: f.Namespace,
-		})
+		if err := recorder.GetAuditLog().EmitAuditEvent(events.SessionEnd, events.EventFields{
+			events.EventProtocol:         events.EventProtocolKube,
+			events.SessionEventID:        sessionID,
+			events.SessionServerID:       f.ServerID,
+			events.SessionServerHostname: sess.cluster.GetName(),
+			events.SessionServerAddr:     sess.cluster.targetAddr,
+			events.SessionInteractive:    true,
+			events.SessionStartTime:      sess.startTime,
+			events.SessionEndTime:        time.Now().UTC(),
+			// There can only be 1 participant, k8s sessions are not join-able.
+			events.SessionParticipants: []string{ctx.User.GetName()},
+			events.EventUser:           ctx.User.GetName(),
+			events.EventNamespace:      f.Namespace,
+		}); err != nil {
+			f.Warnf("Failed to emit session end event: %v", err)
+		}
 	} else {
 		f.Debugf("No tty, sending exec event.")
 		// send an exec event
@@ -580,9 +596,13 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			if exitErr, ok := err.(utilexec.ExitError); ok && exitErr.Exited() {
 				fields[events.ExecEventCode] = fmt.Sprintf("%d", exitErr.ExitStatus())
 			}
-			f.AuditLog.EmitAuditEvent(events.ExecFailure, fields)
+			if err := f.AuditLog.EmitAuditEvent(events.ExecFailure, fields); err != nil {
+				f.Warnf("Failed to emit exec failure event: %v", err)
+			}
 		} else {
-			f.AuditLog.EmitAuditEvent(events.Exec, fields)
+			if err := f.AuditLog.EmitAuditEvent(events.Exec, fields); err != nil {
+				f.Warnf("Failed to emit exec failure event: %v", err)
+			}
 		}
 	}
 
@@ -601,7 +621,7 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 		return nil, trace.Wrap(err)
 	}
 
-	if err := f.setupForwardingHeaders(ctx, sess, req); err != nil {
+	if err := f.setupForwardingHeaders(sess, req); err != nil {
 		f.Debugf("DENIED Port forward: %v.", req.URL.String())
 		return nil, trace.Wrap(err)
 	}
@@ -616,7 +636,7 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 		if !success {
 			event = events.PortForwardFailure
 		}
-		f.AuditLog.EmitAuditEvent(event, events.EventFields{
+		if err := f.AuditLog.EmitAuditEvent(event, events.EventFields{
 			events.EventProtocol:      events.EventProtocolKube,
 			events.PortForwardAddr:    addr,
 			events.PortForwardSuccess: success,
@@ -624,7 +644,9 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 			events.EventUser:          ctx.User.GetName(),
 			events.LocalAddr:          sess.cluster.targetAddr,
 			events.RemoteAddr:         req.RemoteAddr,
-		})
+		}); err != nil {
+			f.Warnf("Failed to emit port-forward audit event: %v", err)
+		}
 	}
 
 	q := req.URL.Query()
@@ -659,8 +681,8 @@ const (
 	ImpersonationRequestDeniedMessage = "impersonation request has been denied"
 )
 
-func (f *Forwarder) setupForwardingHeaders(ctx *authContext, sess *clusterSession, req *http.Request) error {
-	if err := setupImpersonationHeaders(f.Entry, ctx, req.Header, f.creds.cfg.BearerToken); err != nil {
+func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Request) error {
+	if err := setupImpersonationHeaders(f.Entry, sess.authContext, req.Header); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -674,12 +696,13 @@ func (f *Forwarder) setupForwardingHeaders(ctx *authContext, sess *clusterSessio
 	req.Header.Add("X-Forwarded-Proto", "https")
 	req.Header.Add("X-Forwarded-Host", req.Host)
 	req.Header.Add("X-Forwarded-Path", req.URL.Path)
+	req.Header.Add("X-Forwarded-For", req.RemoteAddr)
 
 	return nil
 }
 
 // setupImpersonationHeaders sets up Impersonate-User and Impersonate-Group headers
-func setupImpersonationHeaders(log log.FieldLogger, ctx *authContext, headers http.Header, bearerToken string) error {
+func setupImpersonationHeaders(log log.FieldLogger, ctx authContext, headers http.Header) error {
 	var impersonateUser string
 	var impersonateGroups []string
 	for header, values := range headers {
@@ -745,6 +768,7 @@ func setupImpersonationHeaders(log log.FieldLogger, ctx *authContext, headers ht
 				"please select a user to impersonate, refusing to select a user due to several kuberenetes_users set up for this user")
 		}
 	}
+
 	if len(impersonateGroups) == 0 {
 		for group := range ctx.kubeGroups {
 			impersonateGroups = append(impersonateGroups, group)
@@ -752,12 +776,13 @@ func setupImpersonationHeaders(log log.FieldLogger, ctx *authContext, headers ht
 	}
 
 	if !ctx.cluster.isRemote {
-		headers.Add("Impersonate-User", impersonateUser)
+		headers.Set(ImpersonateUserHeader, impersonateUser)
+
+		// Make sure to overwrite the exiting headers, instead of appending to
+		// them.
+		headers[ImpersonateGroupHeader] = nil
 		for _, group := range impersonateGroups {
-			headers.Add("Impersonate-Group", group)
-		}
-		if bearerToken != "" {
-			headers.Set("Authorization", fmt.Sprintf("Bearer %v", bearerToken))
+			headers.Add(ImpersonateGroupHeader, group)
 		}
 	}
 	return nil
@@ -772,7 +797,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 		f.Errorf("Failed to create cluster session: %v.", err)
 		return nil, trace.Wrap(err)
 	}
-	if err := f.setupForwardingHeaders(ctx, sess, req); err != nil {
+	if err := f.setupForwardingHeaders(sess, req); err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
 		// of the teleport server if not logged here.
 		f.Errorf("Failed to set up forwarding headers: %v.", err)
@@ -789,9 +814,12 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 		dial:            sess.DialWithContext,
 		tlsConfig:       sess.tlsConfig,
 		followRedirects: true,
-		bearerToken:     f.creds.cfg.BearerToken,
 	})
-	return remotecommand.NewSPDYExecutorForTransports(upgradeRoundTripper, upgradeRoundTripper, req.Method, req.URL)
+	rt, err := f.creds.wrapTransport(upgradeRoundTripper)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return remotecommand.NewSPDYExecutorForTransports(rt, upgradeRoundTripper, req.Method, req.URL)
 }
 
 func (f *Forwarder) getDialer(ctx authContext, sess *clusterSession, req *http.Request) (httpstream.Dialer, error) {
@@ -801,10 +829,13 @@ func (f *Forwarder) getDialer(ctx authContext, sess *clusterSession, req *http.R
 		dial:            sess.DialWithContext,
 		tlsConfig:       sess.tlsConfig,
 		followRedirects: true,
-		bearerToken:     f.creds.cfg.BearerToken,
 	})
+	rt, err := f.creds.wrapTransport(upgradeRoundTripper)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	client := &http.Client{
-		Transport: upgradeRoundTripper,
+		Transport: rt,
 	}
 
 	return spdy.NewDialer(upgradeRoundTripper, client, req.Method, req.URL), nil
@@ -817,6 +848,7 @@ type clusterSession struct {
 	parent    *Forwarder
 	tlsConfig *tls.Config
 	forwarder *forward.Forwarder
+	startTime time.Time
 }
 
 func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error) {
@@ -911,10 +943,16 @@ func (f *Forwarder) getClusterSession(ctx authContext) *clusterSession {
 	f.Lock()
 	defer f.Unlock()
 	creds, ok := f.clusterSessions.Get(ctx.key())
-	if ok {
-		return creds.(*clusterSession)
+	if !ok {
+		return nil
 	}
-	return nil
+	s := creds.(*clusterSession)
+	if s.cluster.isRemote && s.cluster.RemoteSite.IsClosed() {
+		f.Debugf("Found an existing clusterSession for remote cluster %q but it has been closed. Discarding it to create a new clusterSession.", ctx.cluster.GetName())
+		f.clusterSessions.Remove(ctx.key())
+		return nil
+	}
+	return s
 }
 
 func (f *Forwarder) serializedNewClusterSession(authContext authContext) (*clusterSession, error) {
@@ -940,72 +978,54 @@ func (f *Forwarder) serializedNewClusterSession(authContext authContext) (*clust
 }
 
 func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) {
-	pool := x509.NewCertPool()
-	tlsConfig := &tls.Config{
-		RootCAs: pool,
-	}
-	// for remote clusters, retrieve a client certificate
+	var tlsConfig *tls.Config
+
+	// For remote (trusted) clusters, generate a new teleport TLS client
+	// certificate for the user via auth server. Effectively, impersonate the
+	// user to the remote proxy.
 	if ctx.cluster.isRemote {
-		response, err := f.requestCertificate(ctx)
+		var err error
+		tlsConfig, err = f.requestCertificate(ctx)
 		if err != nil {
 			f.Warningf("Failed to get certificate for %v: %v.", ctx, err)
 			return nil, trace.AccessDenied("access denied: failed to authenticate with auth server")
 		}
-		cert, err := tls.X509KeyPair(response.cert, response.key)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		for _, certAuthority := range response.certAuthorities {
-			ok := pool.AppendCertsFromPEM(certAuthority)
-			if !ok {
-				return nil, trace.BadParameter("failed to append certificates, check that kubeconfig has correctly encoded certificate authority data")
-			}
-		}
-		tlsConfig.Certificates = []tls.Certificate{cert}
-		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	} else {
-		ok := pool.AppendCertsFromPEM(f.creds.caPEM)
-		if !ok {
-			return nil, trace.BadParameter("failed to append certificates, check that kubeconfig has correctly encoded certificate authority data")
+		if f.creds == nil {
+			return nil, trace.NotFound("this Teleport proxy is not configured for direct Kubernetes access; you likely need to 'tsh login' into a leaf cluster")
 		}
-		if f.creds.cert != nil {
-			f.Debugf("Local Cluster: using TLS client certificates.")
-			tlsConfig.Certificates = []tls.Certificate{*f.creds.cert}
-			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
-		}
+		tlsConfig = f.creds.tlsConfig
 	}
-	tlsConfig.BuildNameToCertificate()
 
 	// remote clusters use special hardcoded URL,
 	// and use a special dialer
 	if ctx.cluster.isRemote {
 		ctx.cluster.targetAddr = reversetunnel.RemoteKubeProxy
 	} else {
-		// auth server supplied target API address to dial,
-		// use it for dialing
-		if f.creds.targetAddr != "" {
-			ctx.cluster.targetAddr = f.creds.targetAddr
-		} else { // otherwise, use supplied defaults
-			ctx.cluster.targetAddr = f.TargetAddr
-		}
+		ctx.cluster.targetAddr = f.creds.targetAddr
 	}
 
 	sess := &clusterSession{
 		parent:      f,
 		authContext: ctx,
 		tlsConfig:   tlsConfig,
+		startTime:   time.Now().UTC(),
 	}
 
 	var transport http.RoundTripper = f.newTransport(sess.Dial, tlsConfig)
 
-	// when running inside Kubernetes cluster, kubeconfig provides a
-	// transport wrapper that adds service account token to requests
+	// When running inside Kubernetes cluster or using auth/exec providers,
+	// kubeconfig provides a transport wrapper that adds a bearer token to
+	// requests
 	//
-	// when forwarding request to a remote cluster, this is not needed
-	// as the proxy uses client cert auth to reach out to remote proxy
-	// which will then use its own transport wrapper
-	if !ctx.cluster.isRemote && f.creds.cfg.WrapTransport != nil {
-		transport = f.creds.cfg.WrapTransport(transport)
+	// When forwarding request to a remote cluster, this is not needed
+	// as the proxy uses client cert auth to reach out to remote proxy.
+	if !ctx.cluster.isRemote {
+		var err error
+		transport, err = f.creds.wrapTransport(transport)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	fwd, err := forward.New(
@@ -1027,7 +1047,9 @@ func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) 
 		return sessI.(*clusterSession), nil
 	}
 
-	f.clusterSessions.Set(ctx.key(), sess, ctx.sessionTTL)
+	if err = f.clusterSessions.Set(ctx.key(), sess, ctx.sessionTTL); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	f.Debugf("Created new session for %v.", ctx)
 	return sess, nil
 }
@@ -1049,13 +1071,6 @@ func (f *Forwarder) newTransport(dial DialFunc, tlsConfig *tls.Config) *http.Tra
 		// will cause memory leaks in a long running process.
 		IdleConnTimeout: defaults.HTTPIdleTimeout,
 	}
-}
-
-type bundle struct {
-	cert            []byte
-	key             []byte
-	certAuthorities [][]byte
-	targetAddr      string
 }
 
 // getOrCreateRequestContext creates a new certificate request for a given context,
@@ -1080,7 +1095,7 @@ func (f *Forwarder) getOrCreateRequestContext(key string) (context.Context, cont
 	}
 }
 
-func (f *Forwarder) requestCertificate(ctx authContext) (*bundle, error) {
+func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 	f.Debugf("Requesting K8s cert for %v.", ctx)
 	keyPEM, _, err := f.Keygen.GenerateKeyPair("")
 	if err != nil {
@@ -1092,11 +1107,15 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*bundle, error) {
 		return nil, trace.Wrap(err, "failed to parse private key")
 	}
 
+	// Note: ctx.Identity can potentially have temporary roles granted via
+	// workflow API. Always use the Subject() method to preserve the roles from
+	// caller's certificate.
+	subject, err := ctx.Identity.Subject()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	csr := &x509.CertificateRequest{
-		Subject: pkix.Name{
-			CommonName:   ctx.User.GetName(),
-			Organization: utils.StringsSliceFromSet(ctx.kubeGroups),
-		},
+		Subject: subject,
 	}
 	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csr, privateKey)
 	if err != nil {
@@ -1112,108 +1131,25 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*bundle, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	f.Debugf("Received valid K8s cert for %v.", ctx)
-	return &bundle{
-		cert:            response.Cert,
-		certAuthorities: response.CertAuthorities,
-		targetAddr:      response.TargetAddr,
-		key:             keyPEM,
-	}, nil
-}
 
-type kubeCreds struct {
-	// clt is a working kubernetes client
-	cfg *rest.Config
-	// caPEM is a PEM encoded certificate authority
-	// of the kubernetes API server
-	caPEM []byte
-	// targetAddr is a target address of the
-	// kubernetes cluster read from config
-	targetAddr string
-	// cert is a client certificate
-	cert *tls.Certificate
-}
-
-func getKubeCreds(kubeconfigPath string) (*kubeCreds, error) {
-	// no kubeconfig is set, assume auth server is running in the cluster
-	if kubeconfigPath == "" {
-		caPEM, err := ioutil.ReadFile(teleport.KubeCAPath)
-		if err != nil {
-			return nil, trace.BadParameter(`auth server assumed that it is
-running in a kubernetes cluster, but %v mounted in pods could not be read: %v,
-set kubeconfig_file if auth server is running outside of the cluster`, teleport.KubeCAPath, err)
-		}
-
-		cfg, err := kubeutils.GetKubeConfig(os.Getenv(teleport.EnvKubeConfig))
-		if err != nil {
-			return nil, trace.BadParameter(`auth server assumed that it is
-running in a kubernetes cluster, but could not init in-cluster kubernetes client: %v`, err)
-		}
-
-		targetAddr, err := parseKubeHost(cfg.Host)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse kubernetes host %q", cfg.Host)
-		}
-
-		return &kubeCreds{
-			cfg:        cfg,
-			caPEM:      caPEM,
-			targetAddr: targetAddr,
-		}, nil
-	}
-
-	log.Debugf("Reading configuration from kubeconfig file %v.", kubeconfigPath)
-
-	cfg, err := kubeutils.GetKubeConfig(kubeconfigPath)
+	cert, err := tls.X509KeyPair(response.Cert, keyPEM)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	targetAddr, err := parseKubeHost(cfg.Host)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse kubernetes host")
-	}
-
-	var caPEM []byte
-	if len(cfg.CAData) == 0 {
-		if cfg.CAFile == "" {
-			return nil, trace.BadParameter("can't find trusted certificates in %v", kubeconfigPath)
+	pool := x509.NewCertPool()
+	for _, certAuthority := range response.CertAuthorities {
+		ok := pool.AppendCertsFromPEM(certAuthority)
+		if !ok {
+			return nil, trace.BadParameter("failed to append certificates, check that kubeconfig has correctly encoded certificate authority data")
 		}
-		caPEM, err = ioutil.ReadFile(cfg.CAFile)
-		if err != nil {
-			return nil, trace.BadParameter("failed to read trusted certificates from %v: %v", cfg.CAFile, err)
-		}
-	} else {
-		caPEM = cfg.CAData
 	}
+	tlsConfig := &tls.Config{
+		RootCAs:      pool,
+		Certificates: []tls.Certificate{cert},
+	}
+	tlsConfig.BuildNameToCertificate()
 
-	creds := &kubeCreds{
-		cfg:        cfg,
-		caPEM:      caPEM,
-		targetAddr: targetAddr,
-	}
-
-	if len(cfg.CertData) != 0 && len(cfg.KeyData) != 0 {
-		cert, err := tls.X509KeyPair(cfg.CertData, cfg.KeyData)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		creds.cert = &cert
-	}
-	return creds, nil
-}
-
-// parseKubeHost parses and formats kubernetes hostname
-// to host:port format, if no port it set,
-// it assumes default HTTPS port
-func parseKubeHost(host string) (string, error) {
-	u, err := url.Parse(host)
-	if err != nil {
-		return "", trace.Wrap(err, "failed to parse kubernetes host")
-	}
-	if _, _, err := net.SplitHostPort(u.Host); err != nil {
-		// add default HTTPS port
-		return fmt.Sprintf("%v:443", u.Host), nil
-	}
-	return u.Host, nil
+	return tlsConfig, nil
 }

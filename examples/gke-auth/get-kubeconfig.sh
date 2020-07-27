@@ -29,6 +29,11 @@
 
 set -eu -o pipefail
 
+echo "---"
+echo "This script is obsolete!"
+echo "Please use https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh instead."
+echo "---"
+
 # Allow passing in common name and username in environment. If not provided,
 # use default.
 CN=${CN:-teleport}
@@ -42,6 +47,10 @@ if [[ "$OSTYPE" == "linux-gnu" ]]; then
 elif [[ "$OSTYPE" == "darwin"* ]]; then
     REQUEST_ID=$(uuidgen)
     BASE64_DECODE_FLAG="-D"
+    BASE64_WRAP_FLAG=""
+elif [[ "$OSTYPE" == "linux-musl" ]]; then
+    REQUEST_ID=$(uuidgen)
+    BASE64_DECODE_FLAG="-d"
     BASE64_WRAP_FLAG=""
 else
     echo "Unknown OS ${OSTYPE}"

@@ -17,17 +17,23 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tsh/common"
 
@@ -36,7 +42,7 @@ import (
 
 // bootstrap check
 func TestTshMain(t *testing.T) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 	check.TestingT(t)
 }
 
@@ -95,6 +101,118 @@ func (s *MainTestSuite) TestMakeClient(c *check.C) {
 			SrcPort: 8080,
 		},
 	})
+
+	// specific configuration with email like user
+	conf.MinsToLive = 5
+	conf.UserHost = "root@example.com@localhost"
+	conf.NodePort = 46528
+	conf.LocalForwardPorts = []string{"80:remote:180"}
+	conf.DynamicForwardedPorts = []string{":8080"}
+	tc, err = makeClient(&conf, true)
+	c.Assert(err, check.IsNil)
+	c.Assert(tc.Config.KeyTTL, check.Equals, time.Minute*time.Duration(conf.MinsToLive))
+	c.Assert(tc.Config.HostLogin, check.Equals, "root@example.com")
+	c.Assert(tc.Config.LocalForwardPorts, check.DeepEquals, client.ForwardedPorts{
+		{
+			SrcIP:    "127.0.0.1",
+			SrcPort:  80,
+			DestHost: "remote",
+			DestPort: 180,
+		},
+	})
+	c.Assert(tc.Config.DynamicForwardedPorts, check.DeepEquals, client.DynamicForwardedPorts{
+		{
+			SrcIP:   "127.0.0.1",
+			SrcPort: 8080,
+		},
+	})
+
+	randomLocalAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	const staticToken = "test-static-token"
+
+	// Set up a test auth server.
+	//
+	// We need this to get a random port assigned to it and allow parallel
+	// execution of this test.
+	cfg := service.MakeDefaultConfig()
+	cfg.DataDir = c.MkDir()
+	cfg.AuthServers = []utils.NetAddr{randomLocalAddr}
+	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
+	cfg.Auth.StaticTokens, err = services.NewStaticTokens(services.StaticTokensSpecV2{
+		StaticTokens: []services.ProvisionTokenV1{{
+			Roles:   []teleport.Role{teleport.RoleProxy},
+			Expires: time.Now().Add(time.Minute),
+			Token:   staticToken,
+		}},
+	})
+	c.Assert(err, check.IsNil)
+	cfg.SSH.Enabled = false
+	cfg.Auth.Enabled = true
+	cfg.Auth.SSHAddr = randomLocalAddr
+	cfg.Proxy.Enabled = false
+
+	auth, err := service.NewTeleport(cfg)
+	c.Assert(err, check.IsNil)
+	c.Assert(auth.Start(), check.IsNil)
+	defer auth.Close()
+
+	// Wait for proxy to become ready.
+	eventCh := make(chan service.Event, 1)
+	auth.WaitForEvent(auth.ExitContext(), service.AuthTLSReady, eventCh)
+	select {
+	case <-eventCh:
+	case <-time.After(10 * time.Second):
+		c.Fatal("auth server didn't start after 10s")
+	}
+
+	authAddr, err := auth.AuthSSHAddr()
+	c.Assert(err, check.IsNil)
+
+	// Set up a test proxy service.
+	proxyPublicSSHAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "proxy.example.com:22"}
+	cfg = service.MakeDefaultConfig()
+	cfg.DataDir = c.MkDir()
+	cfg.AuthServers = []utils.NetAddr{*authAddr}
+	cfg.Token = staticToken
+	cfg.SSH.Enabled = false
+	cfg.Auth.Enabled = false
+	cfg.Proxy.Enabled = true
+	cfg.Proxy.WebAddr = randomLocalAddr
+	cfg.Proxy.SSHPublicAddrs = []utils.NetAddr{proxyPublicSSHAddr}
+	cfg.Proxy.DisableReverseTunnel = true
+	cfg.Proxy.DisableWebInterface = true
+
+	proxy, err := service.NewTeleport(cfg)
+	c.Assert(err, check.IsNil)
+	c.Assert(proxy.Start(), check.IsNil)
+	defer proxy.Close()
+
+	// Wait for proxy to become ready.
+	proxy.WaitForEvent(proxy.ExitContext(), service.ProxyWebServerReady, eventCh)
+	select {
+	case <-eventCh:
+	case <-time.After(10 * time.Second):
+		c.Fatal("proxy web server didn't start after 10s")
+	}
+
+	proxyWebAddr, err := proxy.ProxyWebAddr()
+	c.Assert(err, check.IsNil)
+
+	// With provided identity file.
+	//
+	// makeClient should call Ping on the proxy to fetch SSHProxyAddr, which is
+	// different from the default.
+	conf = CLIConf{
+		Proxy:              proxyWebAddr.String(),
+		IdentityFileIn:     "../../fixtures/certs/identities/key-cert-ca.pem",
+		Context:            context.Background(),
+		InsecureSkipVerify: true,
+	}
+	tc, err = makeClient(&conf, true)
+	c.Assert(err, check.IsNil)
+	c.Assert(tc, check.NotNil)
+	c.Assert(tc.Config.WebProxyAddr, check.Equals, proxyWebAddr.String())
+	c.Assert(tc.Config.SSHProxyAddr, check.Equals, proxyPublicSSHAddr.String())
 }
 
 func (s *MainTestSuite) TestIdentityRead(c *check.C) {

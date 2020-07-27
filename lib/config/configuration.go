@@ -126,10 +126,10 @@ func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
 // ReadResources loads a set of resources from a file.
 func ReadResources(filePath string) ([]services.Resource, error) {
 	reader, err := utils.OpenFile(filePath)
-	defer reader.Close()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer reader.Close()
 	decoder := kyaml.NewYAMLOrJSONDecoder(reader, defaults.LookaheadBufSize)
 	var resources []services.Resource
 	for {
@@ -287,6 +287,9 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.MACAlgorithms != nil {
 		cfg.MACAlgorithms = fc.MACAlgorithms
 	}
+	if fc.CASignatureAlgorithm != nil {
+		cfg.CASignatureAlgorithm = fc.CASignatureAlgorithm
+	}
 
 	// Read in how nodes will validate the CA.
 	if fc.CAPin != "" {
@@ -414,7 +417,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		localAuth = *fc.Auth.Authentication.LocalAuth
 	}
 
-	if localAuth.Value() == false && fc.Auth.Authentication.SecondFactor != "" {
+	if !localAuth.Value() && fc.Auth.Authentication.SecondFactor != "" {
 		warningMessage := "Second factor settings will have no affect because local " +
 			"authentication is disabled. Update file configuration and remove " +
 			"\"second_factor\" field to get rid of this error message."
@@ -662,7 +665,9 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (services.CertAut
 		clusterName,
 		nil,
 		[][]byte{ssh.MarshalAuthorizedKey(pubkey)},
-		nil)
+		nil,
+		services.CertAuthoritySpecV2_UNKNOWN,
+	)
 
 	// transform old allowed logins into roles
 	role := services.RoleForCertAuthority(ca)
@@ -888,7 +893,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			// Only SSO based authentication is supported. The SSO provider is where
 			// any FedRAMP/FIPS 140-2 compliance (like password complexity) should be
 			// enforced.
-			if cfg.Auth.ClusterConfig.GetLocalAuth() == true {
+			if cfg.Auth.ClusterConfig.GetLocalAuth() {
 				return trace.BadParameter("non-FIPS compliant authentication setting: \"local_auth\" must be false")
 			}
 
@@ -927,9 +932,9 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		if err := validateRoles(clf.Roles); err != nil {
 			return trace.Wrap(err)
 		}
-		cfg.SSH.Enabled = strings.Index(clf.Roles, defaults.RoleNode) != -1
-		cfg.Auth.Enabled = strings.Index(clf.Roles, defaults.RoleAuthService) != -1
-		cfg.Proxy.Enabled = strings.Index(clf.Roles, defaults.RoleProxy) != -1
+		cfg.SSH.Enabled = strings.Contains(clf.Roles, defaults.RoleNode)
+		cfg.Auth.Enabled = strings.Contains(clf.Roles, defaults.RoleAuthService)
+		cfg.Proxy.Enabled = strings.Contains(clf.Roles, defaults.RoleProxy)
 	}
 
 	// apply --auth-server flag:
@@ -1021,8 +1026,8 @@ func parseLabels(spec string, sshConf *service.SSHConfig) error {
 		return trace.Wrap(err)
 	}
 	if len(lmap) > 0 {
-		sshConf.CmdLabels = make(services.CommandLabels, 0)
-		sshConf.Labels = make(map[string]string, 0)
+		sshConf.CmdLabels = make(services.CommandLabels)
+		sshConf.Labels = make(map[string]string)
 	}
 	// see which labels are actually command labels:
 	for key, value := range lmap {

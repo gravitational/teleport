@@ -14,16 +14,42 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 )
 
+// Agent extends the agent.Agent interface.
+// APIs which accept this interface promise to
+// call `Close()` when they are done using the
+// supplied agent.
+type Agent interface {
+	agent.Agent
+	io.Closer
+}
+
+// nopCloser wraps an agent.Agent in the extended
+// Agent interface by adding a NOP closer.
+type nopCloser struct {
+	agent.Agent
+}
+
+func (n nopCloser) Close() error { return nil }
+
+// NopCloser wraps an agent.Agent with a NOP closer, allowing it
+// to be passed to APIs which expect the extended agent interface.
+func NopCloser(std agent.Agent) Agent {
+	return nopCloser{std}
+}
+
+// Getter is a function used to get an agent instance.
+type Getter func() (Agent, error)
+
 // AgentServer is implementation of SSH agent server
 type AgentServer struct {
-	agent.Agent
+	getAgent Getter
 	listener net.Listener
 	path     string
 }
 
 // NewServer returns new instance of agent server
-func NewServer() *AgentServer {
-	return &AgentServer{Agent: agent.NewKeyring()}
+func NewServer(getter Getter) *AgentServer {
+	return &AgentServer{getAgent: getter}
 }
 
 // ListenUnixSocket starts listening and serving agent assuming that
@@ -77,10 +103,21 @@ func (a *AgentServer) Serve() error {
 			continue
 		}
 		tempDelay = 0
+
+		// get an agent instance for serving this conn
+		instance, err := a.getAgent()
+		if err != nil {
+			log.Errorf("Failed to get agent: %v", err)
+			return trace.Wrap(err)
+		}
+
+		// serve agent protocol against conn in a
+		// separate goroutine.
 		go func() {
-			if err := agent.ServeAgent(a.Agent, conn); err != nil {
+			defer instance.Close()
+			if err := agent.ServeAgent(instance, conn); err != nil {
 				if err != io.EOF {
-					log.Errorf(err.Error())
+					log.Error(err)
 				}
 			}
 		}()

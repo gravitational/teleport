@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
@@ -51,6 +52,7 @@ func (s *ServerSuite) TestServersCompare(c *check.C) {
 		Spec: ServerSpecV2{
 			Addr:      "localhost:3022",
 			CmdLabels: map[string]CommandLabelV2{"a": CommandLabelV2{Period: Duration(time.Minute), Command: []string{"ls", "-l"}}},
+			Version:   "4.0.0",
 		},
 	}
 	node.SetExpiry(time.Date(2018, 1, 2, 3, 4, 5, 6, time.UTC))
@@ -87,6 +89,11 @@ func (s *ServerSuite) TestServersCompare(c *check.C) {
 	node2.Spec.Hostname = "luna2"
 	c.Assert(CompareServers(node, &node2), check.Equals, Different)
 
+	// TeleportVersion has changed
+	node2 = *node
+	node2.Spec.Version = "5.0.0"
+	c.Assert(CompareServers(node, &node2), check.Equals, Different)
+
 	// Rotation has changed
 	node2 = *node
 	node2.Spec.Rotation = Rotation{
@@ -103,4 +110,34 @@ func (s *ServerSuite) TestServersCompare(c *check.C) {
 		},
 	}
 	c.Assert(CompareServers(node, &node2), check.Equals, Different)
+}
+
+// TestGuessProxyHostAndVersion checks that the GuessProxyHostAndVersion
+// correctly guesses the public address of the proxy (Teleport Cluster).
+func (s *ServerSuite) TestGuessProxyHostAndVersion(c *check.C) {
+	// No proxies passed in.
+	host, version, err := GuessProxyHostAndVersion(nil)
+	c.Assert(host, check.Equals, "")
+	c.Assert(version, check.Equals, "")
+	fixtures.ExpectNotFound(c, err)
+
+	// No proxies have public address set.
+	proxyA := ServerV2{}
+	proxyA.Spec.Hostname = "test-A"
+	proxyA.Spec.Version = "test-A"
+
+	host, version, err = GuessProxyHostAndVersion([]Server{&proxyA})
+	c.Assert(host, check.Equals, fmt.Sprintf("%v:%v", proxyA.Spec.Hostname, defaults.HTTPListenPort))
+	c.Assert(version, check.Equals, proxyA.Spec.Version)
+	c.Assert(err, check.IsNil)
+
+	// At least one proxy has public address set.
+	proxyB := ServerV2{}
+	proxyB.Spec.PublicAddr = "test-B"
+	proxyB.Spec.Version = "test-B"
+
+	host, version, err = GuessProxyHostAndVersion([]Server{&proxyA, &proxyB})
+	c.Assert(host, check.Equals, proxyB.Spec.PublicAddr)
+	c.Assert(version, check.Equals, proxyB.Spec.Version)
+	c.Assert(err, check.IsNil)
 }

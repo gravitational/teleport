@@ -17,6 +17,7 @@ limitations under the License.
 package regular
 
 import (
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv"
 
 	"gopkg.in/check.v1"
@@ -35,52 +36,54 @@ func (s *ProxyTestSuite) SetUpSuite(c *check.C) {
 }
 
 func (s *ProxyTestSuite) TestParseProxyRequest(c *check.C) {
-	ctx := &srv.ServerContext{}
 
-	// proxy request for a host:port
-	subsys, err := parseProxySubsys("proxy:host:22", s.srv, ctx)
-	c.Assert(err, check.IsNil)
-	c.Assert(subsys, check.NotNil)
-	c.Assert(subsys.srv, check.Equals, s.srv)
-	c.Assert(subsys.host, check.Equals, "host")
-	c.Assert(subsys.port, check.Equals, "22")
-	c.Assert(subsys.clusterName, check.Equals, "")
+	tt := []struct {
+		req, host, port, cluster, namespace string
+	}{
+		{ // proxy request for a host:port
+			req:  "proxy:host:22",
+			host: "host",
+			port: "22",
+		},
+		{ // similar request, just with '@' at the end (missing site)
+			req:  "proxy:host:22@",
+			host: "host",
+			port: "22",
+		},
+		{ // proxy request for just the sitename
+			req:     "proxy:@moon",
+			cluster: "moon",
+		},
+		{ // proxy request for the host:port@sitename
+			req:     "proxy:station:100@moon",
+			host:    "station",
+			port:    "100",
+			cluster: "moon",
+		},
+		{ // proxy request for the host:port@namespace@cluster
+			req:       "proxy:station:100@system@moon",
+			host:      "station",
+			port:      "100",
+			cluster:   "moon",
+			namespace: "system",
+		},
+	}
 
-	// similar request, just with '@' at the end (missing site)
-	subsys, err = parseProxySubsys("proxy:host:22@", s.srv, ctx)
-	c.Assert(err, check.IsNil)
-	c.Assert(subsys.srv, check.Equals, s.srv)
-	c.Assert(subsys.host, check.Equals, "host")
-	c.Assert(subsys.port, check.Equals, "22")
-	c.Assert(subsys.clusterName, check.Equals, "")
-
-	// proxy request for just the sitename
-	subsys, err = parseProxySubsys("proxy:@moon", s.srv, ctx)
-	c.Assert(err, check.IsNil)
-	c.Assert(subsys, check.NotNil)
-	c.Assert(subsys.srv, check.Equals, s.srv)
-	c.Assert(subsys.host, check.Equals, "")
-	c.Assert(subsys.port, check.Equals, "")
-	c.Assert(subsys.clusterName, check.Equals, "moon")
-
-	// proxy request for the host:port@sitename
-	subsys, err = parseProxySubsys("proxy:station:100@moon", s.srv, ctx)
-	c.Assert(err, check.IsNil)
-	c.Assert(subsys, check.NotNil)
-	c.Assert(subsys.srv, check.Equals, s.srv)
-	c.Assert(subsys.host, check.Equals, "station")
-	c.Assert(subsys.port, check.Equals, "100")
-	c.Assert(subsys.clusterName, check.Equals, "moon")
-
-	// proxy request for the host:port@namespace@cluster
-	subsys, err = parseProxySubsys("proxy:station:100@system@moon", s.srv, ctx)
-	c.Assert(err, check.IsNil)
-	c.Assert(subsys, check.NotNil)
-	c.Assert(subsys.srv, check.Equals, s.srv)
-	c.Assert(subsys.host, check.Equals, "station")
-	c.Assert(subsys.port, check.Equals, "100")
-	c.Assert(subsys.clusterName, check.Equals, "moon")
-	c.Assert(subsys.namespace, check.Equals, "system")
+	for i, t := range tt {
+		if t.namespace == "" {
+			// test cases without a defined namespace are testing for
+			// the presence of the default namespace; namespace should
+			// never actually be empty.
+			t.namespace = defaults.Namespace
+		}
+		cmt := check.Commentf("Test case %d: %+v", i, t)
+		req, err := parseProxySubsysRequest(t.req)
+		c.Assert(err, check.IsNil, cmt)
+		c.Assert(req.host, check.Equals, t.host, cmt)
+		c.Assert(req.port, check.Equals, t.port, cmt)
+		c.Assert(req.clusterName, check.Equals, t.cluster, cmt)
+		c.Assert(req.namespace, check.Equals, t.namespace, cmt)
+	}
 }
 
 func (s *ProxyTestSuite) TestParseBadRequests(c *check.C) {

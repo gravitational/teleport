@@ -17,7 +17,6 @@ limitations under the License.
 package ui
 
 import (
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -40,6 +39,8 @@ type userACL struct {
 	Roles access `json:"roles"`
 	// TrustedClusters defines access to trusted clusters
 	TrustedClusters access `json:"trustedClusters"`
+	// Events defines access to audit logs
+	Events access `json:"events"`
 	// SSH defines access to servers
 	SSHLogins []string `json:"sshLogins"`
 }
@@ -58,8 +59,8 @@ type userContext struct {
 	Name string `json:"userName"`
 	// ACL contains user access control list
 	ACL userACL `json:"userAcl"`
-	// Version is the version of Teleport that is running.
-	Version string `json:"version"`
+	// Cluster contains cluster detail for this user's context
+	Cluster *Cluster `json:"cluster"`
 }
 
 func getLogins(roleSet services.RoleSet) []string {
@@ -75,7 +76,7 @@ func getLogins(roleSet services.RoleSet) []string {
 	userLogins := []string{}
 	for _, login := range allowed {
 		loginMatch, _ := services.MatchLogin(denied, login)
-		if loginMatch == false {
+		if !loginMatch {
 			userLogins = append(userLogins, login)
 		}
 	}
@@ -106,13 +107,14 @@ func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) acc
 	}
 }
 
-// NewUserContext constructs user context from roles assigned to user
+// NewUserContext returns user context
 func NewUserContext(user services.User, userRoles services.RoleSet) (*userContext, error) {
 	ctx := &services.Context{User: user}
 	sessionAccess := newAccess(userRoles, ctx, services.KindSession)
 	roleAccess := newAccess(userRoles, ctx, services.KindRole)
 	authConnectors := newAccess(userRoles, ctx, services.KindAuthConnector)
 	trustedClusterAccess := newAccess(userRoles, ctx, services.KindTrustedCluster)
+	eventAccess := newAccess(userRoles, ctx, services.KindEvent)
 	logins := getLogins(userRoles)
 
 	acl := userACL{
@@ -120,6 +122,7 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*userContex
 		TrustedClusters: trustedClusterAccess,
 		Sessions:        sessionAccess,
 		Roles:           roleAccess,
+		Events:          eventAccess,
 		SSHLogins:       logins,
 	}
 
@@ -140,6 +143,5 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*userContex
 		Name:     user.GetName(),
 		ACL:      acl,
 		AuthType: authType,
-		Version:  teleport.Version,
 	}, nil
 }

@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/proto"
@@ -240,10 +241,91 @@ func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *proto.Reque
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
+	if req.Delegator != "" {
+		ctx = WithDelegator(ctx, req.Delegator)
+	}
 	if err := auth.AuthWithRoles.SetAccessRequestState(ctx, req.ID, req.State); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 	return &empty.Empty{}, nil
+}
+
+func (g *GRPCServer) CreateResetPasswordToken(ctx context.Context, req *proto.CreateResetPasswordTokenRequest) (*services.ResetPasswordTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if req == nil {
+		req = &proto.CreateResetPasswordTokenRequest{}
+	}
+
+	token, err := auth.CreateResetPasswordToken(ctx, CreateResetPasswordTokenRequest{
+		Name: req.Name,
+		TTL:  time.Duration(req.TTL),
+		Type: req.Type,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	r, ok := token.(*services.ResetPasswordTokenV3)
+	if !ok {
+		err = trace.BadParameter("unexpected ResetPasswordToken type %T", token)
+		return nil, trail.ToGRPC(err)
+	}
+
+	return r, nil
+}
+
+func (g *GRPCServer) RotateResetPasswordTokenSecrets(ctx context.Context, req *proto.RotateResetPasswordTokenSecretsRequest) (*services.ResetPasswordTokenSecretsV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	tokenID := ""
+	if req != nil {
+		tokenID = req.TokenID
+	}
+
+	secrets, err := auth.RotateResetPasswordTokenSecrets(ctx, tokenID)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	r, ok := secrets.(*services.ResetPasswordTokenSecretsV3)
+	if !ok {
+		err = trace.BadParameter("unexpected ResetPasswordTokenSecrets type %T", secrets)
+		return nil, trail.ToGRPC(err)
+	}
+
+	return r, nil
+}
+
+func (g *GRPCServer) GetResetPasswordToken(ctx context.Context, req *proto.GetResetPasswordTokenRequest) (*services.ResetPasswordTokenV3, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	tokenID := ""
+	if req != nil {
+		tokenID = req.TokenID
+	}
+
+	token, err := auth.GetResetPasswordToken(ctx, tokenID)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	r, ok := token.(*services.ResetPasswordTokenV3)
+	if !ok {
+		err = trace.BadParameter("unexpected ResetPasswordToken type %T", token)
+		return nil, trail.ToGRPC(err)
+	}
+
+	return r, nil
 }
 
 // GetPluginData loads all plugin data matching the supplied filter.
@@ -296,6 +378,54 @@ func (g *GRPCServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.P
 		return nil, trail.ToGRPC(err)
 	}
 	return &rsp, nil
+}
+
+// CreateUser inserts a new user entry in a backend.
+func (g *GRPCServer) CreateUser(ctx context.Context, req *services.UserV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.CreateUser(ctx, req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	log.Infof("%q user created", req.GetName())
+
+	return &empty.Empty{}, nil
+}
+
+// UpdateUser updates an existing user in a backend.
+func (g *GRPCServer) UpdateUser(ctx context.Context, req *services.UserV2) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.UpdateUser(ctx, req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	log.Infof("%q user updated", req.GetName())
+
+	return &empty.Empty{}, nil
+}
+
+// DeleteUser deletes an existng user in a backend by username.
+func (g *GRPCServer) DeleteUser(ctx context.Context, req *proto.DeleteUserRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.DeleteUser(ctx, req.GetName()); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	log.Infof("%q user deleted", req.GetName())
+
+	return &empty.Empty{}, nil
 }
 
 type grpcContext struct {

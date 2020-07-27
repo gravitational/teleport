@@ -121,7 +121,7 @@ type Cache struct {
 	accessCache        services.Access
 	dynamicAccessCache services.DynamicAccessExt
 	presenceCache      services.Presence
-	eventsCache        services.Events
+	eventsFanout       *services.Fanout
 
 	// closedFlag is set to indicate that the services are closed
 	closedFlag int32
@@ -275,7 +275,7 @@ func New(config Config) (*Cache, error) {
 		accessCache:        local.NewAccessService(wrapper),
 		dynamicAccessCache: local.NewDynamicAccessService(wrapper),
 		presenceCache:      local.NewPresenceService(wrapper),
-		eventsCache:        local.NewEventsService(config.Backend),
+		eventsFanout:       services.NewFanout(),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
 		}),
@@ -286,7 +286,7 @@ func New(config Config) (*Cache, error) {
 	}
 	cs.collections = collections
 
-	err = cs.fetch()
+	err = cs.fetch(ctx)
 	if err != nil {
 		// "only recent" behavior does not tolerate
 		// stale data, so it has to initialize itself
@@ -295,7 +295,7 @@ func New(config Config) (*Cache, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	go cs.update()
+	go cs.update(ctx)
 	return cs, nil
 }
 
@@ -305,7 +305,7 @@ func New(config Config) (*Cache, error) {
 // to handle subscribers connected to the in-memory caches
 // instead of reading from the backend.
 func (c *Cache) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
-	return c.eventsCache.NewWatcher(ctx, watch)
+	return c.eventsFanout.NewWatcher(ctx, watch)
 }
 
 func (c *Cache) isClosed() bool {
@@ -316,7 +316,7 @@ func (c *Cache) setClosed() {
 	atomic.StoreInt32(&c.closedFlag, 1)
 }
 
-func (c *Cache) update() {
+func (c *Cache) update(ctx context.Context) {
 	retry, err := utils.NewLinear(utils.LinearConfig{
 		Step: c.RetryPeriod / 10,
 		Max:  c.RetryPeriod,
@@ -326,7 +326,7 @@ func (c *Cache) update() {
 		return
 	}
 	for {
-		err := c.fetchAndWatch(retry)
+		err := c.fetchAndWatch(ctx, retry)
 		if err != nil {
 			c.setCacheState(err)
 			if !c.isClosed() {
@@ -337,7 +337,7 @@ func (c *Cache) update() {
 		// all watchers will be out of sync, because
 		// cache will reload its own watcher to the backend,
 		// so signal closure to reset the watchers
-		c.Backend.CloseWatchers()
+		c.eventsFanout.CloseWatchers()
 		// events cache should be closed as well
 		c.Debugf("Reloading %v.", retry)
 		select {
@@ -353,9 +353,9 @@ func (c *Cache) update() {
 // setCacheState for "only recent" cache behavior will erase
 // the cache and set error mode to refuse to serve stale data,
 // otherwise does nothing
-func (c *Cache) setCacheState(err error) error {
+func (c *Cache) setCacheState(err error) {
 	if !c.OnlyRecent.Enabled {
-		return err
+		return
 	}
 	if err := c.eraseAll(); err != nil {
 		if !c.isClosed() {
@@ -363,7 +363,6 @@ func (c *Cache) setCacheState(err error) error {
 		}
 	}
 	c.wrapper.SetReadError(trace.ConnectionProblem(err, "cache is unavailable"))
-	return err
 }
 
 // setTTL overrides TTL supplied by the resource
@@ -416,7 +415,7 @@ func (c *Cache) notify(event CacheEvent) {
 //   a. We assume that events are ordered in regards to the
 //   individual key operations which is the guarantees both Etcd and DynamodDB
 //   provide.
-//   b. Thanks to the init event sent by the server on a sucessfull connect,
+//   b. Thanks to the init event sent by the server on a successful connect,
 //   and guarantees 1 and 2a, client assumes that once it connects and receives an event,
 //   it will not miss any events, however it can receive stale events.
 //   Event could be stale, if it relates to a change that happened before
@@ -426,11 +425,11 @@ func (c *Cache) notify(event CacheEvent) {
 //   read the value a=2 and then received events 1 and 2 and 3.
 //   The cache will replay all events 1, 2 and 3 and end up in the correct
 //   state 3. If we had a consistent revision number, we could
-//   have skipped 1 and 2, but in the absense of such mechanism in Dynamo
+//   have skipped 1 and 2, but in the absence of such mechanism in Dynamo
 //   we assume that this cache will eventually end up in a correct state
 //   potentially lagging behind the state of the database.
 //
-func (c *Cache) fetchAndWatch(retry utils.Retry) error {
+func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry) error {
 	watcher, err := c.Events.NewWatcher(c.ctx, services.Watch{
 		QueueSize:       c.QueueSize,
 		Name:            c.Component,
@@ -466,7 +465,7 @@ func (c *Cache) fetchAndWatch(retry utils.Retry) error {
 			return trace.BadParameter("expected init event, got %v instead", event.Type)
 		}
 	}
-	err = c.fetch()
+	err = c.fetch(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -480,7 +479,7 @@ func (c *Cache) fetchAndWatch(retry utils.Retry) error {
 		case <-c.ctx.Done():
 			return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
 		case event := <-watcher.Events():
-			err = c.processEvent(event)
+			err = c.processEvent(ctx, event)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -513,22 +512,26 @@ func (c *Cache) Close() error {
 	return nil
 }
 
-func (c *Cache) fetch() error {
+func (c *Cache) fetch(ctx context.Context) error {
 	for _, collection := range c.collections {
-		if err := collection.fetch(); err != nil {
+		if err := collection.fetch(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	return nil
 }
 
-func (c *Cache) processEvent(event services.Event) error {
+func (c *Cache) processEvent(ctx context.Context, event services.Event) error {
 	collection, ok := c.collections[event.Resource.GetKind()]
 	if !ok {
 		c.Warningf("Skipping unsupported event %v.", event.Resource.GetKind())
 		return nil
 	}
-	return collection.processEvent(event)
+	if err := collection.processEvent(ctx, event); err != nil {
+		return trace.Wrap(err)
+	}
+	c.eventsFanout.Emit(event)
+	return nil
 }
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys

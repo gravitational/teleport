@@ -19,7 +19,6 @@ package socks
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -189,14 +188,14 @@ func readDestAddr(conn net.Conn) (string, error) {
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
-		return fmt.Sprintf("%s", net.IP(destAddr)), nil
+		return net.IP(destAddr).String(), nil
 	case socks5AddressTypeIPv6:
 		destAddr := make([]byte, net.IPv6len)
 		_, err = io.ReadFull(conn, destAddr)
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
-		return fmt.Sprintf("%s", net.IP(destAddr)), nil
+		return net.IP(destAddr).String(), nil
 	case socks5AddressTypeDomainName:
 		len, err := readByte(conn)
 		if err != nil {

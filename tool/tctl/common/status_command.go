@@ -107,7 +107,7 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 		table.AddRow([]string{"CA pin", caPin})
 		return table.AsBuffer().String()
 	}
-	fmt.Printf(view())
+	fmt.Print(view())
 
 	// in debug mode, output mode of remote certificate authorities
 	if c.config.Debug {
@@ -123,7 +123,7 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 			}
 			return "Remote clusters\n\n" + table.AsBuffer().String()
 		}
-		fmt.Printf(view())
+		fmt.Print(view())
 	}
 	return nil
 }

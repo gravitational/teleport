@@ -25,7 +25,7 @@ like:
 3. Select OAuth client ID.
 ![Create OAuth Creds](img/gsuite/gsuite-2-created-creds.png)
 
-4. Make Application Type Public & Setup Domain Verification 
+4. Make Application Type Public & Setup Domain Verification
 ![Setup Application Type](img/gsuite/gsuite-3-oauth.png)
 
 5. Copy OAuth Client ID and Client Secret for YAML Below.
@@ -55,12 +55,12 @@ spec:
   client_id: exampleclientid11234.apps.googleusercontent.com
   client_secret: examplesecret
   issuer_url: https://accounts.google.com
-  scope: ['https://www.googleapis.com/auth/admin.directory.group.readonly', 'openid', 'email']  
+  scope: ['https://www.googleapis.com/auth/admin.directory.group.readonly', 'openid', 'email']
   claims_to_roles:
     - {claim: "groups", value: "admin@example.com", roles: ["admin"]}
 ```
 
-!!! important 
+!!! important
     The groups will be fetched only if admins include special auth scope https://www.googleapis.com/auth/admin.directory.group.readonly in the scopes of the connector as shown in the example above.
 
 
@@ -73,7 +73,7 @@ $ tctl create gsuite-connector.yaml
 ## Create Teleport Roles
 
 We are going to create 2 roles:
--  Privileged role admin who is able to login as root and is capable of administrating 
+-  Privileged role admin who is able to login as root and is capable of administrating
 the cluster
 - Non-privileged dev
 
@@ -145,7 +145,7 @@ If you get "access denied" errors the number one place to check is the audit
 log on the Teleport auth server. It is located in `/var/lib/teleport/log` by
 default and it will contain the detailed reason why a user's login was denied.
 
-Example of a user being denied due as the role `clusteradmin` wasn't setup. 
+Example of a user being denied due as the role `clusteradmin` wasn't setup.
 ```json
 {"code":"T1001W","error":"role clusteradmin is not found","event":"user.login","method":"oidc","success":false,"time":"2019-06-15T19:38:07Z","uid":"cd9e45d0-b68c-43c3-87cf-73c4e0ec37e9"}
 ```

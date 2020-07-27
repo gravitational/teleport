@@ -527,11 +527,12 @@ func (s *server) Shutdown(ctx context.Context) error {
 	return s.srv.Shutdown(ctx)
 }
 
-func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
+func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionContext, nch ssh.NewChannel) {
 	// Apply read/write timeouts to the server connection.
-	conn = utils.ObeyIdleTimeout(conn,
+	conn := utils.ObeyIdleTimeout(ccx.NetConn,
 		s.offlineThreshold,
 		"reverse tunnel server")
+	sconn := ccx.ServerConn
 
 	channelType := nch.ChannelType()
 	switch channelType {
@@ -553,7 +554,7 @@ func (s *server) HandleNewChan(conn net.Conn, sconn *ssh.ServerConn, nch ssh.New
 			msg = "Cannot open new SSH session on reverse tunnel. Are you connecting to the right port?"
 		}
 		s.Warn(msg)
-		nch.Reject(ssh.ConnectionFailed, msg)
+		s.rejectRequest(nch, ssh.ConnectionFailed, msg)
 		return
 	}
 }
@@ -591,7 +592,7 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 	val, ok := sconn.Permissions.Extensions[extCertRole]
 	if !ok {
 		log.Errorf("Failed to accept connection, unknown role: %v.", val)
-		nch.Reject(ssh.ConnectionFailed, "unknown role")
+		s.rejectRequest(nch, ssh.ConnectionFailed, "unknown role")
 	}
 	switch {
 	// Node is dialing back.
@@ -626,7 +627,7 @@ func (s *server) handleNewCluster(conn net.Conn, sshConn *ssh.ServerConn, nch ss
 	site, remoteConn, err := s.upsertRemoteCluster(conn, sshConn)
 	if err != nil {
 		log.Error(trace.Wrap(err))
-		nch.Reject(ssh.ConnectionFailed, "failed to accept incoming cluster connection")
+		s.rejectRequest(nch, ssh.ConnectionFailed, "failed to accept incoming cluster connection")
 		return
 	}
 	// accept the request and start the heartbeat on it:
@@ -898,6 +899,12 @@ func (s *server) fanOutProxies(proxies []services.Server) {
 	}
 }
 
+func (s *server) rejectRequest(ch ssh.NewChannel, reason ssh.RejectionReason, msg string) {
+	if err := ch.Reject(reason, msg); err != nil {
+		s.Warnf("Failed rejecting new channel request: %v", err)
+	}
+}
+
 // newRemoteSite helper creates and initializes 'remoteSite' instance
 func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite, error) {
 	connInfo, err := services.NewTunnelConnection(
@@ -968,7 +975,6 @@ const (
 	extCertType     = "certtype@teleport"
 	extAuthority    = "auth@teleport"
 	extCertTypeHost = "host"
-	extCertTypeUser = "user"
 	extCertRole     = "role"
 
 	versionRequest = "x-teleport-version"

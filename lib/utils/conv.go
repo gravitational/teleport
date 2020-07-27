@@ -55,7 +55,7 @@ func ObjectToStruct(in interface{}, out interface{}) error {
 	if err != nil {
 		return trace.Wrap(err, fmt.Sprintf("failed to marshal %v, %v", in, err))
 	}
-	if err := json.Unmarshal([]byte(bytes), out); err != nil {
+	if err := json.Unmarshal(bytes, out); err != nil {
 		return trace.Wrap(err, fmt.Sprintf("failed to unmarshal %v into %T, %v", in, out, err))
 	}
 	return nil

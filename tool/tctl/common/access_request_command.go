@@ -39,8 +39,9 @@ type AccessRequestCommand struct {
 	config *service.Config
 	reqIDs string
 
-	user  string
-	roles string
+	user      string
+	roles     string
+	delegator string
 	// format is the output format, e.g. text or json
 	format string
 
@@ -61,9 +62,11 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *serv
 
 	c.requestApprove = requests.Command("approve", "Approve pending access request")
 	c.requestApprove.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
+	c.requestApprove.Flag("delegator", "Optional delegating identity").StringVar(&c.delegator)
 
 	c.requestDeny = requests.Command("deny", "Deny pending access request")
 	c.requestDeny.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
+	c.requestDeny.Flag("delegator", "Optional delegating identity").StringVar(&c.delegator)
 
 	c.requestCreate = requests.Command("create", "Create pending access request")
 	c.requestCreate.Arg("username", "Name of target user").Required().StringVar(&c.user)
@@ -104,8 +107,12 @@ func (c *AccessRequestCommand) List(client auth.ClientI) error {
 }
 
 func (c *AccessRequestCommand) Approve(client auth.ClientI) error {
+	ctx := context.TODO()
+	if c.delegator != "" {
+		ctx = auth.WithDelegator(ctx, c.delegator)
+	}
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
-		if err := client.SetAccessRequestState(context.TODO(), reqID, services.RequestState_APPROVED); err != nil {
+		if err := client.SetAccessRequestState(ctx, reqID, services.RequestState_APPROVED); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -113,8 +120,12 @@ func (c *AccessRequestCommand) Approve(client auth.ClientI) error {
 }
 
 func (c *AccessRequestCommand) Deny(client auth.ClientI) error {
+	ctx := context.TODO()
+	if c.delegator != "" {
+		ctx = auth.WithDelegator(ctx, c.delegator)
+	}
 	for _, reqID := range strings.Split(c.reqIDs, ",") {
-		if err := client.SetAccessRequestState(context.TODO(), reqID, services.RequestState_DENIED); err != nil {
+		if err := client.SetAccessRequestState(ctx, reqID, services.RequestState_DENIED); err != nil {
 			return trace.Wrap(err)
 		}
 	}

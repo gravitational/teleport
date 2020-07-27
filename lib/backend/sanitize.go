@@ -54,12 +54,6 @@ func NewSanitizer(backend Backend) *Sanitizer {
 	}
 }
 
-// Backend returns the underlying backend. Useful when knowing the type of
-// backend is important (for example, can the backend support forking).
-func (s *Sanitizer) Backend() Backend {
-	return s.backend
-}
-
 // GetRange returns query range
 func (s *Sanitizer) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*GetResult, error) {
 	if !isKeySafe(startKey) {
@@ -168,3 +162,6 @@ func (s *Sanitizer) Clock() clockwork.Clock {
 func (s *Sanitizer) CloseWatchers() {
 	s.backend.CloseWatchers()
 }
+
+// Migrate runs the necessary data migrations for this backend.
+func (s *Sanitizer) Migrate(ctx context.Context) error { return s.backend.Migrate(ctx) }

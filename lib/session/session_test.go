@@ -179,26 +179,28 @@ func (s *SessionSuite) TestPartiesCRUD(c *C) {
 			LastActive: s.clock.Now().UTC(),
 		},
 	}
-	s.srv.UpdateSession(UpdateRequest{
+	err := s.srv.UpdateSession(UpdateRequest{
 		ID:        sess.ID,
 		Namespace: defaults.Namespace,
 		Parties:   &parties,
 	})
+	c.Assert(err, IsNil)
 	// verify they're in the session:
 	copy, err := s.srv.GetSession(defaults.Namespace, sess.ID)
 	c.Assert(err, IsNil)
 	c.Assert(len(copy.Parties), Equals, 2)
 
 	// empty update (list of parties must not change)
-	s.srv.UpdateSession(UpdateRequest{ID: sess.ID, Namespace: defaults.Namespace})
+	err = s.srv.UpdateSession(UpdateRequest{ID: sess.ID, Namespace: defaults.Namespace})
+	c.Assert(err, IsNil)
 	copy, _ = s.srv.GetSession(defaults.Namespace, sess.ID)
 	c.Assert(len(copy.Parties), Equals, 2)
 
 	// remove the 2nd party:
 	deleted := copy.RemoveParty(parties[1].ID)
 	c.Assert(deleted, Equals, true)
-	s.srv.UpdateSession(UpdateRequest{ID: copy.ID,
-		Parties: &copy.Parties, Namespace: defaults.Namespace})
+	err = s.srv.UpdateSession(UpdateRequest{ID: copy.ID, Parties: &copy.Parties, Namespace: defaults.Namespace})
+	c.Assert(err, IsNil)
 	copy, _ = s.srv.GetSession(defaults.Namespace, sess.ID)
 	c.Assert(len(copy.Parties), Equals, 1)
 

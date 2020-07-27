@@ -41,7 +41,7 @@ type changePasswordReq struct {
 	U2FSignResponse *u2f.SignResponse `json:"u2f_sign_response"`
 }
 
-// changePassword updates users password based on the old password
+// changePassword updates users password based on the old password.
 func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	var req *changePasswordReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -61,8 +61,7 @@ func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request, p httpr
 		U2FSignResponse:   req.U2FSignResponse,
 	}
 
-	err = clt.ChangePassword(servicedReq)
-	if err != nil {
+	if err := clt.ChangePassword(servicedReq); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

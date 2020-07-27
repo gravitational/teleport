@@ -55,7 +55,8 @@ func (s *ProfileTestSuite) TestEverything(c *check.C) {
 	c.Assert(os.IsNotExist(err), check.Equals, true)
 
 	// save again, this time with a symlink:
-	p.SaveTo(ProfileLocation{Path: pfile, Options: ProfileMakeCurrent})
+	err = p.SaveTo(ProfileLocation{Path: pfile, Options: ProfileMakeCurrent})
+	c.Assert(err, check.IsNil)
 	stat, err := os.Stat(symlink)
 	c.Assert(err, check.IsNil)
 	c.Assert(stat.Size() > 10, check.Equals, true)

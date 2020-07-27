@@ -80,6 +80,7 @@ func (s *Suite) TestSanitizeBucket(c *check.C) {
 }
 
 type nopBackend struct {
+	NoMigrations
 }
 
 func (n *nopBackend) Get(_ context.Context, _ []byte) (*Item, error) {

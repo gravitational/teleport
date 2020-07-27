@@ -29,7 +29,7 @@ import (
 	"github.com/pborman/uuid"
 )
 
-// RequestIDs is a collection of IDs for privelege escalation requests.
+// RequestIDs is a collection of IDs for privilege escalation requests.
 type RequestIDs struct {
 	AccessRequests []string `json:"access_requests,omitempty"`
 }
@@ -162,7 +162,7 @@ type DynamicAccessExt interface {
 	DynamicAccess
 	// UpsertAccessRequest creates or updates an access request.
 	UpsertAccessRequest(ctx context.Context, req AccessRequest) error
-	// DeleteAllAccessRequests deletes all existant access requests.
+	// DeleteAllAccessRequests deletes all existent access requests.
 	DeleteAllAccessRequests(ctx context.Context) error
 }
 
@@ -339,7 +339,9 @@ func (r *AccessRequestV3) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 	if r.GetState().IsNone() {
-		r.SetState(RequestState_PENDING)
+		if err := r.SetState(RequestState_PENDING); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	if err := r.Check(); err != nil {
 		return trace.Wrap(err)

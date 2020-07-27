@@ -159,6 +159,18 @@ int _pam_end(void *handle, pam_handle_t *pamh, int pam_status)
     return (f)(pamh, pam_status);
 }
 
+int _pam_putenv(void *handle, pam_handle_t *pamh, const char *name_value)
+{
+    int (*f)(pam_handle_t *, const char *);
+
+    f = dlsym(handle, "pam_putenv");
+    if (f == NULL) {
+        return PAM_ABORT;
+    }
+
+    return (f)(pamh, name_value);
+}
+
 int _pam_authenticate(void *handle, pam_handle_t *pamh, int flags)
 {
     int (*f)(pam_handle_t *, int);

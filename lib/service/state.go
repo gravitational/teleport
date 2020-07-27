@@ -17,23 +17,40 @@ limitations under the License.
 package service
 
 import (
+	"fmt"
 	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
+// Note: these consts are not using iota because they get exposed via a
+// Prometheus metric. Using iota makes it possible to accidentally change the
+// values.
 const (
 	// stateOK means Teleport is operating normally.
 	stateOK = 0
-
 	// stateRecovering means Teleport has begun recovering from a degraded state.
 	stateRecovering = 1
-
 	// stateDegraded means some kind of connection error has occurred to put
 	// Teleport into a degraded state.
 	stateDegraded = 2
+	// stateStarting means the process is starting but hasn't joined the
+	// cluster yet.
+	stateStarting = 3
 )
+
+var stateGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+	Name: teleport.MetricState,
+	Help: fmt.Sprintf("State of the teleport process: %d - ok, %d - recovering, %d - degraded, %d - starting", stateOK, stateRecovering, stateDegraded, stateStarting),
+})
+
+func init() {
+	prometheus.MustRegister(stateGauge)
+	stateGauge.Set(stateStarting)
+}
 
 // processState tracks the state of the Teleport process.
 type processState struct {
@@ -47,7 +64,7 @@ func newProcessState(process *TeleportProcess) *processState {
 	return &processState{
 		process:      process,
 		recoveryTime: process.Clock.Now(),
-		currentState: stateOK,
+		currentState: stateStarting,
 	}
 }
 
@@ -57,10 +74,12 @@ func (f *processState) Process(event Event) {
 	// Ready event means Teleport has started successfully.
 	case TeleportReadyEvent:
 		atomic.StoreInt64(&f.currentState, stateOK)
+		stateGauge.Set(stateOK)
 		f.process.Infof("Detected that service started and joined the cluster successfully.")
 	// If a degraded event was received, always change the state to degraded.
 	case TeleportDegradedEvent:
 		atomic.StoreInt64(&f.currentState, stateDegraded)
+		stateGauge.Set(stateDegraded)
 		f.process.Infof("Detected Teleport is running in a degraded state.")
 	// If the current state is degraded, and a OK event has been
 	// received, change the state to recovering. If the current state is
@@ -71,11 +90,13 @@ func (f *processState) Process(event Event) {
 		switch atomic.LoadInt64(&f.currentState) {
 		case stateDegraded:
 			atomic.StoreInt64(&f.currentState, stateRecovering)
+			stateGauge.Set(stateRecovering)
 			f.recoveryTime = f.process.Clock.Now()
 			f.process.Infof("Teleport is recovering from a degraded state.")
 		case stateRecovering:
 			if f.process.Clock.Now().Sub(f.recoveryTime) > defaults.ServerKeepAliveTTL*2 {
 				atomic.StoreInt64(&f.currentState, stateOK)
+				stateGauge.Set(stateOK)
 				f.process.Infof("Teleport has recovered from a degraded state.")
 			}
 		}

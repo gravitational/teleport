@@ -22,10 +22,9 @@ import (
 	"testing"
 	"time"
 
-	"strconv"
-
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -66,34 +65,29 @@ func (s *ServiceTestSuite) TestSelfSignedHTTPS(c *check.C) {
 func (s *ServiceTestSuite) TestMonitor(c *check.C) {
 	fakeClock := clockwork.NewFakeClock()
 
-	ports, err := utils.GetFreeTCPPorts(2)
-	c.Assert(err, check.IsNil)
-	authPort, err := strconv.Atoi(ports.Pop())
-	c.Assert(err, check.IsNil)
-	authAddr, err := utils.ParseHostPortAddr("127.0.0.1", authPort)
-	c.Assert(err, check.IsNil)
-	diagPort, err := strconv.Atoi(ports.Pop())
-	c.Assert(err, check.IsNil)
-	diagAddr, err := utils.ParseHostPortAddr("127.0.0.1", diagPort)
-	c.Assert(err, check.IsNil)
-
-	endpoint := fmt.Sprintf("http://%v/readyz", diagAddr.String())
-
 	cfg := MakeDefaultConfig()
 	cfg.Clock = fakeClock
 	cfg.DataDir = c.MkDir()
-	cfg.DiagnosticAddr = *diagAddr
-	cfg.AuthServers = []utils.NetAddr{*authAddr}
+	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
 	cfg.Auth.Enabled = true
 	cfg.Auth.StorageConfig.Params["path"] = c.MkDir()
+	cfg.Auth.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false
 
 	process, err := NewTeleport(cfg)
 	c.Assert(err, check.IsNil)
 
+	diagAddr, err := process.DiagnosticAddr()
+	c.Assert(err, check.IsNil)
+	c.Assert(diagAddr, check.NotNil)
+	endpoint := fmt.Sprintf("http://%v/readyz", diagAddr.String())
+
 	// Start Teleport and make sure the status is OK.
-	go process.Run()
+	go func() {
+		c.Assert(process.Run(), check.IsNil)
+	}()
 	err = waitForStatus(endpoint, http.StatusOK)
 	c.Assert(err, check.IsNil)
 
@@ -184,6 +178,54 @@ func (s *ServiceTestSuite) TestCheckPrincipals(c *check.C) {
 	}
 }
 
+// TestInitExternalLog verifies that external logging can be used both as a means of
+// overriding the local audit event target.  Ideally, this test would also verify
+// setup of true external loggers, but at the time of writing there isn't good
+// support for setting up fake external logging endpoints.
+func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
+	tts := []struct {
+		events []string
+		isNil  bool
+		isErr  bool
+	}{
+		// no URIs => no external logger
+		{isNil: true},
+		// local-only event uri w/o hostname => ok
+		{events: []string{"file:///tmp/teleport-test/events"}},
+		// local-only event uri w/ localhost => ok
+		{events: []string{"file://localhost/tmp/teleport-test/events"}},
+		// invalid host parameter => rejected
+		{events: []string{"file://example.com/should/fail"}, isErr: true},
+		// missing path specifier => rejected
+		{events: []string{"file://localhost"}, isErr: true},
+	}
+
+	for i, tt := range tts {
+		// isErr implies isNil.
+		if tt.isErr {
+			tt.isNil = true
+		}
+
+		cmt := check.Commentf("tt[%v]: %+v", i, tt)
+
+		loggers, err := initExternalLog(services.AuditConfig{
+			AuditEventsURI: tt.events,
+		})
+
+		if tt.isErr {
+			c.Assert(err, check.NotNil, cmt)
+		} else {
+			c.Assert(err, check.IsNil, cmt)
+		}
+
+		if tt.isNil {
+			c.Assert(loggers, check.IsNil, cmt)
+		} else {
+			c.Assert(loggers, check.NotNil, cmt)
+		}
+	}
+}
+
 func waitForStatus(diagAddr string, statusCodes ...int) error {
 	tickCh := time.Tick(250 * time.Millisecond)
 	timeoutCh := time.After(10 * time.Second)
@@ -194,6 +236,7 @@ func waitForStatus(diagAddr string, statusCodes ...int) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
+			resp.Body.Close()
 			for _, statusCode := range statusCodes {
 				if resp.StatusCode == statusCode {
 					return nil

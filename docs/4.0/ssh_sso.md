@@ -25,13 +25,13 @@ From the user's perspective they need to execute the following command login:
 $ tsh login --proxy=proxy.example.com
 
 # output:
-If browser window does not open automatically, open it by clicking on the link: 
+If browser window does not open automatically, open it by clicking on the link:
 http://127.0.0.1:45235/055a310a-1099-43ea-8cf6-ffc41d88ad1f
 ```
 
 Teleport will wait for up to 3 minutes for a user to authenticate. If authentication
-succeeds, Teleport will retrieve an SSH certificate and will store it in 
-`~/.tsh/keys/proxy.example.com` directory and also will add it to an 
+succeeds, Teleport will retrieve an SSH certificate and will store it in
+`~/.tsh/keys/proxy.example.com` directory and also will add it to an
 [SSH agent](https://en.wikipedia.org/wiki/Ssh-agent) if there's one running.
 
 ## Configuring SSO
@@ -122,7 +122,7 @@ spec:
 ## Multiple SSO Providers
 
 Teleport can also support multiple connectors, i.e. a Teleport administrator
-can define and create multiple connector resources using `tctl create` as shown above. 
+can define and create multiple connector resources using `tctl create` as shown above.
 
 To see all configured connectors, execute this on the auth server:
 

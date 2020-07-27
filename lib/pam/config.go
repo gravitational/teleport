@@ -36,6 +36,9 @@ type Config struct {
 	// Login is the *nix login that that is being used.
 	Login string `json:"login"`
 
+	// Env is a list of extra environment variables to pass to the PAM modules.
+	Env map[string]string
+
 	// Stdin is the input stream which the conversation function will use to
 	// obtain data from the user.
 	Stdin io.Reader
