@@ -228,7 +228,7 @@ proxy_service:
   # Defaults to the proxy's hostname if not specified. If running multiple
   # proxies behind a load balancer, this name must point to the load balancer
   # (see public_addr section below)
-  public_addr: TELEPORT_PUBLIC_DNS_NAME:3022
+  public_addr: TELEPORT_PUBLIC_DNS_NAME:3080
 
   # TLS certificate for the HTTPS connection. Configuring these properly is
   # critical for Teleport security.
