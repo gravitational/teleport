@@ -37,10 +37,10 @@ steps:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git init && git remote add origin ${DRONE_REMOTE_URL}
-      # use the Github API to check whether this PR comes from a forked repo or not
-      # if it does, we specifically fetch the PR ref before checking out and don't add the Enterprise submodule
       - |
-        # by default, we assume this is a fork until we know otherwise
+        # use the Github API to check whether this PR comes from a forked repo or not
+        # if it does, we specifically fetch the PR ref before checking out and don't add the Enterprise submodule
+        # by default, we assume this is a fork (fail safe) until we know otherwise
         export DRONE_NO_FORK=false
         # handle PRs
         if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
@@ -48,7 +48,7 @@ steps:
           export PR_REPO=$(curl -Ls https://api.github.com/repos/gravitational/teleport/pulls/${DRONE_PULL_REQUEST} | jq -r '.head.repo.full_name')
           echo "Source repo for PR ${DRONE_PULL_REQUEST}: $${PR_REPO}"
           # if the source repo for the PR doesn't match DRONE_REPO, then this is a PR raised from a fork
-          if [ "$${PR_REPO}" == "${DRONE_REPO}" ]; then
+          if [ "$${PR_REPO}" = "${DRONE_REPO}" ]; then
             export DRONE_NO_FORK=true
           fi
           git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
@@ -69,7 +69,7 @@ steps:
       - mkdir -p /go/cache
       # only clone Enterprise code if this isn't a fork
       - |
-        if [ "$${DRONE_NO_FORK}" == "true" ]; then
+        if [ "$${DRONE_NO_FORK}" = "true" ]; then
           mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
           ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
           git submodule update --init e
@@ -2464,6 +2464,6 @@ steps:
 
 ---
 kind: signature
-hmac: 028f6e0c295b556e5bb8be19f3300fa8ea6e7878805be94e6e20e2646e50be0d
+hmac: c2cc0f7c66f1580fc74e1b506def3dbc484b017ee4749dfbeb13d9281adafa75
 
 ...
