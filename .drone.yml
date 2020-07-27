@@ -27,15 +27,23 @@ clone:
 steps:
   - name: Check out code
     image: docker:git
-    environment:
-      GITHUB_PRIVATE_KEY:
-        from_secret: GITHUB_PRIVATE_KEY
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout $DRONE_COMMIT
       - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init webassets || true
+      - mkdir -p /go/cache
+
+  - name: Check out Enterprise code
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - cd /go/src/github.com/gravitational/teleport
       # fetch enterprise submodules
       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
@@ -43,7 +51,9 @@ steps:
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init --recursive webassets || true
       - rm -f /root/.ssh/id_rsa
-      - mkdir -p /go/cache
+    when:
+      repo:
+        include: ["gravitational/*"]
 
   - name: Build buildbox
     image: docker
@@ -192,6 +202,9 @@ name: teleport-docker-cron
 trigger:
   cron:
     - teleport-docker-cron
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go
@@ -330,6 +343,9 @@ name: teleport-helm-cron
 trigger:
   cron:
     - teleport-helm-cron
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go
@@ -383,6 +399,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - test
@@ -487,6 +506,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - test
@@ -593,6 +615,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - test
@@ -698,6 +723,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - test
@@ -802,6 +830,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-linux-amd64
@@ -912,6 +943,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-linux-amd64-fips
@@ -1023,6 +1057,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-linux-amd64
@@ -1133,6 +1170,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-linux-amd64-fips
@@ -1248,6 +1288,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - test
@@ -1349,6 +1392,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-linux-i386
@@ -1459,6 +1505,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-linux-i386
@@ -1560,6 +1609,435 @@ volumes:
 
 ---
 kind: pipeline
+type: exec
+name: build-darwin-amd64
+
+concurrency:
+  limit: 1
+
+platform:
+  os: darwin
+  arch: amd64
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+depends_on:
+  - test
+
+workspace:
+  path: /tmp/build-darwin-amd64
+
+clone:
+  disable: true
+
+steps:
+  - name: Set up exec runner storage
+    commands:
+      - mkdir -p /tmp/build-darwin-amd64
+      - chmod -R u+rw /tmp/build-darwin-amd64
+      - rm -rf /tmp/build-darwin-amd64/go
+
+  - name: Check out code
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /tmp/build-darwin-amd64/go/src/github.com/gravitational/teleport
+      - cd /tmp/build-darwin-amd64/go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout $DRONE_COMMIT
+      # fetch enterprise submodules
+      - mkdir -m 0700 ~/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
+      - ssh-keyscan -H github.com > ~/.ssh/known_hosts 2>/dev/null && chmod 600 ~/.ssh/known_hosts
+      - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f ~/.ssh/id_rsa
+      - mkdir -p /tmp/build-darwin-amd64/go/artifacts /tmp/build-darwin-amd64/go/cache
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /tmp/build-darwin-amd64/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/build-darwin-amd64/go/.version.txt; fi; cat /tmp/build-darwin-amd64/go/.version.txt
+
+  - name: Build Mac release artifacts
+    environment:
+      GOPATH: /tmp/build-darwin-amd64/go
+      GOCACHE: /tmp/build-darwin-amd64/go/cache
+      OS: darwin
+      ARCH: amd64
+    commands:
+      - cd /tmp/build-darwin-amd64/go/src/github.com/gravitational/teleport
+      - make clean release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+
+  - name: Copy Mac artifacts
+    commands:
+      - cd /tmp/build-darwin-amd64/go/src/github.com/gravitational/teleport
+      # copy release archives to artifact directory
+      - cp teleport*.tar.gz /tmp/build-darwin-amd64/go/artifacts
+      - cp e/teleport-ent*.tar.gz /tmp/build-darwin-amd64/go/artifacts
+      # generate checksums (for mac)
+      - cd /tmp/build-darwin-amd64/go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
+
+  - name: Upload to S3
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - cd /tmp/build-darwin-amd64/go/artifacts
+      - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
+
+  - name: Clean up exec runner storage (post)
+    commands:
+      - chmod -R u+rw /tmp/build-darwin-amd64
+      - rm -rf /tmp/build-darwin-amd64/go
+
+---
+kind: pipeline
+type: exec
+name: build-darwin-amd64-pkg
+
+concurrency:
+  limit: 1
+
+platform:
+  os: darwin
+  arch: amd64
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+depends_on:
+  - build-darwin-amd64
+
+workspace:
+  path: /tmp/build-darwin-amd64-pkg
+
+clone:
+  disable: true
+
+steps:
+  - name: Set up exec runner storage
+    commands:
+      - mkdir -p /tmp/build-darwin-amd64-pkg
+      - chmod -R u+rw /tmp/build-darwin-amd64-pkg
+      - rm -rf /tmp/build-darwin-amd64-pkg/go
+
+  - name: Check out code
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /tmp/build-darwin-amd64-pkg/go/src/github.com/gravitational/teleport
+      - cd /tmp/build-darwin-amd64-pkg/go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout $DRONE_COMMIT
+      - echo $DRONE_SOURCE_BRANCH > /tmp/build-darwin-amd64-pkg/go/.drone_source_branch.txt
+      # fetch enterprise submodules
+      - mkdir -m 0700 ~/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
+      - ssh-keyscan -H github.com > ~/.ssh/known_hosts 2>/dev/null && chmod 600 ~/.ssh/known_hosts
+      - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f ~/.ssh/id_rsa
+      - mkdir -p /tmp/build-darwin-amd64-pkg/go/artifacts /tmp/build-darwin-amd64-pkg/go/cache
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /tmp/build-darwin-amd64-pkg/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/build-darwin-amd64-pkg/go/.version.txt; fi; cat /tmp/build-darwin-amd64-pkg/go/.version.txt
+
+  - name: Download built tarball artifacts from S3
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /tmp/build-darwin-amd64-pkg/go/.version.txt)
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-darwin-amd64-bin.tar.gz /tmp/build-darwin-amd64-pkg/go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-darwin-amd64-bin.tar.gz /tmp/build-darwin-amd64-pkg/go/artifacts/
+
+  - name: Build Mac pkg release artifacts
+    environment:
+      OS: darwin
+      ARCH: amd64
+      OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
+      ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
+    commands:
+      - cd /tmp/build-darwin-amd64-pkg/go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /tmp/build-darwin-amd64-pkg/go/.version.txt)
+      - make pkg OS=$OS ARCH=$ARCH
+
+  - name: Copy Mac pkg artifacts
+    commands:
+      - cd /tmp/build-darwin-amd64-pkg/go/src/github.com/gravitational/teleport
+      # delete temporary tarball artifacts so we don't re-upload them in the next stage
+      - rm -rf /tmp/build-darwin-amd64-pkg/go/artifacts/*.tar.gz
+      # copy release archives to artifact directory
+      - cp build/teleport*.pkg /tmp/build-darwin-amd64-pkg/go/artifacts
+      - cp e/build/teleport-ent*.pkg /tmp/build-darwin-amd64-pkg/go/artifacts
+      # generate checksums (for mac)
+      - cd /tmp/build-darwin-amd64-pkg/go/artifacts && for FILE in teleport*.pkg; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
+
+  - name: Upload to S3
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - cd /tmp/build-darwin-amd64-pkg/go/artifacts
+      - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
+
+  - name: Clean up exec runner storage
+    commands:
+      - chmod -R u+rw /tmp/build-darwin-amd64-pkg
+      - rm -rf /tmp/build-darwin-amd64-pkg/go
+
+---
+kind: pipeline
+type: exec
+name: build-darwin-amd64-pkg-tsh
+
+concurrency:
+  limit: 1
+
+platform:
+  os: darwin
+  arch: amd64
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+depends_on:
+  - build-darwin-amd64
+
+workspace:
+  path: /tmp/build-darwin-amd64-pkg-tsh
+
+clone:
+  disable: true
+
+steps:
+  - name: Set up exec runner storage
+    commands:
+      - mkdir -p /tmp/build-darwin-amd64-pkg-tsh
+      - chmod -R u+rw /tmp/build-darwin-amd64-pkg-tsh
+      - rm -rf /tmp/build-darwin-amd64-pkg-tsh/go
+
+  - name: Check out code
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /tmp/build-darwin-amd64-pkg-tsh/go/src/github.com/gravitational/teleport
+      - cd /tmp/build-darwin-amd64-pkg-tsh/go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout $DRONE_COMMIT
+      - echo $DRONE_SOURCE_BRANCH > /tmp/build-darwin-amd64-pkg-tsh/go/.drone_source_branch.txt
+      # fetch enterprise submodules
+      - mkdir -m 0700 ~/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
+      - ssh-keyscan -H github.com > ~/.ssh/known_hosts 2>/dev/null && chmod 600 ~/.ssh/known_hosts
+      - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f ~/.ssh/id_rsa
+      - mkdir -p /tmp/build-darwin-amd64-pkg-tsh/go/artifacts /tmp/build-darwin-amd64-pkg-tsh/go/cache
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt; fi; cat /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt
+
+  - name: Download built tarball artifact from S3
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt)
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG}/"; else export S3_PATH="tag/"; fi
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-darwin-amd64-bin.tar.gz /tmp/build-darwin-amd64-pkg-tsh/go/artifacts/
+
+  - name: Build Mac tsh pkg release artifacts
+    environment:
+      OS: darwin
+      ARCH: amd64
+      APPLE_USERNAME:
+        from_secret: APPLE_USERNAME
+      APPLE_PASSWORD:
+        from_secret: APPLE_PASSWORD
+      BUILDBOX_PASSWORD:
+        from_secret: BUILDBOX_PASSWORD
+      OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
+    commands:
+      - cd /tmp/build-darwin-amd64-pkg-tsh/go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt)
+      # set HOME explicitly (as Drone overrides it normally)
+      - export HOME=/Users/build
+      # unlock login keychain
+      - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
+      # show available certificates
+      - security find-identity -v
+      # build pkg
+      - make pkg-tsh OS=$OS ARCH=$ARCH
+
+  - name: Copy Mac tsh pkg artifacts
+    commands:
+      - cd /tmp/build-darwin-amd64-pkg-tsh/go/src/github.com/gravitational/teleport
+      # delete temporary tarball artifacts so we don't re-upload them in the next stage
+      - rm -rf /tmp/build-darwin-amd64-pkg-tsh/go/artifacts/*.tar.gz
+      # copy release archives to artifact directory
+      - cp build/tsh*.pkg /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
+      # generate checksums (for mac)
+      - cd /tmp/build-darwin-amd64-pkg-tsh/go/artifacts && for FILE in tsh*.pkg; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
+
+  - name: Upload to S3
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - cd /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
+      - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
+
+  - name: Clean up exec runner storage
+    commands:
+      - chmod -R u+rw /tmp/build-darwin-amd64-pkg-tsh
+      - rm -rf /tmp/build-darwin-amd64-pkg-tsh/go
+
+---
+kind: pipeline
+type: exec
+name: build-arm
+
+concurrency:
+  limit: 1
+
+platform:
+  os: linux
+  arch: arm
+
+# use ramfs for go build cache
+# saves wear and tear on the SD card, plus it's faster
+environment:
+  TMPDIR: /dev/shm
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+depends_on:
+  - test
+
+workspace:
+  path: /dev/shm/tmp
+
+clone:
+  disable: true
+
+steps:
+  - name: Clean up exec runner storage (pre)
+    commands:
+      - chmod -R u+rw /dev/shm/tmp
+      - rm -rf /dev/shm/tmp/go
+
+  - name: Check out code
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /dev/shm/tmp/go/src/github.com/gravitational/teleport
+      - cd /dev/shm/tmp/go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout $DRONE_COMMIT
+      - echo $DRONE_SOURCE_BRANCH > /dev/shm/tmp/go/.drone_source_branch.txt
+      # fetch enterprise submodules
+      - mkdir -m 0700 ~/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
+      - ssh-keyscan -H github.com > ~/.ssh/known_hosts 2>/dev/null && chmod 600 ~/.ssh/known_hosts
+      - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f ~/.ssh/id_rsa
+      - mkdir -p /dev/shm/tmp/go/artifacts /dev/shm/tmp/go/cache
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG}" > /dev/shm/tmp/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /dev/shm/tmp/go/.version.txt; fi; cat /dev/shm/tmp/go/.version.txt
+
+  - name: Build ARM release artifacts
+    environment:
+      GOPATH: /dev/shm/tmp/go
+      GOCACHE: /dev/shm/tmp/go/cache
+      OS: linux
+      ARCH: arm
+    commands:
+      - cd /dev/shm/tmp/go/src/github.com/gravitational/teleport
+      - make clean release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+
+  - name: Copy ARM artifacts
+    commands:
+      - cd /dev/shm/tmp/go/src/github.com/gravitational/teleport
+      # copy release archives to artifact directory
+      - cp teleport*.tar.gz /dev/shm/tmp/go/artifacts
+      - cp e/teleport-ent*.tar.gz /dev/shm/tmp/go/artifacts
+      # generate checksums
+      - cd /dev/shm/tmp/go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
+
+  - name: Upload to S3
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - cd /dev/shm/tmp/go/artifacts
+      - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/$DRONE_TAG
+
+  - name: Clean up exec runner storage (post)
+    commands:
+      - chmod -R u+rw /dev/shm/tmp
+      - rm -rf /dev/shm/tmp/go
+
+---
+kind: pipeline
 type: kubernetes
 name: build-windows
 
@@ -1572,6 +2050,9 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - test
@@ -1672,6 +2153,12 @@ trigger:
   ref:
     include:
       - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+depends_on:
+  - test
 
 workspace:
   path: /go
@@ -1784,6 +2271,9 @@ trigger:
     - master
   event:
     - push
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go/src/github.com/gravitational/teleport
@@ -1895,6 +2385,9 @@ trigger:
     - promote
   target:
     - production
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go/src/github.com/gravitational/teleport
@@ -1933,6 +2426,6 @@ steps:
 
 ---
 kind: signature
-hmac: 77c2acafa930c7beb0be92b4ff207027ac4e405c07423c405cd2c0a30018dfb8
+hmac: 60f352cf4f8268ea82871436506f7ca84ca554c830b024c92a6bc777a33dc821
 
 ...
