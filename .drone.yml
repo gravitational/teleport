@@ -42,7 +42,7 @@ steps:
       - |
         export DRONE_FORK=false
         # handle PRs
-        if [ "${DRONE_BUILD_EVENT}" == "pull_request" ]; then
+        if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
           apk add --no-cache curl jq
           export PR_REPO=$(curl https://api.github.com/repos/gravitational/teleport/pulls/${DRONE_PULL_REQUEST} | jq -r '.head.repo.full_name)
           # if the source repo for the PR doesn't match DRONE_REPO, then this is a PR raised from a fork
@@ -54,7 +54,7 @@ steps:
           git fetch origin ${DRONE_COMMIT_REF}:
           git merge ${DRONE_COMMIT}
         # handle tags
-        elif [ "${DRONE_BUILD_EVENT}" == "tag" ]; then
+        elif [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
           git fetch origin +refs/tags/${DRONE_TAG}:
           git checkout -qf FETCH_HEAD
         # handle pushes/other events
@@ -67,7 +67,7 @@ steps:
       - mkdir -p /go/cache
       # only clone Enterprise code if this isn't a fork
       - |
-        if [ "$${DRONE_FORK}" == "false" ]; then
+        if [ "$${DRONE_FORK}" = "false" ]; then
           mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
           ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
           git submodule update --init e
@@ -192,13 +192,13 @@ steps:
       - git init && git remote add origin ${DRONE_REMOTE_URL}
       - |
         # handle pull requests
-        if [ "${DRONE_BUILD_EVENT}" == "pull_request" ]; then
+        if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
           git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
           git checkout ${DRONE_COMMIT_BRANCH}
           git fetch origin ${DRONE_COMMIT_REF}:
           git merge ${DRONE_COMMIT}
         # handle tags
-        elif [ "${DRONE_BUILD_EVENT}" == "tag" ]; then
+        elif [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
           git fetch origin +refs/tags/${DRONE_TAG}:
           git checkout -qf FETCH_HEAD
         # handle pushes/other events
@@ -2462,6 +2462,6 @@ steps:
 
 ---
 kind: signature
-hmac: f326951fe513237a860e855baccc4e6ef87af6bea98b10d65053e5992c8ee151
+hmac: 7ed58f4e372d519457cf55df3f97aa85ba910d872a0414b3764cdd0b54c2f662
 
 ...
