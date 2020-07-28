@@ -50,8 +50,13 @@ steps:
           git checkout -qf FETCH_HEAD
         # handle pushes/other events
         else
-          git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
-          git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
+          if [ "${DRONE_COMMIT_BRANCH}" = "" ]; then
+            git fetch origin
+            git checkout -qf ${DRONE_COMMIT_SHA}
+          else
+            git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+            git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
+          fi
         fi
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init webassets || true
@@ -201,8 +206,13 @@ steps:
           git checkout -qf FETCH_HEAD
         # handle pushes/other events
         else
-          git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
-          git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
+          if [ "${DRONE_COMMIT_BRANCH}" = "" ]; then
+            git fetch origin
+            git checkout -qf ${DRONE_COMMIT_SHA}
+          else
+            git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+            git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
+          fi
         fi
 
   - name: Run docs tests
@@ -2460,6 +2470,6 @@ steps:
 
 ---
 kind: signature
-hmac: d1c6e2ab7d749df9355098ba9dee100c1b3c1ad81e5c1083ed80ff44485f4734
+hmac: bb577a9d32f255ad4be2c1081c3be223398f6a2880856a0378d295c61247ebb3
 
 ...
