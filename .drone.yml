@@ -30,6 +30,20 @@ clone:
 steps:
   - name: Check out code
     image: docker:git
+<<<<<<< HEAD
+=======
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout $DRONE_COMMIT
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init webassets || true
+      - mkdir -p /go/cache
+
+  - name: Check out Enterprise code
+    image: docker:git
+>>>>>>> Remove unnecessary uses of DRONE_SOURCE_BRANCH
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
@@ -2653,10 +2667,6 @@ steps:
 
 ---
 kind: signature
-<<<<<<< HEAD
-hmac: bf426a3c13e2347a4ada6c5ad4c2218e34743b61db44cccc8b39b03c25f2a468
-=======
-hmac: ccfa2d090819a63d5869c1b14fbae04507a4839d7bf93fba01c999eb3430611d
->>>>>>> Remove v from all DRONE_TAG references
+hmac: 648348e42318ad36a5c58457c48c5077069b9a1ae5c9c2399d4780c29799c521
 
 ...
