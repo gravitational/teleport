@@ -34,23 +34,12 @@ steps:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
     commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport
+      - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
       - cd /go/src/github.com/gravitational/teleport
       - git init && git remote add origin ${DRONE_REMOTE_URL}
       - |
-        # use the Github API to check whether this PR comes from a forked repo or not
-        # if it does, we specifically fetch the PR ref before checking out and don't add the Enterprise submodule
-        # by default, we assume this is a fork (fail safe) until we know otherwise
-        export DRONE_NO_FORK=false
-        # handle PRs
+        # handle pull requests
         if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
-          apk add --no-cache curl jq
-          export PR_REPO=$(curl -Ls https://api.github.com/repos/gravitational/teleport/pulls/${DRONE_PULL_REQUEST} | jq -r '.head.repo.full_name')
-          echo "Source repo for PR ${DRONE_PULL_REQUEST}: $${PR_REPO}"
-          # if the source repo for the PR doesn't match DRONE_REPO, then this is a PR raised from a fork
-          if [ "$${PR_REPO}" = "${DRONE_REPO}" ]; then
-            export DRONE_NO_FORK=true
-          fi
           git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
           git checkout ${DRONE_COMMIT_BRANCH}
           git fetch origin ${DRONE_COMMIT_REF}:
@@ -66,16 +55,23 @@ steps:
         fi
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
       - git submodule update --init webassets || true
-      - mkdir -p /go/cache
-      # only clone Enterprise code if this isn't a fork
+      # use the Github API to check whether this PR comes from a forked repo or not
+      # if it does, don't check out the Enterprise code
       - |
-        if [ "$${DRONE_NO_FORK}" = "true" ]; then
-          mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-          ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-          git submodule update --init e
-          # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-          git submodule update --init --recursive webassets || true
-          rm -f /root/.ssh/id_rsa
+        if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
+          apk add --no-cache curl jq
+          export PR_REPO=$(curl -Ls https://api.github.com/repos/gravitational/teleport/pulls/${DRONE_PULL_REQUEST} | jq -r '.head.repo.full_name')
+          echo "Source repo for PR ${DRONE_PULL_REQUEST}: $${PR_REPO}"
+          # if the source repo for the PR matches DRONE_REPO, then this is not a PR raised from a fork
+          if [ "$${PR_REPO}" = "${DRONE_REPO}" ]; then
+            mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+            ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+            git submodule update --init e
+            # do a recursive submodule checkout to get both webassets and webassets/e
+            # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+            git submodule update --init --recursive webassets || true
+            rm -f /root/.ssh/id_rsa
+          fi
         fi
 
   - name: Build buildbox
@@ -2464,6 +2460,6 @@ steps:
 
 ---
 kind: signature
-hmac: c2cc0f7c66f1580fc74e1b506def3dbc484b017ee4749dfbeb13d9281adafa75
+hmac: d1c6e2ab7d749df9355098ba9dee100c1b3c1ad81e5c1083ed80ff44485f4734
 
 ...
