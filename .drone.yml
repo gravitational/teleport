@@ -17,6 +17,9 @@ trigger:
       - cron
       - promote
       - rollback
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go
@@ -27,33 +30,54 @@ clone:
 steps:
   - name: Check out code
     image: docker:git
-    commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport
-      - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $DRONE_COMMIT
-      - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init webassets || true
-      - mkdir -p /go/cache
-
-  - name: Check out Enterprise code
-    image: docker:git
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
     commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
       - cd /go/src/github.com/gravitational/teleport
-      # fetch enterprise submodules
-      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      - git submodule update --init e
+      - git init && git remote add origin ${DRONE_REMOTE_URL}
+      - |
+        # handle pull requests
+        if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
+          git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+          git checkout ${DRONE_COMMIT_BRANCH}
+          git fetch origin ${DRONE_COMMIT_REF}:
+          git merge ${DRONE_COMMIT}
+        # handle tags
+        elif [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
+          git fetch origin +refs/tags/${DRONE_TAG}:
+          git checkout -qf FETCH_HEAD
+        # handle pushes/other events
+        else
+          if [ "${DRONE_COMMIT_BRANCH}" = "" ]; then
+            git fetch origin
+            git checkout -qf ${DRONE_COMMIT_SHA}
+          else
+            git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+            git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
+          fi
+        fi
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init --recursive webassets || true
-      - rm -f /root/.ssh/id_rsa
-    when:
-      repo:
-        include: ["gravitational/*"]
+      - git submodule update --init webassets || true
+      # use the Github API to check whether this PR comes from a forked repo or not
+      # if it does, don't check out the Enterprise code
+      - |
+        if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
+          apk add --no-cache curl jq
+          export PR_REPO=$(curl -Ls https://api.github.com/repos/gravitational/teleport/pulls/${DRONE_PULL_REQUEST} | jq -r '.head.repo.full_name')
+          echo "Source repo for PR ${DRONE_PULL_REQUEST}: $${PR_REPO}"
+          # if the source repo for the PR matches DRONE_REPO, then this is not a PR raised from a fork
+          if [ "$${PR_REPO}" = "${DRONE_REPO}" ]; then
+            mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+            ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+            git submodule update --init e
+            # do a recursive submodule checkout to get both webassets and webassets/e
+            # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+            git submodule update --init --recursive webassets || true
+            rm -f /root/.ssh/id_rsa
+          fi
+        fi
 
   - name: Build buildbox
     image: docker
@@ -152,6 +176,9 @@ trigger:
       - cron
       - promote
       - rollback
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go
@@ -165,15 +192,35 @@ steps:
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $DRONE_COMMIT
+      - git init && git remote add origin ${DRONE_REMOTE_URL}
+      - |
+        # handle pull requests
+        if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
+          git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+          git checkout ${DRONE_COMMIT_BRANCH}
+          git fetch origin ${DRONE_COMMIT_REF}:
+          git merge ${DRONE_COMMIT}
+        # handle tags
+        elif [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
+          git fetch origin +refs/tags/${DRONE_TAG}:
+          git checkout -qf FETCH_HEAD
+        # handle pushes/other events
+        else
+          if [ "${DRONE_COMMIT_BRANCH}" = "" ]; then
+            git fetch origin
+            git checkout -qf ${DRONE_COMMIT_SHA}
+          else
+            git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+            git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
+          fi
+        fi
 
   - name: Run docs tests
     image: golang:1.14.4
     commands:
       - |
         cd /go/src/github.com/gravitational/teleport
-        git diff --raw ${DRONE_COMMIT}..${DRONE_TARGET_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
+        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
         if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
           echo "Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
           # Check trailing whitespace
@@ -1748,7 +1795,6 @@ steps:
       - cd /tmp/build-darwin-amd64-pkg/go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout $DRONE_COMMIT
-      - echo $DRONE_SOURCE_BRANCH > /tmp/build-darwin-amd64-pkg/go/.drone_source_branch.txt
       # fetch enterprise submodules
       - mkdir -m 0700 ~/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
       - ssh-keyscan -H github.com > ~/.ssh/known_hosts 2>/dev/null && chmod 600 ~/.ssh/known_hosts
@@ -1861,7 +1907,6 @@ steps:
       - cd /tmp/build-darwin-amd64-pkg-tsh/go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout $DRONE_COMMIT
-      - echo $DRONE_SOURCE_BRANCH > /tmp/build-darwin-amd64-pkg-tsh/go/.drone_source_branch.txt
       # fetch enterprise submodules
       - mkdir -m 0700 ~/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
       - ssh-keyscan -H github.com > ~/.ssh/known_hosts 2>/dev/null && chmod 600 ~/.ssh/known_hosts
@@ -1988,7 +2033,6 @@ steps:
       - cd /dev/shm/tmp/go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout $DRONE_COMMIT
-      - echo $DRONE_SOURCE_BRANCH > /dev/shm/tmp/go/.drone_source_branch.txt
       # fetch enterprise submodules
       - mkdir -m 0700 ~/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
       - ssh-keyscan -H github.com > ~/.ssh/known_hosts 2>/dev/null && chmod 600 ~/.ssh/known_hosts
@@ -2426,6 +2470,6 @@ steps:
 
 ---
 kind: signature
-hmac: 51a74c966af0424f054f4903279844cb68d6ec956c04eb4e933d5e1ad323659d
+hmac: bb577a9d32f255ad4be2c1081c3be223398f6a2880856a0378d295c61247ebb3
 
 ...
