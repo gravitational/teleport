@@ -47,6 +47,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -57,6 +58,44 @@ import (
 
 	"github.com/sirupsen/logrus"
 )
+
+func init() {
+	// Lock all PAM commands to the startup thread. From LockOSThread docs:
+	//
+	//     All init functions are run on the startup thread. Calling LockOSThread from
+	//     an init function will cause the main function to be invoked on that thread.
+	//
+	// This is needed for pam_loginuid.so. It writes "/proc/self/loginuid"
+	// which, on Linux, depends on being called from a specific thread.  If
+	// it's not running on the right thread, pam_loginuid.so may fail with
+	// EPERM sporadically.
+	//
+	// > Why the startup thread specifically?
+	//   The kernel does some validation based on the thread context. I could
+	//   not find what the kernel uses specifically. Some relevant code:
+	//   https://github.com/torvalds/linux/blob/9d99b1647fa56805c1cfef2d81ee7b9855359b62/kernel/audit.c#L2284-L2317
+	//   Locking to the startup thread seems to make the kernel happy.
+	//   If you figure out more, please update this comment.
+	//
+	// > Why not call LockOSThread from pam.Open?
+	//   By the time pam.Open gets called, more goroutines could've been
+	//   spawned.  This means that the main goroutine (running pam.Open) could
+	//   get re-scheduled to a different thread.
+	//
+	// > Why does pam.Open run on the main goroutine?
+	//   This is an assumption. As of today, this is true because teleport
+	//   re-executes itself and calls pam.Open synchronously. If we change this
+	//   later, loginuid can become flaky again.
+	//
+	// > What does OpenSSH do?
+	//   OpenSSH has a separate "authentication thread" which does all the PAM
+	//   stuff:
+	//   https://github.com/openssh/openssh-portable/blob/598c3a5e3885080ced0d7c40fde00f1d5cdbb32b/auth-pam.c#L470-L474
+	//
+	// Some historic context:
+	// https://github.com/gravitational/teleport/issues/2476
+	runtime.LockOSThread()
+}
 
 var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentPAM,
