@@ -48,7 +48,7 @@ spec:
     - name: authssh
       port: {{ .Values.ports.authssh.containerPort }}
       targetPort: {{ .Values.ports.authssh.containerPort }}
-      protocol: TCP      
+      protocol: TCP
 {{- if and (semverCompare ">=1.7-0" .Capabilities.KubeVersion.GitVersion) (.Values.service.externalTrafficPolicy) }}
   externalTrafficPolicy: "{{ .Values.service.externalTrafficPolicy }}"
 {{- end }}

@@ -104,7 +104,7 @@ You can view debug logs for the Teleport service running on the Kubernetes worke
 kubectl logs daemonset/teleport-node
 ```
 
-If you have multiple worker nodes, look for pods starting with `teleport-node-` in the output of `kubectl get pods` and 
+If you have multiple worker nodes, look for pods starting with `teleport-node-` in the output of `kubectl get pods` and
 use `kubectl logs pod/teleport-node-xxxxxx` to view logs from each node separately.
 
 ## Deleting the chart

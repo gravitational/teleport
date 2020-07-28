@@ -22,17 +22,15 @@ image:
 
 labels: {}
 
-
 # Teleport Proxy configuration
 proxy:
   tls:
-    # We assume TLS is terminated in front of the proxy by default
+    # We assume that Teleport will handle TLS termination by default
     enabled: true
     # Set this to false if you want to use Teleport's generated self-signed certificates
     usetlssecret: true
     # tweak this if you have multiple proxies in a single namespace
     secretName: tls-web
-
 
 # Teleport configuration
 # See the admin guide for full details
@@ -48,22 +46,21 @@ config:
   #used for listen addreses in proxy, auth and ssh
   listen_addr: 0.0.0.0
 
-  # Set to true  to have separate proxy and auth instances for high availability.
-  # You must use non-dir storage for high availability or you can only have 1 auth instance .
+  # Set to true to have separate proxy and auth instances for high availability.
+  # You must use non-dir storage for high availability or you can only have 1 auth instance.
   highAvailability: false
-  # High availability configuration with proxy and auth servers. No SSH configured service.
+  # High availability configuration with proxy and auth servers. No configured SSH service.
   proxyCount: 2
   authCount: 2
   authServiceType: ClusterIP
   auth_public_address: auth.example.com
 
 # Set for proxies in high availability, single proxy and ssh service only deployments
-# auth_service_connection: 
+# auth_service_connection:
 #   auth_token: dogs-are-much-nicer-than-cats
 #   auth_servers:
 #   - teleportauth:3025
 #   - auth.example.com:3025
-
 
   teleport:
     pid_file: /var/run/teleport.pid
@@ -73,7 +70,7 @@ config:
     data_dir: /var/lib/teleport
     storage:
       type: dir
-            
+
     # Teleport throttles all connections to avoid abuse. These settings allow
     # you to adjust the default limits
     connection_limits:
@@ -92,18 +89,18 @@ config:
       - proxy,node:dogs-are-much-nicer-than-cats
       - trusted_cluster:trains-are-superior-to-cars
 
-    # Determines if SSH sessions to cluster nodes are forcefully terminated
-    # after no activity from a client (idle client).
-    # Examples: "30m", "1h" or "1h30m"
+      # Determines if SSH sessions to cluster nodes are forcefully terminated
+      # after no activity from a client (idle client).
+      # Examples: "30m", "1h" or "1h30m"
       client_idle_timeout: never
 
-    # Determines if the clients will be forcefully disconnected when their
-    # certificates expire in the middle of an active SSH session. (default is 'no')
+      # Determines if the clients will be forcefully disconnected when their
+      # certificates expire in the middle of an active SSH session. (default is 'no')
       disconnect_expired_cert: no
 
-    # Determines the interval at which Teleport will send keep-alive messages.
-    # keep_alive_count_max is the number of missed keep-alive messages before
-    # the server tears down the connection to the client.
+      # Determines the interval at which Teleport will send keep-alive messages.
+      # keep_alive_count_max is the number of missed keep-alive messages before
+      # the server tears down the connection to the client.
       keep_alive_interval: 5m
       keep_alive_count_max: 3
 
@@ -120,47 +117,46 @@ config:
         type: auth
 
       enhanced_recording:
-       # Enable or disable enhanced auditing for this node. Default value:
-       # false.  See 
+        # Enable or disable enhanced auditing for this node. Default value:
+        # false.  See
         enabled: false
 
-       # command_buffer_size is optional with a default value of 8 pages.
+        # command_buffer_size is optional with a default value of 8 pages.
         command_buffer_size: 8
 
-       # disk_buffer_size is optional with default value of 128 pages.
+        # disk_buffer_size is optional with default value of 128 pages.
         disk_buffer_size: 128
 
-       # network_buffer_size is optional with default value of 8 pages.
+        # network_buffer_size is optional with default value of 8 pages.
         network_buffer_size: 8
 
-       # Controls where cgroupv2 hierarchy is mounted. Default value:
-       # /cgroup2.
+        # Controls where cgroupv2 hierarchy is mounted. Default value:
+        # /cgroup2.
         cgroup_path: /cgroup2
 
-    # configures PAM integration. Note that additional volumes of the PAM configuration
-    # will be required.
+      # Configures PAM integration. Note that additional volumes of the PAM configuration
+      # will be required.
       pam:
         enabled: no
         service_name: teleport
 
     proxy_service:
       enabled: yes
-    #Used if  proxy.tls.usetlssecret is set to true, otherwise the values are not included in teleport.yaml
+      # Used if  proxy.tls.usetlssecret is set to true, otherwise the values are not included in teleport.yaml
       https_key_file: /var/lib/certs/tls.key
       https_cert_file: /var/lib/certs/tls.crt
 
-    # kubernetes section configures
-    # kubernetes proxy protocol support
+      # kubernetes section configures kubernetes proxy protocol support
       kubernetes:
         enabled: yes
 
-# Alternatively you can provide your teleport configuration under teleportConfig with static text.  No variable substituion
+# Alternatively you can provide your teleport configuration under teleportConfig with static text. No variable substitution.
 otherConfig:
   useOtherConfig: false
   teleportConfig:
     # place a full teleport.yaml configuration here
 
-# Teleport configuration for high availability deployment 
+# Teleport configuration for high availability deployment
 otherConfigHA:
   useOtherConfig: false
   teleportConfig:
@@ -228,9 +224,6 @@ ports:
   proxytunnel:
     containerPort: 3024
 
-
-
-
 ## Additional container arguments
 extraArgs: []
 
@@ -241,34 +234,33 @@ extraVars: {}
   # SSL_CERT_FILE: "/var/lib/ca-certs/ca.pem"
 
 # Add additional volumes and mounts, for example to read other log files on the host
-extraVolumes: [] 
-
-
+extraVolumes: []
   # - name: ca-certs
   #   configMap:
   #     name: ca-certs
-extraVolumeMounts: []
 
+extraVolumeMounts: []
   # - name: ca-certs
   #   mountPath: /var/lib/ca-certs
   #   readOnly: true
-  
+
 # Volume mounts only for the auth service in high availability deployments
 extraAuthVolumes: []
-extraAuthVolumeMounts: []  
+extraAuthVolumeMounts: []
 
 resources: {}
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-  # limits:
-  #  cpu: 100m
-  #  memory: 200Mi
-  # requests:
-  #  cpu: 100m
-  #  memory: 100Mi
-# Specify for the seperate auth service deployment
+# We usually recommend not to specify default resources and to leave this as a conscious
+# choice for the user. This also increases chances charts run on environments with little
+# resources, such as Minikube. If you do want to specify resources, uncomment the following
+# lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+# limits:
+#  cpu: 100m
+#  memory: 200Mi
+# requests:
+#  cpu: 100m
+#  memory: 100Mi
+
+# Specify resources for the seperate auth service deployment
 authresources: {}
 
 rbac:

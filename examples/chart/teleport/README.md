@@ -10,23 +10,23 @@ By default this chart is configured as follows:
 
 - Enterprise Edition of Teleport
 - 1 instance (replica) of Teleport
-- Directory Storage with Ephemeral storage.  
+- Directory Storage with Ephemeral storage.
 - Record ssh/k8s exec and attach session to the `emptyDir` of the Teleport pod
 - The assumed externally accessible hostname of Teleport is `teleport.example.com`
 - There are two ways you can make the Teleport Cluster externally accessible:
   1. Use `kubectl port-forward` for testing.
   2. Change the Service type in `values.yaml` to an option such as LoadBalancer for a more permanent solution.
-- TLS is enabled by default on the Proxy 
+- TLS is enabled by default on the Proxy
 
 
 The `values.yaml` is configurable for multiple options including:
 - Using the Community edition of Teleport (Set license.enabled to false)
 - Using self-signed TLS certificates (Set proxy.tls.usetlssecret to false)
 - Using a specific version of Teleport (See image.tag)
-- Using persistent or high availability storage (See below example).  Persistent or high availability storage is recommended for production usage. 
+- Using persistent or high availability storage (See below example).  Persistent or high availability storage is recommended for production usage.
 - Increasing the replica count for multiple instances (Using High Availability configuration)
 
-See the comments in the default `values.yaml` and also the [Teleport documentation](https://gravitational.com/teleport/docs/) for more options.   
+See the comments in the default `values.yaml` and also the [Teleport documentation](https://gravitational.com/teleport/docs/) for more options.
 
 See the [High Availability](./HIGHAVAILABILITY.md)(HA) instructions for configuring a HA deployment with this helm chart.
 
@@ -58,7 +58,7 @@ kubectl create secret generic license --from-file=license-enterprise.pem
 ### Certificate Usage Configuration
 Teleport can generate self-signed certificates that are useful for first time or non-production deployments. You can set Teleport to use self-signed certificates by setting `usetlssecret: false` under the `proxy.tls settings` in `values.yaml`. You will need to add `--insecure` to some interactions such as `tsh` and browser interaction will require you to accept the self-signed certificate.  Please see our [article](https://gravitational.com/blog/letsencrypt-teleport-ssh/) on generating certificates via Let's Encrypt as a method to generate signed TLS certificates.
 
-If you plan to have TLS terminate at a seperate load balancer, you should set both `proxy.tls.enabled` and `proxy.usetlssecret` to false. 
+If you plan to have TLS terminate at a seperate load balancer, you should set both `proxy.tls.enabled` and `proxy.usetlssecret` to false.
 
 
 ### Adding TLS Certificates
@@ -189,7 +189,7 @@ After configuring both of these options run the install.  In the example below y
 ``` bash
 $ helm install --name teleport ./
 
-$ kubectl get pods 
+$ kubectl get pods
 NAME                            READY   STATUS    RESTARTS   AGE
 teleport-d67584df8-8vfls        1/1     Running   0          62m
 teleport-d67584df8-p9l2g        1/1     Running   0          62m
@@ -205,7 +205,7 @@ If you the Teleport pods are not starting the most common issue is lack of requi
  Example:
    `kubectl describe pod teleport-5f5f989b96-9khzq`
 
-  
+
 ### Teleport Pods keep restarting with Error
 The issue may be due to a malformed Teleport configuration file or other configuration issue.  Use the kubectl logs command to see the logs output.
 Example:

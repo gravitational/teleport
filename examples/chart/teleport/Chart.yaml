@@ -4,5 +4,5 @@ version: 0.0.5
 description: Teleport provides a secure SSH and Kubernetes remote access solution that doesn't get in the way.
 icon: https://gravitational.com/gravitational/images/logos/company-logos/teleport-symbol-400x400.png
 keywords:
-  - Teleport 
+  - Teleport
 tillerVersion: ">=2.8.0"
