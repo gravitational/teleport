@@ -1008,6 +1008,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	}()
 
 	// Block until copy is complete and the child process is done executing.
+Loop:
 	for i := 0; i < 2; i++ {
 		select {
 		case err := <-errorCh:
@@ -1015,9 +1016,9 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 				log.Warnf("Connection problem in \"direct-tcpip\" channel: %v %T.", trace.DebugReport(err), err)
 			}
 		case <-ctx.Done():
-			break
+			break Loop
 		case <-s.ctx.Done():
-			break
+			break Loop
 		}
 	}
 	err = cmd.Wait()
