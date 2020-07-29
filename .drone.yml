@@ -8,22 +8,18 @@ environment:
   UID: 1000
   GID: 1000
 
-# TODO(gus): uncomment after testing
-# trigger:
-#   branch:
-#     - master
-#     - branch/*
-#   event:
-#     exclude:
-#       - cron
-#       - promote
-#       - rollback
-#   repo:
-#     include:
-#       - gravitational/*
 trigger:
-  cron:
-    - never
+  branch:
+    - master
+    - branch/*
+  event:
+    exclude:
+      - cron
+      - promote
+      - rollback
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go
@@ -171,22 +167,18 @@ kind: pipeline
 type: kubernetes
 name: test-docs
 
-# TODO(gus): uncomment after testing
-# trigger:
-#   branch:
-#     - master
-#     - branch/*
-#   event:
-#     exclude:
-#       - cron
-#       - promote
-#       - rollback
-#   repo:
-#     include:
-#       - gravitational/*
 trigger:
-  cron:
-    - never
+  branch:
+    - master
+    - branch/*
+  event:
+    exclude:
+      - cron
+      - promote
+      - rollback
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go
@@ -2313,32 +2305,18 @@ kind: pipeline
 type: kubernetes
 name: build-oss-amis
 
-# TODO(gus): uncomment after testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
   repo:
     include:
       - gravitational/*
 
-# TODO(gus): uncomment after testing
-# depends_on:
-#   - test
+depends_on:
+  - test
 
 workspace:
   path: /go
@@ -2416,32 +2394,18 @@ kind: pipeline
 type: kubernetes
 name: build-ent-amis
 
-# TODO(gus): uncomment after testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
   repo:
     include:
       - gravitational/*
 
-# TODO(gus): uncomment after testing
-# depends_on:
-#   - test
+depends_on:
+  - test
 
 workspace:
   path: /go
@@ -2687,6 +2651,6 @@ steps:
 
 ---
 kind: signature
-hmac: 5acbba21770e2d21f47710dfc8685dc7e0c52a70161782cfa7c9e227643191b0
+hmac: fba18ea00b806a9ab42faecc12209ab85e9a0f18e888d374df53c3a64b242a86
 
 ...
