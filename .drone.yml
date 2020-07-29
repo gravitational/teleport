@@ -2385,9 +2385,7 @@ steps:
     commands:
       - apk add --no-cache make
       - cd /go/src/github.com/gravitational/teleport/assets/aws
-      # TODO(gus): uncomment after testing
-      #- export VERSION=$(cat /go/.version.txt)
-      - export TELEPORT_VERSION=4.3.2
+      - export TELEPORT_VERSION=$(cat /go/.version.txt)
       - export PUBLIC_AMI_NAME=gravitational-teleport-ami-oss-$TELEPORT_VERSION
       - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-oss-$TELEPORT_VERSION
       - |
@@ -2489,9 +2487,7 @@ steps:
     commands:
       - apk add --no-cache make
       - cd /go/src/github.com/gravitational/teleport/assets/aws
-      # TODO(gus): uncomment after testing
-      #- export TELEPORT_VERSION=$(cat /go/.version.txt)
-      - export TELEPORT_VERSION=4.3.2
+      - export TELEPORT_VERSION=$(cat /go/.version.txt)
       - export PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-$TELEPORT_VERSION
       - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-ent-$TELEPORT_VERSION
       - |
@@ -2685,6 +2681,6 @@ steps:
 
 ---
 kind: signature
-hmac: 65cb11d07763e06ebe575a512d574a0ae81403ded495533bc4fc531bdb88448d
+hmac: 3afbc992360c8fbe90dc64090fb64300441cf1703f14f087adea671e1a13dd93
 
 ...
