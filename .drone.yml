@@ -2307,16 +2307,15 @@ name: build-oss-amis
 
 trigger:
   event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
+    - promote
+  target:
+    - production
   repo:
     include:
       - gravitational/*
 
 depends_on:
-  - test
+  - promote-artifacts
 
 workspace:
   path: /go
@@ -2347,8 +2346,9 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /go/.version.txt)
-      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
+    when:
+      event: [pull_request]
 
   - name: Build OSS AMIs
     image: hashicorp/packer
@@ -2396,16 +2396,15 @@ name: build-ent-amis
 
 trigger:
   event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
+    - promote
+  target:
+    - production
   repo:
     include:
       - gravitational/*
 
 depends_on:
-  - test
+  - promote-artifacts
 
 workspace:
   path: /go
@@ -2436,9 +2435,10 @@ steps:
       AWS_REGION: us-west-2
     commands:
       - export VERSION=$(cat /go/.version.txt)
-      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/tag/teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
+    when:
+      event: [pull_request]
 
   - name: Build Enterprise AMIs
     image: hashicorp/packer
@@ -2651,6 +2651,6 @@ steps:
 
 ---
 kind: signature
-hmac: fba18ea00b806a9ab42faecc12209ab85e9a0f18e888d374df53c3a64b242a86
+hmac: 12bc397b36228f3606c112bfb4eda098bdbab3cd0487e0da5ab5a5c0e4049a7f
 
 ...
