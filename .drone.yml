@@ -2359,6 +2359,11 @@ steps:
 
   - name: Build OSS AMIs
     image: hashicorp/packer
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_PACKER_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_PACKER_SECRET_ACCESS_KEY
     volumes:
       - name: dockersock
         path: /var/run
@@ -2442,6 +2447,11 @@ steps:
 
   - name: Build Enterprise AMIs
     image: hashicorp/packer
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_PACKER_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_PACKER_SECRET_ACCESS_KEY
     volumes:
       - name: dockersock
         path: /var/run
@@ -2644,6 +2654,6 @@ steps:
 
 ---
 kind: signature
-hmac: 66534c567af76ec7cb42a38f8c6003ffdfbc6ad99a22500886afa0f1a0087ec8
+hmac: 235cc6f4942ef3db49c135e1772f674744c2c0ea4caceb8c486f00c4d8b7dcc3
 
 ...
