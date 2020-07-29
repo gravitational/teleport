@@ -2383,7 +2383,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make
+      - apk add --no-cache aws-cli jq make
       - cd /go/src/github.com/gravitational/teleport/assets/aws
       - export TELEPORT_VERSION=$(cat /go/.version.txt)
       - export PUBLIC_AMI_NAME=gravitational-teleport-ami-oss-$TELEPORT_VERSION
@@ -2391,7 +2391,9 @@ steps:
       - |
         if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
           echo "Building production OSS AMIs"
-          make oss-ci-build change-amis-to-public-oss
+          make oss-ci-build
+          echo "Making OSS AMIs public"
+          make change-amis-to-public-oss
         else
           echo "Building debug OSS AMIs"
           make oss
@@ -2485,7 +2487,7 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache make
+      - apk add --no-cache aws-cli jq make
       - cd /go/src/github.com/gravitational/teleport/assets/aws
       - export TELEPORT_VERSION=$(cat /go/.version.txt)
       - export PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-$TELEPORT_VERSION
@@ -2493,7 +2495,11 @@ steps:
       - |
         if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
           echo "Building production Enterprise AMIs"
-          make ent-ci-build change-amis-to-public-ent change-amis-to-public-ent-fips
+          make ent-ci-build
+          echo "Making Enterprise AMIs public"
+          make change-amis-to-public-ent
+          echo "Making Enterprise FIPS AMIs public"
+          make change-amis-to-public-ent-fips
         else
           echo "Building debug Enterprise AMIs"
           make ent
@@ -2681,6 +2687,6 @@ steps:
 
 ---
 kind: signature
-hmac: 5652e7a3b140c84eb43d9effcac7eba4f9694626c534ca3ad10a0aabd83b2841
+hmac: 5acbba21770e2d21f47710dfc8685dc7e0c52a70161782cfa7c9e227643191b0
 
 ...
