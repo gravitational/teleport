@@ -2317,6 +2317,7 @@ trigger:
 
 depends_on:
   - test
+  - build-linux-amd64
 
 workspace:
   path: /go
@@ -2406,6 +2407,8 @@ trigger:
 
 depends_on:
   - test
+  - build-linux-amd64
+  - build-linux-amd64-fips
 
 workspace:
   path: /go
@@ -2651,6 +2654,6 @@ steps:
 
 ---
 kind: signature
-hmac: fba18ea00b806a9ab42faecc12209ab85e9a0f18e888d374df53c3a64b242a86
+hmac: bf426a3c13e2347a4ada6c5ad4c2218e34743b61db44cccc8b39b03c25f2a468
 
 ...
