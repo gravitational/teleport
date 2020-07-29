@@ -8,18 +8,22 @@ environment:
   UID: 1000
   GID: 1000
 
+  # TODO(gus): uncomment after testing
+# trigger:
+#   branch:
+#     - master
+#     - branch/*
+#   event:
+#     exclude:
+#       - cron
+#       - promote
+#       - rollback
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
-  branch:
-    - master
-    - branch/*
-  event:
-    exclude:
-      - cron
-      - promote
-      - rollback
-  repo:
-    include:
-      - gravitational/*
+  cron:
+    - never
 
 workspace:
   path: /go
@@ -167,18 +171,22 @@ kind: pipeline
 type: kubernetes
 name: test-docs
 
+# TODO(gus): uncomment after testing
+# trigger:
+#   branch:
+#     - master
+#     - branch/*
+#   event:
+#     exclude:
+#       - cron
+#       - promote
+#       - rollback
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
-  branch:
-    - master
-    - branch/*
-  event:
-    exclude:
-      - cron
-      - promote
-      - rollback
-  repo:
-    include:
-      - gravitational/*
+  cron:
+    - never
 
 workspace:
   path: /go
@@ -2303,6 +2311,110 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
+name: build-amis
+
+# TODO(gus): uncomment after testing
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
+trigger:
+  branch:
+    - master
+    - branch/*
+  event:
+    exclude:
+      - cron
+      - promote
+      - rollback
+  repo:
+    include:
+      - gravitational/*
+
+# TODO(gus): uncomment after testing
+# depends_on:
+#   - test
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      - echo $DRONE_TAG > /go/.drone_tag.txt
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+
+  - name: Build OSS AMIs
+    image: hashicorp/packer
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - cd /go/src/github.com/gravitational/teleport/assets/marketplace
+      - export VERSION=$(cat /go/.version.txt)
+      - export PUBLIC_AMI_NAME=gravitational-teleport-ami-oss-${VERSION}
+      - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-oss-${VERSION}
+      - export TELEPORT_VERSION=${VERSION}
+      - |
+        if [ "${DRONE_BUILD_EVENT" = "tag" ]; then
+          echo "Building production OSS AMIs"
+          make oss-ci-build change-amis-to-public-oss
+        else
+          echo "Building debug OSS AMIs"
+          make oss
+        fi
+
+  - name: Build Enterprise AMIs
+    image: hashicorp/packer
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - cd /go/src/github.com/gravitational/teleport/assets/marketplace
+      - export VERSION=$(cat /go/.version.txt)
+      - export PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-${VERSION}
+      - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-ent-${VERSION}
+      - export TELEPORT_VERSION=${VERSION}
+      - |
+        if [ "${DRONE_BUILD_EVENT" = "tag" ]; then
+          echo "Building production Enterprise AMIs"
+          make ent-ci-build change-amis-to-public-ent change-amis-to-public-ent-fips
+        else
+          echo "Building production Enterprise AMIs"
+          make ent
+        fi
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
 name: build-buildboxes
 
 environment:
@@ -2470,6 +2582,6 @@ steps:
 
 ---
 kind: signature
-hmac: bb577a9d32f255ad4be2c1081c3be223398f6a2880856a0378d295c61247ebb3
+hmac: 8b279bcd7383646344e96bdc38d65cc9a01d23955173b3ac50273c0de658149b
 
 ...
