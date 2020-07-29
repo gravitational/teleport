@@ -92,7 +92,6 @@ else
         tar -xzf teleport.tar.gz
         cp teleport-ent/tctl teleport-ent/tsh teleport-ent/teleport /usr/bin
         rm -rf /tmp/teleport.tar.gz /tmp/teleport-ent
-        fi
     fi
 fi
 popd

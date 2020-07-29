@@ -8,7 +8,7 @@ environment:
   UID: 1000
   GID: 1000
 
-  # TODO(gus): uncomment after testing
+# TODO(gus): uncomment after testing
 # trigger:
 #   branch:
 #     - master
