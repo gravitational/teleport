@@ -2370,7 +2370,7 @@ steps:
       - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-oss-${VERSION}
       - export TELEPORT_VERSION=${VERSION}
       - |
-        if [ "${DRONE_BUILD_EVENT" = "tag" ]; then
+        if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
           echo "Building production OSS AMIs"
           make oss-ci-build change-amis-to-public-oss
         else
@@ -2452,7 +2452,7 @@ steps:
       - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-ent-${VERSION}
       - export TELEPORT_VERSION=${VERSION}
       - |
-        if [ "${DRONE_BUILD_EVENT" = "tag" ]; then
+        if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
           echo "Building production Enterprise AMIs"
           make ent-ci-build change-amis-to-public-ent change-amis-to-public-ent-fips
         else
@@ -2642,6 +2642,6 @@ steps:
 
 ---
 kind: signature
-hmac: 3fcda7c2ec7ac118abdc6368354783989d16c94578b94d3e342433a98dd6ff3f
+hmac: 7d7045cb26b6938915815a1305b83a4716aaa1fe977945a85e5fe38270f85766
 
 ...
