@@ -299,7 +299,7 @@ If you have changed the external hostname, you may need to delete `/var/lib/tele
 
 ## Deploying with CloudFormation
 We are currently working on an updated CloudFormation guide but you can start with our
-[AWS Marketplace example](https://github.com/gravitational/teleport/tree/master/assets/marketplace/cloudformation#teleport-aws-quickstart-guide-cloudformation). It requires a VPC, but
+[AWS Marketplace example](https://github.com/gravitational/teleport/tree/master/assets/aws/cloudformation#teleport-aws-quickstart-guide-cloudformation). It requires a VPC, but
 we expect customers to deploy within an already existing VPC.
 
 ## Deploying with Terraform
