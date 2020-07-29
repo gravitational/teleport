@@ -2311,7 +2311,7 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
-name: build-amis
+name: build-oss-amis
 
 # TODO(gus): uncomment after testing
 # trigger:
@@ -2354,7 +2354,6 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-      - echo $DRONE_TAG > /go/.drone_tag.txt
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
@@ -2378,6 +2377,67 @@ steps:
           echo "Building debug OSS AMIs"
           make oss
         fi
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: build-ent-amis
+
+# TODO(gus): uncomment after testing
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
+trigger:
+  branch:
+    - master
+    - branch/*
+  event:
+    exclude:
+      - cron
+      - promote
+      - rollback
+  repo:
+    include:
+      - gravitational/*
+
+# TODO(gus): uncomment after testing
+# depends_on:
+#   - test
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
   - name: Build Enterprise AMIs
     image: hashicorp/packer
@@ -2582,6 +2642,6 @@ steps:
 
 ---
 kind: signature
-hmac: 8b279bcd7383646344e96bdc38d65cc9a01d23955173b3ac50273c0de658149b
+hmac: 3fcda7c2ec7ac118abdc6368354783989d16c94578b94d3e342433a98dd6ff3f
 
 ...
