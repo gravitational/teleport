@@ -9,7 +9,7 @@ Existing fleets of OpenSSH servers can be configured to accept SSH certificates
 dynamically issued by a Teleport CA.  We'll outline how to set it up here.
 
 ## Architecture
-![Node Service ping API](../img/openssh-proxy.svg)
+![Node Service ping API](img/openssh-proxy.svg)
 
 The recording proxy mode, although less secure, was added to allow Teleport users
 to enable session recording for OpenSSH's servers running `sshd`, which is helpful
@@ -93,8 +93,12 @@ The recommended solution is to ask Teleport to issue valid host certificates for
 all OpenSSH nodes. To generate a host certificate run this on your Teleport auth server:
 
 ```bash
+# Creating host certs, with an array of every host to be accessed.
+# Wildcard certs aren't supported by OpenSSH, must be full FQDN.
+# Management of the host certificates can become complex, this is another
+# reason we recommend using Teleport SSH on nodes.
 $ tctl auth sign \
-      --host=64.225.88.175,64.225.88.178 \
+      --host=api.example.com,ssh.example.com64.225.88.175,64.225.88.178 \
       --format=openssh
 
 The credentials have been written to api.example.com, api.example.com-cert.pub
@@ -197,8 +201,8 @@ certificate authorities for each cluster individually.
 
 !!! tip "OpenSSH and Trusted Clusters"
 
-    If you use [recording proxy mode](#recording-proxy-mode) and [trusted
-    clusters](#trusted-clusters), you need to set up certificate authority from
+    If you use [recording proxy mode](architecture/teleport_proxy.md) and [trusted
+    clusters](trusted-clusters.md), you need to set up certificate authority from
     the _root_ cluster to match **all** nodes, even those that belong to _leaf_
     clusters. For example, if your node naming scheme is `*.root.example.com`,
     `*.leaf1.example.com`, `*.leaf2.example.com`, then the
