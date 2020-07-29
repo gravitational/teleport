@@ -2365,10 +2365,11 @@ steps:
     commands:
       - apk add --no-cache make
       - cd /go/src/github.com/gravitational/teleport/assets/marketplace
-      - export VERSION=$(cat /go/.version.txt)
-      - export PUBLIC_AMI_NAME=gravitational-teleport-ami-oss-${VERSION}
-      - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-oss-${VERSION}
-      - export TELEPORT_VERSION=${VERSION}
+      # TODO(gus): uncomment after testing
+      #- export VERSION=$(cat /go/.version.txt)
+      - export TELEPORT_VERSION=4.3.2
+      - export PUBLIC_AMI_NAME=gravitational-teleport-ami-oss-$TELEPORT_VERSION
+      - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-oss-$TELEPORT_VERSION
       - |
         if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
           echo "Building production OSS AMIs"
@@ -2447,16 +2448,17 @@ steps:
     commands:
       - apk add --no-cache make
       - cd /go/src/github.com/gravitational/teleport/assets/marketplace
-      - export VERSION=$(cat /go/.version.txt)
-      - export PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-${VERSION}
-      - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-ent-${VERSION}
-      - export TELEPORT_VERSION=${VERSION}
+      # TODO(gus): uncomment after testing
+      #- export TELEPORT_VERSION=$(cat /go/.version.txt)
+      - export TELEPORT_VERSION=4.3.2
+      - export PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-$TELEPORT_VERSION
+      - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-ent-$TELEPORT_VERSION
       - |
         if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
           echo "Building production Enterprise AMIs"
           make ent-ci-build change-amis-to-public-ent change-amis-to-public-ent-fips
         else
-          echo "Building production Enterprise AMIs"
+          echo "Building debug Enterprise AMIs"
           make ent
         fi
 
@@ -2642,6 +2644,6 @@ steps:
 
 ---
 kind: signature
-hmac: 7d7045cb26b6938915815a1305b83a4716aaa1fe977945a85e5fe38270f85766
+hmac: 66534c567af76ec7cb42a38f8c6003ffdfbc6ad99a22500886afa0f1a0087ec8
 
 ...
