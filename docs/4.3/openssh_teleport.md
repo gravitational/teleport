@@ -1,25 +1,47 @@
 # Using Teleport with OpenSSH
 
 Teleport is fully compatible with OpenSSH and can be quickly setup to record and
-audit all SSH activity. Using Teleport and OpenSSH has a few pros / cons, and long
-term we would recommend replacing `sshd` with `teleport`.  We've oulined these in
-[OpenSSH vs Teleport SSH for Servers?](https://gravitational.com/blog/openssh-vs-teleport/)
+audit all SSH activity. Using Teleport and OpenSSH had the advantage of getting up
+and running, and long run we would recommend replacing `sshd` with `teleport`.
+We've oulined these reasons in [OpenSSH vs Teleport SSH for Servers?](https://gravitational.com/blog/openssh-vs-teleport/)
 
 Existing fleets of OpenSSH servers can be configured to accept SSH certificates
-dynamically issued by a Teleport CA. This makes it easier and quicker to adopt
-Teleport and often is used as the first step. We'll outline how to set it up here.
+dynamically issued by a Teleport CA.  We'll outline how to set it up here.
 
 ## Architecture
+![Node Service ping API](../img/openssh-proxy.svg)
 
-~ blah ~
-~ fix these
-~ https://gravitational.com/blog/how-to-record-ssh-sessions/
+The recording proxy mode, although less secure, was added to allow Teleport users
+to enable session recording for OpenSSH's servers running `sshd`, which is helpful
+when gradually transitioning large server fleets to Teleport.
 
+We consider the "recording proxy mode" to be less secure for two reasons:
+
++ It grants additional privileges to the Teleport proxy. In the default mode, the
+proxy stores no secrets and cannot "see" the decrypted data. This makes a proxy
+less critical to the security of the overall cluster. But if an attacker gains
+physical access to a proxy node running in the "recording" mode, they will be able
+to see the decrypted traffic and client keys stored in proxy's process memory.
+
++ Recording proxy mode requires the SSH agent forwarding. Agent forwarding is required
+because without it, a proxy will not be able to establish the 2nd connection to the
+destination node.
+
+Teleport proxy should be available to clients, and be setup with TLS.
+
+Teleport OpenSSH supports
+
++ FQDN `ec2-user@ip-172-31-14-137.us-west-2.compute.internal`
++ IPv4 `root@184.45.45.30`
++ IPv6 `root@2001:db8::2`
 
 ## Setting up OpenSSH Recording Proxy Mode
 
+The first step is install and setup Teleport, we recommend starting with our [Quickstart](quickstart.md) and [admin manual](admin_guide.md).
+
 To enable session recording for `sshd` nodes, the cluster must be switched to
 ["recording proxy" mode](architecture/teleport_proxy.md#recording-proxy-mode).
+
 In this mode, the recording will be done on the proxy level:
 
 ``` yaml
@@ -39,22 +61,14 @@ Export the Teleport CA certificate into a file:
 $ tctl auth export --type=user > teleport_user_ca.pub
 ```
 
-To allow access per-user, append the contents of `teleport_user_ca.pub` to
-`~/.ssh/authorized_keys` .
-
 To allow access for all users:
 
-  + Edit `teleport_user_ca.pub` and remove `cert-authority` from the start of
-    line.
-  + Copy `teleport_user_ca.pub` to `/etc/ssh/teleport-user-ca.pub`
+  + Edit `teleport_user_ca.pub` and remove `cert-authority` from the start ofline.
+  + Copy `teleport_user_ca.pub` to `/etc/ssh/teleport_user_ca.pub`
   + Update `sshd` configuration (usually `/etc/ssh/sshd_config` ) to point to
-    this file: `TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub`
+    this file:
+    `TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub`
 
-Add the following line to `/etc/ssh/sshd_config` :
-
-``` yaml
-TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub
-```
 
 Now `sshd` will trust users who present a Teleport-issued certificate. The next
 step is to configure host authentication.
@@ -69,29 +83,49 @@ certificate"_
 You can disable strict host checks as shown below. However, this opens the
 possibility for Man-in-the-Middle (MITM) attacks and is not recommended.
 
-``` yaml
+```yaml
 # snippet from /etc/teleport.yaml
 auth_service:
   proxy_checks_host_keys: no
 ```
 
 The recommended solution is to ask Teleport to issue valid host certificates for
-all OpenSSH nodes. To generate a host certificate run this on your auth server:
+all OpenSSH nodes. To generate a host certificate run this on your Teleport auth server:
 
-``` bash
+```bash
 $ tctl auth sign \
-      --host=node.example.com \
+      --host=64.225.88.175,64.225.88.178 \
       --format=openssh
+
+The credentials have been written to api.example.com, api.example.com-cert.pub
+
+# User ssh-keygen to verify the contents.
+$ sudo ssh-keygen -L -f api.example.com-cert.pub
+#api.example.com-cert.pub:
+#        Type: ssh-rsa-cert-v01@openssh.com host certificate
+#        Public key: RSA-CERT SHA256:ireEc5HWFjhYPUhmztaFud7EgsopO8l+GpxNMd3wMSk
+#        Signing CA: RSA SHA256:/6HSHsoU5u+r85M26Ut+M9gl+HventwSwrbTvP/cmvo
+#        Key ID: ""
+#        Serial: 0
+#        Valid: after 2020-07-29T20:26:24
+#        Principals:
+#               api.example.com
+#               ssh.example.com
+#               64.225.88.175
+#               64.225.88.178
+#        Critical Options: (none)
+#        Extensions:
+#                x-teleport-authority UNKNOWN OPTION (len 47)
+#                x-teleport-role UNKNOWN OPTION (len 8)
 ```
 
-Then add the following lines to `/etc/ssh/sshd_config` and restart sshd.
+Then add the following lines to all OpenSSH nodes `/etc/ssh/sshd_config` and restart sshd.
 
 ``` yaml
-HostKey /etc/ssh/node.example.com
-HostCertificate /etc/ssh/node.example.com-cert.pub
+HostKey /etc/ssh/api.example.com
+HostCertificate /etc/ssh/api.example.com-cert.pub
 ```
-
-Now you can use [ `tsh ssh --port=22 user@host.example.com` ](cli-docs.md#tsh) to login
+Now you can use [ `tsh ssh --port=22 user@api.example.com` ](cli-docs.md#tsh) to login
 into any `sshd` node in the cluster and the session will be recorded.
 
 ```bash
@@ -117,8 +151,8 @@ $ ssh -o "ForwardAgent yes" \
 
 !!! tip "Tip"
 
-    To avoid typing all this and use the usual `ssh
-    user@host.example.com `, users can update their ` ~/.ssh/config` file.
+    To avoid typing all this and use the usual `ssh user@host.example.com `, users
+    can update their ` ~/.ssh/config` file.
 
 **IMPORTANT**
 
@@ -143,7 +177,7 @@ $ ssh-add -L
     environment variable with `tsh`.
 
 
-### Using OpenSSH Client
+## Using OpenSSH Client
 
 It is possible to use the OpenSSH client `ssh` to connect to nodes within a
 Teleport cluster. Teleport supports SSH subsystems and includes a `proxy`
@@ -265,3 +299,9 @@ existing SSH implementations, such as OpenSSH. This section will cover:
 * Configuring OpenSSH client `ssh` to login into nodes inside a Teleport
   cluster.
 * Configuring OpenSSH server `sshd` to join a Teleport cluster.
+
+# Revoke a SSH Certificate
+
+To revoke Teleports CA run `tctl auth rotate`, unless you've highly automated your
+infrastructure we would suggest you proceed with caution as this will invalidate the user
+and host CAs.
