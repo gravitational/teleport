@@ -1762,6 +1762,26 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	c.Assert(cluster.AuthVersion, Equals, "")
 }
 
+func (s *WebSuite) TestUICreateUser(c *C) {
+	pack := s.authPack(c, "lulu")
+
+	resp, err := pack.clt.PostJSON(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "users"), requestUser{
+		Name:  "mimi",
+		Roles: []string{"testrole"},
+	})
+	c.Assert(err, IsNil)
+
+	var userToken responseUserPasswordToken
+	c.Assert(json.Unmarshal(resp.Bytes(), &userToken), IsNil)
+
+	user := userToken.User
+	c.Assert(user.GetName(), Equals, "mimi")
+	c.Assert(user.GetRoles(), DeepEquals, []string{"testrole"})
+
+	token := userToken.Token
+	c.Assert(token.GetUser(), Equals, "mimi")
+}
+
 type authProviderMock struct {
 	server services.ServerV2
 }
