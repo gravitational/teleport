@@ -33,9 +33,9 @@ extra_javascript: []
 extra:
     version: 4.3
     teleport:
-        version: 4.3.0
-        golang: 1.13
-        sha: 1c14362c9ba10f28088c7228b357dc6a70072d3d4afaa5510c70a8734068684c
+        version: 4.3.2
+        golang: 1.14
+        sha: daa7bfb239409c9231a22019ba39046d17bc75d021ce16d3333e0abadf158ddf
         plugin:
             version: 0.1.0
         latest_oss_docker_image: quay.io/gravitational/teleport:4.3
