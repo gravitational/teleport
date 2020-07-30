@@ -1,7 +1,7 @@
 /* 
 Security Groups and Rules for Cluster.
 
-WARNING: Please see our Production Guide for network security
+Note: Please see our Production Guide for network security
 recommendations. 
 https://gravitational.com/teleport/docs/production/#firewall-configuration
 */

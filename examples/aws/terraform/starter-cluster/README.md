@@ -2,13 +2,15 @@
 
 This is a simple Terraform example to get you started provisioning an all-in-one Teleport cluster (auth, node, proxy) on a single ec2 instance based on Gravitational's pre-built AMI.
 
+Do not use this in production! This example should be used for demo, proof-of-concept, or learning purposes only.
+
 ## How does this work?
 
 Teleport AMIs are built so you only need to specify environment variables to bring a fully configured instance online. See `data.tpl` or our [documentation](https://gravitational.com/teleport/docs/aws_oss_guide/#single-oss-teleport-amis-manual-gui-setup) to learn more about supported environment variables.
 
 A series of systemd [units](https://github.com/gravitational/teleport/tree/master/assets/marketplace/files/system) bootstrap the instance, via several bash [scripts](https://github.com/gravitational/teleport/tree/master/assets/marketplace/files/bin).
 
-While this may not be sufficient for all use cases, it's a great proof of concept that you can fork and customize to your liking. Check out our AWS AMI [generation code](https://github.com/gravitational/teleport/tree/master/assets/marketplace) if you're interested in adapting this to your requirements.
+While this may not be sufficient for all use cases, it's a great proof-of-concept that you can fork and customize to your liking. Check out our AWS AMI [generation code](https://github.com/gravitational/teleport/tree/master/assets/marketplace) if you're interested in adapting this to your requirements.
 
 This Terraform example will configure the following AWS resources:
 

@@ -1,6 +1,6 @@
 # Running Teleport Enterprise in HA mode on AWS
 
-This guide is designed to accompany our [reference Terraform code](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform#terraform-based-provisioning-example-amazon-single-ami)
+This guide is designed to accompany our [reference Terraform code](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform/ha-autoscale-cluster#terraform-based-provisioning-example-amazon-single-ami)
 and describe how to use and administrate the resulting Teleport deployment.
 
 
@@ -83,7 +83,7 @@ Resolving deltas: 100% (39141/39141), done.
 Once this is done, you can change into the directory where the Terraform code is checked out and run `terraform init`:
 
 ```bash
-$ cd teleport/examples/aws/terraform
+$ cd teleport/examples/aws/terraform/ha-autoscale-cluster
 $ terraform init
 
 Initializing the backend...
@@ -123,7 +123,7 @@ Any set environment variable starting with `TF_VAR_` is automatically processed 
 `TF_VAR_test_variable` becomes `test_variable`.
 
 We maintain an up-to-date list of the variables and what they do in the README.md file under [the
-`examples/aws/terraform` section of the Teleport repo](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/README.md)
+`examples/aws/terraform/ha-autoscale-cluster` section of the Teleport repo](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/README.md)
 but we'll run through an example list here.
 
 Things you will need to decide on:
@@ -132,7 +132,7 @@ Things you will need to decide on:
 
 Setting `export TF_VAR_region="us-west-2"`
 
-The AWS region to run in. You should pick from the supported list as detailed in the [README](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/README.md). These are regions which support [DynamoDB encryption
+The AWS region to run in. You should pick from the supported list as detailed in the [README](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/README.md). These are regions which support [DynamoDB encryption
 at rest](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/EncryptionAtRest.html).
 
 
@@ -280,14 +280,14 @@ terraform import aws_acm_certificate.cert <certificate_arn>
 Our reference deployment will provision the following instances for your cluster by default:
 
 - 2 x m4.large Teleport **auth** instances in an ASG, behind an internal network load balancer, configured using DynamoDB for
-shared storage. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/auth_asg.tf#L11)
-- 2 x m4.large Teleport **proxy** instances in an ASG, behind a public-facing load balancer - NLB for LetsEncrypt, ALB for ACM. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/proxy_asg.tf#L12)
-- 1 x m4.large Teleport **node** instance in an ASG. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/node_asg.tf#L10)
-- 1 x m4.large monitoring server in an ASG which hosts the Grafana instance and receives monitoring data from each service in the cluster. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/monitor_asg.tf#L12)
+shared storage. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/auth_asg.tf#L11)
+- 2 x m4.large Teleport **proxy** instances in an ASG, behind a public-facing load balancer - NLB for LetsEncrypt, ALB for ACM. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/proxy_asg.tf#L12)
+- 1 x m4.large Teleport **node** instance in an ASG. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/node_asg.tf#L10)
+- 1 x m4.large monitoring server in an ASG which hosts the Grafana instance and receives monitoring data from each service in the cluster. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/monitor_asg.tf#L12)
 - 1 x t2.medium bastion server which is the only permitted source for inbound SSH traffic to the instances. This is done
 to avoid exposing each instance to the internet directly.
 
-[The instance types used for each ASG can be configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/vars.tf#L23-L45)
+[The instance types used for each ASG can be configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/vars.tf#L23-L45)
 
 If you don't wish to set up a node or the monitoring services, you can set the `desired_size` and `min_size` for an ASG
 to `0` and Terraform will not provision it.

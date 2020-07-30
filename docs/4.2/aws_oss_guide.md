@@ -81,7 +81,7 @@ See [DynamoDB Admin Guide for more information](https://gravitational.com/telepo
 ![Setting Streams](img/aws/setting-stream.png)
 Setting Stream to `NEW IMAGE`
 
-For maintainability and ease of use, we recommend following our [Terraform example](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/dynamo.tf)
+For maintainability and ease of use, we recommend following our [Terraform example](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/dynamo.tf)
 but below are high level definitions for the tables required to run Teleport.
 
 Cluster State:
@@ -365,7 +365,7 @@ We are currently working on an updated CloudFormation guide but you can start wi
 we expect customers to deploy within an already existing VPC.
 
 ## Deploying with Terraform
-To deploy Teleport in AWS using Terraform look at our [Terraform based provisioning example (Amazon single AMI)](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform#terraform-based-provisioning-example-amazon-single-ami).
+To deploy Teleport in AWS using Terraform look at our [Terraform based provisioning example (Amazon single AMI)](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform/ha-autoscale-cluster#terraform-based-provisioning-example-amazon-single-ami).
 
 
 ### Installing Teleport to EC2 Server
