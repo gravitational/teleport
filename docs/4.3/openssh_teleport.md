@@ -123,7 +123,7 @@ $ sudo ssh-keygen -L -f api.example.com-cert.pub
 #                x-teleport-role UNKNOWN OPTION (len 8)
 ```
 
-Then add the following lines to  `/etc/ssh/sshd_config` on all OpenSSH nodes, and restart `sshd`.
+Then add the following lines to `/etc/ssh/sshd_config` on all OpenSSH nodes, and restart `sshd`.
 
 ``` yaml
 HostKey /etc/ssh/api.example.com
@@ -260,7 +260,7 @@ $ ssh root@database.root.example.com
 !!! tip "Note"
 
     Teleport uses OpenSSH certificates instead of keys which means
-    you can not connect to a Teleport node by IP address. You have to connect by
+    you cannot ordinarily connect to a Teleport node by IP address. You have to connect by
     DNS name. This is because OpenSSH ensures the DNS name of the node you are
     connecting is listed under the `Principals` section of the OpenSSH
     certificate to verify you are connecting to the correct node.
