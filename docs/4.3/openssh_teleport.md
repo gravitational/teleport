@@ -287,7 +287,7 @@ tsh ssh --port=22 dev@database.root.example.com
 
 !!! warning "Warning"
 
-    The principal/username, dev@ in the example above, being used to connect must be
+    The principal/username (`dev@` in the example above) being used to connect must be
     listed in the Teleport user/role configuration.
 
 ## OpenSSH Rate Limiting
