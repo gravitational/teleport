@@ -1493,7 +1493,7 @@ login`](cli-docs.md#tsh) command to retrieve credentials for both SSH and
 Kubernetes API.
 
 Follow our [Kubernetes guide](kubernetes_ssh.md) which contains some more specific
- examples and instructions.
+examples and instructions.
 
 ## High Availability
 
