@@ -2101,18 +2101,31 @@ name: build-windows
 environment:
   RUNTIME: go1.14.4
 
+# TODO(gus): uncomment after testing
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
+
+# depends_on:
+#   - test
 trigger:
+  branch:
+    - master
+    - branch/*
   event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
+    exclude:
+      - cron
+      - promote
+      - rollback
   repo:
     include:
       - gravitational/*
-
-depends_on:
-  - test
 
 workspace:
   path: /go
@@ -2167,7 +2180,9 @@ steps:
       # copy release archives to build directory
       - mkdir -p /go/artifacts/windows
       - find . -maxdepth 1 -iname "teleport*.zip" -print -exec cp {} /go/artifacts \;
-      # generate checksums
+      # make a copy of the Windows binaries with an Enterprise name (this is a Houston requirement)
+      - export VERSION=$(cat /go/.version.txt)
+      - cp /go/artifacts/teleport-v$${VERSION}-windows-amd64-bin.zip /go/artifacts/teleport-ent-v$${VERSION}-windows-amd64-bin.zip
       - cd /go/artifacts && for FILE in teleport*.zip; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
   - name: Upload to S3
@@ -2668,6 +2683,6 @@ steps:
 
 ---
 kind: signature
-hmac: b40a9ef07bde3c412aeef7e89838545fe77c6d9d025d0e4985845eb74d8b037e
+hmac: 1c6c5d482788af678df58f11d67597c001f5f1cf9ca1746ba905db051b4ba915
 
 ...
