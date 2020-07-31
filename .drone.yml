@@ -2167,7 +2167,10 @@ steps:
       # copy release archives to build directory
       - mkdir -p /go/artifacts/windows
       - find . -maxdepth 1 -iname "teleport*.zip" -print -exec cp {} /go/artifacts \;
-      # make a copy of the Windows binaries with an Enterprise name (this is a Houston requirement)
+      # make a copy of the Windows binaries named 'teleport-ent'
+      # our download portal looks for downloads starting with 'teleport-ent' to serve up, so
+      # for us to list any Windows Enterprise downloads, we need a 'teleport-ent*zip' binary
+      # The Windows artifacts only contain tsh.exe, which is the same for both OSS and Enterprise.
       - export VERSION=$(cat /go/.version.txt)
       - cp /go/artifacts/teleport-v$${VERSION}-windows-amd64-bin.zip /go/artifacts/teleport-ent-v$${VERSION}-windows-amd64-bin.zip
       - cd /go/artifacts && for FILE in teleport*.zip; do sha256sum $FILE > $FILE.sha256; done && ls -l
@@ -2670,6 +2673,6 @@ steps:
 
 ---
 kind: signature
-hmac: 41efaa1006edf04a6a0e74c45430e228bc576a1744b6cbbfda8288893632c964
+hmac: 26993149384f6faaf8d0eb0059e85c5f4eccceb5d75b3e7e4638ad09d3f48e44
 
 ...
