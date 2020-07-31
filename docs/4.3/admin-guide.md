@@ -1411,8 +1411,7 @@ own PAM service file like `/etc/pam.d/teleport` and specifying it as
 
 ## Using Teleport with OpenSSH
 
-This has moved.
-
+Review our dedicated [Using Teleport with OpenSSH](openssh_teleport.md) guide.
 
 ## Certificate Rotation
 
@@ -1493,34 +1492,8 @@ This allows users to authenticate against a Teleport proxy using [`tsh
 login`](cli-docs.md#tsh) command to retrieve credentials for both SSH and
 Kubernetes API.
 
-Below is a high-level diagram of how Teleport can be deployed in front of a
-Kubernetes cluster:
-
-![teleport-ssh-kubernetes-integration](img/teleport-kubernetes-outside.svg)
-
-For more detailed information, please take a look at [Kubernetes Integration
-with SSH](admin-guide.md#kubernetes-integration) section in the Architecture
-chapter.
-
-In the scenario illustrated above a user would execute the following commands:
-
-``` bash
-# Authentication step to retrieve the certificates. tsh login places the SSH
-# certificate into `~/.tsh` as usual and updates kubeconfig with Kubernetes
-# credentials:
-$ tsh --proxy=teleport.example.com login
-
-# You can execute SSH commands on your local client to access SSH nodes:
-$ tsh ssh login@ssh-node
-
-# You can also execute any kubectl commands on your local client to access the Kubernetes cluster:
-$ kubectl get pods
-```
-
-### Kubernetes/Teleport Configuration
-
-You may also find it useful to read our [Kubernetes guide](kubernetes_ssh.md)
-which contains some more specific examples and instructions.
+Follow our [Kubernetes guide](kubernetes_ssh.md) which contains some more specific
+ examples and instructions.
 
 ## High Availability
 
