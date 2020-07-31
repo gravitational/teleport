@@ -2101,31 +2101,18 @@ name: build-windows
 environment:
   RUNTIME: go1.14.4
 
-# TODO(gus): uncomment after testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
-
-# depends_on:
-#   - test
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
   repo:
     include:
       - gravitational/*
+
+depends_on:
+  - test
 
 workspace:
   path: /go
@@ -2683,6 +2670,6 @@ steps:
 
 ---
 kind: signature
-hmac: 1c6c5d482788af678df58f11d67597c001f5f1cf9ca1746ba905db051b4ba915
+hmac: 41efaa1006edf04a6a0e74c45430e228bc576a1744b6cbbfda8288893632c964
 
 ...
