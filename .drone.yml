@@ -2173,6 +2173,7 @@ steps:
       # The Windows artifacts only contain tsh.exe, which is the same for both OSS and Enterprise.
       - export VERSION=$(cat /go/.version.txt)
       - cp /go/artifacts/teleport-v$${VERSION}-windows-amd64-bin.zip /go/artifacts/teleport-ent-v$${VERSION}-windows-amd64-bin.zip
+      # generate checksums
       - cd /go/artifacts && for FILE in teleport*.zip; do sha256sum $FILE > $FILE.sha256; done && ls -l
 
   - name: Upload to S3
@@ -2673,6 +2674,6 @@ steps:
 
 ---
 kind: signature
-hmac: 26993149384f6faaf8d0eb0059e85c5f4eccceb5d75b3e7e4638ad09d3f48e44
+hmac: 7a78f57607c84c377c8248adbeb23953c5a391096fe8b469c6d54d3e0e8e961c
 
 ...
