@@ -1771,15 +1771,15 @@ func (s *WebSuite) TestUICreateUser(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	var userToken responseUserPasswordToken
+	var userToken responseCreateUser
 	c.Assert(json.Unmarshal(resp.Bytes(), &userToken), IsNil)
 
 	user := userToken.User
-	c.Assert(user.GetName(), Equals, "mimi")
-	c.Assert(user.GetRoles(), DeepEquals, []string{"testrole"})
+	c.Assert(user.Name, Equals, "mimi")
+	c.Assert(user.Roles, DeepEquals, []string{"testrole"})
 
 	token := userToken.Token
-	c.Assert(token.GetUser(), Equals, "mimi")
+	c.Assert(token.Name, Equals, "mimi")
 }
 
 type authProviderMock struct {

@@ -17,29 +17,30 @@ limitations under the License.
 package web
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/web/ui"
 	"github.com/gravitational/trace"
 
 	"github.com/julienschmidt/httprouter"
 )
 
-// requestUser is used to pull out data from JSON requests.
+// requestUser is a request used for user actions from the web UI:
+//	- user creation
 type requestUser struct {
 	Name  string   `json:"name"`
 	Roles []string `json:"roles"`
 }
 
-// responseUserPasswordToken is used to send back data
+// responseCreateUser is used to send back data
 // about created user and password setup token.
-type responseUserPasswordToken struct {
-	User  *services.UserV2               `json:"user"`
-	Token *services.ResetPasswordTokenV3 `json:"token"`
+type responseCreateUser struct {
+	User  ui.User      `json:"user"`
+	Token ui.UserToken `json:"token"`
 }
 
 // createUser allows UI users to create new users.
@@ -64,12 +65,16 @@ func (h *Handler) createUser(w http.ResponseWriter, r *http.Request, p httproute
 		return nil, trace.Wrap(err)
 	}
 
-	if err := checkUserParameters(*req); err != nil {
+	if err := req.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Check user doesn't exist already.
-	if _, err := ctx.clt.GetUser(req.Name, false); err == nil {
+	_, err := ctx.clt.GetUser(req.Name, false)
+	if !trace.IsNotFound(err) {
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to check whether user %q exists: %v", req.Name, err)
+		}
 		return nil, trace.BadParameter("user %q already registered", req.Name)
 	}
 
@@ -84,12 +89,12 @@ func (h *Handler) createUser(w http.ResponseWriter, r *http.Request, p httproute
 		Time: h.clock.Now().UTC(),
 	})
 
-	if err := ctx.clt.CreateUser(context.TODO(), newUser); err != nil {
+	if err := ctx.clt.CreateUser(r.Context(), newUser); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Create sign up token.
-	resetPassToken, err := ctx.clt.CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
+	token, err := ctx.clt.CreateResetPasswordToken(r.Context(), auth.CreateResetPasswordTokenRequest{
 		Name: req.Name,
 		Type: auth.ResetPasswordTokenTypeInvite,
 	})
@@ -97,30 +102,28 @@ func (h *Handler) createUser(w http.ResponseWriter, r *http.Request, p httproute
 		return nil, trace.Wrap(err)
 	}
 
-	user, ok := newUser.(*services.UserV2)
-	if !ok {
-		return nil, trace.BadParameter("unsupported user type: %T", user)
-	}
-
-	token, ok := resetPassToken.(*services.ResetPasswordTokenV3)
-	if !ok {
-		return nil, trace.BadParameter("unsupported reset password token type: %T", token)
-
-	}
-
-	return &responseUserPasswordToken{
-		User:  user,
-		Token: token,
+	return &responseCreateUser{
+		User: ui.User{
+			Name:    newUser.GetName(),
+			Roles:   newUser.GetRoles(),
+			Created: newUser.GetCreatedBy().Time,
+		},
+		Token: ui.UserToken{
+			Name:    token.GetUser(),
+			URL:     token.GetURL(),
+			Created: token.GetCreated(),
+			Expires: token.Expiry(),
+		},
 	}, nil
 }
 
-// checkUserParameters checks validity of all parameters of a user request.
-func checkUserParameters(user requestUser) error {
-	if user.Name == "" {
-		return trace.BadParameter("missing parameter user name")
+// checkAndSetDefaults checks validity of a user request.
+func (r *requestUser) checkAndSetDefaults() error {
+	if r.Name == "" {
+		return trace.BadParameter("missing user name")
 	}
-	if len(user.Roles) == 0 {
-		return trace.BadParameter("missing parameter roles")
+	if len(r.Roles) == 0 {
+		return trace.BadParameter("missing roles")
 	}
 	return nil
 }
