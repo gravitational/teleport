@@ -79,8 +79,6 @@ Make sure you have Golang `v1.14` or newer, then run:
 
 ```bash
 # get the source & build:
-$ mkdir -p $GOPATH/src/github.com/gravitational
-$ cd $GOPATH/src/github.com/gravitational
 $ git clone https://github.com/gravitational/teleport.git
 $ cd teleport
 $ make full
