@@ -701,12 +701,7 @@ func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
 
 	ctx := context.Background()
 
-	// test create user, trigger error
-	err = s.a.CreateUser(ctx, user)
-	c.Assert(err, ErrorMatches, `created by is not set for new user "some-user"`)
-	c.Assert(s.mockedAuditLog.EmittedEvent, IsNil)
-
-	// test create uesr, happy path
+	// test set createdBy gets set to intended creator
 	user.SetCreatedBy(services.CreatedBy{
 		User: services.UserRef{Name: "some-auth-user"},
 	})
@@ -714,6 +709,14 @@ func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.UserCreate)
 	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.EventUser], Equals, "some-auth-user")
+	s.mockedAuditLog.Reset()
+
+	// test unset createdBy gets set to default
+	user2, err := services.NewUser("some-other-user")
+	c.Assert(err, IsNil)
+	err = s.a.CreateUser(ctx, user2)
+	c.Assert(err, IsNil)
+	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.EventUser], Equals, "system")
 	s.mockedAuditLog.Reset()
 
 	// test update user

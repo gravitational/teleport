@@ -20,22 +20,20 @@ import "time"
 
 // User contains data needed by the web UI to display locally saved users.
 type User struct {
-	// Name is a user name.
+	// Name is the user name.
 	Name string `json:"name"`
-	// Roles is a list of user roles.
+	// Roles is the list of roles user belongs to.
 	Roles []string `json:"roles"`
-	// Created is user creation time.
+	// Created is when user was created.
 	Created time.Time `json:"created"`
 }
 
-// UserToken contains data on newly created user and password setup token.
-type UserToken struct {
-	// Name of who token belongs to
+// ResetToken contains data about user password setup.
+type ResetToken struct {
+	// Name of who token belongs to.
 	Name string `json:"name"`
-	// URL is the link to setup password for new user.
-	URL string `json:"url"`
-	// Created is when the token was created.
-	Created time.Time `json:"created"`
-	// Expires is when token expires.
-	Expires time.Time `json:"expires"`
+	// Token is the token ID used to construct password reset URL.
+	Token string `json:"token"`
+	// Expires is when token expires in format HourMinuteSeconds.
+	Expires string `json:"expires"`
 }

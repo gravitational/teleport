@@ -18,6 +18,7 @@ package web
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -29,7 +30,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-// requestUser is a request used for user actions from the web UI:
+// requestUser is used to unmarshal JSON requests.
+// Requests are made from the web UI for:
 //	- user creation
 type requestUser struct {
 	Name  string   `json:"name"`
@@ -39,8 +41,8 @@ type requestUser struct {
 // responseCreateUser is used to send back data
 // about created user and password setup token.
 type responseCreateUser struct {
-	User  ui.User      `json:"user"`
-	Token ui.UserToken `json:"token"`
+	User  ui.User       `json:"user"`
+	Token ui.ResetToken `json:"token"`
 }
 
 // createUser allows UI users to create new users.
@@ -108,11 +110,10 @@ func (h *Handler) createUser(w http.ResponseWriter, r *http.Request, p httproute
 			Roles:   newUser.GetRoles(),
 			Created: newUser.GetCreatedBy().Time,
 		},
-		Token: ui.UserToken{
+		Token: ui.ResetToken{
 			Name:    token.GetUser(),
-			URL:     token.GetURL(),
-			Created: token.GetCreated(),
-			Expires: token.Expiry(),
+			Token:   token.GetMetadata().Name,
+			Expires: token.Expiry().Sub(h.clock.Now().UTC()).Round(time.Second).String(),
 		},
 	}, nil
 }
