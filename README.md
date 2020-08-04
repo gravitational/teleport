@@ -33,13 +33,13 @@ implementation and it is _fully compatible with OpenSSH_ and can be used with
 |---|----
 | [Teleport Website](https://gravitational.com/teleport)  | The official website of the project |
 | [Documentation](https://gravitational.com/teleport/docs/quickstart/)  | Admin guide, user manual and more |
-| [Demo Video](https://www.youtube.com/watch?v=zIuZHYO_cDI) | 3-minute video overview of the UI. |
+| [Demo Video](https://www.youtube.com/watch?v=DUlTAlEJr5w) | 5-minute video overview of the UI. |
 | [Teleconsole](https://www.teleconsole.com) | The free service to "invite" SSH clients behind NAT, built on top of Teleport |
-| [Blog](https://blog.gravitational.com) | Our blog where we publish Teleport news |
+| [Blog](https://gravitational.com/blog/) | Our blog where we publish Teleport news |
 | [Security Updates](https://groups.google.com/forum/#!forum/teleport-community-security) | Teleport Community Edition Security Updates|
 | [Community Forum](https://community.gravitational.com) | Teleport Community Forum|
 
-[![Teleport 4.3 Demo](/docs/4.3/img/readme/teleport-4.3-video-thumb.png)](http://www.youtube.com/watch?v=v8qvmjvZpBE)
+[![Teleport 4.3 Demo](/docs/4.3/img/readme/teleport-4.3-video-thumb.png)](https://www.youtube.com/watch?v=DUlTAlEJr5w)
 
 ## Installing and Running
 
@@ -61,9 +61,9 @@ and run it under `$USER`, in this case you will not be able to login as someone 
 ### Deploy Teleport
 If you wish to deploy Teleport inside a Docker container:
 ```
-# This command will pull the Teleport container image for version 4.3.0
-# Replace 4.3.0 with the version you need:
-$ docker pull quay.io/gravitational/teleport:4.3.0
+# This command will pull the Teleport container image for version 4.3
+# Replace 4.3 with the version you need:
+$ docker pull quay.io/gravitational/teleport:4.3
 ```
 View latest tags on [Quay.io | gravitational/teleport](https://quay.io/repository/gravitational/teleport?tab=tags)
 
