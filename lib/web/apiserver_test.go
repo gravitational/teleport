@@ -34,6 +34,7 @@ import (
 	"net/url"
 	"os"
 	"os/user"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -306,7 +307,7 @@ func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack 
 
 // authPack returns new authenticated package consisting of created valid
 // user, otp token, created web session and authenticated client.
-func (s *WebSuite) authPack(c *C, user string) *authPack {
+func (s *WebSuite) authPack(c *C, user string, extendRole bool) *authPack {
 	login := s.user
 	pass := "abc123"
 	rawSecret := "def456"
@@ -320,7 +321,7 @@ func (s *WebSuite) authPack(c *C, user string) *authPack {
 	err = s.server.Auth().SetAuthPreference(ap)
 	c.Assert(err, IsNil)
 
-	s.createUser(c, user, login, pass, otpSecret)
+	s.createUser(c, user, login, pass, otpSecret, extendRole)
 
 	// create a valid otp token
 	validToken, err := totp.GenerateCode(otpSecret, time.Now())
@@ -359,11 +360,19 @@ func (s *WebSuite) authPack(c *C, user string) *authPack {
 	}
 }
 
-func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpSecret string) {
+func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpSecret string, extendRole bool) {
 	ctx := context.Background()
 	teleUser, err := services.NewUser(user)
 	c.Assert(err, IsNil)
+
 	role := services.RoleForUser(teleUser)
+	if extendRole {
+		rules := role.GetRules(services.Allow)
+		// grant all priviledges beyond admin
+		rules = append(rules, services.NewRule(services.Wildcard, services.RW()))
+		role.SetRules(services.Allow, rules)
+	}
+
 	role.SetLogins(services.Allow, []string{login})
 	options := role.GetOptions()
 	options.ForwardAgent = services.NewBool(true)
@@ -490,7 +499,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 }
 
 func (s *WebSuite) TestWebSessionsCRUD(c *C) {
-	pack := s.authPack(c, "foo")
+	pack := s.authPack(c, "foo", false)
 
 	// make sure we can use client to make authenticated requests
 	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
@@ -512,7 +521,7 @@ func (s *WebSuite) TestWebSessionsCRUD(c *C) {
 }
 
 func (s *WebSuite) TestNamespace(c *C) {
-	pack := s.authPack(c, "foo")
+	pack := s.authPack(c, "foo", false)
 
 	_, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "..%252fevents%3f", "nodes"), url.Values{})
 	c.Assert(err, NotNil)
@@ -531,7 +540,7 @@ func (s *WebSuite) TestCSRF(c *C) {
 	user := "csrfuser"
 	pass := "abc123"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte("def456"))
-	s.createUser(c, user, user, pass, otpSecret)
+	s.createUser(c, user, user, pass, otpSecret, false)
 
 	// create a valid login form request
 	validToken, err := totp.GenerateCode(otpSecret, time.Now())
@@ -566,7 +575,7 @@ func (s *WebSuite) TestCSRF(c *C) {
 }
 
 func (s *WebSuite) TestPasswordChange(c *C) {
-	pack := s.authPack(c, "foo")
+	pack := s.authPack(c, "foo", false)
 	fakeClock := clockwork.NewFakeClock()
 	s.server.AuthServer.AuthServer.SetClock(fakeClock)
 
@@ -584,7 +593,7 @@ func (s *WebSuite) TestPasswordChange(c *C) {
 }
 
 func (s *WebSuite) TestWebSessionsRenew(c *C) {
-	pack := s.authPack(c, "foo")
+	pack := s.authPack(c, "foo", false)
 
 	// make sure we can use client to make authenticated requests
 	// before we issue this request, we will recover session id and bearer token
@@ -681,7 +690,7 @@ type getSiteNodeResponse struct {
 }
 
 func (s *WebSuite) TestGetSiteNodes(c *C) {
-	pack := s.authPack(c, "foo")
+	pack := s.authPack(c, "foo", false)
 
 	// get site nodes
 	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "nodes"), url.Values{})
@@ -702,7 +711,7 @@ func (s *WebSuite) TestGetSiteNodes(c *C) {
 }
 
 func (s *WebSuite) TestSiteNodeConnectInvalidSessionID(c *C) {
-	_, err := s.makeTerminal(s.authPack(c, "foo"), session.ID("/../../../foo"))
+	_, err := s.makeTerminal(s.authPack(c, "foo", false), session.ID("/../../../foo"))
 	c.Assert(err, NotNil)
 }
 
@@ -888,7 +897,7 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 
 	// Create a new user "foo", open a terminal to a new session, and wait for
 	// it to be ready.
-	pack1 := s.authPack(c, "foo")
+	pack1 := s.authPack(c, "foo", false)
 	ws1, err := s.makeTerminal(pack1, sid)
 	c.Assert(err, IsNil)
 	defer ws1.Close()
@@ -897,7 +906,7 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 
 	// Create a new user "bar", open a terminal to the session created above,
 	// and wait for it to be ready.
-	pack2 := s.authPack(c, "bar")
+	pack2 := s.authPack(c, "bar", false)
 	ws2, err := s.makeTerminal(pack2, sid)
 	c.Assert(err, IsNil)
 	defer ws2.Close()
@@ -949,7 +958,7 @@ func (s *WebSuite) TestResizeTerminal(c *C) {
 }
 
 func (s *WebSuite) TestTerminal(c *C) {
-	ws, err := s.makeTerminal(s.authPack(c, "foo"))
+	ws, err := s.makeTerminal(s.authPack(c, "foo", false))
 	c.Assert(err, IsNil)
 	defer ws.Close()
 
@@ -977,7 +986,7 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 	err = s.server.Auth().SetClusterConfig(clusterConfig)
 	c.Assert(err, IsNil)
 
-	ws, err := s.makeTerminal(s.authPack(c, "foo"))
+	ws, err := s.makeTerminal(s.authPack(c, "foo", false))
 	c.Assert(err, IsNil)
 
 	// flush out raw event (pty texts)
@@ -999,7 +1008,7 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 }
 
 func (s *WebSuite) TestWebAgentForward(c *C) {
-	ws, err := s.makeTerminal(s.authPack(c, "foo"))
+	ws, err := s.makeTerminal(s.authPack(c, "foo", false))
 	c.Assert(err, IsNil)
 	defer ws.Close()
 
@@ -1016,7 +1025,7 @@ func (s *WebSuite) TestWebAgentForward(c *C) {
 
 func (s *WebSuite) TestActiveSessions(c *C) {
 	sid := session.NewID()
-	pack := s.authPack(c, "foo")
+	pack := s.authPack(c, "foo", false)
 
 	ws, err := s.makeTerminal(pack, sid)
 	c.Assert(err, IsNil)
@@ -1088,7 +1097,7 @@ func (s *WebSuite) TestEmptySessionClusterHostnameIsSet(c *C) {
 	c.Assert(err, IsNil)
 
 	// Retrieve the session with the empty ClusterName.
-	pack := s.authPack(c, "baz")
+	pack := s.authPack(c, "baz", false)
 	res, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "sessions", sess1.ID.String()), url.Values{})
 	c.Assert(err, IsNil)
 
@@ -1125,7 +1134,7 @@ func (s *WebSuite) TestEmptySessionClusterHostnameIsSet(c *C) {
 
 func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 	sid := session.NewID()
-	pack := s.authPack(c, "foo")
+	pack := s.authPack(c, "foo", false)
 
 	ws, err := s.makeTerminal(pack, sid)
 	c.Assert(err, IsNil)
@@ -1170,7 +1179,7 @@ func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 }
 
 func (s *WebSuite) TestCreateSession(c *C) {
-	pack := s.authPack(c, "foo")
+	pack := s.authPack(c, "foo", false)
 
 	sess := session.Session{
 		TerminalParams: session.TerminalParams{W: 300, H: 120},
@@ -1190,7 +1199,7 @@ func (s *WebSuite) TestCreateSession(c *C) {
 }
 
 func (s *WebSuite) TestPlayback(c *C) {
-	pack := s.authPack(c, "foo")
+	pack := s.authPack(c, "foo", false)
 	sid := session.NewID()
 	ws, err := s.makeTerminal(pack, sid)
 	c.Assert(err, IsNil)
@@ -1207,7 +1216,7 @@ func (s *WebSuite) TestLogin(c *C) {
 	c.Assert(err, IsNil)
 
 	// create user
-	s.createUser(c, "user1", "root", "password", "")
+	s.createUser(c, "user1", "root", "password", "", false)
 
 	loginReq, err := json.Marshal(createSessionReq{
 		User: "user1",
@@ -1274,7 +1283,7 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 	c.Assert(err, IsNil)
 
 	// create user
-	s.createUser(c, "user1", "root", "password", "")
+	s.createUser(c, "user1", "root", "password", "", false)
 
 	// create password change token
 	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
@@ -1335,7 +1344,7 @@ func (s *WebSuite) TestChangePasswordWithTokenU2F(c *C) {
 	err = s.server.Auth().SetAuthPreference(ap)
 	c.Assert(err, IsNil)
 
-	s.createUser(c, "user2", "root", "password", "")
+	s.createUser(c, "user2", "root", "password", "", false)
 
 	// create reset password token
 	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
@@ -1393,7 +1402,7 @@ func (s *WebSuite) TestU2FLogin(c *C) {
 	c.Assert(err, IsNil)
 
 	// create user
-	s.createUser(c, "bob", "root", "password", "")
+	s.createUser(c, "bob", "root", "password", "", false)
 
 	// create password change token
 	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
@@ -1720,7 +1729,7 @@ func (s *WebSuite) TestSearchClusterEvents(c *C) {
 		},
 	}
 
-	pack := s.authPack(c, "foo")
+	pack := s.authPack(c, "foo", false)
 	for _, tc := range testCases {
 		result := s.searchEvents(c, pack.clt, tc.Query, []string{"event.1", "event.2", "event.3"})
 		c.Assert(result, DeepEquals, tc.Result, Commentf(tc.Comment))
@@ -1763,7 +1772,7 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 }
 
 func (s *WebSuite) TestUICreateUser(c *C) {
-	pack := s.authPack(c, "lulu")
+	pack := s.authPack(c, "lulu", true)
 
 	resp, err := pack.clt.PostJSON(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "users"), requestUser{
 		Name:  "mimi",
@@ -1780,6 +1789,32 @@ func (s *WebSuite) TestUICreateUser(c *C) {
 
 	token := userToken.Token
 	c.Assert(token.Name, Equals, "mimi")
+}
+
+func (s *WebSuite) TestUIGetUsers(c *C) {
+	// create a few valid users
+	user1 := "user1"
+	s.createUser(c, user1, user1, "password", "", false)
+	user2 := "user2"
+	s.createUser(c, user2, user2, "password", "", false)
+
+	// retrieve users
+	pack := s.authPack(c, "user3", true)
+	res, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "users"), url.Values{})
+	c.Assert(err, IsNil)
+
+	var u responseGetUsers
+	c.Assert(json.Unmarshal(res.Bytes(), &u), IsNil)
+
+	// sort by name ascend
+	users := u.Users
+	sort.Slice(users, func(i, j int) bool {
+		return users[i].Name < users[j].Name
+	})
+
+	c.Assert(users[0].Name, Equals, "user1")
+	c.Assert(users[1].Name, Equals, "user2")
+	c.Assert(users[2].Name, Equals, "user3")
 }
 
 type authProviderMock struct {

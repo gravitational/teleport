@@ -39,13 +39,18 @@ type requestUser struct {
 }
 
 // responseCreateUser is used to send back data
-// about created user and password setup token.
+// about created local user and password setup token.
 type responseCreateUser struct {
 	User  ui.User       `json:"user"`
 	Token ui.ResetToken `json:"token"`
 }
 
-// createUser allows UI users to create new users.
+// responseGetUsers is used to send back list of all locally saved users.
+type responseGetUsers struct {
+	Users []ui.User `json:"users"`
+}
+
+// createUser allows a UI user to create a new user.
 //
 // POST /webapi/sites/:site/namespaces/:namespace/users
 //
@@ -116,6 +121,34 @@ func (h *Handler) createUser(w http.ResponseWriter, r *http.Request, p httproute
 			Expires: token.Expiry().Sub(h.clock.Now().UTC()).Round(time.Second).String(),
 		},
 	}, nil
+}
+
+// getUsers allows a UI user to retrieve a list of all locally saved users.
+//
+// GET /webapi/sites/:site/namespaces/:namespace/users
+//
+// Response:
+// {
+//		"user": [{user1}, {user2}...]
+// }
+func (h *Handler) getUsers(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	localUsers, err := ctx.clt.GetUsers(false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Iterate each user into UI compatible model.
+	var users []ui.User
+	for _, u := range localUsers {
+		user := ui.User{
+			Name:    u.GetName(),
+			Roles:   u.GetRoles(),
+			Created: u.GetCreatedBy().Time,
+		}
+		users = append(users, user)
+	}
+
+	return &responseGetUsers{Users: users}, nil
 }
 
 // checkAndSetDefaults checks validity of a user request.

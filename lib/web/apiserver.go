@@ -167,8 +167,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
 	h.POST("/webapi/sites/:site/namespaces/:namespace/users/password/token", h.WithClusterAuth(h.createResetPasswordToken))
 
-	// User CRUDs.
+	// User CRUDS that a user in context can apply to other users.
 	h.POST("/webapi/sites/:site/namespaces/:namespace/users", h.WithClusterAuth(h.createUser))
+	h.GET("/webapi/sites/:site/namespaces/:namespace/users", h.WithClusterAuth(h.getUsers))
 
 	// Issues SSH temp certificates based on 2FA access creds
 	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
