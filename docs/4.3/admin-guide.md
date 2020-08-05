@@ -713,6 +713,14 @@ To enable multiplexing so only one port is used, simply set the `tunnel_listen_a
 DEBU [PROC:1]    Setup Proxy: Reverse tunnel proxy and web proxy listen on the same port, multiplexing is on. service/service.go:1944
 ```
 
+!!! tip "Load Balancers"
+
+    The setup above also works even if the cluster uses multiple proxies behind
+    a load balancer (LB) or a DNS entry with multiple values.  This works by
+    the node establishing a tunnel to _every_ proxy. This requires that an LB
+    uses round-robin or a similar balancing algorithm. Do not use sticky load
+    balancing algorithms (a.k.a. "session affinity") with Teleport proxies.
+
 ## Labeling Nodes
 
 In addition to specifying a custom nodename, Teleport also allows for the
@@ -1108,11 +1116,12 @@ This setup works as follows:
 
 !!! tip "Load Balancers"
 
-    The scheme above also works even if the "main" cluster
-    uses multiple proxies behind a load balancer (LB) or a DNS entry with
-    multiple values. This works by "east" establishing a tunnel to _every_ proxy
-    in "main", assuming that an LB uses round-robin or a similar non-sticky
-    balancing algorithm.
+    The scheme above also works even if the "main" cluster uses multiple
+    proxies behind a load balancer (LB) or a DNS entry with multiple values.
+    This works by "east" establishing a tunnel to _every_ proxy in "main". This
+    requires that an LB uses round-robin or a similar balancing algorithm. Do
+    not use sticky load balancing algorithms (a.k.a. "session affinity") with
+    Teleport proxies.
 
 ### Example Configuration
 
