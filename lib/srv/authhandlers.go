@@ -133,33 +133,29 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext) error {
 func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
 	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
 
-	// as soon as key auth starts, we know something about the connection, so
-	// update *log.Entry.
-	h.Entry = log.WithFields(log.Fields{
-		trace.Component: h.Component,
-		trace.ComponentFields: log.Fields{
-			"local":       conn.LocalAddr(),
-			"remote":      conn.RemoteAddr(),
-			"user":        conn.User(),
-			"fingerprint": fingerprint,
-		},
+	// create a new logging entry with info specific to this login attempt
+	log := h.Entry.WithField(trace.ComponentFields, log.Fields{
+		"local":       conn.LocalAddr(),
+		"remote":      conn.RemoteAddr(),
+		"user":        conn.User(),
+		"fingerprint": fingerprint,
 	})
 
 	cid := fmt.Sprintf("conn(%v->%v, user=%v)", conn.RemoteAddr(), conn.LocalAddr(), conn.User())
-	h.Debugf("%v auth attempt", cid)
+	log.Debugf("%v auth attempt", cid)
 
 	cert, ok := key.(*ssh.Certificate)
-	h.Debugf("%v auth attempt with key %v, %#v", cid, fingerprint, cert)
+	log.Debugf("%v auth attempt with key %v, %#v", cid, fingerprint, cert)
 	if !ok {
-		h.Debugf("auth attempt, unsupported key type")
+		log.Debugf("auth attempt, unsupported key type")
 		return nil, trace.BadParameter("unsupported key type: %v", fingerprint)
 	}
 	if len(cert.ValidPrincipals) == 0 {
-		h.Debugf("need a valid principal for key")
+		log.Debugf("need a valid principal for key")
 		return nil, trace.BadParameter("need a valid principal for key %v", fingerprint)
 	}
 	if len(cert.KeyId) == 0 {
-		h.Debugf("need a valid key ID for key")
+		log.Debugf("need a valid key ID for key")
 		return nil, trace.BadParameter("need a valid key for key %v", fingerprint)
 	}
 	teleportUser := cert.KeyId
@@ -171,9 +167,9 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 			events.AuthAttemptSuccess: false,
 			events.AuthAttemptErr:     err.Error(),
 		}
-		h.Warnf("failed login attempt %#v", fields)
+		log.Warnf("failed login attempt %#v", fields)
 		if err := h.AuditLog.EmitAuditEvent(events.AuthAttemptFailure, fields); err != nil {
-			h.Warnf("Failed to emit failed login audit event: %v", err)
+			log.Warnf("Failed to emit failed login audit event: %v", err)
 		}
 	}
 
@@ -191,7 +187,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		recordFailedLogin(err)
 		return nil, trace.Wrap(err)
 	}
-	h.Debugf("Successfully authenticated")
+	log.Debugf("Successfully authenticated")
 
 	clusterName, err := h.AccessPoint.GetClusterName()
 	if err != nil {
@@ -216,7 +212,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 		err = h.canLoginWithRBAC(cert, clusterName.GetClusterName(), teleportUser, conn.User())
 	}
 	if err != nil {
-		h.Errorf("Permission denied: %v", err)
+		log.Errorf("Permission denied: %v", err)
 		recordFailedLogin(err)
 		return nil, trace.Wrap(err)
 	}
@@ -231,18 +227,6 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 // we are strictly checking keys, we reject the target server. If we are not
 // we take whatever.
 func (h *AuthHandlers) HostKeyAuth(addr string, remote net.Addr, key ssh.PublicKey) error {
-	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
-
-	// update entry to include a fingerprint of the key so admins can track down
-	// the key causing problems
-	h.Entry = log.WithFields(log.Fields{
-		trace.Component: h.Component,
-		trace.ComponentFields: log.Fields{
-			"remote":      remote.String(),
-			"fingerprint": fingerprint,
-		},
-	})
-
 	// Check if the given host key was signed by a Teleport certificate
 	// authority (CA) or fallback to host key checking if it's allowed.
 	certChecker := utils.CertChecker{
