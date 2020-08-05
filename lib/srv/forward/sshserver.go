@@ -615,15 +615,8 @@ func (s *Server) handleChannel(ctx context.Context, nch ssh.NewChannel) {
 	// Channels of type "session" handle requests that are involved in running
 	// commands on a server, subsystem requests, and agent forwarding.
 	case teleport.ChanSession:
-		ch, requests, err := nch.Accept()
-		if err != nil {
-			s.log.Warnf("Unable to accept channel: %v", err)
-			if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
-				s.log.Warnf("Failed to reject channel: %v", err)
-			}
-			return
-		}
-		go s.handleSessionRequests(ctx, ch, requests)
+		go s.handleSessionChannel(ctx, nch)
+
 	// Channels of type "direct-tcpip" handles request for port forwarding.
 	case teleport.ChanDirectTCPIP:
 		req, err := sshutils.ParseDirectTCPIPReq(nch.ExtraData())
@@ -726,10 +719,10 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	}
 }
 
-// handleSessionRequests handles out of band session requests once the session
-// channel has been created this function's loop handles all the "exec",
-// "subsystem" and "shell" requests.
-func (s *Server) handleSessionRequests(ctx context.Context, ch ssh.Channel, in <-chan *ssh.Request) {
+// handleSessionChannel handles accepting and forwarding a session channel from the client to
+// the remote host. Once the session channel has been established, this function's loop handles
+// all the "exec", "subsystem" and "shell" requests.
+func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
 	// There is no need for the forwarding server to initiate disconnects,
@@ -737,12 +730,14 @@ func (s *Server) handleSessionRequests(ctx context.Context, ch ssh.Channel, in <
 	// done on the server's terminating side.
 	ctx, scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext)
 	if err != nil {
-		scx.Errorf("Unable to create connection context: %v.", err)
-		s.stderrWrite(ch, "Unable to create connection context.")
+		s.log.Warnf("Server context setup failed: %v", err)
+		if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("server context setup failed: %v", err)); err != nil {
+			s.log.Warnf("Failed to reject channel: %v", err)
+		}
 		return
 	}
+
 	scx.RemoteClient = s.remoteClient
-	scx.AddCloser(ch)
 	scx.ChannelType = teleport.ChanSession
 	defer scx.Close()
 
@@ -751,7 +746,14 @@ func (s *Server) handleSessionRequests(ctx context.Context, ch ssh.Channel, in <
 	// Create a "session" channel on the remote host.
 	remoteSession, err := s.remoteClient.NewSession()
 	if err != nil {
-		s.stderrWrite(ch, err.Error())
+		s.log.Warnf("Remote session open failed: %v", err)
+		reason, msg := ssh.ConnectionFailed, fmt.Sprintf("remote session open failed: %v", err)
+		if e, ok := trace.Unwrap(err).(*ssh.OpenChannelError); ok {
+			reason, msg = e.Reason, e.Message
+		}
+		if err := nch.Reject(reason, msg); err != nil {
+			s.log.Warnf("Failed to reject channel: %v", err)
+		}
 		return
 	}
 	scx.RemoteSession = remoteSession
