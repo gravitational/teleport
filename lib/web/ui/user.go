@@ -32,8 +32,8 @@ type User struct {
 type ResetToken struct {
 	// Name of who token belongs to.
 	Name string `json:"name"`
-	// Token is the token ID used to construct password reset URL.
-	Token string `json:"token"`
+	// Value is the token ID used to construct password reset URL.
+	Value string `json:"value"`
 	// Expires is when token expires in format HourMinuteSeconds.
 	Expires string `json:"expires"`
 }

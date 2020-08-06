@@ -117,7 +117,7 @@ func (h *Handler) createUser(w http.ResponseWriter, r *http.Request, p httproute
 		},
 		Token: ui.ResetToken{
 			Name:    token.GetUser(),
-			Token:   token.GetMetadata().Name,
+			Value:   token.GetMetadata().Name,
 			Expires: token.Expiry().Sub(h.clock.Now().UTC()).Round(time.Second).String(),
 		},
 	}, nil
