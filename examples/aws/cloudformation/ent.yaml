@@ -101,21 +101,21 @@ Mappings:
     # us-east-1 = US East (N. Virginia)
     # us-east-2 = US East (Ohio)
     # us-west-2 = US West (Oregon)
-    # All AMIs from AWS - gravitational-teleport-ami-ent-4.2.6
-    eu-west-1: {HVM64 : ami-0b509a6a63664db66}
-    eu-west-2: {HVM64 : ami-0eb5e9694088d0433}
-    us-east-1: {HVM64 : ami-090258a635fa31821}
-    us-east-2: {HVM64 : ami-047f1c2a098d9532e}
-    us-west-2: {HVM64 : ami-025e708a6b63f1aa4}
-    us-west-1: {HVM64 : ami-046006454f75bea51}
-    ap-south-1: {HVM64 : ami-0e2a3ca85d2461e34}
-    ap-northeast-2: {HVM64 : ami-06da7fe03b524adf4}
-    ap-southeast-1: {HVM64 : ami-00847220794745527}
-    ap-southeast-2: {HVM64 : ami-0f99b6fb0060b9085}
-    ap-northeast-1: {HVM64 : ami-0a2eb6931a7661b66}
-    ca-central-1: {HVM64 : ami-01aca16dbda4de6d4}
-    eu-central-1: {HVM64 : ami-01bffd502fb78103c}
-    sa-east-1: {HVM64 : ami-05e9e08642096bffa}
+    # All AMIs from AWS - gravitational-teleport-ami-ent-4.3.2
+    eu-west-1: {HVM64 : ami-09bed1a47a688a1f3}
+    eu-west-2: {HVM64 : ami-0eded40a53c9189b7}
+    us-east-1: {HVM64 : ami-0168982281002a209}
+    us-east-2: {HVM64 : ami-0ee04d213eb8c9869}
+    us-west-2: {HVM64 : ami-04e493d3294eba72d}
+    us-west-1: {HVM64 : ami-0a7536aea4ec66d25}
+    ap-south-1: {HVM64 : ami-07826bfa1244a4e05}
+    ap-northeast-2: {HVM64 : ami-01af6b212aa753d0d}
+    ap-southeast-1: {HVM64 : ami-06588f4903fb2cb59}
+    ap-southeast-2: {HVM64 : ami-08fa5f00c6e8158ea}
+    ap-northeast-1: {HVM64 : ami-06e98b3b02ec8ce8b}
+    ca-central-1: {HVM64 : ami-01158c71542b4f2e8}
+    eu-central-1: {HVM64 : ami-09484afd8f4be894e}
+    sa-east-1: {HVM64 : ami-028aae2c3e3203466}
 
 Resources:
 # Auth server setup
