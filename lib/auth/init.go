@@ -944,7 +944,6 @@ func migrateRoleOptions(ctx context.Context, asrv *AuthServer) error {
 	for _, role := range roles {
 		options := role.GetOptions()
 		if options.BPF == nil {
-			fmt.Printf("--> Migrating role %v. Added default enhanced events.", role.GetName())
 			log.Debugf("Migrating role %v. Added default enhanced events.", role.GetName())
 			options.BPF = defaults.EnhancedEvents()
 		} else {

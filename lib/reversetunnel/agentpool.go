@@ -36,11 +36,10 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// ServerHandler implements an interface which can handle a connection
-// (perform a handshake then process). This is needed because importing
-// lib/srv in lib/reversetunnel causes a circular import.
-type ServerHandler interface {
-	// HandleConnection performs a handshake then process the connection.
+// ConnHandler handles incoming net.Conn connections for different protocols.
+type ConnHandler interface {
+	// HandleConnection accepts incoming connections and either forwards them
+	// or processes them based off the protocol implemented.
 	HandleConnection(conn net.Conn)
 }
 
@@ -84,7 +83,10 @@ type AgentPoolConfig struct {
 	KubeDialAddr utils.NetAddr
 	// Server is a SSH server that can handle a connection (perform a handshake
 	// then process). Only set with the agent is running within a node.
-	Server ServerHandler
+	Server ConnHandler
+	// AppServer is an application proxy (AAP) that forwards requests to the
+	// target node.
+	AppServer ConnHandler
 	// Component is the Teleport component this agent pool is running in. It can
 	// either be proxy (trusted clusters) or node (dial back).
 	Component string

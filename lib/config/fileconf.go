@@ -795,7 +795,7 @@ type Apps struct {
 	Service `yaml:",inline"`
 
 	// Apps is a list of applications that will be run by this service.
-	Apps []App `yaml:"apps"`
+	Apps []*App `yaml:"apps"`
 }
 
 // App is the specific application that will be proxied by the application
@@ -822,7 +822,7 @@ type App struct {
 	Commands []CommandLabel `yaml:"commands,omitempty"`
 }
 
-func (a App) CheckAndSetDefaults() error {
+func (a *App) CheckAndSetDefaults() error {
 	if a.Protocol == "" {
 		a.Protocol = teleport.ServerProtocolHTTPS
 	}

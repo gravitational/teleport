@@ -642,3 +642,42 @@ func (c *remoteClusterCollection) toMarshal() interface{} {
 func (c *remoteClusterCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, c.toMarshal())
 }
+
+type appCollection struct {
+	apps []services.Server
+}
+
+func (a *appCollection) resources() (r []services.Resource) {
+	for _, resource := range a.apps {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (a *appCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Application", "Internal Address", "Public Address", "Labels"})
+	for _, app := range a.apps {
+		t.AddRow([]string{
+			app.GetName(), app.GetInternalAddr(), app.GetPublicAddr(), app.LabelsString(),
+		})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+func (a *appCollection) writeJSON(w io.Writer) error {
+	data, err := json.MarshalIndent(a.toMarshal(), "", "    ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}
+
+func (a *appCollection) toMarshal() interface{} {
+	return a.apps
+}
+
+func (a *appCollection) writeYAML(w io.Writer) error {
+	return utils.WriteYAML(w, a.toMarshal())
+}

@@ -65,7 +65,7 @@ func (g *GRPCServer) SendKeepAlives(stream proto.AuthService_SendKeepAlivesServe
 			g.Debugf("Failed to receive heartbeat: %v", err)
 			return trail.ToGRPC(err)
 		}
-		err = auth.KeepAliveNode(stream.Context(), *keepAlive)
+		err = auth.KeepAliveResource(stream.Context(), *keepAlive)
 		if err != nil {
 			return trail.ToGRPC(err)
 		}

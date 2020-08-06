@@ -296,6 +296,21 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 	return nodes, nil
 }
 
+// GetApps returns a list of applications registered in this cluster.
+func (c *ProxyClient) GetApps(ctx context.Context, namespace string) ([]services.Server, error) {
+	authClient, err := c.CurrentClusterAccessPoint(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	apps, err := authClient.GetApps(ctx, namespace, services.SkipValidation())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return apps, nil
+}
+
 // CurrentClusterAccessPoint returns cluster access point to the currently
 // selected cluster and is used for discovery
 // and could be cached based on the access policy

@@ -41,12 +41,16 @@ type Announcer interface {
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
+
+	// UpsertApp is used by applications to report their presence to the backend.
+	UpsertApp(context.Context, services.Server) (*services.KeepAlive, error)
 }
 
 // ReadAccessPoint is an API interface implemented by a certificate authority (CA)
 type ReadAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
+
 	// GetReverseTunnels returns  a list of reverse tunnels
 	GetReverseTunnels(opts ...services.MarshalOption) ([]services.ReverseTunnel, error)
 
@@ -64,6 +68,9 @@ type ReadAccessPoint interface {
 
 	// GetNodes returns a list of registered servers for this cluster.
 	GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error)
+
+	// GetApps returns a list of registered apps for this cluster.
+	GetApps(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error)
 
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]services.Server, error)
@@ -100,6 +107,7 @@ type ReadAccessPoint interface {
 type AccessPoint interface {
 	// ReadAccessPoint provides methods to read data
 	ReadAccessPoint
+
 	// Announcer adds methods used to announce presence
 	Announcer
 
@@ -184,6 +192,11 @@ func (w *Wrapper) NewKeepAliver(ctx context.Context) (services.KeepAliver, error
 // UpsertProxy is part of auth.AccessPoint implementation
 func (w *Wrapper) UpsertProxy(s services.Server) error {
 	return w.Write.UpsertProxy(s)
+}
+
+// UpsertApp is part of the auth.AccessPoint implementation.
+func (w *Wrapper) UpsertApp(ctx context.Context, app services.Server) (*services.KeepAlive, error) {
+	return w.Write.UpsertApp(ctx, app)
 }
 
 // UpsertTunnelConnection is a part of auth.AccessPoint implementation

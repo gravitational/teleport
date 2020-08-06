@@ -375,6 +375,9 @@ func (a *AuthWithRoles) UpsertNode(s services.Server) (*services.KeepAlive, erro
 	return a.authServer.UpsertNode(s)
 }
 
+// DELETE IN: 5.1.0
+//
+// This logic has moved to KeepAliveResource.
 func (a *AuthWithRoles) KeepAliveNode(ctx context.Context, handle services.KeepAlive) error {
 	if !a.hasBuiltinRole(string(teleport.RoleNode)) {
 		return trace.AccessDenied("[10] access denied")
@@ -394,6 +397,40 @@ func (a *AuthWithRoles) KeepAliveNode(ctx context.Context, handle services.KeepA
 		return trace.Wrap(err)
 	}
 	return a.authServer.KeepAliveNode(ctx, handle)
+}
+
+func (a *AuthWithRoles) KeepAliveResource(ctx context.Context, handle services.KeepAlive) error {
+	switch handle.GetType() {
+	case teleport.KeepAliveServer:
+		if !a.hasBuiltinRole(string(teleport.RoleNode)) {
+			return trace.AccessDenied("[10] access denied")
+		}
+		clusterName, err := a.GetDomainName()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		serverName, err := ExtractHostID(a.user.GetName(), clusterName)
+		if err != nil {
+			return trace.AccessDenied("[10] access denied")
+		}
+		if serverName != handle.Name {
+			return trace.AccessDenied("[10] access denied")
+		}
+		if err := a.action(defaults.Namespace, services.KindNode, services.VerbUpdate); err != nil {
+			return trace.Wrap(err)
+		}
+	case teleport.KeepAliveApp:
+		if !a.hasBuiltinRole(string(teleport.RoleApp)) {
+			return trace.AccessDenied("access denied")
+		}
+		if err := a.action(defaults.Namespace, services.KindApp, services.VerbUpdate); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.BadParameter("unknown keep alive type: %q", handle.Type)
+	}
+
+	return a.authServer.KeepAliveResource(ctx, handle)
 }
 
 // NewWatcher returns a new event watcher

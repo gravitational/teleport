@@ -48,8 +48,10 @@ type Server interface {
 	GetAllLabels() map[string]string
 	// GetLabels returns server's static label key pairs
 	GetLabels() map[string]string
-	// GetCmdLabels returns command labels
+	// GetCmdLabels gets command labels
 	GetCmdLabels() map[string]CommandLabel
+	// SetCmdLabels sets command labels.
+	SetCmdLabels(cmdLabels map[string]CommandLabel)
 	// GetPublicAddr is an optional field that returns the public address this cluster can be reached at.
 	GetPublicAddr() string
 	// GetRotation gets the state of certificate authority rotation.
@@ -265,6 +267,11 @@ func (s *ServerV2) GetCmdLabels() map[string]CommandLabel {
 	return out
 }
 
+// SetCmdLabels sets dynamic labels.
+func (s *ServerV2) SetCmdLabels(cmdLabels map[string]CommandLabel) {
+	s.Spec.CmdLabels = LabelsToV2(cmdLabels)
+}
+
 // GetProtocol gets the protocol supported by this server.
 func (s *ServerV2) GetProtocol() string {
 	switch s.Spec.Protocol {
@@ -279,15 +286,24 @@ func (s *ServerV2) GetProtocol() string {
 
 // SetProtocol sets the protocol supported by this server.
 func (s *ServerV2) SetProtocol(protocol string) error {
-	switch protocol {
-	case teleport.ServerProtocolSSH:
-		s.Spec.Protocol = ServerSpecV2_SSH
-	case teleport.ServerProtocolHTTPS:
-		s.Spec.Protocol = ServerSpecV2_HTTPS
-	default:
-		return trace.BadParameter("unknown protocol: %v", protocol)
+	var err error
+	s.Spec.Protocol, err = ParseProtocol(protocol)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// ParseProtocol returns the GRPC type for protocol.
+func ParseProtocol(protocol string) (ServerSpecV2_ServerProtocolType, error) {
+	switch protocol {
+	case teleport.ServerProtocolSSH:
+		return ServerSpecV2_SSH, nil
+	case teleport.ServerProtocolHTTPS:
+		return ServerSpecV2_HTTPS, nil
+	default:
+		return ServerSpecV2_UNKNOWN, trace.BadParameter("unknown protocol %q", protocol)
+	}
 }
 
 // GetAppName gets the name of the application being proxied.

@@ -58,6 +58,10 @@ type Presence interface {
 	// UpsertNodes bulk inserts nodes.
 	UpsertNodes(namespace string, servers []Server) error
 
+	// DELETE IN: 5.1.0
+	//
+	// This logic has been moved to KeepAliveResource.
+	//
 	// KeepAliveNode updates node TTL in the storage
 	KeepAliveNode(ctx context.Context, h KeepAlive) error
 
@@ -173,6 +177,9 @@ type Presence interface {
 
 	// DeleteApp deletes a specific application within a namespace.
 	DeleteApp(context.Context, string, string) error
+
+	// KeepAliveResource updates TTL of the resource in the backend.
+	KeepAliveResource(ctx context.Context, h KeepAlive) error
 }
 
 // NewNamespace returns new namespace
@@ -217,7 +224,7 @@ func (s *KeepAlive) GetType() string {
 
 func (s *KeepAlive) CheckAndSetDefaults() error {
 	if s.IsEmpty() {
-		return trace.BadParameter("no lease ID or server name is specified")
+		return trace.BadParameter("invalid keep alive, missing lease ID and resource name")
 	}
 	if s.Namespace == "" {
 		s.Namespace = defaults.Namespace

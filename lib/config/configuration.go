@@ -701,10 +701,16 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 			}
 		}
 
+		// Parse the protocol from human readable format to a GRPC enum.
+		protocol, err := services.ParseProtocol(application.Protocol)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		// Add the application to the list of proxied applications.
 		cfg.Apps.Apps = append(cfg.Apps.Apps, service.App{
 			Name:          application.Name,
-			Protocol:      application.Protocol,
+			Protocol:      protocol,
 			InternalAddr:  *uriAddr,
 			PublicAddr:    *publicAddr,
 			StaticLabels:  labels,
@@ -954,7 +960,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 
 		cfg.Apps.Apps = append(cfg.Apps.Apps, service.App{
 			Name:          clf.AppName,
-			Protocol:      teleport.ServerProtocolHTTPS,
+			Protocol:      services.ServerSpecV2_HTTPS,
 			InternalAddr:  *uriAddr,
 			PublicAddr:    *publicAddr,
 			StaticLabels:  make(map[string]string),

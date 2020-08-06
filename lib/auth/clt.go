@@ -720,8 +720,17 @@ func (c *Client) UpsertNode(s services.Server) (*services.KeepAlive, error) {
 	return keepAlive, nil
 }
 
-// KeepAliveNode updates node keep alive information
+// DELETE IN: 5.1.0
+//
+// This logic has been moved to KeepAliveResource.
+//
+// KeepAliveNode updates node keep alive information.
 func (c *Client) KeepAliveNode(ctx context.Context, keepAlive services.KeepAlive) error {
+	return trace.BadParameter("not implemented, use StreamKeepAlives instead")
+}
+
+// KeepAliveResource is not implemented.
+func (c *Client) KeepAliveResource(ctx context.Context, keepAlive services.KeepAlive) error {
 	return trace.BadParameter("not implemented, use StreamKeepAlives instead")
 }
 

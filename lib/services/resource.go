@@ -620,7 +620,7 @@ func (u *UnknownResource) UnmarshalJSON(raw []byte) error {
 	return nil
 }
 
-// Resource represents common properties for resources
+// Resource represents common properties for all resources.
 type Resource interface {
 	// GetKind returns resource kind
 	GetKind() string

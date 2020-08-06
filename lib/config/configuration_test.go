@@ -691,7 +691,7 @@ func makeConfigFixture() string {
 
 	// Application service.
 	conf.Apps.EnabledFlag = "yes"
-	conf.Apps.Apps = []App{
+	conf.Apps.Apps = []*App{
 		{
 			Name:       "foo",
 			Protocol:   teleport.ServerProtocolHTTPS,

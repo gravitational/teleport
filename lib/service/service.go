@@ -64,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/system"
 	"github.com/gravitational/teleport/lib/utils"
@@ -94,6 +95,10 @@ const (
 	// with the Auth Server.
 	SSHIdentityEvent = "SSHIdentity"
 
+	// AppsIdentityEvent is generated when the identity of the application proxy
+	// service has been registered with the Auth Server.
+	AppsIdentityEvent = "AppsIdentity"
+
 	// AuthTLSReady is generated when the Auth Server has initialized the
 	// TLS Mutual Auth endpoint and is ready to start accepting connections.
 	AuthTLSReady = "AuthTLSReady"
@@ -118,6 +123,10 @@ const (
 	// NodeSSHReady is generated when the Teleport node has initialized a SSH server
 	// and is ready to start accepting SSH connections.
 	NodeSSHReady = "NodeReady"
+
+	// AppsReady is generated when the Teleport app proxy service is ready to
+	// start accepting connections.
+	AppsReady = "AppsReady"
 
 	// TeleportExitEvent is generated when the Teleport process begins closing
 	// all listening sockets and exiting.
@@ -645,6 +654,9 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	if cfg.Proxy.Enabled {
 		eventMapping.In = append(eventMapping.In, ProxySSHReady)
 	}
+	if cfg.Apps.Enabled {
+		eventMapping.In = append(eventMapping.In, AppsReady)
+	}
 	process.RegisterEventMapping(eventMapping)
 
 	if cfg.Auth.Enabled {
@@ -666,13 +678,20 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 
 	if cfg.Proxy.Enabled {
-		eventMapping.In = append(eventMapping.In, ProxySSHReady)
 		if err := process.initProxy(); err != nil {
 			return nil, err
 		}
 		serviceStarted = true
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentProxy))
+	}
+
+	// If this process is proxying applications, start AAP.
+	if cfg.Apps.Enabled {
+		process.initApps()
+		serviceStarted = true
+	} else {
+		warnOnErr(process.closeImportedDescriptors(teleport.ComponentApp))
 	}
 
 	process.RegisterFunc("common.rotate", process.periodicSyncRotationState)
@@ -2331,6 +2350,143 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func (process *TeleportProcess) initApps() {
+	// If no applications are specified, exit early. This is due to the strange
+	// behavior in reading file configuration. If the user does not specify an
+	// "app_service" section, that is considered enabling "app_service".
+	if len(process.Config.Apps.Apps) == 0 {
+		return
+	}
+
+	// Connect to the Auth Server, a client connected to the Auth Server will
+	// be returned. For this to be successful, credentials to connect to the
+	// Auth Server need to exist on disk or a registration token should be
+	// provided.
+	process.registerWithAuthServer(teleport.RoleApp, AppsIdentityEvent)
+	eventsCh := make(chan Event)
+	process.WaitForEvent(process.ExitContext(), AppsIdentityEvent, eventsCh)
+
+	// Define logger to prefix log lines with the name of the component and PID.
+	component := teleport.Component(teleport.ComponentApp, process.id)
+	log := logrus.WithFields(logrus.Fields{
+		trace.Component: component,
+	})
+
+	process.RegisterCriticalFunc("connect.apps", func() error {
+		var ok bool
+		var event Event
+
+		// Block until registration is complete and a client (with an identity) has
+		// been returned.
+		select {
+		case event = <-eventsCh:
+			log.Debugf("Received event %q.", event.Name)
+		case <-process.ExitContext().Done():
+			log.Debugf("Process is exiting.")
+			return nil
+		}
+		conn, ok := (event.Payload).(*Connector)
+		if !ok {
+			return trace.BadParameter("unsupported event payload type %q", event.Payload)
+		}
+
+		// Create a caching client to the Auth Server. Is is to reduce load on
+		// the Auth Server.
+		authClient, err := process.newLocalCache(conn.Client, cache.ForApps, []string{component})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		n := len(process.Config.Apps.Apps)
+		startCh := make(chan string, n)
+
+		// Loop over each application and start it.
+		for _, app := range process.Config.Apps.Apps {
+			application := &services.ServerV2{
+				Kind:    services.KindApp,
+				Version: services.V2,
+				Metadata: services.Metadata{
+					Namespace: defaults.Namespace,
+					Name:      app.Name,
+					Labels:    app.StaticLabels,
+				},
+				Spec: services.ServerSpecV2{
+					Protocol:     app.Protocol,
+					InternalAddr: app.InternalAddr.String(),
+					PublicAddr:   app.PublicAddr.String(),
+					CmdLabels:    services.LabelsToV2(app.DynamicLabels),
+					Version:      teleport.Version,
+				},
+			}
+			process.initApp(application, authClient, startCh)
+		}
+
+		timer := time.NewTimer(defaults.AppsStartTimeout)
+		defer timer.Stop()
+
+		// Wait for all applications to start.
+		for {
+			select {
+			case appName := <-startCh:
+				n -= 1
+				log.Infof("Application %q started.", appName)
+
+				// Once all events have been received, broadcast that the apps
+				// proxy is ready.
+				if n == 0 {
+					process.BroadcastEvent(Event{Name: AppsReady, Payload: nil})
+					log.Infof("All applications successfully started.")
+					return nil
+				}
+			case <-timer.C:
+				return trace.BadParameter("timed out waiting for apps to start")
+			}
+		}
+	})
+}
+
+func (process *TeleportProcess) initApp(application services.Server, authClient auth.AccessPoint, startCh chan string) {
+	servicePrefix := fmt.Sprintf("app.%v", application.GetName())
+
+	var server *app.Server
+
+	process.RegisterCriticalFunc(servicePrefix+".run", func() error {
+		server, err := app.New(process.ExitContext(), &app.Config{
+			App:         application,
+			AccessPoint: authClient,
+			GetRotation: process.getRotation,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Start the apps server. This starts the server, heartbeat (services.App),
+		// and (dynamic) label update.
+		server.Start()
+
+		// Notify parent that this app has started.
+		startCh <- application.GetName()
+
+		// Block and wait while the server and agent pool are running.
+		if err := server.Wait(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		log.Infof("Exited.")
+		return nil
+	})
+
+	// Execute this when process is asked to exit.
+	process.onExit(servicePrefix+".shutdown", func(payload interface{}) {
+		log.Infof("Shutting down.")
+		if server != nil {
+			warnOnErr(server.Close())
+		}
+
+		log.Infof("Exited.")
+	})
 }
 
 func warnOnErr(err error) {

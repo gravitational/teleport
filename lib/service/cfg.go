@@ -458,14 +458,15 @@ type AppsConfig struct {
 }
 
 // App is the specific application that will be proxied by the application
-// service.
+// service. This needs to exist because if the "config" package tries to
+// directly create a services.App it will get into circular imports.
 type App struct {
 	// Name of the application.
 	Name string `yaml:"name"`
 
 	// Protocol used to proxy this application. At the moment only HTTPS is
 	// supported.
-	Protocol string `yaml:"protocol"`
+	Protocol services.ServerSpecV2_ServerProtocolType `yaml:"protocol"`
 
 	// InternalAddr is the internal address of the application.
 	InternalAddr utils.NetAddr `yaml:"internal_addr"`

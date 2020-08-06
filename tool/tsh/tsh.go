@@ -250,6 +250,11 @@ func Run(args []string) {
 	ssh.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cf.Options)
 	ssh.Flag("no-remote-exec", "Don't execute remote command, useful for port forwarding").Short('N').BoolVar(&cf.NoRemoteExec)
 
+	// Applications.
+	apps := app.Command("apps", "View and control proxied applications.")
+	lsApps := apps.Command("ls", "List available applications.")
+	lsApps.Flag("verbose", "Show extra application fields.").Short('v').BoolVar(&cf.Verbose)
+
 	// join
 	join := app.Command("join", "Join the active SSH session")
 	join.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
@@ -376,6 +381,8 @@ func Run(args []string) {
 		onShow(&cf)
 	case status.FullCommand():
 		onStatus(&cf)
+	case lsApps.FullCommand():
+		onApps(&cf)
 	}
 }
 
@@ -781,6 +788,36 @@ func showNodes(nodes []services.Server, verbose bool) {
 					}
 				}
 				t.AddRow([]string{hostname, addr, strings.Join(v, ", ")})
+			}
+		}
+		fmt.Println(t.AsBuffer().String())
+	}
+}
+
+func showApps(apps []services.Server, verbose bool) {
+	// In verbose mode, print everything on a single line and include host UUID.
+	// In normal mode chunk the labels and print two per line and allow multiple
+	// lines per node.
+	if verbose {
+		t := asciitable.MakeTable([]string{"Application", "Host UUID", "Internal Address", "Public Address", "Labels"})
+		for _, app := range apps {
+			t.AddRow([]string{
+				app.GetName(), "TODO", app.GetInternalAddr(), app.GetPublicAddr(), app.LabelsString(),
+			})
+		}
+		fmt.Println(t.AsBuffer().String())
+	} else {
+		t := asciitable.MakeTable([]string{"Application", "Public Address", "Labels"})
+		for _, app := range apps {
+			labelChunks := chunkLabels(app.GetAllLabels(), 2)
+			for i, v := range labelChunks {
+				var name string
+				var addr string
+				if i == 0 {
+					name = app.GetName()
+					addr = app.GetPublicAddr()
+				}
+				t.AddRow([]string{name, addr, strings.Join(v, ", ")})
 			}
 		}
 		fmt.Println(t.AsBuffer().String())
@@ -1423,4 +1460,28 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func onApps(cf *CLIConf) {
+	tc, err := makeClient(cf, false)
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	// Get a list of all applications.
+	var apps []services.Server
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		apps, err = tc.ListApps(cf.Context)
+		return err
+	})
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	// Sort by application name.
+	sort.Slice(apps, func(i, j int) bool {
+		return apps[i].GetName() < apps[j].GetName()
+	})
+
+	showApps(apps, cf.Verbose)
 }

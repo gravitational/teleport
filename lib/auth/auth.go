@@ -1612,7 +1612,7 @@ func (k *authKeepAliver) forwardKeepAlives() {
 		case <-k.ctx.Done():
 			return
 		case keepAlive := <-k.keepAlivesC:
-			err := k.a.KeepAliveNode(k.ctx, keepAlive)
+			err := k.a.KeepAliveResource(k.ctx, keepAlive)
 			if err != nil {
 				k.closeWithError(err)
 				return
