@@ -28,12 +28,18 @@ type User struct {
 	Created time.Time `json:"created"`
 }
 
-// ResetToken contains data about user password setup.
-type ResetToken struct {
-	// Name of who token belongs to.
-	Name string `json:"name"`
-	// Value is the token ID used to construct password reset URL.
-	Value string `json:"value"`
-	// Expires is when token expires in format HourMinuteSeconds.
-	Expires string `json:"expires"`
+// ResetPasswordToken contains data about user and their password setup.
+type ResetPasswordToken struct {
+	// TokenID is the value of token.
+	TokenID string `json:"tokenId"`
+	// User is user name associated with this token.
+	User string `json:"user"`
+	// QRCode is a QR code value.
+	QRCode []byte `json:"qrCode,omitempty"`
+	// URL is password setup URL.
+	URL string `json:"url,omitempty"`
+	// Expiry is token expiration time.
+	Expiry time.Time `json:"expiry,omitempty"`
+	// Expires is duration when token expires in format HoursMinutesSeconds
+	Expires string `json:"expires,omitempty"`
 }

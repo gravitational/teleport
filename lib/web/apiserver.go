@@ -1212,8 +1212,11 @@ func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Reques
 	}
 
 	return ui.ResetPasswordToken{
-		URL:    token.GetURL(),
-		Expiry: token.Expiry(),
+		URL:     token.GetURL(),
+		Expiry:  token.Expiry(),
+		TokenID: token.GetMetadata().Name,
+		User:    token.GetUser(),
+		Expires: token.Expiry().Sub(h.clock.Now().UTC()).Round(time.Second).String(),
 	}, nil
 }
 

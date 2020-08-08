@@ -1780,15 +1780,11 @@ func (s *WebSuite) TestUICreateUser(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	var userToken responseCreateUser
-	c.Assert(json.Unmarshal(resp.Bytes(), &userToken), IsNil)
+	var user ui.User
+	c.Assert(json.Unmarshal(resp.Bytes(), &user), IsNil)
 
-	user := userToken.User
 	c.Assert(user.Name, Equals, "mimi")
 	c.Assert(user.Roles, DeepEquals, []string{"testrole"})
-
-	token := userToken.Token
-	c.Assert(token.Name, Equals, "mimi")
 }
 
 func (s *WebSuite) TestUIGetUsers(c *C) {
@@ -1803,11 +1799,10 @@ func (s *WebSuite) TestUIGetUsers(c *C) {
 	res, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "users"), url.Values{})
 	c.Assert(err, IsNil)
 
-	var u responseGetUsers
-	c.Assert(json.Unmarshal(res.Bytes(), &u), IsNil)
+	var users []ui.User
+	c.Assert(json.Unmarshal(res.Bytes(), &users), IsNil)
 
 	// sort by name ascend
-	users := u.Users
 	sort.Slice(users, func(i, j int) bool {
 		return users[i].Name < users[j].Name
 	})

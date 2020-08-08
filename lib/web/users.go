@@ -18,9 +18,7 @@ package web
 
 import (
 	"net/http"
-	"time"
 
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -38,18 +36,6 @@ type requestUser struct {
 	Roles []string `json:"roles"`
 }
 
-// responseCreateUser is used to send back data
-// about created local user and password setup token.
-type responseCreateUser struct {
-	User  ui.User       `json:"user"`
-	Token ui.ResetToken `json:"token"`
-}
-
-// responseGetUsers is used to send back list of all locally saved users.
-type responseGetUsers struct {
-	Users []ui.User `json:"users"`
-}
-
 // createUser allows a UI user to create a new user.
 //
 // POST /webapi/sites/:site/namespaces/:namespace/users
@@ -62,8 +48,7 @@ type responseGetUsers struct {
 //
 // Response:
 // {
-//		"user": {...},
-//		"token": {...}
+//		"name": "foo", "roles": ["role1", "role2"], "created": Date
 // }
 func (h *Handler) createUser(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	// Pull out request data.
@@ -74,15 +59,6 @@ func (h *Handler) createUser(w http.ResponseWriter, r *http.Request, p httproute
 
 	if err := req.checkAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// Check user doesn't exist already.
-	_, err := ctx.clt.GetUser(req.Name, false)
-	if !trace.IsNotFound(err) {
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to check whether user %q exists: %v", req.Name, err)
-		}
-		return nil, trace.BadParameter("user %q already registered", req.Name)
 	}
 
 	// Create and insert new user.
@@ -100,26 +76,10 @@ func (h *Handler) createUser(w http.ResponseWriter, r *http.Request, p httproute
 		return nil, trace.Wrap(err)
 	}
 
-	// Create sign up token.
-	token, err := ctx.clt.CreateResetPasswordToken(r.Context(), auth.CreateResetPasswordTokenRequest{
-		Name: req.Name,
-		Type: auth.ResetPasswordTokenTypeInvite,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &responseCreateUser{
-		User: ui.User{
-			Name:    newUser.GetName(),
-			Roles:   newUser.GetRoles(),
-			Created: newUser.GetCreatedBy().Time,
-		},
-		Token: ui.ResetToken{
-			Name:    token.GetUser(),
-			Value:   token.GetMetadata().Name,
-			Expires: token.Expiry().Sub(h.clock.Now().UTC()).Round(time.Second).String(),
-		},
+	return &ui.User{
+		Name:    newUser.GetName(),
+		Roles:   newUser.GetRoles(),
+		Created: newUser.GetCreatedBy().Time,
 	}, nil
 }
 
@@ -128,9 +88,9 @@ func (h *Handler) createUser(w http.ResponseWriter, r *http.Request, p httproute
 // GET /webapi/sites/:site/namespaces/:namespace/users
 //
 // Response:
-// {
-//		"user": [{user1}, {user2}...]
-// }
+// [
+//		{user1}, {user2}...
+// ]
 func (h *Handler) getUsers(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	localUsers, err := ctx.clt.GetUsers(false)
 	if err != nil {
@@ -148,7 +108,7 @@ func (h *Handler) getUsers(w http.ResponseWriter, r *http.Request, p httprouter.
 		users = append(users, user)
 	}
 
-	return &responseGetUsers{Users: users}, nil
+	return users, nil
 }
 
 // checkAndSetDefaults checks validity of a user request.
