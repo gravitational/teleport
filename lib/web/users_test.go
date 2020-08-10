@@ -30,7 +30,8 @@ func (s *UsersSuite) TestCheckUserParameters(c *check.C) {
 	}
 
 	for _, t := range tests {
-		req := requestUser{t.user, t.roles}
+		// isNew boolean doesn't matter for this test.
+		req := saveUserRequest{true, t.user, t.roles}
 		err := req.checkAndSetDefaults()
 
 		if t.isExpErr {

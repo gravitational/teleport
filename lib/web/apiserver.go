@@ -165,11 +165,12 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
 	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changePasswordWithToken))
 	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
-	h.POST("/webapi/sites/:site/namespaces/:namespace/users/password/token", h.WithClusterAuth(h.createResetPasswordToken))
 
 	// User CRUDS that a user in context can apply to other users.
-	h.POST("/webapi/sites/:site/namespaces/:namespace/users", h.WithClusterAuth(h.createUser))
+	h.POST("/webapi/sites/:site/namespaces/:namespace/users/password/token", h.WithClusterAuth(h.createResetPasswordToken))
+	h.PUT("/webapi/sites/:site/namespaces/:namespace/users", h.WithClusterAuth(h.saveUser))
 	h.GET("/webapi/sites/:site/namespaces/:namespace/users", h.WithClusterAuth(h.getUsers))
+	h.DELETE("/webapi/sites/:site/namespaces/:namespace/users/:username", h.WithClusterAuth(h.deleteUser))
 
 	// Issues SSH temp certificates based on 2FA access creds
 	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
@@ -1188,36 +1189,6 @@ func (h *Handler) changePasswordWithToken(w http.ResponseWriter, r *http.Request
 	}
 
 	return NewSessionResponse(ctx)
-}
-
-func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := ctx.GetUserClient(site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var req auth.CreateResetPasswordTokenRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	token, err := clt.CreateResetPasswordToken(context.TODO(),
-		auth.CreateResetPasswordTokenRequest{
-			Name: req.Name,
-			Type: req.Type,
-		})
-
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return ui.ResetPasswordToken{
-		URL:     token.GetURL(),
-		Expiry:  token.Expiry(),
-		TokenID: token.GetMetadata().Name,
-		User:    token.GetUser(),
-		Expires: token.Expiry().Sub(h.clock.Now().UTC()).Round(time.Second).String(),
-	}, nil
 }
 
 func (h *Handler) getResetPasswordTokenHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {

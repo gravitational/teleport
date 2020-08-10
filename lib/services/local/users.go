@@ -111,28 +111,24 @@ func (s *IdentityService) CreateUser(user services.User) error {
 		return trace.Wrap(err)
 	}
 
-	// Check if user already exists.
-	_, err := s.GetUser(user.GetName(), false)
-	if !trace.IsNotFound(err) {
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return trace.AlreadyExists("user %q already registered", user.GetName())
-	}
-
 	value, err := services.GetUserMarshaler().MarshalUser(user.WithoutSecrets().(services.User))
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	item := backend.Item{
 		Key:     backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
 		Value:   value,
 		Expires: user.Expiry(),
 	}
-	_, err = s.Create(context.TODO(), item)
-	if err != nil {
+
+	if _, err = s.Create(context.TODO(), item); err != nil {
+		if trace.IsAlreadyExists(err) {
+			return trace.AlreadyExists("user %q already registered", user.GetName())
+		}
 		return trace.Wrap(err)
 	}
+
 	if auth := user.GetLocalAuth(); auth != nil {
 		if err = s.upsertLocalAuthSecrets(user.GetName(), *auth); err != nil {
 			return trace.Wrap(err)

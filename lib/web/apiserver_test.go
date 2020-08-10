@@ -1771,20 +1771,48 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	c.Assert(cluster.AuthVersion, Equals, "")
 }
 
-func (s *WebSuite) TestUICreateUser(c *C) {
+func (s *WebSuite) TestUISaveUser(c *C) {
 	pack := s.authPack(c, "lulu", true)
 
-	resp, err := pack.clt.PostJSON(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "users"), requestUser{
+	// test update on new user
+	resp, err := pack.clt.PutJSON(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "users"), saveUserRequest{
 		Name:  "mimi",
 		Roles: []string{"testrole"},
+		IsNew: false,
+	})
+	c.Assert(trace.IsNotFound(err), Equals, true)
+
+	// test create on new user
+	resp, err = pack.clt.PutJSON(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "users"), saveUserRequest{
+		Name:  "mimi",
+		Roles: []string{"testrole"},
+		IsNew: true,
 	})
 	c.Assert(err, IsNil)
 
 	var user ui.User
 	c.Assert(json.Unmarshal(resp.Bytes(), &user), IsNil)
-
 	c.Assert(user.Name, Equals, "mimi")
 	c.Assert(user.Roles, DeepEquals, []string{"testrole"})
+
+	// test create on existing user
+	resp, err = pack.clt.PutJSON(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "users"), saveUserRequest{
+		Name:  "mimi",
+		Roles: []string{"changerole"},
+		IsNew: true,
+	})
+	c.Assert(trace.IsAlreadyExists(err), Equals, true)
+
+	// test update on existing user
+	resp, err = pack.clt.PutJSON(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "users"), saveUserRequest{
+		Name:  "mimi",
+		Roles: []string{"changerole"},
+		IsNew: false,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(json.Unmarshal(resp.Bytes(), &user), IsNil)
+	c.Assert(user.Name, Equals, "mimi")
+	c.Assert(user.Roles, DeepEquals, []string{"changerole"})
 }
 
 func (s *WebSuite) TestUIGetUsers(c *C) {
@@ -1810,6 +1838,47 @@ func (s *WebSuite) TestUIGetUsers(c *C) {
 	c.Assert(users[0].Name, Equals, "user1")
 	c.Assert(users[1].Name, Equals, "user2")
 	c.Assert(users[2].Name, Equals, "user3")
+}
+
+func (s *WebSuite) TestUICreateResetPasswordToken(c *C) {
+	// create a valid user to test against
+	s.createUser(c, "mimi", "mimi", "password", "", false)
+
+	// reset password with type invite
+	pack := s.authPack(c, "lulu", true)
+	req := auth.CreateResetPasswordTokenRequest{
+		Name: "mimi",
+		Type: "invite",
+	}
+	res, err := pack.clt.PostJSON(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "users", "password", "token"), req)
+	c.Assert(err, IsNil)
+
+	var token ui.ResetPasswordToken
+	c.Assert(json.Unmarshal(res.Bytes(), &token), IsNil)
+	c.Assert(token.User, Equals, "mimi")
+	c.Assert(token.Expires, Equals, "1h0m0s")
+
+	// reset password with type password
+	req.Type = "password"
+	res, err = pack.clt.PostJSON(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "users", "password", "token"), req)
+	c.Assert(err, IsNil)
+
+	c.Assert(json.Unmarshal(res.Bytes(), &token), IsNil)
+	c.Assert(token.User, Equals, "mimi")
+	c.Assert(token.Expires, Equals, "8h0m0s")
+}
+
+func (s *WebSuite) TestUIDeleteUser(c *C) {
+	s.createUser(c, "mimi", "mimi", "password", "", false)
+
+	// delete user
+	pack := s.authPack(c, "lulu", true)
+	res, err := pack.clt.Delete(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "users", "mimi"))
+	c.Assert(err, IsNil)
+
+	var m struct{ Message string }
+	c.Assert(json.Unmarshal(res.Bytes(), &m), IsNil)
+	c.Assert(m.Message, Equals, "ok")
 }
 
 type authProviderMock struct {
