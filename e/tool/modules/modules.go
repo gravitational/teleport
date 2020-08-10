@@ -1,7 +1,6 @@
 package modules
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"fmt"
 	"reflect"
@@ -59,13 +58,7 @@ func (p *enterpriseModules) DefaultAllowedLogins() []string {
 // PrintVersion prints the Teleport version. For enterprise it includes
 // "Enterprise" in the output.
 func (p *enterpriseModules) PrintVersion() {
-	var buf bytes.Buffer
-
-	buf.WriteString(fmt.Sprintf("Teleport Enterprise v%s", teleport.Version))
-	buf.WriteString(fmt.Sprintf("git:%s ", teleport.Gitref))
-	buf.WriteString(runtime.Version())
-
-	fmt.Println(buf.String())
+	fmt.Printf("Teleport Enterprise v%s git:%s %s\n", teleport.Version, teleport.Gitref, runtime.Version())
 }
 
 // RolesFromLogins returns roles for external user based on the logins
