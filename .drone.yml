@@ -2259,6 +2259,190 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
+name: build-oss-amis
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+depends_on:
+  - test
+  - build-linux-amd64
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+
+  - name: Download built tarball artifacts from S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
+
+  - name: Build OSS AMIs
+    image: hashicorp/packer
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_PACKER_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_PACKER_SECRET_ACCESS_KEY
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache aws-cli jq make
+      - cd /go/src/github.com/gravitational/teleport/assets/aws
+      - export TELEPORT_VERSION=$(cat /go/.version.txt)
+      - export PUBLIC_AMI_NAME=gravitational-teleport-ami-oss-$TELEPORT_VERSION
+      - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-oss-$TELEPORT_VERSION
+      - |
+        if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
+          echo "Building production OSS AMIs"
+          make oss-ci-build
+          echo "Making OSS AMIs public"
+          make change-amis-to-public-oss
+        else
+          echo "Building debug OSS AMIs"
+          make oss
+        fi
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: build-ent-amis
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+depends_on:
+  - test
+  - build-linux-amd64
+  - build-linux-amd64-fips
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+
+  - name: Download built tarball artifacts from S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
+
+  - name: Build Enterprise AMIs
+    image: hashicorp/packer
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_PACKER_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_PACKER_SECRET_ACCESS_KEY
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache aws-cli jq make
+      - cd /go/src/github.com/gravitational/teleport/assets/aws
+      - export TELEPORT_VERSION=$(cat /go/.version.txt)
+      - export PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-$TELEPORT_VERSION
+      - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-ent-$TELEPORT_VERSION
+      - |
+        if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
+          echo "Building production Enterprise AMIs"
+          make ent-ci-build
+          echo "Making Enterprise AMIs public"
+          make change-amis-to-public-ent
+          echo "Making Enterprise FIPS AMIs public"
+          make change-amis-to-public-ent-fips
+        else
+          echo "Building debug Enterprise AMIs"
+          make ent
+        fi
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
 name: build-buildboxes
 
 environment:
@@ -2426,6 +2610,6 @@ steps:
 
 ---
 kind: signature
-hmac: 60f352cf4f8268ea82871436506f7ca84ca554c830b024c92a6bc777a33dc821
+hmac: 1c8b4bd603f7fa192dc214caec6ea7783c675144fe4658d8d7964b7db66b5c1d
 
 ...

@@ -14,7 +14,7 @@ MARKETPLACE_AMI_NAME ?=
 AWS_REGION ?= us-west-2
 
 # Teleport version
-TELEPORT_VERSION ?= 4.2.3
+TELEPORT_VERSION ?= 4.3.2
 
 # Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007
@@ -57,11 +57,11 @@ oss:
 	@echo "$(BUILD_TIMESTAMP)" > files/build/oss_build_timestamp.txt
 
 # Build named 'production' AMI and marketplace version
-.PHONY: oss-jenkins-build
-oss-jenkins-build: TELEPORT_TYPE=oss
-oss-jenkins-build: check-vars
-oss-jenkins-build:
-	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) via Jenkins"
+.PHONY: oss-ci-build
+oss-ci-build: TELEPORT_TYPE=oss
+oss-ci-build: check-vars
+oss-ci-build:
+	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) via CI"
 	@echo "Public AMI name: $(PUBLIC_AMI_NAME)"
 	@echo "Marketplace AMI name: $(MARKETPLACE_AMI_NAME)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
@@ -85,11 +85,11 @@ ent: check-vars
 	@echo "$(BUILD_TIMESTAMP)" > files/build/ent_build_timestamp.txt
 
 # Build named 'production' AMI and marketplace version
-.PHONY: ent-jenkins-build
-ent-jenkins-build: TELEPORT_TYPE=ent
-ent-jenkins-build: check-vars
-ent-jenkins-build:
-	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) via Jenkins"
+.PHONY: ent-ci-build
+ent-ci-build: TELEPORT_TYPE=ent
+ent-ci-build: check-vars
+ent-ci-build:
+	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) via CI"
 	@echo "Public AMI name: $(PUBLIC_AMI_NAME)"
 	@echo "FIPS AMI name: $(FIPS_AMI_NAME)"
 	@echo "Marketplace AMI name: $(MARKETPLACE_AMI_NAME)"

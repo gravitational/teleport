@@ -51,23 +51,44 @@ chown -R teleport:adm /run/teleport /var/lib/teleport /etc/teleport.d/
 pushd /tmp
 # Install the FIPS version of Teleport if /tmp/teleport-fips is present
 if [ -f /tmp/teleport-fips ]; then
+    TARBALL_FILENAME="/tmp/files/teleport-ent-v${TELEPORT_VERSION}-linux-amd64-fips-bin.tar.gz"
+    # Use a Teleport artifact uploaded from the build machine, if present
+    if [ -f ${TARBALL_FILENAME} ]; then
+        echo "Found locally uploaded Enterprise FIPS tarball ${TARBALL_FILENAME}, moving to /tmp/teleport.tar.gz"
+        mv ${TARBALL_FILENAME} /tmp/teleport.tar.gz
+    else
         echo "Installing Enterprise Teleport version ${TELEPORT_VERSION} with FIPS support"
         curl ${CURL_OPTS} -o teleport.tar.gz https://get.gravitational.com/teleport/${TELEPORT_VERSION}/teleport-ent-v${TELEPORT_VERSION}-linux-amd64-fips-bin.tar.gz
-        tar -xzf teleport.tar.gz
-        cp teleport-ent/tctl teleport-ent/tsh teleport-ent/teleport /usr/bin
-        rm -rf /tmp/teleport.tar.gz /tmp/teleport-ent
-        # add --fips to 'teleport start' commands in FIPS mode
-        sed -i -E "s_ExecStart=/usr/bin/teleport start(.*)_ExecStart=/usr/bin/teleport start --fips\1_g" /etc/systemd/system/teleport*.service
-else 
+    fi
+    tar -xzf teleport.tar.gz
+    cp teleport-ent/tctl teleport-ent/tsh teleport-ent/teleport /usr/bin
+    rm -rf /tmp/teleport.tar.gz /tmp/teleport-ent
+    # add --fips to 'teleport start' commands in FIPS mode
+    sed -i -E "s_ExecStart=/usr/bin/teleport start(.*)_ExecStart=/usr/bin/teleport start --fips\1_g" /etc/systemd/system/teleport*.service
+else
     if [[ "${TELEPORT_TYPE}" == "oss" ]]; then
-        echo "Installing OSS Teleport version ${TELEPORT_VERSION}"
-        curl ${CURL_OPTS} -o teleport.tar.gz https://s3.amazonaws.com/clientbuilds.gravitational.io/teleport/${TELEPORT_VERSION}/teleport-v${TELEPORT_VERSION}-linux-amd64-bin.tar.gz
+        TARBALL_FILENAME="/tmp/files/teleport-v${TELEPORT_VERSION}-linux-amd64-bin.tar.gz"
+        # Use a Teleport artifact uploaded from the build machine, if present
+        if [ -f ${TARBALL_FILENAME} ]; then
+            echo "Found locally uploaded OSS tarball ${TARBALL_FILENAME}, moving to /tmp/teleport.tar.gz"
+            mv ${TARBALL_FILENAME} /tmp/teleport.tar.gz
+        else
+            echo "Installing OSS Teleport version ${TELEPORT_VERSION}"
+            curl ${CURL_OPTS} -o teleport.tar.gz https://get.gravitational.com/teleport/${TELEPORT_VERSION}/teleport-v${TELEPORT_VERSION}-linux-amd64-bin.tar.gz
+        fi
         tar -xzf teleport.tar.gz
         cp teleport/tctl teleport/tsh teleport/teleport /usr/bin
         rm -rf /tmp/teleport.tar.gz /tmp/teleport
     else
-        echo "Installing Enterprise Teleport version ${TELEPORT_VERSION}"
-        curl ${CURL_OPTS} -o teleport.tar.gz https://get.gravitational.com/teleport/${TELEPORT_VERSION}/teleport-ent-v${TELEPORT_VERSION}-linux-amd64-bin.tar.gz
+        TARBALL_FILENAME="/tmp/files/teleport-ent-v${TELEPORT_VERSION}-linux-amd64-bin.tar.gz"
+        # Use a Teleport artifact uploaded from the build machine, if present
+        if [ -f ${TARBALL_FILENAME} ]; then
+             echo "Found locally uploaded Enterprise tarball ${TARBALL_FILENAME}, moving to /tmp/teleport.tar.gz"
+            mv ${TARBALL_FILENAME} /tmp/teleport.tar.gz
+        else
+            echo "Installing Enterprise Teleport version ${TELEPORT_VERSION}"
+            curl ${CURL_OPTS} -o teleport.tar.gz https://get.gravitational.com/teleport/${TELEPORT_VERSION}/teleport-ent-v${TELEPORT_VERSION}-linux-amd64-bin.tar.gz
+        fi
         tar -xzf teleport.tar.gz
         cp teleport-ent/tctl teleport-ent/tsh teleport-ent/teleport /usr/bin
         rm -rf /tmp/teleport.tar.gz /tmp/teleport-ent
