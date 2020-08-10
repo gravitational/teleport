@@ -12,23 +12,22 @@ pipeline {
     stages {
         stage('Create files/build directory') {
             steps {
-                dir('assets/marketplace') {
+                dir('assets/aws') {
                     sh 'mkdir -p files/build'
                 }
             }
         }
         stage('Run Packer to build specified version') {
             steps {
-                dir('assets/marketplace') {
-                    sh "PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-${params.version} FIPS_AMI_NAME=gravitational-teleport-ami-ent-${params.version}-fips MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-ent-${params.version} TELEPORT_VERSION=${params.version} make ent-jenkins-build"
+                dir('assets/aws') {
+                    sh "PUBLIC_AMI_NAME=gravitational-teleport-ami-oss-${params.version} MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-oss-${params.version} TELEPORT_VERSION=${params.version} make oss-ci-build"
                 }
             }
         }
-        stage('Make Enterprise AMIs public') {
+        stage('Make OSS AMIs public') {
             steps {
-                dir('assets/marketplace') {
-                    sh 'make change-amis-to-public-ent'
-                    sh 'make change-amis-to-public-ent-fips'
+                dir('assets/aws') {
+                    sh 'make change-amis-to-public-oss'
                 }
             }
         }
