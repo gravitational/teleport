@@ -45,10 +45,26 @@ steps:
             git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
           fi
         fi
+
+  - name: Run tests
+    image: docker:git
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
       # install make
       - apk add --no-cache make
       # run tests
       - make clean test
+
+  - name: Build artifacts
+    image: docker:git
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      # install make
+      - apk add --no-cache make
       # build artifacts
       - make build
 
@@ -66,6 +82,6 @@ volumes:
 
 ---
 kind: signature
-hmac: cf0ca72568c110f1925cbfb19338e050133f5f6c64386ae94cc22c85a0c0011e
+hmac: 44e1c218a04ebb9c85d984e5d817e0f9a975e056a19d825c705e4d707b8641ac
 
 ...
