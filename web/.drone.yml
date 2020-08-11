@@ -55,6 +55,7 @@ steps:
       # install make
       - apk add --no-cache make
       # run tests
+      - cd /tmp/webassets
       - make clean test
 
   - name: Build artifacts
@@ -66,6 +67,7 @@ steps:
       # install make
       - apk add --no-cache make
       # build artifacts
+      - cd /tmp/webassets
       - make build
 
 services:
@@ -82,6 +84,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 44e1c218a04ebb9c85d984e5d817e0f9a975e056a19d825c705e4d707b8641ac
+hmac: bc516a1895bf615d587ee707e8aeb59f773d34faeddd08671729458e60d834d3
 
 ...
