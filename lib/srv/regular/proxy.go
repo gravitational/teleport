@@ -264,7 +264,7 @@ func (t *proxySubsys) proxyToSite(
 			t.close(err)
 		}()
 		defer conn.Close()
-		_, err = io.Copy(conn, srv.NewTrackingReader(ctx, ch))
+		_, err = io.Copy(conn, ch)
 
 	}()
 
@@ -438,7 +438,7 @@ func (t *proxySubsys) proxyToHost(
 			t.close(err)
 		}()
 		defer conn.Close()
-		_, err = io.Copy(conn, srv.NewTrackingReader(ctx, ch))
+		_, err = io.Copy(conn, ch)
 	}()
 
 	return nil

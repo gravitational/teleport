@@ -422,6 +422,12 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 	return nil
 }
 
+// TrackActivity keeps track of all activity on ssh.Channel. The caller should
+// use the returned ssh.Channel instead of the original one.
+func (c *ServerContext) TrackActivity(ch ssh.Channel) ssh.Channel {
+	return newTrackingChannel(ch, c)
+}
+
 // GetClientLastActive returns time when client was last active
 func (c *ServerContext) GetClientLastActive() time.Time {
 	c.RLock()
@@ -742,25 +748,4 @@ func closeAll(closers ...io.Closer) error {
 	}
 
 	return trace.NewAggregate(errs...)
-}
-
-// NewTrackingReader returns a new instance of
-// activity tracking reader.
-func NewTrackingReader(ctx *ServerContext, r io.Reader) *TrackingReader {
-	return &TrackingReader{ctx: ctx, r: r}
-}
-
-// TrackingReader wraps the writer
-// and every time write occurs, updates
-// the activity in the server context
-type TrackingReader struct {
-	ctx *ServerContext
-	r   io.Reader
-}
-
-// Read passes the read through to internal
-// reader, and updates activity of the server context
-func (a *TrackingReader) Read(b []byte) (int, error) {
-	a.ctx.UpdateClientActivity()
-	return a.r.Read(b)
 }

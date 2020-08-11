@@ -943,6 +943,8 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	scx.DstAddr = net.JoinHostPort(req.Host, strconv.Itoa(int(req.Port)))
 	defer scx.Close()
 
+	channel = scx.TrackActivity(channel)
+
 	// Check if the role allows port forwarding for this user.
 	err = s.authHandlers.CheckPortForward(scx.DstAddr, scx)
 	if err != nil {
@@ -1054,6 +1056,8 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	scx.AddCloser(ch)
 	scx.ChannelType = teleport.ChanSession
 	defer scx.Close()
+
+	ch = scx.TrackActivity(ch)
 
 	clusterConfig, err := s.GetAccessPoint().GetClusterConfig()
 	if err != nil {
@@ -1345,6 +1349,8 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 	scx.IsTestStub = s.isTestStub
 	scx.AddCloser(ch)
 	defer scx.Close()
+
+	ch = scx.TrackActivity(ch)
 
 	clusterConfig, err := s.GetAccessPoint().GetClusterConfig()
 	if err != nil {

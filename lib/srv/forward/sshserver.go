@@ -666,6 +666,8 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	scx.DstAddr = fmt.Sprintf("%v:%d", req.Host, req.Port)
 	defer scx.Close()
 
+	ch = scx.TrackActivity(ch)
+
 	// Check if the role allows port forwarding for this user.
 	err = s.authHandlers.CheckPortForward(scx.DstAddr, scx)
 	if err != nil {
@@ -743,6 +745,8 @@ func (s *Server) handleSessionRequests(ctx context.Context, ch ssh.Channel, in <
 	scx.AddCloser(ch)
 	scx.ChannelType = teleport.ChanSession
 	defer scx.Close()
+
+	ch = scx.TrackActivity(ch)
 
 	// Create a "session" channel on the remote host.
 	remoteSession, err := s.remoteClient.NewSession()
