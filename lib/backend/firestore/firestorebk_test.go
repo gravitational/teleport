@@ -155,4 +155,14 @@ func (s *FirestoreSuite) TestReadLegacyRecord(c *check.C) {
 	c.Assert(got.Value, check.DeepEquals, item.Value)
 	c.Assert(got.ID, check.DeepEquals, item.ID)
 	c.Assert(got.Expires.Equal(item.Expires), check.Equals, true)
+
+	// Read the data back using a range query too.
+	gotRange, err := s.bk.GetRange(ctx, item.Key, item.Key, 1)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(gotRange.Items), check.Equals, 1)
+	got = &gotRange.Items[0]
+	c.Assert(got.Key, check.DeepEquals, item.Key)
+	c.Assert(got.Value, check.DeepEquals, item.Value)
+	c.Assert(got.ID, check.DeepEquals, item.ID)
+	c.Assert(got.Expires.Equal(item.Expires), check.Equals, true)
 }
