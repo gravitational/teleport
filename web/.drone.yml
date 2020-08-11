@@ -6,7 +6,6 @@ name: test-and-build
 trigger:
   event:
     include:
-      - push
       - pull_request
 
 workspace:
@@ -46,6 +45,8 @@ steps:
             git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
           fi
         fi
+      # install make
+      - apk add --no-cache make
       # run tests
       - make clean test
       # build artifacts
@@ -65,6 +66,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 8b992607a21a3319d323f5ee74571bf86f054e67677f0d73b0aa3d5d68744fa1
+hmac: cf0ca72568c110f1925cbfb19338e050133f5f6c64386ae94cc22c85a0c0011e
 
 ...
