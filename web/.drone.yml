@@ -51,26 +51,6 @@ steps:
       # build artifacts
       - make build
 
-  # - name: Send Slack notification for build failures
-  #   image: plugins/slack
-  #   settings:
-  #     webhook:
-  #       from_secret: SLACK_WEBHOOK
-  #     channel: teleport-builds
-  #     template: |
-  #       {{#if build.pull }}
-  #         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}*: <https://github.com/{{ repo.owner }}/{{ repo.name }}/pull/{{ build.pull }}|Pull Request #{{ build.pull }}>
-  #       {{else}}
-  #         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-  #       {{/if}}
-  #       Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-  #       Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
-  #       Author: {{ build.author }}
-  #       <{{ build.link }}|Visit build page ↗>
-  #   when:
-  #     event: [push]
-  #     status: [failure]
-
 services:
   - name: Start Docker
     image: docker:dind
@@ -85,6 +65,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 4b5226e038fd0d26ec37d5378c157b1da738c6a4682cd49a9e0cc995262da4be
+hmac: 8b992607a21a3319d323f5ee74571bf86f054e67677f0d73b0aa3d5d68744fa1
 
 ...
