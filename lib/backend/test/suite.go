@@ -100,10 +100,12 @@ func (s *BackendSuite) CRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(string(out.Value), check.Equals, string(item.Value))
 
-	// put with binary data succeeds
+	// put with binary key and value succeeds
+	key := make([]byte, 1024)
+	rand.Read(key)
 	data := make([]byte, 1024)
 	rand.Read(data)
-	item = backend.Item{Key: prefix("/binary"), Value: data}
+	item = backend.Item{Key: prefix(string(key)), Value: data}
 	_, err = s.B.Put(ctx, item)
 	c.Assert(err, check.IsNil)
 

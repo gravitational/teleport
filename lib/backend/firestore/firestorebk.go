@@ -110,7 +110,7 @@ type FirestoreBackend struct {
 }
 
 type record struct {
-	Key       string `firestore:"key,omitempty"`
+	Key       []byte `firestore:"key,omitempty"`
 	Timestamp int64  `firestore:"timestamp,omitempty"`
 	Expires   int64  `firestore:"expires,omitempty"`
 	ID        int64  `firestore:"id,omitempty"`
@@ -135,7 +135,7 @@ type legacyRecord struct {
 
 func newRecord(from backend.Item, clock clockwork.Clock) record {
 	r := record{
-		Key:       string(from.Key),
+		Key:       from.Key,
 		Value:     from.Value,
 		Timestamp: clock.Now().UTC().Unix(),
 		ID:        clock.Now().UTC().UnixNano(),
@@ -157,7 +157,7 @@ func newRecordFromDoc(doc *firestore.DocumentSnapshot) (*record, error) {
 			return nil, ConvertGRPCError(err)
 		}
 		r = record{
-			Key:       rl.Key,
+			Key:       []byte(rl.Key),
 			Value:     []byte(rl.Value),
 			Timestamp: rl.Timestamp,
 			Expires:   rl.Expires,
@@ -178,7 +178,7 @@ func (r *record) isExpired() bool {
 
 func (r *record) backendItem() backend.Item {
 	bi := backend.Item{
-		Key:   []byte(r.Key),
+		Key:   r.Key,
 		Value: r.Value,
 		ID:    r.ID,
 	}
@@ -341,11 +341,23 @@ func (b *FirestoreBackend) getRangeDocs(ctx context.Context, startKey []byte, en
 	if limit <= 0 {
 		limit = backend.DefaultLargeLimit
 	}
-	return b.svc.Collection(b.CollectionName).
+	docs, err := b.svc.Collection(b.CollectionName).
+		Where(keyDocProperty, ">=", startKey).
+		Where(keyDocProperty, "<=", endKey).
+		Limit(limit).
+		Documents(ctx).GetAll()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	legacyDocs, err := b.svc.Collection(b.CollectionName).
 		Where(keyDocProperty, ">=", string(startKey)).
 		Where(keyDocProperty, "<=", string(endKey)).
 		Limit(limit).
 		Documents(ctx).GetAll()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return append(docs, legacyDocs...), nil
 }
 
 // GetRange returns range of elements
@@ -612,7 +624,7 @@ func (b *FirestoreBackend) watchCollection() error {
 				e = backend.Event{
 					Type: backend.OpDelete,
 					Item: backend.Item{
-						Key: []byte(r.Key),
+						Key: r.Key,
 					},
 				}
 			}
