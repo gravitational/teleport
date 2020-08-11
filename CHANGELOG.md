@@ -1,6 +1,14 @@
 # Changelog
 
-### 4.3.1
+### 4.3.3
+
+This release of Teleport contains multiple bug fixes.
+
+* Fixed issue that caused intermittent login failures when using PAM modules like `pam_loginuid.so` and `pam_selinux.so`. [#4133](https://github.com/gravitational/teleport/pull/4133)
+* Fixed issue that required users to manually verify a certificate when exporting an identity file. [#4003](https://github.com/gravitational/teleport/pull/4003)
+* Fixed an issue that prevented local user creation using Firestore. [#4160](https://github.com/gravitational/teleport/pull/4160)
+
+### 4.3.2
 
 This release of Teleport contains multiple bug fixes.
 
