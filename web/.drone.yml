@@ -4,9 +4,13 @@ type: kubernetes
 name: test-and-build
 
 trigger:
+  branch:
+    - master
+    - branch/*
   event:
     include:
       - pull_request
+      - push
 
 workspace:
   path: /tmp
@@ -46,7 +50,10 @@ steps:
           fi
         fi
       # check out submodules
+      - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
       - git submodule update --init --recursive
+      - rm -f /root/.ssh/id_rsa
 
   - name: Run tests
     image: docker:git
@@ -86,6 +93,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 073a44ec4ddad57c2950dcffd97cc647de9d2c57d07c72e08e54ae4b33b426f7
+hmac: bea390c226cc4746e3e084565e96da06184609b90cf37bb5b14057920ff9a683
 
 ...
