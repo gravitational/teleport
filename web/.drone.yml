@@ -45,6 +45,8 @@ steps:
             git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
           fi
         fi
+      # check out submodules
+      - git submodule update --init --recursive
 
   - name: Run tests
     image: docker:git
@@ -84,6 +86,6 @@ volumes:
 
 ---
 kind: signature
-hmac: bc516a1895bf615d587ee707e8aeb59f773d34faeddd08671729458e60d834d3
+hmac: 073a44ec4ddad57c2950dcffd97cc647de9d2c57d07c72e08e54ae4b33b426f7
 
 ...
