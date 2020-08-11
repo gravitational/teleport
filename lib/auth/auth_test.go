@@ -701,11 +701,6 @@ func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
 
 	ctx := context.Background()
 
-	// test create user, trigger error
-	err = s.a.CreateUser(ctx, user)
-	c.Assert(err, ErrorMatches, `created by is not set for new user "some-user"`)
-	c.Assert(s.mockedAuditLog.EmittedEvent, IsNil)
-
 	// test create uesr, happy path
 	user.SetCreatedBy(services.CreatedBy{
 		User: services.UserRef{Name: "some-auth-user"},
@@ -715,6 +710,28 @@ func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
 	c.Assert(s.mockedAuditLog.EmittedEvent.EventType, DeepEquals, events.UserCreate)
 	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.EventUser], Equals, "some-auth-user")
 	s.mockedAuditLog.Reset()
+
+	// test create user with existing user
+	err = s.a.CreateUser(ctx, user)
+	fmt.Println("err: ", err)
+
+	c.Assert(trace.IsAlreadyExists(err), Equals, true)
+	c.Assert(s.mockedAuditLog.EmittedEvent, IsNil)
+
+	// test uninit createdBy gets set to default
+	user2, err := services.NewUser("some-other-user")
+	c.Assert(err, IsNil)
+	err = s.a.CreateUser(ctx, user2)
+	c.Assert(err, IsNil)
+	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.EventUser], Equals, "system")
+	s.mockedAuditLog.Reset()
+
+	// test update on non-existent user
+	user3, err := services.NewUser("non-existent-user")
+	c.Assert(err, IsNil)
+	err = s.a.UpdateUser(ctx, user3)
+	c.Assert(trace.IsNotFound(err), Equals, true)
+	c.Assert(s.mockedAuditLog.EmittedEvent, IsNil)
 
 	// test update user
 	err = s.a.UpdateUser(ctx, user)

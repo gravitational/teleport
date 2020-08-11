@@ -312,7 +312,7 @@ func (rc *ResourceCommand) createGithubConnector(client auth.ClientI, raw servic
 	return nil
 }
 
-// createUser implements 'tctl create user.yaml' command
+// createUser implements 'tctl create user.yaml' command.
 func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownResource) error {
 	user, err := services.GetUserMarshaler().UnmarshalUser(raw.Raw)
 	if err != nil {
@@ -320,7 +320,7 @@ func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownR
 	}
 
 	userName := user.GetName()
-	_, err = client.GetUser(userName, false)
+	existingUser, err := client.GetUser(userName, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -331,16 +331,19 @@ func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownR
 			return trace.AlreadyExists("user %q already exists", userName)
 		}
 
+		// Unmarshalling user sets createdBy to zero values which will overwrite existing data.
+		// This field should not be allowed to be overwritten.
+		user.SetCreatedBy(existingUser.GetCreatedBy())
+
 		if err := client.UpdateUser(context.TODO(), user); err != nil {
 			return trace.Wrap(err)
 		}
-
 		fmt.Printf("user %q has been updated\n", userName)
+
 	} else {
 		if err := client.CreateUser(context.TODO(), user); err != nil {
 			return trace.Wrap(err)
 		}
-
 		fmt.Printf("user %q has been created\n", userName)
 	}
 
