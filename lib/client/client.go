@@ -587,6 +587,9 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 	// creates a new context which holds the agent. if ForwardToAgent returns an error
 	// "already have handler for" we ignore it.
 	if recordingProxy {
+		if proxy.teleportClient.localAgent == nil {
+			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
+		}
 		err = agent.ForwardToAgent(proxy.Client, proxy.teleportClient.localAgent.Agent)
 		if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
 			return nil, trace.Wrap(err)
@@ -672,6 +675,9 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 	// creates a new context which holds the agent. if ForwardToAgent returns an error
 	// "already have handler for" we ignore it.
 	if recordingProxy {
+		if proxy.teleportClient.localAgent == nil {
+			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
+		}
 		err = agent.ForwardToAgent(proxy.Client, proxy.teleportClient.localAgent.Agent)
 		if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
 			return nil, trace.Wrap(err)

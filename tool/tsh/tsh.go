@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -1041,6 +1042,20 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 			return nil, trace.Wrap(err)
 		}
 		c.AuthMethods = []ssh.AuthMethod{identityAuth}
+
+		// Also create an in-memory agent to hold the key. If cluster is in
+		// proxy recording mode, agent forwarding will be required for
+		// sessions.
+		c.Agent = agent.NewKeyring()
+		agentKeys, err := key.AsAgentKeys()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, k := range agentKeys {
+			if err := c.Agent.Add(k); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
 
 		if len(key.TLSCert) > 0 {
 			c.TLS, err = key.ClientTLSConfig()

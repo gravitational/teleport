@@ -146,7 +146,7 @@ func (a *LocalKeyAgent) LoadKey(key Key) (*agent.AddedKey, error) {
 	// iterate over all teleport and system agent and load key
 	for _, agent := range agents {
 		for _, agentKey := range agentKeys {
-			err = agent.Add(*agentKey)
+			err = agent.Add(agentKey)
 			if err != nil {
 				a.log.Warnf("Unable to communicate with agent and add key: %v", err)
 			}
@@ -155,7 +155,7 @@ func (a *LocalKeyAgent) LoadKey(key Key) (*agent.AddedKey, error) {
 
 	// return the first key because it has the embedded private key in it.
 	// see docs for AsAgentKeys for more details.
-	return agentKeys[0], nil
+	return &agentKeys[0], nil
 }
 
 // UnloadKey will unload key for user from the teleport ssh agent as well as
