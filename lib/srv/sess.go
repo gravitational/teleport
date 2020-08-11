@@ -1227,7 +1227,6 @@ func (p *party) getLastActive() time.Time {
 
 func (p *party) Read(bytes []byte) (int, error) {
 	p.updateActivity()
-	p.ctx.UpdateClientActivity()
 	return p.ch.Read(bytes)
 }
 
