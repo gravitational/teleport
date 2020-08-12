@@ -12,6 +12,7 @@ Restart=on-failure
 # if none is set
 ExecStart=/usr/local/bin/teleport start --roles=node --config=/etc/teleport.yaml --pid-file=/run/teleport.pid
 ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
 PIDFile=/run/teleport.pid
 
 [Install]

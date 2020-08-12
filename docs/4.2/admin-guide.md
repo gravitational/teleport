@@ -60,6 +60,7 @@ Type=simple
 Restart=on-failure
 ExecStart=/usr/local/bin/teleport start --config=/etc/teleport.yaml --pid-file=/run/teleport.pid
 ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
 PIDFile=/run/teleport.pid
 
 [Install]

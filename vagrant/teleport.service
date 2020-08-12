@@ -1,6 +1,6 @@
 [Unit]
 Description=Teleport SSH server
-After=network.target 
+After=network.target
 
 [Service]
 Type=simple
@@ -8,6 +8,7 @@ Restart=always
 RestartSec=5
 ExecStartPre=/bin/mkdir -p -m0700 /var/lib/teleport
 ExecStart=/usr/local/bin/teleport start -c /opt/teleport/teleport.yaml
+KillMode=process
 MountFlags=slave
 LimitNOFILE=1048576
 LimitNPROC=1048576

@@ -75,6 +75,7 @@ data:
     Restart=on-failure
     ExecStart=/usr/local/bin/teleport start -c /etc/teleport/teleport.yaml --pid-file=/run/teleport.pid
     ExecReload=/bin/kill -HUP \$MAINPID
+    KillMode=process
     PIDFile=/run/teleport.pid
 
     [Install]
