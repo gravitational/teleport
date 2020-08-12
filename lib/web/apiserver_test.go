@@ -980,19 +980,23 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 	ws, err := s.makeTerminal(s.authPack(c, "foo"))
 	c.Assert(err, IsNil)
 
-	// flush out raw event (pty texts)
-	err = s.waitForRawEvent(ws, 1*time.Second)
-	c.Assert(err, IsNil)
-
-	// next frames should be just pings sent out by ping loop
-	// b/c nothing else should be sending anything at this point
-	frame, err := ws.NewFrameReader()
-	c.Assert(err, IsNil)
-	c.Assert(int(frame.PayloadType()), Equals, websocket.PingFrame)
-
-	frame, err = ws.NewFrameReader()
-	c.Assert(err, IsNil)
-	c.Assert(int(frame.PayloadType()), Equals, websocket.PingFrame)
+	var numPings int
+	start := time.Now()
+	for {
+		frame, err := ws.NewFrameReader()
+		c.Assert(err, IsNil)
+		// We should get a mix of output (binary) and ping frames. Count only
+		// the ping frames.
+		if int(frame.PayloadType()) == websocket.PingFrame {
+			numPings++
+		}
+		if numPings > 1 {
+			break
+		}
+		if time.Since(start) > 5*time.Second {
+			c.Fatalf("received %d ping frames within 5s of opening a socket, expected at least 2", numPings)
+		}
+	}
 
 	err = ws.Close()
 	c.Assert(err, IsNil)
