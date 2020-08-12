@@ -111,6 +111,15 @@ func (s *IdentityService) CreateUser(user services.User) error {
 		return trace.Wrap(err)
 	}
 
+	// Confirm user doesn't exist before creating.
+	_, err := s.GetUser(user.GetName(), false)
+	if !trace.IsNotFound(err) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.AlreadyExists("user %q already registered", user.GetName())
+	}
+
 	value, err := services.GetUserMarshaler().MarshalUser(user.WithoutSecrets().(services.User))
 	if err != nil {
 		return trace.Wrap(err)
@@ -123,9 +132,6 @@ func (s *IdentityService) CreateUser(user services.User) error {
 	}
 
 	if _, err = s.Create(context.TODO(), item); err != nil {
-		if trace.IsAlreadyExists(err) {
-			return trace.AlreadyExists("user %q already registered", user.GetName())
-		}
 		return trace.Wrap(err)
 	}
 
@@ -143,6 +149,11 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user services.User) er
 		return trace.Wrap(err)
 	}
 
+	// Confirm user exists before updating.
+	if _, err := s.GetUser(user.GetName(), false); err != nil {
+		return trace.Wrap(err)
+	}
+
 	value, err := services.GetUserMarshaler().MarshalUser(user.WithoutSecrets().(services.User))
 	if err != nil {
 		return trace.Wrap(err)
@@ -155,9 +166,6 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user services.User) er
 	}
 	_, err = s.Update(ctx, item)
 	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.NotFound("user %q is not found", user.GetName())
-		}
 		return trace.Wrap(err)
 	}
 	if auth := user.GetLocalAuth(); auth != nil {

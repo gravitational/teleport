@@ -713,17 +713,15 @@ func (s *AuthSuite) TestCreateAndUpdateUserEventsEmitted(c *C) {
 
 	// test create user with existing user
 	err = s.a.CreateUser(ctx, user)
-	fmt.Println("err: ", err)
-
 	c.Assert(trace.IsAlreadyExists(err), Equals, true)
 	c.Assert(s.mockedAuditLog.EmittedEvent, IsNil)
 
-	// test uninit createdBy gets set to default
+	// test createdBy gets set to default
 	user2, err := services.NewUser("some-other-user")
 	c.Assert(err, IsNil)
 	err = s.a.CreateUser(ctx, user2)
 	c.Assert(err, IsNil)
-	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.EventUser], Equals, "system")
+	c.Assert(s.mockedAuditLog.EmittedEvent.Fields[events.EventUser], Equals, teleport.UserSystem)
 	s.mockedAuditLog.Reset()
 
 	// test update on non-existent user
