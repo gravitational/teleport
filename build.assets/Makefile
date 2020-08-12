@@ -56,6 +56,15 @@ build-binaries: buildbox
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' all
 
 #
+# Build 'teleport' Enterprise release inside a docker container
+#
+.PHONY:build-enterprise-binaries
+build-enterprise-binaries: buildbox
+	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) $(BUILDBOX) \
+		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' all
+
+
+#
 # Builds a Docker container which is used for building official Teleport
 # binaries and docs
 #
