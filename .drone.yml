@@ -632,7 +632,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      target: teleport/tag/${DRONE_TAG}
+      target: teleport/tag/${DRONE_TAG##v}
       strip_prefix: /go/artifacts/
 
 services:
@@ -2660,6 +2660,6 @@ steps:
 
 ---
 kind: signature
-hmac: c7f142a3bf5f477f5e30163dd87a143b503a230617be28794def564f120e8ca1
+hmac: 7476944e39bc210494289efb55d4fa4efc195c7d7ca04fc08c7f3e7d8f707279
 
 ...
