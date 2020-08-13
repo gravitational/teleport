@@ -328,6 +328,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 			httplib.Rewrite("/webapi/sites/([^/]+)/sessions", "/webapi/sites/$1/namespaces/default/sessions"),
 			httplib.Rewrite("/webapi/sites/([^/]+)/nodes", "/webapi/sites/$1/namespaces/default/nodes"),
 			httplib.Rewrite("/webapi/sites/([^/]+)/connect", "/webapi/sites/$1/namespaces/default/connect"),
+			httplib.Rewrite("/webapi/sites/([^/]+)/users", "/webapi/sites/$1/namespaces/default/users"),
 		),
 		handler: h,
 	}, nil
@@ -1185,6 +1186,8 @@ func (h *Handler) changePasswordWithToken(w http.ResponseWriter, r *http.Request
 	return NewSessionResponse(ctx)
 }
 
+// createResetPasswordToken allows a UI user to reset a user's password.
+// This handler is also required for after creating new users.
 func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
@@ -1196,7 +1199,7 @@ func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := clt.CreateResetPasswordToken(context.TODO(),
+	token, err := clt.CreateResetPasswordToken(r.Context(),
 		auth.CreateResetPasswordTokenRequest{
 			Name: req.Name,
 			Type: req.Type,
@@ -1207,8 +1210,11 @@ func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Reques
 	}
 
 	return ui.ResetPasswordToken{
-		URL:    token.GetURL(),
-		Expiry: token.Expiry(),
+		URL:     token.GetURL(),
+		Expiry:  token.Expiry(),
+		TokenID: token.GetMetadata().Name,
+		User:    token.GetUser(),
+		Expires: token.Expiry().Sub(h.clock.Now().UTC()).Round(time.Second).String(),
 	}, nil
 }
 

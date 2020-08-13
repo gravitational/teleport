@@ -51,6 +51,7 @@ var AdminUserRules = []Rule{
 	NewRule(KindSession, RO()),
 	NewRule(KindTrustedCluster, RW()),
 	NewRule(KindEvent, RO()),
+	NewRule(KindUser, RO()),
 }
 
 // DefaultImplicitRules provides access to the default set of implicit rules
