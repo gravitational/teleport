@@ -867,9 +867,6 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-rpm
 
-environment:
-  RUNTIME: go1.14.4
-
 trigger:
   event:
     - tag
@@ -2660,6 +2657,6 @@ steps:
 
 ---
 kind: signature
-hmac: 7476944e39bc210494289efb55d4fa4efc195c7d7ca04fc08c7f3e7d8f707279
+hmac: ff4ee42fbbd81274a113a42ae3d84b0095c1b8de902c483afc8ba492e68989ab
 
 ...
