@@ -585,7 +585,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       region: us-west-2
       source: /go/artifacts/*
-      target: teleport/tag/${DRONE_TAG}
+      target: teleport/tag/${DRONE_TAG##v}
       strip_prefix: /go/artifacts/
 
 services:
@@ -819,9 +819,6 @@ volumes:
 kind: pipeline
 type: kubernetes
 name: build-linux-amd64-rpm
-
-environment:
-  RUNTIME: go1.13.2
 
 trigger:
   event:
@@ -2240,7 +2237,9 @@ steps:
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      # version needs to be set manually when running in the e directory
+      # VERSION needs to be set manually when running in the e directory.
+      # Normally, the version is set and exported by the root Makefile and then inherited,
+      # but this is not the case for FIPS builds (which only run in e/Makefile)
       - export VERSION=$(cat /go/.version.txt)
       # TODO
       # this should be changed to "make -C e image-fips publish-fips" when we want to
@@ -2613,6 +2612,6 @@ steps:
 
 ---
 kind: signature
-hmac: 4b22a3597e4f5c71d99e50939defe3612002ac2bc6086a36f0c87c2f59f30522
+hmac: 9646bc012a89bb21fa8e0f0d14e5e2e149917c68b343600effb5ee8fc7d8e2aa
 
 ...
