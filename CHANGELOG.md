@@ -1,5 +1,11 @@
 # Changelog
 
+### 4.3.5
+
+This release of Teleport contains a bug fix.
+
+* Fixed issue that caused Teleport Docker images to be built incorrectly. [#4201](https://github.com/gravitational/teleport/pull/4201)
+
 ### 4.3.4
 
 This release of Teleport contains multiple bug fixes.
