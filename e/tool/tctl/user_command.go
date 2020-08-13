@@ -116,11 +116,6 @@ func (cmd *UserCommandE) Add(client auth.ClientI) error {
 	cmd.roles = flattenSlice(cmd.roles)
 	cmd.allowedLogins = flattenSlice(cmd.allowedLogins)
 
-	// Make sure that user does not exist.
-	if _, err := client.GetUser(cmd.username, false); err == nil {
-		return trace.BadParameter("user %q already registered", cmd.username)
-	}
-
 	// Validate roles (server does not do this yet).
 	for _, roleName := range cmd.roles {
 		if _, err := client.GetRole(roleName); err != nil {
