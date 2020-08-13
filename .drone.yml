@@ -2284,11 +2284,10 @@ steps:
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      # VERSION and GITTAG need to be set manually when running in the e directory.
-      # Normally, these are exported by the root Makefile and inherited, but this is
-      # not the case for FIPS builds (which only run in e)
+      # VERSION needs to be set manually when running in the e directory.
+      # Normally, the version is set and exported by the root Makefile and then inherited,
+      # but this is not the case for FIPS builds (which only run in e/Makefile)
       - export VERSION=$(cat /go/.version.txt)
-      - export GITTAG=v$${VERSION}
       # TODO
       # this should be changed to "make -C e image-fips publish-fips" when we want to
       # actually cut over to building public-facing Docker images using Drone
@@ -2660,6 +2659,6 @@ steps:
 
 ---
 kind: signature
-hmac: 61d0ae75cd3dd6af099263508e029fc8ad434134c2bbd8807fdd02c94fe26841
+hmac: 7a6deb7d2a98555c3815a08fbe174f239beea543704d3cf32420bfd4d5bacae8
 
 ...
