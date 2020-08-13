@@ -61,7 +61,7 @@ build-binaries: buildbox
 .PHONY:build-enterprise-binaries
 build-enterprise-binaries: buildbox
 	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) $(BUILDBOX) \
-		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' full
+		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=$(GITTAG) full
 
 #
 # Build 'teleport' FIPS release inside a docker container
@@ -70,7 +70,7 @@ build-enterprise-binaries: buildbox
 .PHONY:build-binaries-fips
 build-binaries-fips: buildbox-fips
 	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) $(BUILDBOXFIPS) \
-		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' FIPS=yes full
+		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=$(GITTAG) FIPS=yes full
 
 #
 # Builds a Docker container which is used for building official Teleport
