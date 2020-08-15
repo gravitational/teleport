@@ -1,3 +1,8 @@
+---
+title: Teleport Configuration Reference
+description: The detailed guide for configuring Teleport for SSH and Kubernetes access
+---
+
 # Teleport Configuration Reference
 
 ## teleport.yaml
@@ -133,7 +138,7 @@ auth_service:
         # default authentication type. possible values are 'local' and 'github' for OSS
         #  and 'oidc', 'saml' and 'false' for Enterprise.
         # 'false' is required for FedRAMP / FIPS, see
-        #  https://gravitational.com/teleport/docs/enterprise/ssh_fips#teleport-auth-server
+        #  https://gravitational.com/teleport/docs/enterprise/ssh_kubernetes_fedramp/
         #  only local authentication (Teleport's own user DB) & Github is supported in the open
         #  source version
         type: local

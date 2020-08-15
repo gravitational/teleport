@@ -1,3 +1,8 @@
+---
+title: Teleport Admin Manual
+description: Admin manual for how to configure identity-aware SSH, certificate-based SSH authentication, set up SSO for SSH, SSO for Kubernetes, and more.
+---
+
 # Teleport Admin Manual
 
 This manual covers the installation and configuration of Teleport and the
@@ -11,7 +16,7 @@ Please visit our [installation page](installation.md) for instructions on downlo
 ## Definitions
 
 Before diving into configuring and running Teleport, it helps to take a look at
-the [Teleport Architecture](architecture/teleport_architecture_overview.md) and review the key concepts this
+the [Teleport Architecture](architecture/overview.md) and review the key concepts this
 document will be referring to:
 
 |Concept   | Description
@@ -810,7 +815,7 @@ the audit log:
 3. **Optional: Enhanced Session Recording**
 
 Refer to the ["Audit Log" chapter in the Teleport
-Architecture](architecture/teleport_auth.md#audit-log) to learn more about how the audit log and
+Architecture](architecture/authentication.md#audit-log) to learn more about how the audit log and
 session recording are designed.
 
 ### SSH Events
@@ -1036,7 +1041,7 @@ $ tctl rm users/admin
 
 ## Trusted Clusters
 
-As explained in the [architecture document](architecture/teleport_architecture_overview.md#design-principles),
+As explained in the [architecture document](architecture/overview.md#design-principles),
 Teleport can partition compute infrastructure into multiple clusters. A cluster
 is a group of nodes connected to the cluster's auth server, acting as a
 certificate authority (CA) for all users and nodes.
@@ -1424,7 +1429,7 @@ Review our dedicated [Using Teleport with OpenSSH](openssh_teleport.md) guide.
 
 ## Certificate Rotation
 
-Take a look at the [Certificates chapter](architecture/teleport_auth.md#authentication-in-teleport) in the
+Take a look at the [Certificates chapter](architecture/authentication.md#authentication-in-teleport) in the
 architecture document to learn how the certificate rotation works. This section
 will show you how to implement certificate rotation in practice.
 
@@ -1509,7 +1514,7 @@ examples and instructions.
 !!! tip "Tip"
 
     Before continuing, please make sure to take a look at the
-    [Cluster State section](architecture/teleport_nodes.md#cluster-state) in the Teleport
+    [Cluster State section](architecture/nodes.md#cluster-state) in the Teleport
     Architecture documentation.
 
 Usually there are two ways to achieve high availability. You can "outsource"
@@ -1636,7 +1641,7 @@ teleport:
 !!! tip "Tip"
 
     Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/teleport_nodes.md#cluster-state) in Teleport
+    [cluster state section](architecture/nodes.md#cluster-state) in Teleport
     Architecture documentation.
 
 !!! tip "AWS Authentication"
@@ -1674,7 +1679,7 @@ running on an EC2 instance with an IAM role.
 !!! tip "Tip"
 
     Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/teleport_nodes.md#cluster-state) in Teleport Architecture documentation.
+    [cluster state section](architecture/nodes.md#cluster-state) in Teleport Architecture documentation.
 
 If you are running Teleport on AWS, you can use
 [DynamoDB](https://aws.amazon.com/dynamodb/) as a storage back-end to achieve
@@ -1761,7 +1766,7 @@ teleport:
 !!! tip "Tip"
 
     Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/teleport_nodes.md#cluster-state) in Teleport
+    [cluster state section](architecture/nodes.md#cluster-state) in Teleport
     Architecture documentation.
 
 
@@ -1784,7 +1789,7 @@ teleport:
 !!! tip "Tip"
 
     Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/teleport_nodes.md#cluster-state) in Teleport Architecture documentation.
+    [cluster state section](architecture/nodes.md#cluster-state) in Teleport Architecture documentation.
 
 If you are running Teleport on GCP, you can use
 [Firestore](https://cloud.google.com/firestore/) as a storage back-end to achieve

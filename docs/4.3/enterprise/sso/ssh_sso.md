@@ -1,3 +1,8 @@
+---
+title: SSO for SSH
+description: How to set up single sign-on (SSO) for SSH using Gravitational Teleport
+---
+
 # Single Sign-On (SSO) for SSH
 
 The commercial edition of Teleport allows users to login and retrieve their SSH

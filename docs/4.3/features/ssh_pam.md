@@ -1,4 +1,9 @@
-# Using Teleport with Pluggable Authentication Modules (PAM)
+---
+title: Configuring Teleport SSH with PAM (pluggable authentication modules)
+description: How to configure Teleport SSH access to play nicely with PAM (pluggable authentication modules)
+---
+
+# Pluggable Authentication Modules (PAM)
 
 Teleport's node service can be configured to integrate with [PAM](https://en.wikipedia.org/wiki/Linux_PAM). This allows Teleport to create user sessions using PAM session profiles.
 

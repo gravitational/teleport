@@ -1,3 +1,8 @@
+---
+title: Teleport Quick Start
+description: The quick start guide for how to set up modern SSH access to cloud or edge infrastructure.
+---
+
 # Teleport Quick Start
 
 This tutorial will guide you through the steps needed to install and run
@@ -11,22 +16,17 @@ VM.
   make sure that this machine's IP can be reached over your network and that
   it accepts incoming traffic on port `3080` .
 
-* We recommend that you read the [Architecture Guide](architecture/teleport_architecture_overview.md)
+* We recommend that you read the [Architecture Guide](architecture/overview.md)
   before working through this tutorial. If you'd like to dive right in though this is
   the best place to start!
 
 This guide is only meant to demonstrate how to run Teleport in a sandbox or demo
 environment, and showcase a few basic tasks you can do with Teleport.
 
-## Optional: Quickstart using Docker
-
-The instructions below describe how to install Teleport directly onto your test system.
-You can also [run Teleport using Docker](quickstart_docker.md) if you don't want to install Teleport binaries straight away.
-
 ## Step 1: Install Teleport
 
-Follow our [Installation page](installation.md) for how to install Teleport. You can
-download pre-built binaries from our [Downloads](https://gravitational.com/teleport/download/).
+There are several ways to install Teleport. Take a look at the [Teleport Installation](installation.md)
+page to pick the method convenient for you.
 
 ## Step 2: Start Teleport
 

@@ -1,3 +1,8 @@
+---
+title: Running Teleport on GCP
+description: How to install and configure Gravitational Teleport on GCP for SSH and Kubernetes access.
+---
+
 # Running Teleport on GCP
 
 We've created this guide to give customers a high level overview of how to use Teleport

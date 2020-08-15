@@ -1,4 +1,9 @@
-## Teleport Users
+---
+title: Teleport Users
+description: This chapter explains the concept of a Teleport User and how it's different from operating system (OS) users or Kubernetes users.
+---
+
+# Teleport Users
 
 <!--TODO: This doc is incomplete, pending addition of Enterprise topics-->
 
@@ -115,7 +120,7 @@ subset of nodes in a cluster.
 
 ## More Concepts
 
-* [Architecture Overview](teleport_architecture_overview.md)
-* [Teleport Auth](teleport_auth.md)
-* [Teleport Nodes](teleport_nodes.md)
-* [Teleport Proxy](teleport_proxy.md)
+* [Architecture Overview](overview.md)
+* [Teleport Auth](authentication.md)
+* [Teleport Nodes](nodes.md)
+* [Teleport Proxy](proxy.md)
