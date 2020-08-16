@@ -4,8 +4,7 @@ description: How to record your SSH and Kubernetes sessions into the audit log.
 ---
 
 # Enhanced Session Recording
-
-Teleport [SSH and Kubernetes session recording](https://gravitational.com/teleport/docs/architecture/nodes/#session-recording)
+Teleport [SSH and Kubernetes session recording](../architecture/nodes.md#session-recording)
 feature captures what is echoed to a terminal.
 
 This has inherent advantages, for example because no input is captured, Teleport
@@ -38,7 +37,7 @@ well as kernel headers.
 
 !!! tip
 
-    Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](https://gravitational.com/teleport/docs/architecture/authentication/#audit-log) for more details.
+    Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](../architecture/authentication.md#audit-log) for more details.
 
 
 You can check your kernel version using the `uname` command. The output should look

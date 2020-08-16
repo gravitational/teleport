@@ -1341,8 +1341,7 @@ how to [create and register an OAuth
 app](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/).
 Be sure to set the "Authorization callback URL" to the same value as
 `redirect_url` in the resource spec. Teleport will request only the `read:org`
-OAuth scope, you can read more about Github scopes
-[here](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/).
+OAuth scope, you can read more about [Github OAuth scopes](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/).
 
 Finally, create the connector using [ `tctl` ](cli-docs.md#tctl)
 [resource](#resources) management command:

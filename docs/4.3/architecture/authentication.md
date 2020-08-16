@@ -203,7 +203,7 @@ events and submits them to the auth server. The events recorded include:
 
     Because all SSH events like `exec` or `session_start` are by default
     reported by the Teleport node service, they will not be logged if you are
-    using OpenSSH `sshd` daemon on your nodes. [Recording proxy mode](proxy.md#recording_proxy_mode)
+    using OpenSSH `sshd` daemon on your nodes. [Recording proxy mode](proxy.md#recording-proxy-mode)
     can be used to log audit events when using OpenSSH on your nodes.
 
 Only an SSH server can report what's happening to the Teleport auth server.
