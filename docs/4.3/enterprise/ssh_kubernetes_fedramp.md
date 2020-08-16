@@ -29,7 +29,7 @@ government agencies.
 | [AC-2 (12) Account Management](https://nvd.nist.gov/800-53/Rev4/control/AC-2) | At the close of a connection the total data transmitted and received is emitted to the Audit Log. |
 
 
-Enterprise customers can download the custom FIPS package from the [Gravitational Dashboard](https://dashboard.gravitational.com/web/).  Look for `Linux 64-bit (FedRAMP/FIPS)`. RPM and DEB packages are also available.
+Enterprise customers can download the custom FIPS package from the [Gravitational Dashboard](https://dashboard.gravitational.com/web/login).  Look for `Linux 64-bit (FedRAMP/FIPS)`. RPM and DEB packages are also available.
 
 # Setup
 Customers can follow our [Enterprise Quickstart](quickstart-enterprise.md) for basic

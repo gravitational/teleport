@@ -219,7 +219,7 @@ storage.
     If multiple Teleport auth servers are used
     to service the same cluster (HA mode) a network file system must be used for
     `/var/lib/teleport/log` to allow them to combine all audit events into the
-    same audit log. [Learn how to deploy Teleport in HA Mode.](../admin-guide.md#high-availability))
+    same audit log. [Learn how to deploy Teleport in HA Mode.](../admin-guide.md#high-availability)
 
 ## Storage Back-Ends
 

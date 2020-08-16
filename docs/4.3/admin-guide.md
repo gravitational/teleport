@@ -158,7 +158,7 @@ For a complete reference, see our [Configuration Reference - teleport.yaml](conf
 #  1. ca_pin: Obtain the CA pin hash for joining more nodes by running 'tctl status'
 #     on the auth server once Teleport is running.
 #  2. license-if-using-teleport-enterprise.pem: If you are an Enterprise customer,
-#     obtain this from https://dashboard.gravitational.com/web/
+#     obtain this from https://dashboard.gravitational.com/web/login
 #
 teleport:
   # nodename allows to assign an alternative name this node can be reached by.
@@ -2057,7 +2057,7 @@ until existing clients disconnect.
 
 Commercial Teleport subscriptions require a valid license. The license file can
 be downloaded from the [Teleport Customer
-Portal](https://dashboard.gravitational.com).
+Portal](https://dashboard.gravitational.com/web/login).
 
 The Teleport license file contains a X.509 certificate and the corresponding
 private key in PEM format. Place the downloaded file on Auth servers and set the
@@ -2119,6 +2119,6 @@ Now you can see the monitoring information by visiting several endpoints:
 
 If you need help, please ask on our [community forum](https://community.gravitational.com/). You can also open an [issue on Github](https://github.com/gravitational/teleport/issues).
 
-For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/).
+For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/web/login).
 
 For more information about custom features, or to try our [Enterprise edition](enterprise/introduction.md) of Teleport, please reach out to us at [sales@gravitational.com](mailto:sales@gravitational.com).

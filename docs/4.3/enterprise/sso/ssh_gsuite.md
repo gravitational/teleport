@@ -21,7 +21,7 @@ like:
 
 Before you get started you’ll need:
 
-- An Enterprise version of Teleport v4.1.4 or greater, downloaded from [https://dashboard.gravitational.com/](https://dashboard.gravitational.com/web/).
+- An Enterprise version of Teleport v4.1.4 or greater, downloaded from [https://dashboard.gravitational.com/](https://dashboard.gravitational.com/web/login).
 - Be a G Suite Super Admin. As Google Best Practices, we would recommend setting up a seperate super admin with 2FA vs using your user.
     - e.g. A dedicated account ben-ops@practice.io vs my daily ben@practice.io
 - Ability to create GCP Project.
