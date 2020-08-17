@@ -5,7 +5,7 @@ Terraform specifies example provisioning script for Teleport auth, proxy and nod
 Use these examples as possible deployment patterns suggested by Teleport developers.
 
 The scripts set up Letsencrypt certificates using DNS-01 challenge. This means that users have to control the DNS zone
-via Route 53. ACM can optionally be used too, but Route 53 integration is still required. 
+via Route 53. ACM can optionally be used too, but Route 53 integration is still required.
 
 Teleport join tokens are distributed using SSM parameter store, and certificates are distributed using encrypted S3
 bucket.
@@ -65,4 +65,62 @@ export TF_VAR_grafana_pass="CHANGE_THIS_VALUE"
 
 # plan
 make plan
+```
+
+## Public Teleport AMI IDs
+
+For your convenience, this is a list of public Teleport AMI IDs which are published by Gravitational.
+
+### OSS
+```
+# ap-south-1 v4.x.x OSS: ami-xxx
+# ap-northeast-2 v4.x.x OSS: ami-xxx
+# ap-southeast-1 v4.x.x OSS: ami-xxx
+# ap-southeast-2 v4.x.x OSS: ami-xxx
+# ap-northeast-1 v4.x.x OSS: ami-xxx
+# ca-central-1 v4.x.x OSS: ami-xxx
+# eu-central-1 v4.x.x OSS: ami-xxx
+# eu-west-1 v4.x.x OSS: ami-xxx
+# eu-west-2 v4.x.x OSS: ami-xxx
+# sa-east-1 v4.x.x OSS: ami-xxx
+# us-east-1 v4.x.x OSS: ami-xxx
+# us-east-2 v4.x.x OSS: ami-xxx
+# us-west-1 v4.x.x OSS: ami-xxx
+# us-west-2 v4.x.x OSS: ami-xxx
+```
+
+### Enterprise
+```
+# ap-south-1 v4.x.x Enterprise: ami-xxx
+# ap-northeast-2 v4.x.x Enterprise: ami-xxx
+# ap-southeast-1 v4.x.x Enterprise: ami-xxx
+# ap-southeast-2 v4.x.x Enterprise: ami-xxx
+# ap-northeast-1 v4.x.x Enterprise: ami-xxx
+# ca-central-1 v4.x.x Enterprise: ami-xxx
+# eu-central-1 v4.x.x Enterprise: ami-xxx
+# eu-west-1 v4.x.x Enterprise: ami-xxx
+# eu-west-2 v4.x.x Enterprise: ami-xxx
+# sa-east-1 v4.x.x Enterprise: ami-xxx
+# us-east-1 v4.x.x Enterprise: ami-xxx
+# us-east-2 v4.x.x Enterprise: ami-xxx
+# us-west-1 v4.x.x Enterprise: ami-xxx
+# us-west-2 v4.x.x Enterprise: ami-xxx
+```
+
+### Enterprise FIPS
+```
+# ap-south-1 v4.x.x Enterprise FIPS: ami-xxx
+# ap-northeast-2 v4.x.x Enterprise FIPS: ami-xxx
+# ap-southeast-1 v4.x.x Enterprise FIPS: ami-xxx
+# ap-southeast-2 v4.x.x Enterprise FIPS: ami-xxx
+# ap-northeast-1 v4.x.x Enterprise FIPS: ami-xxx
+# ca-central-1 v4.x.x Enterprise FIPS: ami-xxx
+# eu-central-1 v4.x.x Enterprise FIPS: ami-xxx
+# eu-west-1 v4.x.x Enterprise FIPS: ami-xxx
+# eu-west-2 v4.x.x Enterprise FIPS: ami-xxx
+# sa-east-1 v4.x.x Enterprise FIPS: ami-xxx
+# us-east-1 v4.x.x Enterprise FIPS: ami-xxx
+# us-east-2 v4.x.x Enterprise FIPS: ami-xxx
+# us-west-1 v4.x.x Enterprise FIPS: ami-xxx
+# us-west-2 v4.x.x Enterprise FIPS: ami-xxx
 ```
