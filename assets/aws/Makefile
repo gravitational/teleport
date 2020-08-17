@@ -14,7 +14,7 @@ MARKETPLACE_AMI_NAME ?=
 AWS_REGION ?= us-west-2
 
 # Teleport version
-TELEPORT_VERSION ?= 4.3.2
+TELEPORT_VERSION ?= 4.3.5
 
 # Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007
@@ -115,3 +115,19 @@ check-vars:
 	@if [ -z "$(TELEPORT_VERSION)" ]; then \
 	  echo "TELEPORT_VERSION is not set"; exit 1; \
 	fi;
+
+.PHONY: update-ami-ids-cloudformation
+update-ami-ids-cloudformation:
+	@echo -e "\nUpdating OSS Cloudformation image IDs"
+	./update-ami-ids.sh -m cloudformation -t oss -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
+	@echo -e "\nUpdating Enterprise Cloudformation image IDs"
+	./update-ami-ids.sh -m cloudformation -t ent -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
+
+.PHONY: update-ami-ids-terraform
+update-ami-ids-terraform:
+	@echo -e "\nUpdating OSS Terraform image IDs"
+	./update-ami-ids.sh -m terraform -t oss -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
+	@echo -e "\nUpdating Enterprise Terraform image IDs"
+	./update-ami-ids.sh -m terraform -t ent -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
+	@echo -e "\nUpdating Enterprise FIPS Terraform image IDs"
+	./update-ami-ids.sh -m terraform -t ent-fips -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
