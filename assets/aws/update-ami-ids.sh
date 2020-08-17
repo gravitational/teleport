@@ -94,7 +94,6 @@ elif [[ "${MODE}" == "terraform" ]]; then
     fi
     # replace AMI ID in place
     for REGION in ${REGIONS//,/ }; do
-        # ap-south-1 v4.x.x OSS: ami-xxx
         OLD_AMI_ID=$(grep -E "# $REGION v(.*) ${TYPE_STRING}" $TERRAFORM_PATH | sed -n -E "s/# $REGION v(.*) ${TYPE_STRING}: (ami.*)/\2/p" | tr -d " ")
         NEW_AMI_ID=${IMAGE_IDS[$REGION]}
         sed -i -E "s/^# $REGION v(.*) ${TYPE_STRING}: ami(.*)$/# $REGION v${VERSION} ${TYPE_STRING}: $NEW_AMI_ID/g" $TERRAFORM_PATH
