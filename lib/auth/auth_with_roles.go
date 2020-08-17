@@ -1101,14 +1101,6 @@ func (a *AuthWithRoles) CreateResetPasswordToken(ctx context.Context, req Create
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.EmitAuditEvent(events.ResetPasswordTokenCreated, events.EventFields{
-		events.FieldName:             req.Name,
-		events.ResetPasswordTokenTTL: req.TTL.String(),
-		events.EventUser:             a.user.GetName(),
-	}); err != nil {
-		log.Warnf("Failed to emit create reset password token event: %v", err)
-	}
-
 	return a.authServer.CreateResetPasswordToken(ctx, req)
 }
 
