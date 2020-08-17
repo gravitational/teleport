@@ -67,6 +67,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	c.Assert(userContext.ACL.Events, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.Sessions, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.Roles, check.DeepEquals, denied)
+	c.Assert(userContext.ACL.Users, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.SSHLogins, check.DeepEquals, []string{"a", "b", "d"})
 
 	// test local auth type

@@ -165,7 +165,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
 	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changePasswordWithToken))
 	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
-	h.POST("/webapi/sites/:site/namespaces/:namespace/users/password/token", h.WithClusterAuth(h.createResetPasswordToken))
+	h.POST("/webapi/users/password/token", h.WithAuth(h.createResetPasswordToken))
 
 	// Issues SSH temp certificates based on 2FA access creds
 	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
@@ -1185,8 +1185,8 @@ func (h *Handler) changePasswordWithToken(w http.ResponseWriter, r *http.Request
 	return NewSessionResponse(ctx)
 }
 
-func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := ctx.GetUserClient(site)
+func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1196,7 +1196,7 @@ func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := clt.CreateResetPasswordToken(context.TODO(),
+	token, err := clt.CreateResetPasswordToken(r.Context(),
 		auth.CreateResetPasswordTokenRequest{
 			Name: req.Name,
 			Type: req.Type,
@@ -1207,8 +1207,9 @@ func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Reques
 	}
 
 	return ui.ResetPasswordToken{
-		URL:    token.GetURL(),
-		Expiry: token.Expiry(),
+		TokenID: token.GetName(),
+		Expiry:  token.Expiry(),
+		User:    token.GetUser(),
 	}, nil
 }
 
