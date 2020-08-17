@@ -39,7 +39,7 @@ AWS_ACCOUNT_ID=126027368216
 
 # check that awscli is installed
 if [[ ! $(type aws) ]]; then
-    echo "aws must be installed"
+    echo "awscli must be installed"
     exit 1
 fi
 
