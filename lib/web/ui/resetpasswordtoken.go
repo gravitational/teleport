@@ -18,18 +18,14 @@ package ui
 
 import "time"
 
-// ResetPasswordToken contains data about user and their password setup.
+// ResetPasswordToken describes ResetPasswordToken UI object
 type ResetPasswordToken struct {
-	// TokenID is the value of token.
+	// TokenID is token ID
 	TokenID string `json:"tokenId"`
-	// User is user name associated with this token.
+	// User is user name associated with this token
 	User string `json:"user"`
-	// QRCode is a QR code value.
+	// QRCode is a QR code value
 	QRCode []byte `json:"qrCode,omitempty"`
-	// URL is password setup URL.
-	URL string `json:"url,omitempty"`
-	// Expiry is token expiration time.
+	// Expiry is token expiration time
 	Expiry time.Time `json:"expiry,omitempty"`
-	// Expires is duration when token expires in format HoursMinutesSeconds
-	Expires string `json:"expires,omitempty"`
 }

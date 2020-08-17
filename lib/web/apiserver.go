@@ -165,7 +165,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
 	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changePasswordWithToken))
 	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
-	h.POST("/webapi/sites/:site/namespaces/:namespace/users/password/token", h.WithClusterAuth(h.createResetPasswordToken))
+	h.POST("/webapi/users/password/token", h.WithAuth(h.createResetPasswordToken))
 
 	// Issues SSH temp certificates based on 2FA access creds
 	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
@@ -1187,8 +1187,8 @@ func (h *Handler) changePasswordWithToken(w http.ResponseWriter, r *http.Request
 
 // createResetPasswordToken allows a UI user to reset a user's password.
 // This handler is also required for after creating new users.
-func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := ctx.GetUserClient(site)
+func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1209,11 +1209,9 @@ func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Reques
 	}
 
 	return ui.ResetPasswordToken{
-		URL:     token.GetURL(),
+		TokenID: token.GetName(),
 		Expiry:  token.Expiry(),
-		TokenID: token.GetMetadata().Name,
 		User:    token.GetUser(),
-		Expires: token.Expiry().Sub(h.clock.Now().UTC()).Round(time.Second).String(),
 	}, nil
 }
 
