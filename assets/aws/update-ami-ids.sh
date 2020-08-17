@@ -81,6 +81,8 @@ if [[ "${MODE}" == "cloudformation" ]]; then
         sed -i -E "s/$REGION: \{HVM64 : ami(.*)\}$/$REGION: \{HVM64 : $NEW_AMI_ID\}/g" $CLOUDFORMATION_PATH
         echo "[${TYPE}: ${REGION}] ${OLD_AMI_ID} -> ${NEW_AMI_ID}"
     done
+    # update version number
+    sed -i -E "s/# All AMIs from AWS - gravitational-teleport-ami-(.*)/# All AMIs from AWS - gravitational-teleport-ami-${TYPE}-${VERSION}/g" $CLOUDFORMATION_PATH
 elif [[ "${MODE}" == "terraform" ]]; then
     TERRAFORM_PATH=../../examples/aws/terraform/README.md
     if [[ "${TYPE}" == "oss" ]]; then
