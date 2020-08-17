@@ -69,7 +69,8 @@ make plan
 
 ## Public Teleport AMI IDs
 
-For your convenience, this is a list of public Teleport AMI IDs which are published by Gravitational.
+For your convenience, this is a list of public Teleport AMI IDs which are published by Gravitational. This list
+is updated when new AMI versions are released.
 
 ### OSS
 

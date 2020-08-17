@@ -71,8 +71,8 @@ if [[ "${MODE}" == "cloudformation" ]]; then
     elif [[ "${TYPE}" == "ent" ]]; then
         CLOUDFORMATION_PATH=../../examples/aws/cloudformation/ent.yaml
     elif [[ "${TYPE}" == "ent-fips" ]]; then
-        echo "Enterprise FIPS not supported for Cloudformation"
-        exit 1
+        echo "Enterprise FIPS mode is not supported for Cloudformation"
+        exit 4
     fi
     # replace AMI ID in place
     for REGION in ${REGIONS//,/ }; do
