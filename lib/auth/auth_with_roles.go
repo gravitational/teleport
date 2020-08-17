@@ -1133,10 +1133,6 @@ func (a *AuthWithRoles) CreateUser(ctx context.Context, user services.User) erro
 		return trace.Wrap(err)
 	}
 
-	user.SetCreatedBy(services.CreatedBy{
-		User: services.UserRef{Name: a.user.GetName()},
-	})
-
 	return a.authServer.CreateUser(ctx, user)
 }
 

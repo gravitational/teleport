@@ -35,9 +35,11 @@ import (
 
 // CreateUser inserts a new user entry in a backend.
 func (s *AuthServer) CreateUser(ctx context.Context, user services.User) error {
-	createdBy := user.GetCreatedBy()
-	if createdBy.IsEmpty() {
-		return trace.BadParameter("created by is not set for new user %q", user.GetName())
+	if user.GetCreatedBy().IsEmpty() {
+		user.SetCreatedBy(services.CreatedBy{
+			User: services.UserRef{Name: clientUsername(ctx)},
+			Time: s.GetClock().Now().UTC(),
+		})
 	}
 
 	// TODO: ctx is being swallowed here because the current implementation of
@@ -55,7 +57,7 @@ func (s *AuthServer) CreateUser(ctx context.Context, user services.User) error {
 	}
 
 	if err := s.EmitAuditEvent(events.UserCreate, events.EventFields{
-		events.EventUser:     createdBy.User.Name,
+		events.EventUser:     user.GetCreatedBy().User.Name,
 		events.UserExpires:   user.Expiry(),
 		events.UserRoles:     user.GetRoles(),
 		events.FieldName:     user.GetName(),
