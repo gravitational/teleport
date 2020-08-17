@@ -232,7 +232,6 @@ docs-test-whitespace:
 .PHONY:docs-test-links
 docs-test-links: DOCS_FOLDERS := $(shell find . -name milv.config.yaml -exec dirname {} \;)
 docs-test-links:
-	go get -v github.com/magicmatatjahu/milv
 	for docs_dir in $(DOCS_FOLDERS); do \
 		echo "running milv in $${docs_dir}"; \
 		cd $${docs_dir} && milv ; cd $(PWD); \

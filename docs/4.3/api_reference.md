@@ -1,3 +1,8 @@
+---
+title: Teleport API Reference
+description: The detailed guide to Teleport API
+---
+
 # Teleport API Reference
 
 Teleport is currently working on documenting our API.

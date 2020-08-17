@@ -1,3 +1,8 @@
+---
+title: Teleport Authentication Service, SSH and Kubernetes certificates
+description: This chapter explains the concept of a Teleport Auth Service and Certificate Authority (CA) to issue SSH and Kubernetes certificates.
+---
+
 # Teleport Authentication Service
 
 This document outlines the Teleport Authentication Service and Certificate
@@ -122,7 +127,7 @@ that a certificate exists and hasn't expired. If it has expired, the client must
 re-authenticate with their username, password, and 2nd factor. If the
 certificate is still valid, the Auth Server validates the certificate's
 signature. The client is then granted access to the cluster. From here, the
-[Proxy Server](teleport_proxy.md#connecting-to-a-node) establishes a connection between
+[Proxy Server](proxy.md#connecting-to-a-node) establishes a connection between
 client and node.
 
 ## Certificate Rotation
@@ -198,9 +203,8 @@ events and submits them to the auth server. The events recorded include:
 
     Because all SSH events like `exec` or `session_start` are by default
     reported by the Teleport node service, they will not be logged if you are
-    using OpenSSH `sshd` daemon on your nodes. [Recording proxy
-    mode](teleport_proxy.md#recording_proxy_mode) can be used to log audit
-    events when using OpenSSH on your nodes.
+    using OpenSSH `sshd` daemon on your nodes. [Recording proxy mode](proxy.md#recording-proxy-mode)
+    can be used to log audit events when using OpenSSH on your nodes.
 
 Only an SSH server can report what's happening to the Teleport auth server.
 The audit log is a JSON file which is by default stored on the auth server's
@@ -215,7 +219,7 @@ storage.
     If multiple Teleport auth servers are used
     to service the same cluster (HA mode) a network file system must be used for
     `/var/lib/teleport/log` to allow them to combine all audit events into the
-    same audit log. [Learn how to deploy Teleport in HA Mode.](../admin-guide.md#high-availability))
+    same audit log. [Learn how to deploy Teleport in HA Mode.](../admin-guide.md#high-availability)
 
 ## Storage Back-Ends
 
@@ -250,7 +254,7 @@ it allows them to run Teleport clusters completely devoid of local state.
 
 ## More Concepts
 
-* [Architecture Overview](teleport_architecture_overview.md)
-* [Teleport Users](teleport_users.md)
-* [Teleport Nodes](teleport_nodes.md)
-* [Teleport Proxy](teleport_proxy.md)
+* [Architecture Overview](overview.md)
+* [Teleport Users](users.md)
+* [Teleport Nodes](nodes.md)
+* [Teleport Proxy](proxy.md)

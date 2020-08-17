@@ -1,7 +1,7 @@
 site_name: Gravitational Teleport
 site_url: https://gravitational.com/teleport/docs
 repo_url: https://github.com/gravitational/teleport
-site_description: SSH and Kubernetes Gateway for Clusters and Teams
+site_description: "Teleport Documentation: Remote Access via SSH and Kubernetes"
 site_author: Gravitational Inc
 copyright: Gravitational Inc, 2016-20
 
@@ -75,15 +75,15 @@ nav:
         #    - Teleport Mattermost Plugin Setup: enterprise/workflow/ssh_approval_mattermost.md
         #    - Teleport Pagerduty Plugin Setup: enterprise/workflow/ssh_approval_pagerduty.md
         #    - Teleport Slack Plugin Setup: enterprise/workflow/ssh_approval_slack.md
-        - FedRAMP & FIPS: enterprise/ssh_fips.md
+        - FedRAMP for SSH & K8s: enterprise/ssh_kubernetes_fedramp.md
         - RBAC: enterprise/ssh_rbac.md
 
     - Architecture:
-        - Architecture Overview: architecture/teleport_architecture_overview.md
-        - Teleport Users: architecture/teleport_users.md
-        - Teleport Nodes: architecture/teleport_nodes.md
-        - Teleport Auth: architecture/teleport_auth.md
-        - Teleport Proxy: architecture/teleport_proxy.md
+        - Architecture Overview: architecture/overview.md
+        - Teleport Users: architecture/users.md
+        - Teleport Nodes: architecture/nodes.md
+        - Teleport Auth: architecture/authentication.md
+        - Teleport Proxy: architecture/proxy.md
         - Trusted Clusters: trustedclusters.md
     - Advanced Features:
         - Enhanced Session Rec.: features/enhanced_session_recording.md

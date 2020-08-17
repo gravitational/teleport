@@ -1,3 +1,8 @@
+---
+title: Using Teleport with OpenSSH
+description: How to use Teleport on legacy systems with OpenSSH and sshd
+---
+
 # Using Teleport with OpenSSH
 
 Teleport is fully compatible with OpenSSH and can be quickly setup to record and
@@ -42,10 +47,10 @@ Teleport OpenSSH supports:
 
 ## Setting up OpenSSH Recording Proxy Mode
 
-The first step is install and setup Teleport, we recommend starting with our [Quickstart](quickstart.md) and [admin manual](admin_guide.md).
+The first step is install and setup Teleport, we recommend starting with our [Quickstart](quickstart.md) and [admin manual](admin-guide.md).
 
 To enable session recording for `sshd` nodes, the cluster must be switched to
-["recording proxy" mode](architecture/teleport_proxy.md#recording-proxy-mode).
+["recording proxy" mode](architecture/proxy.md#recording-proxy-mode).
 
 In this mode, the recording will be done on the proxy level:
 
@@ -212,8 +217,8 @@ certificate authorities for each cluster individually.
 
 !!! tip "OpenSSH and Trusted Clusters"
 
-    If you use [recording proxy mode](architecture/teleport_proxy.md) and [trusted
-    clusters](trusted-clusters.md), you need to set up the certificate authority from
+    If you use [recording proxy mode](architecture/proxy.md) and [trusted clusters](trustedclusters.md),
+    you need to set up the certificate authority from
     the _root_ cluster to match **all** nodes, even those that belong to _leaf_
     clusters. For example, if your node naming scheme is `*.root.example.com`,
     `*.leaf1.example.com`, `*.leaf2.example.com`, then the

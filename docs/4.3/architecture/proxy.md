@@ -1,11 +1,16 @@
-## The Proxy Service
+---
+title: Teleport Proxy Service
+description: How Teleport implements SSH and Kubernetes access via a Proxy
+---
+
+# The Proxy Service
 
 The proxy is a stateless service which performs three main functions in a
 Teleport cluster:
 
 1. It serves as an authentication gateway. It asks for credentials from
    connecting clients and forwards them to the Auth server via [Auth
-   API](teleport_auth.md#auth-api).
+   API](authentication.md#auth-api).
 
 2. It looks up the IP address for a requested Node and then proxies a connection
    from client to Node.
@@ -127,7 +132,7 @@ Auth Server.
 
 ## More Concepts
 
-* [Architecture Overview](teleport_architecture_overview.md)
-* [Teleport Users](teleport_users.md)
-* [Teleport Auth](teleport_auth.md)
-* [Teleport Proxy](teleport_proxy.md)
+* [Architecture Overview](overview.md)
+* [Teleport Users](users.md)
+* [Teleport Auth](authentication.md)
+* [Teleport Proxy](proxy.md)

@@ -1,3 +1,8 @@
+---
+title: Teleport FAQ
+description: Frequently Asked Questions about using Teleport for SSH and Kubernetes access
+---
+
 
 # FAQ
 

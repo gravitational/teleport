@@ -1,3 +1,8 @@
+---
+title: Teleport Metrics
+description: How to set up Prometheus to monitor Teleport for SSH and Kubernetes access
+---
+
 # Metrics
 
 ## Teleport Prometheus Endpoint

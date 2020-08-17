@@ -1,3 +1,8 @@
+---
+title: Introduction to Teleport
+description: How to install and quickly get up and running with Gravitational Teleport to set up SSH and Kubernetes access to cloud environments.
+---
+
 # Introduction
 
 ## What is Teleport?
@@ -72,7 +77,7 @@ free to create an issue or pull request if you have comments.
 
 - [Quickstart Guide](quickstart.md) - A quick tutorial to show off the basic
   capabilities of Teleport. A good place to start if you want to jump right in.
-- [Teleport Architecture](architecture/teleport_architecture_overview.md) - This section covers the underlying
+- [Teleport Architecture](architecture/overview.md) - This section covers the underlying
   design principles of Teleport and provides a detailed description of Teleport's
   architecture. A good place to learn about Teleport's design and how it works.
 - [User Manual](user-manual.md) - This manual expands on the Quickstart and
@@ -105,24 +110,6 @@ We also have several guides that go through the most typical configurations and 
 - [OIDC Integration](enterprise/sso/oidc.md) - How to integrate Teleport Enterprise with identity providers using OIDC/OAuth2.
 - [Kubernetes Integration](kubernetes_ssh.md) - How to configure Teleport to serve as a unified gateway for Kubernetes clusters and clusters of regular SSH nodes.
 
-## Why Build Teleport?
-
-Mature tech companies with significant infrastructure footprints tend to implement most
-of these patterns internally. Teleport allows smaller companies without significant in-house
-SSH expertise to easily adopt them, as well. Teleport comes with an accessible Web UI
-and a very permissive [Apache 2.0](https://github.com/gravitational/teleport/blob/master/LICENSE)
-license to facilitate adoption and use.
-
-Being a complete standalone tool, Teleport can be used as a software library enabling
-trust management in complex multi-cluster, multi-region scenarios across many teams
-within multiple organizations.
-
-## Who Built Teleport?
-
-Teleport was created by [Gravitational Inc](https://gravitational.com). We have built
-Teleport by borrowing from our previous experiences at Rackspace. It has been extracted
-from [Gravity](https://gravitational.com/gravity/), our system for helping our clients
-to deploy and remotely manage their SaaS applications on many cloud regions or even on-premise.
 
 ## Support and Contributing
 

@@ -1,3 +1,8 @@
+---
+title: Kubernetes Access Guide
+description: How to set up and configure Teleport for Kubernetes access with SSO and RBAC
+---
+
 # Teleport Kubernetes Access Guide
 
 Teleport has the ability to act as a compliance gateway for managing privileged

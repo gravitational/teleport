@@ -21,7 +21,7 @@ The following steps configure an example SAML authentication connector matching 
 
 Before you get started you’ll need:
 
-- An Enterprise version of Teleport v4.2 or greater, downloaded from [https://dashboard.gravitational.com/](https://dashboard.gravitational.com/web/).
+- An Enterprise version of Teleport v4.2 or greater, downloaded from [https://dashboard.gravitational.com/](https://dashboard.gravitational.com/web/login).
 - An Azure AD admin account with access to creating non-gallery applications (P2 License)
 - To register one or more users in the directory
 - To create at least two security groups in AzureAD and assign one or more users to each group

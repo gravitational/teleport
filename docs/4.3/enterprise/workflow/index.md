@@ -1,3 +1,8 @@
+---
+title: Approval Workflows for SSH and Kubernetes Access
+description: How to customize SSH and Kubernetes access using Teleport.
+---
+
 # Teleport Approval Workflows
 
 #### Approving Workflow using an External Integration

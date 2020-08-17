@@ -1,4 +1,9 @@
-# Role Based Access Control for SSH
+---
+title: Role Based Access Control for SSH and Kubernetes
+description: How to configure Teleport to provide unified Role Based Access Control for SSH and Kubernetes
+---
+
+# Role Based Access Control for SSH & K8s
 
 ## Introduction
 

@@ -1,3 +1,8 @@
+---
+title: Teleport Admin Manual
+description: Admin manual for how to configure identity-aware SSH, certificate-based SSH authentication, set up SSO for SSH, SSO for Kubernetes, and more.
+---
+
 # Teleport Admin Manual
 
 This manual covers the installation and configuration of Teleport and the
@@ -11,7 +16,7 @@ Please visit our [installation page](installation.md) for instructions on downlo
 ## Definitions
 
 Before diving into configuring and running Teleport, it helps to take a look at
-the [Teleport Architecture](architecture/teleport_architecture_overview.md) and review the key concepts this
+the [Teleport Architecture](architecture/overview.md) and review the key concepts this
 document will be referring to:
 
 |Concept   | Description
@@ -153,7 +158,7 @@ For a complete reference, see our [Configuration Reference - teleport.yaml](conf
 #  1. ca_pin: Obtain the CA pin hash for joining more nodes by running 'tctl status'
 #     on the auth server once Teleport is running.
 #  2. license-if-using-teleport-enterprise.pem: If you are an Enterprise customer,
-#     obtain this from https://dashboard.gravitational.com/web/
+#     obtain this from https://dashboard.gravitational.com/web/login
 #
 teleport:
   # nodename allows to assign an alternative name this node can be reached by.
@@ -810,7 +815,7 @@ the audit log:
 3. **Optional: Enhanced Session Recording**
 
 Refer to the ["Audit Log" chapter in the Teleport
-Architecture](architecture/teleport_auth.md#audit-log) to learn more about how the audit log and
+Architecture](architecture/authentication.md#audit-log) to learn more about how the audit log and
 session recording are designed.
 
 ### SSH Events
@@ -1036,7 +1041,7 @@ $ tctl rm users/admin
 
 ## Trusted Clusters
 
-As explained in the [architecture document](architecture/teleport_architecture_overview.md#design-principles),
+As explained in the [architecture document](architecture/overview.md#design-principles),
 Teleport can partition compute infrastructure into multiple clusters. A cluster
 is a group of nodes connected to the cluster's auth server, acting as a
 certificate authority (CA) for all users and nodes.
@@ -1336,8 +1341,7 @@ how to [create and register an OAuth
 app](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/).
 Be sure to set the "Authorization callback URL" to the same value as
 `redirect_url` in the resource spec. Teleport will request only the `read:org`
-OAuth scope, you can read more about Github scopes
-[here](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/).
+OAuth scope, you can read more about [Github OAuth scopes](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/).
 
 Finally, create the connector using [ `tctl` ](cli-docs.md#tctl)
 [resource](#resources) management command:
@@ -1424,7 +1428,7 @@ Review our dedicated [Using Teleport with OpenSSH](openssh_teleport.md) guide.
 
 ## Certificate Rotation
 
-Take a look at the [Certificates chapter](architecture/teleport_auth.md#authentication-in-teleport) in the
+Take a look at the [Certificates chapter](architecture/authentication.md#authentication-in-teleport) in the
 architecture document to learn how the certificate rotation works. This section
 will show you how to implement certificate rotation in practice.
 
@@ -1509,7 +1513,7 @@ examples and instructions.
 !!! tip "Tip"
 
     Before continuing, please make sure to take a look at the
-    [Cluster State section](architecture/teleport_nodes.md#cluster-state) in the Teleport
+    [Cluster State section](architecture/nodes.md#cluster-state) in the Teleport
     Architecture documentation.
 
 Usually there are two ways to achieve high availability. You can "outsource"
@@ -1636,7 +1640,7 @@ teleport:
 !!! tip "Tip"
 
     Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/teleport_nodes.md#cluster-state) in Teleport
+    [cluster state section](architecture/nodes.md#cluster-state) in Teleport
     Architecture documentation.
 
 !!! tip "AWS Authentication"
@@ -1674,7 +1678,7 @@ running on an EC2 instance with an IAM role.
 !!! tip "Tip"
 
     Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/teleport_nodes.md#cluster-state) in Teleport Architecture documentation.
+    [cluster state section](architecture/nodes.md#cluster-state) in Teleport Architecture documentation.
 
 If you are running Teleport on AWS, you can use
 [DynamoDB](https://aws.amazon.com/dynamodb/) as a storage back-end to achieve
@@ -1761,7 +1765,7 @@ teleport:
 !!! tip "Tip"
 
     Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/teleport_nodes.md#cluster-state) in Teleport
+    [cluster state section](architecture/nodes.md#cluster-state) in Teleport
     Architecture documentation.
 
 
@@ -1784,7 +1788,7 @@ teleport:
 !!! tip "Tip"
 
     Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/teleport_nodes.md#cluster-state) in Teleport Architecture documentation.
+    [cluster state section](architecture/nodes.md#cluster-state) in Teleport Architecture documentation.
 
 If you are running Teleport on GCP, you can use
 [Firestore](https://cloud.google.com/firestore/) as a storage back-end to achieve
@@ -2053,7 +2057,7 @@ until existing clients disconnect.
 
 Commercial Teleport subscriptions require a valid license. The license file can
 be downloaded from the [Teleport Customer
-Portal](https://dashboard.gravitational.com).
+Portal](https://dashboard.gravitational.com/web/login).
 
 The Teleport license file contains a X.509 certificate and the corresponding
 private key in PEM format. Place the downloaded file on Auth servers and set the
@@ -2115,6 +2119,6 @@ Now you can see the monitoring information by visiting several endpoints:
 
 If you need help, please ask on our [community forum](https://community.gravitational.com/). You can also open an [issue on Github](https://github.com/gravitational/teleport/issues).
 
-For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/).
+For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/web/login).
 
 For more information about custom features, or to try our [Enterprise edition](enterprise/introduction.md) of Teleport, please reach out to us at [sales@gravitational.com](mailto:sales@gravitational.com).

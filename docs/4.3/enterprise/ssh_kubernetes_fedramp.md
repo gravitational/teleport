@@ -1,4 +1,11 @@
-# FedRAMP / FIPS
+---
+title: FedRAMP compliance for SSH and Kubernetes
+description: How to configure SSH and Kubernetes access to be FedRAMP compliant, including support for FIPS 140-2
+---
+
+
+# FedRAMP for SSH and Kubernetes Access
+
 With Teleport 4.0 we have built the foundation to meet FedRAMP requirements for
 the purposes of accessing infrastructure. This includes support for [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS_140-2), also known as the Federal Information Processing Standard, which is the US government approved standard for cryptographic modules. This document outlines a high
 level overview of how Teleport FIPS mode works and how it can help your company to become FedRAMP certified.
@@ -22,7 +29,7 @@ government agencies.
 | [AC-2 (12) Account Management](https://nvd.nist.gov/800-53/Rev4/control/AC-2) | At the close of a connection the total data transmitted and received is emitted to the Audit Log. |
 
 
-Enterprise customers can download the custom FIPS package from the [Gravitational Dashboard](https://dashboard.gravitational.com/web/).  Look for `Linux 64-bit (FedRAMP/FIPS)`. RPM and DEB packages are also available.
+Enterprise customers can download the custom FIPS package from the [Gravitational Dashboard](https://dashboard.gravitational.com/web/login).  Look for `Linux 64-bit (FedRAMP/FIPS)`. RPM and DEB packages are also available.
 
 # Setup
 Customers can follow our [Enterprise Quickstart](quickstart-enterprise.md) for basic

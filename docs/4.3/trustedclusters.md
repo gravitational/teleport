@@ -1,3 +1,8 @@
+---
+title: Teleport Trusted Clusters
+description: How to configure access and trust between two SSH and Kubernetes environments
+---
+
 # Trusted Clusters
 
 The design of trusted clusters allows Teleport users to connect to compute infrastructure
@@ -36,7 +41,7 @@ This guide's focus is on more in-depth coverage of trusted clusters features and
 
 ## Introduction
 
-As explained in the [architecture document](architecture/teleport_architecture_overview.md#design-principles),
+As explained in the [architecture document](architecture/overview.md#design-principles),
 Teleport can partition compute infrastructure into multiple clusters.
 A cluster is a group of SSH nodes connected to the cluster's _auth server_
 acting as a certificate authority (CA) for all users and nodes.
