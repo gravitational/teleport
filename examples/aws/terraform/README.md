@@ -72,6 +72,7 @@ make plan
 For your convenience, this is a list of public Teleport AMI IDs which are published by Gravitational.
 
 ### OSS
+
 ```
 # ap-south-1 v4.3.5 OSS: ami-0d277d983018002ec
 # ap-northeast-2 v4.3.5 OSS: ami-072f84faa9242a47e
@@ -90,6 +91,7 @@ For your convenience, this is a list of public Teleport AMI IDs which are publis
 ```
 
 ### Enterprise
+
 ```
 # ap-south-1 v4.3.5 Enterprise: ami-09d50faa4da796ada
 # ap-northeast-2 v4.3.5 Enterprise: ami-091d5e7bdfe387cb7
@@ -108,6 +110,7 @@ For your convenience, this is a list of public Teleport AMI IDs which are publis
 ```
 
 ### Enterprise FIPS
+
 ```
 # ap-south-1 v4.3.5 Enterprise FIPS: ami-0c2c57c0dc5ae7c46
 # ap-northeast-2 v4.3.5 Enterprise FIPS: ami-0e5c3dc6104bf9dd9
