@@ -2613,10 +2613,6 @@ steps:
 
 ---
 kind: signature
-<<<<<<< HEAD
-hmac: 9646bc012a89bb21fa8e0f0d14e5e2e149917c68b343600effb5ee8fc7d8e2aa
-=======
-hmac: 382d9ed0ef2248daf1c75e74c0f1560291365c3671f441894f0ad723406a183f
->>>>>>> a89fd4dd2... Export FIPS_AMI_NAME for Enterprise AMI builds (#4209)
+hmac: 6aa07315c02747e261af4d67d7e75816cf7c152892542d26c706f7ec1dd2e22c
 
 ...
