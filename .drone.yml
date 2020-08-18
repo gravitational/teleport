@@ -2416,6 +2416,7 @@ steps:
       - cd /go/src/github.com/gravitational/teleport/assets/aws
       - export TELEPORT_VERSION=$(cat /go/.version.txt)
       - export PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-$TELEPORT_VERSION
+      - export FIPS_AMI_NAME=gravitational-teleport-ami-ent-$TELEPORT_VERSION-fips
       - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-ent-$TELEPORT_VERSION
       - |
         if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
@@ -2612,6 +2613,6 @@ steps:
 
 ---
 kind: signature
-hmac: 9646bc012a89bb21fa8e0f0d14e5e2e149917c68b343600effb5ee8fc7d8e2aa
+hmac: 6aa07315c02747e261af4d67d7e75816cf7c152892542d26c706f7ec1dd2e22c
 
 ...
