@@ -1187,6 +1187,13 @@ func (process *TeleportProcess) initAuthService() error {
 		AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/10),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
 		ServerTTL:       defaults.ServerAnnounceTTL,
+		OnHeartbeat: func(err error) {
+			if err != nil {
+				process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentAuth})
+			} else {
+				process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentAuth})
+			}
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1514,6 +1521,13 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetUseTunnel(conn.UseTunnel()),
 			regular.SetFIPS(cfg.FIPS),
 			regular.SetBPF(ebpf),
+			regular.SetOnHeartbeat(func(err error) {
+				if err != nil {
+					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentNode})
+				} else {
+					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentNode})
+				}
+			}),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1724,14 +1738,13 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	process.RegisterFunc("readyz.monitor", func() error {
 		// Start loop to monitor for events that are used to update Teleport state.
 		eventCh := make(chan Event, 1024)
-		process.WaitForEvent(process.ExitContext(), TeleportReadyEvent, eventCh)
 		process.WaitForEvent(process.ExitContext(), TeleportDegradedEvent, eventCh)
 		process.WaitForEvent(process.ExitContext(), TeleportOKEvent, eventCh)
 
 		for {
 			select {
 			case e := <-eventCh:
-				ps.Process(e)
+				ps.update(e)
 			case <-process.ExitContext().Done():
 				log.Debugf("Teleport is exiting, returning.")
 				return nil
@@ -1739,7 +1752,7 @@ func (process *TeleportProcess) initDiagnosticService() error {
 		}
 	})
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
-		switch ps.GetState() {
+		switch ps.getState() {
 		// 503
 		case stateDegraded:
 			roundtrip.ReplyJSON(w, http.StatusServiceUnavailable, map[string]interface{}{
@@ -2191,6 +2204,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetNamespace(defaults.Namespace),
 		regular.SetRotationGetter(process.getRotation),
 		regular.SetFIPS(cfg.FIPS),
+		regular.SetOnHeartbeat(func(err error) {
+			if err != nil {
+				process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentProxy})
+			} else {
+				process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentProxy})
+			}
+		}),
 	)
 	if err != nil {
 		return trace.Wrap(err)
