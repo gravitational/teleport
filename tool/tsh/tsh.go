@@ -611,6 +611,10 @@ func onLogout(cf *CLIConf) {
 	// Extract all clusters the user is currently logged into.
 	active, available, err := client.Status("", "")
 	if err != nil {
+		if trace.IsNotFound(err) {
+			fmt.Printf("All users logged out.\n")
+			return
+		}
 		utils.FatalError(err)
 		return
 	}
