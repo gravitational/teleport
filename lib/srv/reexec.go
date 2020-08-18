@@ -426,7 +426,8 @@ func buildCommand(c *execCommand, tty *os.File, pty *os.File, pamEnvironment []s
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Setsid:  true,
 			Setctty: true,
-			Ctty:    int(tty.Fd()),
+			// Note: leaving Ctty empty will default it to stdin fd, which is
+			// set to our tty above.
 		}
 	} else {
 		cmd.Stdin = os.Stdin
