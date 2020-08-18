@@ -162,6 +162,9 @@ type HeartbeatConfig struct {
 	CheckPeriod time.Duration
 	// Clock is a clock used to override time in tests
 	Clock clockwork.Clock
+	// OnHeartbeat is called after every heartbeat. A non-nil error is passed
+	// when a heartbeat fails.
+	OnHeartbeat func(error)
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -195,6 +198,10 @@ func (cfg *HeartbeatConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
+	}
+	if cfg.OnHeartbeat == nil {
+		// Blackhole callback if none was specified.
+		cfg.OnHeartbeat = func(error) {}
 	}
 
 	return nil
@@ -236,9 +243,11 @@ func (h *Heartbeat) Run() error {
 		h.checkTicker.Stop()
 	}()
 	for {
-		if err := h.fetchAndAnnounce(); err != nil {
+		err := h.fetchAndAnnounce()
+		if err != nil {
 			h.Warningf("Heartbeat failed %v.", err)
 		}
+		h.OnHeartbeat(err)
 		select {
 		case <-h.checkTicker.C:
 		case <-h.sendC:
