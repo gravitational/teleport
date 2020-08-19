@@ -515,7 +515,7 @@ func Status(profileDir string, proxyHost string) (*ProfileStatus, []*ProfileStat
 			return nil, nil, trace.NotFound(err.Error())
 		} else if os.IsPermission(err) {
 			return nil, nil, trace.AccessDenied(err.Error())
-		}else{
+		} else {
 			return nil, nil, trace.Wrap(err)
 		}
 	}
