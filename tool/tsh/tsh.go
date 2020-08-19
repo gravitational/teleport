@@ -614,6 +614,9 @@ func onLogout(cf *CLIConf) {
 		if trace.IsNotFound(err) {
 			fmt.Printf("All users logged out.\n")
 			return
+		} else if trace.IsAccessDenied(err) {
+			fmt.Printf("~/.tsh: Logged in user does not have the correct permissions. \n")
+			return
 		}
 		utils.FatalError(err)
 		return

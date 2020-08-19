@@ -510,7 +510,12 @@ func Status(profileDir string, proxyHost string) (*ProfileStatus, []*ProfileStat
 	profileDir = FullProfilePath(profileDir)
 	stat, err := os.Stat(profileDir)
 	if err != nil {
-		return nil, nil, trace.NotFound(err.Error())
+		if os.IsNotExist(err) {
+			log.Debugf("Failed to stat file: %v.", err)
+			return nil, nil, trace.NotFound(err.Error())
+		} else if os.IsPermission(err) {
+			return nil, nil, trace.AccessDenied(err.Error())
+		}
 	}
 	if !stat.IsDir() {
 		return nil, nil, trace.BadParameter("profile path not a directory")
