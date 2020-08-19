@@ -37,6 +37,9 @@ const (
 	// MetricRemoteClusters measures connected remote clusters
 	MetricRemoteClusters = "remote_clusters"
 
+	// MetricTrustedClusters counts trusted clusters
+	MetricTrustedClusters = "trusted_clusters"
+
 	// TagCluster is a metric tag for a cluster
 	TagCluster = "cluster"
 )

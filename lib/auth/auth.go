@@ -159,13 +159,13 @@ var (
 	generateRequestsCurrent = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: teleport.MetricGenerateRequestsCurrent,
-			Help: "Number of current generate requests",
+			Help: "Number of current generate requests for server keys",
 		},
 	)
 	generateRequestsLatencies = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Name: teleport.MetricGenerateRequestsHistogram,
-			Help: "Latency for generate requests",
+			Help: "Latency for generate requests for server keys",
 			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
 			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),

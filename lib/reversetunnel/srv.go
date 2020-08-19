@@ -44,14 +44,14 @@ import (
 var (
 	remoteClustersStats = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "remote_clusters",
+			Name: teleport.MetricRemoteClusters,
 			Help: "Number inbound connections from remote clusters and clusters stats",
 		},
 		[]string{"cluster"},
 	)
 	trustedClustersStats = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "trusted_clusters",
+			Name: teleport.MetricTrustedClusters,
 			Help: "Number of tunnels per state",
 		},
 		[]string{"cluster", "state"},
@@ -400,13 +400,12 @@ func (s *server) fetchClusterPeers() error {
 }
 
 func (s *server) reportClusterStats() error {
-	defer func() {
-		if r := recover(); r != nil {
-			s.Warningf("Recovered from panic: %v.", r)
-		}
-	}()
 	clusters := s.GetSites()
 	for _, cluster := range clusters {
+		if _, ok := cluster.(*localSite); ok {
+			// Don't count local cluster tunnels.
+			continue
+		}
 		gauge, err := remoteClustersStats.GetMetricWithLabelValues(cluster.GetName())
 		if err != nil {
 			return trace.Wrap(err)
