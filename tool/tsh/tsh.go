@@ -615,8 +615,7 @@ func onLogout(cf *CLIConf) {
 			fmt.Printf("All users logged out.\n")
 			return
 		} else if trace.IsAccessDenied(err) {
-			fmt.Printf(err.Error())
-			fmt.Printf(": Logged in user does not have the correct permissions. \n")
+			fmt.Printf("%v: Logged in user does not have the correct permissions\n", err)
 			return
 		}
 		utils.FatalError(err)
