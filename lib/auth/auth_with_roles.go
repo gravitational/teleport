@@ -1737,6 +1737,10 @@ func (a *AuthWithRoles) CreateRemoteCluster(conn services.RemoteCluster) error {
 	return a.authServer.CreateRemoteCluster(conn)
 }
 
+func (a *AuthWithRoles) UpdateRemoteCluster(ctx context.Context, conn services.RemoteCluster) error {
+	return trace.NotImplemented("not implemented: remote clusters can only be updated by auth server locally")
+}
+
 func (a *AuthWithRoles) GetRemoteCluster(clusterName string) (services.RemoteCluster, error) {
 	if err := a.action(defaults.Namespace, services.KindRemoteCluster, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
