@@ -680,10 +680,10 @@ type getSiteNodeResponse struct {
 	Items []ui.Server `json:"items"`
 }
 
-func (s *WebSuite) TestGetSiteNodes(c *C) {
+func (s *WebSuite) TestGetSiteNodesAndCreateSession(c *C) {
 	pack := s.authPack(c, "foo")
 
-	// get site nodes
+	// test get site nodes
 	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "nodes"), url.Values{})
 	c.Assert(err, IsNil)
 
@@ -691,7 +691,7 @@ func (s *WebSuite) TestGetSiteNodes(c *C) {
 	c.Assert(json.Unmarshal(re.Bytes(), &nodes), IsNil)
 	c.Assert(len(nodes.Items), Equals, 1)
 
-	// get site nodes using shortcut
+	// test get site nodes using shortcut
 	re, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", currentSiteShortcut, "nodes"), url.Values{})
 	c.Assert(err, IsNil)
 
@@ -699,6 +699,80 @@ func (s *WebSuite) TestGetSiteNodes(c *C) {
 	c.Assert(json.Unmarshal(re.Bytes(), &nodes2), IsNil)
 	c.Assert(len(nodes.Items), Equals, 1)
 	c.Assert(nodes2, DeepEquals, nodes)
+
+	// test create session using node UUID
+	node := nodes.Items[0]
+	sess := session.Session{
+		TerminalParams: session.TerminalParams{W: 300, H: 120},
+		Login:          s.user,
+		ClusterName:    "some-cluster",
+		ServerID:       node.Name,
+	}
+
+	re, err = pack.clt.PostJSON(
+		context.Background(),
+		pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"),
+		siteSessionGenerateReq{Session: sess},
+	)
+	c.Assert(err, IsNil)
+
+	var created *siteSessionGenerateResponse
+	c.Assert(json.Unmarshal(re.Bytes(), &created), IsNil)
+	c.Assert(created.Session.ID, Not(Equals), "")
+	c.Assert(created.Session.ServerID, Equals, node.Name)
+	c.Assert(created.Session.ServerHostname, Equals, node.Hostname)
+	c.Assert(created.Session.ServerAddr, Equals, node.Addr)
+	c.Assert(created.Session.Namespace, Equals, "default")
+}
+
+func (s *WebSuite) TestGetNode(c *C) {
+	node1 := &services.ServerV2{
+		Spec: services.ServerSpecV2{
+			Addr:     "1.1.1.1:1000",
+			Hostname: "server-hostname-1",
+		},
+		Metadata: services.Metadata{
+			Name: "server-uuid-1",
+		},
+	}
+
+	node2 := &services.ServerV2{
+		Spec: services.ServerSpecV2{
+			Addr:     "2.2.2.2:2000",
+			Hostname: "server-hostname-2",
+		},
+		Metadata: services.Metadata{
+			Name: "server-uuid-2",
+		},
+	}
+
+	node, err := getNode("", []services.Server{node1, node2})
+	c.Assert(trace.IsBadParameter(err), Equals, true)
+	c.Assert(node, IsNil)
+
+	node, err = getNode("does-not-exist", []services.Server{node1, node2})
+	c.Assert(trace.IsNotFound(err), Equals, true)
+	c.Assert(node, IsNil)
+
+	node, err = getNode("1.1.1.1:fail", []services.Server{node1, node2})
+	c.Assert(trace.IsNotFound(err), Equals, true)
+	c.Assert(node, IsNil)
+
+	node, err = getNode("1.1.1.1", []services.Server{node1, node2})
+	c.Assert(err, IsNil)
+	c.Assert(node, DeepEquals, node1)
+
+	node, err = getNode("1.1.1.1:1000", []services.Server{node1, node2})
+	c.Assert(err, IsNil)
+	c.Assert(node, DeepEquals, node1)
+
+	node, err = getNode("server-hostname-2", []services.Server{node1, node2})
+	c.Assert(err, IsNil)
+	c.Assert(node, DeepEquals, node2)
+
+	node, err = getNode("server-uuid-2", []services.Server{node1, node2})
+	c.Assert(err, IsNil)
+	c.Assert(node, DeepEquals, node2)
 }
 
 func (s *WebSuite) TestSiteNodeConnectInvalidSessionID(c *C) {
@@ -1171,26 +1245,6 @@ func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 	case err := <-errC:
 		c.Assert(err, Equals, io.EOF)
 	}
-}
-
-func (s *WebSuite) TestCreateSession(c *C) {
-	pack := s.authPack(c, "foo")
-
-	sess := session.Session{
-		TerminalParams: session.TerminalParams{W: 300, H: 120},
-		Login:          s.user,
-	}
-
-	re, err := pack.clt.PostJSON(
-		context.Background(),
-		pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"),
-		siteSessionGenerateReq{Session: sess},
-	)
-	c.Assert(err, IsNil)
-
-	var created *siteSessionGenerateResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &created), IsNil)
-	c.Assert(created.Session.ID, Not(Equals), "")
 }
 
 func (s *WebSuite) TestPlayback(c *C) {
