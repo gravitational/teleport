@@ -49,7 +49,7 @@ const (
 var (
 	serverSessions = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "server_interactive_sessions_total",
+			Name: teleport.MetricServerInteractiveSessions,
 			Help: "Number of active sessions",
 		},
 	)
@@ -563,8 +563,8 @@ func (s *session) PID() int {
 
 // Close ends the active session forcing all clients to disconnect and freeing all resources
 func (s *session) Close() error {
-	serverSessions.Dec()
 	s.closeOnce.Do(func() {
+		serverSessions.Dec()
 		// closing needs to happen asynchronously because the last client
 		// (session writer) will try to close this session, causing a deadlock
 		// because of closeOnce
