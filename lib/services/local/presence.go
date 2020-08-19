@@ -606,6 +606,23 @@ func (s *PresenceService) CreateRemoteCluster(rc services.RemoteCluster) error {
 	return nil
 }
 
+// UpdateRemoteCluster updates remote cluster
+func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc services.RemoteCluster) error {
+	value, err := json.Marshal(rc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(remoteClustersPrefix, rc.GetName()),
+		Value:   value,
+		Expires: rc.Expiry(),
+	}
+	if _, err := s.Update(ctx, item); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // GetRemoteClusters returns a list of remote clusters
 func (s *PresenceService) GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error) {
 	startKey := backend.Key(remoteClustersPrefix)
