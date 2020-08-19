@@ -29,6 +29,7 @@ require (
 	github.com/gokyle/hotp v0.0.0-20160218004637-c180d57d286b
 	github.com/golang/protobuf v1.3.2
 	github.com/google/btree v1.0.0
+	github.com/google/go-cmp v0.5.1
 	github.com/google/gops v0.3.1
 	github.com/googleapis/gnostic v0.2.0 // indirect
 	github.com/gravitational/configure v0.0.0-20160909185025-1db4b84fe9db
@@ -69,6 +70,7 @@ require (
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
 	github.com/sirupsen/logrus v1.4.2
+	github.com/stretchr/testify v1.6.1
 	github.com/tstranex/u2f v0.0.0-20160508205855-eb799ce68da4
 	github.com/vulcand/predicate v1.1.0
 	github.com/xeipuuv/gojsonpointer v0.0.0-20151027082146-e0fe6f683076 // indirect
