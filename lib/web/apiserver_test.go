@@ -723,6 +723,21 @@ func (s *WebSuite) TestGetSiteNodesAndCreateSession(c *C) {
 	c.Assert(created.Session.ServerHostname, Equals, node.Hostname)
 	c.Assert(created.Session.ServerAddr, Equals, node.Addr)
 	c.Assert(created.Session.Namespace, Equals, "default")
+
+	// test create session backwards comp (serverID not set)
+	sess.ServerID = ""
+	re, err = pack.clt.PostJSON(
+		context.Background(),
+		pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"),
+		siteSessionGenerateReq{Session: sess},
+	)
+	c.Assert(err, IsNil)
+	c.Assert(json.Unmarshal(re.Bytes(), &created), IsNil)
+	c.Assert(created.Session.ID, Not(Equals), "")
+	c.Assert(created.Session.ServerID, Equals, "")
+	c.Assert(created.Session.ServerHostname, Equals, "")
+	c.Assert(created.Session.ServerAddr, Equals, "")
+	c.Assert(created.Session.Namespace, Equals, "default")
 }
 
 func (s *WebSuite) TestGetNode(c *C) {
