@@ -2783,6 +2783,28 @@ func (c *Client) DeleteAllApps(ctx context.Context, namespace string) error {
 	return nil
 }
 
+// GenerateAppToken returns a signed token that contains claims about the
+// caller signed and embedded inside.
+func (c *Client) GenerateAppToken(ctx context.Context, namespace string, params services.AppTokenParams) (string, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	resp, err := clt.GenerateAppToken(ctx, &proto.GenerateAppTokenRequest{
+		Namespace: namespace,
+		Username:  params.Username,
+		Recipient: params.Recipient,
+		Roles:     params.Roles,
+		Expiry:    proto.Duration(params.Expiry),
+	})
+	if err != nil {
+		return "", trail.FromGRPC(err)
+	}
+
+	return resp.GetToken(), nil
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if

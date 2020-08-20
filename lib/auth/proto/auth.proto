@@ -235,6 +235,26 @@ message DeleteAllAppsRequest {
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
 }
 
+// GenerateAppTokenRequest are the parameters to be signed and embedded
+// within the token.
+message GenerateAppTokenRequest {
+    // Namespace is the namespace for the registered application.
+    string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
+    // Username is the Teleport identity of the user for who a JWT is being
+    // issued.
+    string Username = 2 [ (gogoproto.jsontag) = "username" ];
+    // Roles is the list of roles for the Teleport identity for whom a JWT
+    // is being issued.
+    repeated string Roles = 3 [ (gogoproto.jsontag) = "roles" ];
+    // Recipient is the target.
+    string Recipient = 4 [ (gogoproto.jsontag) = "recipient" ];
+    // Expiry is the expiration time for the JWT.
+    int64 Expiry = 5 [ (gogoproto.jsontag) = "expiry", (gogoproto.casttype) = "Duration" ];
+}
+
+// GenerateAppTokenResponse contains a signed token with claims.
+message GenerateAppTokenResponse { string Token = 1 [ (gogoproto.jsontag) = "token" ]; }
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -292,4 +312,8 @@ service AuthService {
     rpc DeleteApp(DeleteAppRequest) returns (google.protobuf.Empty);
     // DeleteAllApp un-registers an application.
     rpc DeleteAllApps(DeleteAllAppsRequest) returns (google.protobuf.Empty);
+
+    // GenerateAppToken returns a signed token that contains claims about the
+    // caller signed and embedded inside.
+    rpc GenerateAppToken(GenerateAppTokenRequest) returns (GenerateAppTokenResponse);
 }

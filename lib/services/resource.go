@@ -57,6 +57,9 @@ const (
 	// KindHostCert is a host certificate
 	KindHostCert = "host_cert"
 
+	// KindJWT is a JWT token signer.
+	KindJWT = "jwt"
+
 	// KindLicense is a license resource
 	KindLicense = "license"
 

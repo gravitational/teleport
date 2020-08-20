@@ -534,6 +534,29 @@ func (g *GRPCServer) DeleteAllApps(ctx context.Context, req *proto.DeleteAllApps
 	return &empty.Empty{}, nil
 }
 
+// GenerateAppToken returns a signed token that contains claims about the
+// caller signed and embedded inside.
+func (g *GRPCServer) GenerateAppToken(ctx context.Context, req *proto.GenerateAppTokenRequest) (*proto.GenerateAppTokenResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	token, err := auth.GenerateAppToken(ctx, req.Namespace, services.AppTokenParams{
+		Username:  req.GetUsername(),
+		Roles:     req.GetRoles(),
+		Recipient: req.GetRecipient(),
+		Expiry:    time.Duration(req.GetExpiry()),
+	})
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &proto.GenerateAppTokenResponse{
+		Token: token,
+	}, nil
+}
+
 type grpcContext struct {
 	*AuthContext
 	*AuthWithRoles

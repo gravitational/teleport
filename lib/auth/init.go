@@ -427,6 +427,23 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 		}
 	}
 
+	// If a JWT "CA" does not exist for this cluster, create one.
+	jwtCA, err := asrv.GetCertAuthority(services.CertAuthID{
+		DomainName: cfg.ClusterName.GetClusterName(),
+		Type:       services.JWTSigner,
+	}, true)
+	if trace.IsNotFound(err) || len(jwtCA.GetJWTKeyPairs()) == 0 {
+		log.Infof("Migrate: Adding JWT key to existing cluster %q.", cfg.ClusterName.GetClusterName())
+
+		jwtCA, err = services.NewJWTAuthority(cfg.ClusterName.GetClusterName())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := asrv.Trust.UpsertCertAuthority(jwtCA); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	if lib.IsInsecureDevMode() {
 		warningMessage := "Starting teleport in insecure mode. This is " +
 			"dangerous! Sensitive information will be logged to console and " +

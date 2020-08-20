@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -573,6 +574,40 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &certs{ssh: sshCert, tls: tlsCert}, nil
+}
+
+// GenerateAppToken returns a signed token that contains claims about the
+// caller signed and embedded inside.
+func (s *AuthServer) GenerateAppToken(ctx context.Context, req services.AppTokenParams) (string, error) {
+	// Get the CA with which this JWT will be signed.
+	clusterName, err := s.GetDomainName()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
+		Type:       services.JWTSigner,
+		DomainName: clusterName,
+	}, true)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// Fetch the signing key and sign the claims.
+	privateKey, err := ca.JWTSigner()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	token, err := privateKey.Sign(jwt.SignParams{
+		Username:  req.Username,
+		Roles:     req.Roles,
+		Recipient: req.Recipient,
+		Expiry:    req.Expiry,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return token, nil
 }
 
 // WithUserLock executes function authenticateFn that performs user authentication

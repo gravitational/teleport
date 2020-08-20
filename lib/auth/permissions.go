@@ -395,6 +395,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 						services.NewRule(services.KindRole, services.RO()),
 						services.NewRule(services.KindNamespace, services.RO()),
 						services.NewRule(services.KindTrustedCluster, services.RO()),
+						services.NewRule(services.KindJWT, services.RW()),
 					},
 				},
 			})

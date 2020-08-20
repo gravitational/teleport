@@ -1938,6 +1938,21 @@ func (a *AuthWithRoles) GetAppsWithIdentity(ctx context.Context, namespace strin
 	return filteredApps, nil
 }
 
+// GenerateAppToken returns a signed token that contains claims about the
+// caller signed and embedded inside.
+func (a *AuthWithRoles) GenerateAppToken(ctx context.Context, namespace string, params services.AppTokenParams) (string, error) {
+	if err := a.action(namespace, services.KindJWT, services.VerbCreate); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	token, err := a.authServer.GenerateAppToken(ctx, params)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return token, nil
+}
+
 func (a *AuthWithRoles) Close() error {
 	return a.authServer.Close()
 }
