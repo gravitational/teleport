@@ -23,7 +23,8 @@ markdown_extensions:
   - pymdownx.superfences
   - toc:
       marker: '[TOC]'
-      toc_depth: 2
+      toc_depth: 3
+      permalink: true
 extra_css: []
 plugins:
     - search:
