@@ -77,7 +77,7 @@ require (
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20190830150955-898bd1351fcf
 	go.opencensus.io v0.22.1 // indirect
 	go.uber.org/atomic v1.4.0
-	golang.org/x/crypto v0.0.0-20200220183623-bac4c82f6975
+	golang.org/x/crypto v0.0.0-20200728195943-123391ffb6de
 	golang.org/x/net v0.0.0-20200202094626-16171245cfb2
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
 	golang.org/x/sys v0.0.0-20200107162124-548cf772de50
@@ -89,6 +89,7 @@ require (
 	google.golang.org/genproto v0.0.0-20190916214212-f660b8655731
 	google.golang.org/grpc v1.23.0
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15
+	gopkg.in/square/go-jose.v2 v2.5.1
 	gopkg.in/yaml.v2 v2.2.8
 	gotest.tools v2.2.0+incompatible // indirect
 	k8s.io/api v0.17.3
