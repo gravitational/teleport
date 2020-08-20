@@ -1471,15 +1471,19 @@ type siteSessionGenerateResponse struct {
 	Session session.Session `json:"session"`
 }
 
-// siteSessionCreate generates a new site session that can be used by UI.
-// The ServerID from request can be in the form of hostname, uuid, or ip address.
-// ServerID will be replaced with the correct UUID after identifying server.
+// siteSessionCreate generates a new site session that can be used by UI
+//
+// POST /v1/webapi/sites/:site/sessions
+//
+// Request body:
+//
+// {"session": {"terminal_params": {"w": 100, "h": 100}, "login": "centos"}}
+//
+// Response body:
+//
+// {"session": {"id": "session-id", "terminal_params": {"w": 100, "h": 100}, "login": "centos"}}
+//
 func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := ctx.GetUserClient(site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	namespace := p.ByName("namespace")
 	if !services.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
@@ -1490,65 +1494,13 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	servers, err := clt.GetNodes(namespace, services.SkipValidation())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	node, err := getNode(req.Session.ServerID, servers)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Set session with existing data.
-	req.Session.ServerHostname = node.GetHostname()
-	req.Session.ServerAddr = node.GetAddr()
-	req.Session.ServerID = node.GetName()
-
-	// Set new data.
-	req.Session.ID = session.NewID()
+	// DELETE IN 4.2: change from session.NewLegacyID() to session.NewID().
+	req.Session.ID = session.NewLegacyID()
 	req.Session.Created = time.Now().UTC()
 	req.Session.LastActive = time.Now().UTC()
 	req.Session.Namespace = namespace
-
 	log.Infof("Generated session: %#v", req.Session)
-
 	return siteSessionGenerateResponse{Session: req.Session}, nil
-}
-
-// getNode returns the node that matches the server identifier.
-// Server identifier can be in the form of hostname, uuid,
-// ip address with port, or host of ip address.
-func getNode(serverID string, existingServers []services.Server) (services.Server, error) {
-	if serverID == "" {
-		return nil, trace.BadParameter("missing server id")
-	}
-
-	for _, server := range existingServers {
-		isUUID := serverID == server.GetName()
-		isHostname := serverID == server.GetHostname()
-		isAddr := serverID == server.GetAddr()
-
-		if isUUID || isHostname || isAddr {
-			return server, nil
-		}
-
-		if strings.Contains(serverID, ":") {
-			return nil, trace.NotFound("server id not found")
-		}
-
-		// Check if serverID is the host of server addr
-		host, _, err := utils.SplitHostPort(server.GetAddr())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if serverID == host {
-			return server, nil
-		}
-	}
-
-	return nil, trace.NotFound("server id not found")
 }
 
 type siteSessionsGetResponse struct {
