@@ -1490,23 +1490,20 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	// DELETE IN 5.2: with version less than 4.4, UI does not provide serverID with request.
-	if req.Session.ServerID != "" {
-		servers, err := clt.GetNodes(namespace, services.SkipValidation())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		node, err := getNode(req.Session.ServerID, servers)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Set session with existing data.
-		req.Session.ServerHostname = node.GetHostname()
-		req.Session.ServerAddr = node.GetAddr()
-		req.Session.ServerID = node.GetName()
+	servers, err := clt.GetNodes(namespace, services.SkipValidation())
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
+	node, err := getNode(req.Session.ServerID, servers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Set session with existing data.
+	req.Session.ServerHostname = node.GetHostname()
+	req.Session.ServerAddr = node.GetAddr()
+	req.Session.ServerID = node.GetName()
 
 	// Set new data.
 	req.Session.ID = session.NewID()
