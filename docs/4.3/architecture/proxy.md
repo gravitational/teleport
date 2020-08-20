@@ -50,16 +50,16 @@ client SSH connection:
 **Getting Client Certificates**
 
 Teleport Proxy implements a special method to let clients get short-lived
-authentication certificates signed by the [Auth Service User Certificate
-Authority (CA)](./auth/#authentication-in-teleport).:
+authentication certificates signed by the Certificate Authority (CA) provided by 
+the [Auth Service](../authentication#authentication-in-teleport).
 
 ![Teleport Proxy SSH](../img/proxy-ssh-1.svg)
 
 1. A [`tsh` client](../cli-docs.md#tsh) generates an OpenSSH keypair. It forwards
    the generated public key, username, password and second factor token to the
    proxy.
-2. The Proxy Server forwards request to the Auth Server.
-3. If Auth Server accepts credentials, it generates a new certificate signed by
+2. The Proxy Service forwards request to the Auth Service.
+3. If Auth Service accepts credentials, it generates a new certificate signed by
    its user CA and sends it back to the Proxy Server. The certificate has a TTL
    which defaults to 12 hours, but can be configured in
    [`tctl`](../cli-docs.md#tctl).
@@ -80,8 +80,8 @@ client `ssh` or using `tsh`:
    node's IP address:
 
     * Use DNS to resolve the name requested by the client.
-    * Asks the Auth Server if there is a Node registered with this `nodename`.
-    * Asks the Auth Server to find a node (or nodes) with a label that matches
+    * Asks the Auth Service if there is a Node registered with this `nodename`.
+    * Asks the Auth Service to find a node (or nodes) with a label that matches
       the requested name.
 
 2. If the node is located, the Proxy establishes an SSH connection to the
@@ -122,13 +122,13 @@ We consider the "recording proxy mode" to be less secure for two reasons:
 
 However, there are advantages of proxy-based session recording too. When
 sessions are recorded at the nodes, a root user can add iptables rules to
-prevent sessions logs from reaching the Auth Server. With sessions recorded at
+prevent sessions logs from reaching the Auth Service. With sessions recorded at
 the proxy, users with root privileges on nodes have no way of disabling the
 audit.
 
 See the [admin guide](../admin-guide.md#recorded-sessions) to learn how to turn
 on the recording proxy mode. Note that the recording mode is configured on the
-Auth Server.
+Auth Service.
 
 ## More Concepts
 

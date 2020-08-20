@@ -109,9 +109,8 @@ by the system's SSH agent if it is running.
 
 2. If the correct credentials were offered, the Auth Server will generate a
    signed certificate and return it to the client. For users, certificates are
-   stored in `~/.tsh` by default. If the client uses the [Web
-   UI](./proxy/#web-ui-to-ssh) the signed certificate is associated with a
-   secure websocket session.
+   stored in `~/.tsh` by default. If the client uses the Web UI the signed certificate 
+   is associated with a secure websocket session.
 
 In addition to a user's identity, user certificates also contain user roles and
 SSH options, like "permit-agent-forwarding" <!--TODO: link to config/set options here-->.
@@ -127,8 +126,7 @@ that a certificate exists and hasn't expired. If it has expired, the client must
 re-authenticate with their username, password, and 2nd factor. If the
 certificate is still valid, the Auth Server validates the certificate's
 signature. The client is then granted access to the cluster. From here, the
-[Proxy Server](proxy.md#connecting-to-a-node) establishes a connection between
-client and node.
+[Proxy Server](proxy.md) establishes a connection between client and node.
 
 ## Certificate Rotation
 
