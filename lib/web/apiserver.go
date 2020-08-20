@@ -1472,18 +1472,13 @@ type siteSessionGenerateResponse struct {
 }
 
 // siteSessionCreate generates a new site session that can be used by UI
-//
-// POST /v1/webapi/sites/:site/sessions
-//
-// Request body:
-//
-// {"session": {"terminal_params": {"w": 100, "h": 100}, "login": "centos"}}
-//
-// Response body:
-//
-// {"session": {"id": "session-id", "terminal_params": {"w": 100, "h": 100}, "login": "centos"}}
-//
+// The ServerID from request can be in the form of hostname, uuid, or ip address.
 func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	namespace := p.ByName("namespace")
 	if !services.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
@@ -1494,12 +1489,27 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	// DELETE IN 4.2: change from session.NewLegacyID() to session.NewID().
-	req.Session.ID = session.NewLegacyID()
+	if req.Session.ServerID != "" {
+		servers, err := clt.GetNodes(namespace, services.SkipValidation())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		hostname, _, err := resolveServerHostPort(req.Session.ServerID, servers)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		req.Session.ServerHostname = hostname
+	}
+
+	req.Session.ID = session.NewID()
 	req.Session.Created = time.Now().UTC()
 	req.Session.LastActive = time.Now().UTC()
 	req.Session.Namespace = namespace
+
 	log.Infof("Generated session: %#v", req.Session)
+
 	return siteSessionGenerateResponse{Session: req.Session}, nil
 }
 
