@@ -48,15 +48,17 @@ require (
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/kr/pty v1.1.1
 	github.com/kylelemons/godebug v0.0.0-20160406211939-eadb3ce320cb
+	github.com/magicmatatjahu/milv v0.0.6 // indirect
 	github.com/mailgun/lemma v0.0.0-20160211003854-e8b0cd607f58
 	github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd // indirect
 	github.com/mailgun/minheap v0.0.0-20131208021033-7c28d80e2ada // indirect
 	github.com/mailgun/timetools v0.0.0-20141028012446-7e6055773c51
 	github.com/mailgun/ttlmap v0.0.0-20150816203249-16b258d86efc
-	github.com/mattn/go-runewidth v0.0.4 // indirect
+	github.com/mattn/go-runewidth v0.0.9 // indirect
 	github.com/mattn/go-sqlite3 v1.10.0
 	github.com/mdp/rsc v0.0.0-20160131164516-90f07065088d // indirect
 	github.com/mitchellh/go-wordwrap v1.0.0 // indirect
+	github.com/olekukonko/tablewriter v0.0.4 // indirect
 	github.com/pborman/uuid v0.0.0-20170612153648-e790cca94e6c
 	github.com/pquerna/otp v0.0.0-20160912161815-54653902c20e
 	github.com/prometheus/client_golang v1.1.0
@@ -66,6 +68,7 @@ require (
 	github.com/russellhaering/gosaml2 v0.0.0-20170515204909-8908227c114a
 	github.com/russellhaering/goxmldsig v0.0.0-20170515183101-605161228693
 	github.com/satori/go.uuid v1.1.1-0.20170321230731-5bf94b69c6b6 // indirect
+	github.com/schollz/closestmatch v2.1.0+incompatible // indirect
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
 	github.com/sirupsen/logrus v1.4.2
@@ -77,10 +80,10 @@ require (
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20190830150955-898bd1351fcf
 	go.opencensus.io v0.22.1 // indirect
 	go.uber.org/atomic v1.4.0
-	golang.org/x/crypto v0.0.0-20200220183623-bac4c82f6975
-	golang.org/x/net v0.0.0-20200202094626-16171245cfb2
+	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
+	golang.org/x/net v0.0.0-20200813134508-3edf25e44fcc
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
-	golang.org/x/sys v0.0.0-20200107162124-548cf772de50
+	golang.org/x/sys v0.0.0-20200323222414-85ca7c5b95cd
 	golang.org/x/text v0.3.2
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
 	golang.org/x/tools v0.0.0-20191227053925-7b8e75db28f4 // indirect
@@ -89,7 +92,7 @@ require (
 	google.golang.org/genproto v0.0.0-20190916214212-f660b8655731
 	google.golang.org/grpc v1.23.0
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15
-	gopkg.in/yaml.v2 v2.2.8
+	gopkg.in/yaml.v2 v2.3.0
 	gotest.tools v2.2.0+incompatible // indirect
 	k8s.io/api v0.17.3
 	k8s.io/apimachinery v0.17.3
