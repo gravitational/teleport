@@ -2,7 +2,7 @@ request-repeats: 3
 timeout: 5
 allow-redirect: true
 allow-code-blocks: false
-ignore-external: true
+ignore-external: false
 white-list-internal:
   - "mailto:sales@gravitational.com"
   - "mailto:info@gravitational.com"
