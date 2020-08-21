@@ -128,8 +128,6 @@ update-ami-ids-cloudformation:
 	./update-ami-ids.sh -a $(AWS_ACCOUNT_ID) -m cloudformation -t oss -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
 	@echo -e "\nUpdating Enterprise Cloudformation image IDs"
 	./update-ami-ids.sh -a $(AWS_ACCOUNT_ID) -m cloudformation -t ent -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
-	# Enterprise FIPS deployments using Cloudformation are not currently
-	# supported, pending an update to the Cloudformation scripts.
 
 .PHONY: update-ami-ids-terraform
 update-ami-ids-terraform:

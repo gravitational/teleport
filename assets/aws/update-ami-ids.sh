@@ -77,6 +77,8 @@ if [[ "${MODE}" == "cloudformation" ]]; then
     elif [[ "${TYPE}" == "ent" ]]; then
         CLOUDFORMATION_PATH=../../examples/aws/cloudformation/ent.yaml
     elif [[ "${TYPE}" == "ent-fips" ]]; then
+        # Enterprise FIPS deployments using Cloudformation are not currently
+        # supported, pending an update to the Cloudformation scripts.
         echo "Enterprise FIPS mode is not supported for Cloudformation"
         exit 4
     fi
