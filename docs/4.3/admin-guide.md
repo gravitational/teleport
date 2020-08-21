@@ -1288,8 +1288,12 @@ advanced topics:
 ## Github OAuth 2.0
 
 Teleport supports authentication and authorization via external identity
-providers such as Github. First, the Teleport auth service must be configured to
-use Github for authentication:
+providers such as Github. You can watch the video for how to configure
+[Github as an SSO provider](/resources/guides/github-sso-provider-kubernetes-ssh/),
+or you can follow the documentation below.
+
+First, the Teleport auth service must be configured to use Github for
+authentication:
 
 ``` yaml
 # snippet from /etc/teleport.yaml
