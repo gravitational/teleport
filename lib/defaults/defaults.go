@@ -26,7 +26,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"golang.org/x/crypto/ssh"
+
+	"gopkg.in/square/go-jose.v2"
 )
 
 // Default port numbers used by all teleport tools
@@ -596,6 +599,11 @@ const (
 	DiffieHellmanGroup1SHA1  = "diffie-hellman-group1-sha1"
 	HMACSHA1                 = "hmac-sha1"
 	HMACSHA196               = "hmac-sha1-96"
+)
+
+const (
+	// ApplicationTokenAlgorithm is the default algorithm used to sign AAP tokens.
+	ApplicationTokenAlgorithm = jose.RS256
 )
 
 // WindowsOpenSSHNamedPipe is the address of the named pipe that the
