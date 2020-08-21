@@ -1176,12 +1176,22 @@ func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 func (s *WebSuite) TestCreateSession(c *C) {
 	pack := s.authPack(c, "foo")
 
+	// get site nodes
+	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "nodes"), url.Values{})
+	c.Assert(err, IsNil)
+
+	nodes := getSiteNodeResponse{}
+	c.Assert(json.Unmarshal(re.Bytes(), &nodes), IsNil)
+	node := nodes.Items[0]
+
 	sess := session.Session{
 		TerminalParams: session.TerminalParams{W: 300, H: 120},
 		Login:          s.user,
 	}
 
-	re, err := pack.clt.PostJSON(
+	// test using node UUID
+	sess.ServerID = node.Name
+	re, err = pack.clt.PostJSON(
 		context.Background(),
 		pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"),
 		siteSessionGenerateReq{Session: sess},
@@ -1191,6 +1201,16 @@ func (s *WebSuite) TestCreateSession(c *C) {
 	var created *siteSessionGenerateResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &created), IsNil)
 	c.Assert(created.Session.ID, Not(Equals), "")
+	c.Assert(created.Session.ServerHostname, Equals, node.Hostname)
+
+	// test empty serverID (older version does not supply serverID)
+	sess.ServerID = ""
+	_, err = pack.clt.PostJSON(
+		context.Background(),
+		pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"),
+		siteSessionGenerateReq{Session: sess},
+	)
+	c.Assert(err, IsNil)
 }
 
 func (s *WebSuite) TestPlayback(c *C) {
