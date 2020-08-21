@@ -1,5 +1,5 @@
 ---
-title: Teleport integration with Mattermost 
+title: Teleport integration with Mattermost
 description: This guide explains how to setup a Mattermost plugin for Teleport for privilege elevation approvals.
 ---
 
