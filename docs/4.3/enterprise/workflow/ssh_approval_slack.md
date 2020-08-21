@@ -1,5 +1,5 @@
 ---
-title: Teleport integration with Slack 
+title: Teleport integration with Slack
 description: This guide explains how to setup a Slack plugin for Teleport for privilege elevation approvals.
 ---
 
