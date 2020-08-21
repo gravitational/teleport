@@ -63,7 +63,8 @@ $ tctl auth sign --format=tls --user=access-plugin-slack --out=auth --ttl=8760h
 # ...
 ```
 
-The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the Plugins](#configuring-teleport-slack).
+The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the plugins](#configuring-teleport-slack).
+
 
 !!! note "Certificate Lifetime"
      By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
@@ -189,7 +190,7 @@ You can create a test permissions request with `tctl` and check if the plugin wo
 #### Create a test permissions request behalf of a user.
 
 ```bash
-# Replace USERNAME with a user, and TARGET_ROLE with a Teleport Role
+# Replace USERNAME with a Teleport local ser, and TARGET_ROLE with a Teleport Role
 $ tctl request create USERNAME --roles=TARGET_ROLE
 ```
 A user can also try using `--request-roles` flag.
