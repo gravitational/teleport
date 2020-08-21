@@ -1,9 +1,12 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
-usage() { echo "Usage: $(basename $0) [-m <cloudformation/terraform>] [-t <oss/ent/ent-fips>] [-r <comma-separated regions>] [-v version]" 1>&2; exit 1; }
-while getopts ":m:t:r:v:" o; do
+usage() { echo "Usage: $(basename $0) [-a <AWS account ID>] [-m <cloudformation/terraform>] [-t <oss/ent/ent-fips>] [-r <comma-separated regions>] [-v version]" 1>&2; exit 1; }
+while getopts ":a:m:t:r:v:" o; do
     case "${o}" in
+        a)
+            a=${OPTARG}
+            ;;
         m)
             m=${OPTARG}
             if [[ ${m} != "cloudformation" && ${m} != "terraform" ]]; then usage; fi
@@ -25,17 +28,20 @@ while getopts ":m:t:r:v:" o; do
 done
 shift $((OPTIND-1))
 
-if [ -z "${m}" ] || [ -z "${r}" ] || [ -z "${t}" ] || [ -z "${v}" ]; then
+if [ -z "${a}" ] || [ -z "${m}" ] || [ -z "${r}" ] || [ -z "${t}" ] || [ -z "${v}" ]; then
     usage
 fi
 
-MODE=${m}
-REGIONS=${r}
-TYPE=${t}
-VERSION=${v}
-
 # account ID that owns the public images
-AWS_ACCOUNT_ID=126027368216
+AWS_ACCOUNT_ID=${a}
+# mode to run in (either 'cloudformation' or 'terraform')
+MODE=${m}
+# comma-separated list of regions to get and update AMI IDs for
+REGIONS=${r}
+# Teleport AMI type (one of 'oss', 'ent' or 'ent-fips')
+TYPE=${t}
+# Teleport version (without 'v')
+VERSION=${v}
 
 # check that awscli is installed
 if [[ ! $(type aws) ]]; then
