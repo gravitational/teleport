@@ -1,5 +1,13 @@
+---
+title: Teleport integration with Mattermost 
+description: This guide explains how to setup a Mattermost plugin for Teleport for privilege elevation approvals.
+---
+
 # Teleport Mattermost Plugin Setup
-This guide will talk through how to setup Teleport with Mattermost. Teleport to Mattermost integration allows teams to approve or deny Teleport access requests using [Mattermost](https://mattermost.com/) an open source messaging platform.
+
+This guide will talk through how to setup Teleport with Mattermost. Teleport to
+Mattermost integration allows teams to approve or deny Teleport access requests
+using [Mattermost](https://mattermost.com/) an open source messaging platform.
 
 !!! warning
     The Approval Workflow only works with Teleport Enterprise as it requires several roles.
