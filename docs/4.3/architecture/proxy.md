@@ -50,7 +50,7 @@ client SSH connection:
 **Getting Client Certificates**
 
 Teleport Proxy implements a special method to let clients get short-lived
-authentication certificates signed by the Certificate Authority (CA) provided by 
+authentication certificates signed by the Certificate Authority (CA) provided by
 the [Auth Service](../authentication#authentication-in-teleport).
 
 ![Teleport Proxy SSH](../img/proxy-ssh-1.svg)
