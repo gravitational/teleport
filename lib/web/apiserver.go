@@ -1508,8 +1508,6 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 	req.Session.LastActive = time.Now().UTC()
 	req.Session.Namespace = namespace
 
-	log.Infof("Generated session: %#v", req.Session)
-
 	return siteSessionGenerateResponse{Session: req.Session}, nil
 }
 
