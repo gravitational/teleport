@@ -62,7 +62,8 @@ Teleport Plugin use the `access-plugin-slack` role and user to perform the appro
 $ tctl auth sign --format=tls --user=access-plugin-slack --out=auth --ttl=8760h
 # ...
 ```
-The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference these later when [configuring Teleport-Plugins](#configuring-teleport-slack).
+
+The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the Plugins](#configuring-teleport-slack).
 
 !!! note "Certificate Lifetime"
      By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
@@ -83,9 +84,8 @@ You'll need to:
 Visit [https://api.slack.com/apps](https://api.slack.com/apps) to create a new Slack App.
 
 **App Name:** Teleport<br>
-**Development Slack Workspace:** Pick the workspace you'd like the requests to show up in.
-
-<a href="/img/enterprise/plugins/teleport_bot@2x.png" download>Download Teleport Bot Icon</a>
+**Development Slack Workspace:** Pick the workspace you'd like the requests to show up in. </br>
+**App Icon:** <a href="https://gravitational.com/teleport/docs/img/enterprise/plugins/teleport_bot@2x.png" download>Download Teleport Bot Icon</a>
 
 ![Create Slack App](../../img/enterprise/plugins/slack/Create-a-Slack-App.png)
 
@@ -101,8 +101,6 @@ For now, just think of the URL you'll use and set it in the Slack App's settings
 On the App screen, go to “OAuth and Permissions” under Features in the sidebar menu. Then scroll to Scopes, and add `incoming-webhook, users:read, users:read.email` scopes so that our plugin can post messages to your Slack channels.
 
 ![API Scopes](../../img/enterprise/plugins/slack/api-scopes.png)
-
-
 
 #### Obtain OAuth Token
 
@@ -191,7 +189,7 @@ You can create a test permissions request with `tctl` and check if the plugin wo
 #### Create a test permissions request behalf of a user.
 
 ```bash
-# Replace USERNAME with a local user, and TARGET_ROLE with a Teleport Role
+# Replace USERNAME with a user, and TARGET_ROLE with a Teleport Role
 $ tctl request create USERNAME --roles=TARGET_ROLE
 ```
 A user can also try using `--request-roles` flag.
@@ -199,10 +197,6 @@ A user can also try using `--request-roles` flag.
 # Example with a user trying to request a role DBA.
 $ tsh login --request-roles=dba
 ```
-
-#### Check that you see a request message on Slack
-
-It should look like this: TODO
 
 #### Approve or deny the request on Slack
 
