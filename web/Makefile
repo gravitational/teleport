@@ -6,6 +6,8 @@ BRANCH = $(shell git rev-parse --abbrev-ref HEAD)
 COMMIT = $(shell git rev-parse --short HEAD)
 COMMIT_DESC = $(shell git log --decorate=off --oneline -1)
 COMMIT_URL = https://github.com/gravitational/webapps/commit/$(COMMIT)
+TIMESTAMP = $(shell date +%s)
+AUTO_BRANCH_NAME = webapps-auto-pr-$(TIMESTAMP)
 
 .PHONY: build
 build:
@@ -70,6 +72,9 @@ update-teleport-repo:
 	@if [ -z "$(TELEPORT_TARGET)" ]; then \
 		echo "TELEPORT_TARGET is not set"; exit 1; \
 	fi
+	@if [[ ! $(type gh) ]]; then \
+		echo "The 'gh' utility must be installed to raise PRs. Install it from https://github.com/cli/cli/releases"; exit 1 \
+	fi
 	# prepare webassets repo
 	rm -rf dist && git clone git@github.com:gravitational/webassets.git dist
 	cd dist; git checkout $(BRANCH) || git checkout -b $(BRANCH)
@@ -80,7 +85,7 @@ update-teleport-repo:
 	cd dist/e; rm -fr */
 	# build the dist files
 	$(MAKE) build-teleport
-	# push dist files to webasset/e repositories
+	# push dist files to webassets/e repoisitory
 	cd dist/e; git add -A .; git commit -am '$(COMMIT_DESC)' -m '$(COMMIT_URL)' --allow-empty; git push origin $(BRANCH)
 	cd dist; git add -A .; git commit -am '$(COMMIT_DESC)' -m '$(COMMIT_URL)' --allow-empty; git push origin $(BRANCH)
 	# use temporary file to store new webassets commit sha
@@ -91,8 +96,11 @@ update-teleport-repo:
 	cd teleport; git checkout $(TELEPORT_TARGET) || git checkout -b $(TELEPORT_TARGET)
 	cd teleport; git fetch --recurse-submodules && git submodule update --init webassets
 	cd teleport/webassets; git checkout $$(cat -v ../../dist/commit_sha)
-	cd teleport; git add -A .; git commit -am 'Update webassets' -m '$(COMMIT_DESC) $(COMMIT_URL)' --allow-empty
-	cd teleport; git push origin $(TELEPORT_TARGET)
+	cd teleport; git branch -b $(AUTO_BRANCH_NAME); git add -A .; git commit -am 'Update webassets' -m '$(COMMIT_DESC) $(COMMIT_URL)' --allow-empty; git push --set-upstream origin $(AUTO_BRANCH_NAME)
+	cd teleport; gh pr create -B $(TELEPORT_TARGET) --fill --label webassets
+
+	# TODO(gus): delete
+	# cd dist/e; git branch -b $(AUTO_BRANCH_NAME); git add -A .; git commit -am '$(COMMIT_DESC)' -m '$(COMMIT_URL)' --allow-empty; git push --set-upstream origin $(AUTO_BRANCH_NAME); gh pr create --fill
 
 # clean removes this repo generated artifacts
 .PHONY: clean
