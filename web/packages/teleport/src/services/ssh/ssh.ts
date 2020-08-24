@@ -25,6 +25,8 @@ const service = {
     const request = {
       session: {
         login,
+        cluster_name: clusterId,
+        server_id: serverId,
       },
     };
 
@@ -32,11 +34,14 @@ const service = {
       .post(cfg.getTerminalSessionUrl({ clusterId }), request)
       .then(response => {
         const session = makeSession(response.session);
+
+        // Fallback is needed to prevent blank hostname in tab title.
+        // Proxies <4.4 will not return a hostname.
+        const hostname = session.hostname ? session.hostname : serverId;
+
         return {
           ...session,
-          hostname: serverId,
-          serverId,
-          clusterId,
+          hostname,
         };
       });
   },
