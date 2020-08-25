@@ -741,9 +741,10 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	scx.ChannelType = teleport.ChanSession
 	defer scx.Close()
 
-	ch = scx.TrackActivity(ch)
-
-	// Create a "session" channel on the remote host.
+	// Create a "session" channel on the remote host.  Note that we
+	// create the remote session channel before accepting the local
+	// channel request; this allows us to propagate the rejection
+	// reason/message in the event the channel is rejected.
 	remoteSession, err := s.remoteClient.NewSession()
 	if err != nil {
 		s.log.Warnf("Remote session open failed: %v", err)
@@ -757,6 +758,19 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 		return
 	}
 	scx.RemoteSession = remoteSession
+
+	// Accept the session channel request
+	ch, in, err := nch.Accept()
+	if err != nil {
+		s.log.Warnf("Unable to accept channel: %v", err)
+		if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
+			s.log.Warnf("Failed to reject channel: %v", err)
+		}
+		return
+	}
+	scx.AddCloser(ch)
+
+	ch = scx.TrackActivity(ch)
 
 	s.log.Debugf("Opening session request to %v in context %v.", s.sconn.RemoteAddr(), scx.ID())
 	defer s.log.Debugf("Closing session request to %v in context %v.", s.sconn.RemoteAddr(), scx.ID())

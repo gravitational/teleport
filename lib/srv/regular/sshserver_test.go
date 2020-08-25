@@ -304,6 +304,39 @@ func (s *SrvSuite) TestAgentForwardPermission(c *C) {
 	c.Assert(strings.Contains(string(output), "SSH_AUTH_SOCK"), Equals, false)
 }
 
+// TestMaxSesssions makes sure that MaxSessions RBAC rules prevent
+// too many concurrent sessions.
+func (s *SrvSuite) TestMaxSessions(c *C) {
+	const maxSessions int64 = 2
+	ctx := context.Background()
+	// make sure the role does not allow agent forwarding
+	roleName := services.RoleNameForUser(s.user)
+	role, err := s.server.Auth().GetRole(roleName)
+	c.Assert(err, IsNil)
+	roleOptions := role.GetOptions()
+	roleOptions.MaxSessions = maxSessions
+	role.SetOptions(roleOptions)
+	err = s.server.Auth().UpsertRole(ctx, role)
+	c.Assert(err, IsNil)
+
+	for i := int64(0); i < maxSessions; i++ {
+		se, err := s.clt.NewSession()
+		c.Assert(err, IsNil)
+		defer se.Close()
+	}
+
+	_, err = s.clt.NewSession()
+	c.Assert(err, NotNil)
+	c.Assert(strings.Contains(err.Error(), "too many session channels"), Equals, true)
+
+	// verfiy that max sessions does not affect max connections.
+	for i := int64(0); i <= maxSessions; i++ {
+		clt, err := ssh.Dial("tcp", s.srv.Addr(), s.cltConfig)
+		c.Assert(err, IsNil)
+		c.Assert(clt.Close(), IsNil)
+	}
+}
+
 // TestOpenExecSessionSetsSession tests that OpenExecSession()
 // sets ServerContext session.
 func (s *SrvSuite) TestOpenExecSessionSetsSession(c *C) {

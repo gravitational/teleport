@@ -151,6 +151,7 @@ var (
 		"pam":                     true,
 		"service_name":            false,
 		"client_idle_timeout":     false,
+		"session_control_timeout": false,
 		"disconnect_expired_cert": false,
 		"ciphersuites":            false,
 		"ca_pin":                  false,
@@ -571,6 +572,10 @@ type Auth struct {
 	// DisconnectExpiredCert provides disconnect expired certificate setting -
 	// if true, connections with expired client certificates will get disconnected
 	DisconnectExpiredCert services.Bool `yaml:"disconnect_expired_cert,omitempty"`
+
+	// SessionControlTimeout specifies the maximum amount of time a node can be out
+	// of contact with the auth server before it starts terminating controlled sessions.
+	SessionControlTimeout services.Duration `yaml:"session_control_timeout,omitempty"`
 
 	// KubeconfigFile is an optional path to kubeconfig file,
 	// if specified, teleport will use API server address and

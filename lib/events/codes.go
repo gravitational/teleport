@@ -257,6 +257,11 @@ var (
 		Name: SAMLConnectorDeletedEvent,
 		Code: SAMLConnectorDeletedCode,
 	}
+	// SessionRejected is emitted when a user hits `max_connections`.
+	SessionRejected = Event{
+		Name: SessionRejectedEvent,
+		Code: SessionRejectedCode,
+	}
 )
 
 // There is no strict algorithm for picking an event code, however existing
@@ -285,6 +290,10 @@ const (
 	UserDeleteCode = "T1004I"
 	// UserPasswordChangeCode is an event code for when user changes their own password.
 	UserPasswordChangeCode = "T1005I"
+
+	// SessionRejectedCode is an event code for when a user's attempt to create an
+	// session/connection has been rejected.
+	SessionRejectedCode = "T1006W"
 
 	// SessionStartCode is the session start event code.
 	SessionStartCode = "T2000I"

@@ -48,6 +48,58 @@ func (s *RoleSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests()
 }
 
+// TestConnAndSessLimits verifies that role sets correctly calculate
+// a user's MaxConnections and MaxSessions values from multiple
+// roles with different individual values.  These are tested together since
+// both values use the same resolution rules.
+func (s *RoleSuite) TestConnAndSessLimits(c *C) {
+	tts := []struct {
+		desc string
+		vals []int64
+		want int64
+	}{
+		{
+			desc: "smallest nonzero value is selected from mixed values",
+			vals: []int64{8, 6, 7, 5, 3, 0, 9},
+			want: 3,
+		},
+		{
+			desc: "smallest value selected from all nonzero values",
+			vals: []int64{5, 6, 7, 8},
+			want: 5,
+		},
+		{
+			desc: "all zero values results in a zero value",
+			vals: []int64{0, 0, 0, 0, 0, 0, 0},
+			want: 0,
+		},
+	}
+	for ti, tt := range tts {
+		cmt := Commentf("test case %d: %s", ti, tt.desc)
+		var set RoleSet
+		for i, val := range tt.vals {
+			role := &RoleV3{
+				Kind:    KindRole,
+				Version: V3,
+				Metadata: Metadata{
+					Name:      fmt.Sprintf("role-%d", i),
+					Namespace: defaults.Namespace,
+				},
+				Spec: RoleSpecV3{
+					Options: RoleOptions{
+						MaxConnections: val,
+						MaxSessions:    val,
+					},
+				},
+			}
+			c.Assert(role.CheckAndSetDefaults(), IsNil, cmt)
+			set = append(set, role)
+		}
+		c.Assert(set.MaxConnections(), Equals, tt.want, cmt)
+		c.Assert(set.MaxSessions(), Equals, tt.want, cmt)
+	}
+}
+
 func (s *RoleSuite) TestRoleExtension(c *C) {
 	type Spec struct {
 		RoleSpecV2

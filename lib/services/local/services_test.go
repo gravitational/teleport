@@ -165,18 +165,18 @@ func (s *ServicesSuite) TestProxyWatcher(c *check.C) {
 	s.suite.ProxyWatcher(c)
 }
 
-func (s *ServicesSuite) TestSemaphore(c *check.C) {
-	s.suite.Semaphore(c)
-}
-
-func (s *ServicesSuite) TestSemaphoreExpiry(c *check.C) {
-	s.suite.SemaphoreExpiry(c)
-}
-
 func (s *ServicesSuite) TestSemaphoreLock(c *check.C) {
 	s.suite.SemaphoreLock(c)
 }
 
 func (s *ServicesSuite) TestSemaphoreConcurrency(c *check.C) {
 	s.suite.SemaphoreConcurrency(c)
+}
+
+func (s *ServicesSuite) TestSemaphoreContention(c *check.C) {
+	s.suite.SemaphoreContention(c)
+}
+
+func (s *ServicesSuite) TestSemaphoreFlakiness(c *check.C) {
+	s.suite.SemaphoreFlakiness(c)
 }

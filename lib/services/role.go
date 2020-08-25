@@ -1635,6 +1635,32 @@ func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
 	return ttl
 }
 
+// MaxConnections returns the maximum number of concurrent ssh connections
+// allowed.  If MaxConnections is zero then no maximum was defined
+// and the number of concurrent connections is unconstrained.
+func (set RoleSet) MaxConnections() int64 {
+	var mcs int64
+	for _, role := range set {
+		if m := role.GetOptions().MaxConnections; m != 0 && (m < mcs || mcs == 0) {
+			mcs = m
+		}
+	}
+	return mcs
+}
+
+// MaxSessions returns the maximum number of concurrent ssh sessions
+// per connection.  If MaxSessions is zero then no maximum was defined
+// and the number of sessions is unconstrained.
+func (set RoleSet) MaxSessions() int64 {
+	var ms int64
+	for _, role := range set {
+		if m := role.GetOptions().MaxSessions; m != 0 && (m < ms || ms == 0) {
+			ms = m
+		}
+	}
+	return ms
+}
+
 // AdjustClientIdleTimeout adjusts requested idle timeout
 // to the lowest max allowed timeout, the most restrictive
 // option will be picked, negative values will be assumed as 0
@@ -2301,7 +2327,9 @@ const RoleSpecV3SchemaTemplate = `{
         "enhanced_recording": {
           "type": "array",
           "items": { "type": "string" }
-        }
+        },
+        "max_connections": { "type": "number" },
+        "max_sessions": {"type": "number"}
       }
     },
     "allow": { "$ref": "#/definitions/role_condition" },

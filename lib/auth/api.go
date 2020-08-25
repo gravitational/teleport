@@ -103,6 +103,9 @@ type AccessPoint interface {
 	// Announcer adds methods used to announce presence
 	Announcer
 
+	// Semaphores provides semaphore operations
+	services.Semaphores
+
 	// UpsertTunnelConnection upserts tunnel connection
 	UpsertTunnelConnection(conn services.TunnelConnection) error
 
@@ -144,56 +147,80 @@ type AuthCache interface {
 }
 
 // NewWrapper returns new access point wrapper
-func NewWrapper(writer AccessPoint, cache ReadAccessPoint) AccessPoint {
+func NewWrapper(base AccessPoint, cache ReadAccessPoint) AccessPoint {
 	return &Wrapper{
-		Write:           writer,
+		NoCache:         base,
 		ReadAccessPoint: cache,
 	}
 }
 
 // Wrapper wraps access point and auth cache in one client
-// so that update operations are going through access point
-// and read operations are going though cache
+// so that reads of cached values can be intercepted.
 type Wrapper struct {
 	ReadAccessPoint
-	Write AccessPoint
+	NoCache AccessPoint
 }
 
 // Close closes all associated resources
 func (w *Wrapper) Close() error {
-	err := w.Write.Close()
+	err := w.NoCache.Close()
 	err2 := w.ReadAccessPoint.Close()
 	return trace.NewAggregate(err, err2)
 }
 
 // UpsertNode is part of auth.AccessPoint implementation
 func (w *Wrapper) UpsertNode(s services.Server) (*services.KeepAlive, error) {
-	return w.Write.UpsertNode(s)
+	return w.NoCache.UpsertNode(s)
 }
 
 // UpsertAuthServer is part of auth.AccessPoint implementation
 func (w *Wrapper) UpsertAuthServer(s services.Server) error {
-	return w.Write.UpsertAuthServer(s)
+	return w.NoCache.UpsertAuthServer(s)
 }
 
 // NewKeepAliver returns a new instance of keep aliver
 func (w *Wrapper) NewKeepAliver(ctx context.Context) (services.KeepAliver, error) {
-	return w.Write.NewKeepAliver(ctx)
+	return w.NoCache.NewKeepAliver(ctx)
 }
 
 // UpsertProxy is part of auth.AccessPoint implementation
 func (w *Wrapper) UpsertProxy(s services.Server) error {
-	return w.Write.UpsertProxy(s)
+	return w.NoCache.UpsertProxy(s)
 }
 
 // UpsertTunnelConnection is a part of auth.AccessPoint implementation
 func (w *Wrapper) UpsertTunnelConnection(conn services.TunnelConnection) error {
-	return w.Write.UpsertTunnelConnection(conn)
+	return w.NoCache.UpsertTunnelConnection(conn)
 }
 
 // DeleteTunnelConnection is a part of auth.AccessPoint implementation
 func (w *Wrapper) DeleteTunnelConnection(clusterName, connName string) error {
-	return w.Write.DeleteTunnelConnection(clusterName, connName)
+	return w.NoCache.DeleteTunnelConnection(clusterName, connName)
+}
+
+// AcquireSemaphore acquires lease with requested resources from semaphore
+func (w *Wrapper) AcquireSemaphore(ctx context.Context, params services.AcquireSemaphoreRequest) (*services.SemaphoreLease, error) {
+	return w.NoCache.AcquireSemaphore(ctx, params)
+}
+
+// KeepAliveSemaphoreLease updates semaphore lease
+func (w *Wrapper) KeepAliveSemaphoreLease(ctx context.Context, lease services.SemaphoreLease) error {
+	return w.NoCache.KeepAliveSemaphoreLease(ctx, lease)
+}
+
+// CancelSemaphoreLease cancels semaphore lease early
+func (w *Wrapper) CancelSemaphoreLease(ctx context.Context, lease services.SemaphoreLease) error {
+	return w.NoCache.CancelSemaphoreLease(ctx, lease)
+}
+
+// GetSemaphores returns a list of semaphores matching supplied filter.
+func (w *Wrapper) GetSemaphores(ctx context.Context, filter services.SemaphoreFilter) ([]services.Semaphore, error) {
+	return w.NoCache.GetSemaphores(ctx, filter)
+}
+
+// DeleteSemaphore deletes a semaphore matching supplied filter.
+func (w *Wrapper) DeleteSemaphore(ctx context.Context, filter services.SemaphoreFilter) error {
+	return w.NoCache.DeleteSemaphore(ctx, filter)
 }
 
 // NewCachingAcessPoint returns new caching access point using

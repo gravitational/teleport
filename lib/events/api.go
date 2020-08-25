@@ -326,6 +326,21 @@ const (
 	SAMLConnectorCreatedEvent = "saml.created"
 	// SAMLConnectorDeletedEvent fires when SAML connector is deleted.
 	SAMLConnectorDeletedEvent = "saml.deleted"
+
+	// SessionRejected fires when a user's attempt to create an authenticated
+	// session has been rejected due to exceeding a session control limit.
+	SessionRejectedEvent = "session.rejected"
+
+	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
+	// corresponds to enforcement of the max_connections control.
+	SessionRejectedReasonMaxConnections = "max_connections limit reached"
+	// SessionRejectedReasonMaxSessions indicates that a session.rejected event
+	// corresponds to enforcement of the max_sessions control.
+	SessionRejectedReasonMaxSessions = "max_sessions limit reached"
+
+	// Maximum is an event field specifying a maximal value (e.g. the value
+	// of `max_connections` for a `session.rejected` event).
+	Maximum = "max"
 )
 
 const (

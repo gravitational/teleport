@@ -440,6 +440,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		KeepAliveInterval:     fc.Auth.KeepAliveInterval,
 		KeepAliveCountMax:     fc.Auth.KeepAliveCountMax,
 		LocalAuth:             localAuth,
+		SessionControlTimeout: fc.Auth.SessionControlTimeout,
 	})
 	if err != nil {
 		return trace.Wrap(err)
