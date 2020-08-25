@@ -589,6 +589,11 @@ const (
 	// NodeIsAmbiguous serves as an identifying error string indicating that
 	// the proxy subsystem found multiple nodes matching the specified hostname.
 	NodeIsAmbiguous = "err-node-is-ambiguous"
+
+	// MaxLeases serves as an identifying error string indicating that the
+	// semaphore system is rejecting an acquisition attempt due to max
+	// leases having already been reached.
+	MaxLeases = "err-max-leases"
 )
 
 const (

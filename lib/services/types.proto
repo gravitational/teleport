@@ -396,6 +396,12 @@ message ClusterConfigSpecV3 {
 
     // LocalAuth is true if local authentication is enabled.
     bool LocalAuth = 9 [ (gogoproto.jsontag) = "local_auth", (gogoproto.casttype) = "Bool" ];
+
+    // SessionControlTimeout is the session control lease expiry and defines
+    // the upper limit of how long a node may be out of contact with the auth
+    // server before it begins terminating controlled sessions.
+    int64 SessionControlTimeout = 10
+        [ (gogoproto.jsontag) = "session_control_timeout", (gogoproto.casttype) = "Duration" ];
 }
 
 // AuditConfig represents audit log settings in the cluster
@@ -701,6 +707,14 @@ message RoleOptions {
         (gogoproto.jsontag) = "permit_x11_forwarding,omitempty",
         (gogoproto.casttype) = "Bool"
     ];
+
+    // MaxConnections defines the maximum number of
+    // concurrent connections a user may hold.
+    int64 MaxConnections = 9 [ (gogoproto.jsontag) = "max_connections,omitempty" ];
+
+    // MaxSessions defines the maximum number of
+    // concurrent sessions per connection.
+    int64 MaxSessions = 10 [ (gogoproto.jsontag) = "max_sessions,omitempty" ];
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or
@@ -976,29 +990,65 @@ message TunnelConnectionSpecV2 {
     string Type = 4 [ (gogoproto.jsontag) = "type", (gogoproto.casttype) = "TunnelType" ];
 }
 
-// SemaphoreLeaseOwner holds semaphore lease owner information
-message SemaphoreLeaseOwner {
-    // ServerName is a name of the server
-    string ServerName = 1 [ (gogoproto.jsontag) = "server_name" ];
+// SemaphoreFilter encodes semaphore filtering params.
+// A semaphore filter matches a semaphore if all nonzero fields
+// match the corresponding semaphore fileds (e.g. a filter which
+// specifies only `kind=foo` would match all semaphores of
+// kind `foo`).
+message SemaphoreFilter {
+    // SemaphoreKind is the kind of the semaphore.
+    string SemaphoreKind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SemaphoreName is the name of the semaphore.
+    string SemaphoreName = 2 [ (gogoproto.jsontag) = "name" ];
+}
+
+// AcquireSemaphoreRequest holds semaphore lease acquisition parameters.
+message AcquireSemaphoreRequest {
+    // SemaphoreKind is the kind of the semaphore.
+    string SemaphoreKind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SemaphoreName is the name of the semaphore.
+    string SemaphoreName = 2 [ (gogoproto.jsontag) = "name" ];
+    // MaxLeases is the maximum number of concurrent leases.  If acquisition
+    // would cause more than MaxLeases to exist, acquisition must fail.
+    int64 MaxLeases = 3 [ (gogoproto.jsontag) = "max_resources" ];
+    // Expires is the time at which this lease expires.
+    google.protobuf.Timestamp Expires = 4 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "expires"
+    ];
+    // Holder identifies the entitiy holding the lease.
+    string Holder = 5 [ (gogoproto.jsontag) = "holder" ];
 }
 
 // SemaphoreLease represents lease acquired for semaphore
 message SemaphoreLease {
-    // ID is an auto generated ID of the lease
-    string ID = 1 [ (gogoproto.jsontag) = "id" ];
-    // SemaphoreName is a name of the semaphore
-    string SemaphoreName = 2 [ (gogoproto.jsontag) = "semaphore_name" ];
-    // SemaphoreSubKind is a subkind of the semaphore
-    string SemaphoreSubKind = 3 [ (gogoproto.jsontag) = "semaphore_subkind" ];
-    // Resources is amount of resources acquired by this lease
-    int64 Resources = 4 [ (gogoproto.jsontag) = "resources" ];
-    // Expires is set to update expiry time
+    // SemaphoreKind is the kind of the semaphore.
+    string SemaphoreKind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SemaphoreName is the name of the semaphore.
+    string SemaphoreName = 2 [ (gogoproto.jsontag) = "name" ];
+    // LeaseID uniquely identifies this lease.
+    string LeaseID = 3 [ (gogoproto.jsontag) = "lease_id" ];
+    // Expires is the time at which this lease expires.
     google.protobuf.Timestamp Expires = 5 [
         (gogoproto.stdtime) = true,
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "expires"
     ];
-    SemaphoreLeaseOwner Owner = 6 [ (gogoproto.jsontag) = "owner" ];
+}
+
+// SemaphoreLeaseRef identifies an existent lease.
+message SemaphoreLeaseRef {
+    // LeaseID is the unique ID of the lease.
+    string LeaseID = 1 [ (gogoproto.jsontag) = "lease_id" ];
+    // Expires is the time at which the lease expires.
+    google.protobuf.Timestamp Expires = 2 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "expires"
+    ];
+    // Holder identifies the lease holder.
+    string Holder = 3 [ (gogoproto.jsontag) = "holder" ];
 }
 
 // SemaphoreV3 implements Semaphore interface
@@ -1012,7 +1062,7 @@ message SemaphoreV3 {
     string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
     // Version is version
     string Version = 3 [ (gogoproto.jsontag) = "version" ];
-    // Metadata is User metadata
+    // Metadata is Semaphore metadata
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec is a lease V3 spec
     SemaphoreSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
@@ -1020,9 +1070,7 @@ message SemaphoreV3 {
 
 // SemaphoreSpecV3 contains the data about lease
 message SemaphoreSpecV3 {
-    // MaxResources is a maximum number of allowed leases for this semaphore
-    int64 MaxResources = 1 [ (gogoproto.jsontag) = "max_resources" ];
-    // Leases is a list of leases acquired
-    repeated SemaphoreLease Leases = 2
+    // Leases is a list of all currently acquired leases.
+    repeated SemaphoreLeaseRef Leases = 1
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "leases" ];
 }

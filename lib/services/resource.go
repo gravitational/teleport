@@ -761,6 +761,8 @@ func ParseShortcut(in string) (string, error) {
 		return KindClusterAuthPreference, nil
 	case KindRemoteCluster, "remote_clusters", "rc", "rcs":
 		return KindRemoteCluster, nil
+	case KindSemaphore, "semaphores", "sem", "sems":
+		return KindSemaphore, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -784,6 +786,12 @@ func ParseRef(ref string) (*Ref, error) {
 			return nil, trace.Wrap(err)
 		}
 		return &Ref{Kind: shortcut, Name: parts[1]}, nil
+	case 3:
+		shortcut, err := ParseShortcut(parts[0])
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &Ref{Kind: shortcut, SubKind: parts[1], Name: parts[2]}, nil
 	}
 	return nil, trace.BadParameter("failed to parse '%v'", ref)
 }
@@ -797,10 +805,12 @@ func isDelimiter(r rune) bool {
 	return false
 }
 
-// Ref is a resource reference
+// Ref is a resource reference.  Typically of the form kind/name,
+// but sometimes of the form kind/subkind/name.
 type Ref struct {
-	Kind string
-	Name string
+	Kind    string
+	SubKind string
+	Name    string
 }
 
 // IsEmpty checks whether the provided resource name is empty
@@ -819,7 +829,11 @@ func (r *Ref) Set(v string) error {
 }
 
 func (r *Ref) String() string {
-	return fmt.Sprintf("%s/%s", r.Kind, r.Name)
+	if r.SubKind == "" {
+		return fmt.Sprintf("%s/%s", r.Kind, r.Name)
+	} else {
+		return fmt.Sprintf("%s/%s/%s", r.Kind, r.SubKind, r.Name)
+	}
 }
 
 // Refs is a set of resource references

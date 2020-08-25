@@ -642,3 +642,47 @@ func (c *remoteClusterCollection) toMarshal() interface{} {
 func (c *remoteClusterCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, c.toMarshal())
 }
+
+type semaphoreCollection struct {
+	sems []services.Semaphore
+}
+
+func (c *semaphoreCollection) resources() (r []services.Resource) {
+	for _, resource := range c.sems {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *semaphoreCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Kind", "Name", "LeaseID", "Holder", "Expires"})
+	for _, sem := range c.sems {
+		for _, ref := range sem.LeaseRefs() {
+			t.AddRow([]string{
+				sem.GetSubKind(), sem.GetName(), ref.LeaseID, ref.Holder, ref.Expires.Format(time.RFC822),
+			})
+		}
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+func (c *semaphoreCollection) writeJSON(w io.Writer) error {
+	data, err := json.MarshalIndent(c.toMarshal(), "", "    ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}
+
+func (c *semaphoreCollection) toMarshal() interface{} {
+	if len(c.sems) == 1 {
+		return c.sems[0]
+	}
+	return c.sems
+}
+
+func (c *semaphoreCollection) writeYAML(w io.Writer) error {
+	return utils.WriteYAML(w, c.toMarshal())
+}

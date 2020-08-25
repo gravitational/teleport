@@ -49,6 +49,10 @@ type ConnectionContext struct {
 	// been requested for this connection.
 	forwardAgent bool
 
+	// sessions is the number of currently active session channels; only tracked
+	// when handling node-side connections for users with MaxSessions applied.
+	sessions int64
+
 	// closers is a list of io.Closer that will be called when session closes
 	// this is handy as sometimes client closes session, in this case resources
 	// will be properly closed and deallocated, otherwise they could be kept hanging.
@@ -141,6 +145,30 @@ func (c *ConnectionContext) GetForwardAgent() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.forwardAgent
+}
+
+// TryIncrSessions tries to increment the active session count; if ok the
+// returned decr function *must* be called when the associated session is closed.
+func (c *ConnectionContext) IncrSessions(max int64) (decr func(), ok bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.sessions >= max {
+		return func() {}, false
+	}
+	c.sessions++
+	var decrOnce sync.Once
+	return func() {
+		decrOnce.Do(c.decrSessions)
+	}, true
+}
+
+func (c *ConnectionContext) decrSessions() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.sessions--
+	if c.sessions < 0 {
+		panic("underflow")
+	}
 }
 
 // AddCloser adds any closer in ctx that will be called

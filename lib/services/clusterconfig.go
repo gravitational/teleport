@@ -67,6 +67,12 @@ type ClusterConfig interface {
 	// SetClientIdleTimeout sets client idle timeout setting
 	SetClientIdleTimeout(t time.Duration)
 
+	// GetSessionControlTimeout gets the session control timeout.
+	GetSessionControlTimeout() time.Duration
+
+	// SetSessionControlTimeout sets the session control timeout.
+	SetSessionControlTimeout(t time.Duration)
+
 	// GetDisconnectExpiredCert returns disconnect expired certificate setting
 	GetDisconnectExpiredCert() bool
 
@@ -287,6 +293,16 @@ func (c *ClusterConfigV3) SetClientIdleTimeout(d time.Duration) {
 	c.Spec.ClientIdleTimeout = Duration(d)
 }
 
+// GetSessionControlTimeout gets the session control timeout.
+func (c *ClusterConfigV3) GetSessionControlTimeout() time.Duration {
+	return c.Spec.SessionControlTimeout.Duration()
+}
+
+// SetSessionControlTimeout sets the session control timeout.
+func (c *ClusterConfigV3) SetSessionControlTimeout(d time.Duration) {
+	c.Spec.SessionControlTimeout = Duration(d)
+}
+
 // GetDisconnectExpiredCert returns disconnect expired certificate setting
 func (c *ClusterConfigV3) GetDisconnectExpiredCert() bool {
 	return c.Spec.DisconnectExpiredCert.Value()
@@ -397,6 +413,9 @@ const ClusterConfigSpecSchemaTemplate = `{
       "type": "string"
     },
     "client_idle_timeout": {
+      "type": "string"
+    },
+    "session_control_timeout": {
       "type": "string"
     },
     "disconnect_expired_cert": {

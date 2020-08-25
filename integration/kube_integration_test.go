@@ -1117,7 +1117,7 @@ func (s *KubeSuite) runKubeDisconnectTest(c *check.C, tc disconnectTestCase) {
 	}()
 
 	// lets type something followed by "enter" and then hang the session
-	enterInput(c, term, "echo boring platapus\r\n", ".*boring platapus.*")
+	enterInput(sessionCtx, c, term, "echo boring platapus\r\n", ".*boring platapus.*")
 	time.Sleep(tc.disconnectTimeout)
 	select {
 	case <-time.After(tc.disconnectTimeout):
