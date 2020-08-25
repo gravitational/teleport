@@ -109,7 +109,7 @@ by the system's SSH agent if it is running.
 
 2. If the correct credentials were offered, the Auth Server will generate a
    signed certificate and return it to the client. For users, certificates are
-   stored in `~/.tsh` by default. If the client uses the Web UI the signed certificate 
+   stored in `~/.tsh` by default. If the client uses the Web UI the signed certificate
    is associated with a secure websocket session.
 
 In addition to a user's identity, user certificates also contain user roles and
@@ -226,9 +226,9 @@ back-ends as shown in the table below:
 
 Data Type        | Supported Back-ends       | Notes
 -----------------|---------------------------|---------
-Cluster state    | `dir`, `etcd`, `dynamodb` | Multi-server (HA) configuration is only supported using `etcd` and `dynamodb` back-ends.
-Audit Log Events | `dir`, `dynamodb`         | If `dynamodb` is used for the audit log events, `s3` back-end **must** be used for the recorded sessions.
-Recorded Sessions| `dir`, `s3`               | `s3` is mandatory if `dynamodb` is used for the audit log.
+Cluster state    | `dir`, `etcd`, `dynamodb`,`firestore` | Multi-server (HA) configuration is only supported using `etcd`, `dynamodb`, and `firestore` back-ends.
+Audit Log Events | `dir`, `dynamodb`, `firestore`         | If `dynamodb` is used for the audit log events, `s3` back-end **must** be used for the recorded sessions.
+Recorded Sessions| `dir`, `s3`              | `s3` is mandatory if `dynamodb` is used for the audit log. For Google Cloud storage use `audit_sessions_uri: 'gs://`
 
 !!! tip "Note"
 
