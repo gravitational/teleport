@@ -190,7 +190,7 @@ You can create a test permissions request with `tctl` and check if the plugin wo
 #### Create a test permissions request behalf of a user.
 
 ```bash
-# Replace USERNAME with a Teleport local ser, and TARGET_ROLE with a Teleport Role
+# Replace USERNAME with a Teleport local user, and TARGET_ROLE with a Teleport Role
 $ tctl request create USERNAME --roles=TARGET_ROLE
 ```
 A user can also try using `--request-roles` flag.
