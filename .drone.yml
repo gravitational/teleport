@@ -83,6 +83,7 @@ steps:
     image: docker:git
     commands:
     - |
+        cd /go/src/github.com/gravitational/teleport
         git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}
         if [ $(git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs' | grep -v ^$ | wc -l) -gt 0 ]; then
           echo "Changes to code were detected, tests will run"
@@ -2753,6 +2754,6 @@ steps:
 
 ---
 kind: signature
-hmac: 1ddbabcec0d02e591dee443b2a0dbcf519a8139497f98aae35e6e53953712a4b
+hmac: 5609421ca66b84a279d6640675a82880c5b7ccc3aef7c88952c2e0d3f7bec96a
 
 ...
