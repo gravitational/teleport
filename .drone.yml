@@ -79,6 +79,19 @@ steps:
           fi
         fi
 
+  - name: Check whether tests need to run
+    image: docker:git
+    commands:
+    - |
+        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}
+        if [ $(git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs' | grep -v ^$ | wc -l) -gt 0 ]; then
+          echo "Changes to code were detected, tests will run"
+        else
+          echo "No changes to code detected, tests will not run"
+          # https://discourse.drone.io/t/how-to-exit-a-pipeline-early-without-failing/3951
+          exit 78
+        fi
+
   - name: Build buildbox
     image: docker
     volumes:
@@ -2740,6 +2753,6 @@ steps:
 
 ---
 kind: signature
-hmac: 179641ffc8418799a4fbd3a8281dc3fb8168222b0e79af818bf6b7d62f707aaf
+hmac: 1ddbabcec0d02e591dee443b2a0dbcf519a8139497f98aae35e6e53953712a4b
 
 ...
