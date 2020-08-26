@@ -1,17 +1,24 @@
+---
+title: Teleport integration with Mattermost
+description: This guide explains how to setup a Mattermost plugin for Teleport for privilege elevation approvals.
+---
+
 # Teleport Mattermost Plugin Setup
-This guide will talk through how to setup Teleport with Mattermost. Teleport to Mattermost integration allows teams to approve or deny Teleport access requests using [Mattermost](https://mattermost.com/) an open source messaging platform.
+
+This guide will talk through how to setup Teleport with Mattermost. Teleport to
+Mattermost integration allows teams to approve or deny Teleport access requests
+using [Mattermost](https://mattermost.com/) an open source messaging platform.
 
 !!! warning
     The Approval Workflow only works with Teleport Enterprise as it requires several roles.
 
 #### Example Mattermost Request
 
-<video  style="width:100%" controls>
-  <source src="/img/enterprise/plugins/mattermost/slamattermostck.mp4" type="video/mp4">
-  <source src="/img/enterprise/plugins/mattermost/mattermost.webm" type="video/webm">
+<video style="width:100%" controls>
+  <source src="../../../img/enterprise/plugins/mattermost/mattermost.mp4" type="video/mp4">
+  <source src="../../../img/enterprise/plugins/mattermost/mattermost.webm" type="video/webm">
 Your browser does not support the video tag.
 </video>
-
 
 ## Setup
 ### Prerequisites
@@ -23,7 +30,7 @@ This guide assumes that you have:
 
 #### Setting up Mattermost to work with the bot
 
-![Enable Mattermost bots](/img/enterprise/plugins/mattermost/mattermost_admin_console_integrations_bot_accounts.png)
+![Enable Mattermost bots](../../img/enterprise/plugins/mattermost/mattermost_admin_console_integrations_bot_accounts.png)
 
 In Mattermost, go to System Console → Integrations → Enable Bot Account Creation → Set to True.
 This will allow us to create a new bot account that the Teleport bot will use.
@@ -32,16 +39,16 @@ Go back to your team, then Integrations → Bot Accounts → Add Bot Account.
 
 The new bot account will need Post All permission.
 
-<a href="/img/enterprise/plugins/teleport_bot@2x.png" download>Download Teleport Bot Icon</a>
+**App Icon:** <a href="https://gravitational.com/teleport/docs/img/enterprise/plugins/teleport_bot@2x.png" download>Download Teleport Bot Icon</a>
 
-
-![Enable Mattermost Bots](/img/enterprise/plugins/mattermost/mattermost_bot.png)
+![Enable Mattermost Bots](../../img/enterprise/plugins/mattermost/mattermost_bot.png)
 
 ##### Create an OAuth 2.0 Application
 In Mattermost, go to System Console → Integrations → OAuth 2.0 Applications.
+
 - Set Callback URLs to the location of your Teleport Proxy
 
-![Create OAuth Application](/img/enterprise/plugins/mattermost/mattermost_OAuth_token.png)
+![Create OAuth Application](../../img/enterprise/plugins/mattermost/mattermost_OAuth_token.png)
 
 The confirmation screen after you've created the bot will give you the access token.
 We'll use this in the config later.
@@ -88,7 +95,7 @@ $ tctl auth sign --format=tls --user=access-plugin-mattermost --out=auth --ttl=8
 # ...
 ```
 
-The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference these later when [configuring Teleport-Plugins](#configuration-file).
+The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the plugins](#configuring-mattermost-bot).
 
 !!! note "Certificate Lifetime"
      By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
@@ -100,9 +107,9 @@ and Teleport Auth access.  We currently only provide linux-amd64 binaries, you c
 compile these plugins from [source](https://github.com/gravitational/teleport-plugins/tree/master/access/mattermost).
 
 ```bash
-$ wget https://get.gravitational.com/teleport-mattermost-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
-$ tar -xzf teleport-mattermost-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
-$ cd teleport-mattermost
+$ wget https://get.gravitational.com/teleport-access-mattermost-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
+$ tar -xzf teleport-access-mattermost-v{{ teleport.plugin.version }}-linux-amd64-bin.tar.gz
+$ cd teleport-access-mattermost
 $ ./install
 $ which teleport-mattermost
 /usr/local/bin/teleport-mattermost

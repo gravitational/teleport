@@ -96,6 +96,7 @@ func (cfg *DynamoConfig) CheckAndSetDefaults() error {
 type DynamoDBBackend struct {
 	*log.Entry
 	DynamoConfig
+	backend.NoMigrations
 	svc              *dynamodb.DynamoDB
 	streams          *dynamodbstreams.DynamoDBStreams
 	clock            clockwork.Clock

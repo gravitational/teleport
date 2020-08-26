@@ -244,6 +244,18 @@ func (s *WebSuite) SetUpTest(c *C) {
 	err = s.proxy.Start()
 	c.Assert(err, IsNil)
 
+	// Wait for proxy to fully register before starting the test.
+	for start := time.Now(); ; {
+		proxies, err := s.proxyClient.GetProxies()
+		c.Assert(err, IsNil)
+		if len(proxies) != 0 {
+			break
+		}
+		if time.Since(start) > 5*time.Second {
+			c.Fatal("proxy didn't register within 5s after startup")
+		}
+	}
+
 	proxyAddr := utils.MustParseAddr(s.proxy.Addr())
 
 	addr := utils.MustParseAddr(s.webServer.Listener.Addr().String())
@@ -952,6 +964,44 @@ func (s *WebSuite) TestTerminal(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *WebSuite) TestWebsocketPingLoop(c *C) {
+	// change cluster default config for keep alive interval to be ran faster
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		SessionRecording:    services.RecordAtNode,
+		ProxyChecksHostKeys: services.HostKeyCheckYes,
+		KeepAliveInterval:   services.NewDuration(250 * time.Millisecond),
+		LocalAuth:           services.NewBool(true),
+	})
+	c.Assert(err, IsNil)
+
+	err = s.server.Auth().SetClusterConfig(clusterConfig)
+	c.Assert(err, IsNil)
+
+	ws, err := s.makeTerminal(s.authPack(c, "foo"))
+	c.Assert(err, IsNil)
+
+	var numPings int
+	start := time.Now()
+	for {
+		frame, err := ws.NewFrameReader()
+		c.Assert(err, IsNil)
+		// We should get a mix of output (binary) and ping frames. Count only
+		// the ping frames.
+		if int(frame.PayloadType()) == websocket.PingFrame {
+			numPings++
+		}
+		if numPings > 1 {
+			break
+		}
+		if time.Since(start) > 5*time.Second {
+			c.Fatalf("received %d ping frames within 5s of opening a socket, expected at least 2", numPings)
+		}
+	}
+
+	err = ws.Close()
+	c.Assert(err, IsNil)
+}
+
 func (s *WebSuite) TestWebAgentForward(c *C) {
 	ws, err := s.makeTerminal(s.authPack(c, "foo"))
 	c.Assert(err, IsNil)
@@ -1020,6 +1070,63 @@ func (s *WebSuite) TestActiveSessions(c *C) {
 	c.Assert(sess.ClusterName, Equals, s.server.ClusterName())
 }
 
+// DELETE IN: 5.0.0
+// Tests the code snippet from apiserver.(*Handler).siteSessionGet/siteSessionsGet
+// that tests empty ClusterName and ServerHostname gets set.
+func (s *WebSuite) TestEmptySessionClusterHostnameIsSet(c *C) {
+	nodeClient, err := s.server.NewClient(auth.TestBuiltin(teleport.RoleNode))
+	c.Assert(err, IsNil)
+
+	// Create a session with empty ClusterName.
+	sess1 := session.Session{
+		ClusterName:    "",
+		ServerID:       string(session.NewID()),
+		ID:             session.NewID(),
+		Namespace:      defaults.Namespace,
+		Login:          "foo",
+		Created:        time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+		LastActive:     time.Date(2009, time.November, 10, 23, 0, 0, 0, time.UTC),
+		TerminalParams: session.TerminalParams{W: 100, H: 100},
+	}
+	err = nodeClient.CreateSession(sess1)
+	c.Assert(err, IsNil)
+
+	// Retrieve the session with the empty ClusterName.
+	pack := s.authPack(c, "baz")
+	res, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "sessions", sess1.ID.String()), url.Values{})
+	c.Assert(err, IsNil)
+
+	// Test that empty ClusterName and ServerHostname got set.
+	var sessionResult *session.Session
+	err = json.Unmarshal(res.Bytes(), &sessionResult)
+	c.Assert(err, IsNil)
+	c.Assert(sessionResult.ClusterName, Equals, s.server.ClusterName())
+	c.Assert(sessionResult.ServerHostname, Equals, sess1.ServerID)
+
+	// Create another session to test sessions list.
+	sess2 := sess1
+	sess2.ID = session.NewID()
+	sess2.ServerID = string(session.NewID())
+	err = nodeClient.CreateSession(sess2)
+	c.Assert(err, IsNil)
+
+	// Retrieve sessions list.
+	res, err = pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "namespaces", "default", "sessions"), url.Values{})
+	c.Assert(err, IsNil)
+
+	var sessionList *siteSessionsGetResponse
+	err = json.Unmarshal(res.Bytes(), &sessionList)
+	c.Assert(err, IsNil)
+
+	s1 := sessionList.Sessions[0]
+	s2 := sessionList.Sessions[1]
+
+	c.Assert(s1.ClusterName, Equals, s.server.ClusterName())
+	c.Assert(s2.ClusterName, Equals, s.server.ClusterName())
+	c.Assert(s1.ServerHostname, Equals, s1.ServerID)
+	c.Assert(s2.ServerHostname, Equals, s2.ServerID)
+}
+
 func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 	sid := session.NewID()
 	pack := s.authPack(c, "foo")
@@ -1069,12 +1176,22 @@ func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 func (s *WebSuite) TestCreateSession(c *C) {
 	pack := s.authPack(c, "foo")
 
+	// get site nodes
+	re, err := pack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "nodes"), url.Values{})
+	c.Assert(err, IsNil)
+
+	nodes := getSiteNodeResponse{}
+	c.Assert(json.Unmarshal(re.Bytes(), &nodes), IsNil)
+	node := nodes.Items[0]
+
 	sess := session.Session{
 		TerminalParams: session.TerminalParams{W: 300, H: 120},
 		Login:          s.user,
 	}
 
-	re, err := pack.clt.PostJSON(
+	// test using node UUID
+	sess.ServerID = node.Name
+	re, err = pack.clt.PostJSON(
 		context.Background(),
 		pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"),
 		siteSessionGenerateReq{Session: sess},
@@ -1084,6 +1201,16 @@ func (s *WebSuite) TestCreateSession(c *C) {
 	var created *siteSessionGenerateResponse
 	c.Assert(json.Unmarshal(re.Bytes(), &created), IsNil)
 	c.Assert(created.Session.ID, Not(Equals), "")
+	c.Assert(created.Session.ServerHostname, Equals, node.Hostname)
+
+	// test empty serverID (older version does not supply serverID)
+	sess.ServerID = ""
+	_, err = pack.clt.PostJSON(
+		context.Background(),
+		pack.clt.Endpoint("webapi", "sites", s.server.ClusterName(), "sessions"),
+		siteSessionGenerateReq{Session: sess},
+	)
+	c.Assert(err, IsNil)
 }
 
 func (s *WebSuite) TestPlayback(c *C) {
@@ -1775,7 +1902,7 @@ func (s *WebSuite) waitForRawEvent(ws *websocket.Conn, timeout time.Duration) er
 	for {
 		select {
 		case <-timeoutContext.Done():
-			return trace.BadParameter("timeout waiting for resize event")
+			return trace.BadParameter("timeout waiting for raw event")
 		case <-doneContext.Done():
 			return nil
 		}

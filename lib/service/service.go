@@ -817,17 +817,19 @@ func initUploadHandler(auditConfig services.AuditConfig) (events.UploadHandler, 
 }
 
 // initExternalLog initializes external storage, if the storage is not
-// setup, returns nil
+// setup, returns (nil, nil).
 func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error) {
+	//
+	// DELETE IN: 5.0
+	// We could probably just remove AuditTableName now (its been deprecated for a while), but
+	// its probably more polite to delete it on a major release transition.
+	//
 	if auditConfig.AuditTableName != "" {
 		log.Warningf("Please note that 'audit_table_name' is deprecated and will be removed in several releases. Use audit_events_uri: '%v://%v' instead.", dynamo.GetName(), auditConfig.AuditTableName)
 		if len(auditConfig.AuditEventsURI) != 0 {
 			return nil, trace.BadParameter("Detected configuration specifying 'audit_table_name' and 'audit_events_uri' at the same time. Please migrate your config to use 'audit_events_uri' only.")
 		}
 		auditConfig.AuditEventsURI = []string{fmt.Sprintf("%v://%v", dynamo.GetName(), auditConfig.AuditTableName)}
-	}
-	if len(auditConfig.AuditEventsURI) > 0 && !auditConfig.ShouldUploadSessions() {
-		return nil, trace.BadParameter("please specify audit_sessions_uri when using external audit backends")
 	}
 	var hasNonFileLog bool
 	var loggers []events.IAuditLog
@@ -866,6 +868,12 @@ func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error)
 			}
 			loggers = append(loggers, logger)
 		case teleport.SchemeFile:
+			if uri.Path == "" {
+				return nil, trace.BadParameter("unsupported audit uri: %q (missing path component)", uri)
+			}
+			if uri.Host != "" && uri.Host != "localhost" {
+				return nil, trace.BadParameter("unsupported audit uri: %q (nonlocal host component: %q)", uri, uri.Host)
+			}
 			if err := os.MkdirAll(uri.Path, teleport.SharedDirMode); err != nil {
 				return nil, trace.ConvertSystemError(err)
 			}
@@ -885,28 +893,22 @@ func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error)
 				uri.Scheme, dynamo.GetName(), teleport.SchemeFile)
 		}
 	}
-	// only file external loggers are prohibited (they are not supposed
-	// to be used on their own, only in combo with external loggers)
-	// they also don't implement certain features, so they are going
-	// to be inefficient
-	switch len(loggers) {
-	case 0:
-		return nil, trace.NotFound("no external log is defined")
-	case 1:
-		if !hasNonFileLog {
-			return nil, trace.BadParameter(
-				"file:// or stdout:// log can not be used on it's own, " +
-					"can be only used in combination with external session logs, e.g. dynamodb://")
-		}
-		return loggers[0], nil
-	default:
-		if !hasNonFileLog {
-			return nil, trace.BadParameter(
-				"file:// or stdout:// log can not be used on it's own, " +
-					"can be only used in combination with external session logs, e.g. dynamodb://")
-		}
+
+	if len(loggers) < 1 {
+		return nil, nil
+	}
+
+	if !auditConfig.ShouldUploadSessions() && hasNonFileLog {
+		// if audit events are being exported, session recordings should
+		// be exported as well.
+		return nil, trace.BadParameter("please specify audit_sessions_uri when using external audit backends")
+	}
+
+	if len(loggers) > 1 {
 		return events.NewMultiLog(loggers...), nil
 	}
+
+	return loggers[0], nil
 }
 
 // initAuthService can be called to initialize auth server service
@@ -952,11 +954,11 @@ func (process *TeleportProcess) initAuthService() error {
 			}
 		}
 
+		// initialize external loggers.  may return (nil, nil) if no
+		// external loggers have been defined.
 		externalLog, err := initExternalLog(auditConfig)
 		if err != nil {
-			if !trace.IsNotFound(err) {
-				return trace.Wrap(err)
-			}
+			return trace.Wrap(err)
 		}
 
 		auditServiceConfig := events.AuditLogConfig{
@@ -1003,6 +1005,7 @@ func (process *TeleportProcess) initAuthService() error {
 		OIDCConnectors:       cfg.OIDCConnectors,
 		AuditLog:             process.auditLog,
 		CipherSuites:         cfg.CipherSuites,
+		CASigningAlg:         cfg.CASignatureAlgorithm,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2343,25 +2346,29 @@ func warnOnErr(err error) {
 
 // initAuthStorage initializes the storage backend for the auth service.
 func (process *TeleportProcess) initAuthStorage() (bk backend.Backend, err error) {
+	ctx := context.TODO()
 	bc := &process.Config.Auth.StorageConfig
 	process.Debugf("Using %v backend.", bc.Type)
 	switch bc.Type {
 	// SQLite backend (or alt name dir).
 	case lite.GetName():
-		bk, err = lite.New(context.TODO(), bc.Params)
+		bk, err = lite.New(ctx, bc.Params)
 	// Firestore backend:
 	case firestore.GetName():
-		bk, err = firestore.New(context.TODO(), bc.Params)
+		bk, err = firestore.New(ctx, bc.Params)
 	// DynamoDB backend.
 	case dynamo.GetName():
-		bk, err = dynamo.New(context.TODO(), bc.Params)
+		bk, err = dynamo.New(ctx, bc.Params)
 	// etcd backend.
 	case etcdbk.GetName():
-		bk, err = etcdbk.New(context.TODO(), bc.Params)
+		bk, err = etcdbk.New(ctx, bc.Params)
 	default:
 		err = trace.BadParameter("unsupported secrets storage type: %q", bc.Type)
 	}
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := bk.Migrate(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	reporter, err := backend.NewReporter(backend.ReporterConfig{

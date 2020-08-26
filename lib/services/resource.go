@@ -19,6 +19,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -511,7 +512,9 @@ const V2SchemaTemplate = `{
 }`
 
 // MetadataSchema is a schema for resource metadata
-const MetadataSchema = `{
+var MetadataSchema = fmt.Sprintf(baseMetadataSchema, labelPattern)
+
+const baseMetadataSchema = `{
   "type": "object",
   "additionalProperties": false,
   "default": {},
@@ -526,7 +529,7 @@ const MetadataSchema = `{
       "type": "object",
       "additionalProperties": false,
       "patternProperties": {
-         "^[a-zA-Z/.0-9_*-]+$":  { "type": "string" }
+         "%s":  { "type": "string" }
       }
     }
   }
@@ -708,6 +711,12 @@ func (m *Metadata) CheckAndSetDefaults() error {
 	// adjust expires time to utc if it's set
 	if m.Expires != nil {
 		utils.UTC(m.Expires)
+	}
+
+	for key := range m.Labels {
+		if !IsValidLabelKey(key) {
+			return trace.BadParameter("invalid label key: %q", key)
+		}
 	}
 
 	return nil
@@ -918,4 +927,14 @@ func fieldsFunc(s string, f func(rune) bool) []string {
 	}
 
 	return a
+}
+
+const labelPattern = `^[a-zA-Z/.0-9_*-]+$`
+
+var validLabelKey = regexp.MustCompile(labelPattern)
+
+// IsValidLabelKey checks if the supplied string matches the
+// label key regexp.
+func IsValidLabelKey(s string) bool {
+	return validLabelKey.MatchString(s)
 }

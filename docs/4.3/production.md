@@ -1,3 +1,8 @@
+---
+title: Teleport Production Guide
+description: How to configure SSH and Kubernetes access with SSO on AWS, GCE and your own infrastructure.
+---
+
 # Production Guide
 
 This guide provides more in-depth details for running Teleport in Production.
@@ -6,7 +11,7 @@ This guide provides more in-depth details for running Teleport in Production.
 
 ## Prerequisites
 
-* Read the [Architecture Overview](architecture/teleport_architecture_overview.md)
+* Read the [Architecture Overview](architecture/overview.md)
 * Read through the [Installation Guide](installation.md) to see the available packages and binaries available.
 * Read the CLI Docs for [`teleport`](cli-docs.md#teleport)
 
@@ -85,6 +90,7 @@ You can start Teleport via systemd unit by enabling the `.service` file
 with the `systemctl` tool.
 
 ```bash
+# sudo cp teleport/examples/systemd/teleport.service /etc/systemd/system
 $ cd /etc/systemd/system
 
 # Use your text editor of choice to create the .service file

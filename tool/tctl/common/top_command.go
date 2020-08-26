@@ -134,16 +134,13 @@ func (c *TopCommand) Top(client *roundtrip.Client) error {
 
 func (c *TopCommand) render(ctx context.Context, re Report, eventID string) error {
 	h := widgets.NewParagraph()
-	h.Text = ""
 	h.Text = fmt.Sprintf("Report Generated at %v for host %v. Press <q> or Ctrl-C to quit.",
 		re.Timestamp.Format(teleport.HumanDateFormatSeconds), re.Hostname)
-	h.BorderStyle = ui.NewStyle(ui.ColorBlack)
 	h.Border = false
 	h.TextStyle = ui.NewStyle(ui.ColorMagenta)
 
 	backendRequestsTable := func(title string, b BackendStats) *widgets.Table {
 		t := widgets.NewTable()
-		t.BorderStyle = ui.NewStyle(ui.ColorBlack)
 		t.Title = title
 		t.TitleStyle = ui.NewStyle(ui.ColorCyan)
 		t.ColumnWidths = []int{10, 10, 10, 50000}
@@ -160,17 +157,14 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 					req.Key.Key,
 				})
 		}
-		t.TextStyle = ui.NewStyle(ui.ColorBlack)
 		return t
 	}
 
 	t1 := widgets.NewTable()
 	t1.Title = "Cluster Stats"
 	t1.TitleStyle = ui.NewStyle(ui.ColorCyan)
-	t1.BorderStyle = ui.NewStyle(ui.ColorBlack)
 	t1.ColumnWidths = []int{30, 50000}
 	t1.RowSeparator = false
-	t1.TextStyle = ui.NewStyle(ui.ColorBlack)
 	t1.Rows = [][]string{
 		[]string{"Interactive Sessions", humanize.FormatFloat("", re.Cluster.InteractiveSessions)},
 		[]string{"Cert Gen Active Requests", humanize.FormatFloat("", re.Cluster.GenerateRequests)},
@@ -187,10 +181,8 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 	t2 := widgets.NewTable()
 	t2.Title = "Process Stats"
 	t2.TitleStyle = ui.NewStyle(ui.ColorCyan)
-	t2.BorderStyle = ui.NewStyle(ui.ColorBlack)
 	t2.ColumnWidths = []int{30, 50000}
 	t2.RowSeparator = false
-	t2.TextStyle = ui.NewStyle(ui.ColorBlack)
 	t2.Rows = [][]string{
 		[]string{"Start Time", re.Process.StartTime.Format(teleport.HumanDateFormatSeconds)},
 		[]string{"Resident Memory Bytes", humanize.Bytes(uint64(re.Process.ResidentMemoryBytes))},
@@ -202,10 +194,8 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 	t3 := widgets.NewTable()
 	t3.Title = "Go Runtime Stats"
 	t3.TitleStyle = ui.NewStyle(ui.ColorCyan)
-	t3.BorderStyle = ui.NewStyle(ui.ColorBlack)
 	t3.ColumnWidths = []int{30, 50000}
 	t3.RowSeparator = false
-	t3.TextStyle = ui.NewStyle(ui.ColorBlack)
 	t3.Rows = [][]string{
 		[]string{"Allocated Memory", humanize.Bytes(uint64(re.Go.AllocBytes))},
 		[]string{"Goroutines", humanize.FormatFloat("", re.Go.Goroutines)},
@@ -219,10 +209,16 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 		t := widgets.NewTable()
 		t.Title = title
 		t.TitleStyle = ui.NewStyle(ui.ColorCyan)
-		t.BorderStyle = ui.NewStyle(ui.ColorBlack)
+
+		if hist.Count == 0 {
+			t.Rows = [][]string{
+				[]string{"No data"},
+			}
+			return t
+		}
+
 		t.ColumnWidths = []int{30, 50000}
 		t.RowSeparator = false
-		t.TextStyle = ui.NewStyle(ui.ColorBlack)
 		t.Rows = [][]string{
 			[]string{"Percentile", "Latency"},
 		}
@@ -240,8 +236,8 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 	grid.SetRect(0, 0, termWidth, termHeight)
 
 	tabpane := widgets.NewTabPane("[1] Common", "[2] Backend Stats", "[3] Cache Stats")
-	tabpane.ActiveTabStyle = ui.NewStyle(ui.ColorCyan)
-	tabpane.InactiveTabStyle = ui.NewStyle(ui.ColorBlack)
+	tabpane.ActiveTabStyle = ui.NewStyle(ui.ColorCyan, ui.ColorClear, ui.ModifierBold|ui.ModifierUnderline)
+	tabpane.InactiveTabStyle = ui.NewStyle(ui.ColorCyan)
 	tabpane.Border = false
 
 	switch eventID {
@@ -254,12 +250,12 @@ func (c *TopCommand) render(ctx context.Context, re Report, eventID string) erro
 			),
 			ui.NewRow(0.95,
 				ui.NewCol(0.5,
-					ui.NewRow(0.15, t1),
-					ui.NewRow(0.15, t2),
-					ui.NewRow(0.15, t3),
+					ui.NewRow(0.3, t1),
+					ui.NewRow(0.3, t2),
+					ui.NewRow(0.3, t3),
 				),
 				ui.NewCol(0.5,
-					ui.NewRow(0.3, percentileTable("Generate Certificates Histogram", re.Cluster.GenerateRequestsHistogram)),
+					ui.NewRow(0.3, percentileTable("Generate Server Certificates Histogram", re.Cluster.GenerateRequestsHistogram)),
 				),
 			),
 		)

@@ -329,19 +329,19 @@ func (s *ConfigTestSuite) TestTrustedClusters(c *check.C) {
 // TestFileConfigCheck makes sure we don't start with invalid settings.
 func (s *ConfigTestSuite) TestFileConfigCheck(c *check.C) {
 	tests := []struct {
-		inConfigString string
-		outError       bool
+		desc     string
+		inConfig string
+		outError bool
 	}{
-		// 0 - all defaults, valid
 		{
-			`
+			desc: "all defaults, valid",
+			inConfig: `
 teleport:
 `,
-			false,
 		},
-		// 1 - invalid cipher, not valid
 		{
-			`
+			desc: "invalid cipher, not valid",
+			inConfig: `
 teleport:
   ciphers:
     - aes256-ctr
@@ -351,15 +351,29 @@ teleport:
   mac_algos:
     - hmac-sha2-256-etm@openssh.com
 `,
-			true,
+			outError: true,
+		},
+		{
+			desc: "change CA signature alg, valid",
+			inConfig: `
+teleport:
+  ca_signature_algo: ssh-rsa
+`,
+		},
+		{
+			desc: "invalid CA signature alg, not valid",
+			inConfig: `
+teleport:
+  ca_signature_algo: foobar
+`,
+			outError: true,
 		},
 	}
 
-	// run tests
-	for i, tt := range tests {
-		comment := check.Commentf("Test %v", i)
+	for _, tt := range tests {
+		comment := check.Commentf(tt.desc)
 
-		_, err := ReadConfig(bytes.NewBufferString(tt.inConfigString))
+		_, err := ReadConfig(bytes.NewBufferString(tt.inConfig))
 		if tt.outError {
 			c.Assert(err, check.NotNil, comment)
 		} else {
@@ -613,7 +627,7 @@ var (
 	}
 	Labels = map[string]string{
 		"name": "mongoserver",
-		"role": "slave",
+		"role": "follower",
 	}
 	CommandLabels = []CommandLabel{
 		{

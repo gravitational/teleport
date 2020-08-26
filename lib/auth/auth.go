@@ -106,6 +106,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 		oidcClients:     make(map[string]*oidcClient),
 		samlProviders:   make(map[string]*samlProvider),
 		githubClients:   make(map[string]*githubClient),
+		caSigningAlg:    cfg.CASigningAlg,
 		cancelFunc:      cancelFunc,
 		closeCtx:        closeCtx,
 		AuthServices: AuthServices{
@@ -158,13 +159,13 @@ var (
 	generateRequestsCurrent = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: teleport.MetricGenerateRequestsCurrent,
-			Help: "Number of current generate requests",
+			Help: "Number of current generate requests for server keys",
 		},
 	)
 	generateRequestsLatencies = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Name: teleport.MetricGenerateRequestsHistogram,
-			Help: "Latency for generate requests",
+			Help: "Latency for generate requests for server keys",
 			// lowest bucket start of upper bound 0.001 sec (1 ms) with factor 2
 			// highest bucket start of 0.001 sec * 2^15 == 32.768 sec
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
@@ -206,6 +207,9 @@ type AuthServer struct {
 
 	// cipherSuites is a list of ciphersuites that the auth server supports.
 	cipherSuites []uint16
+
+	// caSigningAlg is an SSH signing algorithm to use when generating new CAs.
+	caSigningAlg *string
 
 	// cache is a fast cache that allows auth server
 	// to use cache for most frequent operations,
@@ -370,6 +374,7 @@ func (s *AuthServer) GenerateHostCert(hostPublicKey []byte, hostID, nodeName str
 	// create and sign!
 	return s.Authority.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: caPrivateKey,
+		CASigningAlg:        ca.GetSigningAlg(),
 		PublicHostKey:       hostPublicKey,
 		HostID:              hostID,
 		NodeName:            nodeName,
@@ -507,6 +512,7 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 	}
 	sshCert, err := s.Authority.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey:   privateKey,
+		CASigningAlg:          ca.GetSigningAlg(),
 		PublicUserKey:         req.publicKey,
 		Username:              req.user.GetName(),
 		AllowedLogins:         allowedLogins,
@@ -515,6 +521,7 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		CertificateFormat:     certificateFormat,
 		PermitPortForwarding:  req.checker.CanPortForward(),
 		PermitAgentForwarding: req.checker.CanForwardAgents(),
+		PermitX11Forwarding:   req.checker.PermitX11Forwarding(),
 		RouteToCluster:        req.routeToCluster,
 		Traits:                req.traits,
 		ActiveRequests:        req.activeRequests,
@@ -1012,6 +1019,7 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 	// generate hostSSH certificate
 	hostSSHCert, err := s.Authority.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: caPrivateKey,
+		CASigningAlg:        ca.GetSigningAlg(),
 		PublicHostKey:       pubSSHKey,
 		HostID:              req.HostID,
 		NodeName:            req.NodeName,

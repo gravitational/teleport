@@ -338,17 +338,30 @@ func SetProxyMode(tsrv reversetunnel.Server) ServerOption {
 func SetLabels(labels map[string]string,
 	cmdLabels services.CommandLabels) ServerOption {
 	return func(s *Server) error {
-		// make sure to clone labels to avoid
-		// concurrent writes to the map during reloads
+		// clone and validate labels and cmdLabels.  in theory,
+		// only cmdLabels should experience concurrent writes,
+		// but this operation is only run once on startup
+		// so a little defensive cloning is harmless.
+		labelsClone := make(map[string]string, len(labels))
+		for name, label := range labels {
+			if !services.IsValidLabelKey(name) {
+				return trace.BadParameter("invalid label key: %q", name)
+			}
+			labelsClone[name] = label
+		}
+		s.labels = labelsClone
+
 		cmdLabels = cmdLabels.Clone()
 		for name, label := range cmdLabels {
+			if !services.IsValidLabelKey(name) {
+				return trace.BadParameter("invalid label key: %q", name)
+			}
 			if label.GetPeriod() < time.Second {
 				label.SetPeriod(time.Second)
 				cmdLabels[name] = label
 				log.Warningf("label period can't be less that 1 second. Period for label '%v' was set to 1 second", name)
 			}
 		}
-		s.labels = labels
 		s.cmdLabels = cmdLabels
 		return nil
 	}
@@ -930,6 +943,8 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	scx.DstAddr = net.JoinHostPort(req.Host, strconv.Itoa(int(req.Port)))
 	defer scx.Close()
 
+	channel = scx.TrackActivity(channel)
+
 	// Check if the role allows port forwarding for this user.
 	err = s.authHandlers.CheckPortForward(scx.DstAddr, scx)
 	if err != nil {
@@ -946,6 +961,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	cmd, err := srv.ConfigureCommand(scx)
 	if err != nil {
 		writeStderr(channel, err.Error())
+		return
 	}
 	// Propagate stderr from the spawned Teleport process to log any errors.
 	cmd.Stderr = os.Stderr
@@ -954,11 +970,15 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	// parent and child.
 	pr, err := cmd.StdoutPipe()
 	if err != nil {
-		log.Fatal(err)
+		log.Errorf("Failed to setup stdout pipe: %v", err)
+		writeStderr(channel, err.Error())
+		return
 	}
 	pw, err := cmd.StdinPipe()
 	if err != nil {
-		log.Fatal(err)
+		log.Errorf("Failed to setup stdin pipe: %v", err)
+		writeStderr(channel, err.Error())
+		return
 	}
 
 	// Start the child process that will be used to make the actual connection
@@ -990,6 +1010,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	}()
 
 	// Block until copy is complete and the child process is done executing.
+Loop:
 	for i := 0; i < 2; i++ {
 		select {
 		case err := <-errorCh:
@@ -997,9 +1018,9 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 				log.Warnf("Connection problem in \"direct-tcpip\" channel: %v %T.", trace.DebugReport(err), err)
 			}
 		case <-ctx.Done():
-			break
+			break Loop
 		case <-s.ctx.Done():
-			break
+			break Loop
 		}
 	}
 	err = cmd.Wait()
@@ -1035,6 +1056,8 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 	scx.AddCloser(ch)
 	scx.ChannelType = teleport.ChanSession
 	defer scx.Close()
+
+	ch = scx.TrackActivity(ch)
 
 	clusterConfig, err := s.GetAccessPoint().GetClusterConfig()
 	if err != nil {
@@ -1326,6 +1349,8 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 	scx.IsTestStub = s.isTestStub
 	scx.AddCloser(ch)
 	defer scx.Close()
+
+	ch = scx.TrackActivity(ch)
 
 	clusterConfig, err := s.GetAccessPoint().GetClusterConfig()
 	if err != nil {

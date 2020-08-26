@@ -1350,12 +1350,20 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 
 // ProxyWatcher tests proxy watcher
 func (s *ServicesTestSuite) ProxyWatcher(c *check.C) {
-	proxy := NewServer(services.KindProxy, "proxy1", "127.0.0.1:2023", defaults.Namespace)
-	c.Assert(s.PresenceS.UpsertProxy(proxy), check.IsNil)
-
 	w, err := s.NewProxyWatcher()
 	c.Assert(err, check.IsNil)
 	defer w.Close()
+
+	// since no proxy is yet present, the ProxyWatcher should immediately
+	// yield back to its retry loop.
+	select {
+	case <-w.Reset():
+	case <-time.After(time.Second):
+		c.Fatalf("Timeout waiting for ProxyWatcher reset")
+	}
+
+	proxy := NewServer(services.KindProxy, "proxy1", "127.0.0.1:2023", defaults.Namespace)
+	c.Assert(s.PresenceS.UpsertProxy(proxy), check.IsNil)
 
 	// the first event is always the current list of proxies
 	select {

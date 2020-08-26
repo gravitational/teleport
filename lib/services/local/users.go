@@ -105,24 +105,36 @@ func (s *IdentityService) getUsersWithSecrets() ([]services.User, error) {
 	return users, nil
 }
 
-// CreateUser creates user if it does not exist
+// CreateUser creates user if it does not exist.
 func (s *IdentityService) CreateUser(user services.User) error {
 	if err := user.Check(); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Confirm user doesn't exist before creating.
+	_, err := s.GetUser(user.GetName(), false)
+	if !trace.IsNotFound(err) {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.AlreadyExists("user %q already registered", user.GetName())
+	}
+
 	value, err := services.GetUserMarshaler().MarshalUser(user.WithoutSecrets().(services.User))
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	item := backend.Item{
 		Key:     backend.Key(webPrefix, usersPrefix, user.GetName(), paramsPrefix),
 		Value:   value,
 		Expires: user.Expiry(),
 	}
-	_, err = s.Create(context.TODO(), item)
-	if err != nil {
+
+	if _, err = s.Create(context.TODO(), item); err != nil {
 		return trace.Wrap(err)
 	}
+
 	if auth := user.GetLocalAuth(); auth != nil {
 		if err = s.upsertLocalAuthSecrets(user.GetName(), *auth); err != nil {
 			return trace.Wrap(err)
@@ -136,6 +148,12 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user services.User) er
 	if err := user.Check(); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Confirm user exists before updating.
+	if _, err := s.GetUser(user.GetName(), false); err != nil {
+		return trace.Wrap(err)
+	}
+
 	value, err := services.GetUserMarshaler().MarshalUser(user.WithoutSecrets().(services.User))
 	if err != nil {
 		return trace.Wrap(err)

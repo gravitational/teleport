@@ -121,6 +121,8 @@ type rotationReq struct {
 	// privateKey is passed by tests to supply private key for cert authorities
 	// instead of generating them on each iteration
 	privateKey []byte
+	// caSigningAlg is an SSH signing algorithm to use with the new CA.
+	caSigningAlg *string
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process.
@@ -214,13 +216,14 @@ func (a *AuthServer) RotateCertAuthority(req RotateRequest) error {
 			return trace.Wrap(err)
 		}
 		rotated, err := processRotationRequest(rotationReq{
-			ca:          existing,
-			clock:       a.clock,
-			targetPhase: req.TargetPhase,
-			schedule:    *req.Schedule,
-			gracePeriod: *req.GracePeriod,
-			mode:        req.Mode,
-			privateKey:  a.privateKey,
+			ca:           existing,
+			clock:        a.clock,
+			targetPhase:  req.TargetPhase,
+			schedule:     *req.Schedule,
+			gracePeriod:  *req.GracePeriod,
+			mode:         req.Mode,
+			privateKey:   a.privateKey,
+			caSigningAlg: a.caSigningAlg,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -546,6 +549,12 @@ func startNewRotation(req rotationReq, ca services.CertAuthority) error {
 	}
 	ca.SetTLSKeyPairs(keyPairs)
 	ca.SetRotation(rotation)
+	// caSigningAlg is only set when signing algorithm was explicitly set in
+	// the config file. When config file doesn't set a value, preserve the
+	// signing algorithm of the existing CA.
+	if req.caSigningAlg != nil {
+		ca.SetSigningAlg(*req.caSigningAlg)
+	}
 	return nil
 }
 

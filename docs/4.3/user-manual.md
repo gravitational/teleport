@@ -1,3 +1,8 @@
+---
+title: Teleport User Manual
+description: Manual for how to manage user identities, share sessions for SSH and Kubernetes access using the command line and the Web UI.
+---
+
 # Teleport User Manual
 
 This User Manual covers usage of the Teleport client tool, `tsh` and Teleport's Web interface.
@@ -439,6 +444,10 @@ can join you through her terminal by typing:
 $ tsh join <session_ID>
 ```
 
+!!! note
+
+    Joining sessions is not supported in recording proxy mode (where `session_recording` is set to `proxy`).
+
 ## Connecting to SSH Clusters behind Firewalls
 
 Teleport supports creating clusters of servers located behind firewalls
@@ -602,4 +611,4 @@ If you need help, please ask on our [community forum](https://community.gravitat
 
 For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/).
 
-For more information about custom features, or to try our [Enterprise edition](enterprise/index.md) of Teleport, please reach out to us at [sales@gravitational.com](mailto:sales@gravitational.com).
+For more information about custom features, or to try our [Enterprise edition](enterprise/introduction.md) of Teleport, please reach out to us at [sales@gravitational.com](mailto:sales@gravitational.com).

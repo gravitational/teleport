@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/base32"
 	"fmt"
+	"math"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -108,28 +110,65 @@ func (s *PasswordSuite) TestTiming(c *C) {
 	err := s.a.UpsertPassword(username, []byte(password))
 	c.Assert(err, IsNil)
 
-	var elapsedExists time.Duration
-	for i := 0; i < 10; i++ {
-		start := time.Now()
-		err = s.a.CheckPasswordWOToken(username, []byte(password))
-		c.Assert(err, IsNil)
-		elapsed := time.Since(start)
-		elapsedExists = elapsedExists + elapsed
+	type res struct {
+		exists  bool
+		elapsed time.Duration
+		err     error
 	}
 
-	var elapsedNotExists time.Duration
+	// Run multiple password checks in parallel, for both existing and
+	// non-existing user. This should ensure that there's always contention and
+	// that both checking paths are subject to it together.
+	//
+	// This should result in timing results being more similar to each other
+	// and reduce test flakiness.
+	wg := sync.WaitGroup{}
+	resCh := make(chan res)
 	for i := 0; i < 10; i++ {
-		start := time.Now()
-		err = s.a.CheckPasswordWOToken("blah", []byte(password))
-		c.Assert(err, NotNil)
-		elapsed := time.Since(start)
-		elapsedNotExists = elapsedNotExists + elapsed
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			start := time.Now()
+			err := s.a.CheckPasswordWOToken(username, []byte(password))
+			resCh <- res{
+				exists:  true,
+				elapsed: time.Since(start),
+				err:     err,
+			}
+		}()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			start := time.Now()
+			err := s.a.CheckPasswordWOToken("blah", []byte(password))
+			resCh <- res{
+				exists:  false,
+				elapsed: time.Since(start),
+				err:     err,
+			}
+		}()
+	}
+	go func() {
+		wg.Wait()
+		close(resCh)
+	}()
+
+	var elapsedExists, elapsedNotExists time.Duration
+	for r := range resCh {
+		if r.exists {
+			c.Assert(r.err, IsNil)
+			elapsedExists += r.elapsed
+		} else {
+			c.Assert(r.err, NotNil)
+			elapsedNotExists += r.elapsed
+		}
 	}
 
-	// elapsedDifference must be less than 40 ms (with some leeway for delays in runtime)
-	elapsedDifference := elapsedExists/10 - elapsedNotExists/10
-	comment := Commentf("elapsed difference (%v) greater than 40 ms", elapsedDifference)
-	c.Assert(elapsedDifference.Seconds() < 0.040, Equals, true, comment)
+	// Get the relative percentage difference in runtimes of password check
+	// with real and non-existent users. It should be <10%.
+	diffFraction := math.Abs(1.0 - (float64(elapsedExists) / float64(elapsedNotExists)))
+	comment := Commentf("elapsed difference (%v%%) greater than 10%%", 100*diffFraction)
+	c.Assert(diffFraction < 0.1, Equals, true, comment)
 }
 
 func (s *PasswordSuite) TestUserNotFound(c *C) {

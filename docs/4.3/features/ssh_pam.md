@@ -1,4 +1,9 @@
-# Using Teleport with Pluggable Authentication Modules (PAM)
+---
+title: Configuring Teleport SSH with PAM (pluggable authentication modules)
+description: How to configure Teleport SSH access to play nicely with PAM (pluggable authentication modules)
+---
+
+# Pluggable Authentication Modules (PAM)
 
 Teleport's node service can be configured to integrate with [PAM](https://en.wikipedia.org/wiki/Linux_PAM). This allows Teleport to create user sessions using PAM session profiles.
 
@@ -113,7 +118,7 @@ ssh_service:
 ![Teleport SSH with MOTD](../img/motd/teleport-with-MOTD.png)
 
 When PAM is enabled it will use the default `sshd` config file. This can differ per
-distro, below is an example default sshd config from a Debian 9 machine.
+distro.
 
 ```bash
 $ cat /etc/pam.d/sshd
@@ -204,7 +209,6 @@ WARNING: All activity on this node is being recorded by Teleport
 ```
 
 ![Teleport SSH with updated MOTD](../img/motd/teleport-with-updated-MOTD.png)
-
 
 ## Creating local users with Teleport
 

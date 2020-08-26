@@ -155,7 +155,7 @@ ssh_service:
   listen_addr: tcp://ssh
   labels:
     name: mondoserver
-    role: slave
+    role: follower
   commands:
   - name: hostname
     command: [/bin/hostname]

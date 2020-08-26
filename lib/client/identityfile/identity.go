@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 
 	"github.com/gravitational/trace"
@@ -59,12 +58,11 @@ const (
 // Write takes a username + their credentials and saves them to disk
 // in a specified format.
 //
-// certAuthorities is only used with FormatFile and FormatTLS.
 // clusterAddr is only used with FormatKubernetes.
 //
 // filePath is used as a base to generate output file names; these names are
 // returned in filesWritten.
-func Write(filePath string, key *client.Key, format Format, certAuthorities []services.CertAuthority, clusterAddr string) (filesWritten []string, err error) {
+func Write(filePath string, key *client.Key, format Format, clusterAddr string) (filesWritten []string, err error) {
 	const (
 		// the files and the dir will be created with these permissions:
 		fileMode = 0600
@@ -72,7 +70,7 @@ func Write(filePath string, key *client.Key, format Format, certAuthorities []se
 	)
 
 	if filePath == "" {
-		return nil, trace.BadParameter("identity location is not specified")
+		return nil, trace.BadParameter("identity output path is not specified")
 	}
 
 	switch format {
@@ -98,10 +96,10 @@ func Write(filePath string, key *client.Key, format Format, certAuthorities []se
 			return nil, trace.Wrap(err)
 		}
 		// append trusted host certificate authorities
-		for _, ca := range certAuthorities {
+		for _, ca := range key.TrustedCA {
 			// append ssh ca certificates
-			for _, publicKey := range ca.GetCheckingKeys() {
-				data, err := sshutils.MarshalAuthorizedHostsFormat(ca.GetClusterName(), publicKey, nil)
+			for _, publicKey := range ca.HostCertificates {
+				data, err := sshutils.MarshalAuthorizedHostsFormat(ca.ClusterName, publicKey, nil)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -110,8 +108,8 @@ func Write(filePath string, key *client.Key, format Format, certAuthorities []se
 				}
 			}
 			// append tls ca certificates
-			for _, keyPair := range ca.GetTLSKeyPairs() {
-				if err := writeWithNewline(f, keyPair.Cert); err != nil {
+			for _, cert := range ca.TLSCertificates {
+				if err := writeWithNewline(f, cert); err != nil {
 					return nil, trace.Wrap(err)
 				}
 			}
@@ -149,9 +147,9 @@ func Write(filePath string, key *client.Key, format Format, certAuthorities []se
 			return nil, trace.Wrap(err)
 		}
 		var caCerts []byte
-		for _, ca := range certAuthorities {
-			for _, keyPair := range ca.GetTLSKeyPairs() {
-				caCerts = append(caCerts, keyPair.Cert...)
+		for _, ca := range key.TrustedCA {
+			for _, cert := range ca.TLSCertificates {
+				caCerts = append(caCerts, cert...)
 			}
 		}
 		err = ioutil.WriteFile(casPath, caCerts, fileMode)
@@ -170,8 +168,8 @@ func Write(filePath string, key *client.Key, format Format, certAuthorities []se
 		}
 
 	default:
-		return nil, trace.BadParameter("unsupported identity format: %q, use one of %q, %q, or %q",
-			format, FormatFile, FormatOpenSSH, FormatTLS)
+		return nil, trace.BadParameter("unsupported identity format: %q, use one of %q, %q, %q, or %q",
+			format, FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes)
 	}
 	return filesWritten, nil
 }

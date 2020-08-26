@@ -221,6 +221,15 @@ message CertAuthoritySpecV2 {
     // Rotation is a status of the certificate authority rotation
     Rotation Rotation = 8
         [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "rotation,omitempty" ];
+    // SigningAlg is the algorithm used for signing new SSH certificates using
+    // SigningKeys.
+    enum SigningAlgType {
+        UNKNOWN = 0;
+        RSA_SHA1 = 1;
+        RSA_SHA2_256 = 2;
+        RSA_SHA2_512 = 3;
+    }
+    SigningAlgType SigningAlg = 9 [ (gogoproto.jsontag) = "signing_alg,omitempty" ];
 }
 
 // RoleMappping provides mapping of remote roles to local roles
@@ -685,6 +694,13 @@ message RoleOptions {
 
     // BPF defines what events to record for the BPF-based session recorder.
     repeated string BPF = 7 [ (gogoproto.jsontag) = "enhanced_recording,omitempty" ];
+
+    // PermitX11Forwarding authorizes use of X11 forwarding.
+    bool PermitX11Forwarding = 8 [
+        (gogoproto.nullable) = true,
+        (gogoproto.jsontag) = "permit_x11_forwarding,omitempty",
+        (gogoproto.casttype) = "Bool"
+    ];
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or

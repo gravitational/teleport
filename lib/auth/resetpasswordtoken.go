@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -124,6 +125,14 @@ func (s *AuthServer) CreateResetPasswordToken(ctx context.Context, req CreateRes
 	_, err = s.Identity.CreateResetPasswordToken(ctx, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if err := s.EmitAuditEvent(events.ResetPasswordTokenCreated, events.EventFields{
+		events.FieldName:             req.Name,
+		events.ResetPasswordTokenTTL: req.TTL.String(),
+		events.EventUser:             clientUsername(ctx),
+	}); err != nil {
+		log.Warnf("Failed to emit create reset password token event: %v", err)
 	}
 
 	return s.GetResetPasswordToken(ctx, token.GetName())

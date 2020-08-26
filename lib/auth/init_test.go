@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -30,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -42,8 +42,6 @@ type AuthInitSuite struct {
 }
 
 var _ = Suite(&AuthInitSuite{})
-var _ = testing.Verbose
-var _ = fmt.Printf
 
 func (s *AuthInitSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests(testing.Verbose())
@@ -72,6 +70,7 @@ func (s *AuthInitSuite) TestReadIdentity(c *C) {
 
 	cert, err := t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
+		CASigningAlg:        defaults.CASignatureAlgorithm,
 		PublicHostKey:       pub,
 		HostID:              "id1",
 		NodeName:            "node-name",
@@ -93,6 +92,7 @@ func (s *AuthInitSuite) TestReadIdentity(c *C) {
 	expiryDate := time.Now().Add(ttl)
 	bytes, err := t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
+		CASigningAlg:        defaults.CASignatureAlgorithm,
 		PublicHostKey:       pub,
 		HostID:              "id1",
 		NodeName:            "node-name",
@@ -120,6 +120,7 @@ func (s *AuthInitSuite) TestBadIdentity(c *C) {
 	// missing authority domain
 	cert, err := t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
+		CASigningAlg:        defaults.CASignatureAlgorithm,
 		PublicHostKey:       pub,
 		HostID:              "id2",
 		NodeName:            "",
@@ -135,6 +136,7 @@ func (s *AuthInitSuite) TestBadIdentity(c *C) {
 	// missing host uuid
 	cert, err = t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
+		CASigningAlg:        defaults.CASignatureAlgorithm,
 		PublicHostKey:       pub,
 		HostID:              "example.com",
 		NodeName:            "",
@@ -150,6 +152,7 @@ func (s *AuthInitSuite) TestBadIdentity(c *C) {
 	// unrecognized role
 	cert, err = t.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: priv,
+		CASigningAlg:        defaults.CASignatureAlgorithm,
 		PublicHostKey:       pub,
 		HostID:              "example.com",
 		NodeName:            "",
@@ -201,6 +204,7 @@ func (s *AuthInitSuite) TestAuthPreference(c *C) {
 	}
 	as, err := Init(ac)
 	c.Assert(err, IsNil)
+	defer as.Close()
 
 	cap, err := as.GetAuthPreference()
 	c.Assert(err, IsNil)
@@ -238,6 +242,7 @@ func (s *AuthInitSuite) TestClusterID(c *C) {
 		AuthPreference: authPreference,
 	})
 	c.Assert(err, IsNil)
+	defer authServer.Close()
 
 	cc, err := authServer.GetClusterConfig()
 	c.Assert(err, IsNil)
@@ -257,6 +262,7 @@ func (s *AuthInitSuite) TestClusterID(c *C) {
 		AuthPreference: authPreference,
 	})
 	c.Assert(err, IsNil)
+	defer authServer.Close()
 
 	cc, err = authServer.GetClusterConfig()
 	c.Assert(err, IsNil)
@@ -278,26 +284,6 @@ func (s *AuthInitSuite) TestClusterName(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	_, err = Init(InitConfig{
-		DataDir:        c.MkDir(),
-		HostUUID:       "00000000-0000-0000-0000-000000000000",
-		NodeName:       "foo",
-		Backend:        bk,
-		Authority:      testauthority.New(),
-		ClusterConfig:  services.DefaultClusterConfig(),
-		ClusterName:    clusterName,
-		StaticTokens:   services.DefaultStaticTokens(),
-		AuthPreference: authPreference,
-	})
-	c.Assert(err, IsNil)
-
-	// Start the auth server with a different cluster name. The auth server
-	// should start, but with the original name.
-	clusterName, err = services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "dev.localhost",
-	})
-	c.Assert(err, IsNil)
-
 	authServer, err := Init(InitConfig{
 		DataDir:        c.MkDir(),
 		HostUUID:       "00000000-0000-0000-0000-000000000000",
@@ -310,13 +296,97 @@ func (s *AuthInitSuite) TestClusterName(c *C) {
 		AuthPreference: authPreference,
 	})
 	c.Assert(err, IsNil)
+	defer authServer.Close()
+
+	// Start the auth server with a different cluster name. The auth server
+	// should start, but with the original name.
+	clusterName, err = services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: "dev.localhost",
+	})
+	c.Assert(err, IsNil)
+
+	authServer, err = Init(InitConfig{
+		DataDir:        c.MkDir(),
+		HostUUID:       "00000000-0000-0000-0000-000000000000",
+		NodeName:       "foo",
+		Backend:        bk,
+		Authority:      testauthority.New(),
+		ClusterConfig:  services.DefaultClusterConfig(),
+		ClusterName:    clusterName,
+		StaticTokens:   services.DefaultStaticTokens(),
+		AuthPreference: authPreference,
+	})
+	c.Assert(err, IsNil)
+	defer authServer.Close()
 
 	cn, err := authServer.GetClusterName()
 	c.Assert(err, IsNil)
 	c.Assert(cn.GetClusterName(), Equals, "me.localhost")
 }
 
-// DELETE IN: 4.3.0
-func (s *AuthInitSuite) TestRoleOptions(c *C) {
-	// TODO: Implement.
+func (s *AuthInitSuite) TestCASigningAlg(c *C) {
+	bk, err := lite.New(context.TODO(), backend.Params{"path": c.MkDir()})
+	c.Assert(err, IsNil)
+
+	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: "me.localhost",
+	})
+	c.Assert(err, IsNil)
+
+	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type: "local",
+	})
+	c.Assert(err, IsNil)
+
+	conf := InitConfig{
+		DataDir:        c.MkDir(),
+		HostUUID:       "00000000-0000-0000-0000-000000000000",
+		NodeName:       "foo",
+		Backend:        bk,
+		Authority:      testauthority.New(),
+		ClusterConfig:  services.DefaultClusterConfig(),
+		ClusterName:    clusterName,
+		StaticTokens:   services.DefaultStaticTokens(),
+		AuthPreference: authPreference,
+	}
+
+	verifyCAs := func(auth *AuthServer, alg string) {
+		hostCAs, err := auth.GetCertAuthorities(services.HostCA, false)
+		c.Assert(err, IsNil)
+		for _, ca := range hostCAs {
+			c.Assert(ca.GetSigningAlg(), Equals, alg)
+		}
+		userCAs, err := auth.GetCertAuthorities(services.UserCA, false)
+		c.Assert(err, IsNil)
+		for _, ca := range userCAs {
+			c.Assert(ca.GetSigningAlg(), Equals, alg)
+		}
+	}
+
+	// Start a new server without specifying a signing alg.
+	auth, err := Init(conf)
+	c.Assert(err, IsNil)
+	verifyCAs(auth, ssh.SigAlgoRSASHA2512)
+
+	c.Assert(auth.Close(), IsNil)
+
+	// Reset the auth server state.
+	conf.Backend, err = lite.New(context.TODO(), backend.Params{"path": c.MkDir()})
+	c.Assert(err, IsNil)
+	conf.DataDir = c.MkDir()
+
+	// Start a new server with non-default signing alg.
+	signingAlg := ssh.SigAlgoRSA
+	conf.CASigningAlg = &signingAlg
+	auth, err = Init(conf)
+	c.Assert(err, IsNil)
+	defer auth.Close()
+	verifyCAs(auth, ssh.SigAlgoRSA)
+
+	// Start again, using a different alg. This should not change the existing
+	// CA.
+	signingAlg = ssh.SigAlgoRSASHA2256
+	auth, err = Init(conf)
+	c.Assert(err, IsNil)
+	verifyCAs(auth, ssh.SigAlgoRSA)
 }

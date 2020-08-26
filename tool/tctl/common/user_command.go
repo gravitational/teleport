@@ -197,14 +197,6 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 		kubeGroups = strings.Split(u.kubeGroups, ",")
 	}
 
-	// make sure that user does not exist
-	_, err := client.GetUser(u.login, false)
-	if err == nil {
-		if err == nil {
-			return trace.BadParameter("user(%v) already registered", u.login)
-		}
-	}
-
 	user, err := services.NewUser(u.login)
 	if err != nil {
 		return trace.Wrap(err)

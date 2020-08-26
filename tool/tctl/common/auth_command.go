@@ -71,7 +71,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 	a.authSign = auth.Command("sign", "Create an identity file(s) for a given user")
 	a.authSign.Flag("user", "Teleport user name").StringVar(&a.genUser)
 	a.authSign.Flag("host", "Teleport host name").StringVar(&a.genHost)
-	a.authSign.Flag("out", "identity output").Short('o').StringVar(&a.output)
+	a.authSign.Flag("out", "identity output").Short('o').Required().StringVar(&a.output)
 	a.authSign.Flag("format", fmt.Sprintf("identity format: %q (default), %q, %q or %q", identityfile.FormatFile, identityfile.FormatOpenSSH, identityfile.FormatTLS, identityfile.FormatKubernetes)).
 		Default(string(identityfile.DefaultFormat)).
 		StringVar((*string)(&a.outputFormat))
@@ -313,6 +313,11 @@ func (a *AuthCommand) generateHostKeys(clusterApi auth.ClientI) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	hostCAs, err := clusterApi.GetCertAuthorities(services.HostCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
 
 	// if no name was given, take the first name on the list of principals
 	filePath := a.output
@@ -320,7 +325,7 @@ func (a *AuthCommand) generateHostKeys(clusterApi auth.ClientI) error {
 		filePath = principals[0]
 	}
 
-	filesWritten, err := identityfile.Write(filePath, key, a.outputFormat, nil, "")
+	filesWritten, err := identityfile.Write(filePath, key, a.outputFormat, "")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -363,16 +368,14 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 	key.Cert = certs.SSH
 	key.TLSCert = certs.TLS
 
-	var certAuthorities []services.CertAuthority
-	if a.outputFormat != identityfile.FormatOpenSSH {
-		certAuthorities, err = clusterAPI.GetCertAuthorities(services.HostCA, false)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	hostCAs, err := clusterAPI.GetCertAuthorities(services.HostCA, false)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+	key.TrustedCA = auth.AuthoritiesToTrustedCerts(hostCAs)
 
 	// write the cert+private key to the output:
-	filesWritten, err := identityfile.Write(a.output, key, a.outputFormat, certAuthorities, a.proxyAddr)
+	filesWritten, err := identityfile.Write(a.output, key, a.outputFormat, a.proxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -20,6 +20,7 @@ package test
 
 import (
 	"context"
+	"math/rand"
 	"sync/atomic"
 	"time"
 
@@ -98,6 +99,19 @@ func (s *BackendSuite) CRUD(c *check.C) {
 	out, err = s.B.Get(ctx, item.Key)
 	c.Assert(err, check.IsNil)
 	c.Assert(string(out.Value), check.Equals, string(item.Value))
+
+	// put with binary key and value succeeds
+	key := make([]byte, 1024)
+	rand.Read(key)
+	data := make([]byte, 1024)
+	rand.Read(data)
+	item = backend.Item{Key: prefix(string(key)), Value: data}
+	_, err = s.B.Put(ctx, item)
+	c.Assert(err, check.IsNil)
+
+	out, err = s.B.Get(ctx, item.Key)
+	c.Assert(err, check.IsNil)
+	c.Assert(out.Value, check.DeepEquals, item.Value)
 }
 
 // Range tests scenarios with range queries

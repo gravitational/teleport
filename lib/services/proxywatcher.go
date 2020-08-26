@@ -51,6 +51,7 @@ func NewProxyWatcher(cfg ProxyWatcherConfig) (*ProxyWatcher, error) {
 		cancel:             cancel,
 		RWMutex:            &sync.RWMutex{},
 		retry:              retry,
+		resetC:             make(chan struct{}),
 		ProxyWatcherConfig: cfg,
 		FieldLogger:        cfg.Entry,
 	}
@@ -64,6 +65,8 @@ type ProxyWatcher struct {
 	*sync.RWMutex
 	log.FieldLogger
 	ProxyWatcherConfig
+
+	resetC chan struct{}
 
 	// retry is used to manage backoff logic for watches
 	retry utils.Retry
@@ -155,6 +158,12 @@ type ProxyWatcherClient interface {
 	Events
 }
 
+// Reset returns a channel which notifies of internal
+// watcher resets (used in tests).
+func (p *ProxyWatcher) Reset() <-chan struct{} {
+	return p.resetC
+}
+
 // Done returns a channel that signals
 // proxy watcher closure
 func (p *ProxyWatcher) Done() <-chan struct{} {
@@ -180,6 +189,10 @@ func (p *ProxyWatcher) watchProxies() {
 			p.Warningf("Re-init the watcher on error: %v.", trace.Unwrap(err))
 		}
 		p.Debugf("Reloading %v.", p.retry)
+		select {
+		case p.resetC <- struct{}{}:
+		default:
+		}
 		select {
 		case <-p.retry.After():
 			p.retry.Inc()
@@ -236,6 +249,11 @@ func (p *ProxyWatcher) watch() error {
 	proxies, err := p.Client.GetProxies()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if len(proxies) == 0 {
+		// at least 1 proxy aught to exist; yield back to the outer
+		// retry loop and try again.
+		return trace.NotFound("empty proxy list")
 	}
 	proxySet := make(map[string]Server, len(proxies))
 	for i := range proxies {

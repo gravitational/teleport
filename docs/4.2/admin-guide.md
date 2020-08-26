@@ -353,7 +353,7 @@ ssh_service:
 
     # See explanation of labels in "Labeling Nodes" section below
     labels:
-        role: master
+        role: leader
         type: postgres
 
     # List of the commands to periodically execute. Their output will be used as node labels.
@@ -374,7 +374,7 @@ ssh_service:
     enhanced_recording:
        # Enable or disable enhanced auditing for this node. Default value:
        # false.
-       enabled: true
+       enabled: false
 
        # command_buffer_size is optional with a default value of 8 pages.
        command_buffer_size: 8
@@ -959,6 +959,12 @@ and 3024 on the proxy. Port 3080 is used to initially fetch the credentials (SSH
 and for discovery (where is the reverse tunnel running, in this case 3024). Port 3024 is used to
 establish a connection to the Auth Server through the proxy.
 
+To enable multiplexing so only one port is used, simply set the `tunnel_listen_addr` the same as the
+`web_listen_addr` respectively within the `proxy_service`.  Teleport will automatically recognize using the same port and enable multiplexing. If the
+log setting is set to DEBUG you will see multiplexing enabled in the server log.
+```bash
+DEBU [PROC:1]    Setup Proxy: Reverse tunnel proxy and web proxy listen on the same port, multiplexing is on. service/service.go:1944
+```
 ## Labeling Nodes
 
 In addition to specifying a custom nodename, Teleport also allows for the
@@ -1005,10 +1011,10 @@ ssh_service:
   # Dynamic labels AKA "commands":
   commands:
   - name: hostname
-    command: [/usr/bin/hostname]
+    command: [hostname]
     period: 1m0s
   - name: arch
-    command: [/usr/bin/uname, -p]
+    command: [uname, -p]
     # this setting tells teleport to execute the command above
     # once an hour. this value cannot be less than one minute.
     period: 1h0m0s
@@ -1378,19 +1384,30 @@ Here's the list of resources currently exposed via [`tctl`](cli-docs.md#tctl) :
 
 **Examples:**
 
-``` bash
+```bash
 # list all connectors:
 $ tctl get connectors
 
-# dump a connector called "okta":
-$ tctl get connectors/okta
+# dump a SAML connector called "okta":
+$ tctl get saml/okta
 
-# delete a connector called "okta":
-$ tctl rm connectors/okta
+# delete a SAML connector called "okta":
+$ tctl rm saml/okta
+
+# delete an OIDC connector called "gsuite":
+$ tctl rm oidc/gsuite
+
+# delete a github connector called "myteam":
+$ tctl rm github/myteam
 
 # delete a local user called "admin":
 $ tctl rm users/admin
 ```
+
+!!! note
+    Although `tctl get connectors` will show you every connector, when working with an individual
+    connector you must use the correct `kind`, such as `saml` or `oidc`. You can see each
+    connector's `kind` at the top of its YAML output from `tctl get connectors`.
 
 ## Trusted Clusters
 
@@ -1586,8 +1603,8 @@ $ tsh ls --cluster=east
 
 Node Name Node ID            Address        Labels
 --------- ------------------ -------------- -----------
-db1.east  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-master
-db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-slave
+db1.east  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-leader
+db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-worker
 
 # SSH into any node in "east":
 $ tsh ssh --cluster=east root@db1.east
@@ -1899,6 +1916,15 @@ To allow access for all users:
   + Copy `teleport-user-ca.pub` to `/etc/ssh/teleport-user-ca.pub`
   + Update `sshd` configuration (usually `/etc/ssh/sshd_config` ) to point to
     this file: `TrustedUserCAKeys /etc/ssh/teleport-user-ca.pub`
+
+To connect to the OpenSSH server via `tsh`, add `--port=<ssh port>` with the `tsh ssh` command:
+
+Example ssh to `database.work.example.com` as `root` with a OpenSSH server on port 22 via `tsh`:
+   tsh ssh --port=22 root@database.work.example.com
+
+!!! warning "Warning"
+
+    The principal (username) being used to connect must be listed in the Teleport user/role configuration.
 
 ## Certificate Rotation
 

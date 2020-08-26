@@ -307,6 +307,12 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	for key := range s.Spec.CmdLabels {
+		if !IsValidLabelKey(key) {
+			return trace.BadParameter("invalid label key: %q", key)
+		}
+	}
+
 	return nil
 }
 

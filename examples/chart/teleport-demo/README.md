@@ -72,7 +72,7 @@ $ gcloud container clusters get-credentials <cluster-name> --zone <zone> --proje
 $ ./gke-init.sh
 ```
 
-Make sure that you have updated the submodule containing the secrets. When prompted to authenticate, use a 
+Make sure that you have updated the submodule containing the secrets. When prompted to authenticate, use a
 personal access token rather than a password:
 
 ```bash

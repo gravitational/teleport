@@ -15,7 +15,7 @@ darwin
 # Compiled binaries, Object files, Static and Dynamic libs (Shared Objects)
 out
 build
-*.o#
+*.o
 *.a
 *.so
 

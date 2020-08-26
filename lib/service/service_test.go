@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -174,6 +175,54 @@ func (s *ServiceTestSuite) TestCheckPrincipals(c *check.C) {
 	for _, tt := range tests {
 		ok := checkServerIdentity(testConnector, tt.inPrincipals, tt.inDNS)
 		c.Assert(ok, check.Equals, tt.outRegenerate)
+	}
+}
+
+// TestInitExternalLog verifies that external logging can be used both as a means of
+// overriding the local audit event target.  Ideally, this test would also verify
+// setup of true external loggers, but at the time of writing there isn't good
+// support for setting up fake external logging endpoints.
+func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
+	tts := []struct {
+		events []string
+		isNil  bool
+		isErr  bool
+	}{
+		// no URIs => no external logger
+		{isNil: true},
+		// local-only event uri w/o hostname => ok
+		{events: []string{"file:///tmp/teleport-test/events"}},
+		// local-only event uri w/ localhost => ok
+		{events: []string{"file://localhost/tmp/teleport-test/events"}},
+		// invalid host parameter => rejected
+		{events: []string{"file://example.com/should/fail"}, isErr: true},
+		// missing path specifier => rejected
+		{events: []string{"file://localhost"}, isErr: true},
+	}
+
+	for i, tt := range tts {
+		// isErr implies isNil.
+		if tt.isErr {
+			tt.isNil = true
+		}
+
+		cmt := check.Commentf("tt[%v]: %+v", i, tt)
+
+		loggers, err := initExternalLog(services.AuditConfig{
+			AuditEventsURI: tt.events,
+		})
+
+		if tt.isErr {
+			c.Assert(err, check.NotNil, cmt)
+		} else {
+			c.Assert(err, check.IsNil, cmt)
+		}
+
+		if tt.isNil {
+			c.Assert(loggers, check.IsNil, cmt)
+		} else {
+			c.Assert(loggers, check.NotNil, cmt)
+		}
 	}
 }
 

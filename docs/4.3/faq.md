@@ -1,5 +1,12 @@
+---
+title: Teleport FAQ
+description: Frequently Asked Questions about using Teleport for SSH and Kubernetes access
+---
+
 
 # FAQ
+
+## Community FAQ
 
 ### Can I use Teleport in production today?
 
@@ -18,7 +25,7 @@ available unless the Teleport SSH daemon is present on all cluster nodes.
 ### Can I use OpenSSH with a Teleport cluster?
 
 Yes, this question comes up often and is related to the previous one. Take a
-look at [Using OpenSSH client](user-manual.md##using-teleport-with-openssh)
+look at [Using OpenSSH client](user-manual.md#using-openssh-client)
 section in the User Manual and [Using OpenSSH servers](admin-guide.md) in the
 Admin Manual.
 
@@ -35,6 +42,10 @@ it has been fixed with Teleport 4.0.   Once you've upgraded your Teleport Cluste
 option `--auth-server` to point to web proxy address (this would be `public_addr` and `web_listen_addr`
 in file configuration). As defined in [Adding a node located behind NAT - Teleport Node Tunneling](admin-guide.md#adding-a-node-located-behind-nat)
 
+### Can nodes use a single port for reverse tunnels?
+
+Yes, Teleport supports multiplexing on a single port.  Set the `tunnel_listen_addr` to use the same port as the `listen_addr` address setting in the `proxy_service` configuration. Teleport will automatically use multiplexing with that configuration.
+
 ### What are Teleport's scalability and hardware recommendations?
 
 We recommend setting up Teleport with a [High Availability configuration](admin-guide.md#high-availability). Below is our
@@ -46,9 +57,29 @@ Scenario | Max Recommended Count | Proxy | Auth server
 Teleport nodes connected to auth server | 10,000 |2x  2-4 vCPUs/8GB RAM | 2x 4-8 vCPUs/16GB RAM
 Teleport nodes connected to proxy server (IoT) | 2,000* | 2x 2-4 vCPUs/8GB RAM |2x 4-8 vCPUs/16+GB RAM
 
+## Which version of Teleport is supported?
 
-* Teleport 4.1 release will focus on increasing Teleport IoT supported count to 10,000
+| Release       | Long Term Support | Release Date         | Supported Until      | Min tsh version  |
+| --------------|-----| -------------------- | -------------------- | -------------------- |
+| 4.3           | Yes | July 8th, 2020       | July 8th, 2021       | 3.x                  |
+| 4.2           | Yes | December 19th, 2019  | December 19th, 2020  | 3.x                  |
+| 4.1           | Yes | October 1st, 2019    | October 1st, 2020    | 3.x                  |
+| 4.0           | Yes | June 18th, 2019      | June 18th, 2020      | 3.x                  |
+| 3.2           | Yes | April 1st, 2019      | April 1st, 2020      | 2.x                  |
+| 3.1           | Yes | December 12th, 2018  | December 12th, 2019  | 2.x                  |
 
+Teleport uses semantic versioning to release updates of software, with releases taking
+around 3-4 months, for MINOR releases. The team has these informal rules about releasing software:
+
+- Teleport Team will do its best to allow for a non-breaking upgrade even with MAJOR releases.
+- We aim to support versions for 3 releases (current and two back) or around 9 months.
+This means critical security fixes will be backported to earlier versions.
+- We provide Enterprise customers edge case support for older versions of Operating Systems. This might be a specific patch for an OSS in maintenance. This is provided on a somewhat ad-hoc basis.
+- We won’t support Teleport on an OS Distro that has stopped receiving maintenance updates and is EOL.
+
+**How should I upgrade my cluster?**
+Please follow our standard guidelines for [upgrading](admin-guide.md#upgrading-teleport).
+We recommend that the Auth Server should be upgraded first, and proxy is bumped after.
 
 ### Does Web UI support copy and paste?
 
@@ -65,7 +96,7 @@ Please refer to the [Ports](admin-guide.md#ports) section of the Admin Manual.
 
 ### Does Teleport support authentication via OAuth, SAML or Active Directory?
 
-Gravitational offers this feature for the [Enterprise versions of Teleport](enterprise/index.md).
+Gravitational offers this feature for the [Enterprise versions of Teleport](enterprise/introduction.md).
 
 ## Commercial Teleport Editions
 
@@ -73,15 +104,15 @@ Gravitational offers this feature for the [Enterprise versions of Teleport](ente
 
 The Teleport Enterprise offering gives users the following additional features:
 
-* Role-based access control, also known as [RBAC](enterprise/index.md#rbac).
+* Role-based access control, also known as [RBAC](enterprise/introduction.md#rbac).
 * Authentication via SAML and OpenID with providers like Okta, Active
-  Directory, Auth0, etc. (aka, [SSO](enterprise/ssh_sso.md)).
+  Directory, Auth0, etc. [SSO](enterprise/sso/ssh_sso.md).
 * Premium support.
 
 We also offer implementation services, to help you integrate
 Teleport with your existing systems and processes.
 
-You can read more in the [Teleport Enterprise section of the docs](enterprise/index.md)
+You can read more in the [Teleport Enterprise section of the docs](enterprise/introduction.md)
 
 ### Does Teleport send any data to Gravitational?
 

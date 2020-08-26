@@ -102,6 +102,31 @@ func (s *MainTestSuite) TestMakeClient(c *check.C) {
 		},
 	})
 
+	// specific configuration with email like user
+	conf.MinsToLive = 5
+	conf.UserHost = "root@example.com@localhost"
+	conf.NodePort = 46528
+	conf.LocalForwardPorts = []string{"80:remote:180"}
+	conf.DynamicForwardedPorts = []string{":8080"}
+	tc, err = makeClient(&conf, true)
+	c.Assert(err, check.IsNil)
+	c.Assert(tc.Config.KeyTTL, check.Equals, time.Minute*time.Duration(conf.MinsToLive))
+	c.Assert(tc.Config.HostLogin, check.Equals, "root@example.com")
+	c.Assert(tc.Config.LocalForwardPorts, check.DeepEquals, client.ForwardedPorts{
+		{
+			SrcIP:    "127.0.0.1",
+			SrcPort:  80,
+			DestHost: "remote",
+			DestPort: 180,
+		},
+	})
+	c.Assert(tc.Config.DynamicForwardedPorts, check.DeepEquals, client.DynamicForwardedPorts{
+		{
+			SrcIP:   "127.0.0.1",
+			SrcPort: 8080,
+		},
+	})
+
 	randomLocalAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	const staticToken = "test-static-token"
 
@@ -188,6 +213,12 @@ func (s *MainTestSuite) TestMakeClient(c *check.C) {
 	c.Assert(tc, check.NotNil)
 	c.Assert(tc.Config.WebProxyAddr, check.Equals, proxyWebAddr.String())
 	c.Assert(tc.Config.SSHProxyAddr, check.Equals, proxyPublicSSHAddr.String())
+	c.Assert(tc.LocalAgent().Agent, check.NotNil)
+	// Client should have an in-memory agent with keys loaded, in case agent
+	// forwarding is required for proxy recording mode.
+	agentKeys, err := tc.LocalAgent().Agent.List()
+	c.Assert(err, check.IsNil)
+	c.Assert(len(agentKeys), check.Not(check.Equals), 0)
 }
 
 func (s *MainTestSuite) TestIdentityRead(c *check.C) {

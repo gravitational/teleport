@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"math"
 	"net"
 	"net/http"
 
@@ -135,7 +136,16 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, error) {
 	var clusterName string
 	var err error
-	if info.ServerName != "" {
+	switch info.ServerName {
+	case "":
+		// Client does not use SNI, will validate against all known CAs.
+	case teleport.APIDomain:
+		// REMOVE IN 4.4: all 4.3+ clients must specify the correct cluster name.
+		//
+		// Instead, this case should either default to current cluster CAs or
+		// return an error.
+		t.Debugf("Client %q sent %q in SNI, which causes this auth server to send all known CAs in TLS handshake. If this client is version 4.2 or older, this is expected; if this client is version 4.3 or above, please let us know at https://github.com/gravitational/teleport/issues/new", info.Conn.RemoteAddr(), info.ServerName)
+	default:
 		clusterName, err = DecodeClusterName(info.ServerName)
 		if err != nil {
 			if !trace.IsNotFound(err) {
@@ -159,6 +169,26 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 		// this falls back to the default config
 		return nil, nil
 	}
+
+	// Per https://tools.ietf.org/html/rfc5246#section-7.4.4 the total size of
+	// the known CA subjects sent to the client can't exceed 2^16-1 (due to
+	// 2-byte length encoding). The crypto/tls stack will panic if this
+	// happens. To make the error less cryptic, catch this condition and return
+	// a better error.
+	//
+	// This may happen with a very large (>500) number of trusted clusters, if
+	// the client doesn't send the correct ServerName in its ClientHelloInfo
+	// (see the switch at the top of this func).
+	var totalSubjectsLen int64
+	for _, s := range pool.Subjects() {
+		// Each subject in the list gets a separate 2-byte length prefix.
+		totalSubjectsLen += 2
+		totalSubjectsLen += int64(len(s))
+	}
+	if totalSubjectsLen >= int64(math.MaxUint16) {
+		return nil, trace.BadParameter("number of CAs in client cert pool is too large (%d) and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; try updating tsh to the latest version; if that doesn't help, remove some trusted clusters", len(pool.Subjects()))
+	}
+
 	tlsCopy := t.TLS.Clone()
 	tlsCopy.ClientCAs = pool
 	for _, cert := range tlsCopy.Certificates {

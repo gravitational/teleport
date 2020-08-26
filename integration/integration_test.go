@@ -163,6 +163,54 @@ func (s *IntSuite) newTeleport(c *check.C, logins []string, enableSSH bool) *Tel
 	return t
 }
 
+// newTeleportIoT helper returns a running Teleport instance with Host as a
+// reversetunnel node.
+func (s *IntSuite) newTeleportIoT(c *check.C, logins []string) *TeleInstance {
+	// Create a Teleport instance with Auth/Proxy.
+	mainConfig := func() *service.Config {
+		tconf := service.MakeDefaultConfig()
+
+		tconf.Console = nil
+
+		tconf.Auth.Enabled = true
+
+		tconf.Proxy.Enabled = true
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+
+		tconf.SSH.Enabled = false
+
+		return tconf
+	}
+	main := s.newTeleportWithConfig(c, logins, nil, mainConfig())
+
+	// Create a Teleport instance with a Node.
+	nodeConfig := func() *service.Config {
+		tconf := service.MakeDefaultConfig()
+		tconf.Hostname = Host
+		tconf.Console = nil
+		tconf.Token = "token"
+		tconf.AuthServers = []utils.NetAddr{
+			utils.NetAddr{
+				AddrNetwork: "tcp",
+				Addr:        net.JoinHostPort(Loopback, main.GetPortWeb()),
+			},
+		}
+
+		tconf.Auth.Enabled = false
+
+		tconf.Proxy.Enabled = false
+
+		tconf.SSH.Enabled = true
+
+		return tconf
+	}
+	_, err := main.StartReverseTunnelNode(nodeConfig())
+	c.Assert(err, check.IsNil)
+
+	return main
+}
+
 // newTeleportWithConfig is a helper function that will create a running
 // Teleport instance with the passed in user, instance secrets, and Teleport
 // configuration.
@@ -676,12 +724,35 @@ func (s *IntSuite) TestUUIDBasedProxy(c *check.C) {
 }
 
 // TestInteractive covers SSH into shell and joining the same session from another client
-func (s *IntSuite) TestInteractive(c *check.C) {
+// against a standard teleport node.
+func (s *IntSuite) TestInteractiveRegular(c *check.C) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
 	t := s.newTeleport(c, nil, true)
 	defer t.StopAll()
+
+	s.verifySessionJoin(c, t)
+}
+
+// TestInteractive covers SSH into shell and joining the same session from another client
+// against a reversetunnel node.
+func (s *IntSuite) TestInteractiveReverseTunnel(c *check.C) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	// InsecureDevMode needed for IoT node handshake
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	t := s.newTeleportIoT(c, nil)
+	defer t.StopAll()
+
+	s.verifySessionJoin(c, t)
+}
+
+// TestInteractive covers SSH into shell and joining the same session from another client
+func (s *IntSuite) verifySessionJoin(c *check.C, t *TeleInstance) {
 
 	sessionEndC := make(chan interface{})
 
@@ -694,7 +765,7 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 
 	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
 	openSession := func() {
-		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host, Port: t.GetPortSSHInt()})
+		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host})
 		c.Assert(err, check.IsNil)
 		cl.Stdout = personA
 		cl.Stdin = personA
@@ -718,7 +789,7 @@ func (s *IntSuite) TestInteractive(c *check.C) {
 			sessionID = string(sessions[0].ID)
 			break
 		}
-		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host, Port: t.GetPortSSHInt()})
+		cl, err := t.NewClient(ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host})
 		c.Assert(err, check.IsNil)
 		cl.Stdout = personB
 		for i := 0; i < 10; i++ {
@@ -2843,16 +2914,16 @@ func (s *IntSuite) TestPAM(c *check.C) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	// Check if TestPAM can run. For PAM tests to run, the binary must have been
-	// built with PAM support and the system running the tests must have libpam
-	// installed, and have the policy files installed. This test is always run
-	// in a container as part of the CI/CD pipeline. To run this test locally,
-	// install the pam_teleport.so module by running 'make && sudo make install'
-	// from the modules/pam_teleport directory. This will install the PAM module
-	// as well as the policy files.
+	// Check if TestPAM can run. For PAM tests to run, the binary must have
+	// been built with PAM support and the system running the tests must have
+	// libpam installed, and have the policy files installed. This test is
+	// always run in a container as part of the CI/CD pipeline. To run this
+	// test locally, install the pam_teleport.so module by running 'sudo make
+	// install' from the build.assets/pam/ directory. This will install the PAM
+	// module as well as the policy files.
 	if !pam.BuildHasPAM() || !pam.SystemHasPAM() || !hasPAMPolicy() {
 		skipMessage := "Skipping TestPAM: no policy found. To run PAM tests run " +
-			"'make && sudo make install' from the modules/pam_teleport directory."
+			"'sudo make install' from the build.assets/pam/ directory."
 		c.Skip(skipMessage)
 	}
 
@@ -2872,8 +2943,10 @@ func (s *IntSuite) TestPAM(c *check.C) {
 			inEnabled:     true,
 			inServiceName: "teleport-success",
 			outContains: []string{
-				"Account opened successfully.",
-				"Session open successfully.",
+				"pam_sm_acct_mgmt OK",
+				"pam_sm_authenticate OK",
+				"pam_sm_open_session OK",
+				"pam_sm_close_session OK",
 			},
 		},
 		// 2 - PAM enabled, module account functions fail.
@@ -2943,7 +3016,8 @@ func (s *IntSuite) TestPAM(c *check.C) {
 		// If any output is expected, check to make sure it was output.
 		if len(tt.outContains) > 0 {
 			for _, expectedOutput := range tt.outContains {
-				output := termSession.Output(100)
+				output := termSession.Output(1024)
+				c.Logf("got output: %q; want output to contain: %q", output, expectedOutput)
 				c.Assert(strings.Contains(output, expectedOutput), check.Equals, true)
 			}
 		}
@@ -3442,6 +3516,153 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	}
 }
 
+// TestRotateChangeSigningAlg tests the change of CA signing algorithm on
+// manual rotation.
+func (s *IntSuite) TestRotateChangeSigningAlg(c *check.C) {
+	// Start with an instance using default signing alg.
+	tconf := rotationConfig(true)
+	t := NewInstance(InstanceConfig{ClusterName: Site, HostID: HostID, NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
+	logins := []string{s.me.Username}
+	for _, login := range logins {
+		t.AddUser(login, []string{login})
+	}
+	config, err := t.GenerateConfig(nil, tconf)
+	c.Assert(err, check.IsNil)
+
+	serviceC := make(chan *service.TeleportProcess, 20)
+	runErrCh := make(chan error, 1)
+
+	restart := func(svc *service.TeleportProcess, cancel func()) (*service.TeleportProcess, func()) {
+		if svc != nil && cancel != nil {
+			// shut down the service
+			cancel()
+			// close the service without waiting for the connections to drain
+			err := svc.Close()
+			c.Assert(err, check.IsNil)
+			err = svc.Wait()
+			c.Assert(err, check.IsNil)
+
+			select {
+			case err := <-runErrCh:
+				c.Assert(err, check.IsNil)
+			case <-time.After(20 * time.Second):
+				c.Fatalf("failed to shut down the server")
+			}
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() {
+			runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
+				svc, err := service.NewTeleport(cfg)
+				if err == nil {
+					serviceC <- svc
+				}
+				return svc, err
+			})
+		}()
+
+		svc, err = waitForProcessStart(serviceC)
+		c.Assert(err, check.IsNil)
+		return svc, cancel
+	}
+
+	assertSigningAlg := func(svc *service.TeleportProcess, alg string) {
+		hostCA, err := svc.GetAuthServer().GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: Site}, false)
+		c.Assert(err, check.IsNil)
+		c.Assert(hostCA.GetSigningAlg(), check.Equals, alg)
+
+		userCA, err := svc.GetAuthServer().GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: Site}, false)
+		c.Assert(err, check.IsNil)
+		c.Assert(userCA.GetSigningAlg(), check.Equals, alg)
+	}
+
+	rotate := func(svc *service.TeleportProcess, mode string) *service.TeleportProcess {
+		c.Logf("rotation phase: %q", services.RotationPhaseInit)
+		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+			TargetPhase: services.RotationPhaseInit,
+			Mode:        mode,
+		})
+		c.Assert(err, check.IsNil)
+
+		// wait until service phase update to be broadcasted (init phase does not trigger reload)
+		err = waitForProcessEvent(svc, service.TeleportPhaseChangeEvent, 10*time.Second)
+		c.Assert(err, check.IsNil)
+
+		c.Logf("rotation phase: %q", services.RotationPhaseUpdateClients)
+		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+			TargetPhase: services.RotationPhaseUpdateClients,
+			Mode:        mode,
+		})
+		c.Assert(err, check.IsNil)
+
+		// wait until service reload
+		svc, err = waitForReload(serviceC, svc)
+		c.Assert(err, check.IsNil)
+
+		c.Logf("rotation phase: %q", services.RotationPhaseUpdateServers)
+		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+			TargetPhase: services.RotationPhaseUpdateServers,
+			Mode:        mode,
+		})
+		c.Assert(err, check.IsNil)
+
+		// wait until service reloaded
+		svc, err = waitForReload(serviceC, svc)
+		c.Assert(err, check.IsNil)
+
+		c.Logf("rotation phase: %q", services.RotationPhaseStandby)
+		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
+			TargetPhase: services.RotationPhaseStandby,
+			Mode:        mode,
+		})
+		c.Assert(err, check.IsNil)
+
+		// wait until service reloaded
+		svc, err = waitForReload(serviceC, svc)
+		c.Assert(err, check.IsNil)
+
+		return svc
+	}
+
+	// Start the instance.
+	svc, cancel := restart(nil, nil)
+
+	c.Log("default signature algorithm due to empty config value")
+	// Verify the default signing algorithm with config value empty.
+	assertSigningAlg(svc, defaults.CASignatureAlgorithm)
+
+	c.Log("change signature algorithm with custom config value and manual rotation")
+	// Change the signing algorithm in config file.
+	signingAlg := ssh.SigAlgoRSA
+	config.CASignatureAlgorithm = &signingAlg
+	svc, cancel = restart(svc, cancel)
+	// Do a manual rotation - this should change the signing algorithm.
+	svc = rotate(svc, services.RotationModeManual)
+	assertSigningAlg(svc, ssh.SigAlgoRSA)
+
+	c.Log("preserve signature algorithm with empty config value and manual rotation")
+	// Unset the config value.
+	config.CASignatureAlgorithm = nil
+	svc, cancel = restart(svc, cancel)
+
+	// Do a manual rotation - this should leave the signing algorithm
+	// unaffected because config value is not set.
+	svc = rotate(svc, services.RotationModeManual)
+	assertSigningAlg(svc, ssh.SigAlgoRSA)
+
+	// shut down the service
+	cancel()
+	// close the service without waiting for the connections to drain
+	svc.Close()
+
+	select {
+	case err := <-runErrCh:
+		c.Assert(err, check.IsNil)
+	case <-time.After(20 * time.Second):
+		c.Fatalf("failed to shut down the server")
+	}
+}
+
 // rotationConfig sets up default config used for CA rotation tests
 func rotationConfig(disableWebService bool) *service.Config {
 	tconf := service.MakeDefaultConfig()
@@ -3796,6 +4017,93 @@ func (s *IntSuite) TestList(c *check.C) {
 				c.Fatalf("Got nodes: %v, want: %v.", nodes, tt.outNodes)
 			}
 		}
+	}
+}
+
+// TestCmdLabels verifies the behavior of running commands via labels
+// with a mixture of regular and reversetunnel nodes.
+func (s *IntSuite) TestCmdLabels(c *check.C) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	// InsecureDevMode needed for IoT node handshake
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	// Create and start a Teleport cluster with auth, proxy, and node.
+	makeConfig := func() *service.Config {
+		clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+			SessionRecording: services.RecordOff,
+			LocalAuth:        services.NewBool(true),
+		})
+		c.Assert(err, check.IsNil)
+
+		tconf := service.MakeDefaultConfig()
+		tconf.Hostname = "server-01"
+		tconf.Auth.Enabled = true
+		tconf.Auth.ClusterConfig = clusterConfig
+		tconf.Proxy.Enabled = true
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+		tconf.SSH.Enabled = true
+		tconf.SSH.Labels = map[string]string{
+			"role": "worker",
+			"spam": "eggs",
+		}
+
+		return tconf
+	}
+	t := s.newTeleportWithConfig(c, nil, nil, makeConfig())
+	defer t.StopAll()
+
+	// Create and start a reversetunnel node.
+	nodeConfig := func() *service.Config {
+		tconf := service.MakeDefaultConfig()
+		tconf.Hostname = "server-02"
+		tconf.SSH.Enabled = true
+		tconf.SSH.Labels = map[string]string{
+			"role": "database",
+			"spam": "eggs",
+		}
+
+		return tconf
+	}
+	_, err := t.StartReverseTunnelNode(nodeConfig())
+	c.Assert(err, check.IsNil)
+
+	// test label patterns that match both nodes, and each
+	// node individually.
+	tts := []struct {
+		command []string
+		labels  map[string]string
+		expect  string
+	}{
+		{
+			command: []string{"echo", "two"},
+			labels:  map[string]string{"spam": "eggs"},
+			expect:  "two\ntwo\n",
+		},
+		{
+			command: []string{"echo", "worker"},
+			labels:  map[string]string{"role": "worker"},
+			expect:  "worker\n",
+		},
+		{
+			command: []string{"echo", "database"},
+			labels:  map[string]string{"role": "database"},
+			expect:  "database\n",
+		},
+	}
+
+	for _, tt := range tts {
+		cfg := ClientConfig{
+			Login:  s.me.Username,
+			Labels: tt.labels,
+		}
+
+		output, err := runCommand(t, tt.command, cfg, 1)
+		c.Assert(err, check.IsNil)
+		c.Assert(output, check.Equals, tt.expect)
 	}
 }
 
@@ -4277,8 +4585,17 @@ func runCommand(instance *TeleInstance, cmd []string, cfg ClientConfig, attempts
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+	// since this helper is sometimes used for running commands on
+	// multiple nodes concurrently, we use io.Pipe to protect our
+	// output buffer from concurrent writes.
+	read, write := io.Pipe()
 	output := &bytes.Buffer{}
-	tc.Stdout = output
+	doneC := make(chan struct{})
+	go func() {
+		io.Copy(output, read)
+		close(doneC)
+	}()
+	tc.Stdout = write
 	for i := 0; i < attempts; i++ {
 		err = tc.SSH(context.TODO(), cmd, false)
 		if err == nil {
@@ -4286,7 +4603,12 @@ func runCommand(instance *TeleInstance, cmd []string, cfg ClientConfig, attempts
 		}
 		time.Sleep(1 * time.Second)
 	}
-	return output.String(), trace.Wrap(err)
+	write.Close()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	<-doneC
+	return output.String(), nil
 }
 
 // getPorts helper returns a range of unallocated ports available for litening on

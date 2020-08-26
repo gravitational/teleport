@@ -387,6 +387,8 @@ const (
 )
 
 const (
+	// CertExtensionPermitX11Forwarding allows X11 forwarding for certificate
+	CertExtensionPermitX11Forwarding = "permit-X11-forwarding"
 	// CertExtensionPermitAgentForwarding allows agent forwarding for certificate
 	CertExtensionPermitAgentForwarding = "permit-agent-forwarding"
 	// CertExtensionPermitPTY allows user to request PTY

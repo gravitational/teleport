@@ -36,11 +36,13 @@ type Cluster struct {
 	Status string `json:"status"`
 	// NodeCount is this cluster number of registered servers
 	NodeCount int `json:"nodeCount"`
-	// PublicURL is this cluster public URL (its first available proxy URL)
+	// PublicURL is this cluster public URL (its first available proxy URL),
+	// or possibly empty if no proxies could be loaded.
 	PublicURL string `json:"publicURL"`
 	// AuthVersion is the cluster auth's service version
 	AuthVersion string `json:"authVersion"`
-	// ProxyVersion is the cluster proxy's service version
+	// ProxyVersion is the cluster proxy's service version,
+	// or possibly empty if no proxies could be loaded.
 	ProxyVersion string `json:"proxyVersion"`
 }
 
@@ -80,7 +82,7 @@ func GetClusterDetails(site reversetunnel.RemoteSite) (*Cluster, error) {
 		return nil, trace.Wrap(err)
 	}
 	proxyHost, proxyVersion, err := services.GuessProxyHostAndVersion(proxies)
-	if err != nil {
+	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
 

@@ -5,48 +5,16 @@
 kind: oidc
 version: v2
 metadata:
-  name: oidc_connector
+  name: new_oidc_connector
 spec:
-  # name of the OIDC provider, like "keycloak".
-  provider: example
-
-  # This value will be used in the Web UI for "[login with example]" button
-  # button on the cluster login screen so it will say "Login with Google". 
-  # Teleport will provide custom CSS for 'Google'. 
-  display: Google
-
-  # these values must come from the OIDC provider configuration
+  redirect_url: "https://<cluster-url>/v1/webapi/oidc/callback"
   client_id: <client id>
+  # connector display name that will be appended to the title of "Login with"
+  # button on the cluster login screen so it will say "Login with Google".
+  # Teleport will provide custom CSS for 'Google'.
+  display: Google
   client_secret: <client secret>
-  issuer_url: https://<External-ODIC-url>
-
-  # the redirect URL must be accessible by all users 
-  redirect_url: https://<cluster-url>.example.com:3080/v1/webapi/oidc/callback
-  redirect_timeout: 90s
-   
-  # prompt values are optional. These case-sensitive list of ASCII string
-  # values that specifies whether the Authorization Server prompts the End-User for 
-  # reauthentication and consent. https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest 
-  # Default is 
-  # prompt: 'select_account'
-  # if you need to override the default 'select_account'
-  # behaviour, you should set this to an empty string.
-  # prompt: ''
-
-  # acr_values are optional (for OIDC providers that require them).
-  # acr_values: foo
-
-  # this section tells Teleport to evaluate claim "group" and:
-  #  - if the claim value is "admin", give a user "admin" role
-  #  - if the claim value is "user", give a user "user" role
-  scope: ["group"]
-  # the mapping from groups to Teleport roles
+  issuer_url: https://<issuer-url>
+  scope: [<scope value>]
   claims_to_roles:
-     - { claim: "group", value: "admin", roles: ["admin"] }
-     - { claim: "group", value: "user", roles: ["user"] }
-     # note that wildcards can also be used. the next line instructs Teleport
-     # to assign "admin" role to any user who has the OIDC claim that begins with "admin":
-     - { claim: "group", value: "admin*", roles: ["admin"] }
-     # regular expressions with capture are also supported. the next line instructs Teleport
-     # to assign users to roles `admin-1` if his OIDC "group" claim equals 'ssh_admin_1':
-     - { claim: "group", value: "^ssh_admin_(.*)$", roles: ["admin-$1"] }
+    - {claim: "hd", value: "example.com", roles: ["admins"]}

@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/wrappers"
 
@@ -74,6 +75,7 @@ func (n *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	signer = sshutils.AlgSigner(signer, c.CASigningAlg)
 	if err := cert.SignCert(rand.Reader, signer); err != nil {
 		return nil, err
 	}
@@ -101,9 +103,13 @@ func (n *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	signer = sshutils.AlgSigner(signer, c.CASigningAlg)
 	cert.Permissions.Extensions = map[string]string{
 		teleport.CertExtensionPermitPTY:            "",
 		teleport.CertExtensionPermitPortForwarding: "",
+	}
+	if c.PermitX11Forwarding {
+		cert.Permissions.Extensions[teleport.CertExtensionPermitX11Forwarding] = ""
 	}
 	if c.PermitAgentForwarding {
 		cert.Permissions.Extensions[teleport.CertExtensionPermitAgentForwarding] = ""

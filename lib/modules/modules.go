@@ -19,7 +19,6 @@ limitations under the License.
 package modules
 
 import (
-	"bytes"
 	"fmt"
 	"runtime"
 	"sync"
@@ -46,7 +45,7 @@ type Modules interface {
 	RolesFromLogins([]string) []string
 	// TraitsFromLogins returns traits for external user based on the logins
 	// and kubernetes groups extracted from the connector
-	TraitsFromLogins(logins []string, kubeGroups []string, kubeUsers []string) map[string][]string
+	TraitsFromLogins(user string, logins []string, kubeGroups []string, kubeUsers []string) map[string][]string
 	// SupportsKubernetes returns true if this cluster supports kubernetes
 	SupportsKubernetes() bool
 	// IsBoringBinary checks if the binary was compiled with BoringCrypto.
@@ -92,13 +91,7 @@ func (p *defaultModules) DefaultAllowedLogins() []string {
 
 // PrintVersion prints the Teleport version.
 func (p *defaultModules) PrintVersion() {
-	var buf bytes.Buffer
-
-	buf.WriteString(fmt.Sprintf("Teleport v%s ", teleport.Version))
-	buf.WriteString(fmt.Sprintf("git:%s ", teleport.Gitref))
-	buf.WriteString(runtime.Version())
-
-	fmt.Println(buf.String())
+	fmt.Printf("Teleport v%s git:%s %s\n", teleport.Version, teleport.Gitref, runtime.Version())
 }
 
 // RolesFromLogins returns roles for external user based on the logins
@@ -114,7 +107,7 @@ func (p *defaultModules) RolesFromLogins(logins []string) []string {
 // extracted from the connector
 //
 // By default logins are treated as allowed logins user traits.
-func (p *defaultModules) TraitsFromLogins(logins []string, kubeGroups, kubeUsers []string) map[string][]string {
+func (p *defaultModules) TraitsFromLogins(_ string, logins, kubeGroups, kubeUsers []string) map[string][]string {
 	return map[string][]string{
 		teleport.TraitLogins:     logins,
 		teleport.TraitKubeGroups: kubeGroups,

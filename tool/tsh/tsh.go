@@ -31,9 +31,11 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
@@ -230,6 +232,7 @@ func Run(args []string) {
 	app.Flag("enable-escape-sequences", "Enable support for SSH escape sequences. Type '~?' during an SSH session to list supported sequences. Default is enabled.").
 		Default("true").
 		BoolVar(&cf.EnableEscapeSequences)
+	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
 	app.HelpFlag.Short('h')
 	ver := app.Command("version", "Print the version")
 	// ssh
@@ -266,7 +269,7 @@ func Run(args []string) {
 	ls := app.Command("ls", "List remote SSH nodes")
 	ls.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
 	ls.Arg("labels", "List of labels to filter node list").StringVar(&cf.UserHost)
-	ls.Flag("verbose", clusterHelp).Short('v').BoolVar(&cf.Verbose)
+	ls.Flag("verbose", "One-line output, including node UUIDs").Short('v').BoolVar(&cf.Verbose)
 	// clusters
 	clusters := app.Command("clusters", "List available Teleport clusters")
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
@@ -274,7 +277,6 @@ func Run(args []string) {
 	// login logs in with remote proxy and obtains a "session certificate" which gets
 	// stored in ~/.tsh directory
 	login := app.Command("login", "Log in to a cluster and retrieve the session certificate")
-	login.Flag("bind-addr", "Address in the form of host:port to bind to for login command webhook").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
 	login.Flag("out", "Identity output").Short('o').AllowDuplicate().StringVar(&cf.IdentityFileOut)
 	login.Flag("format", fmt.Sprintf("Identity format: %s, %s (for OpenSSH compatibility) or %s (for kubeconfig)",
 		identityfile.DefaultFormat,
@@ -487,12 +489,16 @@ func onLogin(cf *CLIConf) {
 		if err := setupNoninteractiveClient(tc, key); err != nil {
 			utils.FatalError(err)
 		}
+		// key.TrustedCA at this point only has the CA of the root cluster we
+		// logged into. We need to fetch all the CAs for leaf clusters too, to
+		// make them available in the identity file.
 		authorities, err := tc.GetTrustedCA(cf.Context, key.ClusterName)
 		if err != nil {
 			utils.FatalError(err)
 		}
+		key.TrustedCA = auth.AuthoritiesToTrustedCerts(authorities)
 
-		filesWritten, err := identityfile.Write(cf.IdentityFileOut, key, cf.IdentityFormat, authorities, tc.KubeClusterAddr())
+		filesWritten, err := identityfile.Write(cf.IdentityFileOut, key, cf.IdentityFormat, tc.KubeClusterAddr())
 		if err != nil {
 			utils.FatalError(err)
 		}
@@ -557,6 +563,46 @@ func setupNoninteractiveClient(tc *client.TeleportClient, key *client.Key) error
 	tc.AuthMethods = []ssh.AuthMethod{identityAuth}
 	tc.Interactive = false
 	tc.SkipLocalAuth = true
+
+	// When user logs in for the first time without a CA in ~/.tsh/known_hosts,
+	// and specifies the -out flag, we need to avoid writing anything to
+	// ~/.tsh/ but still validate the proxy cert. Because the existing
+	// client.Client methods have a side-effect of persisting the CA on disk,
+	// we do all of this by hand.
+	//
+	// Wrap tc.HostKeyCallback with a another checker. This outer checker uses
+	// key.TrustedCA to validate the remote host cert first, before falling
+	// back to the original HostKeyCallback.
+	oldHostKeyCallback := tc.HostKeyCallback
+	tc.HostKeyCallback = func(hostname string, remote net.Addr, hostKey ssh.PublicKey) error {
+		checker := ssh.CertChecker{
+			// ssh.CertChecker will parse hostKey, extract public key of the
+			// signer (CA) and call IsHostAuthority. IsHostAuthority in turn
+			// has to match hostCAKey to any known trusted CA.
+			IsHostAuthority: func(hostCAKey ssh.PublicKey, address string) bool {
+				for _, ca := range key.TrustedCA {
+					caKeys, err := ca.SSHCertPublicKeys()
+					if err != nil {
+						return false
+					}
+					for _, caKey := range caKeys {
+						if sshutils.KeysEqual(caKey, hostCAKey) {
+							return true
+						}
+					}
+				}
+				return false
+			},
+		}
+		err := checker.CheckHostKey(hostname, remote, hostKey)
+		if err != nil && oldHostKeyCallback != nil {
+			errOld := oldHostKeyCallback(hostname, remote, hostKey)
+			if errOld != nil {
+				return trace.NewAggregate(err, errOld)
+			}
+		}
+		return nil
+	}
 	return nil
 }
 
@@ -929,9 +975,10 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	var labels map[string]string
 	if cf.UserHost != "" {
 		parts := strings.Split(cf.UserHost, "@")
-		if len(parts) > 1 {
-			hostLogin = parts[0]
-			cf.UserHost = parts[1]
+		partsLength := len(parts)
+		if partsLength > 1 {
+			hostLogin = strings.Join(parts[:partsLength-1], "@")
+			cf.UserHost = parts[partsLength-1]
 		}
 		// see if remote host is specified as a set of labels
 		if strings.Contains(cf.UserHost, "=") {
@@ -995,6 +1042,20 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 			return nil, trace.Wrap(err)
 		}
 		c.AuthMethods = []ssh.AuthMethod{identityAuth}
+
+		// Also create an in-memory agent to hold the key. If cluster is in
+		// proxy recording mode, agent forwarding will be required for
+		// sessions.
+		c.Agent = agent.NewKeyring()
+		agentKeys, err := key.AsAgentKeys()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, k := range agentKeys {
+			if err := c.Agent.Add(k); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
 
 		if len(key.TLSCert) > 0 {
 			c.TLS, err = key.ClientTLSConfig()

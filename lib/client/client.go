@@ -19,7 +19,6 @@ package client
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"io"
 	"io/ioutil"
@@ -352,28 +351,14 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 		})
 	}
 
-	// Because Teleport clients can't be configured (yet), they take the default
-	// list of cipher suites from Go.
-	tlsConfig := utils.TLSConfig(nil)
 	localAgent := proxy.teleportClient.LocalAgent()
-	pool, err := localAgent.GetCerts()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsConfig.RootCAs = pool
 	key, err := localAgent.GetKey()
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", proxy.teleportClient.Username)
 	}
-	if len(key.TLSCert) != 0 {
-		tlsCert, err := tls.X509KeyPair(key.TLSCert, key.Priv)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse TLS cert and key")
-		}
-		tlsConfig.Certificates = append(tlsConfig.Certificates, tlsCert)
-	}
-	if len(tlsConfig.Certificates) == 0 {
-		return nil, trace.BadParameter("no TLS keys found for user %v, please relogin to get new credentials", proxy.teleportClient.Username)
+	tlsConfig, err := key.ClientTLSConfig()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to generate client TLS config")
 	}
 	clt, err := auth.NewTLSClient(auth.ClientConfig{
 		Dialer: dialer,
@@ -602,6 +587,9 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 	// creates a new context which holds the agent. if ForwardToAgent returns an error
 	// "already have handler for" we ignore it.
 	if recordingProxy {
+		if proxy.teleportClient.localAgent == nil {
+			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
+		}
 		err = agent.ForwardToAgent(proxy.Client, proxy.teleportClient.localAgent.Agent)
 		if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
 			return nil, trace.Wrap(err)
@@ -687,6 +675,9 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 	// creates a new context which holds the agent. if ForwardToAgent returns an error
 	// "already have handler for" we ignore it.
 	if recordingProxy {
+		if proxy.teleportClient.localAgent == nil {
+			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
+		}
 		err = agent.ForwardToAgent(proxy.Client, proxy.teleportClient.localAgent.Agent)
 		if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
 			return nil, trace.Wrap(err)

@@ -1,6 +1,6 @@
 # Enhanced Session Recording
 
-Teleport [standard session recordings](https://gravitational.com/teleport/docs/architecture/teleport_nodes/#session-recording) only capture what is echoed to a terminal.
+Teleport [standard session recordings](https://gravitational.com/teleport/docs/architecture/nodes/#session-recording) only capture what is echoed to a terminal.
 This has inherent advantages, for example because no input is captured, Teleport
 session recordings typically do not contain passwords that were entered into a terminal.
 

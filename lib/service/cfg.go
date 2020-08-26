@@ -141,6 +141,11 @@ type Config struct {
 	// the server supports. If omitted the defaults will be used.
 	MACAlgorithms []string
 
+	// CASignatureAlgorithm is an SSH Certificate Authority (CA) signature
+	// algorithm that the server uses for signing user and host certificates.
+	// If omitted, the default will be used.
+	CASignatureAlgorithm *string
+
 	// DiagnosticAddr is an address for diagnostic and healthz endpoint service
 	DiagnosticAddr utils.NetAddr
 

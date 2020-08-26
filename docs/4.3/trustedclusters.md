@@ -1,3 +1,8 @@
+---
+title: Teleport Trusted Clusters
+description: How to configure access and trust between two SSH and Kubernetes environments
+---
+
 # Trusted Clusters
 
 The design of trusted clusters allows Teleport users to connect to compute infrastructure
@@ -36,7 +41,7 @@ This guide's focus is on more in-depth coverage of trusted clusters features and
 
 ## Introduction
 
-As explained in the [architecture document](architecture/teleport_architecture_overview.md#design-principles),
+As explained in the [architecture document](architecture/overview.md#design-principles),
 Teleport can partition compute infrastructure into multiple clusters.
 A cluster is a group of SSH nodes connected to the cluster's _auth server_
 acting as a certificate authority (CA) for all users and nodes.
@@ -293,8 +298,8 @@ $ tsh ls --cluster=east
 
 Node Name Node ID            Address        Labels
 --------- ------------------ -------------- -----------
-db1.east  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-master
-db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-slave
+db1.east  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-leader
+db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-follower
 ```
 
 ```bsh
@@ -316,6 +321,37 @@ and set `enabled` to "false", then update it:
 ```bsh
 $ tctl create --force cluster.yaml
 ```
+
+## Sharing Kubernetes groups between Trusted Clusters
+
+Below is an example of how to share a kubernetes group between trusted clusters.
+
+In this example, we have a root trusted cluster with a role `root` and kubernetes groups:
+
+```yaml
+kubernetes_groups: ["system:masters"]
+```
+SSH logins:
+
+```yaml
+logins: ["root"]
+```
+The leaf cluster can choose to map this `root` cluster to its own cluster. The `admin` cluster in the trusted cluster config:
+
+```yaml
+role_map:
+  - remote: "root"
+    local: [admin]
+```
+The role `admin` of the leaf cluster can now be set up to use the root cluster role logins and `kubernetes_groups` using the following variables:
+
+```yaml
+logins: ["{% raw %}{{internal.logins}}{% endraw %}"]
+kubernetes_groups: ["{% raw %}{{internal.kubernetes_groups}}{% endraw %}"]
+```
+!!! tip "Note"
+
+    In order to pass logins from a root trusted cluster to a leaf cluster, you must use the variable `{% raw %}{{internal.logins}}{% endraw %}`.
 
 ## How does it work?
 

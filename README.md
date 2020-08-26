@@ -31,13 +31,14 @@ implementation and it is _fully compatible with OpenSSH_ and can be used with
 
 |Project Links| Description
 |---|----
-| [Teleport Website](http://gravitational.com/teleport)  | The official website of the project |
-| [Documentation](http://gravitational.com/teleport/docs/quickstart/)  | Admin guide, user manual and more |
-| [Demo Video](https://www.youtube.com/watch?v=zIuZHYO_cDI) | 3-minute video overview of the UI. |
-| [Teleconsole](http://www.teleconsole.com) | The free service to "invite" SSH clients behind NAT, built on top of Teleport |
-| [Blog](http://blog.gravitational.com) | Our blog where we publish Teleport news |
-| [Security Updates](https://groups.google.com/forum/#!forum/teleport-community-security) | Teleport Community Edition Security Updates|
+| [Teleport Website](https://gravitational.com/teleport)  | The official website of the project |
+| [Documentation](https://gravitational.com/teleport/docs/quickstart/)  | Admin guide, user manual and more |
+| [Demo Video](https://www.youtube.com/watch?v=DUlTAlEJr5w) | 5-minute video overview of the UI. |
+| [Teleconsole](https://www.teleconsole.com) | The free service to "invite" SSH clients behind NAT, built on top of Teleport |
+| [Blog](https://gravitational.com/blog/) | Our blog where we publish Teleport news |
 | [Community Forum](https://community.gravitational.com) | Teleport Community Forum|
+
+[![Teleport 4.3 Demo](/docs/4.3/img/readme/teleport-4.3-video-thumb.png)](https://www.youtube.com/watch?v=DUlTAlEJr5w)
 
 ## Installing and Running
 
@@ -59,9 +60,9 @@ and run it under `$USER`, in this case you will not be able to login as someone 
 ### Deploy Teleport
 If you wish to deploy Teleport inside a Docker container:
 ```
-# This command will pull the Teleport container image for version 4.2.0
-# Replace 4.2.0 with the version you need:
-$ docker pull quay.io/gravitational/teleport:4.2.0
+# This command will pull the Teleport container image for version 4.3
+# Replace 4.3 with the version you need:
+$ docker pull quay.io/gravitational/teleport:4.3
 ```
 View latest tags on [Quay.io | gravitational/teleport](https://quay.io/repository/gravitational/teleport?tab=tags)
 
@@ -73,12 +74,10 @@ Follow instructions at [docker/README](docker/README.md)
 Teleport source code consists of the actual Teleport daemon binary written in Golang, and also
 of a web UI (a git submodule located in /webassets directory) written in Javascript.
 
-Make sure you have Golang `v1.13` or newer, then run:
+Make sure you have Golang `v1.14` or newer, then run:
 
 ```bash
 # get the source & build:
-$ mkdir -p $GOPATH/src/github.com/gravitational
-$ cd $GOPATH/src/github.com/gravitational
 $ git clone https://github.com/gravitational/teleport.git
 $ cd teleport
 $ make full
@@ -95,11 +94,11 @@ NOTE: The Go compiler is somewhat sensitive to amount of memory: you will need
 at least 1GB of virtual memory to compile Teleport. 512MB instance without swap
 will not work.
 
-NOTE: This will build the latest version of Teleport, regardless of whether it is stable. If you want to build the latest stable release, `git checkout` to that tag (e.g. `git checkout v4.2.0`) before running `make full`.
+NOTE: This will build the latest version of Teleport, regardless of whether it is stable. If you want to build the latest stable release, `git checkout` to that tag (e.g. `git checkout v4.3.0`) before running `make full`.
 
 ### Rebuilding Web UI
 
-Teleport Web UI is located in the [Gravitational Webapps](https://github.com/gravitational/webapps.) monorepo.
+Teleport Web UI is located in the [Gravitational Webapps](https://github.com/gravitational/webapps) monorepo.
 You can clone that repository and rebuild teleport UI package with:
 
 ```bash
@@ -135,6 +134,59 @@ make run-docs
 
 For more details, take a look at [docs/README](docs/README.md)
 
+### Managing dependencies
+
+Dependencies are managed using [Go
+modules](https://blog.golang.org/using-go-modules). Here are instructions for
+some common tasks:
+
+#### Add a new dependency
+
+Latest version:
+
+```
+go get github.com/new/dependency
+# Update the source to actually use this dependency, then run:
+make update-vendor
+```
+
+Specific version:
+
+```
+go get github.com/new/dependency@version
+# Update the source to actually use this dependency, then run:
+make update-vendor
+```
+
+#### Set dependency to a specific version
+
+```
+go get github.com/new/dependency@version
+make update-vendor
+```
+
+#### Update dependency to the latest version
+
+```
+go get -u github.com/new/dependency
+make update-vendor
+```
+
+#### Update all dependencies
+
+```
+go get -u all
+make update-vendor
+```
+
+#### Debugging dependencies
+
+Why is a specific package imported: `go mod why $pkgname`.
+
+Why is a specific module imported: `go mod why -m $modname`.
+
+Why is a specific version of a module imported: `go mod graph | grep $modname`.
+
 ## Why did We Build Teleport?
 
 The Teleport creators used to work together at Rackspace. We noticed that most
@@ -153,11 +205,11 @@ magically _teleported_. And Teleport was born!
 
 ## More Information
 
-* [Quick Start Guide](http://gravitational.com/teleport/docs/quickstart)
-* [Teleport Architecture](http://gravitational.com/teleport/docs/architecture)
-* [Admin Manual](http://gravitational.com/teleport/docs/admin-guide)
-* [User Manual](http://gravitational.com/teleport/docs/user-manual)
-* [FAQ](http://gravitational.com/teleport/docs/faq)
+* [Quick Start Guide](https://gravitational.com/teleport/docs/quickstart)
+* [Teleport Architecture](https://gravitational.com/teleport/docs/architecture)
+* [Admin Manual](https://gravitational.com/teleport/docs/admin-guide)
+* [User Manual](https://gravitational.com/teleport/docs/user-manual)
+* [FAQ](https://gravitational.com/teleport/docs/faq)
 
 ## Support and Contributing
 

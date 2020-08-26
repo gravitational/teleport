@@ -1357,21 +1357,33 @@ Here's the list of resources currently exposed via [ `tctl` ](cli-docs.md#tctl) 
 | role          | A role assumed by users. The open source Teleport only includes one role: "admin", but Enterprise teleport users can define their own roles.|
 | connector     | Authentication connectors for [single sign-on](enterprise/ssh_sso.md) (SSO) for SAML, OIDC and Github.|
 
+
 **Examples:**
 
-``` yaml
+```bash
 # list all connectors:
 $ tctl get connectors
 
-# dump a connector called "okta":
-$ tctl get connectors/okta
+# dump a SAML connector called "okta":
+$ tctl get saml/okta
 
-# delete a connector called "okta":
-$ tctl rm connectors/okta
+# delete a SAML connector called "okta":
+$ tctl rm saml/okta
+
+# delete an OIDC connector called "gsuite":
+$ tctl rm oidc/gsuite
+
+# delete a github connector called "myteam":
+$ tctl rm github/myteam
 
 # delete a local user called "admin":
 $ tctl rm users/admin
 ```
+
+!!! note
+    Although `tctl get connectors` will show you every connector, when working with an individual
+    connector you must use the correct `kind`, such as `saml` or `oidc`. You can see each
+    connector's `kind` at the top of its YAML output from `tctl get connectors`.
 
 ## Trusted Clusters
 
@@ -1567,8 +1579,8 @@ $ tsh ls --cluster=east
 
 Node Name Node ID            Address        Labels
 --------- ------------------ -------------- -----------
-db1.east  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-master
-db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-slave
+db1.east  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-leader
+db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-follower
 
 # SSH into any node in "east":
 $ tsh ssh --cluster=east root@db1.east

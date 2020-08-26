@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/events"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -188,4 +189,28 @@ func (w *Monitor) Start() {
 			return
 		}
 	}
+}
+
+type trackingChannel struct {
+	ssh.Channel
+	t ActivityTracker
+}
+
+func newTrackingChannel(ch ssh.Channel, t ActivityTracker) ssh.Channel {
+	return trackingChannel{
+		Channel: ch,
+		t:       t,
+	}
+}
+
+func (ch trackingChannel) Read(buf []byte) (int, error) {
+	n, err := ch.Channel.Read(buf)
+	ch.t.UpdateClientActivity()
+	return n, err
+}
+
+func (ch trackingChannel) Write(buf []byte) (int, error) {
+	n, err := ch.Channel.Write(buf)
+	ch.t.UpdateClientActivity()
+	return n, err
 }

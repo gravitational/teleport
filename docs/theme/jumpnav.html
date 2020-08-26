@@ -1,0 +1,20 @@
+{% for nav_item in nav %}
+{% if nav_item.title != "hidden" %}
+  {% if nav_item.children %}
+    {% for nav_item in nav_item.children %}
+      {% if nav_item.active%}
+      <div id="jump-nav" class="jump-nav" data-margin-top="40">
+        <h3>Table of Contents</h3>
+        <ul>
+          {% for toc_item in page.toc %}
+            {% for toc_item in toc_item.children %}
+            <li><a href="{{ toc_item.url }}">{{ toc_item.title }}</a></li>
+            {% endfor %}
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    {% endfor %}
+  {% endif %}
+{% endif %}
+{% endfor %}

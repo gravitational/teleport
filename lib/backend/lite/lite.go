@@ -184,6 +184,7 @@ func NewWithConfig(ctx context.Context, cfg Config) (*LiteBackend, error) {
 type LiteBackend struct {
 	Config
 	*log.Entry
+	backend.NoMigrations
 	db *sql.DB
 	// clock is used to generate time,
 	// could be swapped in tests for fixed time

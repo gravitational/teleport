@@ -1,4 +1,4 @@
-{{- $servicePort := .Values.service.ports.proxyweb.port -}}
+{{- $servicePort := .Values.service.ports.proxyweb.targetPort -}}
 {{- $serviceName := include "teleport.fullname" . -}}
 {{- if .Values.ingress.enabled }}
 ---
