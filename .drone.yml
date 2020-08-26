@@ -165,7 +165,7 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
-name: test-docs
+name: test-docs-internal
 
 trigger:
   branch:
@@ -215,7 +215,7 @@ steps:
           fi
         fi
 
-  - name: Run docs tests
+  - name: Run docs tests (internal links only)
     image: golang:1.14.4
     commands:
       - |
@@ -231,7 +231,87 @@ steps:
               cd docs/$VERSION
               echo "Running milv on docs/$VERSION:"
               go get -u github.com/magicmatatjahu/milv
-              milv
+              milv -ignore-external
+              echo "------------------------------"
+              cd -
+            else
+              echo "No milv config found, skipping docs/$VERSION"
+            fi
+          done
+          else echo "No changes to docs detected, not running tests"
+        fi
+
+---
+kind: pipeline
+type: kubernetes
+name: test-docs-external
+
+trigger:
+  branch:
+    - master
+    - branch/*
+  event:
+    exclude:
+      - cron
+      - promote
+      - rollback
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: golang:1.14.4
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git init && git remote add origin ${DRONE_REMOTE_URL}
+      - |
+        # handle pull requests
+        if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
+          git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+          git checkout ${DRONE_COMMIT_BRANCH}
+          git fetch origin ${DRONE_COMMIT_REF}:
+          git merge ${DRONE_COMMIT}
+        # handle tags
+        elif [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
+          git fetch origin +refs/tags/${DRONE_TAG}:
+          git checkout -qf FETCH_HEAD
+        # handle pushes/other events
+        else
+          if [ "${DRONE_COMMIT_BRANCH}" = "" ]; then
+            git fetch origin
+            git checkout -qf ${DRONE_COMMIT_SHA}
+          else
+            git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+            git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
+          fi
+        fi
+
+  - name: Run docs tests (external links only)
+    image: golang:1.14.4
+    failure: ignore
+    commands:
+      - |
+        cd /go/src/github.com/gravitational/teleport
+        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
+        if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
+          echo "Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
+          # Check trailing whitespace
+          make docs-test-whitespace
+          # Check links
+          for VERSION in $(cat /tmp/docs-versions-changed.txt); do
+            if [ -f docs/$VERSION/milv.config.yaml ]; then
+              cd docs/$VERSION
+              echo "Running milv on docs/$VERSION:"
+              go get -u github.com/magicmatatjahu/milv
+              milv -ignore-internal
               echo "------------------------------"
               cd -
             else
@@ -2660,6 +2740,6 @@ steps:
 
 ---
 kind: signature
-hmac: 382d9ed0ef2248daf1c75e74c0f1560291365c3671f441894f0ad723406a183f
+hmac: 179641ffc8418799a4fbd3a8281dc3fb8168222b0e79af818bf6b7d62f707aaf
 
 ...
