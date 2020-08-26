@@ -20,7 +20,6 @@ using [Mattermost](https://mattermost.com/) an open source messaging platform.
 Your browser does not support the video tag.
 </video>
 
-
 ## Setup
 ### Prerequisites
 This guide assumes that you have:
@@ -40,13 +39,13 @@ Go back to your team, then Integrations → Bot Accounts → Add Bot Account.
 
 The new bot account will need Post All permission.
 
-<a href="/img/enterprise/plugins/teleport_bot@2x.png" download>Download Teleport Bot Icon</a>
-
+**App Icon:** <a href="https://gravitational.com/teleport/docs/img/enterprise/plugins/teleport_bot@2x.png" download>Download Teleport Bot Icon</a>
 
 ![Enable Mattermost Bots](../../img/enterprise/plugins/mattermost/mattermost_bot.png)
 
 ##### Create an OAuth 2.0 Application
 In Mattermost, go to System Console → Integrations → OAuth 2.0 Applications.
+
 - Set Callback URLs to the location of your Teleport Proxy
 
 ![Create OAuth Application](../../img/enterprise/plugins/mattermost/mattermost_OAuth_token.png)
@@ -96,7 +95,7 @@ $ tctl auth sign --format=tls --user=access-plugin-mattermost --out=auth --ttl=8
 # ...
 ```
 
-The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference these later when [configuring Teleport-Plugins](#configuring-mattermost-bot).
+The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the plugins](#configuring-mattermost-bot).
 
 !!! note "Certificate Lifetime"
      By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token

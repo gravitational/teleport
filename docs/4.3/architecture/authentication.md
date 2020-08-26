@@ -226,9 +226,9 @@ back-ends as shown in the table below:
 
 Data Type        | Supported Back-ends       | Notes
 -----------------|---------------------------|---------
-Cluster state    | `dir`, `etcd`, `dynamodb` | Multi-server (HA) configuration is only supported using `etcd` and `dynamodb` back-ends.
-Audit Log Events | `dir`, `dynamodb`         | If `dynamodb` is used for the audit log events, `s3` back-end **must** be used for the recorded sessions.
-Recorded Sessions| `dir`, `s3`               | `s3` is mandatory if `dynamodb` is used for the audit log.
+Cluster state    | `dir`, `etcd`, `dynamodb`,`firestore` | Multi-server (HA) configuration is only supported using `etcd`, `dynamodb`, and `firestore` back-ends.
+Audit Log Events | `dir`, `dynamodb`, `firestore`         | If `dynamodb` is used for the audit log events, `s3` back-end **must** be used for the recorded sessions.
+Recorded Sessions| `dir`, `s3`              | `s3` is mandatory if `dynamodb` is used for the audit log. For Google Cloud storage use `audit_sessions_uri: 'gs://`
 
 !!! tip "Note"
 
