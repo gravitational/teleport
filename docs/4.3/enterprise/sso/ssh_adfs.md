@@ -112,7 +112,7 @@ spec:
     max_session_ttl: "1h"
   allow:
     # only allow login as either ubuntu or the 'windowsaccountname' claim
-    logins: [ '{% raw %}{{external."http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"}}{% endraw %}', ubuntu ]
+    logins: [ '{% raw %}{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}{% endraw %}', ubuntu ]
     node_labels:
       "access": "relaxed"
 ```
@@ -121,9 +121,9 @@ This role declares:
 
 * Devs are only allowed to login to nodes labelled with `access: relaxed` label.
 * Developers can log in as `ubuntu` user
-* Notice `{% raw %}{{external."http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"}}{% endraw %}` login. It configures Teleport to look at
+* Notice `{% raw %}{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}{% endraw %}` login. It configures Teleport to look at
   _"http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"_ ADFS claim and use that field as an allowed login for each user.
-  Also note the double quotes (`"`) around the claim name - these are important.
+  Also note the double quotes (`"`) and square brackets (`[]`) around the claim name - these are important.
 * Developers also do not have any "allow rules" i.e. they will not be able to
   see/replay past sessions or re-configure the Teleport cluster.
 
