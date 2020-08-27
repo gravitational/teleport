@@ -247,7 +247,7 @@ steps:
             if [ -f docs/$VERSION/milv.config.yaml ]; then
               cd docs/$VERSION
               echo "Running milv on docs/$VERSION:"
-              go get -u github.com/magicmatatjahu/milv
+              go get -u github.com/magicmatatjahu/milv 2>&1 >dev/null
               milv -ignore-external
               echo "------------------------------"
               cd -
@@ -327,7 +327,7 @@ steps:
             if [ -f docs/$VERSION/milv.config.yaml ]; then
               cd docs/$VERSION
               echo "Running milv on docs/$VERSION:"
-              go get -u github.com/magicmatatjahu/milv
+              go get -u github.com/magicmatatjahu/milv 2>&1 >dev/null
               milv -ignore-internal
               echo "------------------------------"
               cd -
@@ -2757,6 +2757,6 @@ steps:
 
 ---
 kind: signature
-hmac: 4fa9878085e2e421ea183229d2bf97991766b2460dfc389fa6d258fd9178e16d
+hmac: 478f81a30abb92494278517dd81439757c5fc84e3bcc2193126bc21f986fdb37
 
 ...
