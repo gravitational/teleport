@@ -79,23 +79,6 @@ steps:
           fi
         fi
 
-  - name: Skip tests if appropriate
-    image: docker:git
-    commands:
-    - |
-        cd /go/src/github.com/gravitational/teleport
-        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}
-        #git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs' | grep -v ^$ | wc -l > /tmp/.change_count.txt
-        # temporarily suppress .drone.yml changes to test early exit
-        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs' | grep -v ^$ | grep -v .drone.yml | wc -l > /tmp/.change_count.txt
-        if [ $(cat /tmp/.change_count.txt) -gt 0 ]; then
-          echo "$(cat /tmp/.change_count.txt | tr -d '\n') changes to code were detected, tests will run"
-        else
-          echo "$(cat /tmp/.change_count.txt | tr -d '\n') changes to code detected, tests will not run"
-          # https://discourse.drone.io/t/how-to-exit-a-pipeline-early-without-failing/3951
-          exit 78
-        fi
-
   - name: Build buildbox
     image: docker
     volumes:
@@ -2757,6 +2740,6 @@ steps:
 
 ---
 kind: signature
-hmac: 478f81a30abb92494278517dd81439757c5fc84e3bcc2193126bc21f986fdb37
+hmac: 7d7d91230c2f459de1837c3a131d3ef248ecec151a65f79885394bdd86c71837
 
 ...
