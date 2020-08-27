@@ -228,9 +228,9 @@ steps:
           # Check links
           for VERSION in $(cat /tmp/docs-versions-changed.txt); do
             if [ -f docs/$VERSION/milv.config.yaml ]; then
+              go get github.com/magicmatatjahu/milv
               cd docs/$VERSION
               echo "Running milv on docs/$VERSION:"
-              go get github.com/magicmatatjahu/milv
               milv -ignore-external
               echo "------------------------------"
               cd -
@@ -308,9 +308,9 @@ steps:
           # Check links
           for VERSION in $(cat /tmp/docs-versions-changed.txt); do
             if [ -f docs/$VERSION/milv.config.yaml ]; then
+              go get github.com/magicmatatjahu/milv
               cd docs/$VERSION
               echo "Running milv on docs/$VERSION:"
-              go get github.com/magicmatatjahu/milv
               milv -ignore-internal
               echo "------------------------------"
               cd -
@@ -2740,6 +2740,6 @@ steps:
 
 ---
 kind: signature
-hmac: 96c78107ad8813d3635598369381cc2865084e07856f64d6c8ad57418a321d04
+hmac: d172f5c9261b110b566cc0111ff413fc24d50462895a93d33a0707bf753a5744
 
 ...
