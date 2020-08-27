@@ -313,6 +313,8 @@ github.com/nsf/termbox-go
 # github.com/pborman/uuid v0.0.0-20170612153648-e790cca94e6c
 ## explicit
 github.com/pborman/uuid
+# github.com/pmezard/go-difflib v1.0.0
+github.com/pmezard/go-difflib/difflib
 # github.com/pquerna/otp v0.0.0-20160912161815-54653902c20e
 ## explicit
 github.com/pquerna/otp
@@ -361,6 +363,9 @@ github.com/sirupsen/logrus
 github.com/sirupsen/logrus/hooks/syslog
 # github.com/spf13/pflag v1.0.5
 github.com/spf13/pflag
+# github.com/stretchr/testify v1.6.1
+## explicit
+github.com/stretchr/testify/assert
 # github.com/tstranex/u2f v0.0.0-20160508205855-eb799ce68da4
 ## explicit
 github.com/tstranex/u2f
@@ -581,6 +586,8 @@ gopkg.in/inf.v0
 # gopkg.in/yaml.v2 v2.2.8
 ## explicit
 gopkg.in/yaml.v2
+# gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
+gopkg.in/yaml.v3
 # gotest.tools v2.2.0+incompatible
 ## explicit
 # k8s.io/api v0.17.3
