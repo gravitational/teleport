@@ -232,7 +232,7 @@ steps:
               cd docs/$VERSION
               echo "---> Running milv on docs/$VERSION:"
               milv -ignore-external
-              echo -e "------------------------------\n"
+              echo "------------------------------\n"
               cd -
             else
               echo "---> No milv config found, skipping docs/$VERSION"
@@ -312,7 +312,7 @@ steps:
               cd docs/$VERSION
               echo "---> Running milv on docs/$VERSION:"
               milv -ignore-internal
-              echo -e "------------------------------\n"
+              echo "------------------------------\n"
               cd -
             else
               echo "---> No milv config found, skipping docs/$VERSION"
@@ -2740,6 +2740,6 @@ steps:
 
 ---
 kind: signature
-hmac: 9674b59b0e4245ddc35d6f6d59b93bc772abf83f7913dde68e72a070882f1559
+hmac: 0bd8c93a59273b788e1f17fd2ba281adf813150c7880290cf0215af1dc20c815
 
 ...
