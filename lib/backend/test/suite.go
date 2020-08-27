@@ -399,7 +399,7 @@ func (s *BackendSuite) Events(c *check.C) {
 	// Make sure INIT event is emitted.
 	select {
 	case e := <-watcher.Events():
-		c.Assert(string(e.Type), check.Equals, string(backend.OpInit))
+		c.Assert(e.Type, check.Equals, backend.OpInit)
 	case <-watcher.Done():
 		c.Fatalf("Watcher has unexpectedly closed.")
 	case <-time.After(2 * time.Second):
@@ -663,7 +663,7 @@ func (s *BackendSuite) Mirror(c *check.C, b backend.Backend) {
 	// Make sure INIT event is emitted.
 	select {
 	case e := <-watcher.Events():
-		c.Assert(string(e.Type), check.Equals, string(backend.OpInit))
+		c.Assert(e.Type, check.Equals, backend.OpInit)
 	case <-watcher.Done():
 		c.Fatalf("Watcher has unexpectedly closed.")
 	case <-time.After(2 * time.Second):
