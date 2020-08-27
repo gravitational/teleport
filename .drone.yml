@@ -66,7 +66,7 @@ steps:
         if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
           apk add --no-cache curl jq
           export PR_REPO=$(curl -Ls https://api.github.com/repos/gravitational/teleport/pulls/${DRONE_PULL_REQUEST} | jq -r '.head.repo.full_name')
-          echo "Source repo for PR ${DRONE_PULL_REQUEST}: $${PR_REPO}"
+          echo "---> Source repo for PR ${DRONE_PULL_REQUEST}: $${PR_REPO}"
           # if the source repo for the PR matches DRONE_REPO, then this is not a PR raised from a fork
           if [ "$${PR_REPO}" = "${DRONE_REPO}" ]; then
             mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
@@ -222,7 +222,7 @@ steps:
         cd /go/src/github.com/gravitational/teleport
         git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
         if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
-          echo "Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
+          echo "---> Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
           # Check trailing whitespace
           make docs-test-whitespace
           # Check links
@@ -230,15 +230,15 @@ steps:
             if [ -f docs/$VERSION/milv.config.yaml ]; then
               go get github.com/magicmatatjahu/milv
               cd docs/$VERSION
-              echo "Running milv on docs/$VERSION:"
+              echo "---> Running milv on docs/$VERSION:"
               milv -ignore-external
-              echo "------------------------------"
+              echo -e "------------------------------\n"
               cd -
             else
-              echo "No milv config found, skipping docs/$VERSION"
+              echo "---> No milv config found, skipping docs/$VERSION"
             fi
           done
-          else echo "No changes to docs detected, not running tests"
+          else echo "---> No changes to docs detected, not running tests"
         fi
 
 ---
@@ -302,7 +302,7 @@ steps:
         cd /go/src/github.com/gravitational/teleport
         git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
         if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
-          echo "Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
+          echo "---> Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
           # Check trailing whitespace
           make docs-test-whitespace
           # Check links
@@ -310,15 +310,15 @@ steps:
             if [ -f docs/$VERSION/milv.config.yaml ]; then
               go get github.com/magicmatatjahu/milv
               cd docs/$VERSION
-              echo "Running milv on docs/$VERSION:"
+              echo "---> Running milv on docs/$VERSION:"
               milv -ignore-internal
-              echo "------------------------------"
+              echo -e "------------------------------\n"
               cd -
             else
-              echo "No milv config found, skipping docs/$VERSION"
+              echo "---> No milv config found, skipping docs/$VERSION"
             fi
           done
-          else echo "No changes to docs detected, not running tests"
+          else echo "---> No changes to docs detected, not running tests"
         fi
 
 ---
@@ -2454,12 +2454,12 @@ steps:
       - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-oss-$TELEPORT_VERSION
       - |
         if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
-          echo "Building production OSS AMIs"
+          echo "---> Building production OSS AMIs"
           make oss-ci-build
-          echo "Making OSS AMIs public"
+          echo "---> Making OSS AMIs public"
           make change-amis-to-public-oss
         else
-          echo "Building debug OSS AMIs"
+          echo "---> Building debug OSS AMIs"
           make oss
         fi
 
@@ -2547,14 +2547,14 @@ steps:
       - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-ent-$TELEPORT_VERSION
       - |
         if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
-          echo "Building production Enterprise AMIs"
+          echo "---> Building production Enterprise AMIs"
           make ent-ci-build
-          echo "Making Enterprise AMIs public"
+          echo "---> Making Enterprise AMIs public"
           make change-amis-to-public-ent
-          echo "Making Enterprise FIPS AMIs public"
+          echo "---> Making Enterprise FIPS AMIs public"
           make change-amis-to-public-ent-fips
         else
-          echo "Building debug Enterprise AMIs"
+          echo "---> Building debug Enterprise AMIs"
           make ent
         fi
 
@@ -2740,6 +2740,6 @@ steps:
 
 ---
 kind: signature
-hmac: d172f5c9261b110b566cc0111ff413fc24d50462895a93d33a0707bf753a5744
+hmac: 9674b59b0e4245ddc35d6f6d59b93bc772abf83f7913dde68e72a070882f1559
 
 ...
