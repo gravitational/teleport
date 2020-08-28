@@ -14,7 +14,8 @@ doc_ver=""
 # find all *.yaml files and convert them to array, pick the latest
 cfiles=$(ls *.yaml | sort)
 cfiles_array=($cfiles)
-latest_cfile=$(echo ${cfiles_array[-1]}) # becomes "3.1.yaml"
+# becomes "3.1.yaml" Change to -2 if a newer version is in the works.
+latest_cfile=$(echo ${cfiles_array[-2]})
 latest_ver=${latest_cfile%.yaml}         # becomes "3.1"
 
 # build all documentation versions at the same time (4-8x speedup)
