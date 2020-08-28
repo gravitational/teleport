@@ -74,6 +74,24 @@ steps:
           fi
         fi
 
+  - name: Optionally skip tests
+    image: docker:git
+    commands:
+    - |
+        cd /go/src/github.com/gravitational/teleport
+        # show output of git diff --raw for reference
+        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}
+        # check whether there are any changes which don't touch "docs/*" or "*.md"
+        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs/' | grep -Ev '.md$' | grep -v ^$ | wc -l > /tmp/.change_count.txt
+        export CHANGE_COUNT=$(cat /tmp/.change_count.txt | tr -d '\n')
+        if [ $$CHANGE_COUNT -gt 0 ]; then
+          echo "---> $$CHANGE_COUNT changes to code were detected, tests will run"
+        else
+          echo "---> $$CHANGE_COUNT changes to code detected, tests will not run"
+          # https://discourse.drone.io/t/how-to-exit-a-pipeline-early-without-failing/3951
+          exit 78
+        fi
+
   - name: Build buildbox
     image: docker
     volumes:
@@ -2882,6 +2900,6 @@ volumes:
 
 ---
 kind: signature
-hmac: c9878f4d9126b4dc38ae8131d0e9bf73f827df72fe68f0dadc889479b4f8a860
+hmac: 89590718fc0afa1c4af69979241982ce28d49cf49ac4f0c94906efd5cb627de0
 
 ...
