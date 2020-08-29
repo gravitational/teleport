@@ -1,9 +1,16 @@
-# SSH Authentication with G Suite
+---
+title: SSH Authentication With Google Apps (G Suite)
+description: How to configure SSH access with Google Apps (also known as G Suite) using Teleport
+---
 
-This guide will cover how to configure [G Suite](https://gsuite.google.com) to issue
-SSH credentials to specific groups of users. When used in combination with role
-based access control (RBAC) it allows SSH administrators to define policies
-like:
+# SSH Authentication with G Suite (Google Apps)
+
+## Google Apps as SSO for SSH
+
+This guide will cover how to configure [G Suite](https://gsuite.google.com) to be a 
+single sign-on (SSO) provider to issue SSH credentials to specific groups of users. 
+When used in combination with role based access control (RBAC) it allows SSH administrators 
+to define policies like:
 
 * Only members of "DBA" Google group can SSH into machines running PostgreSQL.
 * Developers must never SSH into production servers.
