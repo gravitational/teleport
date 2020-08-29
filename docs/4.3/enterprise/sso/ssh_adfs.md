@@ -1,7 +1,15 @@
+---
+title: SSH Authentication With ADFS How To
+description: How to configure SSH access with Active Directory (ADFS) using Teleport
+---
+
 # SSH Authentication with ADFS
 
+## Active Directory as an SSO provider for SSH authentication 
+
 This guide will cover how to configure Active Directory Federation Services
-[ADFS](https://en.wikipedia.org/wiki/Active_Directory_Federation_Services) to issue
+[ADFS](https://en.wikipedia.org/wiki/Active_Directory_Federation_Services) to be
+a single sign-on (SSO) provider to issue
 SSH credentials to specific groups of users. When used in combination with role
 based access control (RBAC) it allows SSH administrators to define policies
 like:

@@ -1,3 +1,8 @@
+---
+title: Teleport HA mode on AWS
+description: How to configure Teleport in highly available (HA) mode for AWS deployments
+---
+
 # Running Teleport Enterprise in HA mode on AWS
 
 This guide is designed to accompany our [reference Terraform code](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform#terraform-based-provisioning-example-amazon-single-ami)

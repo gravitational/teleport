@@ -1,6 +1,16 @@
-# Teleport Pagerduty Plugin Setup
+---
+title: SSH login approval via Pager Duty
+description: How to configure SSH login approval using PagerDuty and Teleport
+---
 
-This guide will talk through how to setup Teleport with Pagerduty. Teleport to Pagerduty integration  allows you to treat Teleport access and permission requests as Pagerduty incidents — notifying the appropriate team, and approve or deny the requests via Pagerduty special action.
+# SSH Login Approval using PagerDuty
+
+## Teleport Pagerduty Plugin Setup
+
+This guide will talk through how to setup Teleport with Pagerduty. Teleport to
+Pagerduty integration  allows you to treat Teleport access and permission
+requests as Pagerduty incidents — notifying the appropriate team, and approve
+or deny the requests via Pagerduty special action.
 
 !!! warning
     The Approval Workflow only works with Teleport Enterprise as it requires several roles.
