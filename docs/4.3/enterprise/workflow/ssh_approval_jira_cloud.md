@@ -1,4 +1,12 @@
-# Teleport Jira Plugin Setup
+---
+title: SSH login approval using Jira and Teleport
+description: How to configure SSH login approval using Jira and Teleport
+---
+
+# SSH login approvals using Jira
+
+## Teleport Jira Plugin Setup
+
 This guide will talk through how to setup Teleport with Jira. Teleport to Jira integration allows you to treat Teleport access and permission requests using Jira tickets.
 
 !!! warning
