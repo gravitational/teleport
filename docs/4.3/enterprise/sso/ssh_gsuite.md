@@ -7,9 +7,9 @@ description: How to configure SSH access with Google Apps (also known as G Suite
 
 ## Google Apps as SSO for SSH
 
-This guide will cover how to configure [G Suite](https://gsuite.google.com) to be a 
-single sign-on (SSO) provider to issue SSH credentials to specific groups of users. 
-When used in combination with role based access control (RBAC) it allows SSH administrators 
+This guide will cover how to configure [G Suite](https://gsuite.google.com) to be a
+single sign-on (SSO) provider to issue SSH credentials to specific groups of users.
+When used in combination with role based access control (RBAC) it allows SSH administrators
 to define policies like:
 
 * Only members of "DBA" Google group can SSH into machines running PostgreSQL.
