@@ -5,7 +5,7 @@ description: How to configure SSH access with Active Directory (ADFS) using Tele
 
 # SSH Authentication with ADFS
 
-## Active Directory as an SSO provider for SSH authentication 
+## Active Directory as an SSO provider for SSH authentication
 
 This guide will cover how to configure Active Directory Federation Services
 [ADFS](https://en.wikipedia.org/wiki/Active_Directory_Federation_Services) to be
