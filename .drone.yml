@@ -1,7 +1,7 @@
 ---
 kind: pipeline
 type: kubernetes
-name: test-pr
+name: test
 
 environment:
   RUNTIME: go1.14.4
