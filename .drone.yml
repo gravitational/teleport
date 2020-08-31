@@ -217,14 +217,9 @@ type: kubernetes
 name: test-docs-external
 
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    include:
+      - pull_request
   repo:
     include:
       - gravitational/*
@@ -2710,6 +2705,6 @@ steps:
 
 ---
 kind: signature
-hmac: 0bd8c93a59273b788e1f17fd2ba281adf813150c7880290cf0215af1dc20c815
+hmac: bcd363559f085905edc708b7ea225610da0cba0568ee70f8e1417e51013b4c9f
 
 ...
