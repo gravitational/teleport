@@ -41,7 +41,7 @@ kind: user
 metadata:
   name: access-plugin-jira
 spec:
-  roles: ['access-plugin']
+  roles: ['access-plugin-jira']
 version: v2
 ---
 kind: role
