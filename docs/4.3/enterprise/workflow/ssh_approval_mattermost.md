@@ -71,7 +71,7 @@ version: v2
 ---
 kind: role
 metadata:
-  name: access-plugin
+  name: access-plugin-mattermost
 spec:
   allow:
     rules:
