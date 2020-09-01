@@ -9,14 +9,9 @@ environment:
   GID: 1000
 
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    include:
+      - pull_request
   repo:
     include:
       - gravitational/*
@@ -66,7 +61,7 @@ steps:
         if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
           apk add --no-cache curl jq
           export PR_REPO=$(curl -Ls https://api.github.com/repos/gravitational/teleport/pulls/${DRONE_PULL_REQUEST} | jq -r '.head.repo.full_name')
-          echo "Source repo for PR ${DRONE_PULL_REQUEST}: $${PR_REPO}"
+          echo "---> Source repo for PR ${DRONE_PULL_REQUEST}: $${PR_REPO}"
           # if the source repo for the PR matches DRONE_REPO, then this is not a PR raised from a fork
           if [ "$${PR_REPO}" = "${DRONE_REPO}" ]; then
             mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
@@ -130,26 +125,6 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets integration
 
-  - name: Send Slack notification for build failures
-    image: plugins/slack
-    settings:
-      webhook:
-        from_secret: SLACK_WEBHOOK
-      channel: teleport-builds
-      template: |
-        {{#if build.pull }}
-          *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}*: <https://github.com/{{ repo.owner }}/{{ repo.name }}/pull/{{ build.pull }}|Pull Request #{{ build.pull }}>
-        {{else}}
-          *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        {{/if}}
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
-        Author: {{ build.author }}
-        <{{ build.link }}|Visit build page ↗>
-    when:
-      event: [push]
-      status: [failure]
-
 services:
   - name: Start Docker
     image: docker:dind
@@ -165,17 +140,12 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
-name: test-docs
+name: test-docs-internal
 
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    include:
+      - pull_request
   repo:
     include:
       - gravitational/*
@@ -215,30 +185,105 @@ steps:
           fi
         fi
 
-  - name: Run docs tests
+  - name: Run docs tests (internal links only)
     image: golang:1.14.4
     commands:
       - |
         cd /go/src/github.com/gravitational/teleport
         git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
         if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
-          echo "Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
+          echo "---> Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
           # Check trailing whitespace
           make docs-test-whitespace
           # Check links
           for VERSION in $(cat /tmp/docs-versions-changed.txt); do
             if [ -f docs/$VERSION/milv.config.yaml ]; then
+              go get github.com/magicmatatjahu/milv
               cd docs/$VERSION
-              echo "Running milv on docs/$VERSION:"
-              go get -u github.com/magicmatatjahu/milv
-              milv
-              echo "------------------------------"
+              echo "---> Running milv on docs/$VERSION:"
+              milv -ignore-external
+              echo "------------------------------\n"
               cd -
             else
-              echo "No milv config found, skipping docs/$VERSION"
+              echo "---> No milv config found, skipping docs/$VERSION"
             fi
           done
-          else echo "No changes to docs detected, not running tests"
+          else echo "---> No changes to docs detected, not running tests"
+        fi
+
+---
+kind: pipeline
+type: kubernetes
+name: test-docs-external
+
+trigger:
+  event:
+    include:
+      - pull_request
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: golang:1.14.4
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git init && git remote add origin ${DRONE_REMOTE_URL}
+      - |
+        # handle pull requests
+        if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
+          git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+          git checkout ${DRONE_COMMIT_BRANCH}
+          git fetch origin ${DRONE_COMMIT_REF}:
+          git merge ${DRONE_COMMIT}
+        # handle tags
+        elif [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
+          git fetch origin +refs/tags/${DRONE_TAG}:
+          git checkout -qf FETCH_HEAD
+        # handle pushes/other events
+        else
+          if [ "${DRONE_COMMIT_BRANCH}" = "" ]; then
+            git fetch origin
+            git checkout -qf ${DRONE_COMMIT_SHA}
+          else
+            git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+            git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
+          fi
+        fi
+
+  - name: Run docs tests (external links only)
+    image: golang:1.14.4
+    failure: ignore
+    commands:
+      - |
+        cd /go/src/github.com/gravitational/teleport
+        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
+        if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
+          echo "---> Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
+          # Check trailing whitespace
+          make docs-test-whitespace
+          # Check links
+          for VERSION in $(cat /tmp/docs-versions-changed.txt); do
+            if [ -f docs/$VERSION/milv.config.yaml ]; then
+              go get github.com/magicmatatjahu/milv
+              cd docs/$VERSION
+              echo "---> Running milv on docs/$VERSION:"
+              milv -ignore-internal
+              echo "------------------------------\n"
+              cd -
+            else
+              echo "---> No milv config found, skipping docs/$VERSION"
+            fi
+          done
+          else echo "---> No changes to docs detected, not running tests"
         fi
 
 ---
@@ -2374,12 +2419,12 @@ steps:
       - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-oss-$TELEPORT_VERSION
       - |
         if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
-          echo "Building production OSS AMIs"
+          echo "---> Building production OSS AMIs"
           make oss-ci-build
-          echo "Making OSS AMIs public"
+          echo "---> Making OSS AMIs public"
           make change-amis-to-public-oss
         else
-          echo "Building debug OSS AMIs"
+          echo "---> Building debug OSS AMIs"
           make oss
         fi
 
@@ -2467,14 +2512,14 @@ steps:
       - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-ent-$TELEPORT_VERSION
       - |
         if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
-          echo "Building production Enterprise AMIs"
+          echo "---> Building production Enterprise AMIs"
           make ent-ci-build
-          echo "Making Enterprise AMIs public"
+          echo "---> Making Enterprise AMIs public"
           make change-amis-to-public-ent
-          echo "Making Enterprise FIPS AMIs public"
+          echo "---> Making Enterprise FIPS AMIs public"
           make change-amis-to-public-ent-fips
         else
-          echo "Building debug Enterprise AMIs"
+          echo "---> Building debug Enterprise AMIs"
           make ent
         fi
 
@@ -2660,6 +2705,6 @@ steps:
 
 ---
 kind: signature
-hmac: 382d9ed0ef2248daf1c75e74c0f1560291365c3671f441894f0ad723406a183f
+hmac: bcd363559f085905edc708b7ea225610da0cba0568ee70f8e1417e51013b4c9f
 
 ...

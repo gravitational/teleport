@@ -1,0 +1,123 @@
+/*!
+ * Sizzle CSS Selector Engine v2.3.5
+ * https://sizzlejs.com/
+ *
+ * Copyright JS Foundation and other contributors
+ * Released under the MIT license
+ * https://js.foundation/
+ *
+ * Date: 2020-03-14
+ */
+
+/*!
+ * jQuery JavaScript Library v3.5.1
+ * https://jquery.com/
+ *
+ * Includes Sizzle.js
+ * https://sizzlejs.com/
+ *
+ * Copyright JS Foundation and other contributors
+ * Released under the MIT license
+ * https://jquery.org/license
+ *
+ * Date: 2020-05-04T22:49Z
+ */
+
+/*! ./../js/modules/buttons */
+
+/*! ./../js/modules/code */
+
+/*! ./../js/modules/images */
+
+/*! ./../js/modules/secondary-nav */
+
+/*! ./../js/modules/side-nav */
+
+/*! ./../js/modules/top-nav */
+
+/*! ./dist/sticky.compile.js */
+
+/*! ./utils/mkdocs */
+
+/*! ./web-assets/docs/index.js */
+
+/*! ./web-assets/scss/index.scss */
+
+/*! exports provided: activateCodeFormatting, formatCodeBlocks */
+
+/*! exports provided: buttonRipple, buttonSmoothScroll, stopDisabledButtons */
+
+/*! exports provided: default */
+
+/*! exports provided: getSearchTerm, handleVerSelector, createTitleLinks */
+
+/*! jquery */
+
+/*! no exports provided */
+
+/*! no static exports found */
+
+/*! sticky-js */
+
+/*!**********************************!*\
+  !*** ./web-assets/docs/index.js ***!
+  \**********************************/
+
+/*!************************************!*\
+  !*** ./web-assets/scss/index.scss ***!
+  \************************************/
+
+/*!***************************************!*\
+  !*** ./web-assets/js/modules/code.js ***!
+  \***************************************/
+
+/*!*****************************************!*\
+  !*** ./node_modules/sticky-js/index.js ***!
+  \*****************************************/
+
+/*!*****************************************!*\
+  !*** ./web-assets/docs/utils/mkdocs.js ***!
+  \*****************************************/
+
+/*!*****************************************!*\
+  !*** ./web-assets/js/modules/images.js ***!
+  \*****************************************/
+
+/*!******************************************!*\
+  !*** ./web-assets/js/modules/buttons.js ***!
+  \******************************************/
+
+/*!******************************************!*\
+  !*** ./web-assets/js/modules/top-nav.js ***!
+  \******************************************/
+
+/*!*******************************************!*\
+  !*** ./web-assets/js/modules/side-nav.js ***!
+  \*******************************************/
+
+/*!********************************************!*\
+  !*** ./node_modules/jquery/dist/jquery.js ***!
+  \********************************************/
+
+/*!************************************************!*\
+  !*** ./web-assets/js/modules/secondary-nav.js ***!
+  \************************************************/
+
+/*!*******************************************************!*\
+  !*** ./node_modules/sticky-js/dist/sticky.compile.js ***!
+  \*******************************************************/
+
+/*!*********************************************************************!*\
+  !*** multi ./web-assets/docs/index.js ./web-assets/scss/index.scss ***!
+  \*********************************************************************/
+
+/**
+ * Sticky.js
+ * Library for sticky elements written in vanilla javascript. With this library you can easily set sticky elements on your website. It's also responsive.
+ *
+ * @version 1.2.2
+ * @author Rafal Galus <biuro@rafalgalus.pl>
+ * @website https://rgalus.github.io/sticky-js/
+ * @repo https://github.com/rgalus/sticky-js
+ * @license https://github.com/rgalus/sticky-js/blob/master/LICENSE
+ */

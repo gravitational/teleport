@@ -14,12 +14,15 @@ MARKETPLACE_AMI_NAME ?=
 AWS_REGION ?= us-west-2
 
 # Teleport version
-TELEPORT_VERSION ?= 4.3.2
+# This must be a _released_ version of Teleport, i.e. one which has binaries
+# available for download on https://gravitational.com/teleport/download
+# Unreleased versions will fail to build.
+TELEPORT_VERSION ?= 4.3.5
 
 # Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007
 
-# Instance type is a single value, sorry
+# Instance type to build the AMI on
 INSTANCE_TYPE ?= t2.micro
 
 # Use comma-separated values without spaces for multiple regions
@@ -42,6 +45,9 @@ INFLUXDB_VERSION ?= 1.7.1
 
 # Grafana version
 GRAFANA_VERSION ?= 5.4.3
+
+# AWS account ID which hosts the public Teleport AMIs
+AWS_ACCOUNT_ID ?= 126027368216
 export
 
 
@@ -115,3 +121,19 @@ check-vars:
 	@if [ -z "$(TELEPORT_VERSION)" ]; then \
 	  echo "TELEPORT_VERSION is not set"; exit 1; \
 	fi;
+
+.PHONY: update-ami-ids-cloudformation
+update-ami-ids-cloudformation:
+	@echo -e "\nUpdating OSS Cloudformation image IDs"
+	./update-ami-ids.sh -a $(AWS_ACCOUNT_ID) -m cloudformation -t oss -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
+	@echo -e "\nUpdating Enterprise Cloudformation image IDs"
+	./update-ami-ids.sh -a $(AWS_ACCOUNT_ID) -m cloudformation -t ent -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
+
+.PHONY: update-ami-ids-terraform
+update-ami-ids-terraform:
+	@echo -e "\nUpdating OSS Terraform image IDs"
+	./update-ami-ids.sh -a $(AWS_ACCOUNT_ID) -m terraform -t oss -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
+	@echo -e "\nUpdating Enterprise Terraform image IDs"
+	./update-ami-ids.sh -a $(AWS_ACCOUNT_ID) -m terraform -t ent -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
+	@echo -e "\nUpdating Enterprise FIPS Terraform image IDs"
+	./update-ami-ids.sh -a $(AWS_ACCOUNT_ID) -m terraform -t ent-fips -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)

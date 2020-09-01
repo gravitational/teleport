@@ -1183,6 +1183,11 @@ func (c *Client) CreateRemoteCluster(rc services.RemoteCluster) error {
 	return trace.Wrap(err)
 }
 
+// UpdateRemoteCluster updates remote cluster resource
+func (c *Client) UpdateRemoteCluster(ctx context.Context, rc services.RemoteCluster) error {
+	return trace.NotImplemented("not implemented: remote clusters can only be updated by auth server locally")
+}
+
 // UpsertAuthServer is used by auth servers to report their presence
 // to other auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertAuthServer(s services.Server) error {

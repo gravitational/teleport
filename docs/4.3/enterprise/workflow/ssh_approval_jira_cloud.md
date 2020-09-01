@@ -1,4 +1,12 @@
-# Teleport Jira Plugin Setup
+---
+title: SSH login approval using Jira and Teleport
+description: How to configure SSH login approval using Jira and Teleport
+---
+
+# SSH login approvals using Jira
+
+## Teleport Jira Plugin Setup
+
 This guide will talk through how to setup Teleport with Jira. Teleport to Jira integration allows you to treat Teleport access and permission requests using Jira tickets.
 
 !!! warning
@@ -54,7 +62,7 @@ $ tctl auth sign --format=tls --user=access-plugin --out=auth --ttl=8760h
 # ...
 ```
 
-The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference these later when [configuring Teleport-Plugins](#configuration-file).
+The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the plugins](#configuration-file).
 
 !!! note "Certificate Lifetime"
      By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token

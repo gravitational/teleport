@@ -7,9 +7,9 @@ Parameters:
     Type: AWS::EC2::KeyPair::KeyName
 
   InstanceType:
-    Description: Teleport EC2 instance type    
+    Description: Teleport EC2 instance type
     ConstraintDescription: must be a valid EC2 instance type.
-    Type: String    
+    Type: String
     Default: m4.large
     AllowedValues:
     - m5.large
@@ -97,25 +97,21 @@ Mappings:
     t2.xlarge: {Arch: HVM64}
 
   AWSRegionArch2AMI:
-    # eu-west-1 = EU (Ireland)
-    # us-east-1 = US East (N. Virginia)
-    # us-east-2 = US East (Ohio)
-    # us-west-2 = US West (Oregon)
-    # All AMIs from AWS - gravitational-teleport-ami-ent-4.2.6
-    eu-west-1: {HVM64 : ami-0b509a6a63664db66}
-    eu-west-2: {HVM64 : ami-0eb5e9694088d0433}
-    us-east-1: {HVM64 : ami-090258a635fa31821}
-    us-east-2: {HVM64 : ami-047f1c2a098d9532e}
-    us-west-2: {HVM64 : ami-025e708a6b63f1aa4}
-    us-west-1: {HVM64 : ami-046006454f75bea51}
-    ap-south-1: {HVM64 : ami-0e2a3ca85d2461e34}
-    ap-northeast-2: {HVM64 : ami-06da7fe03b524adf4}
-    ap-southeast-1: {HVM64 : ami-00847220794745527}
-    ap-southeast-2: {HVM64 : ami-0f99b6fb0060b9085}
-    ap-northeast-1: {HVM64 : ami-0a2eb6931a7661b66}
-    ca-central-1: {HVM64 : ami-01aca16dbda4de6d4}
-    eu-central-1: {HVM64 : ami-01bffd502fb78103c}
-    sa-east-1: {HVM64 : ami-05e9e08642096bffa}
+    # All AMIs from AWS - gravitational-teleport-ami-ent-4.3.5
+    eu-west-1: {HVM64 : ami-07e76616b360885fb}
+    eu-west-2: {HVM64 : ami-036bb80a85cc6acf7}
+    us-east-1: {HVM64 : ami-0e08f81f767c62ddd}
+    us-east-2: {HVM64 : ami-07925f0b4f361ab01}
+    us-west-2: {HVM64 : ami-0212214f21f3d7a06}
+    us-west-1: {HVM64 : ami-0627bae15bd3b7fa1}
+    ap-south-1: {HVM64 : ami-09d50faa4da796ada}
+    ap-northeast-2: {HVM64 : ami-091d5e7bdfe387cb7}
+    ap-southeast-1: {HVM64 : ami-025f42e94bdeda91f}
+    ap-southeast-2: {HVM64 : ami-00ed65891b4770941}
+    ap-northeast-1: {HVM64 : ami-0a9bd0ec2aaa77ce9}
+    ca-central-1: {HVM64 : ami-0a4830e7882740ca6}
+    eu-central-1: {HVM64 : ami-0e77128f1392b2250}
+    sa-east-1: {HVM64 : ami-0c68b2b86b2cc4898}
 
 Resources:
 # Auth server setup
@@ -252,7 +248,7 @@ Resources:
             TELEPORT_AUTH_SERVER_LB=${LocalAuthServerLB}
             TELEPORT_CLUSTER_NAME=${DomainName}
             TELEPORT_DOMAIN_ADMIN_EMAIL=${DomainAdminEmail}
-            TELEPORT_DOMAIN_NAME=${DomainName}            
+            TELEPORT_DOMAIN_NAME=${DomainName}
             TELEPORT_DYNAMO_TABLE_NAME=${LocalMainTableName}
             TELEPORT_DYNAMO_EVENTS_TABLE_NAME=${LocalEventsTableName}
             TELEPORT_LOCKS_TABLE_NAME=${LocalLocksTableName}
@@ -282,7 +278,7 @@ Resources:
             [Unit]
             Description=CloudFormation status signaller
             After=network.target
-            
+
             [Service]
             User=root
             Group=adm
@@ -393,7 +389,7 @@ Resources:
       Type: network
       LoadBalancerAttributes:
         - Key: load_balancing.cross_zone.enabled
-          Value: 'true'        
+          Value: 'true'
       Subnets:
         - Ref: ProxySubnetA
         - Ref: ProxySubnetB
@@ -435,13 +431,13 @@ Resources:
       Protocol: TCP
       VpcId: {Ref: VPC}
 
-  ProxyLaunchConfig: 
+  ProxyLaunchConfig:
     Type: AWS::AutoScaling::LaunchConfiguration
-    Properties: 
-      KeyName: 
+    Properties:
+      KeyName:
         Ref: KeyName
       # This line finds appropriate image ID based on the arch, region and instance type using FindInMap function
-      ImageId: !FindInMap [AWSRegionArch2AMI, !Ref 'AWS::Region', !FindInMap [AWSInstanceType2Arch, !Ref InstanceType, Arch]]  
+      ImageId: !FindInMap [AWSRegionArch2AMI, !Ref 'AWS::Region', !FindInMap [AWSInstanceType2Arch, !Ref InstanceType, Arch]]
       UserData:
         Fn::Base64:
           # Fn:Sub accepts two parameters as a list, the first one is the template
@@ -461,7 +457,7 @@ Resources:
             TELEPORT_DOMAIN_NAME=${DomainName}
             TELEPORT_PROXY_SERVER_LB=${LocalProxyServerLB}
             TELEPORT_S3_BUCKET=${LocalBucketName}
-            TELEPORT_ROLE=proxy            
+            TELEPORT_ROLE=proxy
             TELEPORT_SSM_KEY_ARN=${LocalKeyARN}
             EOF
 
@@ -486,7 +482,7 @@ Resources:
             [Unit]
             Description=CloudFormation status signaller
             After=network.target
-            
+
             [Service]
             User=root
             Group=adm
@@ -503,17 +499,17 @@ Resources:
             LocalKeyARN: !GetAtt Key.Arn,
             LocalBucketName: !Select [1, !Split [":::", !GetAtt Bucket.Arn]]
             }
-      SecurityGroups: 
+      SecurityGroups:
         - Ref: ProxySecurityGroup
       InstanceType: {Ref: InstanceType}
       # Proxies have to have public IP address in order
-      # to be reachable from the internet according to this 
+      # to be reachable from the internet according to this
       # article: https://aws.amazon.com/premiumsupport/knowledge-center/public-load-balancer-private-ec2/
       AssociatePublicIpAddress: true
       # IamInstance profile is an instance profile of the proxy
       IamInstanceProfile: {Ref: ProxyInstanceProfile}
 
-  ProxyASG: 
+  ProxyASG:
     Type: AWS::AutoScaling::AutoScalingGroup
     CreationPolicy:
       ResourceSignal:
@@ -565,7 +561,7 @@ Resources:
             TELEPORT_CLUSTER_NAME=${DomainName}
             TELEPORT_DOMAIN_NAME=${DomainName}
             TELEPORT_ROLE=node
-            TELEPORT_S3_BUCKET=${LocalBucketName}                   
+            TELEPORT_S3_BUCKET=${LocalBucketName}
             TELEPORT_SSM_KEY_ARN=${LocalKeyARN}
             EOF
 
@@ -893,16 +889,16 @@ Resources:
     Properties:
       Description: "SSM Key used by Teleport"
       EnableKeyRotation: True
-      KeyPolicy: 
+      KeyPolicy:
         Version: "2012-10-17"
         Id: "key-default-1"
-        Statement: 
-          - 
+        Statement:
+          -
             Sid: "Allow administration of the key"
             Effect: "Allow"
-            Principal: 
+            Principal:
               AWS: !Join ["", ["arn:aws:sts::", !Ref "AWS::AccountId", ":root"]]
-            Action: 
+            Action:
             - "kms:Create*"
             - "kms:Describe*"
             - "kms:Enable*"
@@ -916,13 +912,13 @@ Resources:
             - "kms:ScheduleKeyDeletion"
             - "kms:CancelKeyDeletion"
             Resource: "*"
-        
-          - 
+
+          -
             Sid: "Allow auth use of the key"
             Effect: "Allow"
-            Principal: 
+            Principal:
               AWS: !GetAtt AuthRole.Arn
-            Action: 
+            Action:
               - "kms:Encrypt"
               - "kms:Decrypt"
               - "kms:ReEncrypt*"
@@ -964,14 +960,14 @@ Resources:
       AttributeDefinitions:
       - {AttributeName: "HashKey", AttributeType: "S"}
       - {AttributeName: "FullPath", AttributeType: "S"}
-      
+
       TimeToLiveSpecification: {AttributeName: "Expires", Enabled: true}
       # Server side encrypt all the data for this table
       SSESpecification: {SSEEnabled: true}
       StreamSpecification:
         StreamViewType: NEW_IMAGE
 
-  # LocksTable is a dynamodb table that is 
+  # LocksTable is a dynamodb table that is
   # used as a distributed lock between auth servers
   # trying to renew and manage letsencrypt certificate
   LocksTable:
@@ -1027,7 +1023,7 @@ Resources:
           - id: W35
             reason: "We don't need access logging configured here."
     # Cloudformation can't delete non-empty bucket
-    DeletionPolicy: Retain    
+    DeletionPolicy: Retain
     Properties:
       VersioningConfiguration: {Status: Enabled}
       BucketEncryption:
