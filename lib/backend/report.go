@@ -33,9 +33,6 @@ import (
 type ReporterConfig struct {
 	// Backend is a backend to wrap
 	Backend Backend
-	// TrackTopRequests turns on tracking of top
-	// requests on
-	TrackTopRequests bool
 	// Component is a component name to report
 	Component string
 }
@@ -221,9 +218,6 @@ func (s *Reporter) Migrate(ctx context.Context) error { return s.Backend.Migrate
 
 // trackRequests tracks top requests, endKey is supplied for ranges
 func (s *Reporter) trackRequest(opType OpType, key []byte, endKey []byte) {
-	if !s.TrackTopRequests {
-		return
-	}
 	if len(key) == 0 {
 		return
 	}
