@@ -19,9 +19,4 @@
 <script src="{{ path|url }}/src/docs.js"></script>
 <script>var base_url = '{{ base_url }}';</script>
 
-{% for path in config['extra_javascript'] %}
-<script src="{{ path|url }}"></script>
-{%- endfor %}
-
 <script src="{{ path|url }}/src/third-party.js"></script>
-<script async defer src="https://buttons.github.io/buttons.js"></script>
