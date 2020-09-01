@@ -24,7 +24,6 @@ markdown_extensions:
   - toc:
       marker: '[TOC]'
       toc_depth: 3
-      permalink: true
 extra_css: []
 plugins:
     - search:
