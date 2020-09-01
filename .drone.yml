@@ -9,14 +9,9 @@ environment:
   GID: 1000
 
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    include:
+      - pull_request
   repo:
     include:
       - gravitational/*
@@ -130,26 +125,6 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets integration
 
-  - name: Send Slack notification for build failures
-    image: plugins/slack
-    settings:
-      webhook:
-        from_secret: SLACK_WEBHOOK
-      channel: teleport-builds
-      template: |
-        {{#if build.pull }}
-          *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}*: <https://github.com/{{ repo.owner }}/{{ repo.name }}/pull/{{ build.pull }}|Pull Request #{{ build.pull }}>
-        {{else}}
-          *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        {{/if}}
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
-        Author: {{ build.author }}
-        <{{ build.link }}|Visit build page ↗>
-    when:
-      event: [push]
-      status: [failure]
-
 services:
   - name: Start Docker
     image: docker:dind
@@ -168,14 +143,9 @@ type: kubernetes
 name: test-docs-internal
 
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    include:
+      - pull_request
   repo:
     include:
       - gravitational/*
@@ -247,14 +217,9 @@ type: kubernetes
 name: test-docs-external
 
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    include:
+      - pull_request
   repo:
     include:
       - gravitational/*
@@ -2740,6 +2705,6 @@ steps:
 
 ---
 kind: signature
-hmac: 0bd8c93a59273b788e1f17fd2ba281adf813150c7880290cf0215af1dc20c815
+hmac: bcd363559f085905edc708b7ea225610da0cba0568ee70f8e1417e51013b4c9f
 
 ...
