@@ -217,21 +217,15 @@ func New(ctx context.Context, params backend.Params) (*DynamoDBBackend, error) {
 		sess.Config.Credentials = creds
 	}
 
-	// Build from a default transport so that dynamodb calls
-	// respects HTTPS_PROXY/NO_PROXY environment variables if set.
-	tr, ok := http.DefaultTransport.(*http.Transport)
-	if !ok {
-		return nil, trace.BadParameter("unable to get default transport")
-	}
-
 	// Increase the size of the connection pool. This substantially improves the
 	// performance of Teleport under load as it reduces the number of TLS
 	// handshakes performed.
-	tr.MaxIdleConns = defaults.HTTPMaxIdleConns
-	tr.MaxIdleConnsPerHost = defaults.HTTPMaxConnsPerHost
-
 	httpClient := &http.Client{
-		Transport: tr,
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			MaxIdleConns:        defaults.HTTPMaxIdleConns,
+			MaxIdleConnsPerHost: defaults.HTTPMaxIdleConnsPerHost,
+		},
 	}
 	sess.Config.HTTPClient = httpClient
 
