@@ -272,7 +272,7 @@ can continue using familiar SSH syntax:
 
 ```bash
 # Have this alias configured, perhaps via ~/.bashrc
-$ alias ssh="/usr/local/bin/tsh ssh"
+$ alias ssh="/usr/local/bin/tsh"
 
 # Login into a cluster and retrieve your SSH certificate:
 $ tsh --proxy=proxy.example.com login
