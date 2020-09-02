@@ -6,8 +6,6 @@ BRANCH = $(shell git rev-parse --abbrev-ref HEAD)
 COMMIT = $(shell git rev-parse --short HEAD)
 COMMIT_DESC = $(shell git log --decorate=off --oneline -1)
 COMMIT_URL = https://github.com/gravitational/webapps/commit/$(COMMIT)
-TIMESTAMP = $(shell date +%s)
-AUTO_BRANCH_NAME = webapps-auto-pr-$(TIMESTAMP)
 
 .PHONY: build
 build:
@@ -19,7 +17,7 @@ build:
 
 .PHONY: test
 test:
-	$(MAKE) docker-build NP=test
+	$(MAKE) docker-build NPM_CMD=test
 
 .PHONY: build-force
 build-force:
