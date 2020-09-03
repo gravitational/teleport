@@ -106,9 +106,9 @@ const (
 	// reverse tunnel server and is ready to start accepting connections.
 	ProxyReverseTunnelReady = "ProxyReverseTunnelReady"
 
-	// ProxyAgentPoolReady is generated when the proxy has initialized the agent
-	// pool (pool of connections from a remote cluster to a main cluster) and is
-	// ready to start accepting connections.
+	// ProxyAgentPoolReady is generated when the proxy has initialized the
+	// remote cluster watcher (to spawn reverse tunnels) and is ready to start
+	// accepting connections.
 	ProxyAgentPoolReady = "ProxyAgentPoolReady"
 
 	// ProxySSHReady is generated when the proxy has initialized a SSH server
@@ -1552,16 +1552,18 @@ func (process *TeleportProcess) initSSH() error {
 			}
 
 			// Create and start an agent pool.
-			agentPool, err = reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
-				Component:   teleport.ComponentNode,
-				HostUUID:    conn.ServerIdentity.ID.HostUUID,
-				ProxyAddr:   conn.TunnelProxy(),
-				Client:      conn.Client,
-				AccessPoint: conn.Client,
-				HostSigners: []ssh.Signer{conn.ServerIdentity.KeySigner},
-				Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-				Server:      s,
-			})
+			agentPool, err = reversetunnel.NewAgentPool(
+				process.ExitContext(),
+				reversetunnel.AgentPoolConfig{
+					Component:   teleport.ComponentNode,
+					HostUUID:    conn.ServerIdentity.ID.HostUUID,
+					ProxyAddr:   conn.TunnelProxy(),
+					Client:      conn.Client,
+					AccessPoint: conn.Client,
+					HostSigner:  conn.ServerIdentity.KeySigner,
+					Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+					Server:      s,
+				})
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1808,7 +1810,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 	var addrs []utils.NetAddr
 	switch role {
 	case teleport.RoleProxy:
-		addrs = append(process.Config.Proxy.PublicAddrs, utils.NetAddr{Addr: reversetunnel.RemoteKubeProxy})
+		addrs = append(process.Config.Proxy.PublicAddrs, utils.NetAddr{Addr: reversetunnel.LocalKubernetes})
 		addrs = append(addrs, process.Config.Proxy.SSHPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.TunnelPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.Kube.PublicAddrs...)
@@ -2206,13 +2208,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	})
 
 	// Create and register reverse tunnel AgentPool.
-	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
-		Component:           teleport.ComponentProxy,
+	rcWatcher, err := reversetunnel.NewRemoteClusterTunnelManager(reversetunnel.RemoteClusterTunnelManagerConfig{
 		HostUUID:            conn.ServerIdentity.ID.HostUUID,
-		Client:              conn.Client,
+		AuthClient:          conn.Client,
 		AccessPoint:         accessPoint,
-		HostSigners:         []ssh.Signer{conn.ServerIdentity.KeySigner},
-		Cluster:             conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+		HostSigner:          conn.ServerIdentity.KeySigner,
+		LocalCluster:        conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
 		KubeDialAddr:        utils.DialAddrFromListenAddr(cfg.Proxy.Kube.ListenAddr),
 		ReverseTunnelServer: tsrv,
 	})
@@ -2220,17 +2221,18 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	process.RegisterCriticalFunc("proxy.reversetunnel.agent", func() error {
+	process.RegisterCriticalFunc("proxy.reversetunnel.watcher", func() error {
 		log := logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.Component(teleport.ComponentReverseTunnelAgent, process.id),
 		})
 		log.Infof("Starting reverse tunnel agent pool.")
-		if err := agentPool.Start(); err != nil {
-			log.Errorf("Failed to start: %v.", err)
-			return trace.Wrap(err)
-		}
-		process.BroadcastEvent(Event{Name: ProxyAgentPoolReady, Payload: agentPool})
-		agentPool.Wait()
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			rcWatcher.Run(process.ExitContext())
+		}()
+		process.BroadcastEvent(Event{Name: ProxyAgentPoolReady, Payload: rcWatcher})
+		<-done
 		return nil
 	})
 
@@ -2283,7 +2285,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// execute this when process is asked to exit:
 	process.onExit("proxy.shutdown", func(payload interface{}) {
-		agentPool.Stop()
+		rcWatcher.Close()
 		defer listeners.Close()
 		// Need to shut down this listener first, because
 		// in case of graceful shutdown, if tls server was not called

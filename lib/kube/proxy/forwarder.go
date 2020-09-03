@@ -1000,7 +1000,7 @@ func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) 
 	// remote clusters use special hardcoded URL,
 	// and use a special dialer
 	if ctx.cluster.isRemote {
-		ctx.cluster.targetAddr = reversetunnel.RemoteKubeProxy
+		ctx.cluster.targetAddr = reversetunnel.LocalKubernetes
 	} else {
 		ctx.cluster.targetAddr = f.creds.targetAddr
 	}

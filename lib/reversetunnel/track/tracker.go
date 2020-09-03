@@ -31,7 +31,6 @@ type Lease = workpool.Lease
 // Key uniquely identifies a reversetunnel endpoint.
 type Key struct {
 	Cluster string
-	Type    string
 	Addr    utils.NetAddr
 }
 

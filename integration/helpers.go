@@ -90,10 +90,10 @@ type TeleInstance struct {
 	Hostname string
 
 	// Internal stuff...
-	Process *service.TeleportProcess
-	Config  *service.Config
-	Tunnel  reversetunnel.Server
-	Pool    *reversetunnel.AgentPool
+	Process              *service.TeleportProcess
+	Config               *service.Config
+	Tunnel               reversetunnel.Server
+	RemoteClusterWatcher *reversetunnel.RemoteClusterTunnelManager
 
 	// Nodes is a list of additional nodes
 	// started with this instance
@@ -950,9 +950,9 @@ func (i *TeleInstance) Start() error {
 				i.Tunnel = ts
 			}
 		case service.ProxyAgentPoolReady:
-			ap, ok := re.Payload.(*reversetunnel.AgentPool)
+			w, ok := re.Payload.(*reversetunnel.RemoteClusterTunnelManager)
 			if ok {
-				i.Pool = ap
+				i.RemoteClusterWatcher = w
 			}
 		}
 	}

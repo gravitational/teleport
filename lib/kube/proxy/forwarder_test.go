@@ -521,7 +521,7 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 	sess, err = f.newClusterSession(authCtx)
 	c.Assert(err, check.IsNil)
 	c.Assert(f.clusterSessions.Len(), check.Equals, 2)
-	c.Assert(sess.authContext.cluster.targetAddr, check.Equals, reversetunnel.RemoteKubeProxy)
+	c.Assert(sess.authContext.cluster.targetAddr, check.Equals, reversetunnel.LocalKubernetes)
 	c.Assert(sess.forwarder, check.NotNil)
 	// Make sure newClusterSession obtained a new client cert instead of using
 	// f.creds.

@@ -689,17 +689,19 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	up, err := s.newUpack(s.user, []string{s.user}, wildcardAllow)
 	c.Assert(err, IsNil)
 
-	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
-		Client:      s.proxyClient,
-		HostSigners: []ssh.Signer{proxySigner},
-		HostUUID:    fmt.Sprintf("%v.%v", hostID, s.server.ClusterName()),
-		AccessPoint: s.proxyClient,
-		Component:   teleport.ComponentProxy,
+	rcWatcher, err := reversetunnel.NewRemoteClusterTunnelManager(reversetunnel.RemoteClusterTunnelManagerConfig{
+		AuthClient:          s.proxyClient,
+		HostSigner:          proxySigner,
+		HostUUID:            fmt.Sprintf("%v.%v", hostID, s.server.ClusterName()),
+		AccessPoint:         s.proxyClient,
+		ReverseTunnelServer: reverseTunnelServer,
+		LocalCluster:        s.server.ClusterName(),
 	})
 	c.Assert(err, IsNil)
 
-	err = agentPool.Start()
-	c.Assert(err, IsNil)
+	ctx := context.Background()
+	go rcWatcher.Run(ctx)
+	defer rcWatcher.Close()
 
 	// Create a reverse tunnel and remote cluster simulating what the trusted
 	// cluster exchange does.
@@ -711,7 +713,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	err = s.server.Auth().CreateRemoteCluster(remoteCluster)
 	c.Assert(err, IsNil)
 
-	err = agentPool.FetchAndSyncAgents()
+	err = rcWatcher.Sync(ctx)
 	c.Assert(err, IsNil)
 
 	// Wait for both sites to show up.
@@ -803,7 +805,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	err = s.server.Auth().DeleteReverseTunnel(s.server.ClusterName())
 	c.Assert(err, IsNil)
 
-	err = agentPool.FetchAndSyncAgents()
+	err = rcWatcher.Sync(ctx)
 	c.Assert(err, IsNil)
 }
 
@@ -856,7 +858,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		Addr:        reverseTunnelAddress,
 		ClusterName: "remote",
 		Username:    fmt.Sprintf("%v.%v", hostID, s.server.ClusterName()),
-		Signers:     []ssh.Signer{s.signer},
+		Signer:      s.signer,
 		Client:      s.proxyClient,
 		AccessPoint: s.proxyClient,
 		EventsC:     eventsC,
@@ -869,7 +871,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		Addr:        reverseTunnelAddress,
 		ClusterName: "remote",
 		Username:    fmt.Sprintf("%v.%v", hostID, s.server.ClusterName()),
-		Signers:     []ssh.Signer{s.signer},
+		Signer:      s.signer,
 		Client:      s.proxyClient,
 		AccessPoint: s.proxyClient,
 		EventsC:     eventsC,
