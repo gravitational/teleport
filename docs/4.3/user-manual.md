@@ -267,7 +267,7 @@ To launch an interactive shell on a remote node or to execute a command, use
 
 `tsh` tries to mimic the `ssh` experience as much as possible, so it supports
 the most popular `ssh` flags like `-p`, `-l` or `-L`. For example, if you have
-the following alias defined in your ~/.bashrc: `alias ssh="tsh ssh"` then you
+the following alias defined in your ~/.bashrc: `alias ssh="tsh"` then you
 can continue using familiar SSH syntax:
 
 ```bash
