@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"encoding/base32"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -75,6 +76,7 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
+	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
@@ -144,9 +146,13 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.user = u.Username
 
+	dbPath, _ := ioutil.TempDir("", "")
+	//dbPath := c.MkDir()
+	fmt.Printf("--> dbPath: %v.\n", dbPath)
+
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		ClusterName: "localhost",
-		Dir:         c.MkDir(),
+		Dir:         dbPath,
 		Clock:       clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC)),
 	})
 	c.Assert(err, IsNil)
@@ -264,11 +270,11 @@ func (s *WebSuite) SetUpTest(c *C) {
 }
 
 func (s *WebSuite) TearDownTest(c *C) {
-	c.Assert(s.node.Close(), IsNil)
-	c.Assert(s.server.Close(), IsNil)
-	s.webServer.Close()
-	s.proxy.Close()
-	s.proxyTunnel.Close()
+	//c.Assert(s.node.Close(), IsNil)
+	//c.Assert(s.server.Close(), IsNil)
+	//s.webServer.Close()
+	//s.proxy.Close()
+	//s.proxyTunnel.Close()
 }
 
 type authPack struct {
@@ -1784,6 +1790,50 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	// Expected empty, b/c test auth server doesn't set up
 	// heartbeat which where ServerSpecV2 version would've been set
 	c.Assert(cluster.AuthVersion, Equals, "")
+}
+
+func (s *WebSuite) TestCreateAppSession(c *C) {
+	pack := s.authPack(c, "foo")
+
+	// Upsert an application to the backend.
+	application := &services.ServerV2{
+		Kind:    services.KindApp,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Namespace: defaults.Namespace,
+			Name:      "panel",
+		},
+		Spec: services.ServerSpecV2{
+			Protocol:     services.ServerSpecV2_HTTPS,
+			InternalAddr: "127.0.0.1:8080",
+			PublicAddr:   "127.0.0.1:8081",
+			Version:      teleport.Version,
+		},
+	}
+	_, err := s.server.Auth().UpsertApp(context.Background(), application)
+	c.Assert(err, check.IsNil)
+
+	// Create a application creation request.
+	rawCookie := *pack.cookies[0]
+	cookieBytes, err := hex.DecodeString(rawCookie.Value)
+	var cookie SessionCookie
+	err = json.Unmarshal(cookieBytes, &cookie)
+	c.Assert(err, check.IsNil)
+	createReq := &createAppSessionRequest{
+		AppName:     application.GetName(),
+		SessionID:   cookie.SID,
+		BearerToken: pack.session.Token,
+	}
+
+	fmt.Printf("--> cookieSID: %v.\n", cookie.SID)
+
+	resp, err := pack.clt.PostJSON(context.Background(), pack.clt.Endpoint("webapi", "sessions", "app"), createReq)
+	c.Assert(err, IsNil)
+
+	var response *createAppSessionResponse
+	c.Assert(json.Unmarshal(resp.Bytes(), &response), IsNil)
+
+	fmt.Printf("--> response.SessionID: %v.\n", response.SessionID)
 }
 
 type authProviderMock struct {

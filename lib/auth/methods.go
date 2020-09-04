@@ -42,6 +42,8 @@ type AuthenticateUserRequest struct {
 	OTP *OTPCreds `json:"otp,omitempty"`
 	// Session is a web session credential used to authenticate web sessions
 	Session *SessionCreds `json:"session,omitempty"`
+	// AppURL is the address of the target application.
+	AppURL string `json:"app,omitempty"`
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -372,6 +374,7 @@ func (s *AuthServer) emitNoLocalAuthEvent(username string) {
 	}
 }
 
+// TODO: Consolidate this with SSO createWebSession.
 func (s *AuthServer) createUserWebSession(user services.User) (services.WebSession, error) {
 	// It's safe to extract the roles and traits directly from services.User as	this method
 	// is only used for local accounts.

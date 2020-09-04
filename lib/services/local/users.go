@@ -512,17 +512,32 @@ func (s *IdentityService) DeleteUsedTOTPToken(user string) error {
 // the session will be created with bearer token expiry time TTL, because
 // it is expected to be extended by the client before then
 func (s *IdentityService) UpsertWebSession(user, sid string, session services.WebSession) error {
+	sessionMetadata := session.GetMetadata()
+
 	session.SetUser(user)
 	session.SetName(sid)
 	value, err := services.GetWebSessionMarshaler().MarshalWebSession(session)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	sessionMetadata := session.GetMetadata()
+
+	var key []byte
+	var expires time.Time
+	switch session.GetType() {
+	case services.WebSessionSpecV2_UNKNOWN, services.WebSessionSpecV2_Web:
+		key = backend.Key(webPrefix, usersPrefix, user, sessionsPrefix, sid)
+		expires = backend.EarliestExpiry(session.GetBearerTokenExpiryTime(), sessionMetadata.Expiry())
+	case services.WebSessionSpecV2_App:
+		key = backend.Key(webPrefix, usersPrefix, user, sessionsPrefix, session.GetParentHash(), session.GetName())
+		expires = sessionMetadata.Expiry()
+	default:
+		return trace.BadParameter("unknown type %v", session.GetType())
+	}
+
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, usersPrefix, user, sessionsPrefix, sid),
+		Key:     key,
 		Value:   value,
-		Expires: backend.EarliestExpiry(session.GetBearerTokenExpiryTime(), sessionMetadata.Expiry()),
+		Expires: expires,
 	}
 	_, err = s.Put(context.TODO(), item)
 	return trace.Wrap(err)

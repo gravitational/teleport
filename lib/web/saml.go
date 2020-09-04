@@ -45,6 +45,12 @@ func (m *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.P
 		return nil, trace.BadParameter("missing connector_id query parameter")
 	}
 
+	// If the caller is requested to be forwarded to an application after login,
+	// make sure the application is a registered Teleport application.
+	if err := m.validateApp(r.Context(), query.Get("app")); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	csrfToken, err := csrf.ExtractTokenFromCookie(r)
 	if err != nil {
 		log.Warningf("unable to extract CSRF token from cookie %v", err)
@@ -57,6 +63,7 @@ func (m *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.P
 			CSRFToken:         csrfToken,
 			CreateWebSession:  true,
 			ClientRedirectURL: clientRedirectURL,
+			AppName:           "dumper", //query.Get("app"),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -131,7 +138,13 @@ func (m *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 		if err := SetSession(w, response.Username, response.Session.GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return nil, httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
+
+		// Construct the redirect URL from the parameters stored in backend.
+		u, err := redirURL(response.Req.ClientRedirectURL, response.Req.AppName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return nil, httplib.SafeRedirect(w, r, u)
 	}
 	l.Debugf("samlCallback redirecting to console login")
 	if len(response.Req.PublicKey) == 0 {

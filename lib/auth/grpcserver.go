@@ -557,6 +557,32 @@ func (g *GRPCServer) GenerateAppToken(ctx context.Context, req *proto.GenerateAp
 	}, nil
 }
 
+// CreateAppSession takes an existing web session and uses it to create a
+// new application session.
+func (g *GRPCServer) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (*proto.CreateAppSessionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	session, err := auth.CreateAppSession(ctx, services.CreateAppSessionRequest{
+		SessionID:   req.GetSessionID(),
+		BearerToken: req.GetBearerToken(),
+		AppName:     req.GetAppName(),
+	})
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	sess, ok := session.(*services.WebSessionV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unexpected session type %T", session))
+	}
+
+	return &proto.CreateAppSessionResponse{
+		Session: sess,
+	}, nil
+}
+
 type grpcContext struct {
 	*AuthContext
 	*AuthWithRoles

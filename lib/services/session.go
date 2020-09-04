@@ -49,6 +49,14 @@ type WebSession interface {
 	SetPriv([]byte)
 	// GetTLSCert returns PEM encoded TLS certificate associated with session
 	GetTLSCert() []byte
+	// GetParentHash gets the hash of the parent session.
+	GetParentHash() string
+	// SetParentHash sets the hash of the parent session.
+	SetParentHash(string)
+	// GetType gets the type of session, either web or app.
+	GetType() WebSessionSpecV2_SessionType
+	// SetType sets the type of session, either web or app.
+	SetType(WebSessionSpecV2_SessionType)
 	// BearerToken is a special bearer token used for additional
 	// bearer authentication
 	GetBearerToken() string
@@ -68,6 +76,8 @@ type WebSession interface {
 	WithoutSecrets() WebSession
 	// CheckAndSetDefaults checks and set default values for any missing fields.
 	CheckAndSetDefaults() error
+	// String returns string representation of the session.
+	String() string
 }
 
 // NewWebSession returns new instance of the web session based on the V2 spec
@@ -81,37 +91,6 @@ func NewWebSession(name string, spec WebSessionSpecV2) WebSession {
 		},
 		Spec: spec,
 	}
-}
-
-// WebSessionV2 is version 2 spec for session
-type WebSessionV2 struct {
-	// Kind is a resource kind
-	Kind string `json:"kind"`
-	// Version is version
-	Version string `json:"version"`
-	// Metadata is connector metadata
-	Metadata Metadata `json:"metadata"`
-	// Spec contains cert authority specification
-	Spec WebSessionSpecV2 `json:"spec"`
-}
-
-// WebSessionSpecV2 is a spec for V2 session
-type WebSessionSpecV2 struct {
-	// User is a user this web session belongs to
-	User string `json:"user"`
-	// Pub is a public certificate signed by auth server
-	Pub []byte `json:"pub"`
-	// Priv is a private OpenSSH key used to auth with SSH nodes
-	Priv []byte `json:"priv,omitempty"`
-	// TLSCert is a TLS certificate used to auth with auth server
-	TLSCert []byte `json:"tls_cert,omitempty"`
-	// BearerToken is a special bearer token used for additional
-	// bearer authentication
-	BearerToken string `json:"bearer_token"`
-	// BearerTokenExpires - absolute time when token expires
-	BearerTokenExpires time.Time `json:"bearer_token_expires"`
-	// Expires - absolute time when session expires
-	Expires time.Time `json:"expires"`
 }
 
 // GetMetadata returns metadata
@@ -134,6 +113,11 @@ func (ws *WebSessionV2) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// String returns string representation of the session.
+func (ws *WebSessionV2) String() string {
+	return fmt.Sprintf("WebSession(name=%v,id=%v)", ws.GetUser(), ws.GetName())
 }
 
 // SetName sets session name
@@ -167,6 +151,26 @@ func (ws *WebSessionV2) GetName() string {
 // GetTLSCert returns PEM encoded TLS certificate associated with session
 func (ws *WebSessionV2) GetTLSCert() []byte {
 	return ws.Spec.TLSCert
+}
+
+// GetParentHash gets the hash of the parent session.
+func (ws *WebSessionV2) GetParentHash() string {
+	return ws.Spec.ParentHash
+}
+
+// SetParentHash sets the hash of the parent session.
+func (ws *WebSessionV2) SetParentHash(parentHash string) {
+	ws.Spec.ParentHash = parentHash
+}
+
+// GetType gets the type of session, either web or app.
+func (ws *WebSessionV2) GetType() WebSessionSpecV2_SessionType {
+	return ws.Spec.Type
+}
+
+// SetType sets the type of session, either web or app.
+func (ws *WebSessionV2) SetType(sessionType WebSessionSpecV2_SessionType) {
+	ws.Spec.Type = sessionType
 }
 
 // GetPub is returns public certificate signed by auth server
@@ -232,6 +236,7 @@ const WebSessionSpecV2Schema = `{
   "additionalProperties": false,
   "required": ["pub", "bearer_token", "bearer_token_expires", "expires", "user"],
   "properties": {
+    "parent_hash": {"type": "string"},
     "user": {"type": "string"},
     "pub": {"type": "string"},
     "priv": {"type": "string"},
@@ -481,4 +486,13 @@ func (*TeleportWebSessionMarshaler) MarshalWebSession(ws WebSession, opts ...Mar
 	default:
 		return nil, trace.BadParameter("version %v is not supported", version)
 	}
+}
+
+type CreateAppSessionRequest struct {
+	// AppName is the address of the target application.
+	AppName string
+	// SessionID is the session cookie.
+	SessionID string
+	// BearerToken is the bearer token for the session.
+	BearerToken string
 }

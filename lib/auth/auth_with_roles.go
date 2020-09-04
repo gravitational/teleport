@@ -1953,6 +1953,21 @@ func (a *AuthWithRoles) GenerateAppToken(ctx context.Context, namespace string, 
 	return token, nil
 }
 
+// CreateAppSession takes an existing web session and uses it to create a
+// new application session.
+func (a *AuthWithRoles) CreateAppSession(ctx context.Context, req services.CreateAppSessionRequest) (services.WebSession, error) {
+	// TODO: Is this enough?
+	if err := a.currentUserAction(a.identity.Username); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	session, err := a.authServer.createAppSession(ctx, a.identity, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return session, nil
+}
+
 func (a *AuthWithRoles) Close() error {
 	return a.authServer.Close()
 }

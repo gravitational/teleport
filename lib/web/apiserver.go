@@ -160,8 +160,14 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// Unauthenticated access to public keys.
 	h.GET("/webapi/certs", httplib.MakeHandler(h.jwtPublicKeys))
 
-	// Web sessions
+	// DELETE IN: 5.1.0
+	//
+	// Migrated this endpoint to /webapi/sessions/web below.
 	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.createSession))
+
+	// Web sessions
+	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.createWebSession))
+	h.POST("/webapi/sessions/app", h.WithAuth(h.createAppSession))
 	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
 	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
 
@@ -723,6 +729,12 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.BadParameter("missing connector_id query parameter")
 	}
 
+	// If the caller is requested to be forwarded to an application after login,
+	// make sure the application is a registered Teleport application.
+	if err := h.validateApp(r.Context(), query.Get("app")); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	csrfToken, err := csrf.ExtractTokenFromCookie(r)
 	if err != nil {
 		log.Warningf("unable to extract CSRF token from cookie: %v", err)
@@ -736,6 +748,7 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 			CreateWebSession:  true,
 			ClientRedirectURL: clientRedirectURL,
 			CheckUser:         true,
+			AppName:           query.Get("app"),
 		})
 	if err != nil {
 		// redirect to an error page
@@ -753,14 +766,23 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	logger := log.WithFields(log.Fields{trace.Component: "github"})
 	logger.Debug("Web login start.")
-	clientRedirectURL := r.URL.Query().Get("redirect_url")
+
+	query := r.URL.Query()
+	clientRedirectURL := query.Get("redirect_url")
 	if clientRedirectURL == "" {
 		return nil, trace.BadParameter("missing redirect_url query parameter")
 	}
-	connectorID := r.URL.Query().Get("connector_id")
+	connectorID := query.Get("connector_id")
 	if connectorID == "" {
 		return nil, trace.BadParameter("missing connector_id query parameter")
 	}
+
+	// If the caller is requested to be forwarded to an application after login,
+	// make sure the application is a registered Teleport application.
+	if err := h.validateApp(r.Context(), query.Get("app")); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	csrfToken, err := csrf.ExtractTokenFromCookie(r)
 	if err != nil {
 		logger.Warnf("Unable to extract CSRF token from cookie: %v.", err)
@@ -772,6 +794,7 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 			ConnectorID:       connectorID,
 			CreateWebSession:  true,
 			ClientRedirectURL: clientRedirectURL,
+			AppName:           query.Get("app"),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -835,7 +858,13 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return nil, httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
+
+		// Construct the redirect URL from the parameters stored in backend.
+		u, err := redirURL(response.Req.ClientRedirectURL, response.Req.AppName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return nil, httplib.SafeRedirect(w, r, u)
 	}
 	logger.Infof("Callback is redirecting to console login.")
 	if len(response.Req.PublicKey) == 0 {
@@ -857,6 +886,24 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	}
 	http.Redirect(w, r, redirectURL.String(), http.StatusFound)
 	return nil, nil
+}
+
+func redirURL(path string, appURL string) (string, error) {
+	u, err := url.Parse(path)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// If the caller was asking for a particular application, add that to the
+	// path. This value is fetched from backend and was validated to be a valid
+	// application address.
+	if appURL != "" {
+		v := url.Values{}
+		v.Set("app", appURL)
+		u.RawQuery = v.Encode()
+	}
+
+	return u.String(), nil
 }
 
 func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -914,7 +961,13 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 		if err := SetSession(w, response.Username, response.Session.GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return nil, httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
+
+		// Construct the redirect URL from the parameters stored in backend.
+		u, err := redirURL(response.Req.ClientRedirectURL, response.Req.AppName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return nil, httplib.SafeRedirect(w, r, u)
 	}
 	log.Infof("oidcCallback redirecting to console login")
 	if len(response.Req.PublicKey) == 0 {
@@ -1041,6 +1094,9 @@ type createSessionReq struct {
 	User              string `json:"user"`
 	Pass              string `json:"pass"`
 	SecondFactorToken string `json:"second_factor_token"`
+
+	// AppName is the address of the target application.
+	AppName string `json:"app,omitempty"`
 }
 
 // CreateSessionResponse returns OAuth compabible data about
@@ -1084,6 +1140,13 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	}, nil
 }
 
+// DELETE IN: 5.1.0
+//
+// Migrated this endpoint to /webapi/sessions/web below.
+func (h *Handler) createSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	return h.createWebSession(w, r, p)
+}
+
 // createSession creates a new web session based on user, pass and 2nd factor token
 //
 // POST /v1/webapi/sessions
@@ -1094,11 +1157,17 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 //
 // {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
 //
-func (h *Handler) createSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *createSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	//// If the caller is requested to be forwarded to an application after login,
+	//// make sure the application is a registered Teleport application.
+	//if err := h.validateApp(r.Context(), req.AppName); err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
 
 	// get cluster preferences to see if we should login
 	// with password or password+otp
@@ -1134,6 +1203,65 @@ func (h *Handler) createSession(w http.ResponseWriter, r *http.Request, p httpro
 	}
 
 	return NewSessionResponse(ctx)
+}
+
+type createAppSessionRequest struct {
+	// AppName is the address of the target application.
+	AppName string `json:"app"`
+
+	// SessionID is the session cookie.
+	SessionID string `json:"session_id"`
+
+	// BearerToken is the bearer token for the session.
+	BearerToken string `json:"bearer_token"`
+}
+
+//func (r createAppSessionRequest) Check() error {
+//	if r.Username == "" {
+//		return trace.BadParameter("username is required")
+//	}
+//	if r.SessionID == "" {
+//		return trace.BadParameter("session ID is required")
+//	}
+//	if r.BearerToken == "" {
+//		return trace.BadParameter("bearer token is required")
+//	}
+//	if r.AppName == "" {
+//		return trace.BadParameter("app name is required")
+//	}
+//
+//	return nil
+//}
+
+type createAppSessionResponse struct {
+	// SessionID is the ID of the application session.
+	SessionID string `json:"session_id"`
+}
+
+func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	var req *createAppSessionRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Get a client to auth with the identity of the logged in user and use it
+	// to request the creation of an application session for this user.
+	client, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	session, err := client.CreateAppSession(r.Context(), services.CreateAppSessionRequest{
+		SessionID:   req.SessionID,
+		BearerToken: req.BearerToken,
+		AppName:     req.AppName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &createAppSessionResponse{
+		SessionID: session.GetName(),
+	}, nil
 }
 
 // deleteSession is called to sign out user
@@ -1321,6 +1449,9 @@ func (h *Handler) u2fSignRequest(w http.ResponseWriter, r *http.Request, p httpr
 type u2fSignResponseReq struct {
 	User            string           `json:"user"`
 	U2FSignResponse u2f.SignResponse `json:"u2f_sign_response"`
+
+	// AppName is the address of the target application.
+	AppName string `json:"app,omitempty"`
 }
 
 // createSessionWithU2FSignResponse is called to sign in with a U2F signature
@@ -1338,6 +1469,12 @@ func (h *Handler) createSessionWithU2FSignResponse(w http.ResponseWriter, r *htt
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	//// If the caller is requested to be forwarded to an application after login,
+	//// make sure the application is a registered Teleport application.
+	//if err := h.validateApp(r.Context(), req.AppName); err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
 
 	sess, err := h.auth.AuthWithU2FSignResponse(req.User, &req.U2FSignResponse)
 	if err != nil {
@@ -2028,6 +2165,20 @@ func (h *Handler) validateTrustedCluster(w http.ResponseWriter, r *http.Request,
 	}
 
 	return validateResponseRaw, nil
+}
+
+// validateApp is called if the caller requested a redirect to an application
+// after login, make sure that the application exists.
+func (h *Handler) validateApp(ctx context.Context, appName string) error {
+	if appName != "" {
+		if _, err := h.auth.proxyClient.GetApp(ctx, defaults.Namespace, appName); err != nil {
+			if !trace.IsNotFound(err) {
+				log.Debugf("Failed to lookup application: %v.", err)
+			}
+			return trace.BadParameter("invalid application")
+		}
+	}
+	return nil
 }
 
 func (h *Handler) String() string {

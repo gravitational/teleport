@@ -255,6 +255,25 @@ message GenerateAppTokenRequest {
 // GenerateAppTokenResponse contains a signed token with claims.
 message GenerateAppTokenResponse { string Token = 1 [ (gogoproto.jsontag) = "token" ]; }
 
+// CreateAppSessionRequest contains the parameters needed to create an
+// application session from an existing web session.
+message CreateAppSessionRequest {
+    // AppName is the address of the target application.
+    string AppName = 1 [ (gogoproto.jsontag) = "app" ];
+    // Username is the Teleport identity of the logged in user.
+    string Username = 2 [ (gogoproto.jsontag) = "username" ];
+    // SessionID is the session cookie.
+    string SessionID = 3 [ (gogoproto.jsontag) = "session_id" ];
+    // BearerToken is the bearer token for the session.
+    string BearerToken = 4 [ (gogoproto.jsontag) = "bearer_token" ];
+}
+
+// CreateAppSessionResponse returns the application session.
+message CreateAppSessionResponse {
+    // Session is the new application session that was created.
+    services.WebSessionV2 Session = 1 [ (gogoproto.jsontag) = "session" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -316,4 +335,8 @@ service AuthService {
     // GenerateAppToken returns a signed token that contains claims about the
     // caller signed and embedded inside.
     rpc GenerateAppToken(GenerateAppTokenRequest) returns (GenerateAppTokenResponse);
+
+    // CreateAppSession takes an existing web session and uses it to create a
+    // new application session.
+    rpc CreateAppSession(CreateAppSessionRequest) returns (CreateAppSessionResponse);
 }

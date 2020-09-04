@@ -69,6 +69,9 @@ type ReadAccessPoint interface {
 	// GetNodes returns a list of registered servers for this cluster.
 	GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error)
 
+	// GetApp returns a specific application.
+	GetApp(ctx context.Context, namespace string, name string, opts ...services.MarshalOption) (services.Server, error)
+
 	// GetApps returns a list of registered apps for this cluster.
 	GetApps(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error)
 

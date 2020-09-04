@@ -2805,6 +2805,26 @@ func (c *Client) GenerateAppToken(ctx context.Context, namespace string, params 
 	return resp.GetToken(), nil
 }
 
+// CreateAppSession takes an existing web session and uses it to create a
+// new application session.
+func (c *Client) CreateAppSession(ctx context.Context, req services.CreateAppSessionRequest) (services.WebSession, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
+		SessionID:   req.SessionID,
+		BearerToken: req.BearerToken,
+		AppName:     req.AppName,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp.GetSession(), nil
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
@@ -2817,6 +2837,9 @@ type WebService interface {
 	CreateWebSession(user string) (services.WebSession, error)
 	// DeleteWebSession deletes a web session for this user by id
 	DeleteWebSession(user string, sid string) error
+	// CreateAppSession takes an existing web session and uses it to create a
+	// new application session.
+	CreateAppSession(context.Context, services.CreateAppSessionRequest) (services.WebSession, error)
 }
 
 // IdentityService manages identities and users
