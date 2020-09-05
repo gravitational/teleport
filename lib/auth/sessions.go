@@ -29,6 +29,10 @@ import (
 )
 
 func (s *AuthServer) createAppSession(ctx context.Context, identity tlsca.Identity, req services.CreateAppSessionRequest) (services.WebSession, error) {
+	if err := req.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Build the access checked based off the logged in identity of caller.
 	checker, err := services.FetchRoles(identity.Groups, s.Access, identity.Traits)
 	if err != nil {
@@ -54,26 +58,29 @@ func (s *AuthServer) createAppSession(ctx context.Context, identity tlsca.Identi
 	if subtle.ConstantTimeCompare([]byte(parentSession.GetBearerToken()), []byte(req.BearerToken)) == 0 {
 		return nil, trace.BadParameter("invalid session")
 	}
+	session.SetExpiryTime(s.clock.Now().Add(checker.AdjustSessionTTL(defaults.MaxCertDuration)))
 
+	// TODO(russjones): Should Kind field on resource be a different kind or is KindWebSession okay?
 	// Create a new session for the application.
 	session, err := s.NewWebSession(identity.Username, identity.Groups, identity.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	parentHash := sha256.Sum256([]byte(parentSession.GetName()))
-	session.SetParentHash(hex.EncodeToString(parentHash[:]))
+	session.SetParentHash(SessionCookieHash(parentSession.GetName()))
 	session.SetType(services.WebSessionSpecV2_App)
-	// TODO: Set websession kind different?
-	// TODO: Set expiry to be whatever the role says.
+	session.SetExpiryTime(s.clock.Now().Add(checker.AdjustSessionTTL(defaults.MaxCertDuration)))
 
 	// Create session in backend.
-	err = s.Identity.UpsertWebSession(identity.Username, session.GetName(), session)
+	err = s.Identity.UpsertAppSession(ctx, session)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO this will be used to check if the session exists.
-	// TODO: GetAppSession()
-
 	return session, nil
+}
+
+// SessionCookieHash returns the sha256 hash of a session ID.
+func SessionCookieHash(sessionID string) string {
+	hash := sha256.Sum256([]byte(sessionID))
+	return hex.EncodeToString(hash[:])
 }

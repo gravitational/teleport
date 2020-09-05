@@ -512,35 +512,56 @@ func (s *IdentityService) DeleteUsedTOTPToken(user string) error {
 // the session will be created with bearer token expiry time TTL, because
 // it is expected to be extended by the client before then
 func (s *IdentityService) UpsertWebSession(user, sid string, session services.WebSession) error {
-	sessionMetadata := session.GetMetadata()
-
 	session.SetUser(user)
 	session.SetName(sid)
 	value, err := services.GetWebSessionMarshaler().MarshalWebSession(session)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	var key []byte
-	var expires time.Time
-	switch session.GetType() {
-	case services.WebSessionSpecV2_UNKNOWN, services.WebSessionSpecV2_Web:
-		key = backend.Key(webPrefix, usersPrefix, user, sessionsPrefix, sid)
-		expires = backend.EarliestExpiry(session.GetBearerTokenExpiryTime(), sessionMetadata.Expiry())
-	case services.WebSessionSpecV2_App:
-		key = backend.Key(webPrefix, usersPrefix, user, sessionsPrefix, session.GetParentHash(), session.GetName())
-		expires = sessionMetadata.Expiry()
-	default:
-		return trace.BadParameter("unknown type %v", session.GetType())
-	}
-
+	sessionMetadata := session.GetMetadata()
 	item := backend.Item{
-		Key:     key,
+		Key:     backend.Key(webPrefix, usersPrefix, user, sessionsPrefix, sid),
 		Value:   value,
-		Expires: expires,
+		Expires: backend.EarliestExpiry(session.GetBearerTokenExpiryTime(), sessionMetadata.Expiry()),
 	}
 	_, err = s.Put(context.TODO(), item)
 	return trace.Wrap(err)
+}
+
+// UpsertAppSession updates to inserts an application specific session.
+func (s *IdentityService) UpsertAppSession(ctx context.Context, session services.WebSession) error {
+	value, err := services.GetWebSessionMarshaler().MarshalWebSession(session)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(webPrefix, usersPrefix, session.GetUser(), sessionsPrefix, session.GetParentHash(), session.GetName()),
+		Value:   value,
+		Expires: session.GetExpiryTime(),
+	}
+
+	if _, err = s.Put(ctx, item); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetAppSession returns an application specific session.
+func (s *IdentityService) GetAppSession(ctx context.Context, req services.GetAppSessionRequest) (services.WebSession, error) {
+	if err := req.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item, err := s.Get(ctx, backend.Key(webPrefix, usersPrefix, req.Username, sessionsPrefix, req.ParentHash, req.SessionID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(item.Value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return session, nil
 }
 
 // AddUserLoginAttempt logs user login attempt

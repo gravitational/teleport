@@ -583,6 +583,32 @@ func (g *GRPCServer) CreateAppSession(ctx context.Context, req *proto.CreateAppS
 	}, nil
 }
 
+// GetAppSession returns the requested application specific session to
+// the caller.
+func (g *GRPCServer) GetAppSession(ctx context.Context, req *proto.GetAppSessionRequest) (*proto.GetAppSessionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	session, err := auth.GetAppSession(ctx, services.GetAppSessionRequest{
+		Username:   req.GetUsername(),
+		ParentHash: req.GetParentHash(),
+		SessionID:  req.GetSessionID(),
+	})
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	sess, ok := session.(*services.WebSessionV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unexpected session type %T", session))
+	}
+
+	return &proto.GetAppSessionResponse{
+		Session: sess,
+	}, nil
+}
+
 type grpcContext struct {
 	*AuthContext
 	*AuthWithRoles

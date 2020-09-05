@@ -1792,10 +1792,12 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	c.Assert(cluster.AuthVersion, Equals, "")
 }
 
+// TestCreateAppSession verifies that an existing session to the Web UI can
+// be exchanged for a application specific session.
 func (s *WebSuite) TestCreateAppSession(c *C) {
-	pack := s.authPack(c, "foo")
+	pack := s.authPack(c, "foo@example.com")
 
-	// Upsert an application to the backend.
+	// Register an application called "panel".
 	application := &services.ServerV2{
 		Kind:    services.KindApp,
 		Version: services.V2,
@@ -1813,27 +1815,87 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 	_, err := s.server.Auth().UpsertApp(context.Background(), application)
 	c.Assert(err, check.IsNil)
 
-	// Create a application creation request.
+	// Extract the session ID and bearer token for the current session.
 	rawCookie := *pack.cookies[0]
 	cookieBytes, err := hex.DecodeString(rawCookie.Value)
-	var cookie SessionCookie
-	err = json.Unmarshal(cookieBytes, &cookie)
+	var sessionCookie SessionCookie
+	err = json.Unmarshal(cookieBytes, &sessionCookie)
 	c.Assert(err, check.IsNil)
-	createReq := &createAppSessionRequest{
-		AppName:     application.GetName(),
-		SessionID:   cookie.SID,
-		BearerToken: pack.session.Token,
+	bearerToken := pack.session.Token
+
+	var tests = []struct {
+		inComment       CommentInterface
+		inCreateRequest *createAppSessionRequest
+		outError        bool
+		outUsername     string
+		outParentHash   string
+	}{
+		{
+			inComment: Commentf("Valid request."),
+			inCreateRequest: &createAppSessionRequest{
+				AppName:     application.GetName(),
+				SessionID:   sessionCookie.SID,
+				BearerToken: bearerToken,
+			},
+			outError:      false,
+			outUsername:   "foo@example.com",
+			outParentHash: auth.SessionCookieHash(sessionCookie.SID),
+		},
+		{
+			inComment: Commentf("Invalid application name."),
+			inCreateRequest: &createAppSessionRequest{
+				AppName:     "invalid-name",
+				SessionID:   sessionCookie.SID,
+				BearerToken: pack.session.Token,
+			},
+			outError: true,
+		},
+		{
+			inComment: Commentf("Invalid session ID."),
+			inCreateRequest: &createAppSessionRequest{
+				AppName:     application.GetName(),
+				SessionID:   "invalid-session-id",
+				BearerToken: pack.session.Token,
+			},
+			outError: true,
+		},
+		{
+			inComment: Commentf("Invalid bearer token."),
+			inCreateRequest: &createAppSessionRequest{
+				AppName:     application.GetName(),
+				SessionID:   sessionCookie.SID,
+				BearerToken: "invalid-bearer-token",
+			},
+			outError: true,
+		},
 	}
 
-	fmt.Printf("--> cookieSID: %v.\n", cookie.SID)
+	for _, tt := range tests {
+		// Make a request to create an application session for "panel".
+		endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
+		resp, err := pack.clt.PostJSON(context.Background(), endpoint, tt.inCreateRequest)
+		c.Assert(err != nil, check.Equals, tt.outError, tt.inComment)
+		if tt.outError {
+			continue
+		}
 
-	resp, err := pack.clt.PostJSON(context.Background(), pack.clt.Endpoint("webapi", "sessions", "app"), createReq)
-	c.Assert(err, IsNil)
+		// Verify the response contains the expected values.
+		var response *createAppSessionResponse
+		c.Assert(json.Unmarshal(resp.Bytes(), &response), IsNil, tt.inComment)
+		c.Assert(response.Username, check.Equals, tt.outUsername, tt.inComment)
+		c.Assert(response.ParentHash, check.Equals, tt.outParentHash, tt.inComment)
 
-	var response *createAppSessionResponse
-	c.Assert(json.Unmarshal(resp.Bytes(), &response), IsNil)
-
-	fmt.Printf("--> response.SessionID: %v.\n", response.SessionID)
+		// Verify that the application session was created.
+		session, err := s.server.Auth().GetAppSession(context.Background(), services.GetAppSessionRequest{
+			Username:   response.Username,
+			ParentHash: response.ParentHash,
+			SessionID:  response.SessionID,
+		})
+		c.Assert(err, check.IsNil)
+		c.Assert(session.GetUser(), check.Equals, tt.outUsername)
+		c.Assert(session.GetParentHash(), check.Equals, tt.outParentHash)
+		c.Assert(session.GetName(), check.Equals, response.SessionID)
+	}
 }
 
 type authProviderMock struct {

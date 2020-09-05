@@ -491,8 +491,44 @@ func (*TeleportWebSessionMarshaler) MarshalWebSession(ws WebSession, opts ...Mar
 type CreateAppSessionRequest struct {
 	// AppName is the address of the target application.
 	AppName string
-	// SessionID is the session cookie.
+	// SessionID is the ID of the parent session.
 	SessionID string
-	// BearerToken is the bearer token for the session.
+	// BearerToken is the bearer token of the parent session.
 	BearerToken string
+}
+
+func (r CreateAppSessionRequest) Check() error {
+	if r.AppName == "" {
+		return trace.BadParameter("username is missing")
+	}
+	if r.SessionID == "" {
+		return trace.BadParameter("session ID is missing")
+	}
+	if r.BearerToken == "" {
+		return trace.BadParameter("bearer token is missing")
+	}
+
+	return nil
+}
+
+type GetAppSessionRequest struct {
+	// Username is the Teleport identity of the requester.
+	Username string
+	// ParentHash is the hash of the parent session ID.
+	ParentHash string
+	// SessionID is the session ID of the application session itself.
+	SessionID string
+}
+
+func (r *GetAppSessionRequest) Check() error {
+	if r.Username == "" {
+		return trace.BadParameter("username is missing")
+	}
+	if r.ParentHash == "" {
+		return trace.BadParameter("parent hash is missing")
+	}
+	if r.SessionID == "" {
+		return trace.BadParameter("session ID is missing")
+	}
+	return nil
 }

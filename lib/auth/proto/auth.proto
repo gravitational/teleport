@@ -274,6 +274,20 @@ message CreateAppSessionResponse {
     services.WebSessionV2 Session = 1 [ (gogoproto.jsontag) = "session" ];
 }
 
+message GetAppSessionRequest {
+    // Username is the Teleport identity of the requester.
+    string Username = 1 [ (gogoproto.jsontag) = "username" ];
+    // ParentHash is the hash of the parent session ID.
+    string ParentHash = 2 [ (gogoproto.jsontag) = "parent_hash" ];
+    // SessionID is the session ID of the application session itself.
+    string SessionID = 3 [ (gogoproto.jsontag) = "session_id" ];
+}
+
+message GetAppSessionResponse {
+    // Session is the new application session that was created.
+    services.WebSessionV2 Session = 1 [ (gogoproto.jsontag) = "session" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -339,4 +353,7 @@ service AuthService {
     // CreateAppSession takes an existing web session and uses it to create a
     // new application session.
     rpc CreateAppSession(CreateAppSessionRequest) returns (CreateAppSessionResponse);
+    // GetAppSession returns the requested application specific session to
+    // the caller.
+    rpc GetAppSession(GetAppSessionRequest) returns (GetAppSessionResponse);
 }

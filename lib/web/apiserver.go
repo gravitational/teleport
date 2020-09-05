@@ -1216,24 +1216,15 @@ type createAppSessionRequest struct {
 	BearerToken string `json:"bearer_token"`
 }
 
-//func (r createAppSessionRequest) Check() error {
-//	if r.Username == "" {
-//		return trace.BadParameter("username is required")
-//	}
-//	if r.SessionID == "" {
-//		return trace.BadParameter("session ID is required")
-//	}
-//	if r.BearerToken == "" {
-//		return trace.BadParameter("bearer token is required")
-//	}
-//	if r.AppName == "" {
-//		return trace.BadParameter("app name is required")
-//	}
-//
-//	return nil
-//}
-
+// createAppSessionResponse returns everything needed to construct an
+// application session.
 type createAppSessionResponse struct {
+	// Username is the Teleport identity of the user.
+	Username string `json:"username"`
+
+	// ParentHash is the hash of the parent session.
+	ParentHash string `json:"parent_hash"`
+
 	// SessionID is the ID of the application session.
 	SessionID string `json:"session_id"`
 }
@@ -1260,7 +1251,9 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	return &createAppSessionResponse{
-		SessionID: session.GetName(),
+		Username:   session.GetUser(),
+		ParentHash: session.GetParentHash(),
+		SessionID:  session.GetName(),
 	}, nil
 }
 

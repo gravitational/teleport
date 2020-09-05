@@ -266,7 +266,6 @@ func (s *AuthServer) validateGithubAuthCallback(q url.Values) (*githubAuthRespon
 	return re, nil
 }
 
-// TODO: Update this function to potentially create an app session.
 func (s *AuthServer) createWebSession(user services.User, sessionTTL time.Duration) (services.WebSession, error) {
 	// It's safe to extract the roles and traits directly from services.User
 	// because this occurs during the user creation process and services.User

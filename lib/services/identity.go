@@ -121,6 +121,13 @@ type Identity interface {
 	// GetWebSession returns a web session state for a given user and session id
 	GetWebSession(user, sid string) (WebSession, error)
 
+	// GetAppSession returns the requested application specific session to
+	// the caller.
+	GetAppSession(context.Context, GetAppSessionRequest) (WebSession, error)
+
+	// UpsertAppSession updates to inserts an application specific session.
+	UpsertAppSession(context.Context, WebSession) error
+
 	// DeleteWebSession deletes web session from the storage
 	DeleteWebSession(user, sid string) error
 
