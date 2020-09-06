@@ -2167,6 +2167,16 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
+
+			// Load up any additional application specific TLS certificates.
+			for _, pair := range process.Config.Proxy.AppCerts {
+				certificate, err := tls.LoadX509KeyPair(pair.Certificate, pair.PrivateKey)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				tlsConfig.Certificates = append(tlsConfig.Certificates, certificate)
+			}
+
 			listeners.web = tls.NewListener(listeners.web, tlsConfig)
 		}
 		webServer = &http.Server{

@@ -58,7 +58,6 @@ func (s *AuthServer) createAppSession(ctx context.Context, identity tlsca.Identi
 	if subtle.ConstantTimeCompare([]byte(parentSession.GetBearerToken()), []byte(req.BearerToken)) == 0 {
 		return nil, trace.BadParameter("invalid session")
 	}
-	session.SetExpiryTime(s.clock.Now().Add(checker.AdjustSessionTTL(defaults.MaxCertDuration)))
 
 	// TODO(russjones): Should Kind field on resource be a different kind or is KindWebSession okay?
 	// Create a new session for the application.

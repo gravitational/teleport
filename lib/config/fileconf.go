@@ -166,6 +166,7 @@ var (
 		"protocol":                false,
 		"uri":                     false,
 		"apps":                    false,
+		"app_certs":               true,
 	}
 )
 
@@ -877,6 +878,17 @@ type Proxy struct {
 	// endpoint. The hosts in PublicAddr are included in the list of host
 	// principals on the SSH certificate.
 	TunnelPublicAddr utils.Strings `yaml:"tunnel_public_addr,omitempty"`
+
+	// AppCerts are additional certificates to load for AAP applications.
+	AppCerts []AppCert `yaml:"app_certs"`
+}
+
+// AppCert is a key and certificate for a specific application.
+type AppCert struct {
+	// PrivateKey is a PEM encoded application specific key.
+	PrivateKey string `yaml:"key_file"`
+	// Certificate is a PEM encoded application specific certificate.
+	Certificate string `yaml:"cert_file"`
 }
 
 // Kube is a `kubernetes_service`

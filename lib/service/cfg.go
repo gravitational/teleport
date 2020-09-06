@@ -345,6 +345,17 @@ type ProxyConfig struct {
 
 	// Kube specifies kubernetes proxy configuration
 	Kube KubeProxyConfig
+
+	// AppCerts are additional certificates to load for AAP applications.
+	AppCerts []AppCert
+}
+
+// AppCert is a key and certificate for a specific application.
+type AppCert struct {
+	// PrivateKey is a PEM encoded application specific key.
+	PrivateKey string
+	// Certificate is a PEM encoded application specific certificate.
+	Certificate string
 }
 
 // KubeProxyConfig specifies configuration for proxy service

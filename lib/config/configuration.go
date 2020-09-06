@@ -545,6 +545,12 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 
 		cfg.Proxy.TLSCert = fc.Proxy.CertFile
 	}
+	for _, p := range fc.Proxy.AppCerts {
+		cfg.Proxy.AppCerts = append(cfg.Proxy.AppCerts, service.AppCert{
+			PrivateKey:  p.PrivateKey,
+			Certificate: p.Certificate,
+		})
+	}
 
 	// apply kubernetes proxy config, by default kube proxy is disabled
 	if fc.Proxy.Kube.Configured() {

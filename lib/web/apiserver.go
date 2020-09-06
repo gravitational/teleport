@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/gravitational/roundtrip"
@@ -117,10 +118,43 @@ type Config struct {
 type RewritingHandler struct {
 	http.Handler
 	handler *Handler
+
+	appHandler *app.Handler
 }
 
-func (r *RewritingHandler) Close() error {
-	return r.handler.Close()
+// TODO(russjones): This will loop over all applications for every single
+// request, may not be an issue, but can we do something better? Maybe if an
+// established session exists, shortcut this logic. Or maybe check the host
+// header and if the request is targeting the proxy, don't try and check
+// other apps.
+func (h *RewritingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Check the host the client is requesting against the list of registered
+	// apps to figure out to discover request destination: apps handler or the
+	// Web UI.
+	_, err := h.appHandler.IsApp(r)
+
+	switch {
+	// If the error was specifically that the application was not found,
+	// then serve the Web UI.
+	case trace.IsNotFound(err):
+		h.Handler.ServeHTTP(w, r)
+	// If some other error occurred, log the error and return 404 to the caller.
+	case err != nil:
+		log.Debugf("Failed to discover request destination: %v: %v: %v.",
+			r.Host, r.RequestURI, err)
+		http.Error(w, "not found", 404)
+	// If the caller requested a registered application forward it to app handler.
+	case err == nil:
+		h.appHandler.ServeHTTP(w, r)
+	}
+}
+
+func (h *RewritingHandler) GetHandler() *Handler {
+	return h.handler
+}
+
+func (h *RewritingHandler) Close() error {
+	return h.handler.Close()
 }
 
 // NewHandler returns a new instance of web proxy handler
@@ -331,7 +365,18 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		plugin.AddHandlers(h)
 	}
 
+	// Create application specific handler. This handler handles sessions and
+	// forwarding for AAP applications.
+	appHandler, err := app.NewHandler(app.HandlerConfig{
+		AuthClient:  cfg.ProxyClient,
+		ProxyClient: cfg.Proxy,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &RewritingHandler{
+		appHandler: appHandler,
 		Handler: httplib.RewritePaths(h,
 			httplib.Rewrite("/webapi/sites/([^/]+)/sessions/(.*)", "/webapi/sites/$1/namespaces/default/sessions/$2"),
 			httplib.Rewrite("/webapi/sites/([^/]+)/sessions", "/webapi/sites/$1/namespaces/default/sessions"),

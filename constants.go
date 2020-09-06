@@ -119,7 +119,10 @@ const (
 	ComponentProxy = "proxy"
 
 	// ComponentApp is the application proxy service (AAP).
-	ComponentApp = "app"
+	ComponentApp = "app:service"
+
+	// ComponentAppProxy is the app forwarding proxy.
+	ComponentAppProxy = "app:proxy"
 
 	// ComponentDiagnostic is a diagnostic service
 	ComponentDiagnostic = "diag"

@@ -1385,6 +1385,8 @@ func (s *AuthServer) DeleteNamespace(namespace string) error {
 	return s.Presence.DeleteNamespace(namespace)
 }
 
+// TODO(russjones): Update this function to delete all application specific
+// child sessions as well.
 func (s *AuthServer) DeleteWebSession(user string, id string) error {
 	return trace.Wrap(s.Identity.DeleteWebSession(user, id))
 }
