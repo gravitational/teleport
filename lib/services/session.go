@@ -31,10 +31,15 @@ import (
 // notes on behalf of user
 type WebSession interface {
 	GetMetadata() Metadata
+
 	// GetShortName returns visible short name used in logging
 	GetShortName() string
 	// GetName returns session name
 	GetName() string
+	// GetType gets the type of session, either web or app.
+	GetType() WebSessionSpecV2_SessionType
+	// SetType sets the type of session, either web or app.
+	SetType(WebSessionSpecV2_SessionType)
 	// GetUser returns the user this session is associated with
 	GetUser() string
 	// SetName sets session name
@@ -49,14 +54,20 @@ type WebSession interface {
 	SetPriv([]byte)
 	// GetTLSCert returns PEM encoded TLS certificate associated with session
 	GetTLSCert() []byte
+
 	// GetParentHash gets the hash of the parent session.
 	GetParentHash() string
 	// SetParentHash sets the hash of the parent session.
 	SetParentHash(string)
-	// GetType gets the type of session, either web or app.
-	GetType() WebSessionSpecV2_SessionType
-	// SetType sets the type of session, either web or app.
-	SetType(WebSessionSpecV2_SessionType)
+	// GetAppName gets the name of the specific application for this session.
+	GetAppName() string
+	// SetAppName sets the name of the specific application for this session.
+	SetAppName(string)
+	// ClusterName gets the name of the cluster in which the application is running.
+	GetClusterName() string
+	// ClusterName sets the name of the cluster in which the application is running.
+	SetClusterName(string)
+
 	// BearerToken is a special bearer token used for additional
 	// bearer authentication
 	GetBearerToken() string
@@ -148,6 +159,16 @@ func (ws *WebSessionV2) GetName() string {
 	return ws.Metadata.Name
 }
 
+// GetType gets the type of session, either web or app.
+func (ws *WebSessionV2) GetType() WebSessionSpecV2_SessionType {
+	return ws.Spec.Type
+}
+
+// SetType sets the type of session, either web or app.
+func (ws *WebSessionV2) SetType(sessionType WebSessionSpecV2_SessionType) {
+	ws.Spec.Type = sessionType
+}
+
 // GetTLSCert returns PEM encoded TLS certificate associated with session
 func (ws *WebSessionV2) GetTLSCert() []byte {
 	return ws.Spec.TLSCert
@@ -163,14 +184,24 @@ func (ws *WebSessionV2) SetParentHash(parentHash string) {
 	ws.Spec.ParentHash = parentHash
 }
 
-// GetType gets the type of session, either web or app.
-func (ws *WebSessionV2) GetType() WebSessionSpecV2_SessionType {
-	return ws.Spec.Type
+// GetAppName gets the name of the specific application for this session.
+func (ws *WebSessionV2) GetAppName() string {
+	return ws.Spec.AppName
 }
 
-// SetType sets the type of session, either web or app.
-func (ws *WebSessionV2) SetType(sessionType WebSessionSpecV2_SessionType) {
-	ws.Spec.Type = sessionType
+// SetAppName sets the name of the specific application for this session.
+func (ws *WebSessionV2) SetAppName(appName string) {
+	ws.Spec.AppName = appName
+}
+
+// ClusterName gets the name of the cluster in which the application is running.
+func (ws *WebSessionV2) GetClusterName() string {
+	return ws.Spec.ClusterName
+}
+
+// ClusterName sets the name of the cluster in which the application is running.
+func (ws *WebSessionV2) SetClusterName(clusterName string) {
+	ws.Spec.ClusterName = clusterName
 }
 
 // GetPub is returns public certificate signed by auth server
@@ -236,11 +267,14 @@ const WebSessionSpecV2Schema = `{
   "additionalProperties": false,
   "required": ["pub", "bearer_token", "bearer_token_expires", "expires", "user"],
   "properties": {
-    "parent_hash": {"type": "string"},
-    "user": {"type": "string"},
+    "type": {"type": "integer"},
+     "user": {"type": "string"},
     "pub": {"type": "string"},
     "priv": {"type": "string"},
     "tls_cert": {"type": "string"},
+    "app_name": {"type": "string"},
+    "parent_hash": {"type": "string"},
+    "cluster_name": {"type": "string"},
     "bearer_token": {"type": "string"},
     "bearer_token_expires": {"type": "string"},
     "expires": {"type": "string"}%v
@@ -489,8 +523,11 @@ func (*TeleportWebSessionMarshaler) MarshalWebSession(ws WebSession, opts ...Mar
 }
 
 type CreateAppSessionRequest struct {
-	// AppName is the address of the target application.
+	// AppName is the name of the target application.
 	AppName string
+	// ClusterName is the name of the cluster within which the application is
+	// being requested.
+	ClusterName string
 	// SessionID is the ID of the parent session.
 	SessionID string
 	// BearerToken is the bearer token of the parent session.
@@ -500,6 +537,9 @@ type CreateAppSessionRequest struct {
 func (r CreateAppSessionRequest) Check() error {
 	if r.AppName == "" {
 		return trace.BadParameter("username is missing")
+	}
+	if r.ClusterName == "" {
+		return trace.BadParameter("cluster name is missing")
 	}
 	if r.SessionID == "" {
 		return trace.BadParameter("session ID is missing")

@@ -17,78 +17,231 @@ limitations under the License.
 package app
 
 import (
-	"encoding/hex"
-	"encoding/json"
+	"context"
+	"net"
 	"net/http"
+	"time"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
 )
 
 type session struct {
+	// cookieValue is the encoded session cookie. It is used as a key for the cache.
+	cookieValue string
+	app         services.App
+	checker     services.AccessChecker
+	identity    tlsca.Identity
+	//token       string
+	fwd forward.Forwarder
+}
+
+type sessionCacheConfig struct {
+	AuthClient  auth.ClientI
+	ProxyClient reversetunnel.Server
+}
+
+func (c sessionCacheConfig) Check() error {
+	if c.AuthClient == nil {
+		return trace.BadParameter("auth client missing")
+	}
+	if c.ProxyClient == nil {
+		return trace.BadParameter("proxy client missing")
+	}
+	return nil
 }
 
 type sessionCache struct {
+	c   *sessionCacheConfig
+	log *logrus.Entry
+
+	cache *ttlmap.TTLMap
 }
 
-func newSessionCache() (*sessionCache, error) {
-	return &sessionCache{}, nil
-}
-
-func (s *sessionCache) get(cookie *Cookie) (*session, error) {
-	//// TODO(russjones): Extract session cookie.
-	//session, err := h.c.AuthClient.GetAppSession(r.Context(), services.GetAppSessionRequest{
-	//	Username:   "",
-	//	ParentHash: "",
-	//	SessionID:  "",
-	//})
-
-	return &session{}, nil
-}
-
-type Cookie struct {
-	Username   string `json:"username"`
-	ParentHash string `json:"parent_hash"`
-	SessionID  string `json:"session_id"`
-}
-
-func extractCookie(r *http.Request) (*Cookie, error) {
-	rawCookie, err := r.Cookie(cookieName)
-	if err != nil {
+func newSessionCache(config sessionCacheConfig) (*sessionCache, error) {
+	if err := config.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if rawCookie != nil && rawCookie.Value == "" {
-		return nil, trace.BadParameter("cookie missing")
-	}
 
-	cookie, err := decodeCookie(rawCookie.Value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return cookie, nil
-}
-
-func decodeCookie(cookieValue string) (*Cookie, error) {
-	cookieBytes, err := hex.DecodeString(cookieValue)
+	cache, err = ttlmap.New(defaults.ClientCacheSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var cookie Cookie
-	if err := json.Unmarshal(cookieBytes, &cookie); err != nil {
+	return &sessionCache{
+		c: config,
+		log: logrus.WithFields(logrus.Fields{
+			trace.Component: teleport.ComponentAppProxyCache,
+		}),
+		cache: cache,
+	}, nil
+}
+
+func (s *sessionCache) get(ctx context.Context, cookieValue string) (*session, error) {
+	// Always look for the existence of a session directly in the backend. The
+	// lookup can occur in the backend cache, but lookup should occur directly
+	// against the backend and not a process local cache. This is to ensure that
+	// a user can for logout of all sessions by logging out of the Web UI.
+	cookie, err := decodeCookie(cookieValue)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &cookie, nil
-}
-
-func encodeCookie(cookie *Cookie) (string, error) {
-	bytes, err := json.Marshal(cookie)
+	session, err := s.c.AuthClient.GetAppSession(ctx, services.GetAppSessionRequest{
+		Username:   cookie.Username,
+		ParentHash: cookie.ParentHash,
+		SessionID:  cookie.SessionID,
+	})
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return hex.EncodeToString(bytes), nil
+	// If the session exists in the backend, check if this proxy has locally
+	// cached metadata about the session. If it does, return it, otherwise
+	// build it and return it.
+	if sess, ok := s.cache.Get(cookieValue); ok {
+		if se, sok := sess.(*session); sok {
+			return se, nil
+		}
+	}
+
+	// TODO(russjones): Look at session.Expiry() here.
+	// Construct session metadata and put it in the cache.
+	sess, err := s.newSession(cookieValue, session)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := s.cache.Set(cookieValue, session, 10*time.Minute); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sess, nil
 }
 
-const (
-	cookieName = "app.session"
-)
+func (s *sessionCache) newSession(cookieValue string, session services.WebSession) (*session, error) {
+	// Get the application this session is targeting.
+	app, err := s.c.AuthClient.GetApp(ctx, defaults.Namespace, session.GetAppName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(russjones): Fill out the reversetunnel.DialParams after #4290 is merged in.
+	// Get a connection through the reverse tunnel to the target application.
+	clusterClient, err := s.c.ProxyClient.GetSite(session.GetClusterName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conn, err := clusterClient.Dial(reversetunnel.DialParams{})
+	if err != nil {
+		s.log.Warnf("Failed to establish connection to %q through reverse tunnel: %v.", session.GetAppName(), err)
+		return nil, trace.BadParameter("application not available")
+	}
+
+	// Generate a signed token that can be re-used during the lifetime of this
+	// session to pass authentication information to the target application.
+	token, err := s.c.AuthClient.GenerateAppToken(ctx, services.AppTokenParams{
+		Username: session.GetUser(),
+		Roles:    roles,
+		// TODO(russjones): Expiry implies a time.Time, instead Expiry here is a
+		// time.Duration. Fix it so it can be directly set like:
+		// "Expiry: session.GetExpiryTime()".
+		Expiry: 10 * time.Minute,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Create a HTTP request forwarder that will be used to forward the actual
+	// request over the reverse tunnel to the target application.
+	fwd, err := forward.New(
+		forward.RoundTripper(newCustomTransport(conn)),
+		forward.Rewriter(&rewriter{signedToken: signedToken}))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Extract the identity of the user from the certificate.
+	cert, err := utils.ParseCertificatePEM(session.GetTLSCert())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Use roles and traits to construct and access checker.
+	roles, traits, err := services.ExtractFromIdentity(s.c.AuthClient, identity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker, err := services.FetchRoles(roles, s.c.AuthClient, traits)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &session{
+		cookieValue: cookieValue,
+		app:         app,
+		checker:     checker,
+		identity:    identity,
+		fwd:         fwd,
+	}, nil
+}
+
+func (s *sessionCache) remove(cookieValue string) error {
+	s.cache.Remove(cookieValue)
+}
+
+// TODO(russjones): Strip Teleport cookies.
+type rewriter struct {
+	signedToken string
+}
+
+func (r *rewriter) Rewrite(req *http.Request) {
+	req.Header.Add("x-teleport-jwt-assertion", r.signedToken)
+	req.Header.Add("Cf-access-token", r.signedToken)
+
+	// Wipe out any existing cookies and skip over any Teleport ones.
+	req.Header.Del("Cookie")
+	for _, cookie := range req.Cookies() {
+		if cookie.Name == "session" {
+			continue
+		}
+		req.AddCookie(cookie)
+	}
+}
+
+type customTransport struct {
+	conn net.Conn
+}
+
+func newCustomTransport(conn net.Conn) *customTransport {
+	return &customTransport{
+		conn: conn,
+	}
+}
+
+func (t *customTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	tr := &http.Transport{
+		Dial: func(network string, addr string) (net.Conn, error) {
+			return t.conn, nil
+		},
+	}
+
+	resp, err := tr.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}

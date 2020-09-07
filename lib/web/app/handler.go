@@ -95,7 +95,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.forward(w, r, session)
+	err = h.forward(w, r, session)
+	if err != nil {
+		h.log.Warnf("Authentication failed: %v.", err)
+		http.Error(w, "internal service error", 500)
+		return
+	}
 }
 
 // TODO(russjones): Add support for trusted clusters here? Or should that
@@ -127,23 +132,14 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request) error {
 			return trace.Wrap(err)
 		}
 
-		// Extract the session cookie from the *http.Request.
-		cookie, err := decodeCookie(req.CookieValue)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
 		// Validate that the session exists.
-		_, err = h.sessions.get(cookie)
+		_, err = h.sessions.get(r.Context(), req.CookieValue)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		// Encode cookie and set the "Set-Cookie" header on the response.
-		cookieValue, err := encodeCookie(cookie)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		// TODO(russjones): Add additional cookie values here.
+		// Set the "Set-Cookie" header on the response.
 		http.SetCookie(w, &http.Cookie{
 			Name:  cookieName,
 			Value: cookieValue,
@@ -155,76 +151,38 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h *Handler) authenticate(r *http.Request) (*session, error) {
-	return &session{}, nil
+	// Extract the session cookie from the *http.Request.
+	cookieValue, err := extractCookie(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	//// Extract the session cookie from the *http.Request.
-	//cookie, err := decodeCookie(r)
-	//if err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
+	// Check the cache for an authenticated session.
+	session, err := h.sessions.get(cookieValue)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	//session, err := h.sessions.get(cookie)
-	//if err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
-
-	////// A session exists in the backend. It should contain identity information.
-	////roleset, err := services.FetchRoles(roles, clt, traits)
-	////if err != nil {
-	////	return nil, trace.Wrap(err)
-	////}
-
-	////err = s.checker.CheckAccessToApp(s.app, r)
-	////if err != nil {
-	////	http.Error(w, fmt.Sprintf("access to app %v denied", s.app.GetName()), 401)
-	////	return
-	////}
-	////fmt.Printf("--> checker.CheckAccessToApp: %v.\n", err)
-
-	//return session, nil
+	return session, nil
 }
 
-func (h *Handler) forward(w http.ResponseWriter, r *http.Request, session *session) {
-	fmt.Fprintf(w, "hello, world")
-	/*
-		// Get a net.Conn over the reverse tunnel connection.
-		conn, err := s.clusterClient.Dial(reversetunnel.DialParams{
-			ServerID: strings.Join([]string{s.app.GetHostUUID(), s.clusterClient.GetName()}, "."),
-			ConnType: services.AppTunnel,
-		})
-		if err != nil {
-			// TODO: This should say something else, like application not available to
-			// the user and log the actual reason the application was down for the admin.
-			// connection rejected: dial tcp 127.0.0.1:8081: connect: connection refused.
-			fmt.Printf("--> Dial: %v.\n", err)
-			http.Error(w, "internal service error", 500)
-			return
-		}
+// TODO(russjones): In this function, if forwarding request fails, return
+// an error to the user, and delete the *session and force it to be recreated
+// to allow the user of new connection through the tunnel.
+func (h *Handler) forward(w http.ResponseWriter, r *http.Request, s *session) error {
+	// Check access to the target application before forwarding. This allows an
+	// admin to change roles assigned an user/application at runtime and deny
+	// access to the application.
+	//
+	// This code path should be profiled if it ever becomes a bottleneck.
+	err := s.checker.CheckAccessToApp(s.app)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-		signedToken, err := s.jwtKey.Sign(&jwt.SignParams{
-			Email: s.identity.Username,
-		})
-		if err != nil {
-			fmt.Printf("--> get signed token: %v.\n", err)
-			http.Error(w, "internal service error", 500)
-			return
-		}
-
-		// Forward the request over the net.Conn to the host running the application within the cluster.
-		roundTripper := forward.RoundTripper(newCustomTransport(conn))
-		fwd, _ := forward.New(roundTripper, forward.Rewriter(&rewriter{signedToken: signedToken}))
-
-		//nu, _ := url.Parse(r.URL.String())
-		//nu.Scheme = "https"
-		//nu.Host = "rusty-gitlab.gravitational.io"
-		r.URL = testutils.ParseURI("http://localhost:8081")
-
-		// let us forward this request to another server
-		//r.URL = testutils.ParseURI("https://rusty-gitlab.gravitational.io")
-		//r.URL = testutils.ParseURI("localhost:8080")
-
-		fwd.ServeHTTP(w, r)
-	*/
+	r.URL = testutils.ParseURI("http://localhost:8081")
+	s.fwd.ServeHTTP(w, r)
+	return nil
 }
 
 func extractAppName(r *http.Request) (string, error) {
@@ -242,95 +200,3 @@ func extractAppName(r *http.Request) (string, error) {
 
 	return parts[0], nil
 }
-
-/*
-	// Exchange nonce for a session.
-	nonce := r.URL.Query().Get("nonce")
-	if nonce != "" {
-		session, err := h.appsHandler.AuthClient.ExchangeNonce(r.Context(), nonce)
-		if err != nil {
-			fmt.Printf("--> ExchangeNonce failed: %.v\n", err)
-			http.Error(w, "access denied", 401)
-			return
-		}
-
-		fmt.Printf("--> ExchangeNonce: session.GetName(): %v.\n", session.GetName())
-
-		// If the user was able to successfully exchange an existing web session
-		// token for a app session token, create a cookie from it and set it on the
-		// response.
-		cookie, err := apps.CookieFromSession(session)
-		if err != nil {
-			// TODO: What should happen here, show an error to the user?
-			http.Error(w, "apps.CookieFromSession failed", 401)
-			return
-		}
-		http.SetCookie(w, cookie)
-		http.Redirect(w, r, "https://dumper.proxy.example.com:3080", 302)
-		return
-	}
-
-	// TODO: This client needs to be the cluster within which the application
-	// is running.
-	clusterClient, err := h.handler.cfg.Proxy.GetSite("example.com")
-	if err != nil {
-		http.Error(w, "access denied", 401)
-		return
-	}
-	r := r.WithContext(context.WithValue(r.Context(), "clusterClient", clusterClient))
-
-	r = r.WithContext(context.WithValue(r.Context(), "app", app))
-	h.appsHandler.ServeHTTP(w, r)
-	return
-
-	//// Verify with @alex-kovoy that it's okay that bearer token is false. This
-	//// appears to make sense because the bearer token is injected client side
-	//// and that's not possible for AAP.
-	//ctx, err := h.handler.AuthenticateRequest(w, r, false)
-	//if err != nil {
-	//	http.Error(w, "access denied", 401)
-	//	return
-	//}
-
-	//// Attach certificates (x509 and SSH) to *http.Request.
-	//_, cert, err := ctx.GetCertificates()
-	//if err != nil {
-	//	http.Error(w, "access denied", 401)
-	//	return
-	//}
-	//identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-	//if err != nil {
-	//	http.Error(w, "access denied", 401)
-	//	return
-	//}
-	//r := r.WithContext(context.WithValue(r.Context(), "identity", identity))
-
-	//// Attach services.RoleSet to *http.Request.
-	//checker, err := ctx.GetRoleSet()
-	//if err != nil {
-	//	http.Error(w, "access denied", 401)
-	//	return
-	//}
-	//r = r.WithContext(context.WithValue(r.Context(), "checker", checker))
-
-	//// Attach services.App requested to the *http.Request.
-	//r = r.WithContext(context.WithValue(r.Context(), "app", app))
-
-	//// Attach the cluster API to the request as well.
-	//// TODO: Attach trusted cluster site if trusted cluster requested.
-	//clusterName, err := h.appsHandler.AuthClient.GetDomainName()
-	//if err != nil {
-	//	http.Error(w, "access denied", 401)
-	//}
-	//clusterClient, err := h.handler.cfg.Proxy.GetSite(clusterName)
-	//if err != nil {
-	//	http.Error(w, "access denied", 401)
-	//	return
-	//}
-	//r = r.WithContext(context.WithValue(r.Context(), "clusterName", clusterName))
-	//r = r.WithContext(context.WithValue(r.Context(), "clusterClient", clusterClient))
-
-	//// Pass the request along to the apps handler.
-	//h.appsHandler.ServeHTTP(w, r)
-	//return
-*/

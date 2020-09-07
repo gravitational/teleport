@@ -1066,7 +1066,11 @@ message WebSessionSpecV2 {
         App = 2;
     }
     SessionType Type = 8 [ (gogoproto.jsontag) = "type" ];
-    // ParentHash is the hash of the parent session. If specified, it
-    // indicates this is an application session.
+    // ParentHash is the hash of the parent session.
     string ParentHash = 9 [ (gogoproto.jsontag) = "parent_hash,omitempty" ];
+    // AppName is the name of the specific application this session belongs to.
+    string AppName = 10 [ (gogoproto.jsontag) = "app_name,omitempty" ];
+    // ClusterName is the name of the cluster within which the specific
+    // application is running.
+    string ClusterName = 11 [ (gogoproto.jsontag) = "cluster_name,omitempty" ];
 }
