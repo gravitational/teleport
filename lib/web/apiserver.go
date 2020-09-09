@@ -1254,6 +1254,10 @@ type createAppSessionRequest struct {
 	// AppName is the address of the target application.
 	AppName string `json:"app"`
 
+	// ClusterName is the name of the cluster within which the application is
+	// being requested.
+	ClusterName string `json:"cluster_name"`
+
 	// SessionID is the session cookie.
 	SessionID string `json:"session_id"`
 
@@ -1287,9 +1291,10 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 	session, err := client.CreateAppSession(r.Context(), services.CreateAppSessionRequest{
+		AppName:     req.AppName,
+		ClusterName: req.ClusterName,
 		SessionID:   req.SessionID,
 		BearerToken: req.BearerToken,
-		AppName:     req.AppName,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

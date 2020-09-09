@@ -20,6 +20,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -37,13 +38,17 @@ import (
 )
 
 type session struct {
-	// cookieValue is the encoded session cookie. It is used as a key for the cache.
-	cookieValue string
-	app         services.App
-	checker     services.AccessChecker
-	identity    tlsca.Identity
+	// cacheKey is the encoded session cookie. It is used as a key for the cache.
+	cacheKey string
+
+	app      services.Server
+	checker  services.AccessChecker
+	identity *tlsca.Identity
+	fwd      *forward.Forwarder
+
+	// TODO(russjones): The JWT token does not need to be stored since it's
+	// embedded within the forwarder?
 	//token       string
-	fwd forward.Forwarder
 }
 
 type sessionCacheConfig struct {
@@ -62,7 +67,7 @@ func (c sessionCacheConfig) Check() error {
 }
 
 type sessionCache struct {
-	c   *sessionCacheConfig
+	c   sessionCacheConfig
 	log *logrus.Entry
 
 	cache *ttlmap.TTLMap
@@ -73,7 +78,7 @@ func newSessionCache(config sessionCacheConfig) (*sessionCache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cache, err = ttlmap.New(defaults.ClientCacheSize)
+	cache, err := ttlmap.New(defaults.ClientCacheSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -96,7 +101,7 @@ func (s *sessionCache) get(ctx context.Context, cookieValue string) (*session, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := s.c.AuthClient.GetAppSession(ctx, services.GetAppSessionRequest{
+	appSession, err := s.c.AuthClient.GetAppSession(ctx, services.GetAppSessionRequest{
 		Username:   cookie.Username,
 		ParentHash: cookie.ParentHash,
 		SessionID:  cookie.SessionID,
@@ -116,61 +121,26 @@ func (s *sessionCache) get(ctx context.Context, cookieValue string) (*session, e
 
 	// TODO(russjones): Look at session.Expiry() here.
 	// Construct session metadata and put it in the cache.
-	sess, err := s.newSession(cookieValue, session)
+	sess, err := s.newSession(ctx, cookieValue, appSession)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := s.cache.Set(cookieValue, session, 10*time.Minute); err != nil {
+	if err := s.cache.Set(cookieValue, sess, 10*time.Minute); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return sess, nil
 }
 
-func (s *sessionCache) newSession(cookieValue string, session services.WebSession) (*session, error) {
+func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess services.WebSession) (*session, error) {
 	// Get the application this session is targeting.
-	app, err := s.c.AuthClient.GetApp(ctx, defaults.Namespace, session.GetAppName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// TODO(russjones): Fill out the reversetunnel.DialParams after #4290 is merged in.
-	// Get a connection through the reverse tunnel to the target application.
-	clusterClient, err := s.c.ProxyClient.GetSite(session.GetClusterName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	conn, err := clusterClient.Dial(reversetunnel.DialParams{})
-	if err != nil {
-		s.log.Warnf("Failed to establish connection to %q through reverse tunnel: %v.", session.GetAppName(), err)
-		return nil, trace.BadParameter("application not available")
-	}
-
-	// Generate a signed token that can be re-used during the lifetime of this
-	// session to pass authentication information to the target application.
-	token, err := s.c.AuthClient.GenerateAppToken(ctx, services.AppTokenParams{
-		Username: session.GetUser(),
-		Roles:    roles,
-		// TODO(russjones): Expiry implies a time.Time, instead Expiry here is a
-		// time.Duration. Fix it so it can be directly set like:
-		// "Expiry: session.GetExpiryTime()".
-		Expiry: 10 * time.Minute,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Create a HTTP request forwarder that will be used to forward the actual
-	// request over the reverse tunnel to the target application.
-	fwd, err := forward.New(
-		forward.RoundTripper(newCustomTransport(conn)),
-		forward.Rewriter(&rewriter{signedToken: signedToken}))
+	app, err := s.c.AuthClient.GetApp(ctx, defaults.Namespace, sess.GetAppName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Extract the identity of the user from the certificate.
-	cert, err := utils.ParseCertificatePEM(session.GetTLSCert())
+	cert, err := utils.ParseCertificatePEM(sess.GetTLSCert())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -189,16 +159,54 @@ func (s *sessionCache) newSession(cookieValue string, session services.WebSessio
 		return nil, trace.Wrap(err)
 	}
 
+	// Generate a signed token that can be re-used during the lifetime of this
+	// session to pass authentication information to the target application.
+	token, err := s.c.AuthClient.GenerateAppToken(ctx, services.AppTokenParams{
+		Username: sess.GetUser(),
+		Roles:    roles,
+		// TODO(russjones): Expiry implies a time.Time, instead Expiry here is a
+		// time.Duration. Fix it so it can be directly set like:
+		// "Expiry: session.GetExpiryTime()".
+		Expiry: 10 * time.Minute,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO(russjones): Fill out the reversetunnel.DialParams after #4290 is merged in.
+	// Get a connection through the reverse tunnel to the target application.
+	clusterClient, err := s.c.ProxyClient.GetSite(sess.GetClusterName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conn, err := clusterClient.Dial(reversetunnel.DialParams{
+		ServerID: strings.Join([]string{app.GetName(), sess.GetClusterName()}, "."),
+		ConnType: services.AppTunnel,
+	})
+	if err != nil {
+		s.log.Warnf("Failed to establish connection to %q through reverse tunnel: %v.", sess.GetAppName(), err)
+		return nil, trace.BadParameter("application not available")
+	}
+
+	// Create a HTTP request forwarder that will be used to forward the actual
+	// request over the reverse tunnel to the target application.
+	fwd, err := forward.New(
+		forward.RoundTripper(newCustomTransport(conn)),
+		forward.Rewriter(&rewriter{signedToken: token}))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &session{
-		cookieValue: cookieValue,
-		app:         app,
-		checker:     checker,
-		identity:    identity,
-		fwd:         fwd,
+		cacheKey: cookieValue,
+		app:      app,
+		checker:  checker,
+		identity: identity,
+		fwd:      fwd,
 	}, nil
 }
 
-func (s *sessionCache) remove(cookieValue string) error {
+func (s *sessionCache) remove(cookieValue string) {
 	s.cache.Remove(cookieValue)
 }
 

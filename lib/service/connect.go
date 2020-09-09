@@ -132,6 +132,8 @@ func (process *TeleportProcess) connect(role teleport.Role) (conn *Connector, er
 			Client:         client,
 			ClientIdentity: identity,
 			ServerIdentity: identity,
+			// TODO(russjones): Hack!
+			IsApp: true,
 		}, nil
 	case services.RotationStateInProgress:
 		switch rotation.Phase {
@@ -378,6 +380,8 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 		connector = &Connector{
 			ClientIdentity: identity,
 			ServerIdentity: identity,
+			// TODO(russjones): Hack!
+			IsApp: true,
 		}
 	} else {
 		client, err := process.newClient(process.Config.AuthServers, identity)
@@ -388,6 +392,10 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 			ClientIdentity: identity,
 			ServerIdentity: identity,
 			Client:         client,
+		}
+		// TODO(russjones): Hack! Is there a better way to set this?
+		if role == teleport.RoleApp {
+			connector.IsApp = true
 		}
 	}
 

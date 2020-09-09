@@ -352,6 +352,15 @@ func (m *AgentPool) getReverseTunnels() ([]services.ReverseTunnel, error) {
 		)
 		reverseTunnel.SetType(services.NodeTunnel)
 		return []services.ReverseTunnel{reverseTunnel}, nil
+	case teleport.ComponentApp:
+		reverseTunnel := services.NewReverseTunnel(
+			m.cfg.Cluster,
+			[]string{m.cfg.ProxyAddr},
+		)
+
+		fmt.Printf("--> Created NewReverseTunnel: clusterName: %v, dialAddrs: %v.\n", m.cfg.Cluster, m.cfg.ProxyAddr)
+		reverseTunnel.SetType(services.AppTunnel)
+		return []services.ReverseTunnel{reverseTunnel}, nil
 	default:
 		return nil, trace.BadParameter("unsupported component %q", m.cfg.Component)
 	}
@@ -458,6 +467,7 @@ func tunnelToAgentKeys(tunnel services.ReverseTunnel) ([]agentKey, error) {
 	for i, addr := range tunnel.GetDialAddrs() {
 		netaddr, err := utils.ParseAddr(addr)
 		if err != nil {
+			fmt.Printf("--> tunnelsToAgentKeys: %v: %v.\n", addr, err)
 			return nil, trace.Wrap(err)
 		}
 		out[i] = agentKey{addr: *netaddr, tunnelType: string(tunnel.GetType()), clusterName: tunnel.GetClusterName()}

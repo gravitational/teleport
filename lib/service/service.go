@@ -180,11 +180,19 @@ type Connector struct {
 
 	// Client is authenticated client with credentials from ClientIdenity.
 	Client *auth.Client
+
+	// TODO(russjones): Hack!
+	IsApp bool
 }
 
 // TunnelProxy if non-empty, indicates that the client is connected to the Auth Server
 // through the reverse SSH tunnel proxy
 func (c *Connector) TunnelProxy() string {
+	// TODO(russjones): Hack!
+	if c.IsApp {
+		return "localhost:3024"
+	}
+
 	if c.Client == nil || c.Client.Dialer == nil {
 		return ""
 	}
@@ -2430,7 +2438,7 @@ func (process *TeleportProcess) initApps() {
 					Version:      teleport.Version,
 				},
 			}
-			process.initApp(application, authClient, startCh)
+			process.initApp(conn, authClient, application, startCh)
 		}
 
 		timer := time.NewTimer(defaults.AppsStartTimeout)
@@ -2457,10 +2465,11 @@ func (process *TeleportProcess) initApps() {
 	})
 }
 
-func (process *TeleportProcess) initApp(application services.Server, authClient auth.AccessPoint, startCh chan string) {
+func (process *TeleportProcess) initApp(conn *Connector, authClient auth.AccessPoint, application services.Server, startCh chan string) {
 	servicePrefix := fmt.Sprintf("app.%v", application.GetName())
 
 	var server *app.Server
+	var agentPool *reversetunnel.AgentPool
 
 	process.RegisterCriticalFunc(servicePrefix+".run", func() error {
 		server, err := app.New(process.ExitContext(), &app.Config{
@@ -2476,6 +2485,24 @@ func (process *TeleportProcess) initApp(application services.Server, authClient 
 		// and (dynamic) label update.
 		server.Start()
 
+		// Create and start an agent pool.
+		agentPool, err = reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
+			Component:   teleport.ComponentApp,
+			HostUUID:    conn.ServerIdentity.ID.HostUUID,
+			ProxyAddr:   conn.TunnelProxy(),
+			Client:      conn.Client,
+			AccessPoint: conn.Client,
+			HostSigners: []ssh.Signer{conn.ServerIdentity.KeySigner},
+			Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		err = agentPool.Start()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		// Notify parent that this app has started.
 		startCh <- application.GetName()
 
@@ -2483,6 +2510,7 @@ func (process *TeleportProcess) initApp(application services.Server, authClient 
 		if err := server.Wait(); err != nil {
 			return trace.Wrap(err)
 		}
+		agentPool.Wait()
 
 		log.Infof("Exited.")
 		return nil
@@ -2494,6 +2522,7 @@ func (process *TeleportProcess) initApp(application services.Server, authClient 
 		if server != nil {
 			warnOnErr(server.Close())
 		}
+		agentPool.Stop()
 
 		log.Infof("Exited.")
 	})

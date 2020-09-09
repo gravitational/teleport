@@ -64,6 +64,7 @@ func (m *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.P
 			CreateWebSession:  true,
 			ClientRedirectURL: clientRedirectURL,
 			AppName:           "dumper", //query.Get("app"),
+			// TODO(russjones): Add clusterName to this or is RouteToCluster enough?
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)

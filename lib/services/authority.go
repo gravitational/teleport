@@ -142,6 +142,9 @@ func (c UserCertParams) Check() error {
 
 // AppTokenParams is the claims the be signed under the token.
 type AppTokenParams struct {
+	// Namespace is the namespace for the token.
+	Namespace string
+
 	// Username is the Teleport identify of the user.
 	Username string
 

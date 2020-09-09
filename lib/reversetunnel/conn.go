@@ -36,6 +36,11 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type connKey struct {
+	uuid     string
+	connType services.TunnelType
+}
+
 // remoteConn holds a connection to a remote host, either node or proxy.
 type remoteConn struct {
 	*connConfig

@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gravitational/teleport"
@@ -29,7 +30,9 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -61,7 +64,10 @@ func NewHandler(config HandlerConfig) (*Handler, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	sessionCache, err := newSessionCache()
+	sessionCache, err := newSessionCache(sessionCacheConfig{
+		AuthClient:  config.AuthClient,
+		ProxyClient: config.ProxyClient,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -103,19 +109,37 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// TODO(russjones): Add support for trusted clusters here? Or should that
-// only happen in the session cookie?
+// TODO(russjones): This is potentially very costly due to looping over all
+// clusters if a local cache for each cluster does not exist. Verify this
+// with @fspmarshall.
 func (h *Handler) IsApp(r *http.Request) (services.Server, error) {
 	appName, err := extractAppName(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	app, err := h.c.AuthClient.GetApp(r.Context(), defaults.Namespace, appName)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Loop over all clusters and applications within them looking for the
+	// application that was requested.
+	for _, remoteClient := range h.c.ProxyClient.GetSites() {
+		authClient, err := remoteClient.CachingAccessPoint()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		apps, err := authClient.GetApps(r.Context(), defaults.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for _, app := range apps {
+			if appName == app.GetName() {
+				return app, nil
+			}
+		}
+
 	}
-	return app, nil
+
+	return nil, trace.NotFound("app %v not found", appName)
 }
 
 type fragmentRequest struct {
@@ -133,8 +157,7 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request) error {
 		}
 
 		// Validate that the session exists.
-		_, err = h.sessions.get(r.Context(), req.CookieValue)
-		if err != nil {
+		if _, err := h.sessions.get(r.Context(), req.CookieValue); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -142,7 +165,7 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request) error {
 		// Set the "Set-Cookie" header on the response.
 		http.SetCookie(w, &http.Cookie{
 			Name:  cookieName,
-			Value: cookieValue,
+			Value: req.CookieValue,
 		})
 	default:
 		return trace.BadParameter("unsupported method: %q", r.Method)
@@ -158,7 +181,7 @@ func (h *Handler) authenticate(r *http.Request) (*session, error) {
 	}
 
 	// Check the cache for an authenticated session.
-	session, err := h.sessions.get(cookieValue)
+	session, err := h.sessions.get(r.Context(), cookieValue)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -180,7 +203,11 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, s *session) er
 		return trace.Wrap(err)
 	}
 
-	r.URL = testutils.ParseURI("http://localhost:8081")
+	r.URL, err = url.Parse("http://localhost:8081")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	//r.URL = testutils.ParseURI("http://localhost:8081")
 	s.fwd.ServeHTTP(w, r)
 	return nil
 }
