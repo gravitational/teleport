@@ -287,7 +287,7 @@ assuming it's set when the server starts.
     - Target group will point to your instance - point to HTTP on `3080/tcp`
     - Create a http health check, pointing to the [diagnostic endpoint](metrics_logs_reference.md).
 
-        - The default port is `3000` but if using the community image use port `3434` as outline in [Teleport AWS Proxy Service](https://github.com/gravitational/teleport/blob/master/assets/aws/files/system/teleport-proxy.service#L16).
+        - The default port is `3000` but if using the community image, use port `3434` as outlined in [Teleport AWS Proxy Service](https://github.com/gravitational/teleport/blob/master/assets/aws/files/system/teleport-proxy.service#L16).
         - The healthcheck path should be set to `/readyz`.
 
     - Create a DNS record for `teleport.acmeinc.com`
@@ -325,7 +325,7 @@ Run "sudo yum update" to apply all updates.
 ```
 
 2. Apply Updates `sudo yum update`
-3. Create a new admin user `sudo tctl users add teleport-admin ec2-user`'
+3. Create a new admin user: `sudo tctl users add teleport-admin ec2-user`
 
 ```
 [ec2-user@ip-172-30-0-111 ~]$ sudo tctl users add teleport-admin ec2-user
