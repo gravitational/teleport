@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"fmt"
 	"io/ioutil"
 	"sort"
 	"strings"
@@ -687,16 +688,31 @@ func (b *EtcdBackend) syncLegacyPrefix(ctx context.Context) error {
 	b.Infof("Migrating Teleport etcd data from legacy prefix %q to configured prefix %q", legacyDefaultPrefix, b.cfg.Key)
 	defer b.Infof("Teleport etcd data migration complete")
 
+	var errs []error
+
 	// Now we know that legacy prefix has some data newer than the configured
 	// prefix. Migrate it over to configured prefix.
 	//
-	// Start with deleting existing prefix data.
+	// First, let's backup the data under configured prefix, in case the
+	// migration kicked in by mistake.
+	backupPrefix := b.backupPrefix(b.cfg.Key)
+	b.Debugf("Backup everything under %q to %q", b.cfg.Key, backupPrefix)
+	for _, kv := range prefixData.Kvs {
+		// Replace the prefix.
+		key := backupPrefix + strings.TrimPrefix(string(kv.Key), b.cfg.Key)
+		b.Debugf("Copying %q -> %q", kv.Key, key)
+		if _, err := b.client.Put(ctx, key, string(kv.Value)); err != nil {
+			errs = append(errs, trace.WrapWithMessage(err, "failed copying %q to %q: %v", kv.Key, key, err))
+		}
+	}
+
+	// Now delete existing prefix data.
 	b.Debugf("Deleting everything under %q", b.cfg.Key)
 	if _, err := b.client.Delete(ctx, b.cfg.Key, clientv3.WithPrefix()); err != nil {
 		return trace.Wrap(err)
 	}
-	// Now copy over all data from the legacy prefix to the new one.
-	var errs []error
+
+	// Finally, copy over all the data from the legacy prefix to the new one.
 	for _, kv := range legacyData.Kvs {
 		// Replace the prefix.
 		key := b.cfg.Key + strings.TrimPrefix(string(kv.Key), legacyDefaultPrefix)
@@ -706,6 +722,10 @@ func (b *EtcdBackend) syncLegacyPrefix(ctx context.Context) error {
 		}
 	}
 	return trace.NewAggregate(errs...)
+}
+
+func (b *EtcdBackend) backupPrefix(p string) string {
+	return fmt.Sprintf("%s-backup-%s/", strings.TrimSuffix(p, "/"), b.clock.Now().UTC().Format(time.RFC3339))
 }
 
 func shouldSync(legacyData, prefixData []*mvccpb.KeyValue) bool {
