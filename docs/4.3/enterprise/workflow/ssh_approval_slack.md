@@ -104,7 +104,7 @@ For now, just think of the URL you'll use and set it in the Slack App's settings
 ![Interactive Components](../../img/enterprise/plugins/slack/setup-interactive-component.png)
 
 #### Selecting OAuth Scopes
-On the App screen, go to “OAuth and Permissions” under Features in the sidebar menu. Then scroll to Scopes, and add `incoming-webhook, users:read, users:read.email` scopes so that our plugin can post messages to your Slack channels.
+On the App screen, go to “OAuth and Permissions” under Features in the sidebar menu. Then scroll to Scopes, and add `chat:write, incoming-webhook, users:read, users:read.email` scopes so that our plugin can post messages to your Slack channels.
 
 ![API Scopes](../../img/enterprise/plugins/slack/api-scopes.png)
 
