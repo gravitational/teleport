@@ -98,8 +98,9 @@ teleport:
     password_file: '/var/lib/etcd-pass'
     # TLS certificate Name, with file contents from Overview
     tls_ca_file: '/var/lib/teleport/797cfsdf23e-4027-11e9-a020-42025ffb08c8.pem'
-    # etcd key (location) where teleport will be storing its state under:
-    prefix: 'teleport'
+    # etcd key (location) where teleport will be storing its state under.
+    # make sure it ends with a '/'!
+    prefix: '/teleport/'
 ```
 
 ### Storage: IBM Cloud File Storage

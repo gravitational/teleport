@@ -168,7 +168,7 @@ type Config struct {
 //
 // DELETE IN 4.4: legacy prefix support for migration of
 // https://github.com/gravitational/teleport/issues/2883
-const legacyDefaultPrefix = "/teleport"
+const legacyDefaultPrefix = "/teleport/"
 
 // GetName returns the name of etcd backend as it appears in 'storage/type' section
 // in Teleport YAML file. This function is a part of backend API

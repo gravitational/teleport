@@ -1631,8 +1631,9 @@ teleport:
      username: username
      password_file: /mnt/secrets/etcd-pass
 
-     # etcd key (location) where teleport will be storing its state under:
-     prefix: teleport
+     # etcd key (location) where teleport will be storing its state under.
+     # make sure it ends with a '/'!
+     prefix: /teleport/
 
      # NOT RECOMMENDED: enables insecure etcd mode in which self-signed
      # certificate will be accepted
