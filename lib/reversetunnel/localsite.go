@@ -376,9 +376,9 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 				}
 			}
 			if roundtrip != 0 {
-				s.log.WithFields(log.Fields{"latency": roundtrip}).Debugf("Ping <- %v.", rconn.conn.RemoteAddr())
+				s.log.WithFields(log.Fields{"latency": roundtrip, "nodeID": rconn.nodeID}).Debugf("Ping <- %v", rconn.conn.RemoteAddr())
 			} else {
-				log.Debugf("Ping <- %v.", rconn.conn.RemoteAddr())
+				s.log.WithFields(log.Fields{"nodeID": rconn.nodeID}).Debugf("Ping <- %v", rconn.conn.RemoteAddr())
 			}
 			tm := time.Now().UTC()
 			rconn.setLastHeartbeat(tm)
