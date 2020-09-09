@@ -1565,8 +1565,7 @@ Teleport will handle its own SSL on top of that with its own certificates.
     balancer you'll need to run Teleport with `--insecure-no-tls`
 
 If your load balancer supports HTTP health checks, configure it to hit the
-`/webapi/ping` endpoint on the proxy. This endpoint will reply `200 OK` if the
-proxy is running without problems.
+`/readyz` [diagnostics endpoint](metrics_logs_reference.md) on the proxy. This endpoint will reply `{"status":"ok"}` if the proxy is running without problems.
 
 !!! tip "NOTE"
 

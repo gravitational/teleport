@@ -285,11 +285,14 @@ assuming it's set when the server starts.
     1. Add the ACM certificate that you approved for `teleport.acmeinc.com`
     - Add a listener on the ALB for HTTPS on `443/tcp`
     - Target group will point to your instance - point to HTTP on `3080/tcp`
-    - Create a http health check, point to `/webapi/ping`.
+    - Create a http health check, pointing to the [diagnostic endpoint](metrics_logs_reference.md).
+
+        - The default port is `3000` but if using the community image use port `3434` as outline in [Teleport AWS Proxy Service](https://github.com/gravitational/teleport/blob/master/assets/aws/files/system/teleport-proxy.service#L16).
+        - The healthcheck path should be set to `/readyz`.
+
     - Create a DNS record for `teleport.acmeinc.com`
     - Point this to the public A record of the ALB as provided by Amazon.
 
-![Summary for AWS Load Balancer](img/aws/loadbalancer-review.png)
 
 3. You also need to set up a network load balancer (NLB) for the auth traffic:
     1. Set up a listener on `3025/tcp`
@@ -304,18 +307,11 @@ assuming it's set when the server starts.
 1. We are going to use `tctl` command to create a user for Teleport. The first step
 is to SSH into the newly created OSS Teleport box.
 
-`ssh -i id_rsa ec2-user@52.87.213.96`
+`ssh -i id_rsa ec2-user@[IP_OF_TELEPORT_AUTH]`
 
-^ Replace with IP given available from the EC2 instance list.
 
-```bash
-➜  ~ ssh -i id_rsa ec2-user@52.87.213.96
-Warning: Identity file id_rsa not accessible: No such file or directory.
-The authenticity of host '52.87.213.96 (52.87.213.96)' can't be established.
-ECDSA key fingerprint is SHA256:YnTAP29shPpaAbLasfwazkIx7qFsKVWP3Pw40ehiHKg.
-Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
-Warning: Permanently added '52.87.213.96' (ECDSA) to the list of known hosts.
-Enter passphrase for key '/Users/benarent/.ssh/id_rsa':
+```
+➜  ~ ssh -i id_rsa ec2-user@IP_OF_TELEPORT_AUTH
 Last login: Tue Jun 18 00:07:25 2019 from 13.88.188.155
 
        __|  __|_  )
@@ -329,22 +325,23 @@ Run "sudo yum update" to apply all updates.
 ```
 
 2. Apply Updates `sudo yum update`
-3. Create a new admin user `sudo tctl users add teleport-admin ec2-user`
-```xml
+3. Create a new admin user `sudo tctl users add teleport-admin ec2-user`'
+
+```
 [ec2-user@ip-172-30-0-111 ~]$ sudo tctl users add teleport-admin ec2-user
 Signup token has been created and is valid for 1 hours. Share this URL with the user:
 https://teleport.acmeinc.com:443/web/newuser/cea9871a42e780dff86528fa1b53f382
 
 NOTE: Make sure teleport.acmeinc.com:443 points at a Teleport proxy which users can access.
 ```
+
 ![Summary for AWS Load Balancer](img/aws/teleport-admin.png)
 
-Step 5: Finish
+#### Step 5: Finish
 You've now successfully setup a simple Teleport AMI, that uses local storage and
 has itself as a node. Next we'll look at using HA services to create a more scalable
 Teleport install.
 
-![Summary for AWS Load Balancer](img/aws/teleport-setup.png)
 
 #### Reconfiguring/using a pre-existing instance
 
