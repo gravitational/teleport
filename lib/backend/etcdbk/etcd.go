@@ -708,14 +708,20 @@ func (b *EtcdBackend) syncLegacyPrefix(ctx context.Context) error {
 
 	// Now delete existing prefix data.
 	b.Debugf("Deleting everything under %q", b.cfg.Key)
-	if _, err := b.client.Delete(ctx, b.cfg.Key, clientv3.WithPrefix()); err != nil {
+	deletePrefix := b.cfg.Key
+	// Make sure the prefix ends with a '/', so that we don't delete the backup
+	// created above or any other unrelated data.
+	if !strings.HasSuffix(deletePrefix, "/") {
+		deletePrefix += "/"
+	}
+	if _, err := b.client.Delete(ctx, deletePrefix, clientv3.WithPrefix()); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Finally, copy over all the data from the legacy prefix to the new one.
 	for _, kv := range legacyData.Kvs {
 		// Replace the prefix.
-		key := b.cfg.Key + strings.TrimPrefix(string(kv.Key), legacyDefaultPrefix)
+		key := b.cfg.Key + "/" + strings.TrimPrefix(string(kv.Key), legacyDefaultPrefix)
 		b.Debugf("Copying %q -> %q", kv.Key, key)
 		if _, err := b.client.Put(ctx, key, string(kv.Value)); err != nil {
 			errs = append(errs, trace.WrapWithMessage(err, "failed copying %q to %q: %v", kv.Key, key, err))
