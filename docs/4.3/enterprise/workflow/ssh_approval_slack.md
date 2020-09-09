@@ -57,6 +57,7 @@ EOF
 # Use tctl to create the user and role within Teleport.
 $ tctl create -f rscs.yaml
 ```
+
 !!! tip
     If you're using other plugins, you might want to create different users and roles for different plugins
 
