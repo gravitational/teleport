@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/jonboulle/clockwork"
 	"go.etcd.io/etcd/clientv3"
 
 	"github.com/gravitational/trace"
@@ -101,13 +102,23 @@ func (s *EtcdSuite) SetUpTest(c *check.C) {
 
 func (s *EtcdSuite) TearDownTest(c *check.C) {
 	ctx := context.Background()
-	_, err := s.bk.client.Delete(ctx, legacyDefaultPrefix, clientv3.WithPrefix())
+	_, err := s.bk.client.Delete(ctx, strings.TrimSuffix(legacyDefaultPrefix, "/"), clientv3.WithPrefix())
 	c.Assert(err, check.IsNil)
-	_, err = s.bk.client.Delete(ctx, customPrefix1, clientv3.WithPrefix())
+	_, err = s.bk.client.Delete(ctx, strings.TrimSuffix(customPrefix1, "/"), clientv3.WithPrefix())
 	c.Assert(err, check.IsNil)
-	_, err = s.bk.client.Delete(ctx, customPrefix2, clientv3.WithPrefix())
+	_, err = s.bk.client.Delete(ctx, strings.TrimSuffix(customPrefix2, "/"), clientv3.WithPrefix())
 	c.Assert(err, check.IsNil)
 	err = s.bk.Close()
+	c.Assert(err, check.IsNil)
+}
+
+func (s *EtcdSuite) reset(c *check.C) {
+	ctx := context.Background()
+	_, err := s.bk.client.Delete(ctx, strings.TrimSuffix(legacyDefaultPrefix, "/"), clientv3.WithPrefix())
+	c.Assert(err, check.IsNil)
+	_, err = s.bk.client.Delete(ctx, strings.TrimSuffix(customPrefix1, "/"), clientv3.WithPrefix())
+	c.Assert(err, check.IsNil)
+	_, err = s.bk.client.Delete(ctx, strings.TrimSuffix(customPrefix2, "/"), clientv3.WithPrefix())
 	c.Assert(err, check.IsNil)
 }
 
@@ -202,31 +213,24 @@ func (s *EtcdSuite) TestSyncLegacyPrefix(c *check.C) {
 	ctx := context.Background()
 	s.bk.cfg.Key = customPrefix1
 	c.Assert(s.bk.cfg.Validate(), check.IsNil)
+	s.bk.clock = clockwork.NewFakeClock()
 
-	reset := func() {
-		_, err := s.bk.client.Delete(ctx, legacyDefaultPrefix, clientv3.WithPrefix())
-		c.Assert(err, check.IsNil)
-		_, err = s.bk.client.Delete(ctx, customPrefix1, clientv3.WithPrefix())
-		c.Assert(err, check.IsNil)
-		_, err = s.bk.client.Delete(ctx, customPrefix2, clientv3.WithPrefix())
-		c.Assert(err, check.IsNil)
-	}
 	snapshot := func() map[string]string {
 		kvs := make(map[string]string)
 
-		resp, err := s.bk.client.Get(ctx, legacyDefaultPrefix, clientv3.WithPrefix())
+		resp, err := s.bk.client.Get(ctx, strings.TrimSuffix(legacyDefaultPrefix, "/"), clientv3.WithPrefix())
 		c.Assert(err, check.IsNil)
 		for _, kv := range resp.Kvs {
 			kvs[string(kv.Key)] = string(kv.Value)
 		}
 
-		resp, err = s.bk.client.Get(ctx, customPrefix1, clientv3.WithPrefix())
+		resp, err = s.bk.client.Get(ctx, strings.TrimSuffix(customPrefix1, "/"), clientv3.WithPrefix())
 		c.Assert(err, check.IsNil)
 		for _, kv := range resp.Kvs {
 			kvs[string(kv.Key)] = string(kv.Value)
 		}
 
-		resp, err = s.bk.client.Get(ctx, customPrefix2, clientv3.WithPrefix())
+		resp, err = s.bk.client.Get(ctx, strings.TrimSuffix(customPrefix2, "/"), clientv3.WithPrefix())
 		c.Assert(err, check.IsNil)
 		for _, kv := range resp.Kvs {
 			kvs[string(kv.Key)] = string(kv.Value)
@@ -236,13 +240,13 @@ func (s *EtcdSuite) TestSyncLegacyPrefix(c *check.C) {
 	}
 
 	// Make sure the prefixes start off clean.
-	reset()
+	s.reset(c)
 
 	c.Log("both prefixes empty")
 	err := s.bk.syncLegacyPrefix(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(snapshot(), check.DeepEquals, map[string]string{})
-	reset()
+	s.reset(c)
 
 	c.Log("data in custom prefix, no data in legacy prefix; custom prefix should be preserved")
 	_, err = s.bk.client.Put(ctx, path.Join(customPrefix1, "0"), "c0")
@@ -255,7 +259,7 @@ func (s *EtcdSuite) TestSyncLegacyPrefix(c *check.C) {
 		path.Join(customPrefix1, "0"): "c0",
 		path.Join(customPrefix1, "1"): "c1",
 	})
-	reset()
+	s.reset(c)
 
 	c.Log("no data in custom prefix, data in legacy prefix copied over; custom prefix should be populated")
 	_, err = s.bk.client.Put(ctx, path.Join(legacyDefaultPrefix, "0"), "l0")
@@ -270,7 +274,7 @@ func (s *EtcdSuite) TestSyncLegacyPrefix(c *check.C) {
 		path.Join(customPrefix1, "0"):       "l0",
 		path.Join(customPrefix1, "1"):       "l1",
 	})
-	reset()
+	s.reset(c)
 
 	c.Log("data in both prefixes, custom prefix is newer; custom prefix should be preserved")
 	_, err = s.bk.client.Put(ctx, path.Join(legacyDefaultPrefix, "0"), "l0")
@@ -295,9 +299,10 @@ func (s *EtcdSuite) TestSyncLegacyPrefix(c *check.C) {
 		path.Join(customPrefix1, "1"):       "c1",
 		path.Join(customPrefix1, "2"):       "c2",
 	})
-	reset()
+	s.reset(c)
 
 	c.Log("data in both prefixes, legacy prefix is newer; custom prefix should be replaced")
+	backupPrefix := s.bk.backupPrefix(customPrefix1)
 	_, err = s.bk.client.Put(ctx, path.Join(legacyDefaultPrefix, "0"), "l0")
 	c.Assert(err, check.IsNil)
 	_, err = s.bk.client.Put(ctx, path.Join(legacyDefaultPrefix, "1"), "l1")
@@ -319,8 +324,11 @@ func (s *EtcdSuite) TestSyncLegacyPrefix(c *check.C) {
 		path.Join(customPrefix1, "0"):       "l0",
 		path.Join(customPrefix1, "1"):       "l1",
 		path.Join(customPrefix1, "3"):       "l3",
+		path.Join(backupPrefix, "0"):        "c0",
+		path.Join(backupPrefix, "1"):        "c1",
+		path.Join(backupPrefix, "2"):        "c2",
 	})
-	reset()
+	s.reset(c)
 
 	c.Log("data in custom prefix that partially matches the legacy prefix, no data in legacy prefix; custom prefix should be preserved")
 	_, err = s.bk.client.Put(ctx, path.Join(customPrefix2, "0"), "c0")
@@ -333,5 +341,5 @@ func (s *EtcdSuite) TestSyncLegacyPrefix(c *check.C) {
 		path.Join(customPrefix2, "0"): "c0",
 		path.Join(customPrefix2, "1"): "c1",
 	})
-	reset()
+	s.reset(c)
 }
