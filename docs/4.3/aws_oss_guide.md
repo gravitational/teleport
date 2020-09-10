@@ -82,6 +82,7 @@ to specify `New Image` from the streaming options. DynamoDB back-end supports tw
 types of Teleport data:
 
 * Cluster state
+* Audit log events
 
 See [DynamoDB Admin Guide for more information](https://gravitational.com/teleport/docs/admin-guide/#using-dynamodb)
 
