@@ -18,6 +18,7 @@ limitations under the License.
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -132,7 +133,7 @@ func (h *Handler) IsApp(r *http.Request) (services.Server, error) {
 		}
 
 		for _, app := range apps {
-			if appName == app.GetName() {
+			if app.GetAppName() == appName {
 				return app, nil
 			}
 		}
@@ -174,17 +175,24 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h *Handler) authenticate(r *http.Request) (*session, error) {
-	// Extract the session cookie from the *http.Request.
-	cookieValue, err := extractCookie(r)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	//// Extract the session cookie from the *http.Request.
+	//cookieValue, err := extractCookie(r)
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
 
-	// Check the cache for an authenticated session.
-	session, err := h.sessions.get(r.Context(), cookieValue)
+	//// Check the cache for an authenticated session.
+	//session, err := h.sessions.get(r.Context(), cookieValue)
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+
+	// Remove this.
+	session, err := h.sessions.newSession(context.Background(), "123", nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	fmt.Printf("--> got a session: %v.\n", session)
 
 	return session, nil
 }
@@ -198,10 +206,12 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, s *session) er
 	// access to the application.
 	//
 	// This code path should be profiled if it ever becomes a bottleneck.
-	err := s.checker.CheckAccessToApp(s.app)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	//err := s.checker.CheckAccessToApp(s.app)
+	//if err != nil {
+	//	return trace.Wrap(err)
+	//}
+
+	var err error
 
 	r.URL, err = url.Parse("http://localhost:8081")
 	if err != nil {

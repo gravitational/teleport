@@ -28,6 +28,22 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// TODO(russjones): Can we hit the cache here instead?
+func (s *AuthServer) getApp(ctx context.Context, appName string) (services.Server, error) {
+	// Check if the caller has access to the app requested.
+	//app, err := s.cache.GetApps(ctx, defaults.Namespace)
+	apps, err := s.Presence.GetApps(ctx, defaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, app := range apps {
+		if app.GetAppName() == appName {
+			return app, nil
+		}
+	}
+	return nil, trace.NotFound("%q not found", appName)
+}
+
 func (s *AuthServer) createAppSession(ctx context.Context, identity tlsca.Identity, req services.CreateAppSessionRequest) (services.WebSession, error) {
 	if err := req.Check(); err != nil {
 		return nil, trace.Wrap(err)
@@ -40,8 +56,7 @@ func (s *AuthServer) createAppSession(ctx context.Context, identity tlsca.Identi
 	}
 
 	// Check if the caller has access to the app requested.
-	//app, err := s.cache.GetApp(ctx, defaults.Namespace, req.AppName)
-	app, err := s.Presence.GetApp(ctx, defaults.Namespace, req.AppName)
+	app, err := s.getApp(ctx, req.AppName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

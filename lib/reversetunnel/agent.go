@@ -84,6 +84,9 @@ type AgentConfig struct {
 	// Server is a SSH server that can handle a connection (perform a handshake
 	// then process). Only set with the agent is running within a node.
 	Server ConnHandler
+	// AppServer is an application proxy (AAP) that forwards requests to the
+	// target node.
+	AppServer ConnHandler
 	// ReverseTunnelServer holds all reverse tunnel connections.
 	ReverseTunnelServer Server
 	// LocalClusterName is the name of the cluster this agent is running in.
@@ -115,6 +118,7 @@ func (a *AgentConfig) CheckAndSetDefaults() error {
 	if len(a.Username) == 0 {
 		return trace.BadParameter("missing parameter Username")
 	}
+
 	if a.Clock == nil {
 		a.Clock = clockwork.NewRealClock()
 	}
@@ -436,6 +440,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 				a.Warningf("Failed to accept transport request: %v.", err)
 				continue
 			}
+			fmt.Printf("--> creating transport: %v.\n", a.AppServer)
 
 			t := &transport{
 				log:                 a.Entry,
@@ -446,6 +451,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 				requestCh:           req,
 				sconn:               conn.Conn,
 				server:              a.Server,
+				appServer:           a.AppServer,
 				component:           teleport.ComponentReverseTunnelAgent,
 				reverseTunnelServer: a.ReverseTunnelServer,
 				localClusterName:    a.LocalClusterName,

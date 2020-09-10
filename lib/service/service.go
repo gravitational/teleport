@@ -2427,11 +2427,12 @@ func (process *TeleportProcess) initApps() {
 				Version: services.V2,
 				Metadata: services.Metadata{
 					Namespace: defaults.Namespace,
-					Name:      app.Name,
+					Name:      process.Config.HostUUID,
 					Labels:    app.StaticLabels,
 				},
 				Spec: services.ServerSpecV2{
 					Protocol:     app.Protocol,
+					AppName:      app.Name,
 					InternalAddr: app.InternalAddr.String(),
 					PublicAddr:   app.PublicAddr.String(),
 					CmdLabels:    services.LabelsToV2(app.DynamicLabels),
@@ -2491,6 +2492,7 @@ func (process *TeleportProcess) initApp(conn *Connector, authClient auth.AccessP
 			HostUUID:    conn.ServerIdentity.ID.HostUUID,
 			ProxyAddr:   conn.TunnelProxy(),
 			Client:      conn.Client,
+			AppServer:   server,
 			AccessPoint: conn.Client,
 			HostSigners: []ssh.Signer{conn.ServerIdentity.KeySigner},
 			Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],

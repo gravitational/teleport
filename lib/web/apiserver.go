@@ -132,6 +132,7 @@ func (h *RewritingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// apps to figure out to discover request destination: apps handler or the
 	// Web UI.
 	_, err := h.appHandler.IsApp(r)
+	fmt.Printf("--> IsApp: %v.\n", err)
 
 	switch {
 	// If the error was specifically that the application was not found,
@@ -179,6 +180,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	if h.clock == nil {
 		h.clock = clockwork.NewRealClock()
 	}
+
+	//h.GET("/webapi/tmp", httplib.MakeHandler(h.tmp))
 
 	// ping endpoint is used to check if the server is up. the /webapi/ping
 	// endpoint returns the default authentication method and configuration that
@@ -773,11 +776,14 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 	if connectorID == "" {
 		return nil, trace.BadParameter("missing connector_id query parameter")
 	}
+	appName := query.Get("app")
 
 	// If the caller is requested to be forwarded to an application after login,
 	// make sure the application is a registered Teleport application.
-	if err := h.validateApp(r.Context(), query.Get("app")); err != nil {
-		return nil, trace.Wrap(err)
+	if appName != "" {
+		if err := h.validateApp(r.Context(), appName); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	csrfToken, err := csrf.ExtractTokenFromCookie(r)
@@ -821,11 +827,14 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 	if connectorID == "" {
 		return nil, trace.BadParameter("missing connector_id query parameter")
 	}
+	appName := query.Get("app")
 
 	// If the caller is requested to be forwarded to an application after login,
 	// make sure the application is a registered Teleport application.
-	if err := h.validateApp(r.Context(), query.Get("app")); err != nil {
-		return nil, trace.Wrap(err)
+	if appName != "" {
+		if err := h.validateApp(r.Context(), appName); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	csrfToken, err := csrf.ExtractTokenFromCookie(r)
@@ -1306,6 +1315,37 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		SessionID:  session.GetName(),
 	}, nil
 }
+
+//func (h *Handler) tmp(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+//	sessionID := r.URL.Query()["s"][0]
+//	bearerToken := r.URL.Query()["b"][0]
+//
+//	fmt.Printf("--> sessionID: %v, bearerToken: %v.\n", sessionID, bearerToken)
+//
+//	//// Get a client to auth with the identity of the logged in user and use it
+//	//// to request the creation of an application session for this user.
+//	//client, err := ctx.GetClient()
+//	//if err != nil {
+//	//	return nil, trace.Wrap(err)
+//	//}
+//
+//	session, err := h.GetProxyClient().CreateAppSession(r.Context(), services.CreateAppSessionRequest{
+//		//session, err := client.CreateAppSession(r.Context(), services.CreateAppSessionRequest{
+//		AppName:     "dumper",
+//		ClusterName: "example.com",
+//		SessionID:   sessionID,
+//		BearerToken: bearerToken,
+//	})
+//	if err != nil {
+//		return nil, trace.Wrap(err)
+//	}
+//
+//	return &createAppSessionResponse{
+//		Username:   session.GetUser(),
+//		ParentHash: session.GetParentHash(),
+//		SessionID:  session.GetName(),
+//	}, nil
+//}
 
 // deleteSession is called to sign out user
 //
@@ -2213,15 +2253,19 @@ func (h *Handler) validateTrustedCluster(w http.ResponseWriter, r *http.Request,
 // validateApp is called if the caller requested a redirect to an application
 // after login, make sure that the application exists.
 func (h *Handler) validateApp(ctx context.Context, appName string) error {
-	if appName != "" {
-		if _, err := h.auth.proxyClient.GetApp(ctx, defaults.Namespace, appName); err != nil {
-			if !trace.IsNotFound(err) {
-				log.Debugf("Failed to lookup application: %v.", err)
-			}
-			return trace.BadParameter("invalid application")
+	if appName == "" {
+		return trace.BadParameter("application name missing")
+	}
+	apps, err := h.auth.proxyClient.GetApps(ctx, defaults.Namespace)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, app := range apps {
+		if app.GetAppName() == appName {
+			return nil
 		}
 	}
-	return nil
+	return trace.NotFound("%q not registered with cluster", appName)
 }
 
 func (h *Handler) String() string {

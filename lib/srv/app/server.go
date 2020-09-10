@@ -188,6 +188,7 @@ func (s *Server) HandleConnection(channelConn net.Conn) {
 	if err != nil {
 		s.log.Errorf("Failed to connect to %v: %v.", s.config.App.GetName(), err)
 		channelConn.Close()
+		return
 	}
 
 	// Keep a count of the number of active connections. Used in tests to check
@@ -213,10 +214,14 @@ func (s *Server) HandleConnection(channelConn net.Conn) {
 		errorCh <- err
 	}()
 
-	// Block until copy is complete in either direction. The other direction
-	// will get cleaned up automatically.
-	if err = <-errorCh; err != nil && err != io.EOF {
-		s.log.Errorf("Connection to %v closed due to an error: %v.", s.config.App.GetName(), err)
+	// Block until connection is closed.
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-errorCh:
+			if err != nil && err != io.EOF {
+				s.log.Debugf("Proxy transport failed: %v.", err)
+			}
+		}
 	}
 }
 
