@@ -206,6 +206,11 @@ func (s *EtcdSuite) assertKV(ctx context.Context, c *check.C, key, val string) {
 }
 
 func (s *EtcdSuite) TestSyncLegacyPrefix(c *check.C) {
+	// Stop the watch goroutine to allow us to modify s.bk.cfg.Key without data
+	// races.
+	s.bk.cancel()
+	<-s.bk.watchDone
+
 	ctx := context.Background()
 	s.bk.cfg.Key = customPrefix1
 	c.Assert(s.bk.cfg.Validate(), check.IsNil)
