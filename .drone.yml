@@ -16,6 +16,10 @@ environment:
 #   repo:
 #     include:
 #       - gravitational/*
+trigger:
+  event:
+    cron:
+      - none
 
 workspace:
   path: /go
@@ -151,6 +155,10 @@ name: test-docs-internal
 #   repo:
 #     include:
 #       - gravitational/*
+trigger:
+  event:
+    cron:
+      - none
 
 workspace:
   path: /go
@@ -226,6 +234,10 @@ name: test-docs-external
 #   repo:
 #     include:
 #       - gravitational/*
+trigger:
+  event:
+    cron:
+      - none
 
 workspace:
   path: /go
@@ -507,8 +519,8 @@ trigger:
       - gravitational/*
 
 #TODO(gus): testing
-depends_on:
-  - test
+#depends_on:
+#  - test
 
 workspace:
   path: /go
@@ -2822,6 +2834,6 @@ steps:
 
 ---
 kind: signature
-hmac: 832c98715adf053c2ee98d2a2b7b958cd9b55584c4a2efddc9d77ddb19a8ff5c
+hmac: cef07f133c51a0b3a83e8a26d5131d064c246fbd74769c2a8fa7a2e8dbe94684
 
 ...
