@@ -1565,9 +1565,9 @@ Teleport will handle its own SSL on top of that with its own certificates.
     balancer you'll need to run Teleport with `--insecure-no-tls`
 
 If your load balancer supports HTTP health checks, configure it to hit the
-`/readyz` [diagnostics endpoint](metrics_logs_reference.md) on the proxy. This endpoint
+`/readyz` [diagnostics endpoint](metrics_logs_reference.md) on machines running Teleport. This endpoint
 must be enabled by using the `--diag-addr` flag to teleport start: `teleport start --diag-addr=127.0.0.1:3000`
-The http://127.0.0.1:3000/readyz endpoint will reply `{"status":"ok"}` if the proxy
+The http://127.0.0.1:3000/readyz endpoint will reply `{"status":"ok"}` if the Teleport service
 is running without problems.
 
 !!! tip "NOTE"
