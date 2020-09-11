@@ -556,7 +556,7 @@ func setupNoninteractiveClient(tc *client.TeleportClient, key *client.Key) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tc.TLS, err = key.ClientTLSConfig()
+	tc.TLS, err = key.ClientTLSConfig(nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1028,7 +1028,11 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 			hostAuthFunc ssh.HostKeyCallback
 		)
 		// read the ID file and create an "auth method" from it:
-		key, hostAuthFunc, err = common.LoadIdentity(cf.IdentityFileIn)
+		key, err = common.LoadIdentity(cf.IdentityFileIn)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		hostAuthFunc, err := key.HostKeyCallback()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1065,7 +1069,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		}
 
 		if len(key.TLSCert) > 0 {
-			c.TLS, err = key.ClientTLSConfig()
+			c.TLS, err = key.ClientTLSConfig(nil)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1231,7 +1235,7 @@ func authFromIdentity(k *client.Key) (ssh.AuthMethod, error) {
 
 // onShow reads an identity file (a public SSH key or a cert) and dumps it to stdout
 func onShow(cf *CLIConf) {
-	key, _, err := common.LoadIdentity(cf.IdentityFileIn)
+	key, err := common.LoadIdentity(cf.IdentityFileIn)
 	if err != nil {
 		utils.FatalError(err)
 	}
