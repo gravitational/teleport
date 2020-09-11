@@ -2319,7 +2319,7 @@ steps:
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
-  - name: Build OSS/Enterprise Docker images
+  - name: Build/push OSS/Enterprise Docker images
     image: docker
     environment:
       UID: 1000
@@ -2343,7 +2343,7 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - make image-ci publish-ci
 
-  - name: Build FIPS Docker image
+  - name: Build/push FIPS Docker image
     image: docker
     environment:
       UID: 1000
@@ -2840,6 +2840,6 @@ steps:
 
 ---
 kind: signature
-hmac: 64bd533c312addc61ef4d1103a0c6993b6c907385e1bb49110ae0d13f5ca7f8a
+hmac: fb74a5b64ecb8be839f14d51aa731e6cc26a6c88661c2bd7c64d5c4d98aabb38
 
 ...
