@@ -2290,9 +2290,9 @@ steps:
       ARCH: amd64
     settings:
       username:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+        from_secret: QUAYIO_DOCKER_USERNAME
       password:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+        from_secret: QUAYIO_DOCKER_PASSWORD
     volumes:
       - name: dockersock
         path: /var/run
@@ -2302,10 +2302,7 @@ steps:
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      # TODO
-      # this should be changed to "make image publish" when we want to actually cut over
-      # to building public-facing Docker images using Drone
-      - make image
+      - make image-ci publish-ci
 
   - name: Build FIPS Docker image
     image: docker
@@ -2317,9 +2314,9 @@ steps:
       ARCH: amd64
     settings:
       username:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+        from_secret: QUAYIO_DOCKER_USERNAME
       password:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+        from_secret: QUAYIO_DOCKER_PASSWORD
     volumes:
       - name: dockersock
         path: /var/run
@@ -2336,7 +2333,7 @@ steps:
       # TODO
       # this should be changed to "make -C e image-fips publish-fips" when we want to
       # actually cut over to building public-facing Docker images using Drone
-      - make -C e image-fips
+      - make -C e image-fips-ci publish-fips-ci
 
 services:
   - name: Start Docker
@@ -2420,13 +2417,26 @@ steps:
       - |
         if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
           echo "---> Building production OSS AMIs"
+          echo "---> Note: these AMIs will not be made public until the 'promote' step is run"
           make oss-ci-build
-          echo "---> Making OSS AMIs public"
-          make change-amis-to-public-oss
         else
           echo "---> Building debug OSS AMIs"
           make oss
         fi
+
+  - name: Sync OSS build timestamp to S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - aws s3 cp /go/src/github.com/gravitational/teleport/assets/aws/files/build/oss_build_timestamp.txt s3://$AWS_S3_BUCKET/teleport/ami/$${VERSION}/
 
 services:
   - name: Start Docker
@@ -2513,15 +2523,26 @@ steps:
       - |
         if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
           echo "---> Building production Enterprise AMIs"
+          echo "---> Note: these AMIs will not be made public until the 'promote' step is run"
           make ent-ci-build
-          echo "---> Making Enterprise AMIs public"
-          make change-amis-to-public-ent
-          echo "---> Making Enterprise FIPS AMIs public"
-          make change-amis-to-public-ent-fips
         else
           echo "---> Building debug Enterprise AMIs"
           make ent
         fi
+
+  - name: Sync Enterprise build timestamp to S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - aws s3 cp /go/src/github.com/gravitational/teleport/assets/aws/files/build/ent_build_timestamp.txt s3://$AWS_S3_BUCKET/teleport/ami/$${VERSION}/
 
 services:
   - name: Start Docker
@@ -2657,7 +2678,7 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
-name: promote-artifacts
+name: promote-build
 
 trigger:
   event:
@@ -2703,8 +2724,65 @@ steps:
       target: teleport/${DRONE_TAG##v}/
       strip_prefix: /go/src/github.com/gravitational/teleport/
 
+  - name: Pull and retag Docker images
+    image: docker
+    settings:
+      docker_staging_username:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      docker_staging_password:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+      docker_production_username:
+        from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      docker_production_password:
+        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - chown -R $UID:$GID /go
+      - export VERSION=${DRONE_TAG##v}
+      # authenticate with staging credentials
+      - docker login -u="$PLUGIN_DOCKER_STAGING_USERNAME" -p="$PLUGIN_DOCKER_STAGING_PASSWORD" quay.io
+      # pull 'temporary' CI-built images
+      - docker pull quay.io/gravitational/teleport-ci:$${VERSION}
+      - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}
+      - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips
+      # retag images to production naming
+      - docker tag quay.io/gravitational/teleport-ci:$${VERSION} quay.io/gravitational/teleport:$${VERSION}
+      - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION} quay.io/gravitational/teleport-ent:$${VERSION}
+      - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips quay.io/gravitational/teleport-ent:$${VERSION}-fips
+      # reauthenticate with production credentials
+      - docker logout quay.io && docker login -u="$PLUGIN_DOCKER_PRODUCTION_USERNAME" -p="$PLUGIN_DOCKER_PRODUCTION_PASSWORD" quay.io
+      # push production images
+      - docker push quay.io/gravitational/teleport:$${VERSION}
+      - docker push quay.io/gravitational/teleport-ent:$${VERSION}
+      - docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
+
+  - name: Make AMIs public
+    image: hashicorp/packer
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache aws-cli jq make
+      - mkdir -p /go/src/github.com/gravitational/teleport/assets/aws/files/build
+      - cd /go/src/github.com/gravitational/teleport/assets/aws
+      - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ami/${DRONE_TAG##v}/ ./files/build/
+      - |
+        echo "---> Making OSS AMIs public"
+        make change-amis-to-public-oss
+        echo "---> Making Enterprise AMIs public"
+        make change-amis-to-public-ent
+        echo "---> Making Enterprise FIPS AMIs public"
+        make change-amis-to-public-ent-fips
+
 ---
 kind: signature
-hmac: bcd363559f085905edc708b7ea225610da0cba0568ee70f8e1417e51013b4c9f
+hmac: 4899206ba9ce0f2971a5c36855a89a025d26067cf8db610ae52e8adf55fbeca3
 
 ...

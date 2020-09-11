@@ -12,6 +12,7 @@
 #   for pre-releases, we use   "1.0.0-beta.2" format
 VERSION=4.4.0-dev
 
+DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 
 # These are standard autotools variables, don't change them please
@@ -414,6 +415,22 @@ image: clean docker-binaries
 publish: image
 	docker push $(DOCKER_IMAGE):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish; fi
+
+# Docker image build in CI.
+# This is run to build and push Docker images to a private repository as part of the build process.
+# When we are ready to make the images public after testing (i.e. when publishing a release), we pull these
+# images down, retag them and push them up to the production repo so they're available for use.
+# This job can be removed/consolidated after we switch over completely from using Jenkins to using Drone.
+.PHONY: image-ci
+image-ci: clean docker-binaries
+	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_CI):$(VERSION)
+	if [ -f e/Makefile ]; then $(MAKE) -C e image-ci; fi
+
+.PHONY: publish-ci
+publish-ci: image-ci
+	docker push $(DOCKER_IMAGE_CI):$(VERSION)
+	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
 
 .PHONY: print-version
 print-version:
