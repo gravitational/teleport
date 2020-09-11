@@ -230,9 +230,11 @@ func (s *MainTestSuite) TestIdentityRead(c *check.C) {
 	}
 	for _, id := range ids {
 		// test reading:
-		k, cb, err := common.LoadIdentity(fmt.Sprintf("../../fixtures/certs/identities/%s", id))
+		k, err := common.LoadIdentity(fmt.Sprintf("../../fixtures/certs/identities/%s", id))
 		c.Assert(err, check.IsNil)
 		c.Assert(k, check.NotNil)
+		cb, err := k.HostKeyCallback()
+		c.Assert(err, check.IsNil)
 		c.Assert(cb, check.IsNil)
 
 		// test creating an auth method from the key:
@@ -240,15 +242,17 @@ func (s *MainTestSuite) TestIdentityRead(c *check.C) {
 		c.Assert(err, check.IsNil)
 		c.Assert(am, check.NotNil)
 	}
-	k, _, err := common.LoadIdentity("../../fixtures/certs/identities/lonekey")
+	k, err := common.LoadIdentity("../../fixtures/certs/identities/lonekey")
 	c.Assert(k, check.IsNil)
 	c.Assert(err, check.NotNil)
 
 	// lets read an indentity which includes a CA cert
-	k, hostAuthCallback, err := common.LoadIdentity("../../fixtures/certs/identities/key-cert-ca.pem")
+	k, err = common.LoadIdentity("../../fixtures/certs/identities/key-cert-ca.pem")
 	c.Assert(err, check.IsNil)
 	c.Assert(k, check.NotNil)
-	c.Assert(hostAuthCallback, check.NotNil)
+	cb, err := k.HostKeyCallback()
+	c.Assert(err, check.IsNil)
+	c.Assert(cb, check.NotNil)
 	// prepare the cluster CA separately
 	certBytes, err := ioutil.ReadFile("../../fixtures/certs/identities/ca.pem")
 	c.Assert(err, check.IsNil)
@@ -256,16 +260,16 @@ func (s *MainTestSuite) TestIdentityRead(c *check.C) {
 	c.Assert(err, check.IsNil)
 	var a net.Addr
 	// host auth callback must succeed
-	err = hostAuthCallback(hosts[0], a, cert)
+	err = cb(hosts[0], a, cert)
 	c.Assert(err, check.IsNil)
 
 	// load an identity which include TLS certificates
-	k, _, err = common.LoadIdentity("../../fixtures/certs/identities/tls.pem")
+	k, err = common.LoadIdentity("../../fixtures/certs/identities/tls.pem")
 	c.Assert(err, check.IsNil)
 	c.Assert(k, check.NotNil)
 	c.Assert(k.TLSCert, check.NotNil)
 	// generate a TLS client config
-	conf, err := k.ClientTLSConfig()
+	conf, err := k.ClientTLSConfig(nil)
 	c.Assert(err, check.IsNil)
 	c.Assert(conf, check.NotNil)
 	// ensure that at least root CA was successfully loaded

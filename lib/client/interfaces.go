@@ -21,12 +21,15 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"net"
 	"runtime"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -80,12 +83,18 @@ func (k *Key) TLSCAs() (result [][]byte) {
 	return result
 }
 
+// SSHCAs returns all SSH CA certificates from this key
+func (k *Key) SSHCAs() (result [][]byte) {
+	for _, ca := range k.TrustedCA {
+		result = append(result, ca.HostCertificates...)
+	}
+	return result
+}
+
 // TLSConfig returns client TLS configuration used
 // to authenticate against API servers
-func (k *Key) ClientTLSConfig() (*tls.Config, error) {
-	// Because Teleport clients can't be configured (yet), they take the default
-	// list of cipher suites from Go.
-	tlsConfig := utils.TLSConfig(nil)
+func (k *Key) ClientTLSConfig(cipherSuites []uint16) (*tls.Config, error) {
+	tlsConfig := utils.TLSConfig(cipherSuites)
 
 	pool := x509.NewCertPool()
 	for _, ca := range k.TrustedCA {
@@ -111,28 +120,43 @@ func (k *Key) ClientTLSConfig() (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
+// ClientSSHConfig returns an ssh.ClientConfig with SSH credentials from this
+// Key and HostKeyCallback matching SSH CAs in the Key.
+func (k *Key) ClientSSHConfig() (*ssh.ClientConfig, error) {
+	username, err := k.CertUsername()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to extract username from SSH certificate")
+	}
+	authMethod, err := k.AsAuthMethod()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to convert identity file to auth method")
+	}
+	hostKeyCallback, err := k.HostKeyCallback()
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to convert identity file to HostKeyCallback")
+	}
+	return &ssh.ClientConfig{
+		User:            username,
+		Auth:            []ssh.AuthMethod{authMethod},
+		HostKeyCallback: hostKeyCallback,
+		Timeout:         defaults.DefaultDialTimeout,
+	}, nil
+}
+
 // CertUsername returns the name of the Teleport user encoded in the SSH certificate.
 func (k *Key) CertUsername() (string, error) {
-	pubKey, _, _, _, err := ssh.ParseAuthorizedKey(k.Cert)
+	cert, err := k.SSHCert()
 	if err != nil {
 		return "", trace.Wrap(err)
-	}
-	cert, ok := pubKey.(*ssh.Certificate)
-	if !ok {
-		return "", trace.BadParameter("expected SSH certificate, got public key")
 	}
 	return cert.KeyId, nil
 }
 
 // CertPrincipals returns the principals listed on the SSH certificate.
 func (k *Key) CertPrincipals() ([]string, error) {
-	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(k.Cert)
+	cert, err := k.SSHCert()
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	cert, ok := publicKey.(*ssh.Certificate)
-	if !ok {
-		return nil, trace.BadParameter("no certificate found")
 	}
 	return cert.ValidPrincipals, nil
 }
@@ -141,7 +165,7 @@ func (k *Key) CertPrincipals() ([]string, error) {
 // of the []*agent.AddedKey slice need to be loaded into the agent!
 func (k *Key) AsAgentKeys() ([]agent.AddedKey, error) {
 	// unmarshal certificate bytes into a ssh.PublicKey
-	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(k.Cert)
+	cert, err := k.SSHCert()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -153,14 +177,14 @@ func (k *Key) AsAgentKeys() ([]agent.AddedKey, error) {
 	}
 
 	// put a teleport identifier along with the teleport user into the comment field
-	comment := fmt.Sprintf("teleport:%v", publicKey.(*ssh.Certificate).KeyId)
+	comment := fmt.Sprintf("teleport:%v", cert.KeyId)
 
 	// On Windows, return the certificate with the private key embedded.
 	if runtime.GOOS == teleport.WindowsOS {
 		return []agent.AddedKey{
 			{
 				PrivateKey:       privateKey,
-				Certificate:      publicKey.(*ssh.Certificate),
+				Certificate:      cert,
 				Comment:          comment,
 				LifetimeSecs:     0,
 				ConfirmBeforeUse: false,
@@ -183,7 +207,7 @@ func (k *Key) AsAgentKeys() ([]agent.AddedKey, error) {
 	return []agent.AddedKey{
 		{
 			PrivateKey:       privateKey,
-			Certificate:      publicKey.(*ssh.Certificate),
+			Certificate:      cert,
 			Comment:          comment,
 			LifetimeSecs:     0,
 			ConfirmBeforeUse: false,
@@ -226,13 +250,9 @@ func (k *Key) TLSCertValidBefore() (t time.Time, err error) {
 
 // CertValidBefore returns the time of the cert expiration
 func (k *Key) CertValidBefore() (t time.Time, err error) {
-	pcert, _, _, _, err := ssh.ParseAuthorizedKey(k.Cert)
+	cert, err := k.SSHCert()
 	if err != nil {
 		return t, trace.Wrap(err)
-	}
-	cert, ok := pcert.(*ssh.Certificate)
-	if !ok {
-		return t, trace.Errorf("not supported certificate type")
 	}
 	return time.Unix(int64(cert.ValidBefore), 0), nil
 }
@@ -287,4 +307,35 @@ func (k *Key) CheckCert() error {
 	}
 
 	return nil
+}
+
+// HostKeyCallback returns an ssh.HostKeyCallback that validates host
+// keys/certs against SSH CAs in the Key.
+func (k *Key) HostKeyCallback() (ssh.HostKeyCallback, error) {
+	var trustedKeys []ssh.PublicKey
+	for _, caCert := range k.SSHCAs() {
+		_, _, publicKey, _, _, err := ssh.ParseKnownHosts(caCert)
+		if err != nil {
+			return nil, trace.BadParameter("failed parsing CA cert: %v; raw CA cert line: %q", err, caCert)
+		}
+		trustedKeys = append(trustedKeys, publicKey)
+	}
+	// No CAs are provided, return a nil callback which will prompt the user
+	// for trust.
+	if len(trustedKeys) == 0 {
+		return nil, nil
+	}
+
+	return func(host string, a net.Addr, hostKey ssh.PublicKey) error {
+		clusterCert, ok := hostKey.(*ssh.Certificate)
+		if ok {
+			hostKey = clusterCert.SignatureKey
+		}
+		for _, trustedKey := range trustedKeys {
+			if sshutils.KeysEqual(trustedKey, hostKey) {
+				return nil
+			}
+		}
+		return trace.AccessDenied("host %v is untrusted", host)
+	}, nil
 }
