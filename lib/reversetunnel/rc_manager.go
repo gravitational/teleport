@@ -91,9 +91,6 @@ func (c *RemoteClusterTunnelManagerConfig) CheckAndSetDefaults() error {
 	if c.LocalCluster == "" {
 		return trace.BadParameter("missing LocalCluster in RemoteClusterTunnelManagerConfig")
 	}
-	if c.ReverseTunnelServer == nil {
-		return trace.BadParameter("missing ReverseTunnelServer in RemoteClusterTunnelManagerConfig")
-	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}

@@ -55,7 +55,7 @@ type AgentPool struct {
 	spawnLimiter utils.Retry
 
 	mu     sync.Mutex
-	agents map[track.Key][]*Agent
+	agents map[utils.NetAddr][]*Agent
 }
 
 // AgentPoolConfig holds configuration parameters for the agent pool
@@ -108,6 +108,9 @@ func (cfg *AgentPoolConfig) CheckAndSetDefaults() error {
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
+	if cfg.Cluster == "" {
+		return trace.BadParameter("missing 'Cluster' parameter")
+	}
 	return nil
 }
 
@@ -125,14 +128,22 @@ func NewAgentPool(ctx context.Context, cfg AgentPoolConfig) (*AgentPool, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	proxyAddr, err := utils.ParseAddr(cfg.ProxyAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	ctx, cancel := context.WithCancel(ctx)
+	tr, err := track.New(ctx, track.Config{ClusterName: cfg.Cluster})
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	pool := &AgentPool{
-		agents:       make(map[track.Key][]*Agent),
-		proxyTracker: track.New(ctx, track.Config{}),
+		agents:       make(map[utils.NetAddr][]*Agent),
+		proxyTracker: tr,
 		cfg:          cfg,
 		ctx:          ctx,
 		cancel:       cancel,
@@ -144,7 +155,7 @@ func NewAgentPool(ctx context.Context, cfg AgentPoolConfig) (*AgentPool, error) 
 			},
 		}),
 	}
-	pool.proxyTracker.Start(track.Key{Cluster: cfg.Cluster, Addr: *proxyAddr})
+	pool.proxyTracker.Start(*proxyAddr)
 	return pool, nil
 }
 
@@ -238,9 +249,9 @@ func (m *AgentPool) pollAndSyncAgents() {
 }
 
 func (m *AgentPool) addAgent(lease track.Lease) error {
-	key := lease.Key().(track.Key)
+	addr := lease.Key().(utils.NetAddr)
 	agent, err := NewAgent(AgentConfig{
-		Addr:                key.Addr,
+		Addr:                addr,
 		ClusterName:         m.cfg.Cluster,
 		Username:            m.cfg.HostUUID,
 		Signer:              m.cfg.HostSigner,
@@ -263,7 +274,7 @@ func (m *AgentPool) addAgent(lease track.Lease) error {
 	// start the agent in a goroutine. no need to handle Start() errors: Start() will be
 	// retrying itself until the agent is closed
 	go agent.Start()
-	m.agents[key] = append(m.agents[key], agent)
+	m.agents[addr] = append(m.agents[addr], agent)
 	return nil
 }
 
