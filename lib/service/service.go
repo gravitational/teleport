@@ -188,10 +188,10 @@ type Connector struct {
 // TunnelProxy if non-empty, indicates that the client is connected to the Auth Server
 // through the reverse SSH tunnel proxy
 func (c *Connector) TunnelProxy() string {
-	// TODO(russjones): Hack!
-	if c.IsApp {
-		return "localhost:3024"
-	}
+	//// TODO(russjones): Hack!
+	//if c.IsApp {
+	//	return "localhost:3024"
+	//}
 
 	if c.Client == nil || c.Client.Dialer == nil {
 		return ""
@@ -2650,9 +2650,9 @@ func (process *TeleportProcess) Close() error {
 }
 
 func validateConfig(cfg *Config) error {
-	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.Proxy.Enabled {
+	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.Proxy.Enabled && !cfg.Apps.Enabled {
 		return trace.BadParameter(
-			"config: supply at least one of Auth, SSH or Proxy roles")
+			"config: supply at least one of Auth, SSH, Proxy, or App roles")
 	}
 
 	if cfg.DataDir == "" {

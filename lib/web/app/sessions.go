@@ -132,16 +132,22 @@ func (s *sessionCache) get(ctx context.Context, cookieValue string) (*session, e
 }
 
 func (s *sessionCache) getApp(ctx context.Context, appName string) (services.Server, error) {
-	apps, err := s.c.AuthClient.GetApps(ctx, defaults.Namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, app := range apps {
-		if app.GetAppName() == appName {
-			return app, nil
+	for _, proxyClient := range s.c.ProxyClient.GetSites() {
+		authClient, err := proxyClient.CachingAccessPoint()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		apps, err := authClient.GetApps(ctx, defaults.Namespace)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, app := range apps {
+			if app.GetAppName() == appName {
+				return app, nil
+			}
 		}
 	}
-
 	return nil, trace.NotFound("%q not found", appName)
 }
 
@@ -153,12 +159,12 @@ func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess 
 	}
 
 	// Get a connection through the reverse tunnel to the target application.
-	clusterClient, err := s.c.ProxyClient.GetSite("example.com")
+	clusterClient, err := s.c.ProxyClient.GetSite("remote.example.com")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	conn, err := clusterClient.Dial(reversetunnel.DialParams{
-		ServerID: "e6e12e98-ddc9-4837-8e3f-7cd3ed51aa80.example.com",
+		ServerID: "eb4087f5-a30c-4d1f-aa50-bf3e7a5ae311.remote.example.com",
 		ConnType: services.AppTunnel,
 	})
 	fmt.Printf("--> Dial: %#v.\n", err)

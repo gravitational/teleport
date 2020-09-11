@@ -58,11 +58,16 @@ type DialParams struct {
 }
 
 func (params DialParams) String() string {
-	to := params.To.String()
-	if to == "" {
-		to = params.ServerID
+	switch params.ConnType {
+	case services.AppTunnel:
+		return fmt.Sprintf("DialParams(ServerID=%v,ConnType=%v)", params.ServerID, params.ConnType)
+	default:
+		to := params.To.String()
+		if to == "" {
+			to = params.ServerID
+		}
+		return fmt.Sprintf("from: %q to: %q", params.From, to)
 	}
-	return fmt.Sprintf("from: %q to: %q", params.From, to)
 }
 
 // RemoteSite represents remote teleport site that can be accessed via

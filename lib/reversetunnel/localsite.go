@@ -266,6 +266,7 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 
 // dialTunnel connects to the target host through a tunnel.
 func (s *localSite) dialTunnel(params DialParams) (net.Conn, error) {
+	// TODO(russjones): Thread conntype everywhere.
 	rconn, err := s.getRemoteConn(params.ServerID, params.ConnType)
 	if err != nil {
 		return nil, trace.NotFound("no tunnel connection found: %v", err)
@@ -288,6 +289,10 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, false, trace.Wrap(err)
+		}
+
+		if params.ConnType == services.AppTunnel {
+			return nil, false, trace.ConnectionProblem(err, "failed to find application at %v", params.ServerID)
 		}
 
 		// This node can only be reached over a tunnel, don't attempt to dial
