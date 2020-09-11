@@ -2271,18 +2271,27 @@ name: build-docker-images
 environment:
   RUNTIME: go1.14.4
 
+#TODO(gus): testing
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
   event:
-    - tag
-  ref:
     include:
-      - refs/tags/v*
+      - pull_request
   repo:
     include:
       - gravitational/*
 
-depends_on:
-  - test
+#TODO(gus): testing
+# depends_on:
+#   - test
 
 workspace:
   path: /go
@@ -2834,6 +2843,6 @@ steps:
 
 ---
 kind: signature
-hmac: cef07f133c51a0b3a83e8a26d5131d064c246fbd74769c2a8fa7a2e8dbe94684
+hmac: dbda1f77dc85e5fee3533c8d14aabf0ca8d0991ecad0ba681a3b0fd99327944e
 
 ...
