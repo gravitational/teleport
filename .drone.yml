@@ -8,13 +8,14 @@ environment:
   UID: 1000
   GID: 1000
 
-trigger:
-  event:
-    include:
-      - pull_request
-  repo:
-    include:
-      - gravitational/*
+#TODO(gus): testing
+# trigger:
+#   event:
+#     include:
+#       - pull_request
+#   repo:
+#     include:
+#       - gravitational/*
 
 workspace:
   path: /go
@@ -142,13 +143,14 @@ kind: pipeline
 type: kubernetes
 name: test-docs-internal
 
-trigger:
-  event:
-    include:
-      - pull_request
-  repo:
-    include:
-      - gravitational/*
+#TODO(gus): testing
+# trigger:
+#   event:
+#     include:
+#       - pull_request
+#   repo:
+#     include:
+#       - gravitational/*
 
 workspace:
   path: /go
@@ -216,13 +218,14 @@ kind: pipeline
 type: kubernetes
 name: test-docs-external
 
-trigger:
-  event:
-    include:
-      - pull_request
-  repo:
-    include:
-      - gravitational/*
+#TODO(gus): testing
+# trigger:
+#   event:
+#     include:
+#       - pull_request
+#   repo:
+#     include:
+#       - gravitational/*
 
 workspace:
   path: /go
@@ -485,16 +488,25 @@ name: build-linux-amd64
 environment:
   RUNTIME: go1.14.4
 
+#TODO(gus): testing
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
   event:
-    - tag
-  ref:
     include:
-      - refs/tags/v*
+      - pull_request
   repo:
     include:
       - gravitational/*
 
+#TODO(gus): testing
 depends_on:
   - test
 
@@ -592,18 +604,27 @@ name: build-linux-amd64-fips
 environment:
   RUNTIME: go1.14.4
 
+#TODO(gus): testing
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
   event:
-    - tag
-  ref:
     include:
-      - refs/tags/v*
+      - pull_request
   repo:
     include:
       - gravitational/*
 
-depends_on:
-  - test
+#TODO(gus): testing
+# depends_on:
+#   - test
 
 workspace:
   path: /go
@@ -2352,18 +2373,27 @@ kind: pipeline
 type: kubernetes
 name: build-oss-amis
 
+#TODO(gus): testing
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
   event:
-    - tag
-  ref:
     include:
-      - refs/tags/v*
+      - pull_request
   repo:
     include:
       - gravitational/*
 
+#TODO(gus): testing
 depends_on:
-  - test
+#   - test
   - build-linux-amd64
 
 workspace:
@@ -2455,18 +2485,27 @@ kind: pipeline
 type: kubernetes
 name: build-ent-amis
 
+#TODO(gus): testing
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
   event:
-    - tag
-  ref:
     include:
-      - refs/tags/v*
+      - pull_request
   repo:
     include:
       - gravitational/*
 
+#TODO(gus): testing
 depends_on:
-  - test
+#   - test
   - build-linux-amd64
   - build-linux-amd64-fips
 
@@ -2783,6 +2822,6 @@ steps:
 
 ---
 kind: signature
-hmac: 4899206ba9ce0f2971a5c36855a89a025d26067cf8db610ae52e8adf55fbeca3
+hmac: 832c98715adf053c2ee98d2a2b7b958cd9b55584c4a2efddc9d77ddb19a8ff5c
 
 ...
