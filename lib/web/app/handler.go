@@ -213,11 +213,13 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, s *session) er
 
 	var err error
 
-	r.URL, err = url.Parse("http://localhost:8081")
+	//r.URL = testutils.ParseURI("http://localhost:8081")
+	//r.URL, err = url.Parse("http://localhost:8081")
+	r.URL, err = url.Parse("http://" + s.app.GetInternalAddr())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	//r.URL = testutils.ParseURI("http://localhost:8081")
+
 	s.fwd.ServeHTTP(w, r)
 	return nil
 }
