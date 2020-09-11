@@ -17,9 +17,8 @@ environment:
 #     include:
 #       - gravitational/*
 trigger:
-  event:
-    cron:
-      - none
+  cron:
+    - none
 
 workspace:
   path: /go
@@ -156,9 +155,8 @@ name: test-docs-internal
 #     include:
 #       - gravitational/*
 trigger:
-  event:
-    cron:
-      - none
+  cron:
+    - none
 
 workspace:
   path: /go
@@ -235,9 +233,8 @@ name: test-docs-external
 #     include:
 #       - gravitational/*
 trigger:
-  event:
-    cron:
-      - none
+  cron:
+    - none
 
 workspace:
   path: /go
@@ -2843,6 +2840,6 @@ steps:
 
 ---
 kind: signature
-hmac: dbda1f77dc85e5fee3533c8d14aabf0ca8d0991ecad0ba681a3b0fd99327944e
+hmac: 64bd533c312addc61ef4d1103a0c6993b6c907385e1bb49110ae0d13f5ca7f8a
 
 ...
