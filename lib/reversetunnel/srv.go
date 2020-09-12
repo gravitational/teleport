@@ -517,11 +517,13 @@ func (s *server) Start() error {
 }
 
 func (s *server) Close() error {
+	fmt.Printf("--> calling close.\n")
 	s.cancel()
 	return s.srv.Close()
 }
 
 func (s *server) Shutdown(ctx context.Context) error {
+	fmt.Printf("--> calling shutdown.\n")
 	s.cancel()
 	return s.srv.Shutdown(ctx)
 }

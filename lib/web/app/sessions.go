@@ -18,6 +18,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"time"
@@ -141,7 +142,9 @@ func (s *sessionCache) getApp(ctx context.Context, appName string) (services.Ser
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		fmt.Printf("--> found %v apps in %v.\n", len(apps), proxyClient.GetName())
 		for _, app := range apps {
+			fmt.Printf("--> sessionCache: found: %v.\n", app.GetAppName())
 			if app.GetAppName() == appName {
 				return app, nil
 			}
@@ -152,7 +155,7 @@ func (s *sessionCache) getApp(ctx context.Context, appName string) (services.Ser
 
 func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess services.WebSession) (*session, error) {
 	// Get the application this session is targeting.
-	app, err := s.getApp(ctx, "dumper")
+	app, err := s.getApp(ctx, "panel")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -163,7 +166,7 @@ func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess 
 		return nil, trace.Wrap(err)
 	}
 	conn, err := clusterClient.Dial(reversetunnel.DialParams{
-		ServerID: "7403c23c-ff42-4df8-a0a6-ab2ba5fe2dc1.example.com",
+		ServerID: fmt.Sprintf("%v.%v", app.GetName(), "example.com"),
 		ConnType: services.AppTunnel,
 	})
 	if err != nil {

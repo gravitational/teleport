@@ -225,10 +225,12 @@ func (s *Server) HandleConnection(channelConn net.Conn) {
 	}
 }
 
-// activeConnections returns the number of active connections being proxied.
-// Used in tests.
-func (s *Server) activeConnections() int64 {
-	return atomic.LoadInt64(&s.activeConns)
+func (s *Server) ForceHeartbeat() error {
+	err := s.heartbeat.ForceSend(time.Second)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // Close will shut the server down and unblock any resources.
@@ -244,4 +246,10 @@ func (s *Server) Close() error {
 func (s *Server) Wait() error {
 	<-s.closeContext.Done()
 	return s.closeContext.Err()
+}
+
+// activeConnections returns the number of active connections being proxied.
+// Used in tests.
+func (s *Server) activeConnections() int64 {
+	return atomic.LoadInt64(&s.activeConns)
 }

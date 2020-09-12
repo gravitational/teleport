@@ -139,7 +139,7 @@ func (s *Suite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	s.appServer.Start()
-	err = s.appServer.heartbeat.ForceSend(time.Second)
+	err = s.appServer.ForceHeartbeat()
 	c.Assert(err, check.IsNil)
 }
 

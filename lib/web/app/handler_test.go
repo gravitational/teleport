@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 
@@ -43,9 +44,24 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFoo1(t *testing.T) {
-	_, done := setup(t)
+func TestForward(t *testing.T) {
+	// Setup auth, proxy, and app components for test.
+	pack, done := setup(t)
 	defer done()
+
+	time.Sleep(10 * time.Second)
+
+	webServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		pack.proxyHandler.ServeHTTP(w, r)
+	}))
+
+	res, err := http.Get(webServer.URL)
+	assert.Nil(t, err)
+	greeting, err := ioutil.ReadAll(res.Body)
+	res.Body.Close()
+	assert.Nil(t, err)
+
+	fmt.Printf("--> %v", string(greeting))
 }
 
 type pack struct {
@@ -54,26 +70,20 @@ type pack struct {
 	tlsServer  *auth.TestTLSServer
 	authServer *auth.TestAuthServer
 
-	reverseTunnelServer reversetunnel.Server
+	proxyClient  *auth.Client
+	proxyReverse reversetunnel.Server
+	proxyHandler *Handler
+
+	appClient *auth.Client
+	appServer *app.Server
 }
 
 func setup(t *testing.T) (*pack, func()) {
 	utils.InitLoggerForTests(testing.Verbose())
 
-	fakeClock := clockwork.NewFakeClock()
+	fakeClock := clockwork.NewFakeClockAt(time.Now())
 
-	//authUUID := "00000000-0000-0000-0000-000000000000"
-	//proxyUUID := "00000000-0000-0000-0000-000000000000"
-	//appUUID := "00000000-0000-0000-0000-000000000000"
-
-	authUUID := uuid.New()
-	proxyUUID := uuid.New()
-	appUUID := uuid.New()
-
-	fmt.Printf("--> authUUID: %v.\n", authUUID)
-	fmt.Printf("--> proxyUUID: %v.\n", proxyUUID)
-	fmt.Printf("--> appUUID: %v.\n", appUUID)
-
+	// Create a few temporary directories that will be removed at the end of the test.
 	authDir, err := ioutil.TempDir("", "")
 	assert.Nil(t, err)
 	tunnelDir, err := ioutil.TempDir("", "")
@@ -81,8 +91,9 @@ func setup(t *testing.T) (*pack, func()) {
 	proxyDir, err := ioutil.TempDir("", "")
 	assert.Nil(t, err)
 
-	// Create test auth server.
+	// Create auth.
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		Clock:       fakeClock,
 		ClusterName: "example.com",
 		Dir:         authDir,
 	})
@@ -90,100 +101,165 @@ func setup(t *testing.T) (*pack, func()) {
 	tlsServer, err := authServer.NewTestTLSServer()
 	assert.Nil(t, err)
 
-	// Generate host key and certificate for proxy server.
+	/// Create components needed to run proxy.
+	proxyClient, proxyReverse, proxyListener, proxySSH, proxyHandler, err := setupProxy(tlsServer, tunnelDir, proxyDir)
+	assert.Nil(t, err)
+
+	// Create internal application.
+	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "hello, world")
+	}))
+
+	// Create components needed to run app proxy.
+	appClient, appServer, appPool, err := setupApp(fakeClock, tlsServer, proxyListener.Addr().String(), targetServer.URL)
+	assert.Nil(t, err)
+
+	closeFunc := func() {
+		os.RemoveAll(authDir)
+		os.RemoveAll(tunnelDir)
+		os.RemoveAll(proxyDir)
+
+		proxyClient.Close()
+		proxyListener.Close()
+		proxyReverse.Close()
+		proxySSH.Close()
+
+		appClient.Close()
+		appServer.Close()
+		appPool.Stop()
+	}
+
+	return &pack{
+		clock: fakeClock,
+
+		tlsServer: tlsServer,
+
+		proxyClient:  proxyClient,
+		proxyReverse: proxyReverse,
+		proxyHandler: proxyHandler,
+
+		appClient: appClient,
+		appServer: appServer,
+	}, closeFunc
+}
+
+func setupProxy(tlsServer *auth.TestTLSServer, tunnelDir string, proxyDir string) (*auth.Client, reversetunnel.Server, net.Listener, *regular.Server, *Handler, error) {
+	// Create key and certificate.
+	proxyUUID := uuid.New()
 	proxyKeys, err := tlsServer.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
 		HostID:   proxyUUID,
 		NodeName: tlsServer.ClusterName(),
 		Roles:    teleport.Roles{teleport.RoleProxy},
 	})
-	assert.Nil(t, err)
+	if err != nil {
+		return nil, nil, nil, nil, nil, trace.Wrap(err)
+	}
 	proxySigner, err := sshutils.NewSigner(proxyKeys.Key, proxyKeys.Cert)
-	assert.Nil(t, err)
+	if err != nil {
+		return nil, nil, nil, nil, nil, trace.Wrap(err)
+	}
 
-	// Generate host key and certificate for proxy server.
-	appKeys, err := tlsServer.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   appUUID,
-		NodeName: tlsServer.ClusterName(),
-		Roles:    teleport.Roles{teleport.RoleApp},
-	})
-	assert.Nil(t, err)
-	appSigner, err := sshutils.NewSigner(appKeys.Key, appKeys.Cert)
-	assert.Nil(t, err)
-
-	// Create a listener for the reverse tunnel server.
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	assert.Nil(t, err)
-	defer listener.Close()
-
-	// Create a few clients to the auth server.
-	proxyAuthClient, err := tlsServer.NewClient(auth.TestBuiltin(teleport.RoleProxy))
-	assert.Nil(t, err)
-	appAuthClient, err := tlsServer.NewClient(auth.TestBuiltin(teleport.RoleApp))
-	assert.Nil(t, err)
+	// Create client with role of proxy.
+	authClient, err := tlsServer.NewClient(auth.TestBuiltin(teleport.RoleProxy))
+	if err != nil {
+		return nil, nil, nil, nil, nil, trace.Wrap(err)
+	}
 
 	// Create and start the reverse tunnel server.
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, nil, nil, nil, nil, trace.Wrap(err)
+	}
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ClientTLS:             proxyAuthClient.TLSConfig(),
+		ClientTLS:             authClient.TLSConfig(),
 		ID:                    proxyUUID,
 		ClusterName:           tlsServer.ClusterName(),
 		Listener:              listener,
 		HostSigners:           []ssh.Signer{proxySigner},
-		LocalAuthClient:       proxyAuthClient,
-		LocalAccessPoint:      proxyAuthClient,
+		LocalAuthClient:       authClient,
+		LocalAccessPoint:      authClient,
 		NewCachingAccessPoint: auth.NoCache,
 		DirectClusters: []reversetunnel.DirectCluster{
 			reversetunnel.DirectCluster{
 				Name:   tlsServer.ClusterName(),
-				Client: proxyAuthClient,
+				Client: authClient,
 			},
 		},
 		DataDir:   tunnelDir,
 		Component: teleport.ComponentProxy,
 	})
-	assert.Nil(t, err)
+	if err != nil {
+		return nil, nil, nil, nil, nil, trace.Wrap(err)
+	}
 	err = reverseTunnelServer.Start()
-	assert.Nil(t, err)
+	if err != nil {
+		return nil, nil, nil, nil, nil, trace.Wrap(err)
+	}
 
-	proxy, err := regular.New(
+	// Create and start proxy SSH server.
+	sshServer, err := regular.New(
 		utils.NetAddr{
 			AddrNetwork: "tcp",
 			Addr:        "127.0.0.1:0",
 		},
 		tlsServer.ClusterName(),
 		[]ssh.Signer{proxySigner},
-		proxyAuthClient,
+		authClient,
 		proxyDir,
 		"",
 		utils.NetAddr{},
 		regular.SetUUID(proxyUUID),
 		regular.SetProxyMode(reverseTunnelServer),
-		regular.SetSessionServer(proxyAuthClient),
-		regular.SetAuditLog(proxyAuthClient),
+		regular.SetSessionServer(authClient),
+		regular.SetAuditLog(authClient),
 		regular.SetNamespace(defaults.Namespace),
-		//SetPAMConfig(&pam.Config{Enabled: false}),
-		//SetBPF(&bpf.NOP{}),
 	)
-	assert.Nil(t, err)
-	err = proxy.Start()
-	assert.Nil(t, err)
+	if err != nil {
+		return nil, nil, nil, nil, nil, trace.Wrap(err)
+	}
+	err = sshServer.Start()
+	if err != nil {
+		return nil, nil, nil, nil, nil, trace.Wrap(err)
+	}
 
-	//tunnelAddr := utils.NetAddr{
-	//	AddrNetwork: "tcp",
-	//	Addr:        listener.Addr().String(),
-	//}
+	// Create application handler.
+	handler, err := NewHandler(HandlerConfig{
+		AuthClient:  authClient,
+		ProxyClient: reverseTunnelServer,
+	})
+	if err != nil {
+		return nil, nil, nil, nil, nil, trace.Wrap(err)
+	}
 
-	testWebServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "hello, world")
-	}))
+	return authClient, reverseTunnelServer, listener, sshServer, handler, nil
+}
 
-	//// Extract the hostport that the in-memory HTTP server is running on.
-	//u, err := url.Parse(s.testhttp.URL)
-	//c.Assert(err, check.IsNil)
-	//s.hostport = u.Host
+func setupApp(clock clockwork.Clock, tlsServer *auth.TestTLSServer, proxyAddr string, targetAddr string) (*auth.Client, *app.Server, *reversetunnel.AgentPool, error) {
+	// Generate key and certificate.
+	appUUID := uuid.New()
+	appKeys, err := tlsServer.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
+		HostID:   appUUID,
+		NodeName: tlsServer.ClusterName(),
+		Roles:    teleport.Roles{teleport.RoleApp},
+	})
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+	appSigner, err := sshutils.NewSigner(appKeys.Key, appKeys.Cert)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
 
+	// Create client with role of app.
+	authClient, err := tlsServer.NewClient(auth.TestBuiltin(teleport.RoleApp))
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
+
+	// Create and start application proxy server.
 	appServer, err := app.New(context.Background(), &app.Config{
-		Clock:       fakeClock,
-		AccessPoint: appAuthClient,
+		Clock:       clock,
+		AccessPoint: authClient,
 		GetRotation: testRotationGetter,
 		App: &services.ServerV2{
 			Kind:    services.KindApp,
@@ -194,43 +270,42 @@ func setup(t *testing.T) (*pack, func()) {
 			},
 			Spec: services.ServerSpecV2{
 				Protocol:     services.ServerSpecV2_HTTPS,
-				InternalAddr: testWebServer.URL,
+				InternalAddr: targetAddr,
+				AppName:      "panel",
 				PublicAddr:   "panel.example.com",
 				Version:      teleport.Version,
 			},
 		},
 	})
-	assert.Nil(t, err)
-
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
 	appServer.Start()
-	assert.Nil(t, err)
+	err = appServer.ForceHeartbeat()
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
 
+	// Create and establish reverse tunnel.
 	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
 		Component:   teleport.ComponentApp,
 		HostUUID:    fmt.Sprintf("%v.%v", appUUID, tlsServer.ClusterName()),
-		ProxyAddr:   listener.Addr().String(),
-		Client:      appAuthClient,
+		ProxyAddr:   proxyAddr,
+		Client:      authClient,
 		AppServer:   appServer,
-		AccessPoint: appAuthClient,
+		AccessPoint: authClient,
 		HostSigners: []ssh.Signer{appSigner},
-		Cluster:     "example.com",
+		Cluster:     tlsServer.ClusterName(),
 	})
-	assert.Nil(t, err)
-
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
+	}
 	err = agentPool.Start()
-	assert.Nil(t, err)
-
-	time.Sleep(20 * time.Second)
-
-	closeFunc := func() {
-		os.RemoveAll(authDir)
-		os.RemoveAll(tunnelDir)
-		os.RemoveAll(proxyDir)
+	if err != nil {
+		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	return &pack{
-		clock: fakeClock,
-	}, closeFunc
+	return authClient, appServer, agentPool, nil
 }
 
 func testRotationGetter(role teleport.Role) (*services.Rotation, error) {

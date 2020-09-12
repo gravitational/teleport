@@ -2742,6 +2742,7 @@ func (c *Client) UpsertApp(ctx context.Context, app services.Server) (*services.
 	keepAlive, err := clt.UpsertApp(ctx, &proto.UpsertAppRequest{
 		App: protoApp,
 	})
+	fmt.Printf("--> auth.Client: upsertapp: %v.\n", err)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
