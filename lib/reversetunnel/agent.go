@@ -440,7 +440,6 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 				a.Warningf("Failed to accept transport request: %v.", err)
 				continue
 			}
-			fmt.Printf("--> creating transport: %v.\n", a.AppServer)
 
 			t := &transport{
 				log:                 a.Entry,

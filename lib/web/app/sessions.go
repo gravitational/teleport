@@ -18,7 +18,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"time"
@@ -159,15 +158,14 @@ func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess 
 	}
 
 	// Get a connection through the reverse tunnel to the target application.
-	clusterClient, err := s.c.ProxyClient.GetSite("remote.example.com")
+	clusterClient, err := s.c.ProxyClient.GetSite("example.com")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	conn, err := clusterClient.Dial(reversetunnel.DialParams{
-		ServerID: "eb4087f5-a30c-4d1f-aa50-bf3e7a5ae311.remote.example.com",
+		ServerID: "7403c23c-ff42-4df8-a0a6-ab2ba5fe2dc1.example.com",
 		ConnType: services.AppTunnel,
 	})
-	fmt.Printf("--> Dial: %#v.\n", err)
 	if err != nil {
 		//s.log.Warnf("Failed to establish connection to %q through reverse tunnel: %v.", sess.GetAppName(), err)
 		return nil, trace.BadParameter("application not available")

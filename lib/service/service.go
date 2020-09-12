@@ -180,19 +180,11 @@ type Connector struct {
 
 	// Client is authenticated client with credentials from ClientIdenity.
 	Client *auth.Client
-
-	// TODO(russjones): Hack!
-	IsApp bool
 }
 
 // TunnelProxy if non-empty, indicates that the client is connected to the Auth Server
 // through the reverse SSH tunnel proxy
 func (c *Connector) TunnelProxy() string {
-	//// TODO(russjones): Hack!
-	//if c.IsApp {
-	//	return "localhost:3024"
-	//}
-
 	if c.Client == nil || c.Client.Dialer == nil {
 		return ""
 	}

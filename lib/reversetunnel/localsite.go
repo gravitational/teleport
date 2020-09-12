@@ -274,7 +274,7 @@ func (s *localSite) dialTunnel(params DialParams) (net.Conn, error) {
 
 	s.log.Debugf("Tunnel dialing to %v.", params.ServerID)
 
-	conn, err := s.chanTransportConn(rconn)
+	conn, err := s.chanTransportConn(rconn, params.ConnType)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -440,7 +440,7 @@ func (s *localSite) getRemoteConn(addr string, connType services.TunnelType) (*r
 	return rconn, nil
 }
 
-func (s *localSite) chanTransportConn(rconn *remoteConn) (net.Conn, error) {
+func (s *localSite) chanTransportConn(rconn *remoteConn, connType services.TunnelType) (net.Conn, error) {
 	s.log.Debugf("Connecting to %v through tunnel.", rconn.conn.RemoteAddr())
 
 	var address string
@@ -457,7 +457,8 @@ func (s *localSite) chanTransportConn(rconn *remoteConn) (net.Conn, error) {
 	//}
 
 	conn, markInvalid, err := connectProxyTransport(rconn.sconn, &dialReq{
-		Address: address,
+		Address:  address,
+		ConnType: connType,
 	})
 	if err != nil {
 		if markInvalid {

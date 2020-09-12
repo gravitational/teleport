@@ -291,38 +291,29 @@ func (p *transport) start() {
 	// LocalApp requests are for the single application (HTTP) server running
 	// in the agent pool.
 	case LocalApp:
-		fmt.Printf("--> Enter LocalApp.\n")
 		// Transport is allocated with both teleport.ComponentReverseTunnelAgent
 		// and teleport.ComponentReverseTunneServer. However, dialing to this address
 		// only makes sense when running within a teleport.ComponentReverseTunnelAgent.
-		//fmt.Printf("--> component: %v.\n", p.component)
-		//if p.component == teleport.ComponentReverseTunnelServer {
-		//	p.reply(req, false, []byte("connection rejected: no local node"))
-		//	return
-		//}
+		if p.component == teleport.ComponentReverseTunnelServer {
+			p.reply(req, false, []byte("connection rejected: no local node"))
+			return
+		}
 		if p.appServer == nil {
-			fmt.Printf("--> here0.\n")
 			p.reply(req, false, []byte("connection rejected: server missing"))
 			return
 		}
-		fmt.Printf("--> here1\n")
 		if p.sconn == nil {
 			p.reply(req, false, []byte("connection rejected: server connection missing"))
-			fmt.Printf("--> here2\n")
 			return
 		}
-		fmt.Printf("--> here3\n")
 
 		if err := req.Reply(true, []byte("Connected.")); err != nil {
-			fmt.Printf("--> here4.\n")
 			p.log.Errorf("Failed responding OK to %q request: %v", req.Type, err)
 			return
 		}
-		fmt.Printf("--> here5\n")
 
 		// Hand connection off to the application server.
 		p.appServer.HandleConnection(utils.NewChConn(p.sconn, p.channel))
-		fmt.Printf("--> Done handling conn.\n")
 		return
 	default:
 		servers = append(servers, dreq.Address)
@@ -435,7 +426,6 @@ func (p *transport) tunnelDial(serverID string, connType services.TunnelType) (n
 	// Extract the local site from the tunnel server. If no tunnel server
 	// exists, then exit right away this code may be running outside of a
 	// remote site.
-	fmt.Printf("--> I'm here: p.reverseTunnelServer: %v.\n", p.reverseTunnelServer)
 	if p.reverseTunnelServer == nil {
 		return nil, trace.NotFound("not found")
 	}
@@ -447,8 +437,6 @@ func (p *transport) tunnelDial(serverID string, connType services.TunnelType) (n
 	if !ok {
 		return nil, trace.BadParameter("did not find local cluster, found %T", cluster)
 	}
-
-	fmt.Printf("--> have localCluster, attempting to tunnel dial: %v.\n", serverID)
 
 	conn, err := localCluster.dialTunnel(DialParams{
 		ServerID: serverID,
