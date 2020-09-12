@@ -593,6 +593,8 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 		log.Errorf("Failed to accept connection, unknown role: %v.", val)
 		s.rejectRequest(nch, ssh.ConnectionFailed, "unknown role")
 	}
+
+	fmt.Printf("--> val: %v.\n", val)
 	//switch {
 	//// Node is dialing back.
 	//case val == string(teleport.RoleNode):

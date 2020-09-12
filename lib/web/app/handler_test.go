@@ -33,7 +33,9 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app"
+	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 
@@ -56,13 +58,27 @@ type pack struct {
 }
 
 func setup(t *testing.T) (*pack, func()) {
+	utils.InitLoggerForTests(testing.Verbose())
+
 	fakeClock := clockwork.NewFakeClock()
 
-	hostID := "00000000-0000-0000-0000-000000000000"
+	//authUUID := "00000000-0000-0000-0000-000000000000"
+	//proxyUUID := "00000000-0000-0000-0000-000000000000"
+	//appUUID := "00000000-0000-0000-0000-000000000000"
+
+	authUUID := uuid.New()
+	proxyUUID := uuid.New()
+	appUUID := uuid.New()
+
+	fmt.Printf("--> authUUID: %v.\n", authUUID)
+	fmt.Printf("--> proxyUUID: %v.\n", proxyUUID)
+	fmt.Printf("--> appUUID: %v.\n", appUUID)
 
 	authDir, err := ioutil.TempDir("", "")
 	assert.Nil(t, err)
 	tunnelDir, err := ioutil.TempDir("", "")
+	assert.Nil(t, err)
+	proxyDir, err := ioutil.TempDir("", "")
 	assert.Nil(t, err)
 
 	// Create test auth server.
@@ -76,12 +92,22 @@ func setup(t *testing.T) (*pack, func()) {
 
 	// Generate host key and certificate for proxy server.
 	proxyKeys, err := tlsServer.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
-		HostID:   hostID,
+		HostID:   proxyUUID,
 		NodeName: tlsServer.ClusterName(),
 		Roles:    teleport.Roles{teleport.RoleProxy},
 	})
 	assert.Nil(t, err)
 	proxySigner, err := sshutils.NewSigner(proxyKeys.Key, proxyKeys.Cert)
+	assert.Nil(t, err)
+
+	// Generate host key and certificate for proxy server.
+	appKeys, err := tlsServer.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
+		HostID:   appUUID,
+		NodeName: tlsServer.ClusterName(),
+		Roles:    teleport.Roles{teleport.RoleApp},
+	})
+	assert.Nil(t, err)
+	appSigner, err := sshutils.NewSigner(appKeys.Key, appKeys.Cert)
 	assert.Nil(t, err)
 
 	// Create a listener for the reverse tunnel server.
@@ -98,7 +124,7 @@ func setup(t *testing.T) (*pack, func()) {
 	// Create and start the reverse tunnel server.
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClientTLS:             proxyAuthClient.TLSConfig(),
-		ID:                    hostID,
+		ID:                    proxyUUID,
 		ClusterName:           tlsServer.ClusterName(),
 		Listener:              listener,
 		HostSigners:           []ssh.Signer{proxySigner},
@@ -118,6 +144,34 @@ func setup(t *testing.T) (*pack, func()) {
 	err = reverseTunnelServer.Start()
 	assert.Nil(t, err)
 
+	proxy, err := regular.New(
+		utils.NetAddr{
+			AddrNetwork: "tcp",
+			Addr:        "127.0.0.1:0",
+		},
+		tlsServer.ClusterName(),
+		[]ssh.Signer{proxySigner},
+		proxyAuthClient,
+		proxyDir,
+		"",
+		utils.NetAddr{},
+		regular.SetUUID(proxyUUID),
+		regular.SetProxyMode(reverseTunnelServer),
+		regular.SetSessionServer(proxyAuthClient),
+		regular.SetAuditLog(proxyAuthClient),
+		regular.SetNamespace(defaults.Namespace),
+		//SetPAMConfig(&pam.Config{Enabled: false}),
+		//SetBPF(&bpf.NOP{}),
+	)
+	assert.Nil(t, err)
+	err = proxy.Start()
+	assert.Nil(t, err)
+
+	//tunnelAddr := utils.NetAddr{
+	//	AddrNetwork: "tcp",
+	//	Addr:        listener.Addr().String(),
+	//}
+
 	testWebServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "hello, world")
 	}))
@@ -126,8 +180,6 @@ func setup(t *testing.T) (*pack, func()) {
 	//u, err := url.Parse(s.testhttp.URL)
 	//c.Assert(err, check.IsNil)
 	//s.hostport = u.Host
-
-	appHostUUID := uuid.New()
 
 	appServer, err := app.New(context.Background(), &app.Config{
 		Clock:       fakeClock,
@@ -138,7 +190,7 @@ func setup(t *testing.T) (*pack, func()) {
 			Version: services.V2,
 			Metadata: services.Metadata{
 				Namespace: defaults.Namespace,
-				Name:      appHostUUID,
+				Name:      appUUID,
 			},
 			Spec: services.ServerSpecV2{
 				Protocol:     services.ServerSpecV2_HTTPS,
@@ -154,12 +206,14 @@ func setup(t *testing.T) (*pack, func()) {
 	assert.Nil(t, err)
 
 	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
-		Client:      proxyAuthClient,
-		HostSigners: []ssh.Signer{proxySigner},
-		HostUUID:    fmt.Sprintf("%v.%v", appHostUUID, tlsServer.ClusterName()),
-		AccessPoint: proxyAuthClient,
+		Component:   teleport.ComponentApp,
+		HostUUID:    fmt.Sprintf("%v.%v", appUUID, tlsServer.ClusterName()),
+		ProxyAddr:   listener.Addr().String(),
+		Client:      appAuthClient,
 		AppServer:   appServer,
-		Component:   teleport.ComponentProxy,
+		AccessPoint: appAuthClient,
+		HostSigners: []ssh.Signer{appSigner},
+		Cluster:     "example.com",
 	})
 	assert.Nil(t, err)
 
@@ -168,14 +222,10 @@ func setup(t *testing.T) (*pack, func()) {
 
 	time.Sleep(20 * time.Second)
 
-	//tunnelAddr := utils.NetAddr{
-	//	AddrNetwork: "tcp",
-	//	Addr:        l.Addr().String(),
-	//}
-
 	closeFunc := func() {
 		os.RemoveAll(authDir)
 		os.RemoveAll(tunnelDir)
+		os.RemoveAll(proxyDir)
 	}
 
 	return &pack{
