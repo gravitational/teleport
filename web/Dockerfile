@@ -1,5 +1,8 @@
 FROM node:12-slim
-RUN apt-get update && apt-get install git -y
+RUN apt-get update && apt-get install curl git -y
+RUN curl -Lso /tmp/gh.deb https://github.com/cli/cli/releases/download/v0.12.0/gh_0.12.0_linux_amd64.deb && \
+    dpkg -i /tmp/gh.deb && \
+    rm -f /tmp/gh.deb
 
 RUN mkdir -p web-apps
 COPY yarn.lock web-apps/

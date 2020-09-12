@@ -64,35 +64,8 @@ docker-enter:
 docker-clean:
 	docker rmi --force $(IMAGE_NAME)
 
-# update teleport repository with build assets
-.PHONY: update-teleport-repo
-update-teleport-repo:
-	@if [ -z "$(TELEPORT_TARGET)" ]; then \
-		echo "TELEPORT_TARGET is not set"; exit 1; \
-	fi
-	# prepare webassets repo
-	rm -rf dist && git clone git@github.com:gravitational/webassets.git dist
-	cd dist; git checkout $(BRANCH) || git checkout -b $(BRANCH)
-	cd dist; rm -fr */
-	# prepare webassets.e repo
-	cd dist; git submodule update --init --recursive
-	cd dist/e; git checkout $(BRANCH) || git checkout -b $(BRANCH)
-	cd dist/e; rm -fr */
-	# build the dist files
-	$(MAKE) build-teleport
-	# push dist files to webasset/e repositories
-	cd dist/e; git add -A .; git commit -am '$(COMMIT_DESC)' -m '$(COMMIT_URL)' --allow-empty; git push origin $(BRANCH)
-	cd dist; git add -A .; git commit -am '$(COMMIT_DESC)' -m '$(COMMIT_URL)' --allow-empty; git push origin $(BRANCH)
-	# use temporary file to store new webassets commit sha
-	cd dist; git rev-parse HEAD >> commit_sha;
-	# update teleport
-	echo teleport >> .gitignore
-	rm -rf teleport && git clone git@github.com:gravitational/teleport.git
-	cd teleport; git checkout $(TELEPORT_TARGET) || git checkout -b $(TELEPORT_TARGET)
-	cd teleport; git fetch --recurse-submodules && git submodule update --init webassets
-	cd teleport/webassets; git checkout $$(cat -v ../../dist/commit_sha)
-	cd teleport; git add -A .; git commit -am 'Update webassets' -m '$(COMMIT_DESC) $(COMMIT_URL)' --allow-empty
-	cd teleport; git push origin $(TELEPORT_TARGET)
+# update-teleport-repo has moved
+# it now lives here: https://github.com/gravitational/ops/tree/master/webapps/update-teleport-webassets.sh
 
 # clean removes this repo generated artifacts
 .PHONY: clean
@@ -104,4 +77,3 @@ clean:
 .PHONY: init-submodules
 init-submodules:
 	git submodule update --init --recursive
-
