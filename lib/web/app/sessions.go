@@ -18,9 +18,9 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/oxy/forward"
@@ -100,6 +101,7 @@ func (s *sessionCache) get(ctx context.Context, cookieValue string) (*session, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// TODO(russjones): Make sure this request is going to the cache.
 	appSession, err := s.c.AuthClient.GetAppSession(ctx, services.GetAppSessionRequest{
 		Username:   cookie.Username,
 		ParentHash: cookie.ParentHash,
@@ -131,6 +133,7 @@ func (s *sessionCache) get(ctx context.Context, cookieValue string) (*session, e
 	return sess, nil
 }
 
+// TODO(russjones): If you find multiple matching apps, return ambiguous.
 func (s *sessionCache) getApp(ctx context.Context, appName string) (services.Server, error) {
 	for _, proxyClient := range s.c.ProxyClient.GetSites() {
 		authClient, err := proxyClient.CachingAccessPoint()
@@ -142,9 +145,7 @@ func (s *sessionCache) getApp(ctx context.Context, appName string) (services.Ser
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		fmt.Printf("--> found %v apps in %v.\n", len(apps), proxyClient.GetName())
 		for _, app := range apps {
-			fmt.Printf("--> sessionCache: found: %v.\n", app.GetAppName())
 			if app.GetAppName() == appName {
 				return app, nil
 			}
@@ -155,22 +156,57 @@ func (s *sessionCache) getApp(ctx context.Context, appName string) (services.Ser
 
 func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess services.WebSession) (*session, error) {
 	// Get the application this session is targeting.
-	app, err := s.getApp(ctx, "panel")
+	app, err := s.getApp(ctx, sess.GetAppName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Extract the identity of the user from the certificate.
+	cert, err := utils.ParseCertificatePEM(sess.GetTLSCert())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Use roles and traits to construct and access checker.
+	roles, traits, err := services.ExtractFromIdentity(s.c.AuthClient, identity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker, err := services.FetchRoles(roles, s.c.AuthClient, traits)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Generate a signed token that can be re-used during the lifetime of this
+	// session to pass authentication information to the target application.
+	token, err := s.c.AuthClient.GenerateAppToken(ctx, services.AppTokenParams{
+		Username: sess.GetUser(),
+		Roles:    roles,
+		// TODO(russjones): Expiry implies a time.Time, instead Expiry here is a
+		// time.Duration. Fix it so it can be directly set like:
+		// "Expiry: session.GetExpiryTime()".
+		Recipient: "blah",
+		Expiry:    10 * time.Minute,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Get a connection through the reverse tunnel to the target application.
-	clusterClient, err := s.c.ProxyClient.GetSite("example.com")
+	clusterClient, err := s.c.ProxyClient.GetSite(sess.GetClusterName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	conn, err := clusterClient.Dial(reversetunnel.DialParams{
-		ServerID: fmt.Sprintf("%v.%v", app.GetName(), "example.com"),
+		ServerID: strings.Join([]string{app.GetName(), sess.GetClusterName()}, "."),
 		ConnType: services.AppTunnel,
 	})
 	if err != nil {
-		//s.log.Warnf("Failed to establish connection to %q through reverse tunnel: %v.", sess.GetAppName(), err)
+		s.log.Warnf("Failed to establish connection to %q through reverse tunnel: %v.", sess.GetAppName(), err)
 		return nil, trace.BadParameter("application not available")
 	}
 
@@ -178,8 +214,7 @@ func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess 
 	// request over the reverse tunnel to the target application.
 	fwd, err := forward.New(
 		forward.RoundTripper(newCustomTransport(conn)),
-		forward.Rewriter(&rewriter{signedToken: "123"}),
-		forward.Logger(s.log))
+		forward.Rewriter(&rewriter{signedToken: token}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -187,89 +222,11 @@ func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess 
 	return &session{
 		cacheKey: cookieValue,
 		app:      app,
-		//checker:  checker,
-		//identity: identity,
-		fwd: fwd,
+		checker:  checker,
+		identity: identity,
+		fwd:      fwd,
 	}, nil
-
 }
-
-//func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess services.WebSession) (*session, error) {
-//	// Get the application this session is targeting.
-//	app, err := s.getApp(ctx, sess.GetAppName())
-//	if err != nil {
-//		return nil, trace.Wrap(err)
-//	}
-//
-//	// Extract the identity of the user from the certificate.
-//	cert, err := utils.ParseCertificatePEM(sess.GetTLSCert())
-//	if err != nil {
-//		return nil, trace.Wrap(err)
-//	}
-//	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-//	if err != nil {
-//		return nil, trace.Wrap(err)
-//	}
-//
-//	// Use roles and traits to construct and access checker.
-//	roles, traits, err := services.ExtractFromIdentity(s.c.AuthClient, identity)
-//	if err != nil {
-//		return nil, trace.Wrap(err)
-//	}
-//	checker, err := services.FetchRoles(roles, s.c.AuthClient, traits)
-//	if err != nil {
-//		return nil, trace.Wrap(err)
-//	}
-//
-//	// Generate a signed token that can be re-used during the lifetime of this
-//	// session to pass authentication information to the target application.
-//	token, err := s.c.AuthClient.GenerateAppToken(ctx, services.AppTokenParams{
-//		Username: sess.GetUser(),
-//		Roles:    roles,
-//		// TODO(russjones): Expiry implies a time.Time, instead Expiry here is a
-//		// time.Duration. Fix it so it can be directly set like:
-//		// "Expiry: session.GetExpiryTime()".
-//		Recipient: "blah",
-//		Expiry:    10 * time.Minute,
-//	})
-//	if err != nil {
-//		return nil, trace.Wrap(err)
-//	}
-//
-//	// TODO(russjones): Fill out the reversetunnel.DialParams after #4290 is merged in.
-//	// Get a connection through the reverse tunnel to the target application.
-//	clusterClient, err := s.c.ProxyClient.GetSite(sess.GetClusterName())
-//	if err != nil {
-//		return nil, trace.Wrap(err)
-//	}
-//	serverID := strings.Join([]string{app.GetName(), sess.GetClusterName()}, ".")
-//	conn, err := clusterClient.Dial(reversetunnel.DialParams{
-//		ServerID: serverID,
-//		ConnType: services.AppTunnel,
-//	})
-//	fmt.Printf("--> Attempting to dial: %v.\n", serverID)
-//	if err != nil {
-//		s.log.Warnf("Failed to establish connection to %q through reverse tunnel: %v.", sess.GetAppName(), err)
-//		return nil, trace.BadParameter("application not available")
-//	}
-//
-//	// Create a HTTP request forwarder that will be used to forward the actual
-//	// request over the reverse tunnel to the target application.
-//	fwd, err := forward.New(
-//		forward.RoundTripper(newCustomTransport(conn)),
-//		forward.Rewriter(&rewriter{signedToken: token}))
-//	if err != nil {
-//		return nil, trace.Wrap(err)
-//	}
-//
-//	return &session{
-//		cacheKey: cookieValue,
-//		app:      app,
-//		checker:  checker,
-//		identity: identity,
-//		fwd:      fwd,
-//	}, nil
-//}
 
 func (s *sessionCache) remove(cookieValue string) {
 	s.cache.Remove(cookieValue)

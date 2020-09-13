@@ -45,59 +45,67 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestAuthenticate verifies only valid cookies return authenticated sessions.
 func TestAuthenticate(t *testing.T) {
 	pack, done := setup(t)
 	defer done()
 
-	// Create application handler.
+	// Create application handler that runs within the web handlers.
+	authClient, err := pack.auth.tlsServer.NewClient(auth.TestBuiltin(teleport.RoleWeb))
+	assert.Nil(t, err)
 	handler, err := NewHandler(HandlerConfig{
-		AuthClient:  pack.proxy.client,
+		AuthClient:  authClient,
 		ProxyClient: pack.proxy.tunnel,
 	})
 	assert.Nil(t, err)
 
-	user, _, err := auth.CreateUserAndRole(pack.tlsServer.Auth(), "foo", []string{"bar", "baz"})
+	// Create a web UI session.
+	webSession, err := pack.auth.client.CreateWebSession(pack.user.user.GetName())
 	assert.Nil(t, err)
 
-	webSession, err := pack.authClient.CreateWebSession(user.GetName())
-	assert.Nil(t, err)
-
-	userClient, err := pack.tlsServer.NewClient(auth.TestUser(user.GetName()))
-	assert.Nil(t, err)
-
-	appSession, err := userClient.CreateAppSession(context.Background(), services.CreateAppSessionRequest{
+	// Use the Web UI session to ask for a application specific session.
+	appSession, err := pack.user.client.CreateAppSession(context.Background(), services.CreateAppSessionRequest{
 		AppName:     pack.app.app.GetAppName(),
-		ClusterName: pack.tlsServer.ClusterName(),
+		ClusterName: pack.auth.tlsServer.ClusterName(),
 		SessionID:   webSession.GetName(),
 		BearerToken: webSession.GetBearerToken(),
 	})
 	assert.Nil(t, err)
 
+	// Create a few cookie values to test.
 	validCookieValue, err := encodeCookie(&Cookie{
-		Username:   user.GetName(),
+		Username:   pack.user.user.GetName(),
 		ParentHash: appSession.GetParentHash(),
 		SessionID:  appSession.GetName(),
 	})
 	assert.Nil(t, err)
-	//invalidCookieValue, err := encodeCookie(&Cookie{
-	//	Username:   user.GetName(),
-	//	ParentHash: appSession.GetParentHash(),
-	//	SessionID:  "invalid-session-id",
-	//})
-	//assert.Nil(t, err)
+	invalidCookieValue, err := encodeCookie(&Cookie{
+		Username:   pack.user.user.GetName(),
+		ParentHash: appSession.GetParentHash(),
+		SessionID:  "invalid-session-id",
+	})
+	assert.Nil(t, err)
 
 	var tests = []struct {
 		desc     string
 		inCookie *http.Cookie
 		outError bool
 	}{
-		//{
-		//	desc:     "Missing headers.",
-		//	inCookie: nil,
-		//	outError: true,
-		//},
 		{
-			desc: "Valid.",
+			desc:     "Missing cookie.",
+			inCookie: &http.Cookie{},
+			outError: true,
+		},
+		{
+			desc: "Invalid cookie.",
+			inCookie: &http.Cookie{
+				Name:  cookieName,
+				Value: invalidCookieValue,
+			},
+			outError: true,
+		},
+		{
+			desc: "Valid cookie.",
 			inCookie: &http.Cookie{
 				Name:  cookieName,
 				Value: validCookieValue,
@@ -108,19 +116,71 @@ func TestAuthenticate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			// Create a request without any authentication headers.
+			// Create a request and add in the cookie.
 			r, err := http.NewRequest(http.MethodGet, "/", nil)
 			assert.Nil(t, err)
+			r.AddCookie(tt.inCookie)
 
-			if tt.inCookie != nil {
-				r.AddCookie(tt.inCookie)
-			}
-
+			// Attempt to authenticate the session.
 			_, err = handler.authenticate(r)
-			fmt.Printf("--> err: %v.\n", err)
 			assert.Equal(t, tt.outError, err != nil)
 		})
 	}
+
+	// TODO(russjones): Delete the application session, then delete the UI
+	// session and make sure access is fully revoked.
+}
+
+func TestForward(t *testing.T) {
+	pack, done := setup(t)
+	defer done()
+
+	// Create application handler that runs within the web handlers.
+	authClient, err := pack.auth.tlsServer.NewClient(auth.TestBuiltin(teleport.RoleWeb))
+	assert.Nil(t, err)
+	handler, err := NewHandler(HandlerConfig{
+		AuthClient:  authClient,
+		ProxyClient: pack.proxy.tunnel,
+	})
+	assert.Nil(t, err)
+
+	// Create a web UI session.
+	webSession, err := pack.auth.client.CreateWebSession(pack.user.user.GetName())
+	assert.Nil(t, err)
+
+	// Use the Web UI session to ask for a application specific session.
+	appSession, err := pack.user.client.CreateAppSession(context.Background(), services.CreateAppSessionRequest{
+		AppName:     pack.app.app.GetAppName(),
+		ClusterName: pack.auth.tlsServer.ClusterName(),
+		SessionID:   webSession.GetName(),
+		BearerToken: webSession.GetBearerToken(),
+	})
+	assert.Nil(t, err)
+
+	// Create a session cache and create a session.
+	cache, err := newSessionCache(sessionCacheConfig{
+		AuthClient:  authClient,
+		ProxyClient: pack.proxy.tunnel,
+	})
+	assert.Nil(t, err)
+	session, err := cache.newSession(context.Background(), "not-required", appSession)
+	assert.Nil(t, err)
+
+	r, err := http.NewRequest(http.MethodGet, pack.app.app.GetPublicAddr(), nil)
+	assert.Nil(t, err)
+	w := httptest.NewRecorder()
+
+	err = handler.forward(w, r, session)
+	assert.Nil(t, err)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	assert.Nil(t, err)
+
+	fmt.Printf("--> code: %v.\n", resp.StatusCode)
+	fmt.Printf("--> body: %v.\n", string(body))
 }
 
 /*
@@ -154,12 +214,22 @@ func TestAuthenticate(t *testing.T) {
 type pack struct {
 	clock clockwork.Clock
 
-	authClient *auth.Client
-	authServer *auth.TestAuthServer
-	tlsServer  *auth.TestTLSServer
-
+	auth  *authPack
+	user  *userPack
 	proxy *proxyPack
 	app   *appPack
+}
+
+type authPack struct {
+	client     *auth.Client
+	authServer *auth.TestAuthServer
+	tlsServer  *auth.TestTLSServer
+}
+
+type userPack struct {
+	user   services.User
+	role   services.Role
+	client *auth.Client
 }
 
 type proxyPack struct {
@@ -181,6 +251,7 @@ func setup(t *testing.T) (*pack, func()) {
 	utils.InitLoggerForTests(testing.Verbose())
 
 	fakeClock := clockwork.NewFakeClockAt(time.Now())
+	clusterName := "example.com"
 
 	// Create a few temporary directories that will be removed at the end of the test.
 	authDir, err := ioutil.TempDir("", "")
@@ -190,22 +261,16 @@ func setup(t *testing.T) (*pack, func()) {
 	proxyDir, err := ioutil.TempDir("", "")
 	assert.Nil(t, err)
 
-	// Create auth.
-	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
-		Clock:       fakeClock,
-		ClusterName: "example.com",
-		Dir:         authDir,
-	})
-	assert.Nil(t, err)
-	tlsServer, err := authServer.NewTestTLSServer()
+	// Create components needed to run auth.
+	auth, err := setupAuth(fakeClock, clusterName, authDir)
 	assert.Nil(t, err)
 
-	// Create client with role of proxy.
-	authClient, err := tlsServer.NewClient(auth.TestBuiltin(teleport.RoleAdmin))
+	// Create user that will be making requests to the web application.
+	user, err := setupUser(auth.tlsServer)
 	assert.Nil(t, err)
 
 	// Create components needed to run proxy.
-	proxy, err := setupProxy(tlsServer, tunnelDir, proxyDir)
+	proxy, err := setupProxy(auth.tlsServer, tunnelDir, proxyDir)
 	assert.Nil(t, err)
 
 	// Create internal application.
@@ -216,7 +281,12 @@ func setup(t *testing.T) (*pack, func()) {
 	assert.Nil(t, err)
 
 	// Create components needed to run app proxy.
-	app, err := setupApp(fakeClock, tlsServer, proxy.listener.Addr().String(), u.Host)
+	app, err := setupApp(fakeClock, auth.tlsServer, proxy.listener.Addr().String(), u.Host)
+	assert.Nil(t, err)
+
+	// Wait for the application to have registered itself with the proxy server
+	// before exiting setup.
+	err = waitForTunnelCount(proxy.tunnel, auth.tlsServer.ClusterName(), 1)
 	assert.Nil(t, err)
 
 	closeFunc := func() {
@@ -235,13 +305,57 @@ func setup(t *testing.T) (*pack, func()) {
 	}
 
 	return &pack{
-		clock:      fakeClock,
-		authClient: authClient,
+		clock: fakeClock,
+		auth:  auth,
+		user:  user,
+		proxy: proxy,
+		app:   app,
+	}, closeFunc
+}
+
+func setupAuth(clock clockwork.FakeClock, clusterName string, dir string) (*authPack, error) {
+	// Create and start auth.
+	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		Clock:       clock,
+		ClusterName: clusterName,
+		Dir:         dir,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsServer, err := authServer.NewTestTLSServer()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Create client with role of proxy.
+	authClient, err := tlsServer.NewClient(auth.TestBuiltin(teleport.RoleAdmin))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &authPack{
+		client:     authClient,
 		authServer: authServer,
 		tlsServer:  tlsServer,
-		proxy:      proxy,
-		app:        app,
-	}, closeFunc
+	}, nil
+}
+
+func setupUser(tlsServer *auth.TestTLSServer) (*userPack, error) {
+	user, role, err := auth.CreateUserAndRole(tlsServer.Auth(), "foo", []string{"bar", "baz"})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	client, err := tlsServer.NewClient(auth.TestUser(user.GetName()))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &userPack{
+		user:   user,
+		role:   role,
+		client: client,
+	}, nil
 }
 
 func setupProxy(tlsServer *auth.TestTLSServer, tunnelDir string, proxyDir string) (*proxyPack, error) {
@@ -414,4 +528,27 @@ func setupApp(clock clockwork.Clock, tlsServer *auth.TestTLSServer, proxyAddr st
 
 func testRotationGetter(role teleport.Role) (*services.Rotation, error) {
 	return &services.Rotation{}, nil
+}
+
+func waitForTunnelCount(tunnel reversetunnel.Server, clusterName string, expected int) error {
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+	timeout := time.NewTimer(10 * time.Second)
+	defer ticker.Stop()
+
+	clusterClient, err := tunnel.GetSite(clusterName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for {
+		select {
+		case <-ticker.C:
+			if clusterClient.GetTunnelsCount() == expected {
+				return nil
+			}
+		case <-timeout.C:
+			return trace.BadParameter("timed out waiting for tunnel count")
+		}
+	}
 }

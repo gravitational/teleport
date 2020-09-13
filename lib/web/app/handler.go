@@ -205,10 +205,10 @@ func (h *Handler) forward(w http.ResponseWriter, r *http.Request, s *session) er
 	// access to the application.
 	//
 	// This code path should be profiled if it ever becomes a bottleneck.
-	//err := s.checker.CheckAccessToApp(s.app)
-	//if err != nil {
-	//	return trace.Wrap(err)
-	//}
+	err := s.checker.CheckAccessToApp(s.app)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	var err error
 

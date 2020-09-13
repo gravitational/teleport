@@ -81,7 +81,7 @@ func (s *AuthServer) createAppSession(ctx context.Context, identity tlsca.Identi
 		return nil, trace.Wrap(err)
 	}
 	session.SetType(services.WebSessionSpecV2_App)
-	session.SetAppName(app.GetName())
+	session.SetAppName(app.GetAppName())
 	session.SetParentHash(SessionCookieHash(parentSession.GetName()))
 	session.SetClusterName(req.ClusterName)
 	session.SetExpiryTime(s.clock.Now().Add(checker.AdjustSessionTTL(defaults.MaxCertDuration)))
