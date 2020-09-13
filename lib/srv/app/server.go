@@ -181,6 +181,7 @@ func (s *Server) Start() {
 // Serve accepts incoming connections on the Listener and calls the handler.
 func (s *Server) HandleConnection(channelConn net.Conn) {
 	// Establish connection to target server.
+	s.log.Debugf("Dialing to %v to establish connection to %q.", s.config.App.GetInternalAddr(), s.config.App.GetName())
 	d := net.Dialer{
 		KeepAlive: s.keepAlive,
 	}

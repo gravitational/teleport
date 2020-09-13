@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -44,12 +45,97 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestForward(t *testing.T) {
-	// Setup auth, proxy, and app components for test.
+func TestAuthenticate(t *testing.T) {
 	pack, done := setup(t)
 	defer done()
 
-	time.Sleep(10 * time.Second)
+	// Create application handler.
+	handler, err := NewHandler(HandlerConfig{
+		AuthClient:  pack.proxy.client,
+		ProxyClient: pack.proxy.tunnel,
+	})
+	assert.Nil(t, err)
+
+	user, _, err := auth.CreateUserAndRole(pack.tlsServer.Auth(), "foo", []string{"bar", "baz"})
+	assert.Nil(t, err)
+
+	webSession, err := pack.authClient.CreateWebSession(user.GetName())
+	assert.Nil(t, err)
+
+	userClient, err := pack.tlsServer.NewClient(auth.TestUser(user.GetName()))
+	assert.Nil(t, err)
+
+	appSession, err := userClient.CreateAppSession(context.Background(), services.CreateAppSessionRequest{
+		AppName:     pack.app.app.GetAppName(),
+		ClusterName: pack.tlsServer.ClusterName(),
+		SessionID:   webSession.GetName(),
+		BearerToken: webSession.GetBearerToken(),
+	})
+	assert.Nil(t, err)
+
+	validCookieValue, err := encodeCookie(&Cookie{
+		Username:   user.GetName(),
+		ParentHash: appSession.GetParentHash(),
+		SessionID:  appSession.GetName(),
+	})
+	assert.Nil(t, err)
+	//invalidCookieValue, err := encodeCookie(&Cookie{
+	//	Username:   user.GetName(),
+	//	ParentHash: appSession.GetParentHash(),
+	//	SessionID:  "invalid-session-id",
+	//})
+	//assert.Nil(t, err)
+
+	var tests = []struct {
+		desc     string
+		inCookie *http.Cookie
+		outError bool
+	}{
+		//{
+		//	desc:     "Missing headers.",
+		//	inCookie: nil,
+		//	outError: true,
+		//},
+		{
+			desc: "Valid.",
+			inCookie: &http.Cookie{
+				Name:  cookieName,
+				Value: validCookieValue,
+			},
+			outError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			// Create a request without any authentication headers.
+			r, err := http.NewRequest(http.MethodGet, "/", nil)
+			assert.Nil(t, err)
+
+			if tt.inCookie != nil {
+				r.AddCookie(tt.inCookie)
+			}
+
+			_, err = handler.authenticate(r)
+			fmt.Printf("--> err: %v.\n", err)
+			assert.Equal(t, tt.outError, err != nil)
+		})
+	}
+}
+
+/*
+func TestAuthenticate(t *testing.T) {
+	pack, done := setup(t)
+	defer done()
+
+	// Create application handler.
+	handler, err := NewHandler(HandlerConfig{
+		AuthClient:  authClient,
+		ProxyClient: reverseTunnelServer,
+	})
+	if err != nil {
+		return nil, nil, nil, nil, nil, trace.Wrap(err)
+	}
 
 	webServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		pack.proxyHandler.ServeHTTP(w, r)
@@ -63,19 +149,32 @@ func TestForward(t *testing.T) {
 
 	fmt.Printf("--> %v", string(greeting))
 }
+*/
 
 type pack struct {
 	clock clockwork.Clock
 
-	tlsServer  *auth.TestTLSServer
+	authClient *auth.Client
 	authServer *auth.TestAuthServer
+	tlsServer  *auth.TestTLSServer
 
-	proxyClient  *auth.Client
-	proxyReverse reversetunnel.Server
-	proxyHandler *Handler
+	proxy *proxyPack
+	app   *appPack
+}
 
-	appClient *auth.Client
-	appServer *app.Server
+type proxyPack struct {
+	client   *auth.Client
+	listener net.Listener
+	tunnel   reversetunnel.Server
+	handler  *Handler
+	ssh      *regular.Server
+}
+
+type appPack struct {
+	app    services.Server
+	client *auth.Client
+	server *app.Server
+	pool   *reversetunnel.AgentPool
 }
 
 func setup(t *testing.T) (*pack, func()) {
@@ -101,17 +200,23 @@ func setup(t *testing.T) (*pack, func()) {
 	tlsServer, err := authServer.NewTestTLSServer()
 	assert.Nil(t, err)
 
-	/// Create components needed to run proxy.
-	proxyClient, proxyReverse, proxyListener, proxySSH, proxyHandler, err := setupProxy(tlsServer, tunnelDir, proxyDir)
+	// Create client with role of proxy.
+	authClient, err := tlsServer.NewClient(auth.TestBuiltin(teleport.RoleAdmin))
+	assert.Nil(t, err)
+
+	// Create components needed to run proxy.
+	proxy, err := setupProxy(tlsServer, tunnelDir, proxyDir)
 	assert.Nil(t, err)
 
 	// Create internal application.
 	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, "hello, world")
 	}))
+	u, err := url.Parse(targetServer.URL)
+	assert.Nil(t, err)
 
 	// Create components needed to run app proxy.
-	appClient, appServer, appPool, err := setupApp(fakeClock, tlsServer, proxyListener.Addr().String(), targetServer.URL)
+	app, err := setupApp(fakeClock, tlsServer, proxy.listener.Addr().String(), u.Host)
 	assert.Nil(t, err)
 
 	closeFunc := func() {
@@ -119,31 +224,27 @@ func setup(t *testing.T) (*pack, func()) {
 		os.RemoveAll(tunnelDir)
 		os.RemoveAll(proxyDir)
 
-		proxyClient.Close()
-		proxyListener.Close()
-		proxyReverse.Close()
-		proxySSH.Close()
+		proxy.client.Close()
+		proxy.listener.Close()
+		proxy.tunnel.Close()
+		proxy.ssh.Close()
 
-		appClient.Close()
-		appServer.Close()
-		appPool.Stop()
+		app.client.Close()
+		app.server.Close()
+		app.pool.Stop()
 	}
 
 	return &pack{
-		clock: fakeClock,
-
-		tlsServer: tlsServer,
-
-		proxyClient:  proxyClient,
-		proxyReverse: proxyReverse,
-		proxyHandler: proxyHandler,
-
-		appClient: appClient,
-		appServer: appServer,
+		clock:      fakeClock,
+		authClient: authClient,
+		authServer: authServer,
+		tlsServer:  tlsServer,
+		proxy:      proxy,
+		app:        app,
 	}, closeFunc
 }
 
-func setupProxy(tlsServer *auth.TestTLSServer, tunnelDir string, proxyDir string) (*auth.Client, reversetunnel.Server, net.Listener, *regular.Server, *Handler, error) {
+func setupProxy(tlsServer *auth.TestTLSServer, tunnelDir string, proxyDir string) (*proxyPack, error) {
 	// Create key and certificate.
 	proxyUUID := uuid.New()
 	proxyKeys, err := tlsServer.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
@@ -152,23 +253,23 @@ func setupProxy(tlsServer *auth.TestTLSServer, tunnelDir string, proxyDir string
 		Roles:    teleport.Roles{teleport.RoleProxy},
 	})
 	if err != nil {
-		return nil, nil, nil, nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	proxySigner, err := sshutils.NewSigner(proxyKeys.Key, proxyKeys.Cert)
 	if err != nil {
-		return nil, nil, nil, nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Create client with role of proxy.
 	authClient, err := tlsServer.NewClient(auth.TestBuiltin(teleport.RoleProxy))
 	if err != nil {
-		return nil, nil, nil, nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Create and start the reverse tunnel server.
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return nil, nil, nil, nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
 		ClientTLS:             authClient.TLSConfig(),
@@ -189,11 +290,11 @@ func setupProxy(tlsServer *auth.TestTLSServer, tunnelDir string, proxyDir string
 		Component: teleport.ComponentProxy,
 	})
 	if err != nil {
-		return nil, nil, nil, nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	err = reverseTunnelServer.Start()
 	if err != nil {
-		return nil, nil, nil, nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Create and start proxy SSH server.
@@ -215,26 +316,22 @@ func setupProxy(tlsServer *auth.TestTLSServer, tunnelDir string, proxyDir string
 		regular.SetNamespace(defaults.Namespace),
 	)
 	if err != nil {
-		return nil, nil, nil, nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	err = sshServer.Start()
 	if err != nil {
-		return nil, nil, nil, nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	// Create application handler.
-	handler, err := NewHandler(HandlerConfig{
-		AuthClient:  authClient,
-		ProxyClient: reverseTunnelServer,
-	})
-	if err != nil {
-		return nil, nil, nil, nil, nil, trace.Wrap(err)
-	}
-
-	return authClient, reverseTunnelServer, listener, sshServer, handler, nil
+	return &proxyPack{
+		client:   authClient,
+		listener: listener,
+		tunnel:   reverseTunnelServer,
+		ssh:      sshServer,
+	}, nil
 }
 
-func setupApp(clock clockwork.Clock, tlsServer *auth.TestTLSServer, proxyAddr string, targetAddr string) (*auth.Client, *app.Server, *reversetunnel.AgentPool, error) {
+func setupApp(clock clockwork.Clock, tlsServer *auth.TestTLSServer, proxyAddr string, targetAddr string) (*appPack, error) {
 	// Generate key and certificate.
 	appUUID := uuid.New()
 	appKeys, err := tlsServer.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
@@ -243,17 +340,33 @@ func setupApp(clock clockwork.Clock, tlsServer *auth.TestTLSServer, proxyAddr st
 		Roles:    teleport.Roles{teleport.RoleApp},
 	})
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	appSigner, err := sshutils.NewSigner(appKeys.Key, appKeys.Cert)
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Create client with role of app.
 	authClient, err := tlsServer.NewClient(auth.TestBuiltin(teleport.RoleApp))
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
+	}
+
+	application := &services.ServerV2{
+		Kind:    services.KindApp,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Namespace: defaults.Namespace,
+			Name:      appUUID,
+		},
+		Spec: services.ServerSpecV2{
+			Protocol:     services.ServerSpecV2_HTTPS,
+			InternalAddr: targetAddr,
+			AppName:      "panel",
+			PublicAddr:   "panel.example.com",
+			Version:      teleport.Version,
+		},
 	}
 
 	// Create and start application proxy server.
@@ -261,29 +374,15 @@ func setupApp(clock clockwork.Clock, tlsServer *auth.TestTLSServer, proxyAddr st
 		Clock:       clock,
 		AccessPoint: authClient,
 		GetRotation: testRotationGetter,
-		App: &services.ServerV2{
-			Kind:    services.KindApp,
-			Version: services.V2,
-			Metadata: services.Metadata{
-				Namespace: defaults.Namespace,
-				Name:      appUUID,
-			},
-			Spec: services.ServerSpecV2{
-				Protocol:     services.ServerSpecV2_HTTPS,
-				InternalAddr: targetAddr,
-				AppName:      "panel",
-				PublicAddr:   "panel.example.com",
-				Version:      teleport.Version,
-			},
-		},
+		App:         application,
 	})
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	appServer.Start()
 	err = appServer.ForceHeartbeat()
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Create and establish reverse tunnel.
@@ -298,14 +397,19 @@ func setupApp(clock clockwork.Clock, tlsServer *auth.TestTLSServer, proxyAddr st
 		Cluster:     tlsServer.ClusterName(),
 	})
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	err = agentPool.Start()
 	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	return authClient, appServer, agentPool, nil
+	return &appPack{
+		app:    application,
+		client: authClient,
+		server: appServer,
+		pool:   agentPool,
+	}, nil
 }
 
 func testRotationGetter(role teleport.Role) (*services.Rotation, error) {

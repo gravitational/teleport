@@ -18,7 +18,6 @@ limitations under the License.
 package app
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -175,24 +174,24 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (h *Handler) authenticate(r *http.Request) (*session, error) {
-	//// Extract the session cookie from the *http.Request.
-	//cookieValue, err := extractCookie(r)
-	//if err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
-
-	//// Check the cache for an authenticated session.
-	//session, err := h.sessions.get(r.Context(), cookieValue)
-	//if err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
-
-	// Remove this.
-	session, err := h.sessions.newSession(context.Background(), "123", nil)
+	// Extract the session cookie from the *http.Request.
+	cookieValue, err := extractCookie(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	fmt.Printf("--> got a session: %v.\n", session)
+
+	// Check the cache for an authenticated session.
+	session, err := h.sessions.get(r.Context(), cookieValue)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	//// Remove this.
+	//session, err := h.sessions.newSession(context.Background(), "123", nil)
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+	//fmt.Printf("--> got a session: %v.\n", session)
 
 	return session, nil
 }
