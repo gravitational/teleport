@@ -2702,6 +2702,76 @@ clone:
   disable: true
 
 steps:
+  - name: Pull and retag Docker images
+    image: docker
+    settings:
+      docker_staging_username:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      docker_staging_password:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+      docker_production_username:
+        from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      docker_production_password:
+        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - export VERSION=${DRONE_TAG##v}
+      - |
+        # authenticate with staging credentials
+        docker login -u="$PLUGIN_DOCKER_STAGING_USERNAME" -p="$PLUGIN_DOCKER_STAGING_PASSWORD" quay.io
+      - |
+        # pull 'temporary' CI-built images
+        echo "---> Pulling OSS $${VERSION}"
+        docker pull quay.io/gravitational/teleport-ci:$${VERSION}
+        echo "---> Pulling Enterprise $${VERSION}"
+        docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}
+        echo "---> Pulling Enterprise FIPS $${VERSION}"
+        docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips
+      - |
+        # retag images to production naming
+        echo "--->Tagging OSS $${VERSION}"
+        docker tag quay.io/gravitational/teleport-ci:$${VERSION} quay.io/gravitational/teleport:$${VERSION}
+        echo "---> Tagging Enterprise $${VERSION}"
+        docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION} quay.io/gravitational/teleport-ent:$${VERSION}
+        echo "---> Tagging Enterprise FIPS $${VERSION}"
+        docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips quay.io/gravitational/teleport-ent:$${VERSION}-fips
+      - |
+        # reauthenticate with production credentials
+        docker logout quay.io && docker login -u="$PLUGIN_DOCKER_PRODUCTION_USERNAME" -p="$PLUGIN_DOCKER_PRODUCTION_PASSWORD" quay.io
+      - |
+        # push production images
+        echo "---> Pushing OSS $${VERSION}"
+        docker push quay.io/gravitational/teleport:$${VERSION}
+        echo "---> Pushing Enterprise $${VERSION}"
+        docker push quay.io/gravitational/teleport-ent:$${VERSION}
+        echo "---> Pushing Enterprise FIPS $${VERSION}"
+        docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
+
+  - name: Make AMIs public
+    image: hashicorp/packer
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache aws-cli jq make
+      - mkdir -p /go/src/github.com/gravitational/teleport/assets/aws/files/build
+      - cd /go/src/github.com/gravitational/teleport/assets/aws
+      - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ami/${DRONE_TAG##v}/ ./files/build/
+      - |
+        echo "---> Making OSS AMIs public"
+        make change-amis-to-public-oss
+        echo "---> Making Enterprise AMIs public"
+        make change-amis-to-public-ent
+        echo "---> Making Enterprise FIPS AMIs public"
+        make change-amis-to-public-ent-fips
+
   - name: Download artifacts from S3 artifact publishing bucket
     image: amazon/aws-cli
     environment:
@@ -2730,64 +2800,8 @@ steps:
       target: teleport/${DRONE_TAG##v}/
       strip_prefix: /go/src/github.com/gravitational/teleport/
 
-  - name: Pull and retag Docker images
-    image: docker
-    settings:
-      docker_staging_username:
-        from_secret: QUAYIO_DOCKER_USERNAME
-      docker_staging_password:
-        from_secret: QUAYIO_DOCKER_PASSWORD
-      docker_production_username:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
-      docker_production_password:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - export VERSION=${DRONE_TAG##v}
-      # authenticate with staging credentials
-      - docker login -u="$PLUGIN_DOCKER_STAGING_USERNAME" -p="$PLUGIN_DOCKER_STAGING_PASSWORD" quay.io
-      # pull 'temporary' CI-built images
-      - docker pull quay.io/gravitational/teleport-ci:$${VERSION}
-      - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}
-      - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips
-      # retag images to production naming
-      - docker tag quay.io/gravitational/teleport-ci:$${VERSION} quay.io/gravitational/teleport:$${VERSION}
-      - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION} quay.io/gravitational/teleport-ent:$${VERSION}
-      - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips quay.io/gravitational/teleport-ent:$${VERSION}-fips
-      # reauthenticate with production credentials
-      - docker logout quay.io && docker login -u="$PLUGIN_DOCKER_PRODUCTION_USERNAME" -p="$PLUGIN_DOCKER_PRODUCTION_PASSWORD" quay.io
-      # push production images
-      - docker push quay.io/gravitational/teleport:$${VERSION}
-      - docker push quay.io/gravitational/teleport-ent:$${VERSION}
-      - docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
-
-  - name: Make AMIs public
-    image: hashicorp/packer
-    environment:
-      AWS_ACCESS_KEY_ID:
-        from_secret: AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: AWS_SECRET_ACCESS_KEY
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache aws-cli jq make
-      - mkdir -p /go/src/github.com/gravitational/teleport/assets/aws/files/build
-      - cd /go/src/github.com/gravitational/teleport/assets/aws
-      - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ami/${DRONE_TAG##v}/ ./files/build/
-      - |
-        echo "---> Making OSS AMIs public"
-        make change-amis-to-public-oss
-        echo "---> Making Enterprise AMIs public"
-        make change-amis-to-public-ent
-        echo "---> Making Enterprise FIPS AMIs public"
-        make change-amis-to-public-ent-fips
-
 ---
 kind: signature
-hmac: 7bc5cc105ebfa9277166fb76b5c9ac171388096e79174e0d949ecfbd602bbd22
+hmac: a90135d3bec1007d40be600a0f1c8faf0d267dd699aca9596f256f40ae7fb5cf
 
 ...
