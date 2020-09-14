@@ -39,7 +39,7 @@ environments, not servers. Below is a list of the most popular Teleport features
 * Audit log with session recording/replay.
 * Kubernetes audit log, including the recording of interactive commands executed via `kubectl`.
 * Ability to run in "agentless" mode, i.e. most Teleport features are
-  available on clusters with pre-existing SSH daemons, usually `sshd`. See our [OpenSSH Guide](openssh_teleport.md)
+  available on clusters with pre-existing SSH daemons, usually `sshd`. See our [OpenSSH Guide](openssh-teleport.md)
 
 Teleport is available through the free, open source edition ("Teleport Community Edition")
 or a commercial edition ("Teleport Enterprise Edition").
@@ -94,8 +94,8 @@ we have separated out the documentation that is specific to Teleport Enterprise.
 - [Teleport Enterprise Introduction](enterprise/introduction.md) - Overview of the additional capabilities of Teleport Enterprise.
 - [Teleport Enterprise Quick Start](enterprise/quickstart-enterprise.md) - A quick tutorial to show off the basic capabilities of Teleport Enterprise.
 A good place to start if you want to jump right in.
-- [RBAC for SSH](enterprise/ssh_rbac.md) - Details on how Teleport Enterprise provides Role-based Access Controls (RBAC) for SSH.
-- [SSO for SSH](enterprise/sso/ssh_sso.md) - Overview on how Teleport Enterprise works with external identity providers for single sign-on (SSO).
+- [RBAC for SSH](enterprise/ssh-rbac.md) - Details on how Teleport Enterprise provides Role-based Access Controls (RBAC) for SSH.
+- [SSO for SSH](enterprise/sso/ssh-sso.md) - Overview on how Teleport Enterprise works with external identity providers for single sign-on (SSO).
 
 ## Support and Contributing
 

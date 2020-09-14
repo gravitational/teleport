@@ -17,7 +17,7 @@ We have split this guide into:
 - [Setting up Teleport Enterprise on AWS](#running-teleport-enterprise-on-aws)
 - [Teleport AWS Tips & Tricks](#teleport-aws-tips-tricks)
 
--  [AWS HA with Terraform](aws_terraform_guide.md)
+-  [AWS HA with Terraform](aws-terraform-guide.md)
 
 ### Teleport on AWS FAQ
 
@@ -286,7 +286,7 @@ assuming it's set when the server starts.
     1. Add the ACM certificate that you approved for `teleport.acmeinc.com`
     - Add a listener on the ALB for HTTPS on `443/tcp`
     - Target group will point to your instance - point to HTTP on `3080/tcp`
-    - Create a http health check, pointing to the [diagnostic endpoint](metrics_logs_reference.md).
+    - Create a http health check, pointing to the [diagnostic endpoint](metrics-logs-reference.md).
 
         - The default port is `3000` but if using the community image, use port `3434` as outlined in [Teleport AWS Proxy Service](https://github.com/gravitational/teleport/blob/master/assets/aws/files/system/teleport-proxy.service#L16).
         - The healthcheck path should be set to `/readyz`.
@@ -702,7 +702,7 @@ correct binary.
 
 We've a few other resources for Enterprise customers such as our
 
-- [Running Teleport Enterprise in HA mode on AWS using Terraform](aws_terraform_guide.md)
+- [Running Teleport Enterprise in HA mode on AWS using Terraform](aws-terraform-guide.md)
 - [Teleport Enterprise Quickstart](enterprise/quickstart-enterprise.md)
 
 If you would like help setting up Teleport Enterprise on AWS, please mail us at [info@gravitational.com](mailto:info@gravitational.com)
