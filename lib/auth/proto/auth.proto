@@ -248,4 +248,6 @@ service AuthService {
     rpc UpdateUser(services.UserV2) returns (google.protobuf.Empty);
     // DeleteUser deletes an exisitng user in a backend by username.
     rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
+    // UpdateRemoteCluster updates remote cluster
+    rpc UpdateRemoteCluster(services.RemoteClusterV3) returns (google.protobuf.Empty);
 }

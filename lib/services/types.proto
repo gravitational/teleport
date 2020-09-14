@@ -733,6 +733,14 @@ message RoleConditions {
 
     // KubeUsers is an optional kubernetes users to impersonate
     repeated string KubeUsers = 7 [ (gogoproto.jsontag) = "kubernetes_users,omitempty" ];
+
+    // ClusterLabels is a map of node labels (used to dynamically grant access to
+    // clusters).
+    wrappers.LabelValues ClusterLabels = 8 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "cluster_labels,omitempty",
+        (gogoproto.customtype) = "Labels"
+    ];
 }
 
 // AccessRequestConditions is a matcher for allow/deny restrictions on
@@ -974,4 +982,35 @@ message TunnelConnectionSpecV2 {
     ];
     // Type is the type of reverse tunnel, either proxy or node.
     string Type = 4 [ (gogoproto.jsontag) = "type", (gogoproto.casttype) = "TunnelType" ];
+}
+
+// RemoteClusterV3 represents remote cluster resource specification
+message RemoteClusterV3 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is a resource kind
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is User metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Status is a remote cluster status
+    RemoteClusterStatusV3 Status = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "status" ];
+}
+
+// RemoteClusterStatusV3 represents status of the remote cluster
+message RemoteClusterStatusV3 {
+    // Connection represents connection status, online or offline
+    string Connection = 1 [ (gogoproto.jsontag) = "connection" ];
+
+    // LastHeartbeat records last heartbeat of the cluster
+    google.protobuf.Timestamp LastHeartbeat = 2 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "last_heartbeat"
+    ];
 }

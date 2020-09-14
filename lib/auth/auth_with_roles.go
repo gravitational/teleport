@@ -1748,18 +1748,48 @@ func (a *AuthWithRoles) CreateRemoteCluster(conn services.RemoteCluster) error {
 	return a.authServer.CreateRemoteCluster(conn)
 }
 
+func (a *AuthWithRoles) UpdateRemoteCluster(ctx context.Context, rc services.RemoteCluster) error {
+	if err := a.action(defaults.Namespace, services.KindRemoteCluster, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.UpdateRemoteCluster(ctx, rc)
+}
+
 func (a *AuthWithRoles) GetRemoteCluster(clusterName string) (services.RemoteCluster, error) {
 	if err := a.action(defaults.Namespace, services.KindRemoteCluster, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetRemoteCluster(clusterName)
+	cluster, err := a.authServer.GetRemoteCluster(clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.checker.CheckAccessToRemoteCluster(cluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cluster, nil
 }
 
 func (a *AuthWithRoles) GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error) {
 	if err := a.action(defaults.Namespace, services.KindRemoteCluster, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetRemoteClusters(opts...)
+	remoteClusters, err := a.authServer.GetRemoteClusters(opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.filterRemoteClusters(remoteClusters), nil
+}
+
+// filterRemoteClusters filters remote clusters based on what the current user is authorized to access
+func (a *AuthWithRoles) filterRemoteClusters(remoteClusters []services.RemoteCluster) []services.RemoteCluster {
+	filteredClusters := make([]services.RemoteCluster, 0, len(remoteClusters))
+	for i := range remoteClusters {
+		if err := a.checker.CheckAccessToRemoteCluster(remoteClusters[i]); err != nil {
+			continue
+		}
+		filteredClusters = append(filteredClusters, remoteClusters[i])
+	}
+	return filteredClusters
 }
 
 func (a *AuthWithRoles) DeleteRemoteCluster(clusterName string) error {
