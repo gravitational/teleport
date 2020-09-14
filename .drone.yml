@@ -2741,6 +2741,15 @@ steps:
       - docker push quay.io/gravitational/teleport-ent:$${VERSION}
       - docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
 
+  - name: Check out code
+    image: docker:git
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
+      - cd /go/src/github.com/gravitational/teleport
+      - git init && git remote add origin ${DRONE_REMOTE_URL}
+      - git fetch origin +refs/tags/${DRONE_TAG}:
+      - git checkout -qf FETCH_HEAD
+
   - name: Make AMIs public
     image: hashicorp/packer
     environment:
@@ -2753,15 +2762,11 @@ steps:
     commands:
       - apk add --no-cache aws-cli jq make
       - mkdir -p /go/src/github.com/gravitational/teleport/assets/aws/files/build
+      - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ami/${DRONE_TAG##v}/ /go/src/github.com/gravitational/teleport/assets/aws/files/build
       - cd /go/src/github.com/gravitational/teleport/assets/aws
-      - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ami/${DRONE_TAG##v}/ ./files/build/
-      - |
-        echo "---> Making OSS AMIs public"
-        make change-amis-to-public-oss
-        echo "---> Making Enterprise AMIs public"
-        make change-amis-to-public-ent
-        echo "---> Making Enterprise FIPS AMIs public"
-        make change-amis-to-public-ent-fips
+      - make change-amis-to-public-oss
+      - make change-amis-to-public-ent
+      - make change-amis-to-public-ent-fips
 
   - name: Download artifacts from S3 artifact publishing bucket
     image: amazon/aws-cli
@@ -2805,6 +2810,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 6d54983ce8f323b3e2a81c0f524500a5d42ae6f00e70ae69bad1feb809303209
+hmac: d12e5e9f74d1bdc3c2d82271583b30a2aed5eeb15e4566b4c1925558afad994f
 
 ...
