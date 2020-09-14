@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"sort"
 	"time"
 
@@ -680,8 +679,6 @@ func (s *PresenceService) GetApps(ctx context.Context, namespace string, opts ..
 		return nil, trace.Wrap(err)
 	}
 
-	fmt.Printf("--> PresenceService: key=%v, len(result.Items): %v.\n", string(startKey), len(result.Items))
-
 	// Marshal values into a []services.Server slice.
 	apps := make([]services.Server, len(result.Items))
 	for i, item := range result.Items {
@@ -717,19 +714,9 @@ func (s *PresenceService) UpsertApp(ctx context.Context, app services.Server) (*
 		Expires: app.Expiry(),
 		ID:      app.GetResourceID(),
 	})
-	fmt.Printf("--> PresenceService: upsertedapp: key=%v, %v.\n", string(backend.Key(appsPrefix, app.GetNamespace(), app.GetName())), err)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Get all items in the bucket.
-	startKey := backend.Key(appsPrefix, app.GetNamespace())
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	fmt.Printf("--> RIGHT AWAY PresenceService: key=%v, len(result.Items): %v.\n", string(startKey), len(result.Items))
-
 	if app.Expiry().IsZero() {
 		return &services.KeepAlive{}, nil
 	}

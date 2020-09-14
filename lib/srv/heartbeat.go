@@ -398,7 +398,6 @@ func (h *Heartbeat) announce() error {
 			return nil
 		case HeartbeatModeApp:
 			keepAlive, err := h.Announcer.UpsertApp(h.cancelCtx, h.current)
-			fmt.Printf("--> upserting app: %v.\n", err)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -468,7 +467,6 @@ func (h *Heartbeat) fetchAndAnnounce() error {
 // ForceSend forces send cycle, used in tests, returns
 // nil in case of success, error otherwise
 func (h *Heartbeat) ForceSend(timeout time.Duration) error {
-	fmt.Printf("--> force send.\n")
 	timeoutC := time.After(timeout)
 	select {
 	case h.sendC <- struct{}{}:

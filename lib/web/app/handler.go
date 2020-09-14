@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/gravitational/teleport"
@@ -81,6 +80,7 @@ func NewHandler(config HandlerConfig) (*Handler, error) {
 	}, nil
 }
 
+// TODO(russjones): This function should be covered by an integration test.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// If the target is an application but it hits the special "x-teleport-auth"
 	// endpoint, then perform redirect authentication logic.
@@ -101,9 +101,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO(russjones): Forward the request, then use the "trace" type to
+	// return the correct response code.
 	err = h.forward(w, r, session)
 	if err != nil {
-		h.log.Warnf("Authentication failed: %v.", err)
+		h.log.Warnf("Failed to forward request to %q: %v.", session.app.GetAppName(), err)
 		http.Error(w, "internal service error", 500)
 		return
 	}
@@ -186,40 +188,15 @@ func (h *Handler) authenticate(r *http.Request) (*session, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	//// Remove this.
-	//session, err := h.sessions.newSession(context.Background(), "123", nil)
-	//if err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
-	//fmt.Printf("--> got a session: %v.\n", session)
-
 	return session, nil
 }
 
-// TODO(russjones): In this function, if forwarding request fails, return
-// an error to the user, and delete the *session and force it to be recreated
-// to allow the user of new connection through the tunnel.
 func (h *Handler) forward(w http.ResponseWriter, r *http.Request, s *session) error {
-	// Check access to the target application before forwarding. This allows an
-	// admin to change roles assigned an user/application at runtime and deny
-	// access to the application.
-	//
-	// This code path should be profiled if it ever becomes a bottleneck.
-	err := s.checker.CheckAccessToApp(s.app)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var err error
-
-	//r.URL = testutils.ParseURI("http://localhost:8081")
-	//r.URL, err = url.Parse("http://localhost:8081")
-	r.URL, err = url.Parse("http://" + s.app.GetInternalAddr())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+	// Update the target URL on the request and issue it.
+	r.URL = s.url
 	s.fwd.ServeHTTP(w, r)
+
+	// TODO(russjones): Detect error, and if an error occurs, close the *session.
 	return nil
 }
 

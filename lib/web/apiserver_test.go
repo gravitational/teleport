@@ -146,13 +146,9 @@ func (s *WebSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.user = u.Username
 
-	dbPath, _ := ioutil.TempDir("", "")
-	//dbPath := c.MkDir()
-	fmt.Printf("--> dbPath: %v.\n", dbPath)
-
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		ClusterName: "localhost",
-		Dir:         dbPath,
+		Dir:         c.MkDir(),
 		Clock:       clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC)),
 	})
 	c.Assert(err, IsNil)

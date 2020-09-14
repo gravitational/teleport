@@ -17,7 +17,9 @@ limitations under the License.
 package app
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -51,22 +53,22 @@ func TestAuthenticate(t *testing.T) {
 	defer done()
 
 	// Create application handler that runs within the web handlers.
-	authClient, err := pack.auth.tlsServer.NewClient(auth.TestBuiltin(teleport.RoleWeb))
+	authClient, err := pack.s.tlsServer.NewClient(auth.TestBuiltin(teleport.RoleWeb))
 	assert.Nil(t, err)
 	handler, err := NewHandler(HandlerConfig{
 		AuthClient:  authClient,
-		ProxyClient: pack.proxy.tunnel,
+		ProxyClient: pack.p.tunnel,
 	})
 	assert.Nil(t, err)
 
 	// Create a web UI session.
-	webSession, err := pack.auth.client.CreateWebSession(pack.user.user.GetName())
+	webSession, err := pack.s.client.CreateWebSession(pack.u.user.GetName())
 	assert.Nil(t, err)
 
 	// Use the Web UI session to ask for a application specific session.
-	appSession, err := pack.user.client.CreateAppSession(context.Background(), services.CreateAppSessionRequest{
-		AppName:     pack.app.app.GetAppName(),
-		ClusterName: pack.auth.tlsServer.ClusterName(),
+	appSession, err := pack.u.client.CreateAppSession(context.Background(), services.CreateAppSessionRequest{
+		AppName:     pack.a.app.GetAppName(),
+		ClusterName: pack.s.tlsServer.ClusterName(),
 		SessionID:   webSession.GetName(),
 		BearerToken: webSession.GetBearerToken(),
 	})
@@ -74,13 +76,13 @@ func TestAuthenticate(t *testing.T) {
 
 	// Create a few cookie values to test.
 	validCookieValue, err := encodeCookie(&Cookie{
-		Username:   pack.user.user.GetName(),
+		Username:   pack.u.user.GetName(),
 		ParentHash: appSession.GetParentHash(),
 		SessionID:  appSession.GetName(),
 	})
 	assert.Nil(t, err)
 	invalidCookieValue, err := encodeCookie(&Cookie{
-		Username:   pack.user.user.GetName(),
+		Username:   pack.u.user.GetName(),
 		ParentHash: appSession.GetParentHash(),
 		SessionID:  "invalid-session-id",
 	})
@@ -131,27 +133,30 @@ func TestAuthenticate(t *testing.T) {
 	// session and make sure access is fully revoked.
 }
 
+// TestForward verifies the request is updated (jwt header added, session
+// cookies removed) and forwarded to the target application. When the
+// underlying tunnel connection is closed, forwarding should fail as well.
 func TestForward(t *testing.T) {
 	pack, done := setup(t)
 	defer done()
 
 	// Create application handler that runs within the web handlers.
-	authClient, err := pack.auth.tlsServer.NewClient(auth.TestBuiltin(teleport.RoleWeb))
+	authClient, err := pack.s.tlsServer.NewClient(auth.TestBuiltin(teleport.RoleWeb))
 	assert.Nil(t, err)
 	handler, err := NewHandler(HandlerConfig{
 		AuthClient:  authClient,
-		ProxyClient: pack.proxy.tunnel,
+		ProxyClient: pack.p.tunnel,
 	})
 	assert.Nil(t, err)
 
 	// Create a web UI session.
-	webSession, err := pack.auth.client.CreateWebSession(pack.user.user.GetName())
+	webSession, err := pack.s.client.CreateWebSession(pack.u.user.GetName())
 	assert.Nil(t, err)
 
 	// Use the Web UI session to ask for a application specific session.
-	appSession, err := pack.user.client.CreateAppSession(context.Background(), services.CreateAppSessionRequest{
-		AppName:     pack.app.app.GetAppName(),
-		ClusterName: pack.auth.tlsServer.ClusterName(),
+	appSession, err := pack.u.client.CreateAppSession(context.Background(), services.CreateAppSessionRequest{
+		AppName:     pack.a.app.GetAppName(),
+		ClusterName: pack.s.tlsServer.ClusterName(),
 		SessionID:   webSession.GetName(),
 		BearerToken: webSession.GetBearerToken(),
 	})
@@ -160,70 +165,154 @@ func TestForward(t *testing.T) {
 	// Create a session cache and create a session.
 	cache, err := newSessionCache(sessionCacheConfig{
 		AuthClient:  authClient,
-		ProxyClient: pack.proxy.tunnel,
+		ProxyClient: pack.p.tunnel,
 	})
 	assert.Nil(t, err)
 	session, err := cache.newSession(context.Background(), "not-required", appSession)
 	assert.Nil(t, err)
 
-	r, err := http.NewRequest(http.MethodGet, pack.app.app.GetPublicAddr(), nil)
+	// Create a request to the requested target.
+	r, err := http.NewRequest(http.MethodGet, pack.a.app.GetPublicAddr(), nil)
 	assert.Nil(t, err)
-	w := httptest.NewRecorder()
 
+	// Issue the request, it should succeed.
+	w := httptest.NewRecorder()
 	err = handler.forward(w, r, session)
 	assert.Nil(t, err)
+	assert.Equal(t, http.StatusOK, w.Result().StatusCode)
 
+	// Check that the output contains the expected jwt.
 	resp := w.Result()
 	defer resp.Body.Close()
-
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.Nil(t, err)
+	assert.Equal(t, string(body), session.jwt)
 
-	fmt.Printf("--> code: %v.\n", resp.StatusCode)
-	fmt.Printf("--> body: %v.\n", string(body))
+	// Close the underlying connection.
+	err = session.conn.Close()
+	assert.Nil(t, err)
+
+	// Issue the request once again, it should fail this time.
+	w = httptest.NewRecorder()
+	err = handler.forward(w, r, session)
+	assert.Nil(t, err)
+	assert.Equal(t, http.StatusInternalServerError, w.Result().StatusCode)
+
+	// TODO(russjones): Check that the authentication cookie is removed.
+	// TODO(russjones): Update "handler.forward" to return an error. Here only
+	// check that an error is returned in session_test.go check that it also
+	// removes the session.
 }
 
-/*
-func TestAuthenticate(t *testing.T) {
+// TestFragment validates fragment validation works, that a valid session cookie will be retu
+func TestFragment(t *testing.T) {
 	pack, done := setup(t)
 	defer done()
 
-	// Create application handler.
+	// Create application handler that runs within the web handlers.
+	authClient, err := pack.s.tlsServer.NewClient(auth.TestBuiltin(teleport.RoleWeb))
+	assert.Nil(t, err)
 	handler, err := NewHandler(HandlerConfig{
 		AuthClient:  authClient,
-		ProxyClient: reverseTunnelServer,
+		ProxyClient: pack.p.tunnel,
 	})
-	if err != nil {
-		return nil, nil, nil, nil, nil, trace.Wrap(err)
+	assert.Nil(t, err)
+
+	// Create a web UI session.
+	webSession, err := pack.s.client.CreateWebSession(pack.u.user.GetName())
+	assert.Nil(t, err)
+
+	// Use the Web UI session to ask for a application specific session.
+	appSession, err := pack.u.client.CreateAppSession(context.Background(), services.CreateAppSessionRequest{
+		AppName:     pack.a.app.GetAppName(),
+		ClusterName: pack.s.tlsServer.ClusterName(),
+		SessionID:   webSession.GetName(),
+		BearerToken: webSession.GetBearerToken(),
+	})
+	assert.Nil(t, err)
+
+	// Create a few cookie values to test.
+	validCookieValue, err := encodeCookie(&Cookie{
+		Username:   pack.u.user.GetName(),
+		ParentHash: appSession.GetParentHash(),
+		SessionID:  appSession.GetName(),
+	})
+	assert.Nil(t, err)
+	invalidCookieValue, err := encodeCookie(&Cookie{
+		Username:   pack.u.user.GetName(),
+		ParentHash: appSession.GetParentHash(),
+		SessionID:  "invalid-session-id",
+	})
+	assert.Nil(t, err)
+
+	var tests = []struct {
+		desc          string
+		inCookieValue string
+		outError      bool
+	}{
+		{
+			desc:     "Missing cookie.",
+			outError: true,
+		},
+		{
+			desc:          "Invalid cookie.",
+			inCookieValue: invalidCookieValue,
+			outError:      true,
+		},
+		{
+			desc:          "Valid cookie.",
+			inCookieValue: validCookieValue,
+			outError:      false,
+		},
 	}
 
-	webServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		pack.proxyHandler.ServeHTTP(w, r)
-	}))
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			buffer, err := json.Marshal(&fragmentRequest{
+				CookieValue: tt.inCookieValue,
+			})
+			assert.Nil(t, err)
 
-	res, err := http.Get(webServer.URL)
-	assert.Nil(t, err)
-	greeting, err := ioutil.ReadAll(res.Body)
-	res.Body.Close()
-	assert.Nil(t, err)
+			// Create POST request that will be sent to fragment handler endpoint.
+			addr := pack.a.app.GetPublicAddr()
+			r, err := http.NewRequest(http.MethodPost, addr, bytes.NewReader(buffer))
+			assert.Nil(t, err)
 
-	fmt.Printf("--> %v", string(greeting))
+			// Make sure fragment handler only succeeds with valid session cookies.
+			w := httptest.NewRecorder()
+			err = handler.handleFragment(w, r)
+			assert.Equal(t, err != nil, tt.outError)
+			if tt.outError {
+				return
+			}
+
+			// Check that the value returned in the "Set-Cookie" header matches the
+			// value passed in.
+			assert.Equal(t, http.StatusOK, w.Result().StatusCode)
+			assert.Len(t, w.Result().Cookies(), 1)
+			cookie := w.Result().Cookies()[0]
+			assert.Equal(t, cookie.Name, cookieName)
+			assert.Equal(t, cookie.Value, tt.inCookieValue)
+		})
+	}
 }
-*/
 
 type pack struct {
 	clock clockwork.Clock
 
-	auth  *authPack
-	user  *userPack
-	proxy *proxyPack
-	app   *appPack
+	s *authPack
+	u *userPack
+	p *proxyPack
+	a *appPack
 }
 
 type authPack struct {
-	client     *auth.Client
+	client *auth.Client
+
 	authServer *auth.TestAuthServer
 	tlsServer  *auth.TestTLSServer
+
+	authDir string
 }
 
 type userPack struct {
@@ -233,11 +322,17 @@ type userPack struct {
 }
 
 type proxyPack struct {
-	client   *auth.Client
+	client *auth.Client
+
 	listener net.Listener
 	tunnel   reversetunnel.Server
-	handler  *Handler
-	ssh      *regular.Server
+
+	handler *Handler
+
+	ssh *regular.Server
+
+	tunnelDir string
+	proxyDir  string
 }
 
 type appPack struct {
@@ -253,46 +348,39 @@ func setup(t *testing.T) (*pack, func()) {
 	fakeClock := clockwork.NewFakeClockAt(time.Now())
 	clusterName := "example.com"
 
-	// Create a few temporary directories that will be removed at the end of the test.
-	authDir, err := ioutil.TempDir("", "")
-	assert.Nil(t, err)
-	tunnelDir, err := ioutil.TempDir("", "")
-	assert.Nil(t, err)
-	proxyDir, err := ioutil.TempDir("", "")
-	assert.Nil(t, err)
-
 	// Create components needed to run auth.
-	auth, err := setupAuth(fakeClock, clusterName, authDir)
+	auths, err := setupAuth(fakeClock, clusterName)
 	assert.Nil(t, err)
 
 	// Create user that will be making requests to the web application.
-	user, err := setupUser(auth.tlsServer)
+	user, err := setupUser(auths.tlsServer)
 	assert.Nil(t, err)
 
 	// Create components needed to run proxy.
-	proxy, err := setupProxy(auth.tlsServer, tunnelDir, proxyDir)
+	proxy, err := setupProxy(auths.tlsServer)
 	assert.Nil(t, err)
 
 	// Create internal application.
 	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, "hello, world")
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		fmt.Fprint(w, r.Header.Get("x-teleport-jwt-assertion"))
 	}))
 	u, err := url.Parse(targetServer.URL)
 	assert.Nil(t, err)
 
 	// Create components needed to run app proxy.
-	app, err := setupApp(fakeClock, auth.tlsServer, proxy.listener.Addr().String(), u.Host)
+	app, err := setupApp(fakeClock, auths.tlsServer, proxy.listener.Addr().String(), u.Host)
 	assert.Nil(t, err)
 
 	// Wait for the application to have registered itself with the proxy server
 	// before exiting setup.
-	err = waitForTunnelCount(proxy.tunnel, auth.tlsServer.ClusterName(), 1)
+	err = waitForTunnelCount(proxy.tunnel, auths.tlsServer.ClusterName(), 1)
 	assert.Nil(t, err)
 
 	closeFunc := func() {
-		os.RemoveAll(authDir)
-		os.RemoveAll(tunnelDir)
-		os.RemoveAll(proxyDir)
+		os.RemoveAll(auths.authDir)
+		os.RemoveAll(proxy.tunnelDir)
+		os.RemoveAll(proxy.proxyDir)
 
 		proxy.client.Close()
 		proxy.listener.Close()
@@ -306,14 +394,20 @@ func setup(t *testing.T) (*pack, func()) {
 
 	return &pack{
 		clock: fakeClock,
-		auth:  auth,
-		user:  user,
-		proxy: proxy,
-		app:   app,
+		s:     auths,
+		u:     user,
+		p:     proxy,
+		a:     app,
 	}, closeFunc
 }
 
-func setupAuth(clock clockwork.FakeClock, clusterName string, dir string) (*authPack, error) {
+func setupAuth(clock clockwork.FakeClock, clusterName string) (*authPack, error) {
+	// Create a few temporary directories that will be removed at the end of the test.
+	dir, err := ioutil.TempDir("", "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create and start auth.
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		Clock:       clock,
@@ -338,6 +432,7 @@ func setupAuth(clock clockwork.FakeClock, clusterName string, dir string) (*auth
 		client:     authClient,
 		authServer: authServer,
 		tlsServer:  tlsServer,
+		authDir:    dir,
 	}, nil
 }
 
@@ -358,7 +453,17 @@ func setupUser(tlsServer *auth.TestTLSServer) (*userPack, error) {
 	}, nil
 }
 
-func setupProxy(tlsServer *auth.TestTLSServer, tunnelDir string, proxyDir string) (*proxyPack, error) {
+func setupProxy(tlsServer *auth.TestTLSServer) (*proxyPack, error) {
+	// Create a few temporary directories that will be removed at the end of the test.
+	tunnelDir, err := ioutil.TempDir("", "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyDir, err := ioutil.TempDir("", "")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create key and certificate.
 	proxyUUID := uuid.New()
 	proxyKeys, err := tlsServer.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
@@ -438,10 +543,12 @@ func setupProxy(tlsServer *auth.TestTLSServer, tunnelDir string, proxyDir string
 	}
 
 	return &proxyPack{
-		client:   authClient,
-		listener: listener,
-		tunnel:   reverseTunnelServer,
-		ssh:      sshServer,
+		client:    authClient,
+		listener:  listener,
+		tunnel:    reverseTunnelServer,
+		ssh:       sshServer,
+		tunnelDir: tunnelDir,
+		proxyDir:  proxyDir,
 	}, nil
 }
 

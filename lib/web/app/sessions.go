@@ -20,6 +20,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -41,14 +42,16 @@ type session struct {
 	// cacheKey is the encoded session cookie. It is used as a key for the cache.
 	cacheKey string
 
+	url *url.URL
+
 	app      services.Server
 	checker  services.AccessChecker
 	identity *tlsca.Identity
-	fwd      *forward.Forwarder
 
-	// TODO(russjones): The JWT token does not need to be stored since it's
-	// embedded within the forwarder?
-	//token       string
+	fwd  *forward.Forwarder
+	conn net.Conn
+
+	jwt string
 }
 
 type sessionCacheConfig struct {
@@ -161,6 +164,15 @@ func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess 
 		return nil, trace.Wrap(err)
 	}
 
+	addr, err := parseAddress(app.GetInternalAddr())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	u, err := url.Parse(addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Extract the identity of the user from the certificate.
 	cert, err := utils.ParseCertificatePEM(sess.GetTLSCert())
 	if err != nil {
@@ -181,9 +193,19 @@ func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess 
 		return nil, trace.Wrap(err)
 	}
 
+	// Check access to the target application before forwarding. This allows an
+	// admin to change roles assigned an user/application at runtime and deny
+	// access to the application.
+	//
+	// This code path should be profiled if it ever becomes a bottleneck.
+	err = checker.CheckAccessToApp(app)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Generate a signed token that can be re-used during the lifetime of this
 	// session to pass authentication information to the target application.
-	token, err := s.c.AuthClient.GenerateAppToken(ctx, services.AppTokenParams{
+	jwt, err := s.c.AuthClient.GenerateAppToken(ctx, services.AppTokenParams{
 		Username: sess.GetUser(),
 		Roles:    roles,
 		// TODO(russjones): Expiry implies a time.Time, instead Expiry here is a
@@ -214,21 +236,26 @@ func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess 
 	// request over the reverse tunnel to the target application.
 	fwd, err := forward.New(
 		forward.RoundTripper(newCustomTransport(conn)),
-		forward.Rewriter(&rewriter{signedToken: token}))
+		forward.Rewriter(&rewriter{signedToken: jwt}),
+		forward.Logger(s.log))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &session{
 		cacheKey: cookieValue,
+		url:      u,
 		app:      app,
 		checker:  checker,
 		identity: identity,
 		fwd:      fwd,
+		conn:     conn,
+		jwt:      jwt,
 	}, nil
 }
 
 func (s *sessionCache) remove(cookieValue string) {
+	// TODO(russjones): Is this racy?
 	s.cache.Remove(cookieValue)
 }
 
@@ -276,4 +303,16 @@ func (t *customTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	resp, err := tr.RoundTrip(req)
 	return resp, trace.Wrap(err)
+}
+
+func parseAddress(addr string) (string, error) {
+	u, err := url.Parse(addr)
+	if err != nil {
+		u, err = url.Parse("http://" + addr)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return u.String(), nil
+	}
+	return u.String(), nil
 }

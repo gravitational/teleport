@@ -132,8 +132,6 @@ func (h *RewritingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// apps to figure out to discover request destination: apps handler or the
 	// Web UI.
 	_, err := h.appHandler.IsApp(r)
-	fmt.Printf("--> IsApp: %v.\n", err)
-
 	switch {
 	// If the error was specifically that the application was not found,
 	// then serve the Web UI.
@@ -1315,37 +1313,6 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		SessionID:  session.GetName(),
 	}, nil
 }
-
-//func (h *Handler) tmp(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-//	sessionID := r.URL.Query()["s"][0]
-//	bearerToken := r.URL.Query()["b"][0]
-//
-//	fmt.Printf("--> sessionID: %v, bearerToken: %v.\n", sessionID, bearerToken)
-//
-//	//// Get a client to auth with the identity of the logged in user and use it
-//	//// to request the creation of an application session for this user.
-//	//client, err := ctx.GetClient()
-//	//if err != nil {
-//	//	return nil, trace.Wrap(err)
-//	//}
-//
-//	session, err := h.GetProxyClient().CreateAppSession(r.Context(), services.CreateAppSessionRequest{
-//		//session, err := client.CreateAppSession(r.Context(), services.CreateAppSessionRequest{
-//		AppName:     "dumper",
-//		ClusterName: "example.com",
-//		SessionID:   sessionID,
-//		BearerToken: bearerToken,
-//	})
-//	if err != nil {
-//		return nil, trace.Wrap(err)
-//	}
-//
-//	return &createAppSessionResponse{
-//		Username:   session.GetUser(),
-//		ParentHash: session.GetParentHash(),
-//		SessionID:  session.GetName(),
-//	}, nil
-//}
 
 // deleteSession is called to sign out user
 //
