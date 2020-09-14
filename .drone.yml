@@ -2745,7 +2745,6 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - chown -R $UID:$GID /go
       - export VERSION=${DRONE_TAG##v}
       # authenticate with staging credentials
       - docker login -u="$PLUGIN_DOCKER_STAGING_USERNAME" -p="$PLUGIN_DOCKER_STAGING_PASSWORD" quay.io
@@ -2789,6 +2788,6 @@ steps:
 
 ---
 kind: signature
-hmac: b4957d7c1fbb14c8f055dc6a8f551238ff5e6d8de4baa5a92d37bc4cad0550c9
+hmac: 7bc5cc105ebfa9277166fb76b5c9ac171388096e79174e0d949ecfbd602bbd22
 
 ...
