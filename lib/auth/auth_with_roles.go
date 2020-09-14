@@ -517,6 +517,10 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch services.Watch) 
 			if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
+		case services.KindRemoteCluster:
+			if err := a.action(defaults.Namespace, services.KindRemoteCluster, services.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		default:
 			return nil, trace.AccessDenied("not authorized to watch %v events", kind.Kind)
 		}
@@ -1921,23 +1925,51 @@ func (a *ServerWithRoles) CreateRemoteCluster(conn services.RemoteCluster) error
 	return a.authServer.CreateRemoteCluster(conn)
 }
 
-// UpdateRemoteCluster not implemented: can only be called locally.
-func (a *ServerWithRoles) UpdateRemoteCluster(ctx context.Context, conn services.RemoteCluster) error {
-	return trace.NotImplemented(notImplementedMessage)
+func (a *ServerWithRoles) UpdateRemoteCluster(ctx context.Context, rc services.RemoteCluster) error {
+	if err := a.action(defaults.Namespace, services.KindRemoteCluster, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.UpdateRemoteCluster(ctx, rc)
 }
 
 func (a *ServerWithRoles) GetRemoteCluster(clusterName string) (services.RemoteCluster, error) {
 	if err := a.action(defaults.Namespace, services.KindRemoteCluster, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetRemoteCluster(clusterName)
+	cluster, err := a.authServer.GetRemoteCluster(clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.context.Checker.CheckAccessToRemoteCluster(cluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cluster, nil
 }
 
 func (a *ServerWithRoles) GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error) {
 	if err := a.action(defaults.Namespace, services.KindRemoteCluster, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetRemoteClusters(opts...)
+	remoteClusters, err := a.authServer.GetRemoteClusters(opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.filterRemoteClustersForUser(remoteClusters)
+}
+
+// filterRemoteClustersForUser filters remote clusters based on what the current user is authorized to access
+func (a *ServerWithRoles) filterRemoteClustersForUser(remoteClusters []services.RemoteCluster) ([]services.RemoteCluster, error) {
+	filteredClusters := make([]services.RemoteCluster, 0, len(remoteClusters))
+	for _, rc := range remoteClusters {
+		if err := a.context.Checker.CheckAccessToRemoteCluster(rc); err != nil {
+			if trace.IsAccessDenied(err) {
+				continue
+			}
+			return nil, trace.Wrap(err)
+		}
+		filteredClusters = append(filteredClusters, rc)
+	}
+	return filteredClusters, nil
 }
 
 func (a *ServerWithRoles) DeleteRemoteCluster(clusterName string) error {

@@ -79,6 +79,8 @@ type Provisioner interface {
 // ProvisionToken is a provisioning token
 type ProvisionToken interface {
 	Resource
+	// SetMetadata sets resource metatada
+	SetMetadata(meta Metadata)
 	// GetRoles returns a list of teleport roles
 	// that will be granted to the user of the token
 	// in the crendentials
@@ -178,6 +180,11 @@ func (p *ProvisionTokenV2) SetResourceID(id int64) {
 // GetMetadata returns metadata
 func (p *ProvisionTokenV2) GetMetadata() Metadata {
 	return p.Metadata
+}
+
+// SetMetadata sets resource metatada
+func (p *ProvisionTokenV2) SetMetadata(meta Metadata) {
+	p.Metadata = meta
 }
 
 // V1 returns V1 version of the resource

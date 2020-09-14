@@ -47,7 +47,7 @@ type HandlerConfig struct {
 	// AccessPoint is caching client to auth.
 	AccessPoint auth.AccessPoint
 	// ProxyClient holds connections to leaf clusters.
-	ProxyClient reversetunnel.Server
+	ProxyClient reversetunnel.Tunnel
 	// CipherSuites is the list of TLS cipher suites that have been configured
 	// for this process.
 	CipherSuites []uint16
