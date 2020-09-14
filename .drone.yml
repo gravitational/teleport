@@ -8,17 +8,13 @@ environment:
   UID: 1000
   GID: 1000
 
-#TODO(gus): testing
-# trigger:
-#   event:
-#     include:
-#       - pull_request
-#   repo:
-#     include:
-#       - gravitational/*
 trigger:
-  cron:
-    - none
+  event:
+    include:
+      - pull_request
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go
@@ -146,17 +142,13 @@ kind: pipeline
 type: kubernetes
 name: test-docs-internal
 
-#TODO(gus): testing
-# trigger:
-#   event:
-#     include:
-#       - pull_request
-#   repo:
-#     include:
-#       - gravitational/*
 trigger:
-  cron:
-    - none
+  event:
+    include:
+      - pull_request
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go
@@ -224,17 +216,13 @@ kind: pipeline
 type: kubernetes
 name: test-docs-external
 
-#TODO(gus): testing
-# trigger:
-#   event:
-#     include:
-#       - pull_request
-#   repo:
-#     include:
-#       - gravitational/*
 trigger:
-  cron:
-    - none
+  event:
+    include:
+      - pull_request
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go
@@ -497,26 +485,18 @@ name: build-linux-amd64
 environment:
   RUNTIME: go1.14.4
 
-#TODO(gus): testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
 trigger:
   event:
+    - tag
+  ref:
     include:
-      - pull_request
+      - refs/tags/v*
   repo:
     include:
       - gravitational/*
 
-#TODO(gus): testing
-#depends_on:
+# TODO(gus): testing
+# depends_on:
 #  - test
 
 workspace:
@@ -613,20 +593,13 @@ name: build-linux-amd64-fips
 environment:
   RUNTIME: go1.14.4
 
-#TODO(gus): testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
+TODO(gus): testing
 trigger:
   event:
+    - tag
+  ref:
     include:
-      - pull_request
+      - refs/tags/v*
   repo:
     include:
       - gravitational/*
@@ -2268,20 +2241,12 @@ name: build-docker-images
 environment:
   RUNTIME: go1.14.4
 
-#TODO(gus): testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
 trigger:
   event:
+    - tag
+  ref:
     include:
-      - pull_request
+      - refs/tags/v*
   repo:
     include:
       - gravitational/*
@@ -2391,20 +2356,12 @@ kind: pipeline
 type: kubernetes
 name: build-oss-amis
 
-#TODO(gus): testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
 trigger:
   event:
+    - tag
+  ref:
     include:
-      - pull_request
+      - refs/tags/v*
   repo:
     include:
       - gravitational/*
@@ -2503,20 +2460,12 @@ kind: pipeline
 type: kubernetes
 name: build-ent-amis
 
-#TODO(gus): testing
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
 trigger:
   event:
+    - tag
+  ref:
     include:
-      - pull_request
+      - refs/tags/v*
   repo:
     include:
       - gravitational/*
@@ -2840,6 +2789,6 @@ steps:
 
 ---
 kind: signature
-hmac: fb74a5b64ecb8be839f14d51aa731e6cc26a6c88661c2bd7c64d5c4d98aabb38
+hmac: b4957d7c1fbb14c8f055dc6a8f551238ff5e6d8de4baa5a92d37bc4cad0550c9
 
 ...
