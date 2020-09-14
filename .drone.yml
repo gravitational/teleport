@@ -2800,8 +2800,20 @@ steps:
       target: teleport/${DRONE_TAG##v}/
       strip_prefix: /go/src/github.com/gravitational/teleport/
 
+services:
+  - name: Start Docker
+    image: docker:dind
+    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
 ---
 kind: signature
-hmac: a90135d3bec1007d40be600a0f1c8faf0d267dd699aca9596f256f40ae7fb5cf
+hmac: 1b875a0603c3eb8711a2ec71abb517aafbc363a0dc9bc44af44e415a69bc18fb
 
 ...
