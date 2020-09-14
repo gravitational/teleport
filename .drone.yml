@@ -2744,11 +2744,12 @@ steps:
   - name: Check out code
     image: docker:git
     commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
-      - cd /go/src/github.com/gravitational/teleport
-      - git init && git remote add origin ${DRONE_REMOTE_URL}
-      - git fetch origin +refs/tags/${DRONE_TAG}:
-      - git checkout -qf FETCH_HEAD
+      - |
+        mkdir -p /go/src/github.com/gravitational/teleport /go/cache
+        cd /go/src/github.com/gravitational/teleport
+        git init && git remote add origin ${DRONE_REMOTE_URL}
+        git fetch origin +refs/tags/${DRONE_TAG}:
+        git checkout -qf FETCH_HEAD
 
   - name: Make AMIs public
     image: hashicorp/packer
@@ -2764,9 +2765,10 @@ steps:
       - mkdir -p /go/src/github.com/gravitational/teleport/assets/aws/files/build
       - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ami/${DRONE_TAG##v}/ /go/src/github.com/gravitational/teleport/assets/aws/files/build
       - cd /go/src/github.com/gravitational/teleport/assets/aws
-      - make change-amis-to-public-oss
-      - make change-amis-to-public-ent
-      - make change-amis-to-public-ent-fips
+      - |
+        make change-amis-to-public-oss
+        make change-amis-to-public-ent
+        make change-amis-to-public-ent-fips
 
   - name: Download artifacts from S3 artifact publishing bucket
     image: amazon/aws-cli
@@ -2810,6 +2812,6 @@ volumes:
 
 ---
 kind: signature
-hmac: d12e5e9f74d1bdc3c2d82271583b30a2aed5eeb15e4566b4c1925558afad994f
+hmac: a337276a6c297e42498ef31bb5b05733397882759a97d38948a60e4a86f908ab
 
 ...
