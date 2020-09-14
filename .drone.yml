@@ -2717,6 +2717,8 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
+      # wait for docker to start
+      - sleep 3
       - export VERSION=${DRONE_TAG##v}
       # authenticate with staging credentials
       - docker login -u="$PLUGIN_DOCKER_STAGING_USERNAME" -p="$PLUGIN_DOCKER_STAGING_PASSWORD" quay.io
@@ -2801,6 +2803,6 @@ volumes:
 
 ---
 kind: signature
-hmac: e968fb18fc7e231150ecc80dfa67d96210258dff5cb9a07876c81cd937c72c88
+hmac: c13090d0e62168ba4ae989fc389acb6f057516890b4d3a50cb33b0fdf117b42d
 
 ...
