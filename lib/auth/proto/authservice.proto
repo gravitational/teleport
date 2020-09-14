@@ -315,4 +315,7 @@ service AuthService {
     rpc EmitAuditEvent(events.OneOf) returns (google.protobuf.Empty);
     // CreateAuditStream creates or resumes audit events streams
     rpc CreateAuditStream(stream AuditStreamRequest) returns (stream events.StreamStatus);
+
+    // UpdateRemoteCluster updates remote cluster
+    rpc UpdateRemoteCluster(services.RemoteClusterV3) returns (google.protobuf.Empty);
 }

@@ -1335,12 +1335,33 @@ func (h *Handler) createSessionWithU2FSignResponse(w http.ResponseWriter, r *htt
 // {"sites": {"name": "localhost", "last_connected": "RFC3339 time", "status": "active"}}
 //
 func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
-	clusters, err := ui.NewClusters(h.cfg.Proxy.GetSites())
+	// Get a client to the Auth Server with the logged in users identity. The
+	// identity of the logged in user is used to fetch the list of nodes.
+	clt, err := c.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return clusters, nil
+	remoteClusters, err := clt.GetRemoteClusters(services.SkipValidation())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clusterName, err := clt.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rc, err := services.NewRemoteCluster(clusterName.GetClusterName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rc.SetLastHeartbeat(time.Now().UTC())
+	rc.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
+	clusters := []services.RemoteCluster{rc}
+	clusters = append(clusters, remoteClusters...)
+	out, err := ui.NewClustersFromRemote(clusters)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return out, nil
 }
 
 type getSiteNamespacesResponse struct {

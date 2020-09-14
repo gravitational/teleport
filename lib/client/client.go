@@ -111,6 +111,34 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	return sites, nil
 }
 
+// GetAllClusters returns local and remote clusters
+func (proxy *ProxyClient) GetAllClusters(ctx context.Context) ([]services.RemoteCluster, error) {
+	rootClusterName, err := proxy.RootClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clt, err := proxy.ConnectToCluster(ctx, rootClusterName, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	remoteClusters, err := clt.GetRemoteClusters(services.SkipValidation())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rc, err := services.NewRemoteCluster(rootClusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rc.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
+	rc.SetLastHeartbeat(time.Now().UTC())
+
+	out := []services.RemoteCluster{rc}
+	out = append(out, remoteClusters...)
+	return out, nil
+}
+
 // GenerateCertsForCluster generates certificates for the user
 // that have a metadata instructing server to route the requests to the cluster
 func (proxy *ProxyClient) GenerateCertsForCluster(ctx context.Context, routeToCluster string) error {
@@ -190,11 +218,12 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	clusterName, err := tlsca.ClusterName(tlsCert.Issuer)
+	rootClusterName, err := tlsca.ClusterName(tlsCert.Issuer)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	clt, err := proxy.ConnectToCluster(ctx, clusterName, true)
+
+	clt, err := proxy.ConnectToCluster(ctx, rootClusterName, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -230,6 +259,24 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 	// save the cert to the local storage (~/.tsh usually):
 	_, err = localAgent.AddKey(key)
 	return trace.Wrap(err)
+}
+
+// RootClusterName returns name of the current cluster
+func (proxy *ProxyClient) RootClusterName() (string, error) {
+	localAgent := proxy.teleportClient.LocalAgent()
+	key, err := localAgent.GetKey()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	tlsCert, err := key.TLSCertificate()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	clusterName, err := tlsca.ClusterName(tlsCert.Issuer)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return clusterName, nil
 }
 
 // CreateAccessRequest registers a new access request with the auth server.

@@ -152,7 +152,7 @@ type Presence interface {
 	CreateRemoteCluster(RemoteCluster) error
 
 	// UpdateRemoteCluster updates a remote cluster
-	UpdateRemoteCluster(context.Context, RemoteCluster) error
+	UpdateRemoteCluster(ctx context.Context, rc RemoteCluster) error
 
 	// GetRemoteClusters returns a list of remote clusters
 	GetRemoteClusters(opts ...MarshalOption) ([]RemoteCluster, error)

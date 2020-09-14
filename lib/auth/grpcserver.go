@@ -637,6 +637,18 @@ func (g *GRPCServer) DeleteSemaphore(ctx context.Context, req *services.Semaphor
 	return &empty.Empty{}, nil
 }
 
+// UpdateRemoteCluster updates remote cluster
+func (g *GRPCServer) UpdateRemoteCluster(ctx context.Context, req *services.RemoteClusterV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.AuthWithRoles.UpdateRemoteCluster(ctx, req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
 type grpcContext struct {
 	*AuthContext
 	*AuthWithRoles

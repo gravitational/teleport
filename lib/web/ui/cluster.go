@@ -69,6 +69,25 @@ func NewClusters(remoteClusters []reversetunnel.RemoteSite) ([]Cluster, error) {
 	return clusters, nil
 }
 
+// NewClustersFromRemote creates a slice of Cluster's, containing data about each cluster.
+func NewClustersFromRemote(remoteClusters []services.RemoteCluster) ([]Cluster, error) {
+	clusters := []Cluster{}
+	for _, rc := range remoteClusters {
+		cluster := Cluster{
+			Name:          rc.GetName(),
+			LastConnected: rc.GetLastHeartbeat(),
+			Status:        rc.GetConnectionStatus(),
+		}
+		clusters = append(clusters, cluster)
+	}
+
+	sort.Slice(clusters, func(i, j int) bool {
+		return clusters[i].Name < clusters[j].Name
+	})
+
+	return clusters, nil
+}
+
 // GetClusterDetails retrieves and sets details about a cluster
 func GetClusterDetails(site reversetunnel.RemoteSite) (*Cluster, error) {
 	clt, err := site.CachingAccessPoint()
