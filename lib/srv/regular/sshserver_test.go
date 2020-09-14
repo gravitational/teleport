@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
+Copyright 2015-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -1522,7 +1522,7 @@ func (s *SrvSuite) newUpack(username string, allowedLogins []string, allowedLabe
 	}, nil
 }
 
-func waitForSites(s reversetunnel.Server, count int) error {
+func waitForSites(s reversetunnel.Tunnel, count int) error {
 	timeout := time.NewTimer(10 * time.Second)
 	defer timeout.Stop()
 	ticker := time.NewTicker(100 * time.Millisecond)
@@ -1531,7 +1531,11 @@ func waitForSites(s reversetunnel.Server, count int) error {
 	for {
 		select {
 		case <-ticker.C:
-			if len(s.GetSites()) == count {
+			clusters, err := s.GetSites()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if len(clusters) == count {
 				return nil
 			}
 		case <-timeout.C:

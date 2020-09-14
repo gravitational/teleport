@@ -563,7 +563,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(main.Tunnel.GetSites()) < 2 && len(aux.Tunnel.GetSites()) < 2 {
+	for len(checkGetClusters(c, main.Tunnel)) < 2 && len(checkGetClusters(c, aux.Tunnel)) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two clusters do not see each other: tunnels are not working")
@@ -823,7 +823,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(main.Tunnel.GetSites()) < 2 && len(aux.Tunnel.GetSites()) < 2 {
+	for len(checkGetClusters(c, main.Tunnel)) < 2 && len(checkGetClusters(c, aux.Tunnel)) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two clusters do not see each other: tunnels are not working")

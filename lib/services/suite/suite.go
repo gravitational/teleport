@@ -869,6 +869,7 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(c *check.C) {
 	out, err = s.PresenceS.GetRemoteClusters()
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 1)
+	rc.SetResourceID(out[0].GetResourceID())
 	fixtures.DeepCompare(c, out[0], rc)
 
 	err = s.PresenceS.DeleteAllRemoteClusters()
@@ -1478,6 +1479,26 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				c.Assert(err, check.IsNil)
 
 				err = s.PresenceS.DeleteReverseTunnel(tunnel.Spec.ClusterName)
+				c.Assert(err, check.IsNil)
+
+				return out[0]
+			},
+		},
+		{
+			name: "Remote cluster",
+			kind: services.WatchKind{
+				Kind: services.KindRemoteCluster,
+			},
+			crud: func() services.Resource {
+				rc, err := services.NewRemoteCluster("example.com")
+				rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
+				c.Assert(err, check.IsNil)
+				c.Assert(s.PresenceS.CreateRemoteCluster(rc), check.IsNil)
+
+				out, err := s.PresenceS.GetRemoteClusters()
+				c.Assert(err, check.IsNil)
+
+				err = s.PresenceS.DeleteRemoteCluster(rc.GetName())
 				c.Assert(err, check.IsNil)
 
 				return out[0]

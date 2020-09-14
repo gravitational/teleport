@@ -103,6 +103,12 @@ type ReadAccessPoint interface {
 
 	// GetKubeServices returns a list of kubernetes services registered in the cluster
 	GetKubeServices() ([]services.Server, error)
+
+	// GetRemoteClusters returns a list of remote clusters
+	GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error)
+
+	// GetRemoteCluster returns a remote cluster by name
+	GetRemoteCluster(clusterName string) (services.RemoteCluster, error)
 }
 
 // AccessPoint is an API interface implemented by a certificate authority (CA)

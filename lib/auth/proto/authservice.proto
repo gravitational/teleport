@@ -63,6 +63,9 @@ message Event {
         // AccessRequest is a resource for access requests
         services.AccessRequestV3 AccessRequest = 14
             [ (gogoproto.jsontag) = "access_request,omitempty" ];
+        // RemoteCluster is a resource for remote clusters
+        services.RemoteClusterV3 RemoteCluster = 15
+            [ (gogoproto.jsontag) = "remote_cluster,omitempty" ];
     }
 }
 
@@ -318,4 +321,7 @@ service AuthService {
     rpc EmitAuditEvent(events.OneOf) returns (google.protobuf.Empty);
     // CreateAuditStream creates or resumes audit events streams
     rpc CreateAuditStream(stream AuditStreamRequest) returns (stream events.StreamStatus);
+
+    // UpdateRemoteCluster updates remote cluster
+    rpc UpdateRemoteCluster(services.RemoteClusterV3) returns (google.protobuf.Empty);
 }

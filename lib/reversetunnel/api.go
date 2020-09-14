@@ -18,6 +18,7 @@ package reversetunnel
 
 import (
 	"context"
+
 	"fmt"
 	"net"
 	"time"
@@ -96,15 +97,19 @@ type RemoteSite interface {
 	IsClosed() bool
 }
 
+// Tunnel provides access to connected local or remote clusters
+// using unified interface.
+type Tunnel interface {
+	// GetSites returns a list of connected remote sites
+	GetSites() ([]RemoteSite, error)
+	// GetSite returns remote site this node belongs to
+	GetSite(domainName string) (RemoteSite, error)
+}
+
 // Server is a TCP/IP SSH server which listens on an SSH endpoint and remote/local
 // sites connect and register with it.
 type Server interface {
-	// GetSites returns a list of connected remote sites
-	GetSites() []RemoteSite
-	// GetSite returns remote site this node belongs to
-	GetSite(domainName string) (RemoteSite, error)
-	// RemoveSite removes the site with the specified name from the list of connected sites
-	RemoveSite(domainName string) error
+	Tunnel
 	// Start starts server
 	Start() error
 	// Close closes server's operations immediately

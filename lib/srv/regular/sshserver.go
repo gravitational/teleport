@@ -84,7 +84,7 @@ type Server struct {
 	labelsMutex *sync.Mutex
 
 	proxyMode bool
-	proxyTun  reversetunnel.Server
+	proxyTun  reversetunnel.Tunnel
 
 	advertiseAddr   *utils.NetAddr
 	proxyPublicAddr utils.NetAddr
@@ -317,7 +317,7 @@ func SetSessionServer(sessionServer rsession.Service) ServerOption {
 }
 
 // SetProxyMode starts this server in SSH proxying mode
-func SetProxyMode(tsrv reversetunnel.Server) ServerOption {
+func SetProxyMode(tsrv reversetunnel.Tunnel) ServerOption {
 	return func(s *Server) error {
 		// always set proxy mode to true,
 		// because in some tests reverse tunnel is disabled,
@@ -593,6 +593,10 @@ func New(addr utils.NetAddr,
 
 func (s *Server) getNamespace() string {
 	return services.ProcessNamespace(s.namespace)
+}
+
+func (s *Server) tunnelWithRoles(ctx *srv.ServerContext) reversetunnel.Tunnel {
+	return reversetunnel.NewTunnelWithRoles(s.proxyTun, ctx.Identity.RoleSet, s.authService)
 }
 
 // Context returns server shutdown context

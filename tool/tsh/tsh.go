@@ -868,7 +868,7 @@ func onListClusters(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 
-	var sites []services.Site
+	var clusters []services.RemoteCluster
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		proxyClient, err := tc.ConnectToProxy(cf.Context)
 		if err != nil {
@@ -876,7 +876,7 @@ func onListClusters(cf *CLIConf) {
 		}
 		defer proxyClient.Close()
 
-		sites, err = proxyClient.GetSites()
+		clusters, err = proxyClient.GetAllClusters(cf.Context)
 		return err
 	})
 	if err != nil {
@@ -888,11 +888,11 @@ func onListClusters(cf *CLIConf) {
 	} else {
 		t = asciitable.MakeTable([]string{"Cluster Name", "Status"})
 	}
-	if len(sites) == 0 {
+	if len(clusters) == 0 {
 		return
 	}
-	for _, site := range sites {
-		t.AddRow([]string{site.Name, site.Status})
+	for _, cluster := range clusters {
+		t.AddRow([]string{cluster.GetName(), cluster.GetConnectionStatus()})
 	}
 	fmt.Println(t.AsBuffer().String())
 }

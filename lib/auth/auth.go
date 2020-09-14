@@ -844,6 +844,10 @@ type GenerateTokenRequest struct {
 	Roles teleport.Roles `json:"roles"`
 	// TTL is a time to live for token
 	TTL time.Duration `json:"ttl"`
+	// Labels sets token labels, e.g. {env: prod, region: us-west}.
+	// Labels are later passed to resources that are joining
+	// e.g. remote clusters and in the future versions, nodes and proxies.
+	Labels map[string]string `json:"labels"`
 }
 
 // CheckAndSetDefaults checks and sets default values of request
@@ -875,6 +879,12 @@ func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+	if len(req.Labels) != 0 {
+		meta := token.GetMetadata()
+		meta.Labels = req.Labels
+		token.SetMetadata(meta)
+	}
+
 	if err := a.Provisioner.UpsertToken(token); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -1122,19 +1132,19 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 }
 
 // ValidateToken takes a provisioning token value and finds if it's valid. Returns
-// a list of roles this token allows its owner to assume, or an error if the token
+// a list of roles this token allows its owner to assume and token labels, or an error if the token
 // cannot be found.
-func (a *Server) ValidateToken(token string) (roles teleport.Roles, e error) {
+func (a *Server) ValidateToken(token string) (teleport.Roles, map[string]string, error) {
 	tkns, err := a.GetCache().GetStaticTokens()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	// First check if the token is a static token. If it is, return right away.
 	// Static tokens have no expiration.
 	for _, st := range tkns.GetStaticTokens() {
 		if subtle.ConstantTimeCompare([]byte(st.GetName()), []byte(token)) == 1 {
-			return st.GetRoles(), nil
+			return st.GetRoles(), nil, nil
 		}
 	}
 
@@ -1142,13 +1152,13 @@ func (a *Server) ValidateToken(token string) (roles teleport.Roles, e error) {
 	// If a ephemeral token is found, make sure it's still valid.
 	tok, err := a.GetCache().GetToken(token)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	if !a.checkTokenTTL(tok) {
-		return nil, trace.AccessDenied("token expired")
+		return nil, nil, trace.AccessDenied("token expired")
 	}
 
-	return tok.GetRoles(), nil
+	return tok.GetRoles(), tok.GetMetadata().Labels, nil
 }
 
 // checkTokenTTL checks if the token is still valid. If it is not, the token
@@ -1223,7 +1233,7 @@ func (a *Server) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys,
 	}
 
 	// make sure the token is valid
-	roles, err := a.ValidateToken(req.Token)
+	roles, _, err := a.ValidateToken(req.Token)
 	if err != nil {
 		log.Warningf("%q [%v] can not join the cluster with role %s, token error: %v", req.NodeName, req.HostID, req.Role, err)
 		return nil, trace.AccessDenied(fmt.Sprintf("%q [%v] can not join the cluster with role %s, the token is not valid", req.NodeName, req.HostID, req.Role))

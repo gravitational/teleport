@@ -28,7 +28,7 @@ import (
 )
 
 // RemoteCluster represents a remote cluster that has connected via reverse tunnel
-// to this lcuster
+// to this cluster
 type RemoteCluster interface {
 	// Resource provides common resource properties
 	Resource
@@ -44,9 +44,12 @@ type RemoteCluster interface {
 
 	// CheckAndSetDefaults checks and sets default values
 	CheckAndSetDefaults() error
+
+	// SetMetadata sets remote cluster metatada
+	SetMetadata(Metadata)
 }
 
-// NewRemoteCluster is a convenience wa to create a RemoteCluster resource.
+// NewRemoteCluster is a convenience way to create a RemoteCluster resource.
 func NewRemoteCluster(name string) (RemoteCluster, error) {
 	return &RemoteClusterV3{
 		Kind:    KindRemoteCluster,
@@ -56,32 +59,6 @@ func NewRemoteCluster(name string) (RemoteCluster, error) {
 			Namespace: defaults.Namespace,
 		},
 	}, nil
-}
-
-// RemoteClusterV3 implements RemoteCluster.
-type RemoteClusterV3 struct {
-	// Kind is a resource kind - always resource.
-	Kind string `json:"kind"`
-
-	// SubKind is a resource sub kind
-	SubKind string `json:"sub_kind,omitempty"`
-
-	// Version is a resource version.
-	Version string `json:"version"`
-
-	// Metadata is metadata about the resource.
-	Metadata Metadata `json:"metadata"`
-
-	// Sstatus is read only status of the remote cluster
-	Status RemoteClusterStatusV3 `json:"status"`
-}
-
-// RemoteClusterSpecV3 represents status of the remote cluster
-type RemoteClusterStatusV3 struct {
-	// Connection represents connection status, online or offline
-	Connection string `json:"connection"`
-	// LastHeartbeat records last heartbeat of the cluster
-	LastHeartbeat time.Time `json:"last_heartbeat"`
 }
 
 // GetVersion returns resource version
@@ -142,6 +119,11 @@ func (c *RemoteClusterV3) SetConnectionStatus(status string) {
 // GetMetadata returns object metadata
 func (c *RemoteClusterV3) GetMetadata() Metadata {
 	return c.Metadata
+}
+
+// SetMetadata sets remote cluster metatada
+func (c *RemoteClusterV3) SetMetadata(meta Metadata) {
+	c.Metadata = meta
 }
 
 // SetExpiry sets expiry time for the object
@@ -231,6 +213,13 @@ func UnmarshalRemoteCluster(bytes []byte, opts ...MarshalOption) (RemoteCluster,
 	err = cluster.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if cfg.ID != 0 {
+		cluster.SetResourceID(cfg.ID)
+	}
+	if !cfg.Expires.IsZero() {
+		cluster.SetExpiry(cfg.Expires)
 	}
 
 	return &cluster, nil

@@ -16,24 +16,17 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
+	"testing"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
 
-type OIDCSuite struct{}
-
-var _ = check.Suite(&OIDCSuite{})
-var _ = fmt.Printf
-
-func (s *OIDCSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
-}
-
-func (s *OIDCSuite) TestUnmarshal(c *check.C) {
+// TestUnmarshal tests unmarshal of OIDC connector
+func TestUnmarshal(t *testing.T) {
+	utils.InitLoggerForTests(testing.Verbose())
 	input := `
       {
         "kind": "oidc",
@@ -51,41 +44,26 @@ func (s *OIDCSuite) TestUnmarshal(c *check.C) {
           "claims_to_roles": [{
             "claim": "roles",
             "value": "teleport-user",
-            "role_template": {
-              "kind": "role",
-              "version": "v2",
-              "metadata": {
-                "name": "{{index . \"email\"}}",
-                "namespace": "default"
-              },
-              "spec": {
-                "namespaces": ["default"],
-                "max_session_ttl": "90h0m0s",
-                "logins": ["{{index . \"nickname\"}}", "root"],
-                "node_labels": {
-                  "*": "*"
-                }
-              }
-            }
+            "roles": ["dictator"]
           }]
         }
       }
 	`
 
 	oc, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
-	c.Assert(oc.GetName(), check.Equals, "google")
-	c.Assert(oc.GetIssuerURL(), check.Equals, "https://accounts.google.com")
-	c.Assert(oc.GetClientID(), check.Equals, "id-from-google.apps.googleusercontent.com")
-	c.Assert(oc.GetRedirectURL(), check.Equals, "https://localhost:3080/v1/webapi/oidc/callback")
-	c.Assert(oc.GetDisplay(), check.Equals, "whatever")
-	c.Assert(oc.GetPrompt(), check.Equals, teleport.OIDCPromptSelectAccount)
+	require.Equal(t, oc.GetName(), "google")
+	require.Equal(t, oc.GetIssuerURL(), "https://accounts.google.com")
+	require.Equal(t, oc.GetClientID(), "id-from-google.apps.googleusercontent.com")
+	require.Equal(t, oc.GetRedirectURL(), "https://localhost:3080/v1/webapi/oidc/callback")
+	require.Equal(t, oc.GetDisplay(), "whatever")
+	require.Equal(t, oc.GetPrompt(), teleport.OIDCPromptSelectAccount)
 }
 
 // TestUnmarshalEmptyPrompt makes sure that empty prompt value
 // that is set does not default to select_account
-func (s *OIDCSuite) TestUnmarshalEmptyPrompt(c *check.C) {
+func TestUnmarshalEmptyPrompt(t *testing.T) {
 	input := `
       {
         "kind": "oidc",
@@ -106,18 +84,18 @@ func (s *OIDCSuite) TestUnmarshalEmptyPrompt(c *check.C) {
 	`
 
 	oc, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
-	c.Assert(oc.GetName(), check.Equals, "google")
-	c.Assert(oc.GetIssuerURL(), check.Equals, "https://accounts.google.com")
-	c.Assert(oc.GetClientID(), check.Equals, "id-from-google.apps.googleusercontent.com")
-	c.Assert(oc.GetRedirectURL(), check.Equals, "https://localhost:3080/v1/webapi/oidc/callback")
-	c.Assert(oc.GetDisplay(), check.Equals, "whatever")
-	c.Assert(oc.GetPrompt(), check.Equals, "")
+	require.Equal(t, oc.GetName(), "google")
+	require.Equal(t, oc.GetIssuerURL(), "https://accounts.google.com")
+	require.Equal(t, oc.GetClientID(), "id-from-google.apps.googleusercontent.com")
+	require.Equal(t, oc.GetRedirectURL(), "https://localhost:3080/v1/webapi/oidc/callback")
+	require.Equal(t, oc.GetDisplay(), "whatever")
+	require.Equal(t, oc.GetPrompt(), "")
 }
 
 // TestUnmarshalPromptValue makes sure that prompt value is set properly
-func (s *OIDCSuite) TestUnmarshalPromptValue(c *check.C) {
+func TestUnmarshalPromptValue(t *testing.T) {
 	input := `
       {
         "kind": "oidc",
@@ -138,17 +116,18 @@ func (s *OIDCSuite) TestUnmarshalPromptValue(c *check.C) {
 	`
 
 	oc, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
-	c.Assert(oc.GetName(), check.Equals, "google")
-	c.Assert(oc.GetIssuerURL(), check.Equals, "https://accounts.google.com")
-	c.Assert(oc.GetClientID(), check.Equals, "id-from-google.apps.googleusercontent.com")
-	c.Assert(oc.GetRedirectURL(), check.Equals, "https://localhost:3080/v1/webapi/oidc/callback")
-	c.Assert(oc.GetDisplay(), check.Equals, "whatever")
-	c.Assert(oc.GetPrompt(), check.Equals, "consent login")
+	require.Equal(t, oc.GetName(), "google")
+	require.Equal(t, oc.GetIssuerURL(), "https://accounts.google.com")
+	require.Equal(t, oc.GetClientID(), "id-from-google.apps.googleusercontent.com")
+	require.Equal(t, oc.GetRedirectURL(), "https://localhost:3080/v1/webapi/oidc/callback")
+	require.Equal(t, oc.GetDisplay(), "whatever")
+	require.Equal(t, oc.GetPrompt(), "consent login")
 }
 
-func (s *OIDCSuite) TestUnmarshalInvalid(c *check.C) {
+// TestUnmarshalInvalid unmarshals and fails validation of the connector
+func TestUnmarshalInvalid(t *testing.T) {
 	input := `
       {
         "kind": "oidc",
@@ -166,28 +145,11 @@ func (s *OIDCSuite) TestUnmarshalInvalid(c *check.C) {
           "claims_to_roles": [{
             "claim": "roles",
             "value": "teleport-user",
-            "roles": [ "foo", "bar", "baz" ],
-            "role_template": {
-              "kind": "role",
-              "version": "v2",
-              "metadata": {
-                "name": "{{index . \"email\"}}",
-                "namespace": "default"
-              },
-              "spec": {
-                "namespaces": ["default"],
-                "max_session_ttl": "90h0m0s",
-                "logins": ["{{index . \"nickname\"}}", "root"],
-                "node_labels": {
-                  "*": "*"
-                }
-              }
-            }
           }]
         }
       }
 	`
 
 	_, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
-	c.Assert(err, check.NotNil)
+	require.Error(t, err)
 }

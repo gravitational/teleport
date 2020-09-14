@@ -1190,9 +1190,23 @@ func (c *Client) CreateRemoteCluster(rc services.RemoteCluster) error {
 	return trace.Wrap(err)
 }
 
-// UpdateRemoteCluster updates remote cluster resource
+// UpdateRemoteCluster updates remote cluster
 func (c *Client) UpdateRemoteCluster(ctx context.Context, rc services.RemoteCluster) error {
-	return trace.NotImplemented("not implemented: remote clusters can only be updated by auth server locally")
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	rcV3, ok := rc.(*services.RemoteClusterV3)
+	if !ok {
+		return trace.BadParameter("unsupported remote cluster type %T", rcV3)
+	}
+
+	if _, err := clt.UpdateRemoteCluster(ctx, rcV3); err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
 }
 
 // UpsertAuthServer is used by auth servers to report their presence
