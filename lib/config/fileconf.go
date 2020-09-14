@@ -1073,9 +1073,6 @@ type ClaimMapping struct {
 	Value string `yaml:"value"`
 	// Roles is a list of teleport roles to match
 	Roles []string `yaml:"roles,omitempty"`
-	// RoleTemplate is a template for a role that will be filled
-	// with data from claims.
-	RoleTemplate *services.RoleV2 `yaml:"role_template,omitempty"`
 }
 
 // OIDCConnector specifies configuration fo Open ID Connect compatible external
@@ -1122,10 +1119,9 @@ func (o *OIDCConnector) Parse() (services.OIDCConnector, error) {
 		}
 
 		mappings = append(mappings, services.ClaimMapping{
-			Claim:        c.Claim,
-			Value:        c.Value,
-			Roles:        roles,
-			RoleTemplate: c.RoleTemplate,
+			Claim: c.Claim,
+			Value: c.Value,
+			Roles: roles,
 		})
 	}
 

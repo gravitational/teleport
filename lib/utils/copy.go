@@ -16,6 +16,18 @@ limitations under the License.
 
 package utils
 
+// CopyStringsMap returns a copy of the strings map
+func CopyStringsMap(in map[string]string) map[string]string {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for key, val := range in {
+		out[key] = val
+	}
+	return out
+}
+
 // CopyByteSlice returns a copy of the byte slice.
 func CopyByteSlice(in []byte) []byte {
 	if in == nil {

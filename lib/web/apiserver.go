@@ -90,8 +90,8 @@ func SetSessionStreamPollPeriod(period time.Duration) HandlerOption {
 // Config represents web handler configuration parameters
 type Config struct {
 	// Proxy is a reverse tunnel proxy that handles connections
-	// to various sites
-	Proxy reversetunnel.Server
+	// to local cluster or remote clusters using unified interface
+	Proxy reversetunnel.Tunnel
 	// AuthServers is a list of auth servers this proxy talks to
 	AuthServers utils.NetAddr
 	// DomainName is a domain name served by web handler
@@ -1444,12 +1444,34 @@ func (h *Handler) createSessionWithU2FSignResponse(w http.ResponseWriter, r *htt
 // {"sites": {"name": "localhost", "last_connected": "RFC3339 time", "status": "active"}}
 //
 func (h *Handler) getClusters(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext) (interface{}, error) {
-	clusters, err := ui.NewClusters(h.cfg.Proxy.GetSites())
+	// Get a client to the Auth Server with the logged in users identity. The
+	// identity of the logged in user is used to fetch the list of nodes.
+	clt, err := c.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return clusters, nil
+	remoteClusters, err := clt.GetRemoteClusters(services.SkipValidation())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clusterName, err := clt.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rc, err := services.NewRemoteCluster(clusterName.GetClusterName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	rc.SetLastHeartbeat(time.Now().UTC())
+	rc.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
+	clusters := make([]services.RemoteCluster, 0, len(remoteClusters)+1)
+	clusters = append(clusters, rc)
+	clusters = append(clusters, remoteClusters...)
+	out, err := ui.NewClustersFromRemote(clusters)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return out, nil
 }
 
 type getSiteNamespacesResponse struct {
@@ -1863,7 +1885,11 @@ func (h *Handler) siteSessionStreamGet(w http.ResponseWriter, r *http.Request, p
 	// get the site interface:
 	siteName := p.ByName("site")
 	if siteName == currentSiteShortcut {
-		sites := h.cfg.Proxy.GetSites()
+		sites, err := h.cfg.Proxy.GetSites()
+		if err != nil {
+			onError(trace.Wrap(err))
+			return
+		}
 		if len(sites) < 1 {
 			onError(trace.NotFound("no active sites"))
 			return

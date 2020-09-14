@@ -331,7 +331,11 @@ func (h *Handler) resolveFQDN(ctx context.Context, fqdn string) (*services.App, 
 
 	// Loop over all clusters and try and match application name to an
 	// application with the cluster.
-	for _, remoteClient := range h.cfg.Proxy.GetSites() {
+	remoteClients, err := h.cfg.Proxy.GetSites()
+	if err != nil {
+		return nil, nil, "", trace.Wrap(err)
+	}
+	for _, remoteClient := range remoteClients {
 		authClient, err := remoteClient.CachingAccessPoint()
 		if err != nil {
 			return nil, nil, "", trace.Wrap(err)

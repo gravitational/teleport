@@ -519,19 +519,8 @@ func (o *OIDCConnectorV2) Check() error {
 
 	// make sure claim mappings have either roles or a role template
 	for _, v := range o.Spec.ClaimsToRoles {
-		hasRoles := false
-		if len(v.Roles) > 0 {
-			hasRoles = true
-		}
-		hasRoleTemplate := false
-		if v.RoleTemplate != nil {
-			hasRoleTemplate = true
-		}
-
-		// we either need to have roles or role templates not both or neither
-		// ! ( hasRoles XOR hasRoleTemplate )
-		if hasRoles == hasRoleTemplate {
-			return trace.BadParameter("need roles or role template (not both or none)")
+		if len(v.Roles) == 0 {
+			return trace.BadParameter("add roles in claims_to_roles")
 		}
 	}
 
@@ -664,12 +653,10 @@ type ClaimMapping struct {
 	Value string `json:"value"`
 	// Roles is a list of static teleport roles to match.
 	Roles []string `json:"roles,omitempty"`
-	// RoleTemplate a template role that will be filled out with claims.
-	RoleTemplate *RoleV2 `json:"role_template,omitempty"`
 }
 
 // ClaimMappingSchema is JSON schema for claim mapping
-var ClaimMappingSchema = fmt.Sprintf(`{
+var ClaimMappingSchema = `{
   "type": "object",
   "additionalProperties": false,
   "required": ["claim", "value" ],
@@ -681,10 +668,9 @@ var ClaimMappingSchema = fmt.Sprintf(`{
       "items": {
         "type": "string"
       }
-    },
-    "role_template": %v
+    }
   }
-}`, GetRoleSchema(V2, ""))
+}`
 
 // OIDCConnectorV1 specifies configuration for Open ID Connect compatible external
 // identity provider, e.g. google in some organisation
