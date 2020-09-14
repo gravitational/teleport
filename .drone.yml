@@ -2744,6 +2744,8 @@ steps:
   - name: Make AMIs public
     image: hashicorp/packer
     environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
       AWS_ACCESS_KEY_ID:
         from_secret: AWS_ACCESS_KEY_ID
       AWS_SECRET_ACCESS_KEY:
@@ -2803,6 +2805,6 @@ volumes:
 
 ---
 kind: signature
-hmac: c13090d0e62168ba4ae989fc389acb6f057516890b4d3a50cb33b0fdf117b42d
+hmac: 6d54983ce8f323b3e2a81c0f524500a5d42ae6f00e70ae69bad1feb809303209
 
 ...
