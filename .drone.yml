@@ -2718,36 +2718,26 @@ steps:
         path: /var/run
     commands:
       - export VERSION=${DRONE_TAG##v}
-      - |
-        # authenticate with staging credentials
-        docker login -u="$PLUGIN_DOCKER_STAGING_USERNAME" -p="$PLUGIN_DOCKER_STAGING_PASSWORD" quay.io
-      - |
-        # pull 'temporary' CI-built images
-        echo "---> Pulling OSS $${VERSION}"
-        docker pull quay.io/gravitational/teleport-ci:$${VERSION}
-        echo "---> Pulling Enterprise $${VERSION}"
-        docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}
-        echo "---> Pulling Enterprise FIPS $${VERSION}"
-        docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips
-      - |
-        # retag images to production naming
-        echo "--->Tagging OSS $${VERSION}"
-        docker tag quay.io/gravitational/teleport-ci:$${VERSION} quay.io/gravitational/teleport:$${VERSION}
-        echo "---> Tagging Enterprise $${VERSION}"
-        docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION} quay.io/gravitational/teleport-ent:$${VERSION}
-        echo "---> Tagging Enterprise FIPS $${VERSION}"
-        docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips quay.io/gravitational/teleport-ent:$${VERSION}-fips
-      - |
-        # reauthenticate with production credentials
-        docker logout quay.io && docker login -u="$PLUGIN_DOCKER_PRODUCTION_USERNAME" -p="$PLUGIN_DOCKER_PRODUCTION_PASSWORD" quay.io
-      - |
-        # push production images
-        echo "---> Pushing OSS $${VERSION}"
-        docker push quay.io/gravitational/teleport:$${VERSION}
-        echo "---> Pushing Enterprise $${VERSION}"
-        docker push quay.io/gravitational/teleport-ent:$${VERSION}
-        echo "---> Pushing Enterprise FIPS $${VERSION}"
-        docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
+      # authenticate with staging credentials
+      - docker login -u="$PLUGIN_DOCKER_STAGING_USERNAME" -p="$PLUGIN_DOCKER_STAGING_PASSWORD" quay.io
+      # pull 'temporary' CI-built images
+      - echo "---> Pulling images for $${VERSION}"
+      - docker pull quay.io/gravitational/teleport-ci:$${VERSION}
+      - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}
+      - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips
+      # retag images to production naming
+      - echo "---> Tagging images for $${VERSION}"
+      - docker tag quay.io/gravitational/teleport-ci:$${VERSION} quay.io/gravitational/teleport:$${VERSION}
+      - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION} quay.io/gravitational/teleport-ent:$${VERSION}
+      - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips quay.io/gravitational/teleport-ent:$${VERSION}-fips
+      # reauthenticate with production credentials
+      - docker logout quay.io
+      - docker login -u="$PLUGIN_DOCKER_PRODUCTION_USERNAME" -p="$PLUGIN_DOCKER_PRODUCTION_PASSWORD" quay.io
+      # push production images
+      - echo "---> Pushing images for $${VERSION}"
+      - docker push quay.io/gravitational/teleport:$${VERSION}
+      - docker push quay.io/gravitational/teleport-ent:$${VERSION}
+      - docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
 
   - name: Make AMIs public
     image: hashicorp/packer
@@ -2756,9 +2746,6 @@ steps:
         from_secret: AWS_ACCESS_KEY_ID
       AWS_SECRET_ACCESS_KEY:
         from_secret: AWS_SECRET_ACCESS_KEY
-    volumes:
-      - name: dockersock
-        path: /var/run
     commands:
       - apk add --no-cache aws-cli jq make
       - mkdir -p /go/src/github.com/gravitational/teleport/assets/aws/files/build
@@ -2814,6 +2801,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 1b875a0603c3eb8711a2ec71abb517aafbc363a0dc9bc44af44e415a69bc18fb
+hmac: e968fb18fc7e231150ecc80dfa67d96210258dff5cb9a07876c81cd937c72c88
 
 ...
