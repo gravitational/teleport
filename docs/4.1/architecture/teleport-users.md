@@ -118,7 +118,7 @@ subset of nodes in a cluster.
 
 ## More Concepts
 
-* [Architecture Overview](teleport_architecture_overview.md)
-* [Teleport Auth](teleport_auth.md)
-* [Teleport Nodes](teleport_nodes.md)
-* [Teleport Proxy](teleport_proxy.md)
+* [Architecture Overview](teleport-architecture-overview.md)
+* [Teleport Auth](teleport-auth.md)
+* [Teleport Nodes](teleport-nodes.md)
+* [Teleport Proxy](teleport-proxy.md)

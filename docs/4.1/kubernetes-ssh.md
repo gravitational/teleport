@@ -125,7 +125,7 @@ configured. In this guide we'll look at two common configurations:
 * **Open source, Teleport Community edition** configured to authenticate users via [Github](admin-guide.md#github-oauth-20).
   In this case, we'll need to map Github teams to Kubernetes groups.
 
-* **Commercial, Teleport Enterprise edition** configured to authenticate users via [Okta SSO](ssh_okta.md).
+* **Commercial, Teleport Enterprise edition** configured to authenticate users via [Okta SSO](ssh-okta.md).
   In this case, we'll need to map users' groups that come from Okta to Kubernetes
   groups.
 
@@ -176,7 +176,7 @@ The `kubectl exec` request will be routed through the Teleport proxy and
 Teleport will log the audit record and record the session.
 
 !!! note:
-    For more information on integrating Teleport with Github SSO, please see the [Github section in the Admin Manual](admin-guide/#github-oauth-20).
+    For more information on integrating Teleport with Github SSO, please see the [Github section in the Admin Manual](admin-guide.md#github-oauth-20).
 
 ### Okta Auth
 
@@ -222,4 +222,4 @@ Once this is complete, when users execute `tsh login` and go through the usual O
 sequence, their `kubeconfig` will be updated with their Kubernetes credentials.
 
 !!! note:
-    For more information on integrating Teleport with Okta, please see the [Okta integration guide](/ssh_okta/).
+    For more information on integrating Teleport with Okta, please see the [Okta integration guide](ssh-okta.md).

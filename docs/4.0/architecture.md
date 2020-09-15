@@ -157,7 +157,7 @@ of data stored by the auth server:
     * Node membership information and online/offline status for each node.
     * List of active sessions.
     * List of locally stored users.
-    * [RBAC](ssh_rbac) configuration (roles and permissions).
+    * [RBAC](ssh-rbac) configuration (roles and permissions).
     * Other dynamic configuration.
 
 * **Audit Log**. When users log into a Teleport cluster, execute remote commands and logout,

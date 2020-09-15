@@ -51,7 +51,7 @@ would look like this:
    to the Teleport Roles so every Teleport user will be assigned a role based
    on the group membership.
 
-See [RBAC for SSH](ssh_rbac.md) chapter to learn more about configuring RBAC with
+See [RBAC for SSH](ssh-rbac.md) chapter to learn more about configuring RBAC with
 Teleport.
 
 ## SSO
@@ -85,7 +85,7 @@ valid credentials, Teleport will issue an SSH certificate.
 
 Moreover, SSO can be used in combination with role-based access control (RBAC)
 to enforce SSH access policies like _"developers must not touch production data"_.
-See the [SSO for SSH](sso/ssh_sso.md) chapter for more details.
+See the [SSO for SSH](sso/ssh-sso.md) chapter for more details.
 
 
 !!! tip "Contact Information"
@@ -109,7 +109,7 @@ In FIPS mode, if non-compliant algorithms are chosen, Teleport will fail to star
 In addition, Teleport checks if the binary was compiled against an approved
 cryptographic module (BoringCrypto) and fails to start if it was not.
 
-See our [FedRAMP for SSH and Kubernetes](ssh_kubernetes_fedramp.md) guide for more infromation.
+See our [FedRAMP for SSH and Kubernetes](ssh-kubernetes-fedramp.md) guide for more infromation.
 
 ## Approval Workflows
 

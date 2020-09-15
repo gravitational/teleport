@@ -66,7 +66,7 @@ $ curl https://get.gravitational.com/teleport-v4.0.8-darwin-amd64-bin.tar.gz.sha
 ## Definitions
 
 Before diving into configuring and running Teleport, it helps to take a look at
-the [Teleport Architecture](architecture/teleport_architecture_overview.md) and review the key concepts this
+the [Teleport Architecture](architecture/teleport-architecture-overview.md) and review the key concepts this
 document will be referring to:
 
 |Concept   | Description
@@ -307,7 +307,7 @@ auth_service:
         # default authentication type. possible values are 'local' and 'github' for OSS
         #  and 'oidc', 'saml' and 'false' for Enterprise.
         # 'false' is required for FedRAMP / FIPS, see
-        #  https://gravitational.com/teleport/docs/enterprise/ssh_fips#teleport-auth-server
+        #  https://gravitational.com/teleport/docs/enterprise/ssh-fips#teleport-auth-server
         #  only local authentication (Teleport's own user DB) & Github is supported in the open
         #  source version
         type: local
@@ -645,7 +645,7 @@ tsh --proxy <proxy-addr> ssh <hostname>
 
 This section covers internal user identities, i.e.user accounts created and
 stored in Teleport's internal storage. Most production users of Teleport use
-_external_ users via [Github](#github-oauth-20) or [Okta](ssh_okta) or any other
+_external_ users via [Github](#github-oauth-20) or [Okta](ssh-okta) or any other
 SSO provider (Teleport Enterprise supports any SAML or OIDC compliant identity
 provider).
 
@@ -1034,7 +1034,7 @@ the audit log:
    but can be configured to be done by the proxy.
 
 Refer to the ["Audit Log" chapter in the Teleport
-Architecture](architecture/teleport_auth.md#audit-log) to learn more about how the audit Log and
+Architecture](architecture/teleport-auth.md#audit-log) to learn more about how the audit Log and
 session recording are designed.
 
 ### SSH Events
@@ -1137,7 +1137,7 @@ $ tsh --proxy=proxy play 4c146ec8-eab6-11e6-b1b3-40167e68e931
 
 ### Recording Proxy Mode
 
-See [Audit Log Architecture](architecture/teleport_auth.md#audit-log) to understand how the
+See [Audit Log Architecture](architecture/teleport-auth.md#audit-log) to understand how the
 session recording works. By default, the recording is not available if a cluster
 runs `sshd` (the OpenSSH daemon) on the nodes.
 
@@ -1355,7 +1355,7 @@ Here's the list of resources currently exposed via [ `tctl` ](cli-docs.md#tctl) 
 | node          | A registered SSH node. The same record is displayed via `tctl nodes ls` |
 | cluster       | A trusted cluster. See [here](#trusted-clusters) for more details on connecting clusters together.|
 | role          | A role assumed by users. The open source Teleport only includes one role: "admin", but Enterprise teleport users can define their own roles.|
-| connector     | Authentication connectors for [single sign-on](enterprise/ssh_sso.md) (SSO) for SAML, OIDC and Github.|
+| connector     | Authentication connectors for [single sign-on](enterprise/ssh-sso.md) (SSO) for SAML, OIDC and Github.|
 
 
 **Examples:**
@@ -1387,7 +1387,7 @@ $ tctl rm users/admin
 
 ## Trusted Clusters
 
-As explained in the [architecture document](architecture/teleport_architecture_overview.md#design-principles),
+As explained in the [architecture document](architecture/teleport-architecture-overview.md#design-principles),
 Teleport can partition compute infrastructure into multiple clusters. A cluster
 is a group of nodes connected to the cluster's auth server, acting as a
 certificate authority (CA) for all users and nodes.
@@ -1890,7 +1890,7 @@ To allow access for all users:
 
 ## Certificate Rotation
 
-Take a look at the [Certificates chapter](architecture/teleport_auth.md#authentication-in-teleport) in the
+Take a look at the [Certificates chapter](architecture/teleport-auth.md#authentication-in-teleport) in the
 architecture document to learn how the certificate rotation works. This section
 will show you how to implement certificate rotation in practice.
 
@@ -2033,9 +2033,9 @@ with Teleport.
 
 If using Teleport Enterprise SSO with enterprise-grade identity providers (using
 SAML, OIDC and Active Directory), `kubernetes_groups` are assigned to Teleport
-Roles as shown in the Teleport Enterprise [RBAC](enterprise/ssh_rbac.md#roles) section.
+Roles as shown in the Teleport Enterprise [RBAC](enterprise/ssh-rbac.md#roles) section.
 
-You may also find it useful to read our [Kubernetes guide](kubernetes_ssh.md)
+You may also find it useful to read our [Kubernetes guide](kubernetes-ssh.md)
 which contains some more specific examples and instructions.
 
 ### Multiple Kubernetes Clusters
@@ -2079,7 +2079,7 @@ $ tsh --proxy=main.example.com login east
 
 !!! tip "Tip":
     Before continuing, please make sure to take a look at the
-    [Cluster State section](architecture/teleport_nodes.md#cluster-state) in the Teleport
+    [Cluster State section](architecture/teleport-nodes.md#cluster-state) in the Teleport
     Architecture documentation.
 
 Usually there are two ways to achieve high availability. You can "outsource"
@@ -2189,7 +2189,7 @@ teleport:
 
 !!! tip "Tip":
     Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/teleport_nodes.md#cluster-state) in Teleport
+    [cluster state section](architecture/teleport-nodes.md#cluster-state) in Teleport
     Architecture documentation.
 
 !!! tip "AWS Authentication":
@@ -2225,7 +2225,7 @@ running on an EC2 instance with an IAM role.
 
 !!! tip "Tip":
     Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/teleport_nodes.md#cluster-state) in Teleport Architecture documentation.
+    [cluster state section](architecture/teleport-nodes.md#cluster-state) in Teleport Architecture documentation.
 
 If you are running Teleport on AWS, you can use
 [DynamoDB](https://aws.amazon.com/dynamodb/) as a storage back-end to achieve

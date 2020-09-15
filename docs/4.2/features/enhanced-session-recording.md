@@ -31,7 +31,7 @@ well as kernel headers.
 
 !!! tip
 
-    Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](https://gravitational.com/teleport/docs/architecture/teleport_auth/#audit-log) for more details.
+    Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](../architecture/teleport-auth.md#audit-log) for more details.
 
 
 You can check your kernel version using the `uname` command. The output should look
@@ -56,7 +56,7 @@ Linux ip-172-31-43-104.ec2.internal 4.19.72-25.58.amzn2.x86_64 x86_64 x86_64 x86
 
 |       |                   | Kernel Version        |
 |-------|-------------------|-----------------------|
-| 18.10 | Cosmic Cuttlefish | 4.18 [Patch Kernel](http://www.theubuntumaniac.com/2018/11/update-install-kernel-4191-stable-on.html)  |
+| 18.10 | Cosmic Cuttlefish | 4.18 Patch Kernel  |
 | 19.04 | Disco Dingo       | 5.0 ✅ 🚧 Feature in Alpha      |
 | 19.10 | Eoan Ermine       | 5.3 ✅ 🚧 Feature in Alpha      |
 
@@ -285,7 +285,7 @@ ssh_service:
 ```
 
 ## 5. Inspect Logs
-The resulting enhanced session recording will be shown in [Teleport's Audit Log](../architecture/teleport_auth.md#audit-log).
+The resulting enhanced session recording will be shown in [Teleport's Audit Log](../architecture/teleport-auth.md#audit-log).
 
 
 ```bash

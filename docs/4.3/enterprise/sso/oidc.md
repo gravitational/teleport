@@ -46,7 +46,7 @@ Add your OIDC connector information to `teleport.yaml`. A few examples are
 provided below.
 
 !!! tip
-    For Google / G Suite please follow our dedicated [Guide](ssh_gsuite.md)
+    For Google / G Suite please follow our dedicated [Guide](ssh-gsuite.md)
 
 ## OIDC Redirect URL
 

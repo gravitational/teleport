@@ -141,7 +141,7 @@ this path and set it explicitly using the `-c` or `--config` flag to `teleport s
 $ teleport start --config=/etc/teleport.yaml
 ```
 
-For a complete reference, see our [Configuration Reference - teleport.yaml](config_reference.md#teleportyaml)
+For a complete reference, see our [Configuration Reference - teleport.yaml](config-reference.md#teleportyaml)
 
 !!! note "IMPORTANT"
 
@@ -412,7 +412,7 @@ $ tsh --proxy <proxy-addr> ssh <hostname>
 
 This section covers internal user identities, i.e. user accounts created and
 stored in Teleport's internal storage. Most production users of Teleport use
-_external_ users via [Github](#github-oauth-20) or [Okta](ssh_okta) or any other
+_external_ users via [Github](#github-oauth-20) or [Okta](enterprise/sso/ssh-okta.md) or any other
 SSO provider (Teleport Enterprise supports any SAML or OIDC compliant identity
 provider).
 
@@ -1010,7 +1010,7 @@ Here's the list of resources currently exposed via [ `tctl` ](cli-docs.md#tctl) 
 | node          | A registered SSH node. The same record is displayed via `tctl nodes ls` |
 | cluster       | A trusted cluster. See [here](#trusted-clusters) for more details on connecting clusters together.|
 | role          | A role assumed by users. The open source Teleport only includes one role: "admin", but Enterprise teleport users can define their own roles.|
-| connector     | Authentication connectors for [single sign-on](enterprise/sso/ssh_sso.md) (SSO) for SAML, OIDC and Github.|
+| connector     | Authentication connectors for [single sign-on](enterprise/sso/ssh-sso.md) (SSO) for SAML, OIDC and Github.|
 
 **Examples:**
 
@@ -1428,7 +1428,7 @@ own PAM service file like `/etc/pam.d/teleport` and specifying it as
 
 ## Using Teleport with OpenSSH
 
-Review our dedicated [Using Teleport with OpenSSH](openssh_teleport.md) guide.
+Review our dedicated [Using Teleport with OpenSSH](openssh-teleport.md) guide.
 
 ## Certificate Rotation
 
@@ -1509,7 +1509,7 @@ This allows users to authenticate against a Teleport proxy using [`tsh
 login`](cli-docs.md#tsh) command to retrieve credentials for both SSH and
 Kubernetes API.
 
-Follow our [Kubernetes guide](kubernetes_ssh.md) which contains some more specific
+Follow our [Kubernetes guide](kubernetes-ssh.md) which contains some more specific
 examples and instructions.
 
 ## High Availability
@@ -1565,7 +1565,7 @@ Teleport will handle its own SSL on top of that with its own certificates.
     balancer you'll need to run Teleport with `--insecure-no-tls`
 
 If your load balancer supports HTTP health checks, configure it to hit the
-`/readyz` [diagnostics endpoint](metrics_logs_reference.md) on machines running Teleport. This endpoint
+`/readyz` [diagnostics endpoint](metrics-logs-reference.md) on machines running Teleport. This endpoint
 must be enabled by using the `--diag-addr` flag to teleport start: `teleport start --diag-addr=127.0.0.1:3000`
 The http://127.0.0.1:3000/readyz endpoint will reply `{"status":"ok"}` if the Teleport service
 is running without problems.
@@ -2110,7 +2110,7 @@ Now you can see the monitoring information by visiting several endpoints:
 
 * `http://127.0.0.1:3000/metrics` is the list of internal metrics Teleport is
    tracking. It is compatible with [Prometheus](https://prometheus.io/)
-   collectors. For a full list of metrics review our [metrics reference](metrics_logs_reference.md).
+   collectors. For a full list of metrics review our [metrics reference](metrics-logs-reference.md).
 
 * `http://127.0.0.1:3000/healthz` returns "OK" if the process is healthy or
   `503` otherwise.

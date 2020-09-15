@@ -43,32 +43,32 @@ Here are definitions of the key concepts you will use in Teleport.
 | User             | A user represents someone (a person) or something (a machine) who can perform a set of operations on a node.
 | Cluster          | A cluster is a group of nodes that work together and can be considered a single system. Cluster nodes can create connections to each other, often over a private network. Cluster nodes often require TLS authentication to ensure that communication between nodes remains secure and comes from a trusted source.
 | Certificate Authority (CA) | A Certificate Authority issues SSL certificates in the form of public/private keypairs.
-| [Teleport Node](teleport_nodes.md)    | A Teleport Node is a regular node that is running the Teleport Node service. Teleport Nodes can be accessed by authorized Teleport Users. A Teleport Node is always considered a member of a Teleport Cluster, even if it's a single-node cluster.
-| [Teleport User](teleport_users.md)    | A Teleport User represents someone who needs access to a Teleport Cluster. Users have stored usernames and passwords, and are mapped to OS users on each node. User data is stored locally or in an external store.
-| Teleport Cluster | A Teleport Cluster is comprised of one or more nodes, each of which hold certificates signed by the same [Auth Server CA](teleport_auth.md). The CA cryptographically signs the certificate of a node, establishing cluster membership.
-| [Teleport CA](teleport_auth.md) | Teleport operates two internal CAs as a function of the Auth service. One is used to sign User certificates and the other signs Node certificates. Each certificate is used to prove identity, cluster membership and manage access.
+| [Teleport Node](teleport-nodes.md)    | A Teleport Node is a regular node that is running the Teleport Node service. Teleport Nodes can be accessed by authorized Teleport Users. A Teleport Node is always considered a member of a Teleport Cluster, even if it's a single-node cluster.
+| [Teleport User](teleport-users.md)    | A Teleport User represents someone who needs access to a Teleport Cluster. Users have stored usernames and passwords, and are mapped to OS users on each node. User data is stored locally or in an external store.
+| Teleport Cluster | A Teleport Cluster is comprised of one or more nodes, each of which hold certificates signed by the same [Auth Server CA](teleport-auth.md). The CA cryptographically signs the certificate of a node, establishing cluster membership.
+| [Teleport CA](teleport-auth.md) | Teleport operates two internal CAs as a function of the Auth service. One is used to sign User certificates and the other signs Node certificates. Each certificate is used to prove identity, cluster membership and manage access.
 
 ## Teleport Services
 
-Teleport uses three services which work together: [Nodes](teleport_nodes.md),
-[Auth](teleport_auth.md), and [Proxy](teleport_proxy.md).
+Teleport uses three services which work together: [Nodes](teleport-nodes.md),
+[Auth](teleport-auth.md), and [Proxy](teleport-proxy.md).
 
-[**Teleport Nodes**](teleport_nodes.md) are servers which can be accessed remotely with
+[**Teleport Nodes**](teleport-nodes.md) are servers which can be accessed remotely with
 SSH. The Teleport Node service runs on a machine and is similar to the `sshd`
 daemon you may be familiar with. Users can log in to a Teleport Node with all
 of the following clients:
 
 * [OpenSSH: `ssh` ](../admin-guide.md#using-teleport-with-openssh) (works on Linux, MacOS and Windows)
 * [Teleport CLI client: `tsh ssh` ](../cli-docs.md#tsh-ssh) (works on Linux and MacOS)
-* [Teleport Proxy UI](teleport_proxy.md#web-to-ssh-proxy) accessed via any modern web browser (including Safari on iOS and Chrome on Android)
+* [Teleport Proxy UI](teleport-proxy.md#web-to-ssh-proxy) accessed via any modern web browser (including Safari on iOS and Chrome on Android)
 
-[**Teleport Auth**](teleport_auth.md) authenticates Users and Nodes, authorizes User
+[**Teleport Auth**](teleport-auth.md) authenticates Users and Nodes, authorizes User
 access to Nodes, and acts as a CA by signing certificates issued to Users and
 Nodes.
 
-[**Teleport Proxy**](teleport_proxy.md) forwards User credentials to the [Auth
-Service](teleport_auth.md), creates connections to a requested Node after successful
-authentication, and serves a [Web UI](teleport_proxy.md#web-to-ssh-proxy).
+[**Teleport Proxy**](teleport-proxy.md) forwards User credentials to the [Auth
+Service](teleport-auth.md), creates connections to a requested Node after successful
+authentication, and serves a [Web UI](teleport-proxy.md#web-to-ssh-proxy).
 
 ## Basic Architecture Overview
 
@@ -246,7 +246,7 @@ minimal setup of Teleport yourself.
 
 Read the rest of the Architecture Guides:
 
-* [Teleport Users](teleport_users.md)
-* [Teleport Nodes](teleport_nodes.md)
-* [Teleport Auth](teleport_auth.md)
-* [Teleport Proxy](teleport_proxy.md)
+* [Teleport Users](teleport-users.md)
+* [Teleport Nodes](teleport-nodes.md)
+* [Teleport Auth](teleport-auth.md)
+* [Teleport Proxy](teleport-proxy.md)

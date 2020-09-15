@@ -1,8 +1,3 @@
----
-title: SSO for SSH
-description: How to set up single sign-on (SSO) for SSH using Gravitational Teleport
----
-
 # Single Sign-On (SSO) for SSH
 
 The commercial edition of Teleport allows users to login and retrieve their SSH
@@ -11,19 +6,21 @@ credentials through a [Single Sign-On](https://en.wikipedia.org/wiki/Single_sign
 
 Examples of supported SSO systems include commercial solutions like [Okta](https://www.okta.com),
 [Auth0](https://auth0.com/), [SailPoint](https://www.sailpoint.com/),
-[OneLogin](https://www.onelogin.com/) or [Active Directory](https://en.wikipedia.org/wiki/Active_Directory_Federation_Services), as well as open source products like [Keycloak](http://www.keycloak.org).
+[OneLogin](https://www.onelogin.com/) or [Active Directory](https://en.wikipedia.org/wiki/Active_Directory_Federation_Services), as
+well as open source products like [Keycloak](http://www.keycloak.org).
 Other identity management systems are supported as long as they provide an
 SSO mechanism based on either [SAML](https://en.wikipedia.org/wiki/Security_Assertion_Markup_Language)
 or [OAuth2/OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect).
 
 ### SSO Setup Guides
 
-- [Azure Active Directory (AD)](ssh_azuread.md)
-- [Active Directory (ADFS)](ssh_adfs.md)
-- [G Suite](ssh_gsuite.md)
-- [OneLogin](ssh_one_login.md)
-- [OIDC](oidc.md)
-- [Okta](ssh_okta.md)
+- [Azure Active Directory (AD)](sso/ssh-azuread.md)
+- [Active Directory (ADFS)](sso/ssh-adfs.md)
+- [G Suite](sso/ssh-gsuite.md)
+- [OneLogin](sso/ssh-one-login.md)
+- [OIDC](sso/oidc.md)
+- [Okta](sso/ssh-okta.md)
+
 
 ## How does SSO work with SSH?
 
@@ -64,7 +61,7 @@ To configure [SSO](https://en.wikipedia.org/wiki/Single_sign-on), a Teleport adm
 
 * Update `/etc/teleport.yaml` on the auth server to set the default
   authentication connector.
-* Define the connector [resource](../../admin-guide.md#resources) and save it into
+* Define the connector [resource](../admin-guide.md#resources) and save it into
   a YAML file (like `connector.yaml`)
 * Create the connector using `tctl create connector.yaml`.
 
@@ -107,8 +104,8 @@ spec:
 
 * See [examples/resources](https://github.com/gravitational/teleport/tree/master/examples/resources)
   directory in the Teleport Github repository for examples of possible connectors.
-* You may use `entity_descriptor_url`, in lieu of `entity_descriptor`, to fetch the entity descriptor from
-your IDP. Though, we recommend "pinning" the entity descriptor by including the XML rather than fetching from a URL.
+
+
 
 ### User Logins
 
@@ -132,32 +129,6 @@ spec:
       '*': '*'
 ```
 
-## Working with External Email Identity
-
-Along with sending groups, an SSO provider will also provide a user's email address.
-In many organizations, the username that a person uses to log into a system is the
-same as the first part of their email address - the 'local' part. For example, `dave.smith@acme.com` might log in with the username `dave.smith`. Teleport 4.2.6+ adds an easy way to
-extract the first part of an email address so it can be used as a username - this
-is the `{% raw %}{{email.local}}{% endraw %}` function.
-
-If the email claim from the identity provider (which can be accessed via `{% raw %}{{external.email}}{% endraw %}`) is sent and contains an email address, you can extract the 'local' part of the email address before the @ sign like this: `{% raw %}{{email.local(external.email)}}{% endraw %}`
-
-Here's how this looks in a Teleport role:
-
-```yaml
-kind: role
-version: v3
-metadata:
-  name: sso_user
-spec:
-  allow:
-    logins:
-    # Extracts the local part of dave.smith@acme.com, so the login will
-    # now support dave.smith.
-    - '{% raw %}{{email.local(external.email)}}{% endraw %}'
-    node_labels:
-      '*': '*'
-```
 ## Multiple SSO Providers
 
 Teleport can also support multiple connectors, i.e. a Teleport administrator
@@ -170,7 +141,7 @@ $ tctl get connectors
 ```
 
 To delete/update connectors, use the usual `tctl rm` and `tctl create` commands
-as described in the [Resources section](../../admin-guide.md#resources) in the Admin Manual.
+as described in the [Resources section](../admin-guide.md#resources) in the Admin Manual.
 
 If multiple authentication connectors exist, the clients must supply a
 connector name to `tsh login` via `--auth` argument:
@@ -183,23 +154,25 @@ $ tsh --proxy=proxy.example.com login --auth=okta
 $ tsh --proxy=proxy.example.com login --auth=local --user=admin
 ```
 
+
 Refer to the following guides to configure authentication connectors of both
 SAML and OIDC types:
 
-* [SSH Authentication with Okta](ssh_okta.md)
-* [SSH Authentication with OneLogin](ssh_one_login.md)
-* [SSH Authentication with ADFS](ssh_adfs.md)
-* [SSH Authentication with OAuth2 / OpenID Connect](oidc.md)
+* [SSH Authentication with Okta](sso/ssh-okta.md)
+* [SSH Authentication with OneLogin](sso/ssh-one-login.md)
+* [SSH Authentication with ADFS](sso/ssh-adfs.md)
+* [SSH Authentication with OAuth2 / OpenID Connect](sso/oidc.md)
 
 ## SSO Customization
 
 | Provider | YAML | Example |
 |----------|------|---------|
-| Github |`display: Github`|![github](../../img/teleport-sso/github.png)|
-| Microsoft |`display: Microsoft`|![microsoft](../../img/teleport-sso/microsoft.png)|
-| Google |`display: Google`|![google](../../img/teleport-sso/google.png)|
-| BitBucket | `display: Bitbucket` | ![bitbucket](../../img/teleport-sso/bitbucket.png)|
-| OpenID | `display: Okta` | ![Okta](../../img/teleport-sso/openId.png)|
+| Github |`display: Github`|![github](../img/teleport-sso/github.png)|
+| Microsoft |`display: Microsoft`|![microsoft](../img/teleport-sso/microsoft.png)|
+| Google |`display: Google`|![google](../img/teleport-sso/google.png)|
+| BitBucket | `display: Bitbucket` | ![bitbucket](../img/teleport-sso/bitbucket.png)|
+| OpenID | `display: OpenID` | ![bitbucket](../img/teleport-sso/openId.png)|
+| Custom Provider | `display: Homegrown SSO` | ![bitbucket](../img/teleport-sso/custom-content.png)|
 
 ## Troubleshooting
 
@@ -217,4 +190,4 @@ If something is not working, we recommend to:
 
 * Double-check the host names, tokens and TCP ports in a connector definition.
 * Look into Teleport's audit log for claim mapping problems. It is usually stored on the
-  auth server in the `/var/lib/teleport/log` directory.ad
+  auth server in the `/var/lib/teleport/log` directory.

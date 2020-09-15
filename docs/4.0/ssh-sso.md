@@ -148,9 +148,9 @@ $ tsh --proxy=proxy.example.com login --auth=local --user=admin
 Refer to the following guides to configure authentication connectors of both
 SAML and OIDC types:
 
-* [SSH Authentication with Okta](ssh_okta)
-* [SSH Authentication with OneLogin](ssh_one_login)
-* [SSH Authentication with ADFS](ssh_adfs)
+* [SSH Authentication with Okta](ssh-okta)
+* [SSH Authentication with OneLogin](ssh-one-login)
+* [SSH Authentication with ADFS](ssh-adfs)
 * [SSH Authentication with OAuth2 / OpenID Connect](oidc)
 
 ## Troubleshooting

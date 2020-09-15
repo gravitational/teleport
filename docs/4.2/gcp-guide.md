@@ -1,8 +1,3 @@
----
-title: Running Teleport on GCP
-description: How to install and configure Gravitational Teleport on GCP for SSH and Kubernetes access.
----
-
 # Running Teleport on GCP
 
 We've created this guide to give customers a high level overview of how to use Teleport
@@ -92,7 +87,7 @@ teleport:
 
 When creating the Bucket we would recommend setting it up as `Dual-region` and with
 `Standard` storage class. Provide access using a `Uniform` access control with a Google-managed
-key.
+key or you must set `Storage Legacy Bucket Reader` permissions for a service account.
 
 When setting up `audit_session_uri` use `gs://` session prefix.
 
@@ -116,7 +111,12 @@ record is sufficient.
 ### Access: Service accounts
 
 The Authentication server will need to read and write to Firestore.  For this it'll need
-the correct permission via Server Accounts. Learn how to [enable and create service accounts for instances](https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances).
+the correct permission via Service Accounts. Learn how to [enable and create service accounts for instances](https://cloud.google.com/compute/docs/access/create-enable-service-accounts-for-instances).
+The Service Account will require the following roles:
+- Cloud Datastore Index Admin
+- Cloud Datastore User
+- Storage Object Creator
+- Storage Object Viewer
 
 ![Service Account](img/gcp/gcp-permissions.png)
 
@@ -146,7 +146,7 @@ using [systemd](https://raw.githubusercontent.com/gravitational/teleport/master/
 teleport:
   nodename: teleport-auth-server
   data_dir: /var/lib/teleport
-  pid_file: /run/teleport.pid
+  pid_file: /var/run/teleport.pid
   auth_token: EXAMPLE-CLUSTER-JOIN-TOKEN
   auth_servers:
   - 0.0.0.0:3025
@@ -166,9 +166,8 @@ teleport:
     audit_sessions_uri: 'gs://teleport-session-storage-2?credentialsPath=/var/lib/teleport/gcs_creds.json&projectID=example_Teleport-Project-Name'
 auth_service:
   enabled: yes
-  auth_service:
-    tokens:
-    - "proxy,node:EXAMPLE-CLUSTER-JOIN-TOKEN"
+  tokens:
+  - "proxy,node:EXAMPLE-CLUSTER-JOIN-TOKEN"
 ```
 
 **2. Setup Proxy**
@@ -211,4 +210,4 @@ proxy_service:
 
 **4. Add Users**
 
-Follow [adding users](enterprise/quickstart-enterprise.md#adding-users) or integrate with [G Suite](enterprise/sso/ssh_gsuite.md) to provide SSO access.
+Follow [adding users](enterprise/quickstart-enterprise.md#adding-users) or integrate with [G Suite](enterprise/sso/ssh-gsuite.md) to provide SSO access.

@@ -1,7 +1,6 @@
 # Kubernetes and SSH Integration Guide
 
-Teleport v.3.0+ has the
-ability to act as a compliance gateway for managing privileged access to Kubernetes clusters. This enables the following capabilities:
+Teleport v.3.0+ has the ability to act as a compliance gateway for managing privileged access to Kubernetes clusters. This enables the following capabilities:
 
 * A Teleport Proxy can act as a single authentication endpoint for both SSH and
   Kubernetes. Users can authenticate against a Teleport proxy using Teleport's `tsh login` command and retrieve credentials for both SSH and Kubernetes API.
@@ -47,43 +46,78 @@ Let's take a closer look at the available Kubernetes settings:
 * `listen_addr` defines which network interface and port the Teleport proxy server
   should bind to. It defaults to port 3026 on all NICs.
 
-Notice that the proxy configuration does not contain any Kubernetes credentials.
-This is because a Teleport proxy is not supposed to keep any secrets, as it uses
-the Teleport Auth service to retrieve Kubernetes credentials.
-
-## Teleport Auth Service
-
-The next step is to configure Teleport Auth to be able to request Kubernetes TLS
-certificates using the [Kubernetes CSR API](https://kubernetes.io/docs/tasks/tls/managing-tls-in-a-cluster/).
+## Connecting the Teleport proxy to Kubernetes
 
 There are two ways this can be done:
 
-1. Deploy Teleport Auth service as a Kubernetes pod inside the Kubernetes
-   cluster you want the proxy to have access to. No configuration changes are
-   required in this case.
-2. Deploy the Teleport auth service outside of Kubernetes and update the
-   Teleport Auth configuration with Kubernetes credentials. In this case, we
-   need to update `/etc/teleport.yaml` of the auth service as shown below:
+1. Deploy Teleport Proxy service as a Kubernetes pod inside the Kubernetes cluster you want the proxy to have access to.
+   No Teleport configuration changes are required in this case.
+2. Deploy the Teleport proxy service outside of Kubernetes and update the Teleport Proxy configuration with Kubernetes
+   credentials. In this case, we need to update `/etc/teleport.yaml` for the proxy service as shown below:
 
 ```yaml
-# snippet from /etc/teleport.yaml on the auth service deployed outside k8s:
-auth_service:
+# snippet from /etc/teleport.yaml on the proxy service deployed outside k8s:
+proxy_service:
+  kubernetes:
     kubeconfig_file: /path/to/kubeconfig
 ```
 
-To retrieve the Kubernetes credentials for the Teleport auth service, you have
-to authenticate against your Kubernetes cluster directly then copy the file to
-`/path/to/kubeconfig` on the Teleport auth server.
+To retrieve the Kubernetes credentials for the Teleport proxy service, you have to authenticate against your Kubernetes
+cluster directly then copy the file to `/path/to/kubeconfig` on the Teleport proxy server.
 
-Unfortunately for GKE users, GKE requires its own client-side extensions to
-authenticate, so we've created a [simple script](https://github.com/gravitational/teleport/blob/master/examples/gke-auth/get-kubeconfig.sh)
-you can run to generate `kubeconfig` for the Teleport auth service.
+Unfortunately for GKE users, GKE requires its own client-side extensions to authenticate, so we've created a
+[simple script](https://github.com/gravitational/teleport/blob/master/examples/gke-auth/get-kubeconfig.sh) you can run
+to generate a `kubeconfig` file for the Teleport proxy service.
+
+## Impersonation
+
+The next step is to configure the Teleport Proxy to be able to impersonate Kubernetes principals within a given group
+using [Kubernetes Impersonation Headers](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation).
+
+If Teleport is running inside the cluster using a Kubernetes `ServiceAccount`, here's an example of the permissions that
+the `ServiceAccount` will need to be able to use impersonation (change `teleport-serviceaccount` to the name of the
+`ServiceAccount` that's being used):
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: teleport-impersonation
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - users
+  - groups
+  - serviceaccounts
+  verbs:
+  - impersonate
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: teleport
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: teleport-impersonation
+subjects:
+- kind: ServiceAccount
+  # this should be changed to the name of the Kubernetes ServiceAccount being used
+  name: teleport-serviceaccount
+  namespace: default
+```
+
+There is also an [example of this usage](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/templates/clusterrole.yaml)
+within the [example Teleport Helm chart](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/).
+
+If Teleport is running outside of the Kubernetes cluster, you will need to ensure that the principal used to connect to
+Kubernetes via the `kubeconfig` file has the same impersonation permissions as are described in the `ClusterRole` above.
 
 ## Kubernetes RBAC
 
 Once you perform the steps above, your Teleport instance should become a fully functional Kubernetes API
-proxy. The next step is to configure Teleport to assign the correct Kubernetes
-groups to Teleport users.
+proxy. The next step is to configure Teleport to assign the correct Kubernetes groups to Teleport users.
 
 Mapping Kubernetes groups to Teleport users depends on how Teleport is
 configured. In this guide we'll look at two common configurations:
@@ -91,7 +125,7 @@ configured. In this guide we'll look at two common configurations:
 * **Open source, Teleport Community edition** configured to authenticate users via [Github](admin-guide.md#github-oauth-20).
   In this case, we'll need to map Github teams to Kubernetes groups.
 
-* **Commercial, Teleport Enterprise edition** configured to authenticate users via [Okta SSO](ssh_okta.md).
+* **Commercial, Teleport Enterprise edition** configured to authenticate users via [Okta SSO](ssh-okta.md).
   In this case, we'll need to map users' groups that come from Okta to Kubernetes
   groups.
 
@@ -188,4 +222,4 @@ Once this is complete, when users execute `tsh login` and go through the usual O
 sequence, their `kubeconfig` will be updated with their Kubernetes credentials.
 
 !!! note:
-    For more information on integrating Teleport with Okta, please see the [Okta integration guide](/ssh_okta/).
+    For more information on integrating Teleport with Okta, please see the [Okta integration guide](/ssh-okta/).

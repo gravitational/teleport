@@ -1,4 +1,4 @@
-# Single Sign-On (SSO) for SSH
+<h1>Single Sign-On (SSO) for SSH</h1>
 
 ## Introduction
 
@@ -53,7 +53,7 @@ To configure [SSO](https://en.wikipedia.org/wiki/Single_sign-on), a Teleport adm
 
 * Update `/etc/teleport.yaml` on the auth server to set the default
   authentication connector.
-* Define the connector [resource](../admin-guide.md#resources) and save it into
+* Define the connector [resource](admin-guide/#resources) and save it into
   a YAML file (like `connector.yaml`)
 * Create the connector using `tctl create connector.yaml`.
 
@@ -122,7 +122,7 @@ spec:
 ## Multiple SSO Providers
 
 Teleport can also support multiple connectors, i.e. a Teleport administrator
-can define and create multiple connector resources using `tctl create` as shown above.
+can define and create multiple connector resoruces using `tctl create` as shown above.
 
 To see all configured connectors, execute this on the auth server:
 
@@ -131,7 +131,7 @@ $ tctl get connectors
 ```
 
 To delete/update connectors, use the usual `tctl rm` and `tctl create` commands
-as described in the [Resources section](../admin-guide.md#resources) in the Admin Manual.
+as described in the [Resources section](admin-guide/#resources) in the Admin Manual.
 
 If multiple authentication connectors exist, the clients must supply a
 connector name to `tsh login` via `--auth` argument:
@@ -148,10 +148,10 @@ $ tsh --proxy=proxy.example.com login --auth=local --user=admin
 Refer to the following guides to configure authentication connectors of both
 SAML and OIDC types:
 
-* [SSH Authentication with Okta](../ssh_okta.md)
-* [SSH Authentication with OneLogin](../ssh_one_login.md)
-* [SSH Authentication with ADFS](../ssh_adfs.md)
-* [SSH Authentication with OAuth2 / OpenID Connect](../oidc.md)
+* [SSH Authentication with Okta](ssh-okta)
+* [SSH Authentication with OneLogin](ssh-one-login)
+* [SSH Authentication with ADFS](ssh-adfs)
+* [SSH Authentication with OAuth2 / OpenID Connect](oidc)
 
 ## Troubleshooting
 

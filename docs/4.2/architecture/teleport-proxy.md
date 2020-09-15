@@ -9,7 +9,7 @@ Teleport cluster:
 
 1. It serves as an authentication gateway. It asks for credentials from
    connecting clients and forwards them to the Auth server via [Auth
-   API](teleport_auth.md#auth-api).
+   API](teleport-auth.md#auth-api).
 
 2. It looks up the IP address for a requested Node and then proxies a connection
    from client to Node.
@@ -131,7 +131,7 @@ Auth Server.
 
 ## More Concepts
 
-* [Architecture Overview](teleport_architecture_overview.md)
-* [Teleport Users](teleport_users.md)
-* [Teleport Auth](teleport_auth.md)
-* [Teleport Proxy](teleport_proxy.md)
+* [Architecture Overview](teleport-architecture-overview.md)
+* [Teleport Users](teleport-users.md)
+* [Teleport Auth](teleport-auth.md)
+* [Teleport Proxy](teleport-proxy.md)

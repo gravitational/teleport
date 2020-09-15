@@ -1,11 +1,15 @@
-# FedRAMP / FIPS
+---
+title: FedRAMP compliance for SSH and Kubernetes
+description: How to configure SSH and Kubernetes access to be FedRAMP compliant, including support for FIPS 140-2
+---
+
+
+# FedRAMP for SSH and Kubernetes Access
+
 With Teleport 4.0 we have built the foundation to meet FedRAMP requirements for
 the purposes of accessing infrastructure. This includes support for [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS_140-2), also known as the Federal Information Processing Standard, which is the US government approved standard for cryptographic modules. This document outlines a high
 level overview of how Teleport FIPS mode works and how it can help your company to become FedRAMP certified.
 
-**Table of Contents**
-
-[TOC]
 
 ### Obtain FedRAMP certification with Teleport
 Teleport includes new FedRAMP and FIPS 140-2 features to support companies that sell into
@@ -13,10 +17,10 @@ government agencies.
 
 | Control  | Teleport Features |
 |----------|---------------------|
-| [AC-03 Access Enforcement](https://nvd.nist.gov/800-53/Rev4/control/AC-3)   | Teleport Enterprise supports robust [Role-based Access Controls (RBAC)](./ssh_rbac.md) to: <br>• Control which SSH nodes a user can or cannot access. <br>• Control cluster level configuration (session recording, configuration, etc.) <br>• Control which UNIX logins a user is allowed to use when logging into a server. |
+| [AC-03 Access Enforcement](https://nvd.nist.gov/800-53/Rev4/control/AC-3)   | Teleport Enterprise supports robust [Role-based Access Controls (RBAC)](./ssh-rbac.md) to: <br>• Control which SSH nodes a user can or cannot access. <br>• Control cluster level configuration (session recording, configuration, etc.) <br>• Control which UNIX logins a user is allowed to use when logging into a server. |
 | [AC-17 Remote Access](https://nvd.nist.gov/800-53/Rev4/control/AC-17)   | Teleport administrators create users with configurable roles that can be used to allow or deny access to system resources. |
-| [AC-20 Use of External Information Systems](https://nvd.nist.gov/800-53/Rev4/control/AC-20)  | Teleport supports connecting multiple independent clusters using a feature called [Trusted Clusters](../trustedclusters/). When allowing access from one cluster to another, roles are mapped according to a pre-defined relationship of the scope of access.|
-| [AU-03 Audit and Accountability](https://nvd.nist.gov/800-53/Rev4/control/AU-3) – Content of Audit Records and [AU-12 Audit Generation](https://nvd.nist.gov/800-53/Rev4/control/AU-12) | Teleport contains an [Audit Log](../architecture/teleport_auth/#audit-log) that records cluster-wide events such as: <br>• Failed login attempts.<br>• Commands that were executed (SSH “exec” commands).<br> • Ports that were forwarded. <br>• File transfers that were initiated.|
+| [AC-20 Use of External Information Systems](https://nvd.nist.gov/800-53/Rev4/control/AC-20)  | Teleport supports connecting multiple independent clusters using a feature called [Trusted Clusters](../../trustedclusters/). When allowing access from one cluster to another, roles are mapped according to a pre-defined relationship of the scope of access.|
+| [AU-03 Audit and Accountability](https://nvd.nist.gov/800-53/Rev4/control/AU-3) – Content of Audit Records and [AU-12 Audit Generation](https://nvd.nist.gov/800-53/Rev4/control/AU-12) | Teleport contains an [Audit Log](../../architecture/authentication/#audit-log) that records cluster-wide events such as: <br>• Failed login attempts.<br>• Commands that were executed (SSH “exec” commands).<br> • Ports that were forwarded. <br>• File transfers that were initiated.|
 | [AU-10 Non-Repudiation](https://nvd.nist.gov/800-53/Rev4/control/AU-10)  | Teleport audit logging supports both events as well as audit of an entire SSH session. For non-repudiation purposes a full session can be replayed back and viewed.  |
 | [CM-08 Information System Component Inventory](https://nvd.nist.gov/800-53/Rev4/control/CM-8)  | Teleport maintains a live list of all nodes within a cluster. This node list can be queried by users (who see a subset they have access to) and administrators any time.|
 | [IA-03 Device Identification and Authentication](https://nvd.nist.gov/800-53/Rev4/control/IA-3)  | Teleport requires valid x509 or SSH certificates issued by a Teleport Certificate Authority (CA) to establish a network connection for device-to-device network connection between Teleport components. |
@@ -25,7 +29,7 @@ government agencies.
 | [AC-2 (12) Account Management](https://nvd.nist.gov/800-53/Rev4/control/AC-2) | At the close of a connection the total data transmitted and received is emitted to the Audit Log. |
 
 
-Enterprise customers can download the custom FIPS package from the [Gravitational Dashboard](https://dashboard.gravitational.com/web/).  Look for `Linux 64-bit (FedRAMP/FIPS)`. RPM and DEB packages are also available.
+Enterprise customers can download the custom FIPS package from the [Gravitational Dashboard](https://dashboard.gravitational.com/web/login).  Look for `Linux 64-bit (FedRAMP/FIPS)`. RPM and DEB packages are also available.
 
 # Setup
 Customers can follow our [Enterprise Quickstart](quickstart-enterprise.md) for basic

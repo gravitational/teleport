@@ -32,26 +32,26 @@ nav:
         - Installation: installation.md
         - FAQ: faq.md
     - Infrastructure Guides:
-        - AWS: aws_oss_guide.md
-        - Kubernetes Guide: kubernetes_ssh.md
+        - AWS: aws-oss-guide.md
+        - Kubernetes Guide: kubernetes-ssh.md
     - Enterprise Guides:
         - Introduction: enterprise/index.md
         - Quick Start Guide: enterprise/quickstart-enterprise.md
-        - Single sign-on (SSO): enterprise/ssh_sso.md
-        - FedRAMP & FIPS: enterprise/ssh_fips.md
-        - RBAC: enterprise/ssh_rbac.md
+        - Single sign-on (SSO): enterprise/ssh-sso.md
+        - FedRAMP & FIPS: enterprise/ssh-fips.md
+        - RBAC: enterprise/ssh-rbac.md
     - SSO Guides:
-        - Active Directory (ADFS): ssh_adfs.md
-        - G Suite: ssh_gsuite.md
-        - OneLogin: ssh_one_login.md
+        - Active Directory (ADFS): ssh-adfs.md
+        - G Suite: ssh-gsuite.md
+        - OneLogin: ssh-one-login.md
         - OIDC: oidc.md
-        - Okta: ssh_okta.md
+        - Okta: ssh-okta.md
     - Architecture:
-        - Architecture Overview: architecture/teleport_architecture_overview.md
-        - Teleport Users: architecture/teleport_users.md
-        - Teleport Nodes: architecture/teleport_nodes.md
-        - Teleport Auth: architecture/teleport_auth.md
-        - Teleport Proxy: architecture/teleport_proxy.md
+        - Architecture Overview: architecture/teleport-architecture-overview.md
+        - Teleport Users: architecture/teleport-users.md
+        - Teleport Nodes: architecture/teleport-nodes.md
+        - Teleport Auth: architecture/teleport-auth.md
+        - Teleport Proxy: architecture/teleport-proxy.md
         - Trusted Clusters: trustedclusters.md
     - CLI Reference:
         - CLI Reference: cli-docs.md

@@ -84,7 +84,7 @@ up-to-date information.
 
 ## Docker
 
-Please follow our [OSS Docker Quickstart](quickstart_docker.md) or [Enterprise Docker Quickstart](enterprise/quickstart-enterprise.md#run-teleport-enterprise-using-docker) for install and setup instructions.
+Please follow our [OSS Docker Quickstart](quickstart-docker.md) or [Enterprise Docker Quickstart](enterprise/quickstart-enterprise.md#run-teleport-enterprise-using-docker) for install and setup instructions.
 
 ```bash
 $ docker pull quay.io/gravitational/teleport:{{ teleport.version }}
