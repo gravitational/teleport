@@ -709,6 +709,14 @@
   revision = "53be0d36a84c2a886ca057d34b6aa4468df9ccb4"
 
 [[projects]]
+  digest = "1:0028cb19b2e4c3112225cd871870f2d9cf49b9b4276531f03438a88e94be86fe"
+  name = "github.com/pmezard/go-difflib"
+  packages = ["difflib"]
+  pruneopts = "NUT"
+  revision = "792786c7400a136282c1664665ae0a8db921c6c2"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:aabb118251a9ee8ddab44c405f2391852a82dcf33358cda25ea5748561411ffc"
   name = "github.com/pquerna/otp"
   packages = [
@@ -827,6 +835,14 @@
   pruneopts = "NUT"
   revision = "583c0c0531f06d5278b7d917446061adc344b5cd"
   version = "v1.0.1"
+
+[[projects]]
+  digest = "1:c59bbf7751c26b0fd98789cc8a8bdedc8377a61506537f62874902e597b20fa3"
+  name = "github.com/stretchr/testify"
+  packages = ["assert"]
+  pruneopts = "NUT"
+  revision = "f654a9112bbeac49ca2cd45bfbe11533c4666cf8"
+  version = "v1.6.1"
 
 [[projects]]
   digest = "1:9a254b2ccae856ad6131dd6ab01651004445258f0bfc86369d27ce49dcb6ef31"
@@ -1175,6 +1191,14 @@
   version = "v1.23.0"
 
 [[projects]]
+  digest = "1:22b2dee6f30bc8601f087449a2a819df8388e54e9547349c658f14d8f8c590f2"
+  name = "gopkg.in/alecthomas/kingpin.v2"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "947dcec5ba9c011838740e680966fd7087a71d0d"
+  version = "v2.2.6"
+
+[[projects]]
   digest = "1:67ae56e0579de0f16006ee42cc42daaaacefcfd36324ba00540f62fe42fc64df"
   name = "gopkg.in/check.v1"
   packages = ["."]
@@ -1196,6 +1220,14 @@
   pruneopts = "NUT"
   revision = "53403b58ad1b561927d19068c655246f2db79d48"
   version = "v2.2.8"
+
+[[projects]]
+  branch = "v3"
+  digest = "1:c9a53b5be2654e3d1d466419bb389371ff3755220ec3cafd43dd8742fb7aebdd"
+  name = "gopkg.in/yaml.v3"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "eeeca48fe7764f320e4870d231902bf9c1be2c08"
 
 [[projects]]
   digest = "1:6ebd87b9a08afc8894de3f5d6f1dbc56494c36c5136593ddaf8997d73fc1967c"
@@ -1477,6 +1509,7 @@
     "github.com/russellhaering/goxmldsig",
     "github.com/sirupsen/logrus",
     "github.com/sirupsen/logrus/hooks/syslog",
+    "github.com/stretchr/testify/assert",
     "github.com/tstranex/u2f",
     "github.com/vulcand/predicate",
     "github.com/vulcand/predicate/builder",
@@ -1505,9 +1538,9 @@
     "google.golang.org/grpc/keepalive",
     "google.golang.org/grpc/peer",
     "google.golang.org/grpc/status",
+    "gopkg.in/alecthomas/kingpin.v2",
     "gopkg.in/check.v1",
     "gopkg.in/yaml.v2",
-    "k8s.io/api/authorization/v1",
     "k8s.io/api/core/v1",
     "k8s.io/apimachinery/pkg/api/errors",
     "k8s.io/apimachinery/pkg/apis/meta/v1",
@@ -1521,7 +1554,6 @@
     "k8s.io/apimachinery/pkg/util/yaml",
     "k8s.io/apimachinery/third_party/forked/golang/netutil",
     "k8s.io/client-go/kubernetes",
-    "k8s.io/client-go/kubernetes/typed/authorization/v1",
     "k8s.io/client-go/plugin/pkg/client/auth/azure",
     "k8s.io/client-go/plugin/pkg/client/auth/gcp",
     "k8s.io/client-go/rest",
