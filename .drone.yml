@@ -2702,7 +2702,7 @@ clone:
   disable: true
 
 steps:
-  - name: Pull and retag Docker images
+  - name: Pull/retag Docker images
     image: docker
     settings:
       docker_staging_username:
@@ -2751,7 +2751,7 @@ steps:
         git fetch origin +refs/tags/${DRONE_TAG}:
         git checkout -qf FETCH_HEAD
 
-  - name: Download saved AMI timestamps
+  - name: Download AMI timestamps
     image: docker
     environment:
       AWS_S3_BUCKET:
@@ -2773,14 +2773,14 @@ steps:
       AWS_SECRET_ACCESS_KEY:
         from_secret: PRODUCTION_AWS_SECRET_ACCESS_KEY
     commands:
-      - apk add --no-cache aws-cli make
+      - apk add --no-cache aws-cli bash jq make
       - cd /go/src/github.com/gravitational/teleport/assets/aws
       - |
         make change-amis-to-public-oss
         make change-amis-to-public-ent
         make change-amis-to-public-ent-fips
 
-  - name: Download artifacts from S3 artifact publishing bucket
+  - name: Download artifacts from S3
     image: amazon/aws-cli
     environment:
       AWS_S3_BUCKET:
@@ -2791,9 +2791,10 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       AWS_REGION: us-west-2
     commands:
+      - mkdir -p /go/artifacts
       - aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/ /go/artifacts/
 
-  - name: Upload artifacts to production S3 bucket with public read access
+  - name: Upload artifacts to production S3
     image: plugins/s3
     settings:
       bucket:
@@ -2822,6 +2823,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 6ec0dd8a02448e07951db3dfea9177f7fc3bc128bbc740bb37fe41f67b8d930b
+hmac: 3c51835ee58df7251c07115efbcad88dae4ec43535e38f4492615f1f54a38c06
 
 ...
