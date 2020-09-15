@@ -101,7 +101,7 @@ The Teleport Enterprise offering gives users the following additional features:
 
 * Role-based access control, also known as [RBAC](enterprise/index.md#rbac).
 * Authentication via SAML and OpenID with providers like Okta, Active
-  Directory, Auth0, etc. (aka, [SSO](enterprise/ssh_sso.md)).
+  Directory, Auth0, etc. (aka, [SSO](enterprise/ssh-sso.md)).
 * Premium support.
 
 We also offer implementation services, to help you integrate

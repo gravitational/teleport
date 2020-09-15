@@ -26,10 +26,10 @@ white-list-external:
   - "https://app.onelogin.com/saml/metadata/123456"
   - "https://en.wikipedia.org/wiki/Shebang_(Unix"
 black-list:
-  - "./architecture/teleport_architecture.md"
+  - "./architecture/teleport-architecture.md"
   - "./quickstart__archive.md"
 files:
-  - path: "./aws_oss_guide.md"
+  - path: "./aws-oss-guide.md"
     config:
       white-list-internal:
         - "#teleport-aws-tips-tricks"

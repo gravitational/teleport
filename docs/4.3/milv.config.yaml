@@ -35,17 +35,17 @@ white-list-external:
   - "https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation"
   - "https://cloud.ibm.com/docs/cloud-object-storage?topic=cloud-object-storage-uhc-hmac-credentials-main"
 black-list:
-  - "./architecture/teleport_architecture.md"
+  - "./architecture/teleport-architecture.md"
   - "./quickstart__archive.md"
 files:
-  - path: "./aws_oss_guide.md"
+  - path: "./aws-oss-guide.md"
     config:
       white-list-internal:
         - "#teleport-aws-tips-tricks"
         - "#ec2-autoscale"
         - "#acm"
         - "#single-oss-teleport-amis-manual-gui-setup"
-  - path: "./aws_terraform_guide.md"
+  - path: "./aws-terraform-guide.md"
     config:
       white-list-internal:
         - "#cluster_name"

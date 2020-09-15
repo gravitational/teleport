@@ -8,7 +8,7 @@
 
 A regular node becomes a Teleport Node when the node joins a cluster with an
 "join" token. Read about how nodes are issued certificates in the
-[Auth Guide](teleport_auth.md#issuing-node-certificates).
+[Auth Guide](teleport-auth.md#issuing-node-certificates).
 
 ![Node joins a cluster](../img/node_join.svg)
 
@@ -22,7 +22,7 @@ and remote command execution on the node, similar to the function of OpenSSH's
 All cluster Nodes keep the Auth Server updated with their status with periodic
 ping messages. They report their IP addresses and values of their assigned
 labels. Nodes can access the list of all Nodes in their cluster via the
-[Auth Server API](teleport_auth.md#auth-api).
+[Auth Server API](teleport-auth.md#auth-api).
 
 !!! tip "Tip"
     In most environments we advise replacing the OpenSSH daemon `sshd`
@@ -34,9 +34,9 @@ The `node` service provides SSH access to every node with all of the following c
 
 * [OpenSSH: `ssh`](../admin-guide.md#using-teleport-with-openssh)
 * [Teleport CLI client: `tsh ssh`](../cli-docs.md#tsh-ssh)
-* [Teleport Proxy UI](teleport_proxy.md#web-to-ssh-proxy) accessed via a web browser.
+* [Teleport Proxy UI](teleport-proxy.md#web-to-ssh-proxy) accessed via a web browser.
 
-Each client is authenticated via the [Auth Service](teleport_auth.md#authentication-in-teleport) before being granted access to a Node.
+Each client is authenticated via the [Auth Service](teleport-auth.md#authentication-in-teleport) before being granted access to a Node.
 
 ## Node Identity on a Cluster
 
@@ -56,7 +56,7 @@ A Teleport Cluster is a set of one or more machines whose public keys are signed
 by the same certificate authority (CA) operating in the Auth Server. A
 certificate is issued to a node when it joins the cluster for the first time.
 Learn more about this process in the [Auth
-Guide](teleport_auth.md#authentication-in-teleport).
+Guide](teleport-auth.md#authentication-in-teleport).
 
 !!! warning "Single-Node Clusters are Clusters"
     Once a Node gets a signed certificate from the Node CA, the Node is considered a member of the cluster, even if that cluster has only one node.
@@ -70,7 +70,7 @@ the client is authenticated the proxy attempts to connect the client to the
 requested Node.
 
 There is a detailed walk-through of the steps needed to initiate a connection to
-a node in the [Architecture Overview](teleport_architecture_overview.md).
+a node in the [Architecture Overview](teleport-architecture-overview.md).
 
 ![Proxy Connection between client and node](../img/proxy_client_connect.svg)
 
@@ -90,7 +90,7 @@ The cluster state information stored includes:
 * RBAC configuration (roles and permissions).
 * Dynamic configuration.
 
-Read more about what is stored in the [Auth Guide](teleport_auth.md#auth-state)
+Read more about what is stored in the [Auth Guide](teleport-auth.md#auth-state)
 
 ## Session Recording
 
@@ -119,7 +119,7 @@ file.
 
 ## More Concepts
 
-* [Architecture Overview](teleport_architecture_overview.md)
-* [Teleport Users](teleport_users.md)
-* [Teleport Auth](teleport_auth.md)
-* [Teleport Proxy](teleport_proxy.md)
+* [Architecture Overview](teleport-architecture-overview.md)
+* [Teleport Users](teleport-users.md)
+* [Teleport Auth](teleport-auth.md)
+* [Teleport Proxy](teleport-proxy.md)

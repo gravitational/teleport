@@ -108,7 +108,7 @@ by the system's SSH agent if it is running.
 2. If the correct credentials were offered, the Auth Server will generate a
    signed certificate and return it to the client. For users certificates are
    stored in `~/.tsh` by default. If the client uses the [Web
-   UI](teleport_proxy.md/#connecting-to-a-node) the signed certificate is associated with a
+   UI](teleport-proxy.md/#connecting-to-a-node) the signed certificate is associated with a
    secure websocket session.
 
 In addition to user's identity, user certificates also contain user roles and
@@ -129,7 +129,7 @@ certificate is still valid, the Auth Server validates the certificate's
 signature.
 
 If it is correct the client is granted access to the cluster. From here, the
-[Proxy Server](teleport_proxy.md#connecting-to-a-node) establishes a connection between
+[Proxy Server](teleport-proxy.md#connecting-to-a-node) establishes a connection between
 client and node.
 
 ## Certificate Rotation
@@ -286,7 +286,7 @@ it allows them to run Teleport clusters completely devoid of local state.
 
 ## More Concepts
 
-* [Architecture Overview](teleport_architecture_overview.md)
-* [Teleport Users](teleport_users.md)
-* [Teleport Nodes](teleport_nodes.md)
-* [Teleport Proxy](teleport_proxy.md)
+* [Architecture Overview](teleport-architecture-overview.md)
+* [Teleport Users](teleport-users.md)
+* [Teleport Nodes](teleport-nodes.md)
+* [Teleport Proxy](teleport-proxy.md)

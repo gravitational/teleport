@@ -401,7 +401,7 @@ with a few extra notes around adding a license and getting the correct binary. I
 like help setting up Teleport Enterprise on AWS, please mail us at <a href="mailto:info@gravitational.com">info@gravitational.com</a>
 
 # Running Teleport in HA on AWS
-We have a [guide for setting up Teleport in a high availability configuration on AWS](aws_terraform_guide.md).
+We have a [guide for setting up Teleport in a high availability configuration on AWS](aws-terraform-guide.md).
 
 # Teleport AWS Tips & Tricks
 

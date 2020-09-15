@@ -18,12 +18,12 @@ or [OAuth2/OpenID Connect](https://en.wikipedia.org/wiki/OpenID_Connect).
 
 ### SSO Setup Guides
 
-- [Azure Active Directory (AD)](ssh_azuread.md)
-- [Active Directory (ADFS)](ssh_adfs.md)
-- [G Suite](ssh_gsuite.md)
-- [OneLogin](ssh_one_login.md)
+- [Azure Active Directory (AD)](ssh-azuread.md)
+- [Active Directory (ADFS)](ssh-adfs.md)
+- [G Suite](ssh-gsuite.md)
+- [OneLogin](ssh-one-login.md)
 - [OIDC](oidc.md)
-- [Okta](ssh_okta.md)
+- [Okta](ssh-okta.md)
 
 ## How does SSO work with SSH?
 
@@ -186,9 +186,9 @@ $ tsh --proxy=proxy.example.com login --auth=local --user=admin
 Refer to the following guides to configure authentication connectors of both
 SAML and OIDC types:
 
-* [SSH Authentication with Okta](ssh_okta.md)
-* [SSH Authentication with OneLogin](ssh_one_login.md)
-* [SSH Authentication with ADFS](ssh_adfs.md)
+* [SSH Authentication with Okta](ssh-okta.md)
+* [SSH Authentication with OneLogin](ssh-one-login.md)
+* [SSH Authentication with ADFS](ssh-adfs.md)
 * [SSH Authentication with OAuth2 / OpenID Connect](oidc.md)
 
 ## SSO Customization

@@ -300,13 +300,13 @@ The local account is good for administrative purposes but regular users of
 Teleport Enterprise should be using a Single Sign-On (SSO) mechanism that use SAML or OIDC protocols.
 
 
-Take a look at the [SSH via Single Sign-on](ssh_sso.md) chapter to learn the basics of
+Take a look at the [SSH via Single Sign-on](ssh-sso.md) chapter to learn the basics of
 integrating Teleport with SSO providers. We have the following detailed guides for
 configuring SSO providers:
 
-* [Okta](../ssh_okta.md)
-* [Active Directory](../ssh_adfs.md)
-* [One Login](../ssh_one_login.md)
+* [Okta](../ssh-okta.md)
+* [Active Directory](../ssh-adfs.md)
+* [One Login](../ssh-one-login.md)
 * [Github](../admin-guide.md#github-oauth-20)
 
 Any SAML-compliant provider can be configured with Teleport by following the

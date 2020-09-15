@@ -138,7 +138,7 @@ auth_service:
         # default authentication type. possible values are 'local' and 'github' for OSS
         #  and 'oidc', 'saml' and 'false' for Enterprise.
         # 'false' is required for FedRAMP / FIPS, see
-        #  https://gravitational.com/teleport/docs/enterprise/ssh_kubernetes_fedramp/
+        #  https://gravitational.com/teleport/docs/enterprise/ssh-kubernetes-fedramp/
         #  only local authentication (Teleport's own user DB) & Github is supported in the open
         #  source version
         type: local
@@ -246,7 +246,7 @@ ssh_service:
     permit_user_env: false
 
     # Enhanced Session Recording was introduced with Teleport 4.2. For more details
-    # see https://gravitational.com/teleport/docs/features/enhanced_session_recording
+    # see https://gravitational.com/teleport/docs/features/enhanced-session-recording
     enhanced_recording:
        # Enable or disable enhanced auditing for this node. Default value:
        # false.

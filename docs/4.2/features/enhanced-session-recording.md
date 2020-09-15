@@ -31,7 +31,7 @@ well as kernel headers.
 
 !!! tip
 
-    Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](https://gravitational.com/teleport/docs/architecture/teleport_auth/#audit-log) for more details.
+    Our Standard Session Recording works with older Linux Kernels. View our [audit log docs](../architecture/teleport-auth.md#audit-log) for more details.
 
 
 You can check your kernel version using the `uname` command. The output should look
@@ -285,7 +285,7 @@ ssh_service:
 ```
 
 ## 5. Inspect Logs
-The resulting enhanced session recording will be shown in [Teleport's Audit Log](../architecture/teleport_auth.md#audit-log).
+The resulting enhanced session recording will be shown in [Teleport's Audit Log](../architecture/teleport-auth.md#audit-log).
 
 
 ```bash

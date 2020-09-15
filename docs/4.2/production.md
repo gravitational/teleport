@@ -8,7 +8,7 @@ This guide provides more in-depth details for running Teleport in Production.
 
 ## Prerequisites
 
-* Read the [Architecture Overview](architecture/teleport_architecture_overview.md)
+* Read the [Architecture Overview](architecture/teleport-architecture-overview.md)
 * Read through the [Installation Guide](installation.md) to see the available packages and binaries available.
 * Read the CLI Docs for [`teleport`](cli-docs.md#teleport)
 
@@ -18,7 +18,7 @@ Before installing anything there are a few things you should think about.
 
 * Where will you host Teleport?
     * On-premises
-    * Cloud VMs such as [AWS EC2](aws_oss_guide.md) or [GCE](gcp_guide.md)
+    * Cloud VMs such as [AWS EC2](aws-oss-guide.md) or [GCE](gcp-guide.md)
     * An existing Kubernetes Cluster
 * What does your existing network configuration look like?
     * Are you able to administer the network firewall rules yourself or do you need to work with a network admin?
@@ -182,7 +182,7 @@ proxy_service:
 When setting up on Teleport on AWS or GCP, we recommend leveraging their certificate
 managers.
 
-- [ACM](https://gravitational.com/teleport/docs/aws_oss_guide/#acm) on AWS
+- [ACM](aws-oss-guide/#acm) on AWS
 - [Google-managed SSL certificates](https://cloud.google.com/load-balancing/docs/ssl-certificates) on GCP
 
 When setting up Teleport with a Cloud Provider, it can be common to terminate

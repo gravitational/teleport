@@ -6,11 +6,11 @@ description: How to customize SSH and Kubernetes access using Teleport.
 # Teleport Approval Workflows
 
 #### Approving Workflow using an External Integration
-- [Integrating Teleport with Slack](ssh_approval_slack.md)
-- [Integrating Teleport with Mattermost](ssh_approval_mattermost.md)
-- [Integrating Teleport with Jira Cloud](ssh_approval_jira_cloud.md)
-- [Integrating Teleport with Jira Server](ssh_approval_jira_server.md)
-- [Integrating Teleport with PagerDuty](ssh_approval_pagerduty.md)
+- [Integrating Teleport with Slack](ssh-approval-slack.md)
+- [Integrating Teleport with Mattermost](ssh-approval-mattermost.md)
+- [Integrating Teleport with Jira Cloud](ssh-approval-jira-cloud.md)
+- [Integrating Teleport with Jira Server](ssh-approval-jira-server.md)
+- [Integrating Teleport with PagerDuty](ssh-approval-pagerduty.md)
 
 
 ## Approval Workflows Setup
@@ -70,7 +70,7 @@ spec:
   deny:
     # ...
 # list of allow-rules, see
-# https://gravitational.com/teleport/docs/enterprise/ssh_rbac/
+# https://gravitational.com/teleport/docs/enterprise/ssh-rbac/
 rules:
     # Access Request is part of Approval Workflows introduced in 4.2
     # `access_request` should only be given to Teleport Admins.
@@ -141,8 +141,8 @@ deny:
 
 | Integration | Feature | Type          | Setup Instructions |
 |-------------|---------|---------------|--------------------|
-| Slack       |         | Chatbot       | [Setup Slack](ssh_approval_slack.md) |
-| Mattermost  |         | Chatbot       | [Setup Mattermost](ssh_approval_mattermost.md) |
-| Jira Server |         | Project Board | [Setup Jira Server](ssh_approval_jira_server.md) |
-| Jira Cloud  |         | Project Board | [Setup Jira Cloud](ssh_approval_jira_cloud.md) |
-| PagerDuty   |         | Schedule      | [Setup PagerDuty](ssh_approval_pagerduty.md) |
+| Slack       |         | Chatbot       | [Setup Slack](ssh-approval-slack.md) |
+| Mattermost  |         | Chatbot       | [Setup Mattermost](ssh-approval-mattermost.md) |
+| Jira Server |         | Project Board | [Setup Jira Server](ssh-approval-jira-server.md) |
+| Jira Cloud  |         | Project Board | [Setup Jira Cloud](ssh-approval-jira-cloud.md) |
+| PagerDuty   |         | Schedule      | [Setup PagerDuty](ssh-approval-pagerduty.md) |
