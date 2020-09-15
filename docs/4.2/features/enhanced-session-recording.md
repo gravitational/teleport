@@ -56,7 +56,7 @@ Linux ip-172-31-43-104.ec2.internal 4.19.72-25.58.amzn2.x86_64 x86_64 x86_64 x86
 
 |       |                   | Kernel Version        |
 |-------|-------------------|-----------------------|
-| 18.10 | Cosmic Cuttlefish | 4.18 [Patch Kernel](http://www.theubuntumaniac.com/2018/11/update-install-kernel-4191-stable-on.html)  |
+| 18.10 | Cosmic Cuttlefish | 4.18 Patch Kernel  |
 | 19.04 | Disco Dingo       | 5.0 ✅ 🚧 Feature in Alpha      |
 | 19.10 | Eoan Ermine       | 5.3 ✅ 🚧 Feature in Alpha      |
 

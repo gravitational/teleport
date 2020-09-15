@@ -182,7 +182,7 @@ proxy_service:
 When setting up on Teleport on AWS or GCP, we recommend leveraging their certificate
 managers.
 
-- [ACM](aws-oss-guide/#acm) on AWS
+- [ACM](aws-oss-guide.md#acm) on AWS
 - [Google-managed SSL certificates](https://cloud.google.com/load-balancing/docs/ssl-certificates) on GCP
 
 When setting up Teleport with a Cloud Provider, it can be common to terminate
