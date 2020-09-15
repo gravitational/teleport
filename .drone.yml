@@ -589,7 +589,6 @@ name: build-linux-amd64-fips
 environment:
   RUNTIME: go1.14.4
 
-TODO(gus): testing
 trigger:
   event:
     - tag
@@ -2304,9 +2303,6 @@ steps:
       # Normally, the version is set and exported by the root Makefile and then inherited,
       # but this is not the case for FIPS builds (which only run in e/Makefile)
       - export VERSION=$(cat /go/.version.txt)
-      # TODO
-      # this should be changed to "make -C e image-fips publish-fips" when we want to
-      # actually cut over to building public-facing Docker images using Drone
       - make -C e image-fips-ci publish-fips-ci
 
 services:
@@ -2789,6 +2785,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 9d25d641a1e262e02f87aa627c5cd7d87b7d4d7e5a61d471e34d43fad222f5a3
+hmac: 84006d57b84f2b04e0cc751bd1b297712ce960d257a189f98cd6b6301a348a4b
 
 ...
