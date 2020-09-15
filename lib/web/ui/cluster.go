@@ -50,9 +50,13 @@ type Cluster struct {
 func NewClusters(remoteClusters []reversetunnel.RemoteSite) ([]Cluster, error) {
 	clusters := []Cluster{}
 	for _, site := range remoteClusters {
-		cluster, err := GetClusterDetails(site)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		// Other fields such as node count, url, and proxy/auth versions are not set
+		// because each cluster will need to make network calls to retrieve information
+		// which does not scale well (ie: 1k clusters, each request will take seconds).
+		cluster := &Cluster{
+			Name:          site.GetName(),
+			LastConnected: site.GetLastConnected(),
+			Status:        site.GetStatus(),
 		}
 
 		clusters = append(clusters, *cluster)
