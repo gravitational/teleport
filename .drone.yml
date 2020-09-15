@@ -2696,7 +2696,7 @@ trigger:
       - gravitational/*
 
 workspace:
-  path: /go/src/github.com/gravitational/teleport
+  path: /go
 
 clone:
   disable: true
@@ -2745,14 +2745,14 @@ steps:
     image: docker:git
     commands:
       - |
-        mkdir -p /go/src/github.com/gravitational/teleport /go/cache
+        mkdir -p /go/src/github.com/gravitational/teleport
         cd /go/src/github.com/gravitational/teleport
         git init && git remote add origin ${DRONE_REMOTE_URL}
         git fetch origin +refs/tags/${DRONE_TAG}:
         git checkout -qf FETCH_HEAD
 
-  - name: Make AMIs public
-    image: hashicorp/packer
+  - name: Download saved AMI timestamps
+    image: docker
     environment:
       AWS_S3_BUCKET:
         from_secret: AWS_S3_BUCKET
@@ -2761,9 +2761,19 @@ steps:
       AWS_SECRET_ACCESS_KEY:
         from_secret: AWS_SECRET_ACCESS_KEY
     commands:
-      - apk add --no-cache aws-cli jq make
+      - apk add --no-cache aws-cli
       - mkdir -p /go/src/github.com/gravitational/teleport/assets/aws/files/build
       - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ami/${DRONE_TAG##v}/ /go/src/github.com/gravitational/teleport/assets/aws/files/build
+
+  - name: Make AMIs public
+    image: docker
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: PRODUCTION_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: PRODUCTION_AWS_SECRET_ACCESS_KEY
+    commands:
+      - apk add --no-cache aws-cli make
       - cd /go/src/github.com/gravitational/teleport/assets/aws
       - |
         make change-amis-to-public-oss
@@ -2781,7 +2791,7 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       AWS_REGION: us-west-2
     commands:
-      - aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/ .
+      - aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/ /go/artifacts/
 
   - name: Upload artifacts to production S3 bucket with public read access
     image: plugins/s3
@@ -2794,9 +2804,9 @@ steps:
         from_secret: PRODUCTION_AWS_SECRET_ACCESS_KEY
       region: us-east-1
       acl: public-read
-      source: /go/src/github.com/gravitational/teleport/*
+      source: /go/artifacts/*
       target: teleport/${DRONE_TAG##v}/
-      strip_prefix: /go/src/github.com/gravitational/teleport/
+      strip_prefix: /go/artifacts/
 
 services:
   - name: Start Docker
@@ -2812,6 +2822,6 @@ volumes:
 
 ---
 kind: signature
-hmac: a337276a6c297e42498ef31bb5b05733397882759a97d38948a60e4a86f908ab
+hmac: 6ec0dd8a02448e07951db3dfea9177f7fc3bc128bbc740bb37fe41f67b8d930b
 
 ...
