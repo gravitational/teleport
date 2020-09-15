@@ -495,10 +495,6 @@ trigger:
     include:
       - gravitational/*
 
-# TODO(gus): testing
-# depends_on:
-#  - test
-
 workspace:
   path: /go
 
@@ -603,10 +599,6 @@ trigger:
   repo:
     include:
       - gravitational/*
-
-#TODO(gus): testing
-# depends_on:
-#   - test
 
 workspace:
   path: /go
@@ -713,9 +705,6 @@ trigger:
     include:
       - gravitational/*
 
-depends_on:
-  - test
-
 workspace:
   path: /go
 
@@ -820,9 +809,6 @@ trigger:
   repo:
     include:
       - gravitational/*
-
-depends_on:
-  - test
 
 workspace:
   path: /go
@@ -1383,9 +1369,6 @@ trigger:
     include:
       - gravitational/*
 
-depends_on:
-  - test
-
 workspace:
   path: /go
 
@@ -1720,9 +1703,6 @@ trigger:
     include:
       - gravitational/*
 
-depends_on:
-  - test
-
 workspace:
   path: /tmp/build-darwin-amd64
 
@@ -2053,9 +2033,6 @@ trigger:
     include:
       - gravitational/*
 
-depends_on:
-  - test
-
 workspace:
   path: /dev/shm/tmp
 
@@ -2141,9 +2118,6 @@ trigger:
   repo:
     include:
       - gravitational/*
-
-depends_on:
-  - test
 
 workspace:
   path: /go
@@ -2250,10 +2224,6 @@ trigger:
   repo:
     include:
       - gravitational/*
-
-#TODO(gus): testing
-# depends_on:
-#   - test
 
 workspace:
   path: /go
@@ -2366,9 +2336,7 @@ trigger:
     include:
       - gravitational/*
 
-#TODO(gus): testing
 depends_on:
-#   - test
   - build-linux-amd64
 
 workspace:
@@ -2470,9 +2438,7 @@ trigger:
     include:
       - gravitational/*
 
-#TODO(gus): testing
 depends_on:
-#   - test
   - build-linux-amd64
   - build-linux-amd64-fips
 
@@ -2702,6 +2668,35 @@ clone:
   disable: true
 
 steps:
+  - name: Download artifacts from S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - mkdir -p /go/artifacts
+      - aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/ /go/artifacts/
+
+  - name: Upload artifacts to production S3
+    image: plugins/s3
+    settings:
+      bucket:
+        from_secret: PRODUCTION_AWS_S3_BUCKET
+      access_key:
+        from_secret: PRODUCTION_AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: PRODUCTION_AWS_SECRET_ACCESS_KEY
+      region: us-east-1
+      acl: public-read
+      source: /go/artifacts/*
+      target: teleport/${DRONE_TAG##v}/
+      strip_prefix: /go/artifacts/
+
   - name: Pull/retag Docker images
     image: docker
     settings:
@@ -2780,35 +2775,6 @@ steps:
         make change-amis-to-public-ent
         make change-amis-to-public-ent-fips
 
-  - name: Download artifacts from S3
-    image: amazon/aws-cli
-    environment:
-      AWS_S3_BUCKET:
-        from_secret: AWS_S3_BUCKET
-      AWS_ACCESS_KEY_ID:
-        from_secret: AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: AWS_SECRET_ACCESS_KEY
-      AWS_REGION: us-west-2
-    commands:
-      - mkdir -p /go/artifacts
-      - aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/ /go/artifacts/
-
-  - name: Upload artifacts to production S3
-    image: plugins/s3
-    settings:
-      bucket:
-        from_secret: PRODUCTION_AWS_S3_BUCKET
-      access_key:
-        from_secret: PRODUCTION_AWS_ACCESS_KEY_ID
-      secret_key:
-        from_secret: PRODUCTION_AWS_SECRET_ACCESS_KEY
-      region: us-east-1
-      acl: public-read
-      source: /go/artifacts/*
-      target: teleport/${DRONE_TAG##v}/
-      strip_prefix: /go/artifacts/
-
 services:
   - name: Start Docker
     image: docker:dind
@@ -2823,6 +2789,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 3c51835ee58df7251c07115efbcad88dae4ec43535e38f4492615f1f54a38c06
+hmac: 9d25d641a1e262e02f87aa627c5cd7d87b7d4d7e5a61d471e34d43fad222f5a3
 
 ...
