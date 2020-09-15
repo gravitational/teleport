@@ -77,13 +77,13 @@ to an existing cluster.
 
 For example, if `https://example.com:3080/web` is the URL of your cluster UI then:
 
-to start your local Teleport development server
+To start your local Teleport development server
 
 ```
 $ yarn start-teleport --target=https://example.com:3080/web
 ```
 
-or to start your local Gravity development server
+To start your local Gravity development server
 
 ```
 $ yarn start-gravity --target=https://example.com:3080/web

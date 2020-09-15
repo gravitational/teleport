@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render cluster nodes 1`] = `
-.c16 {
+.c15 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -30,22 +30,22 @@ exports[`render cluster nodes 1`] = `
   height: 24px;
 }
 
-.c16:active {
+.c15:active {
   opacity: 0.56;
 }
 
-.c16:hover,
-.c16:focus {
+.c15:hover,
+.c15:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c16:active {
+.c15:active {
   opacity: 0.24;
 }
 
-.c16:disabled {
+.c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -63,7 +63,7 @@ exports[`render cluster nodes 1`] = `
   color: #FFFFFF;
 }
 
-.c17 {
+.c16 {
   display: inline-block;
   transition: color .3s;
   margin-left: 8px;
@@ -309,36 +309,6 @@ exports[`render cluster nodes 1`] = `
   margin: 0 -4px;
 }
 
-.c15 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  border: 1px solid #000;
-  display: inline-flex;
-  align-items: center;
-  border-radius: 2px;
-  padding: 0 8px 0 2px;
-  height: 16px;
-  font-size: 10px;
-  text-decoration: none;
-  background: #010B1C;
-  color: #FFFFFF;
-  font-weight: 400;
-  transition: all .3s;
-  min-width: 24px;
-}
-
-.c15:hover,
-.c15:focus {
-  box-shadow: 0 4px 16px rgba(0,0,0,.24);
-  border: 1px solid #651FFF;
-}
-
-.c15 span {
-  margin-right: 4px;
-  opacity: .32;
-}
-
 <div
   class="sc-AxirZ c0"
 >
@@ -424,33 +394,6 @@ exports[`render cluster nodes 1`] = `
             />
           </a>
         </th>
-        <th>
-          <a>
-            Version
-            <span
-              class="c8 c12 icon icon-chevrons-expand-vertical "
-              color="light"
-            />
-          </a>
-        </th>
-        <th>
-          <a>
-            Nodes
-            <span
-              class="c8 c12 icon icon-chevrons-expand-vertical "
-              color="light"
-            />
-          </a>
-        </th>
-        <th>
-          <a>
-            Public URL
-            <span
-              class="c8 c12 icon icon-chevrons-expand-vertical "
-              color="light"
-            />
-          </a>
-        </th>
         <th />
       </tr>
     </thead>
@@ -476,38 +419,17 @@ exports[`render cluster nodes 1`] = `
             localhost
           </a>
         </td>
-        <td>
-          1.2.3
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/localhost/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            30
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -528,38 +450,17 @@ exports[`render cluster nodes 1`] = `
             nidvojik
           </a>
         </td>
-        <td>
-          1.2.3
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/nidvojik/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            21
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -580,38 +481,17 @@ exports[`render cluster nodes 1`] = `
             lidtabih
           </a>
         </td>
-        <td>
-          1.2.3
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/lidtabih/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            35
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -632,38 +512,17 @@ exports[`render cluster nodes 1`] = `
             farovluv
           </a>
         </td>
-        <td>
-          1.2.3
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/farovluv/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            12
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -684,38 +543,17 @@ exports[`render cluster nodes 1`] = `
             rozpaari
           </a>
         </td>
-        <td>
-          1.2.3
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/rozpaari/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            32
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -736,38 +574,17 @@ exports[`render cluster nodes 1`] = `
             wetjolune
           </a>
         </td>
-        <td>
-          1.2.3
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/wetjolune/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            8
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -788,38 +605,17 @@ exports[`render cluster nodes 1`] = `
             dashawic
           </a>
         </td>
-        <td>
-          1.2.3
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/dashawic/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            11
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -840,38 +636,17 @@ exports[`render cluster nodes 1`] = `
             jesushenry58
           </a>
         </td>
-        <td>
-          1.2.239
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/jesushenry58/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -892,38 +667,17 @@ exports[`render cluster nodes 1`] = `
             jordansimpson35
           </a>
         </td>
-        <td>
-          1.2.20
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/jordansimpson35/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -944,38 +698,17 @@ exports[`render cluster nodes 1`] = `
             leonamann249
           </a>
         </td>
-        <td>
-          1.2.245
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/leonamann249/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -996,38 +729,17 @@ exports[`render cluster nodes 1`] = `
             bessiecohen207
           </a>
         </td>
-        <td>
-          1.2.239
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/bessiecohen207/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1048,38 +760,17 @@ exports[`render cluster nodes 1`] = `
             philipjohnson10
           </a>
         </td>
-        <td>
-          1.2.20
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/philipjohnson10/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1100,38 +791,17 @@ exports[`render cluster nodes 1`] = `
             teresastone14
           </a>
         </td>
-        <td>
-          1.2.236
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/teresastone14/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1152,38 +822,17 @@ exports[`render cluster nodes 1`] = `
             connorsharp137
           </a>
         </td>
-        <td>
-          1.2.224
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/connorsharp137/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1204,38 +853,17 @@ exports[`render cluster nodes 1`] = `
             ricardosingleton242
           </a>
         </td>
-        <td>
-          1.2.105
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/ricardosingleton242/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1256,38 +884,17 @@ exports[`render cluster nodes 1`] = `
             rozpaari
           </a>
         </td>
-        <td>
-          1.2.3
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/rozpaari/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            32
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1308,38 +915,17 @@ exports[`render cluster nodes 1`] = `
             wetjolune
           </a>
         </td>
-        <td>
-          1.2.3
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/wetjolune/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            8
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1360,38 +946,17 @@ exports[`render cluster nodes 1`] = `
             dashawic
           </a>
         </td>
-        <td>
-          1.2.3
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/dashawic/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            11
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1412,38 +977,17 @@ exports[`render cluster nodes 1`] = `
             williepayne223
           </a>
         </td>
-        <td>
-          1.2.3
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/williepayne223/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1464,38 +1008,17 @@ exports[`render cluster nodes 1`] = `
             samlewis176
           </a>
         </td>
-        <td>
-          1.2.84
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/samlewis176/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1516,38 +1039,17 @@ exports[`render cluster nodes 1`] = `
             nellwheeler72
           </a>
         </td>
-        <td>
-          1.2.55
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/nellwheeler72/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1568,38 +1070,17 @@ exports[`render cluster nodes 1`] = `
             albertowens200
           </a>
         </td>
-        <td>
-          1.2.144
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/albertowens200/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1620,38 +1101,17 @@ exports[`render cluster nodes 1`] = `
             beatricecarson171
           </a>
         </td>
-        <td>
-          1.2.251
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/beatricecarson171/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1672,38 +1132,17 @@ exports[`render cluster nodes 1`] = `
             besscarroll152
           </a>
         </td>
-        <td>
-          1.2.104
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/besscarroll152/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1724,38 +1163,17 @@ exports[`render cluster nodes 1`] = `
             hannahsutton232
           </a>
         </td>
-        <td>
-          1.2.110
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/hannahsutton232/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1776,38 +1194,17 @@ exports[`render cluster nodes 1`] = `
             barrynelson110
           </a>
         </td>
-        <td>
-          1.2.199
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/barrynelson110/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1828,38 +1225,17 @@ exports[`render cluster nodes 1`] = `
             rozpaari
           </a>
         </td>
-        <td>
-          1.2.3
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/rozpaari/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            32
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1880,38 +1256,17 @@ exports[`render cluster nodes 1`] = `
             wetjolune
           </a>
         </td>
-        <td>
-          1.2.3
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/wetjolune/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            8
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1932,38 +1287,17 @@ exports[`render cluster nodes 1`] = `
             dashawic
           </a>
         </td>
-        <td>
-          1.2.3
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/dashawic/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            11
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -1984,38 +1318,17 @@ exports[`render cluster nodes 1`] = `
             henriettarios78
           </a>
         </td>
-        <td>
-          1.2.153
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/henriettarios78/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -2036,38 +1349,17 @@ exports[`render cluster nodes 1`] = `
             josephinewolfe55
           </a>
         </td>
-        <td>
-          1.2.154
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/josephinewolfe55/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -2088,38 +1380,17 @@ exports[`render cluster nodes 1`] = `
             jaysandoval137
           </a>
         </td>
-        <td>
-          1.2.66
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/jaysandoval137/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -2140,38 +1411,17 @@ exports[`render cluster nodes 1`] = `
             isabellekim81
           </a>
         </td>
-        <td>
-          1.2.150
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/isabellekim81/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -2192,38 +1442,17 @@ exports[`render cluster nodes 1`] = `
             francismoran134
           </a>
         </td>
-        <td>
-          1.2.82
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/francismoran134/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -2244,38 +1473,17 @@ exports[`render cluster nodes 1`] = `
             theodorefrazier78
           </a>
         </td>
-        <td>
-          1.2.61
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/theodorefrazier78/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -2296,38 +1504,17 @@ exports[`render cluster nodes 1`] = `
             hattiestanley34
           </a>
         </td>
-        <td>
-          1.2.93
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/hattiestanley34/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />
@@ -2348,38 +1535,17 @@ exports[`render cluster nodes 1`] = `
             tommybrooks146
           </a>
         </td>
-        <td>
-          1.2.112
-        </td>
-        <td>
-          <a
-            class="c15"
-            href="/web/cluster/tommybrooks146/console/nodes"
-            target="_blank"
-            title="Open Cluster Terminal"
-          >
-            <span
-              class="c8 c12 icon icon-terminal "
-              color="light"
-            />
-             
-            23
-          </a>
-        </td>
-        <td>
-          https://abc.example.com:333/web
-        </td>
         <td
           align="right"
         >
           <button
-            class="c16"
+            class="c15"
             height="24px"
             kind="border"
           >
             OPTIONS
             <span
-              class="c8 c17 icon icon-caret-down "
+              class="c8 c16 icon icon-caret-down "
               color="text.secondary"
               font-size="2"
             />

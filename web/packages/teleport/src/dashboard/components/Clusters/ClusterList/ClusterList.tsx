@@ -86,39 +86,6 @@ export default function ClustersList(props: Props) {
           }
           cell={<NameCell />}
         />
-        <Column
-          columnKey="authVersion"
-          header={
-            <SortHeaderCell
-              sortDir={sorting.authVersion}
-              onSortChange={onSortChange}
-              title="Version"
-            />
-          }
-          cell={<TextCell />}
-        />
-        <Column
-          columnKey="nodeCount"
-          header={
-            <SortHeaderCell
-              sortDir={sorting.nodeCount}
-              onSortChange={onSortChange}
-              title="Nodes"
-            />
-          }
-          cell={<NodeCountCell />}
-        />
-        <Column
-          columnKey="publicURL"
-          header={
-            <SortHeaderCell
-              sortDir={sorting.publicURL}
-              onSortChange={onSortChange}
-              title="Public URL"
-            />
-          }
-          cell={<TextCell />}
-        />
         <Column header={<Cell />} cell={<ActionCell />} />
       </StyledTable>
     </>
