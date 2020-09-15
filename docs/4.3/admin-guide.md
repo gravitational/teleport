@@ -412,7 +412,7 @@ $ tsh --proxy <proxy-addr> ssh <hostname>
 
 This section covers internal user identities, i.e. user accounts created and
 stored in Teleport's internal storage. Most production users of Teleport use
-_external_ users via [Github](#github-oauth-20) or [Okta](ssh-okta) or any other
+_external_ users via [Github](#github-oauth-20) or [Okta](enterprise/sso/ssh-okta.md) or any other
 SSO provider (Teleport Enterprise supports any SAML or OIDC compliant identity
 provider).
 
