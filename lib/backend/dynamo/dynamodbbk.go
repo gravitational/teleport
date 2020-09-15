@@ -222,6 +222,7 @@ func New(ctx context.Context, params backend.Params) (*DynamoDBBackend, error) {
 	// handshakes performed.
 	httpClient := &http.Client{
 		Transport: &http.Transport{
+			Proxy:               http.ProxyFromEnvironment,
 			MaxIdleConns:        defaults.HTTPMaxIdleConns,
 			MaxIdleConnsPerHost: defaults.HTTPMaxIdleConnsPerHost,
 		},
