@@ -239,7 +239,9 @@ no_systemd_warning() {
     log_only
     log_only "------------------------------------------------------------------------"
     log_only "| IMPORTANT: TELEPORT WILL STOP RUNNING AFTER YOU CLOSE THIS TERMINAL! |"
+    log_only "|   YOU MUST CONFIGURE A SERVICE MANAGER TO MAKE IT RUN ON STARTUP!    |"
     log_only "------------------------------------------------------------------------"
+    log_only
 }
 # check connectivity to the given host/port and make a request to see if Teleport is listening
 check_connectivity() {
