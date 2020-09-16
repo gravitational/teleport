@@ -7,7 +7,10 @@ INSTALL_DIRECTORY="/usr/local/bin"
 LOG_FILENAME="${TMPDIR:-/tmp}/${SCRIPT_NAME}.log"
 SYSTEMD_UNIT_PATH="/etc/systemd/system/teleport.service"
 TARGET_PORT_DEFAULT=3025
+TELEPORT_BINARY_DIR="/usr/local/bin"
 TELEPORT_CONFIG_PATH="/etc/teleport.yaml"
+TELEPORT_DATA_DIR="/var/lib/teleport"
+TELEPORT_DOCS_URL="https://gravitational.com/teleport/docs"
 
 # initialise variables
 v=""
@@ -88,6 +91,24 @@ log() {
         echo "${LOG_LINE}" >> ${LOG_FILENAME}
     fi
 }
+# writes a line with no timestamp or starting data, always prints
+log_only() {
+    LOG_LINE="$*"
+    echo "${LOG_LINE}"
+    if [[ "${LOG_FILENAME}" != "" ]]; then
+        echo "${LOG_LINE}" >> ${LOG_FILENAME}
+    fi
+}
+# writes a line by itself as a header
+log_header() {
+    LOG_LINE="$*"
+    echo ""
+    echo "${LOG_LINE}"
+    echo ""
+    if [[ "${LOG_FILENAME}" != "" ]]; then
+        echo "${LOG_LINE}" >> ${LOG_FILENAME}
+    fi
+}
 # important log lines, print even when -q (quiet) is passed
 log_important() {
     LOG_LINE="$(log_date) [${SCRIPT_NAME}] ---> $*"
@@ -95,6 +116,20 @@ log_important() {
     if [[ "${LOG_FILENAME}" != "" ]]; then
         echo "${LOG_LINE}" >> ${LOG_FILENAME}
     fi
+}
+log_cleanup_message() {
+    log_only "This script does not overwrite any existing settings or Teleport installations."
+    log_only "Please clean up by running any of the following steps as necessary:"
+    log_only "- stop any running Teleport processes"
+    log_only "  - pkill -f teleport"
+    log_only "- remove any data under ${TELEPORT_DATA_DIR}, along with the directory itself"
+    log_only "  - rm -rf ${TELEPORT_DATA_DIR}"
+    log_only "- remove any configuration at ${TELEPORT_CONFIG_PATH}"
+    log_only "  - rm -f ${TELEPORT_CONFIG_PATH}"
+    log_only "- remove any Teleport binaries (teleport, tctl, tsh) installed under ${TELEPORT_BINARY_DIR}"
+    log_only "  - rm -f ${TELEPORT_BINARY_DIR}/teleport ${TELEPORT_BINARY_DIR}/tctl ${TELEPORT_BINARY_DIR}/tsh"
+    log_only "Run this installer again when done."
+    log_only
 }
 
 # other functions
@@ -183,15 +218,28 @@ is_running_teleport() {
         log "Teleport does not appear to already be running"
         return 1
     fi
+
 }
+# checks whether teleport binaries eist on the host
+teleport_binaries_exist() {
+    for BINARY_NAME in teleport tctl tsh; do
+        if [ -f ${TELEPORT_BINARY_DIR}/${BINARY_NAME} ]; then return 0; else return 1; fi
+    done
+}
+# checks whether a teleport config exists on the host
+teleport_config_exists() { if [ -f ${TELEPORT_CONFIG_PATH} ]; then return 0; else return 1; fi; }
+# checks whether a teleport data dir exists on the host
+teleport_datadir_exists() { if [ -d ${TELEPORT_DATA_DIR} ]; then return 0; else return 1; fi; }
 # prints a warning if the host isn't running systemd
 no_systemd_warning() {
     log_important "This host is not running systemd, so Teleport cannot be started automatically when it exits."
     log_important "Please investigate an alternative way to keep Teleport running."
+    log_important "You can find information in our documentation: ${TELEPORT_DOCS_URL}"
     log_important "For now, Teleport will be started in the foregound - you can press Ctrl+C to exit."
-    log_important "------------------------------------------------------------------------"
-    log_important "| IMPORTANT: TELEPORT WILL STOP RUNNING AFTER YOU CLOSE THIS TERMINAL! |"
-    log_important "------------------------------------------------------------------------"
+    log_only
+    log_only "------------------------------------------------------------------------"
+    log_only "| IMPORTANT: TELEPORT WILL STOP RUNNING AFTER YOU CLOSE THIS TERMINAL! |"
+    log_only "------------------------------------------------------------------------"
 }
 # check connectivity to the given host/port and make a request to see if Teleport is listening
 check_connectivity() {
@@ -330,8 +378,6 @@ finish() {
     log "Cleaning up temp dir ${TEMP_DIR} and exiting"
     rm -rf ${TEMP_DIR}
     exit 0
-    # TODO(gus): remove
-    # echo "Doing nothing"
 }
 trap finish EXIT
 
@@ -339,6 +385,35 @@ trap finish EXIT
 if [[ ${OVERRIDE_FORMAT} != "" ]]; then
     TELEPORT_FORMAT="${OVERRIDE_FORMAT}"
     log "Overriding TELEPORT_FORMAT to ${OVERRIDE_FORMAT}"
+fi
+
+# check whether teleport is running already
+# if it is, we exit gracefully with an eror
+if is_running_teleport; then
+    log_header "Warning: Teleport appears to already be running on this host."
+    log_cleanup_message
+    exit 1
+fi
+
+# check for existing config file
+if teleport_config_exists; then
+    log_header "Warning: There is already a Teleport config file present at ${TELEPORT_CONFIG_PATH}."
+    log_cleanup_message
+    exit 1
+fi
+
+# check for existing data directory
+if teleport_datadir_exists; then
+    log_header "Warning: Found existing Teleport data under ${TELEPORT_DATA_DIR}."
+    log_cleanup_message
+    exit 1
+fi
+
+# check for existing binaries
+if teleport_binaries_exist; then
+    log_header "Warning: Found existing Teleport binaries under ${TELEPORT_BINARY_DIR}."
+    log_cleanup_message
+    exit 1
 fi
 
 # select correct URL/installation method based on distro
@@ -355,16 +430,6 @@ if [[ ${TELEPORT_FORMAT} == "tarball" ]]; then
     for BINARY in teleport tctl tsh; do
         cp -f teleport/${BINARY} ${INSTALL_DIRECTORY}/
     done
-    # install config file
-    install_teleport_config
-    # install systemd unit if applicable
-    if is_using_systemd; then
-        install_systemd_unit
-        start_teleport_systemd
-    else
-        no_systemd_warning
-        start_teleport_foreground
-    fi
 elif [[ ${TELEPORT_FORMAT} == "deb" ]]; then
     # convert teleport arch to deb arch
     if [[ ${TELEPORT_ARCH} == "amd64" ]]; then
@@ -379,15 +444,6 @@ elif [[ ${TELEPORT_FORMAT} == "deb" ]]; then
     download ${URL} ${TEMP_DIR}/teleport.deb
     # install deb
     dpkg -i ${TEMP_DIR}/teleport.deb
-    # install teleport config
-    install_teleport_config
-    # start systemd unit (if applicable)
-    if is_using_systemd; then
-        start_teleport_systemd
-    else
-        no_systemd_warning
-        start_teleport_foreground
-    fi
 elif [[ ${TELEPORT_FORMAT} == "rpm"* ]]; then
     # convert teleport arch to rpm arch
     if [[ ${TELEPORT_ARCH} == "amd64" ]]; then
@@ -421,16 +477,19 @@ elif [[ ${TELEPORT_FORMAT} == "rpm"* ]]; then
         # install RPM (in upgrade mode)
         rpm -Uvh ${TEMP_DIR}/teleport.rpm
     fi
-    # install teleport config
-    install_teleport_config
-    # start systemd unit (if applicable)
-    if is_using_systemd; then
-        start_teleport_systemd
-    else
-        no_systemd_warning
-        start_teleport_foreground
-    fi
 else
     log_important "Can't figure out what Teleport format to use"
     exit 1
+fi
+
+# install teleport config
+install_teleport_config
+
+# install systemd unit if applicable
+if is_using_systemd; then
+    install_systemd_unit
+    start_teleport_systemd
+else
+    no_systemd_warning
+    start_teleport_foreground
 fi
