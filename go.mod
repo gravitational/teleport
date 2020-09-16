@@ -41,6 +41,7 @@ require (
 	github.com/gravitational/roundtrip v1.0.0
 	github.com/gravitational/trace v1.1.6
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
+	github.com/hashicorp/golang-lru v0.5.4
 	github.com/iovisor/gobpf v0.0.1
 	github.com/johannesboyne/gofakes3 v0.0.0-20191228161223-9aee1c78a252
 	github.com/jonboulle/clockwork v0.1.1-0.20190114141812-62fb9bc030d1
