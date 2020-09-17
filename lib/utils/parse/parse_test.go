@@ -17,31 +17,15 @@ limitations under the License.
 package parse
 
 import (
-	"fmt"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/utils"
-
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestParse(t *testing.T) { check.TestingT(t) }
-
-type ParseSuite struct{}
-
-var _ = check.Suite(&ParseSuite{})
-var _ = fmt.Printf
-
-func (s *ParseSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
-}
-func (s *ParseSuite) TearDownSuite(c *check.C) {}
-func (s *ParseSuite) SetUpTest(c *check.C)     {}
-func (s *ParseSuite) TearDownTest(c *check.C)  {}
-
 // TestRoleVariable tests variable parsing
-func (s *ParseSuite) TestRoleVariable(c *check.C) {
+func TestRoleVariable(t *testing.T) {
 	var tests = []struct {
 		title string
 		in    string
@@ -111,35 +95,25 @@ func (s *ParseSuite) TestRoleVariable(c *check.C) {
 		{
 			title: "variable with local function",
 			in:    "{{email.local(internal.bar)}}",
-			out:   Expression{namespace: "internal", variable: "bar", transform: EmailLocal},
+			out:   Expression{namespace: "internal", variable: "bar", transform: emailLocalTransformer{}},
 		},
 	}
 
-	for i, tt := range tests {
-		comment := check.Commentf("Test(%v) %q", i, tt.title)
-
-		variable, err := RoleVariable(tt.in)
-		if tt.err != nil {
-			c.Assert(err, check.FitsTypeOf, tt.err, comment)
-			continue
-		}
-		c.Assert(err, check.IsNil, comment)
-		// functionns are not directly comparable, compare fields
-		// directly, except functions as a workaround
-		c.Assert(variable.prefix, check.Equals, tt.out.prefix, comment)
-		c.Assert(variable.variable, check.Equals, tt.out.variable, comment)
-		c.Assert(variable.suffix, check.Equals, tt.out.suffix, comment)
-		// functions are not comparable
-		if tt.out.transform == nil {
-			c.Assert(variable.transform, check.IsNil, comment)
-		} else {
-			c.Assert(variable.transform, check.NotNil, comment)
-		}
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			variable, err := RoleVariable(tt.in)
+			if tt.err != nil {
+				assert.IsType(t, tt.err, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Empty(t, cmp.Diff(tt.out, *variable, cmp.AllowUnexported(Expression{})))
+		})
 	}
 }
 
 // TestInterpolate tests variable interpolation
-func (s *ParseSuite) TestInterpolate(c *check.C) {
+func TestInterpolate(t *testing.T) {
 	type result struct {
 		values []string
 		err    error
@@ -158,7 +132,7 @@ func (s *ParseSuite) TestInterpolate(c *check.C) {
 		},
 		{
 			title:  "mapped traits with email.local",
-			in:     Expression{variable: "foo", transform: EmailLocal},
+			in:     Expression{variable: "foo", transform: emailLocalTransformer{}},
 			traits: map[string][]string{"foo": []string{"Alice <alice@example.com>", "bob@example.com"}, "bar": []string{"c"}},
 			res:    result{values: []string{"alice", "bob"}},
 		},
@@ -176,22 +150,22 @@ func (s *ParseSuite) TestInterpolate(c *check.C) {
 		},
 		{
 			title:  "error in mapping traits",
-			in:     Expression{variable: "foo", transform: EmailLocal},
+			in:     Expression{variable: "foo", transform: emailLocalTransformer{}},
 			traits: map[string][]string{"foo": []string{"Alice <alice"}},
 			res:    result{err: trace.BadParameter("")},
 		},
 	}
 
-	for i, tt := range tests {
-		comment := check.Commentf("Test(%v) %q", i, tt.title)
-
-		values, err := tt.in.Interpolate(tt.traits)
-		if tt.res.err != nil {
-			c.Assert(err, check.FitsTypeOf, tt.res.err, comment)
-			c.Assert(values, check.HasLen, 0)
-			continue
-		}
-		c.Assert(err, check.IsNil, comment)
-		c.Assert(values, check.DeepEquals, tt.res.values, comment)
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			values, err := tt.in.Interpolate(tt.traits)
+			if tt.res.err != nil {
+				assert.IsType(t, tt.res.err, err)
+				assert.Empty(t, values)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Empty(t, cmp.Diff(tt.res.values, values))
+		})
 	}
 }

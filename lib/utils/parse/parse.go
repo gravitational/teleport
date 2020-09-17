@@ -42,13 +42,15 @@ type Expression struct {
 	prefix string
 	// suffix is a suffix
 	suffix string
-	// transform is an optional transform function to call,
-	// currently email.local is the only supported function
-	transform func(in string) (string, error)
+	// transform is an optional transformer for the variable.
+	transform transformer
 }
 
+// emailLocalTransformer extracts local part of the email.
+type emailLocalTransformer struct{}
+
 // EmailLocal returns local part of the email
-func EmailLocal(in string) (string, error) {
+func (emailLocalTransformer) transform(in string) (string, error) {
 	if in == "" {
 		return "", trace.BadParameter("address is empty")
 	}
@@ -86,7 +88,7 @@ func (p *Expression) Interpolate(traits map[string][]string) ([]string, error) {
 		val := values[i]
 		var err error
 		if p.transform != nil {
-			val, err = p.transform(val)
+			val, err = p.transform.transform(val)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -156,13 +158,15 @@ const (
 	EmailLocalFnName = "local"
 )
 
-// TransformFn is an optional transform function
-// that can take in string and replace it with another value
-type TransformFn func(in string) (string, error)
+// transformer is an optional value transformer function that can take in
+// string and replace it with another value
+type transformer interface {
+	transform(in string) (string, error)
+}
 
 type walkResult struct {
 	parts     []string
-	transform TransformFn
+	transform transformer
 }
 
 // walk will walk the ast tree and gather all the variable parts into a slice and return it.
@@ -193,7 +197,7 @@ func walk(node ast.Node) (*walkResult, error) {
 			if len(n.Args) != 1 {
 				return nil, trace.BadParameter("expected 1 argument for email.local got %v", len(n.Args))
 			}
-			result.transform = EmailLocal
+			result.transform = emailLocalTransformer{}
 			ret, err := walk(n.Args[0])
 			if err != nil {
 				return nil, trace.Wrap(err)
