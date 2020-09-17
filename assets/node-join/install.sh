@@ -137,8 +137,9 @@ log_cleanup_message() {
     log_only "  - rm -rf ${TELEPORT_DATA_DIR}"
     log_only "- remove any configuration at ${TELEPORT_CONFIG_PATH}"
     log_only "  - rm -f ${TELEPORT_CONFIG_PATH}"
-    log_only "- remove any Teleport binaries (teleport, tctl, tsh) installed under ${TELEPORT_BINARY_DIR}"
-    log_only "  - rm -f ${TELEPORT_BINARY_DIR}/teleport ${TELEPORT_BINARY_DIR}/tctl ${TELEPORT_BINARY_DIR}/tsh"
+    log_only "- remove any Teleport binaries (${TELEPORT_BINARY_LIST}) installed under ${TELEPORT_BINARY_DIR}"
+    for BINARY in ${TELEPORT_BINARY_LIST}; do EXAMPLE_DELETE_COMMAND+="${TELEPORT_BINARY_DIR}/${BINARY} "; done
+    log_only "  - rm -f ${EXAMPLE_DELETE_COMMAND}"
     log_only "Run this installer again when done."
     log_only
 }
