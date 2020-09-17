@@ -324,9 +324,8 @@ check_set CA_PIN_HASH
 # check connectivity to teleport server/port
 log "Checking TCP connectivity to Teleport server"
 RETURN_CODE=$(check_connectivity ${TARGET_HOSTNAME} ${TARGET_PORT}) || true
-#check_connectivity ${TARGET_HOSTNAME} ${TARGET_PORT}
 if [ ${RETURN_CODE} -eq 1 ]; then
-    log_important "Couldn't open a connection to the Teleport server - ${TARGET_HOST}:${TARGET_PORT}"
+    log_important "Couldn't open a connection to the Teleport server - ${TARGET_HOSTNAME}:${TARGET_PORT}"
     log_important "This issue will need to be fixed before the script can continue."
     exit 1
 elif [ ${RETURN_CODE} -eq 255 ]; then
