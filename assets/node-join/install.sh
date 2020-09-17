@@ -4,12 +4,15 @@ SCRIPT_NAME="teleport-node-installer"
 
 # default values
 CONNECTIVITY_TEST_METHOD=""
+COPY_COMMAND="cp"
 DISTRO_TYPE=""
 LAUNCHD_CONFIG_PATH="/Library/LaunchDaemons"
 LOG_FILENAME="${TMPDIR:-/tmp}/${SCRIPT_NAME}.log"
-SYSTEMD_UNIT_PATH="/etc/systemd/system/teleport.service"
+SYSTEMD_UNIT_PATH="/lib/systemd/system/teleport.service"
 TARGET_PORT_DEFAULT=3080
+TELEPORT_ARCHIVE_PATH="teleport"
 TELEPORT_BINARY_DIR="/usr/local/bin"
+TELEPORT_BINARY_LIST="teleport tctl tsh"
 TELEPORT_CONFIG_PATH="/etc/teleport.yaml"
 TELEPORT_DATA_DIR="/var/lib/teleport"
 TELEPORT_DOCS_URL="https://gravitational.com/teleport/docs"
@@ -57,6 +60,7 @@ while getopts ":v:h:p:j:c:f:ql:i" o; do
             ;;
         i)
             IGNORE_CHECKS=true
+            COPY_COMMAND="cp -f"
             ;;
         *)
             usage
@@ -181,6 +185,8 @@ check_set() {
         exit 1
     fi
 }
+# checks that teleport binary can be found in path and runs 'teleport version'
+check_teleport_binary() { log "Found: $(teleport version)"; }
 # download wrapper for either wget or curl
 download() {
     URL=$1
@@ -197,18 +203,16 @@ download() {
     fi
 }
 # gets the pid of running teleport process
-get_teleport_pid() {
-    echo "$(pgrep teleport | tr '\r' ' ')"
-}
+get_teleport_pid() { pgrep teleport | tr '\r' ' '; }
 # installs the teleport-provided launchd config
 install_launchd_config() {
     log "Installing Teleport launchd config to ${LAUNCHD_CONFIG_PATH}"
-    cp -f ./teleport/examples/launchd/teleport.plist ${LAUNCHD_CONFIG_PATH}/teleport.plist
+    ${COPY_COMMAND} ./${TELEPORT_ARCHIVE_PATH}/examples/launchd/teleport.plist ${LAUNCHD_CONFIG_PATH}/teleport.plist
 }
 # installs the teleport-provided systemd unit
 install_systemd_unit() {
     log "Installing Teleport systemd unit to ${SYSTEMD_UNIT_PATH}"
-    cp ./teleport/examples/systemd/teleport.service ${SYSTEMD_UNIT_PATH}
+    ${COPY_COMMAND} ./${TELEPORT_ARCHIVE_PATH}/examples/systemd/teleport.service ${SYSTEMD_UNIT_PATH}
     log "Reloading unit files (systemctl daemon-reload)"
     systemctl daemon-reload
 }
@@ -258,13 +262,14 @@ is_running_teleport() {
 # checks whether the given host is running systemd as its init system
 is_using_systemd() {
     check_exists_fatal grep
-    if grep -q systemd /proc/1/cmdline; then
-        log "Host is using systemd as pid 1"
-        return 0
-    else
-        log "Host does not appear to be running systemd"
-        return 1
+    if [ -f /proc/1/cmdline ]; then
+        if grep -q systemd /proc/1/cmdline; then
+            log "Host is using systemd as pid 1"
+            return 0
+        fi
     fi
+    log "Host does not appear to be running systemd"
+    return 1
 }
 # prints a warning if the host isn't running systemd
 no_systemd_warning() {
@@ -412,9 +417,8 @@ pushd ${TEMP_DIR} >/dev/null 2>&1
 
 finish() {
     popd >/dev/null 2>&1
-    log "Cleaning up temp dir ${TEMP_DIR} and exiting"
+    log "Cleaning up temp dir ${TEMP_DIR}"
     rm -rf ${TEMP_DIR}
-    exit 0
 }
 trap finish EXIT
 
@@ -493,8 +497,8 @@ if [[ ${TELEPORT_FORMAT} == "tarball" ]]; then
     # extract tarball
     tar -xzf ${TEMP_DIR}/teleport.tar.gz -C ${TEMP_DIR}
     # install binaries to /usr/local/bin
-    for BINARY in teleport tctl tsh; do
-        cp teleport/${BINARY} ${TELEPORT_BINARY_DIR}/
+    for BINARY in ${TELEPORT_BINARY_LIST}; do
+        ${COPY_COMMAND} ${TELEPORT_ARCHIVE_PATH}/${BINARY} ${TELEPORT_BINARY_DIR}/
     done
 elif [[ ${TELEPORT_FORMAT} == "deb" ]]; then
     # convert teleport arch to deb arch
@@ -548,12 +552,19 @@ else
     exit 1
 fi
 
+# check that teleport binary can be found and runs
+check_teleport_binary
+
 # install teleport config
 install_teleport_config
 
 # install systemd unit if applicable (linux hosts)
 if is_using_systemd; then
-    install_systemd_unit
+    # we only need to manually install the systemd config if teleport was installed via tarball
+    # all other packages will deploy it automatically
+    if [[ ${TELEPORT_FORMAT} == "tarball" ]]; then
+        install_systemd_unit
+    fi
     start_teleport_systemd
 # install launchd config on MacOS hosts
 elif is_macos_host; then
