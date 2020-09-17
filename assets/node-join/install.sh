@@ -504,6 +504,7 @@ elif [[ ${TELEPORT_FORMAT} == "rpm" ]]; then
     elif [[ ${TELEPORT_ARCH} == "386" ]]; then
         RPM_ARCH="i386"
     fi
+    URL="https://get.gravitational.com/teleport-${TELEPORT_VERSION}-1.${RPM_ARCH}.rpm"
     # check for package managers
     if check_exists dnf; then
         PACKAGE_MANAGER_COMMAND="dnf -y install"
