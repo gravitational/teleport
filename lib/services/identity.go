@@ -309,8 +309,14 @@ type GithubAuthRequest struct {
 	Expires *time.Time `json:"expires,omitempty"`
 	// RouteToCluster is the name of Teleport cluster to issue credentials for.
 	RouteToCluster string `json:"route_to_cluster,omitempty"`
-	// AppName is the name of the target application.
+
+	// AppName is the name of the application to request after login. Used for
+	// application specific login only.
 	AppName string `json:"app,omitempty"`
+
+	// ClusterName is the name of the cluster to request after login. Used for
+	// application specific login only.
+	ClusterName string `json:"cluster,omitempty"`
 }
 
 // SetTTL sets Expires header using realtime clock
@@ -396,8 +402,13 @@ type OIDCAuthRequest struct {
 	// RouteToCluster is the name of Teleport cluster to issue credentials for.
 	RouteToCluster string `json:"route_to_cluster,omitempty"`
 
-	// AppName is the name of the target application.
+	// AppName is the name of the application to request after login. Used for
+	// application specific login only.
 	AppName string `json:"app,omitempty"`
+
+	// ClusterName is the name of the cluster to request after login. Used for
+	// application specific login only.
+	ClusterName string `json:"cluster,omitempty"`
 }
 
 // Check returns nil if all parameters are great, err otherwise
@@ -464,8 +475,13 @@ type SAMLAuthRequest struct {
 	// RouteToCluster is the name of Teleport cluster to issue credentials for.
 	RouteToCluster string `json:"route_to_cluster,omitempty"`
 
-	// AppName is the name of the target application.
+	// AppName is the name of the application to request after login. Used for
+	// application specific login only.
 	AppName string `json:"app,omitempty"`
+
+	// ClusterName is the name of the cluster to request after login. Used for
+	// application specific login only.
+	ClusterName string `json:"cluster,omitempty"`
 }
 
 // Check returns nil if all parameters are great, err otherwise

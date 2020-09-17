@@ -44,6 +44,13 @@ func (m *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.P
 	if connectorID == "" {
 		return nil, trace.BadParameter("missing connector_id query parameter")
 	}
+
+	// If application name and cluster name are set, save them within the request
+	// and pass them back to the web application after successful login. Note
+	// neither the application nor the cluster are validated at this point, they
+	// will be validated when the user attempts to create a session. They are
+	// saved and extracted simply to propagate these values through the SSO
+	// login redirects.
 	appName := query.Get("app")
 	clusterName := query.Get("cluster")
 
@@ -59,8 +66,8 @@ func (m *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.P
 			CSRFToken:         csrfToken,
 			CreateWebSession:  true,
 			ClientRedirectURL: clientRedirectURL,
-			RouteToCluster:    clusterName,
 			AppName:           appName,
+			ClusterName:       clusterName,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -137,7 +144,7 @@ func (m *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 		}
 
 		// Construct the redirect URL from the parameters stored in backend.
-		u, err := redirURL(response.Req.ClientRedirectURL, response.Req.AppName, response.Req.RouteToCluster)
+		u, err := redirURL(response.Req.ClientRedirectURL, response.Req.AppName, response.Req.ClusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
