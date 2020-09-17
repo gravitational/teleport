@@ -3,7 +3,6 @@ set -euo pipefail
 SCRIPT_NAME="teleport-node-installer"
 
 # default values
-INSTALL_DIRECTORY="/usr/local/bin"
 LAUNCHD_CONFIG_PATH="/Library/LaunchDaemons"
 LOG_FILENAME="${TMPDIR:-/tmp}/${SCRIPT_NAME}.log"
 SYSTEMD_UNIT_PATH="/etc/systemd/system/teleport.service"
@@ -73,6 +72,21 @@ shift $((OPTIND-1))
 if [[ "${TARGET_PORT}" == "" ]]; then
     TARGET_PORT=${TARGET_PORT_DEFAULT}
 fi
+
+# function to check if given variable is set
+check_set() {
+    if [[ $1 == "" ]]; then
+        log "Required variable $1 is not set"
+        exit 1
+    fi
+}
+
+# error out any required values are not set
+check_set TELEPORT_VERSION
+check_set TARGET_HOSTNAME
+check_set TARGET_PORT
+check_set NODE_JOIN_TOKEN
+check_set CA_PIN_HASH
 
 # clear log file if provided
 if [[ "${LOG_FILENAME}" != "" ]]; then
@@ -463,7 +477,7 @@ if [[ ${TELEPORT_FORMAT} == "tarball" ]]; then
     tar -xzf ${TEMP_DIR}/teleport.tar.gz -C ${TEMP_DIR}
     # install binaries to /usr/local/bin
     for BINARY in teleport tctl tsh; do
-        cp teleport/${BINARY} ${INSTALL_DIRECTORY}/
+        cp teleport/${BINARY} ${TELEPORT_BINARY_DIR}/
     done
 elif [[ ${TELEPORT_FORMAT} == "deb" ]]; then
     # convert teleport arch to deb arch
