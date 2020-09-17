@@ -16,7 +16,7 @@ This is an automated node join script for Teleport, which does the following:
   - via `launchctl` on MacOS
 - cleans up downloaded archives afterwards
 
-# Supported operating systems, architectures and distributions
+## Supported operating systems, architectures and distributions
 
 - Linux
   - Architectures: i386, x86_64, armv7l
@@ -38,7 +38,7 @@ This is an automated node join script for Teleport, which does the following:
   - MacOS 10.12+
     - uses `.tar.gz` tarball package
 
-# Arguments
+## Arguments
 
 Required arguments:
 | Flag | Description | Example value | Required |
@@ -57,3 +57,14 @@ Optional extra flags:
 | - | - | - | - |
 | `-q` | Enable quiet mode | n/a | no |
 | `-l` | Write logs to file | `/var/log/teleport-node-installer.log` | no |
+
+## Example usage
+
+```console
+$ bash ./install.sh \
+    -v 4.3.5 \
+    -h teleport.example.com \
+    -p 3080 \
+    -j ool7ahpo4thohmeuS1gieY7laiwae7oo \
+    -c sha256:6abdd3a143a230fd31c9706d668bba3ee25a6e0eec54fcd69680c1ec0530fe9c
+```
