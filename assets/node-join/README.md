@@ -33,6 +33,8 @@ This is an automated node join script for Teleport, which does the following:
   - Any other distribution
     - uses `.tar.gz` tarball package
 
+* CentOS 6 and RHEL 6 will use the special `centos6` tarball package to handle the lower glibc version.
+
 - MacOS
   - Architectures: x86_64, aarch64 (no Teleport binaries available yet)
   - MacOS 10.12+
