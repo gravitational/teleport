@@ -7,7 +7,7 @@ INSTALL_DIRECTORY="/usr/local/bin"
 LAUNCHD_CONFIG_PATH="/Library/LaunchDaemons"
 LOG_FILENAME="${TMPDIR:-/tmp}/${SCRIPT_NAME}.log"
 SYSTEMD_UNIT_PATH="/etc/systemd/system/teleport.service"
-TARGET_PORT_DEFAULT=3025
+TARGET_PORT_DEFAULT=3080
 TELEPORT_BINARY_DIR="/usr/local/bin"
 TELEPORT_CONFIG_PATH="/etc/teleport.yaml"
 TELEPORT_DATA_DIR="/var/lib/teleport"
@@ -63,7 +63,7 @@ shift $((OPTIND-1))
 # set/read values interactively if not provided
 [ -n "${v}" ] && TELEPORT_VERSION=${v} || { echo -n "Enter Teleport version to install (without v): "; read TELEPORT_VERSION; }
 [ -n "${h}" ] && TARGET_HOSTNAME=${h} || { echo -n "Enter target hostname to connect node to: "; read TARGET_HOSTNAME; }
-[ -n "${p}" ] && TARGET_PORT=${p} || { echo -n "Enter target port to connect node to [default: 3025]: "; read TARGET_PORT; }
+[ -n "${p}" ] && TARGET_PORT=${p} || { echo -n "Enter target port to connect node to [default: 3080]: "; read TARGET_PORT; }
 [ -n "${j}" ] && NODE_JOIN_TOKEN=${j} || { echo -n "Enter Teleport node join token as provided: "; read NODE_JOIN_TOKEN; }
 [ -n "${c}" ] && CA_PIN_HASH=${c} || { echo -n "Enter CA pin hash: "; read CA_PIN_HASH; }
 [ -n "${f}" ] && OVERRIDE_FORMAT=${f}
