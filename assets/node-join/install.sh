@@ -73,21 +73,6 @@ if [[ "${TARGET_PORT}" == "" ]]; then
     TARGET_PORT=${TARGET_PORT_DEFAULT}
 fi
 
-# function to check if given variable is set
-check_set() {
-    if [[ $1 == "" ]]; then
-        log "Required variable $1 is not set"
-        exit 1
-    fi
-}
-
-# error out any required values are not set
-check_set TELEPORT_VERSION
-check_set TARGET_HOSTNAME
-check_set TARGET_PORT
-check_set NODE_JOIN_TOKEN
-check_set CA_PIN_HASH
-
 # clear log file if provided
 if [[ "${LOG_FILENAME}" != "" ]]; then
     if [ -f ${LOG_FILENAME} ]; then
@@ -148,21 +133,6 @@ log_cleanup_message() {
 }
 
 # other functions
-# download wrapper for either wget or curl
-download() {
-    URL=$1
-    OUTPUT_PATH=$2
-    # use curl if we can
-    if check_exists curl; then
-        curl -Ls -o ${OUTPUT_PATH} ${URL}
-    # fall back to wget
-    elif check_exists wget; then
-        wget -q -nv -O ${OUTPUT_PATH} ${URL}
-    else
-        log_important "Can't find curl or wget to use for downloads, one of these is required to function"
-        exit 1
-    fi
-}
 # check whether a named program exists
 check_exists() { NAME=$1; if type ${NAME} >/dev/null 2>&1; then return 0; else return 1; fi; }
 # checks for the existence of a list of named binaries and exits with error if any of them don't exist
@@ -173,110 +143,6 @@ check_exists_fatal() {
             exit 1
         fi
     done
-}
-# checks whether the given host is running MacOS
-is_macos_host() {
-    if [[ ${OSTYPE} == "darwin"* ]]; then
-        log "Host is running MacOS"
-        return 0
-    else
-        log "Host is not running MacOS"
-        return 1
-    fi
-}
-# checks whether the given host is running systemd as its init system
-is_using_systemd() {
-    check_exists_fatal grep
-    if cat /proc/1/cmdline | grep -q systemd; then
-        log "Host is using systemd as pid 1"
-        return 0
-    else
-        log "Host does not appear to be running systemd"
-        return 1
-    fi
-}
-# installs the teleport-provided launchd config
-install_launchd_config() {
-    log "Installing Teleport launchd config to ${LAUNCHD_CONFIG_PATH}"
-    cp -f ./teleport/examples/launchd/teleport.plist ${LAUNCHD_CONFIG_PATH}/teleport.plist
-}
-# installs the teleport-provided systemd unit
-install_systemd_unit() {
-    log "Installing Teleport systemd unit to ${SYSTEMD_UNIT_PATH}"
-    cp ./teleport/examples/systemd/teleport.service ${SYSTEMD_UNIT_PATH}
-    log "Reloading unit files (systemctl daemon-reload)"
-    systemctl daemon-reload
-}
-# start teleport via launchd (after installing config)
-start_teleport_launchd() {
-    log "Starting Teleport via launchctl"
-    launchctl load ${LAUNCHD_CONFIG_PATH}/teleport.plist
-}
-# start teleport via systemd (after installing unit)
-start_teleport_systemd() {
-    log "Starting Teleport via systemd"
-    systemctl start teleport
-}
-# start teleport in foreground (when there's no systemd)
-start_teleport_foreground() {
-    log "Starting Teleport in the foreground"
-    teleport start --config=${TELEPORT_CONFIG_PATH}
-}
-# installs the provided teleport config
-install_teleport_config() {
-    log "Writing Teleport config to ${TELEPORT_CONFIG_PATH}"
-    cat << EOF > ${TELEPORT_CONFIG_PATH}
-teleport:
-  auth_token: ${NODE_JOIN_TOKEN}
-  ca_pin: ${CA_PIN_HASH}
-  auth_servers:
-  - ${TARGET_HOSTNAME}:${TARGET_PORT}
-  log:
-    output: stderr
-    severity: INFO
-auth_service:
-  enabled: no
-ssh_service:
-  enabled: yes
-proxy_service:
-  enabled: no
-EOF
-}
-# checks whether teleport is already running on the host
-is_running_teleport() {
-    check_exists_fatal pgrep
-    TELEPORT_PID=$(pgrep -d " " teleport)
-    if [[ "${TELEPORT_PID}" != "" ]]; then
-        log "Teleport appears to already be running (pid: ${TELEPORT_PID})"
-        return 0
-    else
-        log "Teleport does not appear to already be running"
-        return 1
-    fi
-
-}
-# checks whether teleport binaries eist on the host
-teleport_binaries_exist() {
-    for BINARY_NAME in teleport tctl tsh; do
-        if [ -f ${TELEPORT_BINARY_DIR}/${BINARY_NAME} ]; then return 0; else return 1; fi
-    done
-}
-# checks whether a teleport config exists on the host
-teleport_config_exists() { if [ -f ${TELEPORT_CONFIG_PATH} ]; then return 0; else return 1; fi; }
-# checks whether a teleport data dir exists on the host
-teleport_datadir_exists() { if [ -d ${TELEPORT_DATA_DIR} ]; then return 0; else return 1; fi; }
-# prints a warning if the host isn't running systemd
-no_systemd_warning() {
-    log_important "This host is not running systemd, so Teleport cannot be started automatically when it exits."
-    log_important "Please investigate an alternative way to keep Teleport running."
-    log_important "You can find information in our documentation: ${TELEPORT_DOCS_URL}"
-    log_important "For now, Teleport will be started in the foregound - you can press Ctrl+C to exit."
-    log_only
-    log_only "------------------------------------------------------------------------"
-    log_only "| IMPORTANT: TELEPORT WILL STOP RUNNING AFTER YOU CLOSE THIS TERMINAL! |"
-    log_only "|   YOU MUST CONFIGURE A SERVICE MANAGER TO MAKE IT RUN ON STARTUP!    |"
-    log_only "------------------------------------------------------------------------"
-    log_only
 }
 # check connectivity to the given host/port and make a request to see if Teleport is listening
 check_connectivity() {
@@ -313,20 +179,157 @@ check_connectivity() {
             return 1
         fi
     else
-        return -1
+        return 255
     fi
 }
+# function to check if given variable is set
+check_set() {
+    CHECK_KEY=${1} || true
+    CHECK_VALUE=${!1} || true
+    if [[ ${CHECK_VALUE} == "" ]]; then
+        log "Required variable ${CHECK_KEY} is not set"
+        exit 1
+    fi
+}
+# download wrapper for either wget or curl
+download() {
+    URL=$1
+    OUTPUT_PATH=$2
+    # use curl if we can
+    if check_exists curl; then
+        curl -Ls -o ${OUTPUT_PATH} ${URL}
+    # fall back to wget
+    elif check_exists wget; then
+        wget -q -nv -O ${OUTPUT_PATH} ${URL}
+    else
+        log_important "Can't find curl or wget to use for downloads, one of these is required to function"
+        exit 1
+    fi
+}
+# installs the teleport-provided launchd config
+install_launchd_config() {
+    log "Installing Teleport launchd config to ${LAUNCHD_CONFIG_PATH}"
+    cp -f ./teleport/examples/launchd/teleport.plist ${LAUNCHD_CONFIG_PATH}/teleport.plist
+}
+# installs the teleport-provided systemd unit
+install_systemd_unit() {
+    log "Installing Teleport systemd unit to ${SYSTEMD_UNIT_PATH}"
+    cp ./teleport/examples/systemd/teleport.service ${SYSTEMD_UNIT_PATH}
+    log "Reloading unit files (systemctl daemon-reload)"
+    systemctl daemon-reload
+}
+# installs the provided teleport config
+install_teleport_config() {
+    log "Writing Teleport config to ${TELEPORT_CONFIG_PATH}"
+    cat << EOF > ${TELEPORT_CONFIG_PATH}
+teleport:
+  auth_token: ${NODE_JOIN_TOKEN}
+  ca_pin: ${CA_PIN_HASH}
+  auth_servers:
+  - ${TARGET_HOSTNAME}:${TARGET_PORT}
+  log:
+    output: stderr
+    severity: INFO
+auth_service:
+  enabled: no
+ssh_service:
+  enabled: yes
+proxy_service:
+  enabled: no
+EOF
+}
+# checks whether the given host is running MacOS
+is_macos_host() {
+    if [[ ${OSTYPE} == "darwin"* ]]; then
+        log "Host is running MacOS"
+        return 0
+    else
+        log "Host is not running MacOS"
+        return 1
+    fi
+}
+# checks whether teleport is already running on the host
+is_running_teleport() {
+    check_exists_fatal pgrep
+    TELEPORT_PID=$(pgrep -d " " teleport)
+    if [[ "${TELEPORT_PID}" != "" ]]; then
+        log "Teleport appears to already be running (pid: ${TELEPORT_PID})"
+        return 0
+    else
+        log "Teleport does not appear to already be running"
+        return 1
+    fi
 
+}
+# checks whether the given host is running systemd as its init system
+is_using_systemd() {
+    check_exists_fatal grep
+    if grep -q /proc/1/cmdline systemd; then
+        log "Host is using systemd as pid 1"
+        return 0
+    else
+        log "Host does not appear to be running systemd"
+        return 1
+    fi
+}
+# prints a warning if the host isn't running systemd
+no_systemd_warning() {
+    log_important "This host is not running systemd, so Teleport cannot be started automatically when it exits."
+    log_important "Please investigate an alternative way to keep Teleport running."
+    log_important "You can find information in our documentation: ${TELEPORT_DOCS_URL}"
+    log_important "For now, Teleport will be started in the foregound - you can press Ctrl+C to exit."
+    log_only
+    log_only "------------------------------------------------------------------------"
+    log_only "| IMPORTANT: TELEPORT WILL STOP RUNNING AFTER YOU CLOSE THIS TERMINAL! |"
+    log_only "|   YOU MUST CONFIGURE A SERVICE MANAGER TO MAKE IT RUN ON STARTUP!    |"
+    log_only "------------------------------------------------------------------------"
+    log_only
+}
+# start teleport in foreground (when there's no systemd)
+start_teleport_foreground() {
+    log "Starting Teleport in the foreground"
+    teleport start --config=${TELEPORT_CONFIG_PATH}
+}
+# start teleport via launchd (after installing config)
+start_teleport_launchd() {
+    log "Starting Teleport via launchctl"
+    launchctl load ${LAUNCHD_CONFIG_PATH}/teleport.plist
+}
+# start teleport via systemd (after installing unit)
+start_teleport_systemd() {
+    log "Starting Teleport via systemd"
+    systemctl start teleport
+}
+# checks whether teleport binaries eist on the host
+teleport_binaries_exist() {
+    for BINARY_NAME in teleport tctl tsh; do
+        if [ -f ${TELEPORT_BINARY_DIR}/${BINARY_NAME} ]; then return 0; else return 1; fi
+    done
+}
+# checks whether a teleport config exists on the host
+teleport_config_exists() { if [ -f ${TELEPORT_CONFIG_PATH} ]; then return 0; else return 1; fi; }
+# checks whether a teleport data dir exists on the host
+teleport_datadir_exists() { if [ -d ${TELEPORT_DATA_DIR} ]; then return 0; else return 1; fi; }
+
+# error out if any required values are not set
+check_set TELEPORT_VERSION
+check_set TARGET_HOSTNAME
+check_set TARGET_PORT
+check_set NODE_JOIN_TOKEN
+check_set CA_PIN_HASH
+
+###
 # main script starts here
+###
 # check connectivity to teleport server/port
 log "Checking TCP connectivity to Teleport server"
 RETURN_CODE=$(check_connectivity ${TARGET_HOSTNAME} ${TARGET_PORT}) || true
 #check_connectivity ${TARGET_HOSTNAME} ${TARGET_PORT}
-if [[ ${RETURN_CODE} > 0 ]]; then
+if [ ${RETURN_CODE} -eq 1 ]; then
     log_important "Couldn't open a connection to the Teleport server - ${TARGET_HOST}:${TARGET_PORT}"
     log_important "This issue will need to be fixed before the script can continue."
     exit 1
-elif [[ ${RETURN_CODE} < 0 ]]; then
+elif [ ${RETURN_CODE} -eq 255 ]; then
     log "Couldn't find nc, telnet or /dev/tcp to do a connection test"
     log "Going to blindly continue without testing connectivity"
 fi
@@ -427,7 +430,8 @@ fi
 # check whether teleport is running already
 # if it is, we exit gracefully with an eror
 if is_running_teleport; then
-    log_header "Warning: Teleport appears to already be running on this host."
+    TELEPORT_PID=$(pgrep -d " " teleport)
+    log_header "Warning: Teleport appears to already be running on this host (pid: ${TELEPORT_PID})"
     log_cleanup_message
     exit 1
 fi
