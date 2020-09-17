@@ -73,6 +73,11 @@ func TestRoleVariable(t *testing.T) {
 			out:   Expression{namespace: "internal", variable: "foo"},
 		},
 		{
+			title: "string literal",
+			in:    `foo`,
+			out:   Expression{namespace: LiteralNamespace, variable: "foo"},
+		},
+		{
 			title: "external with no brackets",
 			in:    "{{external.foo}}",
 			out:   Expression{namespace: "external", variable: "foo"},
@@ -101,7 +106,7 @@ func TestRoleVariable(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			variable, err := RoleVariable(tt.in)
+			variable, err := Variable(tt.in)
 			if tt.err != nil {
 				assert.IsType(t, tt.err, err)
 				return
@@ -153,6 +158,12 @@ func TestInterpolate(t *testing.T) {
 			in:     Expression{variable: "foo", transform: emailLocalTransformer{}},
 			traits: map[string][]string{"foo": []string{"Alice <alice"}},
 			res:    result{err: trace.BadParameter("")},
+		},
+		{
+			title:  "literal expression",
+			in:     Expression{namespace: LiteralNamespace, variable: "foo"},
+			traits: map[string][]string{"foo": []string{"a", "b"}, "bar": []string{"c"}},
+			res:    result{values: []string{"foo"}},
 		},
 	}
 

@@ -385,12 +385,9 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 // at least one value in case if return value is nil
 func applyValueTraits(val string, traits map[string][]string) ([]string, error) {
 	// Extract the variable from the role variable.
-	variable, err := parse.RoleVariable(val)
+	variable, err := parse.Variable(val)
 	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		return []string{val}, nil
+		return nil, trace.Wrap(err)
 	}
 
 	// For internal traits, only internal.logins, internal.kubernetes_users and
@@ -690,7 +687,7 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 	for _, condition := range []RoleConditionType{Allow, Deny} {
 		for _, login := range r.GetLogins(condition) {
 			if strings.Contains(login, "{{") || strings.Contains(login, "}}") {
-				_, err := parse.RoleVariable(login)
+				_, err := parse.Variable(login)
 				if err != nil {
 					return trace.BadParameter("invalid login found: %v", login)
 				}
