@@ -16,6 +16,7 @@ TELEPORT_BINARY_LIST="teleport tctl tsh"
 TELEPORT_CONFIG_PATH="/etc/teleport.yaml"
 TELEPORT_DATA_DIR="/var/lib/teleport"
 TELEPORT_DOCS_URL="https://gravitational.com/teleport/docs"
+TELEPORT_FORMAT=""
 
 # initialise variables
 v=""
@@ -193,9 +194,11 @@ download() {
     OUTPUT_PATH=$2
     # use curl if we can
     if check_exists curl; then
+        log "Using curl to download ${URL} --> ${OUTPUT_PATH}"
         curl -Ls -o ${OUTPUT_PATH} ${URL}
     # fall back to wget
     elif check_exists wget; then
+        log "Using wget to download ${URL} --> ${OUTPUT_PATH}"
         wget -q -nv -O ${OUTPUT_PATH} ${URL}
     else
         log_important "Can't find curl or wget to use for downloads, one of these is required to function"
@@ -203,7 +206,10 @@ download() {
     fi
 }
 # gets the pid of running teleport process
-get_teleport_pid() { pgrep teleport | tr '\r' ' '; }
+get_teleport_pid() {
+    check_exists_fatal pgrep xargs
+    pgrep teleport | xargs echo
+}
 # installs the teleport-provided launchd config
 install_launchd_config() {
     log "Installing Teleport launchd config to ${LAUNCHD_CONFIG_PATH}"
@@ -344,6 +350,7 @@ if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
     log "Detected host: ${OSTYPE}, using Teleport binary type ${TELEPORT_BINARY_TYPE}"
     if [[ ${ARCH} == "armv7l" ]]; then
         TELEPORT_ARCH="arm"
+        TELEPORT_FORMAT="tarball"
     elif [[ ${ARCH} == "x86_64" ]]; then
         TELEPORT_ARCH="amd64"
     elif [[ ${ARCH} == "i386" ]]; then
@@ -353,41 +360,47 @@ if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
         exit 1
     fi
     log "Detected arch: ${ARCH}, using Teleport arch ${TELEPORT_ARCH}"
-    # detect distro
-    # if /etc/os-release doesn't exist, we need to use some other logic
-    if [ ! -f /etc/os-release ]; then
-        if [ -f /etc/centos-release ]; then
-            if grep -q 'CentOS release 6' /etc/centos-release; then
-                DISTRO_TYPE="centos6"
-                TELEPORT_FORMAT="rpm-centos6"
+    # if the download format is already set, we have no need to detect distro
+    if [[ ${TELEPORT_FORMAT} == "" ]]; then
+        # detect distro
+        # if /etc/os-release doesn't exist, we need to use some other logic
+        if [ ! -f /etc/os-release ]; then
+            if [ -f /etc/centos-release ]; then
+                if grep -q 'CentOS release 6' /etc/centos-release; then
+                    DISTRO_TYPE="centos6"
+                    TELEPORT_FORMAT="rpm-centos6"
+                fi
+            elif [ -f /etc/redhat-release ]; then
+                if grep -q 'Red Hat Enterprise Linux Server release 5' /etc/redhat-release; then
+                    log_important "Detected host type: RHEL5 [$(cat /etc/redhat-release)]"
+                    log_important "Teleport will not work on RHEL5-based servers due to the glibc version being too low."
+                    exit 1
+                elif grep -q 'Red Hat Enterprise Linux Server release 6' /etc/redhat-release; then
+                    DISTRO_TYPE="redhat"
+                    TELEPORT_FORMAT="rpm-centos6"
+                    log "Detected host type: RHEL6 [$(cat /etc/redhat-release)]"
+                fi
             fi
-        elif [ -f /etc/redhat-release ]; then
-            if grep -q 'Red Hat Enterprise Linux Server release 5' /etc/redhat-release; then
-                log_important "Detected host type: RHEL5 [$(cat /etc/redhat-release)]"
-                log_important "Teleport will not work on RHEL5-based servers due to the glibc version being too low."
-                exit 1
-            elif grep -q 'Red Hat Enterprise Linux Server release 6' /etc/redhat-release; then
-                DISTRO_TYPE="redhat"
-                TELEPORT_FORMAT="rpm-centos6"
-                log "Detected host type: RHEL6 [$(cat /etc/redhat-release)]"
+        # use ID_LIKE value from /etc/os-release (if set)
+        # this is 'debian' on ubuntu/raspian, 'centos rhel fedora' on amazon linux etc
+        else
+            check_exists_fatal cut
+            DISTRO_TYPE=$(grep ID_LIKE /etc/os-release | cut -d= -f2) || true
+            if [[ ${DISTRO_TYPE} == "" ]]; then
+                # use exact ID value from /etc/os-release if ID_LIKE is not set
+                DISTRO_TYPE=$(grep -w ID /etc/os-release | cut -d= -f2)
+            fi
+            if [[ ${DISTRO_TYPE} =~ "debian" ]]; then
+                TELEPORT_FORMAT="deb"
+            elif [[ ${DISTRO_TYPE} =~ "centos"* ]] || [[ ${DISTRO_TYPE} =~ "rhel" ]] || [[ ${DISTRO_TYPE} =~ "fedora"* ]]; then
+                TELEPORT_FORMAT="rpm"
+            else
+                log "Couldn't match a distro type using /etc/os-release, falling back to tarball installer"
+                TELEPORT_FORMAT="tarball"
             fi
         fi
-    # use ID_LIKE value from /etc/os-release (if set)
-    # this is 'debian' on ubuntu/raspian, 'centos rhel fedora' on amazon linux etc
-    else
-        check_exists_fatal cut
-        DISTRO_TYPE=$(grep ID_LIKE /etc/os-release | cut -d= -f2) || true
-        if [[ ${DISTRO_TYPE} == "" ]]; then
-            # use exact ID value from /etc/os-release if ID_LIKE is not set
-            DISTRO_TYPE=$(grep -w ID /etc/os-release | cut -d= -f2)
-        fi
-        if [[ ${DISTRO_TYPE} == "debian" ]]; then
-            TELEPORT_FORMAT="deb"
-        elif [[ ${DISTRO_TYPE} == "centos"* ]] || [[ ${DISTRO_TYPE} == "rhel"* ]] || [[ ${DISTRO_TYPE} == "fedora"* ]]; then
-            TELEPORT_FORMAT="rpm"
-        fi
+        log "Detected distro type: ${DISTRO_TYPE}"
     fi
-    log "Detected distro type: ${DISTRO_TYPE}, using Teleport ${TELEPORT_FORMAT} distribution"
 elif [[ "${OSTYPE}" == "darwin"* ]]; then
     # macos host, now detect arch
     TELEPORT_BINARY_TYPE="darwin"
@@ -404,11 +417,11 @@ elif [[ "${OSTYPE}" == "darwin"* ]]; then
     fi
     log "Detected MacOS ${ARCH} architecture, using Teleport arch ${TELEPORT_ARCH}"
     TELEPORT_FORMAT="tarball"
-    log "Using Teleport ${TELEPORT_FORMAT} distribution"
 else
     log_important "Error - unsupported platform: ${OSTYPE}"
     exit 1
 fi
+log "Using Teleport distribution: ${TELEPORT_FORMAT}"
 
 # create temporary directory and exit cleanup logic
 TEMP_DIR=$(mktemp -d -t teleport-XXXXXXXXXX)
@@ -476,9 +489,11 @@ fi
 
 # handle centos6 installations
 if [[ ${TELEPORT_FORMAT} == "rpm-centos6" ]]; then
-# override the format to 'tarball' (as that's how centos6 binaries are packaged)
+    # override the format to 'tarball' (as that's how centos6 binaries are packaged)
+    # also override DISTRO_TYPE to centos6 as that's used for the URL check below
     log "Overriding format for centos6 installation to use tarball"
     TELEPORT_FORMAT="tarball"
+    DISTRO_TYPE="centos6"
 fi
 
 # select correct URL/installation method based on distro
@@ -492,7 +507,7 @@ if [[ ${TELEPORT_FORMAT} == "tarball" ]]; then
     # check that needed tools are installed
     check_exists_fatal tar
     # download tarball
-    log "Downloading Teleport release from ${URL} to ${TEMP_DIR}/teleport.tar.gz"
+    log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
     download ${URL} ${TEMP_DIR}/teleport.tar.gz
     # extract tarball
     tar -xzf ${TEMP_DIR}/teleport.tar.gz -C ${TEMP_DIR}
@@ -510,7 +525,7 @@ elif [[ ${TELEPORT_FORMAT} == "deb" ]]; then
     URL="https://get.gravitational.com/teleport_${TELEPORT_VERSION}_${DEB_ARCH}.deb"
     check_exists_fatal dpkg
     # download deb and register cleanup operation
-    log "Downloading Teleport release from ${URL} to ${TEMP_DIR}/teleport.deb"
+    log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
     download ${URL} ${TEMP_DIR}/teleport.deb
     # install deb
     dpkg -i ${TEMP_DIR}/teleport.deb
@@ -542,7 +557,7 @@ elif [[ ${TELEPORT_FORMAT} == "rpm" ]]; then
         # check that needed tools are installed
         check_exists_fatal rpm
         # download tarball
-        log "Downloading Teleport release from ${URL} to ${TEMP_DIR}/teleport.rpm"
+        log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
         download ${URL} ${TEMP_DIR}/teleport.rpm
         # install RPM (in upgrade mode)
         rpm -Uvh ${TEMP_DIR}/teleport.rpm
