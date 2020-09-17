@@ -44,12 +44,8 @@ func (m *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.P
 	if connectorID == "" {
 		return nil, trace.BadParameter("missing connector_id query parameter")
 	}
-
-	// If the caller is requested to be forwarded to an application after login,
-	// make sure the application is a registered Teleport application.
-	if err := m.validateApp(r.Context(), query.Get("app")); err != nil {
-		return nil, trace.Wrap(err)
-	}
+	appName := query.Get("app")
+	clusterName := query.Get("cluster")
 
 	csrfToken, err := csrf.ExtractTokenFromCookie(r)
 	if err != nil {
@@ -63,8 +59,8 @@ func (m *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.P
 			CSRFToken:         csrfToken,
 			CreateWebSession:  true,
 			ClientRedirectURL: clientRedirectURL,
-			AppName:           "dumper", //query.Get("app"),
-			// TODO(russjones): Add clusterName to this or is RouteToCluster enough?
+			RouteToCluster:    clusterName,
+			AppName:           appName,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -141,7 +137,7 @@ func (m *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 		}
 
 		// Construct the redirect URL from the parameters stored in backend.
-		u, err := redirURL(response.Req.ClientRedirectURL, response.Req.AppName)
+		u, err := redirURL(response.Req.ClientRedirectURL, response.Req.AppName, response.Req.RouteToCluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -18,9 +18,7 @@ package auth
 
 import (
 	"context"
-	"crypto/sha256"
 	"crypto/subtle"
-	"encoding/hex"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -28,10 +26,9 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// TODO(russjones): Can we hit the cache here instead?
+// TODO(russjones): Use s.cache here, but s.cache can be nil in tests.
 func (s *AuthServer) getApp(ctx context.Context, appName string) (services.Server, error) {
 	// Check if the caller has access to the app requested.
-	//app, err := s.cache.GetApps(ctx, defaults.Namespace)
 	apps, err := s.Presence.GetApps(ctx, defaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -55,7 +52,6 @@ func (s *AuthServer) createAppSession(ctx context.Context, identity tlsca.Identi
 		return nil, trace.Wrap(err)
 	}
 
-	// Check if the caller has access to the app requested.
 	app, err := s.getApp(ctx, req.AppName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -82,7 +78,7 @@ func (s *AuthServer) createAppSession(ctx context.Context, identity tlsca.Identi
 	}
 	session.SetType(services.WebSessionSpecV2_App)
 	session.SetAppName(app.GetAppName())
-	session.SetParentHash(SessionCookieHash(parentSession.GetName()))
+	session.SetParentHash(services.SessionHash(parentSession.GetName()))
 	session.SetClusterName(req.ClusterName)
 	session.SetExpiryTime(s.clock.Now().Add(checker.AdjustSessionTTL(defaults.MaxCertDuration)))
 
@@ -93,10 +89,4 @@ func (s *AuthServer) createAppSession(ctx context.Context, identity tlsca.Identi
 	}
 
 	return session, nil
-}
-
-// SessionCookieHash returns the sha256 hash of a session ID.
-func SessionCookieHash(sessionID string) string {
-	hash := sha256.Sum256([]byte(sessionID))
-	return hex.EncodeToString(hash[:])
 }

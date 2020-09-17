@@ -3,20 +3,29 @@
 
 package services
 
-import proto "github.com/golang/protobuf/proto"
-import fmt "fmt"
-import math "math"
-import _ "github.com/gogo/protobuf/gogoproto"
-import _ "github.com/golang/protobuf/ptypes/timestamp"
-import _ "github.com/gravitational/teleport/lib/wrappers"
+import (
+	fmt "fmt"
 
-import time "time"
-import github_com_gravitational_teleport "github.com/gravitational/teleport"
-import github_com_gravitational_teleport_lib_wrappers "github.com/gravitational/teleport/lib/wrappers"
+	proto "github.com/golang/protobuf/proto"
 
-import github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
+	math "math"
 
-import io "io"
+	_ "github.com/gogo/protobuf/gogoproto"
+
+	_ "github.com/golang/protobuf/ptypes/timestamp"
+
+	_ "github.com/gravitational/teleport/lib/wrappers"
+
+	time "time"
+
+	github_com_gravitational_teleport "github.com/gravitational/teleport"
+
+	github_com_gravitational_teleport_lib_wrappers "github.com/gravitational/teleport/lib/wrappers"
+
+	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
+
+	io "io"
+)
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal

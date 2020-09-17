@@ -22,3 +22,4 @@ package app
 // TODO(russjones): Check that "newSession" rejects invalid schemes, like "postgres://".
 // TODO(russjones): Make sure that an error handler is attached to
 //   fwd.ServeHTTP and that upon error, it removed the session object.
+// TODO(russjones): Add test to verify TTL is respected in sessionCache.get.

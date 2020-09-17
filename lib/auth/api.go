@@ -69,9 +69,6 @@ type ReadAccessPoint interface {
 	// GetNodes returns a list of registered servers for this cluster.
 	GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error)
 
-	// GetApps returns a list of registered apps for this cluster.
-	GetApps(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error)
-
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]services.Server, error)
 
@@ -101,6 +98,13 @@ type ReadAccessPoint interface {
 
 	// GetTunnelConnections returns tunnel connections for a given cluster
 	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]services.TunnelConnection, error)
+
+	// GetApps returns a list of registered apps for this cluster.
+	GetApps(context.Context, string, ...services.MarshalOption) ([]services.Server, error)
+
+	// TODO(russjones): This should be updated and added the the cache to do quick lookups on web sessions.
+	// GetAppSession returns an application specific web session.
+	//GetAppSession(context.Context, services.GetAppSessionRequest) (services.WebSession, error)
 }
 
 // AccessPoint is an API interface implemented by a certificate authority (CA)

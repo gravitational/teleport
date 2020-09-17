@@ -46,8 +46,11 @@ func (s *Suite) TestSignAndVerify(c *check.C) {
 	privateKey, err := utils.ParsePrivateKey(privateBytes)
 	c.Assert(err, check.IsNil)
 
+	clock := clockwork.NewFakeClockAt(time.Now())
+
 	// Create a new key that can sign and verify tokens.
 	key, err := New(&Config{
+		Clock:       clock,
 		PrivateKey:  privateKey,
 		Algorithm:   defaults.ApplicationTokenAlgorithm,
 		ClusterName: "example.com",
@@ -56,18 +59,18 @@ func (s *Suite) TestSignAndVerify(c *check.C) {
 
 	// Sign a token with the new key.
 	token, err := key.Sign(SignParams{
-		Username:  "foo@example.com",
-		Roles:     []string{"foo", "bar"},
-		Expiry:    1 * time.Minute,
-		Recipient: "panel",
+		Username: "foo@example.com",
+		Roles:    []string{"foo", "bar"},
+		Expires:  clock.Now().Add(1 * time.Minute),
+		AppName:  "panel",
 	})
 	c.Assert(err, check.IsNil)
 
 	// Verify that the token can be validated and values match expected values.
 	claims, err := key.Verify(VerifyParams{
-		Username:  "foo@example.com",
-		RawToken:  token,
-		Recipient: "panel",
+		Username: "foo@example.com",
+		RawToken: token,
+		AppName:  "panel",
 	})
 	c.Assert(err, check.IsNil)
 	c.Assert(claims.Username, check.Equals, "foo@example.com")
@@ -84,6 +87,8 @@ func (s *Suite) TestPublicOnlyVerify(c *check.C) {
 	publicKey, err := utils.ParsePublicKey(publicBytes)
 	c.Assert(err, check.IsNil)
 
+	clock := clockwork.NewFakeClockAt(time.Now())
+
 	// Create a new key that can sign and verify tokens.
 	key, err := New(&Config{
 		PrivateKey:  privateKey,
@@ -94,10 +99,10 @@ func (s *Suite) TestPublicOnlyVerify(c *check.C) {
 
 	// Sign a token with the new key.
 	token, err := key.Sign(SignParams{
-		Username:  "foo@example.com",
-		Roles:     []string{"foo", "bar"},
-		Expiry:    1 * time.Minute,
-		Recipient: "panel",
+		Username: "foo@example.com",
+		Roles:    []string{"foo", "bar"},
+		Expires:  clock.Now().Add(1 * time.Minute),
+		AppName:  "panel",
 	})
 	c.Assert(err, check.IsNil)
 
@@ -110,9 +115,9 @@ func (s *Suite) TestPublicOnlyVerify(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 	claims, err := key.Verify(VerifyParams{
-		Username:  "foo@example.com",
-		Recipient: "panel",
-		RawToken:  token,
+		Username: "foo@example.com",
+		AppName:  "panel",
+		RawToken: token,
 	})
 	c.Assert(err, check.IsNil)
 	c.Assert(claims.Username, check.Equals, "foo@example.com")
@@ -120,10 +125,10 @@ func (s *Suite) TestPublicOnlyVerify(c *check.C) {
 
 	// Make sure this key returns an error when trying to sign.
 	_, err = key.Sign(SignParams{
-		Username:  "foo@example.com",
-		Roles:     []string{"foo", "bar"},
-		Expiry:    1 * time.Minute,
-		Recipient: "panel",
+		Username: "foo@example.com",
+		Roles:    []string{"foo", "bar"},
+		Expires:  clock.Now().Add(1 * time.Minute),
+		AppName:  "panel",
 	})
 	c.Assert(err, check.NotNil)
 }
@@ -148,18 +153,18 @@ func (s *Suite) TestExpiry(c *check.C) {
 
 	// Sign a token with a 1 minute expiration.
 	token, err := key.Sign(SignParams{
-		Username:  "foo@example.com",
-		Roles:     []string{"foo", "bar"},
-		Expiry:    1 * time.Minute,
-		Recipient: "panel",
+		Username: "foo@example.com",
+		Roles:    []string{"foo", "bar"},
+		Expires:  clock.Now().Add(1 * time.Minute),
+		AppName:  "panel",
 	})
 	c.Assert(err, check.IsNil)
 
 	// Verify that the token is still valid.
 	claims, err := key.Verify(VerifyParams{
-		Username:  "foo@example.com",
-		Recipient: "panel",
-		RawToken:  token,
+		Username: "foo@example.com",
+		AppName:  "panel",
+		RawToken: token,
 	})
 	c.Assert(err, check.IsNil)
 	c.Assert(claims.Username, check.Equals, "foo@example.com")
@@ -168,9 +173,9 @@ func (s *Suite) TestExpiry(c *check.C) {
 	// Advance time by two minutes and verify the token is no longer valid.
 	clock.Advance(2 * time.Minute)
 	_, err = key.Verify(VerifyParams{
-		Username:  "foo@example.com",
-		Recipient: "panel",
-		RawToken:  token,
+		Username: "foo@example.com",
+		AppName:  "panel",
+		RawToken: token,
 	})
 	c.Assert(err, check.NotNil)
 }

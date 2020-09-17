@@ -17,6 +17,8 @@ limitations under the License.
 package services
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -571,4 +573,11 @@ func (r *GetAppSessionRequest) Check() error {
 		return trace.BadParameter("session ID is missing")
 	}
 	return nil
+}
+
+// SessionHash returns hex-encoded SHA256 hash of a session ID. Used by parent
+// session to identify application specific child sessions.
+func SessionHash(sessionID string) string {
+	hash := sha256.Sum256([]byte(sessionID))
+	return hex.EncodeToString(hash[:])
 }

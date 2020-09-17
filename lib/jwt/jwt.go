@@ -100,10 +100,10 @@ type SignParams struct {
 	Roles []string
 
 	// Expiry is time to live for the token.
-	Expiry time.Duration
+	Expires time.Time
 
-	// Recipient is the target of this signed request.
-	Recipient string
+	// AppName is the target of this signed request.
+	AppName string
 }
 
 // Check verifies all the values are valid.
@@ -114,8 +114,8 @@ func (p *SignParams) Check() error {
 	if len(p.Roles) == 0 {
 		return trace.BadParameter("missing roles")
 	}
-	if p.Expiry == 0 {
-		return trace.BadParameter("expiry required")
+	if p.Expires.IsZero() {
+		return trace.BadParameter("expires required")
 	}
 
 	return nil
@@ -145,9 +145,9 @@ func (k *Key) Sign(p SignParams) (string, error) {
 		Claims: josejwt.Claims{
 			Subject:   p.Username,
 			Issuer:    k.config.ClusterName,
-			Audience:  josejwt.Audience{p.Recipient},
+			Audience:  josejwt.Audience{p.AppName},
 			NotBefore: josejwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
-			Expiry:    josejwt.NewNumericDate(k.config.Clock.Now().Add(p.Expiry)),
+			Expiry:    josejwt.NewNumericDate(p.Expires),
 		},
 		Username: p.Username,
 		Roles:    p.Roles,
@@ -167,8 +167,8 @@ type VerifyParams struct {
 	// RawToken is the JWT token.
 	RawToken string
 
-	// Recipient is the target of this signed request.
-	Recipient string
+	// AppName is the target of this signed request.
+	AppName string
 }
 
 // Check verifies all the values are valid.
@@ -179,8 +179,8 @@ func (p *VerifyParams) Check() error {
 	if p.RawToken == "" {
 		return trace.BadParameter("raw token missing")
 	}
-	if p.Recipient == "" {
-		return trace.BadParameter("recipient missing")
+	if p.AppName == "" {
+		return trace.BadParameter("app name missing")
 	}
 
 	return nil
@@ -211,7 +211,7 @@ func (k *Key) Verify(p VerifyParams) (*Claims, error) {
 	expectedClaims := josejwt.Expected{
 		Issuer:   k.config.ClusterName,
 		Subject:  p.Username,
-		Audience: jwt.Audience{p.Recipient},
+		Audience: jwt.Audience{p.AppName},
 		Time:     k.config.Clock.Now(),
 	}
 	if err = out.Validate(expectedClaims); err != nil {

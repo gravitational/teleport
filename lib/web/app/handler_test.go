@@ -55,7 +55,7 @@ func TestAuthenticate(t *testing.T) {
 	// Create application handler that runs within the web handlers.
 	authClient, err := pack.s.tlsServer.NewClient(auth.TestBuiltin(teleport.RoleWeb))
 	assert.Nil(t, err)
-	handler, err := NewHandler(HandlerConfig{
+	handler, err := NewHandler(&HandlerConfig{
 		AuthClient:  authClient,
 		ProxyClient: pack.p.tunnel,
 	})
@@ -143,7 +143,7 @@ func TestForward(t *testing.T) {
 	// Create application handler that runs within the web handlers.
 	authClient, err := pack.s.tlsServer.NewClient(auth.TestBuiltin(teleport.RoleWeb))
 	assert.Nil(t, err)
-	handler, err := NewHandler(HandlerConfig{
+	handler, err := NewHandler(&HandlerConfig{
 		AuthClient:  authClient,
 		ProxyClient: pack.p.tunnel,
 	})
@@ -163,7 +163,7 @@ func TestForward(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Create a session cache and create a session.
-	cache, err := newSessionCache(sessionCacheConfig{
+	cache, err := newSessionCache(&sessionCacheConfig{
 		AuthClient:  authClient,
 		ProxyClient: pack.p.tunnel,
 	})
@@ -177,8 +177,7 @@ func TestForward(t *testing.T) {
 
 	// Issue the request, it should succeed.
 	w := httptest.NewRecorder()
-	err = handler.forward(w, r, session)
-	assert.Nil(t, err)
+	handler.forward(w, r, session)
 	assert.Equal(t, http.StatusOK, w.Result().StatusCode)
 
 	// Check that the output contains the expected jwt.
@@ -194,8 +193,7 @@ func TestForward(t *testing.T) {
 
 	// Issue the request once again, it should fail this time.
 	w = httptest.NewRecorder()
-	err = handler.forward(w, r, session)
-	assert.Nil(t, err)
+	handler.forward(w, r, session)
 	assert.Equal(t, http.StatusInternalServerError, w.Result().StatusCode)
 
 	// TODO(russjones): Check that the authentication cookie is removed.
@@ -212,7 +210,7 @@ func TestFragment(t *testing.T) {
 	// Create application handler that runs within the web handlers.
 	authClient, err := pack.s.tlsServer.NewClient(auth.TestBuiltin(teleport.RoleWeb))
 	assert.Nil(t, err)
-	handler, err := NewHandler(HandlerConfig{
+	handler, err := NewHandler(&HandlerConfig{
 		AuthClient:  authClient,
 		ProxyClient: pack.p.tunnel,
 	})
@@ -295,6 +293,44 @@ func TestFragment(t *testing.T) {
 			assert.Equal(t, cookie.Value, tt.inCookieValue)
 		})
 	}
+}
+
+// TestLogout verifies that logging out of the parent session logs all
+// application specific child sessions out as well.
+func TestLogout(t *testing.T) {
+	pack, done := setup(t)
+	defer done()
+
+	// Create a web UI session.
+	webSession, err := pack.s.client.CreateWebSession(pack.u.user.GetName())
+	assert.Nil(t, err)
+
+	// Use the Web UI session to ask for a application specific session.
+	appSession, err := pack.u.client.CreateAppSession(context.Background(), services.CreateAppSessionRequest{
+		AppName:     pack.a.app.GetAppName(),
+		ClusterName: pack.s.tlsServer.ClusterName(),
+		SessionID:   webSession.GetName(),
+		BearerToken: webSession.GetBearerToken(),
+	})
+	assert.Nil(t, err)
+
+	// Delete the parent session.
+	err = pack.u.client.DeleteWebSession(pack.u.user.GetName(), webSession.GetName())
+	assert.Nil(t, err)
+
+	// Check that deleting the parent session removes the child session.
+	_, err = pack.s.client.GetAppSession(context.Background(), services.GetAppSessionRequest{
+		Username:   appSession.GetUser(),
+		ParentHash: appSession.GetParentHash(),
+		SessionID:  appSession.GetName(),
+	})
+	assert.Equal(t, trace.IsNotFound(err), true)
+}
+
+// TODO(russjones): Add a test where a request for multiple matching
+// applications returns a 404.
+func TestAmbiguous(t *testing.T) {
+
 }
 
 type pack struct {

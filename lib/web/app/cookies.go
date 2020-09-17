@@ -78,5 +78,5 @@ func encodeCookie(cookie *Cookie) (string, error) {
 }
 
 const (
-	cookieName = "app.session"
+	cookieName = "teleport.app.session"
 )

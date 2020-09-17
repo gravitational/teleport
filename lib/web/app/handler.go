@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
 
@@ -36,11 +37,16 @@ import (
 )
 
 type HandlerConfig struct {
+	Clock       clockwork.Clock
 	AuthClient  auth.ClientI
 	ProxyClient reversetunnel.Server
 }
 
-func (c *HandlerConfig) Check() error {
+func (c *HandlerConfig) CheckAndSetDefaults() error {
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+
 	if c.AuthClient == nil {
 		return trace.BadParameter("auth client missing")
 	}
@@ -52,18 +58,19 @@ func (c *HandlerConfig) Check() error {
 }
 
 type Handler struct {
-	c   HandlerConfig
+	c   *HandlerConfig
 	log *logrus.Entry
 
 	sessions *sessionCache
 }
 
-func NewHandler(config HandlerConfig) (*Handler, error) {
-	if err := config.Check(); err != nil {
+func NewHandler(config *HandlerConfig) (*Handler, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sessionCache, err := newSessionCache(sessionCacheConfig{
+	sessionCache, err := newSessionCache(&sessionCacheConfig{
+		Clock:       config.Clock,
 		AuthClient:  config.AuthClient,
 		ProxyClient: config.ProxyClient,
 	})
@@ -80,7 +87,6 @@ func NewHandler(config HandlerConfig) (*Handler, error) {
 	}, nil
 }
 
-// TODO(russjones): This function should be covered by an integration test.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// If the target is an application but it hits the special "x-teleport-auth"
 	// endpoint, then perform redirect authentication logic.
@@ -101,14 +107,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO(russjones): Forward the request, then use the "trace" type to
-	// return the correct response code.
-	err = h.forward(w, r, session)
-	if err != nil {
-		h.log.Warnf("Failed to forward request to %q: %v.", session.app.GetAppName(), err)
-		http.Error(w, "internal service error", 500)
-		return
-	}
+	h.forward(w, r, session)
 }
 
 // TODO(russjones): This is potentially very costly due to looping over all
@@ -163,12 +162,18 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request) error {
 			return trace.Wrap(err)
 		}
 
-		// TODO(russjones): Add additional cookie values here.
 		// Set the "Set-Cookie" header on the response.
 		http.SetCookie(w, &http.Cookie{
-			Name:  cookieName,
-			Value: req.CookieValue,
+			Name:     cookieName,
+			Value:    req.CookieValue,
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteLaxMode,
 		})
+
+		// Set additional security headers. In the first run, only set strict
+		// transport security. In the future we can add other headers that make sense.
+		w.Header().Add("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 	default:
 		return trace.BadParameter("unsupported method: %q", r.Method)
 	}
@@ -191,13 +196,12 @@ func (h *Handler) authenticate(r *http.Request) (*session, error) {
 	return session, nil
 }
 
-func (h *Handler) forward(w http.ResponseWriter, r *http.Request, s *session) error {
-	// Update the target URL on the request and issue it.
+// forward will update the URL on the request and then forward the request to
+// the target. If an error occurs, the error handler attached to the session
+// is called.
+func (h *Handler) forward(w http.ResponseWriter, r *http.Request, s *session) {
 	r.URL = s.url
 	s.fwd.ServeHTTP(w, r)
-
-	// TODO(russjones): Detect error, and if an error occurs, close the *session.
-	return nil
 }
 
 func extractAppName(r *http.Request) (string, error) {

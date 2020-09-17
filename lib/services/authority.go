@@ -151,11 +151,11 @@ type AppTokenParams struct {
 	// Roles is the list of roles assigned to the user.
 	Roles []string
 
-	// Recipient is the target of this signed request.
-	Recipient string
+	// AppName is the name of the target application.
+	AppName string
 
-	// Expiry is the time to live for the JWT token.
-	Expiry time.Duration
+	// Expires is the expiration time for the JWT.
+	Expires time.Time
 }
 
 // Check verifies the token parameters.
@@ -166,11 +166,11 @@ func (p AppTokenParams) Check() error {
 	if len(p.Roles) == 0 {
 		return trace.BadParameter("roles are required")
 	}
-	if p.Expiry == 0 {
-		return trace.BadParameter("expiry is required")
+	if p.Expires.IsZero() {
+		return trace.BadParameter("expires is required")
 	}
-	if p.Recipient == "" {
-		return trace.BadParameter("recipient is required")
+	if p.AppName == "" {
+		return trace.BadParameter("app name is required")
 	}
 	return nil
 }

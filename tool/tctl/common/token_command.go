@@ -137,6 +137,7 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 		return trace.Errorf("this cluster has no auth servers")
 	}
 
+	// TODO(russjones): Print different message for app startup.
 	// Print signup message.
 	switch {
 	case roles.Include(teleport.RoleTrustedCluster), roles.Include(teleport.LegacyClusterTokenType):

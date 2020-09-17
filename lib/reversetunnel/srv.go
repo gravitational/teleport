@@ -517,13 +517,11 @@ func (s *server) Start() error {
 }
 
 func (s *server) Close() error {
-	fmt.Printf("--> calling close.\n")
 	s.cancel()
 	return s.srv.Close()
 }
 
 func (s *server) Shutdown(ctx context.Context) error {
-	fmt.Printf("--> calling shutdown.\n")
 	s.cancel()
 	return s.srv.Shutdown(ctx)
 }
@@ -595,16 +593,6 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 		log.Errorf("Failed to accept connection, unknown role: %v.", val)
 		s.rejectRequest(nch, ssh.ConnectionFailed, "unknown role")
 	}
-
-	fmt.Printf("--> val: %v.\n", val)
-	//switch {
-	//// Node is dialing back.
-	//case val == string(teleport.RoleNode):
-	//	s.handleNewNode(conn, sconn, nch)
-	//// Proxy is dialing back.
-	//case val == string(teleport.RoleProxy):
-	//	s.handleNewCluster(conn, sconn, nch)
-	//}
 
 	switch val {
 	// Node is dialing back.

@@ -246,10 +246,14 @@ message GenerateAppTokenRequest {
     // Roles is the list of roles for the Teleport identity for whom a JWT
     // is being issued.
     repeated string Roles = 3 [ (gogoproto.jsontag) = "roles" ];
-    // Recipient is the target.
-    string Recipient = 4 [ (gogoproto.jsontag) = "recipient" ];
+    // AppName is the application this token is being sent to.
+    string AppName = 4 [ (gogoproto.jsontag) = "app_name" ];
     // Expiry is the expiration time for the JWT.
-    int64 Expiry = 5 [ (gogoproto.jsontag) = "expiry", (gogoproto.casttype) = "Duration" ];
+    google.protobuf.Timestamp Expires = 5 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "expires"
+    ];
 }
 
 // GenerateAppTokenResponse contains a signed token with claims.

@@ -598,10 +598,10 @@ func (s *AuthServer) GenerateAppToken(ctx context.Context, req services.AppToken
 		return "", trace.Wrap(err)
 	}
 	token, err := privateKey.Sign(jwt.SignParams{
-		Username:  req.Username,
-		Roles:     req.Roles,
-		Recipient: req.Recipient,
-		Expiry:    req.Expiry,
+		Username: req.Username,
+		Roles:    req.Roles,
+		AppName:  req.AppName,
+		Expires:  req.Expires,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -1333,8 +1333,6 @@ func (s *AuthServer) NewWebSession(username string, roles []string, traits wrapp
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// TODO(russjones): TokenLenBytes was used here before, make sure this works through
-	// migration.
 	token, err := utils.CryptoRandomHex(SessionTokenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1385,8 +1383,6 @@ func (s *AuthServer) DeleteNamespace(namespace string) error {
 	return s.Presence.DeleteNamespace(namespace)
 }
 
-// TODO(russjones): Update this function to delete all application specific
-// child sessions as well.
 func (s *AuthServer) DeleteWebSession(user string, id string) error {
 	return trace.Wrap(s.Identity.DeleteWebSession(user, id))
 }

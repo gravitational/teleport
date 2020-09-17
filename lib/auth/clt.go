@@ -2742,7 +2742,6 @@ func (c *Client) UpsertApp(ctx context.Context, app services.Server) (*services.
 	keepAlive, err := clt.UpsertApp(ctx, &proto.UpsertAppRequest{
 		App: protoApp,
 	})
-	fmt.Printf("--> auth.Client: upsertapp: %v.\n", err)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -2795,9 +2794,9 @@ func (c *Client) GenerateAppToken(ctx context.Context, params services.AppTokenP
 	resp, err := clt.GenerateAppToken(ctx, &proto.GenerateAppTokenRequest{
 		Namespace: params.Namespace,
 		Username:  params.Username,
-		Recipient: params.Recipient,
+		AppName:   params.AppName,
 		Roles:     params.Roles,
-		Expiry:    proto.Duration(params.Expiry),
+		Expires:   params.Expires,
 	})
 	if err != nil {
 		return "", trail.FromGRPC(err)
@@ -2827,8 +2826,7 @@ func (c *Client) CreateAppSession(ctx context.Context, req services.CreateAppSes
 	return resp.GetSession(), nil
 }
 
-// GetAppSession returns the requested application specific session to
-// the caller.
+// GetAppSession returns an application specific web session.
 func (c *Client) GetAppSession(ctx context.Context, req services.GetAppSessionRequest) (services.WebSession, error) {
 	clt, err := c.grpc()
 	if err != nil {

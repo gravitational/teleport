@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -31,14 +32,20 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/sirupsen/logrus"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
+
+	"github.com/sirupsen/logrus"
 )
 
 type session struct {
+	clock clockwork.Clock
+
+	cache *sessionCache
+
 	// cacheKey is the encoded session cookie. It is used as a key for the cache.
 	cacheKey string
 
@@ -55,11 +62,16 @@ type session struct {
 }
 
 type sessionCacheConfig struct {
+	Clock       clockwork.Clock
 	AuthClient  auth.ClientI
 	ProxyClient reversetunnel.Server
 }
 
-func (c sessionCacheConfig) Check() error {
+func (c *sessionCacheConfig) CheckAndSetDefaults() error {
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+
 	if c.AuthClient == nil {
 		return trace.BadParameter("auth client missing")
 	}
@@ -70,18 +82,19 @@ func (c sessionCacheConfig) Check() error {
 }
 
 type sessionCache struct {
-	c   sessionCacheConfig
+	c   *sessionCacheConfig
 	log *logrus.Entry
 
+	mu    sync.Mutex
 	cache *ttlmap.TTLMap
 }
 
-func newSessionCache(config sessionCacheConfig) (*sessionCache, error) {
-	if err := config.Check(); err != nil {
+func newSessionCache(config *sessionCacheConfig) (*sessionCache, error) {
+	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cache, err := ttlmap.New(defaults.ClientCacheSize)
+	cache, err := ttlmap.New(defaults.ClientCacheSize, ttlmap.CallOnExpire(closeSession))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -96,15 +109,12 @@ func newSessionCache(config sessionCacheConfig) (*sessionCache, error) {
 }
 
 func (s *sessionCache) get(ctx context.Context, cookieValue string) (*session, error) {
-	// Always look for the existence of a session directly in the backend. The
-	// lookup can occur in the backend cache, but lookup should occur directly
-	// against the backend and not a process local cache. This is to ensure that
-	// a user can for logout of all sessions by logging out of the Web UI.
+	// Always look for the existence of a session directly in the backend. This
+	// is to ensure that a user can for logout of all sessions by logging out of the Web UI.
 	cookie, err := decodeCookie(cookieValue)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// TODO(russjones): Make sure this request is going to the cache.
 	appSession, err := s.c.AuthClient.GetAppSession(ctx, services.GetAppSessionRequest{
 		Username:   cookie.Username,
 		ParentHash: cookie.ParentHash,
@@ -117,49 +127,67 @@ func (s *sessionCache) get(ctx context.Context, cookieValue string) (*session, e
 	// If the session exists in the backend, check if this proxy has locally
 	// cached metadata about the session. If it does, return it, otherwise
 	// build it and return it.
-	if sess, ok := s.cache.Get(cookieValue); ok {
-		if se, sok := sess.(*session); sok {
-			return se, nil
-		}
+	session, err := s.cacheGet(cookieValue)
+	if err == nil {
+		return session, nil
+	}
+	if !trace.IsNotFound(err) {
+		s.log.Debugf("Failed to find session in cache: %v.", err)
 	}
 
-	// TODO(russjones): Look at session.Expiry() here.
 	// Construct session metadata and put it in the cache.
 	sess, err := s.newSession(ctx, cookieValue, appSession)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := s.cache.Set(cookieValue, sess, 10*time.Minute); err != nil {
+
+	ttl := appSession.GetExpiryTime().Sub(s.c.Clock.Now())
+	if err := s.cacheSet(cookieValue, sess, ttl); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return sess, nil
 }
 
-// TODO(russjones): If you find multiple matching apps, return ambiguous.
-func (s *sessionCache) getApp(ctx context.Context, appName string) (services.Server, error) {
-	for _, proxyClient := range s.c.ProxyClient.GetSites() {
-		authClient, err := proxyClient.CachingAccessPoint()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+func (s *sessionCache) GetApp(ctx context.Context, name string, clusterName string) (services.Server, error) {
+	var matches []services.Server
 
-		apps, err := authClient.GetApps(ctx, defaults.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		for _, app := range apps {
-			if app.GetAppName() == appName {
-				return app, nil
-			}
+	proxyClient, err := s.c.ProxyClient.GetSite(clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authClient, err := proxyClient.CachingAccessPoint()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	apps, err := authClient.GetApps(ctx, defaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, app := range apps {
+		if app.GetAppName() == name {
+			matches = append(matches, app)
 		}
 	}
-	return nil, trace.NotFound("%q not found", appName)
+
+	switch {
+	// Multiple matching applications found.
+	case len(matches) > 1:
+		return nil, trace.NotFound(teleport.NodeIsAmbiguous)
+	// Exact match found.
+	case len(matches) == 1:
+		return matches[0], nil
+	// No matching applications found.
+	default:
+		return nil, trace.NotFound("%q not found in %q", name, clusterName)
+	}
 }
 
 func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess services.WebSession) (*session, error) {
 	// Get the application this session is targeting.
-	app, err := s.getApp(ctx, sess.GetAppName())
+	app, err := s.GetApp(ctx, sess.GetAppName(), sess.GetClusterName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -208,11 +236,8 @@ func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess 
 	jwt, err := s.c.AuthClient.GenerateAppToken(ctx, services.AppTokenParams{
 		Username: sess.GetUser(),
 		Roles:    roles,
-		// TODO(russjones): Expiry implies a time.Time, instead Expiry here is a
-		// time.Duration. Fix it so it can be directly set like:
-		// "Expiry: session.GetExpiryTime()".
-		Recipient: "blah",
-		Expiry:    10 * time.Minute,
+		AppName:  sess.GetAppName(),
+		Expires:  sess.GetExpiryTime(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -234,75 +259,81 @@ func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess 
 
 	// Create a HTTP request forwarder that will be used to forward the actual
 	// request over the reverse tunnel to the target application.
+	fwdHandler := &forwardHandler{
+		conn:     conn,
+		jwt:      jwt,
+		cache:    s,
+		cacheKey: cookieValue,
+	}
 	fwd, err := forward.New(
-		forward.RoundTripper(newCustomTransport(conn)),
-		forward.Rewriter(&rewriter{signedToken: jwt}),
+		forward.RoundTripper(fwdHandler),
+		forward.Rewriter(fwdHandler),
+		forward.ErrorHandler(fwdHandler),
 		forward.Logger(s.log))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &session{
+		cache:    s,
 		cacheKey: cookieValue,
 		url:      u,
 		app:      app,
 		checker:  checker,
 		identity: identity,
-		fwd:      fwd,
 		conn:     conn,
+		fwd:      fwd,
 		jwt:      jwt,
 	}, nil
 }
 
-func (s *sessionCache) remove(cookieValue string) {
-	// TODO(russjones): Is this racy?
-	s.cache.Remove(cookieValue)
-}
+func (s *sessionCache) cacheGet(key string) (*session, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-// TODO(russjones): Strip Teleport cookies.
-type rewriter struct {
-	signedToken string
-}
-
-func (r *rewriter) Rewrite(req *http.Request) {
-	req.Header.Add("x-teleport-jwt-assertion", r.signedToken)
-	req.Header.Add("Cf-access-token", r.signedToken)
-
-	// Wipe out any existing cookies and skip over any Teleport ones.
-	req.Header.Del("Cookie")
-	for _, cookie := range req.Cookies() {
-		if cookie.Name == "session" {
-			continue
+	if sess, ok := s.cache.Get(key); ok {
+		if se, sok := sess.(*session); sok {
+			return se, nil
 		}
-		req.AddCookie(cookie)
+		return nil, trace.BadParameter("invalid type stored in session cache: %T", sess)
 	}
+	return nil, trace.NotFound("session not found")
 }
 
-type customTransport struct {
-	conn net.Conn
+func (s *sessionCache) cacheSet(key string, value *session, ttl time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := s.cache.Set(key, value, ttl); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
-func newCustomTransport(conn net.Conn) *customTransport {
-	return &customTransport{
-		conn: conn,
+func (s *sessionCache) cacheRemove(key string) {
+	sess, err := s.cacheGet(key)
+	if err != nil {
+		s.log.Debugf("Failed to remove item from cache: %v", err)
+		return
 	}
+	if err := sess.conn.Close(); err != nil {
+		s.log.Debugf("Failed to close connection: %v.", err)
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.cache.Remove(key)
 }
 
-func (t *customTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	tr := &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: func(ctx context.Context, network string, addr string) (net.Conn, error) {
-			return t.conn, nil
-		},
-		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-	}
+// errorHandler is called when the forwarder is unable to forward the request.
+// Removes the session from the cache to force the proxy to re-dial to the
+// application.
+func (s *session) errorHandler(w http.ResponseWriter, r *http.Request, err error) {
+	s.cache.log.Debugf("Request to %v failed: %v, removing connection from cache.", r.URL.Path, err)
+	s.cache.cacheRemove(s.cacheKey)
 
-	resp, err := tr.RoundTrip(req)
-	return resp, trace.Wrap(err)
+	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 }
 
 func parseAddress(addr string) (string, error) {
@@ -315,4 +346,64 @@ func parseAddress(addr string) (string, error) {
 		return u.String(), nil
 	}
 	return u.String(), nil
+}
+
+func closeSession(key string, val interface{}) {
+	if sess, ok := val.(*session); ok {
+		if err := sess.conn.Close(); err != nil {
+			logrus.Debugf("Failed to close connection: %v.", err)
+		}
+	}
+}
+
+type forwardHandler struct {
+	conn     net.Conn
+	jwt      string
+	cacheKey string
+	cache    *sessionCache
+}
+
+func (f *forwardHandler) RoundTrip(r *http.Request) (*http.Response, error) {
+	tr := &http.Transport{
+		DialContext:           f.dialContext,
+		ResponseHeaderTimeout: defaults.DefaultDialTimeout,
+		MaxIdleConns:          defaults.HTTPMaxIdleConns,
+		MaxIdleConnsPerHost:   defaults.HTTPMaxIdleConnsPerHost,
+		MaxConnsPerHost:       defaults.HTTPMaxConnsPerHost,
+		IdleConnTimeout:       defaults.HTTPIdleTimeout,
+	}
+	resp, err := tr.RoundTrip(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
+func (f *forwardHandler) dialContext(ctx context.Context, network string, addr string) (net.Conn, error) {
+	return f.conn, nil
+}
+
+func (f *forwardHandler) Rewrite(r *http.Request) {
+	// Add in JWT headers.
+	r.Header.Add("x-teleport-jwt-assertion", f.jwt)
+	r.Header.Add("Cf-access-token", f.jwt)
+
+	// Remove the application specific session cookie from the header. This is
+	// done by first wiping out the "Cookie" header then adding back all cookies
+	// except the Teleport application specific session cookie. This appears to
+	// be the best way to serialize cookies.
+	r.Header.Del("Cookie")
+	for _, cookie := range r.Cookies() {
+		if cookie.Name == cookieName {
+			continue
+		}
+		r.AddCookie(cookie)
+	}
+}
+
+func (f *forwardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, err error) {
+	f.cache.log.Debugf("Request to %v failed: %v, removing connection from cache.", r.URL.Path, err)
+	f.cache.cacheRemove(f.cacheKey)
+
+	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 }

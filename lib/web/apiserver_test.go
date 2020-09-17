@@ -238,6 +238,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		DomainName:   s.server.ClusterName(),
 		ProxyClient:  s.proxyClient,
 		CipherSuites: utils.DefaultCipherSuites(),
+		AccessPoint:  s.proxyClient,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond))
 	c.Assert(err, IsNil)
 
@@ -1799,10 +1800,11 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		Version: services.V2,
 		Metadata: services.Metadata{
 			Namespace: defaults.Namespace,
-			Name:      "panel",
+			Name:      uuid.New(),
 		},
 		Spec: services.ServerSpecV2{
 			Protocol:     services.ServerSpecV2_HTTPS,
+			AppName:      "panel",
 			InternalAddr: "127.0.0.1:8080",
 			PublicAddr:   "127.0.0.1:8081",
 			Version:      teleport.Version,
@@ -1829,18 +1831,20 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Valid request."),
 			inCreateRequest: &createAppSessionRequest{
-				AppName:     application.GetName(),
+				AppName:     application.GetAppName(),
+				ClusterName: "example.com",
 				SessionID:   sessionCookie.SID,
 				BearerToken: bearerToken,
 			},
 			outError:      false,
 			outUsername:   "foo@example.com",
-			outParentHash: auth.SessionCookieHash(sessionCookie.SID),
+			outParentHash: services.SessionHash(sessionCookie.SID),
 		},
 		{
 			inComment: Commentf("Invalid application name."),
 			inCreateRequest: &createAppSessionRequest{
 				AppName:     "invalid-name",
+				ClusterName: "example.com",
 				SessionID:   sessionCookie.SID,
 				BearerToken: pack.session.Token,
 			},
@@ -1849,7 +1853,8 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Invalid session ID."),
 			inCreateRequest: &createAppSessionRequest{
-				AppName:     application.GetName(),
+				AppName:     application.GetAppName(),
+				ClusterName: "example.com",
 				SessionID:   "invalid-session-id",
 				BearerToken: pack.session.Token,
 			},
@@ -1858,7 +1863,8 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Invalid bearer token."),
 			inCreateRequest: &createAppSessionRequest{
-				AppName:     application.GetName(),
+				AppName:     application.GetAppName(),
+				ClusterName: "example.com",
 				SessionID:   sessionCookie.SID,
 				BearerToken: "invalid-bearer-token",
 			},
@@ -1892,6 +1898,12 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		c.Assert(session.GetParentHash(), check.Equals, tt.outParentHash)
 		c.Assert(session.GetName(), check.Equals, response.SessionID)
 	}
+}
+
+// TestAppRouting makes sure that requests that are authenticated for
+// applications get directed to application get re-routed to application
+// handlers and requests coming in for the proxy go to the UI handlers.
+func (s *WebSuite) TestRouting(c *C) {
 }
 
 type authProviderMock struct {

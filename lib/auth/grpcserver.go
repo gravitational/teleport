@@ -546,8 +546,8 @@ func (g *GRPCServer) GenerateAppToken(ctx context.Context, req *proto.GenerateAp
 		Namespace: req.Namespace,
 		Username:  req.GetUsername(),
 		Roles:     req.GetRoles(),
-		Recipient: req.GetRecipient(),
-		Expiry:    time.Duration(req.GetExpiry()),
+		AppName:   req.GetAppName(),
+		Expires:   req.GetExpires(),
 	})
 	if err != nil {
 		return nil, trail.ToGRPC(err)

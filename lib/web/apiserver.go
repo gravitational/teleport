@@ -179,8 +179,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		h.clock = clockwork.NewRealClock()
 	}
 
-	//h.GET("/webapi/tmp", httplib.MakeHandler(h.tmp))
-
 	// ping endpoint is used to check if the server is up. the /webapi/ping
 	// endpoint returns the default authentication method and configuration that
 	// the server supports. the /webapi/ping/:connector endpoint can be used to
@@ -368,7 +366,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// Create application specific handler. This handler handles sessions and
 	// forwarding for AAP applications.
-	appHandler, err := app.NewHandler(app.HandlerConfig{
+	appHandler, err := app.NewHandler(&app.HandlerConfig{
+		Clock:       h.clock,
 		AuthClient:  cfg.ProxyClient,
 		ProxyClient: cfg.Proxy,
 	})
@@ -775,14 +774,7 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.BadParameter("missing connector_id query parameter")
 	}
 	appName := query.Get("app")
-
-	// If the caller is requested to be forwarded to an application after login,
-	// make sure the application is a registered Teleport application.
-	if appName != "" {
-		if err := h.validateApp(r.Context(), appName); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
+	clusterName := query.Get("cluster")
 
 	csrfToken, err := csrf.ExtractTokenFromCookie(r)
 	if err != nil {
@@ -797,7 +789,8 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 			CreateWebSession:  true,
 			ClientRedirectURL: clientRedirectURL,
 			CheckUser:         true,
-			AppName:           query.Get("app"),
+			AppName:           appName,
+			RouteToCluster:    clusterName,
 		})
 	if err != nil {
 		// redirect to an error page
@@ -826,14 +819,7 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.BadParameter("missing connector_id query parameter")
 	}
 	appName := query.Get("app")
-
-	// If the caller is requested to be forwarded to an application after login,
-	// make sure the application is a registered Teleport application.
-	if appName != "" {
-		if err := h.validateApp(r.Context(), appName); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
+	clusterName := query.Get("cluster")
 
 	csrfToken, err := csrf.ExtractTokenFromCookie(r)
 	if err != nil {
@@ -846,7 +832,8 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 			ConnectorID:       connectorID,
 			CreateWebSession:  true,
 			ClientRedirectURL: clientRedirectURL,
-			AppName:           query.Get("app"),
+			AppName:           appName,
+			RouteToCluster:    clusterName,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -912,7 +899,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 		}
 
 		// Construct the redirect URL from the parameters stored in backend.
-		u, err := redirURL(response.Req.ClientRedirectURL, response.Req.AppName)
+		u, err := redirURL(response.Req.ClientRedirectURL, response.Req.AppName, response.Req.RouteToCluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -940,7 +927,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	return nil, nil
 }
 
-func redirURL(path string, appURL string) (string, error) {
+func redirURL(path string, name string, clusterName string) (string, error) {
 	u, err := url.Parse(path)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -949,9 +936,10 @@ func redirURL(path string, appURL string) (string, error) {
 	// If the caller was asking for a particular application, add that to the
 	// path. This value is fetched from backend and was validated to be a valid
 	// application address.
-	if appURL != "" {
+	if name != "" && clusterName != "" {
 		v := url.Values{}
-		v.Set("app", appURL)
+		v.Set("app", name)
+		v.Set("cluster", clusterName)
 		u.RawQuery = v.Encode()
 	}
 
@@ -1015,7 +1003,7 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 		}
 
 		// Construct the redirect URL from the parameters stored in backend.
-		u, err := redirURL(response.Req.ClientRedirectURL, response.Req.AppName)
+		u, err := redirURL(response.Req.ClientRedirectURL, response.Req.AppName, response.Req.RouteToCluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1146,9 +1134,6 @@ type createSessionReq struct {
 	User              string `json:"user"`
 	Pass              string `json:"pass"`
 	SecondFactorToken string `json:"second_factor_token"`
-
-	// AppName is the address of the target application.
-	AppName string `json:"app,omitempty"`
 }
 
 // CreateSessionResponse returns OAuth compabible data about
@@ -1214,12 +1199,6 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	//// If the caller is requested to be forwarded to an application after login,
-	//// make sure the application is a registered Teleport application.
-	//if err := h.validateApp(r.Context(), req.AppName); err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
 
 	// get cluster preferences to see if we should login
 	// with password or password+otp
@@ -1290,6 +1269,10 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// TODO(russjones): The below won't actually work, we need to perform a role
+	// mapping within the proxy (which holds clients to remote clusters) on the
+	// remote side then perform the access check there.
 
 	// Get a client to auth with the identity of the logged in user and use it
 	// to request the creation of an application session for this user.
@@ -1519,12 +1502,6 @@ func (h *Handler) createSessionWithU2FSignResponse(w http.ResponseWriter, r *htt
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	//// If the caller is requested to be forwarded to an application after login,
-	//// make sure the application is a registered Teleport application.
-	//if err := h.validateApp(r.Context(), req.AppName); err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
 
 	sess, err := h.auth.AuthWithU2FSignResponse(req.User, &req.U2FSignResponse)
 	if err != nil {
@@ -2215,24 +2192,6 @@ func (h *Handler) validateTrustedCluster(w http.ResponseWriter, r *http.Request,
 	}
 
 	return validateResponseRaw, nil
-}
-
-// validateApp is called if the caller requested a redirect to an application
-// after login, make sure that the application exists.
-func (h *Handler) validateApp(ctx context.Context, appName string) error {
-	if appName == "" {
-		return trace.BadParameter("application name missing")
-	}
-	apps, err := h.auth.proxyClient.GetApps(ctx, defaults.Namespace)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, app := range apps {
-		if app.GetAppName() == appName {
-			return nil
-		}
-	}
-	return trace.NotFound("%q not registered with cluster", appName)
 }
 
 func (h *Handler) String() string {
