@@ -112,10 +112,10 @@ var reVariable = regexp.MustCompile(
 		`(?P<suffix>[^}{]*)$`,
 )
 
-// Variable parses expressions like {{external.foo}} or {{internal.bar}}, or a
-// literal value like "prod". Call Interpolate on the returned Expression to
-// get the final value based on traits or other dynamic values.
-func Variable(variable string) (*Expression, error) {
+// NewExpression parses expressions like {{external.foo}} or {{internal.bar}},
+// or a literal value like "prod". Call Interpolate on the returned Expression
+// to get the final value based on traits or other dynamic values.
+func NewExpression(variable string) (*Expression, error) {
 	match := reVariable.FindStringSubmatch(variable)
 	if len(match) == 0 {
 		if strings.Contains(variable, "{{") || strings.Contains(variable, "}}") {
@@ -165,7 +165,7 @@ type Matcher interface {
 	Match(in string) bool
 }
 
-// Match parses a matcher expression. Currently supported expressions:
+// NewMatcher parses a matcher expression. Currently supported expressions:
 // - string literal: `foo`
 // - wildcard expression: `*` or `foo*bar`
 // - regexp expression: `^foo$`
@@ -175,7 +175,7 @@ type Matcher interface {
 //
 // These expressions do not support variable interpolation (e.g.
 // `{{internal.logins}}`), like Expression does.
-func Match(value string) (Matcher, error) {
+func NewMatcher(value string) (Matcher, error) {
 	match := reVariable.FindStringSubmatch(value)
 	if len(match) == 0 {
 		if strings.Contains(value, "{{") || strings.Contains(value, "}}") {
