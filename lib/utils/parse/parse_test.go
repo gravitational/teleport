@@ -113,7 +113,7 @@ func TestVariable(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			variable, err := Variable(tt.in)
+			variable, err := NewExpression(tt.in)
 			if tt.err != nil {
 				assert.IsType(t, tt.err, err)
 				return
@@ -269,7 +269,7 @@ func TestMatch(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
-			matcher, err := Match(tt.in)
+			matcher, err := NewMatcher(tt.in)
 			if tt.err != nil {
 				assert.IsType(t, tt.err, err, err)
 				return
