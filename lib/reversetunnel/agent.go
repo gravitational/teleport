@@ -61,17 +61,14 @@ type AgentConfig struct {
 	// agent is running in a proxy, it's the name of the remote cluster, when the
 	// agent is running in a node, it's the name of the local cluster.
 	ClusterName string
-	// Signers contains authentication signers
-	Signers []ssh.Signer
+	// Signers contains authentication signer
+	Signer ssh.Signer
 	// Client is a client to the local auth servers
 	Client auth.ClientI
 	// AccessPoint is a caching access point to the local auth servers
 	AccessPoint auth.AccessPoint
 	// Context is a parent context
 	Context context.Context
-	// DiscoveryC is a channel that receives discovery requests
-	// from reverse tunnel server
-	DiscoveryC chan *discoveryRequest
 	// Username is the name of this client used to authenticate on SSH
 	Username string
 	// Clock is a clock passed in tests, if not set wall clock
@@ -109,8 +106,8 @@ func (a *AgentConfig) CheckAndSetDefaults() error {
 	if a.AccessPoint == nil {
 		return trace.BadParameter("missing parameter AccessPoint")
 	}
-	if len(a.Signers) == 0 {
-		return trace.BadParameter("missing parameter Signers")
+	if a.Signer == nil {
+		return trace.BadParameter("missing parameter Signer")
 	}
 	if len(a.Username) == 0 {
 		return trace.BadParameter("missing parameter Username")
@@ -135,10 +132,9 @@ type Agent struct {
 	sync.RWMutex
 	*log.Entry
 	AgentConfig
-	ctx             context.Context
-	cancel          context.CancelFunc
-	hostKeyCallback ssh.HostKeyCallback
-	authMethods     []ssh.AuthMethod
+	ctx         context.Context
+	cancel      context.CancelFunc
+	authMethods []ssh.AuthMethod
 	// state is the state of this agent
 	state string
 	// stateChange records last time the state was changed
@@ -158,7 +154,7 @@ func NewAgent(cfg AgentConfig) (*Agent, error) {
 		AgentConfig: cfg,
 		ctx:         ctx,
 		cancel:      cancel,
-		authMethods: []ssh.AuthMethod{ssh.PublicKeys(cfg.Signers...)},
+		authMethods: []ssh.AuthMethod{ssh.PublicKeys(cfg.Signer)},
 		state:       agentStateConnecting,
 	}
 	a.Entry = log.WithFields(log.Fields{
@@ -168,7 +164,6 @@ func NewAgent(cfg AgentConfig) (*Agent, error) {
 			"leaseID": a.Lease.ID(),
 		},
 	})
-	a.hostKeyCallback = a.checkHostSignature
 	return a, nil
 }
 
@@ -202,11 +197,6 @@ func (a *Agent) Close() error {
 // Start starts agent that attempts to connect to remote server
 func (a *Agent) Start() {
 	go a.run()
-}
-
-// Wait waits until all outstanding operations are completed
-func (a *Agent) Wait() error {
-	return nil
 }
 
 func (a *Agent) setPrincipals(principals []string) {
@@ -263,7 +253,7 @@ func (a *Agent) connect() (conn *ssh.Client, err error) {
 		conn, chans, reqs, err := ssh.NewClientConn(pconn, a.Addr.Addr, &ssh.ClientConfig{
 			User:            a.Username,
 			Auth:            []ssh.AuthMethod{authMethod},
-			HostKeyCallback: a.hostKeyCallback,
+			HostKeyCallback: a.checkHostSignature,
 			Timeout:         defaults.DefaultDialTimeout,
 		})
 		if err != nil {
@@ -493,14 +483,6 @@ func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 				return
 			}
 			r.ClusterAddr = a.Addr
-			if a.DiscoveryC != nil {
-				select {
-				case a.DiscoveryC <- r:
-				case <-a.ctx.Done():
-					return
-				default:
-				}
-			}
 			if a.Tracker != nil {
 				// Notify tracker of all known proxies.
 				for _, p := range r.Proxies {
@@ -534,8 +516,8 @@ const (
 	// RemoteAuthServer is a special non-resolvable address that indicates client
 	// requests a connection to the remote auth server.
 	RemoteAuthServer = "@remote-auth-server"
-	// RemoteKubeProxy is a special non-resolvable address that indicates that clients
-	// requests a connection to the remote kubernetes proxy.
+	// LocalKubernetes is a special non-resolvable address that indicates that clients
+	// requests a connection to the kubernetes endpoint of the local proxy.
 	// This has to be a valid domain name, so it lacks @
-	RemoteKubeProxy = "remote.kube.proxy.teleport.cluster.local"
+	LocalKubernetes = "remote.kube.proxy.teleport.cluster.local"
 )

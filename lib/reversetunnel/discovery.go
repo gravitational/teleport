@@ -42,41 +42,13 @@ type discoveryRequest struct {
 	Proxies []services.Server `json:"proxies"`
 }
 
-// Proxies is a list of proxies to discover
-type Proxies []services.Server
-
-// String returns text representation of the proxies
-func (proxies Proxies) String() string {
-	var out []string
-	for _, proxy := range proxies {
-		out = append(out, proxy.GetName())
-	}
-	return strings.Join(out, ",")
-}
-
-// Equal compares two lists of proxies as sets
-func (proxies Proxies) Equal(other []services.Server) bool {
-	if len(proxies) != len(other) {
-		return false
-	}
-	proxiesMap, otherMap := make(map[string]bool), make(map[string]bool)
-	for i := range proxies {
-		proxiesMap[proxies[i].GetName()] = true
-	}
-	for i := range other {
-		otherMap[other[i].GetName()] = true
-	}
-	for key := range otherMap {
-		if !proxiesMap[key] {
-			return false
-		}
-	}
-	return true
-}
-
 func (r discoveryRequest) String() string {
+	proxyNames := make([]string, 0, len(r.Proxies))
+	for _, p := range r.Proxies {
+		proxyNames = append(proxyNames, p.GetName())
+	}
 	return fmt.Sprintf("discovery request, cluster name: %v, address: %v, proxies: %v",
-		r.ClusterName, r.ClusterAddr, Proxies(r.Proxies))
+		r.ClusterName, r.ClusterAddr, strings.Join(proxyNames, ","))
 }
 
 type discoveryRequestRaw struct {

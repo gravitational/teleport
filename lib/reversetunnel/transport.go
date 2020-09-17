@@ -59,9 +59,8 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, network string, addr
 	// Build a net.Conn over the tunnel. Make this an exclusive connection:
 	// close the net.Conn as well as the channel upon close.
 	conn, _, err := connectProxyTransport(sconn.Conn, &dialReq{
-		Address:   RemoteAuthServer,
-		Exclusive: true,
-	})
+		Address: RemoteAuthServer,
+	}, true)
 	if err != nil {
 		err2 := sconn.Close()
 		return nil, trace.NewAggregate(err, err2)
@@ -79,10 +78,6 @@ type dialReq struct {
 	// ServerID is the hostUUID.clusterName of th enode. ServerID is used when
 	// dialing through a tunnel.
 	ServerID string `json:"server_id,omitempty"`
-
-	// Exclusive indicates if the connection should be closed or only the
-	// channel upon calling close on the net.Conn.
-	Exclusive bool `json:"exclusive"`
 }
 
 // parseDialReq parses the dial request. Is backward compatible with legacy
@@ -111,7 +106,7 @@ func marshalDialReq(req *dialReq) ([]byte, error) {
 
 // connectProxyTransport opens a channel over the remote tunnel and connects
 // to the requested host.
-func connectProxyTransport(sconn ssh.Conn, req *dialReq) (*utils.ChConn, bool, error) {
+func connectProxyTransport(sconn ssh.Conn, req *dialReq, exclusive bool) (*utils.ChConn, bool, error) {
 	channel, _, err := sconn.OpenChannel(chanTransport, nil)
 	if err != nil {
 		return nil, false, trace.Wrap(err)
@@ -142,7 +137,7 @@ func connectProxyTransport(sconn ssh.Conn, req *dialReq) (*utils.ChConn, bool, e
 		return nil, false, trace.Errorf(strings.TrimSpace(string(errMessage)))
 	}
 
-	if req.Exclusive {
+	if exclusive {
 		return utils.NewExclusiveChConn(sconn, channel), false, nil
 	}
 	return utils.NewChConn(sconn, channel), false, nil
@@ -224,7 +219,7 @@ func (p *transport) start() {
 			servers = append(servers, as.GetAddr())
 		}
 	// Connect to the Kubernetes proxy.
-	case RemoteKubeProxy:
+	case LocalKubernetes:
 		if p.component == teleport.ComponentReverseTunnelServer {
 			p.reply(req, false, []byte("connection rejected: no remote kubernetes proxy"))
 			return
@@ -350,10 +345,11 @@ func (p *transport) getConn(servers []string, serverID string) (net.Conn, bool, 
 			return nil, false, trace.Wrap(err)
 		}
 
+		errTun := err
 		p.log.Debugf("Attempting to dial directly %v.", servers)
 		conn, err = directDial(servers)
 		if err != nil {
-			return nil, false, trace.Wrap(err)
+			return nil, false, trace.ConnectionProblem(err, "failed dialing through tunnel (%v) or directly (%v)", err, errTun)
 		}
 
 		p.log.Debugf("Returning direct dialed connection to %v.", servers)

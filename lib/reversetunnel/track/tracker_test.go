@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/utils"
 	"gopkg.in/check.v1"
 )
 
@@ -150,10 +151,11 @@ func (s *StateSuite) runBasicProxyTest(c *check.C, timeout time.Duration) {
 	timeoutC := time.After(timeout)
 	ticker := time.NewTicker(time.Millisecond * 100)
 	defer ticker.Stop()
-	tracker := New(context.TODO(), Config{})
+	tracker, err := New(context.TODO(), Config{ClusterName: "test-cluster"})
+	c.Assert(err, check.IsNil)
 	defer tracker.StopAll()
-	key := Key{Cluster: "test-cluster"}
-	tracker.Start(key)
+	addr := utils.NetAddr{Addr: "test-cluster"}
+	tracker.Start(addr)
 	min, max := time.Duration(0), timeout
 	var proxies simpleTestProxies
 	proxies.AddRandProxies(proxyCount, min, max)
@@ -163,7 +165,7 @@ Discover:
 		case lease := <-tracker.Acquire():
 			go proxies.Discover(tracker, lease)
 		case <-ticker.C:
-			counts := tracker.wp.Get(key)
+			counts := tracker.wp.Get(addr)
 			c.Logf("Counts: %+v", counts)
 			if counts.Active == proxyCount {
 				break Discover
@@ -187,16 +189,17 @@ func (s *StateSuite) TestFullRotation(c *check.C) {
 	defer ticker.Stop()
 	var proxies simpleTestProxies
 	proxies.AddRandProxies(proxyCount, minConnA, maxConnA)
-	tracker := New(context.TODO(), Config{})
+	tracker, err := New(context.TODO(), Config{ClusterName: "test-cluster"})
+	c.Assert(err, check.IsNil)
 	defer tracker.StopAll()
-	key := Key{Cluster: "test-cluster"}
-	tracker.Start(key)
+	addr := utils.NetAddr{Addr: "test-cluster"}
+	tracker.Start(addr)
 	timeoutC := time.After(timeout)
 Loop0:
 	for {
 		select {
 		case lease := <-tracker.Acquire():
-			c.Assert(lease.Key().(Key), check.DeepEquals, key)
+			c.Assert(lease.Key(), check.DeepEquals, addr)
 			// get our "discovered" proxy in the foreground
 			// to prevent race with the call to RemoveRandProxies
 			// that comes after this loop.
@@ -206,7 +209,7 @@ Loop0:
 			}
 			go proxies.ProxyLoop(tracker, lease, proxy)
 		case <-ticker.C:
-			counts := tracker.wp.Get(key)
+			counts := tracker.wp.Get(addr)
 			c.Logf("Counts0: %+v", counts)
 			if counts.Active == proxyCount {
 				break Loop0
@@ -220,7 +223,7 @@ Loop1:
 	for {
 		select {
 		case <-ticker.C:
-			counts := tracker.wp.Get(key)
+			counts := tracker.wp.Get(addr)
 			c.Logf("Counts1: %+v", counts)
 			if counts.Active < 1 {
 				break Loop1
@@ -236,7 +239,7 @@ Loop2:
 		case lease := <-tracker.Acquire():
 			go proxies.Discover(tracker, lease)
 		case <-ticker.C:
-			counts := tracker.wp.Get(key)
+			counts := tracker.wp.Get(addr)
 			c.Logf("Counts2: %+v", counts)
 			if counts.Active >= proxyCount {
 				break Loop2
@@ -255,10 +258,11 @@ func (s *StateSuite) TestUUIDHandling(c *check.C) {
 	defer cancel()
 	ticker := time.NewTicker(time.Millisecond * 10)
 	defer ticker.Stop()
-	tracker := New(ctx, Config{})
+	tracker, err := New(context.TODO(), Config{ClusterName: "test-cluster"})
+	c.Assert(err, check.IsNil)
 	defer tracker.StopAll()
-	key := Key{Cluster: "test-cluster"}
-	tracker.Start(key)
+	addr := utils.NetAddr{Addr: "test-cluster"}
+	tracker.Start(addr)
 	lease := <-tracker.Acquire()
 	// claim a proxy using principal of the form <uuid>.<cluster>
 	go tracker.WithProxy(func() {
@@ -271,7 +275,7 @@ Wait:
 	for {
 		select {
 		case <-ticker.C:
-			counts := tracker.wp.Get(key)
+			counts := tracker.wp.Get(addr)
 			c.Logf("Counts: %+v", counts)
 			if counts.Active == counts.Target {
 				break Wait
@@ -292,7 +296,7 @@ Wait:
 	for i := 0; i < 3; i++ {
 		select {
 		case <-ticker.C:
-			counts := tracker.wp.Get(key)
+			counts := tracker.wp.Get(addr)
 			c.Logf("Counts: %+v", counts)
 			if counts.Active != counts.Target {
 				c.Errorf("incorrectly entered seek mode")

@@ -2464,7 +2464,7 @@ func waitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 	var counts map[string]int
 	start := time.Now()
 	for time.Since(start) < 17*time.Second {
-		counts = t.Pool.Counts()
+		counts = t.RemoteClusterWatcher.Counts()
 		if counts[clusterName] == count {
 			return nil
 		}

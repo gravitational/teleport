@@ -46,7 +46,7 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSi
 	// certificate cache is created in each site (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate
 	// is signed by the correct certificate authority.
-	certificateCache, err := NewHostCertificateCache(srv.Config.KeyGen, client)
+	certificateCache, err := newHostCertificateCache(srv.Config.KeyGen, client)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -212,7 +212,7 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	}
 
 	// Get a host certificate for the forwarding node from the cache.
-	hostCertificate, err := s.certificateCache.GetHostCertificate(params.Address, params.Principals)
+	hostCertificate, err := s.certificateCache.getHostCertificate(params.Address, params.Principals)
 	if err != nil {
 		userAgent.Close()
 		return nil, trace.Wrap(err)
@@ -417,7 +417,7 @@ func (s *localSite) chanTransportConn(rconn *remoteConn) (net.Conn, error) {
 
 	conn, markInvalid, err := connectProxyTransport(rconn.sconn, &dialReq{
 		Address: LocalNode,
-	})
+	}, false)
 	if err != nil {
 		if markInvalid {
 			rconn.markInvalid(err)
