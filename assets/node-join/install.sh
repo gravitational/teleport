@@ -3,6 +3,8 @@ set -euo pipefail
 SCRIPT_NAME="teleport-node-installer"
 
 # default values
+CONNECTIVITY_TEST_METHOD=""
+DISTRO_TYPE=""
 LAUNCHD_CONFIG_PATH="/Library/LaunchDaemons"
 LOG_FILENAME="${TMPDIR:-/tmp}/${SCRIPT_NAME}.log"
 SYSTEMD_UNIT_PATH="/etc/systemd/system/teleport.service"
@@ -21,11 +23,12 @@ c=""
 f=""
 l=""
 QUIET=false
+IGNORE_CHECKS=false
 OVERRIDE_FORMAT=""
 
 # usage mesage
 usage() { echo "Usage: $(basename $0) -q -l <log filename> [-v <teleport version>] [-h <target hostname>] <-p <target port>> [-j <node join token>] [-c <ca pin hash>]" 1>&2; exit 1; }
-while getopts ":v:h:p:j:c:f:ql:" o; do
+while getopts ":v:h:p:j:c:f:ql:i" o; do
     case "${o}" in
         v)
             v=${OPTARG}
@@ -51,6 +54,9 @@ while getopts ":v:h:p:j:c:f:ql:" o; do
             ;;
         l)
             l=${OPTARG}
+            ;;
+        i)
+            IGNORE_CHECKS=true
             ;;
         *)
             usage
@@ -145,39 +151,23 @@ check_exists_fatal() {
     done
 }
 # check connectivity to the given host/port and make a request to see if Teleport is listening
+# uses the global variable CONNECTIVITY_TEST_METHOD to return the name of the checker, as return
+# values aren't really a thing that exists in bash
 check_connectivity() {
     HOST=$1
     PORT=$2
     # check with nc
     if check_exists nc; then
-        log "Checking connectivity to ${HOST}:${PORT} with nc"
-        if nc -z -w3 ${HOST} ${PORT}; then
-            log "Connectivity test succeeded with nc"
-            return 0
-        else
-            log "Connectivity test failed with nc"
-            return 1
-        fi
+        CONNECTIVITY_TEST_METHOD="nc"
+        if nc -z -w3 ${HOST} ${PORT} >/dev/null 2>&1; then return 0; else return 1; fi
     # if there's no nc, check with telnet
     elif check_exists telnet; then
-        log "Checking connectivity to ${HOST}:${PORT} with telnet"
-        if telnet -c ${HOST} ${PORT} </dev/null >/dev/null 2>&1 | grep -q Connected; then
-            log "Connectivity test succeeded with telnet"
-            return 0
-        else
-            log "Connectivity test failed with telnet"
-            return 1
-        fi
+        CONNECTIVITY_TEST_METHOD="telnet"
+        if telnet -c ${HOST} ${PORT} </dev/null >/dev/null 2>&1 | grep -q Connected; then return 0; else return 1; fi
     # if there's no nc or telnet, try and use /dev/tcp
     elif [ -f /dev/tcp ]; then
-        log "Checking connectivity to ${HOST}:${PORT} with /dev/tcp"
-        if (head -1 < /dev/tcp/${HOST}/${PORT}) >/dev/null 2>&1; then
-            log "Connectivity test succeeded with /dev/tcp"
-            return 0
-        else
-            log "Connectivity test failed with /dev/tcp"
-            return 1
-        fi
+        CONNECTIVITY_TEST_METHOD="/dev/tcp"
+        if (head -1 < /dev/tcp/${HOST}/${PORT}) >/dev/null 2>&1; then return 0; else return 1; fi
     else
         return 255
     fi
@@ -205,6 +195,10 @@ download() {
         log_important "Can't find curl or wget to use for downloads, one of these is required to function"
         exit 1
     fi
+}
+# gets the pid of running teleport process
+get_teleport_pid() {
+    echo "$(pgrep teleport | tr '\r' ' ')"
 }
 # installs the teleport-provided launchd config
 install_launchd_config() {
@@ -251,7 +245,7 @@ is_macos_host() {
 # checks whether teleport is already running on the host
 is_running_teleport() {
     check_exists_fatal pgrep
-    TELEPORT_PID=$(pgrep -d " " teleport)
+    TELEPORT_PID=$(get_teleport_pid)
     if [[ "${TELEPORT_PID}" != "" ]]; then
         log "Teleport appears to already be running (pid: ${TELEPORT_PID})"
         return 0
@@ -264,7 +258,7 @@ is_running_teleport() {
 # checks whether the given host is running systemd as its init system
 is_using_systemd() {
     check_exists_fatal grep
-    if grep -q /proc/1/cmdline systemd; then
+    if grep -q systemd /proc/1/cmdline; then
         log "Host is using systemd as pid 1"
         return 0
     else
@@ -322,15 +316,19 @@ check_set CA_PIN_HASH
 # main script starts here
 ###
 # check connectivity to teleport server/port
-log "Checking TCP connectivity to Teleport server"
-RETURN_CODE=$(check_connectivity ${TARGET_HOSTNAME} ${TARGET_PORT}) || true
-if [ ${RETURN_CODE} -eq 1 ]; then
-    log_important "Couldn't open a connection to the Teleport server - ${TARGET_HOSTNAME}:${TARGET_PORT}"
-    log_important "This issue will need to be fixed before the script can continue."
-    exit 1
-elif [ ${RETURN_CODE} -eq 255 ]; then
-    log "Couldn't find nc, telnet or /dev/tcp to do a connection test"
-    log "Going to blindly continue without testing connectivity"
+log "Checking TCP connectivity to Teleport server (${TARGET_HOSTNAME}:${TARGET_PORT})"
+if ! check_connectivity ${TARGET_HOSTNAME} ${TARGET_PORT}; then
+    # if we don't have a connectivity test method assigned, we know we couldn't run the test
+    if [[ ${CONNECTIVITY_TEST_METHOD} == "" ]]; then
+        log "Couldn't find nc, telnet or /dev/tcp to do a connection test"
+        log "Going to blindly continue without testing connectivity"
+    else
+        log_important "Couldn't open a connection to the Teleport server (${TARGET_HOSTNAME}:${TARGET_PORT})"
+        log_important "This issue will need to be fixed before the script can continue."
+        exit 1
+    fi
+else
+    log "Connectivity to Teleport server (via ${CONNECTIVITY_TEST_METHOD}) looks good"
 fi
 
 # use OSTYPE variable to figure out host type/arch
@@ -429,36 +427,52 @@ fi
 # check whether teleport is running already
 # if it is, we exit gracefully with an eror
 if is_running_teleport; then
-    TELEPORT_PID=$(pgrep -d " " teleport)
-    log_header "Warning: Teleport appears to already be running on this host (pid: ${TELEPORT_PID})"
-    log_cleanup_message
-    exit 1
+    if [[ ${IGNORE_CHECKS} != "true" ]]; then
+        TELEPORT_PID=$(get_teleport_pid)
+        log_header "Warning: Teleport appears to already be running on this host (pid: ${TELEPORT_PID})"
+        log_cleanup_message
+        exit 1
+    else
+        log "Ignoring is_running_teleport as requested"
+    fi
 fi
 
 # check for existing config file
 if teleport_config_exists; then
-    log_header "Warning: There is already a Teleport config file present at ${TELEPORT_CONFIG_PATH}."
-    log_cleanup_message
-    exit 1
+    if [[ ${IGNORE_CHECKS} != "true" ]]; then
+        log_header "Warning: There is already a Teleport config file present at ${TELEPORT_CONFIG_PATH}."
+        log_cleanup_message
+        exit 1
+    else
+        log "Ignoring teleport_config_exists as requested"
+    fi
 fi
 
 # check for existing data directory
 if teleport_datadir_exists; then
-    log_header "Warning: Found existing Teleport data under ${TELEPORT_DATA_DIR}."
-    log_cleanup_message
-    exit 1
+    if [[ ${IGNORE_CHECKS} != "true" ]]; then
+        log_header "Warning: Found existing Teleport data under ${TELEPORT_DATA_DIR}."
+        log_cleanup_message
+        exit 1
+    else
+        log "Ignoring teleport_datadir_exists as requested"
+    fi
 fi
 
 # check for existing binaries
 if teleport_binaries_exist; then
-    log_header "Warning: Found existing Teleport binaries under ${TELEPORT_BINARY_DIR}."
-    log_cleanup_message
-    exit 1
+    if [[ ${IGNORE_CHECKS} != "true" ]]; then
+        log_header "Warning: Found existing Teleport binaries under ${TELEPORT_BINARY_DIR}."
+        log_cleanup_message
+        exit 1
+    else
+        log "Ignoring teleport_binaries_exist as requested"
+    fi
 fi
 
 # handle centos6 installations
 if [[ ${TELEPORT_FORMAT} == "rpm-centos6" ]]; then
-# ov    erride the format to 'tarball' (as that's how centos6 binaries are packaged)
+# override the format to 'tarball' (as that's how centos6 binaries are packaged)
     log "Overriding format for centos6 installation to use tarball"
     TELEPORT_FORMAT="tarball"
 fi
