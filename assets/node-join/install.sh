@@ -4,6 +4,7 @@ SCRIPT_NAME="teleport-node-installer"
 
 # default values
 INSTALL_DIRECTORY="/usr/local/bin"
+LAUNCHD_CONFIG_PATH="/Library/LaunchDaemons"
 LOG_FILENAME="${TMPDIR:-/tmp}/${SCRIPT_NAME}.log"
 SYSTEMD_UNIT_PATH="/etc/systemd/system/teleport.service"
 TARGET_PORT_DEFAULT=3025
@@ -159,6 +160,16 @@ check_exists_fatal() {
         fi
     done
 }
+# checks whether the given host is running MacOS
+is_macos_host() {
+    if [[ ${OSTYPE} == "darwin"* ]]; then
+        log "Host is running MacOS"
+        return 0
+    else
+        log "Host is not running MacOS"
+        return 1
+    fi
+}
 # checks whether the given host is running systemd as its init system
 is_using_systemd() {
     check_exists_fatal grep
@@ -170,12 +181,22 @@ is_using_systemd() {
         return 1
     fi
 }
+# installs the teleport-provided launchd config
+install_launchd_config() {
+    log "Installing Teleport launchd config to ${LAUNCHD_CONFIG_PATH}"
+    cp -f ./teleport/examples/launchd/teleport.plist ${LAUNCHD_CONFIG_PATH}/teleport.plist
+}
 # installs the teleport-provided systemd unit
 install_systemd_unit() {
     log "Installing Teleport systemd unit to ${SYSTEMD_UNIT_PATH}"
     cp ./teleport/examples/systemd/teleport.service ${SYSTEMD_UNIT_PATH}
     log "Reloading unit files (systemctl daemon-reload)"
     systemctl daemon-reload
+}
+# start teleport via launchd (after installing config)
+start_teleport_launchd() {
+    log "Starting Teleport via launchctl"
+    launchctl load ${LAUNCHD_CONFIG_PATH}/teleport.plist
 }
 # start teleport via systemd (after installing unit)
 start_teleport_systemd() {
@@ -418,9 +439,21 @@ if teleport_binaries_exist; then
     exit 1
 fi
 
+# handle centos6 installations
+if [[ ${TELEPORT_FORMAT} == "rpm-centos6" ]]; then
+# ov    erride the format to 'tarball' (as that's how centos6 binaries are packaged)
+    log "Overriding format for centos6 installation to use tarball"
+    TELEPORT_FORMAT="tarball"
+fi
+
 # select correct URL/installation method based on distro
 if [[ ${TELEPORT_FORMAT} == "tarball" ]]; then
-    URL="https://get.gravitational.com/teleport-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-bin.tar.gz"
+    # handle centos6 URL override
+    if [[ ${DISTRO_TYPE} == "centos6" ]]; then
+        URL="https://get.gravitational.com/teleport-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-centos6-bin.tar.gz"
+    else
+        URL="https://get.gravitational.com/teleport-v${TELEPORT_VERSION}-${TELEPORT_BINARY_TYPE}-${TELEPORT_ARCH}-bin.tar.gz"
+    fi
     # check that needed tools are installed
     check_exists_fatal tar
     # download tarball
@@ -430,7 +463,7 @@ if [[ ${TELEPORT_FORMAT} == "tarball" ]]; then
     tar -xzf ${TEMP_DIR}/teleport.tar.gz -C ${TEMP_DIR}
     # install binaries to /usr/local/bin
     for BINARY in teleport tctl tsh; do
-        cp -f teleport/${BINARY} ${INSTALL_DIRECTORY}/
+        cp teleport/${BINARY} ${INSTALL_DIRECTORY}/
     done
 elif [[ ${TELEPORT_FORMAT} == "deb" ]]; then
     # convert teleport arch to deb arch
@@ -446,14 +479,13 @@ elif [[ ${TELEPORT_FORMAT} == "deb" ]]; then
     download ${URL} ${TEMP_DIR}/teleport.deb
     # install deb
     dpkg -i ${TEMP_DIR}/teleport.deb
-elif [[ ${TELEPORT_FORMAT} == "rpm"* ]]; then
+elif [[ ${TELEPORT_FORMAT} == "rpm" ]]; then
     # convert teleport arch to rpm arch
     if [[ ${TELEPORT_ARCH} == "amd64" ]]; then
         RPM_ARCH="x86_64"
     elif [[ ${TELEPORT_ARCH} == "386" ]]; then
         RPM_ARCH="i386"
     fi
-    URL="https://get.gravitational.com/teleport-${TELEPORT_VERSION}-1.${RPM_ARCH}.rpm"
     # check for package managers
     if check_exists dnf; then
         PACKAGE_MANAGER_COMMAND="dnf -y install"
@@ -487,10 +519,16 @@ fi
 # install teleport config
 install_teleport_config
 
-# install systemd unit if applicable
+# install systemd unit if applicable (linux hosts)
 if is_using_systemd; then
     install_systemd_unit
     start_teleport_systemd
+# install launchd config on MacOS hosts
+elif is_macos_host; then
+    install_launchd_config
+    start_teleport_launchd
+# not a MacOS host and no systemd available, print a warning
+# and temporarily start Teleport in the foreground
 else
     no_systemd_warning
     start_teleport_foreground
