@@ -206,7 +206,7 @@ download() {
         exit 1
     fi
 }
-# gets the pid of running teleport process
+# gets the pid of any running teleport process
 get_teleport_pid() {
     check_exists_fatal pgrep xargs
     pgrep teleport | xargs echo
