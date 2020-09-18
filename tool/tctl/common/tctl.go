@@ -109,7 +109,7 @@ func Run(commands []CLICommand) {
 	app.Flag("identity", "Path to the identity file exported with 'tctl auth sign'").
 		Short('i').
 		StringVar(&ccf.IdentityFilePath)
-	app.Flag("insecure", "When specifying a proxy address in --auth-server, do not verify it's TLS certificate. Danger: any data you send can be intercepted or modified by an attacker.").
+	app.Flag("insecure", "When specifying a proxy address in --auth-server, do not verify its TLS certificate. Danger: any data you send can be intercepted or modified by an attacker.").
 		BoolVar(&ccf.Insecure)
 
 	// "version" command is always available:
