@@ -38,8 +38,20 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
+
+var proxiedSessions = prometheus.NewGauge(
+	prometheus.GaugeOpts{
+		Name: teleport.MetricProxySSHSessions,
+		Help: "Number of active sessions through this proxy",
+	},
+)
+
+func init() {
+	prometheus.MustRegister(proxiedSessions)
+}
 
 // proxySubsys implements an SSH subsystem for proxying listening sockets from
 // remote hosts to a proxy client (AKA port mapping)
@@ -250,6 +262,7 @@ func (t *proxySubsys) proxyToSite(
 	}
 	t.log.Infof("Connected to auth server: %v", conn.RemoteAddr())
 
+	proxiedSessions.Inc()
 	go func() {
 		var err error
 		defer func() {
@@ -424,6 +437,7 @@ func (t *proxySubsys) proxyToHost(
 	// address to the SSH server
 	t.doHandshake(remoteAddr, ch, conn)
 
+	proxiedSessions.Inc()
 	go func() {
 		var err error
 		defer func() {
@@ -446,6 +460,7 @@ func (t *proxySubsys) proxyToHost(
 
 func (t *proxySubsys) close(err error) {
 	t.closeOnce.Do(func() {
+		proxiedSessions.Dec()
 		t.error = err
 		close(t.closeC)
 	})

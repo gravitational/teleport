@@ -34,6 +34,9 @@ const (
 	// MetricServerInteractiveSessions measures interactive sessions in flight
 	MetricServerInteractiveSessions = "server_interactive_sessions_total"
 
+	// MetricProxySSHSessions measures sessions in flight on the proxy
+	MetricProxySSHSessions = "proxy_ssh_sessions_total"
+
 	// MetricRemoteClusters measures connected remote clusters
 	MetricRemoteClusters = "remote_clusters"
 
