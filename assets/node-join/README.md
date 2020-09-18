@@ -34,8 +34,6 @@ This is an automated node join script for Teleport, which does the following:
   - Any other distribution
     - uses `.tar.gz` tarball package
 
-
-
 - MacOS
   - Architectures: x86_64, aarch64 (no Teleport binaries available yet)
   - MacOS 10.12+
