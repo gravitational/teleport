@@ -7,6 +7,9 @@ RELEASE := teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-bin
 BINARIES ?= $(BUILDDIR)/tctl $(BUILDDIR)/teleport $(BUILDDIR)/tsh
 HOUSTON_DIR := "vendor/github.com/gravitational/houston/"
 
+DOCKER_IMAGE_ENT ?= quay.io/gravitational/teleport-ent
+DOCKER_IMAGE_ENT_CI ?= quay.io/gravitational/teleport-ent-ci
+
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
 
@@ -170,7 +173,7 @@ docker-binaries: clean
 .PHONY: image
 image: clean docker-binaries
 	cp ../build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t quay.io/gravitational/teleport-ent:$(VERSION)
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_ENT):$(VERSION)
 
 .PHONY:docker-binaries-fips
 docker-binaries-fips: clean
@@ -181,15 +184,40 @@ docker-binaries-fips: clean
 image-fips: docker-binaries-fips
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
 	cp ../build.assets/charts/Dockerfile-fips $(BUILDDIR)/Dockerfile
-	cd $(BUILDDIR) && docker build --no-cache . -t quay.io/gravitational/teleport-ent:$(VERSION)-fips
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_ENT):$(VERSION)-fips
 
 .PHONY: publish
 publish:
-	docker push quay.io/gravitational/teleport-ent:$(VERSION)
+	docker push $(DOCKER_IMAGE_ENT):$(VERSION)
 
 .PHONY: publish-fips
 publish-fips:
-	docker push quay.io/gravitational/teleport-ent:$(VERSION)-fips
+	docker push $(DOCKER_IMAGE_ENT):$(VERSION)-fips
+
+# Docker image build in CI.
+# This is run to build and push Docker images to a private repository as part of the build process.
+# When we are ready to make the images public after testing (i.e. when publishing a release), we pull these
+# images down, retag them and push them up to the production repo so they're available for use.
+# This job can be removed/consolidated after we switch over completely from using Jenkins to using Drone.
+.PHONY: image-ci
+image-ci: clean docker-binaries
+	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
+	cp ../build.assets/charts/Dockerfile $(BUILDDIR)/
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_ENT_CI):$(VERSION)
+
+.PHONY: image-fips-ci
+image-fips-ci: docker-binaries-fips
+	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
+	cp ../build.assets/charts/Dockerfile-fips $(BUILDDIR)/Dockerfile
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_ENT_CI):$(VERSION)-fips
+
+.PHONY: publish-ci
+publish-ci:
+	docker push $(DOCKER_IMAGE_ENT_CI):$(VERSION)
+
+.PHONY: publish-fips-ci
+publish-fips-ci:
+	docker push $(DOCKER_IMAGE_ENT_CI):$(VERSION)-fips
 
 # Build chart
 .PHONY: chart
@@ -262,5 +290,4 @@ deb:
 .PHONY: ensure-webassets-e
 ensure-webassets-e:
 	$(MAKE) -s -C .. ensure-webassets-e
-
 
