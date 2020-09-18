@@ -415,7 +415,7 @@ func onLogin(cf *CLIConf) {
 		utils.FatalError(trace.BadParameter("invalid identity format: %s", cf.IdentityFormat))
 	}
 
-	// Get the status of the active profile ~/.tsh/profile as well as the status
+	// Get the status of the active profile as well as the status
 	// of any other proxies the user is logged into.
 	profile, profiles, err := client.Status("", cf.Proxy)
 	if err != nil {
@@ -453,7 +453,7 @@ func onLogin(cf *CLIConf) {
 			if err != nil {
 				utils.FatalError(err)
 			}
-			if err := tc.SaveProfile("", ""); err != nil {
+			if err := tc.SaveProfile("", true); err != nil {
 				utils.FatalError(err)
 			}
 			if err := kubeconfig.UpdateWithClient("", tc); err != nil {
@@ -514,7 +514,7 @@ func onLogin(cf *CLIConf) {
 	}
 
 	// Regular login without -i flag.
-	if err := tc.SaveProfile(key.ProxyHost, ""); err != nil {
+	if err := tc.SaveProfile("", true); err != nil {
 		utils.FatalError(err)
 	}
 
@@ -1076,7 +1076,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 			fmt.Fprintf(os.Stderr, "WARNING: the certificate has expired on %v\n", expiryDate)
 		}
 	} else {
-		// load profile. if no --proxy is given use ~/.tsh/profile symlink otherwise
+		// load profile. if no --proxy is given the currently active profile is used, otherwise
 		// fetch profile for exact proxy we are trying to connect to.
 		err = c.LoadProfile("", cf.Proxy)
 		if err != nil {
@@ -1300,7 +1300,7 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 // onStatus command shows which proxy the user is logged into and metadata
 // about the certificate.
 func onStatus(cf *CLIConf) {
-	// Get the status of the active profile ~/.tsh/profile as well as the status
+	// Get the status of the active profile as well as the status
 	// of any other proxies the user is logged into.
 	profile, profiles, err := client.Status("", cf.Proxy)
 	if err != nil {
@@ -1423,7 +1423,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 	if err := tc.ReissueUserCerts(cf.Context, params); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := tc.SaveProfile("", ""); err != nil {
+	if err := tc.SaveProfile("", true); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := kubeconfig.UpdateWithClient("", tc); err != nil {
