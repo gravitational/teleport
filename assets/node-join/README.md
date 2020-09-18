@@ -19,7 +19,10 @@ This is an automated node join script for Teleport, which does the following:
 ## Supported operating systems, architectures and distributions
 
 - Linux
-  - Architectures: i386, x86_64, armv7l
+  - Architectures
+    - i386
+    - x86_64
+    - armv7l
   - Any Debian-based distribution
     - Debian 8+
     - Ubuntu 18.04+
@@ -35,7 +38,9 @@ This is an automated node join script for Teleport, which does the following:
     - uses `.tar.gz` tarball package
 
 - MacOS
-  - Architectures: x86_64, aarch64 (no Teleport binaries available yet)
+  - Architectures
+    - x86_64
+    - aarch64 (no Teleport binaries available yet)
   - MacOS 10.12+
     - uses `.tar.gz` tarball package
 
