@@ -50,7 +50,7 @@ var (
 	serverSessions = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Name: teleport.MetricServerInteractiveSessions,
-			Help: "Number of active sessions",
+			Help: "Number of active sessions to this host",
 		},
 	)
 )
