@@ -4,7 +4,7 @@ This is an automated node join script for Teleport, which does the following:
 
 - checks for an existing Teleport process, data directory, config file or Teleport binaries (and provides details how to clean up if any of these are present)
 - tests connectivity to the given Teleport server host and port
-  - using either `nc`, `telnet` or `/dev/tcp` if available)
+  - using either `nc`, `telnet` or `/dev/tcp` if available - if none of these are available this step is skipped
 - detects OS, distribution, architecture and appropriate Teleport package format, then downloads this package  to a temporary directory and installs it
   - using either `curl` or `wget` for downloads depending on which is available
   - `tar` for tarball extraction if needed
