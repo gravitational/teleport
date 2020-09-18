@@ -689,7 +689,7 @@ func (b *EtcdBackend) syncLegacyPrefix(ctx context.Context) error {
 		return nil
 	}
 
-	b.Infof("Migrating Teleport etcd data from legacy prefix %q to configured prefix %q", legacyDefaultPrefix, b.cfg.Key)
+	b.Infof("Migrating Teleport etcd data from legacy prefix %q to configured prefix %q, see https://github.com/gravitational/teleport/issues/2883 for context", legacyDefaultPrefix, b.cfg.Key)
 	defer b.Infof("Teleport etcd data migration complete")
 
 	// Now we know that legacy prefix has some data newer than the configured
@@ -704,7 +704,7 @@ func (b *EtcdBackend) syncLegacyPrefix(ctx context.Context) error {
 		key := backupPrefix + strings.TrimPrefix(string(kv.Key), b.cfg.Key)
 		b.Debugf("Copying %q -> %q", kv.Key, key)
 		if _, err := b.client.Put(ctx, key, string(kv.Value)); err != nil {
-			return trace.WrapWithMessage(err, "failed backing up %q to %q: %v", kv.Key, key, err)
+			return trace.WrapWithMessage(err, "failed backing up %q to %q: %v; the problem could be with your etcd credentials or etcd cluster itself (e.g. running out of disk space); this backup is a safety precaution for migrating the data from etcd prefix %q (old default) to %q (from your teleport.yaml config), see https://github.com/gravitational/teleport/issues/2883 for context", kv.Key, key, err, legacyDefaultPrefix, b.cfg.Key)
 		}
 	}
 
