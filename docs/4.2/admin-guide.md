@@ -1051,7 +1051,7 @@ the audit log:
    replayed later. The recording is done by the nodes themselves, by default,
    but can be configured to be done by the proxy.
 
-3. **Optional: Enhanced Session Recording**
+3. **Optional: [Enhanced Session Recording](features/enhanced-session-recording.md)**
 
 Refer to the ["Audit Log" chapter in the Teleport
 Architecture](architecture/teleport-auth.md#audit-log) to learn more about how the audit log and
