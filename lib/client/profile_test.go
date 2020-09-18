@@ -18,18 +18,25 @@ limitations under the License.
 package client
 
 import (
+	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
+	"testing"
 
-	"gopkg.in/check.v1"
+	"github.com/gravitational/trace"
+
+	"github.com/stretchr/testify/assert"
 )
 
-type ProfileTestSuite struct {
-}
+// TestProfileBasics verifies basic profile operations such as
+// load/store and setting current.
+func TestProfileBasics(t *testing.T) {
+	t.Parallel()
 
-var _ = check.Suite(&ProfileTestSuite{})
+	dir, err := ioutil.TempDir("", "teleport")
+	assert.NoError(t, err)
+	defer os.RemoveAll(dir)
 
-func (s *ProfileTestSuite) TestEverything(c *check.C) {
 	p := &ClientProfile{
 		WebProxyAddr:          "proxy:3088",
 		SSHProxyAddr:          "proxy:3023",
@@ -38,46 +45,86 @@ func (s *ProfileTestSuite) TestEverything(c *check.C) {
 		DynamicForwardedPorts: []string{"localhost:8080"},
 	}
 
-	home := c.MkDir()
-	pfile := path.Join(home, "test.yaml")
+	// verify that profile name is proxy host component
+	assert.Equal(t, "proxy", p.Name())
 
 	// save to a file:
-	err := p.SaveTo(ProfileLocation{Path: pfile})
-	c.Assert(err, check.IsNil)
+	err = p.SaveToDir(dir, false)
+	assert.NoError(t, err)
+
+	// verify that the resulting file exists and is of the form `<profile-dir>/<profile-name>.yaml`.
+	_, err = os.Stat(filepath.Join(dir, p.Name()+".yaml"))
+	assert.NoError(t, err)
 
 	// try to save to non-existent dir, should get an error
-	err = p.SaveTo(ProfileLocation{Path: "/bad/directory/profile.yaml"})
-	c.Assert(err, check.NotNil)
+	err = p.SaveToDir("/bad/directory/", false)
+	assert.Error(t, err)
 
-	// make sure there is no symlink:
-	symlink := path.Join(home, CurrentProfileSymlink)
-	_, err = os.Stat(symlink)
-	c.Assert(os.IsNotExist(err), check.Equals, true)
+	// make sure current profile was not set
+	_, err = GetCurrentProfileName(dir)
+	assert.True(t, trace.IsNotFound(err))
 
-	// save again, this time with a symlink:
-	err = p.SaveTo(ProfileLocation{Path: pfile, Options: ProfileMakeCurrent})
-	c.Assert(err, check.IsNil)
-	stat, err := os.Stat(symlink)
-	c.Assert(err, check.IsNil)
-	c.Assert(stat.Size() > 10, check.Equals, true)
+	// save again, this time also making current
+	err = p.SaveToDir(dir, true)
+	assert.NoError(t, err)
 
-	// load and verify from symlink
-	clone, err := ProfileFromDir(home, "")
-	c.Assert(err, check.IsNil)
-	c.Assert(*clone, check.DeepEquals, *p)
+	// verify that current profile is set and matches this profile
+	name, err := GetCurrentProfileName(dir)
+	assert.NoError(t, err)
+	assert.Equal(t, p.Name(), name)
+
+	// load and verify current profile
+	clone, err := ProfileFromDir(dir, "")
+	assert.NoError(t, err)
+	assert.Equal(t, *p, *clone)
 
 	// load and verify directly
-	clone, err = ProfileFromDir(home, "test")
-	c.Assert(err, check.IsNil)
-	c.Assert(*clone, check.DeepEquals, *p)
+	clone, err = ProfileFromDir(dir, p.Name())
+	assert.NoError(t, err)
+	assert.Equal(t, *p, *clone)
+}
 
-	// Save with alias
-	aliasPath := path.Join(home, "alias.yaml")
-	err = p.SaveTo(ProfileLocation{AliasPath: aliasPath, Path: pfile, Options: ProfileMakeCurrent})
-	c.Assert(err, check.IsNil)
+// TestProfileSymlinkMigration verifies that the old `profile` symlink
+// is correctly migrated to the new `current-profile` file.
+//
+// DELETE IN: 6.0
+func TestProfileSymlinkMigration(t *testing.T) {
+	t.Parallel()
 
-	// Load from alias works
-	clone, err = ProfileFromDir(home, "alias")
-	c.Assert(err, check.IsNil)
-	c.Assert(*clone, check.DeepEquals, *p)
+	dir, err := ioutil.TempDir("", "teleport")
+	assert.NoError(t, err)
+	defer os.RemoveAll(dir)
+
+	name := "some-profile"
+	file := filepath.Join(dir, name+".yaml")
+	link := filepath.Join(dir, CurrentProfileSymlink)
+
+	// note that we don't bother to create the actual profile; this
+	// migration deals solely with converting the `profile` symlink
+	// to a `current-profile` file.
+
+	// create old style symlink
+	assert.NoError(t, os.Symlink(file, link))
+
+	// ensure that link exists
+	_, err = os.Lstat(link)
+	assert.NoError(t, err)
+
+	// load current profile name; this should automatically
+	// trigger the migration and return the correct name.
+	cn, err := GetCurrentProfileName(dir)
+	assert.NoError(t, err)
+	assert.Equal(t, name, cn)
+
+	// verify that current-profile file now exists
+	_, err = os.Stat(filepath.Join(dir, CurrentProfileFilename))
+	assert.NoError(t, err)
+
+	// forcibly remove the symlink
+	assert.NoError(t, os.Remove(link))
+
+	// loading current profile should still succeed.
+	cn, err = GetCurrentProfileName(dir)
+	assert.NoError(t, err)
+	assert.Equal(t, name, cn)
 }

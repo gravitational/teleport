@@ -31,7 +31,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"os/user"
-	"path"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -344,7 +343,7 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		return trace.Wrap(err)
 	}
 	// Save profile to record proxy credentials
-	if err := tc.SaveProfile(key.ProxyHost, "", ProfileCreateNew|ProfileMakeCurrent); err != nil {
+	if err := tc.SaveProfile("", true); err != nil {
 		log.Warningf("Failed to save profile: %v", err)
 		return trace.Wrap(err)
 	}
@@ -367,7 +366,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	var err error
 
 	// Read in the profile for this proxy.
-	profile, err := ProfileFromFile(filepath.Join(profileDir, profileName))
+	profile, err := ProfileFromDir(profileDir, profileName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -465,32 +464,6 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	}, nil
 }
 
-// fullProfileName takes a profile directory and the host the user is trying
-// to connect to and returns the name of the profile file.
-func fullProfileName(profileDir string, proxyHost string) (string, error) {
-	var err error
-	var profileName string
-
-	// If no profile name was passed in, try and extract the active profile from
-	// the ~/.tsh/profile symlink. If one was passed in, append .yaml to name.
-	if proxyHost == "" {
-		profileName, err = os.Readlink(filepath.Join(profileDir, "profile"))
-		if err != nil {
-			return "", trace.ConvertSystemError(err)
-		}
-	} else {
-		profileName = proxyHost + ".yaml"
-	}
-
-	// Make sure the profile requested actually exists.
-	_, err = os.Stat(filepath.Join(profileDir, profileName))
-	if err != nil {
-		return "", trace.ConvertSystemError(err)
-	}
-
-	return profileName, nil
-}
-
 // Status returns the active profile as well as a list of available profiles.
 func Status(profileDir string, proxyHost string) (*ProfileStatus, []*ProfileStatus, error) {
 	var err error
@@ -523,18 +496,20 @@ func Status(profileDir string, proxyHost string) (*ProfileStatus, []*ProfileStat
 		return nil, nil, trace.BadParameter("profile path not a directory")
 	}
 
-	// Construct the name of the profile requested. If an empty string was
-	// passed in, the name of the active profile will be extracted from the
-	// ~/.tsh/profile symlink.
-	profileName, err := fullProfileName(profileDir, proxyHost)
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return nil, nil, trace.NotFound("not logged in")
+	// use proxyHost as default profile name, or the current profile if
+	// no proxyHost was supplied.
+	profileName := proxyHost
+	if profileName == "" {
+		profileName, err = GetCurrentProfileName(profileDir)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				return nil, nil, trace.NotFound("not logged in")
+			}
+			return nil, nil, trace.Wrap(err)
 		}
-		return nil, nil, trace.Wrap(err)
 	}
 
-	// Read in the active profile first. If readProfile returns trace.NotFound,
+	// Read in the target profile first. If readProfile returns trace.NotFound,
 	// that means the profile may have been corrupted (for example keys were
 	// deleted but profile exists), treat this as the user not being logged in.
 	profile, err = readProfile(profileDir, profileName)
@@ -547,26 +522,17 @@ func Status(profileDir string, proxyHost string) (*ProfileStatus, []*ProfileStat
 		profile = nil
 	}
 
-	// Next, get list of all other available profiles. Filter out logged in
-	// profile if it exists and return a slice of *ProfileStatus.
-	files, err := ioutil.ReadDir(profileDir)
+	// load the rest of the profiles
+	profiles, err := ListProfileNames(profileDir)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	for _, file := range files {
-		if file.IsDir() {
+	for _, name := range profiles {
+		if name == profileName {
+			// already loaded this one
 			continue
 		}
-		if file.Mode()&os.ModeSymlink != 0 {
-			continue
-		}
-		if !strings.HasSuffix(file.Name(), ".yaml") {
-			continue
-		}
-		if file.Name() == profileName {
-			continue
-		}
-		ps, err := readProfile(profileDir, file.Name())
+		ps, err := readProfile(profileDir, name)
 		if err != nil {
 			// parts of profile are missing?
 			// status skips these files
@@ -616,20 +582,12 @@ func (c *Config) LoadProfile(profileDir string, proxyName string) error {
 
 // SaveProfile updates the given profiles directory with the current configuration
 // If profileDir is an empty string, the default ~/.tsh is used
-func (c *Config) SaveProfile(profileAliasHost, profileDir string, profileOptions ...ProfileOptions) error {
+func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 	if c.WebProxyAddr == "" {
 		return nil
 	}
 
-	// The profile is saved to a directory with the name of the proxy web endpoint.
-	webProxyHost, _ := c.WebProxyHostPort()
-	profileDir = FullProfilePath(profileDir)
-	profilePath := path.Join(profileDir, webProxyHost) + ".yaml"
-
-	profileAliasPath := ""
-	if profileAliasHost != "" {
-		profileAliasPath = path.Join(profileDir, profileAliasHost) + ".yaml"
-	}
+	dir = FullProfilePath(dir)
 
 	var cp ClientProfile
 	cp.Username = c.Username
@@ -639,21 +597,7 @@ func (c *Config) SaveProfile(profileAliasHost, profileDir string, profileOptions
 	cp.ForwardedPorts = c.LocalForwardPorts.String()
 	cp.SiteName = c.SiteName
 
-	// create a profile file and set it current base on the option
-	var opts ProfileOptions
-	if len(profileOptions) == 0 {
-		// default behavior is to override the profile
-		opts = ProfileMakeCurrent
-	} else {
-		for _, flag := range profileOptions {
-			opts |= flag
-		}
-	}
-	if err := cp.SaveTo(ProfileLocation{
-		AliasPath: profileAliasPath,
-		Path:      profilePath,
-		Options:   opts,
-	}); err != nil {
+	if err := cp.SaveToDir(dir, makeCurrent); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
