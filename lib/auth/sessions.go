@@ -26,38 +26,15 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// TODO(russjones): Use s.cache here, but s.cache can be nil in tests.
-func (s *AuthServer) getApp(ctx context.Context, appName string) (services.Server, error) {
-	// Check if the caller has access to the app requested.
-	apps, err := s.Presence.GetApps(ctx, defaults.Namespace)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, app := range apps {
-		if app.GetAppName() == appName {
-			return app, nil
-		}
-	}
-	return nil, trace.NotFound("%q not found", appName)
-}
-
+// TODO(russjones): The caller of this function that is sitting in the proxy
+// needs to connect to the remote cluster to verify if the application being
+// requested even exists.
+//
+// Does this really even matter? If the does not exist, the session will be
+// created but reversetunnel subsystem will return an error. If it does exist
+// but the caller does not have access, same issue.
 func (s *AuthServer) createAppSession(ctx context.Context, identity tlsca.Identity, req services.CreateAppSessionRequest) (services.WebSession, error) {
 	if err := req.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Build the access checked based off the logged in identity of caller.
-	checker, err := services.FetchRoles(identity.Groups, s.Access, identity.Traits)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	app, err := s.getApp(ctx, req.AppName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = checker.CheckAccessToApp(app)
-	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -77,10 +54,18 @@ func (s *AuthServer) createAppSession(ctx context.Context, identity tlsca.Identi
 		return nil, trace.Wrap(err)
 	}
 	session.SetType(services.WebSessionSpecV2_App)
-	session.SetAppName(app.GetAppName())
+	session.SetAppName(req.AppName)
 	session.SetParentHash(services.SessionHash(parentSession.GetName()))
 	session.SetClusterName(req.ClusterName)
-	session.SetExpiryTime(s.clock.Now().Add(checker.AdjustSessionTTL(defaults.MaxCertDuration)))
+
+	// TODO(russjones): Figure this out, we don't actually have an access checker
+	// here, so we can't adjust the session TTL. The only one that can pass us
+	// this information is the proxy?
+	//
+	// Maybe roll that check plus "does this application exist?" check into one
+	// and pass them in to this function in the CreateAppSessionRequest.
+	//session.SetExpiryTime(s.clock.Now().Add(checker.AdjustSessionTTL(defaults.MaxCertDuration)))
+	session.SetExpiryTime(s.clock.Now().Add(defaults.CertDuration))
 
 	// Create session in backend.
 	err = s.Identity.UpsertAppSession(ctx, session)

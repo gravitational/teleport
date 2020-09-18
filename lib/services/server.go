@@ -87,15 +87,10 @@ type Server interface {
 	// SetProtocol sets the protocol supported by this server.
 	SetProtocol(string) error
 
-	// GetAppName gets the name of the application being proxied.
-	GetAppName() string
-	// SetAppName sets the name of the application being proxied.
-	SetAppName(string)
-
-	// GetInternalAddr gets the internal address of the application.
-	GetInternalAddr() string
-	// SetInternalAddr sets the internal address of the application.
-	SetInternalAddr(string)
+	// GetApps gets the list of applications this server is proxying.
+	GetApps() []*App
+	// GetApps gets the list of applications this server is proxying.
+	SetApps([]*App)
 }
 
 // ServersToV1 converts list of servers to slice of V1 style ones
@@ -259,12 +254,7 @@ func (s *ServerV2) GetCmdLabels() map[string]CommandLabel {
 	if s.Spec.CmdLabels == nil {
 		return nil
 	}
-	out := make(map[string]CommandLabel, len(s.Spec.CmdLabels))
-	for key := range s.Spec.CmdLabels {
-		val := s.Spec.CmdLabels[key]
-		out[key] = &val
-	}
-	return out
+	return V2ToLabels(s.Spec.CmdLabels)
 }
 
 // SetCmdLabels sets dynamic labels.
@@ -306,24 +296,14 @@ func ParseProtocol(protocol string) (ServerSpecV2_ServerProtocolType, error) {
 	}
 }
 
-// GetAppName gets the name of the application being proxied.
-func (s *ServerV2) GetAppName() string {
-	return s.Spec.AppName
+// GetApps gets the list of applications this server is proxying.
+func (s *ServerV2) GetApps() []*App {
+	return s.Spec.Apps
 }
 
-// SetAppName sets the name of the application being proxied.
-func (s *ServerV2) SetAppName(appName string) {
-	s.Spec.AppName = appName
-}
-
-// GetInternalAddr gets the internal address of the application.
-func (s *ServerV2) GetInternalAddr() string {
-	return s.Spec.InternalAddr
-}
-
-// SetInternalAddr sets the internal address of the application.
-func (s *ServerV2) SetInternalAddr(internalAddr string) {
-	s.Spec.InternalAddr = internalAddr
+// GetApps gets the list of applications this server is proxying.
+func (s *ServerV2) SetApps(apps []*App) {
+	s.Spec.Apps = apps
 }
 
 func (s *ServerV2) String() string {
@@ -443,15 +423,37 @@ func CompareServers(a, b Server) int {
 		return Different
 	}
 
+	// If this server is proxying applications, compare the applications to
+	// make sure they match.
 	if a.GetProtocol() == teleport.ServerProtocolHTTPS {
-		if a.GetAppName() != b.GetAppName() {
+		return CompareApps(a.GetApps(), b.GetApps())
+	}
+
+	return Equal
+}
+
+// CompareApps compares two slices of apps and returns if they are equal or
+// different.
+func CompareApps(a []*App, b []*App) int {
+	for i := range a {
+		if a[i].Name != b[i].Name {
 			return Different
 		}
-		if a.GetInternalAddr() != b.GetInternalAddr() {
+		if a[i].URI != b[i].URI {
+			return Different
+		}
+		if a[i].PublicAddr != b[i].PublicAddr {
+			return Different
+		}
+		if !utils.StringMapsEqual(a[i].StaticLabels, b[i].StaticLabels) {
+			return Different
+		}
+		if !CmdLabelMapsEqual(
+			V2ToLabels(a[i].DynamicLabels),
+			V2ToLabels(b[i].DynamicLabels)) {
 			return Different
 		}
 	}
-
 	return Equal
 }
 
@@ -482,8 +484,41 @@ const ServerSpecV2Schema = `{
     "addr": {"type": "string"},
     "protocol": {"type": "integer"},
     "public_addr": {"type": "string"},
-    "internal_addr": {"type": "string"},
-    "app_name": {"type": "string"},
+    "apps":  {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {"type": "string"},
+          "uri": {"type": "string"},
+          "public_addr": {"type": "string"},
+          "labels": {
+             "type": "object",
+             "additionalProperties": false,
+             "patternProperties": {
+               "^.*$":  { "type": "string" }
+             }
+          },
+          "commands": {
+            "type": "object",
+            "additionalProperties": false,
+            "patternProperties": {
+              "^.*$": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["command"],
+                "properties": {
+                  "command": {"type": "array", "items": {"type": "string"}},
+                  "period": {"type": "string"},
+                  "result": {"type": "string"}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "hostname": {"type": "string"},
     "use_tunnel": {"type": "boolean"},
     "labels": {
@@ -554,6 +589,15 @@ func (s *ServerV1) V2() *ServerV2 {
 			CmdLabels: labels,
 		},
 	}
+}
+
+func V2ToLabels(l map[string]CommandLabelV2) map[string]CommandLabel {
+	out := make(map[string]CommandLabel, len(l))
+	for key := range l {
+		val := l[key]
+		out[key] = &val
+	}
+	return out
 }
 
 // LabelsToV2 converts labels from interface to V2 spec

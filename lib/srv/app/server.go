@@ -21,7 +21,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net"
 	"sync/atomic"
@@ -55,8 +54,8 @@ type Config struct {
 	// GetRotation returns the certificate rotation state.
 	GetRotation RotationGetter
 
-	// App is the application this server will proxy.
-	App services.Server
+	// Server contains the list of applications that will be proxied.
+	Server services.Server
 }
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
@@ -72,22 +71,22 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.GetRotation == nil {
 		return trace.BadParameter("rotation getter is missing")
 	}
-	if c.App == nil {
-		return trace.BadParameter("app is missing")
+	if c.Server == nil {
+		return trace.BadParameter("server is missing")
 	}
 	return nil
 }
 
 // Server is an application server.
 type Server struct {
-	config *Config
+	c   *Config
+	log *logrus.Entry
 
-	log          *logrus.Entry
 	closeContext context.Context
 	closeFunc    context.CancelFunc
 
-	dynamicLabels *labels.Dynamic
 	heartbeat     *srv.Heartbeat
+	dynamicLabels map[string]*labels.Dynamic
 
 	keepAlive time.Duration
 
@@ -95,40 +94,43 @@ type Server struct {
 }
 
 // New returns a new application server.
-func New(ctx context.Context, config *Config) (*Server, error) {
-	componentName := fmt.Sprintf("%v.%v", teleport.ComponentApp, config.App.GetName())
-
-	err := config.CheckAndSetDefaults()
+func New(ctx context.Context, c *Config) (*Server, error) {
+	err := c.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	s := &Server{
-		config: config,
+		c: c,
 		log: logrus.WithFields(logrus.Fields{
-			trace.Component: componentName,
+			trace.Component: teleport.ComponentApp,
 		}),
 	}
 
 	s.closeContext, s.closeFunc = context.WithCancel(ctx)
 
-	// Create dynamic labels and sync them right away. This makes sure that the
-	// first heartbeat has correct dynamic labels.
-	s.dynamicLabels, err = labels.NewDynamic(s.closeContext, &labels.DynamicConfig{
-		Labels: config.App.GetCmdLabels(),
-		Log:    s.log,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Create dynamic labels for all applications that are being proxied and
+	// sync them right away so the first heartbeat has correct dynamic labels.
+	s.dynamicLabels = make(map[string]*labels.Dynamic)
+	for _, a := range c.Server.GetApps() {
+		dl, err := labels.NewDynamic(s.closeContext, &labels.DynamicConfig{
+			Labels: services.V2ToLabels(a.DynamicLabels),
+			Log:    s.log,
+		})
+		if err != nil {
+
+			return nil, trace.Wrap(err)
+		}
+		dl.Sync()
+		s.dynamicLabels[a.Name] = dl
 	}
-	s.dynamicLabels.Sync()
 
 	// Create heartbeat loop so applications keep sending presence to backend.
 	s.heartbeat, err = srv.NewHeartbeat(srv.HeartbeatConfig{
 		Mode:            srv.HeartbeatModeApp,
 		Context:         s.closeContext,
-		Component:       componentName,
-		Announcer:       config.AccessPoint,
+		Component:       teleport.ComponentApp,
+		Announcer:       c.AccessPoint,
 		GetServerInfo:   s.GetServerInfo,
 		KeepAlivePeriod: defaults.ServerKeepAliveTTL,
 		AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/2),
@@ -140,7 +142,7 @@ func New(ctx context.Context, config *Config) (*Server, error) {
 	}
 
 	// Pick up TCP keep-alive settings from the cluster level.
-	clusterConfig, err := s.config.AccessPoint.GetClusterConfig()
+	clusterConfig, err := s.c.AccessPoint.GetClusterConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -152,42 +154,48 @@ func New(ctx context.Context, config *Config) (*Server, error) {
 // GetServerInfo returns a services.Server representing the application. Used
 // in heartbeat code.
 func (s *Server) GetServerInfo() (services.Server, error) {
-	// Return a updated list of dynamic labels.
-	s.config.App.SetCmdLabels(s.dynamicLabels.Get())
+	// Update dynamic labels on all apps.
+	apps := s.c.Server.GetApps()
+	for _, a := range apps {
+		a.DynamicLabels = services.LabelsToV2(s.dynamicLabels[a.Name].Get())
+	}
+	s.c.Server.SetApps(apps)
 
 	// Update the TTL.
-	s.config.App.SetTTL(s.config.Clock, defaults.ServerAnnounceTTL)
+	s.c.Server.SetTTL(s.c.Clock, defaults.ServerAnnounceTTL)
 
 	// Update rotation state.
-	rotation, err := s.config.GetRotation(teleport.RoleApp)
+	rotation, err := s.c.GetRotation(teleport.RoleApp)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			s.log.Warningf("Failed to get rotation state: %v.", err)
 		}
 	} else {
-		s.config.App.SetRotation(*rotation)
+		s.c.Server.SetRotation(*rotation)
 	}
 
-	return s.config.App, nil
+	return s.c.Server, nil
 }
 
 // Start starts heart beating the presence of service.Apps that this
 // server is proxying along with any dynamic labels.
 func (s *Server) Start() {
-	go s.dynamicLabels.Start()
+	for _, dynamicLabel := range s.dynamicLabels {
+		go dynamicLabel.Start()
+	}
 	go s.heartbeat.Run()
 }
 
 // Serve accepts incoming connections on the Listener and calls the handler.
-func (s *Server) HandleConnection(channelConn net.Conn) {
+func (s *Server) HandleConnection(channelConn net.Conn, targetAddr string) {
 	// Establish connection to target server.
-	s.log.Debugf("Dialing to %v to establish connection to %q.", s.config.App.GetInternalAddr(), s.config.App.GetName())
+	s.log.Debugf("Dialing to %v.", targetAddr)
 	d := net.Dialer{
 		KeepAlive: s.keepAlive,
 	}
-	targetConn, err := d.DialContext(s.closeContext, "tcp", s.config.App.GetInternalAddr())
+	targetConn, err := d.DialContext(s.closeContext, "tcp", targetAddr)
 	if err != nil {
-		s.log.Errorf("Failed to connect to %v: %v.", s.config.App.GetName(), err)
+		s.log.Errorf("Failed to connect to %v: %v.", targetAddr, err)
 		channelConn.Close()
 		return
 	}
@@ -237,7 +245,9 @@ func (s *Server) ForceHeartbeat() error {
 // Close will shut the server down and unblock any resources.
 func (s *Server) Close() error {
 	err := s.heartbeat.Close()
-	s.dynamicLabels.Close()
+	for _, dynamicLabel := range s.dynamicLabels {
+		dynamicLabel.Close()
+	}
 	s.closeFunc()
 
 	return trace.Wrap(err)

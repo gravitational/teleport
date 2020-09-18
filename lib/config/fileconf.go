@@ -805,10 +805,6 @@ type App struct {
 	// Name of the application.
 	Name string `yaml:"name"`
 
-	// Protocol used to proxy this application. At the moment only HTTPS is
-	// supported.
-	Protocol string `yaml:"protocol"`
-
 	// URI is the internal address of the application.
 	URI string `yaml:"uri"`
 
@@ -817,10 +813,10 @@ type App struct {
 	PublicAddr string `yaml:"public_addr"`
 
 	// Labels is a map of static labels to apply to this application.
-	Labels map[string]string `yaml:"labels,omitempty"`
+	StaticLabels map[string]string `yaml:"labels,omitempty"`
 
 	// Commands is a list of dynamic labels to apply to this application.
-	Commands []CommandLabel `yaml:"commands,omitempty"`
+	DynamicLabels []CommandLabel `yaml:"commands,omitempty"`
 }
 
 func (a *App) CheckAndSetDefaults() error {

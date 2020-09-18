@@ -51,8 +51,8 @@ type session struct {
 
 	url *url.URL
 
-	app      services.Server
-	checker  services.AccessChecker
+	//app      services.Server
+	//checker  services.AccessChecker
 	identity *tlsca.Identity
 
 	fwd  *forward.Forwarder
@@ -149,59 +149,66 @@ func (s *sessionCache) get(ctx context.Context, cookieValue string) (*session, e
 	return sess, nil
 }
 
-func (s *sessionCache) GetApp(ctx context.Context, name string, clusterName string) (services.Server, error) {
-	var matches []services.Server
+func (s *sessionCache) GetApp(ctx context.Context, name string, clusterName string) (*services.App, services.Server, error) {
+	var n int
+	var application *services.App
+	var parentServer services.Server
 
 	proxyClient, err := s.c.ProxyClient.GetSite(clusterName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	authClient, err := proxyClient.CachingAccessPoint()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	apps, err := authClient.GetApps(ctx, defaults.Namespace)
+	servers, err := authClient.GetApps(ctx, defaults.Namespace)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
-	for _, app := range apps {
-		if app.GetAppName() == name {
-			matches = append(matches, app)
+	for _, server := range servers {
+		for _, a := range server.GetApps() {
+			if a.Name == name {
+				n += 1
+				application = a
+				parentServer = server
+			}
 		}
 	}
 
 	switch {
 	// Multiple matching applications found.
-	case len(matches) > 1:
-		return nil, trace.NotFound(teleport.NodeIsAmbiguous)
+	case n > 1:
+		return nil, nil, trace.NotFound(teleport.NodeIsAmbiguous)
 	// Exact match found.
-	case len(matches) == 1:
-		return matches[0], nil
+	case n == 1:
+		return application, parentServer, nil
 	// No matching applications found.
 	default:
-		return nil, trace.NotFound("%q not found in %q", name, clusterName)
+		return nil, nil, trace.NotFound("%q not found in %q", name, clusterName)
 	}
 }
 
 func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess services.WebSession) (*session, error) {
 	// Get the application this session is targeting.
-	app, err := s.GetApp(ctx, sess.GetAppName(), sess.GetClusterName())
+	app, server, err := s.GetApp(ctx, sess.GetAppName(), sess.GetClusterName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	addr, err := parseAddress(app.GetInternalAddr())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	u, err := url.Parse(addr)
+	// TODO(russjones): This should be parsed and always be a URI in file configuration.
+	//addr, err := parseAddress(app.URI)
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+	u, err := url.Parse(app.URI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Extract the identity of the user from the certificate.
+	// Extract roles, traits, and identity of the user from the certificate.
 	cert, err := utils.ParseCertificatePEM(sess.GetTLSCert())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -210,23 +217,7 @@ func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Use roles and traits to construct and access checker.
-	roles, traits, err := services.ExtractFromIdentity(s.c.AuthClient, identity)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	checker, err := services.FetchRoles(roles, s.c.AuthClient, traits)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Check access to the target application before forwarding. This allows an
-	// admin to change roles assigned an user/application at runtime and deny
-	// access to the application.
-	//
-	// This code path should be profiled if it ever becomes a bottleneck.
-	err = checker.CheckAccessToApp(app)
+	roles, _, err := services.ExtractFromIdentity(s.c.AuthClient, identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -248,8 +239,13 @@ func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	to, err := utils.ParseAddr(u.Host)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	conn, err := clusterClient.Dial(reversetunnel.DialParams{
-		ServerID: strings.Join([]string{app.GetName(), sess.GetClusterName()}, "."),
+		To:       to,
+		ServerID: strings.Join([]string{server.GetName(), sess.GetClusterName()}, "."),
 		ConnType: services.AppTunnel,
 	})
 	if err != nil {
@@ -278,8 +274,6 @@ func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess 
 		cache:    s,
 		cacheKey: cookieValue,
 		url:      u,
-		app:      app,
-		checker:  checker,
 		identity: identity,
 		conn:     conn,
 		fwd:      fwd,
@@ -336,17 +330,17 @@ func (s *session) errorHandler(w http.ResponseWriter, r *http.Request, err error
 	http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 }
 
-func parseAddress(addr string) (string, error) {
-	u, err := url.Parse(addr)
-	if err != nil {
-		u, err = url.Parse("http://" + addr)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		return u.String(), nil
-	}
-	return u.String(), nil
-}
+//func parseAddress(addr string) (string, error) {
+//	u, err := url.Parse(addr)
+//	if err != nil {
+//		u, err = url.Parse("http://" + addr)
+//		if err != nil {
+//			return "", trace.Wrap(err)
+//		}
+//		return u.String(), nil
+//	}
+//	return u.String(), nil
+//}
 
 func closeSession(key string, val interface{}) {
 	if sess, ok := val.(*session); ok {

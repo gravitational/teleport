@@ -25,7 +25,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -67,11 +66,12 @@ func TestAuthenticate(t *testing.T) {
 
 	// Use the Web UI session to ask for a application specific session.
 	appSession, err := pack.u.client.CreateAppSession(context.Background(), services.CreateAppSessionRequest{
-		AppName:     pack.a.app.GetAppName(),
+		AppName:     pack.a.application.Name,
 		ClusterName: pack.s.tlsServer.ClusterName(),
 		SessionID:   webSession.GetName(),
 		BearerToken: webSession.GetBearerToken(),
 	})
+	fmt.Printf("--> appSession: %v, err: %v.\n", appSession, err)
 	assert.Nil(t, err)
 
 	// Create a few cookie values to test.
@@ -155,7 +155,7 @@ func TestForward(t *testing.T) {
 
 	// Use the Web UI session to ask for a application specific session.
 	appSession, err := pack.u.client.CreateAppSession(context.Background(), services.CreateAppSessionRequest{
-		AppName:     pack.a.app.GetAppName(),
+		AppName:     pack.a.application.Name,
 		ClusterName: pack.s.tlsServer.ClusterName(),
 		SessionID:   webSession.GetName(),
 		BearerToken: webSession.GetBearerToken(),
@@ -172,7 +172,7 @@ func TestForward(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Create a request to the requested target.
-	r, err := http.NewRequest(http.MethodGet, pack.a.app.GetPublicAddr(), nil)
+	r, err := http.NewRequest(http.MethodGet, pack.a.application.PublicAddr, nil)
 	assert.Nil(t, err)
 
 	// Issue the request, it should succeed.
@@ -222,7 +222,7 @@ func TestFragment(t *testing.T) {
 
 	// Use the Web UI session to ask for a application specific session.
 	appSession, err := pack.u.client.CreateAppSession(context.Background(), services.CreateAppSessionRequest{
-		AppName:     pack.a.app.GetAppName(),
+		AppName:     pack.a.application.Name,
 		ClusterName: pack.s.tlsServer.ClusterName(),
 		SessionID:   webSession.GetName(),
 		BearerToken: webSession.GetBearerToken(),
@@ -272,7 +272,7 @@ func TestFragment(t *testing.T) {
 			assert.Nil(t, err)
 
 			// Create POST request that will be sent to fragment handler endpoint.
-			addr := pack.a.app.GetPublicAddr()
+			addr := pack.a.application.PublicAddr
 			r, err := http.NewRequest(http.MethodPost, addr, bytes.NewReader(buffer))
 			assert.Nil(t, err)
 
@@ -307,7 +307,7 @@ func TestLogout(t *testing.T) {
 
 	// Use the Web UI session to ask for a application specific session.
 	appSession, err := pack.u.client.CreateAppSession(context.Background(), services.CreateAppSessionRequest{
-		AppName:     pack.a.app.GetAppName(),
+		AppName:     pack.a.application.Name,
 		ClusterName: pack.s.tlsServer.ClusterName(),
 		SessionID:   webSession.GetName(),
 		BearerToken: webSession.GetBearerToken(),
@@ -330,7 +330,10 @@ func TestLogout(t *testing.T) {
 // TODO(russjones): Add a test where a request for multiple matching
 // applications returns a 404.
 func TestAmbiguous(t *testing.T) {
+}
 
+// TODO(russjones): Test connecting to an application through a trusted cluster.
+func TestTrustedCluster(t *testing.T) {
 }
 
 type pack struct {
@@ -372,10 +375,11 @@ type proxyPack struct {
 }
 
 type appPack struct {
-	app    services.Server
-	client *auth.Client
-	server *app.Server
-	pool   *reversetunnel.AgentPool
+	server      services.Server
+	application *services.App
+	client      *auth.Client
+	appServer   *app.Server
+	pool        *reversetunnel.AgentPool
 }
 
 func setup(t *testing.T) (*pack, func()) {
@@ -401,11 +405,11 @@ func setup(t *testing.T) (*pack, func()) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		fmt.Fprint(w, r.Header.Get("x-teleport-jwt-assertion"))
 	}))
-	u, err := url.Parse(targetServer.URL)
-	assert.Nil(t, err)
+	//u, err := url.Parse(targetServer.URL)
+	//assert.Nil(t, err)
 
 	// Create components needed to run app proxy.
-	app, err := setupApp(fakeClock, auths.tlsServer, proxy.listener.Addr().String(), u.Host)
+	app, err := setupApp(fakeClock, auths.tlsServer, proxy.listener.Addr().String(), targetServer.URL)
 	assert.Nil(t, err)
 
 	// Wait for the application to have registered itself with the proxy server
@@ -424,7 +428,7 @@ func setup(t *testing.T) (*pack, func()) {
 		proxy.ssh.Close()
 
 		app.client.Close()
-		app.server.Close()
+		app.appServer.Close()
 		app.pool.Stop()
 	}
 
@@ -610,7 +614,12 @@ func setupApp(clock clockwork.Clock, tlsServer *auth.TestTLSServer, proxyAddr st
 		return nil, trace.Wrap(err)
 	}
 
-	application := &services.ServerV2{
+	application := &services.App{
+		Name:       "panel",
+		URI:        targetAddr,
+		PublicAddr: "panel.example.com",
+	}
+	server := &services.ServerV2{
 		Kind:    services.KindApp,
 		Version: services.V2,
 		Metadata: services.Metadata{
@@ -618,11 +627,11 @@ func setupApp(clock clockwork.Clock, tlsServer *auth.TestTLSServer, proxyAddr st
 			Name:      appUUID,
 		},
 		Spec: services.ServerSpecV2{
-			Protocol:     services.ServerSpecV2_HTTPS,
-			InternalAddr: targetAddr,
-			AppName:      "panel",
-			PublicAddr:   "panel.example.com",
-			Version:      teleport.Version,
+			Protocol: services.ServerSpecV2_HTTPS,
+			Version:  teleport.Version,
+			Apps: []*services.App{
+				application,
+			},
 		},
 	}
 
@@ -631,7 +640,7 @@ func setupApp(clock clockwork.Clock, tlsServer *auth.TestTLSServer, proxyAddr st
 		Clock:       clock,
 		AccessPoint: authClient,
 		GetRotation: testRotationGetter,
-		App:         application,
+		Server:      server,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -662,10 +671,11 @@ func setupApp(clock clockwork.Clock, tlsServer *auth.TestTLSServer, proxyAddr st
 	}
 
 	return &appPack{
-		app:    application,
-		client: authClient,
-		server: appServer,
-		pool:   agentPool,
+		application: application,
+		server:      server,
+		client:      authClient,
+		appServer:   appServer,
+		pool:        agentPool,
 	}, nil
 }
 

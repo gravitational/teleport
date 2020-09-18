@@ -378,11 +378,12 @@ func NewApp(name string, internalAddr string, publicAddr string) *services.Serve
 			Name:      name,
 			Namespace: defaults.Namespace,
 		},
-		Spec: services.ServerSpecV2{
-			Protocol:     services.ServerSpecV2_HTTPS,
-			InternalAddr: internalAddr,
-			PublicAddr:   publicAddr,
-		},
+		// TODO(russjones): Add this back in.
+		//Spec: services.ServerSpecV2{
+		//	Protocol:     services.ServerSpecV2_HTTPS,
+		//	InternalAddr: internalAddr,
+		//	PublicAddr:   publicAddr,
+		//},
 	}
 }
 

@@ -517,20 +517,11 @@ func (s *remoteSite) Dial(params DialParams) (net.Conn, error) {
 func (s *remoteSite) DialTCP(params DialParams) (net.Conn, error) {
 	//s.Debugf("Dialing from %v to %v.", params.From, params.To)
 
-	// TODO(russjones): Thread conntype everywhere.
-	var address string
-	switch params.ConnType {
-	case services.AppTunnel:
-		address = params.ServerID
-	default:
-		address = params.To.String()
-	}
-
 	conn, err := s.connThroughTunnel(&dialReq{
-		//Address:  params.To.String(),
-		Address:  address,
-		ServerID: params.ServerID,
-		ConnType: params.ConnType,
+		Address:    params.To.String(),
+		TargetAddr: params.To.String(),
+		ServerID:   params.ServerID,
+		ConnType:   params.ConnType,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

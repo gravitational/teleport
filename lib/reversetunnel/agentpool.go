@@ -36,11 +36,15 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// ConnHandler handles incoming net.Conn connections for different protocols.
-type ConnHandler interface {
+// SSHConnHandler handles incoming net.Conn connections for different protocols.
+type SSHConnHandler interface {
 	// HandleConnection accepts incoming connections and either forwards them
 	// or processes them based off the protocol implemented.
 	HandleConnection(conn net.Conn)
+}
+
+type AppConnHandler interface {
+	HandleConnection(conn net.Conn, targetAddr string)
 }
 
 // AgentPool manages the pool of outbound reverse tunnel agents.
@@ -83,10 +87,10 @@ type AgentPoolConfig struct {
 	KubeDialAddr utils.NetAddr
 	// Server is a SSH server that can handle a connection (perform a handshake
 	// then process). Only set with the agent is running within a node.
-	Server ConnHandler
+	SSHServer SSHConnHandler
 	// AppServer is an application proxy (AAP) that forwards requests to the
 	// target node.
-	AppServer ConnHandler
+	AppServer AppConnHandler
 	// Component is the Teleport component this agent pool is running in. It can
 	// either be proxy (trusted clusters) or node (dial back).
 	Component string
@@ -295,7 +299,7 @@ func (m *AgentPool) addAgent(lease track.Lease) error {
 		AccessPoint:         m.cfg.AccessPoint,
 		Context:             m.ctx,
 		KubeDialAddr:        m.cfg.KubeDialAddr,
-		Server:              m.cfg.Server,
+		SSHServer:           m.cfg.SSHServer,
 		AppServer:           m.cfg.AppServer,
 		ReverseTunnelServer: m.cfg.ReverseTunnelServer,
 		LocalClusterName:    m.cfg.Cluster,

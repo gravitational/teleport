@@ -14,7 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package app
+// Package app connections to applications over a reverse tunnel and forwards
+// HTTP requests to them.
 package app
 
 import (
@@ -127,14 +128,16 @@ func (h *Handler) IsApp(r *http.Request) (services.Server, error) {
 			return nil, trace.Wrap(err)
 		}
 
-		apps, err := authClient.GetApps(r.Context(), defaults.Namespace)
+		servers, err := authClient.GetApps(r.Context(), defaults.Namespace)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		for _, app := range apps {
-			if app.GetAppName() == appName {
-				return app, nil
+		for _, server := range servers {
+			for _, a := range server.GetApps() {
+				if a.Name == appName {
+					return server, nil
+				}
 			}
 		}
 

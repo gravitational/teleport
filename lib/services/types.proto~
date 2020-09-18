@@ -176,7 +176,6 @@ message ServerSpecV2 {
     repeated App Apps = 9 [ (gogoproto.jsontag) = "apps" ];
 }
 
-// App is a specific application that a server proxies.
 message App {
     // Name is the name of the application.
     string Name = 1 [ (gogoproto.jsontag) = "name" ];

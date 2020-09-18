@@ -45,8 +45,9 @@ type Suite struct {
 	tlsServer  *auth.TestTLSServer
 	authClient *auth.Client
 	appServer  *Server
-	app        services.Server
+	server     services.Server
 
+	hostUUID     string
 	closeContext context.Context
 	closeFunc    context.CancelFunc
 	message      string
@@ -113,20 +114,26 @@ func (s *Suite) SetUpTest(c *check.C) {
 			Command: []string{"expr", "1", "+", "3"},
 		},
 	}
-	s.app = &services.ServerV2{
+	s.hostUUID = uuid.New()
+	s.server = &services.ServerV2{
 		Kind:    services.KindApp,
 		Version: services.V2,
 		Metadata: services.Metadata{
 			Namespace: defaults.Namespace,
-			Name:      "foo",
-			Labels:    staticLabels,
+			Name:      s.hostUUID,
 		},
 		Spec: services.ServerSpecV2{
-			Protocol:     services.ServerSpecV2_HTTPS,
-			InternalAddr: s.hostport,
-			PublicAddr:   "foo.example.com",
-			CmdLabels:    services.LabelsToV2(dynamicLabels),
-			Version:      teleport.Version,
+			Protocol: services.ServerSpecV2_HTTPS,
+			Version:  teleport.Version,
+			Apps: []*services.App{
+				&services.App{
+					Name:          "foo",
+					URI:           s.testhttp.URL,
+					PublicAddr:    "foo.example.com",
+					StaticLabels:  staticLabels,
+					DynamicLabels: services.LabelsToV2(dynamicLabels),
+				},
+			},
 		},
 	}
 
@@ -134,7 +141,7 @@ func (s *Suite) SetUpTest(c *check.C) {
 		Clock:       s.clock,
 		AccessPoint: s.authClient,
 		GetRotation: testRotationGetter,
-		App:         s.app,
+		Server:      s.server,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -148,32 +155,38 @@ func (s *Suite) TearDownTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	s.testhttp.Close()
+
+	err = s.tlsServer.Auth().DeleteAllApps(context.Background(), defaults.Namespace)
+	c.Assert(err, check.IsNil)
 }
 
 // TestStart makes sure after the server has started a correct services.App
 // has been created.
 func (s *Suite) TestStart(c *check.C) {
 	// Fetch the services.App that the service heartbeat.
-	apps, err := s.authServer.AuthServer.GetApps(context.Background(), defaults.Namespace)
+	servers, err := s.authServer.AuthServer.GetApps(context.Background(), defaults.Namespace)
 	c.Assert(err, check.IsNil)
-	c.Assert(apps, check.HasLen, 1)
-	app := apps[0]
+	c.Assert(servers, check.HasLen, 1)
+	server := servers[0]
 
-	// Check that the services.App that was heartbeat is correct. For example,
+	// Check that the services.Server that was heartbeat is correct. For example,
 	// check that the dynamic labels have been evaluated.
-	c.Assert(app.GetName(), check.Equals, "foo")
-	c.Assert(app.GetInternalAddr(), check.Equals, s.hostport)
-	c.Assert(app.GetPublicAddr(), check.Equals, "foo.example.com")
-	c.Assert(app.GetLabels(), check.DeepEquals, map[string]string{
+	c.Assert(server.GetApps(), check.HasLen, 1)
+	app := server.GetApps()[0]
+
+	c.Assert(app.Name, check.Equals, "foo")
+	c.Assert(app.URI, check.Equals, s.testhttp.URL)
+	c.Assert(app.PublicAddr, check.Equals, "foo.example.com")
+	c.Assert(app.StaticLabels, check.DeepEquals, map[string]string{
 		"bar": "baz",
 	})
-	dynamicLabel, ok := app.GetCmdLabels()["qux"]
+	dynamicLabel, ok := app.DynamicLabels["qux"]
 	c.Assert(ok, check.Equals, true)
 	c.Assert(dynamicLabel.GetResult(), check.Equals, "4")
 
 	// Check the expiry time is correct.
-	c.Assert(s.clock.Now().Before(app.Expiry()), check.Equals, true)
-	c.Assert(s.clock.Now().Add(2*defaults.ServerAnnounceTTL).After(app.Expiry()), check.Equals, true)
+	c.Assert(s.clock.Now().Before(server.Expiry()), check.Equals, true)
+	c.Assert(s.clock.Now().Add(2*defaults.ServerAnnounceTTL).After(server.Expiry()), check.Equals, true)
 }
 
 // TestWaitStop makes sure the server will block and unlock.
@@ -208,7 +221,7 @@ func (s *Suite) TestHandleConnection(c *check.C) {
 	defer clientConn.Close()
 
 	// Process the connection.
-	go s.appServer.HandleConnection(serverConn)
+	go s.appServer.HandleConnection(serverConn, s.hostport)
 
 	// Perform a simple HTTP GET against the application server.
 	httpTransport := &http.Transport{
@@ -247,6 +260,16 @@ func (s *Suite) TestHandleConnection(c *check.C) {
 			c.Fatalf("Timed out waiting for active connection count to come to 0.")
 		}
 	}
+}
+
+// TODO(russjones): Write test where services.Server has multiple applications
+// and each has different dynamic labels.
+func (s *Suite) TestMultipleApps(c *check.C) {
+}
+
+// TODO(russjones): Write a test that checks if you have access to an application.
+func (s *Suite) TestCheckAccessToApp(c *check.C) {
+
 }
 
 func testRotationGetter(role teleport.Role) (*services.Rotation, error) {

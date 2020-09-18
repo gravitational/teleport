@@ -266,15 +266,14 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 
 // dialTunnel connects to the target host through a tunnel.
 func (s *localSite) dialTunnel(params DialParams) (net.Conn, error) {
-	// TODO(russjones): Thread conntype everywhere.
-	rconn, err := s.getRemoteConn(params.ServerID, params.ConnType)
+	rconn, err := s.getRemoteConn(params)
 	if err != nil {
 		return nil, trace.NotFound("no tunnel connection found: %v", err)
 	}
 
 	s.log.Debugf("Tunnel dialing to %v.", params.ServerID)
 
-	conn, err := s.chanTransportConn(rconn, params.ConnType)
+	conn, err := s.chanTransportConn(rconn, params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -291,6 +290,7 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 			return nil, false, trace.Wrap(err)
 		}
 
+		// Connections to applications should never occur over a direct dial, return right away.
 		if params.ConnType == services.AppTunnel {
 			return nil, false, trace.ConnectionProblem(err, "failed to find application at %v", params.ServerID)
 		}
@@ -320,17 +320,15 @@ func (s *localSite) addConn(nodeID string, connType services.TunnelType, conn ne
 	defer s.Unlock()
 
 	rconn := newRemoteConn(&connConfig{
-		conn:        conn,
-		sconn:       sconn,
-		accessPoint: s.accessPoint,
-		//tunnelType:       string(services.NodeTunnel),
+		conn:             conn,
+		sconn:            sconn,
+		accessPoint:      s.accessPoint,
 		tunnelType:       string(connType),
 		proxyName:        s.srv.ID,
 		clusterName:      s.domainName,
 		nodeID:           nodeID,
 		offlineThreshold: s.offlineThreshold,
 	})
-	//s.remoteConns[nodeID] = rconn
 	key := connKey{
 		uuid:     nodeID,
 		connType: connType,
@@ -413,7 +411,7 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 	}
 }
 
-func (s *localSite) getRemoteConn(addr string, connType services.TunnelType) (*remoteConn, error) {
+func (s *localSite) getRemoteConn(params DialParams) (*remoteConn, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -426,39 +424,44 @@ func (s *localSite) getRemoteConn(addr string, connType services.TunnelType) (*r
 	}
 
 	key := connKey{
-		uuid:     addr,
-		connType: connType,
+		uuid:     params.ServerID,
+		connType: params.ConnType,
 	}
 	rconn, ok := s.remoteConns[key]
 	if !ok {
-		return nil, trace.NotFound("no %v reverse tunnel for %v found", connType, addr)
+		return nil, trace.NotFound("no %v reverse tunnel for %v found", params.ConnType, params.ServerID)
 	}
 	if !rconn.isReady() {
-		return nil, trace.NotFound("%v is offline: no active %v tunnels found", connType, addr)
+		return nil, trace.NotFound("%v is offline: no active %v tunnels found", params.ConnType, params.ServerID)
 	}
 
 	return rconn, nil
 }
 
-func (s *localSite) chanTransportConn(rconn *remoteConn, connType services.TunnelType) (net.Conn, error) {
+func (s *localSite) chanTransportConn(rconn *remoteConn, params DialParams) (net.Conn, error) {
 	s.log.Debugf("Connecting to %v through tunnel.", rconn.conn.RemoteAddr())
 
 	var address string
+	var targetAddress string
+
+	// For SSH nodes use the non-resolvable address @local-node and for
+	// applications use @local-app. For applications, the target host has to do
+	// additional routing to connect to the target application, extract that from
+	// the "To" parameter.
 	switch services.TunnelType(rconn.tunnelType) {
 	case services.NodeTunnel:
 		address = LocalNode
 	case services.AppTunnel:
 		address = LocalApp
+		targetAddress = params.To.String()
 	default:
 		return nil, trace.BadParameter("invalid tunnel type: %v", rconn.tunnelType)
 	}
-	//if rconn.tunnelType == string(services.AppTunnel) {
-	//	address = "localhost:8081"
-	//}
 
 	conn, markInvalid, err := connectProxyTransport(rconn.sconn, &dialReq{
-		Address:  address,
-		ConnType: connType,
+		Address:    address,
+		TargetAddr: targetAddress,
+		ConnType:   params.ConnType,
 	})
 	if err != nil {
 		if markInvalid {
