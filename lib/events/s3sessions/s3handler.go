@@ -304,7 +304,7 @@ func (h *Handler) ensureBucket() error {
 		ACL:    aws.String("private"),
 	}
 	_, err = h.client.CreateBucket(input)
-	err = ConvertS3Error(err, "bucket %v already exists", aws.String(h.Bucket))
+	err = ConvertS3Error(err, fmt.Sprintf("bucket %v already exists", aws.String(h.Bucket)))
 	if err != nil {
 		if !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)
@@ -321,7 +321,7 @@ func (h *Handler) ensureBucket() error {
 		},
 	}
 	_, err = h.client.PutBucketVersioning(ver)
-	err = ConvertS3Error(err, "failed to set versioning state for bucket %q", h.Bucket)
+	err = ConvertS3Error(err, fmt.Sprintf("failed to set versioning state for bucket %q", h.Bucket))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -338,7 +338,7 @@ func (h *Handler) ensureBucket() error {
 				}},
 			},
 		})
-		err = ConvertS3Error(err, "failed to set versioning state for bucket %q", h.Bucket)
+		err = ConvertS3Error(err, fmt.Sprintf("failed to set versioning state for bucket %q", h.Bucket))
 		if err != nil {
 			return trace.Wrap(err)
 		}
