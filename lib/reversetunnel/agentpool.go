@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -44,8 +43,13 @@ type SSHConnHandler interface {
 	HandleConnection(conn net.Conn)
 }
 
-type AppConnHandler interface {
-	HandleConnection(context.Context, *app.Request)
+// AppHandler is an application server that can check access and forward
+// connection requests to the target application.
+type AppHandler interface {
+	// CheckAccess checks if the caller has access to requested application.
+	CheckAccess(context.Context, []byte, string) (*services.App, error)
+	// ForwardConnection forwards the passed in connection to target application.
+	ForwardConnection(net.Conn, string)
 }
 
 // AgentPool manages the pool of outbound reverse tunnel agents.
@@ -91,7 +95,7 @@ type AgentPoolConfig struct {
 	SSHServer SSHConnHandler
 	// AppServer is an application proxy (AAP) that forwards requests to the
 	// target node.
-	AppServer AppConnHandler
+	AppServer AppHandler
 	// Component is the Teleport component this agent pool is running in. It can
 	// either be proxy (trusted clusters) or node (dial back).
 	Component string

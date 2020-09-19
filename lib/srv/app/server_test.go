@@ -69,7 +69,7 @@ func (s *Suite) SetUpSuite(c *check.C) {
 
 	// Create Auth Server.
 	s.authServer, err = auth.NewTestAuthServer(auth.TestAuthServerConfig{
-		ClusterName: "localhost",
+		ClusterName: "root.example.com",
 		Dir:         c.MkDir(),
 	})
 	c.Assert(err, check.IsNil)
@@ -81,13 +81,18 @@ func (s *Suite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Create user and role.
-	_, _, err = auth.CreateUserAndRole(s.tlsServer.Auth(), "foo", []string{"bar", "baz"})
+	user, role, err := auth.CreateUserAndRole(s.tlsServer.Auth(), "foo", []string{"foo-login"})
+	c.Assert(err, check.IsNil)
+
+	// Give the users role application label "bar: baz".
+	role.SetAppLabels(services.Allow, services.Labels{"bar": []string{"baz"}})
+	err = s.tlsServer.Auth().UpsertRole(context.Background(), role)
 	c.Assert(err, check.IsNil)
 
 	// Generate certificate for user.
 	_, public, err := s.tlsServer.Auth().GenerateKeyPair("")
 	c.Assert(err, check.IsNil)
-	_, s.cert, err = s.tlsServer.Auth().GenerateUserTestCerts(public, "foo", 1*time.Hour, teleport.CertificateFormatStandard, "")
+	_, s.cert, err = s.tlsServer.Auth().GenerateUserTestCerts(public, user.GetName(), 1*time.Hour, teleport.CertificateFormatStandard, "")
 	c.Assert(err, check.IsNil)
 }
 
@@ -232,11 +237,7 @@ func (s *Suite) TestHandleConnection(c *check.C) {
 	defer clientConn.Close()
 
 	// Process the connection.
-	go s.appServer.HandleConnection(context.Background(), &Request{
-		Conn:        serverConn,
-		PublicAddr:  "foo.example.com",
-		Certificate: s.cert,
-	})
+	go s.appServer.HandleConnection(serverConn, s.testhttp.URL)
 
 	// Perform a simple HTTP GET against the application server.
 	httpTransport := &http.Transport{
@@ -277,13 +278,238 @@ func (s *Suite) TestHandleConnection(c *check.C) {
 	}
 }
 
-// TODO(russjones): Write test where services.Server has multiple applications
-// and each has different dynamic labels.
-func (s *Suite) TestMultipleApps(c *check.C) {
+// TestVerifyCertificate checks that certificates not signed by a known CA are rejected.
+func (s *Suite) TestVerifyCertificate(c *check.C) {
+	// Create another independent cluster acme.example.com.
+	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		ClusterName: "acme.example.com",
+		Dir:         c.MkDir(),
+	})
+	c.Assert(err, check.IsNil)
+	tlsServer, err := authServer.NewTestTLSServer()
+	c.Assert(err, check.IsNil)
+	defer tlsServer.Close()
+
+	// Create user and role in acme.example.com.
+	user, _, err := auth.CreateUserAndRole(tlsServer.Auth(), "foo", []string{"foo-login"})
+	c.Assert(err, check.IsNil)
+
+	// Generate certificate for user in acme.example.com
+	_, public, err := s.tlsServer.Auth().GenerateKeyPair("")
+	c.Assert(err, check.IsNil)
+	_, cert, err := tlsServer.Auth().GenerateUserTestCerts(public, user.GetName(), 1*time.Hour, teleport.CertificateFormatStandard, "")
+	c.Assert(err, check.IsNil)
+
+	var tests = []struct {
+		desc          string
+		inCertificate []byte
+		outError      bool
+	}{
+		{
+			desc:          "invalid cert, issued to different cluster",
+			inCertificate: cert,
+			outError:      true,
+		},
+		{
+			desc:          "valid cert, issued to same cluster",
+			inCertificate: s.cert,
+			outError:      false,
+		},
+	}
+	for _, tt := range tests {
+		identity, _, err := s.appServer.verifyCertificate(tt.inCertificate)
+		c.Assert(err != nil, check.Equals, tt.outError, check.Commentf(tt.desc))
+		if tt.outError == true {
+			continue
+		}
+		c.Assert(identity.Username, check.Equals, "foo", check.Commentf(tt.desc))
+		c.Assert(identity.Groups, check.DeepEquals, []string{"user:foo"}, check.Commentf(tt.desc))
+	}
 }
 
-// TODO(russjones): Write a test that checks if you have access to an application.
-func (s *Suite) TestCheckAccessToApp(c *check.C) {
+// TestCheckAccess verifies that the "CheckAccess" function correctly builds
+// and applies a services.AccessChecker when attempting to access an application.
+func (s *Suite) TestCheckAccess(c *check.C) {
+	// Create an application with label "bar: baz" and an application with
+	// "qux: quxx". The user created by the suite has role with label "bar: baz"
+	// so only "app-001" should be available.
+	server := &services.ServerV2{
+		Kind:    services.KindApp,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Namespace: defaults.Namespace,
+			Name:      uuid.New(),
+		},
+		Spec: services.ServerSpecV2{
+			Hostname: "server-001",
+			Protocol: services.ServerSpecV2_HTTPS,
+			Version:  teleport.Version,
+			Apps: []*services.App{
+				&services.App{
+					Name:       "app-001",
+					URI:        "http://127.0.0.1:8080",
+					PublicAddr: "app-001.example.com",
+					StaticLabels: map[string]string{
+						"bar": "baz",
+					},
+				},
+				&services.App{
+					Name:       "app-002",
+					URI:        "http://127.0.0.1:8080",
+					PublicAddr: "app-002.example.com",
+					StaticLabels: map[string]string{
+						"qux": "quxx",
+					},
+				},
+			},
+		},
+	}
+	_, err := s.tlsServer.Auth().UpsertApp(context.Background(), server)
+	c.Assert(err, check.IsNil)
+
+	var tests = []struct {
+		desc          string
+		inCertificate []byte
+		inAddress     string
+		outError      bool
+	}{
+		{
+			desc:          "allowed access, label match",
+			inCertificate: s.cert,
+			inAddress:     "app-001.example.com",
+			outError:      false,
+		},
+		{
+			desc:          "denied access, labels do not match",
+			inCertificate: s.cert,
+			inAddress:     "app-002.example.com",
+			outError:      true,
+		},
+	}
+	for _, tt := range tests {
+		_, err := s.appServer.CheckAccess(context.Background(), tt.inCertificate, tt.inAddress)
+		c.Assert(err != nil, check.Equals, tt.outError, check.Commentf(tt.desc))
+	}
+}
+
+// TestCheckAccessTrustedCluster verifies that the "CheckAccess" function
+// correctly maps a role then builds and applies a services.AccessChecker
+// that the access checker to the mapped role.
+func (s *Suite) TestCheckAccessTrustedCluster(c *check.C) {
+	// Create leaf cluster.
+	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		ClusterName: "leaf.example.com",
+		Dir:         c.MkDir(),
+	})
+	c.Assert(err, check.IsNil)
+	tlsServer, err := authServer.NewTestTLSServer()
+	c.Assert(err, check.IsNil)
+	defer tlsServer.Close()
+
+	// Create a client with a machine role of RoleApp.
+	authClient, err := tlsServer.NewClient(auth.TestBuiltin(teleport.RoleApp))
+	c.Assert(err, check.IsNil)
+	defer authClient.Close()
+
+	// Create user and role in leaf cluster.
+	_, role, err := auth.CreateUserAndRole(tlsServer.Auth(), "bar", []string{"bar-login"})
+	c.Assert(err, check.IsNil)
+
+	// Give the role application label "qux: quxx".
+	role.SetAppLabels(services.Allow, services.Labels{"qux": []string{"quxx"}})
+	err = tlsServer.Auth().UpsertRole(context.Background(), role)
+	c.Assert(err, check.IsNil)
+
+	// Fetch root CA and update role mapping in to map "user: foo" role to
+	// "user: bar" role.
+	rootCA, err := s.tlsServer.Auth().GetCertAuthority(services.CertAuthID{
+		Type:       services.UserCA,
+		DomainName: "root.example.com",
+	}, false)
+	c.Assert(err, check.IsNil)
+	rootCA.SetRoleMap(services.RoleMap{
+		services.RoleMapping{
+			Remote: "user:foo",
+			Local:  []string{"user:bar"},
+		},
+	})
+
+	// Add both CA into leaf backend, this should effectively create a trusted
+	// cluster relationship.
+	err = tlsServer.Auth().UpsertCertAuthority(rootCA)
+	c.Assert(err, check.IsNil)
+
+	// Create an application with label "bar: baz" and an application with
+	// "qux: quxx". The user created by the suite will map to a user with role
+	// with label "qux: quxx" so only "app-002" should be available.
+	server := &services.ServerV2{
+		Kind:    services.KindApp,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Namespace: defaults.Namespace,
+			Name:      uuid.New(),
+		},
+		Spec: services.ServerSpecV2{
+			Hostname: "server-001",
+			Protocol: services.ServerSpecV2_HTTPS,
+			Version:  teleport.Version,
+			Apps: []*services.App{
+				&services.App{
+					Name:       "app-001",
+					URI:        "http://127.0.0.1:8080",
+					PublicAddr: "app-001.example.com",
+					StaticLabels: map[string]string{
+						"bar": "baz",
+					},
+				},
+				&services.App{
+					Name:       "app-002",
+					URI:        "http://127.0.0.1:8080",
+					PublicAddr: "app-002.example.com",
+					StaticLabels: map[string]string{
+						"qux": "quxx",
+					},
+				},
+			},
+		},
+	}
+
+	// Create the handler in the leaf cluster.
+	appServer, err := New(context.Background(), &Config{
+		Clock:       s.clock,
+		AccessPoint: authClient,
+		GetRotation: testRotationGetter,
+		Server:      server,
+	})
+	c.Assert(err, check.IsNil)
+	appServer.Start()
+	err = appServer.ForceHeartbeat()
+	c.Assert(err, check.IsNil)
+	defer appServer.Close()
+
+	var tests = []struct {
+		desc          string
+		inCertificate []byte
+		inAddress     string
+		outError      bool
+	}{
+		{
+			desc:          "denied access, mapped to role where labels do not match",
+			inCertificate: s.cert,
+			inAddress:     "app-001.example.com",
+			outError:      true,
+		},
+		{
+			desc:          "allowed access, mapped to role where label match",
+			inCertificate: s.cert,
+			inAddress:     "app-002.example.com",
+			outError:      false,
+		},
+	}
+	for _, tt := range tests {
+		_, err := appServer.CheckAccess(context.Background(), tt.inCertificate, tt.inAddress)
+		c.Assert(err != nil, check.Equals, tt.outError, check.Commentf(tt.desc))
+	}
 }
 
 func testRotationGetter(role teleport.Role) (*services.Rotation, error) {

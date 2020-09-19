@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
 
@@ -191,7 +190,7 @@ type transport struct {
 	sshServer SSHConnHandler
 
 	// appServer is the underlying HTTP server. Used for dial back app servers.
-	appServer AppConnHandler
+	appServer AppHandler
 
 	// reverseTunnelServer holds all reverse tunnel connections.
 	reverseTunnelServer Server
@@ -312,17 +311,21 @@ func (p *transport) start() {
 			return
 		}
 
+		// Check if the caller has access to the requested application.
+		application, err := p.appServer.CheckAccess(p.closeContext, p.certificate, p.publicAddr)
+		if err != nil {
+			p.log.Errorf("Denied access to %v: %v.", p.publicAddr, err)
+			p.reply(req, false, []byte("connection rejected: access denied"))
+			return
+		}
+
+		// Caller has access to the application, reply that a connection has been
+		// established and hand off the connection the application proxy.
 		if err := req.Reply(true, []byte("Connected.")); err != nil {
 			p.log.Errorf("Failed responding OK to %q request: %v", req.Type, err)
 			return
 		}
-
-		// Hand connection off to the application server.
-		//p.appServer.HandleConnection(utils.NewChConn(p.sconn, p.channel), dreq.TargetAddr)
-		p.appServer.HandleConnection(p.closeContext, &app.Request{
-			Conn: utils.NewChConn(p.sconn, p.channel),
-			// TODO(russjones): Fill out public addr as well as certificate.
-		})
+		p.appServer.ForwardConnection(utils.NewChConn(p.sconn, p.channel), application.URI)
 		return
 	default:
 		servers = append(servers, dreq.Address)

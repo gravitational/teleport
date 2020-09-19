@@ -292,7 +292,7 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 
 		// Connections to applications should never occur over a direct dial, return right away.
 		if params.ConnType == services.AppTunnel {
-			return nil, false, trace.ConnectionProblem(err, "failed to find application at %v", params.ServerID)
+			return nil, false, trace.ConnectionProblem(err, "failed to connect to application")
 		}
 
 		// This node can only be reached over a tunnel, don't attempt to dial
