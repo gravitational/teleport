@@ -441,27 +441,25 @@ func (s *localSite) getRemoteConn(params DialParams) (*remoteConn, error) {
 func (s *localSite) chanTransportConn(rconn *remoteConn, params DialParams) (net.Conn, error) {
 	s.log.Debugf("Connecting to %v through tunnel.", rconn.conn.RemoteAddr())
 
-	var address string
-	var targetAddress string
-
 	// For SSH nodes use the non-resolvable address @local-node and for
 	// applications use @local-app. For applications, the target host has to do
 	// additional routing to connect to the target application, extract that from
 	// the "To" parameter.
+	var address string
 	switch services.TunnelType(rconn.tunnelType) {
 	case services.NodeTunnel:
 		address = LocalNode
 	case services.AppTunnel:
 		address = LocalApp
-		targetAddress = params.To.String()
 	default:
-		return nil, trace.BadParameter("invalid tunnel type: %v", rconn.tunnelType)
+		return nil, trace.BadParameter("unknown tunnel type: %v", rconn.tunnelType)
 	}
 
 	conn, markInvalid, err := connectProxyTransport(rconn.sconn, &dialReq{
-		Address:    address,
-		TargetAddr: targetAddress,
-		ConnType:   params.ConnType,
+		Address:     address,
+		PublicAddr:  params.PublicAddr,
+		Certificate: params.Certificate,
+		ConnType:    params.ConnType,
 	})
 	if err != nil {
 		if markInvalid {

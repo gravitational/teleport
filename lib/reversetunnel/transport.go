@@ -84,21 +84,36 @@ type dialReq struct {
 	// channel upon calling close on the net.Conn.
 	Exclusive bool `json:"exclusive"`
 
-	// TargetAddr is the address to connect to after connecting to "ServerID". It
-	// is only used when connecting to applications.
-	TargetAddr string `json:"target_addr,omitempty"`
+	// PublicAddr is the public address of the application to connect to after
+	// connecting to "ServerID". Only used when connecting to applications.
+	PublicAddr string `json:"target_addr,omitempty"`
+
+	// Certificate is a PEM encoded x509 certificate that contains the identity
+	// of the caller. Only used when connecting to applications.
+	Certificate []byte `json:"certificate,omitempty"`
 
 	// ConnType is the type of connection requested, either node or application.
 	ConnType services.TunnelType `json:"conn_type"`
 }
 
 func (r *dialReq) CheckAndSetDefaults() error {
+	if r.ConnType == "" {
+		r.ConnType = services.NodeTunnel
+	}
+
 	if r.Address == "" {
 		return trace.BadParameter("address is missing")
 	}
-
-	if r.ConnType == "" {
-		r.ConnType = services.NodeTunnel
+	if r.ConnType == services.AppTunnel {
+		if r.ServerID == "" {
+			return trace.BadParameter("server ID is missing")
+		}
+		if r.PublicAddr == "" {
+			return trace.BadParameter("public address is missing")
+		}
+		if r.Certificate == nil {
+			return trace.BadParameter("certificate is missing")
+		}
 	}
 
 	return nil
@@ -189,11 +204,11 @@ type transport struct {
 	// server is the underlying SSH server. Used for dial back nodes.
 	sshServer SSHConnHandler
 
-	// appServer is the underlying HTTP server. Used for dial back app servers.
-	appServer AppHandler
-
 	// reverseTunnelServer holds all reverse tunnel connections.
 	reverseTunnelServer Server
+
+	// appServer is the underlying HTTP server. Used for dial back app servers.
+	appServer AppHandler
 }
 
 // start will start the transporting data over the tunnel. This function will
@@ -312,9 +327,9 @@ func (p *transport) start() {
 		}
 
 		// Check if the caller has access to the requested application.
-		application, err := p.appServer.CheckAccess(p.closeContext, p.certificate, p.publicAddr)
+		application, err := p.appServer.CheckAccess(p.closeContext, dreq.Certificate, dreq.PublicAddr)
 		if err != nil {
-			p.log.Errorf("Denied access to %v: %v.", p.publicAddr, err)
+			p.log.Errorf("Denied access to %v: %v.", dreq.PublicAddr, err)
 			p.reply(req, false, []byte("connection rejected: access denied"))
 			return
 		}
@@ -451,14 +466,15 @@ func (p *transport) tunnelDial(r *dialReq) (net.Conn, error) {
 		return nil, trace.BadParameter("did not find local cluster, found %T", cluster)
 	}
 
-	to, err := utils.ParseAddr(r.TargetAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	//to, err := utils.ParseAddr(r.TargetAddr)
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
 	conn, err := localCluster.dialTunnel(DialParams{
-		To:       to,
-		ServerID: r.ServerID,
-		ConnType: r.ConnType,
+		ServerID:    r.ServerID,
+		PublicAddr:  r.PublicAddr,
+		Certificate: r.Certificate,
+		ConnType:    r.ConnType,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

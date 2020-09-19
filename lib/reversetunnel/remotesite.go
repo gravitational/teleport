@@ -518,10 +518,11 @@ func (s *remoteSite) DialTCP(params DialParams) (net.Conn, error) {
 	//s.Debugf("Dialing from %v to %v.", params.From, params.To)
 
 	conn, err := s.connThroughTunnel(&dialReq{
-		Address:    params.To.String(),
-		TargetAddr: params.To.String(),
-		ServerID:   params.ServerID,
-		ConnType:   params.ConnType,
+		Address:     params.To.String(),
+		ServerID:    params.ServerID,
+		PublicAddr:  params.PublicAddr,
+		Certificate: params.Certificate,
+		ConnType:    params.ConnType,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

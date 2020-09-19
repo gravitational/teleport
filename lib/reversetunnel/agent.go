@@ -86,7 +86,7 @@ type AgentConfig struct {
 	SSHServer SSHConnHandler
 	// AppServer is an application proxy (AAP) that forwards requests to the
 	// target node.
-	AppServer AppConnHandler
+	AppServer AppHandler
 	// ReverseTunnelServer holds all reverse tunnel connections.
 	ReverseTunnelServer Server
 	// LocalClusterName is the name of the cluster this agent is running in.
