@@ -1579,7 +1579,7 @@ func (process *TeleportProcess) initSSH() error {
 				AccessPoint: conn.Client,
 				HostSigners: []ssh.Signer{conn.ServerIdentity.KeySigner},
 				Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-				Server:      s,
+				SSHServer:   s,
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -2384,7 +2384,10 @@ func (process *TeleportProcess) initApps() {
 		trace.Component: component,
 	})
 
-	process.RegisterCriticalFunc("connect.apps", func() error {
+	var appServer *app.Server
+	var agentPool *reversetunnel.AgentPool
+
+	process.RegisterCriticalFunc("apps.start", func() error {
 		var ok bool
 		var event Event
 
@@ -2409,66 +2412,36 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
-		n := len(process.Config.Apps.Apps)
-		startCh := make(chan string, n)
-
-		// Loop over each application and start it.
+		// Loop over each application and create a server.
+		var applications []*services.App
 		for _, app := range process.Config.Apps.Apps {
-			application := &services.ServerV2{
-				Kind:    services.KindApp,
-				Version: services.V2,
-				Metadata: services.Metadata{
-					Namespace: defaults.Namespace,
-					Name:      process.Config.HostUUID,
-					Labels:    app.StaticLabels,
-				},
-				Spec: services.ServerSpecV2{
-					Protocol:     app.Protocol,
-					AppName:      app.Name,
-					InternalAddr: app.InternalAddr.String(),
-					PublicAddr:   app.PublicAddr.String(),
-					CmdLabels:    services.LabelsToV2(app.DynamicLabels),
-					Version:      teleport.Version,
-				},
-			}
-			process.initApp(conn, authClient, application, startCh)
+			applications = append(applications, &services.App{
+				Name:          app.Name,
+				URI:           app.URI,
+				PublicAddr:    app.PublicAddr,
+				StaticLabels:  app.StaticLabels,
+				DynamicLabels: services.LabelsToV2(app.DynamicLabels),
+			})
+		}
+		server := &services.ServerV2{
+			Kind:    services.KindApp,
+			Version: services.V2,
+			Metadata: services.Metadata{
+				Namespace: defaults.Namespace,
+				Name:      process.Config.HostUUID,
+			},
+			Spec: services.ServerSpecV2{
+				Hostname: process.Config.Hostname,
+				Protocol: services.ServerSpecV2_HTTPS,
+				Version:  teleport.Version,
+				Apps:     applications,
+			},
 		}
 
-		timer := time.NewTimer(defaults.AppsStartTimeout)
-		defer timer.Stop()
-
-		// Wait for all applications to start.
-		for {
-			select {
-			case appName := <-startCh:
-				n -= 1
-				log.Infof("Application %q started.", appName)
-
-				// Once all events have been received, broadcast that the apps
-				// proxy is ready.
-				if n == 0 {
-					process.BroadcastEvent(Event{Name: AppsReady, Payload: nil})
-					log.Infof("All applications successfully started.")
-					return nil
-				}
-			case <-timer.C:
-				return trace.BadParameter("timed out waiting for apps to start")
-			}
-		}
-	})
-}
-
-func (process *TeleportProcess) initApp(conn *Connector, authClient auth.AccessPoint, application services.Server, startCh chan string) {
-	servicePrefix := fmt.Sprintf("app.%v", application.GetName())
-
-	var server *app.Server
-	var agentPool *reversetunnel.AgentPool
-
-	process.RegisterCriticalFunc(servicePrefix+".run", func() error {
-		server, err := app.New(process.ExitContext(), &app.Config{
-			App:         application,
+		appServer, err := app.New(process.ExitContext(), &app.Config{
 			AccessPoint: authClient,
 			GetRotation: process.getRotation,
+			Server:      server,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2476,7 +2449,7 @@ func (process *TeleportProcess) initApp(conn *Connector, authClient auth.AccessP
 
 		// Start the apps server. This starts the server, heartbeat (services.App),
 		// and (dynamic) label update.
-		server.Start()
+		appServer.Start()
 
 		// Create and start an agent pool.
 		agentPool, err = reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
@@ -2484,7 +2457,7 @@ func (process *TeleportProcess) initApp(conn *Connector, authClient auth.AccessP
 			HostUUID:    conn.ServerIdentity.ID.HostUUID,
 			ProxyAddr:   conn.TunnelProxy(),
 			Client:      conn.Client,
-			AppServer:   server,
+			AppServer:   appServer,
 			AccessPoint: conn.Client,
 			HostSigners: []ssh.Signer{conn.ServerIdentity.KeySigner},
 			Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
@@ -2497,29 +2470,29 @@ func (process *TeleportProcess) initApp(conn *Connector, authClient auth.AccessP
 			return trace.Wrap(err)
 		}
 
-		// Notify parent that this app has started.
-		startCh <- application.GetName()
-
 		// Block and wait while the server and agent pool are running.
-		if err := server.Wait(); err != nil {
+		if err := appServer.Wait(); err != nil {
 			return trace.Wrap(err)
 		}
 		agentPool.Wait()
 
-		log.Infof("Exited.")
+		process.BroadcastEvent(Event{Name: AppsReady, Payload: nil})
+		log.Infof("All applications successfully started.")
+
 		return nil
 	})
 
 	// Execute this when process is asked to exit.
-	process.onExit(servicePrefix+".shutdown", func(payload interface{}) {
+	process.onExit("apps.stop", func(payload interface{}) {
 		log.Infof("Shutting down.")
-		if server != nil {
-			warnOnErr(server.Close())
+		if appServer != nil {
+			warnOnErr(appServer.Close())
 		}
 		agentPool.Stop()
 
 		log.Infof("Exited.")
 	})
+
 }
 
 func warnOnErr(err error) {

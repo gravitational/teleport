@@ -479,12 +479,12 @@ type App struct {
 	// supported.
 	Protocol services.ServerSpecV2_ServerProtocolType `yaml:"protocol"`
 
-	// InternalAddr is the internal address of the application.
-	InternalAddr utils.NetAddr `yaml:"internal_addr"`
+	// URI is the internal address of the application.
+	URI string `yaml:"uri"`
 
 	// Public address of the application. This is the address users will access
 	// the application at.
-	PublicAddr utils.NetAddr `yaml:"public_addr"`
+	PublicAddr string `yaml:"public_addr"`
 
 	// StaticLabels is a map of static labels to apply to this application.
 	StaticLabels map[string]string `yaml:"labels,omitempty"`

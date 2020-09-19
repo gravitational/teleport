@@ -53,6 +53,7 @@ type Suite struct {
 	message      string
 	hostport     string
 	testhttp     *httptest.Server
+	cert         []byte
 }
 
 var _ = check.Suite(&Suite{})
@@ -77,6 +78,16 @@ func (s *Suite) SetUpSuite(c *check.C) {
 
 	// Create a client with a machine role of RoleApp.
 	s.authClient, err = s.tlsServer.NewClient(auth.TestBuiltin(teleport.RoleApp))
+	c.Assert(err, check.IsNil)
+
+	// Create user and role.
+	_, _, err = auth.CreateUserAndRole(s.tlsServer.Auth(), "foo", []string{"bar", "baz"})
+	c.Assert(err, check.IsNil)
+
+	// Generate certificate for user.
+	_, public, err := s.tlsServer.Auth().GenerateKeyPair("")
+	c.Assert(err, check.IsNil)
+	_, s.cert, err = s.tlsServer.Auth().GenerateUserTestCerts(public, "foo", 1*time.Hour, teleport.CertificateFormatStandard, "")
 	c.Assert(err, check.IsNil)
 }
 
@@ -221,7 +232,11 @@ func (s *Suite) TestHandleConnection(c *check.C) {
 	defer clientConn.Close()
 
 	// Process the connection.
-	go s.appServer.HandleConnection(serverConn, s.hostport)
+	go s.appServer.HandleConnection(context.Background(), &Request{
+		Conn:        serverConn,
+		PublicAddr:  "foo.example.com",
+		Certificate: s.cert,
+	})
 
 	// Perform a simple HTTP GET against the application server.
 	httpTransport := &http.Transport{
@@ -269,7 +284,6 @@ func (s *Suite) TestMultipleApps(c *check.C) {
 
 // TODO(russjones): Write a test that checks if you have access to an application.
 func (s *Suite) TestCheckAccessToApp(c *check.C) {
-
 }
 
 func testRotationGetter(role teleport.Role) (*services.Rotation, error) {

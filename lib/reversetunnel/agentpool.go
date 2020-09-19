@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -44,7 +45,7 @@ type SSHConnHandler interface {
 }
 
 type AppConnHandler interface {
-	HandleConnection(conn net.Conn, targetAddr string)
+	HandleConnection(context.Context, *app.Request)
 }
 
 // AgentPool manages the pool of outbound reverse tunnel agents.

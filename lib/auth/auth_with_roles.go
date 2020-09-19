@@ -1916,26 +1916,29 @@ func (a *AuthWithRoles) GetAppsWithIdentity(ctx context.Context, namespace strin
 		return nil, trace.Wrap(err)
 	}
 
-	// Fetch roles for identity and filter out any applications the user does
-	// not have access to.
-	roleset, err := services.FetchRoles(a.user.GetRoles(), a.authServer, a.user.GetTraits())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	filteredApps := make([]services.Server, 0, len(apps))
-	for _, app := range apps {
-		err := roleset.CheckAccessToApp(app)
-		if err != nil {
-			if trace.IsAccessDenied(err) {
-				continue
-			}
-			return nil, trace.Wrap(err)
-		}
+	return apps, nil
 
-		filteredApps = append(filteredApps, app)
-	}
+	// TODO(russjones): Add in filtering again.
+	//// Fetch roles for identity and filter out any applications the user does
+	//// not have access to.
+	//roleset, err := services.FetchRoles(a.user.GetRoles(), a.authServer, a.user.GetTraits())
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+	//filteredApps := make([]services.Server, 0, len(apps))
+	//for _, app := range apps {
+	//	err := roleset.CheckAccessToApp(app)
+	//	if err != nil {
+	//		if trace.IsAccessDenied(err) {
+	//			continue
+	//		}
+	//		return nil, trace.Wrap(err)
+	//	}
 
-	return filteredApps, nil
+	//	filteredApps = append(filteredApps, app)
+	//}
+
+	//return filteredApps, nil
 }
 
 // GenerateAppToken returns a signed token that contains claims about the

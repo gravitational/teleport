@@ -655,14 +655,15 @@ func (a *appCollection) resources() (r []services.Resource) {
 }
 
 func (a *appCollection) writeText(w io.Writer) error {
-	t := asciitable.MakeTable([]string{"Application", "Internal Address", "Public Address", "Labels"})
-	for _, app := range a.apps {
-		t.AddRow([]string{
-			app.GetName(), app.GetInternalAddr(), app.GetPublicAddr(), app.LabelsString(),
-		})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
+	return nil
+	//t := asciitable.MakeTable([]string{"Application", "Internal Address", "Public Address", "Labels"})
+	////for _, app := range a.apps {
+	////	t.AddRow([]string{
+	////		app.GetName(), app.GetInternalAddr(), app.GetPublicAddr(), app.LabelsString(),
+	////	})
+	////}
+	//_, err := t.AsBuffer().WriteTo(w)
+	//return trace.Wrap(err)
 }
 
 func (a *appCollection) writeJSON(w io.Writer) error {

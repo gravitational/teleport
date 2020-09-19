@@ -71,7 +71,6 @@ func TestAuthenticate(t *testing.T) {
 		SessionID:   webSession.GetName(),
 		BearerToken: webSession.GetBearerToken(),
 	})
-	fmt.Printf("--> appSession: %v, err: %v.\n", appSession, err)
 	assert.Nil(t, err)
 
 	// Create a few cookie values to test.

@@ -677,29 +677,23 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 
-		// Parse the internal address of the application.
-		uriAddr, err := utils.ParseHostPortAddr(application.URI, -1)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Parse the external address of the application.
-		publicAddr, err := utils.ParseHostPortAddr(application.PublicAddr, -1)
+		// Parse and validate URL.
+		_, err = url.Parse(application.URI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// Parse the static labels of the application.
-		labels := make(map[string]string)
-		if application.Labels != nil {
-			labels = application.Labels
+		staticLabels := make(map[string]string)
+		if application.StaticLabels != nil {
+			staticLabels = application.StaticLabels
 		}
 
 		// Parse the dynamic labels of the application.
-		commands := make(services.CommandLabels)
-		if application.Commands != nil {
-			for _, v := range application.Commands {
-				commands[v.Name] = &services.CommandLabelV2{
+		dynamicLabels := make(services.CommandLabels)
+		if application.DynamicLabels != nil {
+			for _, v := range application.DynamicLabels {
+				dynamicLabels[v.Name] = &services.CommandLabelV2{
 					Period:  services.NewDuration(v.Period),
 					Command: v.Command,
 					Result:  "",
@@ -707,20 +701,14 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 			}
 		}
 
-		// Parse the protocol from human readable format to a GRPC enum.
-		protocol, err := services.ParseProtocol(application.Protocol)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
 		// Add the application to the list of proxied applications.
 		cfg.Apps.Apps = append(cfg.Apps.Apps, service.App{
 			Name:          application.Name,
-			Protocol:      protocol,
-			InternalAddr:  *uriAddr,
-			PublicAddr:    *publicAddr,
-			StaticLabels:  labels,
-			DynamicLabels: commands,
+			Protocol:      services.ServerSpecV2_HTTPS,
+			URI:           application.URI,
+			PublicAddr:    application.PublicAddr,
+			StaticLabels:  staticLabels,
+			DynamicLabels: dynamicLabels,
 		})
 	}
 
@@ -952,14 +940,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	if clf.AppName != "" {
 		cfg.Apps.Enabled = true
 
-		// Parse the internal address of the application.
-		uriAddr, err := utils.ParseHostPortAddr(clf.AppURI, -1)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Parse the external address of the application.
-		publicAddr, err := utils.ParseHostPortAddr(clf.AppPublicAddr, -1)
+		// Validate the URI.
+		_, err = url.Parse(clf.AppURI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -967,8 +949,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		cfg.Apps.Apps = append(cfg.Apps.Apps, service.App{
 			Name:          clf.AppName,
 			Protocol:      services.ServerSpecV2_HTTPS,
-			InternalAddr:  *uriAddr,
-			PublicAddr:    *publicAddr,
+			URI:           clf.AppURI,
+			PublicAddr:    clf.AppPublicAddr,
 			StaticLabels:  make(map[string]string),
 			DynamicLabels: make(services.CommandLabels),
 		})

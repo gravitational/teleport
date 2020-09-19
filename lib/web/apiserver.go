@@ -411,7 +411,6 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	// Extract services.RoleSet from certificate.
 	cert, _, err := c.GetCertificates()
 	if err != nil {
 		return nil, trace.Wrap(err)

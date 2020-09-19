@@ -820,15 +820,8 @@ type App struct {
 }
 
 func (a *App) CheckAndSetDefaults() error {
-	if a.Protocol == "" {
-		a.Protocol = teleport.ServerProtocolHTTPS
-	}
-
 	if a.Name == "" {
 		return trace.BadParameter("missing name")
-	}
-	if a.Protocol != teleport.ServerProtocolHTTPS {
-		return trace.BadParameter("invalid protocol: %q", a.Protocol)
 	}
 	if a.URI == "" {
 		return trace.BadParameter("missing URI")

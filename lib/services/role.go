@@ -1408,7 +1408,7 @@ type AccessChecker interface {
 	EnhancedRecordingSet() map[string]bool
 
 	// CheckAccessToApp checks access to an application.
-	CheckAccessToApp(app Server) error
+	CheckAccessToApp(app *App) error
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -1835,17 +1835,18 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 	return trace.AccessDenied("access to server denied")
 }
 
+// TODO(russjones): Set namespace per application.
 // CheckAccessToApp checks if a role has access to an application. Deny rules
 // are checked first then allow rules. Access to an application is determined by
 // namespaces and labels.
-func (set RoleSet) CheckAccessToApp(app Server) error {
+func (set RoleSet) CheckAccessToApp(app *App) error {
 	var errs []error
 
 	// Check deny rules: a matching namespace and label in the deny section
 	// prohibits access.
 	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), app.GetNamespace())
-		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Deny), app.GetAllLabels())
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), defaults.Namespace)
+		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Deny), CombineLabels(app.StaticLabels, app.DynamicLabels))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1854,7 +1855,7 @@ func (set RoleSet) CheckAccessToApp(app Server) error {
 				log.WithFields(log.Fields{
 					trace.Component: teleport.ComponentRBAC,
 				}).Debugf("Access to app %v denied, deny rule in %v matched; match(namespace=%v, label=%v)",
-					app.GetName(), role.GetName(), namespaceMessage, labelsMessage)
+					app.Name, role.GetName(), namespaceMessage, labelsMessage)
 			}
 			return trace.AccessDenied("access to app denied")
 		}
@@ -1862,8 +1863,8 @@ func (set RoleSet) CheckAccessToApp(app Server) error {
 
 	// Check allow rules: namespace and label both have to match in to be granted access.
 	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), app.GetNamespace())
-		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Allow), app.GetAllLabels())
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), defaults.Namespace)
+		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Allow), CombineLabels(app.StaticLabels, app.DynamicLabels))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1880,7 +1881,7 @@ func (set RoleSet) CheckAccessToApp(app Server) error {
 	if log.GetLevel() == log.DebugLevel {
 		log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Access to app %v denied, no allow rule matched; %v", app.GetName(), errs)
+		}).Debugf("Access to app %v denied, no allow rule matched; %v", app.Name, errs)
 	}
 	return trace.AccessDenied("access to app denied")
 }

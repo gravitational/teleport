@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
 
@@ -317,7 +318,11 @@ func (p *transport) start() {
 		}
 
 		// Hand connection off to the application server.
-		p.appServer.HandleConnection(utils.NewChConn(p.sconn, p.channel), dreq.TargetAddr)
+		//p.appServer.HandleConnection(utils.NewChConn(p.sconn, p.channel), dreq.TargetAddr)
+		p.appServer.HandleConnection(p.closeContext, &app.Request{
+			Conn: utils.NewChConn(p.sconn, p.channel),
+			// TODO(russjones): Fill out public addr as well as certificate.
+		})
 		return
 	default:
 		servers = append(servers, dreq.Address)

@@ -800,26 +800,26 @@ func showApps(apps []services.Server, verbose bool) {
 	// lines per node.
 	if verbose {
 		t := asciitable.MakeTable([]string{"Application", "Host UUID", "Internal Address", "Public Address", "Labels"})
-		for _, app := range apps {
-			t.AddRow([]string{
-				app.GetName(), "TODO", app.GetInternalAddr(), app.GetPublicAddr(), app.LabelsString(),
-			})
-		}
+		//for _, app := range apps {
+		//	t.AddRow([]string{
+		//		app.GetName(), "TODO", app.GetInternalAddr(), app.GetPublicAddr(), app.LabelsString(),
+		//	})
+		//}
 		fmt.Println(t.AsBuffer().String())
 	} else {
 		t := asciitable.MakeTable([]string{"Application", "Public Address", "Labels"})
-		for _, app := range apps {
-			labelChunks := chunkLabels(app.GetAllLabels(), 2)
-			for i, v := range labelChunks {
-				var name string
-				var addr string
-				if i == 0 {
-					name = app.GetName()
-					addr = app.GetPublicAddr()
-				}
-				t.AddRow([]string{name, addr, strings.Join(v, ", ")})
-			}
-		}
+		//for _, app := range apps {
+		//	labelChunks := chunkLabels(app.GetAllLabels(), 2)
+		//	for i, v := range labelChunks {
+		//		var name string
+		//		var addr string
+		//		if i == 0 {
+		//			name = app.GetName()
+		//			addr = app.GetPublicAddr()
+		//		}
+		//		t.AddRow([]string{name, addr, strings.Join(v, ", ")})
+		//	}
+		//}
 		fmt.Println(t.AsBuffer().String())
 	}
 }

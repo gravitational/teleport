@@ -318,11 +318,16 @@ func (s *ServerV2) GetNamespace() string {
 // GetAllLabels returns the full key:value map of both static labels and
 // "command labels"
 func (s *ServerV2) GetAllLabels() map[string]string {
+	return CombineLabels(s.Metadata.Labels, s.Spec.CmdLabels)
+}
+
+// CombineLabels combines the passed in static and (resolved) dynamic labels.
+func CombineLabels(static map[string]string, dynamic map[string]CommandLabelV2) map[string]string {
 	lmap := make(map[string]string)
-	for key, value := range s.Metadata.Labels {
+	for key, value := range static {
 		lmap[key] = value
 	}
-	for key, cmd := range s.Spec.CmdLabels {
+	for key, cmd := range dynamic {
 		lmap[key] = cmd.Result
 	}
 	return lmap
@@ -485,7 +490,7 @@ const ServerSpecV2Schema = `{
     "protocol": {"type": "integer"},
     "public_addr": {"type": "string"},
     "apps":  {
-      "type": "array",
+      "type": ["array", "null"],
       "items": {
         "type": "object",
         "additionalProperties": false,

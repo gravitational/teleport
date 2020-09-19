@@ -21,8 +21,11 @@ package app
 
 import (
 	"context"
+	"crypto/x509"
 	"io"
+	"math/rand"
 	"net"
+	"net/url"
 	"sync/atomic"
 	"time"
 
@@ -32,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -41,6 +45,18 @@ import (
 )
 
 type RotationGetter func(role teleport.Role) (*services.Rotation, error)
+
+type Request struct {
+	// Conn is a connection between the reverse tunnel and application node.
+	Conn net.Conn
+
+	// PublicAddr is the name of the application being requested.
+	PublicAddr string
+
+	// Certificate is a PEM encoded x509 certificate that contains the identity
+	// of the requester.
+	Certificate []byte
+}
 
 // Config is the configuration for an application server.
 type Config struct {
@@ -87,6 +103,7 @@ type Server struct {
 
 	heartbeat     *srv.Heartbeat
 	dynamicLabels map[string]*labels.Dynamic
+	clusterName   string
 
 	keepAlive time.Duration
 
@@ -113,6 +130,9 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	// sync them right away so the first heartbeat has correct dynamic labels.
 	s.dynamicLabels = make(map[string]*labels.Dynamic)
 	for _, a := range c.Server.GetApps() {
+		if len(a.DynamicLabels) == 0 {
+			continue
+		}
 		dl, err := labels.NewDynamic(s.closeContext, &labels.DynamicConfig{
 			Labels: services.V2ToLabels(a.DynamicLabels),
 			Log:    s.log,
@@ -148,6 +168,12 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	}
 	s.keepAlive = clusterConfig.GetKeepAliveInterval()
 
+	cn, err := s.c.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s.clusterName = cn.GetClusterName()
+
 	return s, nil
 }
 
@@ -157,7 +183,11 @@ func (s *Server) GetServerInfo() (services.Server, error) {
 	// Update dynamic labels on all apps.
 	apps := s.c.Server.GetApps()
 	for _, a := range apps {
-		a.DynamicLabels = services.LabelsToV2(s.dynamicLabels[a.Name].Get())
+		dl, ok := s.dynamicLabels[a.Name]
+		if !ok {
+			continue
+		}
+		a.DynamicLabels = services.LabelsToV2(dl.Get())
 	}
 	s.c.Server.SetApps(apps)
 
@@ -187,15 +217,33 @@ func (s *Server) Start() {
 }
 
 // Serve accepts incoming connections on the Listener and calls the handler.
-func (s *Server) HandleConnection(channelConn net.Conn, targetAddr string) {
+func (s *Server) HandleConnection(ctx context.Context, r *Request) {
+	channelConn := r.Conn
+
+	// Before forwarding the request to the target application, check if the
+	// caller has access to this application.
+	application, err := s.checkAccess(ctx, r.Certificate, r.PublicAddr)
+	if err != nil {
+		s.log.Errorf("Denied access to %v: %v.", r.PublicAddr, err)
+		channelConn.Close()
+		return
+	}
+
+	u, err := url.Parse(application.URI)
+	if err != nil {
+		s.log.Errorf("Application running at invalid address: %v: %v.", application.URI, err)
+		channelConn.Close()
+		return
+	}
+
 	// Establish connection to target server.
-	s.log.Debugf("Dialing to %v.", targetAddr)
+	//s.log.Debugf("Dialing to %v.", application.)
 	d := net.Dialer{
 		KeepAlive: s.keepAlive,
 	}
-	targetConn, err := d.DialContext(s.closeContext, "tcp", targetAddr)
+	targetConn, err := d.DialContext(s.closeContext, "tcp", u.Host)
 	if err != nil {
-		s.log.Errorf("Failed to connect to %v: %v.", targetAddr, err)
+		s.log.Errorf("Failed to connect to %v: %v.", u.Host, err)
 		channelConn.Close()
 		return
 	}
@@ -257,6 +305,137 @@ func (s *Server) Close() error {
 func (s *Server) Wait() error {
 	<-s.closeContext.Done()
 	return s.closeContext.Err()
+}
+
+func (s *Server) GetApp(ctx context.Context, publicAddr string) (*services.App, error) {
+	var matches []*services.App
+
+	servers, err := s.c.AccessPoint.GetApps(ctx, defaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, server := range servers {
+		for _, a := range server.GetApps() {
+			if publicAddr == a.PublicAddr {
+				matches = append(matches, a)
+			}
+		}
+	}
+
+	if len(matches) == 0 {
+		return nil, trace.NotFound("no application at %v found", publicAddr)
+	}
+	return matches[rand.Intn(len(matches))], nil
+}
+
+func (s *Server) checkAccess(ctx context.Context, certBytes []byte, publicAddr string) (*services.App, error) {
+	// Verify and extract the identity of the caller.
+	identity, ca, err := s.verifyCertificate(certBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Find the application the caller is requesting by public address.
+	app, err := s.GetApp(ctx, publicAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Build the access checker either directly or by mapping roles depending on
+	// if this code is running within the same cluster that issued the identity
+	// or if it's running in a leaf cluster.
+	checker, err := s.buildChecker(identity, ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Check if the caller has access to the application being requested.
+	err = checker.CheckAccessToApp(app)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return app, nil
+}
+
+func (s *Server) buildChecker(identity *tlsca.Identity, ca services.CertAuthority) (services.AccessChecker, error) {
+	var checker services.AccessChecker
+
+	// If the caller has an identity issued the same cluster that the application
+	// proxy is running in, directly build the access checker. Otherwise map the
+	// roles, then build the access checker.
+	if s.clusterName == ca.GetClusterName() {
+		roles, traits, err := services.ExtractFromIdentity(s.c.AccessPoint, identity)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		checker, err = services.FetchRoles(roles, s.c.AccessPoint, traits)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		roleNames, err := ca.CombinedMapping().Map(identity.Groups)
+		if err != nil {
+			return nil, trace.AccessDenied("failed to map roles")
+		}
+		// Pass the principals on the certificate along as the login traits
+		// to the remote cluster.
+		//traits := map[string][]string{
+		//	teleport.TraitLogins: cert.ValidPrincipals,
+		//}
+		checker, err = services.FetchRoles(roleNames, s.c.AccessPoint, map[string][]string{})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return checker, nil
+}
+
+func (s *Server) verifyCertificate(bytes []byte) (*tlsca.Identity, services.CertAuthority, error) {
+	// Parse certificate and extract the name of the cluster the certificate
+	// claims it was issued by.
+	cert, err := tlsca.ParseCertificatePEM(bytes)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	clusterName, err := tlsca.ClusterName(cert.Issuer)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Find the CA the certificate was signed by.
+	ca, err := s.c.AccessPoint.GetCertAuthority(services.CertAuthID{
+		Type:       services.UserCA,
+		DomainName: clusterName,
+	}, false)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Verify the CA signed the certificate.
+	roots := x509.NewCertPool()
+	for _, keyPair := range ca.GetTLSKeyPairs() {
+		ok := roots.AppendCertsFromPEM(keyPair.Cert)
+		if !ok {
+			return nil, nil, trace.BadParameter("failed to create certificate pool: %v", err)
+		}
+	}
+	_, err = cert.Verify(x509.VerifyOptions{
+		Roots: roots,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Now that it's been verified that a CA that this cluster trusts was the
+	// one to sign the certificate, extract and return the identity.
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return identity, ca, nil
 }
 
 // activeConnections returns the number of active connections being proxied.
