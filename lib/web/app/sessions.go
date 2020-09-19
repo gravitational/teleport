@@ -18,6 +18,7 @@ package app
 
 import (
 	"context"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
@@ -149,10 +150,14 @@ func (s *sessionCache) get(ctx context.Context, cookieValue string) (*session, e
 	return sess, nil
 }
 
-func (s *sessionCache) GetApp(ctx context.Context, name string, clusterName string) (*services.App, services.Server, error) {
-	var n int
-	var application *services.App
-	var parentServer services.Server
+// GetApp looks for an application registered for the requested public address
+// in the cluster and returns it. In the situation multiple applications match,
+// a random selection is returned. This is done on purpose to support HA to
+// allow multiple application proxy nodes to be run and if one is down, at
+// least the application can be accessible on the other.
+func (s *sessionCache) GetApp(ctx context.Context, publicAddr string, clusterName string) (*services.App, services.Server, error) {
+	var appMatch []*services.App
+	var serverMatch []services.Server
 
 	proxyClient, err := s.c.ProxyClient.GetSite(clusterName)
 	if err != nil {
@@ -170,30 +175,23 @@ func (s *sessionCache) GetApp(ctx context.Context, name string, clusterName stri
 	}
 	for _, server := range servers {
 		for _, a := range server.GetApps() {
-			if a.Name == name {
-				n += 1
-				application = a
-				parentServer = server
+			if a.PublicAddr == publicAddr {
+				appMatch = append(appMatch, a)
+				serverMatch = append(serverMatch, server)
 			}
 		}
 	}
 
-	switch {
-	// Multiple matching applications found.
-	case n > 1:
-		return nil, nil, trace.NotFound(teleport.NodeIsAmbiguous)
-	// Exact match found.
-	case n == 1:
-		return application, parentServer, nil
-	// No matching applications found.
-	default:
-		return nil, nil, trace.NotFound("%q not found in %q", name, clusterName)
+	if len(appMatch) == 0 {
+		return nil, nil, trace.NotFound("%q not found in %q", publicAddr, clusterName)
 	}
+	index := rand.Intn(len(appMatch))
+	return appMatch[index], serverMatch[index], nil
 }
 
 func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess services.WebSession) (*session, error) {
 	// Get the application this session is targeting.
-	app, server, err := s.GetApp(ctx, sess.GetAppName(), sess.GetClusterName())
+	app, server, err := s.GetApp(ctx, sess.GetPublicAddr(), sess.GetClusterName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -227,7 +225,7 @@ func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess 
 	jwt, err := s.c.AuthClient.GenerateAppToken(ctx, services.AppTokenParams{
 		Username: sess.GetUser(),
 		Roles:    roles,
-		AppName:  sess.GetAppName(),
+		AppName:  app.Name,
 		Expires:  sess.GetExpiryTime(),
 	})
 	if err != nil {
@@ -239,17 +237,19 @@ func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	to, err := utils.ParseAddr(u.Host)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	//to, err := utils.ParseAddr(u.Host)
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
 	conn, err := clusterClient.Dial(reversetunnel.DialParams{
-		To:       to,
-		ServerID: strings.Join([]string{server.GetName(), sess.GetClusterName()}, "."),
-		ConnType: services.AppTunnel,
+		//To:          to,
+		ServerID:    strings.Join([]string{server.GetName(), sess.GetClusterName()}, "."),
+		PublicAddr:  sess.GetPublicAddr(),
+		Certificate: sess.GetTLSCert(),
+		ConnType:    services.AppTunnel,
 	})
 	if err != nil {
-		s.log.Warnf("Failed to establish connection to %q through reverse tunnel: %v.", sess.GetAppName(), err)
+		s.log.Warnf("Failed to establish connection to %q through reverse tunnel: %v.", sess.GetPublicAddr(), err)
 		return nil, trace.BadParameter("application not available")
 	}
 
@@ -395,6 +395,7 @@ func (f *forwardHandler) Rewrite(r *http.Request) {
 	}
 }
 
+// ServeHTTP is called upon errors when forwarding the request.
 func (f *forwardHandler) ServeHTTP(w http.ResponseWriter, r *http.Request, err error) {
 	f.cache.log.Debugf("Request to %v failed: %v, removing connection from cache.", r.URL.Path, err)
 	f.cache.cacheRemove(f.cacheKey)

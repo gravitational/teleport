@@ -63,11 +63,11 @@ func (c *AppsCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 // ListApps prints the list of applications that have recently sent heartbeats
 // to the cluster.
 func (c *AppsCommand) ListApps(client auth.ClientI) error {
-	apps, err := client.GetApps(context.TODO(), defaults.Namespace, services.SkipValidation())
+	servers, err := client.GetApps(context.TODO(), defaults.Namespace, services.SkipValidation())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	coll := &appCollection{apps: apps}
+	coll := &appCollection{servers: servers}
 
 	switch c.format {
 	case teleport.Text:

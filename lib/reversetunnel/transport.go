@@ -105,9 +105,6 @@ func (r *dialReq) CheckAndSetDefaults() error {
 		return trace.BadParameter("address is missing")
 	}
 	if r.ConnType == services.AppTunnel {
-		if r.ServerID == "" {
-			return trace.BadParameter("server ID is missing")
-		}
 		if r.PublicAddr == "" {
 			return trace.BadParameter("public address is missing")
 		}

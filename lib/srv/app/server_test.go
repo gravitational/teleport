@@ -226,9 +226,9 @@ func (s *Suite) TestWaitStop(c *check.C) {
 	c.Assert(err, check.Equals, context.Canceled)
 }
 
-// TestHandleConnection makes sure the application server forwards
+// TestForwardConnection makes sure the application server forwards
 // connections to the target host and accurately keeps track of connections.
-func (s *Suite) TestHandleConnection(c *check.C) {
+func (s *Suite) TestForwardConnection(c *check.C) {
 	// Create a net.Pipe. The "server" end will be passed to the application
 	// server while the client end will be used by the http.Client to read/write
 	// a request.
@@ -237,7 +237,7 @@ func (s *Suite) TestHandleConnection(c *check.C) {
 	defer clientConn.Close()
 
 	// Process the connection.
-	go s.appServer.HandleConnection(serverConn, s.testhttp.URL)
+	go s.appServer.ForwardConnection(serverConn, s.testhttp.URL)
 
 	// Perform a simple HTTP GET against the application server.
 	httpTransport := &http.Transport{

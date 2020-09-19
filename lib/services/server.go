@@ -321,7 +321,7 @@ func (s *ServerV2) GetAllLabels() map[string]string {
 	return CombineLabels(s.Metadata.Labels, s.Spec.CmdLabels)
 }
 
-// CombineLabels combines the passed in static and (resolved) dynamic labels.
+// CombineLabels combines the passed in static and dynamic labels.
 func CombineLabels(static map[string]string, dynamic map[string]CommandLabelV2) map[string]string {
 	lmap := make(map[string]string)
 	for key, value := range static {
@@ -349,13 +349,19 @@ func (s *ServerV2) MatchAgainst(labels map[string]string) bool {
 	return true
 }
 
-// LabelsString returns a comma separated string with all node's labels
+// LabelsString returns a comma separated string of all labels.
 func (s *ServerV2) LabelsString() string {
+	return LabelsAsString(s.Metadata.Labels, s.Spec.CmdLabels)
+}
+
+// LabelsAsString combines static and dynamic labels and returns a comma
+// separated string.
+func LabelsAsString(static map[string]string, dynamic map[string]CommandLabelV2) string {
 	labels := []string{}
-	for key, val := range s.Metadata.Labels {
+	for key, val := range static {
 		labels = append(labels, fmt.Sprintf("%s=%s", key, val))
 	}
-	for key, val := range s.Spec.CmdLabels {
+	for key, val := range dynamic {
 		labels = append(labels, fmt.Sprintf("%s=%s", key, val.Result))
 	}
 	sort.Strings(labels)

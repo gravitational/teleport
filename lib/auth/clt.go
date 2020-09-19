@@ -2814,7 +2814,7 @@ func (c *Client) CreateAppSession(ctx context.Context, req services.CreateAppSes
 	}
 
 	resp, err := clt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
-		AppName:     req.AppName,
+		PublicAddr:  req.PublicAddr,
 		ClusterName: req.ClusterName,
 		SessionID:   req.SessionID,
 		BearerToken: req.BearerToken,

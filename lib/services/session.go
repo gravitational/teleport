@@ -61,10 +61,10 @@ type WebSession interface {
 	GetParentHash() string
 	// SetParentHash sets the hash of the parent session.
 	SetParentHash(string)
-	// GetAppName gets the name of the specific application for this session.
-	GetAppName() string
-	// SetAppName sets the name of the specific application for this session.
-	SetAppName(string)
+	// GetPublicAddr gets the address of the application requested.
+	GetPublicAddr() string
+	// SetPublicAddr sets the address of the application requested.
+	SetPublicAddr(string)
 	// ClusterName gets the name of the cluster in which the application is running.
 	GetClusterName() string
 	// ClusterName sets the name of the cluster in which the application is running.
@@ -186,14 +186,14 @@ func (ws *WebSessionV2) SetParentHash(parentHash string) {
 	ws.Spec.ParentHash = parentHash
 }
 
-// GetAppName gets the name of the specific application for this session.
-func (ws *WebSessionV2) GetAppName() string {
-	return ws.Spec.AppName
+// GetPublicAddr gets the address of the application requested.
+func (ws *WebSessionV2) GetPublicAddr() string {
+	return ws.Spec.PublicAddr
 }
 
-// SetAppName sets the name of the specific application for this session.
-func (ws *WebSessionV2) SetAppName(appName string) {
-	ws.Spec.AppName = appName
+// SetPublicAddr sets the address of the application requested.
+func (ws *WebSessionV2) SetPublicAddr(publicAddr string) {
+	ws.Spec.PublicAddr = publicAddr
 }
 
 // ClusterName gets the name of the cluster in which the application is running.
@@ -270,12 +270,12 @@ const WebSessionSpecV2Schema = `{
   "required": ["pub", "bearer_token", "bearer_token_expires", "expires", "user"],
   "properties": {
     "type": {"type": "integer"},
-     "user": {"type": "string"},
+    "user": {"type": "string"},
     "pub": {"type": "string"},
     "priv": {"type": "string"},
     "tls_cert": {"type": "string"},
-    "app_name": {"type": "string"},
     "parent_hash": {"type": "string"},
+    "public_addr": {"type": "string"},
     "cluster_name": {"type": "string"},
     "bearer_token": {"type": "string"},
     "bearer_token_expires": {"type": "string"},
@@ -525,11 +525,10 @@ func (*TeleportWebSessionMarshaler) MarshalWebSession(ws WebSession, opts ...Mar
 }
 
 type CreateAppSessionRequest struct {
-	// AppName is the name of the target application.
-	AppName string
-	// ClusterName is the name of the cluster within which the application is
-	// being requested.
-	ClusterName string
+	// PublicAddr is the address of the application requested.
+	PublicAddr string `json:"app"`
+	// ClusterName is the cluster within which the application is running.
+	ClusterName string `json:"cluster_name"`
 	// SessionID is the ID of the parent session.
 	SessionID string
 	// BearerToken is the bearer token of the parent session.
@@ -537,8 +536,8 @@ type CreateAppSessionRequest struct {
 }
 
 func (r CreateAppSessionRequest) Check() error {
-	if r.AppName == "" {
-		return trace.BadParameter("username is missing")
+	if r.PublicAddr == "" {
+		return trace.BadParameter("public address is missing")
 	}
 	if r.ClusterName == "" {
 		return trace.BadParameter("cluster name is missing")

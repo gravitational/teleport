@@ -54,7 +54,7 @@ func (s *AuthServer) createAppSession(ctx context.Context, identity tlsca.Identi
 		return nil, trace.Wrap(err)
 	}
 	session.SetType(services.WebSessionSpecV2_App)
-	session.SetAppName(req.AppName)
+	session.SetPublicAddr(req.PublicAddr)
 	session.SetParentHash(services.SessionHash(parentSession.GetName()))
 	session.SetClusterName(req.ClusterName)
 

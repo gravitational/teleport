@@ -262,10 +262,9 @@ message GenerateAppTokenResponse { string Token = 1 [ (gogoproto.jsontag) = "tok
 // CreateAppSessionRequest contains the parameters needed to create an
 // application session from an existing web session.
 message CreateAppSessionRequest {
-    // AppName is the address of the target application.
-    string AppName = 1 [ (gogoproto.jsontag) = "app" ];
-    // ClusterName is the name of the cluster within which the application is
-    // being requested.
+    // PublicAddr is the address of the application requested.
+    string PublicAddr = 1 [ (gogoproto.jsontag) = "public_addr" ];
+    // ClusterName is the cluster within which the application is running.
     string ClusterName = 2 [ (gogoproto.jsontag) = "cluster_name" ];
     // SessionID is the session cookie.
     string SessionID = 3 [ (gogoproto.jsontag) = "session_id" ];

@@ -200,6 +200,11 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// Web sessions
 	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.createWebSession))
+	// TODO(russjones): Add a rate limiter to this endpoint. A rate limiter is
+	// needed because the proxy will create a session without checking if the
+	// caller has access to the target application. That access check occurs on
+	// the remote side. So rate limit here to prevent someone from doing a DOS
+	// attack by creating a bunch of phony sessions.
 	h.POST("/webapi/sessions/app", h.WithAuth(h.createAppSession))
 	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
 	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
@@ -1250,11 +1255,10 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 }
 
 type createAppSessionRequest struct {
-	// AppName is the address of the target application.
-	AppName string `json:"app"`
+	// PublicAddr is the address of the application requested.
+	PublicAddr string `json:"app"`
 
-	// ClusterName is the name of the cluster within which the application is
-	// being requested.
+	// ClusterName is the cluster within which the application is running.
 	ClusterName string `json:"cluster_name"`
 
 	// SessionID is the session cookie.
@@ -1283,10 +1287,6 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(russjones): The below won't actually work, we need to perform a role
-	// mapping within the proxy (which holds clients to remote clusters) on the
-	// remote side then perform the access check there.
-
 	// Get a client to auth with the identity of the logged in user and use it
 	// to request the creation of an application session for this user.
 	client, err := ctx.GetClient()
@@ -1294,7 +1294,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 	session, err := client.CreateAppSession(r.Context(), services.CreateAppSessionRequest{
-		AppName:     req.AppName,
+		PublicAddr:  req.PublicAddr,
 		ClusterName: req.ClusterName,
 		SessionID:   req.SessionID,
 		BearerToken: req.BearerToken,

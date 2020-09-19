@@ -644,26 +644,27 @@ func (c *remoteClusterCollection) writeYAML(w io.Writer) error {
 }
 
 type appCollection struct {
-	apps []services.Server
+	servers []services.Server
 }
 
 func (a *appCollection) resources() (r []services.Resource) {
-	for _, resource := range a.apps {
+	for _, resource := range a.servers {
 		r = append(r, resource)
 	}
 	return r
 }
 
 func (a *appCollection) writeText(w io.Writer) error {
-	return nil
-	//t := asciitable.MakeTable([]string{"Application", "Internal Address", "Public Address", "Labels"})
-	////for _, app := range a.apps {
-	////	t.AddRow([]string{
-	////		app.GetName(), app.GetInternalAddr(), app.GetPublicAddr(), app.LabelsString(),
-	////	})
-	////}
-	//_, err := t.AsBuffer().WriteTo(w)
-	//return trace.Wrap(err)
+	t := asciitable.MakeTable([]string{"Application", "Public Address", "URI", "Labels"})
+	for _, server := range a.servers {
+		for _, app := range server.GetApps() {
+			t.AddRow([]string{
+				app.Name, app.PublicAddr, app.URI, services.LabelsAsString(app.StaticLabels, app.DynamicLabels),
+			})
+		}
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
 }
 
 func (a *appCollection) writeJSON(w io.Writer) error {
@@ -676,7 +677,7 @@ func (a *appCollection) writeJSON(w io.Writer) error {
 }
 
 func (a *appCollection) toMarshal() interface{} {
-	return a.apps
+	return a.servers
 }
 
 func (a *appCollection) writeYAML(w io.Writer) error {

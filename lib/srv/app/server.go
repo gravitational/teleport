@@ -203,8 +203,8 @@ func (s *Server) Start() {
 	go s.heartbeat.Run()
 }
 
-// Before forwarding the request to the target application, check if the
-// caller has access to this application.
+// CheckAccess parses the identity of the caller to check if the caller has
+// access to the requested application.
 func (s *Server) CheckAccess(ctx context.Context, certBytes []byte, publicAddr string) (*services.App, error) {
 	// Verify and extract the identity of the caller.
 	identity, ca, err := s.verifyCertificate(certBytes)
@@ -235,8 +235,8 @@ func (s *Server) CheckAccess(ctx context.Context, certBytes []byte, publicAddr s
 	return app, nil
 }
 
-// Serve accepts incoming connections on the Listener and calls the handler.
-func (s *Server) HandleConnection(channelConn net.Conn, uri string) {
+// ForwardConnection accepts incoming connections on the Listener and calls the handler.
+func (s *Server) ForwardConnection(channelConn net.Conn, uri string) {
 	// Extract the host:port for the target server.
 	u, err := url.Parse(uri)
 	if err != nil {
@@ -250,7 +250,7 @@ func (s *Server) HandleConnection(channelConn net.Conn, uri string) {
 	}
 
 	// Establish connection to target server.
-	s.log.Debugf("Dialing to %v.", hostport)
+	s.log.Debugf("Attempting to dial %v.", hostport)
 	d := net.Dialer{
 		KeepAlive: s.keepAlive,
 	}
@@ -260,6 +260,7 @@ func (s *Server) HandleConnection(channelConn net.Conn, uri string) {
 		channelConn.Close()
 		return
 	}
+	s.log.Debugf("Established connection to %v, proxying traffic.", hostport)
 
 	// Keep a count of the number of active connections. Used in tests to check
 	// for goroutine leaks.

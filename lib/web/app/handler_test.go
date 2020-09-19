@@ -66,7 +66,7 @@ func TestAuthenticate(t *testing.T) {
 
 	// Use the Web UI session to ask for a application specific session.
 	appSession, err := pack.u.client.CreateAppSession(context.Background(), services.CreateAppSessionRequest{
-		AppName:     pack.a.application.Name,
+		PublicAddr:  pack.a.application.PublicAddr,
 		ClusterName: pack.s.tlsServer.ClusterName(),
 		SessionID:   webSession.GetName(),
 		BearerToken: webSession.GetBearerToken(),
@@ -118,7 +118,7 @@ func TestAuthenticate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			// Create a request and add in the cookie.
-			r, err := http.NewRequest(http.MethodGet, "/", nil)
+			r, err := http.NewRequest(http.MethodGet, "", nil)
 			assert.Nil(t, err)
 			r.AddCookie(tt.inCookie)
 
@@ -128,8 +128,21 @@ func TestAuthenticate(t *testing.T) {
 		})
 	}
 
-	// TODO(russjones): Delete the application session, then delete the UI
-	// session and make sure access is fully revoked.
+	// Remove the parent session, this should remove the child application
+	// session as well.
+	err = pack.s.client.DeleteWebSession(webSession.GetUser(), webSession.GetName())
+	assert.Nil(t, err)
+
+	// Issue another request with the valid cookie, now the request should fail
+	// because the session has been removed from the backend.
+	r, err := http.NewRequest(http.MethodGet, "", nil)
+	assert.Nil(t, err)
+	r.AddCookie(&http.Cookie{
+		Name:  cookieName,
+		Value: validCookieValue,
+	})
+	_, err = handler.authenticate(r)
+	assert.NotNil(t, err)
 }
 
 // TestForward verifies the request is updated (jwt header added, session
@@ -154,10 +167,18 @@ func TestForward(t *testing.T) {
 
 	// Use the Web UI session to ask for a application specific session.
 	appSession, err := pack.u.client.CreateAppSession(context.Background(), services.CreateAppSessionRequest{
-		AppName:     pack.a.application.Name,
+		PublicAddr:  pack.a.application.PublicAddr,
 		ClusterName: pack.s.tlsServer.ClusterName(),
 		SessionID:   webSession.GetName(),
 		BearerToken: webSession.GetBearerToken(),
+	})
+	assert.Nil(t, err)
+
+	// Create a valid session cookie.
+	cookieValue, err := encodeCookie(&Cookie{
+		Username:   pack.u.user.GetName(),
+		ParentHash: appSession.GetParentHash(),
+		SessionID:  appSession.GetName(),
 	})
 	assert.Nil(t, err)
 
@@ -167,11 +188,11 @@ func TestForward(t *testing.T) {
 		ProxyClient: pack.p.tunnel,
 	})
 	assert.Nil(t, err)
-	session, err := cache.newSession(context.Background(), "not-required", appSession)
+	session, err := cache.get(context.Background(), cookieValue)
 	assert.Nil(t, err)
 
 	// Create a request to the requested target.
-	r, err := http.NewRequest(http.MethodGet, pack.a.application.PublicAddr, nil)
+	r, err := http.NewRequest(http.MethodGet, "", nil)
 	assert.Nil(t, err)
 
 	// Issue the request, it should succeed.
@@ -179,12 +200,21 @@ func TestForward(t *testing.T) {
 	handler.forward(w, r, session)
 	assert.Equal(t, http.StatusOK, w.Result().StatusCode)
 
-	// Check that the output contains the expected jwt.
+	// Verify the response body contains the JWT header in the request as well as a
+	// boolean field which indicates if the application session cookie was removed.
 	resp := w.Result()
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.Nil(t, err)
-	assert.Equal(t, string(body), session.jwt)
+	var ap appResponse
+	err = json.Unmarshal(body, &ap)
+	assert.Nil(t, err)
+	assert.Equal(t, ap.JWT, session.jwt)
+	assert.Equal(t, ap.MissingCookie, true)
+
+	// The session should now be in the session cache.
+	_, err = cache.cacheGet(cookieValue)
+	assert.Nil(t, err)
 
 	// Close the underlying connection.
 	err = session.conn.Close()
@@ -195,10 +225,9 @@ func TestForward(t *testing.T) {
 	handler.forward(w, r, session)
 	assert.Equal(t, http.StatusInternalServerError, w.Result().StatusCode)
 
-	// TODO(russjones): Check that the authentication cookie is removed.
-	// TODO(russjones): Update "handler.forward" to return an error. Here only
-	// check that an error is returned in session_test.go check that it also
-	// removes the session.
+	// The above failure should have removed the session from the session cache.
+	_, err = cache.cacheGet(cookieValue)
+	assert.NotNil(t, err)
 }
 
 // TestFragment validates fragment validation works, that a valid session cookie will be retu
@@ -221,7 +250,7 @@ func TestFragment(t *testing.T) {
 
 	// Use the Web UI session to ask for a application specific session.
 	appSession, err := pack.u.client.CreateAppSession(context.Background(), services.CreateAppSessionRequest{
-		AppName:     pack.a.application.Name,
+		PublicAddr:  pack.a.application.PublicAddr,
 		ClusterName: pack.s.tlsServer.ClusterName(),
 		SessionID:   webSession.GetName(),
 		BearerToken: webSession.GetBearerToken(),
@@ -271,8 +300,7 @@ func TestFragment(t *testing.T) {
 			assert.Nil(t, err)
 
 			// Create POST request that will be sent to fragment handler endpoint.
-			addr := pack.a.application.PublicAddr
-			r, err := http.NewRequest(http.MethodPost, addr, bytes.NewReader(buffer))
+			r, err := http.NewRequest(http.MethodPost, "", bytes.NewReader(buffer))
 			assert.Nil(t, err)
 
 			// Make sure fragment handler only succeeds with valid session cookies.
@@ -306,7 +334,7 @@ func TestLogout(t *testing.T) {
 
 	// Use the Web UI session to ask for a application specific session.
 	appSession, err := pack.u.client.CreateAppSession(context.Background(), services.CreateAppSessionRequest{
-		AppName:     pack.a.application.Name,
+		PublicAddr:  pack.a.application.PublicAddr,
 		ClusterName: pack.s.tlsServer.ClusterName(),
 		SessionID:   webSession.GetName(),
 		BearerToken: webSession.GetBearerToken(),
@@ -326,13 +354,16 @@ func TestLogout(t *testing.T) {
 	assert.Equal(t, trace.IsNotFound(err), true)
 }
 
-// TODO(russjones): Add a test where a request for multiple matching
-// applications returns a 404.
-func TestAmbiguous(t *testing.T) {
+// TODO(russjones): Write this test.
+// TestTrustedCluster checks that that a request that targets a trusted
+// cluster gets routed correctly.
+func TestTrustedCluster(t *testing.T) {
 }
 
-// TODO(russjones): Test connecting to an application through a trusted cluster.
-func TestTrustedCluster(t *testing.T) {
+// TODO(russjones): Write this test.
+// TestHA checks that if multiple servers are registered to proxy the same
+// application, requests to go both servers.
+func TestHA(t *testing.T) {
 }
 
 type pack struct {
@@ -381,6 +412,11 @@ type appPack struct {
 	pool        *reversetunnel.AgentPool
 }
 
+type appResponse struct {
+	JWT           string `json:"jwt,omitempty"`
+	MissingCookie bool   `json:"missing_cookie,omitempty"`
+}
+
 func setup(t *testing.T) (*pack, func()) {
 	utils.InitLoggerForTests(testing.Verbose())
 
@@ -401,8 +437,26 @@ func setup(t *testing.T) (*pack, func()) {
 
 	// Create internal application.
 	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-		fmt.Fprint(w, r.Header.Get("x-teleport-jwt-assertion"))
+		var missingCookie bool
+		_, err := r.Cookie(cookieName)
+		if err == http.ErrNoCookie {
+			missingCookie = true
+		}
+
+		bytes, err := json.Marshal(&appResponse{
+			JWT:           r.Header.Get("x-teleport-jwt-assertion"),
+			MissingCookie: missingCookie,
+		})
+		if err != nil {
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		fmt.Fprint(w, string(bytes))
+
+		//w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		//fmt.Fprint(w, r.Header.Get("x-teleport-jwt-assertion"))
 	}))
 	//u, err := url.Parse(targetServer.URL)
 	//assert.Nil(t, err)

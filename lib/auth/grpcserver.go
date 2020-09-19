@@ -567,7 +567,7 @@ func (g *GRPCServer) CreateAppSession(ctx context.Context, req *proto.CreateAppS
 	}
 
 	session, err := auth.CreateAppSession(ctx, services.CreateAppSessionRequest{
-		AppName:     req.GetAppName(),
+		PublicAddr:  req.GetPublicAddr(),
 		ClusterName: req.GetClusterName(),
 		SessionID:   req.GetSessionID(),
 		BearerToken: req.GetBearerToken(),
