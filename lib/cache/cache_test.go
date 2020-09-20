@@ -1235,7 +1235,6 @@ func (s *CacheSuite) TestApps(c *check.C) {
 
 	// Update the application and upsert it into the backend again.
 	app.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
-	app.SetInternalAddr("127.0.0.2:8081")
 	_, err = p.presenceS.UpsertApp(context.Background(), app)
 	c.Assert(err, check.IsNil)
 

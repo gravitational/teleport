@@ -26,9 +26,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/jonboulle/clockwork"
 
@@ -88,6 +86,26 @@ func NewHandler(config *HandlerConfig) (*Handler, error) {
 	}, nil
 }
 
+// ForwardToApp checks if the request is bound for the application handler.
+// Used by "ServeHTTP" within the "web" package to make a decision if the
+// request should be processed by the UI or forwarded to an application.
+func (h *Handler) ForwardToApp(r *http.Request) bool {
+	// The only unauthenticated endpoint supported is the special
+	// "x-teleport-auth" endpoint. If the request is coming to this special
+	// endpoint, it should be processed by application handlers.
+	if r.URL.Path == "/x-teleport-auth" {
+		return true
+	}
+
+	// Check if an application specific cookie exists. If it exists, forward the
+	// request to an application handler otherwise allow the UI to handle it.
+	_, err := r.Cookie(cookieName)
+	if err != nil {
+		return false
+	}
+	return true
+}
+
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// If the target is an application but it hits the special "x-teleport-auth"
 	// endpoint, then perform redirect authentication logic.
@@ -109,41 +127,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.forward(w, r, session)
-}
-
-// TODO(russjones): This is potentially very costly due to looping over all
-// clusters if a local cache for each cluster does not exist. Verify this
-// with @fspmarshall.
-func (h *Handler) IsApp(r *http.Request) (services.Server, error) {
-	appName, err := extractAppName(r)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Loop over all clusters and applications within them looking for the
-	// application that was requested.
-	for _, remoteClient := range h.c.ProxyClient.GetSites() {
-		authClient, err := remoteClient.CachingAccessPoint()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		servers, err := authClient.GetApps(r.Context(), defaults.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		for _, server := range servers {
-			for _, a := range server.GetApps() {
-				if a.Name == appName {
-					return server, nil
-				}
-			}
-		}
-
-	}
-
-	return nil, trace.NotFound("app %v not found", appName)
 }
 
 type fragmentRequest struct {

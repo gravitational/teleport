@@ -122,30 +122,14 @@ type RewritingHandler struct {
 	appHandler *app.Handler
 }
 
-// TODO(russjones): This will loop over all applications for every single
-// request, may not be an issue, but can we do something better? Maybe if an
-// established session exists, shortcut this logic. Or maybe check the host
-// header and if the request is targeting the proxy, don't try and check
-// other apps.
+// Check if this request should be forwarded to an application handler to
+// handled by the UI and redirect the request appropriately.
 func (h *RewritingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Check the host the client is requesting against the list of registered
-	// apps to figure out to discover request destination: apps handler or the
-	// Web UI.
-	_, err := h.appHandler.IsApp(r)
-	switch {
-	// If the error was specifically that the application was not found,
-	// then serve the Web UI.
-	case trace.IsNotFound(err):
-		h.Handler.ServeHTTP(w, r)
-	// If some other error occurred, log the error and return 404 to the caller.
-	case err != nil:
-		log.Debugf("Failed to discover request destination: %v: %v: %v.",
-			r.Host, r.RequestURI, err)
-		http.Error(w, "not found", 404)
-	// If the caller requested a registered application forward it to app handler.
-	case err == nil:
+	if h.appHandler.ForwardToApp(r) {
 		h.appHandler.ServeHTTP(w, r)
+		return
 	}
+	h.Handler.ServeHTTP(w, r)
 }
 
 func (h *RewritingHandler) GetHandler() *Handler {
@@ -784,7 +768,7 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 	// will be validated when the user attempts to create a session. They are
 	// saved and extracted simply to propagate these values through the SSO
 	// login redirects.
-	appName := query.Get("app")
+	publicAddr := query.Get("public_addr")
 	clusterName := query.Get("cluster")
 
 	csrfToken, err := csrf.ExtractTokenFromCookie(r)
@@ -800,7 +784,7 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 			CreateWebSession:  true,
 			ClientRedirectURL: clientRedirectURL,
 			CheckUser:         true,
-			AppName:           appName,
+			PublicAddr:        publicAddr,
 			ClusterName:       clusterName,
 		})
 	if err != nil {
@@ -836,7 +820,7 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 	// will be validated when the user attempts to create a session. They are
 	// saved and extracted simply to propagate these values through the SSO
 	// login redirects.
-	appName := query.Get("app")
+	publicAddr := query.Get("public_addr")
 	clusterName := query.Get("cluster")
 
 	csrfToken, err := csrf.ExtractTokenFromCookie(r)
@@ -850,7 +834,7 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 			ConnectorID:       connectorID,
 			CreateWebSession:  true,
 			ClientRedirectURL: clientRedirectURL,
-			AppName:           appName,
+			PublicAddr:        publicAddr,
 			ClusterName:       clusterName,
 		})
 	if err != nil {
@@ -917,7 +901,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 		}
 
 		// Construct the redirect URL from the parameters stored in backend.
-		u, err := redirURL(response.Req.ClientRedirectURL, response.Req.AppName, response.Req.ClusterName)
+		u, err := redirURL(response.Req.ClientRedirectURL, response.Req.PublicAddr, response.Req.ClusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -945,7 +929,7 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	return nil, nil
 }
 
-func redirURL(path string, name string, clusterName string) (string, error) {
+func redirURL(path string, publicAddr string, clusterName string) (string, error) {
 	u, err := url.Parse(path)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -954,9 +938,9 @@ func redirURL(path string, name string, clusterName string) (string, error) {
 	// If the caller was asking for a particular application, add that to the
 	// path. This value is fetched from backend and was validated to be a valid
 	// application address.
-	if name != "" && clusterName != "" {
+	if publicAddr != "" && clusterName != "" {
 		v := url.Values{}
-		v.Set("app", name)
+		v.Set("public_addr", publicAddr)
 		v.Set("cluster", clusterName)
 		u.RawQuery = v.Encode()
 	}
@@ -1021,7 +1005,7 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 		}
 
 		// Construct the redirect URL from the parameters stored in backend.
-		u, err := redirURL(response.Req.ClientRedirectURL, response.Req.AppName, response.Req.ClusterName)
+		u, err := redirURL(response.Req.ClientRedirectURL, response.Req.PublicAddr, response.Req.ClusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1495,9 +1479,6 @@ func (h *Handler) u2fSignRequest(w http.ResponseWriter, r *http.Request, p httpr
 type u2fSignResponseReq struct {
 	User            string           `json:"user"`
 	U2FSignResponse u2f.SignResponse `json:"u2f_sign_response"`
-
-	// AppName is the address of the target application.
-	AppName string `json:"app,omitempty"`
 }
 
 // createSessionWithU2FSignResponse is called to sign in with a U2F signature

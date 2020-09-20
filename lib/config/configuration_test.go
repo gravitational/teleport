@@ -220,12 +220,11 @@ func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
 	c.Assert(conf.Proxy.TunAddr, check.Equals, "reverse_tunnel_address:3311")
 	c.Assert(conf.Apps.Configured(), check.Equals, true)
 	c.Assert(conf.Apps.Enabled(), check.Equals, true)
-	c.Assert(conf.Apps.Apps[0].Name, check.Equals, "foo")
-	c.Assert(conf.Apps.Apps[0].Protocol, check.Equals, teleport.ServerProtocolHTTPS)
+	c.Assert(conf.Apps.Apps[0].Name, check.Equals, "panel")
 	c.Assert(conf.Apps.Apps[0].URI, check.Equals, "1.1.1.1:1234")
-	c.Assert(conf.Apps.Apps[0].PublicAddr, check.Equals, "2.2.2.2:5678")
-	c.Assert(conf.Apps.Apps[0].Labels, check.DeepEquals, Labels)
-	c.Assert(conf.Apps.Apps[0].Commands, check.DeepEquals, CommandLabels)
+	c.Assert(conf.Apps.Apps[0].PublicAddr, check.Equals, "panel.example.com")
+	c.Assert(conf.Apps.Apps[0].StaticLabels, check.DeepEquals, Labels)
+	c.Assert(conf.Apps.Apps[0].DynamicLabels, check.DeepEquals, CommandLabels)
 
 	// good config from file
 	conf, err = ReadFromFile(s.configFileStatic)
@@ -693,12 +692,11 @@ func makeConfigFixture() string {
 	conf.Apps.EnabledFlag = "yes"
 	conf.Apps.Apps = []*App{
 		{
-			Name:       "foo",
-			Protocol:   teleport.ServerProtocolHTTPS,
-			URI:        "1.1.1.1:1234",
-			PublicAddr: "2.2.2.2:5678",
-			Labels:     Labels,
-			Commands:   CommandLabels,
+			Name:          "panel",
+			URI:           "1.1.1.1:1234",
+			PublicAddr:    "panel.example.com",
+			StaticLabels:  Labels,
+			DynamicLabels: CommandLabels,
 		},
 	}
 
@@ -865,7 +863,7 @@ app_service:
     -
       name: foo
       public_addr: "foo.example.com:443"
-      uri: "127.0.0.1:8080"
+      uri: "http://127.0.0.1:8080"
 `,
 			inComment: check.Commentf("config is valid"),
 			outError:  false,
@@ -877,7 +875,7 @@ app_service:
   apps:
     -
       public_addr: "foo.example.com:443"
-      uri: "127.0.0.1:8080"
+      uri: "http://127.0.0.1:8080"
 `,
 			inComment: check.Commentf("config is missing name"),
 			outError:  true,
@@ -889,7 +887,7 @@ app_service:
   apps:
     -
       name: foo
-      uri: "127.0.0.1:8080"
+      uri: "http://127.0.0.1:8080"
 `,
 			inComment: check.Commentf("config is missing public address"),
 			outError:  true,
@@ -915,6 +913,7 @@ app_service:
 		cfg := service.MakeDefaultConfig()
 
 		err := Configure(&clf, cfg)
+		fmt.Printf("--> err: %v.\n", err)
 		c.Assert(err != nil, check.Equals, tt.outError, tt.inComment)
 	}
 }

@@ -655,11 +655,11 @@ func (a *appCollection) resources() (r []services.Resource) {
 }
 
 func (a *appCollection) writeText(w io.Writer) error {
-	t := asciitable.MakeTable([]string{"Application", "Public Address", "URI", "Labels"})
+	t := asciitable.MakeTable([]string{"Application", "Host", "Public Address", "URI", "Labels"})
 	for _, server := range a.servers {
 		for _, app := range server.GetApps() {
 			t.AddRow([]string{
-				app.Name, app.PublicAddr, app.URI, services.LabelsAsString(app.StaticLabels, app.DynamicLabels),
+				app.Name, server.GetHostname(), app.PublicAddr, app.URI, services.LabelsAsString(app.StaticLabels, app.DynamicLabels),
 			})
 		}
 	}

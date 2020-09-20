@@ -310,9 +310,9 @@ type GithubAuthRequest struct {
 	// RouteToCluster is the name of Teleport cluster to issue credentials for.
 	RouteToCluster string `json:"route_to_cluster,omitempty"`
 
-	// AppName is the name of the application to request after login. Used for
+	// PublicAddr is the address of the application to request after login. Used for
 	// application specific login only.
-	AppName string `json:"app,omitempty"`
+	PublicAddr string `json:"public_addr,omitempty"`
 
 	// ClusterName is the name of the cluster to request after login. Used for
 	// application specific login only.
@@ -402,9 +402,9 @@ type OIDCAuthRequest struct {
 	// RouteToCluster is the name of Teleport cluster to issue credentials for.
 	RouteToCluster string `json:"route_to_cluster,omitempty"`
 
-	// AppName is the name of the application to request after login. Used for
+	// PublicAddr is the address of the application to request after login. Used for
 	// application specific login only.
-	AppName string `json:"app,omitempty"`
+	PublicAddr string `json:"public_addr,omitempty"`
 
 	// ClusterName is the name of the cluster to request after login. Used for
 	// application specific login only.
@@ -475,9 +475,9 @@ type SAMLAuthRequest struct {
 	// RouteToCluster is the name of Teleport cluster to issue credentials for.
 	RouteToCluster string `json:"route_to_cluster,omitempty"`
 
-	// AppName is the name of the application to request after login. Used for
+	// PublicAddr is the address of the application to request after login. Used for
 	// application specific login only.
-	AppName string `json:"app,omitempty"`
+	PublicAddr string `json:"public_addr,omitempty"`
 
 	// ClusterName is the name of the cluster to request after login. Used for
 	// application specific login only.

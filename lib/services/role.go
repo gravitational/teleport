@@ -1408,7 +1408,7 @@ type AccessChecker interface {
 	EnhancedRecordingSet() map[string]bool
 
 	// CheckAccessToApp checks access to an application.
-	CheckAccessToApp(app *App) error
+	CheckAccessToApp(string, *App) error
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -1835,17 +1835,16 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 	return trace.AccessDenied("access to server denied")
 }
 
-// TODO(russjones): Set namespace per application.
 // CheckAccessToApp checks if a role has access to an application. Deny rules
 // are checked first then allow rules. Access to an application is determined by
 // namespaces and labels.
-func (set RoleSet) CheckAccessToApp(app *App) error {
+func (set RoleSet) CheckAccessToApp(namespace string, app *App) error {
 	var errs []error
 
 	// Check deny rules: a matching namespace and label in the deny section
 	// prohibits access.
 	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), defaults.Namespace)
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), namespace)
 		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Deny), CombineLabels(app.StaticLabels, app.DynamicLabels))
 		if err != nil {
 			return trace.Wrap(err)
@@ -1863,7 +1862,7 @@ func (set RoleSet) CheckAccessToApp(app *App) error {
 
 	// Check allow rules: namespace and label both have to match in to be granted access.
 	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), defaults.Namespace)
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), namespace)
 		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Allow), CombineLabels(app.StaticLabels, app.DynamicLabels))
 		if err != nil {
 			return trace.Wrap(err)

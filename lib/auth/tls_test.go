@@ -702,11 +702,12 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 	// Create a JWT using the current CA, this will become the "old" CA during
 	// rotation.
 	oldJWT, err := client.GenerateAppToken(context.Background(),
-		defaults.Namespace, services.AppTokenParams{
+		services.AppTokenParams{
+			Namespace: defaults.Namespace,
 			Username:  "foo",
 			Roles:     []string{"bar", "baz"},
-			Recipient: "panel",
-			Expiry:    1 * time.Minute,
+			AppName:   "panel",
+			Expires:   clock.Now().Add(1 * time.Minute),
 		})
 	c.Assert(err, check.IsNil)
 
@@ -758,11 +759,12 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 
 	// New tokens should now fail the validate with the old key.
 	newJWT, err := client.GenerateAppToken(context.Background(),
-		defaults.Namespace, services.AppTokenParams{
+		services.AppTokenParams{
+			Namespace: defaults.Namespace,
 			Username:  "foo",
 			Roles:     []string{"bar", "baz"},
-			Recipient: "panel",
-			Expiry:    1 * time.Minute,
+			AppName:   "panel",
+			Expires:   clock.Now().Add(1 * time.Minute),
 		})
 	c.Assert(err, check.IsNil)
 
@@ -1910,6 +1912,9 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 // TestGenerateAppToken checks the identity of the caller and makes sure only
 // certain roles can request JWT tokens.
 func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
+	clock := clockwork.NewFakeClockAt(time.Now())
+	s.server.Auth().SetClock(clock)
+
 	authClient, err := s.server.NewClient(TestBuiltin(teleport.RoleAdmin))
 	c.Assert(err, check.IsNil)
 
@@ -1949,19 +1954,19 @@ func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
 
 		token, err := client.GenerateAppToken(
 			context.Background(),
-			defaults.Namespace,
 			services.AppTokenParams{
+				Namespace: defaults.Namespace,
 				Username:  "foo@example.com",
 				Roles:     []string{"bar", "baz"},
-				Recipient: "panel",
-				Expiry:    1 * time.Minute,
+				AppName:   "panel",
+				Expires:   clock.Now().Add(1 * time.Minute),
 			})
 		c.Assert(err != nil, check.Equals, tt.outError, tt.inComment)
 		if !tt.outError {
 			claims, err := key.Verify(jwt.VerifyParams{
-				Username:  "foo@example.com",
-				RawToken:  token,
-				Recipient: "panel",
+				Username: "foo@example.com",
+				RawToken: token,
+				AppName:  "panel",
 			})
 			c.Assert(err, check.IsNil, tt.inComment)
 			c.Assert(claims.Username, check.Equals, "foo@example.com", tt.inComment)
@@ -2856,9 +2861,9 @@ func (s *TLSSuite) verifyJWT(clock clockwork.Clock, clusterName string, pairs []
 			continue
 		}
 		claims, err := key.Verify(jwt.VerifyParams{
-			RawToken:  token,
-			Username:  "foo",
-			Recipient: "panel",
+			RawToken: token,
+			Username: "foo",
+			AppName:  "panel",
 		})
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))

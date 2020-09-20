@@ -196,11 +196,7 @@ func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess 
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(russjones): This should be parsed and always be a URI in file configuration.
-	//addr, err := parseAddress(app.URI)
-	//if err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
+	// Parse the URI, will be added to each forwarded request.
 	u, err := url.Parse(app.URI)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -237,12 +233,7 @@ func (s *sessionCache) newSession(ctx context.Context, cookieValue string, sess 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	//to, err := utils.ParseAddr(u.Host)
-	//if err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
 	conn, err := clusterClient.Dial(reversetunnel.DialParams{
-		//To:          to,
 		ServerID:    strings.Join([]string{server.GetName(), sess.GetClusterName()}, "."),
 		PublicAddr:  sess.GetPublicAddr(),
 		Certificate: sess.GetTLSCert(),

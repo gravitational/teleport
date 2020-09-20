@@ -51,7 +51,7 @@ func (m *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.P
 	// will be validated when the user attempts to create a session. They are
 	// saved and extracted simply to propagate these values through the SSO
 	// login redirects.
-	appName := query.Get("app")
+	publicAddr := query.Get("public_addr")
 	clusterName := query.Get("cluster")
 
 	csrfToken, err := csrf.ExtractTokenFromCookie(r)
@@ -66,7 +66,7 @@ func (m *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.P
 			CSRFToken:         csrfToken,
 			CreateWebSession:  true,
 			ClientRedirectURL: clientRedirectURL,
-			AppName:           appName,
+			PublicAddr:        publicAddr,
 			ClusterName:       clusterName,
 		})
 	if err != nil {
@@ -144,7 +144,7 @@ func (m *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 		}
 
 		// Construct the redirect URL from the parameters stored in backend.
-		u, err := redirURL(response.Req.ClientRedirectURL, response.Req.AppName, response.Req.ClusterName)
+		u, err := redirURL(response.Req.ClientRedirectURL, response.Req.PublicAddr, response.Req.ClusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

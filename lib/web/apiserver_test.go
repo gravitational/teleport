@@ -238,7 +238,6 @@ func (s *WebSuite) SetUpTest(c *C) {
 		DomainName:   s.server.ClusterName(),
 		ProxyClient:  s.proxyClient,
 		CipherSuites: utils.DefaultCipherSuites(),
-		AccessPoint:  s.proxyClient,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond))
 	c.Assert(err, IsNil)
 
@@ -1803,11 +1802,15 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 			Name:      uuid.New(),
 		},
 		Spec: services.ServerSpecV2{
-			Protocol:     services.ServerSpecV2_HTTPS,
-			AppName:      "panel",
-			InternalAddr: "127.0.0.1:8080",
-			PublicAddr:   "127.0.0.1:8081",
-			Version:      teleport.Version,
+			Protocol: services.ServerSpecV2_HTTPS,
+			Version:  teleport.Version,
+			Apps: []*services.App{
+				&services.App{
+					Name:       "panel",
+					PublicAddr: "panel.example.com",
+					URI:        "http://127.0.0.1:8080",
+				},
+			},
 		},
 	}
 	_, err := s.server.Auth().UpsertApp(context.Background(), application)
@@ -1831,7 +1834,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Valid request."),
 			inCreateRequest: &createAppSessionRequest{
-				AppName:     application.GetAppName(),
+				PublicAddr:  "panel.example.com",
 				ClusterName: "example.com",
 				SessionID:   sessionCookie.SID,
 				BearerToken: bearerToken,
@@ -1841,19 +1844,9 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 			outParentHash: services.SessionHash(sessionCookie.SID),
 		},
 		{
-			inComment: Commentf("Invalid application name."),
-			inCreateRequest: &createAppSessionRequest{
-				AppName:     "invalid-name",
-				ClusterName: "example.com",
-				SessionID:   sessionCookie.SID,
-				BearerToken: pack.session.Token,
-			},
-			outError: true,
-		},
-		{
 			inComment: Commentf("Invalid session ID."),
 			inCreateRequest: &createAppSessionRequest{
-				AppName:     application.GetAppName(),
+				PublicAddr:  "panel.example.com",
 				ClusterName: "example.com",
 				SessionID:   "invalid-session-id",
 				BearerToken: pack.session.Token,
@@ -1863,7 +1856,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		{
 			inComment: Commentf("Invalid bearer token."),
 			inCreateRequest: &createAppSessionRequest{
-				AppName:     application.GetAppName(),
+				PublicAddr:  "panel.example.com",
 				ClusterName: "example.com",
 				SessionID:   sessionCookie.SID,
 				BearerToken: "invalid-bearer-token",
@@ -1876,6 +1869,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		// Make a request to create an application session for "panel".
 		endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
 		resp, err := pack.clt.PostJSON(context.Background(), endpoint, tt.inCreateRequest)
+		fmt.Printf("--> err: %v.\n", err)
 		c.Assert(err != nil, check.Equals, tt.outError, tt.inComment)
 		if tt.outError {
 			continue

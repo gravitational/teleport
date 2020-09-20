@@ -794,32 +794,36 @@ func showNodes(nodes []services.Server, verbose bool) {
 	}
 }
 
-func showApps(apps []services.Server, verbose bool) {
+func showApps(servers []services.Server, verbose bool) {
 	// In verbose mode, print everything on a single line and include host UUID.
 	// In normal mode chunk the labels and print two per line and allow multiple
 	// lines per node.
 	if verbose {
-		t := asciitable.MakeTable([]string{"Application", "Host UUID", "Internal Address", "Public Address", "Labels"})
-		//for _, app := range apps {
-		//	t.AddRow([]string{
-		//		app.GetName(), "TODO", app.GetInternalAddr(), app.GetPublicAddr(), app.LabelsString(),
-		//	})
-		//}
+		t := asciitable.MakeTable([]string{"Application", "Host", "Public Address", "URI", "Labels"})
+		for _, server := range servers {
+			for _, app := range server.GetApps() {
+				t.AddRow([]string{
+					app.Name, server.GetHostname(), app.PublicAddr, app.URI, services.LabelsAsString(app.StaticLabels, app.DynamicLabels),
+				})
+			}
+		}
 		fmt.Println(t.AsBuffer().String())
 	} else {
 		t := asciitable.MakeTable([]string{"Application", "Public Address", "Labels"})
-		//for _, app := range apps {
-		//	labelChunks := chunkLabels(app.GetAllLabels(), 2)
-		//	for i, v := range labelChunks {
-		//		var name string
-		//		var addr string
-		//		if i == 0 {
-		//			name = app.GetName()
-		//			addr = app.GetPublicAddr()
-		//		}
-		//		t.AddRow([]string{name, addr, strings.Join(v, ", ")})
-		//	}
-		//}
+		for _, server := range servers {
+			for _, app := range server.GetApps() {
+				labelChunks := chunkLabels(services.CombineLabels(app.StaticLabels, app.DynamicLabels), 2)
+				for i, v := range labelChunks {
+					var name string
+					var addr string
+					if i == 0 {
+						name = app.Name
+						addr = app.PublicAddr
+					}
+					t.AddRow([]string{name, addr, strings.Join(v, ", ")})
+				}
+			}
+		}
 		fmt.Println(t.AsBuffer().String())
 	}
 }
@@ -1469,19 +1473,19 @@ func onApps(cf *CLIConf) {
 	}
 
 	// Get a list of all applications.
-	var apps []services.Server
+	var servers []services.Server
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		apps, err = tc.ListApps(cf.Context)
+		servers, err = tc.ListApps(cf.Context)
 		return err
 	})
 	if err != nil {
 		utils.FatalError(err)
 	}
 
-	// Sort by application name.
-	sort.Slice(apps, func(i, j int) bool {
-		return apps[i].GetName() < apps[j].GetName()
+	// Sort by server host name.
+	sort.Slice(servers, func(i, j int) bool {
+		return servers[i].GetName() < servers[j].GetName()
 	})
 
-	showApps(apps, cf.Verbose)
+	showApps(servers, cf.Verbose)
 }

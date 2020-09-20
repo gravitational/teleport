@@ -213,7 +213,7 @@ func (s *Server) CheckAccess(ctx context.Context, certBytes []byte, publicAddr s
 	}
 
 	// Find the application the caller is requesting by public address.
-	app, err := s.getApp(ctx, publicAddr)
+	app, server, err := s.getApp(ctx, publicAddr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -227,7 +227,7 @@ func (s *Server) CheckAccess(ctx context.Context, certBytes []byte, publicAddr s
 	}
 
 	// Check if the caller has access to the application being requested.
-	err = checker.CheckAccessToApp(app)
+	err = checker.CheckAccessToApp(server.GetNamespace(), app)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -372,21 +372,21 @@ func (s *Server) verifyCertificate(bytes []byte) (*tlsca.Identity, services.Cert
 // (or round robin) does not need to occur here because they will all point
 // to the same target address. Random selection (or round robin) occurs at the
 // proxy when calling the Dial on the cluster.
-func (s *Server) getApp(ctx context.Context, publicAddr string) (*services.App, error) {
+func (s *Server) getApp(ctx context.Context, publicAddr string) (*services.App, services.Server, error) {
 	servers, err := s.c.AccessPoint.GetApps(ctx, defaults.Namespace)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	for _, server := range servers {
 		for _, a := range server.GetApps() {
 			if publicAddr == a.PublicAddr {
-				return a, nil
+				return a, server, nil
 			}
 		}
 	}
 
-	return nil, trace.NotFound("no application at %v found", publicAddr)
+	return nil, nil, trace.NotFound("no application at %v found", publicAddr)
 }
 
 // buildChecker returns a services.AccessChecker which is used to check access

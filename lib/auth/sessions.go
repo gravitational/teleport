@@ -26,13 +26,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// TODO(russjones): The caller of this function that is sitting in the proxy
-// needs to connect to the remote cluster to verify if the application being
-// requested even exists.
-//
-// Does this really even matter? If the does not exist, the session will be
-// created but reversetunnel subsystem will return an error. If it does exist
-// but the caller does not have access, same issue.
 func (s *AuthServer) createAppSession(ctx context.Context, identity tlsca.Identity, req services.CreateAppSessionRequest) (services.WebSession, error) {
 	if err := req.Check(); err != nil {
 		return nil, trace.Wrap(err)
@@ -47,7 +40,6 @@ func (s *AuthServer) createAppSession(ctx context.Context, identity tlsca.Identi
 		return nil, trace.BadParameter("invalid session")
 	}
 
-	// TODO(russjones): Should Kind field on resource be a different kind or is KindWebSession okay?
 	// Create a new session for the application.
 	session, err := s.NewWebSession(identity.Username, identity.Groups, identity.Traits)
 	if err != nil {
@@ -58,13 +50,9 @@ func (s *AuthServer) createAppSession(ctx context.Context, identity tlsca.Identi
 	session.SetParentHash(services.SessionHash(parentSession.GetName()))
 	session.SetClusterName(req.ClusterName)
 
-	// TODO(russjones): Figure this out, we don't actually have an access checker
-	// here, so we can't adjust the session TTL. The only one that can pass us
-	// this information is the proxy?
-	//
-	// Maybe roll that check plus "does this application exist?" check into one
-	// and pass them in to this function in the CreateAppSessionRequest.
-	//session.SetExpiryTime(s.clock.Now().Add(checker.AdjustSessionTTL(defaults.MaxCertDuration)))
+	// TODO(russjones): The proxy should use it's access to the AccessPoint of
+	// the remote host to provide the maximum length of the session here.
+	// However, enforcement of that session length should occur in lib/srv/app.
 	session.SetExpiryTime(s.clock.Now().Add(defaults.CertDuration))
 
 	// Create session in backend.
