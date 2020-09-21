@@ -156,6 +156,10 @@ message ServerSpecV2 {
     bool UseTunnel = 6 [ (gogoproto.jsontag) = "use_tunnel,omitempty" ];
     // TeleportVersion is the teleport version that the server is running on
     string Version = 7 [ (gogoproto.jsontag) = "version" ];
+    // KubernetesClusters is a list of kubernetes clusters reachable through
+    // this proxy.
+    repeated string KubernetesClusters = 8
+        [ (gogoproto.jsontag) = "kubernetes_clusters,omitempty" ];
 }
 
 // CommandLabelV2 is a label that has a value as a result of the

@@ -50,9 +50,10 @@ func (s *ServerSuite) TestServersCompare(c *check.C) {
 			Labels:    map[string]string{"a": "b"},
 		},
 		Spec: ServerSpecV2{
-			Addr:      "localhost:3022",
-			CmdLabels: map[string]CommandLabelV2{"a": CommandLabelV2{Period: Duration(time.Minute), Command: []string{"ls", "-l"}}},
-			Version:   "4.0.0",
+			Addr:               "localhost:3022",
+			CmdLabels:          map[string]CommandLabelV2{"a": CommandLabelV2{Period: Duration(time.Minute), Command: []string{"ls", "-l"}}},
+			Version:            "4.0.0",
+			KubernetesClusters: []string{"kube-a"},
 		},
 	}
 	node.SetExpiry(time.Date(2018, 1, 2, 3, 4, 5, 6, time.UTC))
@@ -109,6 +110,11 @@ func (s *ServerSuite) TestServersCompare(c *check.C) {
 			Standby:       time.Date(2018, 3, 4, 5, 6, 13, 8, time.UTC),
 		},
 	}
+	c.Assert(CompareServers(node, &node2), check.Equals, Different)
+
+	// KubernetesServers have changed
+	node2 = *node
+	node2.Spec.KubernetesClusters = []string{"kube-a", "kube-b"}
 	c.Assert(CompareServers(node, &node2), check.Equals, Different)
 }
 

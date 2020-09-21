@@ -537,6 +537,9 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Proxy.Kube.KubeconfigFile != "" {
 		cfg.Proxy.Kube.KubeconfigPath = fc.Proxy.Kube.KubeconfigFile
 	}
+	if fc.Proxy.Kube.ClusterName != "" {
+		cfg.Proxy.Kube.ClusterName = fc.Proxy.Kube.ClusterName
+	}
 	if fc.Proxy.Kube.ListenAddress != "" {
 		addr, err := utils.ParseHostPortAddr(fc.Proxy.Kube.ListenAddress, int(defaults.KubeProxyListenPort))
 		if err != nil {
