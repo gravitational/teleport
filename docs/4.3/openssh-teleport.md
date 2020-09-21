@@ -200,16 +200,16 @@ Teleport cluster. Teleport supports SSH subsystems and includes a `proxy`
 subsystem that can be used like `netcat` is with `ProxyCommand` to connect
 through a jump host.
 
-On your client machine, you need to import these keys. It will allow your
-OpenSSH client to verify that host's certificates are signed by the trusted CA
-key:
+On your client machine, you need to import the public key of Teleport's host
+certificate. This will allow your OpenSSH client to verify that host certificates
+are signed by Teleport's trusted host CA:
 
 ``` yaml
 # on the Teleport auth server
-$ tctl auth export --type=user > teleport_user_ca.pub
+$ tctl auth export --type=host > teleport_host_ca.pub
 
 # on the machine where you want to run the ssh client
-$ cat teleport_user_ca.pub >> ~/.ssh/known_hosts
+$ cat teleport_host_ca.pub >> ~/.ssh/known_hosts
 ```
 
 If you have multiple Teleport clusters, you have to export and set up these
