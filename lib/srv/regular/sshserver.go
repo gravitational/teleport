@@ -86,8 +86,9 @@ type Server struct {
 	proxyMode bool
 	proxyTun  reversetunnel.Server
 
-	advertiseAddr   *utils.NetAddr
-	proxyPublicAddr utils.NetAddr
+	advertiseAddr           *utils.NetAddr
+	proxyPublicAddr         utils.NetAddr
+	proxyKubenretesClusters []string
 
 	// server UUID gets generated once on the first start and never changes
 	// usually stored in a file inside the data dir
@@ -457,6 +458,13 @@ func SetOnHeartbeat(fn func(error)) ServerOption {
 	}
 }
 
+func SetKubernetesClusters(clusters []string) ServerOption {
+	return func(s *Server) error {
+		s.proxyKubenretesClusters = clusters
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(addr utils.NetAddr,
 	hostname string,
@@ -709,6 +717,7 @@ func (s *Server) getServerInfo() (services.Server, error) {
 	}
 	server.SetTTL(s.clock, defaults.ServerAnnounceTTL)
 	server.SetPublicAddr(s.proxyPublicAddr.String())
+	server.SetKubernetesClusters(s.proxyKubenretesClusters)
 	return server, nil
 }
 

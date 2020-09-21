@@ -57,6 +57,9 @@ type Server interface {
 	SetRotation(Rotation)
 	// GetUseTunnel gets if a reverse tunnel should be used to connect to this node.
 	GetUseTunnel() bool
+	// GetKubernetesClusters gets kubernetes clusters accessible through this
+	// proxy.
+	GetKubernetesClusters() []string
 	// SetUseTunnel sets if a reverse tunnel should be used to connect to this node.
 	SetUseTunnel(bool)
 	// String returns string representation of the server
@@ -67,6 +70,9 @@ type Server interface {
 	SetPublicAddr(string)
 	// SetNamespace sets server namespace
 	SetNamespace(namespace string)
+	// SetKubernetesClusters sets kubernetes clusters accessible through this
+	// proxy.
+	SetKubernetesClusters([]string)
 	// V1 returns V1 version for backwards compatibility
 	V1() *ServerV1
 	// MatchAgainst takes a map of labels and returns True if this server
@@ -271,6 +277,18 @@ func (s *ServerV2) GetAllLabels() map[string]string {
 	return lmap
 }
 
+// GetKubernetesClusters gets kubernetes clusters accessible through this
+// proxy.
+func (s *ServerV2) GetKubernetesClusters() []string {
+	return s.Spec.KubernetesClusters
+}
+
+// SetKubernetesClusters sets kubernetes clusters accessible through this
+// proxy.
+func (s *ServerV2) SetKubernetesClusters(clusters []string) {
+	s.Spec.KubernetesClusters = clusters
+}
+
 // MatchAgainst takes a map of labels and returns True if this server
 // has ALL of them
 //
@@ -311,6 +329,10 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 		if !IsValidLabelKey(key) {
 			return trace.BadParameter("invalid label key: %q", key)
 		}
+	}
+
+	if len(s.Spec.KubernetesClusters) > 0 && s.Kind != KindProxy {
+		return trace.BadParameter("KubernetesClusters are only allowed on Proxy servers; got clusters %q set on a %q server %q", s.Spec.KubernetesClusters, s.Kind, s.Metadata.Name)
 	}
 
 	return nil
@@ -360,6 +382,9 @@ func CompareServers(a, b Server) int {
 		return OnlyTimestampsDifferent
 	}
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
+		return Different
+	}
+	if !utils.StringSlicesEqual(a.GetKubernetesClusters(), b.GetKubernetesClusters()) {
 		return Different
 	}
 	return Equal
@@ -416,7 +441,8 @@ const ServerSpecV2Schema = `{
         }
       }
     },
-    "rotation": %v
+    "rotation": %v,
+    "kubernetes_clusters": {"type": "array", "items": {"type": "string"}}
   }
 }`
 
