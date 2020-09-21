@@ -242,6 +242,7 @@ Start by creating a file `/etc/pam.d/teleport` with the following contents:
 ```bash
 account   required   pam_exec.so /etc/pam-exec.d/teleport_acct
 session   required   pam_motd.so
+session   required   pam_permit.so
 ```
 
 !!! Note
