@@ -322,6 +322,28 @@ and set `enabled` to "false", then update it:
 $ tctl create --force cluster.yaml
 ```
 
+### Remove Leaf Cluster relationship from both sides
+
+Once established, to fully remove a trust relationship between two clusters, do
+the following:
+
+- Remove the relationship from the leaf cluster: `tctl rm tc/root.example.com`.
+- Remove the relationship from the root cluster: `tctl rm lc/leaf.example.com`.
+
+### Remove Leaf Cluster relationship from the root
+
+Remove the relationship from the root cluster: `tctl rm rc/leaf.example.com`.
+
+!!! Note
+
+    The `leaf.example.com` cluster will continue to try and ping the root cluster,
+    but will not be able to connect. To re-establish the trusted cluster relationship,
+    the trusted cluster has to be create again from the leaf cluster.
+
+### Remote Leaf Cluster relationship from the Leaf.
+
+Remove the relationship from the leaf cluster: `tctl rm tc/root.example.com`.
+
 ## Sharing Kubernetes groups between Trusted Clusters
 
 Below is an example of how to share a kubernetes group between trusted clusters.
