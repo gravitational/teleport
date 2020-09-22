@@ -354,7 +354,7 @@ if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
         TELEPORT_FORMAT="tarball"
     elif [[ ${ARCH} == "x86_64" ]]; then
         TELEPORT_ARCH="amd64"
-    elif [[ ${ARCH} == "i386" ]]; then
+    elif [[ ${ARCH} == "i686" ]]; then
         TELEPORT_ARCH="386"
     else
         log_important "Error: cannot detect architecture from uname -m: ${ARCH}"
