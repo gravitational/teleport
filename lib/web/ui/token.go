@@ -29,3 +29,12 @@ type ResetPasswordToken struct {
 	// Expiry is token expiration time
 	Expiry time.Time `json:"expiry,omitempty"`
 }
+
+// NodeJoinToken contains node token fields for the UI.
+type NodeJoinToken struct {
+	// TokenID is token ID.
+	TokenID string `json:"tokenId"`
+	// Expires is when the token will expire,
+	// ie: "4h" means expires in 4 hours.
+	Expires string `json:"expires"`
+}

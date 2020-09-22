@@ -304,26 +304,20 @@ func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack 
 	}
 }
 
-// authPack returns new authenticated package consisting of created valid
-// user, otp token, created web session and authenticated client.
-func (s *WebSuite) authPack(c *C, user string) *authPack {
-	login := s.user
-	pass := "abc123"
-	rawSecret := "def456"
-	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
+// authPackHelper is a helper function that returns new authenticated package consisting of
+// created valid user, otp token, created web session and authenticated client.
+func (s *WebSuite) authPackHelper(c *C, user, pass, otpSecret string) *authPack {
+	// create a valid otp token
+	validToken, err := totp.GenerateCode(otpSecret, time.Now())
+	c.Assert(err, IsNil)
 
 	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
 		Type:         teleport.Local,
 		SecondFactor: teleport.OTP,
 	})
 	c.Assert(err, IsNil)
+
 	err = s.server.Auth().SetAuthPreference(ap)
-	c.Assert(err, IsNil)
-
-	s.createUser(c, user, login, pass, otpSecret)
-
-	// create a valid otp token
-	validToken, err := totp.GenerateCode(otpSecret, time.Now())
 	c.Assert(err, IsNil)
 
 	clt := s.client()
@@ -352,24 +346,46 @@ func (s *WebSuite) authPack(c *C, user string) *authPack {
 	return &authPack{
 		otpSecret: otpSecret,
 		user:      user,
-		login:     login,
+		login:     s.user,
 		session:   sess,
 		clt:       clt,
 		cookies:   re.Cookies(),
 	}
 }
 
-func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpSecret string) {
+// authPack returns authenticated client with default user role settings.
+func (s *WebSuite) authPack(c *C, user string) *authPack {
+	pass := "abc123"
+	rawSecret := "def456"
+	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
+
+	s.createUser(c, user, s.user, pass, otpSecret)
+
+	return s.authPackHelper(c, user, pass, otpSecret)
+}
+
+// extendedAuthPack is the same as authPack but the user role setting
+// is extended to more resources.
+func (s *WebSuite) extendedAuthPack(c *C, user string) *authPack {
+	pass := "abc123"
+	rawSecret := "def456"
+	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
+
+	s.createSuperUser(c, user, s.user, pass, otpSecret)
+
+	return s.authPackHelper(c, user, pass, otpSecret)
+}
+
+func (s *WebSuite) createUserHelper(c *C, teleUser services.User, role services.Role, user, pass, otpSecret string) {
 	ctx := context.Background()
-	teleUser, err := services.NewUser(user)
-	c.Assert(err, IsNil)
-	role := services.RoleForUser(teleUser)
-	role.SetLogins(services.Allow, []string{login})
+
 	options := role.GetOptions()
 	options.ForwardAgent = services.NewBool(true)
+
 	role.SetOptions(options)
-	err = s.server.Auth().UpsertRole(ctx, role)
+	err := s.server.Auth().UpsertRole(ctx, role)
 	c.Assert(err, IsNil)
+
 	teleUser.AddRole(role.GetName())
 
 	teleUser.SetCreatedBy(services.CreatedBy{
@@ -383,6 +399,33 @@ func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpS
 
 	err = s.server.Auth().UpsertTOTP(user, otpSecret)
 	c.Assert(err, IsNil)
+}
+
+func (s *WebSuite) createUser(c *C, user string, login string, pass string, otpSecret string) {
+	teleUser, err := services.NewUser(user)
+	c.Assert(err, IsNil)
+
+	role := services.RoleForUser(teleUser)
+	role.SetLogins(services.Allow, []string{login})
+
+	s.createUserHelper(c, teleUser, role, user, pass, otpSecret)
+}
+
+// createSuperUser is same as s.createUser but extends
+// default admin role to include access to other resources.
+func (s *WebSuite) createSuperUser(c *C, user string, login string, pass string, otpSecret string) {
+	teleUser, err := services.NewUser(user)
+	c.Assert(err, IsNil)
+
+	role := services.RoleForUser(teleUser)
+	role.SetLogins(services.Allow, []string{login})
+
+	// Extend rules.
+	rules := role.GetRules(services.Allow)
+	rules = append(rules, services.NewRule(services.KindToken, services.RW()))
+	role.SetRules(services.Allow, rules)
+
+	s.createUserHelper(c, teleUser, role, user, pass, otpSecret)
 }
 
 func (s *WebSuite) TestSAMLSuccess(c *C) {
@@ -487,6 +530,19 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	c.Assert(authRe.Headers().Get("Set-Cookie"), Not(Equals), "")
 	// we are being redirected to orignal URL
 	c.Assert(authRe.Headers().Get("Location"), Equals, "/after")
+}
+
+func (s *WebSuite) TestCreateNodeJoinToken(c *C) {
+	pack := s.extendedAuthPack(c, "foo")
+
+	re, err := pack.clt.PostJSON(context.Background(), pack.clt.Endpoint("webapi", "nodes", "token"), url.Values{})
+	c.Assert(err, IsNil)
+
+	var token ui.NodeJoinToken
+	c.Assert(json.Unmarshal(re.Bytes(), &token), IsNil)
+
+	c.Assert(token.Expires, Not(Equals), "")
+	c.Assert(token.TokenID, Not(Equals), "")
 }
 
 func (s *WebSuite) TestWebSessionsCRUD(c *C) {

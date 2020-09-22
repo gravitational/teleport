@@ -231,6 +231,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// Issue host credentials.
 	h.POST("/webapi/host/credentials", httplib.MakeHandler(h.hostCredentials))
 
+	h.POST("/webapi/nodes/token", h.WithAuth(h.createNodeJoinToken))
+
 	// if Web UI is enabled, check the assets dir:
 	var (
 		indexPage *template.Template
@@ -1246,6 +1248,36 @@ func (h *Handler) getResetPasswordToken(ctx context.Context, tokenID string) (in
 		TokenID: token.GetName(),
 		User:    token.GetUser(),
 		QRCode:  secrets.GetQRCode(),
+	}, nil
+}
+
+// createNodeJoinToken creates a node join token and sends it back along with its expiry.
+// A node join token is used to join a node to a cluster.
+func (h *Handler) createNodeJoinToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defaultTTL := "4h"
+	ttl, err := time.ParseDuration(defaultTTL)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req := auth.GenerateTokenRequest{
+		Roles: teleport.Roles{teleport.RoleNode},
+		TTL:   ttl,
+	}
+
+	token, err := clt.GenerateToken(r.Context(), req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ui.NodeJoinToken{
+		TokenID: token,
+		Expires: defaultTTL,
 	}, nil
 }
 
