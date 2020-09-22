@@ -2248,12 +2248,12 @@ func (s *IntSuite) TestDiscoveryRecovers(c *check.C) {
 	// create first numbered proxy
 	_, c0 := addNewMainProxy(pname(0))
 	// check that we now have two tunnel connections
-	c.Assert(waitForProxyCount(remote, "cluster-main", 2), check.IsNil)
+	c.Assert(waitForProxyTunnelCount(remote, "cluster-main", 2), check.IsNil)
 	// check that first numbered proxy is OK.
 	testProxyConn(&c0, false)
 	// remove the initial proxy.
 	c.Assert(lb.RemoveBackend(mainProxyAddr), check.IsNil)
-	c.Assert(waitForProxyCount(remote, "cluster-main", 1), check.IsNil)
+	c.Assert(waitForProxyTunnelCount(remote, "cluster-main", 1), check.IsNil)
 
 	// force bad state by iteratively removing previous proxy before
 	// adding next proxy; this ensures that discovery protocol's list of
@@ -2261,9 +2261,9 @@ func (s *IntSuite) TestDiscoveryRecovers(c *check.C) {
 	for i := 0; i < 6; i++ {
 		prev, next := pname(i), pname(i+1)
 		killMainProxy(prev)
-		c.Assert(waitForProxyCount(remote, "cluster-main", 0), check.IsNil)
+		c.Assert(waitForProxyTunnelCount(remote, "cluster-main", 0), check.IsNil)
 		_, cn := addNewMainProxy(next)
-		c.Assert(waitForProxyCount(remote, "cluster-main", 1), check.IsNil)
+		c.Assert(waitForProxyTunnelCount(remote, "cluster-main", 1), check.IsNil)
 		testProxyConn(&cn, false)
 	}
 
@@ -2393,7 +2393,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Wait for the remote cluster to detect the outbound connection is gone.
-	c.Assert(waitForProxyCount(remote, "cluster-main", 1), check.IsNil)
+	c.Assert(waitForProxyTunnelCount(remote, "cluster-main", 1), check.IsNil)
 
 	// Stop both clusters and remaining nodes.
 	c.Assert(remote.StopAll(), check.IsNil)
@@ -2543,6 +2543,72 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
+// TestProxyViaTunnel tests that a proxy can join the cluster over a reverse
+// tunnel of another proxy.
+func (s *IntSuite) TestProxyViaTunnel(c *check.C) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	// Create a Teleport instance with Auth/Proxy.
+	mainConfig := func() *service.Config {
+		tconf := service.MakeDefaultConfig()
+		tconf.Console = nil
+
+		tconf.Auth.Enabled = true
+
+		tconf.Proxy.Enabled = true
+		tconf.Proxy.DisableWebService = false
+		tconf.Proxy.DisableWebInterface = true
+
+		tconf.SSH.Enabled = false
+
+		return tconf
+	}
+	main := NewInstance(InstanceConfig{ClusterName: Site, HostID: "main-proxy", NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
+	c.Assert(main.CreateEx(nil, mainConfig()), check.IsNil)
+	c.Assert(main.Start(), check.IsNil)
+
+	// Initially, there's only 1 proxy, bundled with auth server.
+	c.Assert(waitForProxyCount(main, Site, 1), check.IsNil)
+
+	// Create an IoT proxy connecting to the main proxy.
+	iotProxyConfig := func() *service.Config {
+		tconf := service.MakeDefaultConfig()
+		tconf.Console = nil
+		tconf.AuthServers = []utils.NetAddr{
+			utils.NetAddr{
+				AddrNetwork: "tcp",
+				Addr:        net.JoinHostPort(Loopback, main.GetPortWeb()),
+			},
+		}
+		tconf.Token = "token"
+
+		tconf.Auth.Enabled = false
+
+		tconf.Proxy.Enabled = true
+		tconf.Proxy.DisableReverseTunnel = true
+		tconf.Proxy.DisableWebService = true
+		tconf.Proxy.DisableWebInterface = true
+
+		tconf.SSH.Enabled = false
+
+		return tconf
+	}
+	iotProxy := NewInstance(InstanceConfig{ClusterName: Site, HostID: "iot-proxy", NodeName: Host, Ports: s.getPorts(5), Priv: s.priv, Pub: s.pub})
+	c.Assert(iotProxy.CreateEx(nil, iotProxyConfig()), check.IsNil)
+	c.Assert(iotProxy.Start(), check.IsNil)
+
+	// Now there should be 2 registered proxies - main and IoT.
+	c.Assert(waitForProxyCount(main, main.Secrets.SiteName, 2), check.IsNil)
+
+	// Clean up.
+	c.Assert(iotProxy.StopAll(), check.IsNil)
+	c.Assert(main.StopAll(), check.IsNil)
+}
+
 // waitForActiveTunnelConnections  waits for remote cluster to report a minimum number of active connections
 func waitForActiveTunnelConnections(c *check.C, tunnel reversetunnel.Server, clusterName string, expectedCount int) {
 	var lastCount int
@@ -2562,9 +2628,9 @@ func waitForActiveTunnelConnections(c *check.C, tunnel reversetunnel.Server, clu
 	c.Fatalf("Connections count on %v: %v, expected %v, last error: %v", clusterName, lastCount, expectedCount, lastErr)
 }
 
-// waitForProxyCount waits a set time for the proxy count in clusterName to
-// reach some value.
-func waitForProxyCount(t *TeleInstance, clusterName string, count int) error {
+// waitForProxyTunnelCount waits a set time for the discovered proxy count in
+// clusterName to reach some value.
+func waitForProxyTunnelCount(t *TeleInstance, clusterName string, count int) error {
 	var counts map[string]int
 	start := time.Now()
 	for time.Since(start) < 17*time.Second {
@@ -2577,6 +2643,32 @@ func waitForProxyCount(t *TeleInstance, clusterName string, count int) error {
 	}
 
 	return trace.BadParameter("proxy count on %v: %v (wanted %v)", clusterName, counts[clusterName], count)
+}
+
+// waitForProxyCount waits for a certain number of proxies to show up in the cluster.
+func waitForProxyCount(t *TeleInstance, clusterName string, count int) error {
+	var lastCount int
+	for i := 0; i < 30; i++ {
+		remoteSite, err := t.Tunnel.GetSite(clusterName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		accessPoint, err := remoteSite.CachingAccessPoint()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		proxies, err := accessPoint.GetProxies()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		lastCount = len(proxies)
+		if lastCount == count {
+			return nil
+		}
+		time.Sleep(1 * time.Second)
+	}
+
+	return trace.BadParameter("found %d proxies, expected %d", lastCount, count)
 }
 
 // waitForNodeCount waits for a certain number of nodes to show up in the remote site.

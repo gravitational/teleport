@@ -923,9 +923,11 @@ func (i *TeleInstance) Start() error {
 		expectedEvents = append(expectedEvents, service.AuthTLSReady)
 	}
 	if i.Config.Proxy.Enabled {
-		expectedEvents = append(expectedEvents, service.ProxyReverseTunnelReady)
+		if !i.Config.Proxy.DisableReverseTunnel {
+			expectedEvents = append(expectedEvents, service.ProxyReverseTunnelReady)
+			expectedEvents = append(expectedEvents, service.ProxyAgentPoolReady)
+		}
 		expectedEvents = append(expectedEvents, service.ProxySSHReady)
-		expectedEvents = append(expectedEvents, service.ProxyAgentPoolReady)
 		if !i.Config.Proxy.DisableWebService {
 			expectedEvents = append(expectedEvents, service.ProxyWebServerReady)
 		}

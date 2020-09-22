@@ -792,11 +792,6 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	log.Debugf("Attempting to connect to Auth Server directly.")
 	_, err = directClient.GetLocalClusterName()
 	if err != nil {
-		// Only attempt to connect through the proxy for nodes.
-		if identity.ID.Role != teleport.RoleNode {
-			return nil, trace.Unwrap(err)
-		}
-
 		log.Debugf("Attempting to connect to Auth Server through tunnel.")
 		tunnelClient, err := process.newClientThroughTunnel(authServers, identity)
 		if err != nil {
