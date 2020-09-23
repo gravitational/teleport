@@ -344,7 +344,7 @@ start_teleport_launchd() {
 }
 # start teleport via systemd (after installing unit)
 start_teleport_systemd() {
-    log "Starting Teleport via systemd"
+    log "Starting Teleport via systemd, check status with 'systemctl status teleport.service'"
     systemctl start teleport
 }
 # checks whether teleport binaries eist on the host
