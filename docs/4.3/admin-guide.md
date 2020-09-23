@@ -1241,41 +1241,17 @@ $ tsh ssh --cluster=east root@db1.east
 
 ### Disabling Trust
 
-To temporarily disable trust between clusters, i.e.to disconnect the "east"
-cluster from "main", edit the YAML definition of the trusted cluster resource
+To temporarily disable trust between clusters, i.e.to disconnect the "leaf"
+cluster from "leaf", edit the YAML definition of the trusted cluster resource
 and set `enabled` to "false", then update it:
 
 ``` bash
 $ tctl create --force cluster.yaml
 ```
 
-If you want to _permanently_ disconnect one cluster from the other:
+If you want to _permanently_ disconnect  please visit our [Trusted Clusters Guide](trustedclusters.md#disabling-trust)
 
-``` bash
-# execute this command on "main" side to disconnect "east":
-$ tctl rm tc/east
-```
-
-While accessibility is only granted in one direction, trust is granted in both
-directions. If you remove "east" from "main", the following will happen:
-
-* Two clusters will be disconnected, because "main" will drop the inbound SSH
-  tunnel connection from "east" and will not allow a new one.
-
-* "main" will stop trusting certificates issued by "east".
-* "east" will continue to trust certificates issued by "main".
-
-If you wish to permanently remove all trust relationships and the connections
-between both clusters:
-
-``` bash
-# execute on "main":
-$ tctl rm tc/east
-# execute on "east":
-$ tctl rm tc/main
-```
-
-### Advanced Configuration
+### Advanced Truster Cluster Configuration
 
 Take a look at [Trusted Clusters Guide](trustedclusters.md) to learn more about
 advanced topics:
