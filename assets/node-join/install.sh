@@ -28,11 +28,12 @@ f=""
 l=""
 QUIET=false
 IGNORE_CHECKS=false
+DISABLE_TLS_VERIFICATION=false
 OVERRIDE_FORMAT=""
 
 # usage mesage
-usage() { echo "Usage: $(basename $0) -q -l <log filename> [-v <teleport version>] [-h <target hostname>] <-p <target port>> [-j <node join token>] [-c <ca pin hash>]" 1>&2; exit 1; }
-while getopts ":v:h:p:j:c:f:ql:i" o; do
+usage() { echo "Usage: $(basename $0) [-v <teleport version>] [-h <target hostname>] <-p <target port>> [-j <node join token>] [-c <ca pin hash>] <-q> <-l [log filename]>" 1>&2; exit 1; }
+while getopts ":v:h:p:j:c:f:ql:ik" o; do
     case "${o}" in
         v)
             v=${OPTARG}
@@ -62,6 +63,9 @@ while getopts ":v:h:p:j:c:f:ql:i" o; do
         i)
             IGNORE_CHECKS=true
             COPY_COMMAND="cp -f"
+            ;;
+        k)
+            DISABLE_TLS_VERIFICATION=true
             ;;
         *)
             usage
@@ -188,23 +192,60 @@ check_set() {
     fi
 }
 # checks that teleport binary can be found in path and runs 'teleport version'
-check_teleport_binary() { log "Found: $(teleport version)"; }
+check_teleport_binary() {
+    FOUND_TELEPORT_VERSION=$(${TELEPORT_BINARY_DIR}/teleport version)
+    if [[ "${FOUND_TELEPORT_VERSION}" == "" ]]; then
+        log "Cannot find Teleport binary"
+        return 1
+    else
+        log "Found: ${FOUND_TELEPORT_VERSION}";
+        return 0
+    fi
+}
 # download wrapper for either wget or curl
 download() {
     URL=$1
     OUTPUT_PATH=$2
+    local DOWNLOAD_COMPLETE=false
+    CURL_COMMAND="curl -Ls --retry 5 --retry-delay 5"
+    WGET_COMMAND="wget -q -nv --tries=5"
+    # optionally allow disabling of TLS verification (can be useful on older distros
+    # which often have an out-of-date set of ca-certificates which won't validate)
+    if [[ ${DISABLE_TLS_VERIFICATION} == "true" ]]; then
+        CURL_COMMAND+=" -k"
+        WGET_COMMAND+=" --no-check-certificate"
+    fi
     # use curl if we can
     if check_exists curl; then
-        log "Using curl to download ${URL} --> ${OUTPUT_PATH}"
-        curl -Ls -o ${OUTPUT_PATH} ${URL}
-    # fall back to wget
-    elif check_exists wget; then
-        log "Using wget to download ${URL} --> ${OUTPUT_PATH}"
-        wget -q -nv -O ${OUTPUT_PATH} ${URL}
-    else
-        log_important "Can't find curl or wget to use for downloads, one of these is required to function"
-        exit 1
+        log "Using ${CURL_COMMAND} to download ${URL} --> ${OUTPUT_PATH}"
+        # handle errors with curl
+        if ! ${CURL_COMMAND} -o ${OUTPUT_PATH} ${URL}; then
+            log_important "Error with download via curl, falling back to wget"
+            log "On an older OS, this may be related to the ca-certificates being too old."
+            log "You can pass the hidden -k flag to this script to disable TLS verification - this is not recommended!"
+        else
+            DOWNLOAD_COMPLETE=true
+            return 0
+        fi
     fi
+    # fall back to wget
+    if [[ ${DOWNLOAD_COMPLETE} != "true" ]]; then
+        if check_exists wget; then
+            log "Using ${WGET_COMMAND} to download ${URL} --> ${OUTPUT_PATH}"
+            # handle errors with wget
+            if ! ${WGET_COMMAND} -O ${OUTPUT_PATH} ${URL}; then
+                log_important "Error with download via wget, no more downloaders to use"
+                log "On an older OS, this may be related to the ca-certificates being too old."
+                log "You can pass the hidden -k flag to this script to disable TLS verification - this is not recommended!"
+                return 1
+            else
+                DOWNLOAD_COMPLETE=true
+                return 0
+            fi
+        fi
+    fi
+    log_important "Can't find curl or wget to use for downloads, one of these is required to function"
+    exit 1
 }
 # gets the pid of any running teleport process
 get_teleport_pid() {
@@ -294,7 +335,7 @@ no_systemd_warning() {
 # start teleport in foreground (when there's no systemd)
 start_teleport_foreground() {
     log "Starting Teleport in the foreground"
-    teleport start --config=${TELEPORT_CONFIG_PATH}
+    ${TELEPORT_BINARY_DIR}/teleport start --config=${TELEPORT_CONFIG_PATH}
 }
 # start teleport via launchd (after installing config)
 start_teleport_launchd() {
@@ -540,26 +581,26 @@ elif [[ ${TELEPORT_FORMAT} == "rpm" ]]; then
     URL="https://get.gravitational.com/teleport-${TELEPORT_VERSION}-1.${RPM_ARCH}.rpm"
     # check for package managers
     if check_exists dnf; then
+        log "Found 'dnf' package manager, using it"
         PACKAGE_MANAGER_COMMAND="dnf -y install"
     elif check_exists yum; then
+        log "Found 'yum' package manager, using it"
         PACKAGE_MANAGER_COMMAND="yum -y localinstall"
     else
         PACKAGE_MANAGER_COMMAND=""
-        log "Cannot find 'yum' or 'dnf' package manager commands"
-        log "Will try downloading and installing the rpm manually instead"
+        log "Cannot find 'yum' or 'dnf' package manager commands, will try installing the rpm manually instead"
     fi
+    log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
+    download ${URL} ${TEMP_DIR}/teleport.rpm
     # install with package manager if available
     if [[ ${PACKAGE_MANAGER_COMMAND} != "" ]]; then
-        log "Installing Teleport release from ${URL} using ${PACKAGE_MANAGER_COMMAND}"
-        # install rpm (yum/dnf will download it themselves)
-        ${PACKAGE_MANAGER_COMMAND} ${URL}
-    # use curl and rpm if we can't find a package manager
+        log "Installing Teleport release from ${TEMP_DIR}/teleport.rpm using ${PACKAGE_MANAGER_COMMAND}"
+        # install rpm with package manager
+        ${PACKAGE_MANAGER_COMMAND} ${TEMP_DIR}/teleport.rpm
+    # use rpm if we couldn't find a package manager
     else
         # check that needed tools are installed
         check_exists_fatal rpm
-        # download tarball
-        log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
-        download ${URL} ${TEMP_DIR}/teleport.rpm
         # install RPM (in upgrade mode)
         rpm -Uvh ${TEMP_DIR}/teleport.rpm
     fi
@@ -569,7 +610,13 @@ else
 fi
 
 # check that teleport binary can be found and runs
-check_teleport_binary
+if ! check_teleport_binary; then
+    log_important "The Teleport binary could not be found at ${TELEPORT_BINARY_DIR} as expected."
+    log_important "This usually means that there was an error during installation."
+    log_important "Check this script's logs for obvious signs of error and contact Gravitational Support"
+    log_important "for further assistance."
+    exit 1
+fi
 
 # install teleport config
 install_teleport_config
