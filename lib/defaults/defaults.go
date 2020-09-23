@@ -261,6 +261,9 @@ const (
 	// InactivityFlushPeriod is a period of inactivity
 	// that triggers upload of the data - flush.
 	InactivityFlushPeriod = 5 * time.Minute
+
+	// NodeJoinTokenTTL is when a token for nodes expires.
+	NodeJoinTokenTTL = 4 * time.Hour
 )
 
 var (
