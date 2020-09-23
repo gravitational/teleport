@@ -249,6 +249,9 @@ const (
 	// CallbackTimeout is how long to wait for a response from SSO provider
 	// before timeout.
 	CallbackTimeout = 180 * time.Second
+
+	// NodeJoinTokenTTL is when a token for nodes expires.
+	NodeJoinTokenTTL = 4 * time.Hour
 )
 
 var (
