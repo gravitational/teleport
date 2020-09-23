@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io/ioutil"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	authzapi "k8s.io/api/authorization/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/rest"
@@ -40,7 +42,7 @@ type kubeCreds struct {
 	targetAddr string
 }
 
-func getKubeCreds(log logrus.FieldLogger, kubeconfigPath string) (*kubeCreds, error) {
+func getKubeCreds(ctx context.Context, log logrus.FieldLogger, kubeconfigPath string) (*kubeCreds, error) {
 	var cfg *rest.Config
 	// no kubeconfig is set, assume auth server is running in the cluster
 	if kubeconfigPath == "" {
@@ -76,7 +78,7 @@ running in a kubernetes cluster, but could not init in-cluster kubernetes client
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate kubernetes client from kubeconfig: %v", err)
 	}
-	if err := checkImpersonationPermissions(client.AuthorizationV1().SelfSubjectAccessReviews()); err != nil {
+	if err := checkImpersonationPermissions(ctx, client.AuthorizationV1().SelfSubjectAccessReviews()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	log.Debugf("Proxy has all necessary kubernetes impersonation permissions.")
@@ -123,16 +125,16 @@ func (c *kubeCreds) wrapTransport(rt http.RoundTripper) (http.RoundTripper, erro
 	return transport.HTTPWrappersForConfig(c.transportConfig, rt)
 }
 
-func checkImpersonationPermissions(sarClient authztypes.SelfSubjectAccessReviewInterface) error {
+func checkImpersonationPermissions(ctx context.Context, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
 	for _, resource := range []string{"users", "groups", "serviceaccounts"} {
-		resp, err := sarClient.Create(&authzapi.SelfSubjectAccessReview{
+		resp, err := sarClient.Create(ctx, &authzapi.SelfSubjectAccessReview{
 			Spec: authzapi.SelfSubjectAccessReviewSpec{
 				ResourceAttributes: &authzapi.ResourceAttributes{
 					Verb:     "impersonate",
 					Resource: resource,
 				},
 			},
-		})
+		}, metav1.CreateOptions{})
 		if err != nil {
 			return trace.Wrap(err, "failed to verify impersonation permissions for kubernetes: %v; this may be due to missing the SelfSubjectAccessReview permission on the ClusterRole used by the proxy; please make sure that proxy has all the necessary permissions: https://gravitational.com/teleport/docs/kubernetes_ssh/#impersonation", err)
 		}

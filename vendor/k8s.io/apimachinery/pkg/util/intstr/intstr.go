@@ -25,8 +25,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/gofuzz"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 // IntOrString is a type that can hold an int32 or a string.  When used in
@@ -97,7 +96,8 @@ func (intstr *IntOrString) String() string {
 }
 
 // IntValue returns the IntVal if type Int, or if
-// it is a String, will attempt a conversion to int.
+// it is a String, will attempt a conversion to int,
+// returning 0 if a parsing error occurs.
 func (intstr *IntOrString) IntValue() int {
 	if intstr.Type == String {
 		i, _ := strconv.Atoi(intstr.StrVal)
@@ -127,21 +127,6 @@ func (IntOrString) OpenAPISchemaType() []string { return []string{"string"} }
 // OpenAPISchemaFormat is used by the kube-openapi generator when constructing
 // the OpenAPI spec of this type.
 func (IntOrString) OpenAPISchemaFormat() string { return "int-or-string" }
-
-func (intstr *IntOrString) Fuzz(c fuzz.Continue) {
-	if intstr == nil {
-		return
-	}
-	if c.RandBool() {
-		intstr.Type = Int
-		c.Fuzz(&intstr.IntVal)
-		intstr.StrVal = ""
-	} else {
-		intstr.Type = String
-		intstr.IntVal = 0
-		c.Fuzz(&intstr.StrVal)
-	}
-}
 
 func ValueOrDefault(intOrPercent *IntOrString, defaultValue IntOrString) *IntOrString {
 	if intOrPercent == nil {

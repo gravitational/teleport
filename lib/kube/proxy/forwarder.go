@@ -138,7 +138,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		trace.Component: teleport.Component(teleport.ComponentKube),
 	})
 
-	creds, err := getKubeCreds(log, cfg.KubeconfigPath)
+	creds, err := getKubeCreds(cfg.Context, log, cfg.KubeconfigPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

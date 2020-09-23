@@ -3,7 +3,9 @@ module github.com/gravitational/teleport
 go 1.14
 
 require (
-	cloud.google.com/go v0.44.3
+	cloud.google.com/go/firestore v1.1.1
+	cloud.google.com/go/pubsub v1.2.0 // indirect
+	cloud.google.com/go/storage v1.5.0
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/Microsoft/go-winio v0.4.9
 	github.com/alecthomas/assert v0.0.0-20170929043011-405dbfeb8e38 // indirect
@@ -17,7 +19,7 @@ require (
 	github.com/codahale/hdrhistogram v0.0.0-20150708134006-954f16e8b9ef
 	github.com/coreos/go-oidc v0.0.3
 	github.com/coreos/go-semver v0.2.0
-	github.com/coreos/go-systemd v0.0.0-20190620071333-e64a0ec8b42a // indirect
+	github.com/coreos/pkg v0.0.0-20160727233714-3ac0863d7acf // indirect
 	github.com/davecgh/go-spew v1.1.1
 	github.com/docker/docker v17.12.0-ce-rc1.0.20180721085148-1ef1cc838816+incompatible
 	github.com/docker/spdystream v0.0.0-20170912183627-bc6354cbbc29 // indirect
@@ -25,13 +27,12 @@ require (
 	github.com/fsouza/fake-gcs-server v1.11.6
 	github.com/ghodss/yaml v1.0.0
 	github.com/gizak/termui v0.0.0-20190224181052-63c2a0d70943
-	github.com/gogo/protobuf v1.2.2-0.20190723190241-65acae22fc9d
+	github.com/gogo/protobuf v1.3.1
 	github.com/gokyle/hotp v0.0.0-20160218004637-c180d57d286b
-	github.com/golang/protobuf v1.3.2
+	github.com/golang/protobuf v1.4.2
 	github.com/google/btree v1.0.0
 	github.com/google/go-cmp v0.5.1
 	github.com/google/gops v0.3.1
-	github.com/googleapis/gnostic v0.2.0 // indirect
 	github.com/gravitational/configure v0.0.0-20160909185025-1db4b84fe9db
 	github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70
 	github.com/gravitational/kingpin v2.1.11-0.20190130013101-742f2714c145+incompatible
@@ -45,7 +46,7 @@ require (
 	github.com/iovisor/gobpf v0.0.1
 	github.com/johannesboyne/gofakes3 v0.0.0-20191228161223-9aee1c78a252
 	github.com/jonboulle/clockwork v0.2.1
-	github.com/json-iterator/go v1.1.9
+	github.com/json-iterator/go v1.1.10
 	github.com/julienschmidt/httprouter v1.2.0
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/kr/pty v1.1.1
@@ -62,7 +63,7 @@ require (
 	github.com/pborman/uuid v0.0.0-20170612153648-e790cca94e6c
 	github.com/pquerna/otp v0.0.0-20160912161815-54653902c20e
 	github.com/prometheus/client_golang v1.1.0
-	github.com/prometheus/client_model v0.0.0-20190129233127-fd36f4220a90
+	github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4
 	github.com/prometheus/common v0.6.0
 	github.com/prometheus/procfs v0.0.4 // indirect
 	github.com/russellhaering/gosaml2 v0.0.0-20170515204909-8908227c114a
@@ -77,29 +78,31 @@ require (
 	github.com/xeipuuv/gojsonpointer v0.0.0-20151027082146-e0fe6f683076 // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20150808065054-e02fc20de94c // indirect
 	github.com/xeipuuv/gojsonschema v0.0.0-20151204154511-3988ac14d6f6 // indirect
-	go.etcd.io/etcd v0.5.0-alpha.5.0.20190830150955-898bd1351fcf
-	go.opencensus.io v0.22.1 // indirect
+	go.etcd.io/etcd v0.5.0-alpha.5.0.20200306183522-221f0cc107cb
+	go.opencensus.io v0.22.4 // indirect
 	go.uber.org/atomic v1.4.0
-	golang.org/x/crypto v0.0.0-20200220183623-bac4c82f6975
-	golang.org/x/net v0.0.0-20200202094626-16171245cfb2
-	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
-	golang.org/x/sys v0.0.0-20200107162124-548cf772de50
-	golang.org/x/text v0.3.2
-	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
-	golang.org/x/tools v0.0.0-20191227053925-7b8e75db28f4 // indirect
-	google.golang.org/api v0.10.0
-	google.golang.org/appengine v1.6.3 // indirect
-	google.golang.org/genproto v0.0.0-20190916214212-f660b8655731
-	google.golang.org/grpc v1.23.1
+	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
+	golang.org/x/exp v0.0.0-20200224162631-6cc2880d07d6 // indirect
+	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
+	golang.org/x/net v0.0.0-20200707034311-ab3426394381
+	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
+	golang.org/x/sys v0.0.0-20200803210538-64077c9b5642
+	golang.org/x/text v0.3.3
+	golang.org/x/tools v0.0.0-20200806022845-90696ccdc692 // indirect
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
+	google.golang.org/api v0.22.0
+	google.golang.org/appengine v1.6.6 // indirect
+	google.golang.org/genproto v0.0.0-20200806141610-86f49bd18e98
+	google.golang.org/grpc v1.27.0
+	google.golang.org/protobuf v1.25.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15
 	gopkg.in/yaml.v2 v2.2.8
 	gotest.tools v2.2.0+incompatible // indirect
-	k8s.io/api v0.17.3
-	k8s.io/apimachinery v0.17.3
-	k8s.io/client-go v0.17.3
-	k8s.io/utils v0.0.0-20200124190032-861946025e34 // indirect
+	honnef.co/go/tools v0.0.1-2020.1.4 // indirect
+	k8s.io/api v0.0.0-20200821051526-051d027c14e1
+	k8s.io/apimachinery v0.20.0-alpha.1.0.20200922235617-829ed199f4e0
+	k8s.io/client-go v0.0.0-20200827131824-5d33118d4742
 	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
-	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
 replace (

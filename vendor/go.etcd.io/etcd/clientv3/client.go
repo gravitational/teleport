@@ -230,24 +230,13 @@ func (c *Client) dialSetupOpts(creds grpccredentials.TransportCredentials, dopts
 	}
 	opts = append(opts, dopts...)
 
-	// Provide a net dialer that supports cancelation and timeout.
-	f := func(dialEp string, t time.Duration) (net.Conn, error) {
-		proto, host, _ := endpoint.ParseEndpoint(dialEp)
-		select {
-		case <-c.ctx.Done():
-			return nil, c.ctx.Err()
-		default:
-		}
-		dialer := &net.Dialer{Timeout: t}
-		return dialer.DialContext(c.ctx, proto, host)
-	}
-	opts = append(opts, grpc.WithDialer(f))
-
+	dialer := endpoint.Dialer
 	if creds != nil {
 		opts = append(opts, grpc.WithTransportCredentials(creds))
 	} else {
 		opts = append(opts, grpc.WithInsecure())
 	}
+	opts = append(opts, grpc.WithContextDialer(dialer))
 
 	// Interceptor retry and backoff.
 	// TODO: Replace all of clientv3/retry.go with interceptor based retry, or with
@@ -266,7 +255,10 @@ func (c *Client) dialSetupOpts(creds grpccredentials.TransportCredentials, dopts
 
 // Dial connects to a single endpoint using the client's config.
 func (c *Client) Dial(ep string) (*grpc.ClientConn, error) {
-	creds := c.directDialCreds(ep)
+	creds, err := c.directDialCreds(ep)
+	if err != nil {
+		return nil, err
+	}
 	// Use the grpc passthrough resolver to directly dial a single endpoint.
 	// This resolver passes through the 'unix' and 'unixs' endpoints schemes used
 	// by etcd without modification, allowing us to directly dial endpoints and
@@ -276,10 +268,10 @@ func (c *Client) Dial(ep string) (*grpc.ClientConn, error) {
 
 func (c *Client) getToken(ctx context.Context) error {
 	var err error // return last error in a case of fail
-	var auth *authenticator
 
 	eps := c.Endpoints()
 	for _, ep := range eps {
+		var auth *authenticator
 		// use dial options without dopts to avoid reusing the client balancer
 		var dOpts []grpc.DialOption
 		_, host, _ := endpoint.ParseEndpoint(ep)
@@ -369,8 +361,8 @@ func (c *Client) dial(target string, creds grpccredentials.TransportCredentials,
 	return conn, nil
 }
 
-func (c *Client) directDialCreds(ep string) grpccredentials.TransportCredentials {
-	_, hostPort, scheme := endpoint.ParseEndpoint(ep)
+func (c *Client) directDialCreds(ep string) (grpccredentials.TransportCredentials, error) {
+	_, host, scheme := endpoint.ParseEndpoint(ep)
 	creds := c.creds
 	if len(scheme) != 0 {
 		creds = c.processCreds(scheme)
@@ -379,12 +371,17 @@ func (c *Client) directDialCreds(ep string) grpccredentials.TransportCredentials
 			// Set the server name must to the endpoint hostname without port since grpc
 			// otherwise attempts to check if x509 cert is valid for the full endpoint
 			// including the scheme and port, which fails.
-			host, _ := endpoint.ParseHostPort(hostPort)
-			clone.OverrideServerName(host)
+			overrideServerName, _, err := net.SplitHostPort(host)
+			if err != nil {
+				// Either the host didn't have a port or the host could not be parsed. Either way, continue with the
+				// original host string.
+				overrideServerName = host
+			}
+			clone.OverrideServerName(overrideServerName)
 			creds = clone
 		}
 	}
-	return creds
+	return creds, nil
 }
 
 func (c *Client) dialWithBalancerCreds(ep string) grpccredentials.TransportCredentials {
