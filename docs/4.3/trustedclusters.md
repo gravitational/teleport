@@ -13,6 +13,7 @@ capability include:
  - Device manufacturers remotely maintaining computing appliances deployed on premises.
  - Large cloud software vendors manage multiple data centers using a common proxy.
 
+
 **Example of a MSP provider using trusted cluster to obtain access to clients clusters.**
 ![MSP Example](img/trusted-clusters/TrustedClusters-MSP.svg)
 
@@ -78,6 +79,35 @@ _permissions mapping_ takes place.
 
 **Once connection has been established it's easy to switch from the "main" root cluster**
 ![Teleport Cluster Page](img/trusted-clusters/teleport-trusted-cluster.png)
+
+Let's take a look at how a connection is established between the "rot" cluster
+and the "leaf" cluster:
+
+![Tunnels](img/tunnel.svg)
+
+This setup works as follows:
+
+1. The "east" creates an outbound reverse SSH tunnel to "main" and keeps the
+   tunnel open.
+
+2. **Accessibility only works in one direction.** The "east" cluster allows
+   users from "main" to access its nodes but users in the "east" cluster can not
+   access the "main" cluster.
+
+3. When a user tries to connect to a node inside "east" using main's proxy, the
+   reverse tunnel from step 1 is used to establish this connection shown as the
+   green line above.
+
+!!! tip "Load Balancers"
+
+    The scheme above also works even if the "main" cluster uses multiple
+    proxies behind a load balancer (LB) or a DNS entry with multiple values.
+    This works by "east" establishing a tunnel to _every_ proxy in "main". This
+    requires that an LB uses round-robin or a similar balancing algorithm. Do
+    not use sticky load balancing algorithms (a.k.a. "session affinity") with
+    Teleport proxies.
+
+
 
 ## Join Tokens
 
@@ -257,7 +287,6 @@ Teleport Proxy UI.
 **Creating Trust from the Leaf node to the root node.**
 ![Tunnels](img/trusted-clusters/setting-up-trust.png)
 
-
 ## Updating Trusted Cluster Role Map
 
 In order to update the role map for a trusted cluster first we will need to remove the cluster by executing:
@@ -271,7 +300,6 @@ Then following updating the role map, we can re-create the cluster by executing:
 ```bsh
 $ tctl create main-user-updated-role.yaml
 ```
-
 
 ## Using Trusted Clusters
 
@@ -309,8 +337,17 @@ $ tsh ssh --cluster=east root@db1.east
 
 !!! tip "Note"
 
-    Trusted clusters work only one way. So, in the example above users from "east"
-    cannot see or connect to the nodes in "main".
+    Trusted clusters work only one way. So, in the example above users from "leaf"
+    cannot see or connect to the nodes in "root".
+
+!!! warning "HTTPS configuration"
+
+    If the `web_proxy_addr` endpoint of the root
+    cluster uses a self-signed or invalid HTTPS certificate, you will get an
+    error: _"the trusted cluster uses misconfigured HTTP/TLS certificate"_. For
+    ease of testing the teleport daemon of "leaf" can be started with
+    `--insecure` CLI flag to accept self-signed certificates. Make sure to configure
+    HTTPS properly and remove the insecure flag for production use.
 
 ### Disabling Trust
 
