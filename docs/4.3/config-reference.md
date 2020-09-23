@@ -70,9 +70,12 @@ teleport:
         # By default teleport uses the `data_dir` directory on a local filesystem
         type: dir
 
-        # Array of locations where the audit log events will be stored. by
-        # default they are stored in `/var/lib/teleport/log`
-        audit_events_uri: ['file:///var/lib/teleport/log', 'dynamodb://events_table_name', 'firestore://events_table_name', 'stdout://']
+        # List of locations where the audit log events will be stored. By default,
+        # they are stored in `/var/lib/teleport/log`
+        # When specifying multiple destinations like this, make sure that any highly-available
+        # storage methods (like DynamoDB or Firestore) are specified first, as this is what the
+        # Teleport web UI uses as its source of events to display.
+        audit_events_uri: ['dynamodb://events_table_name', 'firestore://events_table_name', 'file:///var/lib/teleport/log', 'stdout://']
 
         # Use this setting to configure teleport to store the recorded sessions in
         # an AWS S3 bucket or use GCP Storage with 'gs://'. See "Using Amazon S3"
