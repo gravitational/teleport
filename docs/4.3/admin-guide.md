@@ -1250,14 +1250,6 @@ To check the status of certificate rotation:
 $ tctl status
 ```
 
-!!! danger "Version Warning"
-
-    Certificate rotation can only be used with
-    clusters running version 2.6 of Teleport or newer. If trusted clusters are
-    used, make sure _all_ connected clusters are running version 2.6+. If one of
-    the trusted clusters is running an older version of Teleport the
-    trust/connection to that cluster will be lost.
-
 !!! warning "CA Pinning Warning"
 
     If you are using [CA Pinning](#untrusted-auth-servers) when adding new
