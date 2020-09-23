@@ -824,12 +824,12 @@ Teleport supports multiple storage back-ends for storing the SSH events. The
 section below uses the `dir` backend as an example. `dir` backend uses the local
 filesystem of an auth server using the configurable `data_dir` directory.
 
-For highly available (HA) configuration, users can refer to our
-[DynamoDB](#using-dynamodb) or [etcd](#using-etcd) chapters on how to configure
-the SSH events and recorded sessions to be stored on network storage. It is even
-possible to store the audit log in multiple places at the same time, see
-`audit_events_uri` setting in the sample configuration file above for how to do
-that.
+For highly available (HA) configurations, users can refer to our
+[DynamoDB](#using-dynamodb) or [Firestore](#using-firestore) chapters for information
+on how to configure the SSH events and recorded sessions to be stored on
+network storage. It is even possible to store the audit log in multiple places at the
+same time - see `audit_events_uri` setting in the sample configuration file above for
+how to do that.
 
 Let's examine the Teleport audit log using the `dir` backend. The event log is
 stored in `data_dir` under `log` directory, usually `/var/lib/teleport/log` .
@@ -1578,7 +1578,7 @@ is running without problems.
     `/var/lib/teleport/authservers.json` - the values from the cache file will take
     precedence over the configuration file.
 
-We'll cover how to use `etcd` and `DynamoDB` storage back-ends to make Teleport
+We'll cover how to use `etcd`, DynamoDB and Firestore storage back-ends to make Teleport
 highly available below.
 
 ### Using etcd
@@ -1587,6 +1587,13 @@ Teleport can use [etcd](https://etcd.io/) as a storage backend to
 achieve highly available deployments. You must take steps to protect access to
 `etcd` in this configuration because that is where Teleport secrets like keys
 and user records will be stored.
+
+!!! warning "IMPORTANT"
+
+    `etcd` can only currently be used to store Teleport's internal database in a highly-available
+    way. This will allow you to have multiple auth servers in your cluster for an HA deployment,
+    but it will not also store Teleport audit events for you in the same way that
+    [DynamoDB](#using-dynamodb) or [Firestore](#using-firestore) will.
 
 To configure Teleport for using etcd as a storage back-end:
 
@@ -1718,10 +1725,12 @@ teleport:
     table_name: Example_TELEPORT_DYNAMO_TABLE_NAME
 
     # This setting configures Teleport to send the audit events to three places:
-    # To keep a copy on a local filesystem, in DynamoDB and to Stdout.
+    # To keep a copy in DynamoDB, a copy on a local filesystem, and also output the events to stdout.
     # NOTE: The DynamoDB events table has a different schema to the regular Teleport
     # database table, so attempting to use same table for both will result in errors.
-    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'dynamodb://events_table_name', 'stdout://']
+    # When using highly available storage like DynamoDB, you should make sure that the list always specifies
+    # the HA storage method first, as this is what the Teleport web UI uses as its source of events to display.
+    audit_events_uri:  ['dynamodb://events_table_name', 'file:///var/lib/teleport/audit/events', 'stdout://']
 
     # This setting configures Teleport to save the recorded sessions in an S3 bucket:
     audit_sessions_uri: s3://Example_TELEPORT_S3_BUCKET/records
@@ -1829,10 +1838,12 @@ teleport:
     credentials_path: /var/lib/teleport/gcs_creds
 
     # This setting configures Teleport to send the audit events to three places:
-    # To keep a copy on a local filesystem, in Firestore and to Stdout.
+    # To keep a copy in Firestore, a copy on a local filesystem, and also write the events to stdout.
     # NOTE: The Firestore events table has a different schema to the regular Teleport
     # database table, so attempting to use same table for both will result in errors.
-    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'firestore://Example_TELEPORT_FIRESTORE_EVENTS_TABLE_NAME', 'stdout://']
+    # When using highly available storage like Firestore, you should make sure that the list always specifies
+    # the HA storage method first, as this is what the Teleport web UI uses as its source of events to display.
+    audit_events_uri:  ['firestore://Example_TELEPORT_FIRESTORE_EVENTS_TABLE_NAME', 'file:///var/lib/teleport/audit/events', 'stdout://']
 
     # This setting configures Teleport to save the recorded sessions in GCP storage:
     audit_sessions_uri: gs://Example_TELEPORT_S3_BUCKET/records
