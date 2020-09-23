@@ -397,12 +397,11 @@ func (q *Query) fieldValuesToCursorValues(fieldValues []interface{}) ([]*pb.Valu
 }
 
 func (q *Query) docSnapshotToCursorValues(ds *DocumentSnapshot, orders []order) ([]*pb.Value, error) {
-	// TODO(jba): error if doc snap does not belong to the right collection.
 	vals := make([]*pb.Value, len(orders))
 	for i, ord := range orders {
 		if ord.isDocumentID() {
 			dp, qp := ds.Ref.Parent.Path, q.path
-			if dp != qp {
+			if !q.allDescendants && dp != qp {
 				return nil, fmt.Errorf("firestore: document snapshot for %s passed to query on %s", dp, qp)
 			}
 			vals[i] = &pb.Value{ValueType: &pb.Value_ReferenceValue{ds.Ref.Path}}
@@ -489,8 +488,12 @@ func (f filter) toProto() (*pb.StructuredQuery_Filter, error) {
 		op = pb.StructuredQuery_FieldFilter_GREATER_THAN_OR_EQUAL
 	case "==":
 		op = pb.StructuredQuery_FieldFilter_EQUAL
+	case "in":
+		op = pb.StructuredQuery_FieldFilter_IN
 	case "array-contains":
 		op = pb.StructuredQuery_FieldFilter_ARRAY_CONTAINS
+	case "array-contains-any":
+		op = pb.StructuredQuery_FieldFilter_ARRAY_CONTAINS_ANY
 	default:
 		return nil, fmt.Errorf("firestore: invalid operator %q", f.op)
 	}

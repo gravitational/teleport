@@ -681,19 +681,26 @@ const (
 	AF_UNSPEC  = 0
 	AF_UNIX    = 1
 	AF_INET    = 2
-	AF_INET6   = 23
 	AF_NETBIOS = 17
+	AF_INET6   = 23
+	AF_IRDA    = 26
+	AF_BTH     = 32
 
 	SOCK_STREAM    = 1
 	SOCK_DGRAM     = 2
 	SOCK_RAW       = 3
+	SOCK_RDM       = 4
 	SOCK_SEQPACKET = 5
 
-	IPPROTO_IP   = 0
-	IPPROTO_ICMP = 1
-	IPPROTO_IPV6 = 0x29
-	IPPROTO_TCP  = 6
-	IPPROTO_UDP  = 17
+	IPPROTO_IP      = 0
+	IPPROTO_ICMP    = 1
+	IPPROTO_IGMP    = 2
+	BTHPROTO_RFCOMM = 3
+	IPPROTO_TCP     = 6
+	IPPROTO_UDP     = 17
+	IPPROTO_IPV6    = 41
+	IPPROTO_ICMPV6  = 58
+	IPPROTO_RM      = 113
 
 	SOL_SOCKET                = 0xffff
 	SO_REUSEADDR              = 4

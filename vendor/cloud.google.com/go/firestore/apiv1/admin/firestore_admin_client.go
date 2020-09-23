@@ -52,6 +52,8 @@ func defaultFirestoreAdminClientOptions() []option.ClientOption {
 	return []option.ClientOption{
 		option.WithEndpoint("firestore.googleapis.com:443"),
 		option.WithScopes(DefaultAuthScopes()...),
+		option.WithGRPCDialOption(grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(math.MaxInt32))),
 	}
 }
 
@@ -61,6 +63,7 @@ func defaultFirestoreAdminCallOptions() *FirestoreAdminCallOptions {
 			gax.WithRetry(func() gax.Retryer {
 				return gax.OnCodes([]codes.Code{
 					codes.DeadlineExceeded,
+					codes.Internal,
 					codes.Unavailable,
 				}, gax.Backoff{
 					Initial:    100 * time.Millisecond,

@@ -21,7 +21,7 @@ import (
 	"io"
 	"sync"
 
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/net"
@@ -97,9 +97,9 @@ func (sw *StreamWatcher) stopping() bool {
 
 // receive reads result from the decoder in a loop and sends down the result channel.
 func (sw *StreamWatcher) receive() {
+	defer utilruntime.HandleCrash()
 	defer close(sw.result)
 	defer sw.Stop()
-	defer utilruntime.HandleCrash()
 	for {
 		action, obj, err := sw.source.Decode()
 		if err != nil {
@@ -113,7 +113,7 @@ func (sw *StreamWatcher) receive() {
 			case io.ErrUnexpectedEOF:
 				klog.V(1).Infof("Unexpected EOF during watch stream event decoding: %v", err)
 			default:
-				if net.IsProbableEOF(err) {
+				if net.IsProbableEOF(err) || net.IsTimeout(err) {
 					klog.V(5).Infof("Unable to decode an event from the watch stream: %v", err)
 				} else {
 					sw.result <- Event{

@@ -106,7 +106,50 @@ func IsFullyQualifiedDomainName(fldPath *field.Path, name string) field.ErrorLis
 	if len(strings.Split(name, ".")) < 2 {
 		return append(allErrors, field.Invalid(fldPath, name, "should be a domain with at least two segments separated by dots"))
 	}
+	for _, label := range strings.Split(name, ".") {
+		if errs := IsDNS1123Label(label); len(errs) > 0 {
+			return append(allErrors, field.Invalid(fldPath, label, strings.Join(errs, ",")))
+		}
+	}
 	return allErrors
+}
+
+// Allowed characters in an HTTP Path as defined by RFC 3986. A HTTP path may
+// contain:
+// * unreserved characters (alphanumeric, '-', '.', '_', '~')
+// * percent-encoded octets
+// * sub-delims ("!", "$", "&", "'", "(", ")", "*", "+", ",", ";", "=")
+// * a colon character (":")
+const httpPathFmt string = `[A-Za-z0-9/\-._~%!$&'()*+,;=:]+`
+
+var httpPathRegexp = regexp.MustCompile("^" + httpPathFmt + "$")
+
+// IsDomainPrefixedPath checks if the given string is a domain-prefixed path
+// (e.g. acme.io/foo). All characters before the first "/" must be a valid
+// subdomain as defined by RFC 1123. All characters trailing the first "/" must
+// be valid HTTP Path characters as defined by RFC 3986.
+func IsDomainPrefixedPath(fldPath *field.Path, dpPath string) field.ErrorList {
+	var allErrs field.ErrorList
+	if len(dpPath) == 0 {
+		return append(allErrs, field.Required(fldPath, ""))
+	}
+
+	segments := strings.SplitN(dpPath, "/", 2)
+	if len(segments) != 2 || len(segments[0]) == 0 || len(segments[1]) == 0 {
+		return append(allErrs, field.Invalid(fldPath, dpPath, "must be a domain-prefixed path (such as \"acme.io/foo\")"))
+	}
+
+	host := segments[0]
+	for _, err := range IsDNS1123Subdomain(host) {
+		allErrs = append(allErrs, field.Invalid(fldPath, host, err))
+	}
+
+	path := segments[1]
+	if !httpPathRegexp.MatchString(path) {
+		return append(allErrs, field.Invalid(fldPath, path, RegexError("Invalid path", httpPathFmt)))
+	}
+
+	return allErrs
 }
 
 const labelValueFmt string = "(" + qualifiedNameFmt + ")?"
@@ -132,7 +175,7 @@ func IsValidLabelValue(value string) []string {
 }
 
 const dns1123LabelFmt string = "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
-const dns1123LabelErrMsg string = "a DNS-1123 label must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character"
+const dns1123LabelErrMsg string = "a lowercase RFC 1123 label must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character"
 
 // DNS1123LabelMaxLength is a label's max length in DNS (RFC 1123)
 const DNS1123LabelMaxLength int = 63
@@ -153,7 +196,7 @@ func IsDNS1123Label(value string) []string {
 }
 
 const dns1123SubdomainFmt string = dns1123LabelFmt + "(\\." + dns1123LabelFmt + ")*"
-const dns1123SubdomainErrorMsg string = "a DNS-1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character"
+const dns1123SubdomainErrorMsg string = "a lowercase RFC 1123 subdomain must consist of lower case alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character"
 
 // DNS1123SubdomainMaxLength is a subdomain's max length in DNS (RFC 1123)
 const DNS1123SubdomainMaxLength int = 253

@@ -17,10 +17,12 @@ limitations under the License.
 package proxy
 
 import (
+	"context"
 	"errors"
 
 	"gopkg.in/check.v1"
 	authzapi "k8s.io/api/authorization/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 )
 
@@ -63,7 +65,7 @@ func (s AuthSuite) TestCheckImpersonationPermissions(c *check.C) {
 			allowedVerbs:     tt.allowedVerbs,
 			allowedResources: tt.allowedResources,
 		}
-		err := checkImpersonationPermissions(mock)
+		err := checkImpersonationPermissions(context.Background(), mock)
 		if tt.wantErr {
 			c.Assert(err, check.NotNil)
 		} else {
@@ -80,7 +82,7 @@ type mockSARClient struct {
 	allowedResources []string
 }
 
-func (c *mockSARClient) Create(sar *authzapi.SelfSubjectAccessReview) (*authzapi.SelfSubjectAccessReview, error) {
+func (c *mockSARClient) Create(_ context.Context, sar *authzapi.SelfSubjectAccessReview, _ metav1.CreateOptions) (*authzapi.SelfSubjectAccessReview, error) {
 	if c.err != nil {
 		return nil, c.err
 	}
