@@ -210,7 +210,7 @@ download() {
     CURL_COMMAND="curl -Ls --retry 5 --retry-delay 5"
     WGET_COMMAND="wget -q -nv --tries=5"
     # optionally allow disabling of TLS verification (can be useful on older distros
-    # which often have an out-of-date set of ca-certificates which won't validate)
+    # which often have an out-of-date set of CA certificate bundle which won't validate)
     if [[ ${DISABLE_TLS_VERIFICATION} == "true" ]]; then
         CURL_COMMAND+=" -k"
         WGET_COMMAND+=" --no-check-certificate"
@@ -221,7 +221,7 @@ download() {
         # handle errors with curl
         if ! ${CURL_COMMAND} -o ${OUTPUT_PATH} ${URL}; then
             log_important "Error with download via curl, falling back to wget"
-            log "On an older OS, this may be related to the ca-certificates being too old."
+            log "On an older OS, this may be related to the CA certificate bundle being too old."
             log "You can pass the hidden -k flag to this script to disable TLS verification - this is not recommended!"
         else
             DOWNLOAD_COMPLETE=true
@@ -570,6 +570,7 @@ elif [[ ${TELEPORT_FORMAT} == "deb" ]]; then
     log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
     download ${URL} ${TEMP_DIR}/teleport.deb
     # install deb
+    log "Using dpkg to install ${TEMP_DIR}/teleport.deb"
     dpkg -i ${TEMP_DIR}/teleport.deb
 elif [[ ${TELEPORT_FORMAT} == "rpm" ]]; then
     # convert teleport arch to rpm arch
@@ -602,6 +603,7 @@ elif [[ ${TELEPORT_FORMAT} == "rpm" ]]; then
         # check that needed tools are installed
         check_exists_fatal rpm
         # install RPM (in upgrade mode)
+        log "Using rpm to install ${TEMP_DIR}/teleport.rpm"
         rpm -Uvh ${TEMP_DIR}/teleport.rpm
     fi
 else
