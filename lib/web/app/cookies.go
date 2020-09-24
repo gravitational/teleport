@@ -30,6 +30,16 @@ type Cookie struct {
 	SessionID  string `json:"session_id"`
 }
 
+// EncodeCookie encodes the application cookie
+func EncodeCookie(cookie *Cookie) (string, error) {
+	bytes, err := json.Marshal(cookie)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return hex.EncodeToString(bytes), nil
+}
+
 func parseCookie(r *http.Request) (*Cookie, error) {
 	cookieValue, err := extractCookie(r)
 	if err != nil {
@@ -66,15 +76,6 @@ func decodeCookie(cookieValue string) (*Cookie, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &cookie, nil
-}
-
-func encodeCookie(cookie *Cookie) (string, error) {
-	bytes, err := json.Marshal(cookie)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return hex.EncodeToString(bytes), nil
 }
 
 const (

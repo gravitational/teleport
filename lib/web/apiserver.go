@@ -212,6 +212,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// get nodes
 	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes", h.WithClusterAuth(h.siteNodesGet))
 
+	// get aap applications
+	h.GET("/webapi/sites/:site/namespaces/:namespace/apps", h.WithClusterAuth(h.siteAppsGet))
+
 	// active sessions handlers
 	h.GET("/webapi/sites/:site/namespaces/:namespace/connect", h.WithClusterAuth(h.siteNodeConnect))       // connect to an active session (via websocket)
 	h.GET("/webapi/sites/:site/namespaces/:namespace/sessions", h.WithClusterAuth(h.siteSessionsGet))      // get active list of sessions
@@ -1236,62 +1239,6 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	return NewSessionResponse(ctx)
-}
-
-type createAppSessionRequest struct {
-	// PublicAddr is the address of the application requested.
-	PublicAddr string `json:"app"`
-
-	// ClusterName is the cluster within which the application is running.
-	ClusterName string `json:"cluster_name"`
-
-	// SessionID is the session cookie.
-	SessionID string `json:"session_id"`
-
-	// BearerToken is the bearer token for the session.
-	BearerToken string `json:"bearer_token"`
-}
-
-// createAppSessionResponse returns everything needed to construct an
-// application session.
-type createAppSessionResponse struct {
-	// Username is the Teleport identity of the user.
-	Username string `json:"username"`
-
-	// ParentHash is the hash of the parent session.
-	ParentHash string `json:"parent_hash"`
-
-	// SessionID is the ID of the application session.
-	SessionID string `json:"session_id"`
-}
-
-func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	var req *createAppSessionRequest
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Get a client to auth with the identity of the logged in user and use it
-	// to request the creation of an application session for this user.
-	client, err := ctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	session, err := client.CreateAppSession(r.Context(), services.CreateAppSessionRequest{
-		PublicAddr:  req.PublicAddr,
-		ClusterName: req.ClusterName,
-		SessionID:   req.SessionID,
-		BearerToken: req.BearerToken,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &createAppSessionResponse{
-		Username:   session.GetUser(),
-		ParentHash: session.GetParentHash(),
-		SessionID:  session.GetName(),
-	}, nil
 }
 
 // deleteSession is called to sign out user

@@ -16,30 +16,54 @@ limitations under the License.
 
 package app
 
+import (
+	"net/http"
+	"strings"
+
+	"github.com/gravitational/teleport/lib/httplib"
+)
+
+func setRedirectPageHeaders(h http.Header) {
+	httplib.SetIndexHTMLHeaders(h)
+	// Set content policy flags
+	var csp = strings.Join([]string{
+		// should match the <script> tab nonce (random value)
+		"script-src 'nonce-83452726c7f26c'",
+		"style-src 'self'",
+		"object-src 'self'",
+		"img-src 'self'",
+	}, ";")
+
+	h.Set("Referrer-Policy", "no-referrer")
+	h.Set("Content-Security-Policy", csp)
+}
+
 const js = `
 <!DOCTYPE html>
 <html lang="en">
-   <head>
-      <title>Teleport Redirection Service</title>
-      <script>
-         window.onload = function() {
-            var fragment = window.location.hash;
-            var parts = fragment.split("=");
-            if (parts.length == 2 && parts[0] == "#cookieValue") {
-               const data = { cookie_value: parts[1] };
-               fetch("/x-teleport-auth", {
-                  method: "POST",
-                  headers: {
-                     'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify(data),
-               })
-               window.location = "/";
-            }
-         };
-      </script>
-   </head>
-   <body>
-   </body>
+  <head>
+    <title>Teleport Redirection Service</title>
+    <script nonce="83452726c7f26c">
+      (function() {
+        var parts = window.location.hash.split('=');
+        if (parts.length === 2 && parts[0] === '#value') {
+          const data = { cookie_value: parts[1] };
+          fetch('/x-teleport-auth', {
+            method: 'POST',
+            headers: {
+               mode: 'same-origin',
+               cache: 'no-store',
+               'Content-Type': 'application/json; charset=utf-8',
+            },
+            body: JSON.stringify(data),
+          }).then(() => {
+            // redirect to the root and remove current URL from history (back button)
+            window.location.replace('/');
+          });
+        }
+      })();
+    </script>
+  </head>
+  <body></body>
 </html>
 `

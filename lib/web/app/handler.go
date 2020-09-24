@@ -26,12 +26,14 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
 
@@ -136,8 +138,10 @@ type fragmentRequest struct {
 func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request) error {
 	switch r.Method {
 	case http.MethodGet:
+		setRedirectPageHeaders(w.Header())
 		fmt.Fprintf(w, js)
 	case http.MethodPost:
+		httplib.SetNoCacheHeaders(w.Header())
 		var req fragmentRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			return trace.Wrap(err)
@@ -157,9 +161,6 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request) error {
 			SameSite: http.SameSiteLaxMode,
 		})
 
-		// Set additional security headers. In the first run, only set strict
-		// transport security. In the future we can add other headers that make sense.
-		w.Header().Add("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 	default:
 		return trace.BadParameter("unsupported method: %q", r.Method)
 	}
@@ -204,4 +205,19 @@ func extractAppName(r *http.Request) (string, error) {
 	}
 
 	return parts[0], nil
+}
+
+// ResolveFQDN returns FQDN of the application based on proxy parameters
+func ResolveFQDN(proxyName string, proxyHost string, appClusterName string, app services.App) string {
+	// use application publicAdd if running on proxy
+	isProxyCluster := proxyName == appClusterName
+	if isProxyCluster && app.PublicAddr != "" {
+		return app.PublicAddr
+	}
+
+	if proxyHost != "" {
+		return fmt.Sprintf("%v.%v", app.Name, proxyHost)
+	}
+
+	return fmt.Sprintf("%v.%v", app.Name, appClusterName)
 }
