@@ -115,7 +115,7 @@ func (s *KubeSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	ns := newNamespace(testNamespace)
-	_, err = s.CoreV1().Namespaces().Create(ns)
+	_, err = s.CoreV1().Namespaces().Create(context.Background(), ns, metav1.CreateOptions{})
 	if err != nil {
 		if !errors.IsAlreadyExists(err) {
 			c.Fatalf("Failed to create namespace: %v.", err)
@@ -180,7 +180,8 @@ func (s *KubeSuite) TestKubeExec(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// try get request to fetch available pods
-	_, err = impersonatingProxyClient.CoreV1().Pods(kubeSystemNamespace).List(metav1.ListOptions{
+	ctx := context.Background()
+	_, err = impersonatingProxyClient.CoreV1().Pods(kubeSystemNamespace).List(ctx, metav1.ListOptions{
 		LabelSelector: kubeDNSLabels.AsSelector().String(),
 	})
 	c.Assert(err, check.NotNil)
@@ -199,7 +200,7 @@ func (s *KubeSuite) TestKubeExec(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	_, err = scopedProxyClient.CoreV1().Pods(kubeSystemNamespace).List(metav1.ListOptions{
+	_, err = scopedProxyClient.CoreV1().Pods(kubeSystemNamespace).List(ctx, metav1.ListOptions{
 		LabelSelector: kubeDNSLabels.AsSelector().String(),
 	})
 	c.Assert(err, check.IsNil)
@@ -214,7 +215,7 @@ func (s *KubeSuite) TestKubeExec(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// try get request to fetch available pods
-	pods, err := proxyClient.CoreV1().Pods(kubeSystemNamespace).List(metav1.ListOptions{
+	pods, err := proxyClient.CoreV1().Pods(kubeSystemNamespace).List(ctx, metav1.ListOptions{
 		LabelSelector: kubeDNSLabels.AsSelector().String(),
 	})
 	c.Assert(len(pods.Items), check.Not(check.Equals), int(0))
@@ -361,7 +362,8 @@ func (s *KubeSuite) TestKubeDeny(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// try get request to fetch available pods
-	_, err = proxyClient.CoreV1().Pods(kubeSystemNamespace).List(metav1.ListOptions{
+	ctx := context.Background()
+	_, err = proxyClient.CoreV1().Pods(kubeSystemNamespace).List(ctx, metav1.ListOptions{
 		LabelSelector: kubeDNSLabels.AsSelector().String(),
 	})
 	c.Assert(err, check.NotNil)
@@ -407,7 +409,8 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// pick the first kube-dns pod and run port forwarding on it
-	pods, err := s.CoreV1().Pods(kubeSystemNamespace).List(metav1.ListOptions{
+	ctx := context.Background()
+	pods, err := s.CoreV1().Pods(kubeSystemNamespace).List(ctx, metav1.ListOptions{
 		LabelSelector: kubeDNSLabels.AsSelector().String(),
 	})
 	c.Assert(err, check.IsNil)
@@ -444,7 +447,7 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 			return net.Dial("tcp", fmt.Sprintf("localhost:%v", localPort))
 		},
 	}
-	addr, err := resolver.LookupHost(context.TODO(), "kubernetes.default.svc.cluster.local")
+	addr, err := resolver.LookupHost(ctx, "kubernetes.default.svc.cluster.local")
 	c.Assert(err, check.IsNil)
 	c.Assert(len(addr), check.Not(check.Equals), 0)
 
@@ -595,7 +598,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// try get request to fetch available pods
-	_, err = impersonatingProxyClient.CoreV1().Pods(kubeSystemNamespace).List(metav1.ListOptions{
+	_, err = impersonatingProxyClient.CoreV1().Pods(kubeSystemNamespace).List(ctx, metav1.ListOptions{
 		LabelSelector: kubeDNSLabels.AsSelector().String(),
 	})
 	c.Assert(err, check.NotNil)
@@ -610,7 +613,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// try get request to fetch available pods
-	pods, err := proxyClient.CoreV1().Pods(kubeSystemNamespace).List(metav1.ListOptions{
+	pods, err := proxyClient.CoreV1().Pods(kubeSystemNamespace).List(ctx, metav1.ListOptions{
 		LabelSelector: kubeDNSLabels.AsSelector().String(),
 	})
 	c.Assert(err, check.IsNil)
@@ -867,7 +870,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// try get request to fetch available pods
-	_, err = impersonatingProxyClient.CoreV1().Pods(kubeSystemNamespace).List(metav1.ListOptions{
+	_, err = impersonatingProxyClient.CoreV1().Pods(kubeSystemNamespace).List(ctx, metav1.ListOptions{
 		LabelSelector: kubeDNSLabels.AsSelector().String(),
 	})
 	c.Assert(err, check.NotNil)
@@ -881,7 +884,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// try get request to fetch available pods
-	pods, err := proxyClient.CoreV1().Pods(kubeSystemNamespace).List(metav1.ListOptions{
+	pods, err := proxyClient.CoreV1().Pods(kubeSystemNamespace).List(ctx, metav1.ListOptions{
 		LabelSelector: kubeDNSLabels.AsSelector().String(),
 	})
 	c.Assert(err, check.IsNil)
@@ -1077,7 +1080,8 @@ func (s *KubeSuite) runKubeDisconnectTest(c *check.C, tc disconnectTestCase) {
 	c.Assert(err, check.IsNil)
 
 	// try get request to fetch available pods
-	pods, err := proxyClient.CoreV1().Pods(kubeSystemNamespace).List(metav1.ListOptions{
+	ctx := context.Background()
+	pods, err := proxyClient.CoreV1().Pods(kubeSystemNamespace).List(ctx, metav1.ListOptions{
 		LabelSelector: kubeDNSLabels.AsSelector().String(),
 	})
 	c.Assert(err, check.IsNil)
@@ -1101,7 +1105,7 @@ func (s *KubeSuite) runKubeDisconnectTest(c *check.C, tc disconnectTestCase) {
 
 	// interactive command, allocate pty
 	term := NewTerminal(250)
-	sessionCtx, sessionCancel := context.WithCancel(context.TODO())
+	sessionCtx, sessionCancel := context.WithCancel(ctx)
 	go func() {
 		defer sessionCancel()
 		err := kubeExec(proxyClientConfig, kubeExecArgs{
@@ -1304,7 +1308,7 @@ func newPortForwarder(kubeConfig *rest.Config, args kubePortForwardArgs) (*kubeP
 		return nil, trace.Wrap(err)
 	}
 
-	upgradeRoundTripper := streamspdy.NewSpdyRoundTripper(tlsConfig, true, false)
+	upgradeRoundTripper := streamspdy.NewRoundTripper(tlsConfig, true, false)
 	client := &http.Client{
 		Transport: upgradeRoundTripper,
 	}

@@ -41,7 +41,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/sirupsen/logrus"
 )
 

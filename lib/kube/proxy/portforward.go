@@ -45,6 +45,7 @@ type portForwardRequest struct {
 	onPortForward      portForwardCallback
 	context            context.Context
 	targetDialer       httpstream.Dialer
+	pingPeriod         time.Duration
 }
 
 func (p portForwardRequest) String() string {
@@ -68,7 +69,7 @@ func runPortForwarding(req portForwardRequest) error {
 
 	streamChan := make(chan httpstream.Stream, 1)
 
-	upgrader := spdystream.NewResponseUpgrader()
+	upgrader := spdystream.NewResponseUpgraderWithPings(req.pingPeriod)
 	conn := upgrader.UpgradeResponse(req.httpResponseWriter, req.httpRequest, httpStreamReceived(req.context, streamChan))
 	if conn == nil {
 		return trace.ConnectionProblem(nil, "Unable to upgrade websocket connection")

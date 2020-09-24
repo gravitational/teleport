@@ -68,7 +68,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/beevik/etree"
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/jonboulle/clockwork"
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/pquerna/otp/totp"
