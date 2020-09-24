@@ -259,7 +259,7 @@ First, we need to create a special role for root users on "leaf":
 
 ```yaml
 # save this into root-user-role.yaml on the leaf cluster and execute:
-# tctl create main-user-role.yaml
+# tctl create root-user-role.yaml
 kind: role
 version: v3
 metadata:
@@ -283,7 +283,7 @@ which looks like this:
 kind: trusted_cluster
 version: v1
 metadata:
-  name: "name-of-main-cluster"
+  name: "name-of-root-cluster"
 spec:
   enabled: true
   role_map:
@@ -291,8 +291,8 @@ spec:
       # admin <-> admin works for community edition. Enterprise users
       # have great control over RBAC.
       local: [admin]
-  token: "join-token-from-main"
-  tunnel_addr: main.example.com:3024
+  token: "join-token-from-root"
+  tunnel_addr: root.example.com:3024
   web_proxy_addr: root.example.com:3080
 ```
 
@@ -337,13 +337,13 @@ Teleport Proxy UI.
 In order to update the role map for a trusted cluster, first we will need to remove the cluster by executing:
 
 ```bsh
-$ tctl rm main-cluster.yaml
+$ tctl rm tc/root-cluster
 ```
 
 Then following updating the role map, we can re-create the cluster by executing:
 
 ```bsh
-$ tctl create main-user-updated-role.yaml
+$ tctl create root-user-updated-role.yaml
 ```
 
 ## Using Trusted Clusters
@@ -352,7 +352,7 @@ Now an admin from the "root" cluster can see and access the "leaf" cluster:
 
 ```bsh
 # log into the root cluster:
-$ tsh --proxy=main.example.com login admin
+$ tsh --proxy=root.example.com login admin
 ```
 
 ```bsh
@@ -361,13 +361,13 @@ $ tsh clusters
 
 Cluster Name   Status
 ------------   ------
-main           online
-east           online
+root           online
+leaf           online
 ```
 
 ```bsh
-# see the list of machines (nodes) behind the eastern cluster:
-$ tsh ls --cluster=east
+# see the list of machines (nodes) behind the leaf cluster:
+$ tsh ls --cluster=leaf
 
 Node Name Node ID            Address        Labels
 --------- ------------------ -------------- -----------
@@ -377,7 +377,7 @@ db2.leaf  3879d133-fe81-3212 10.0.5.3:3022  role=db-follower
 
 ```bsh
 # SSH into any node in "leaf":
-$ tsh ssh --cluster=leaf root@db1.leaf
+$ tsh ssh --cluster=leaf user@db1.leaf
 ```
 
 !!! tip "Note"
@@ -469,14 +469,14 @@ certificate authority. A certificate contains four important pieces of data:
 Try executing `tsh status` right after `tsh login` to see all these fields in the
 client certificate.
 
-When a user from "main (root)" tries to connect to a node inside "east (leaf)" cluster, her
-certificate is presented to the auth server of "east (leaf)" and it performs the
+When a user from "root" tries to connect to a node inside "leaf", her
+certificate is presented to the auth server of "leaf" and it performs the
 following checks:
 
 * Checks that the certificate signature matches one of the trusted clusters.
 * Tries to find a local role which maps to the list of principals found in the certificate.
 * Checks if the local role allows the requested identity (UNIX login) to have access.
-* Checks that the certificate is not expired.
+* Checks that the certificate has not expired.
 
 ## Troubleshooting
 
