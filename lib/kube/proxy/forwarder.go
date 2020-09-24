@@ -88,6 +88,9 @@ type ForwarderConfig struct {
 	KubeconfigPath string
 	// Clock is a server clock, could be overridden in tests
 	Clock clockwork.Clock
+	// PingPeriod is a period for sending ping messages on the incoming
+	// connection.
+	PingPeriod time.Duration
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -124,6 +127,9 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	}
 	if f.Clock == nil {
 		f.Clock = clockwork.NewRealClock()
+	}
+	if f.PingPeriod == 0 {
+		f.PingPeriod = defaults.HighResPollingPeriod
 	}
 	return nil
 }
@@ -477,6 +483,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		httpRequest:        req,
 		httpResponseWriter: w,
 		context:            req.Context(),
+		pingPeriod:         f.PingPeriod,
 	}
 
 	var recorder events.SessionRecorder
@@ -755,6 +762,7 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 		httpResponseWriter: w,
 		onPortForward:      onPortForward,
 		targetDialer:       dialer,
+		pingPeriod:         f.PingPeriod,
 	}
 	f.Debugf("Starting %v.", request)
 	err = runPortForwarding(request)
@@ -910,6 +918,7 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 		dial:            sess.DialWithContext,
 		tlsConfig:       sess.tlsConfig,
 		followRedirects: true,
+		pingPeriod:      f.PingPeriod,
 	})
 	rt, err := f.creds.wrapTransport(upgradeRoundTripper)
 	if err != nil {
@@ -925,6 +934,7 @@ func (f *Forwarder) getDialer(ctx authContext, sess *clusterSession, req *http.R
 		dial:            sess.DialWithContext,
 		tlsConfig:       sess.tlsConfig,
 		followRedirects: true,
+		pingPeriod:      f.PingPeriod,
 	})
 	rt, err := f.creds.wrapTransport(upgradeRoundTripper)
 	if err != nil {

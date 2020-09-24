@@ -367,6 +367,12 @@ var (
 	// may persist after contact with the auth server is lost (sessctl semaphore
 	// leases are refreshed at a rate of ~1/2 this duration).
 	SessionControlTimeout = time.Minute * 2
+
+	// SPDYPingPeriod is the period for sending out SPDY ping frames on inbound
+	// and outbound connections. SPDY is used for interactive Kubernetes
+	// connections. These pings are needed to avoid timeouts on load balancers
+	// that don't respect TCP keep-alives.
+	SPDYPingPeriod = 30 * time.Second
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

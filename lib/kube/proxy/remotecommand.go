@@ -49,6 +49,7 @@ type remoteCommandRequest struct {
 	httpResponseWriter http.ResponseWriter
 	onResize           resizeCallback
 	context            context.Context
+	pingPeriod         time.Duration
 }
 
 func createRemoteCommandProxy(req remoteCommandRequest) (*remoteCommandProxy, error) {
@@ -59,7 +60,7 @@ func createRemoteCommandProxy(req remoteCommandRequest) (*remoteCommandProxy, er
 
 	streamCh := make(chan streamAndReply)
 
-	upgrader := spdystream.NewResponseUpgrader()
+	upgrader := spdystream.NewResponseUpgraderWithPings(req.pingPeriod)
 	conn := upgrader.UpgradeResponse(req.httpResponseWriter, req.httpRequest, func(stream httpstream.Stream, replySent <-chan struct{}) error {
 		select {
 		case streamCh <- streamAndReply{Stream: stream, replySent: replySent}:
