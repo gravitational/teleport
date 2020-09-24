@@ -61,14 +61,14 @@ experience looks like this:
 
 ```bsh
 # login using the root "root" cluster credentials:
-$ tsh login --proxy=main.example.com
+$ tsh login --proxy=root.example.com
 
 # SSH into some host inside the "root" cluster:
 $ tsh ssh host
 
 # SSH into the host located in another cluster called "leaf"
-# The connection is established through main.example.com:
-$ tsh ssh --cluster=east host
+# The connection is established through root.example.com:
+$ tsh ssh --cluster=leaf host
 
 # See what other clusters are available
 $ tsh clusters
@@ -80,7 +80,7 @@ _permissions mapping_ takes place.
 **Once connection has been established it's easy to switch from the "root" root cluster**
 ![Teleport Cluster Page](img/trusted-clusters/teleport-trusted-cluster.png)
 
-Let's take a look at how a connection is established between the "rot" cluster
+Let's take a look at how a connection is established between the "root" cluster
 and the "leaf" cluster:
 
 ![Tunnels](img/tunnel.svg)
@@ -94,7 +94,7 @@ This setup works as follows:
    users from "root" to access its nodes but users in the "leaf" cluster can not
    access the "root" cluster.
 
-3. When a user tries to connect to a node inside "leaf" using main's proxy, the
+3. When a user tries to connect to a node inside "leaf" using root's proxy, the
    reverse tunnel from step 1 is used to establish this connection shown as the
    green line above.
 
@@ -104,7 +104,7 @@ This setup works as follows:
     proxies behind a load balancer (LB) or a DNS entry with multiple values.
     This works by "leaf" establishing a tunnel to _every_ proxy in "root". This
     requires that an LB uses round-robin or a similar balancing algorithm. Do
-    not use sticky load balancing algorithms (a.k.a. "session affinity") with
+    not use sticky load balancing algorithms (a.k.a. "session affinity" or "sticky sessions") with
     Teleport proxies.
 
 
@@ -180,7 +180,7 @@ kind: trusted_cluster
 version: v2
 metadata:
   # the trusted cluster name MUST match the 'cluster_name' setting of the
-  # cluster
+  # root cluster
   name: root
 spec:
   # this field allows to create tunnels that are disabled, but can be enabled later.
@@ -189,10 +189,10 @@ spec:
   token: ba4825847f0378bcdfe18113c4998498
   # the address in 'host:port' form of the reverse tunnel listening port on the
   # "root" proxy server:
-  tunnel_addr: leaf.example.com:3024
+  tunnel_addr: root.example.com:3024
   # the address in 'host:port' form of the web listening port on the
   # "root" proxy server:
-  web_proxy_addr: leaf.example.com:3080
+  web_proxy_addr: root.example.com:3080
   # the role mapping allows to map user roles from one cluster to another
   # (enterprise editions of Teleport only)
   role_map:
@@ -206,7 +206,7 @@ Then, use `tctl create` to add the file:
 $ tctl create cluster.yaml
 ```
 
-At this point the users of the main cluster should be able to see "leaf" in the list of available clusters.
+At this point the users of the "root" cluster should be able to see "leaf" in the list of available clusters.
 
 
 !!! warning "HTTPS configuration"
@@ -214,7 +214,7 @@ At this point the users of the main cluster should be able to see "leaf" in the 
     If the `web_proxy_addr` endpoint of the root
     cluster uses a self-signed or invalid HTTPS certificate, you will get an
     error: _"the trusted cluster uses misconfigured HTTP/TLS certificate"_. For
-    ease of testing the teleport daemon of "leaf" can be started with
+    ease of testing, the Teleport daemon on "leaf" can be started with the
     `--insecure` CLI flag to accept self-signed certificates. Make sure to configure
     HTTPS properly and remove the insecure flag for production use.
 
@@ -231,8 +231,8 @@ more complicated.
     The RBAC section is applicable only to Teleport Enterprise. The open source
     version does not support SSH roles.
 
-When a _trusting_ cluster "leaf" from the diagram above establishes trust with
-the _trusted_ cluster "root", it needs a way to configure which users from
+When a _leaf_ cluster "leaf" from the diagram above establishes trust with
+the _root_ cluster "root", it needs a way to configure which users from
 "root" should be allowed in and what permissions should they have. Teleport
 Enterprise uses _role mapping_ to achieve this.
 
@@ -255,10 +255,10 @@ Lets make a few assumptions for this example:
   restricted access to "leaf". We want to deny them access to machines
   with "environment=production" label.
 
-First, we need to create a special role for main users on "leaf":
+First, we need to create a special role for root users on "leaf":
 
 ```yaml
-# save this into main-user-role.yaml on the east cluster and execute:
+# save this into root-user-role.yaml on the leaf cluster and execute:
 # tctl create main-user-role.yaml
 kind: role
 version: v3
@@ -273,13 +273,13 @@ spec:
       "environment": "production"
 ```
 
-Now, we need to establish trust between roles "main:admin" and "east:admin". This is
+Now, we need to establish trust between roles "root:admin" and "leaf:admin". This is
 done by creating a trusted cluster [resource](admin-guide.md#resources) on "leaf"
 which looks like this:
 
 ```yaml
-# save this as main-cluster.yaml on the auth server of "leaf" and then execute:
-# tctl create main-cluster.yaml
+# save this as root-cluster.yaml on the auth server of "leaf" and then execute:
+# tctl create root-cluster.yaml
 kind: trusted_cluster
 version: v1
 metadata:
@@ -293,7 +293,7 @@ spec:
       local: [admin]
   token: "join-token-from-main"
   tunnel_addr: main.example.com:3024
-  web_proxy_addr: main.example.com:3080
+  web_proxy_addr: root.example.com:3080
 ```
 
 What if we wanted to let _any_ user from "root" to be allowed to connect to
@@ -334,7 +334,7 @@ Teleport Proxy UI.
 
 ## Updating Trusted Cluster Role Map
 
-In order to update the role map for a trusted cluster first we will need to remove the cluster by executing:
+In order to update the role map for a trusted cluster, first we will need to remove the cluster by executing:
 
 ```bsh
 $ tctl rm main-cluster.yaml
@@ -348,10 +348,10 @@ $ tctl create main-user-updated-role.yaml
 
 ## Using Trusted Clusters
 
-Now an admin from the main cluster can now see and access the "leaf" cluster:
+Now an admin from the "root" cluster can see and access the "leaf" cluster:
 
 ```bsh
-# login into the main cluster:
+# log into the root cluster:
 $ tsh --proxy=main.example.com login admin
 ```
 
@@ -401,7 +401,7 @@ $ tctl create --force cluster.yaml
 Once established, to fully remove a trust relationship between two clusters, do
 the following:
 
-- Remove the relationship from the leaf cluster: `tctl rm tc/root.example.com`.
+- Remove the relationship from the leaf cluster: `tctl rm tc/root.example.com` (`tc` = trusted cluster)
 - Remove the relationship from the root cluster: `tctl rm lc/leaf.example.com`.
 
 ### Remove Leaf Cluster relationship from the root
@@ -412,9 +412,9 @@ Remove the relationship from the root cluster: `tctl rm rc/leaf.example.com`.
 
     The `leaf.example.com` cluster will continue to try and ping the root cluster,
     but will not be able to connect. To re-establish the trusted cluster relationship,
-    the trusted cluster has to be create again from the leaf cluster.
+    the trusted cluster has to be created again from the leaf cluster.
 
-### Remote Leaf Cluster relationship from the Leaf.
+### Remove Leaf Cluster relationship from the leaf
 
 Remove the relationship from the leaf cluster: `tctl rm tc/root.example.com`.
 
@@ -483,17 +483,17 @@ following checks:
 There are three common types of problems Teleport administrators can run into when configuring
 trust between two clusters:
 
-* **HTTPS configuration**: when the main cluster uses a self-signed or invalid HTTPS certificate.
-* **Connectivity problems**: when a trusting cluster "leaf" does not show up in
+* **HTTPS configuration**: when the root cluster uses a self-signed or invalid HTTPS certificate.
+* **Connectivity problems**: when a leaf cluster "leaf" does not show up in
   `tsh clusters` output on "root".
 * **Access problems**: when users from "root" get "access denied" error messages
   trying to connect to nodes on "leaf".
 
 ### HTTPS configuration
 
-If the `web_proxy_addr` endpoint of the main cluster uses a self-signed or invalid HTTPS certificate,
+If the `web_proxy_addr` endpoint of the root cluster uses a self-signed or invalid HTTPS certificate,
 you will get an error: "the trusted cluster uses misconfigured HTTP/TLS certificate". For ease of
-testing the teleport daemon of "leaf" can be started with  `--insecure` CLI flag to accept
+testing, the teleport daemon on "leaf" can be started with the `--insecure` CLI flag to accept
 self-signed certificates. Make sure to configure HTTPS properly and remove the insecure flag for production use.
 
 ### Connectivity Problems
