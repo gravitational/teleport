@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -33,18 +34,12 @@ import (
 )
 
 func (h *Handler) siteAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	appClusterName := p.ByName("site")
-	namespace := p.ByName("namespace")
-	if !services.IsValidNamespace(namespace) {
-		return nil, trace.BadParameter("invalid namespace %q", namespace)
-	}
-
 	clt, err := ctx.GetUserClient(site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	appServers, err := clt.GetApps(r.Context(), namespace)
+	appServers, err := clt.GetApps(r.Context(), defaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -66,6 +61,7 @@ func (h *Handler) siteAppsGet(w http.ResponseWriter, r *http.Request, p httprout
 	}
 	// remove port number if any
 	proxyHost = strings.Split(proxyHost, ":")[0]
+	appClusterName := p.ByName("site")
 
 	return makeResponse(ui.MakeApps(proxyName, proxyHost, appClusterName, appServers))
 }

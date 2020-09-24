@@ -213,7 +213,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes", h.WithClusterAuth(h.siteNodesGet))
 
 	// get aap applications
-	h.GET("/webapi/sites/:site/namespaces/:namespace/apps", h.WithClusterAuth(h.siteAppsGet))
+	h.GET("/webapi/sites/:site/apps", h.WithClusterAuth(h.siteAppsGet))
 
 	// active sessions handlers
 	h.GET("/webapi/sites/:site/namespaces/:namespace/connect", h.WithClusterAuth(h.siteNodeConnect))       // connect to an active session (via websocket)
