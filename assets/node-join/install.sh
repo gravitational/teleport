@@ -28,11 +28,11 @@ QUIET=false
 
 # the default value of each variable is a templatable Go value so that it can
 # optionally be replaced by the server before the script is served up
-TELEPORT_VERSION="{{ .version }}"
-TARGET_HOSTNAME="{{ .hostname }}"
-TARGET_PORT="{{ .port }}"
-NODE_JOIN_TOKEN="{{ .token }}"
-CA_PIN_HASH="{{ .caPin }}"
+TELEPORT_VERSION="{{.version}}"
+TARGET_HOSTNAME="{{.hostname}}"
+TARGET_PORT="{{.port}}"
+NODE_JOIN_TOKEN="{{.token}}"
+CA_PIN_HASH="{{.caPin}}"
 
 # usage mesage
 usage() { echo "Usage: $(basename $0) <-v [teleport version]> <-h [target hostname]> <-p [target port]> <-j [node join token]> <-c [ca pin hash]> <-q> <-l [log filename]>" 1>&2; exit 1; }
@@ -83,7 +83,7 @@ shift $((OPTIND-1))
 # returns 0 otherwise (i.e. it needs to be set interactively)
 check_variable() {
     VARIABLE_VALUE="${!1}"
-    GO_TEMPLATE_NAME="{{ .${2} }}"
+    GO_TEMPLATE_NAME="{{.${2}}}"
     if [[ "${VARIABLE_VALUE}" == "" ]] || [[ "${VARIABLE_VALUE}" == "${GO_TEMPLATE_NAME}" ]]; then
         return 1
     fi
