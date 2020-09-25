@@ -98,7 +98,7 @@ check_variable() {
 ! check_variable TARGET_HOSTNAME hostname && { echo -n "Enter target hostname to connect node to: "; read TARGET_HOSTNAME; }
 ! check_variable TARGET_PORT port && { echo -n "Enter target port to connect node to [default: 3080]: "; read TARGET_PORT; }
 ! check_variable NODE_JOIN_TOKEN token && { echo -n "Enter Teleport node join token as provided: "; read NODE_JOIN_TOKEN; }
-! check_variable CA_PIN_HASH ca_pin && { echo -n "Enter CA pin hash: "; read CA_PIN_HASH; }
+! check_variable CA_PIN_HASH caPin && { echo -n "Enter CA pin hash: "; read CA_PIN_HASH; }
 [ -n "${f}" ] && OVERRIDE_FORMAT=${f}
 [ -n "${l}" ] && LOG_FILENAME=${l}
 
