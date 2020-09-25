@@ -16,6 +16,10 @@ This is an automated node join script for Teleport, which does the following:
   - via `launchctl` on MacOS
 - cleans up downloaded archives afterwards
 
+Things it doesn't do (yet):
+
+- validate the checksum of the downloaded Teleport artifact against the published checksum
+
 ## Supported operating systems, architectures and distributions
 
 - Linux
@@ -23,6 +27,7 @@ This is an automated node join script for Teleport, which does the following:
     - i386
     - x86_64
     - armv7l
+    - aarch64 (no Teleport binaries available yet)
   - Any Debian-based distribution
     - Debian 8+
     - Ubuntu 18.04+
