@@ -18,37 +18,40 @@ TELEPORT_DATA_DIR="/var/lib/teleport"
 TELEPORT_DOCS_URL="https://gravitational.com/teleport/docs"
 TELEPORT_FORMAT=""
 
-# initialise variables
-v=""
-h=""
-p=""
-j=""
-c=""
+# initialise variables (because set -u disallows unbound variables)
 f=""
 l=""
-QUIET=false
-IGNORE_CHECKS=false
 DISABLE_TLS_VERIFICATION=false
+IGNORE_CHECKS=false
 OVERRIDE_FORMAT=""
+QUIET=false
+
+# the default value of each variable is a templatable Go value so that it can
+# optionally be replaced by the server before the script is served up
+TELEPORT_VERSION="{{ .version }}"
+TARGET_HOSTNAME="{{ .hostname }}"
+TARGET_PORT="{{ .port }}"
+NODE_JOIN_TOKEN="{{ .token }}"
+CA_PIN_HASH="{{ .ca_pin }}"
 
 # usage mesage
-usage() { echo "Usage: $(basename $0) [-v <teleport version>] [-h <target hostname>] <-p <target port>> [-j <node join token>] [-c <ca pin hash>] <-q> <-l [log filename]>" 1>&2; exit 1; }
+usage() { echo "Usage: $(basename $0) <-v [teleport version]> <-h [target hostname]> <-p [target port]> <-j [node join token]> <-c [ca pin hash]> <-q> <-l [log filename]>" 1>&2; exit 1; }
 while getopts ":v:h:p:j:c:f:ql:ik" o; do
     case "${o}" in
         v)
-            v=${OPTARG}
+            TELEPORT_VERSION=${OPTARG}
             ;;
         h)
-            h=${OPTARG}
+            TARGET_HOSTNAME=${OPTARG}
             ;;
         p)
-            p=${OPTARG}
+            TARGET_PORT=${OPTARG}
             ;;
         j)
-            j=${OPTARG}
+            NODE_JOIN_TOKEN=${OPTARG}
             ;;
         c)
-            c=${OPTARG}
+            CA_PIN_HASH=${OPTARG}
             ;;
         f)
             f=${OPTARG}
@@ -74,12 +77,28 @@ while getopts ":v:h:p:j:c:f:ql:ik" o; do
 done
 shift $((OPTIND-1))
 
+# function to check whether variables are either blank or set to the default go template value
+# (because they haven't been set by the go script generator or a command line argument)
+# returns 1 if the variable is set to a default/zero value
+# returns 0 otherwise (i.e. it needs to be set interactively)
+check_variable() {
+    VARIABLE_VALUE="${!1}"
+    GO_TEMPLATE_NAME="{{ .${2} }}"
+    if [[ "${VARIABLE_VALUE}" == "" ]] || [[ "${VARIABLE_VALUE}" == "${GO_TEMPLATE_NAME}" ]]; then
+        return 1
+    fi
+    return 0
+}
+
 # set/read values interactively if not provided
-[ -n "${v}" ] && TELEPORT_VERSION=${v} || { echo -n "Enter Teleport version to install (without v): "; read TELEPORT_VERSION; }
-[ -n "${h}" ] && TARGET_HOSTNAME=${h} || { echo -n "Enter target hostname to connect node to: "; read TARGET_HOSTNAME; }
-[ -n "${p}" ] && TARGET_PORT=${p} || { echo -n "Enter target port to connect node to [default: 3080]: "; read TARGET_PORT; }
-[ -n "${j}" ] && NODE_JOIN_TOKEN=${j} || { echo -n "Enter Teleport node join token as provided: "; read NODE_JOIN_TOKEN; }
-[ -n "${c}" ] && CA_PIN_HASH=${c} || { echo -n "Enter CA pin hash: "; read CA_PIN_HASH; }
+# users will be prompted to enter their own value if all the following are true:
+# - the current value is blank, or equal to the default Go template value
+# - the value has not been provided by command line argument
+! check_variable TELEPORT_VERSION version && { echo -n "Enter Teleport version to install (without v): "; read TELEPORT_VERSION; }
+! check_variable TARGET_HOSTNAME hostname && { echo -n "Enter target hostname to connect node to: "; read TARGET_HOSTNAME; }
+! check_variable TARGET_PORT port && { echo -n "Enter target port to connect node to [default: 3080]: "; read TARGET_PORT; }
+! check_variable NODE_JOIN_TOKEN token && { echo -n "Enter Teleport node join token as provided: "; read NODE_JOIN_TOKEN; }
+! check_variable CA_PIN_HASH ca_pin && { echo -n "Enter CA pin hash: "; read CA_PIN_HASH; }
 [ -n "${f}" ] && OVERRIDE_FORMAT=${f}
 [ -n "${l}" ] && LOG_FILENAME=${l}
 
@@ -186,9 +205,11 @@ check_connectivity() {
 check_set() {
     CHECK_KEY=${1} || true
     CHECK_VALUE=${!1} || true
-    if [[ ${CHECK_VALUE} == "" ]]; then
+    if [[ "${CHECK_VALUE}" == "" ]]; then
         log "Required variable ${CHECK_KEY} is not set"
         exit 1
+    else
+        log "${CHECK_KEY}: ${CHECK_VALUE}"
     fi
 }
 # checks that teleport binary can be found in path and runs 'teleport version'
@@ -393,6 +414,9 @@ if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
     if [[ ${ARCH} == "armv7l" ]]; then
         TELEPORT_ARCH="arm"
         TELEPORT_FORMAT="tarball"
+    elif [[ ${ARCH} == "aarch64" ]]; then
+        TELEPORT_ARCH="aarch64"
+        log_important "Error: detected ${ARCH} but Teleport doesn't build binaries for this architecture yet, exiting"
     elif [[ ${ARCH} == "x86_64" ]]; then
         TELEPORT_ARCH="amd64"
     elif [[ ${ARCH} == "i686" ]]; then
@@ -450,7 +474,7 @@ elif [[ "${OSTYPE}" == "darwin"* ]]; then
     log "Detected host: ${OSTYPE}, using Teleport binary type ${TELEPORT_BINARY_TYPE}"
     if [[ ${ARCH} == "aarch64" ]]; then
         TELEPORT_ARCH="aarch64"
-        log_important "Error: detected ${ARCH} but Teleport doesn't support this architecture yet, exiting"
+        log_important "Error: detected ${ARCH} but Teleport doesn't build binaries for this architecture yet, exiting"
     elif [[ ${ARCH} == "x86_64" ]]; then
         TELEPORT_ARCH="amd64"
     else
