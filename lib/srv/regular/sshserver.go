@@ -88,7 +88,7 @@ type Server struct {
 
 	advertiseAddr           *utils.NetAddr
 	proxyPublicAddr         utils.NetAddr
-	proxyKubenretesClusters []string
+	proxyKubernetesClusters []string
 
 	// server UUID gets generated once on the first start and never changes
 	// usually stored in a file inside the data dir
@@ -458,9 +458,16 @@ func SetOnHeartbeat(fn func(error)) ServerOption {
 	}
 }
 
+// SetKubernetesClusters sets a list of Kubernetes cluster names to announce
+// via auth server heartbeats. This should only be set on proxies that handle
+// Kubernetes access.
+//
+// Note: actual Kubernetes requests are handled by lib/kube/proxy.TLSServer,
+// not regular.Server. SetKubernetesClusters is, awkwardly, here because that's
+// where heartbeats are initialized.
 func SetKubernetesClusters(clusters []string) ServerOption {
 	return func(s *Server) error {
-		s.proxyKubenretesClusters = clusters
+		s.proxyKubernetesClusters = clusters
 		return nil
 	}
 }
@@ -717,7 +724,7 @@ func (s *Server) getServerInfo() (services.Server, error) {
 	}
 	server.SetTTL(s.clock, defaults.ServerAnnounceTTL)
 	server.SetPublicAddr(s.proxyPublicAddr.String())
-	server.SetKubernetesClusters(s.proxyKubenretesClusters)
+	server.SetKubernetesClusters(s.proxyKubernetesClusters)
 	return server, nil
 }
 
