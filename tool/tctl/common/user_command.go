@@ -161,11 +161,13 @@ func (u *UserCommand) PrintResetPasswordTokenAsInvite(token services.ResetPasswo
 	return nil
 }
 
+// PrintResetPasswordToken prints ResetPasswordToken
 func (u *UserCommand) printResetPasswordToken(token services.ResetPasswordToken, format string, messageFormat string) (err error) {
 	switch u.format {
 	case teleport.JSON:
 		err = printTokenAsJSON(token)
 	case teleport.Text:
+		err = printTokenAsText(token, messageFormat)
 	default:
 		err = printTokenAsText(token, messageFormat)
 	}
