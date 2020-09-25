@@ -32,7 +32,7 @@ TELEPORT_VERSION="{{ .version }}"
 TARGET_HOSTNAME="{{ .hostname }}"
 TARGET_PORT="{{ .port }}"
 NODE_JOIN_TOKEN="{{ .token }}"
-CA_PIN_HASH="{{ .ca_pin }}"
+CA_PIN_HASH="{{ .caPin }}"
 
 # usage mesage
 usage() { echo "Usage: $(basename $0) <-v [teleport version]> <-h [target hostname]> <-p [target port]> <-j [node join token]> <-c [ca pin hash]> <-q> <-l [log filename]>" 1>&2; exit 1; }
