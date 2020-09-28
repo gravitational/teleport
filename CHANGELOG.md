@@ -1,5 +1,14 @@
 # Changelog
 
+### 4.3.6
+
+This release of Teleport contains multiple bug fixes.
+
+* Fixed an issue with prefix migration that could lead to loss of cluster state. [#4299](https://github.com/gravitational/teleport/pull/4299) [#4345](https://github.com/gravitational/teleport/pull/4345)
+* Fixed an issue that caused excessively slow loading of the UI on large clusters. [#4326](https://github.com/gravitational/teleport/pull/4326)
+* Updated `/readyz` endpoint to recover faster after node goes into degraded state. [#4223](https://github.com/gravitational/teleport/pull/4223)
+* Added node UUID to debug logs to allow correlation between TCP connections and nodes. [#4291](https://github.com/gravitational/teleport/pull/4291)
+
 ### 4.3.5
 
 This release of Teleport contains a bug fix.
