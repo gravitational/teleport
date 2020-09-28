@@ -245,7 +245,6 @@ else
     FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/examples/systemd/teleport.service"
     LINUX_BINARY_FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport"
     LINUX_SYSTEMD_FILE_LIST="${TAR_PATH}/examples/systemd/teleport.service"
-    LINUX_CONFIG_FILE_LIST=""
     if [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
         OUTPUT_FILENAME="${TAR_PATH}-${TELEPORT_VERSION}-1${OPTIONAL_RUNTIME_SECTION}.${ARCH}.rpm"
         FILE_PERMISSIONS_STANZA="--rpm-user root --rpm-group root --rpm-use-file-permissions "
@@ -256,10 +255,10 @@ else
 fi
 
 # create a temporary directory and download specified Teleport version
-pushd $(mktemp -d)
+pushd "$(mktemp -d)"
 PACKAGE_TEMPDIR=$(pwd)
 # automatically clean up on exit
-trap "rm -rf ${PACKAGE_TEMPDIR}" EXIT
+trap 'rm -rf ${PACKAGE_TEMPDIR}' EXIT
 mkdir -p ${PACKAGE_TEMPDIR}/buildroot
 
 # implement a rudimentary download cache for repeat builds on the same host
@@ -278,7 +277,7 @@ else
 fi
 
 # extract necessary files from tarball
-tar -C $(pwd) -xvzf ${TARBALL_DIRECTORY}/${TARBALL_FILENAME} ${FILE_LIST}
+tar -C "$(pwd)" -xvzf ${TARBALL_DIRECTORY}/${TARBALL_FILENAME} ${FILE_LIST}
 
 # move files into correct locations before building the package
 if [[ "${PACKAGE_TYPE}" != "pkg" ]]; then
@@ -296,6 +295,7 @@ if [[ "${PACKAGE_TYPE}" != "pkg" ]]; then
         CONFIG_FILE_STANZA="--config-files /src/buildroot${LINUX_CONFIG_DIR}/${LINUX_CONFIG_FILE} "
     fi
     # /var/lib/teleport
+    # shellcheck disable=SC2174
     mkdir -p -m0700 ${PACKAGE_TEMPDIR}/buildroot${LINUX_DATA_DIR}
 fi
 popd
@@ -358,7 +358,7 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
     fi
 
     # checksum created packages
-    for PACKAGE in *.${PACKAGE_TYPE}; do
+    for PACKAGE in *."${PACKAGE_TYPE}"; do
         shasum -a 256 ${PACKAGE} > ${PACKAGE}.sha256
     done
 else
@@ -388,10 +388,10 @@ else
         ${FILE_PERMISSIONS_STANZA} .
 
     # copy created package back to current directory
-    cp ${PACKAGE_TEMPDIR}/*.${PACKAGE_TYPE} .
+    cp ${PACKAGE_TEMPDIR}/*."${PACKAGE_TYPE}" .
 
     # checksum created packages
-    for FILE in *.${PACKAGE_TYPE}; do
+    for FILE in *."${PACKAGE_TYPE}"; do
         sha256sum ${FILE} > ${FILE}.sha256
     done
 fi

@@ -8,7 +8,7 @@
 #
 
 HERE=$(readlink -f $0)
-cd $(dirname $HERE)
+cd "$(dirname $HERE)" || exit
 
 mkdir -p data
 etcd --name teleportstorage \

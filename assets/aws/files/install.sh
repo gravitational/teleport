@@ -48,7 +48,7 @@ chmod 0700 /var/lib/teleport
 chown -R teleport:adm /run/teleport /var/lib/teleport /etc/teleport.d/
 
 # Download and install teleport binaries
-pushd /tmp
+pushd /tmp || exit
 # Install the FIPS version of Teleport if /tmp/teleport-fips is present
 if [ -f /tmp/teleport-fips ]; then
     TARBALL_FILENAME="/tmp/files/teleport-ent-v${TELEPORT_VERSION}-linux-amd64-fips-bin.tar.gz"
@@ -94,7 +94,7 @@ else
         rm -rf /tmp/teleport.tar.gz /tmp/teleport-ent
     fi
 fi
-popd
+popd || exit
 
 # Clean up the authorized keys not used
 rm -f /root/.ssh/authorized_keys
