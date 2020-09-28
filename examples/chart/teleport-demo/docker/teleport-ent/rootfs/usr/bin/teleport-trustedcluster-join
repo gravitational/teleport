@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-set -e
-TCTL=/usr/local/bin/tctl
-# only run when we have a modified trusted cluster YAML descriptor
-if [ -f /tmp/trusted_cluster.yaml ]; then
-    ${TCTL} create -f /tmp/trusted_cluster.yaml
-fi
