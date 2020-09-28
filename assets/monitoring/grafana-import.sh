@@ -1,6 +1,6 @@
 #!/bin/bash
 
-until $(curl --output /dev/null --silent --head --fail http://grafana:3000); do
+until curl --output /dev/null --silent --head --fail http://grafana:3000; do
     echo 'waiting for grafana to respond'
     sleep 5
 done

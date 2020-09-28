@@ -272,8 +272,11 @@ integration:
 # changes (or last commit).
 #
 .PHONY: lint
-lint: FLAGS ?=
-lint:
+lint: lint-go lint-sh
+
+.PHONY: lint-go
+lint-go: GO_LINT_FLAGS ?=
+lint-go:
 	golangci-lint run \
 		--disable-all \
 		--exclude-use-default \
@@ -284,7 +287,16 @@ lint:
 		--max-issues-per-linter 0 \
 		--timeout=5m \
 		--enable $(GO_LINTERS) \
-		$(FLAGS)
+		$(GO_LINT_FLAGS)
+
+# TODO(awly): remove the `--exclude` flag after cleaning up existing scripts
+.PHONY: lint-sh
+lint-sh: SH_LINT_FLAGS ?=
+lint-sh:
+	find . -type f -name '*.sh' | grep -v vendor | xargs \
+		shellcheck \
+		--exclude=SC2086 \
+		$(SH_LINT_FLAGS)
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
 $(VERSRC): Makefile

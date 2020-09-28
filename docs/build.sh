@@ -5,16 +5,13 @@
 #     * edit 8.1.yaml
 #     * edit theme/scripts.html and update docVersions variable
 
-cd $(dirname $0)
+cd "$(dirname $0)" || exit
 rm -f latest.yaml
 
-# will be set to the latest version after the loop below
-doc_ver=""
-
 # find all *.yaml files and convert them to array, pick the latest
-cfiles=$(ls *.yaml | sort)
-cfiles_array=($cfiles)
-latest_cfile=$(echo ${cfiles_array[-1]}) # becomes "3.1.yaml"
+cfiles=$(find . -maxdepth 1 -name '*.yaml' | sort)
+cfiles_array=$(matfile -t array <<< "$cfiles")
+latest_cfile=${cfiles_array[-1]} # becomes "3.1.yaml"
 latest_ver=${latest_cfile%.yaml}         # becomes "3.1"
 
 # build all documentation versions at the same time (4-8x speedup)
@@ -30,7 +27,7 @@ ln -fs $latest_cfile latest.yaml
 cp index.html ../build/docs/index.html
 
 # create a symlink called 'latest' to the latest directory, like "3.1"
-cd ../build/docs
+cd ../build/docs || exit
 rm -f latest
 ln -s $latest_ver latest
 

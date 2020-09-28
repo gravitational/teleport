@@ -34,7 +34,7 @@ fi
 # Read build timestamp from file
 TIMESTAMP_FILE="${BUILD_DIR}/${BUILD_TIMESTAMP_FILENAME}"
 if [ ! -f "${TIMESTAMP_FILE}" ]; then
-    echo 'Cannot find "${TIMESTAMP_FILE}"'
+    echo "Cannot find \"${TIMESTAMP_FILE}\""
     exit 1
 fi
 BUILD_TIMESTAMP=$(<"${TIMESTAMP_FILE}")
