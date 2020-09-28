@@ -53,7 +53,7 @@ kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: teleport
+  name: ${NAMESPACE}
 ---
 apiVersion: v1
 kind: ServiceAccount
