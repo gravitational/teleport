@@ -59,13 +59,13 @@ func (ctx *SigningContext) digest(el *etree.Element) ([]byte, error) {
 }
 
 func (ctx *SigningContext) constructSignedInfo(el *etree.Element, enveloped bool) (*etree.Element, error) {
-	digestAlgorithmIdentifier, ok := digestAlgorithmIdentifiers[ctx.Hash]
-	if !ok {
+	digestAlgorithmIdentifier := ctx.GetDigestAlgorithmIdentifier()
+	if digestAlgorithmIdentifier == "" {
 		return nil, errors.New("unsupported hash mechanism")
 	}
 
-	signatureMethodIdentifier, ok := signatureMethodIdentifiers[ctx.Hash]
-	if !ok {
+	signatureMethodIdentifier := ctx.GetSignatureMethodIdentifier()
+	if signatureMethodIdentifier == "" {
 		return nil, errors.New("unsupported signature method")
 	}
 
@@ -176,6 +176,14 @@ func (ctx *SigningContext) ConstructSignature(el *etree.Element, enveloped bool)
 		return nil, err
 	}
 
+	certs := [][]byte{cert}
+	if cs, ok := ctx.KeyStore.(X509ChainStore); ok {
+		certs, err = cs.GetChain()
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	rawSignature, err := rsa.SignPKCS1v15(rand.Reader, key, ctx.Hash, digest)
 	if err != nil {
 		return nil, err
@@ -186,8 +194,10 @@ func (ctx *SigningContext) ConstructSignature(el *etree.Element, enveloped bool)
 
 	keyInfo := ctx.createNamespacedElement(sig, KeyInfoTag)
 	x509Data := ctx.createNamespacedElement(keyInfo, X509DataTag)
-	x509Certificate := ctx.createNamespacedElement(x509Data, X509CertificateTag)
-	x509Certificate.SetText(base64.StdEncoding.EncodeToString(cert))
+	for _, cert := range certs {
+		x509Certificate := ctx.createNamespacedElement(x509Data, X509CertificateTag)
+		x509Certificate.SetText(base64.StdEncoding.EncodeToString(cert))
+	}
 
 	return sig, nil
 }
@@ -208,4 +218,39 @@ func (ctx *SigningContext) SignEnveloped(el *etree.Element) (*etree.Element, err
 	ret.Child = append(ret.Child, sig)
 
 	return ret, nil
+}
+
+func (ctx *SigningContext) GetSignatureMethodIdentifier() string {
+	if ident, ok := signatureMethodIdentifiers[ctx.Hash]; ok {
+		return ident
+	}
+	return ""
+}
+
+func (ctx *SigningContext) GetDigestAlgorithmIdentifier() string {
+	if ident, ok := digestAlgorithmIdentifiers[ctx.Hash]; ok {
+		return ident
+	}
+	return ""
+}
+
+// Useful for signing query string (including DEFLATED AuthnRequest) when
+// using HTTP-Redirect to make a signed request.
+// See 3.4.4.1 DEFLATE Encoding of https://docs.oasis-open.org/security/saml/v2.0/saml-bindings-2.0-os.pdf
+func (ctx *SigningContext) SignString(content string) ([]byte, error) {
+	hash := ctx.Hash.New()
+	if ln, err := hash.Write([]byte(content)); err != nil {
+		return nil, fmt.Errorf("error calculating hash: %v", err)
+	} else if ln < 1 {
+		return nil, fmt.Errorf("zero length hash")
+	}
+	digest := hash.Sum(nil)
+
+	var signature []byte
+	if key, _, err := ctx.KeyStore.GetKeyPair(); err != nil {
+		return nil, fmt.Errorf("unable to fetch key for signing: %v", err)
+	} else if signature, err = rsa.SignPKCS1v15(rand.Reader, key, ctx.Hash, digest); err != nil {
+		return nil, fmt.Errorf("error signing: %v", err)
+	}
+	return signature, nil
 }

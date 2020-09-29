@@ -15,11 +15,13 @@ import (
 )
 
 var uriRegexp = regexp.MustCompile("^#[a-zA-Z_][\\w.-]*$")
+var whiteSpace = regexp.MustCompile("\\s+")
 
 var (
 	// ErrMissingSignature indicates that no enveloped signature was found referencing
 	// the top level element passed for signature verification.
 	ErrMissingSignature = errors.New("Missing signature referencing the top-level element")
+	ErrInvalidSignature = errors.New( "Invalid Signature")
 )
 
 type ValidationContext struct {
@@ -58,31 +60,51 @@ func childPath(space, tag string) string {
 	}
 }
 
-// The RemoveElement method on etree.Element isn't recursive...
-func recursivelyRemoveElement(tree, el *etree.Element) bool {
-	if tree.RemoveChild(el) != nil {
-		return true
+func mapPathToElement(tree, el *etree.Element) []int {
+	for i, child := range tree.Child {
+		if child == el {
+			return []int{i}
+		}
 	}
 
-	for _, child := range tree.Child {
+	for i, child := range tree.Child {
 		if childElement, ok := child.(*etree.Element); ok {
-			if recursivelyRemoveElement(childElement, el) {
-				return true
+			childPath := mapPathToElement(childElement, el)
+			if childElement != nil {
+				return append([]int{i}, childPath...)
 			}
 		}
 	}
 
-	return false
+	return nil
 }
 
-// transform applies the passed set of transforms to the specified root element.
+func removeElementAtPath(el *etree.Element, path []int) bool {
+	if len(path) == 0 {
+		return false
+	}
+
+	if len(el.Child) <= path[0] {
+		return false
+	}
+
+	childElement, ok := el.Child[path[0]].(*etree.Element)
+	if !ok {
+		return false
+	}
+
+	if len(path) == 1 {
+		el.RemoveChild(childElement)
+		return true
+	}
+
+	return removeElementAtPath(childElement, path[1:])
+}
+
+// Transform returns a new element equivalent to the passed root el, but with
+// the set of transformations described by the ref applied.
 //
 // The functionality of transform is currently very limited and purpose-specific.
-//
-// NOTE(russell_h): Ideally this wouldn't mutate the root passed to it, and would
-// instead return a copy. Unfortunately copying the tree makes it difficult to
-// correctly locate the signature. I'm opting, for now, to simply mutate the root
-// parameter.
 func (ctx *ValidationContext) transform(
 	el *etree.Element,
 	sig *types.Signature,
@@ -93,6 +115,14 @@ func (ctx *ValidationContext) transform(
 		return nil, nil, errors.New("Expected Enveloped and C14N transforms")
 	}
 
+	// map the path to the passed signature relative to the passed root, in
+	// order to enable removal of the signature by an enveloped signature
+	// transform
+	signaturePath := mapPathToElement(el, sig.UnderlyingElement())
+
+	// make a copy of the passed root
+	el = el.Copy()
+
 	var canonicalizer Canonicalizer
 
 	for _, transform := range transforms {
@@ -100,7 +130,7 @@ func (ctx *ValidationContext) transform(
 
 		switch AlgorithmID(algo) {
 		case EnvelopedSignatureAltorithmId:
-			if !recursivelyRemoveElement(el, sig.UnderlyingElement()) {
+			if !removeElementAtPath(el, signaturePath) {
 				return nil, nil, errors.New("Error applying canonicalization transform: Signature not found")
 			}
 
@@ -114,6 +144,12 @@ func (ctx *ValidationContext) transform(
 
 		case CanonicalXML11AlgorithmId:
 			canonicalizer = MakeC14N11Canonicalizer()
+
+		case CanonicalXML10RecAlgorithmId:
+			canonicalizer = MakeC14N10RecCanonicalizer()
+
+		case CanonicalXML10CommentAlgorithmId:
+			canonicalizer = MakeC14N10CommentCanonicalizer()
 
 		default:
 			return nil, nil, errors.New("Unknown Transform Algorithm: " + algo)
@@ -150,7 +186,16 @@ func (ctx *ValidationContext) digest(el *etree.Element, digestAlgorithmId string
 func (ctx *ValidationContext) verifySignedInfo(sig *types.Signature, canonicalizer Canonicalizer, signatureMethodId string, cert *x509.Certificate, decodedSignature []byte) error {
 	signatureElement := sig.UnderlyingElement()
 
-	signedInfo := signatureElement.FindElement(childPath(signatureElement.Space, SignedInfoTag))
+	nsCtx, err := etreeutils.NSBuildParentContext(signatureElement)
+	if err != nil {
+		return err
+	}
+
+	signedInfo, err := etreeutils.NSFindOneChildCtx(nsCtx, signatureElement, Namespace, SignedInfoTag)
+	if err != nil {
+		return err
+	}
+
 	if signedInfo == nil {
 		return errors.New("Missing SignedInfo")
 	}
@@ -252,9 +297,28 @@ func contains(roots []*x509.Certificate, cert *x509.Certificate) bool {
 	return false
 }
 
+// In most places, we use etree Elements, but while deserializing the Signature, we use
+// encoding/xml unmarshal directly to convert to a convenient go struct. This presents a problem in some cases because
+// when an xml element repeats under the parent, the last element will win and/or be appended. We need to assert that
+// the Signature object matches the expected shape of a Signature object.
+func validateShape(signatureEl *etree.Element) error {
+	children := signatureEl.ChildElements()
+
+	childCounts := map[string]int{}
+	for _, child := range children {
+		childCounts[child.Tag]++
+	}
+
+	validateCount := childCounts[SignedInfoTag] == 1 && childCounts[KeyInfoTag] <= 1 && childCounts[SignatureValueTag] == 1
+	if !validateCount {
+		return ErrInvalidSignature
+	}
+	return nil
+}
+
 // findSignature searches for a Signature element referencing the passed root element.
-func (ctx *ValidationContext) findSignature(el *etree.Element) (*types.Signature, error) {
-	idAttr := el.SelectAttr(ctx.IdAttribute)
+func (ctx *ValidationContext) findSignature(root *etree.Element) (*types.Signature, error) {
+	idAttr := root.SelectAttr(ctx.IdAttribute)
 	if idAttr == nil || idAttr.Value == "" {
 		return nil, errors.New("Missing ID attribute")
 	}
@@ -262,22 +326,24 @@ func (ctx *ValidationContext) findSignature(el *etree.Element) (*types.Signature
 	var sig *types.Signature
 
 	// Traverse the tree looking for a Signature element
-	err := etreeutils.NSFindIterate(el, Namespace, SignatureTag, func(ctx etreeutils.NSContext, el *etree.Element) error {
-
+	err := etreeutils.NSFindIterate(root, Namespace, SignatureTag, func(ctx etreeutils.NSContext, signatureEl *etree.Element) error {
+		err := validateShape(signatureEl)
+		if err != nil {
+			return err
+		}
 		found := false
-		err := etreeutils.NSFindIterateCtx(ctx, el, Namespace, SignedInfoTag,
+		err = etreeutils.NSFindChildrenIterateCtx(ctx, signatureEl, Namespace, SignedInfoTag,
 			func(ctx etreeutils.NSContext, signedInfo *etree.Element) error {
-				// Ignore any SignedInfo that isn't an immediate descendent of Signature.
-				if signedInfo.Parent() != el {
-					return nil
-				}
-
 				detachedSignedInfo, err := etreeutils.NSDetatch(ctx, signedInfo)
 				if err != nil {
 					return err
 				}
 
-				c14NMethod := detachedSignedInfo.FindElement(childPath(detachedSignedInfo.Space, CanonicalizationMethodTag))
+				c14NMethod, err := etreeutils.NSFindOneChildCtx(ctx, detachedSignedInfo, Namespace, CanonicalizationMethodTag)
+				if err != nil {
+					return err
+				}
+
 				if c14NMethod == nil {
 					return errors.New("missing CanonicalizationMethod on Signature")
 				}
@@ -302,12 +368,18 @@ func (ctx *ValidationContext) findSignature(el *etree.Element) (*types.Signature
 				case CanonicalXML11AlgorithmId:
 					canonicalSignedInfo = canonicalPrep(detachedSignedInfo, map[string]struct{}{})
 
+				case CanonicalXML10RecAlgorithmId:
+					canonicalSignedInfo = canonicalPrep(detachedSignedInfo, map[string]struct{}{})
+
+				case CanonicalXML10CommentAlgorithmId:
+					canonicalSignedInfo = canonicalPrep(detachedSignedInfo, map[string]struct{}{})
+
 				default:
 					return fmt.Errorf("invalid CanonicalizationMethod on Signature: %s", c14NAlgorithm)
 				}
 
-				el.RemoveChild(signedInfo)
-				el.AddChild(canonicalSignedInfo)
+				signatureEl.RemoveChild(signedInfo)
+				signatureEl.AddChild(canonicalSignedInfo)
 
 				found = true
 
@@ -323,7 +395,7 @@ func (ctx *ValidationContext) findSignature(el *etree.Element) (*types.Signature
 
 		// Unmarshal the signature into a structured Signature type
 		_sig := &types.Signature{}
-		err = etreeutils.NSUnmarshalElement(ctx, el, _sig)
+		err = etreeutils.NSUnmarshalElement(ctx, signatureEl, _sig)
 		if err != nil {
 			return err
 		}
@@ -363,11 +435,12 @@ func (ctx *ValidationContext) verifyCertificate(sig *types.Signature) (*x509.Cer
 
 	if sig.KeyInfo != nil {
 		// If the Signature includes KeyInfo, extract the certificate from there
-		if sig.KeyInfo.X509Data.X509Certificate.Data == "" {
+		if len(sig.KeyInfo.X509Data.X509Certificates) == 0 || sig.KeyInfo.X509Data.X509Certificates[0].Data == "" {
 			return nil, errors.New("missing X509Certificate within KeyInfo")
 		}
 
-		certData, err := base64.StdEncoding.DecodeString(sig.KeyInfo.X509Data.X509Certificate.Data)
+		certData, err := base64.StdEncoding.DecodeString(
+			whiteSpace.ReplaceAllString(sig.KeyInfo.X509Data.X509Certificates[0].Data, ""))
 		if err != nil {
 			return nil, errors.New("Failed to parse certificate")
 		}
