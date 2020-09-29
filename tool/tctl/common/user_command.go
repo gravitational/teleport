@@ -161,21 +161,19 @@ func (u *UserCommand) PrintResetPasswordTokenAsInvite(token services.ResetPasswo
 	return nil
 }
 
-func (u *UserCommand) printResetPasswordToken(token services.ResetPasswordToken, format string, messageFormat string) error {
-	url, err := url.Parse(token.GetURL())
-	if err != nil {
-		return trace.Wrap(err)
+// PrintResetPasswordToken prints ResetPasswordToken
+func (u *UserCommand) printResetPasswordToken(token services.ResetPasswordToken, format string, messageFormat string) (err error) {
+	switch strings.ToLower(u.format) {
+	case teleport.JSON:
+		err = printTokenAsJSON(token)
+	case teleport.Text:
+		err = printTokenAsText(token, messageFormat)
+	default:
+		err = printTokenAsText(token, messageFormat)
 	}
 
-	if format == teleport.Text {
-		ttl := token.Expiry().Sub(time.Now().UTC()).Round(time.Second)
-		fmt.Printf(messageFormat, token.GetUser(), ttl, url)
-		fmt.Printf("NOTE: Make sure %v points at a Teleport proxy which users can access.\n", url.Host)
-	} else if u.format == teleport.JSON {
-		err := printTokenAsJSON(token)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	return nil
@@ -238,6 +236,18 @@ func printTokenAsJSON(token services.ResetPasswordToken) error {
 		return trace.Wrap(err, "failed to marshal reset password token")
 	}
 	fmt.Print(string(out))
+	return nil
+}
+
+func printTokenAsText(token services.ResetPasswordToken, messageFormat string) error {
+	url, err := url.Parse(token.GetURL())
+	if err != nil {
+		return trace.Wrap(err, "failed to parse reset password token url")
+	}
+
+	ttl := token.Expiry().Sub(time.Now().UTC()).Round(time.Second)
+	fmt.Printf(messageFormat, token.GetUser(), ttl, url)
+	fmt.Printf("NOTE: Make sure %v points at a Teleport proxy which users can access.\n", url.Host)
 	return nil
 }
 
