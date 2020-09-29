@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-set -e
-TCTL=/usr/local/bin/tctl
-# only run when we have an OIDC YAML descriptor
-if [ -f /etc/teleport/oidc.yaml ]; then
-    ${TCTL} create -f /etc/teleport/oidc.yaml
-fi
