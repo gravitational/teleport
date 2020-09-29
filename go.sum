@@ -42,8 +42,8 @@ github.com/armon/go-radix v1.0.0/go.mod h1:ufUuZ+zHj4x4TnLV4JWEpy2hxWSpsRywHrMgI
 github.com/aws/aws-sdk-go v1.17.4/go.mod h1:KmX6BPdI08NWTb3/sm4ZGu5ShLoqVDhKgpiN924inxo=
 github.com/aws/aws-sdk-go v1.32.7 h1:H4VgdCSF1cHw0VD8zGc98T1bGdACoLkh/vK2L6wgOUU=
 github.com/aws/aws-sdk-go v1.32.7/go.mod h1:5zCpMtNQVjRREroY7sYe8lOMRSxkhG6MZveU8YkpAk0=
-github.com/beevik/etree v0.0.0-20170418002358-cda1c0026246 h1:ug+AeM+Rh5O1beNwuhXlR29jr11nUuB7ZB+X9SzPSJQ=
-github.com/beevik/etree v0.0.0-20170418002358-cda1c0026246/go.mod h1:r8Aw8JqVegEf0w2fDnATrX9VpkMcyFeM0FhwO62wh+A=
+github.com/beevik/etree v1.1.0 h1:T0xke/WvNtMoCqgzPhkX2r4rjY3GDZFi+FjpRZY2Jbs=
+github.com/beevik/etree v1.1.0/go.mod h1:r8Aw8JqVegEf0w2fDnATrX9VpkMcyFeM0FhwO62wh+A=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
 github.com/beorn7/perks v1.0.0/go.mod h1:KWe93zE9D1o94FZ5RNwFwVgaQK1VOXiVxmqh+CedLV8=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
@@ -201,8 +201,10 @@ github.com/jmespath/go-jmespath v0.3.0/go.mod h1:9QtRXoHjLGCJ5IBSaohpXITPlowMeeY
 github.com/johannesboyne/gofakes3 v0.0.0-20191228161223-9aee1c78a252 h1:ZABLXRnnFNP5nkVzVBx2kQ/4GvSLUqcD2YUc+9Uc2Mo=
 github.com/johannesboyne/gofakes3 v0.0.0-20191228161223-9aee1c78a252/go.mod h1:cPDudDcSR9fls3ZmrXgt0GU2QpQGQRJc4JBNtKyNr1s=
 github.com/jonboulle/clockwork v0.1.0/go.mod h1:Ii8DK3G1RaLaWxj9trq07+26W01tbo22gdxWY5EU2bo=
-github.com/jonboulle/clockwork v0.1.1-0.20190114141812-62fb9bc030d1 h1:qBCV/RLV02TSfQa7tFmxTihnG+u+7JXByOkhlkR5rmQ=
-github.com/jonboulle/clockwork v0.1.1-0.20190114141812-62fb9bc030d1/go.mod h1:Ii8DK3G1RaLaWxj9trq07+26W01tbo22gdxWY5EU2bo=
+github.com/jonboulle/clockwork v0.2.0 h1:J2SLSdy7HgElq8ekSl2Mxh6vrRNFxqbXGenYH2I02Vs=
+github.com/jonboulle/clockwork v0.2.0/go.mod h1:Pkfl5aHPm1nk2H9h0bjmnJD/BcgbGXUBGnn1kMkgxc8=
+github.com/jonboulle/clockwork v0.2.1 h1:S/EaQvW6FpWMYAvYvY+OBDvpaM+izu0oiwo5y0MH7U0=
+github.com/jonboulle/clockwork v0.2.1/go.mod h1:Pkfl5aHPm1nk2H9h0bjmnJD/BcgbGXUBGnn1kMkgxc8=
 github.com/json-iterator/go v0.0.0-20180612202835-f2b4162afba3/go.mod h1:+SdeFBvtyEkXs7REEP0seUULqWtbJapLOCVDaaPEHmU=
 github.com/json-iterator/go v1.1.6/go.mod h1:+SdeFBvtyEkXs7REEP0seUULqWtbJapLOCVDaaPEHmU=
 github.com/json-iterator/go v1.1.7/go.mod h1:KdQUCv79m/52Kvf8AW2vK1V8akMuk1QjK/uOdHXbAo4=
@@ -299,8 +301,8 @@ github.com/prometheus/procfs v0.0.4/go.mod h1:4A/X28fw3Fc593LaREMrKMqOKvUAntwMDa
 github.com/rogpeppe/fastuuid v0.0.0-20150106093220-6724a57986af/go.mod h1:XWv6SoW27p1b0cqNHllgS5HIMJraePCO15w5zCzIWYg=
 github.com/russellhaering/gosaml2 v0.0.0-20170515204909-8908227c114a h1:t10m/WbIQiAAggqE6J2401FInpp50XPi249G7nE45tc=
 github.com/russellhaering/gosaml2 v0.0.0-20170515204909-8908227c114a/go.mod h1:niieRtQaw+opTVp9jzZo1nAAoksI2eNpd+weDcjZ+Mk=
-github.com/russellhaering/goxmldsig v0.0.0-20170515183101-605161228693 h1:N6BLFjXGfV1dGbLqHVVqe7u6ii+JHrl7L2lRZK7JzrY=
-github.com/russellhaering/goxmldsig v0.0.0-20170515183101-605161228693/go.mod h1:Oz4y6ImuOQZxynhbSXk7btjEfNBtGlj2dcaOvXl2FSM=
+github.com/russellhaering/goxmldsig v1.1.0 h1:lK/zeJie2sqG52ZAlPNn1oBBqsIsEKypUUBGpYYF6lk=
+github.com/russellhaering/goxmldsig v1.1.0/go.mod h1:QK8GhXPB3+AfuCrfo0oRISa9NfzeCpWmxeGnqEpDF9o=
 github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46 h1:GHRpF1pTW19a8tTFrMLUcfWwyC0pnifVo2ClaLq+hP8=
 github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46/go.mod h1:uAQ5PCi+MFsC7HjREoAz1BU+Mq60+05gifQSsHSDG/8=
 github.com/satori/go.uuid v1.1.1-0.20170321230731-5bf94b69c6b6 h1:oZag5hylqWwZrDdj/laMwWQnXaeWBQf66qm4PGQI6Wc=
