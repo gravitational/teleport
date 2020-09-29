@@ -311,6 +311,10 @@ func (k *Key) CheckCert() error {
 
 // HostKeyCallback returns an ssh.HostKeyCallback that validates host
 // keys/certs against SSH CAs in the Key.
+//
+// If not CAs are present in the Key, the returned ssh.HostKeyCallback is nil.
+// This causes golang.org/x/crypto/ssh to prompt the user to verify host key
+// fingerprint (same as OpenSSH does for an unknown host).
 func (k *Key) HostKeyCallback() (ssh.HostKeyCallback, error) {
 	var trustedKeys []ssh.PublicKey
 	for _, caCert := range k.SSHCAs() {
