@@ -12,6 +12,10 @@ type X509KeyStore interface {
 	GetKeyPair() (privateKey *rsa.PrivateKey, cert []byte, err error)
 }
 
+type X509ChainStore interface {
+	GetChain() (certs [][]byte, err error)
+}
+
 type X509CertificateStore interface {
 	Certificates() (roots []*x509.Certificate, err error)
 }
