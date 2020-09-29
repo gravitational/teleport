@@ -75,7 +75,7 @@ the OIDC Connector, under `google_service_account_uri`.
     
 !!! Note
 
-   The email that you set for `google_admin_email` **must** be the email address of a user that has permission to list all groups, users, and group membership in your G Suite account. This user will generally need super admin privileges.    
+   The email that you set for `google_admin_email` **must** be the email address of a user that has permission to list all groups, users, and group membership in your G Suite account. This user will generally need super admin privileges.
 
 ## API Scopes:
 Before setting the Manage API client access capture the client ID of the service account.
