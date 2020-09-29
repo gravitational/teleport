@@ -1091,14 +1091,15 @@ func (a *AuthWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserCer
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
 	certs, err := a.authServer.generateUserCert(certRequest{
-		user:            user,
-		ttl:             req.Expires.Sub(a.authServer.GetClock().Now()),
-		compatibility:   req.Format,
-		publicKey:       req.PublicKey,
-		overrideRoleTTL: a.hasBuiltinRole(string(teleport.RoleAdmin)),
-		routeToCluster:  req.RouteToCluster,
-		checker:         checker,
-		traits:          traits,
+		user:              user,
+		ttl:               req.Expires.Sub(a.authServer.GetClock().Now()),
+		compatibility:     req.Format,
+		publicKey:         req.PublicKey,
+		overrideRoleTTL:   a.hasBuiltinRole(string(teleport.RoleAdmin)),
+		routeToCluster:    req.RouteToCluster,
+		kubernetesCluster: req.KubernetesCluster,
+		checker:           checker,
+		traits:            traits,
 		activeRequests: services.RequestIDs{
 			AccessRequests: req.AccessRequests,
 		},

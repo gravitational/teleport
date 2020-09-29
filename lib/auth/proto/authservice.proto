@@ -122,6 +122,9 @@ message UserCertsRequest {
     // AccessRequests is an optional list of request IDs indicating requests whose
     // escalated privileges should be added to the certificate.
     repeated string AccessRequests = 6 [ (gogoproto.jsontag) = "access_requests,omitempty" ];
+    // KubernetesCluster specifies the target kubernetes cluster for TLS
+    // identities. This can be empty on older Teleport clients.
+    string KubernetesCluster = 7 [ (gogoproto.jsontag) = "kubernetes_cluster,omitempty" ];
 }
 
 // GetUserRequest specifies parameters for the GetUser method.

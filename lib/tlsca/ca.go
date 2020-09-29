@@ -85,6 +85,9 @@ type Identity struct {
 	// RouteToCluster specifies the target cluster
 	// if present in the session
 	RouteToCluster string
+	// KubernetesCluster specifies the target kubernetes cluster for TLS
+	// identities. This can be empty on older Teleport clients.
+	KubernetesCluster string
 	// Traits hold claim data used to populate a role at runtime.
 	Traits wrappers.Traits
 }
@@ -114,6 +117,10 @@ var KubeUsersASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 1}
 // KubeGroupsASN1ExtensionOID is an extension ID used when encoding/decoding
 // license payload into certificates
 var KubeGroupsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 2}
+
+// KubeClusterASN1ExtensionOID is an extension ID used when encoding/decoding
+// target kubernetes cluster name into certificates.
+var KubeClusterASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 3}
 
 // Subject converts identity to X.509 subject name
 func (id *Identity) Subject() (pkix.Name, error) {
@@ -156,6 +163,14 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.KubernetesCluster != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  KubeClusterASN1ExtensionOID,
+				Value: id.KubernetesCluster,
+			})
+	}
+
 	return subject, nil
 }
 
@@ -189,6 +204,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.KubernetesGroups = append(id.KubernetesGroups, val)
+			}
+		case attr.Type.Equal(KubeClusterASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.KubernetesCluster = val
 			}
 		}
 	}

@@ -68,11 +68,11 @@ func (m *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.P
 
 func (m *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	log.Debugf("samlSSOConsole start")
-	var req client.SSOLoginConsoleReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	req := new(client.SSOLoginConsoleReq)
+	if err := httplib.ReadJSON(r, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := req.Check(); err != nil {
+	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	response, err := m.cfg.ProxyClient.CreateSAMLAuthRequest(
@@ -83,6 +83,7 @@ func (m *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httpr
 			CertTTL:           req.CertTTL,
 			Compatibility:     req.Compatibility,
 			RouteToCluster:    req.RouteToCluster,
+			KubernetesCluster: req.KubernetesCluster,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
