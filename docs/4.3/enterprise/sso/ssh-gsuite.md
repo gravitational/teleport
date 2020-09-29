@@ -83,7 +83,7 @@ Within GSuite to access the Manage API client access go to Security -> Settings.
 
 !!! Warning
 
-    Do not use the email of the service account. The configuration display will look the same but the service account will not have the domain-wide delegation required. The "client_id" field must be the unique ID number captured from the admin UI. An indicator that this is misconfigured is if you see "Client is unauthorized to retrieve access tokens using this method, or client not authorized for any of the scopes requested." in your log.
+    Do not use the email of the service account. The configuration display will look the same but the service account will not have the domain-wide delegation required. The `client_id` field must be the unique ID number captured from the admin UI. An indicator that this is misconfigured is if you see "Client is unauthorized to retrieve access tokens using this method, or client not authorized for any of the scopes requested." in your log.
     
 !!! Note
 
