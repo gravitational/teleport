@@ -11,7 +11,7 @@ require (
 	github.com/alecthomas/repr v0.0.0-20200325044227-4184120f674c // indirect
 	github.com/armon/go-radix v1.0.0
 	github.com/aws/aws-sdk-go v1.32.7
-	github.com/beevik/etree v0.0.0-20170418002358-cda1c0026246
+	github.com/beevik/etree v1.1.0
 	github.com/boombuler/barcode v0.0.0-20161226211916-fe0f26ff6d26 // indirect
 	github.com/cjbassi/drawille-go v0.1.0 // indirect
 	github.com/codahale/hdrhistogram v0.0.0-20150708134006-954f16e8b9ef
@@ -44,7 +44,7 @@ require (
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/iovisor/gobpf v0.0.1
 	github.com/johannesboyne/gofakes3 v0.0.0-20191228161223-9aee1c78a252
-	github.com/jonboulle/clockwork v0.1.1-0.20190114141812-62fb9bc030d1
+	github.com/jonboulle/clockwork v0.2.1
 	github.com/json-iterator/go v1.1.9
 	github.com/julienschmidt/httprouter v1.2.0
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
@@ -66,7 +66,7 @@ require (
 	github.com/prometheus/common v0.6.0
 	github.com/prometheus/procfs v0.0.4 // indirect
 	github.com/russellhaering/gosaml2 v0.0.0-20170515204909-8908227c114a
-	github.com/russellhaering/goxmldsig v0.0.0-20170515183101-605161228693
+	github.com/russellhaering/goxmldsig v1.1.0
 	github.com/satori/go.uuid v1.1.1-0.20170321230731-5bf94b69c6b6 // indirect
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
