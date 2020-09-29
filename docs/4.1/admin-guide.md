@@ -960,11 +960,6 @@ To enable multiplexing so only one port is used, simply set the `tunnel_listen_a
 DEBU [PROC:1]    Setup Proxy: Reverse tunnel proxy and web proxy listen on the same port, multiplexing is on. service/service.go:1944
 ```
 
-Using the ports in the default configuration, the node needs to be able to talk to ports 3080
-and 3024 on the proxy. Port 3080 is used to initially fetch the credentials (SSH and TLS certificates)
-and for discovery (where is the reverse tunnel running, in this case 3024). Port 3024 is used to
-establish a connection to the Auth Server through the proxy.
-
 ## Labeling Nodes
 
 In addition to specifying a custom nodename, Teleport also allows for the
