@@ -686,7 +686,10 @@ $ tctl tokens del 696c0471453e75882ff70a761c1a8bfa
 Token 696c0471453e75882ff70a761c1a8bfa has been deleted
 ```
 
-## Adding a node located behind NAT (Teleport IoT/Node Tunneling)
+## Adding a node located behind NAT
+
+!!! note
+    This feature is sometimes called "Teleport IoT" or node tunneling.
 
 With the current setup, you've only been able to add nodes that have direct access to the
 auth server and within the internal IP range of the cluster. We recommend
