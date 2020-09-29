@@ -696,8 +696,8 @@ auth server and within the internal IP range of the cluster. We recommend
 setting up a [Trusted Cluster](trustedclusters.md) if you have workloads split
 across different networks/clouds.
 
-Teleport Node Tunneling lets you add a remote node to an existing Teleport Cluster. This can be
-useful for IoT applications, or for managing a couple of servers in a different network.
+Teleport Node Tunneling lets you add a remote node to an existing Teleport Cluster via tunnel.
+This can be useful for IoT applications, or for managing a couple of servers in a different network.
 
 Similar to [Adding Nodes to the Cluster](#adding-nodes-to-the-cluster), use `tctl` to
 create a single-use token for a node, but this time you'll replace the auth
