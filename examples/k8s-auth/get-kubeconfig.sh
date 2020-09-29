@@ -53,7 +53,7 @@ kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: teleport
+  name: ${NAMESPACE}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -96,11 +96,11 @@ subjects:
   namespace: ${NAMESPACE}
 EOF
 # Get the service account token and CA cert.
-SA_SECRET_NAME=$(kubectl get -n teleport sa/${TELEPORT_SA} -o "jsonpath={.secrets[0]..name}")
+SA_SECRET_NAME=$(kubectl get -n ${NAMESPACE} sa/${TELEPORT_SA} -o "jsonpath={.secrets[0]..name}")
 # Note: service account token is stored base64-encoded in the secret but must
 # be plaintext in kubeconfig.
-SA_TOKEN=$(kubectl get -n teleport secrets/${SA_SECRET_NAME} -o "jsonpath={.data['token']}" | base64 ${BASE64_DECODE_FLAG})
-CA_CERT=$(kubectl get -n teleport secrets/${SA_SECRET_NAME} -o "jsonpath={.data['ca\.crt']}")
+SA_TOKEN=$(kubectl get -n ${NAMESPACE} secrets/${SA_SECRET_NAME} -o "jsonpath={.data['token']}" | base64 ${BASE64_DECODE_FLAG})
+CA_CERT=$(kubectl get -n ${NAMESPACE} secrets/${SA_SECRET_NAME} -o "jsonpath={.data['ca\.crt']}")
 
 # Extract cluster IP from the current context
 CURRENT_CONTEXT=$(kubectl config current-context)
