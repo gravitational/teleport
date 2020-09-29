@@ -56,6 +56,40 @@ func (c *c14N11Canonicalizer) Algorithm() AlgorithmID {
 	return CanonicalXML11AlgorithmId
 }
 
+type c14N10RecCanonicalizer struct{}
+
+// MakeC14N10RecCanonicalizer constructs an inclusive canonicalizer.
+func MakeC14N10RecCanonicalizer() Canonicalizer {
+	return &c14N10RecCanonicalizer{}
+}
+
+// Canonicalize transforms the input Element into a serialized XML document in canonical form.
+func (c *c14N10RecCanonicalizer) Canonicalize(el *etree.Element) ([]byte, error) {
+	scope := make(map[string]struct{})
+	return canonicalSerialize(canonicalPrep(el, scope))
+}
+
+func (c *c14N10RecCanonicalizer) Algorithm() AlgorithmID {
+	return CanonicalXML10RecAlgorithmId
+}
+
+type c14N10CommentCanonicalizer struct{}
+
+// MakeC14N10CommentCanonicalizer constructs an inclusive canonicalizer.
+func MakeC14N10CommentCanonicalizer() Canonicalizer {
+	return &c14N10CommentCanonicalizer{}
+}
+
+// Canonicalize transforms the input Element into a serialized XML document in canonical form.
+func (c *c14N10CommentCanonicalizer) Canonicalize(el *etree.Element) ([]byte, error) {
+	scope := make(map[string]struct{})
+	return canonicalSerialize(canonicalPrep(el, scope))
+}
+
+func (c *c14N10CommentCanonicalizer) Algorithm() AlgorithmID {
+	return CanonicalXML10CommentAlgorithmId
+}
+
 func composeAttr(space, key string) string {
 	if space != "" {
 		return space + ":" + key
