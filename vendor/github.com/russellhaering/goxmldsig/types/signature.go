@@ -63,8 +63,8 @@ type KeyInfo struct {
 }
 
 type X509Data struct {
-	XMLName         xml.Name        `xml:"http://www.w3.org/2000/09/xmldsig# X509Data"`
-	X509Certificate X509Certificate `xml:"X509Certificate"`
+	XMLName          xml.Name          `xml:"http://www.w3.org/2000/09/xmldsig# X509Data"`
+	X509Certificates []X509Certificate `xml:"X509Certificate"`
 }
 
 type X509Certificate struct {
