@@ -100,6 +100,8 @@ type CLIConf struct {
 	LocalExec bool
 	// SiteName specifies remote site go login to
 	SiteName string
+	// KubernetesCluster specifies the kubernetes cluster to login to.
+	KubernetesCluster string
 	// Interactive, when set to true, launches remote command with the terminal attached
 	Interactive bool
 	// Quiet mode, -q command (disables progress printing)
@@ -291,6 +293,9 @@ func Run(args []string) {
 	login.Flag("request-roles", "Request one or more extra roles").StringVar(&cf.DesiredRoles)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
+	// TODO(awly): unhide this flag in 5.0, after 'tsh kube ...' commands are
+	// implemented.
+	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to").Hidden().StringVar(&cf.KubernetesCluster)
 	login.Alias(loginUsageFooter)
 
 	// logout deletes obtained session certificates in ~/.tsh
@@ -1138,6 +1143,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	}
 	if cf.SiteName != "" {
 		c.SiteName = cf.SiteName
+	}
+	if cf.KubernetesCluster != "" {
+		c.KubernetesCluster = cf.KubernetesCluster
 	}
 	// if host logins stored in profiles must be ignored...
 	if !useProfileLogin {

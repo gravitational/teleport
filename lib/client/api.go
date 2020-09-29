@@ -202,6 +202,11 @@ type Config struct {
 	// if omitted, first available site will be selected
 	SiteName string
 
+	// KubernetesCluster specifies the kubernetes cluster for any relevant
+	// operations. If empty, the auth server will choose one using stable (same
+	// cluster every time) but unspecified logic.
+	KubernetesCluster string
+
 	// LocalForwardPorts are the local ports tsh listens on for port forwarding
 	// (parameters to -L ssh flag).
 	LocalForwardPorts ForwardedPorts
@@ -860,16 +865,6 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient
 		retval = append(retval, addr)
 	}
 	return retval, nil
-}
-
-// GenerateCertsForCluster generates certificates for the user
-// that have a metadata instructing server to route the requests to the cluster
-func (tc *TeleportClient) GenerateCertsForCluster(ctx context.Context, routeToCluster string) error {
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return proxyClient.GenerateCertsForCluster(ctx, routeToCluster)
 }
 
 func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, params ReissueParams) error {
@@ -2027,13 +2022,14 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType stri
 	// ask the CA (via proxy) to sign our public key:
 	response, err := SSHAgentLogin(ctx, SSHLoginDirect{
 		SSHLogin: SSHLogin{
-			ProxyAddr:      tc.WebProxyAddr,
-			PubKey:         pub,
-			TTL:            tc.KeyTTL,
-			Insecure:       tc.InsecureSkipVerify,
-			Pool:           loopbackPool(tc.WebProxyAddr),
-			Compatibility:  tc.CertificateFormat,
-			RouteToCluster: tc.SiteName,
+			ProxyAddr:         tc.WebProxyAddr,
+			PubKey:            pub,
+			TTL:               tc.KeyTTL,
+			Insecure:          tc.InsecureSkipVerify,
+			Pool:              loopbackPool(tc.WebProxyAddr),
+			Compatibility:     tc.CertificateFormat,
+			RouteToCluster:    tc.SiteName,
+			KubernetesCluster: tc.KubernetesCluster,
 		},
 		User:     tc.Config.Username,
 		Password: password,
@@ -2049,13 +2045,14 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub 
 	// ask the CA (via proxy) to sign our public key:
 	response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
 		SSHLogin: SSHLogin{
-			ProxyAddr:      tc.WebProxyAddr,
-			PubKey:         pub,
-			TTL:            tc.KeyTTL,
-			Insecure:       tc.InsecureSkipVerify,
-			Pool:           loopbackPool(tc.WebProxyAddr),
-			Compatibility:  tc.CertificateFormat,
-			RouteToCluster: tc.SiteName,
+			ProxyAddr:         tc.WebProxyAddr,
+			PubKey:            pub,
+			TTL:               tc.KeyTTL,
+			Insecure:          tc.InsecureSkipVerify,
+			Pool:              loopbackPool(tc.WebProxyAddr),
+			Compatibility:     tc.CertificateFormat,
+			RouteToCluster:    tc.SiteName,
+			KubernetesCluster: tc.KubernetesCluster,
 		},
 		ConnectorID: connectorID,
 		Protocol:    protocol,
@@ -2080,13 +2077,14 @@ func (tc *TeleportClient) u2fLogin(ctx context.Context, pub []byte) (*auth.SSHLo
 
 	response, err := SSHAgentU2FLogin(ctx, SSHLoginU2F{
 		SSHLogin: SSHLogin{
-			ProxyAddr:      tc.WebProxyAddr,
-			PubKey:         pub,
-			TTL:            tc.KeyTTL,
-			Insecure:       tc.InsecureSkipVerify,
-			Pool:           loopbackPool(tc.WebProxyAddr),
-			Compatibility:  tc.CertificateFormat,
-			RouteToCluster: tc.SiteName,
+			ProxyAddr:         tc.WebProxyAddr,
+			PubKey:            pub,
+			TTL:               tc.KeyTTL,
+			Insecure:          tc.InsecureSkipVerify,
+			Pool:              loopbackPool(tc.WebProxyAddr),
+			Compatibility:     tc.CertificateFormat,
+			RouteToCluster:    tc.SiteName,
+			KubernetesCluster: tc.KubernetesCluster,
 		},
 		User:     tc.Config.Username,
 		Password: password,

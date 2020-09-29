@@ -111,67 +111,12 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	return sites, nil
 }
 
-// GenerateCertsForCluster generates certificates for the user
-// that have a metadata instructing server to route the requests to the cluster
-func (proxy *ProxyClient) GenerateCertsForCluster(ctx context.Context, routeToCluster string) error {
-	localAgent := proxy.teleportClient.LocalAgent()
-	key, err := localAgent.GetKey()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	cert, err := key.SSHCert()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	tlsCert, err := key.TLSCertificate()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	clusterName, err := tlsca.ClusterName(tlsCert.Issuer)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	clt, err := proxy.ConnectToCluster(ctx, clusterName, true)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Before requesting a certificate, check if the requested cluster is valid.
-	_, err = clt.GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
-		DomainName: routeToCluster,
-	}, false)
-	if err != nil {
-		return trace.NotFound("cluster %v not found", routeToCluster)
-	}
-
-	req := proto.UserCertsRequest{
-		Username:       cert.KeyId,
-		PublicKey:      key.Pub,
-		Expires:        time.Unix(int64(cert.ValidBefore), 0),
-		RouteToCluster: routeToCluster,
-	}
-	if _, ok := cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles]; !ok {
-		req.Format = teleport.CertificateFormatOldSSH
-	}
-
-	certs, err := clt.GenerateUserCerts(ctx, req)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	key.Cert = certs.SSH
-	key.TLSCert = certs.TLS
-
-	// save the cert to the local storage (~/.tsh usually):
-	_, err = localAgent.AddKey(key)
-	return trace.Wrap(err)
-}
-
 // ReissueParams encodes optional parameters for
 // user certificate reissue.
 type ReissueParams struct {
-	RouteToCluster string
-	AccessRequests []string
+	RouteToCluster    string
+	KubernetesCluster string
+	AccessRequests    []string
 }
 
 // ReissueUserCerts generates certificates for the user
@@ -210,11 +155,12 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 		}
 	}
 	req := proto.UserCertsRequest{
-		Username:       cert.KeyId,
-		PublicKey:      key.Pub,
-		Expires:        time.Unix(int64(cert.ValidBefore), 0),
-		RouteToCluster: params.RouteToCluster,
-		AccessRequests: params.AccessRequests,
+		Username:          cert.KeyId,
+		PublicKey:         key.Pub,
+		Expires:           time.Unix(int64(cert.ValidBefore), 0),
+		RouteToCluster:    params.RouteToCluster,
+		KubernetesCluster: params.KubernetesCluster,
+		AccessRequests:    params.AccessRequests,
 	}
 	if _, ok := cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles]; !ok {
 		req.Format = teleport.CertificateFormatOldSSH

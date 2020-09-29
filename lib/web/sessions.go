@@ -438,6 +438,7 @@ func (s *sessionCache) GetCertificateWithoutOTP(c client.CreateSSHCertReq) (*aut
 		CompatibilityMode: c.Compatibility,
 		TTL:               c.TTL,
 		RouteToCluster:    c.RouteToCluster,
+		KubernetesCluster: c.KubernetesCluster,
 	})
 }
 
@@ -454,6 +455,7 @@ func (s *sessionCache) GetCertificateWithOTP(c client.CreateSSHCertReq) (*auth.S
 		CompatibilityMode: c.Compatibility,
 		TTL:               c.TTL,
 		RouteToCluster:    c.RouteToCluster,
+		KubernetesCluster: c.KubernetesCluster,
 	})
 
 }
@@ -470,6 +472,7 @@ func (s *sessionCache) GetCertificateWithU2F(c client.CreateSSHCertWithU2FReq) (
 		CompatibilityMode: c.Compatibility,
 		TTL:               c.TTL,
 		RouteToCluster:    c.RouteToCluster,
+		KubernetesCluster: c.KubernetesCluster,
 	})
 }
 

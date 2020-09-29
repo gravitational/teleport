@@ -429,9 +429,13 @@ type certRequest struct {
 	// the cert can be only used against kubernetes endpoint, and not auth endpoint,
 	// no usage means unrestricted (to keep backwards compatibility)
 	usage []string
-	// routeToCluster is an optional cluster name to route the certificate requests to,
-	// this cluster name will be used to route the requests to in case of kubernetes
+	// routeToCluster is an optional teleport cluster name to route the
+	// certificate requests to, this teleport cluster name will be used to
+	// route the requests to in case of kubernetes
 	routeToCluster string
+	// kubernetesCluster specifies the target kubernetes cluster for TLS
+	// identities. This can be empty on older Teleport clients.
+	kubernetesCluster string
 	// traits hold claim data used to populate a role at runtime.
 	traits wrappers.Traits
 	// activeRequests tracks privilege escalation requests applied
@@ -552,27 +556,26 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	userCA, err := s.Trust.GetCertAuthority(services.CertAuthID{
-		Type:       services.UserCA,
-		DomainName: clusterName,
-	}, true)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if req.kubernetesCluster != "" {
+		if err := CheckKubeCluster(req.kubernetesCluster, s.Presence); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	// generate TLS certificate
-	tlsAuthority, err := userCA.TLSCA()
+	tlsAuthority, err := ca.TLSCA()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	identity := tlsca.Identity{
-		Username:         req.user.GetName(),
-		Groups:           req.checker.RoleNames(),
-		Principals:       allowedLogins,
-		Usage:            req.usage,
-		RouteToCluster:   req.routeToCluster,
-		Traits:           req.traits,
-		KubernetesGroups: kubeGroups,
-		KubernetesUsers:  kubeUsers,
+		Username:          req.user.GetName(),
+		Groups:            req.checker.RoleNames(),
+		Principals:        allowedLogins,
+		Usage:             req.usage,
+		RouteToCluster:    req.routeToCluster,
+		KubernetesCluster: req.kubernetesCluster,
+		Traits:            req.traits,
+		KubernetesGroups:  kubeGroups,
+		KubernetesUsers:   kubeUsers,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -589,6 +592,27 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &certs{ssh: sshCert, tls: tlsCert}, nil
+}
+
+// CheckKubeCluster validates kubernetes cluster name against known kubernetes
+// clusters.
+func CheckKubeCluster(kc string, pg services.ProxyGetter) error {
+	proxies, err := pg.GetProxies()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, p := range proxies {
+		pp, ok := p.(*services.ServerV2)
+		if !ok {
+			continue
+		}
+		for _, pkc := range pp.Spec.KubernetesClusters {
+			if pkc == kc {
+				return nil
+			}
+		}
+	}
+	return trace.BadParameter("kubernetes cluster %q is not registered in this teleport cluster; you can list registered kubernetes clusters using 'tsh kube clusters'", kc)
 }
 
 // WithUserLock executes function authenticateFn that performs user authentication
