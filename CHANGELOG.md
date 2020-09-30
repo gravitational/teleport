@@ -2,9 +2,10 @@
 
 ### 4.3.7
 
-This release of Teleport contains a security fix.
+This release of Teleport contains a security fix and a bug fix.
 
 * Mitigated [CVE-2020-15216](https://nvd.nist.gov/vuln/detail/CVE-2020-15216) by updating github.com/russellhaering/goxmldsig.
+* Fixed an issue where DynamoDB connections made by Teleport would not respect the `HTTP_PROXY` or `HTTPS_PROXY` environment variables. [#4271](https://github.com/gravitational/teleport/pull/4271)
 
 ### 4.3.6
 
