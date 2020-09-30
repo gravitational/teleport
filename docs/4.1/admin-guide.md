@@ -921,32 +921,44 @@ del`](cli-docs.md#tctl-tokens-rm) command:
 $ tctl tokens del 696c0471453e75882ff70a761c1a8bfa
 Token 696c0471453e75882ff70a761c1a8bfa has been deleted
 ```
+
 ## Adding a node located behind NAT
-With the current setup you've only been able to add nodes that have direct access to the
+
+!!! note
+    This feature is sometimes called "Teleport IoT" or node tunneling.
+
+With the current setup, you've only been able to add nodes that have direct access to the
 auth server and within the internal IP range of the cluster. We recommend
 setting up a [Trusted Cluster](trustedclusters.md) if you have workloads split
-across different networks / clouds.
+across different networks/clouds.
 
-Teleport Node Tunneling lets you add a node to an existing Teleport Cluster. This can be
-useful for IoT applications or for managing a couple of servers in a different network.
+Teleport Node Tunneling lets you add a remote node to an existing Teleport Cluster via tunnel.
+This can be useful for IoT applications, or for managing a couple of servers in a different network.
 
-Similar to [Adding Nodes to Cluster](#adding-nodes-to-the-cluster), use `tctl` to
-create a single-use token for a node, but this time you'll replace the auth server IP with
-the URL of the Proxy Server. In the Example below, we've replaced the auth server IP with the Proxy#adding-nodes-to-the-cluster
-web endpoint `teleport.example.com`.
+Similar to [Adding Nodes to the Cluster](#adding-nodes-to-the-cluster), use `tctl` to
+create a single-use token for a node, but this time you'll replace the auth
+server IP with the URL of the proxy server. In the example below, we've
+replaced the auth server IP with the proxy web endpoint `teleport-proxy.example.com:3080`.
 
-```bash
+``` bash
 $ sudo tctl nodes add
 
 The invite token: n92bb958ce97f761da978d08c35c54a5c
 Run this on the new node to join the cluster:
-teleport start --roles=node --token=n92bb958ce97f761da978d08c35c54a5c --auth-server=teleport-proxy.example.com
+teleport start --roles=node --token=n92bb958ce97f761da978d08c35c54a5c --auth-server=teleport-proxy.example.com:3080
 ```
 
 Using the ports in the default configuration, the node needs to be able to talk to ports 3080
 and 3024 on the proxy. Port 3080 is used to initially fetch the credentials (SSH and TLS certificates)
 and for discovery (where is the reverse tunnel running, in this case 3024). Port 3024 is used to
-establish a connection to the Auth Server through the proxy.
+establish a connection to the auth server through the proxy.
+
+To enable multiplexing so only one port is used, simply set the `tunnel_listen_addr` the same as the
+`web_listen_addr` respectively within the `proxy_service`.  Teleport will automatically recognize using the same port and enable multiplexing. If the log setting is set to DEBUG you will see multiplexing enabled in the server log.
+
+```bash
+DEBU [PROC:1]    Setup Proxy: Reverse tunnel proxy and web proxy listen on the same port, multiplexing is on. service/service.go:1944
+```
 
 ## Labeling Nodes
 
