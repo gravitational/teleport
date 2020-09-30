@@ -6,6 +6,17 @@ This release of Teleport contains a security fix.
 
 * Mitigated [CVE-2020-15216](https://nvd.nist.gov/vuln/detail/CVE-2020-15216) by updating github.com/russellhaering/goxmldsig.
 
+### Details
+A vulnerability was discovered in the `github.com/russellhaering/goxmldsig` library which is used by Teleport to validate the
+signatures of XML files used to configure SAML 2.0 connectors. With a carefully crafted XML file, an attacker can completely
+bypass XML signature validation and pass off an altered file as a signed one.
+
+### Actions
+The `goxmldsig` library has been updated upstream and Teleport 4.1.11 includes the fix. Any Enterprise SSO users using Okta,
+Active Directory, OneLogin or custom SAML connectors should upgrade their auth servers to version 4.1.11 and restart Teleport.
+
+If you are unable to upgrade immediately, we suggest deleting SAML connectors for all clusters until the updates can be applied.
+
 ## 4.1.10
 
 As part of a routine security audit of Teleport, a security vulnerability was discovered that affects all recent releases of Teleport. We strongly suggest upgrading to the latest patched release to mitigate this vulnerability.
