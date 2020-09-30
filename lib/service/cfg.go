@@ -347,12 +347,27 @@ type ProxyConfig struct {
 	Kube KubeProxyConfig
 }
 
+func (c ProxyConfig) KubeAddr() (string, error) {
+	if !c.Kube.Enabled {
+		return "", trace.NotFound("kubernetes support not enabled on this proxy")
+	}
+	if len(c.Kube.PublicAddrs) > 0 {
+		return fmt.Sprintf("https://%s", c.Kube.PublicAddrs[0].Addr), nil
+	}
+	host := "<proxyhost>"
+	// Try to guess the hostname from the HTTP public_addr.
+	if len(c.PublicAddrs) > 0 {
+		host = c.PublicAddrs[0].Host()
+	}
+	return fmt.Sprintf("https://%s:%d", host, c.Kube.ListenAddr.Port(defaults.KubeProxyListenPort)), nil
+}
+
 // KubeProxyConfig specifies configuration for proxy service
 type KubeProxyConfig struct {
 	// Enabled turns kubernetes proxy role on or off for this process
 	Enabled bool
 
-	// ListenAddr is address where reverse tunnel dialers connect to
+	// ListenAddr is the address to listen on for incoming kubernetes requests.
 	ListenAddr utils.NetAddr
 
 	// KubeAPIAddr is address of kubernetes API server
