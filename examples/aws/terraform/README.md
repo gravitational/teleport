@@ -21,8 +21,8 @@ We recommend familiarizing yourself with the following resources prior to review
 
 In order to spin up AWS resources using these Terraform examples, you need the following software:
 
-- terraform v0.12+ ([install docs](https://learn.hashicorp.com/terraform/getting-started/install.html))
-- awscli v1.14+ ([install docs](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html))
+- terraform v0.12+ [install docs](https://learn.hashicorp.com/terraform/getting-started/install.html)
+- awscli v1.14+ [install docs](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
 
 ## Projects
 
@@ -44,7 +44,7 @@ export TF_VAR_ami_name="gravitational-teleport-ami-ent-4.3.5"
 
 ## How to get help
 
-If you're having trouble, check out our Discourse community. <https://community.gravitational.com>
+If you're having trouble, check out our [Discourse community](https://community.gravitational.com). 
 
 <<<<<<< HEAD
 For bugs related to this code, please [open an issue](https://github.com/gravitational/teleport/issues/new/choose).

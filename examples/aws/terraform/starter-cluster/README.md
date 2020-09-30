@@ -17,15 +17,15 @@ This Terraform example will configure the following AWS resources:
 - Teleport all-in-one (auth, node, proxy) single cluster ec2 instance
 - DynamoDB tables (cluster state, cluster events, ssl lock)
 - S3 bucket (session recording storage)
-- Route53 A record
+- Route53 `A` record
 - Security Groups and IAM roles
 
 ## Instructions
 
 ### Build Requirements
 
-- terraform v0.12+ ([install docs](https://learn.hashicorp.com/terraform/getting-started/install.html))
-- awscli v1.14+ ([install docs](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html))
+- terraform v0.12+ [install docs](https://learn.hashicorp.com/terraform/getting-started/install.html)
+- awscli v1.14+ [install docs](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
 
 ### Usage
 
