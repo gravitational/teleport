@@ -33,6 +33,9 @@ type ProxyGetter interface {
 // Presence records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type Presence interface {
+	// Semaphores is responsible for semaphore handling
+	Semaphores
+
 	// UpsertLocalClusterName upserts local domain
 	UpsertLocalClusterName(name string) error
 
@@ -147,6 +150,9 @@ type Presence interface {
 
 	// CreateRemoteCluster creates a remote cluster
 	CreateRemoteCluster(RemoteCluster) error
+
+	// UpdateRemoteCluster updates a remote cluster
+	UpdateRemoteCluster(context.Context, RemoteCluster) error
 
 	// GetRemoteClusters returns a list of remote clusters
 	GetRemoteClusters(opts ...MarshalOption) ([]RemoteCluster, error)

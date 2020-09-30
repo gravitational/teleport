@@ -20,10 +20,12 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/teleport"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
@@ -32,8 +34,9 @@ import (
 )
 
 type ResetPasswordTokenTest struct {
-	bk backend.Backend
-	a  *AuthServer
+	bk          backend.Backend
+	a           *AuthServer
+	mockEmitter *events.MockEmitter
 }
 
 var _ = check.Suite(&ResetPasswordTokenTest{})
@@ -73,6 +76,9 @@ func (s *ResetPasswordTokenTest) SetUpTest(c *check.C) {
 
 	err = s.a.SetClusterConfig(clusterConfig)
 	c.Assert(err, check.IsNil)
+
+	s.mockEmitter = &events.MockEmitter{}
+	s.a.emitter = s.mockEmitter
 }
 
 func (s *ResetPasswordTokenTest) TestCreateResetPasswordToken(c *check.C) {
@@ -90,6 +96,11 @@ func (s *ResetPasswordTokenTest) TestCreateResetPasswordToken(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(token.GetUser(), check.Equals, username)
 	c.Assert(token.GetURL(), check.Equals, "https://<proxyhost>:3080/web/reset/"+token.GetName())
+	event := s.mockEmitter.LastEvent()
+
+	c.Assert(event.GetType(), check.DeepEquals, events.ResetPasswordTokenCreateEvent)
+	c.Assert(event.(*events.ResetPasswordTokenCreate).Name, check.Equals, "joe@example.com")
+	c.Assert(event.(*events.ResetPasswordTokenCreate).User, check.Equals, teleport.UserSystem)
 
 	// verify that password was reset
 	err = s.a.CheckPasswordWOToken(username, []byte(pass))

@@ -1,5 +1,5 @@
 /*
-Copyright 2016 Gravitational, Inc.
+Copyright 2016-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -249,6 +249,18 @@ const (
 	// CallbackTimeout is how long to wait for a response from SSO provider
 	// before timeout.
 	CallbackTimeout = 180 * time.Second
+
+	// ConcurrentUploadsPerStream limits the amount of concurrent uploads
+	// per stream
+	ConcurrentUploadsPerStream = 1
+
+	// UploadGracePeriod is a period after which non-completed
+	// upload is considered abandoned and will be completed by the reconciler
+	UploadGracePeriod = 24 * time.Hour
+
+	// InactivityFlushPeriod is a period of inactivity
+	// that triggers upload of the data - flush.
+	InactivityFlushPeriod = 5 * time.Minute
 )
 
 var (
@@ -350,6 +362,17 @@ var (
 	// CASignatureAlgorithm is the default signing algorithm to use when
 	// creating new SSH CAs.
 	CASignatureAlgorithm = ssh.SigAlgoRSASHA2512
+
+	// SessionControlTimeout is the maximum amount of time a controlled session
+	// may persist after contact with the auth server is lost (sessctl semaphore
+	// leases are refreshed at a rate of ~1/2 this duration).
+	SessionControlTimeout = time.Minute * 2
+
+	// SPDYPingPeriod is the period for sending out SPDY ping frames on inbound
+	// and outbound connections. SPDY is used for interactive Kubernetes
+	// connections. These pings are needed to avoid timeouts on load balancers
+	// that don't respect TCP keep-alives.
+	SPDYPingPeriod = 30 * time.Second
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport

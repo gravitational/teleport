@@ -364,9 +364,9 @@ func (s *remoteSite) handleHeartbeat(conn *remoteConn, ch ssh.Channel, reqC <-ch
 				}
 			}
 			if roundtrip != 0 {
-				s.WithFields(log.Fields{"latency": roundtrip}).Debugf("Ping <- %v.", conn.conn.RemoteAddr())
+				s.WithFields(log.Fields{"latency": roundtrip, "nodeID": conn.nodeID}).Debugf("Ping <- %v", conn.conn.RemoteAddr())
 			} else {
-				s.Debugf("Ping <- %v.", conn.conn.RemoteAddr())
+				s.WithFields(log.Fields{"nodeID": conn.nodeID}).Debugf("Ping <- %v", conn.conn.RemoteAddr())
 			}
 			tm := time.Now().UTC()
 			conn.setLastHeartbeat(tm)
@@ -508,7 +508,7 @@ func (s *remoteSite) Dial(params DialParams) (net.Conn, error) {
 
 	// If the proxy is in recording mode use the agent to dial and build a
 	// in-memory forwarding server.
-	if clusterConfig.GetSessionRecording() == services.RecordAtProxy {
+	if services.IsRecordAtProxy(clusterConfig.GetSessionRecording()) {
 		return s.dialWithAgent(params)
 	}
 	return s.DialTCP(params)
@@ -541,7 +541,7 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	}
 
 	// Get a host certificate for the forwarding node from the cache.
-	hostCertificate, err := s.certificateCache.GetHostCertificate(params.Address, params.Principals)
+	hostCertificate, err := s.certificateCache.getHostCertificate(params.Address, params.Principals)
 	if err != nil {
 		userAgent.Close()
 		return nil, trace.Wrap(err)
@@ -577,6 +577,8 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 		UseTunnel:       targetConn.UseTunnel(),
 		FIPS:            s.srv.FIPS,
 		HostUUID:        s.srv.ID,
+		Emitter:         s.srv.Config.Emitter,
+		ParentContext:   s.srv.Context,
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {
@@ -594,15 +596,16 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 }
 
 func (s *remoteSite) connThroughTunnel(req *dialReq) (*utils.ChConn, error) {
-	var err error
 
 	s.Debugf("Requesting connection to %v [%v] in remote cluster.",
 		req.Address, req.ServerID)
 
 	// Loop through existing remote connections and try and establish a
 	// connection over the "reverse tunnel".
+	var conn *utils.ChConn
+	var err error
 	for i := 0; i < s.connectionCount(); i++ {
-		conn, err := s.chanTransportConn(req)
+		conn, err = s.chanTransportConn(req)
 		if err == nil {
 			return conn, nil
 		}
@@ -629,7 +632,7 @@ func (s *remoteSite) chanTransportConn(req *dialReq) (*utils.ChConn, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	conn, markInvalid, err := connectProxyTransport(rconn.sconn, req)
+	conn, markInvalid, err := connectProxyTransport(rconn.sconn, req, false)
 	if err != nil {
 		if markInvalid {
 			rconn.markInvalid(err)

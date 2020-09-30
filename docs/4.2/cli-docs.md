@@ -12,9 +12,9 @@ the following services.
 
 | Service | Role Name | Description
 | ------- | --------- | ----------- |
-| [Node](architecture/teleport_nodes.md) | `node` | Runs a daemon on a node which allows SSH connections from authenticated clients.
-| [Auth](architecture/teleport_auth.md) | `auth` | Authenticates nodes and users who want access to Teleport Nodes or information about the cluster
-| [Proxy](architecture/teleport_proxy.md) | `proxy` | The gateway that clients use to connect to the Auth or Node Services
+| [Node](architecture/teleport-nodes.md) | `node` | Runs a daemon on a node which allows SSH connections from authenticated clients.
+| [Auth](architecture/teleport-auth.md) | `auth` | Authenticates nodes and users who want access to Teleport Nodes or information about the cluster
+| [Proxy](architecture/teleport-proxy.md) | `proxy` | The gateway that clients use to connect to the Auth or Node Services
 
 ## teleport start
 
@@ -24,7 +24,7 @@ the following services.
 |------|---------|----------------|----------------------------|
 | `-d, --debug` | none | none | enable verbose logging to stderr
 | `--insecure-no-tls` | `false` | `true` or `false` | Tells proxy to not generate default self-signed TLS certificates. This is useful when running Teleport on kubernetes (behind reverse proxy) or behind things like AWS ELBs, GCP LBs or Azure Load Balancers where SSL termination is provided externally.
-| `-r, --roles` | `proxy,node,auth` | **string** comma-separated list of `proxy, node` or `auth` | start listed services/roles. These roles are explained in the [Teleport Architecture](architecture/teleport_architecture_overview.md) document.
+| `-r, --roles` | `proxy,node,auth` | **string** comma-separated list of `proxy, node` or `auth` | start listed services/roles. These roles are explained in the [Teleport Architecture](architecture/teleport-architecture-overview.md) document.
 | `--pid-file` | none | **string** filepath | create a PID file at the path
 | `--advertise-ip` | none | **string** IP | advertise IP to clients, often used behind NAT
 | `-l, --listen-ip` | `0.0.0.0` | [**net. IP**](https://golang.org/pkg/net/#IP) | binds services to IP

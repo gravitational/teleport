@@ -13,6 +13,7 @@
 VERSION=4.4.0-dev
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
+DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -115,6 +116,15 @@ ifneq ("$(OS)", "windows")
 	cat $(BUILDDIR)/webassets.zip >> $(BUILDDIR)/teleport
 	rm -fr $(BUILDDIR)/webassets.zip
 	zip -q -A $(BUILDDIR)/teleport
+endif
+
+#
+# make full-ent - Builds Teleport enterprise binaries
+#
+.PHONY:full-ent
+full-ent:
+ifneq ("$(OS)", "windows")
+	@if [ -f e/Makefile ]; then $(MAKE) -C e full; fi
 endif
 
 #
@@ -232,7 +242,6 @@ docs-test-whitespace:
 .PHONY:docs-test-links
 docs-test-links: DOCS_FOLDERS := $(shell find . -name milv.config.yaml -exec dirname {} \;)
 docs-test-links:
-	go get -v github.com/magicmatatjahu/milv
 	for docs_dir in $(DOCS_FOLDERS); do \
 		echo "running milv in $${docs_dir}"; \
 		cd $${docs_dir} && milv ; cd $(PWD); \
@@ -263,8 +272,11 @@ integration:
 # changes (or last commit).
 #
 .PHONY: lint
-lint: FLAGS ?=
-lint:
+lint: lint-go lint-sh
+
+.PHONY: lint-go
+lint-go: GO_LINT_FLAGS ?=
+lint-go:
 	golangci-lint run \
 		--disable-all \
 		--exclude-use-default \
@@ -275,7 +287,16 @@ lint:
 		--max-issues-per-linter 0 \
 		--timeout=5m \
 		--enable $(GO_LINTERS) \
-		$(FLAGS)
+		$(GO_LINT_FLAGS)
+
+# TODO(awly): remove the `--exclude` flag after cleaning up existing scripts
+.PHONY: lint-sh
+lint-sh: SH_LINT_FLAGS ?=
+lint-sh:
+	find . -type f -name '*.sh' | grep -v vendor | xargs \
+		shellcheck \
+		--exclude=SC2086 \
+		$(SH_LINT_FLAGS)
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
 $(VERSRC): Makefile
@@ -386,6 +407,14 @@ buildbox-grpc:
 	  --gofast_out=plugins=grpc:.\
     *.proto
 
+	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
+	  --gofast_out=plugins=grpc:.\
+    *.proto
+
+	cd lib/web && protoc -I=.:$$PROTO_INCLUDE \
+	  --gofast_out=plugins=grpc:.\
+    *.proto
+
 .PHONY: goinstall
 goinstall:
 	go install $(BUILDFLAGS) \
@@ -415,6 +444,22 @@ image: clean docker-binaries
 publish: image
 	docker push $(DOCKER_IMAGE):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e publish; fi
+
+# Docker image build in CI.
+# This is run to build and push Docker images to a private repository as part of the build process.
+# When we are ready to make the images public after testing (i.e. when publishing a release), we pull these
+# images down, retag them and push them up to the production repo so they're available for use.
+# This job can be removed/consolidated after we switch over completely from using Jenkins to using Drone.
+.PHONY: image-ci
+image-ci: clean docker-binaries
+	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_CI):$(VERSION)
+	if [ -f e/Makefile ]; then $(MAKE) -C e image-ci; fi
+
+.PHONY: publish-ci
+publish-ci: image-ci
+	docker push $(DOCKER_IMAGE_CI):$(VERSION)
+	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
 
 .PHONY: print-version
 print-version:

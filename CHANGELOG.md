@@ -1,6 +1,30 @@
 # Changelog
 
-### 4.3.1
+### 4.3.6
+
+This release of Teleport contains multiple bug fixes.
+
+* Fixed an issue with prefix migration that could lead to loss of cluster state. [#4299](https://github.com/gravitational/teleport/pull/4299) [#4345](https://github.com/gravitational/teleport/pull/4345)
+* Fixed an issue that caused excessively slow loading of the UI on large clusters. [#4326](https://github.com/gravitational/teleport/pull/4326)
+* Updated `/readyz` endpoint to recover faster after node goes into degraded state. [#4223](https://github.com/gravitational/teleport/pull/4223)
+* Added node UUID to debug logs to allow correlation between TCP connections and nodes. [#4291](https://github.com/gravitational/teleport/pull/4291)
+
+### 4.3.5
+
+This release of Teleport contains a bug fix.
+
+* Fixed issue that caused Teleport Docker images to be built incorrectly. [#4201](https://github.com/gravitational/teleport/pull/4201)
+
+### 4.3.4
+
+This release of Teleport contains multiple bug fixes.
+
+* Fixed issue that caused intermittent login failures when using PAM modules like `pam_loginuid.so` and `pam_selinux.so`. [#4133](https://github.com/gravitational/teleport/pull/4133)
+* Fixed issue that required users to manually verify a certificate when exporting an identity file. [#4003](https://github.com/gravitational/teleport/pull/4003)
+* Fixed issue that prevented local user creation using Firestore. [#4160](https://github.com/gravitational/teleport/pull/4160)
+* Fixed issue that could cause `tsh` to panic when using a PEM file. [#4189](https://github.com/gravitational/teleport/pull/4189)
+
+### 4.3.2
 
 This release of Teleport contains multiple bug fixes.
 

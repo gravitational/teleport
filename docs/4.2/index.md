@@ -69,7 +69,7 @@ free to create an issue or pull request if you have comments.
 
 - [Quickstart Guide](quickstart.md) - A quick tutorial to show off the basic
   capabilities of Teleport. A good place to start if you want to jump right in.
-- [Teleport Architecture](architecture/teleport_architecture_overview.md) - This section covers the underlying
+- [Teleport Architecture](architecture/teleport-architecture-overview.md) - This section covers the underlying
   design principles of Teleport and provides a detailed description of Teleport's
   architecture. A good place to learn about Teleport's design and how it works.
 - [User Manual](user-manual.md) - This manual expands on the Quickstart and
@@ -89,15 +89,15 @@ we have separated out the documentation that is specific to Teleport Enterprise.
 - [Teleport Enterprise Introduction](enterprise/index.md) - Overview of the additional capabilities of Teleport Enterprise.
 - [Teleport Enterprise Quick Start](enterprise/quickstart-enterprise.md) - A quick tutorial to show off the basic capabilities of Teleport Enterprise.
 A good place to start if you want to jump right in.
-- [RBAC for SSH](enterprise/ssh_rbac.md) - Details on how Teleport Enterprise provides Role-based Access Controls (RBAC) for SSH.
-- [SSO for SSH](enterprise/ssh_sso.md) - Overview on how Teleport Enterprise works with external identity providers for single sign-on (SSO).
+- [RBAC for SSH](enterprise/ssh-rbac.md) - Details on how Teleport Enterprise provides Role-based Access Controls (RBAC) for SSH.
+- [SSO for SSH](enterprise/ssh-sso.md) - Overview on how Teleport Enterprise works with external identity providers for single sign-on (SSO).
 
 ## Guides
 
 We also have several guides that go through the most typical configurations and integrations.
 
-- [Kubernetes Integration](kubernetes_ssh.md) - How to configure Teleport to serve as a unified gateway for Kubernetes clusters and clusters of regular SSH nodes.
-- [AWS Guide](aws_oss_guide.md)
+- [Kubernetes Integration](kubernetes-ssh.md) - How to configure Teleport to serve as a unified gateway for Kubernetes clusters and clusters of regular SSH nodes.
+- [AWS Guide](aws-oss-guide.md)
 
 ## Why Build Teleport?
 

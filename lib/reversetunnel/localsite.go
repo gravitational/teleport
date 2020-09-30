@@ -46,7 +46,7 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSi
 	// certificate cache is created in each site (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate
 	// is signed by the correct certificate authority.
-	certificateCache, err := NewHostCertificateCache(srv.Config.KeyGen, client)
+	certificateCache, err := newHostCertificateCache(srv.Config.KeyGen, client)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -169,7 +169,7 @@ func (s *localSite) Dial(params DialParams) (net.Conn, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if clusterConfig.GetSessionRecording() == services.RecordAtProxy {
+	if services.IsRecordAtProxy(clusterConfig.GetSessionRecording()) {
 		return s.dialWithAgent(params)
 	}
 
@@ -212,7 +212,7 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	}
 
 	// Get a host certificate for the forwarding node from the cache.
-	hostCertificate, err := s.certificateCache.GetHostCertificate(params.Address, params.Principals)
+	hostCertificate, err := s.certificateCache.getHostCertificate(params.Address, params.Principals)
 	if err != nil {
 		userAgent.Close()
 		return nil, trace.Wrap(err)
@@ -235,6 +235,8 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 		Address:         params.Address,
 		UseTunnel:       useTunnel,
 		HostUUID:        s.srv.ID,
+		Emitter:         s.srv.Config.Emitter,
+		ParentContext:   s.srv.Context,
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {
@@ -376,9 +378,9 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 				}
 			}
 			if roundtrip != 0 {
-				s.log.WithFields(log.Fields{"latency": roundtrip}).Debugf("Ping <- %v.", rconn.conn.RemoteAddr())
+				s.log.WithFields(log.Fields{"latency": roundtrip, "nodeID": rconn.nodeID}).Debugf("Ping <- %v", rconn.conn.RemoteAddr())
 			} else {
-				log.Debugf("Ping <- %v.", rconn.conn.RemoteAddr())
+				s.log.WithFields(log.Fields{"nodeID": rconn.nodeID}).Debugf("Ping <- %v", rconn.conn.RemoteAddr())
 			}
 			tm := time.Now().UTC()
 			rconn.setLastHeartbeat(tm)
@@ -417,7 +419,7 @@ func (s *localSite) chanTransportConn(rconn *remoteConn) (net.Conn, error) {
 
 	conn, markInvalid, err := connectProxyTransport(rconn.sconn, &dialReq{
 		Address: LocalNode,
-	})
+	}, false)
 	if err != nil {
 		if markInvalid {
 			rconn.markInvalid(err)

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2017-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,17 +27,24 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
 )
 
 // TLSServerConfig is a configuration for TLS server
 type TLSServerConfig struct {
+	// Listener is a listener to bind to
+	Listener net.Listener
 	// TLS is a base TLS configuration
 	TLS *tls.Config
 	// API is API server configuration
@@ -51,10 +58,18 @@ type TLSServerConfig struct {
 	// AcceptedUsage restricts authentication
 	// to a subset of certificates based on the metadata
 	AcceptedUsage []string
+	// ID is an optional debugging ID
+	ID string
 }
 
 // CheckAndSetDefaults checks and sets default values
 func (c *TLSServerConfig) CheckAndSetDefaults() error {
+	if err := c.APIConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if c.Listener == nil {
+		return trace.BadParameter("missing parameter Listener")
+	}
 	if c.TLS == nil {
 		return trace.BadParameter("missing parameter TLS")
 	}
@@ -79,11 +94,17 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 
 // TLSServer is TLS auth server
 type TLSServer struct {
-	*http.Server
-	// TLSServerConfig is TLS server configuration used for auth server
-	TLSServerConfig
-	// Entry is TLS server logging entry
-	*logrus.Entry
+	// httpServer is HTTP/1.1 part of the server
+	httpServer *http.Server
+	// grpcServer is GRPC server
+	grpcServer *GRPCServer
+	// cfg is TLS server configuration used for auth server
+	cfg TLSServerConfig
+	// log is TLS server logging entry
+	log *logrus.Entry
+	// mux is a listener that multiplexes HTTP/2 and HTTP/1.1
+	// on different listeners
+	mux *multiplexer.TLSListener
 }
 
 // NewTLSServer returns new unstarted TLS server
@@ -103,8 +124,9 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	authMiddleware := &AuthMiddleware{
 		AccessPoint:   cfg.AccessPoint,
 		AcceptedUsage: cfg.AcceptedUsage,
+		Limiter:       limiter,
 	}
-	authMiddleware.Wrap(NewGRPCServer(cfg.APIConfig))
+	authMiddleware.Wrap(NewAPIServer(&cfg.APIConfig))
 	// Wrap sets the next middleware in chain to the authMiddleware
 	limiter.WrapHandle(authMiddleware)
 	// force client auth if given
@@ -112,22 +134,91 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	cfg.TLS.NextProtos = []string{http2.NextProtoTLS}
 
 	server := &TLSServer{
-		TLSServerConfig: cfg,
-		Server: &http.Server{
+		cfg: cfg,
+		httpServer: &http.Server{
 			Handler:           limiter,
 			ReadHeaderTimeout: defaults.DefaultDialTimeout,
 		},
-		Entry: logrus.WithFields(logrus.Fields{
+		log: logrus.WithFields(logrus.Fields{
 			trace.Component: cfg.Component,
 		}),
 	}
-	server.TLS.GetConfigForClient = server.GetConfigForClient
+	server.cfg.TLS.GetConfigForClient = server.GetConfigForClient
+
+	server.grpcServer, err = NewGRPCServer(GRPCServerConfig{
+		TLS:               server.cfg.TLS,
+		APIConfig:         cfg.APIConfig,
+		UnaryInterceptor:  authMiddleware.UnaryInterceptor,
+		StreamInterceptor: authMiddleware.StreamInterceptor,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	server.mux, err = multiplexer.NewTLSListener(multiplexer.TLSListenerConfig{
+		Listener: tls.NewListener(cfg.Listener, server.cfg.TLS),
+		ID:       cfg.ID,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return server, nil
 }
 
-// Serve takes TCP listener, upgrades to TLS using config and starts serving
-func (t *TLSServer) Serve(listener net.Listener) error {
-	return t.Server.Serve(tls.NewListener(listener, t.TLS))
+// Close closes TLS server non-gracefully - terminates in flight connections
+func (t *TLSServer) Close() error {
+	errC := make(chan error, 2)
+	go func() {
+		errC <- t.httpServer.Close()
+	}()
+	go func() {
+		t.grpcServer.server.Stop()
+		errC <- nil
+	}()
+	errors := []error{}
+	for i := 0; i < 2; i++ {
+		errors = append(errors, <-errC)
+	}
+	return trace.NewAggregate(errors...)
+}
+
+// Shutdown shuts down TLS server
+func (t *TLSServer) Shutdown(ctx context.Context) error {
+	errC := make(chan error, 2)
+	go func() {
+		errC <- t.httpServer.Shutdown(ctx)
+	}()
+	go func() {
+		t.grpcServer.server.GracefulStop()
+		errC <- nil
+	}()
+	errors := []error{}
+	for i := 0; i < 2; i++ {
+		errors = append(errors, <-errC)
+	}
+	return trace.NewAggregate(errors...)
+}
+
+// Serve starts GRPC and HTTP1.1 services on the mux listener
+func (t *TLSServer) Serve() error {
+	errC := make(chan error, 2)
+	go func() {
+		if err := t.mux.Serve(); err != nil {
+			t.log.WithError(err).Warningf("Mux serve failed.")
+		}
+	}()
+	go func() {
+		errC <- t.httpServer.Serve(t.mux.HTTP())
+	}()
+	go func() {
+		errC <- t.grpcServer.server.Serve(t.mux.HTTP2())
+	}()
+	errors := []error{}
+	for i := 0; i < 2; i++ {
+		errors = append(errors, <-errC)
+	}
+	return trace.NewAggregate(errors...)
 }
 
 // GetConfigForClient is getting called on every connection
@@ -144,12 +235,12 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 		//
 		// Instead, this case should either default to current cluster CAs or
 		// return an error.
-		t.Debugf("Client %q sent %q in SNI, which causes this auth server to send all known CAs in TLS handshake. If this client is version 4.2 or older, this is expected; if this client is version 4.3 or above, please let us know at https://github.com/gravitational/teleport/issues/new", info.Conn.RemoteAddr(), info.ServerName)
+		t.log.Debugf("Client %q sent %q in SNI, which causes this auth server to send all known CAs in TLS handshake. If this client is version 4.2 or older, this is expected; if this client is version 4.3 or above, please let us know at https://github.com/gravitational/teleport/issues/new", info.Conn.RemoteAddr(), info.ServerName)
 	default:
 		clusterName, err = DecodeClusterName(info.ServerName)
 		if err != nil {
 			if !trace.IsNotFound(err) {
-				t.Warningf("Client sent unsupported cluster name %q, what resulted in error %v.", info.ServerName, err)
+				t.log.Warningf("Client sent unsupported cluster name %q, what resulted in error %v.", info.ServerName, err)
 				return nil, trace.AccessDenied("access is denied")
 			}
 		}
@@ -159,13 +250,13 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 	// certificate authorities.
 	// TODO(klizhentas) drop connections of the TLS cert authorities
 	// that are not trusted
-	pool, err := ClientCertPool(t.AccessPoint, clusterName)
+	pool, err := ClientCertPool(t.cfg.AccessPoint, clusterName)
 	if err != nil {
 		var ourClusterName string
-		if clusterName, err := t.AccessPoint.GetClusterName(); err == nil {
+		if clusterName, err := t.cfg.AccessPoint.GetClusterName(); err == nil {
 			ourClusterName = clusterName.GetClusterName()
 		}
-		t.Errorf("Failed to retrieve client pool. Client cluster %v, target cluster %v, error:  %v.", clusterName, ourClusterName, trace.DebugReport(err))
+		t.log.Errorf("Failed to retrieve client pool. Client cluster %v, target cluster %v, error:  %v.", clusterName, ourClusterName, trace.DebugReport(err))
 		// this falls back to the default config
 		return nil, nil
 	}
@@ -189,10 +280,10 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 		return nil, trace.BadParameter("number of CAs in client cert pool is too large (%d) and cannot be encoded in a TLS handshake; this is due to a large number of trusted clusters; try updating tsh to the latest version; if that doesn't help, remove some trusted clusters", len(pool.Subjects()))
 	}
 
-	tlsCopy := t.TLS.Clone()
+	tlsCopy := t.cfg.TLS.Clone()
 	tlsCopy.ClientCAs = pool
 	for _, cert := range tlsCopy.Certificates {
-		t.Debugf("Server certificate %v.", TLSCertInfo(&cert))
+		t.log.Debugf("Server certificate %v.", TLSCertInfo(&cert))
 	}
 	return tlsCopy, nil
 }
@@ -210,6 +301,8 @@ type AuthMiddleware struct {
 	// if set, will accept certificates with non-limited usage,
 	// and usage exactly matching the specified values.
 	AcceptedUsage []string
+	// Limiter is a rate and connection limiter
+	Limiter *limiter.Limiter
 }
 
 // Wrap sets next handler in chain
@@ -217,9 +310,84 @@ func (a *AuthMiddleware) Wrap(h http.Handler) {
 	a.Handler = h
 }
 
+// UnaryInterceptor is GPRC unary interceptor that authenticates requests
+// and passes the user information as context metadata
+func (a *AuthMiddleware) UnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+	peerInfo, ok := peer.FromContext(ctx)
+	if !ok {
+		return nil, trail.ToGRPC(trace.AccessDenied("missing authentication"))
+	}
+	// Limit requests per second and simultaneous connection by client IP.
+	clientIP, _, err := net.SplitHostPort(peerInfo.Addr.String())
+	if err != nil {
+		log.WithError(err).Debugf("Failed to get client IP.")
+		return nil, trail.ToGRPC(trace.BadParameter("missing client IP"))
+	}
+	if err := a.Limiter.RegisterRequest(clientIP); err != nil {
+		return nil, trail.ToGRPC(trace.LimitExceeded("rate limit exceeded"))
+	}
+	if err := a.Limiter.ConnLimiter.Acquire(clientIP, 1); err != nil {
+		return nil, trail.ToGRPC(trace.LimitExceeded("connection limit exceeded"))
+	}
+	defer a.Limiter.ConnLimiter.Release(clientIP, 1)
+
+	tlsInfo, ok := peerInfo.AuthInfo.(credentials.TLSInfo)
+	if !ok {
+		return nil, trail.ToGRPC(trace.AccessDenied("missing authentication"))
+	}
+	user, err := a.GetUser(tlsInfo.State)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return handler(context.WithValue(ctx, ContextUser, user), req)
+}
+
+// StreamInterceptor is GPRC unary interceptor that authenticates requests
+// and passes the user information as context metadata
+func (a *AuthMiddleware) StreamInterceptor(srv interface{}, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	peerInfo, ok := peer.FromContext(serverStream.Context())
+	if !ok {
+		return trail.ToGRPC(trace.AccessDenied("missing authentication"))
+	}
+	// Limit requests per second and simultaneous connection by client IP.
+	clientIP, _, err := net.SplitHostPort(peerInfo.Addr.String())
+	if err != nil {
+		log.WithError(err).Debugf("Failed to get client IP.")
+		return trail.ToGRPC(trace.BadParameter("missing client IP"))
+	}
+	if err := a.Limiter.RegisterRequest(clientIP); err != nil {
+		return trail.ToGRPC(trace.LimitExceeded("rate limit exceeded"))
+	}
+	if err := a.Limiter.ConnLimiter.Acquire(clientIP, 1); err != nil {
+		return trail.ToGRPC(trace.LimitExceeded("connection limit exceeded"))
+	}
+	defer a.Limiter.ConnLimiter.Release(clientIP, 1)
+	tlsInfo, ok := peerInfo.AuthInfo.(credentials.TLSInfo)
+	if !ok {
+		return trail.ToGRPC(trace.AccessDenied("missing authentication"))
+	}
+	user, err := a.GetUser(tlsInfo.State)
+	if err != nil {
+		return trail.ToGRPC(err)
+	}
+	return handler(srv, &authenticatedStream{ctx: context.WithValue(serverStream.Context(), ContextUser, user), ServerStream: serverStream})
+}
+
+// authenticatedStream wraps around the embedded grpc.ServerStream
+// provides new context with additional metadata
+type authenticatedStream struct {
+	ctx context.Context
+	grpc.ServerStream
+}
+
+// Context specifies stream context with authentication metadata
+func (a *authenticatedStream) Context() context.Context {
+	return a.ctx
+}
+
 // GetUser returns authenticated user based on request metadata set by HTTP server
-func (a *AuthMiddleware) GetUser(r *http.Request) (IdentityGetter, error) {
-	peers := r.TLS.PeerCertificates
+func (a *AuthMiddleware) GetUser(connState tls.ConnectionState) (IdentityGetter, error) {
+	peers := connState.PeerCertificates
 	if len(peers) > 1 {
 		// when turning intermediaries on, don't forget to verify
 		// https://github.com/kubernetes/kubernetes/pull/34524/files#diff-2b283dde198c92424df5355f39544aa4R59
@@ -336,7 +504,11 @@ func (a *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if baseContext == nil {
 		baseContext = context.TODO()
 	}
-	user, err := a.GetUser(r)
+	if r.TLS == nil {
+		trace.WriteError(w, trace.AccessDenied("missing authentication"))
+		return
+	}
+	user, err := a.GetUser(*r.TLS)
 	if err != nil {
 		trace.WriteError(w, err)
 		return

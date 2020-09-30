@@ -15,7 +15,7 @@ VM.
   make sure that this machine's IP can be reached over your network and that
   it accepts incoming traffic on port `3080` .
 
-* We recommend that you read the [Architecture Guide](architecture/teleport_architecture_overview.md)
+* We recommend that you read the [Architecture Guide](architecture/teleport-architecture-overview.md)
   before working through this tutorial. If you'd like to dive right in though this is
   the best place to start!
 

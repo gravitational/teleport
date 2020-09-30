@@ -108,7 +108,7 @@ func NewTerminal(ctx *ServerContext) (Terminal, error) {
 
 	// If this is not a Teleport node, find out what mode the cluster is in and
 	// return the correct terminal.
-	if ctx.ClusterConfig.GetSessionRecording() == services.RecordAtProxy {
+	if services.IsRecordAtProxy(ctx.ClusterConfig.GetSessionRecording()) {
 		return newRemoteTerminal(ctx)
 	}
 	return newLocalTerminal(ctx)
@@ -178,9 +178,14 @@ func (t *terminal) Run() error {
 		return trace.Wrap(err)
 	}
 
+	// we need the lock here to protect from concurrent calls to Close()
+	t.mu.Lock()
+	pty, tty := t.pty, t.tty
+	t.mu.Unlock()
+
 	// Pass PTY and TTY to child as well since a terminal is attached.
-	t.cmd.ExtraFiles = append(t.cmd.ExtraFiles, t.pty)
-	t.cmd.ExtraFiles = append(t.cmd.ExtraFiles, t.tty)
+	t.cmd.ExtraFiles = append(t.cmd.ExtraFiles, pty)
+	t.cmd.ExtraFiles = append(t.cmd.ExtraFiles, tty)
 
 	// Start the process.
 	err = t.cmd.Start()
@@ -237,11 +242,15 @@ func (t *terminal) Kill() error {
 
 // PTY returns the PTY backing the terminal.
 func (t *terminal) PTY() io.ReadWriter {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	return t.pty
 }
 
 // TTY returns the TTY backing the terminal.
 func (t *terminal) TTY() *os.File {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	return t.tty
 }
 
@@ -252,23 +261,29 @@ func (t *terminal) PID() int {
 
 // Close will free resources associated with the terminal.
 func (t *terminal) Close() error {
-	var err error
+	err := t.closeTTY()
 	// note, pty is closed in the copying goroutine,
 	// not here to avoid data races
-	if t.tty != nil {
-		if e := t.tty.Close(); e != nil {
-			err = e
-		}
-	}
 	go t.closePTY()
 	return trace.Wrap(err)
 }
 
-func (t *terminal) closeTTY() {
-	if err := t.tty.Close(); err != nil {
+func (t *terminal) closeTTY() error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.tty == nil {
+		return nil
+	}
+
+	err := t.tty.Close()
+	t.tty = nil
+
+	if err != nil {
 		t.log.Warnf("Failed to close TTY: %v", err)
 	}
-	t.tty = nil
+
+	return trace.Wrap(err)
 }
 
 func (t *terminal) closePTY() {

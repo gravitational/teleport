@@ -90,17 +90,17 @@ type TeleInstance struct {
 	Hostname string
 
 	// Internal stuff...
-	Process *service.TeleportProcess
-	Config  *service.Config
-	Tunnel  reversetunnel.Server
-	Pool    *reversetunnel.AgentPool
+	Process              *service.TeleportProcess
+	Config               *service.Config
+	Tunnel               reversetunnel.Server
+	RemoteClusterWatcher *reversetunnel.RemoteClusterTunnelManager
 
 	// Nodes is a list of additional nodes
 	// started with this instance
 	Nodes []*service.TeleportProcess
 
 	// UploadEventsC is a channel for upload events
-	UploadEventsC chan *events.UploadEvent
+	UploadEventsC chan events.UploadEvent
 }
 
 type User struct {
@@ -218,7 +218,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 	i := &TeleInstance{
 		Ports:         cfg.Ports,
 		Hostname:      cfg.NodeName,
-		UploadEventsC: make(chan *events.UploadEvent, 100),
+		UploadEventsC: make(chan events.UploadEvent, 100),
 	}
 	secrets := InstanceSecrets{
 		SiteName:     cfg.ClusterName,
@@ -950,9 +950,9 @@ func (i *TeleInstance) Start() error {
 				i.Tunnel = ts
 			}
 		case service.ProxyAgentPoolReady:
-			ap, ok := re.Payload.(*reversetunnel.AgentPool)
+			w, ok := re.Payload.(*reversetunnel.RemoteClusterTunnelManager)
 			if ok {
-				i.Pool = ap
+				i.RemoteClusterWatcher = w
 			}
 		}
 	}

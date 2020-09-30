@@ -633,7 +633,7 @@ tsh --proxy <proxy-addr> ssh <hostname>
 
 This section covers internal user identities, i.e. user accounts created and
 stored in Teleport's internal storage. Most production users of Teleport use
-_external_ users via [Github](#github-oauth-20) or [Okta](ssh_okta) or any
+_external_ users via [Github](#github-oauth-20) or [Okta](ssh-okta) or any
 other SSO provider (Teleport Enterprise supports any SAML or OIDC compliant
 identity provider).
 
@@ -1272,7 +1272,7 @@ user            | A user record in the internal Teleport user DB.
 node            | A registered SSH node. The same record is displayed via `tctl nodes ls`
 cluster         | A trusted cluster. See [here](#trusted-clusters) for more details on connecting clusters together.
 role            | A role assumed by users. The open source Teleport only includes one role: "admin", but Enterprise teleport users can define their own roles.
-connector       | Authentication connectors for [single sign-on](ssh_sso) (SSO) for SAML, OIDC and Github.
+connector       | Authentication connectors for [single sign-on](ssh-sso) (SSO) for SAML, OIDC and Github.
 
 
 **Examples:**
@@ -1881,10 +1881,10 @@ Teleport connector. See example above in [Github OAuth 2.0 Example](#github-oaut
 information on how to setup Github SSO with Teleport.
 
 If using Teleport Enterprise SSO with enterprise-grade identity providers (using SAML, OIDC and Active Directory),
-`kubernetes_groups` are assigned to Teleport Roles as shown in the Teleport Enterprise [RBAC](ssh_rbac.md#roles)
+`kubernetes_groups` are assigned to Teleport Roles as shown in the Teleport Enterprise [RBAC](ssh-rbac.md#roles)
 section.
 
-You may also find it useful to read our [Kubernetes guide](kubernetes_ssh.md) which contains some more specific examples
+You may also find it useful to read our [Kubernetes guide](kubernetes-ssh.md) which contains some more specific examples
 and instructions.
 
 ### Multiple Kubernetes Clusters

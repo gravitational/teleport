@@ -23,21 +23,25 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/jonboulle/clockwork"
 
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 )
 
+const reporterDefaultCacheSize = 1000
+
 // ReporterConfig configures reporter wrapper
 type ReporterConfig struct {
 	// Backend is a backend to wrap
 	Backend Backend
-	// TrackTopRequests turns on tracking of top
-	// requests on
-	TrackTopRequests bool
 	// Component is a component name to report
 	Component string
+	// Number of the most recent backend requests to preserve for top requests
+	// metric. Higher value means higher memory usage but fewer infrequent
+	// requests forgotten.
+	TopRequestsCount int
 }
 
 // CheckAndSetDefaults checks and sets
@@ -48,6 +52,9 @@ func (r *ReporterConfig) CheckAndSetDefaults() error {
 	if r.Component == "" {
 		r.Component = teleport.ComponentBackend
 	}
+	if r.TopRequestsCount == 0 {
+		r.TopRequestsCount = reporterDefaultCacheSize
+	}
 	return nil
 }
 
@@ -56,6 +63,14 @@ func (r *ReporterConfig) CheckAndSetDefaults() error {
 type Reporter struct {
 	// ReporterConfig contains reporter wrapper configuration
 	ReporterConfig
+
+	// topRequestsCache is an LRU cache to track the most frequent recent
+	// backend keys. All keys in this cache map to existing labels in the
+	// requests metric. Any evicted keys are also deleted from the metric.
+	//
+	// This will keep an upper limit on our memory usage while still always
+	// reporting the most active keys.
+	topRequestsCache *lru.Cache
 }
 
 // NewReporter returns a new Reporter.
@@ -63,8 +78,22 @@ func NewReporter(cfg ReporterConfig) (*Reporter, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	cache, err := lru.NewWithEvict(cfg.TopRequestsCount, func(key interface{}, value interface{}) {
+		labels, ok := key.(topRequestsCacheKey)
+		if !ok {
+			log.Errorf("BUG: invalid cache key type: %T", key)
+			return
+		}
+		// Evict the key from requests metric.
+		requests.DeleteLabelValues(labels.component, labels.key, labels.isRange)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	r := &Reporter{
-		ReporterConfig: cfg,
+		ReporterConfig:   cfg,
+		topRequestsCache: cache,
 	}
 	return r, nil
 }
@@ -219,11 +248,14 @@ func (s *Reporter) Clock() clockwork.Clock {
 // Migrate runs the necessary data migrations for this backend.
 func (s *Reporter) Migrate(ctx context.Context) error { return s.Backend.Migrate(ctx) }
 
+type topRequestsCacheKey struct {
+	component string
+	key       string
+	isRange   string
+}
+
 // trackRequests tracks top requests, endKey is supplied for ranges
 func (s *Reporter) trackRequest(opType OpType, key []byte, endKey []byte) {
-	if !s.TrackTopRequests {
-		return
-	}
 	if len(key) == 0 {
 		return
 	}
@@ -233,12 +265,19 @@ func (s *Reporter) trackRequest(opType OpType, key []byte, endKey []byte) {
 	if len(parts) > 3 {
 		parts = parts[:3]
 	}
+	keyLabel := string(bytes.Join(parts, []byte{Separator}))
 	rangeSuffix := teleport.TagFalse
 	if len(endKey) != 0 {
 		// Range denotes range queries in stat entry
 		rangeSuffix = teleport.TagTrue
 	}
-	counter, err := requests.GetMetricWithLabelValues(s.Component, string(bytes.Join(parts, []byte{Separator})), rangeSuffix)
+
+	s.topRequestsCache.Add(topRequestsCacheKey{
+		component: s.Component,
+		key:       keyLabel,
+		isRange:   rangeSuffix,
+	}, struct{}{})
+	counter, err := requests.GetMetricWithLabelValues(s.Component, keyLabel, rangeSuffix)
 	if err != nil {
 		log.Warningf("Failed to get counter: %v", err)
 		return

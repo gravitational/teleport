@@ -40,9 +40,9 @@ type certificateCache struct {
 	keygen     sshca.Authority
 }
 
-// NewHostCertificateCache creates a shared host certificate cache that is
+// newHostCertificateCache creates a shared host certificate cache that is
 // used by the forwarding server.
-func NewHostCertificateCache(keygen sshca.Authority, authClient auth.ClientI) (*certificateCache, error) {
+func newHostCertificateCache(keygen sshca.Authority, authClient auth.ClientI) (*certificateCache, error) {
 	cache, err := ttlmap.New(defaults.HostCertCacheSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -55,12 +55,12 @@ func NewHostCertificateCache(keygen sshca.Authority, authClient auth.ClientI) (*
 	}, nil
 }
 
-// GetHostCertificate will fetch a certificate from the cache. If the certificate
+// getHostCertificate will fetch a certificate from the cache. If the certificate
 // is not in the cache, it will be generated, put in the cache, and returned. Mul
 // Multiple callers can arrive and generate a host certificate at the same time.
 // This is a tradeoff to prevent long delays here due to the expensive
 // certificate generation call.
-func (c *certificateCache) GetHostCertificate(addr string, additionalPrincipals []string) (ssh.Signer, error) {
+func (c *certificateCache) getHostCertificate(addr string, additionalPrincipals []string) (ssh.Signer, error) {
 	var certificate ssh.Signer
 	var err error
 	var ok bool

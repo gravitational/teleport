@@ -1,8 +1,8 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-{% if config.site_description %}<meta name="description" content="{{ config.site_description }}">{% endif %}
 {% if config.site_author %}<meta name="author" content="{{ config.site_author }}">{% endif %}
+
 
 <link rel="stylesheet" href="{{ base_url }}/src/docs.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons"  />
@@ -16,7 +16,15 @@
 {%- block extrahead %} {% endblock %}
 
 {% block htmltitle %}
-<title>{% if page.title %}{{ page.title }} | {% endif %}{{ config.site_name }}</title>
+
+
+{% if page.meta %}
+<title>{{ page.meta.title }}</title>
+<meta name="description" content="{{ page.meta.description }}">
+{% endif %}
+
+<link rel="canonical" href='{{ page.canonical_url }}'/>
+
 {% endblock %}
 
 <!-- ZOHO PAGE SENSE-->

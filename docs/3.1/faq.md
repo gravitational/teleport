@@ -52,7 +52,7 @@ The Teleport Enterprise offering gives users the following additional features:
 
 * Role-based access control, also known as [RBAC](enterprise#rbac).
 * Authentication via SAML and OpenID with providers like Okta, Active
-  Directory, Auth0, etc. (aka, [SSO](http://localhost:6600/ssh_sso/)).
+  Directory, Auth0, etc. (aka, [SSO](http://localhost:6600/ssh-sso/)).
 * Premium support.
 
 We also offer implementation services, to help you integrate

@@ -1,3 +1,8 @@
+---
+title: Teleport Enterprise Quick Start
+description: How to set up and configure Teleport Enterprise for SSH and Kubernetes access
+---
+
 # Teleport Enterprise Quick Start
 
 Welcome to the Quick Start Guide for Teleport Enterprise.
@@ -28,7 +33,7 @@ interact with it using Teleport's client-side tools:
 
 ## Prerequisites
 
-You will need to have access to the [customer portal](https://dashboard.gravitational.com)
+You will need to have access to the [customer portal](https://dashboard.gravitational.com/web/login)
 to download the software. You will also need three computers: two servers and
 one client (probably a laptop) to complete this tutorial. Let's assume the servers have
 the following DNS names and IPs:
@@ -48,7 +53,7 @@ if you don't want to install Teleport Enterprise binaries straight away.
 
 ## Installing
 
-To start using Teleport Enterprise, you will need to Download the binaries and the license file from the [customer portal](https://dashboard.gravitational.com).
+To start using Teleport Enterprise, you will need to Download the binaries and the license file from the [customer portal](https://dashboard.gravitational.com/web/login).
 After downloading the binary tarball, run:
 
 ```bsh
@@ -65,7 +70,7 @@ $ cd teleport-ent
 The Teleport license file contains a X.509 certificate and the corresponding
 private key in [PEM format](https://en.wikipedia.org/wiki/Privacy-enhanced_Electronic_Mail).
 
-Download the license file from the [customer portal](https://dashboard.gravitational.com)
+Download the license file from the [customer portal](https://dashboard.gravitational.com/web/login)
 and save it as `/var/lib/teleport/license.pem` on the auth server.
 
 
@@ -307,13 +312,13 @@ The local account is good for administrative purposes but regular users of
 Teleport Enterprise should be using a Single Sign-On (SSO) mechanism that use SAML or OIDC protocols.
 
 
-Take a look at the [SSH via Single Sign-on](sso/ssh_sso.md) chapter to learn the basics of
+Take a look at the [SSH via Single Sign-on](sso/ssh-sso.md) chapter to learn the basics of
 integrating Teleport with SSO providers. We have the following detailed guides for
 configuring SSO providers:
 
-* [Okta](sso/ssh_okta.md)
-* [Active Directory](sso/ssh_adfs.md)
-* [One Login](sso/ssh_one_login.md)
+* [Okta](sso/ssh-okta.md)
+* [Active Directory](sso/ssh-adfs.md)
+* [One Login](sso/ssh-one-login.md)
 * [Github](../admin-guide.md#github-oauth-20)
 
 Any SAML-compliant provider can be configured with Teleport by following the
@@ -441,6 +446,6 @@ Usually the error will be reported there. Common reasons for failure are:
 
 ## Getting Help
 
-If something is not working, please reach out to us by creating a ticket in your [customer portal](https://dashboard.gravitational.com/).
+If something is not working, please reach out to us by creating a ticket in your [customer portal](https://dashboard.gravitational.com/web/login).
 Customers who have purchased the premium support package can also ping us through
 your Slack channel.

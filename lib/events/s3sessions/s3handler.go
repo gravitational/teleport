@@ -158,7 +158,7 @@ type Handler struct {
 	client     *s3.S3
 }
 
-// Closer releases connection and resources associated with log if any
+// Close releases connection and resources associated with log if any
 func (l *Handler) Close() error {
 	return nil
 }
@@ -285,6 +285,10 @@ func (l *Handler) path(sessionID session.ID) string {
 	return strings.TrimPrefix(filepath.Join(l.Path, string(sessionID)+".tar"), "/")
 }
 
+func (l *Handler) fromPath(path string) session.ID {
+	return session.ID(strings.TrimSuffix(filepath.Base(path), ".tar"))
+}
+
 // ensureBucket makes sure bucket exists, and if it does not, creates it
 func (h *Handler) ensureBucket() error {
 	_, err := h.client.HeadBucket(&s3.HeadBucketInput{
@@ -304,7 +308,7 @@ func (h *Handler) ensureBucket() error {
 		ACL:    aws.String("private"),
 	}
 	_, err = h.client.CreateBucket(input)
-	err = ConvertS3Error(err, "bucket %v already exists", aws.String(h.Bucket))
+	err = ConvertS3Error(err, fmt.Sprintf("bucket %v already exists", aws.String(h.Bucket)))
 	if err != nil {
 		if !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)
@@ -321,7 +325,7 @@ func (h *Handler) ensureBucket() error {
 		},
 	}
 	_, err = h.client.PutBucketVersioning(ver)
-	err = ConvertS3Error(err, "failed to set versioning state for bucket %q", h.Bucket)
+	err = ConvertS3Error(err, fmt.Sprintf("failed to set versioning state for bucket %q", h.Bucket))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -338,7 +342,7 @@ func (h *Handler) ensureBucket() error {
 				}},
 			},
 		})
-		err = ConvertS3Error(err, "failed to set versioning state for bucket %q", h.Bucket)
+		err = ConvertS3Error(err, fmt.Sprintf("failed to set versioning state for bucket %q", h.Bucket))
 		if err != nil {
 			return trace.Wrap(err)
 		}

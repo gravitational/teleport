@@ -26,8 +26,6 @@ type ResetPasswordToken struct {
 	User string `json:"user"`
 	// QRCode is a QR code value
 	QRCode []byte `json:"qrCode,omitempty"`
-	// URL is token URL
-	URL string `json:"url,omitempty"`
 	// Expiry is token expiration time
 	Expiry time.Time `json:"expiry,omitempty"`
 }

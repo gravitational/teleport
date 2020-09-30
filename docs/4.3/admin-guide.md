@@ -1,3 +1,8 @@
+---
+title: Teleport Admin Manual
+description: Admin manual for how to configure identity-aware SSH, certificate-based SSH authentication, set up SSO for SSH, SSO for Kubernetes, and more.
+---
+
 # Teleport Admin Manual
 
 This manual covers the installation and configuration of Teleport and the
@@ -11,7 +16,7 @@ Please visit our [installation page](installation.md) for instructions on downlo
 ## Definitions
 
 Before diving into configuring and running Teleport, it helps to take a look at
-the [Teleport Architecture](architecture/teleport_architecture_overview.md) and review the key concepts this
+the [Teleport Architecture](architecture/overview.md) and review the key concepts this
 document will be referring to:
 
 |Concept   | Description
@@ -129,7 +134,14 @@ Teleport uses the YAML file format for configuration. A sample configuration
 file is shown below. By default, it is stored in `/etc/teleport.yaml`, below is
 an expanded and commented version from `teleport configure`.
 
-For a complete reference, see our [Configuration Reference - teleport.yaml](config_reference.md#teleportyaml)
+The default path Teleport uses to look for a config file is `/etc/teleport.yaml`. You can override
+this path and set it explicitly using the `-c` or `--config` flag to `teleport start`:
+
+```bash
+$ teleport start --config=/etc/teleport.yaml
+```
+
+For a complete reference, see our [Configuration Reference - teleport.yaml](config-reference.md#teleportyaml)
 
 !!! note "IMPORTANT"
 
@@ -146,7 +158,7 @@ For a complete reference, see our [Configuration Reference - teleport.yaml](conf
 #  1. ca_pin: Obtain the CA pin hash for joining more nodes by running 'tctl status'
 #     on the auth server once Teleport is running.
 #  2. license-if-using-teleport-enterprise.pem: If you are an Enterprise customer,
-#     obtain this from https://dashboard.gravitational.com/web/
+#     obtain this from https://dashboard.gravitational.com/web/login
 #
 teleport:
   # nodename allows to assign an alternative name this node can be reached by.
@@ -400,7 +412,7 @@ $ tsh --proxy <proxy-addr> ssh <hostname>
 
 This section covers internal user identities, i.e. user accounts created and
 stored in Teleport's internal storage. Most production users of Teleport use
-_external_ users via [Github](#github-oauth-20) or [Okta](ssh_okta) or any other
+_external_ users via [Github](#github-oauth-20) or [Okta](enterprise/sso/ssh-okta.md) or any other
 SSO provider (Teleport Enterprise supports any SAML or OIDC compliant identity
 provider).
 
@@ -673,38 +685,52 @@ del`](cli-docs.md#tctl-tokens-rm) command:
 $ tctl tokens del 696c0471453e75882ff70a761c1a8bfa
 Token 696c0471453e75882ff70a761c1a8bfa has been deleted
 ```
+
 ## Adding a node located behind NAT
-With the current setup you've only been able to add nodes that have direct access to the
+
+!!! note
+    This feature is sometimes called "Teleport IoT" or node tunneling.
+
+With the current setup, you've only been able to add nodes that have direct access to the
 auth server and within the internal IP range of the cluster. We recommend
 setting up a [Trusted Cluster](trustedclusters.md) if you have workloads split
-across different networks / clouds.
+across different networks/clouds.
 
-Teleport Node Tunneling lets you add a node to an existing Teleport Cluster. This can be
-useful for IoT applications or for managing a couple of servers in a different network.
+Teleport Node Tunneling lets you add a remote node to an existing Teleport Cluster via tunnel.
+This can be useful for IoT applications, or for managing a couple of servers in a different network.
 
-Similar to [Adding Nodes to Cluster](#adding-nodes-to-the-cluster), use `tctl` to
+Similar to [Adding Nodes to the Cluster](#adding-nodes-to-the-cluster), use `tctl` to
 create a single-use token for a node, but this time you'll replace the auth
-server IP with the URL of the Proxy Server. In the Example below, we've
-replaced the auth server IP with the Proxy web endpoint `teleport.example.com`.
+server IP with the URL of the proxy server. In the example below, we've
+replaced the auth server IP with the proxy web endpoint `teleport-proxy.example.com:3080`.
 
 ``` bash
 $ sudo tctl nodes add
 
 The invite token: n92bb958ce97f761da978d08c35c54a5c
 Run this on the new node to join the cluster:
-teleport start --roles=node --token=n92bb958ce97f761da978d08c35c54a5c --auth-server=teleport-proxy.example.com
+teleport start --roles=node --token=n92bb958ce97f761da978d08c35c54a5c --auth-server=teleport-proxy.example.com:3080
 ```
 
 Using the ports in the default configuration, the node needs to be able to talk to ports 3080
 and 3024 on the proxy. Port 3080 is used to initially fetch the credentials (SSH and TLS certificates)
 and for discovery (where is the reverse tunnel running, in this case 3024). Port 3024 is used to
-establish a connection to the Auth Server through the proxy.
+establish a connection to the auth server through the proxy.
 
 To enable multiplexing so only one port is used, simply set the `tunnel_listen_addr` the same as the
 `web_listen_addr` respectively within the `proxy_service`.  Teleport will automatically recognize using the same port and enable multiplexing. If the log setting is set to DEBUG you will see multiplexing enabled in the server log.
+
 ```bash
 DEBU [PROC:1]    Setup Proxy: Reverse tunnel proxy and web proxy listen on the same port, multiplexing is on. service/service.go:1944
 ```
+
+!!! tip "Load Balancers"
+
+    The setup above also works even if the cluster uses multiple proxies behind
+    a load balancer (LB) or a DNS entry with multiple values.  This works by
+    the node establishing a tunnel to _every_ proxy. This requires that an LB
+    uses round-robin or a similar balancing algorithm. Do not use sticky load
+    balancing algorithms (a.k.a. "session affinity") with Teleport proxies.
 
 ## Labeling Nodes
 
@@ -792,10 +818,10 @@ the audit log:
    replayed later. The recording is done by the nodes themselves, by default,
    but can be configured to be done by the proxy.
 
-3. **Optional: Enhanced Session Recording**
+3. **Optional: [Enhanced Session Recording](features/enhanced-session-recording.md)**
 
 Refer to the ["Audit Log" chapter in the Teleport
-Architecture](architecture/teleport_auth.md#audit-log) to learn more about how the audit log and
+Architecture](architecture/authentication.md#audit-log) to learn more about how the audit log and
 session recording are designed.
 
 ### SSH Events
@@ -804,12 +830,12 @@ Teleport supports multiple storage back-ends for storing the SSH events. The
 section below uses the `dir` backend as an example. `dir` backend uses the local
 filesystem of an auth server using the configurable `data_dir` directory.
 
-For highly available (HA) configuration, users can refer to our
-[DynamoDB](#using-dynamodb) or [etcd](#using-etcd) chapters on how to configure
-the SSH events and recorded sessions to be stored on network storage. It is even
-possible to store the audit log in multiple places at the same time, see
-`audit_events_uri` setting in the sample configuration file above for how to do
-that.
+For highly available (HA) configurations, users can refer to our
+[DynamoDB](#using-dynamodb) or [Firestore](#using-firestore) chapters for information
+on how to configure the SSH events and recorded sessions to be stored on
+network storage. It is even possible to store the audit log in multiple places at the
+same time - see `audit_events_uri` setting in the sample configuration file above for
+how to do that.
 
 Let's examine the Teleport audit log using the `dir` backend. The event log is
 stored in `data_dir` under `log` directory, usually `/var/lib/teleport/log` .
@@ -899,138 +925,6 @@ To replay this session via CLI:
 ``` bash
 $ tsh --proxy=proxy play 4c146ec8-eab6-11e6-b1b3-40167e68e931
 ```
-
-### Recording Proxy Mode
-
-See [Audit Log Architecture](architecture/teleport_auth.md#audit-log) to understand how the
-session recording works. By default, the recording is not available if a cluster
-runs `sshd` (the OpenSSH daemon) on the nodes.
-
-To enable session recording for `sshd` nodes, the cluster must be switched to
-["recording proxy" mode](architecture/teleport_proxy.md#recording-proxy-mode).
-In this mode, the recording will be done on the proxy level:
-
-``` yaml
-# snippet from /etc/teleport.yaml
-auth_service:
-   session_recording: "proxy"  # can also be "off" and "node" (default)
-```
-
-Next, `sshd` must be told to allow users to log in with certificates generated
-by the Teleport User CA. Start by exporting the Teleport CA public key:
-
-``` bash
-$ tctl auth export --type=user
-```
-
-To allow access to a single user, copy the above output to
-`~/.ssh/authorized_keys` . To apply this for all users, remove "cert-authority"
-from the start of [ `tctl` ](cli-docs.md#tctl) output and copy it to
-`/etc/ssh/teleport_user_ca.pub` .
-
-Add the following line to `/etc/ssh/sshd_config` :
-
-``` yaml
-TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub
-```
-
-Now `sshd` will trust users who present a Teleport-issued certificate. The next
-step is to configure host authentication.
-
-When in recording mode, Teleport will check that the host certificate of the
-node a user connects to is signed by a Teleport CA. By default this is a strict
-check. If the node presents just a key, or a certificate signed by a different
-CA, Teleport will reject this connection with the error message saying _"ssh:
-handshake failed: remote host presented a public key, expected a host
-certificate"_
-
-You can disable strict host checks as shown below. However, this opens the
-possibility for Man-in-the-Middle (MITM) attacks and is not recommended.
-
-``` yaml
-# snippet from /etc/teleport.yaml
-auth_service:
-  proxy_checks_host_keys: no
-```
-
-The recommended solution is to ask Teleport to issue valid host certificates for
-all OpenSSH nodes. To generate a host certificate run this on your auth server:
-
-``` bash
-$ tctl auth sign \
-      --host=node.example.com \
-      --format=openssh
-```
-
-Then add the following lines to `/etc/ssh/sshd_config` and restart sshd.
-
-``` yaml
-HostKey /etc/ssh/teleport_host_key
-HostCertificate /etc/ssh/teleport_host_key-cert.pub
-```
-
-Now you can use [ `tsh ssh user@host.example.com` ](cli-docs.md#tsh) to login
-into any `sshd` node in the cluster and the session will be recorded. If you
-want to use OpenSSH `ssh` client for logging into `sshd` servers behind a proxy
-in "recording mode", you have to tell the `ssh` client to use the jump host and
-enable the agent forwarding, otherwise a recording proxy will not be able to
-terminate the SSH connection to record it:
-
-``` bash
-# Note that agent forwarding is enabled twice: one from a client to a proxy
-# (mandatory if using a recording proxy), and then optionally from a proxy
-# to the end server if you want your agent running on the end server or not
-$ ssh -o "ForwardAgent yes" \
-    -o "ProxyCommand ssh -o 'ForwardAgent yes' -p 3023 %r@p.example.com -s proxy:%h:%p" \
-    user@host.example.com
-```
-
-!!! tip "Tip"
-
-    To avoid typing all this and use the usual `ssh
-    user@host.example.com `, users can update their ` ~/.ssh/config` file. See
-    "Using Teleport with OpenSSH" chapter for more examples.
-
-**IMPORTANT**
-
-It's important to remember that SSH agent forwarding must be enabled on the
-client. Verify that a Teleport certificate is loaded into the agent after
-logging in:
-
-``` bsh
-# Login as Joe
-$ tsh login --proxy=proxy.example.com joe
-# see if the certificate is present (look for "teleport:joe") at the end of the cert
-$ ssh-add -L
-```
-
-!!! warning "GNOME Keyring SSH Agent and GPG Agent"
-
-    It is well-known that Gnome Keyring SSH agent, used by many popular Linux
-    desktops like Ubuntu, and gpg-agent from GnuPG do not support SSH
-    certificates. We recommend using the `ssh-agent` from OpenSSH.
-    Alternatively, you can disable SSH agent integration entirely using
-    `--no-use-local-ssh-agent` flag or `TELEPORT_USE_LOCAL_SSH_AGENT=false`
-    environment variable with `tsh`.
-
-### OpenSSH Rate Limiting
-
-When using a Teleport proxy in "recording mode", be aware of OpenSSH built-in
-rate limiting. On large number of proxy connections you may encounter errors
-like:
-
-``` bash
-channel 0: open failed: connect failed: ssh: handshake failed: EOF
-```
-
-See `MaxStartups` setting in `man sshd_config` . This setting means that by
-default OpenSSH only allows 10 unauthenticated connections at a time and starts
-dropping connections 30% of the time when the number of connections goes over 10
-and when it hits 100 authentication connections, all new connections are
-dropped.
-
-To increase the concurrency level, increase the value to something like
-MaxStartups 50:30:100. This allows 50 concurrent connections and a max of 100.
 
 ## Resources
 
@@ -1122,7 +1016,7 @@ Here's the list of resources currently exposed via [ `tctl` ](cli-docs.md#tctl) 
 | node          | A registered SSH node. The same record is displayed via `tctl nodes ls` |
 | cluster       | A trusted cluster. See [here](#trusted-clusters) for more details on connecting clusters together.|
 | role          | A role assumed by users. The open source Teleport only includes one role: "admin", but Enterprise teleport users can define their own roles.|
-| connector     | Authentication connectors for [single sign-on](enterprise/sso/ssh_sso.md) (SSO) for SAML, OIDC and Github.|
+| connector     | Authentication connectors for [single sign-on](enterprise/sso/ssh-sso.md) (SSO) for SAML, OIDC and Github.|
 
 **Examples:**
 
@@ -1153,7 +1047,7 @@ $ tctl rm users/admin
 
 ## Trusted Clusters
 
-As explained in the [architecture document](architecture/teleport_architecture_overview.md#design-principles),
+As explained in the [architecture document](architecture/overview.md#design-principles),
 Teleport can partition compute infrastructure into multiple clusters. A cluster
 is a group of nodes connected to the cluster's auth server, acting as a
 certificate authority (CA) for all users and nodes.
@@ -1168,239 +1062,19 @@ multiple clusters together and establish trust between them. Trusted clusters
 allow users of one cluster to seamlessly SSH into the nodes of another cluster
 without having to "hop" between proxy servers. Moreover, users don't even need
 to have a direct connection to other clusters' proxy servers. Trusted clusters
-also have their own restrictions on user access. The user experience looks like
-this:
+also have their own restrictions on user access.
 
-``` bash
-# login using the "main" cluster credentials:
-$ tsh login --proxy=main.example.com
-
-# SSH into some host inside the "main" cluster:
-$ tsh ssh host
-
-# SSH into the host located in another cluster called "east"
-# The connection is established through main.example.com:
-$ tsh ssh --cluster=east host
-
-# See what other clusters are available
-$ tsh clusters
-```
-
-### Selecting the Default Cluster
-
-To avoid using `--cluster` switch with [ `tsh` ](cli-docs.md#tsh) commands, you
-can also specify which trusted cluster you want to become the default from the
-start:
-
-``` bash
-# login into "main" but request "east" to be the default for subsequent
-# tsh commands:
-$ tsh login --proxy=main.example.com east
-```
-
-### Connectivity
-
-The design of trusted clusters allows Teleport users to connect to compute
-infrastructure located behind firewalls without any open TCP ports. The real
-world usage examples of this capability include:
-
-* Managed service providers (MSP) remotely managing infrastructure of their
-  clients.
-
-* Device manufacturers remotely maintaining computing appliances deployed on
-  premises.
-
-* Large cloud software vendors manage multiple data centers using a common
-  proxy.
-
-Let's take a look at how a connection is established between the "main" cluster
-and the "east" cluster:
-
-![Tunnels](img/tunnel.svg)
-
-This setup works as follows:
-
-1. The "east" creates an outbound reverse SSH tunnel to "main" and keeps the
-   tunnel open.
-
-2. **Accessibility only works in one direction.** The "east" cluster allows
-   users from "main" to access its nodes but users in the "east" cluster can not
-   access the "main" cluster.
-
-3. When a user tries to connect to a node inside "east" using main's proxy, the
-   reverse tunnel from step 1 is used to establish this connection shown as the
-   green line above.
-
-!!! tip "Load Balancers"
-
-    The scheme above also works even if the "main" cluster
-    uses multiple proxies behind a load balancer (LB) or a DNS entry with
-    multiple values. This works by "east" establishing a tunnel to _every_ proxy
-    in "main", assuming that an LB uses round-robin or a similar non-sticky
-    balancing algorithm.
-
-### Example Configuration
-
-Connecting two clusters together is similar to [adding
-nodes](#adding-nodes-to-the-cluster):
-
-1. Generate an invitation token on "main" cluster, or use a pre-defined static
-   token.
-
-2. On the "east" side, create a trusted cluster [resource](#resources).
-
-**Creating a Cluster Join Token**
-
-Just like with adding nodes, you can use either a static cluster token defined
-in `/etc/teleport.yaml` or you can generate an auto-expiring token:
-
-To define a static cluster join token using the configuration file on "main":
-
-``` yaml
-# fragment of /etc/teleport.yaml:
-auth_service:
-  enabled: true
-  tokens: trusted_cluster:secret-token-to-add-new-clusters
-```
-
-If you wish to use auto-expiring cluster tokens, execute this CLI command on the
-"main" side:
-
-``` bash
-$ tctl tokens add --type=trusted_cluster
-The cluster invite token: generated-token-to-add-new-clusters
-```
-
-**Using a Cluster Join Token**
-
-Now, the administrator of "east" must create the following resource file:
-
-``` yaml
-# cluster.yaml
-kind: trusted_cluster
-version: v2
-metadata:
-  # the trusted cluster name MUST match the 'cluster_name' setting of the
-  # cluster
-  name: main
-spec:
-  # this field allows to create tunnels that are disabled, but can be enabled later.
-  enabled: true
-  # the token expected by the "main" cluster:
-  token: secret-token-to-add-new-clusters
-  # the address in 'host:port' form of the reverse tunnel listening port on the
-  # "main" proxy server:
-  tunnel_addr: main.example.com:3024
-  # the address in 'host:port' form of the web listening port on the
-  # "main" proxy server:
-  web_proxy_addr: main.example.com:3080
-  # the role mapping allows to map user roles from one cluster to another
-  # (enterprise editions of Teleport only)
-  role_map:
-    - remote: "admin"    # users who have "admin" role on "main"
-      local: ["auditor"] # will be assigned "auditor" role when logging into "east"
-```
-
-Then, use [ `tctl create` ](cli-docs.md#tctl-create) to add the file:
-
-``` bash
-$ tctl create cluster.yaml
-```
-
-At this point the users of the main cluster should be able to see "east" in the
-list of available clusters.
-
-!!! warning "HTTPS configuration"
-
-    If the `web_proxy_addr` endpoint of the main
-    cluster uses a self-signed or invalid HTTPS certificate, you will get an
-    error: _"the trusted cluster uses misconfigured HTTP/TLS certificate"_. For
-    ease of testing the teleport daemon of "east" can be started with
-    `--insecure` CLI flag to accept self-signed certificates. Make sure to configure
-    HTTPS properly and remove the insecure flag for production use.
-
-### Using Trusted Clusters
-
-As mentioned above, accessibility is only granted in one direction. So, only
-users from the "main" (trusted cluster) can now access nodes in the "east"
-(trusting cluster). Users in the "east" cluster will not be able to access the
-"main" cluster.
-
-``` bash
-# login into the main cluster:
-$ tsh --proxy=proxy.main login joe
-
-# see the list of available clusters
-$ tsh clusters
-
-Cluster Name   Status
-------------   ------
-main           online
-east           online
-
-# see the list of machines (nodes) behind the eastern cluster:
-$ tsh ls --cluster=east
-
-Node Name Node ID            Address        Labels
---------- ------------------ -------------- -----------
-db1.east  cf7cc5cd-935e-46f1 10.0.5.2:3022  role=db-leader
-db2.east  3879d133-fe81-3212 10.0.5.3:3022  role=db-worker
-
-# SSH into any node in "east":
-$ tsh ssh --cluster=east root@db1.east
-```
-
-### Disabling Trust
-
-To temporarily disable trust between clusters, i.e.to disconnect the "east"
-cluster from "main", edit the YAML definition of the trusted cluster resource
-and set `enabled` to "false", then update it:
-
-``` bash
-$ tctl create --force cluster.yaml
-```
-
-If you want to _permanently_ disconnect one cluster from the other:
-
-``` bash
-# execute this command on "main" side to disconnect "east":
-$ tctl rm tc/east
-```
-
-While accessibility is only granted in one direction, trust is granted in both
-directions. If you remove "east" from "main", the following will happen:
-
-* Two clusters will be disconnected, because "main" will drop the inbound SSH
-  tunnel connection from "east" and will not allow a new one.
-
-* "main" will stop trusting certificates issued by "east".
-* "east" will continue to trust certificates issued by "main".
-
-If you wish to permanently remove all trust relationships and the connections
-between both clusters:
-
-``` bash
-# execute on "main":
-$ tctl rm tc/east
-# execute on "east":
-$ tctl rm tc/main
-```
-
-### Advanced Configuration
-
-Take a look at [Trusted Clusters Guide](trustedclusters.md) to learn more about
-advanced topics:
-
-* Using dynamic cluster join tokens instead of pre-defined static tokens for
-  enhanced security.
-
-* Defining role-mapping between clusters (Teleport Enterprise only).
+To learn more about Trusted Clusters please visit our [Trusted Cluster Guide](trustedclusters.md)
 
 ## Github OAuth 2.0
 
 Teleport supports authentication and authorization via external identity
-providers such as Github. First, the Teleport auth service must be configured to
-use Github for authentication:
+providers such as Github. You can watch the video for how to configure
+[Github as an SSO provider](https://gravitational.com/resources/guides/github-sso-provider-kubernetes-ssh/),
+or you can follow the documentation below.
+
+First, the Teleport auth service must be configured to use Github for
+authentication:
 
 ``` yaml
 # snippet from /etc/teleport.yaml
@@ -1452,8 +1126,7 @@ how to [create and register an OAuth
 app](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/).
 Be sure to set the "Authorization callback URL" to the same value as
 `redirect_url` in the resource spec. Teleport will request only the `read:org`
-OAuth scope, you can read more about Github scopes
-[here](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/).
+OAuth scope, you can read more about [Github OAuth scopes](https://developer.github.com/apps/building-oauth-apps/understanding-scopes-for-oauth-apps/).
 
 Finally, create the connector using [ `tctl` ](cli-docs.md#tctl)
 [resource](#resources) management command:
@@ -1536,150 +1209,11 @@ own PAM service file like `/etc/pam.d/teleport` and specifying it as
 
 ## Using Teleport with OpenSSH
 
-Teleport is a standards-compliant SSH proxy and it can work in environments with
-existing SSH implementations, such as OpenSSH. This section will cover:
-
-* Configuring OpenSSH client `ssh` to login into nodes inside a Teleport
-  cluster.
-* Configuring OpenSSH server `sshd` to join a Teleport cluster.
-
-### Using OpenSSH Client
-
-It is possible to use the OpenSSH client `ssh` to connect to nodes within a
-Teleport cluster. Teleport supports SSH subsystems and includes a `proxy`
-subsystem that can be used like `netcat` is with `ProxyCommand` to connect
-through a jump host.
-
-First, you need to export the cluster certificate authority. This has to be
-done on a node which runs Teleport auth server:
-
-``` bash
-$ tctl auth export --type=host > cluster_host_ca
-```
-
-``` bash
-$ cat cluster_host_ca
-@cert-authority *.graviton-auth ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDLNduBoHQaqi+kgkq3gLYjc6JIyBBnCFLgm63b5rtmWl/CJD7T9HWHxZphaS1jra6CWdboLeTp6sDUIKZ/Qw1MKFlfoqZZ8k6to43bxx7DvAHs0Te4WpuS/YRmWFhb6mMVOa8Rd4/9jE+c0f9O/t7X4m5iR7Fp7Tt+R/pjJfr03Loi6TYP/61AgXD/BkVDf+IcU4+9nknl+kaVPSGcPS9/Vbni1208Q+VN7B7Umy71gCh02gfv3rBGRgjT/cRAivuVoH/z3n5UwWg+9R3GD/l+XZKgv+pfe3OHoyDFxYKs9JaX0+GWc504y3Grhos12Lb8sNmMngxxxQ/KUDOV9z+R type=host
-```
-
-!!! tip "Note"
-
-    When sharing the @cert-authority make sure that the URL for the
-    proxy is correct. In the above example, `*.graviton-auth` should be changed to
-    teleport.example.com.
-
-On your client machine, you need to import these keys. It will allow your
-OpenSSH client to verify that host's certificates are signed by the trusted CA
-key:
-
-``` yaml
-$ cat cluster_host_ca >> ~/.ssh/known_hosts
-```
-
-If you have multiple Teleport clusters, you have to export and set up these
-certificate authorities for each cluster individually.
-
-!!! tip "Proxy recording mode"
-
-    If you use [recording proxy mode](#recording-proxy-mode) and [trusted
-    clusters](#trusted-clusters), you need to set up certificate authority from
-    the _root_ cluster to match **all** nodes, even those that belong to _leaf_
-    clusters. For example, if your node naming scheme is `*.root.example.com`,
-    `*.leaf1.example.com`, `*.leaf2.example.com`, then the
-    `@certificate-authority` entry should match `*.example.com` and use the CA
-    from the root auth server only.
-
-Make sure you are running OpenSSH's `ssh-agent` , and have logged in to the
-Teleport proxy:
-
-``` bash
-$ eval `ssh-agent`
-$ tsh --proxy=work.example.com login
-```
-
-`ssh-agent` will print environment variables into the console. Either `eval` the
-output as in the example above, or copy and paste the output into the shell you
-will be using to connect to a Teleport node. The output exports the
-`SSH_AUTH_SOCK` and `SSH_AGENT_PID` environment variables that allow OpenSSH
-clients to find the SSH agent.
-
-Lastly, configure the OpenSSH client to use the Teleport proxy when connecting
-to nodes with matching names. Edit `~/.ssh/config` for your user or
-`/etc/ssh/ssh_config` for global changes:
-
-``` bash
-# work.example.com is the jump host (proxy). credentials will be obtained from the
-# openssh agent.
-Host work.example.com
-    HostName 192.168.1.2
-    Port 3023
-
-# connect to nodes in the work.example.com cluster through the jump
-# host (proxy) using the same. credentials will be obtained from the
-# openssh agent.
-Host *.work.example.com
-    HostName %h
-    Port 3022
-    ProxyCommand ssh -p 3023 %r@work.example.com -s proxy:%h:%p
-
-# when connecting to a node within a trusted cluster with name "remote-cluster",
-# add the name of the cluster to the invocation of the proxy subsystem.
-Host *.remote-cluster.example.com
-   HostName %h
-   Port 3022
-   ProxyCommand ssh -p 3023 %r@work.example.com -s proxy:%h:%p@remote-cluster
-```
-
-When everything is configured properly, you can use ssh to connect to any node
-behind `work.example.com` :
-
-``` bash
-$ ssh root@database.work.example.com
-```
-
-!!! tip "Note"
-
-    Teleport uses OpenSSH certificates instead of keys which means
-    you can not connect to a Teleport node by IP address. You have to connect by
-    DNS name. This is because OpenSSH ensures the DNS name of the node you are
-    connecting is listed under the `Principals` section of the OpenSSH
-    certificate to verify you are connecting to the correct node.
-
-### Integrating with OpenSSH Servers
-
-Existing `sshd` servers can be added to a Teleport cluster. For that to work,
-you have to configure `sshd` to trust the Teleport CA.
-
-Export the Teleport CA certificate into a file:
-
-``` bash
-$ tctl auth export --type=user > teleport-user-ca.pub
-```
-
-To allow access per-user, append the contents of `teleport-user-ca.pub` to
-`~/.ssh/authorized_keys` .
-
-To allow access for all users:
-
-  + Edit `teleport-user-ca.pub` and remove `cert-authority` from the start of
-    line.
-
-  + Copy `teleport-user-ca.pub` to `/etc/ssh/teleport-user-ca.pub`
-  + Update `sshd` configuration (usually `/etc/ssh/sshd_config` ) to point to
-    this file: `TrustedUserCAKeys /etc/ssh/teleport-user-ca.pub`
-
-To connect to the OpenSSH server via `tsh`, add `--port=<ssh port>` with the `tsh ssh` command:
-
-Example ssh to `database.work.example.com` as `root` with a OpenSSH server on port 22 via `tsh`:
-   tsh ssh --port=22 root@database.work.example.com
-
-!!! warning "Warning"
-
-    The principal (username) being used to connect must be listed in the Teleport user/role configuration.
+Review our dedicated [Using Teleport with OpenSSH](openssh-teleport.md) guide.
 
 ## Certificate Rotation
 
-Take a look at the [Certificates chapter](architecture/teleport_auth.md#authentication-in-teleport) in the
+Take a look at the [Certificates chapter](architecture/authentication.md#authentication-in-teleport) in the
 architecture document to learn how the certificate rotation works. This section
 will show you how to implement certificate rotation in practice.
 
@@ -1722,14 +1256,6 @@ To check the status of certificate rotation:
 $ tctl status
 ```
 
-!!! danger "Version Warning"
-
-    Certificate rotation can only be used with
-    clusters running version 2.6 of Teleport or newer. If trusted clusters are
-    used, make sure _all_ connected clusters are running version 2.6+. If one of
-    the trusted clusters is running an older version of Teleport the
-    trust/connection to that cluster will be lost.
-
 !!! warning "CA Pinning Warning"
 
     If you are using [CA Pinning](#untrusted-auth-servers) when adding new
@@ -1756,87 +1282,15 @@ This allows users to authenticate against a Teleport proxy using [`tsh
 login`](cli-docs.md#tsh) command to retrieve credentials for both SSH and
 Kubernetes API.
 
-Below is a high-level diagram of how Teleport can be deployed in front of a
-Kubernetes cluster:
-
-![teleport-ssh-kubernetes-integration](img/teleport-kubernetes-outside.svg)
-
-For more detailed information, please take a look at [Kubernetes Integration
-with SSH](admin-guide.md#kubernetes-integration) section in the Architecture
-chapter.
-
-In the scenario illustrated above a user would execute the following commands:
-
-``` bash
-# Authentication step to retrieve the certificates. tsh login places the SSH
-# certificate into `~/.tsh` as usual and updates kubeconfig with Kubernetes
-# credentials:
-$ tsh --proxy=teleport.example.com login
-
-# You can execute SSH commands on your local client to access SSH nodes:
-$ tsh ssh login@ssh-node
-
-# You can also execute any kubectl commands on your local client to access the Kubernetes cluster:
-$ kubectl get pods
-```
-
-### Kubernetes/Teleport Configuration
-
-To enable the Kubernetes integration, first configure the Teleport proxy service
-as follows:
-
-``` yaml
-# snippet from /etc/teleport.yaml on the Teleport proxy service:
-proxy_service:
-    # create the 'kubernetes' section and set enabled to "yes" (it's "no" by default):
-    kubernetes:
-        enabled: yes
-        # public_addr can be a scalar or list. this is the address seen as
-        # "Kubernetes API endpoint" from the outside. if you are using a load-balancer
-        # in front of several proxies, you have to use LB's address here:
-        public_addr: [teleport-k8s-proxy.example.com:3026]
-        # the listen address is what Teleport/Kubernetes proxy will listen on:
-        listen_addr: localhost:3026
-        # optional. see below.
-        kubeconfig_file: /path/to/kubeconfig
-```
-
-To make this work, the Teleport proxy server must be able to access a Kubernetes
-API endpoint. This can be done either by:
-
-* Deploying the proxy service inside a Kubernetes pod.
-* Deploying the proxy service outside Kubernetes, adding a valid `kubeconfig` setting to the configuration file as shown above.
-
-When adding new local users you have to specify which Kubernetes groups they
-belong to:
-
-``` bash
-$ tctl users add joe --k8s-groups="system:masters"
-```
-
-!!! tip "NOTE"
-
-    The above command is for the Teleport OSS version. Teleport Enterprise customers
-    manage `k8s-groups` through RBAC.
-
-If using Teleport Community SSO with Github, Kubernetes groups can be assigned
-to Github teams with a Teleport connector. See example above in [Github OAuth
-2.0 Example](#github-oauth-20) for more information on how to setup Github SSO
-with Teleport.
-
-If using Teleport Enterprise SSO with enterprise-grade identity providers (using
-SAML, OIDC and Active Directory), `kubernetes_groups` are assigned to Teleport
-Roles as shown in the Teleport Enterprise [RBAC](enterprise/ssh_rbac.md#roles) section.
-
-You may also find it useful to read our [Kubernetes guide](kubernetes_ssh.md)
-which contains some more specific examples and instructions.
+Follow our [Kubernetes guide](kubernetes-ssh.md) which contains some more specific
+examples and instructions.
 
 ## High Availability
 
 !!! tip "Tip"
 
     Before continuing, please make sure to take a look at the
-    [Cluster State section](architecture/teleport_nodes.md#cluster-state) in the Teleport
+    [Cluster State section](architecture/nodes.md#cluster-state) in the Teleport
     Architecture documentation.
 
 Usually there are two ways to achieve high availability. You can "outsource"
@@ -1884,8 +1338,10 @@ Teleport will handle its own SSL on top of that with its own certificates.
     balancer you'll need to run Teleport with `--insecure-no-tls`
 
 If your load balancer supports HTTP health checks, configure it to hit the
-`/webapi/ping` endpoint on the proxy. This endpoint will reply `200 OK` if the
-proxy is running without problems.
+`/readyz` [diagnostics endpoint](metrics-logs-reference.md) on machines running Teleport. This endpoint
+must be enabled by using the `--diag-addr` flag to teleport start: `teleport start --diag-addr=127.0.0.1:3000`
+The http://127.0.0.1:3000/readyz endpoint will reply `{"status":"ok"}` if the Teleport service
+is running without problems.
 
 !!! tip "NOTE"
 
@@ -1895,7 +1351,7 @@ proxy is running without problems.
     `/var/lib/teleport/authservers.json` - the values from the cache file will take
     precedence over the configuration file.
 
-We'll cover how to use `etcd` and `DynamoDB` storage back-ends to make Teleport
+We'll cover how to use `etcd`, DynamoDB and Firestore storage back-ends to make Teleport
 highly available below.
 
 ### Using etcd
@@ -1904,6 +1360,13 @@ Teleport can use [etcd](https://etcd.io/) as a storage backend to
 achieve highly available deployments. You must take steps to protect access to
 `etcd` in this configuration because that is where Teleport secrets like keys
 and user records will be stored.
+
+!!! warning "IMPORTANT"
+
+    `etcd` can only currently be used to store Teleport's internal database in a highly-available
+    way. This will allow you to have multiple auth servers in your cluster for an HA deployment,
+    but it will not also store Teleport audit events for you in the same way that
+    [DynamoDB](#using-dynamodb) or [Firestore](#using-firestore) will.
 
 To configure Teleport for using etcd as a storage back-end:
 
@@ -1950,8 +1413,9 @@ teleport:
      username: username
      password_file: /mnt/secrets/etcd-pass
 
-     # etcd key (location) where teleport will be storing its state under:
-     prefix: teleport
+     # etcd key (location) where teleport will be storing its state under.
+     # make sure it ends with a '/'!
+     prefix: /teleport/
 
      # NOT RECOMMENDED: enables insecure etcd mode in which self-signed
      # certificate will be accepted
@@ -1963,7 +1427,7 @@ teleport:
 !!! tip "Tip"
 
     Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/teleport_nodes.md#cluster-state) in Teleport
+    [cluster state section](architecture/nodes.md#cluster-state) in Teleport
     Architecture documentation.
 
 !!! tip "AWS Authentication"
@@ -2001,7 +1465,7 @@ running on an EC2 instance with an IAM role.
 !!! tip "Tip"
 
     Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/teleport_nodes.md#cluster-state) in Teleport Architecture documentation.
+    [cluster state section](architecture/nodes.md#cluster-state) in Teleport Architecture documentation.
 
 If you are running Teleport on AWS, you can use
 [DynamoDB](https://aws.amazon.com/dynamodb/) as a storage back-end to achieve
@@ -2034,10 +1498,12 @@ teleport:
     table_name: Example_TELEPORT_DYNAMO_TABLE_NAME
 
     # This setting configures Teleport to send the audit events to three places:
-    # To keep a copy on a local filesystem, in DynamoDB and to Stdout.
+    # To keep a copy in DynamoDB, a copy on a local filesystem, and also output the events to stdout.
     # NOTE: The DynamoDB events table has a different schema to the regular Teleport
     # database table, so attempting to use same table for both will result in errors.
-    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'dynamodb://events_table_name', 'stdout://']
+    # When using highly available storage like DynamoDB, you should make sure that the list always specifies
+    # the HA storage method first, as this is what the Teleport web UI uses as its source of events to display.
+    audit_events_uri:  ['dynamodb://events_table_name', 'file:///var/lib/teleport/audit/events', 'stdout://']
 
     # This setting configures Teleport to save the recorded sessions in an S3 bucket:
     audit_sessions_uri: s3://Example_TELEPORT_S3_BUCKET/records
@@ -2088,7 +1554,7 @@ teleport:
 !!! tip "Tip"
 
     Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/teleport_nodes.md#cluster-state) in Teleport
+    [cluster state section](architecture/nodes.md#cluster-state) in Teleport
     Architecture documentation.
 
 
@@ -2111,7 +1577,7 @@ teleport:
 !!! tip "Tip"
 
     Before continuing, please make sure to take a look at the
-    [cluster state section](architecture/teleport_nodes.md#cluster-state) in Teleport Architecture documentation.
+    [cluster state section](architecture/nodes.md#cluster-state) in Teleport Architecture documentation.
 
 If you are running Teleport on GCP, you can use
 [Firestore](https://cloud.google.com/firestore/) as a storage back-end to achieve
@@ -2145,10 +1611,12 @@ teleport:
     credentials_path: /var/lib/teleport/gcs_creds
 
     # This setting configures Teleport to send the audit events to three places:
-    # To keep a copy on a local filesystem, in Firestore and to Stdout.
+    # To keep a copy in Firestore, a copy on a local filesystem, and also write the events to stdout.
     # NOTE: The Firestore events table has a different schema to the regular Teleport
     # database table, so attempting to use same table for both will result in errors.
-    audit_events_uri:  ['file:///var/lib/teleport/audit/events', 'firestore://Example_TELEPORT_FIRESTORE_EVENTS_TABLE_NAME', 'stdout://']
+    # When using highly available storage like Firestore, you should make sure that the list always specifies
+    # the HA storage method first, as this is what the Teleport web UI uses as its source of events to display.
+    audit_events_uri:  ['firestore://Example_TELEPORT_FIRESTORE_EVENTS_TABLE_NAME', 'file:///var/lib/teleport/audit/events', 'stdout://']
 
     # This setting configures Teleport to save the recorded sessions in GCP storage:
     audit_sessions_uri: gs://Example_TELEPORT_S3_BUCKET/records
@@ -2380,7 +1848,7 @@ until existing clients disconnect.
 
 Commercial Teleport subscriptions require a valid license. The license file can
 be downloaded from the [Teleport Customer
-Portal](https://dashboard.gravitational.com).
+Portal](https://dashboard.gravitational.com/web/login).
 
 The Teleport license file contains a X.509 certificate and the corresponding
 private key in PEM format. Place the downloaded file on Auth servers and set the
@@ -2426,7 +1894,7 @@ Now you can see the monitoring information by visiting several endpoints:
 
 * `http://127.0.0.1:3000/metrics` is the list of internal metrics Teleport is
    tracking. It is compatible with [Prometheus](https://prometheus.io/)
-   collectors. For a full list of metrics review our [metrics reference](metrics_logs_reference.md).
+   collectors. For a full list of metrics review our [metrics reference](metrics-logs-reference.md).
 
 * `http://127.0.0.1:3000/healthz` returns "OK" if the process is healthy or
   `503` otherwise.
@@ -2442,6 +1910,6 @@ Now you can see the monitoring information by visiting several endpoints:
 
 If you need help, please ask on our [community forum](https://community.gravitational.com/). You can also open an [issue on Github](https://github.com/gravitational/teleport/issues).
 
-For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/).
+For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/web/login).
 
 For more information about custom features, or to try our [Enterprise edition](enterprise/introduction.md) of Teleport, please reach out to us at [sales@gravitational.com](mailto:sales@gravitational.com).

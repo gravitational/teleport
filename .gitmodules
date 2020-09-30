@@ -1,9 +1,6 @@
 [submodule "e"]
 	path = e
 	url = git@github.com:gravitational/teleport.e.git
-[submodule "examples/chart/teleport-demo/secrets"]
-	path = examples/chart/teleport-demo/secrets
-	url = git@github.com:gravitational/ops.git
 [submodule "webassets"]
 	path = webassets
 	url = https://github.com/gravitational/webassets.git

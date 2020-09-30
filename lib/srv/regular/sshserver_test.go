@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/pborman/uuid"
 
 	. "gopkg.in/check.v1"
 )
@@ -69,7 +70,9 @@ type SrvSuite struct {
 	user        string
 	server      *auth.TestTLSServer
 	proxyClient *auth.Client
+	proxyID     string
 	nodeClient  *auth.Client
+	nodeID      string
 	adminClient *auth.Client
 	testServer  *auth.TestAuthServer
 }
@@ -118,7 +121,13 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	s.testServer = authServer
 
 	// create proxy client used in some tests
-	s.proxyClient, err = s.server.NewClient(auth.TestBuiltin(teleport.RoleProxy))
+	s.proxyID = uuid.New()
+	s.proxyClient, err = s.server.NewClient(auth.TestIdentity{
+		I: auth.BuiltinRole{
+			Role:     teleport.RoleProxy,
+			Username: s.proxyID,
+		},
+	})
 	c.Assert(err, IsNil)
 
 	// admin client is for admin actions, e.g. creating new users
@@ -141,7 +150,13 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	s.signer, err = sshutils.NewSigner(certs.Key, certs.Cert)
 	c.Assert(err, IsNil)
 
-	s.nodeClient, err = s.server.NewClient(auth.TestBuiltin(teleport.RoleNode))
+	s.nodeID = uuid.New()
+	s.nodeClient, err = s.server.NewClient(auth.TestIdentity{
+		I: auth.BuiltinRole{
+			Role:     teleport.RoleNode,
+			Username: s.nodeID,
+		},
+	})
 	c.Assert(err, IsNil)
 
 	nodeDir := c.MkDir()
@@ -153,8 +168,9 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		nodeDir,
 		"",
 		utils.NetAddr{},
+		SetUUID(s.nodeID),
 		SetNamespace(defaults.Namespace),
-		SetAuditLog(s.nodeClient),
+		SetEmitter(s.nodeClient),
 		SetShell("/bin/sh"),
 		SetSessionServer(s.nodeClient),
 		SetPAMConfig(&pam.Config{Enabled: false}),
@@ -302,6 +318,39 @@ func (s *SrvSuite) TestAgentForwardPermission(c *C) {
 	output, err := se.Output("env")
 	c.Assert(err, IsNil)
 	c.Assert(strings.Contains(string(output), "SSH_AUTH_SOCK"), Equals, false)
+}
+
+// TestMaxSesssions makes sure that MaxSessions RBAC rules prevent
+// too many concurrent sessions.
+func (s *SrvSuite) TestMaxSessions(c *C) {
+	const maxSessions int64 = 2
+	ctx := context.Background()
+	// make sure the role does not allow agent forwarding
+	roleName := services.RoleNameForUser(s.user)
+	role, err := s.server.Auth().GetRole(roleName)
+	c.Assert(err, IsNil)
+	roleOptions := role.GetOptions()
+	roleOptions.MaxSessions = maxSessions
+	role.SetOptions(roleOptions)
+	err = s.server.Auth().UpsertRole(ctx, role)
+	c.Assert(err, IsNil)
+
+	for i := int64(0); i < maxSessions; i++ {
+		se, err := s.clt.NewSession()
+		c.Assert(err, IsNil)
+		defer se.Close()
+	}
+
+	_, err = s.clt.NewSession()
+	c.Assert(err, NotNil)
+	c.Assert(strings.Contains(err.Error(), "too many session channels"), Equals, true)
+
+	// verfiy that max sessions does not affect max connections.
+	for i := int64(0); i <= maxSessions; i++ {
+		clt, err := ssh.Dial("tcp", s.srv.Addr(), s.cltConfig)
+		c.Assert(err, IsNil)
+		c.Assert(clt.Close(), IsNil)
+	}
 }
 
 // TestOpenExecSessionSetsSession tests that OpenExecSession()
@@ -662,6 +711,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 		DataDir:               c.MkDir(),
 		Component:             teleport.ComponentProxy,
+		Emitter:               s.proxyClient,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
@@ -674,10 +724,10 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		c.MkDir(),
 		"",
 		utils.NetAddr{},
-		SetUUID(hostID),
+		SetUUID(s.proxyID),
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(s.proxyClient),
-		SetAuditLog(s.nodeClient),
+		SetEmitter(s.nodeClient),
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
@@ -689,17 +739,19 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	up, err := s.newUpack(s.user, []string{s.user}, wildcardAllow)
 	c.Assert(err, IsNil)
 
-	agentPool, err := reversetunnel.NewAgentPool(reversetunnel.AgentPoolConfig{
-		Client:      s.proxyClient,
-		HostSigners: []ssh.Signer{proxySigner},
-		HostUUID:    fmt.Sprintf("%v.%v", hostID, s.server.ClusterName()),
-		AccessPoint: s.proxyClient,
-		Component:   teleport.ComponentProxy,
+	rcWatcher, err := reversetunnel.NewRemoteClusterTunnelManager(reversetunnel.RemoteClusterTunnelManagerConfig{
+		AuthClient:          s.proxyClient,
+		HostSigner:          proxySigner,
+		HostUUID:            fmt.Sprintf("%v.%v", hostID, s.server.ClusterName()),
+		AccessPoint:         s.proxyClient,
+		ReverseTunnelServer: reverseTunnelServer,
+		LocalCluster:        s.server.ClusterName(),
 	})
 	c.Assert(err, IsNil)
 
-	err = agentPool.Start()
-	c.Assert(err, IsNil)
+	ctx := context.Background()
+	go rcWatcher.Run(ctx)
+	defer rcWatcher.Close()
 
 	// Create a reverse tunnel and remote cluster simulating what the trusted
 	// cluster exchange does.
@@ -711,7 +763,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	err = s.server.Auth().CreateRemoteCluster(remoteCluster)
 	c.Assert(err, IsNil)
 
-	err = agentPool.FetchAndSyncAgents()
+	err = rcWatcher.Sync(ctx)
 	c.Assert(err, IsNil)
 
 	// Wait for both sites to show up.
@@ -752,10 +804,10 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 			},
 		),
 		SetSessionServer(s.nodeClient),
-		SetAuditLog(s.nodeClient),
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
+		SetEmitter(s.nodeClient),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(err, IsNil)
@@ -803,7 +855,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	err = s.server.Auth().DeleteReverseTunnel(s.server.ClusterName())
 	c.Assert(err, IsNil)
 
-	err = agentPool.FetchAndSyncAgents()
+	err = rcWatcher.Sync(ctx)
 	c.Assert(err, IsNil)
 }
 
@@ -822,6 +874,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		NewCachingAccessPoint: auth.NoCache,
 		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 		DataDir:               c.MkDir(),
+		Emitter:               s.proxyClient,
 	})
 	c.Assert(err, IsNil)
 
@@ -837,7 +890,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		utils.NetAddr{},
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(s.proxyClient),
-		SetAuditLog(s.nodeClient),
+		SetEmitter(s.nodeClient),
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
@@ -856,7 +909,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		Addr:        reverseTunnelAddress,
 		ClusterName: "remote",
 		Username:    fmt.Sprintf("%v.%v", hostID, s.server.ClusterName()),
-		Signers:     []ssh.Signer{s.signer},
+		Signer:      s.signer,
 		Client:      s.proxyClient,
 		AccessPoint: s.proxyClient,
 		EventsC:     eventsC,
@@ -869,7 +922,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		Addr:        reverseTunnelAddress,
 		ClusterName: "remote",
 		Username:    fmt.Sprintf("%v.%v", hostID, s.server.ClusterName()),
-		Signers:     []ssh.Signer{s.signer},
+		Signer:      s.signer,
 		Client:      s.proxyClient,
 		AccessPoint: s.proxyClient,
 		EventsC:     eventsC,
@@ -923,6 +976,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		NewCachingAccessPoint: auth.NoCache,
 		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
 		DataDir:               c.MkDir(),
+		Emitter:               s.proxyClient,
 	})
 	c.Assert(err, IsNil)
 
@@ -936,7 +990,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		utils.NetAddr{},
 		SetProxyMode(reverseTunnelServer),
 		SetSessionServer(s.proxyClient),
-		SetAuditLog(s.nodeClient),
+		SetEmitter(s.nodeClient),
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
@@ -1046,7 +1100,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 		SetLimiter(limiter),
 		SetShell("/bin/sh"),
 		SetSessionServer(s.nodeClient),
-		SetAuditLog(s.nodeClient),
+		SetEmitter(s.nodeClient),
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),

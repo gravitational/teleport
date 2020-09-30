@@ -1166,7 +1166,7 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	c.Assert(forwarder.Close(), check.IsNil)
 
 	// start uploader process
-	eventsC := make(chan *events.UploadEvent, 100)
+	eventsC := make(chan events.UploadEvent, 100)
 	uploader, err := events.NewUploader(events.UploaderConfig{
 		ServerID:   "upload",
 		DataDir:    uploadDir,
@@ -1202,7 +1202,8 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 	history, err := clt.SearchEvents(from, to, "", 0)
 	c.Assert(err, check.IsNil)
 	c.Assert(history, check.NotNil)
-	c.Assert(len(history), check.Equals, 4)
+	// Extra event is the upload event
+	c.Assert(len(history), check.Equals, 5)
 
 	// try searching for only "session.end" events (real query)
 	history, err = clt.SearchEvents(from, to,

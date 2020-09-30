@@ -104,6 +104,9 @@ type Server struct {
 	// to the client.
 	hostCertificate ssh.Signer
 
+	// StreamEmitter points to the auth service and emits audit events
+	events.StreamEmitter
+
 	// authHandlers are common authorization and authentication handlers shared
 	// by the regular and forwarding server.
 	authHandlers *srv.AuthHandlers
@@ -128,7 +131,6 @@ type Server struct {
 	macAlgorithms []string
 
 	authClient      auth.ClientI
-	auditLog        events.IAuditLog
 	authService     auth.AccessPoint
 	sessionRegistry *srv.SessionRegistry
 	sessionServer   session.Service
@@ -139,6 +141,14 @@ type Server struct {
 	// hostUUID is the UUID of the underlying proxy that the forwarding server
 	// is running in.
 	hostUUID string
+
+	// closeContext and closeCancel are used to signal to the outside
+	// world that this server is closed
+	closeContext context.Context
+	closeCancel  context.CancelFunc
+
+	// parentContext is used to signal server closure
+	parentContext context.Context
 }
 
 // ServerConfig is the configuration needed to create an instance of a Server.
@@ -181,6 +191,13 @@ type ServerConfig struct {
 	// HostUUID is the UUID of the underlying proxy that the forwarding server
 	// is running in.
 	HostUUID string
+
+	// Emitter is audit events emitter
+	Emitter events.StreamEmitter
+
+	// ParentContext is a parent context, used to signal global
+	// closure
+	ParentContext context.Context
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -209,7 +226,12 @@ func (s *ServerConfig) CheckDefaults() error {
 	if s.Clock == nil {
 		s.Clock = clockwork.NewRealClock()
 	}
-
+	if s.Emitter == nil {
+		return trace.BadParameter("missing parameter Emitter")
+	}
+	if s.ParentContext == nil {
+		s.ParentContext = context.TODO()
+	}
 	return nil
 }
 
@@ -246,12 +268,13 @@ func New(c ServerConfig) (*Server, error) {
 		useTunnel:       c.UseTunnel,
 		address:         c.Address,
 		authClient:      c.AuthClient,
-		auditLog:        c.AuthClient,
 		authService:     c.AuthClient,
 		sessionServer:   c.AuthClient,
 		dataDir:         c.DataDir,
 		clock:           c.Clock,
 		hostUUID:        c.HostUUID,
+		StreamEmitter:   c.Emitter,
+		parentContext:   c.ParentContext,
 	}
 
 	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
@@ -273,9 +296,9 @@ func New(c ServerConfig) (*Server, error) {
 		}),
 		Server:      s,
 		Component:   teleport.ComponentForwardingNode,
-		AuditLog:    c.AuthClient,
 		AccessPoint: c.AuthClient,
 		FIPS:        c.FIPS,
+		Emitter:     c.Emitter,
 	}
 
 	// Common term handlers.
@@ -283,7 +306,17 @@ func New(c ServerConfig) (*Server, error) {
 		SessionRegistry: s.sessionRegistry,
 	}
 
+	// Create a close context that is used internally to signal when the server
+	// is closing and for any blocking goroutines to unblock.
+	s.closeContext, s.closeCancel = context.WithCancel(c.ParentContext)
+
 	return s, nil
+}
+
+// Context returns parent context, used to signal
+// that parent server has been closed
+func (s *Server) Context() context.Context {
+	return s.parentContext
 }
 
 // GetDataDir returns server local storage
@@ -318,27 +351,10 @@ func (s *Server) Component() string {
 	return teleport.ComponentForwardingNode
 }
 
-// EmitAuditEvent sends an event to the Audit Log.
-func (s *Server) EmitAuditEvent(event events.Event, fields events.EventFields) {
-	auditLog := s.GetAuditLog()
-	if auditLog != nil {
-		if err := auditLog.EmitAuditEvent(event, fields); err != nil {
-			s.log.Error(err)
-		}
-	} else {
-		s.log.Warn("SSH server has no audit log")
-	}
-}
-
 // PermitUserEnvironment is always false because it's up the the remote host
 // to decide if the user environment will be read or not.
 func (s *Server) PermitUserEnvironment() bool {
 	return false
-}
-
-// GetAuditLog returns the Audit Log for this cluster.
-func (s *Server) GetAuditLog() events.IAuditLog {
-	return s.auditLog
 }
 
 // GetAccessPoint returns an auth.AccessPoint for this cluster.
@@ -507,6 +523,9 @@ func (s *Server) Close() error {
 		}
 	}
 
+	// Signal to the outside world that this server is closed
+	s.closeCancel()
+
 	return trace.NewAggregate(errs...)
 }
 
@@ -615,15 +634,8 @@ func (s *Server) handleChannel(ctx context.Context, nch ssh.NewChannel) {
 	// Channels of type "session" handle requests that are involved in running
 	// commands on a server, subsystem requests, and agent forwarding.
 	case teleport.ChanSession:
-		ch, requests, err := nch.Accept()
-		if err != nil {
-			s.log.Warnf("Unable to accept channel: %v", err)
-			if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
-				s.log.Warnf("Failed to reject channel: %v", err)
-			}
-			return
-		}
-		go s.handleSessionRequests(ctx, ch, requests)
+		go s.handleSessionChannel(ctx, nch)
+
 	// Channels of type "direct-tcpip" handles request for port forwarding.
 	case teleport.ChanDirectTCPIP:
 		req, err := sshutils.ParseDirectTCPIPReq(nch.ExtraData())
@@ -666,6 +678,8 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	scx.DstAddr = fmt.Sprintf("%v:%d", req.Host, req.Port)
 	defer scx.Close()
 
+	ch = scx.TrackActivity(ch)
+
 	// Check if the role allows port forwarding for this user.
 	err = s.authHandlers.CheckPortForward(scx.DstAddr, scx)
 	if err != nil {
@@ -684,15 +698,26 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	}
 	defer conn.Close()
 
-	// Emit a port forwarding audit event.
-	s.EmitAuditEvent(events.PortForward, events.EventFields{
-		events.PortForwardAddr:    scx.DstAddr,
-		events.PortForwardSuccess: true,
-		events.EventLogin:         s.identityContext.Login,
-		events.EventUser:          s.identityContext.TeleportUser,
-		events.LocalAddr:          s.sconn.LocalAddr().String(),
-		events.RemoteAddr:         s.sconn.RemoteAddr().String(),
-	})
+	if err := s.EmitAuditEvent(s.closeContext, &events.PortForward{
+		Metadata: events.Metadata{
+			Type: events.PortForwardEvent,
+			Code: events.PortForwardCode,
+		},
+		UserMetadata: events.UserMetadata{
+			Login: s.identityContext.Login,
+			User:  s.identityContext.TeleportUser,
+		},
+		ConnectionMetadata: events.ConnectionMetadata{
+			LocalAddr:  s.sconn.LocalAddr().String(),
+			RemoteAddr: s.sconn.RemoteAddr().String(),
+		},
+		Addr: scx.DstAddr,
+		Status: events.Status{
+			Success: true,
+		},
+	}); err != nil {
+		scx.WithError(err).Warn("Failed to emit port forward event.")
+	}
 
 	var wg sync.WaitGroup
 	wch := make(chan struct{})
@@ -724,10 +749,10 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	}
 }
 
-// handleSessionRequests handles out of band session requests once the session
-// channel has been created this function's loop handles all the "exec",
-// "subsystem" and "shell" requests.
-func (s *Server) handleSessionRequests(ctx context.Context, ch ssh.Channel, in <-chan *ssh.Request) {
+// handleSessionChannel handles accepting and forwarding a session channel from the client to
+// the remote host. Once the session channel has been established, this function's loop handles
+// all the "exec", "subsystem" and "shell" requests.
+func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 	// Create context for this channel. This context will be closed when the
 	// session request is complete.
 	// There is no need for the forwarding server to initiate disconnects,
@@ -735,22 +760,47 @@ func (s *Server) handleSessionRequests(ctx context.Context, ch ssh.Channel, in <
 	// done on the server's terminating side.
 	ctx, scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext)
 	if err != nil {
-		scx.Errorf("Unable to create connection context: %v.", err)
-		s.stderrWrite(ch, "Unable to create connection context.")
+		s.log.Warnf("Server context setup failed: %v", err)
+		if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("server context setup failed: %v", err)); err != nil {
+			s.log.Warnf("Failed to reject channel: %v", err)
+		}
 		return
 	}
+
 	scx.RemoteClient = s.remoteClient
-	scx.AddCloser(ch)
 	scx.ChannelType = teleport.ChanSession
 	defer scx.Close()
 
-	// Create a "session" channel on the remote host.
+	// Create a "session" channel on the remote host.  Note that we
+	// create the remote session channel before accepting the local
+	// channel request; this allows us to propagate the rejection
+	// reason/message in the event the channel is rejected.
 	remoteSession, err := s.remoteClient.NewSession()
 	if err != nil {
-		s.stderrWrite(ch, err.Error())
+		s.log.Warnf("Remote session open failed: %v", err)
+		reason, msg := ssh.ConnectionFailed, fmt.Sprintf("remote session open failed: %v", err)
+		if e, ok := trace.Unwrap(err).(*ssh.OpenChannelError); ok {
+			reason, msg = e.Reason, e.Message
+		}
+		if err := nch.Reject(reason, msg); err != nil {
+			s.log.Warnf("Failed to reject channel: %v", err)
+		}
 		return
 	}
 	scx.RemoteSession = remoteSession
+
+	// Accept the session channel request
+	ch, in, err := nch.Accept()
+	if err != nil {
+		s.log.Warnf("Unable to accept channel: %v", err)
+		if err := nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unable to accept channel: %v", err)); err != nil {
+			s.log.Warnf("Failed to reject channel: %v", err)
+		}
+		return
+	}
+	scx.AddCloser(ch)
+
+	ch = scx.TrackActivity(ch)
 
 	s.log.Debugf("Opening session request to %v in context %v.", s.sconn.RemoteAddr(), scx.ID())
 	defer s.log.Debugf("Closing session request to %v in context %v.", s.sconn.RemoteAddr(), scx.ID())
@@ -986,19 +1036,28 @@ func (s *Server) serveX11Channels(ctx context.Context) error {
 
 // handleX11Forward handles an X11 forwarding request from the client.
 func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
-	// setup common audit event fields
-	fields := events.EventFields{
-		events.EventLogin: s.identityContext.Login,
-		events.EventUser:  s.identityContext.TeleportUser,
-		events.LocalAddr:  s.sconn.LocalAddr().String(),
-		events.RemoteAddr: s.sconn.RemoteAddr().String(),
+	event := events.X11Forward{
+		Metadata: events.Metadata{
+			Type: events.X11ForwardEvent,
+		},
+		UserMetadata: events.UserMetadata{
+			Login: s.identityContext.Login,
+			User:  s.identityContext.TeleportUser,
+		},
+		ConnectionMetadata: events.ConnectionMetadata{
+			LocalAddr:  s.sconn.LocalAddr().String(),
+			RemoteAddr: s.sconn.RemoteAddr().String(),
+		},
 	}
 
 	// check if RBAC permits X11 forwarding
 	if !scx.Identity.RoleSet.PermitX11Forwarding() {
-		fields[events.X11ForwardSuccess] = false
-		fields[events.X11ForwardErr] = "x11 forwarding not permitted"
-		s.EmitAuditEvent(events.X11ForwardFailure, fields)
+		event.Metadata.Code = events.X11ForwardFailureCode
+		event.Status.Success = false
+		event.Status.Error = "x11 forwarding not permitted"
+		if err := s.EmitAuditEvent(s.closeContext, &event); err != nil {
+			s.log.WithError(err).Warn("Failed to emit X11 forward event.")
+		}
 		s.replyError(ch, req, trace.AccessDenied("x11 forwarding not permitted"))
 		// failed X11 requests are ok from a protocol perspective, so
 		// we don't actually return an error here.
@@ -1009,11 +1068,14 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 	ok, err := forwardRequest(scx.RemoteSession, req)
 	if err != nil || !ok {
 		// request failed or was denied
-		fields[events.X11ForwardSuccess] = false
+		event.Metadata.Code = events.X11ForwardFailureCode
+		event.Status.Success = false
 		if err != nil {
-			fields[events.X11ForwardErr] = err.Error()
+			event.Status.Error = err.Error()
 		}
-		s.EmitAuditEvent(events.X11ForwardFailure, fields)
+		if err := s.EmitAuditEvent(s.closeContext, &event); err != nil {
+			s.log.WithError(err).Warn("Failed to emit X11 forward event.")
+		}
 		return trace.Wrap(err)
 	}
 
@@ -1023,8 +1085,11 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 		}
 	}()
 
-	fields[events.X11ForwardSuccess] = true
-	s.EmitAuditEvent(events.X11Forward, fields)
+	event.Status.Success = true
+	event.Metadata.Code = events.X11ForwardCode
+	if err := s.EmitAuditEvent(s.closeContext, &event); err != nil {
+		s.log.WithError(err).Warn("Failed to emit X11 forward event.")
+	}
 	return nil
 }
 

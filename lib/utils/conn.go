@@ -19,6 +19,7 @@ package utils
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -26,6 +27,37 @@ import (
 
 	"github.com/gravitational/trace"
 )
+
+// NewCloserConn returns new connection wrapper that
+// when closed will also close passed closers
+func NewCloserConn(conn net.Conn, closers ...io.Closer) *CloserConn {
+	return &CloserConn{
+		Conn:    conn,
+		closers: closers,
+	}
+}
+
+// CloserConn wraps connection and attaches additional closers to it
+type CloserConn struct {
+	net.Conn
+	closers []io.Closer
+}
+
+// AddCloser adds any closer in ctx that will be called
+// whenever server closes session channel
+func (c *CloserConn) AddCloser(closer io.Closer) {
+	c.closers = append(c.closers, closer)
+}
+
+// Close closes connection and all closers
+func (c *CloserConn) Close() error {
+	var errors []error
+	for _, closer := range c.closers {
+		errors = append(errors, closer.Close())
+	}
+	errors = append(errors, c.Conn.Close())
+	return trace.NewAggregate(errors...)
+}
 
 // Roundtrip is a single connection simplistic HTTP client
 // that allows us to bypass a connection pool to test load balancing

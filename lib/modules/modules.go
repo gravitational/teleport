@@ -19,7 +19,6 @@ limitations under the License.
 package modules
 
 import (
-	"bytes"
 	"fmt"
 	"runtime"
 	"sync"
@@ -92,13 +91,7 @@ func (p *defaultModules) DefaultAllowedLogins() []string {
 
 // PrintVersion prints the Teleport version.
 func (p *defaultModules) PrintVersion() {
-	var buf bytes.Buffer
-
-	buf.WriteString(fmt.Sprintf("Teleport v%s ", teleport.Version))
-	buf.WriteString(fmt.Sprintf("git:%s ", teleport.Gitref))
-	buf.WriteString(runtime.Version())
-
-	fmt.Println(buf.String())
+	fmt.Printf("Teleport v%s git:%s %s\n", teleport.Version, teleport.Gitref, runtime.Version())
 }
 
 // RolesFromLogins returns roles for external user based on the logins

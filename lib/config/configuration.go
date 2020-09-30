@@ -440,6 +440,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		KeepAliveInterval:     fc.Auth.KeepAliveInterval,
 		KeepAliveCountMax:     fc.Auth.KeepAliveCountMax,
 		LocalAuth:             localAuth,
+		SessionControlTimeout: fc.Auth.SessionControlTimeout,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -900,7 +901,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 			// If sessions are being recorded at the proxy host key checking must be
 			// enabled. This make sure the host certificate key algorithm is FIPS
 			// compliant.
-			if cfg.Auth.ClusterConfig.GetSessionRecording() == services.RecordAtProxy &&
+			if services.IsRecordAtProxy(cfg.Auth.ClusterConfig.GetSessionRecording()) &&
 				cfg.Auth.ClusterConfig.GetProxyChecksHostKeys() == services.HostKeyCheckNo {
 				return trace.BadParameter("non-FIPS compliant proxy settings: \"proxy_checks_host_keys\" must be true")
 			}

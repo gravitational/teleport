@@ -1,5 +1,5 @@
 /*
-Copyright 2018 Gravitational, Inc.
+Copyright 2018-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"os"
-	"path/filepath"
+	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -32,47 +32,44 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"gopkg.in/check.v1"
 )
 
-// HandlerSuite is a conformance test suite to verify external UploadHandlers
-// behavior.
-type HandlerSuite struct {
-	Handler events.UploadHandler
-}
-
-func (s *HandlerSuite) UploadDownload(c *check.C) {
+// UploadDownload tests uploads and downloads
+func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 	val := "hello, how is it going? this is the uploaded file"
 	id := session.NewID()
-	_, err := s.Handler.Upload(context.TODO(), id, bytes.NewBuffer([]byte(val)))
-	c.Assert(err, check.IsNil)
+	_, err := handler.Upload(context.TODO(), id, bytes.NewBuffer([]byte(val)))
+	assert.Nil(t, err)
 
-	dir := c.MkDir()
-	f, err := os.Create(filepath.Join(dir, string(id)))
-	c.Assert(err, check.IsNil)
+	f, err := ioutil.TempFile("", string(id))
+	assert.Nil(t, err)
+	defer os.Remove(f.Name())
 	defer f.Close()
 
-	err = s.Handler.Download(context.TODO(), id, f)
-	c.Assert(err, check.IsNil)
+	err = handler.Download(context.TODO(), id, f)
+	assert.Nil(t, err)
 
 	_, err = f.Seek(0, 0)
-	c.Assert(err, check.IsNil)
+	assert.Nil(t, err)
 
 	data, err := ioutil.ReadAll(f)
-	c.Assert(err, check.IsNil)
-	c.Assert(string(data), check.Equals, val)
+	assert.Nil(t, err)
+	assert.Equal(t, string(data), val)
 }
 
-func (s *HandlerSuite) DownloadNotFound(c *check.C) {
+// DownloadNotFound tests handling of the scenario when download is not found
+func DownloadNotFound(t *testing.T, handler events.MultipartHandler) {
 	id := session.NewID()
 
-	dir := c.MkDir()
-	f, err := os.Create(filepath.Join(dir, string(id)))
-	c.Assert(err, check.IsNil)
+	f, err := ioutil.TempFile("", string(id))
+	assert.Nil(t, err)
+	defer os.Remove(f.Name())
 	defer f.Close()
 
-	err = s.Handler.Download(context.TODO(), id, f)
-	fixtures.ExpectNotFound(c, err)
+	err = handler.Download(context.TODO(), id, f)
+	fixtures.AssertNotFound(t, err)
 }
 
 // EventsSuite is a conformance test suite to verify external event backends
@@ -85,7 +82,7 @@ type EventsSuite struct {
 // SessionEventsCRUD covers session events
 func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	// Bob has logged in
-	err := s.Log.EmitAuditEvent(events.UserLocalLogin, events.EventFields{
+	err := s.Log.EmitAuditEventLegacy(events.UserLocalLoginE, events.EventFields{
 		events.LoginMethod:        events.LoginMethodSAML,
 		events.AuthAttemptSuccess: true,
 		events.EventUser:          "bob",

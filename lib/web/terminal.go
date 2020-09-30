@@ -41,7 +41,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/sirupsen/logrus"
 )
 
@@ -359,6 +359,16 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 			t.log.Warnf("Unable to send error to terminal: %v: %v.", err, er)
 		}
 		return
+	}
+
+	// Check if remote process exited with error code, eg: RemoteCommandFailure (255).
+	if t.sshSession != nil {
+		if err := t.sshSession.Wait(); err != nil {
+			if exitErr, ok := err.(*ssh.ExitError); ok {
+				t.log.Warnf("Remote shell exited with error code: %v", exitErr.ExitStatus())
+				return
+			}
+		}
 	}
 
 	// Send close envelope to web terminal upon exit without an error.

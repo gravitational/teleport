@@ -312,7 +312,7 @@ func (rc *ResourceCommand) createGithubConnector(client auth.ClientI, raw servic
 	return nil
 }
 
-// createUser implements 'tctl create user.yaml' command
+// createUser implements 'tctl create user.yaml' command.
 func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownResource) error {
 	user, err := services.GetUserMarshaler().UnmarshalUser(raw.Raw)
 	if err != nil {
@@ -320,7 +320,7 @@ func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownR
 	}
 
 	userName := user.GetName()
-	_, err = client.GetUser(userName, false)
+	existingUser, err := client.GetUser(userName, false)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -331,16 +331,19 @@ func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownR
 			return trace.AlreadyExists("user %q already exists", userName)
 		}
 
+		// Unmarshalling user sets createdBy to zero values which will overwrite existing data.
+		// This field should not be allowed to be overwritten.
+		user.SetCreatedBy(existingUser.GetCreatedBy())
+
 		if err := client.UpdateUser(context.TODO(), user); err != nil {
 			return trace.Wrap(err)
 		}
-
 		fmt.Printf("user %q has been updated\n", userName)
+
 	} else {
 		if err := client.CreateUser(context.TODO(), user); err != nil {
 			return trace.Wrap(err)
 		}
-
 		fmt.Printf("user %q has been created\n", userName)
 	}
 
@@ -395,6 +398,21 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("remote cluster %q has been deleted\n", rc.ref.Name)
+	case services.KindSemaphore:
+		if rc.ref.SubKind == "" || rc.ref.Name == "" {
+			return trace.BadParameter(
+				"full semaphore path must be specified (e.g. '%s/%s/alice@example.com')",
+				services.KindSemaphore, services.SemaphoreKindConnection,
+			)
+		}
+		err := client.DeleteSemaphore(ctx, services.SemaphoreFilter{
+			SemaphoreKind: rc.ref.SubKind,
+			SemaphoreName: rc.ref.Name,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("semaphore '%s/%s' has been deleted\n", rc.ref.SubKind, rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -553,6 +571,15 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 			return nil, trace.Wrap(err)
 		}
 		return &remoteClusterCollection{remoteClusters: []services.RemoteCluster{remoteCluster}}, nil
+	case services.KindSemaphore:
+		sems, err := client.GetSemaphores(context.TODO(), services.SemaphoreFilter{
+			SemaphoreKind: rc.ref.SubKind,
+			SemaphoreName: rc.ref.Name,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &semaphoreCollection{sems: sems}, nil
 	}
 	return nil, trace.BadParameter("'%v' is not supported", rc.ref.Kind)
 }

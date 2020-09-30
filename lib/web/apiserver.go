@@ -165,7 +165,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
 	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changePasswordWithToken))
 	h.PUT("/webapi/users/password", h.WithAuth(h.changePassword))
-	h.POST("/webapi/sites/:site/namespaces/:namespace/users/password/token", h.WithClusterAuth(h.createResetPasswordToken))
+	h.POST("/webapi/users/password/token", h.WithAuth(h.createResetPasswordToken))
 
 	// Issues SSH temp certificates based on 2FA access creds
 	h.POST("/webapi/ssh/certs", httplib.MakeHandler(h.createSSHCert))
@@ -653,7 +653,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	if err != nil {
 		log.Errorf("Cannot retrieve ClusterConfig: %v.", err)
 	} else {
-		canJoinSessions = clsCfg.GetSessionRecording() != services.RecordAtProxy
+		canJoinSessions = services.IsRecordAtProxy(clsCfg.GetSessionRecording()) == false
 	}
 
 	authSettings := ui.WebConfigAuthSettings{
@@ -1185,8 +1185,10 @@ func (h *Handler) changePasswordWithToken(w http.ResponseWriter, r *http.Request
 	return NewSessionResponse(ctx)
 }
 
-func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := ctx.GetUserClient(site)
+// createResetPasswordToken allows a UI user to reset a user's password.
+// This handler is also required for after creating new users.
+func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1196,7 +1198,7 @@ func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := clt.CreateResetPasswordToken(context.TODO(),
+	token, err := clt.CreateResetPasswordToken(r.Context(),
 		auth.CreateResetPasswordTokenRequest{
 			Name: req.Name,
 			Type: req.Type,
@@ -1207,8 +1209,9 @@ func (h *Handler) createResetPasswordToken(w http.ResponseWriter, r *http.Reques
 	}
 
 	return ui.ResetPasswordToken{
-		URL:    token.GetURL(),
-		Expiry: token.Expiry(),
+		TokenID: token.GetName(),
+		Expiry:  token.Expiry(),
+		User:    token.GetUser(),
 	}, nil
 }
 
@@ -1469,18 +1472,13 @@ type siteSessionGenerateResponse struct {
 }
 
 // siteSessionCreate generates a new site session that can be used by UI
-//
-// POST /v1/webapi/sites/:site/sessions
-//
-// Request body:
-//
-// {"session": {"terminal_params": {"w": 100, "h": 100}, "login": "centos"}}
-//
-// Response body:
-//
-// {"session": {"id": "session-id", "terminal_params": {"w": 100, "h": 100}, "login": "centos"}}
-//
+// The ServerID from request can be in the form of hostname, uuid, or ip address.
 func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	clt, err := ctx.GetUserClient(site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	namespace := p.ByName("namespace")
 	if !services.IsValidNamespace(namespace) {
 		return nil, trace.BadParameter("invalid namespace %q", namespace)
@@ -1491,12 +1489,25 @@ func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 
-	// DELETE IN 4.2: change from session.NewLegacyID() to session.NewID().
-	req.Session.ID = session.NewLegacyID()
+	if req.Session.ServerID != "" {
+		servers, err := clt.GetNodes(namespace, services.SkipValidation())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		hostname, _, err := resolveServerHostPort(req.Session.ServerID, servers)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		req.Session.ServerHostname = hostname
+	}
+
+	req.Session.ID = session.NewID()
 	req.Session.Created = time.Now().UTC()
 	req.Session.LastActive = time.Now().UTC()
 	req.Session.Namespace = namespace
-	log.Infof("Generated session: %#v", req.Session)
+
 	return siteSessionGenerateResponse{Session: req.Session}, nil
 }
 

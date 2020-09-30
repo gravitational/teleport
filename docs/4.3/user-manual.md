@@ -1,3 +1,8 @@
+---
+title: Teleport User Manual
+description: Manual for how to manage user identities, share sessions for SSH and Kubernetes access using the command line and the Web UI.
+---
+
 # Teleport User Manual
 
 This User Manual covers usage of the Teleport client tool, `tsh` and Teleport's Web interface.
@@ -272,7 +277,7 @@ can continue using familiar SSH syntax:
 
 ```bash
 # Have this alias configured, perhaps via ~/.bashrc
-$ alias ssh=/usr/local/bin/tsh
+$ alias ssh="/usr/local/bin/tsh ssh"
 
 # Login into a cluster and retrieve your SSH certificate:
 $ tsh --proxy=proxy.example.com login

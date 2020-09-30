@@ -141,10 +141,19 @@ func (a *AuthServer) UpsertTrustedCluster(ctx context.Context, trustedCluster se
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.EmitAuditEvent(events.TrustedClusterCreate, events.EventFields{
-		events.EventUser: clientUsername(ctx),
+	if err := a.emitter.EmitAuditEvent(ctx, &events.TrustedClusterCreate{
+		Metadata: events.Metadata{
+			Type: events.TrustedClusterCreateEvent,
+			Code: events.TrustedClusterCreateCode,
+		},
+		UserMetadata: events.UserMetadata{
+			User: clientUsername(ctx),
+		},
+		ResourceMetadata: events.ResourceMetadata{
+			Name: trustedCluster.GetName(),
+		},
 	}); err != nil {
-		log.Warnf("Failed to emit trusted cluster create event: %v", err)
+		log.WithError(err).Warn("Failed to emit trusted cluster create event.")
 	}
 
 	return tc, nil
@@ -205,10 +214,19 @@ func (a *AuthServer) DeleteTrustedCluster(ctx context.Context, name string) erro
 		return trace.Wrap(err)
 	}
 
-	if err := a.EmitAuditEvent(events.TrustedClusterDelete, events.EventFields{
-		events.EventUser: clientUsername(ctx),
+	if err := a.emitter.EmitAuditEvent(ctx, &events.TrustedClusterDelete{
+		Metadata: events.Metadata{
+			Type: events.TrustedClusterDeleteEvent,
+			Code: events.TrustedClusterDeleteCode,
+		},
+		UserMetadata: events.UserMetadata{
+			User: clientUsername(ctx),
+		},
+		ResourceMetadata: events.ResourceMetadata{
+			Name: name,
+		},
 	}); err != nil {
-		log.Warnf("Failed to emit trusted cluster delete event: %v", err)
+		log.WithError(err).Warn("Failed to emit trusted cluster delete event.")
 	}
 
 	return nil
@@ -355,6 +373,7 @@ func (a *AuthServer) GetRemoteCluster(clusterName string) (services.RemoteCluste
 }
 
 func (a *AuthServer) updateRemoteClusterStatus(remoteCluster services.RemoteCluster) error {
+	ctx := context.TODO()
 	clusterConfig, err := a.GetClusterConfig()
 	if err != nil {
 		return trace.Wrap(err)
@@ -367,14 +386,40 @@ func (a *AuthServer) updateRemoteClusterStatus(remoteCluster services.RemoteClus
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	remoteCluster.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 	lastConn, err := services.LatestTunnelConnection(connections)
-	if err == nil {
-		offlineThreshold := time.Duration(keepAliveCountMax) * keepAliveInterval
-		tunnelStatus := services.TunnelConnectionStatus(a.clock, lastConn, offlineThreshold)
-		remoteCluster.SetConnectionStatus(tunnelStatus)
-		remoteCluster.SetLastHeartbeat(lastConn.GetLastHeartbeat())
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+		// No tunnel connections are known, mark the cluster offline (if it
+		// wasn't already).
+		if remoteCluster.GetConnectionStatus() != teleport.RemoteClusterStatusOffline {
+			remoteCluster.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
+			if err := a.UpdateRemoteCluster(ctx, remoteCluster); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
 	}
+
+	offlineThreshold := time.Duration(keepAliveCountMax) * keepAliveInterval
+	tunnelStatus := services.TunnelConnectionStatus(a.clock, lastConn, offlineThreshold)
+
+	// Update remoteCluster based on lastConn. If anything changed, update it
+	// in the backend too.
+	prevConnectionStatus := remoteCluster.GetConnectionStatus()
+	prevLastHeartbeat := remoteCluster.GetLastHeartbeat()
+	remoteCluster.SetConnectionStatus(tunnelStatus)
+	// Only bump LastHeartbeat if it's newer.
+	if lastConn.GetLastHeartbeat().After(prevLastHeartbeat) {
+		remoteCluster.SetLastHeartbeat(lastConn.GetLastHeartbeat().UTC())
+	}
+	if prevConnectionStatus != remoteCluster.GetConnectionStatus() || !prevLastHeartbeat.Equal(remoteCluster.GetLastHeartbeat()) {
+		if err := a.UpdateRemoteCluster(ctx, remoteCluster); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 

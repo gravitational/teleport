@@ -13,7 +13,7 @@ spec:
   display: Okta
   # SAML provider will make a callback to this URL after successful authentication
   # cluster-url is the address the cluster UI is reachable at
-  acs: https://<cluster-url>/portalapi/v1/saml/callback
+  acs: https://<cluster-url>/v1/webapi/saml/acs
   attributes_to_roles:
     - {name: "groups", value: "okta-admin", roles: ["admin"]}
     - {name: "groups", value: "okta-dev", roles: ["dev"]}

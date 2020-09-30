@@ -54,11 +54,11 @@ func (m *MultiLog) Close() error {
 	return trace.NewAggregate(errors...)
 }
 
-// EmitAuditEvent emits audit event
-func (m *MultiLog) EmitAuditEvent(event Event, fields EventFields) error {
+// EmitAuditEventLegacy emits audit event
+func (m *MultiLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 	var errors []error
 	for _, log := range m.loggers {
-		errors = append(errors, log.EmitAuditEvent(event, fields))
+		errors = append(errors, log.EmitAuditEventLegacy(event, fields))
 	}
 	return trace.NewAggregate(errors...)
 }

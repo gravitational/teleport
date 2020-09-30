@@ -27,13 +27,18 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/jonboulle/clockwork"
 	"go.etcd.io/etcd/clientv3"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/check.v1"
 )
 
-const customPrefix = "/custom"
+const (
+	customPrefix1 = "/custom/"
+	customPrefix2 = "/teleport-new/"
+	customPrefix3 = "/teleport-new"
+)
 
 func TestEtcd(t *testing.T) { check.TestingT(t) }
 
@@ -96,12 +101,20 @@ func (s *EtcdSuite) SetUpTest(c *check.C) {
 }
 
 func (s *EtcdSuite) TearDownTest(c *check.C) {
+	s.reset(c)
+	err := s.bk.Close()
+	c.Assert(err, check.IsNil)
+}
+
+func (s *EtcdSuite) reset(c *check.C) {
 	ctx := context.Background()
-	_, err := s.bk.client.Delete(ctx, legacyDefaultPrefix, clientv3.WithPrefix())
+	_, err := s.bk.client.Delete(ctx, strings.TrimSuffix(legacyDefaultPrefix, "/"), clientv3.WithPrefix())
 	c.Assert(err, check.IsNil)
-	_, err = s.bk.client.Delete(ctx, customPrefix, clientv3.WithPrefix())
+	_, err = s.bk.client.Delete(ctx, strings.TrimSuffix(customPrefix1, "/"), clientv3.WithPrefix())
 	c.Assert(err, check.IsNil)
-	err = s.bk.Close()
+	_, err = s.bk.client.Delete(ctx, strings.TrimSuffix(customPrefix2, "/"), clientv3.WithPrefix())
+	c.Assert(err, check.IsNil)
+	_, err = s.bk.client.Delete(ctx, strings.TrimSuffix(customPrefix3, "/"), clientv3.WithPrefix())
 	c.Assert(err, check.IsNil)
 }
 
@@ -142,6 +155,9 @@ func (s *EtcdSuite) TestLocking(c *check.C) {
 }
 
 func (s *EtcdSuite) TestPrefix(c *check.C) {
+	s.bk.cfg.Key = customPrefix1
+	c.Assert(s.bk.cfg.Validate(), check.IsNil)
+
 	var (
 		ctx  = context.Background()
 		item = backend.Item{
@@ -150,12 +166,31 @@ func (s *EtcdSuite) TestPrefix(c *check.C) {
 		}
 	)
 
-	s.bk.cfg.Key = customPrefix
+	// Item key starts with '/'.
 	_, err := s.bk.Put(ctx, item)
 	c.Assert(err, check.IsNil)
 
-	wantKey := fmt.Sprintf("%s%s", s.bk.cfg.Key, item.Key)
+	wantKey := s.bk.cfg.Key + string(item.Key)
 	s.assertKV(ctx, c, wantKey, string(item.Value))
+	got, err := s.bk.Get(ctx, item.Key)
+	c.Assert(err, check.IsNil)
+	item.ID = got.ID
+	c.Assert(*got, check.DeepEquals, item)
+
+	// Item key does not start with '/'.
+	item = backend.Item{
+		Key:   []byte("foo"),
+		Value: []byte("bar"),
+	}
+	_, err = s.bk.Put(ctx, item)
+	c.Assert(err, check.IsNil)
+
+	wantKey = s.bk.cfg.Key + string(item.Key)
+	s.assertKV(ctx, c, wantKey, string(item.Value))
+	got, err = s.bk.Get(ctx, item.Key)
+	c.Assert(err, check.IsNil)
+	item.ID = got.ID
+	c.Assert(*got, check.DeepEquals, item)
 }
 
 func (s *EtcdSuite) assertKV(ctx context.Context, c *check.C, key, val string) {
@@ -171,25 +206,38 @@ func (s *EtcdSuite) assertKV(ctx context.Context, c *check.C, key, val string) {
 }
 
 func (s *EtcdSuite) TestSyncLegacyPrefix(c *check.C) {
-	ctx := context.Background()
-	s.bk.cfg.Key = customPrefix
+	// Stop the watch goroutine to allow us to modify s.bk.cfg.Key without data
+	// races.
+	s.bk.cancel()
+	<-s.bk.watchDone
 
-	reset := func() {
-		_, err := s.bk.client.Delete(ctx, legacyDefaultPrefix, clientv3.WithPrefix())
-		c.Assert(err, check.IsNil)
-		_, err = s.bk.client.Delete(ctx, customPrefix, clientv3.WithPrefix())
-		c.Assert(err, check.IsNil)
-	}
+	ctx := context.Background()
+	s.bk.cfg.Key = customPrefix1
+	c.Assert(s.bk.cfg.Validate(), check.IsNil)
+	s.bk.clock = clockwork.NewFakeClock()
+
 	snapshot := func() map[string]string {
 		kvs := make(map[string]string)
 
-		resp, err := s.bk.client.Get(ctx, legacyDefaultPrefix, clientv3.WithPrefix())
+		resp, err := s.bk.client.Get(ctx, strings.TrimSuffix(legacyDefaultPrefix, "/"), clientv3.WithPrefix())
 		c.Assert(err, check.IsNil)
 		for _, kv := range resp.Kvs {
 			kvs[string(kv.Key)] = string(kv.Value)
 		}
 
-		resp, err = s.bk.client.Get(ctx, customPrefix, clientv3.WithPrefix())
+		resp, err = s.bk.client.Get(ctx, strings.TrimSuffix(customPrefix1, "/"), clientv3.WithPrefix())
+		c.Assert(err, check.IsNil)
+		for _, kv := range resp.Kvs {
+			kvs[string(kv.Key)] = string(kv.Value)
+		}
+
+		resp, err = s.bk.client.Get(ctx, strings.TrimSuffix(customPrefix2, "/"), clientv3.WithPrefix())
+		c.Assert(err, check.IsNil)
+		for _, kv := range resp.Kvs {
+			kvs[string(kv.Key)] = string(kv.Value)
+		}
+
+		resp, err = s.bk.client.Get(ctx, strings.TrimSuffix(customPrefix3, "/"), clientv3.WithPrefix())
 		c.Assert(err, check.IsNil)
 		for _, kv := range resp.Kvs {
 			kvs[string(kv.Key)] = string(kv.Value)
@@ -199,89 +247,136 @@ func (s *EtcdSuite) TestSyncLegacyPrefix(c *check.C) {
 	}
 
 	// Make sure the prefixes start off clean.
-	reset()
+	s.reset(c)
 
 	c.Log("both prefixes empty")
 	err := s.bk.syncLegacyPrefix(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(snapshot(), check.DeepEquals, map[string]string{})
-	reset()
+	s.reset(c)
 
 	c.Log("data in custom prefix, no data in legacy prefix; custom prefix should be preserved")
-	_, err = s.bk.client.Put(ctx, customPrefix+"/0", "c0")
+	_, err = s.bk.client.Put(ctx, customPrefix1+"/0", "c0")
 	c.Assert(err, check.IsNil)
-	_, err = s.bk.client.Put(ctx, customPrefix+"/1", "c1")
+	_, err = s.bk.client.Put(ctx, customPrefix1+"/1", "c1")
 	c.Assert(err, check.IsNil)
 	err = s.bk.syncLegacyPrefix(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(snapshot(), check.DeepEquals, map[string]string{
-		customPrefix + "/0": "c0",
-		customPrefix + "/1": "c1",
+		customPrefix1 + "/0": "c0",
+		customPrefix1 + "/1": "c1",
 	})
-	reset()
+	s.reset(c)
 
 	c.Log("no data in custom prefix, data in legacy prefix copied over; custom prefix should be populated")
-	_, err = s.bk.client.Put(ctx, legacyDefaultPrefix+"/0", "l0")
+	_, err = s.bk.client.Put(ctx, legacyDefaultPrefix+"0", "l0")
 	c.Assert(err, check.IsNil)
-	_, err = s.bk.client.Put(ctx, legacyDefaultPrefix+"/1", "l1")
+	_, err = s.bk.client.Put(ctx, legacyDefaultPrefix+"1", "l1")
 	c.Assert(err, check.IsNil)
 	err = s.bk.syncLegacyPrefix(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(snapshot(), check.DeepEquals, map[string]string{
-		legacyDefaultPrefix + "/0": "l0",
-		legacyDefaultPrefix + "/1": "l1",
-		customPrefix + "/0":        "l0",
-		customPrefix + "/1":        "l1",
+		legacyDefaultPrefix + "0": "l0",
+		legacyDefaultPrefix + "1": "l1",
+		customPrefix1 + "/0":      "l0",
+		customPrefix1 + "/1":      "l1",
 	})
-	reset()
+	s.reset(c)
 
 	c.Log("data in both prefixes, custom prefix is newer; custom prefix should be preserved")
-	_, err = s.bk.client.Put(ctx, legacyDefaultPrefix+"/0", "l0")
+	_, err = s.bk.client.Put(ctx, legacyDefaultPrefix+"0", "l0")
 	c.Assert(err, check.IsNil)
-	_, err = s.bk.client.Put(ctx, legacyDefaultPrefix+"/1", "l1")
+	_, err = s.bk.client.Put(ctx, legacyDefaultPrefix+"1", "l1")
 	c.Assert(err, check.IsNil)
-	_, err = s.bk.client.Put(ctx, legacyDefaultPrefix+"/3", "l3")
+	_, err = s.bk.client.Put(ctx, legacyDefaultPrefix+"3", "l3")
 	c.Assert(err, check.IsNil)
-	_, err = s.bk.client.Put(ctx, customPrefix+"/0", "c0")
+	_, err = s.bk.client.Put(ctx, customPrefix1+"/0", "c0")
 	c.Assert(err, check.IsNil)
-	_, err = s.bk.client.Put(ctx, customPrefix+"/1", "c1")
+	_, err = s.bk.client.Put(ctx, customPrefix1+"/1", "c1")
 	c.Assert(err, check.IsNil)
-	_, err = s.bk.client.Put(ctx, customPrefix+"/2", "c2")
+	_, err = s.bk.client.Put(ctx, customPrefix1+"/2", "c2")
 	c.Assert(err, check.IsNil)
 	err = s.bk.syncLegacyPrefix(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(snapshot(), check.DeepEquals, map[string]string{
-		legacyDefaultPrefix + "/0": "l0",
-		legacyDefaultPrefix + "/1": "l1",
-		legacyDefaultPrefix + "/3": "l3",
-		customPrefix + "/0":        "c0",
-		customPrefix + "/1":        "c1",
-		customPrefix + "/2":        "c2",
+		legacyDefaultPrefix + "0": "l0",
+		legacyDefaultPrefix + "1": "l1",
+		legacyDefaultPrefix + "3": "l3",
+		customPrefix1 + "/0":      "c0",
+		customPrefix1 + "/1":      "c1",
+		customPrefix1 + "/2":      "c2",
 	})
-	reset()
+	s.reset(c)
 
 	c.Log("data in both prefixes, legacy prefix is newer; custom prefix should be replaced")
-	_, err = s.bk.client.Put(ctx, legacyDefaultPrefix+"/0", "l0")
+	backupPrefix := s.bk.backupPrefix(customPrefix1)
+	_, err = s.bk.client.Put(ctx, legacyDefaultPrefix+"0", "l0")
 	c.Assert(err, check.IsNil)
-	_, err = s.bk.client.Put(ctx, legacyDefaultPrefix+"/1", "l1")
+	_, err = s.bk.client.Put(ctx, legacyDefaultPrefix+"1", "l1")
 	c.Assert(err, check.IsNil)
-	_, err = s.bk.client.Put(ctx, customPrefix+"/0", "c0")
+	_, err = s.bk.client.Put(ctx, customPrefix1+"/0", "c0")
 	c.Assert(err, check.IsNil)
-	_, err = s.bk.client.Put(ctx, customPrefix+"/1", "c1")
+	_, err = s.bk.client.Put(ctx, customPrefix1+"/1", "c1")
 	c.Assert(err, check.IsNil)
-	_, err = s.bk.client.Put(ctx, customPrefix+"/2", "c2")
+	_, err = s.bk.client.Put(ctx, customPrefix1+"/2", "c2")
 	c.Assert(err, check.IsNil)
-	_, err = s.bk.client.Put(ctx, legacyDefaultPrefix+"/3", "l3")
+	_, err = s.bk.client.Put(ctx, legacyDefaultPrefix+"3", "l3")
 	c.Assert(err, check.IsNil)
 	err = s.bk.syncLegacyPrefix(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(snapshot(), check.DeepEquals, map[string]string{
-		legacyDefaultPrefix + "/0": "l0",
-		legacyDefaultPrefix + "/1": "l1",
-		legacyDefaultPrefix + "/3": "l3",
-		customPrefix + "/0":        "l0",
-		customPrefix + "/1":        "l1",
-		customPrefix + "/3":        "l3",
+		legacyDefaultPrefix + "0": "l0",
+		legacyDefaultPrefix + "1": "l1",
+		legacyDefaultPrefix + "3": "l3",
+		customPrefix1 + "/0":      "l0",
+		customPrefix1 + "/1":      "l1",
+		customPrefix1 + "/3":      "l3",
+		backupPrefix + "/0":       "c0",
+		backupPrefix + "/1":       "c1",
+		backupPrefix + "/2":       "c2",
 	})
-	reset()
+	s.reset(c)
+
+	c.Log("data in custom prefix that partially matches the legacy prefix, no data in legacy prefix; custom prefix should be preserved")
+	_, err = s.bk.client.Put(ctx, customPrefix2+"/0", "c0")
+	c.Assert(err, check.IsNil)
+	_, err = s.bk.client.Put(ctx, customPrefix2+"/1", "c1")
+	c.Assert(err, check.IsNil)
+	err = s.bk.syncLegacyPrefix(ctx)
+	c.Assert(err, check.IsNil)
+	c.Assert(snapshot(), check.DeepEquals, map[string]string{
+		customPrefix2 + "/0": "c0",
+		customPrefix2 + "/1": "c1",
+	})
+	s.reset(c)
+
+	c.Log("data in both prefixes, legacy prefix is newer; custom prefix without trailing slash; custom prefix should be replaced")
+	s.bk.cfg.Key = customPrefix3
+	backupPrefix = s.bk.backupPrefix(customPrefix3)
+	_, err = s.bk.client.Put(ctx, legacyDefaultPrefix+"0", "l0")
+	c.Assert(err, check.IsNil)
+	_, err = s.bk.client.Put(ctx, legacyDefaultPrefix+"1", "l1")
+	c.Assert(err, check.IsNil)
+	_, err = s.bk.client.Put(ctx, customPrefix3+"/0", "c0")
+	c.Assert(err, check.IsNil)
+	_, err = s.bk.client.Put(ctx, customPrefix3+"/1", "c1")
+	c.Assert(err, check.IsNil)
+	_, err = s.bk.client.Put(ctx, customPrefix3+"/2", "c2")
+	c.Assert(err, check.IsNil)
+	_, err = s.bk.client.Put(ctx, legacyDefaultPrefix+"3", "l3")
+	c.Assert(err, check.IsNil)
+	err = s.bk.syncLegacyPrefix(ctx)
+	c.Assert(err, check.IsNil)
+	c.Assert(snapshot(), check.DeepEquals, map[string]string{
+		legacyDefaultPrefix + "0": "l0",
+		legacyDefaultPrefix + "1": "l1",
+		legacyDefaultPrefix + "3": "l3",
+		customPrefix3 + "/0":      "l0",
+		customPrefix3 + "/1":      "l1",
+		customPrefix3 + "/3":      "l3",
+		backupPrefix + "/0":       "c0",
+		backupPrefix + "/1":       "c1",
+		backupPrefix + "/2":       "c2",
+	})
+	s.reset(c)
 }

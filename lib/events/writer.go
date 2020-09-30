@@ -53,8 +53,8 @@ func (w *WriterLog) Close() error {
 	return w.w.Close()
 }
 
-// EmitAuditEvent emits audit event
-func (w *WriterLog) EmitAuditEvent(event Event, fields EventFields) error {
+// EmitAuditEventLegacy emits audit event
+func (w *WriterLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 	err := UpdateEventFields(event, fields, w.clock, w.newUID)
 	if err != nil {
 		log.Error(err)

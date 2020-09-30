@@ -1,3 +1,8 @@
+---
+title: Teleport FAQ
+description: Frequently Asked Questions about using Teleport for SSH and Kubernetes access
+---
+
 
 # FAQ
 
@@ -101,7 +106,7 @@ The Teleport Enterprise offering gives users the following additional features:
 
 * Role-based access control, also known as [RBAC](enterprise/introduction.md#rbac).
 * Authentication via SAML and OpenID with providers like Okta, Active
-  Directory, Auth0, etc. [SSO](enterprise/sso/ssh_sso.md).
+  Directory, Auth0, etc. [SSO](enterprise/sso/ssh-sso.md).
 * Premium support.
 
 We also offer implementation services, to help you integrate

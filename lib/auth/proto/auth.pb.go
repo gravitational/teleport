@@ -9,6 +9,7 @@ import math "math"
 import _ "github.com/gogo/protobuf/gogoproto"
 import empty "github.com/golang/protobuf/ptypes/empty"
 import _ "github.com/golang/protobuf/ptypes/timestamp"
+import events "github.com/gravitational/teleport/lib/events"
 import services "github.com/gravitational/teleport/lib/services"
 
 import time "time"
@@ -60,7 +61,7 @@ func (x Operation) String() string {
 	return proto.EnumName(Operation_name, int32(x))
 }
 func (Operation) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_auth_cc9d777e75d42d1b, []int{0}
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{0}
 }
 
 // Event returns cluster event
@@ -93,7 +94,7 @@ func (m *Event) Reset()         { *m = Event{} }
 func (m *Event) String() string { return proto.CompactTextString(m) }
 func (*Event) ProtoMessage()    {}
 func (*Event) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_cc9d777e75d42d1b, []int{0}
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{0}
 }
 func (m *Event) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -583,7 +584,7 @@ func (m *Watch) Reset()         { *m = Watch{} }
 func (m *Watch) String() string { return proto.CompactTextString(m) }
 func (*Watch) ProtoMessage()    {}
 func (*Watch) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_cc9d777e75d42d1b, []int{1}
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{1}
 }
 func (m *Watch) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -641,7 +642,7 @@ func (m *WatchKind) Reset()         { *m = WatchKind{} }
 func (m *WatchKind) String() string { return proto.CompactTextString(m) }
 func (*WatchKind) ProtoMessage()    {}
 func (*WatchKind) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_cc9d777e75d42d1b, []int{2}
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{2}
 }
 func (m *WatchKind) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -713,7 +714,7 @@ func (m *Certs) Reset()         { *m = Certs{} }
 func (m *Certs) String() string { return proto.CompactTextString(m) }
 func (*Certs) ProtoMessage()    {}
 func (*Certs) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_cc9d777e75d42d1b, []int{3}
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{3}
 }
 func (m *Certs) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -787,7 +788,7 @@ func (m *UserCertsRequest) Reset()         { *m = UserCertsRequest{} }
 func (m *UserCertsRequest) String() string { return proto.CompactTextString(m) }
 func (*UserCertsRequest) ProtoMessage()    {}
 func (*UserCertsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_cc9d777e75d42d1b, []int{4}
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{4}
 }
 func (m *UserCertsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -873,7 +874,7 @@ func (m *GetUserRequest) Reset()         { *m = GetUserRequest{} }
 func (m *GetUserRequest) String() string { return proto.CompactTextString(m) }
 func (*GetUserRequest) ProtoMessage()    {}
 func (*GetUserRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_cc9d777e75d42d1b, []int{5}
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{5}
 }
 func (m *GetUserRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -929,7 +930,7 @@ func (m *GetUsersRequest) Reset()         { *m = GetUsersRequest{} }
 func (m *GetUsersRequest) String() string { return proto.CompactTextString(m) }
 func (*GetUsersRequest) ProtoMessage()    {}
 func (*GetUsersRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_cc9d777e75d42d1b, []int{6}
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{6}
 }
 func (m *GetUsersRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -977,7 +978,7 @@ func (m *AccessRequests) Reset()         { *m = AccessRequests{} }
 func (m *AccessRequests) String() string { return proto.CompactTextString(m) }
 func (*AccessRequests) ProtoMessage()    {}
 func (*AccessRequests) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_cc9d777e75d42d1b, []int{7}
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{7}
 }
 func (m *AccessRequests) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1025,7 +1026,7 @@ func (m *PluginDataSeq) Reset()         { *m = PluginDataSeq{} }
 func (m *PluginDataSeq) String() string { return proto.CompactTextString(m) }
 func (*PluginDataSeq) ProtoMessage()    {}
 func (*PluginDataSeq) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_cc9d777e75d42d1b, []int{8}
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{8}
 }
 func (m *PluginDataSeq) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1081,7 +1082,7 @@ func (m *RequestStateSetter) Reset()         { *m = RequestStateSetter{} }
 func (m *RequestStateSetter) String() string { return proto.CompactTextString(m) }
 func (*RequestStateSetter) ProtoMessage()    {}
 func (*RequestStateSetter) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_cc9d777e75d42d1b, []int{9}
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{9}
 }
 func (m *RequestStateSetter) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1143,7 +1144,7 @@ func (m *RequestID) Reset()         { *m = RequestID{} }
 func (m *RequestID) String() string { return proto.CompactTextString(m) }
 func (*RequestID) ProtoMessage()    {}
 func (*RequestID) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_cc9d777e75d42d1b, []int{10}
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{10}
 }
 func (m *RequestID) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1193,7 +1194,7 @@ func (m *RotateResetPasswordTokenSecretsRequest) Reset() {
 func (m *RotateResetPasswordTokenSecretsRequest) String() string { return proto.CompactTextString(m) }
 func (*RotateResetPasswordTokenSecretsRequest) ProtoMessage()    {}
 func (*RotateResetPasswordTokenSecretsRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_cc9d777e75d42d1b, []int{11}
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{11}
 }
 func (m *RotateResetPasswordTokenSecretsRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1241,7 +1242,7 @@ func (m *GetResetPasswordTokenRequest) Reset()         { *m = GetResetPasswordTo
 func (m *GetResetPasswordTokenRequest) String() string { return proto.CompactTextString(m) }
 func (*GetResetPasswordTokenRequest) ProtoMessage()    {}
 func (*GetResetPasswordTokenRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_cc9d777e75d42d1b, []int{12}
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{12}
 }
 func (m *GetResetPasswordTokenRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1295,7 +1296,7 @@ func (m *CreateResetPasswordTokenRequest) Reset()         { *m = CreateResetPass
 func (m *CreateResetPasswordTokenRequest) String() string { return proto.CompactTextString(m) }
 func (*CreateResetPasswordTokenRequest) ProtoMessage()    {}
 func (*CreateResetPasswordTokenRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_cc9d777e75d42d1b, []int{13}
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{13}
 }
 func (m *CreateResetPasswordTokenRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1356,7 +1357,7 @@ func (m *PingRequest) Reset()         { *m = PingRequest{} }
 func (m *PingRequest) String() string { return proto.CompactTextString(m) }
 func (*PingRequest) ProtoMessage()    {}
 func (*PingRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_cc9d777e75d42d1b, []int{14}
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{14}
 }
 func (m *PingRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1400,7 +1401,7 @@ func (m *PingResponse) Reset()         { *m = PingResponse{} }
 func (m *PingResponse) String() string { return proto.CompactTextString(m) }
 func (*PingResponse) ProtoMessage()    {}
 func (*PingResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_cc9d777e75d42d1b, []int{15}
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{15}
 }
 func (m *PingResponse) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1456,7 +1457,7 @@ func (m *DeleteUserRequest) Reset()         { *m = DeleteUserRequest{} }
 func (m *DeleteUserRequest) String() string { return proto.CompactTextString(m) }
 func (*DeleteUserRequest) ProtoMessage()    {}
 func (*DeleteUserRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_auth_cc9d777e75d42d1b, []int{16}
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{16}
 }
 func (m *DeleteUserRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1492,6 +1493,543 @@ func (m *DeleteUserRequest) GetName() string {
 	return ""
 }
 
+// Semaphores is a sequence of Semaphore resources.
+type Semaphores struct {
+	Semaphores           []*services.SemaphoreV3 `protobuf:"bytes,1,rep,name=Semaphores" json:"semaphores"`
+	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
+	XXX_unrecognized     []byte                  `json:"-"`
+	XXX_sizecache        int32                   `json:"-"`
+}
+
+func (m *Semaphores) Reset()         { *m = Semaphores{} }
+func (m *Semaphores) String() string { return proto.CompactTextString(m) }
+func (*Semaphores) ProtoMessage()    {}
+func (*Semaphores) Descriptor() ([]byte, []int) {
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{17}
+}
+func (m *Semaphores) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *Semaphores) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_Semaphores.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (dst *Semaphores) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_Semaphores.Merge(dst, src)
+}
+func (m *Semaphores) XXX_Size() int {
+	return m.Size()
+}
+func (m *Semaphores) XXX_DiscardUnknown() {
+	xxx_messageInfo_Semaphores.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_Semaphores proto.InternalMessageInfo
+
+func (m *Semaphores) GetSemaphores() []*services.SemaphoreV3 {
+	if m != nil {
+		return m.Semaphores
+	}
+	return nil
+}
+
+// AuditStreamRequest contains stream request - event or stream control request
+type AuditStreamRequest struct {
+	// Request is either stream request - create, resume or complete stream
+	// or event submitted as a part of the stream
+	//
+	// Types that are valid to be assigned to Request:
+	//	*AuditStreamRequest_CreateStream
+	//	*AuditStreamRequest_ResumeStream
+	//	*AuditStreamRequest_CompleteStream
+	//	*AuditStreamRequest_FlushAndCloseStream
+	//	*AuditStreamRequest_Event
+	Request              isAuditStreamRequest_Request `protobuf_oneof:"Request"`
+	XXX_NoUnkeyedLiteral struct{}                     `json:"-"`
+	XXX_unrecognized     []byte                       `json:"-"`
+	XXX_sizecache        int32                        `json:"-"`
+}
+
+func (m *AuditStreamRequest) Reset()         { *m = AuditStreamRequest{} }
+func (m *AuditStreamRequest) String() string { return proto.CompactTextString(m) }
+func (*AuditStreamRequest) ProtoMessage()    {}
+func (*AuditStreamRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{18}
+}
+func (m *AuditStreamRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *AuditStreamRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_AuditStreamRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (dst *AuditStreamRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AuditStreamRequest.Merge(dst, src)
+}
+func (m *AuditStreamRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *AuditStreamRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_AuditStreamRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AuditStreamRequest proto.InternalMessageInfo
+
+type isAuditStreamRequest_Request interface {
+	isAuditStreamRequest_Request()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type AuditStreamRequest_CreateStream struct {
+	CreateStream *CreateStream `protobuf:"bytes,1,opt,name=CreateStream,oneof"`
+}
+type AuditStreamRequest_ResumeStream struct {
+	ResumeStream *ResumeStream `protobuf:"bytes,2,opt,name=ResumeStream,oneof"`
+}
+type AuditStreamRequest_CompleteStream struct {
+	CompleteStream *CompleteStream `protobuf:"bytes,3,opt,name=CompleteStream,oneof"`
+}
+type AuditStreamRequest_FlushAndCloseStream struct {
+	FlushAndCloseStream *FlushAndCloseStream `protobuf:"bytes,4,opt,name=FlushAndCloseStream,oneof"`
+}
+type AuditStreamRequest_Event struct {
+	Event *events.OneOf `protobuf:"bytes,5,opt,name=Event,oneof"`
+}
+
+func (*AuditStreamRequest_CreateStream) isAuditStreamRequest_Request()        {}
+func (*AuditStreamRequest_ResumeStream) isAuditStreamRequest_Request()        {}
+func (*AuditStreamRequest_CompleteStream) isAuditStreamRequest_Request()      {}
+func (*AuditStreamRequest_FlushAndCloseStream) isAuditStreamRequest_Request() {}
+func (*AuditStreamRequest_Event) isAuditStreamRequest_Request()               {}
+
+func (m *AuditStreamRequest) GetRequest() isAuditStreamRequest_Request {
+	if m != nil {
+		return m.Request
+	}
+	return nil
+}
+
+func (m *AuditStreamRequest) GetCreateStream() *CreateStream {
+	if x, ok := m.GetRequest().(*AuditStreamRequest_CreateStream); ok {
+		return x.CreateStream
+	}
+	return nil
+}
+
+func (m *AuditStreamRequest) GetResumeStream() *ResumeStream {
+	if x, ok := m.GetRequest().(*AuditStreamRequest_ResumeStream); ok {
+		return x.ResumeStream
+	}
+	return nil
+}
+
+func (m *AuditStreamRequest) GetCompleteStream() *CompleteStream {
+	if x, ok := m.GetRequest().(*AuditStreamRequest_CompleteStream); ok {
+		return x.CompleteStream
+	}
+	return nil
+}
+
+func (m *AuditStreamRequest) GetFlushAndCloseStream() *FlushAndCloseStream {
+	if x, ok := m.GetRequest().(*AuditStreamRequest_FlushAndCloseStream); ok {
+		return x.FlushAndCloseStream
+	}
+	return nil
+}
+
+func (m *AuditStreamRequest) GetEvent() *events.OneOf {
+	if x, ok := m.GetRequest().(*AuditStreamRequest_Event); ok {
+		return x.Event
+	}
+	return nil
+}
+
+// XXX_OneofFuncs is for the internal use of the proto package.
+func (*AuditStreamRequest) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
+	return _AuditStreamRequest_OneofMarshaler, _AuditStreamRequest_OneofUnmarshaler, _AuditStreamRequest_OneofSizer, []interface{}{
+		(*AuditStreamRequest_CreateStream)(nil),
+		(*AuditStreamRequest_ResumeStream)(nil),
+		(*AuditStreamRequest_CompleteStream)(nil),
+		(*AuditStreamRequest_FlushAndCloseStream)(nil),
+		(*AuditStreamRequest_Event)(nil),
+	}
+}
+
+func _AuditStreamRequest_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
+	m := msg.(*AuditStreamRequest)
+	// Request
+	switch x := m.Request.(type) {
+	case *AuditStreamRequest_CreateStream:
+		_ = b.EncodeVarint(1<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.CreateStream); err != nil {
+			return err
+		}
+	case *AuditStreamRequest_ResumeStream:
+		_ = b.EncodeVarint(2<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.ResumeStream); err != nil {
+			return err
+		}
+	case *AuditStreamRequest_CompleteStream:
+		_ = b.EncodeVarint(3<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.CompleteStream); err != nil {
+			return err
+		}
+	case *AuditStreamRequest_FlushAndCloseStream:
+		_ = b.EncodeVarint(4<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.FlushAndCloseStream); err != nil {
+			return err
+		}
+	case *AuditStreamRequest_Event:
+		_ = b.EncodeVarint(5<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.Event); err != nil {
+			return err
+		}
+	case nil:
+	default:
+		return fmt.Errorf("AuditStreamRequest.Request has unexpected type %T", x)
+	}
+	return nil
+}
+
+func _AuditStreamRequest_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
+	m := msg.(*AuditStreamRequest)
+	switch tag {
+	case 1: // Request.CreateStream
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(CreateStream)
+		err := b.DecodeMessage(msg)
+		m.Request = &AuditStreamRequest_CreateStream{msg}
+		return true, err
+	case 2: // Request.ResumeStream
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(ResumeStream)
+		err := b.DecodeMessage(msg)
+		m.Request = &AuditStreamRequest_ResumeStream{msg}
+		return true, err
+	case 3: // Request.CompleteStream
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(CompleteStream)
+		err := b.DecodeMessage(msg)
+		m.Request = &AuditStreamRequest_CompleteStream{msg}
+		return true, err
+	case 4: // Request.FlushAndCloseStream
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(FlushAndCloseStream)
+		err := b.DecodeMessage(msg)
+		m.Request = &AuditStreamRequest_FlushAndCloseStream{msg}
+		return true, err
+	case 5: // Request.Event
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(events.OneOf)
+		err := b.DecodeMessage(msg)
+		m.Request = &AuditStreamRequest_Event{msg}
+		return true, err
+	default:
+		return false, nil
+	}
+}
+
+func _AuditStreamRequest_OneofSizer(msg proto.Message) (n int) {
+	m := msg.(*AuditStreamRequest)
+	// Request
+	switch x := m.Request.(type) {
+	case *AuditStreamRequest_CreateStream:
+		s := proto.Size(x.CreateStream)
+		n += 1 // tag and wire
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case *AuditStreamRequest_ResumeStream:
+		s := proto.Size(x.ResumeStream)
+		n += 1 // tag and wire
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case *AuditStreamRequest_CompleteStream:
+		s := proto.Size(x.CompleteStream)
+		n += 1 // tag and wire
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case *AuditStreamRequest_FlushAndCloseStream:
+		s := proto.Size(x.FlushAndCloseStream)
+		n += 1 // tag and wire
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case *AuditStreamRequest_Event:
+		s := proto.Size(x.Event)
+		n += 1 // tag and wire
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case nil:
+	default:
+		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
+	}
+	return n
+}
+
+// AuditStreamStatus returns audit stream status
+// with corresponding upload ID
+type AuditStreamStatus struct {
+	// UploadID is upload ID associated with the stream,
+	// can be used to resume the stream
+	UploadID             string   `protobuf:"bytes,1,opt,name=UploadID,proto3" json:"UploadID,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *AuditStreamStatus) Reset()         { *m = AuditStreamStatus{} }
+func (m *AuditStreamStatus) String() string { return proto.CompactTextString(m) }
+func (*AuditStreamStatus) ProtoMessage()    {}
+func (*AuditStreamStatus) Descriptor() ([]byte, []int) {
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{19}
+}
+func (m *AuditStreamStatus) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *AuditStreamStatus) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_AuditStreamStatus.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (dst *AuditStreamStatus) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AuditStreamStatus.Merge(dst, src)
+}
+func (m *AuditStreamStatus) XXX_Size() int {
+	return m.Size()
+}
+func (m *AuditStreamStatus) XXX_DiscardUnknown() {
+	xxx_messageInfo_AuditStreamStatus.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AuditStreamStatus proto.InternalMessageInfo
+
+func (m *AuditStreamStatus) GetUploadID() string {
+	if m != nil {
+		return m.UploadID
+	}
+	return ""
+}
+
+// CreateStream creates stream for a new session ID
+type CreateStream struct {
+	SessionID            string   `protobuf:"bytes,1,opt,name=SessionID,proto3" json:"SessionID,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *CreateStream) Reset()         { *m = CreateStream{} }
+func (m *CreateStream) String() string { return proto.CompactTextString(m) }
+func (*CreateStream) ProtoMessage()    {}
+func (*CreateStream) Descriptor() ([]byte, []int) {
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{20}
+}
+func (m *CreateStream) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CreateStream) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CreateStream.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (dst *CreateStream) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CreateStream.Merge(dst, src)
+}
+func (m *CreateStream) XXX_Size() int {
+	return m.Size()
+}
+func (m *CreateStream) XXX_DiscardUnknown() {
+	xxx_messageInfo_CreateStream.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CreateStream proto.InternalMessageInfo
+
+func (m *CreateStream) GetSessionID() string {
+	if m != nil {
+		return m.SessionID
+	}
+	return ""
+}
+
+// ResumeStream resumes stream that was previously created
+type ResumeStream struct {
+	// SessionID is a session ID of the stream
+	SessionID string `protobuf:"bytes,1,opt,name=SessionID,proto3" json:"SessionID,omitempty"`
+	// UploadID is upload ID to resume
+	UploadID             string   `protobuf:"bytes,2,opt,name=UploadID,proto3" json:"UploadID,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ResumeStream) Reset()         { *m = ResumeStream{} }
+func (m *ResumeStream) String() string { return proto.CompactTextString(m) }
+func (*ResumeStream) ProtoMessage()    {}
+func (*ResumeStream) Descriptor() ([]byte, []int) {
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{21}
+}
+func (m *ResumeStream) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ResumeStream) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ResumeStream.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (dst *ResumeStream) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ResumeStream.Merge(dst, src)
+}
+func (m *ResumeStream) XXX_Size() int {
+	return m.Size()
+}
+func (m *ResumeStream) XXX_DiscardUnknown() {
+	xxx_messageInfo_ResumeStream.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ResumeStream proto.InternalMessageInfo
+
+func (m *ResumeStream) GetSessionID() string {
+	if m != nil {
+		return m.SessionID
+	}
+	return ""
+}
+
+func (m *ResumeStream) GetUploadID() string {
+	if m != nil {
+		return m.UploadID
+	}
+	return ""
+}
+
+// CompleteStream completes the stream
+// and uploads it to the session server
+type CompleteStream struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *CompleteStream) Reset()         { *m = CompleteStream{} }
+func (m *CompleteStream) String() string { return proto.CompactTextString(m) }
+func (*CompleteStream) ProtoMessage()    {}
+func (*CompleteStream) Descriptor() ([]byte, []int) {
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{22}
+}
+func (m *CompleteStream) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *CompleteStream) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_CompleteStream.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (dst *CompleteStream) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_CompleteStream.Merge(dst, src)
+}
+func (m *CompleteStream) XXX_Size() int {
+	return m.Size()
+}
+func (m *CompleteStream) XXX_DiscardUnknown() {
+	xxx_messageInfo_CompleteStream.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_CompleteStream proto.InternalMessageInfo
+
+// FlushAndCloseStream flushes the stream data and closes the stream
+type FlushAndCloseStream struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *FlushAndCloseStream) Reset()         { *m = FlushAndCloseStream{} }
+func (m *FlushAndCloseStream) String() string { return proto.CompactTextString(m) }
+func (*FlushAndCloseStream) ProtoMessage()    {}
+func (*FlushAndCloseStream) Descriptor() ([]byte, []int) {
+	return fileDescriptor_auth_4edeb1cba1dbd286, []int{23}
+}
+func (m *FlushAndCloseStream) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *FlushAndCloseStream) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_FlushAndCloseStream.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (dst *FlushAndCloseStream) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FlushAndCloseStream.Merge(dst, src)
+}
+func (m *FlushAndCloseStream) XXX_Size() int {
+	return m.Size()
+}
+func (m *FlushAndCloseStream) XXX_DiscardUnknown() {
+	xxx_messageInfo_FlushAndCloseStream.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FlushAndCloseStream proto.InternalMessageInfo
+
 func init() {
 	proto.RegisterType((*Event)(nil), "proto.Event")
 	proto.RegisterType((*Watch)(nil), "proto.Watch")
@@ -1511,6 +2049,13 @@ func init() {
 	proto.RegisterType((*PingRequest)(nil), "proto.PingRequest")
 	proto.RegisterType((*PingResponse)(nil), "proto.PingResponse")
 	proto.RegisterType((*DeleteUserRequest)(nil), "proto.DeleteUserRequest")
+	proto.RegisterType((*Semaphores)(nil), "proto.Semaphores")
+	proto.RegisterType((*AuditStreamRequest)(nil), "proto.AuditStreamRequest")
+	proto.RegisterType((*AuditStreamStatus)(nil), "proto.AuditStreamStatus")
+	proto.RegisterType((*CreateStream)(nil), "proto.CreateStream")
+	proto.RegisterType((*ResumeStream)(nil), "proto.ResumeStream")
+	proto.RegisterType((*CompleteStream)(nil), "proto.CompleteStream")
+	proto.RegisterType((*FlushAndCloseStream)(nil), "proto.FlushAndCloseStream")
 	proto.RegisterEnum("proto.Operation", Operation_name, Operation_value)
 }
 
@@ -1564,8 +2109,22 @@ type AuthServiceClient interface {
 	CreateUser(ctx context.Context, in *services.UserV2, opts ...grpc.CallOption) (*empty.Empty, error)
 	// UpdateUser updates an existing user in a backend.
 	UpdateUser(ctx context.Context, in *services.UserV2, opts ...grpc.CallOption) (*empty.Empty, error)
-	// DeleteUser deletes an exisitng user in a backend by username.
+	// DeleteUser deletes an existing user in a backend by username.
 	DeleteUser(ctx context.Context, in *DeleteUserRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	// AcquireSemaphore acquires lease with requested resources from semaphore.
+	AcquireSemaphore(ctx context.Context, in *services.AcquireSemaphoreRequest, opts ...grpc.CallOption) (*services.SemaphoreLease, error)
+	// KeepAliveSemaphoreLease updates semaphore lease.
+	KeepAliveSemaphoreLease(ctx context.Context, in *services.SemaphoreLease, opts ...grpc.CallOption) (*empty.Empty, error)
+	// CancelSemaphoreLease cancels semaphore lease early.
+	CancelSemaphoreLease(ctx context.Context, in *services.SemaphoreLease, opts ...grpc.CallOption) (*empty.Empty, error)
+	// GetSemaphores returns a list of all semaphores matching the supplied filter.
+	GetSemaphores(ctx context.Context, in *services.SemaphoreFilter, opts ...grpc.CallOption) (*Semaphores, error)
+	// DeleteSemaphore deletes a semaphore matching the supplied filter.
+	DeleteSemaphore(ctx context.Context, in *services.SemaphoreFilter, opts ...grpc.CallOption) (*empty.Empty, error)
+	// EmitAuditEvent emits audit event
+	EmitAuditEvent(ctx context.Context, in *events.OneOf, opts ...grpc.CallOption) (*empty.Empty, error)
+	// CreateAuditStream creates or resumes audit events streams
+	CreateAuditStream(ctx context.Context, opts ...grpc.CallOption) (AuthService_CreateAuditStreamClient, error)
 }
 
 type authServiceClient struct {
@@ -1818,6 +2377,91 @@ func (c *authServiceClient) DeleteUser(ctx context.Context, in *DeleteUserReques
 	return out, nil
 }
 
+func (c *authServiceClient) AcquireSemaphore(ctx context.Context, in *services.AcquireSemaphoreRequest, opts ...grpc.CallOption) (*services.SemaphoreLease, error) {
+	out := new(services.SemaphoreLease)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/AcquireSemaphore", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) KeepAliveSemaphoreLease(ctx context.Context, in *services.SemaphoreLease, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/KeepAliveSemaphoreLease", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) CancelSemaphoreLease(ctx context.Context, in *services.SemaphoreLease, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/CancelSemaphoreLease", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) GetSemaphores(ctx context.Context, in *services.SemaphoreFilter, opts ...grpc.CallOption) (*Semaphores, error) {
+	out := new(Semaphores)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/GetSemaphores", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) DeleteSemaphore(ctx context.Context, in *services.SemaphoreFilter, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/DeleteSemaphore", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) EmitAuditEvent(ctx context.Context, in *events.OneOf, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/proto.AuthService/EmitAuditEvent", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) CreateAuditStream(ctx context.Context, opts ...grpc.CallOption) (AuthService_CreateAuditStreamClient, error) {
+	stream, err := c.cc.NewStream(ctx, &_AuthService_serviceDesc.Streams[3], "/proto.AuthService/CreateAuditStream", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &authServiceCreateAuditStreamClient{stream}
+	return x, nil
+}
+
+type AuthService_CreateAuditStreamClient interface {
+	Send(*AuditStreamRequest) error
+	Recv() (*events.StreamStatus, error)
+	grpc.ClientStream
+}
+
+type authServiceCreateAuditStreamClient struct {
+	grpc.ClientStream
+}
+
+func (x *authServiceCreateAuditStreamClient) Send(m *AuditStreamRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *authServiceCreateAuditStreamClient) Recv() (*events.StreamStatus, error) {
+	m := new(events.StreamStatus)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // Server API for AuthService service
 
 type AuthServiceServer interface {
@@ -1860,8 +2504,22 @@ type AuthServiceServer interface {
 	CreateUser(context.Context, *services.UserV2) (*empty.Empty, error)
 	// UpdateUser updates an existing user in a backend.
 	UpdateUser(context.Context, *services.UserV2) (*empty.Empty, error)
-	// DeleteUser deletes an exisitng user in a backend by username.
+	// DeleteUser deletes an existing user in a backend by username.
 	DeleteUser(context.Context, *DeleteUserRequest) (*empty.Empty, error)
+	// AcquireSemaphore acquires lease with requested resources from semaphore.
+	AcquireSemaphore(context.Context, *services.AcquireSemaphoreRequest) (*services.SemaphoreLease, error)
+	// KeepAliveSemaphoreLease updates semaphore lease.
+	KeepAliveSemaphoreLease(context.Context, *services.SemaphoreLease) (*empty.Empty, error)
+	// CancelSemaphoreLease cancels semaphore lease early.
+	CancelSemaphoreLease(context.Context, *services.SemaphoreLease) (*empty.Empty, error)
+	// GetSemaphores returns a list of all semaphores matching the supplied filter.
+	GetSemaphores(context.Context, *services.SemaphoreFilter) (*Semaphores, error)
+	// DeleteSemaphore deletes a semaphore matching the supplied filter.
+	DeleteSemaphore(context.Context, *services.SemaphoreFilter) (*empty.Empty, error)
+	// EmitAuditEvent emits audit event
+	EmitAuditEvent(context.Context, *events.OneOf) (*empty.Empty, error)
+	// CreateAuditStream creates or resumes audit events streams
+	CreateAuditStream(AuthService_CreateAuditStreamServer) error
 }
 
 func RegisterAuthServiceServer(s *grpc.Server, srv AuthServiceServer) {
@@ -2224,6 +2882,140 @@ func _AuthService_DeleteUser_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AuthService_AcquireSemaphore_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(services.AcquireSemaphoreRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).AcquireSemaphore(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/AcquireSemaphore",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).AcquireSemaphore(ctx, req.(*services.AcquireSemaphoreRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_KeepAliveSemaphoreLease_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(services.SemaphoreLease)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).KeepAliveSemaphoreLease(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/KeepAliveSemaphoreLease",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).KeepAliveSemaphoreLease(ctx, req.(*services.SemaphoreLease))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_CancelSemaphoreLease_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(services.SemaphoreLease)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).CancelSemaphoreLease(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/CancelSemaphoreLease",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).CancelSemaphoreLease(ctx, req.(*services.SemaphoreLease))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_GetSemaphores_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(services.SemaphoreFilter)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).GetSemaphores(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/GetSemaphores",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).GetSemaphores(ctx, req.(*services.SemaphoreFilter))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_DeleteSemaphore_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(services.SemaphoreFilter)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).DeleteSemaphore(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/DeleteSemaphore",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).DeleteSemaphore(ctx, req.(*services.SemaphoreFilter))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_EmitAuditEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(events.OneOf)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).EmitAuditEvent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.AuthService/EmitAuditEvent",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).EmitAuditEvent(ctx, req.(*events.OneOf))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_CreateAuditStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(AuthServiceServer).CreateAuditStream(&authServiceCreateAuditStreamServer{stream})
+}
+
+type AuthService_CreateAuditStreamServer interface {
+	Send(*events.StreamStatus) error
+	Recv() (*AuditStreamRequest, error)
+	grpc.ServerStream
+}
+
+type authServiceCreateAuditStreamServer struct {
+	grpc.ServerStream
+}
+
+func (x *authServiceCreateAuditStreamServer) Send(m *events.StreamStatus) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *authServiceCreateAuditStreamServer) Recv() (*AuditStreamRequest, error) {
+	m := new(AuditStreamRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 var _AuthService_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "proto.AuthService",
 	HandlerType: (*AuthServiceServer)(nil),
@@ -2292,6 +3084,30 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 			MethodName: "DeleteUser",
 			Handler:    _AuthService_DeleteUser_Handler,
 		},
+		{
+			MethodName: "AcquireSemaphore",
+			Handler:    _AuthService_AcquireSemaphore_Handler,
+		},
+		{
+			MethodName: "KeepAliveSemaphoreLease",
+			Handler:    _AuthService_KeepAliveSemaphoreLease_Handler,
+		},
+		{
+			MethodName: "CancelSemaphoreLease",
+			Handler:    _AuthService_CancelSemaphoreLease_Handler,
+		},
+		{
+			MethodName: "GetSemaphores",
+			Handler:    _AuthService_GetSemaphores_Handler,
+		},
+		{
+			MethodName: "DeleteSemaphore",
+			Handler:    _AuthService_DeleteSemaphore_Handler,
+		},
+		{
+			MethodName: "EmitAuditEvent",
+			Handler:    _AuthService_EmitAuditEvent_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -2308,6 +3124,12 @@ var _AuthService_serviceDesc = grpc.ServiceDesc{
 			StreamName:    "GetUsers",
 			Handler:       _AuthService_GetUsers_Handler,
 			ServerStreams: true,
+		},
+		{
+			StreamName:    "CreateAuditStream",
+			Handler:       _AuthService_CreateAuditStream_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
 		},
 	},
 	Metadata: "auth.proto",
@@ -3094,6 +3916,266 @@ func (m *DeleteUserRequest) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
+func (m *Semaphores) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Semaphores) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Semaphores) > 0 {
+		for _, msg := range m.Semaphores {
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintAuth(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *AuditStreamRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *AuditStreamRequest) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Request != nil {
+		nn16, err := m.Request.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += nn16
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *AuditStreamRequest_CreateStream) MarshalTo(dAtA []byte) (int, error) {
+	i := 0
+	if m.CreateStream != nil {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintAuth(dAtA, i, uint64(m.CreateStream.Size()))
+		n17, err := m.CreateStream.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n17
+	}
+	return i, nil
+}
+func (m *AuditStreamRequest_ResumeStream) MarshalTo(dAtA []byte) (int, error) {
+	i := 0
+	if m.ResumeStream != nil {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintAuth(dAtA, i, uint64(m.ResumeStream.Size()))
+		n18, err := m.ResumeStream.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n18
+	}
+	return i, nil
+}
+func (m *AuditStreamRequest_CompleteStream) MarshalTo(dAtA []byte) (int, error) {
+	i := 0
+	if m.CompleteStream != nil {
+		dAtA[i] = 0x1a
+		i++
+		i = encodeVarintAuth(dAtA, i, uint64(m.CompleteStream.Size()))
+		n19, err := m.CompleteStream.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n19
+	}
+	return i, nil
+}
+func (m *AuditStreamRequest_FlushAndCloseStream) MarshalTo(dAtA []byte) (int, error) {
+	i := 0
+	if m.FlushAndCloseStream != nil {
+		dAtA[i] = 0x22
+		i++
+		i = encodeVarintAuth(dAtA, i, uint64(m.FlushAndCloseStream.Size()))
+		n20, err := m.FlushAndCloseStream.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n20
+	}
+	return i, nil
+}
+func (m *AuditStreamRequest_Event) MarshalTo(dAtA []byte) (int, error) {
+	i := 0
+	if m.Event != nil {
+		dAtA[i] = 0x2a
+		i++
+		i = encodeVarintAuth(dAtA, i, uint64(m.Event.Size()))
+		n21, err := m.Event.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n21
+	}
+	return i, nil
+}
+func (m *AuditStreamStatus) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *AuditStreamStatus) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.UploadID) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintAuth(dAtA, i, uint64(len(m.UploadID)))
+		i += copy(dAtA[i:], m.UploadID)
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *CreateStream) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CreateStream) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.SessionID) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintAuth(dAtA, i, uint64(len(m.SessionID)))
+		i += copy(dAtA[i:], m.SessionID)
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *ResumeStream) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ResumeStream) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.SessionID) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintAuth(dAtA, i, uint64(len(m.SessionID)))
+		i += copy(dAtA[i:], m.SessionID)
+	}
+	if len(m.UploadID) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintAuth(dAtA, i, uint64(len(m.UploadID)))
+		i += copy(dAtA[i:], m.UploadID)
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *CompleteStream) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *CompleteStream) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *FlushAndCloseStream) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *FlushAndCloseStream) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
 func encodeVarintAuth(dAtA []byte, offset int, v uint64) int {
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
@@ -3498,6 +4580,139 @@ func (m *DeleteUserRequest) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovAuth(uint64(l))
 	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *Semaphores) Size() (n int) {
+	var l int
+	_ = l
+	if len(m.Semaphores) > 0 {
+		for _, e := range m.Semaphores {
+			l = e.Size()
+			n += 1 + l + sovAuth(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *AuditStreamRequest) Size() (n int) {
+	var l int
+	_ = l
+	if m.Request != nil {
+		n += m.Request.Size()
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *AuditStreamRequest_CreateStream) Size() (n int) {
+	var l int
+	_ = l
+	if m.CreateStream != nil {
+		l = m.CreateStream.Size()
+		n += 1 + l + sovAuth(uint64(l))
+	}
+	return n
+}
+func (m *AuditStreamRequest_ResumeStream) Size() (n int) {
+	var l int
+	_ = l
+	if m.ResumeStream != nil {
+		l = m.ResumeStream.Size()
+		n += 1 + l + sovAuth(uint64(l))
+	}
+	return n
+}
+func (m *AuditStreamRequest_CompleteStream) Size() (n int) {
+	var l int
+	_ = l
+	if m.CompleteStream != nil {
+		l = m.CompleteStream.Size()
+		n += 1 + l + sovAuth(uint64(l))
+	}
+	return n
+}
+func (m *AuditStreamRequest_FlushAndCloseStream) Size() (n int) {
+	var l int
+	_ = l
+	if m.FlushAndCloseStream != nil {
+		l = m.FlushAndCloseStream.Size()
+		n += 1 + l + sovAuth(uint64(l))
+	}
+	return n
+}
+func (m *AuditStreamRequest_Event) Size() (n int) {
+	var l int
+	_ = l
+	if m.Event != nil {
+		l = m.Event.Size()
+		n += 1 + l + sovAuth(uint64(l))
+	}
+	return n
+}
+func (m *AuditStreamStatus) Size() (n int) {
+	var l int
+	_ = l
+	l = len(m.UploadID)
+	if l > 0 {
+		n += 1 + l + sovAuth(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *CreateStream) Size() (n int) {
+	var l int
+	_ = l
+	l = len(m.SessionID)
+	if l > 0 {
+		n += 1 + l + sovAuth(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ResumeStream) Size() (n int) {
+	var l int
+	_ = l
+	l = len(m.SessionID)
+	if l > 0 {
+		n += 1 + l + sovAuth(uint64(l))
+	}
+	l = len(m.UploadID)
+	if l > 0 {
+		n += 1 + l + sovAuth(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *CompleteStream) Size() (n int) {
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *FlushAndCloseStream) Size() (n int) {
+	var l int
+	_ = l
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -5744,6 +6959,670 @@ func (m *DeleteUserRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *Semaphores) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuth
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Semaphores: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Semaphores: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Semaphores", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuth
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuth
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Semaphores = append(m.Semaphores, &services.SemaphoreV3{})
+			if err := m.Semaphores[len(m.Semaphores)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuth(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthAuth
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *AuditStreamRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuth
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: AuditStreamRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: AuditStreamRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CreateStream", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuth
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuth
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &CreateStream{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Request = &AuditStreamRequest_CreateStream{v}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ResumeStream", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuth
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuth
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &ResumeStream{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Request = &AuditStreamRequest_ResumeStream{v}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CompleteStream", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuth
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuth
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &CompleteStream{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Request = &AuditStreamRequest_CompleteStream{v}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FlushAndCloseStream", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuth
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuth
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &FlushAndCloseStream{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Request = &AuditStreamRequest_FlushAndCloseStream{v}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Event", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuth
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthAuth
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &events.OneOf{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Request = &AuditStreamRequest_Event{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuth(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthAuth
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *AuditStreamStatus) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuth
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: AuditStreamStatus: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: AuditStreamStatus: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UploadID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuth
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuth
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.UploadID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuth(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthAuth
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CreateStream) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuth
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CreateStream: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CreateStream: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuth
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuth
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SessionID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuth(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthAuth
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ResumeStream) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuth
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ResumeStream: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ResumeStream: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SessionID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuth
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuth
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SessionID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UploadID", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuth
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuth
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.UploadID = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuth(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthAuth
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *CompleteStream) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuth
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: CompleteStream: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: CompleteStream: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuth(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthAuth
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *FlushAndCloseStream) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowAuth
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: FlushAndCloseStream: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: FlushAndCloseStream: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipAuth(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthAuth
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func skipAuth(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
@@ -5849,118 +7728,139 @@ var (
 	ErrIntOverflowAuth   = fmt.Errorf("proto: integer overflow")
 )
 
-func init() { proto.RegisterFile("auth.proto", fileDescriptor_auth_cc9d777e75d42d1b) }
+func init() { proto.RegisterFile("auth.proto", fileDescriptor_auth_4edeb1cba1dbd286) }
 
-var fileDescriptor_auth_cc9d777e75d42d1b = []byte{
-	// 1758 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x94, 0x57, 0xdd, 0x6e, 0xdb, 0xc8,
-	0x15, 0x0e, 0x2d, 0xcb, 0x96, 0x8e, 0x6c, 0x45, 0x19, 0x3b, 0x36, 0xa3, 0x38, 0xa6, 0xa1, 0x60,
-	0x17, 0xc6, 0x36, 0x95, 0xb6, 0x32, 0x36, 0x4d, 0x83, 0xa2, 0x41, 0x68, 0x2b, 0xb6, 0x37, 0x6e,
-	0xea, 0x52, 0x8a, 0x52, 0xb4, 0x05, 0x04, 0x5a, 0x9a, 0xc8, 0x84, 0x29, 0x52, 0xcb, 0x19, 0x29,
-	0x35, 0xd0, 0xab, 0xa2, 0x0f, 0xd0, 0xcb, 0x5e, 0xf4, 0x05, 0xfa, 0x14, 0xbd, 0xcd, 0x65, 0x9f,
-	0x80, 0x6d, 0xd3, 0x3b, 0x3e, 0x42, 0xd1, 0x8b, 0xc5, 0xfc, 0x50, 0xe4, 0x50, 0x56, 0x36, 0xb9,
-	0x12, 0xe7, 0xfc, 0x7c, 0xe7, 0xcc, 0x99, 0x33, 0xdf, 0x1c, 0x01, 0xd8, 0x13, 0x7a, 0x59, 0x1f,
-	0x07, 0x3e, 0xf5, 0x51, 0x9e, 0xff, 0x54, 0x9f, 0x0e, 0x1d, 0x7a, 0x39, 0xb9, 0xa8, 0xf7, 0xfd,
-	0x51, 0x63, 0x18, 0xd8, 0x53, 0x87, 0xda, 0xd4, 0xf1, 0x3d, 0xdb, 0x6d, 0x50, 0xec, 0xe2, 0xb1,
-	0x1f, 0xd0, 0x86, 0xeb, 0x5c, 0x34, 0x08, 0x0e, 0xa6, 0x4e, 0x1f, 0x93, 0x06, 0xbd, 0x1e, 0x63,
-	0x22, 0x20, 0xaa, 0x9b, 0x43, 0x7f, 0xe8, 0xf3, 0xcf, 0x06, 0xfb, 0x92, 0xd2, 0xfb, 0x43, 0xdf,
-	0x1f, 0xba, 0xb8, 0xc1, 0x57, 0x17, 0x93, 0xb7, 0x0d, 0x3c, 0x1a, 0xd3, 0x6b, 0xa9, 0x34, 0xb2,
-	0x4a, 0xea, 0x8c, 0x30, 0xa1, 0xf6, 0x68, 0x2c, 0x0c, 0x6a, 0xff, 0x28, 0x42, 0xbe, 0x35, 0xc5,
-	0x1e, 0x45, 0x4f, 0x60, 0xb9, 0x73, 0x3d, 0xc6, 0xba, 0xb6, 0xa7, 0xed, 0x97, 0x9b, 0x15, 0xa1,
-	0xaf, 0xff, 0x6a, 0x8c, 0x03, 0x9e, 0xa1, 0x89, 0xa2, 0xd0, 0x28, 0xb3, 0x74, 0x1e, 0xf9, 0x23,
-	0x87, 0xf2, 0x20, 0x16, 0xf7, 0x40, 0xbf, 0x85, 0xb2, 0x85, 0x89, 0x3f, 0x09, 0xfa, 0xf8, 0x04,
-	0xdb, 0x03, 0x1c, 0xe8, 0x4b, 0x7b, 0xda, 0x7e, 0xa9, 0xa9, 0xd7, 0xe3, 0x6d, 0xd4, 0x55, 0xbd,
-	0xb9, 0x15, 0x85, 0x06, 0x0a, 0xa4, 0x2c, 0xc1, 0x3b, 0xb9, 0x65, 0x65, 0x90, 0x50, 0x0f, 0xd6,
-	0x0f, 0x71, 0x40, 0x9f, 0x4f, 0xe8, 0xa5, 0x1f, 0x38, 0xf4, 0x5a, 0xcf, 0x71, 0xe8, 0x7b, 0x09,
-	0xb4, 0xa2, 0xee, 0x36, 0xcd, 0x9d, 0x28, 0x34, 0xf4, 0x3e, 0x0e, 0x68, 0xcf, 0x8e, 0xa5, 0x4a,
-	0x04, 0x15, 0x0f, 0xfd, 0x0e, 0xd6, 0xda, 0xec, 0x0c, 0xfa, 0x1d, 0xff, 0x0a, 0x7b, 0x44, 0x5f,
-	0xce, 0xa6, 0x9e, 0xd6, 0x76, 0x9b, 0xe6, 0xfd, 0x28, 0x34, 0xb6, 0x09, 0x97, 0xf5, 0x28, 0x17,
-	0x2a, 0xe8, 0x0a, 0x18, 0xea, 0x43, 0xf9, 0x3c, 0xf0, 0xa7, 0x0e, 0x71, 0x7c, 0x8f, 0x8b, 0xf4,
-	0x3c, 0x87, 0xaf, 0x26, 0xf0, 0xaa, 0xbe, 0xdb, 0x34, 0x1f, 0x44, 0xa1, 0x71, 0x6f, 0x1c, 0x4b,
-	0x45, 0x0c, 0xb5, 0x44, 0xaa, 0x0b, 0x7a, 0x03, 0xa5, 0x43, 0x77, 0x42, 0x28, 0x0e, 0x5e, 0xd9,
-	0x23, 0xac, 0xaf, 0xf0, 0x08, 0xdb, 0xa9, 0x02, 0x25, 0xca, 0x6e, 0xd3, 0xac, 0x46, 0xa1, 0xb1,
-	0xd5, 0x17, 0xa2, 0x9e, 0x67, 0x8f, 0xd4, 0xf2, 0xa7, 0x91, 0x78, 0xed, 0xc5, 0xf2, 0xd0, 0xf7,
-	0xde, 0x3a, 0x43, 0x7d, 0x75, 0xae, 0xf6, 0x69, 0x75, 0xf7, 0x40, 0xd6, 0x5e, 0x82, 0xf7, 0xb9,
-	0x34, 0x53, 0xfb, 0xb4, 0x03, 0x7a, 0x0a, 0xcb, 0xaf, 0x09, 0x0e, 0xf4, 0x02, 0xc7, 0xad, 0x24,
-	0xb8, 0x4c, 0xda, 0x6d, 0x8a, 0x96, 0x9b, 0x10, 0x1c, 0x28, 0x20, 0xdc, 0x87, 0xf9, 0x5a, 0xbe,
-	0x8b, 0xf5, 0x62, 0xd6, 0x97, 0x49, 0xbb, 0x07, 0xc2, 0x37, 0xf0, 0x5d, 0x75, 0x7f, 0xdc, 0x07,
-	0x9d, 0x41, 0x91, 0x6d, 0x90, 0x8c, 0xed, 0x3e, 0xd6, 0x81, 0x03, 0x6c, 0x24, 0x00, 0x33, 0x95,
-	0xb9, 0x1d, 0x85, 0xc6, 0x86, 0x17, 0x2f, 0x15, 0xa0, 0x04, 0x00, 0x99, 0xb0, 0xd2, 0xc6, 0xc1,
-	0x14, 0x07, 0x7a, 0x89, 0x43, 0xa1, 0x54, 0xef, 0x70, 0x79, 0xb7, 0x69, 0x6e, 0x46, 0xa1, 0x51,
-	0x21, 0x7c, 0xa5, 0xc0, 0x48, 0x4f, 0x56, 0x6a, 0x0b, 0x4f, 0x71, 0x40, 0x70, 0x67, 0xe2, 0x79,
-	0xd8, 0xd5, 0xd7, 0xb2, 0xa5, 0x56, 0xd4, 0x71, 0x9b, 0x07, 0x42, 0xd8, 0xa3, 0x5c, 0xaa, 0x96,
-	0x5a, 0x71, 0x40, 0x57, 0x50, 0x11, 0x5f, 0x87, 0xbe, 0xe7, 0xe1, 0x3e, 0xbb, 0xd1, 0xfa, 0x3a,
-	0x8f, 0xb1, 0x93, 0xc4, 0xc8, 0x5a, 0x74, 0x9b, 0xa6, 0x11, 0x85, 0xc6, 0x7d, 0x01, 0xcf, 0x0e,
-	0x54, 0x2a, 0x94, 0x48, 0x73, 0xc0, 0x6c, 0x37, 0xcf, 0xfb, 0x7d, 0x4c, 0x88, 0x85, 0xbf, 0x9b,
-	0x60, 0x42, 0xf5, 0x72, 0x76, 0x37, 0x8a, 0x3a, 0x6e, 0x1c, 0x9b, 0x0b, 0x7b, 0x81, 0x90, 0xaa,
-	0xbb, 0x51, 0x1c, 0x4c, 0x80, 0x42, 0xcc, 0x13, 0xb5, 0x13, 0xc8, 0xbf, 0xb1, 0x69, 0xff, 0x12,
-	0x3d, 0x83, 0xfc, 0x4b, 0xc7, 0x1b, 0x10, 0x5d, 0xdb, 0xcb, 0xf1, 0x96, 0x10, 0x0c, 0xc6, 0x95,
-	0x4c, 0x61, 0x6e, 0xbf, 0x0f, 0x8d, 0x5b, 0x51, 0x68, 0xdc, 0xbe, 0x62, 0x66, 0x29, 0x1a, 0x13,
-	0x7e, 0xb5, 0x3f, 0x2d, 0x41, 0x71, 0x66, 0x8d, 0x76, 0x60, 0x99, 0xfd, 0x72, 0x3e, 0x2c, 0x9a,
-	0x85, 0x28, 0x34, 0x96, 0x99, 0x9f, 0xc5, 0xa5, 0xa8, 0x09, 0xa5, 0x33, 0xdf, 0x1e, 0xb4, 0x71,
-	0x3f, 0xc0, 0x94, 0x70, 0xc2, 0x2b, 0x98, 0x95, 0x28, 0x34, 0xd6, 0x5c, 0xdf, 0x1e, 0xf4, 0x88,
-	0x90, 0x5b, 0x69, 0x23, 0x86, 0xc8, 0x6f, 0x68, 0x2e, 0x41, 0x64, 0xcd, 0x65, 0x71, 0x29, 0xfa,
-	0x16, 0x56, 0x5e, 0x38, 0x2e, 0xc5, 0x81, 0xbe, 0xcc, 0xf3, 0xdf, 0xc9, 0xe6, 0x5f, 0x17, 0xea,
-	0x96, 0x47, 0x83, 0x6b, 0xd1, 0x50, 0x6f, 0xb9, 0x20, 0xb5, 0x11, 0x89, 0x50, 0xfd, 0x19, 0x94,
-	0x52, 0xc6, 0xa8, 0x02, 0xb9, 0x2b, 0x7c, 0x2d, 0x76, 0x62, 0xb1, 0x4f, 0xb4, 0x09, 0xf9, 0xa9,
-	0xed, 0x4e, 0x30, 0x4f, 0xbc, 0x68, 0x89, 0xc5, 0xd3, 0xa5, 0x27, 0x5a, 0xed, 0xd7, 0x90, 0x67,
-	0x04, 0x49, 0xd0, 0x43, 0xc8, 0xb5, 0xdb, 0x27, 0xdc, 0x69, 0xcd, 0xbc, 0x13, 0x85, 0xc6, 0x3a,
-	0x21, 0x97, 0xa9, 0x58, 0x4c, 0xcb, 0x8c, 0x3a, 0x67, 0x6d, 0x8e, 0x22, 0x8d, 0xa8, 0x9b, 0xae,
-	0x2c, 0xd3, 0xd6, 0xfe, 0xbf, 0x04, 0x15, 0x76, 0x67, 0x39, 0xae, 0x3c, 0x42, 0xf4, 0x08, 0x8a,
-	0xe7, 0x93, 0x0b, 0xd7, 0xe9, 0xbf, 0x94, 0x99, 0xad, 0x99, 0xe5, 0x28, 0x34, 0x60, 0xcc, 0x85,
-	0xbd, 0x2b, 0x7c, 0x6d, 0x25, 0x06, 0x68, 0x1f, 0x0a, 0x0c, 0x81, 0x95, 0x4b, 0xa4, 0x6c, 0xae,
-	0x45, 0xa1, 0x51, 0x98, 0x48, 0x99, 0x35, 0xd3, 0xa2, 0x36, 0xac, 0xb6, 0xfe, 0x30, 0x76, 0x02,
-	0x4c, 0xe4, 0x53, 0x51, 0xad, 0x8b, 0x37, 0xb0, 0x1e, 0xbf, 0x81, 0xf5, 0x4e, 0xfc, 0x06, 0x9a,
-	0x0f, 0x64, 0x47, 0xdc, 0xc1, 0xc2, 0x25, 0xc9, 0xfc, 0x2f, 0xff, 0x32, 0x34, 0x2b, 0x46, 0x42,
-	0x8f, 0x60, 0xe5, 0x85, 0x1f, 0x8c, 0x6c, 0xca, 0x9f, 0x87, 0xa2, 0xac, 0x3e, 0x97, 0x28, 0xd5,
-	0xe7, 0x12, 0xf4, 0x02, 0xca, 0x96, 0x3f, 0xa1, 0xb8, 0xe3, 0x4b, 0xba, 0xe3, 0xac, 0x5f, 0x34,
-	0x77, 0xa3, 0xd0, 0xa8, 0x06, 0x4c, 0xd3, 0xa3, 0x7e, 0x4f, 0xd2, 0x64, 0xca, 0x3f, 0xe3, 0x85,
-	0x5a, 0x50, 0x56, 0xda, 0x9e, 0xe8, 0x2b, 0x7b, 0xb9, 0xfd, 0xa2, 0x78, 0x21, 0xd4, 0xcb, 0x92,
-	0xae, 0x79, 0xc6, 0xa9, 0xe6, 0x42, 0xf9, 0x18, 0x53, 0x56, 0xa0, 0xb8, 0xf6, 0x71, 0x23, 0x6a,
-	0x37, 0x36, 0xe2, 0xcf, 0xa1, 0xf4, 0xc6, 0xa1, 0x97, 0x6a, 0x6b, 0xf3, 0x67, 0xe3, 0x9d, 0x43,
-	0x2f, 0xe3, 0xd6, 0x4e, 0x05, 0x4c, 0x9b, 0xd7, 0x5a, 0x70, 0x5b, 0x46, 0x9b, 0x1d, 0x75, 0x53,
-	0x05, 0xd4, 0x92, 0xbb, 0x92, 0x06, 0x54, 0x61, 0x2e, 0xb3, 0x7b, 0x47, 0xdd, 0xb9, 0x6a, 0x88,
-	0x7b, 0xfe, 0x11, 0x56, 0xd9, 0x60, 0x97, 0x3d, 0x53, 0xa8, 0xb9, 0xf2, 0xfc, 0x06, 0xd6, 0xcf,
-	0xdd, 0xc9, 0xd0, 0xf1, 0x8e, 0x6c, 0x6a, 0xb7, 0xf1, 0x77, 0xe8, 0x18, 0x20, 0x11, 0xc8, 0x20,
-	0x5b, 0xa9, 0x07, 0x7b, 0xa6, 0xeb, 0x1e, 0x98, 0xb7, 0xa3, 0xd0, 0x28, 0x8d, 0xb9, 0xa4, 0x37,
-	0xb0, 0xa9, 0x6d, 0xa5, 0x5c, 0x6b, 0x7f, 0xd3, 0x00, 0xc9, 0x30, 0x6c, 0x2a, 0xc0, 0x6d, 0x4c,
-	0xd9, 0xb1, 0x6e, 0xc1, 0xd2, 0xe9, 0x91, 0xac, 0xfd, 0x4a, 0x14, 0x1a, 0x4b, 0xce, 0xc0, 0x5a,
-	0x3a, 0x3d, 0x42, 0x3f, 0x85, 0x3c, 0x37, 0xe3, 0x15, 0x2f, 0xa7, 0x43, 0xa6, 0x41, 0xcc, 0x62,
-	0x14, 0x1a, 0x79, 0x36, 0x80, 0x60, 0x4b, 0xd8, 0xa3, 0x6f, 0xa0, 0x78, 0x84, 0x5d, 0x3c, 0xb4,
-	0xa9, 0x1f, 0x48, 0x72, 0xe1, 0x2f, 0xd7, 0x20, 0x16, 0xa6, 0xce, 0x2a, 0xb1, 0xac, 0x3d, 0x84,
-	0xa2, 0x04, 0x3e, 0x3d, 0x5a, 0x94, 0x54, 0xed, 0x97, 0xf0, 0xa5, 0xe5, 0xf3, 0x60, 0x98, 0x60,
-	0x7a, 0x6e, 0x13, 0xf2, 0xce, 0x0f, 0x06, 0x7c, 0xf0, 0x90, 0x47, 0x15, 0x9f, 0xf2, 0x43, 0x58,
-	0xe5, 0xe2, 0x19, 0x0c, 0x4f, 0x94, 0x8f, 0x2f, 0x56, 0xac, 0xa9, 0x1d, 0xc2, 0xce, 0x31, 0xa6,
-	0xf3, 0x58, 0x9f, 0x05, 0xf2, 0x67, 0x0d, 0x8c, 0xc3, 0x00, 0xdf, 0x98, 0xd4, 0xa7, 0xb5, 0xf8,
-	0x8e, 0x9c, 0x75, 0x97, 0x12, 0x2d, 0x9b, 0x6c, 0xe5, 0x3c, 0xfb, 0x05, 0xe4, 0x3a, 0x9d, 0x33,
-	0x5e, 0xc9, 0x1c, 0xef, 0xa1, 0x1c, 0xa5, 0xee, 0xff, 0x42, 0xa3, 0x70, 0x34, 0x11, 0xb3, 0xb0,
-	0xc5, 0xf4, 0xb5, 0x75, 0x28, 0x9d, 0x3b, 0xde, 0x50, 0x46, 0xac, 0xfd, 0x11, 0xd6, 0xc4, 0x92,
-	0x8c, 0x7d, 0x8f, 0x60, 0xd6, 0xf5, 0xe9, 0xb1, 0x4c, 0x24, 0xc2, 0xbb, 0x3e, 0x3d, 0x7d, 0xa9,
-	0x13, 0xd7, 0x13, 0x58, 0x97, 0x23, 0x03, 0x0e, 0xd8, 0x80, 0x27, 0x13, 0xe4, 0xb3, 0x8c, 0x98,
-	0x1e, 0x7a, 0x53, 0xa1, 0xb1, 0x54, 0xc3, 0xda, 0x4f, 0xe0, 0x0e, 0x3b, 0x59, 0x8a, 0x3f, 0xf9,
-	0x9e, 0x7f, 0xf5, 0x15, 0x14, 0x67, 0xd3, 0x3d, 0x2a, 0xc0, 0xf2, 0xe9, 0xab, 0xd3, 0x4e, 0xe5,
-	0x16, 0x5a, 0x85, 0xdc, 0xf9, 0xeb, 0x4e, 0x45, 0x43, 0x00, 0x2b, 0x47, 0xad, 0xb3, 0x56, 0xa7,
-	0x55, 0x59, 0x6a, 0xfe, 0x1d, 0xa0, 0xc4, 0x66, 0xe6, 0xb6, 0x68, 0x49, 0xf4, 0x0c, 0xca, 0x6d,
-	0xec, 0x0d, 0x5e, 0x62, 0x3c, 0x7e, 0xee, 0x3a, 0x53, 0x4c, 0x50, 0x6a, 0x80, 0x9a, 0x49, 0xab,
-	0x5b, 0x73, 0xdc, 0xdb, 0x62, 0x5d, 0xb8, 0xaf, 0xa1, 0x1f, 0x41, 0x89, 0x3f, 0x6c, 0xfc, 0xbf,
-	0x07, 0x41, 0x6b, 0xe9, 0xc7, 0xae, 0x1a, 0xaf, 0xb8, 0xf2, 0x6b, 0x0d, 0x7d, 0x03, 0xf0, 0x7a,
-	0x4c, 0x70, 0x40, 0x5f, 0xf9, 0x03, 0x8c, 0x6e, 0x98, 0xaf, 0xaa, 0x37, 0x45, 0x47, 0x4f, 0xe1,
-	0xce, 0x31, 0xf6, 0xd8, 0x0e, 0xf1, 0xec, 0xf9, 0x41, 0xdb, 0x12, 0x3b, 0xfb, 0x20, 0xcd, 0x82,
-	0x0a, 0xb3, 0x26, 0xac, 0x4a, 0x1a, 0x43, 0x77, 0xa5, 0x42, 0x25, 0xd1, 0xea, 0xdc, 0xb8, 0x8a,
-	0x1e, 0x43, 0x21, 0xa6, 0x3e, 0xb4, 0xa5, 0x3a, 0x91, 0x85, 0x5e, 0x5f, 0x6b, 0xe8, 0x94, 0xe5,
-	0x49, 0x33, 0x74, 0xf7, 0x60, 0x01, 0xad, 0xc9, 0x17, 0x3e, 0x4e, 0x2a, 0xe3, 0x75, 0x02, 0x1b,
-	0xe2, 0x66, 0x28, 0x72, 0xb4, 0x98, 0x23, 0x17, 0x1d, 0x11, 0x7a, 0x06, 0x1b, 0xa2, 0xa1, 0x54,
-	0xa4, 0x78, 0xaa, 0x9a, 0x31, 0xc7, 0x42, 0x80, 0x6f, 0xe1, 0x6e, 0x3b, 0xb3, 0x2b, 0x41, 0x57,
-	0xf7, 0x54, 0x88, 0x14, 0x35, 0x2e, 0xc4, 0x7a, 0x0e, 0xeb, 0xc7, 0x98, 0x26, 0xd4, 0x8a, 0xaa,
-	0x37, 0xf1, 0xb1, 0x2c, 0xcd, 0xa6, 0xc4, 0x57, 0x59, 0xfd, 0x0c, 0x2a, 0xaf, 0xc7, 0x03, 0x9b,
-	0xe2, 0x14, 0xca, 0xde, 0x4d, 0x28, 0xd2, 0xca, 0x0e, 0xec, 0x11, 0x59, 0x98, 0x50, 0x03, 0x96,
-	0xd9, 0x65, 0x47, 0x28, 0x8e, 0x95, 0x10, 0x41, 0x75, 0x43, 0x91, 0x49, 0x36, 0x78, 0x07, 0xc6,
-	0x0f, 0xf0, 0x28, 0xfa, 0x71, 0x5c, 0x97, 0x4f, 0xe2, 0xdb, 0xea, 0x17, 0xca, 0xbf, 0xeb, 0x9b,
-	0x6d, 0xbb, 0x07, 0xe8, 0xf7, 0x70, 0xf7, 0x46, 0xc6, 0x45, 0x0f, 0x93, 0x0e, 0x5d, 0x48, 0xa3,
-	0xd5, 0xdd, 0x8f, 0x05, 0xe9, 0x1e, 0xa0, 0x0b, 0xd0, 0x17, 0x31, 0x31, 0xfa, 0x32, 0xbe, 0x50,
-	0x1f, 0xa7, 0xea, 0x1f, 0x8c, 0xf1, 0x18, 0x40, 0x40, 0xf0, 0xdb, 0x38, 0x77, 0x81, 0x16, 0x9e,
-	0xd1, 0x63, 0xc6, 0x1a, 0x83, 0xcf, 0xf7, 0xfb, 0x05, 0x40, 0x42, 0xa5, 0x48, 0x97, 0xbb, 0x98,
-	0x63, 0xd7, 0x45, 0xfe, 0xe6, 0xe6, 0xfb, 0xff, 0xec, 0x6a, 0xef, 0x3f, 0xec, 0x6a, 0xff, 0xfc,
-	0xb0, 0xab, 0xfd, 0xfb, 0xc3, 0xae, 0xf6, 0xd7, 0xff, 0xee, 0xde, 0xba, 0x58, 0xe1, 0x56, 0x07,
-	0xdf, 0x07, 0x00, 0x00, 0xff, 0xff, 0x76, 0xfd, 0xe5, 0x52, 0x14, 0x12, 0x00, 0x00,
+var fileDescriptor_auth_4edeb1cba1dbd286 = []byte{
+	// 2087 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x58, 0x5f, 0x6f, 0x1b, 0x4b,
+	0x15, 0xcf, 0x3a, 0x7f, 0x7d, 0x92, 0xb8, 0xce, 0x24, 0x4d, 0xb6, 0xbe, 0x69, 0xb6, 0xb8, 0xea,
+	0x55, 0x74, 0x29, 0x49, 0x71, 0x74, 0x7b, 0xdb, 0x0a, 0xa8, 0xb2, 0x89, 0xdb, 0xe4, 0x36, 0xb4,
+	0x61, 0xed, 0xba, 0x08, 0x90, 0xac, 0x8d, 0x3d, 0x4d, 0x56, 0x5d, 0xef, 0xba, 0x3b, 0xb3, 0x29,
+	0x91, 0x78, 0x42, 0x7c, 0x00, 0x1e, 0x41, 0xe2, 0xbb, 0xf0, 0xda, 0x17, 0x24, 0x3e, 0xc1, 0x02,
+	0xe5, 0xcd, 0x1f, 0x01, 0xf1, 0x80, 0xe6, 0xcf, 0x7a, 0x67, 0xd6, 0x76, 0xe8, 0x85, 0xa7, 0x78,
+	0xce, 0x9f, 0xdf, 0x39, 0x73, 0xe6, 0xcc, 0xfc, 0xce, 0x06, 0xc0, 0x8d, 0xe9, 0xc5, 0x4e, 0x3f,
+	0x0a, 0x69, 0x88, 0x66, 0xf9, 0x9f, 0xca, 0xda, 0x79, 0x78, 0x1e, 0xf2, 0x9f, 0xbb, 0xec, 0x97,
+	0x50, 0x56, 0xbe, 0x38, 0x0f, 0xc3, 0x73, 0x1f, 0xef, 0xf2, 0xd5, 0x59, 0xfc, 0x76, 0x17, 0xf7,
+	0xfa, 0xf4, 0x4a, 0x2a, 0xad, 0xbc, 0x92, 0x7a, 0x3d, 0x4c, 0xa8, 0xdb, 0xeb, 0x4b, 0x83, 0x27,
+	0xe7, 0x1e, 0xbd, 0x88, 0xcf, 0x76, 0x3a, 0x61, 0x6f, 0xf7, 0x3c, 0x72, 0x2f, 0x3d, 0xea, 0x52,
+	0x2f, 0x0c, 0x5c, 0x7f, 0x97, 0x62, 0x1f, 0xf7, 0xc3, 0x88, 0xee, 0xfa, 0xde, 0xd9, 0x2e, 0xc1,
+	0xd1, 0xa5, 0xd7, 0xc1, 0x64, 0x97, 0x5e, 0xf5, 0x31, 0x91, 0xbe, 0x8f, 0x3f, 0xcf, 0x17, 0x5f,
+	0xe2, 0x80, 0x12, 0xf9, 0x47, 0xb8, 0x56, 0xff, 0x5c, 0x84, 0xd9, 0x3a, 0x13, 0xa0, 0x47, 0x30,
+	0xd3, 0xbc, 0xea, 0x63, 0xd3, 0xb8, 0x63, 0x6c, 0x97, 0x6a, 0x65, 0xa1, 0xdf, 0x79, 0xd5, 0xc7,
+	0x11, 0x07, 0xb3, 0xd1, 0x20, 0xb1, 0x4a, 0x2c, 0xea, 0xfd, 0xb0, 0xe7, 0x51, 0xbe, 0x37, 0x87,
+	0x7b, 0xa0, 0x5f, 0x40, 0xc9, 0xc1, 0x24, 0x8c, 0xa3, 0x0e, 0x3e, 0xc2, 0x6e, 0x17, 0x47, 0x66,
+	0xe1, 0x8e, 0xb1, 0xbd, 0x58, 0x33, 0x77, 0xd2, 0x6c, 0x77, 0x74, 0xbd, 0xbd, 0x3e, 0x48, 0x2c,
+	0x14, 0x49, 0x59, 0x86, 0x77, 0x34, 0xe5, 0xe4, 0x90, 0x50, 0x1b, 0x96, 0x0f, 0x70, 0x44, 0xf7,
+	0x63, 0x7a, 0x11, 0x46, 0x1e, 0xbd, 0x32, 0xa7, 0x39, 0xf4, 0xad, 0x0c, 0x5a, 0x53, 0xb7, 0x6a,
+	0xf6, 0xe6, 0x20, 0xb1, 0xcc, 0x0e, 0x8e, 0x68, 0xdb, 0x4d, 0xa5, 0x5a, 0x04, 0x1d, 0x0f, 0xfd,
+	0x12, 0x96, 0x1a, 0xac, 0x5c, 0x9d, 0x66, 0xf8, 0x0e, 0x07, 0xc4, 0x9c, 0xc9, 0xa7, 0xae, 0x6a,
+	0x5b, 0x35, 0xfb, 0x8b, 0x41, 0x62, 0x6d, 0x10, 0x2e, 0x6b, 0x53, 0x2e, 0xd4, 0xd0, 0x35, 0x30,
+	0xd4, 0x81, 0xd2, 0x69, 0x14, 0x5e, 0x7a, 0xc4, 0x0b, 0x03, 0x2e, 0x32, 0x67, 0x39, 0x7c, 0x25,
+	0x83, 0xd7, 0xf5, 0xad, 0x9a, 0x7d, 0x7b, 0x90, 0x58, 0xb7, 0xfa, 0xa9, 0x54, 0xc4, 0xd0, 0x4b,
+	0xa4, 0xbb, 0xa0, 0x37, 0xb0, 0x78, 0xe0, 0xc7, 0x84, 0xe2, 0xe8, 0xa5, 0xdb, 0xc3, 0xe6, 0x1c,
+	0x8f, 0xb0, 0xa1, 0x14, 0x28, 0x53, 0xb6, 0x6a, 0x76, 0x65, 0x90, 0x58, 0xeb, 0x1d, 0x21, 0x6a,
+	0x07, 0x6e, 0x4f, 0x2f, 0xbf, 0x8a, 0xc4, 0x6b, 0x2f, 0x96, 0x07, 0x61, 0xf0, 0xd6, 0x3b, 0x37,
+	0xe7, 0x47, 0x6a, 0xaf, 0xaa, 0x5b, 0x7b, 0xb2, 0xf6, 0x12, 0xbc, 0xc3, 0xa5, 0xb9, 0xda, 0xab,
+	0x0e, 0xe8, 0x09, 0xcc, 0xbc, 0x26, 0x38, 0x32, 0x17, 0x38, 0x6e, 0x39, 0xc3, 0x65, 0xd2, 0x56,
+	0x4d, 0xb4, 0x5c, 0x4c, 0x70, 0xa4, 0x81, 0x70, 0x1f, 0xe6, 0xeb, 0x84, 0x3e, 0x36, 0x8b, 0x79,
+	0x5f, 0x26, 0x6d, 0xed, 0x09, 0xdf, 0x28, 0xf4, 0xf5, 0xfd, 0x71, 0x1f, 0x74, 0x02, 0x45, 0xb6,
+	0x41, 0xd2, 0x77, 0x3b, 0xd8, 0x04, 0x0e, 0xb0, 0x9a, 0x01, 0x0c, 0x55, 0xf6, 0xc6, 0x20, 0xb1,
+	0x56, 0x83, 0x74, 0xa9, 0x01, 0x65, 0x00, 0xc8, 0x86, 0xb9, 0x06, 0x8e, 0x2e, 0x71, 0x64, 0x2e,
+	0x72, 0x28, 0xa4, 0xf4, 0x0e, 0x97, 0xb7, 0x6a, 0xf6, 0xda, 0x20, 0xb1, 0xca, 0x84, 0xaf, 0x34,
+	0x18, 0xe9, 0xc9, 0x4a, 0xed, 0xe0, 0x4b, 0x1c, 0x11, 0xdc, 0x8c, 0x83, 0x00, 0xfb, 0xe6, 0x52,
+	0xbe, 0xd4, 0x9a, 0x3a, 0x6d, 0xf3, 0x48, 0x08, 0xdb, 0x94, 0x4b, 0xf5, 0x52, 0x6b, 0x0e, 0xe8,
+	0x1d, 0x94, 0xc5, 0xaf, 0x83, 0x30, 0x08, 0x70, 0x87, 0xdd, 0x68, 0x73, 0x99, 0xc7, 0xd8, 0xcc,
+	0x62, 0xe4, 0x2d, 0x5a, 0x35, 0xdb, 0x1a, 0x24, 0xd6, 0x17, 0x02, 0x9e, 0x1d, 0xa8, 0x54, 0x68,
+	0x91, 0x46, 0x80, 0xd9, 0x6e, 0xf6, 0x3b, 0x1d, 0x4c, 0x88, 0x83, 0xdf, 0xc7, 0x98, 0x50, 0xb3,
+	0x94, 0xdf, 0x8d, 0xa6, 0x4e, 0x1b, 0xc7, 0xe5, 0xc2, 0x76, 0x24, 0xa4, 0xfa, 0x6e, 0x34, 0x07,
+	0x1b, 0x60, 0x21, 0x7d, 0x27, 0xaa, 0x47, 0x30, 0xfb, 0xc6, 0xa5, 0x9d, 0x0b, 0xf4, 0x14, 0x66,
+	0x5f, 0x78, 0x41, 0x97, 0x98, 0xc6, 0x9d, 0x69, 0xde, 0x12, 0xe2, 0x05, 0xe3, 0x4a, 0xa6, 0xb0,
+	0x37, 0x3e, 0x26, 0xd6, 0xd4, 0x20, 0xb1, 0x6e, 0xbc, 0x63, 0x66, 0xca, 0x33, 0x26, 0xfc, 0xaa,
+	0xbf, 0x2d, 0x40, 0x71, 0x68, 0x8d, 0x36, 0x61, 0x86, 0xfd, 0xe5, 0xef, 0x61, 0xd1, 0x5e, 0x18,
+	0x24, 0xd6, 0x0c, 0xf3, 0x73, 0xb8, 0x14, 0xd5, 0x60, 0xf1, 0x24, 0x74, 0xbb, 0x0d, 0xdc, 0x89,
+	0x30, 0x25, 0xfc, 0xc1, 0x5b, 0xb0, 0xcb, 0x83, 0xc4, 0x5a, 0xf2, 0x43, 0xb7, 0xdb, 0x26, 0x42,
+	0xee, 0xa8, 0x46, 0x0c, 0x91, 0xdf, 0xd0, 0xe9, 0x0c, 0x91, 0x35, 0x97, 0xc3, 0xa5, 0xe8, 0x5b,
+	0x98, 0x7b, 0xe6, 0xf9, 0x14, 0x47, 0xe6, 0x0c, 0xcf, 0x7f, 0x33, 0x9f, 0xff, 0x8e, 0x50, 0xd7,
+	0x03, 0x1a, 0x5d, 0x89, 0x86, 0x7a, 0xcb, 0x05, 0xca, 0x46, 0x24, 0x42, 0xe5, 0x31, 0x2c, 0x2a,
+	0xc6, 0xa8, 0x0c, 0xd3, 0xef, 0xf0, 0x95, 0xd8, 0x89, 0xc3, 0x7e, 0xa2, 0x35, 0x98, 0xbd, 0x74,
+	0xfd, 0x18, 0xf3, 0xc4, 0x8b, 0x8e, 0x58, 0x3c, 0x29, 0x3c, 0x32, 0xaa, 0x3f, 0x83, 0x59, 0xf6,
+	0x40, 0x12, 0x74, 0x17, 0xa6, 0x1b, 0x8d, 0x23, 0xee, 0xb4, 0x64, 0xaf, 0x0c, 0x12, 0x6b, 0x99,
+	0x90, 0x0b, 0x25, 0x16, 0xd3, 0x32, 0xa3, 0xe6, 0x49, 0x83, 0xa3, 0x48, 0x23, 0xea, 0xab, 0x95,
+	0x65, 0xda, 0xea, 0xbf, 0x0b, 0x50, 0x66, 0x77, 0x96, 0xe3, 0xca, 0x23, 0x44, 0xf7, 0xa1, 0x78,
+	0x1a, 0x9f, 0xf9, 0x5e, 0xe7, 0x85, 0xcc, 0x6c, 0xc9, 0x2e, 0x0d, 0x12, 0x0b, 0xfa, 0x5c, 0xd8,
+	0x7e, 0x87, 0xaf, 0x9c, 0xcc, 0x00, 0x6d, 0xc3, 0x02, 0x43, 0x60, 0xe5, 0x12, 0x29, 0xdb, 0x4b,
+	0x83, 0xc4, 0x5a, 0x88, 0xa5, 0xcc, 0x19, 0x6a, 0x51, 0x03, 0xe6, 0xeb, 0xbf, 0xee, 0x7b, 0x11,
+	0x26, 0x92, 0x2a, 0x2a, 0x3b, 0x82, 0x7a, 0x77, 0x52, 0xea, 0xdd, 0x69, 0xa6, 0xd4, 0x6b, 0xdf,
+	0x96, 0x1d, 0xb1, 0x82, 0x85, 0x4b, 0x96, 0xf9, 0xef, 0xff, 0x66, 0x19, 0x4e, 0x8a, 0x84, 0xee,
+	0xc3, 0xdc, 0xb3, 0x30, 0xea, 0xb9, 0x94, 0xd3, 0x43, 0x51, 0x56, 0x9f, 0x4b, 0xb4, 0xea, 0x73,
+	0x09, 0x7a, 0x06, 0x25, 0x27, 0x8c, 0x29, 0x6e, 0x86, 0xf2, 0xb9, 0xe3, 0xaf, 0x7e, 0xd1, 0xde,
+	0x1a, 0x24, 0x56, 0x25, 0x62, 0x9a, 0x36, 0x0d, 0xdb, 0xf2, 0x99, 0x54, 0xfc, 0x73, 0x5e, 0xa8,
+	0x0e, 0x25, 0xad, 0xed, 0x89, 0x39, 0x77, 0x67, 0x7a, 0xbb, 0x28, 0x18, 0x42, 0xbf, 0x2c, 0x6a,
+	0xcd, 0x73, 0x4e, 0x55, 0x1f, 0x4a, 0xcf, 0x31, 0x65, 0x05, 0x4a, 0x6b, 0x9f, 0x36, 0xa2, 0x31,
+	0xb6, 0x11, 0x7f, 0x04, 0x8b, 0x6f, 0x3c, 0x7a, 0xa1, 0xb7, 0x36, 0xa7, 0x8d, 0x0f, 0x1e, 0xbd,
+	0x48, 0x5b, 0x5b, 0x09, 0xa8, 0x9a, 0x57, 0xeb, 0x70, 0x43, 0x46, 0x1b, 0x1e, 0x75, 0x4d, 0x07,
+	0x34, 0xb2, 0xbb, 0xa2, 0x02, 0xea, 0x30, 0x17, 0xf9, 0xbd, 0xa3, 0xd6, 0x48, 0x35, 0xc4, 0x3d,
+	0xbf, 0xe6, 0x55, 0x59, 0x65, 0x97, 0x3d, 0x57, 0xa8, 0x91, 0xf2, 0xfc, 0x1c, 0x96, 0x4f, 0xfd,
+	0xf8, 0xdc, 0x0b, 0x0e, 0x5d, 0xea, 0x36, 0xf0, 0x7b, 0xf4, 0x1c, 0x20, 0x13, 0xc8, 0x20, 0xeb,
+	0x0a, 0x61, 0x0f, 0x75, 0xad, 0x3d, 0xfb, 0xc6, 0x20, 0xb1, 0x16, 0xfb, 0x5c, 0xd2, 0xee, 0xba,
+	0xd4, 0x75, 0x14, 0xd7, 0xea, 0x9f, 0x0c, 0x40, 0x32, 0x0c, 0x9b, 0x0a, 0x70, 0x03, 0x53, 0x76,
+	0xac, 0xeb, 0x50, 0x38, 0x3e, 0x94, 0xb5, 0x9f, 0x1b, 0x24, 0x56, 0xc1, 0xeb, 0x3a, 0x85, 0xe3,
+	0x43, 0xf4, 0x0d, 0xcc, 0x72, 0x33, 0x5e, 0xf1, 0x92, 0x1a, 0x52, 0x05, 0xb1, 0x8b, 0x83, 0xc4,
+	0x9a, 0x65, 0x03, 0x08, 0x76, 0x84, 0x3d, 0xfa, 0x1a, 0x8a, 0x87, 0xd8, 0xc7, 0xe7, 0x2e, 0x0d,
+	0x23, 0xf9, 0xb8, 0x70, 0xe6, 0xea, 0xa6, 0x42, 0xe5, 0xac, 0x32, 0xcb, 0xea, 0x5d, 0x28, 0x4a,
+	0xe0, 0xe3, 0xc3, 0x49, 0x49, 0x55, 0x7f, 0x0a, 0x5f, 0x3a, 0x21, 0x0f, 0x86, 0x09, 0xa6, 0xa7,
+	0x2e, 0x21, 0x1f, 0xc2, 0xa8, 0xcb, 0x07, 0x0f, 0x79, 0x54, 0xe9, 0x29, 0xdf, 0x85, 0x79, 0x2e,
+	0x1e, 0xc2, 0xf0, 0x44, 0xf9, 0xf8, 0xe2, 0xa4, 0x9a, 0xea, 0x01, 0x6c, 0x3e, 0xc7, 0x74, 0x14,
+	0xeb, 0x3b, 0x81, 0xfc, 0xce, 0x00, 0xeb, 0x20, 0xc2, 0x63, 0x93, 0xfa, 0xbc, 0x16, 0xdf, 0x94,
+	0xb3, 0x6e, 0x21, 0xd3, 0xb2, 0xc9, 0x56, 0xce, 0xb3, 0xf7, 0x60, 0xba, 0xd9, 0x3c, 0xe1, 0x95,
+	0x9c, 0xe6, 0x3d, 0x34, 0x4d, 0xa9, 0xff, 0xaf, 0xc4, 0x5a, 0x38, 0x8c, 0xc5, 0x2c, 0xec, 0x30,
+	0x7d, 0x75, 0x19, 0x16, 0x4f, 0xbd, 0xe0, 0x5c, 0x46, 0xac, 0xfe, 0x06, 0x96, 0xc4, 0x92, 0xf4,
+	0xc3, 0x80, 0x60, 0xd6, 0xf5, 0xea, 0x58, 0x26, 0x12, 0xe1, 0x5d, 0xaf, 0x4e, 0x5f, 0xfa, 0xc4,
+	0xf5, 0x08, 0x96, 0xe5, 0xc8, 0x80, 0x23, 0x36, 0xe0, 0xc9, 0x04, 0xf9, 0x2c, 0x23, 0xa6, 0x87,
+	0xf6, 0xa5, 0xd0, 0x38, 0xba, 0x61, 0xf5, 0x87, 0xb0, 0xc2, 0x4e, 0x96, 0xe2, 0xcf, 0xbe, 0xe7,
+	0xd5, 0x06, 0x40, 0x03, 0xf7, 0xdc, 0xfe, 0x45, 0xc8, 0x9e, 0xb8, 0xba, 0xba, 0x92, 0x5d, 0x7f,
+	0x53, 0x9d, 0x64, 0xa4, 0xae, 0xb5, 0x27, 0xde, 0x69, 0x32, 0x34, 0x76, 0x14, 0xc7, 0xea, 0x5f,
+	0x0a, 0x80, 0xf6, 0xe3, 0xae, 0x47, 0x1b, 0x34, 0xc2, 0x6e, 0x2f, 0xcd, 0xe4, 0x31, 0x2c, 0x89,
+	0x13, 0x13, 0x62, 0x9e, 0x11, 0x1b, 0xba, 0x04, 0xc5, 0xa9, 0x2a, 0x36, 0x43, 0xab, 0x6b, 0xe6,
+	0xea, 0x60, 0x12, 0xf7, 0x52, 0xd7, 0x82, 0xe6, 0xaa, 0xaa, 0x98, 0xab, 0xba, 0x46, 0x4f, 0xa1,
+	0x74, 0x10, 0xf6, 0xfa, 0xac, 0x2c, 0xd2, 0x59, 0x50, 0xc2, 0xcd, 0x34, 0xae, 0xa6, 0x64, 0xa3,
+	0xb5, 0x2e, 0x41, 0x2f, 0x61, 0xf5, 0x99, 0x1f, 0x93, 0x8b, 0xfd, 0xa0, 0x7b, 0xe0, 0x87, 0x24,
+	0x45, 0x99, 0x91, 0xc4, 0x22, 0x50, 0xc6, 0x58, 0x1c, 0x4d, 0x39, 0xe3, 0x1c, 0xd1, 0x3d, 0xf9,
+	0xb1, 0x25, 0x3f, 0x03, 0x96, 0x77, 0xe4, 0xb7, 0xd8, 0xab, 0x00, 0xbf, 0x7a, 0x7b, 0x34, 0xe5,
+	0x08, 0xad, 0x5d, 0x84, 0xf9, 0xb4, 0xab, 0x76, 0x61, 0x45, 0x29, 0x27, 0xbb, 0xef, 0x31, 0x41,
+	0x15, 0x58, 0x78, 0xdd, 0x67, 0x73, 0x46, 0x7a, 0x4d, 0x9c, 0xe1, 0xba, 0x7a, 0x5f, 0xaf, 0x34,
+	0xda, 0x84, 0x62, 0x03, 0x13, 0xd6, 0x23, 0x43, 0xe3, 0x4c, 0x50, 0x3d, 0xd2, 0x8b, 0x7b, 0xbd,
+	0xb5, 0x16, 0xb7, 0x90, 0x8b, 0x5b, 0xce, 0xd7, 0xba, 0x7a, 0x73, 0x6c, 0xf1, 0xbe, 0xfa, 0x0a,
+	0x8a, 0xc3, 0x8f, 0x4a, 0xb4, 0x00, 0x33, 0xc7, 0x2f, 0x8f, 0x9b, 0xe5, 0x29, 0x34, 0x0f, 0xd3,
+	0xa7, 0xaf, 0x9b, 0x65, 0x03, 0x01, 0xcc, 0x1d, 0xd6, 0x4f, 0xea, 0xcd, 0x7a, 0xb9, 0x50, 0xfb,
+	0x63, 0x09, 0x16, 0xd9, 0xa7, 0x5a, 0x43, 0xb4, 0x21, 0x3b, 0xd0, 0x06, 0x0e, 0xba, 0x2f, 0x30,
+	0xee, 0xef, 0xfb, 0xde, 0x25, 0x26, 0x48, 0x99, 0xdb, 0x87, 0xd2, 0xca, 0xfa, 0x08, 0xe5, 0xd7,
+	0xd9, 0xe3, 0xb7, 0x6d, 0xa0, 0xef, 0xc3, 0x22, 0x9f, 0xa7, 0x78, 0x9d, 0x09, 0x5a, 0x52, 0x67,
+	0xac, 0x4a, 0xba, 0xe2, 0xca, 0x07, 0x06, 0xfa, 0x1a, 0xe0, 0x75, 0x9f, 0xe0, 0x88, 0xbe, 0x0c,
+	0xbb, 0x18, 0x8d, 0x19, 0xeb, 0x2b, 0xe3, 0xa2, 0xa3, 0x27, 0xb0, 0xf2, 0x1c, 0x07, 0x6c, 0x87,
+	0x78, 0x38, 0xf5, 0xa0, 0x0d, 0x89, 0x9d, 0x9f, 0x83, 0x86, 0x41, 0x85, 0x59, 0x0d, 0xe6, 0x25,
+	0x7b, 0xa2, 0xb4, 0x49, 0x75, 0xee, 0xae, 0x8c, 0x7c, 0x25, 0xa1, 0x87, 0xb0, 0x90, 0x32, 0x2e,
+	0x5a, 0xd7, 0x9d, 0xc8, 0x44, 0xaf, 0x07, 0x06, 0x3a, 0x66, 0x79, 0xd2, 0x1c, 0xcb, 0xde, 0x9e,
+	0xc0, 0xa6, 0x72, 0xb0, 0x4c, 0x93, 0xca, 0x79, 0x1d, 0xc1, 0xaa, 0x68, 0x3a, 0x4d, 0x8e, 0x26,
+	0x53, 0xf3, 0xa4, 0x23, 0x42, 0x4f, 0x61, 0x55, 0xbc, 0x63, 0x3a, 0x52, 0x79, 0x78, 0xdd, 0x25,
+	0x61, 0x4d, 0x04, 0xf8, 0x16, 0x6e, 0x36, 0x72, 0xbb, 0x12, 0x2c, 0x79, 0x4b, 0x87, 0x50, 0x18,
+	0x79, 0x22, 0xd6, 0x3e, 0x2c, 0x3f, 0xc7, 0x34, 0x63, 0x74, 0x54, 0x19, 0x37, 0x06, 0xc8, 0xd2,
+	0xac, 0x49, 0x7c, 0x7d, 0x98, 0x38, 0x81, 0xf2, 0xeb, 0x7e, 0xd7, 0xa5, 0x58, 0x41, 0xb9, 0x33,
+	0x0e, 0x45, 0x5a, 0xb9, 0x91, 0xdb, 0x23, 0x13, 0x13, 0xda, 0x85, 0x19, 0xc6, 0x31, 0x08, 0xa5,
+	0xb1, 0x32, 0xfe, 0xa9, 0xac, 0x6a, 0x32, 0x49, 0x42, 0x1f, 0xc0, 0xfa, 0x2f, 0xf4, 0x8d, 0x7e,
+	0x90, 0xd6, 0xe5, 0xb3, 0x68, 0xbe, 0x72, 0x4f, 0xfb, 0xa7, 0xce, 0x78, 0xdb, 0xd6, 0x1e, 0xfa,
+	0x15, 0xdc, 0x1c, 0x4b, 0xf4, 0xe8, 0x6e, 0xd6, 0xa1, 0x13, 0xd9, 0xbb, 0xb2, 0x75, 0x5d, 0x90,
+	0xd6, 0x1e, 0x3a, 0x03, 0x73, 0xd2, 0x00, 0x80, 0xbe, 0xd4, 0x48, 0xe5, 0x7f, 0x8f, 0xf1, 0x10,
+	0x40, 0x40, 0xf0, 0xdb, 0x38, 0x72, 0x81, 0x26, 0x9e, 0xd1, 0x43, 0xf6, 0x6a, 0x74, 0xbf, 0xbb,
+	0xdf, 0x4f, 0x00, 0x32, 0x06, 0x47, 0xa6, 0xdc, 0xc5, 0x08, 0xa9, 0x4f, 0xf4, 0x7f, 0x05, 0xe5,
+	0xfd, 0xce, 0xfb, 0xd8, 0x8b, 0xf0, 0x90, 0x8e, 0xd1, 0xf7, 0xd4, 0x0b, 0xa8, 0xeb, 0x52, 0x38,
+	0x73, 0x0c, 0xc7, 0x9f, 0x60, 0x97, 0x60, 0xf4, 0x02, 0x36, 0x86, 0x8f, 0x5a, 0x4e, 0x35, 0xd1,
+	0x69, 0x62, 0x76, 0x47, 0xb0, 0x76, 0xe0, 0x06, 0x1d, 0xec, 0xff, 0xdf, 0x48, 0x3f, 0xe6, 0x97,
+	0x52, 0x99, 0x5c, 0x6e, 0x8d, 0x81, 0x90, 0x77, 0x72, 0x45, 0x56, 0x51, 0xb1, 0x3e, 0x84, 0x1b,
+	0xa2, 0xa6, 0x59, 0x95, 0xae, 0x01, 0x98, 0x94, 0xc4, 0x37, 0x50, 0xaa, 0xf7, 0x3c, 0xca, 0xa9,
+	0x59, 0xfc, 0xfb, 0x54, 0xe7, 0xf2, 0x6b, 0xea, 0xb0, 0x22, 0x5f, 0xca, 0x8c, 0xd5, 0x87, 0x4f,
+	0xd3, 0xe8, 0xe0, 0x54, 0x59, 0x4b, 0x61, 0xd5, 0x01, 0x60, 0xdb, 0x78, 0x60, 0xd8, 0x6b, 0x1f,
+	0xff, 0xb1, 0x65, 0x7c, 0xfc, 0xb4, 0x65, 0xfc, 0xf5, 0xd3, 0x96, 0xf1, 0xf7, 0x4f, 0x5b, 0xc6,
+	0x1f, 0xfe, 0xb9, 0x35, 0x75, 0x36, 0xc7, 0x91, 0xf6, 0xfe, 0x13, 0x00, 0x00, 0xff, 0xff, 0x6f,
+	0xa4, 0xc2, 0xff, 0xb6, 0x16, 0x00, 0x00,
 }

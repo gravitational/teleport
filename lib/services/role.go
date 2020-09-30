@@ -385,12 +385,9 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 // at least one value in case if return value is nil
 func applyValueTraits(val string, traits map[string][]string) ([]string, error) {
 	// Extract the variable from the role variable.
-	variable, err := parse.RoleVariable(val)
+	variable, err := parse.NewExpression(val)
 	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-		return []string{val}, nil
+		return nil, trace.Wrap(err)
 	}
 
 	// For internal traits, only internal.logins, internal.kubernetes_users and
@@ -690,7 +687,7 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 	for _, condition := range []RoleConditionType{Allow, Deny} {
 		for _, login := range r.GetLogins(condition) {
 			if strings.Contains(login, "{{") || strings.Contains(login, "}}") {
-				_, err := parse.RoleVariable(login)
+				_, err := parse.NewExpression(login)
 				if err != nil {
 					return trace.BadParameter("invalid login found: %v", login)
 				}
@@ -1451,7 +1448,7 @@ func ExtractFromCertificate(access UserGetter, cert *ssh.Certificate) ([]string,
 // ExtractFromIdentity will extract roles and traits from the *x509.Certificate
 // which Teleport passes along as a *tlsca.Identity. If roles and traits do not
 // exist in the certificates, they are extracted from the backend.
-func ExtractFromIdentity(access UserGetter, identity *tlsca.Identity) ([]string, wrappers.Traits, error) {
+func ExtractFromIdentity(access UserGetter, identity tlsca.Identity) ([]string, wrappers.Traits, error) {
 	// For legacy certificates, fetch roles and traits from the services.User
 	// object in the backend.
 	if missingIdentity(identity) {
@@ -1501,7 +1498,7 @@ func isFormatOld(cert *ssh.Certificate) bool {
 
 // missingIdentity returns true if the identity is missing or the identity
 // has no roles or traits.
-func missingIdentity(identity *tlsca.Identity) bool {
+func missingIdentity(identity tlsca.Identity) bool {
 	if len(identity.Groups) == 0 || len(identity.Traits) == 0 {
 		return true
 	}
@@ -1588,11 +1585,19 @@ func MatchLabels(selector Labels, target map[string]string) (bool, string, error
 		}
 
 		if !utils.SliceContainsStr(selectorValues, Wildcard) {
-			result, err := utils.SliceMatchesRegex(targetVal, selectorValues)
-			if err != nil {
-				return false, "", trace.Wrap(err)
-			} else if !result {
-				return false, fmt.Sprintf("no value match: got '%v' want: '%v'", targetVal, selectorValues), nil
+			matched := false
+			for _, expr := range selectorValues {
+				m, err := parse.NewMatcher(expr)
+				if err != nil {
+					return false, "", trace.Wrap(err)
+				}
+				if m.Match(targetVal) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				return false, fmt.Sprintf("no value match: got %q want: %q", targetVal, selectorValues), nil
 			}
 		}
 	}
@@ -1633,6 +1638,32 @@ func (set RoleSet) AdjustSessionTTL(ttl time.Duration) time.Duration {
 		}
 	}
 	return ttl
+}
+
+// MaxConnections returns the maximum number of concurrent ssh connections
+// allowed.  If MaxConnections is zero then no maximum was defined
+// and the number of concurrent connections is unconstrained.
+func (set RoleSet) MaxConnections() int64 {
+	var mcs int64
+	for _, role := range set {
+		if m := role.GetOptions().MaxConnections; m != 0 && (m < mcs || mcs == 0) {
+			mcs = m
+		}
+	}
+	return mcs
+}
+
+// MaxSessions returns the maximum number of concurrent ssh sessions
+// per connection.  If MaxSessions is zero then no maximum was defined
+// and the number of sessions is unconstrained.
+func (set RoleSet) MaxSessions() int64 {
+	var ms int64
+	for _, role := range set {
+		if m := role.GetOptions().MaxSessions; m != 0 && (m < ms || ms == 0) {
+			ms = m
+		}
+	}
+	return ms
 }
 
 // AdjustClientIdleTimeout adjusts requested idle timeout
@@ -2301,7 +2332,9 @@ const RoleSpecV3SchemaTemplate = `{
         "enhanced_recording": {
           "type": "array",
           "items": { "type": "string" }
-        }
+        },
+        "max_connections": { "type": "number" },
+        "max_sessions": {"type": "number"}
       }
     },
     "allow": { "$ref": "#/definitions/role_condition" },

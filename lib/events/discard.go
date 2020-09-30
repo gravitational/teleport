@@ -39,8 +39,7 @@ func (d *DiscardAuditLog) WaitForDelivery(context.Context) error {
 func (d *DiscardAuditLog) Close() error {
 	return nil
 }
-
-func (d *DiscardAuditLog) EmitAuditEvent(event Event, fields EventFields) error {
+func (d *DiscardAuditLog) EmitAuditEventLegacy(event Event, fields EventFields) error {
 	return nil
 }
 func (d *DiscardAuditLog) PostSessionSlice(SessionSlice) error {

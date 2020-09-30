@@ -67,6 +67,12 @@ type ClusterConfig interface {
 	// SetClientIdleTimeout sets client idle timeout setting
 	SetClientIdleTimeout(t time.Duration)
 
+	// GetSessionControlTimeout gets the session control timeout.
+	GetSessionControlTimeout() time.Duration
+
+	// SetSessionControlTimeout sets the session control timeout.
+	SetSessionControlTimeout(t time.Duration)
+
 	// GetDisconnectExpiredCert returns disconnect expired certificate setting
 	GetDisconnectExpiredCert() bool
 
@@ -165,7 +171,25 @@ const (
 
 	// RecordOff is used to disable session recording completely.
 	RecordOff string = "off"
+
+	// RecordAtNodeSync enables the nodes to stream sessions in sync mode
+	// to the auth server
+	RecordAtNodeSync string = "node-sync"
+
+	// RecordAtProxySync enables the recording proxy which intercepts and records
+	// all sessions, streams the records synchronously
+	RecordAtProxySync string = "proxy-sync"
 )
+
+// IsRecordAtProxy returns true if recording is sync or async at proxy
+func IsRecordAtProxy(mode string) bool {
+	return mode == RecordAtProxy || mode == RecordAtProxySync
+}
+
+// IsRecordSync returns true if recording is sync or async for proxy or node
+func IsRecordSync(mode string) bool {
+	return mode == RecordAtProxySync || mode == RecordAtNodeSync
+}
 
 const (
 	// HostKeyCheckYes is the default. The proxy will check the host key of the
@@ -287,6 +311,16 @@ func (c *ClusterConfigV3) SetClientIdleTimeout(d time.Duration) {
 	c.Spec.ClientIdleTimeout = Duration(d)
 }
 
+// GetSessionControlTimeout gets the session control timeout.
+func (c *ClusterConfigV3) GetSessionControlTimeout() time.Duration {
+	return c.Spec.SessionControlTimeout.Duration()
+}
+
+// SetSessionControlTimeout sets the session control timeout.
+func (c *ClusterConfigV3) SetSessionControlTimeout(d time.Duration) {
+	c.Spec.SessionControlTimeout = Duration(d)
+}
+
 // GetDisconnectExpiredCert returns disconnect expired certificate setting
 func (c *ClusterConfigV3) GetDisconnectExpiredCert() bool {
 	return c.Spec.DisconnectExpiredCert.Value()
@@ -345,7 +379,7 @@ func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 	}
 
 	// check if the recording type is valid
-	all := []string{RecordAtNode, RecordAtProxy, RecordOff}
+	all := []string{RecordAtNode, RecordAtProxy, RecordAtNodeSync, RecordAtProxySync, RecordOff}
 	ok := utils.SliceContainsStr(all, c.Spec.SessionRecording)
 	if !ok {
 		return trace.BadParameter("session_recording must either be: %v", strings.Join(all, ","))
@@ -397,6 +431,9 @@ const ClusterConfigSpecSchemaTemplate = `{
       "type": "string"
     },
     "client_idle_timeout": {
+      "type": "string"
+    },
+    "session_control_timeout": {
       "type": "string"
     },
     "disconnect_expired_cert": {

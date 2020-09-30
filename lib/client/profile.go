@@ -6,19 +6,11 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"strings"
 
 	"github.com/gravitational/trace"
 
 	"gopkg.in/yaml.v2"
-)
-
-type ProfileOptions int
-
-const (
-	// ProfileCreateNew creates new profile, but does not update current profile
-	ProfileCreateNew = 0
-	// ProfileMakeCurrent creates a new profile and makes it current
-	ProfileMakeCurrent = 1 << iota
 )
 
 // CurrentProfileSymlink is a filename which is a symlink to the
@@ -27,6 +19,10 @@ const (
 // ~/.tsh/profile -> ~/.tsh/staging.yaml
 //
 const CurrentProfileSymlink = "profile"
+
+// CurrentProfileFilename is a file which stores the name of the
+// currently active profile.
+const CurrentProfileFilename = "current-profile"
 
 // ClientProfile is a collection of most frequently used CLI flags
 // for "tsh".
@@ -71,12 +67,126 @@ func (c *ClientProfile) Name() string {
 	return addr
 }
 
+// migrateCurrentProfile makes a best-effort attempt to migrate
+// the old symlink based current-profile link to the new
+// file based current-profile link.
+//
+// DELETE IN: 6.0
+func migrateCurrentProfile(dir string) {
+	link := filepath.Join(dir, CurrentProfileSymlink)
+	linfo, err := os.Lstat(link)
+	if err != nil {
+		return
+	}
+	if finfo, err := os.Stat(filepath.Join(dir, CurrentProfileFilename)); err == nil {
+		if linfo.ModTime().Before(finfo.ModTime()) {
+			// current-profile is as new or newer than the legacy symlink,
+			// no migration necessary.
+			return
+		}
+	}
+	linked, err := os.Readlink(link)
+	if err != nil || linked == "" {
+		return
+	}
+	name := strings.TrimSuffix(filepath.Base(linked), ".yaml")
+	if name == "" {
+		return
+	}
+	if err := SetCurrentProfileName(dir, name); err != nil {
+		return
+	}
+
+	// TODO IN 5.2: Re-enable removal after verifying that nothing else
+	// relis on `link` (note: exact version that this happens doesn't matter
+	// too much, but it should happen at least one version prior to removal
+	// of the migration).
+	//
+	//os.Remove(link)
+}
+
+// DELETE IN: 6.0
+func setLegacySymlink(dir string, name string) error {
+	link := filepath.Join(dir, CurrentProfileSymlink)
+	if err := os.Remove(link); err != nil && !os.IsNotExist(err) {
+		log.Warningf("Failed to remove legacy symlink: %v", err)
+	}
+	return trace.ConvertSystemError(os.Symlink(name+".yaml", link))
+}
+
+// SetCurrentProfileName attempts to set the current profile name.
+func SetCurrentProfileName(dir string, name string) error {
+	if dir == "" {
+		return trace.BadParameter("cannot set current profile: missing dir")
+	}
+
+	// set legacy symlink first so that the current-profile file will have
+	// a more recent modification time.
+	if err := setLegacySymlink(dir, name); err != nil {
+		log.Warningf("Failed to set legacy symlink: %v", err)
+	}
+
+	path := filepath.Join(dir, CurrentProfileFilename)
+	if err := ioutil.WriteFile(path, []byte(strings.TrimSpace(name)+"\n"), 0660); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetCurrentProfileName attempts to load the current profile name.
+func GetCurrentProfileName(dir string) (name string, err error) {
+	if dir == "" {
+		return "", trace.BadParameter("cannot get current profile: missing dir")
+	}
+	// DELETE IN 6.0
+	migrateCurrentProfile(dir)
+
+	data, err := ioutil.ReadFile(filepath.Join(dir, CurrentProfileFilename))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", trace.NotFound("current-profile is not set")
+		}
+		return "", trace.ConvertSystemError(err)
+	}
+	name = strings.TrimSpace(string(data))
+	if name == "" {
+		return "", trace.NotFound("current-profile is not set")
+	}
+	return name, nil
+}
+
+// ListProfileNames lists all available profiles.
+func ListProfileNames(dir string) ([]string, error) {
+	if dir == "" {
+		return nil, trace.BadParameter("cannot list profiles: missing dir")
+	}
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var names []string
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		if file.Mode()&os.ModeSymlink != 0 {
+			continue
+		}
+		if !strings.HasSuffix(file.Name(), ".yaml") {
+			continue
+		}
+		names = append(names, strings.TrimSuffix(file.Name(), ".yaml"))
+	}
+	return names, nil
+}
+
 // FullProfilePath returns the full path to the user profile directory.
 // If the parameter is empty, it returns expanded "~/.tsh", otherwise
 // returns its unmodified parameter
-func FullProfilePath(pDir string) string {
-	if pDir != "" {
-		return pDir
+func FullProfilePath(dir string) string {
+	if dir != "" {
+		return dir
 	}
 	// get user home dir:
 	home := os.TempDir()
@@ -85,71 +195,60 @@ func FullProfilePath(pDir string) string {
 		home = u.HomeDir
 	}
 	return filepath.Join(home, ProfileDir)
-
 }
 
-// ProfileFromDir reads the user (yaml) profile from a given directory. The
-// default is to use the ~/<dir-path>/profile symlink unless another profile
-// is explicitly asked for. It works by looking for a "profile" symlink in
-// that directory pointing to the profile's YAML file first.
-func ProfileFromDir(dirPath string, proxyName string) (*ClientProfile, error) {
-	profilePath := filepath.Join(dirPath, CurrentProfileSymlink)
-	if proxyName != "" {
-		profilePath = filepath.Join(dirPath, proxyName+".yaml")
+// ProfileFromDir reads the user (yaml) profile from a given directory. If
+// name is empty, this function defaults to loading the currently active
+// profile (if any).
+func ProfileFromDir(dir string, name string) (*ClientProfile, error) {
+	if dir == "" {
+		return nil, trace.BadParameter("cannot load profile: missing dir")
+	}
+	var err error
+	if name == "" {
+		name, err = GetCurrentProfileName(dir)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	return ProfileFromFile(profilePath)
+	return ProfileFromFile(filepath.Join(dir, name+".yaml"))
 }
 
 // ProfileFromFile loads the profile from a YAML file
 func ProfileFromFile(filePath string) (*ClientProfile, error) {
 	bytes, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.ConvertSystemError(err)
 	}
 	var cp *ClientProfile
-	if err = yaml.Unmarshal(bytes, &cp); err != nil {
+	if err := yaml.Unmarshal(bytes, &cp); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return cp, nil
 }
 
-// ProfileLocation specifies profile on -disk location
-// and it's parameters on disk
-type ProfileLocation struct {
-	// AliasPath is an optional alias
-	AliasPath string
-	// Path is a profile file path on disk
-	Path string
-	// Options is a set of profile options
-	Options ProfileOptions
+func (cp *ClientProfile) SaveToDir(dir string, makeCurrent bool) error {
+	if dir == "" {
+		return trace.BadParameter("cannot save profile: missing dir")
+	}
+	if err := cp.SaveToFile(filepath.Join(dir, cp.Name()+".yaml")); err != nil {
+		return trace.Wrap(err)
+	}
+	if makeCurrent {
+		return trace.Wrap(SetCurrentProfileName(dir, cp.Name()))
+	}
+	return nil
 }
 
-// SaveTo saves the profile into a given filename, optionally overwriting it.
-func (cp *ClientProfile) SaveTo(loc ProfileLocation) error {
+// SaveToFile saves ClientProfile to the target file.
+func (cp *ClientProfile) SaveToFile(filepath string) error {
 	bytes, err := yaml.Marshal(&cp)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err = ioutil.WriteFile(loc.Path, bytes, 0660); err != nil {
+	if err = ioutil.WriteFile(filepath, bytes, 0660); err != nil {
 		return trace.Wrap(err)
 	}
-	if loc.AliasPath != "" && filepath.Base(loc.AliasPath) != filepath.Base(loc.Path) {
-		if err := os.Remove(loc.AliasPath); err != nil {
-			log.Warningf("Failed to remove symlink alias: %v", err)
-		}
-		err := os.Symlink(filepath.Base(loc.Path), loc.AliasPath)
-		if err != nil {
-			log.Warningf("Failed to create profile alias: %v", err)
-		}
-	}
-	// set 'current' symlink:
-	if loc.Options&ProfileMakeCurrent != 0 {
-		symlink := filepath.Join(filepath.Dir(loc.Path), CurrentProfileSymlink)
-		if err := os.Remove(symlink); err != nil {
-			log.Warningf("Failed to remove symlink: %v", err)
-		}
-		err = os.Symlink(filepath.Base(loc.Path), symlink)
-	}
-	return trace.Wrap(err)
+	return nil
 }

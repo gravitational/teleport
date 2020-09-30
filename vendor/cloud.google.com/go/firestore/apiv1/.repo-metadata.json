@@ -1,0 +1,12 @@
+{
+  "name": "firestore",
+  "name_pretty": "Cloud Firestore API",
+  "product_documentation": "https://cloud.google.com/firestore",
+  "client_documentation": "https://godoc.org/cloud.google.com/go/firestore/apiv1",
+  "release_level": "beta",
+  "language": "go",
+  "repo": "googleapis/google-cloud-go",
+  "distribution_name": "cloud.google.com/go",
+  "api_id": "firestore.googleapis.com",
+  "requires_billing": true
+}

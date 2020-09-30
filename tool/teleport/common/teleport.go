@@ -118,7 +118,7 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	start.Flag("diag-addr",
 		"Start diangonstic prometheus and healthz endpoint.").Hidden().StringVar(&ccf.DiagnosticAddr)
 	start.Flag("permit-user-env",
-		"Enables reading of ~/.tsh/environment when creating a session").Hidden().BoolVar(&ccf.PermitUserEnvironment)
+		"Enables reading of ~/.tsh/environment when creating a session").BoolVar(&ccf.PermitUserEnvironment)
 	start.Flag("insecure",
 		"Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
 	start.Flag("fips",

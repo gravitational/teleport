@@ -169,7 +169,8 @@ build up a query using Select, Where and other methods of Query.
 
 	q := states.Where("pop", ">", 10).OrderBy("pop", firestore.Desc)
 
-Supported operators include `<`, `<=`, `>`, `>=`, `==`, and 'array-contains'.
+Supported operators include '<', '<=', '>', '>=', '==', 'in', 'array-contains', and
+'array-contains-any'.
 
 Call the Query's Documents method to get an iterator, and use it like
 the other Google Cloud Client iterators.

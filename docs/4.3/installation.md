@@ -1,3 +1,8 @@
+---
+title: Installing Teleport
+description: The guide for installing Teleport on servers and into Kubernetes clusters
+---
+
 # Installation
 
 Teleport core service [`teleport`](cli-docs.md#teleport) and admin tool [`tctl`](cli-docs.md#tctl) have been designed to run on **Linux** and **Mac** operating systems. The Teleport user client [`tsh`](cli-docs.md#tsh) and UI are available for **Linux, Mac** and **Windows** operating systems.
@@ -79,7 +84,7 @@ up-to-date information.
 
 ## Docker
 
-Please follow our [OSS Docker Quickstart](quickstart_docker.md) or [Enterprise Docker Quickstart](enterprise/quickstart-enterprise.md#run-teleport-enterprise-using-docker) for install and setup instructions.
+Please follow our [OSS Docker Quickstart](quickstart-docker.md) or [Enterprise Docker Quickstart](enterprise/quickstart-enterprise.md#run-teleport-enterprise-using-docker) for install and setup instructions.
 
 ```bash
 $ docker pull quay.io/gravitational/teleport:{{ teleport.version }}

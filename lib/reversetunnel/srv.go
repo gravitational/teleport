@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -44,14 +45,14 @@ import (
 var (
 	remoteClustersStats = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "remote_clusters",
+			Name: teleport.MetricRemoteClusters,
 			Help: "Number inbound connections from remote clusters and clusters stats",
 		},
 		[]string{"cluster"},
 	)
 	trustedClustersStats = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "trusted_clusters",
+			Name: teleport.MetricTrustedClusters,
 			Help: "Number of tunnels per state",
 		},
 		[]string{"cluster", "state"},
@@ -183,6 +184,9 @@ type Config struct {
 	// FIPS means Teleport was started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
 	FIPS bool
+
+	// Emitter is event emitter
+	Emitter events.StreamEmitter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -201,6 +205,9 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.DataDir == "" {
 		return trace.BadParameter("missing parameter DataDir")
+	}
+	if cfg.Emitter == nil {
+		return trace.BadParameter("missing parameter Emitter")
 	}
 	if cfg.Context == nil {
 		cfg.Context = context.TODO()
@@ -400,13 +407,12 @@ func (s *server) fetchClusterPeers() error {
 }
 
 func (s *server) reportClusterStats() error {
-	defer func() {
-		if r := recover(); r != nil {
-			s.Warningf("Recovered from panic: %v.", r)
-		}
-	}()
 	clusters := s.GetSites()
 	for _, cluster := range clusters {
+		if _, ok := cluster.(*localSite); ok {
+			// Don't count local cluster tunnels.
+			continue
+		}
 		gauge, err := remoteClustersStats.GetMetricWithLabelValues(cluster.GetName())
 		if err != nil {
 			return trace.Wrap(err)
@@ -664,61 +670,83 @@ func (s *server) getTrustedCAKeysByID(id services.CertAuthID) ([]ssh.PublicKey, 
 	return ca.Checkers()
 }
 
-func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Permissions, err error) {
 	logger := s.WithFields(log.Fields{
 		"remote": conn.RemoteAddr(),
 		"user":   conn.User(),
 	})
+	// The crypto/x/ssh package won't log the returned error for us, do it
+	// manually.
+	defer func() {
+		if err != nil {
+			logger.Warnf("Failed to authenticate client, err: %v.", err)
+		}
+	}()
 
 	cert, ok := key.(*ssh.Certificate)
 	if !ok {
-		logger.Warningf("server doesn't support provided key type")
 		return nil, trace.BadParameter("server doesn't support provided key type")
 	}
 
+	var clusterName, certRole, certType string
+	var caType services.CertAuthType
 	switch cert.CertType {
 	case ssh.HostCert:
-		authDomain, ok := cert.Extensions[utils.CertExtensionAuthority]
-		if !ok || authDomain == "" {
-			err := trace.BadParameter("missing authority domainName parameter")
-			logger.Warnf("Failed to authenticate host, err: %v.", err)
-			return nil, trace.Wrap(err)
+		var ok bool
+		clusterName, ok = cert.Extensions[utils.CertExtensionAuthority]
+		if !ok || clusterName == "" {
+			return nil, trace.BadParameter("certificate missing %q extension", utils.CertExtensionAuthority)
 		}
-		certRole, ok := cert.Extensions[utils.CertExtensionRole]
+		certRole, ok = cert.Extensions[utils.CertExtensionRole]
 		if !ok || certRole == "" {
-			err := trace.BadParameter("certificate missing role")
-			logger.Warnf("Failed to authenticate host, err: %v.", err)
-			return nil, trace.Wrap(err)
+			return nil, trace.BadParameter("certificate missing %q extension", utils.CertExtensionRole)
 		}
-		err := s.checkHostCert(logger, conn.User(), authDomain, cert)
+		certType = extCertTypeHost
+		caType = services.HostCA
+	case ssh.UserCert:
+		var ok bool
+		clusterName, ok = cert.Extensions[teleport.CertExtensionTeleportRouteToCluster]
+		if !ok || clusterName == "" {
+			clusterName = s.ClusterName
+		}
+		encRoles, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
+		if !ok || encRoles == "" {
+			return nil, trace.BadParameter("certificate missing %q extension", teleport.CertExtensionTeleportRoles)
+		}
+		roles, err := services.UnmarshalCertRoles(encRoles)
 		if err != nil {
-			logger.Warnf("Failed to authenticate host, err: %v.", err)
 			return nil, trace.Wrap(err)
 		}
-		return &ssh.Permissions{
-			Extensions: map[string]string{
-				extHost:      conn.User(),
-				extCertType:  extCertTypeHost,
-				extCertRole:  certRole,
-				extAuthority: authDomain,
-			},
-		}, nil
+		if len(roles) == 0 {
+			return nil, trace.BadParameter("certificate missing roles in %q extension", teleport.CertExtensionTeleportRoles)
+		}
+		certRole = roles[0]
+		certType = extCertTypeUser
+		caType = services.UserCA
 	default:
-		return nil, trace.BadParameter("unsupported cert type: %v", cert.CertType)
+		return nil, trace.BadParameter("unsupported cert type: %v.", cert.CertType)
 	}
+
+	if err := s.checkClientCert(logger, conn.User(), clusterName, cert, caType); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &ssh.Permissions{
+		Extensions: map[string]string{
+			extHost:      conn.User(),
+			extCertType:  certType,
+			extCertRole:  certRole,
+			extAuthority: clusterName,
+		},
+	}, nil
 }
 
-// checkHostCert verifies that host certificate is signed
-// by the recognized certificate authority
-func (s *server) checkHostCert(logger *log.Entry, user string, clusterName string, cert *ssh.Certificate) error {
-	if cert.CertType != ssh.HostCert {
-		return trace.BadParameter("expected host cert, got wrong cert type: %d", cert.CertType)
-	}
-
+// checkClientCert verifies that client certificate is signed by the recognized
+// certificate authority.
+func (s *server) checkClientCert(logger *log.Entry, user string, clusterName string, cert *ssh.Certificate, caType services.CertAuthType) error {
 	// fetch keys of the certificate authority to check
 	// if there is a match
 	keys, err := s.getTrustedCAKeysByID(services.CertAuthID{
-		Type:       services.HostCA,
+		Type:       caType,
 		DomainName: clusterName,
 	})
 	if err != nil {
@@ -959,7 +987,7 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	// certificate cache is created in each site (instead of creating it in
 	// reversetunnel.server and passing it along) so that the host certificate
 	// is signed by the correct certificate authority.
-	certificateCache, err := NewHostCertificateCache(srv.Config.KeyGen, srv.localAuthClient)
+	certificateCache, err := newHostCertificateCache(srv.Config.KeyGen, srv.localAuthClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -975,6 +1003,7 @@ const (
 	extCertType     = "certtype@teleport"
 	extAuthority    = "auth@teleport"
 	extCertTypeHost = "host"
+	extCertTypeUser = "user"
 	extCertRole     = "role"
 
 	versionRequest = "x-teleport-version"

@@ -17,18 +17,24 @@ limitations under the License.
 package common
 
 import (
+	"context"
+	"crypto/tls"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
-	"strings"
+	"strconv"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tsh/common"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -43,10 +49,13 @@ type GlobalCLIFlags struct {
 	ConfigFile string
 	// ConfigString is the base64-encoded string with Teleport configuration
 	ConfigString string
-	// AuthServerAddr lists addresses of auth servers to connect to
+	// AuthServerAddr lists addresses of auth or proxy servers to connect to,
 	AuthServerAddr []string
 	// IdentityFilePath is the path to the identity file
 	IdentityFilePath string
+	// Insecure, when set, skips validation of server TLS certificate when
+	// connecting through a proxy (specified in AuthServerAddr).
+	Insecure bool
 }
 
 // CLICommand interface must be implemented by every CLI command
@@ -95,11 +104,13 @@ func Run(commands []CLICommand) {
 	app.Flag("config-string",
 		"Base64 encoded configuration string").Hidden().Envar(defaults.ConfigEnvar).StringVar(&ccf.ConfigString)
 	app.Flag("auth-server",
-		fmt.Sprintf("Address of the auth server [%v]. Can be supplied multiple times", defaults.AuthConnectAddr().Addr)).
+		fmt.Sprintf("Address of the auth server or the proxy [%v]. Can be supplied multiple times", defaults.AuthConnectAddr().Addr)).
 		StringsVar(&ccf.AuthServerAddr)
 	app.Flag("identity", "Path to the identity file exported with 'tctl auth sign'").
 		Short('i').
 		StringVar(&ccf.IdentityFilePath)
+	app.Flag("insecure", "When specifying a proxy address in --auth-server, do not verify its TLS certificate. Danger: any data you send can be intercepted or modified by an attacker.").
+		BoolVar(&ccf.Insecure)
 
 	// "version" command is always available:
 	ver := app.Command("version", "Print cluster version")
@@ -108,9 +119,6 @@ func Run(commands []CLICommand) {
 	// parse CLI commands+flags:
 	selectedCmd, err := app.Parse(os.Args[1:])
 	if err != nil {
-		if strings.Contains(err.Error(), "unknown long flag") {
-			err = trace.Wrap(err, "make sure role used in flag has a corresponding Teleport role in RBAC, an example RBAC role can be seen here: %q", "https://gravitational.com/teleport/docs/enterprise/ssh_rbac/#roles")
-		}
 		utils.FatalError(err)
 	}
 
@@ -121,14 +129,19 @@ func Run(commands []CLICommand) {
 	}
 
 	// configure all commands with Teleport configuration (they share 'cfg')
-	if err := applyConfig(&ccf, cfg); err != nil {
+	clientConfig, err := applyConfig(&ccf, cfg)
+	if err != nil {
 		utils.FatalError(err)
 	}
 
+	ctx := context.Background()
 	// connect to the auth sever:
-	client, err := connectToAuthService(cfg)
+	client, err := connectToAuthService(ctx, cfg, clientConfig)
 	if err != nil {
-		utils.FatalError(err)
+		utils.Consolef(os.Stderr, teleport.ComponentClient,
+			"Cannot connect to the auth server: %v.\nIs the auth server running on %q?",
+			err, cfg.AuthServers[0].Addr)
+		os.Exit(1)
 	}
 
 	// execute whatever is selected:
@@ -144,8 +157,14 @@ func Run(commands []CLICommand) {
 	}
 }
 
+type authServiceClientConfig struct {
+	tlsConfig *tls.Config
+	sshConfig *ssh.ClientConfig
+}
+
 // connectToAuthService creates a valid client connection to the auth service
-func connectToAuthService(cfg *service.Config) (client auth.ClientI, err error) {
+//
+func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig *authServiceClientConfig) (auth.ClientI, error) {
 	// connect to the local auth server by default:
 	cfg.Auth.Enabled = true
 	if len(cfg.AuthServers) == 0 {
@@ -154,73 +173,138 @@ func connectToAuthService(cfg *service.Config) (client auth.ClientI, err error) 
 		}
 	}
 
-	identity, err := getIdentity(cfg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tlsConfig, err := identity.TLSConfig(cfg.CipherSuites)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	logrus.Debugf("Connecting to auth servers: %v.", cfg.AuthServers)
 
-	client, err = auth.NewTLSClient(auth.ClientConfig{Addrs: cfg.AuthServers, TLS: tlsConfig})
+	// Try connecting to the auth server directly over TLS.
+	client, err := auth.NewTLSClient(auth.ClientConfig{Addrs: cfg.AuthServers, TLS: clientConfig.tlsConfig})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "failed direct dial to auth server: %v", err)
 	}
 
 	// Check connectivity by calling something on the client.
 	_, err = client.GetClusterName()
 	if err != nil {
-		utils.Consolef(os.Stderr, teleport.ComponentClient,
-			"Cannot connect to the auth server: %v.\nIs the auth server running on %v?",
-			err, cfg.AuthServers[0].Addr)
-		os.Exit(1)
+		err = trace.Wrap(err, "failed direct dial to auth server: %v", err)
+		if clientConfig.sshConfig == nil {
+			// No identity file was provided, don't try dialing via a reverse
+			// tunnel on the proxy.
+			return nil, err
+		}
+
+		// If direct dial failed, we may have a proxy address in
+		// cfg.AuthServers. Try connecting to the reverse tunnel endpoint and
+		// make a client over that.
+		//
+		// TODO(awly): this logic should be implemented once, in the auth
+		// package, and reused in IoT nodes.
+
+		errs := []error{err}
+
+		// Figure out the reverse tunnel address on the proxy first.
+		tunAddr, err := findReverseTunnel(ctx, cfg.AuthServers, clientConfig.tlsConfig.InsecureSkipVerify)
+		if err != nil {
+			errs = append(errs, trace.Wrap(err, "failed lookup of proxy reverse tunnel address: %v", err))
+			return nil, trace.NewAggregate(errs...)
+		}
+		// reversetunnel.TunnelAuthDialer will take care of creating a net.Conn
+		// within an SSH tunnel.
+		client, err = auth.NewTLSClient(auth.ClientConfig{
+			Dialer: &reversetunnel.TunnelAuthDialer{
+				ProxyAddr:    tunAddr,
+				ClientConfig: clientConfig.sshConfig,
+			},
+			TLS: clientConfig.tlsConfig,
+		})
+		if err != nil {
+			errs = append(errs, trace.Wrap(err, "failed dial to auth server through reverse tunnel: %v", err))
+			return nil, trace.NewAggregate(errs...)
+		}
+		// Check connectivity by calling something on the client.
+		if _, err := client.GetClusterName(); err != nil {
+			errs = append(errs, trace.Wrap(err, "failed dial to auth server through reverse tunnel: %v", err))
+			return nil, trace.NewAggregate(errs...)
+		}
 	}
 	return client, nil
 }
 
-// getIdentity returns auth.Identity to use when connecting to auth server
-func getIdentity(cfg *service.Config) (*auth.Identity, error) {
-	// If identity was provided in the configuration, use it
-	if len(cfg.Identities) != 0 {
-		return cfg.Identities[0], nil
-	}
-	// Otherwise, assume we're running on the auth node and read the host-local
-	// identity from Teleport data directory
-	identity, err := auth.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), auth.IdentityID{Role: teleport.RoleAdmin, HostUUID: cfg.HostUUID})
-	if err != nil {
-		// The "admin" identity is not present? This means the tctl is running
-		// NOT on the auth server
-		if trace.IsNotFound(err) {
-			return nil, trace.AccessDenied("tctl must be either used on the auth " +
-				"server or provided with the identity file via --identity flag")
+// findReverseTunnel uses the web proxy to discover where the SSH reverse tunnel
+// server is running.
+func findReverseTunnel(ctx context.Context, addrs []utils.NetAddr, insecureTLS bool) (string, error) {
+	var errs []error
+	for _, addr := range addrs {
+		// In insecure mode, any certificate is accepted. In secure mode the hosts
+		// CAs are used to validate the certificate on the proxy.
+		resp, err := client.Find(ctx, addr.String(), insecureTLS, nil)
+		if err == nil {
+			return tunnelAddr(addr, resp.Proxy)
 		}
-		return nil, trace.Wrap(err)
+		errs = append(errs, err)
 	}
-	return identity, nil
+	return "", trace.NewAggregate(errs...)
+}
+
+// tunnelAddr returns the tunnel address in the following preference order:
+//  1. Reverse Tunnel Public Address.
+//  2. SSH Proxy Public Address.
+//  3. HTTP Proxy Public Address.
+//  4. Tunnel Listen Address.
+func tunnelAddr(webAddr utils.NetAddr, settings client.ProxySettings) (string, error) {
+	// Extract the port the tunnel server is listening on.
+	netAddr, err := utils.ParseHostPortAddr(settings.SSH.TunnelListenAddr, defaults.SSHProxyTunnelListenPort)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	tunnelPort := netAddr.Port(defaults.SSHProxyTunnelListenPort)
+
+	// If a tunnel public address is set, nothing else has to be done, return it.
+	if settings.SSH.TunnelPublicAddr != "" {
+		return settings.SSH.TunnelPublicAddr, nil
+	}
+
+	// If a tunnel public address has not been set, but a related HTTP or SSH
+	// public address has been set, extract the hostname but use the port from
+	// the tunnel listen address.
+	if settings.SSH.SSHPublicAddr != "" {
+		addr, err := utils.ParseHostPortAddr(settings.SSH.SSHPublicAddr, tunnelPort)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return net.JoinHostPort(addr.Host(), strconv.Itoa(tunnelPort)), nil
+	}
+	if settings.SSH.PublicAddr != "" {
+		addr, err := utils.ParseHostPortAddr(settings.SSH.PublicAddr, tunnelPort)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return net.JoinHostPort(addr.Host(), strconv.Itoa(tunnelPort)), nil
+	}
+
+	// If nothing is set, fallback to the address we dialed.
+	return net.JoinHostPort(webAddr.Host(), strconv.Itoa(tunnelPort)), nil
 }
 
 // applyConfig takes configuration values from the config file and applies
-// them to 'service.Config' object
-func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) error {
+// them to 'service.Config' object.
+//
+// The returned authServiceClientConfig has the credentials needed to dial the
+// auth server.
+func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authServiceClientConfig, error) {
 	// load /etc/teleport.yaml and apply it's values:
 	fileConf, err := config.ReadConfigFile(ccf.ConfigFile)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	// if configuration is passed as an environment variable,
 	// try to decode it and override the config file
 	if ccf.ConfigString != "" {
 		fileConf, err = config.ReadFromString(ccf.ConfigString)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 	if err = config.ApplyFileConfig(fileConf, cfg); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	// --debug flag
 	if ccf.Debug {
@@ -232,7 +316,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) error {
 	if len(ccf.AuthServerAddr) != 0 {
 		cfg.AuthServers, err = utils.ParseAddrs(ccf.AuthServerAddr)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 	// If auth server is not provided on the command line or in file
@@ -240,27 +324,47 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) error {
 	if len(cfg.AuthServers) == 0 {
 		cfg.AuthServers, err = utils.ParseAddrs([]string{defaults.AuthConnectAddr().Addr})
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
+	authConfig := new(authServiceClientConfig)
 	// --identity flag
 	if ccf.IdentityFilePath != "" {
-		key, _, err := common.LoadIdentity(ccf.IdentityFilePath)
+		key, err := common.LoadIdentity(ccf.IdentityFilePath)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
-		identity, err := auth.ReadTLSIdentityFromKeyPair(key.Priv, key.TLSCert, key.TLSCAs())
+
+		authConfig.tlsConfig, err = key.ClientTLSConfig(cfg.CipherSuites)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
-		cfg.Identities = append(cfg.Identities, identity)
+		authConfig.sshConfig, err = key.ClientSSHConfig()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	} else {
 		// read the host UUID only in case the identity was not provided,
 		// because it will be used for reading local auth server identity
 		cfg.HostUUID, err = utils.ReadHostUUID(cfg.DataDir)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
+		}
+		identity, err := auth.ReadLocalIdentity(filepath.Join(cfg.DataDir, teleport.ComponentProcess), auth.IdentityID{Role: teleport.RoleAdmin, HostUUID: cfg.HostUUID})
+		if err != nil {
+			// The "admin" identity is not present? This means the tctl is running
+			// NOT on the auth server
+			if trace.IsNotFound(err) {
+				return nil, trace.AccessDenied("tctl must be either used on the auth server or provided with the identity file via --identity flag")
+			}
+			return nil, trace.Wrap(err)
+		}
+		authConfig.tlsConfig, err = identity.TLSConfig(cfg.CipherSuites)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
-	return nil
+	authConfig.tlsConfig.InsecureSkipVerify = ccf.Insecure
+
+	return authConfig, nil
 }

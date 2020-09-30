@@ -25,6 +25,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"sort"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -1009,6 +1011,208 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...SuiteOption) {
 	c.Assert(err, check.IsNil)
 	clusterName.SetResourceID(gotName.GetResourceID())
 	fixtures.DeepCompare(c, clusterName, gotName)
+}
+
+// sem wrapper is a helper for overriding the keepalive
+// method on the semaphore service.
+type semWrapper struct {
+	services.Semaphores
+	keepAlive func(context.Context, services.SemaphoreLease) error
+}
+
+func (w *semWrapper) KeepAliveSemaphoreLease(ctx context.Context, lease services.SemaphoreLease) error {
+	return w.keepAlive(ctx, lease)
+}
+
+func (s *ServicesTestSuite) SemaphoreFlakiness(c *check.C) {
+	const renewals = 3
+	// wrap our services.Semaphores instance to cause two out of three lease
+	// keepalive attempts fail with a meaningless error.  Locks should make
+	// at *least* three attempts before their expiry, so locks should not
+	// fail under these conditions.
+	keepAlives := new(uint64)
+	wrapper := &semWrapper{
+		Semaphores: s.PresenceS,
+		keepAlive: func(ctx context.Context, lease services.SemaphoreLease) error {
+			kn := atomic.AddUint64(keepAlives, 1)
+			if kn%3 == 0 {
+				return s.PresenceS.KeepAliveSemaphoreLease(ctx, lease)
+			}
+			return trace.Errorf("uh-oh!")
+		},
+	}
+
+	cfg := services.SemaphoreLockConfig{
+		Service:  wrapper,
+		Expiry:   time.Second,
+		TickRate: time.Millisecond * 50,
+		Params: services.AcquireSemaphoreRequest{
+			SemaphoreKind: services.SemaphoreKindConnection,
+			SemaphoreName: "alice",
+			MaxLeases:     1,
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	lock, err := services.AcquireSemaphoreLock(ctx, cfg)
+	c.Assert(err, check.IsNil)
+	go lock.KeepAlive(ctx)
+
+	for i := 0; i < renewals; i++ {
+		select {
+		case <-lock.Renewed():
+			continue
+		case <-lock.Done():
+			c.Fatalf("Lost semaphore lock: %v", lock.Wait())
+		case <-time.After(time.Second):
+			c.Fatalf("Timeout waiting for renewals")
+		}
+	}
+}
+
+// SemaphoreContention checks that a large number of concurrent acquisitions
+// all succeed if MaxLeases is sufficiently high.  Note that we do not test
+// the same property holds for releasing semaphores; release operations are
+// best-effort and allowed to fail.  Also, "large" in this context is still
+// fairly small.  Semaphores aren't cheap and the auth server is expected
+// to start returning "too much contention" errors at around 100 concurrent
+// attempts.
+func (s *ServicesTestSuite) SemaphoreContention(c *check.C) {
+	const locks int64 = 50
+	const iters = 5
+	for i := 0; i < iters; i++ {
+		cfg := services.SemaphoreLockConfig{
+			Service: s.PresenceS,
+			Expiry:  time.Hour,
+			Params: services.AcquireSemaphoreRequest{
+				SemaphoreKind: services.SemaphoreKindConnection,
+				SemaphoreName: "alice",
+				MaxLeases:     locks,
+			},
+		}
+		// we leak lock handles in the spawned goroutines, so
+		// context-based cancellation is needed to cleanup the
+		// background keepalive activity.
+		ctx, cancel := context.WithCancel(context.TODO())
+		var wg sync.WaitGroup
+		for i := int64(0); i < locks; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				lock, err := services.AcquireSemaphoreLock(ctx, cfg)
+				c.Assert(err, check.IsNil)
+				go lock.KeepAlive(ctx)
+			}()
+		}
+		wg.Wait()
+		cancel()
+		c.Assert(s.PresenceS.DeleteSemaphore(context.TODO(), services.SemaphoreFilter{
+			SemaphoreKind: cfg.Params.SemaphoreKind,
+			SemaphoreName: cfg.Params.SemaphoreName,
+		}), check.IsNil)
+	}
+}
+
+// SemaphoreConcurrency verifies that a large number of concurrent
+// acquisitions result in the correct number of successful acquisitions.
+func (s *ServicesTestSuite) SemaphoreConcurrency(c *check.C) {
+	const maxLeases int64 = 20
+	const attempts int64 = 200
+	cfg := services.SemaphoreLockConfig{
+		Service: s.PresenceS,
+		Expiry:  time.Hour,
+		Params: services.AcquireSemaphoreRequest{
+			SemaphoreKind: services.SemaphoreKindConnection,
+			SemaphoreName: "alice",
+			MaxLeases:     maxLeases,
+		},
+	}
+	// we leak lock handles in the spawned goroutines, so
+	// context-based cancellation is needed to cleanup the
+	// background keepalive activity.
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+	var success int64
+	var failure int64
+	var wg sync.WaitGroup
+	for i := int64(0); i < attempts; i++ {
+		wg.Add(1)
+		go func() {
+			lock, err := services.AcquireSemaphoreLock(ctx, cfg)
+			if err == nil {
+				go lock.KeepAlive(ctx)
+				atomic.AddInt64(&success, 1)
+			} else {
+				atomic.AddInt64(&failure, 1)
+			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+	c.Assert(atomic.LoadInt64(&success), check.Equals, maxLeases)
+	c.Assert(atomic.LoadInt64(&failure), check.Equals, attempts-maxLeases)
+}
+
+// SemaphoreLock verifies correct functionality of the basic
+// semaphore lock scenarios.
+func (s *ServicesTestSuite) SemaphoreLock(c *check.C) {
+	cfg := services.SemaphoreLockConfig{
+		Service: s.PresenceS,
+		Expiry:  time.Hour,
+		Params: services.AcquireSemaphoreRequest{
+			SemaphoreKind: services.SemaphoreKindConnection,
+			SemaphoreName: "alice",
+			MaxLeases:     1,
+		},
+	}
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+	lock, err := services.AcquireSemaphoreLock(ctx, cfg)
+	c.Assert(err, check.IsNil)
+	go lock.KeepAlive(ctx)
+
+	// MaxLeases is 1, so second acquire op fails.
+	_, err = services.AcquireSemaphoreLock(ctx, cfg)
+	fixtures.ExpectLimitExceeded(c, err)
+
+	// Lock is successfully released.
+	lock.Stop()
+	c.Assert(lock.Wait(), check.IsNil)
+
+	// Acquire new lock with short expiry
+	// and high tick rate to verify renewals.
+	cfg.Expiry = time.Second
+	cfg.TickRate = time.Millisecond * 50
+	lock, err = services.AcquireSemaphoreLock(ctx, cfg)
+	c.Assert(err, check.IsNil)
+	go lock.KeepAlive(ctx)
+
+	timeout := time.After(time.Second)
+
+	for i := 0; i < 3; i++ {
+		select {
+		case <-lock.Done():
+			c.Fatalf("Unexpected lock failure: %v", lock.Wait())
+		case <-timeout:
+			c.Fatalf("Timeout waiting for lock renewal %d", i)
+		case <-lock.Renewed():
+		}
+	}
+
+	// forcibly delete the semaphore
+	c.Assert(s.PresenceS.DeleteSemaphore(context.TODO(), services.SemaphoreFilter{
+		SemaphoreKind: cfg.Params.SemaphoreKind,
+		SemaphoreName: cfg.Params.SemaphoreName,
+	}), check.IsNil)
+
+	select {
+	case <-lock.Done():
+		fixtures.ExpectNotFound(c, lock.Wait())
+	case <-time.After(time.Millisecond * 1500):
+		c.Errorf("timeout waiting for semaphore lock failure")
+	}
 }
 
 // Events tests various events variations
