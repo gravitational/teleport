@@ -4,7 +4,7 @@
 
 This release of Teleport contains a security fix.
 
-* Mitigated [CVE-2020-15216]([https://nvd.nist.gov/vuln/detail/CVE-2020-15216) by updating github.com/russellhaering/goxmldsig.
+* Mitigated [CVE-2020-15216](https://nvd.nist.gov/vuln/detail/CVE-2020-15216) by updating github.com/russellhaering/goxmldsig.
 
 ## 4.1.10
 
