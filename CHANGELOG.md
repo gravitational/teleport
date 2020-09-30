@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.1.11
+
+This release of Teleport contains a security fix.
+
+* Mitigated [CVE-2020-15216]([https://nvd.nist.gov/vuln/detail/CVE-2020-15216) by updating github.com/russellhaering/goxmldsig.
+
 ## 4.1.10
 
 As part of a routine security audit of Teleport, a security vulnerability was discovered that affects all recent releases of Teleport. We strongly suggest upgrading to the latest patched release to mitigate this vulnerability.
@@ -1111,7 +1117,7 @@ This release focus was to increase Teleport user experience in the following are
 
 Teleport 2.0.5 contains a variety of security fixes. We strongly encourage anyone running Teleport 2.0.0 and above to upgrade to 2.0.5.
 
-The most pressing issues (a phishing attack which can potentially be used to extract plaintext credentials and an attack where an already authenticated user can escalate privileges) can be resolved by upgrading the web proxy. However, however all nodes need to be upgraded to mitigate all vulnerabilities. 
+The most pressing issues (a phishing attack which can potentially be used to extract plaintext credentials and an attack where an already authenticated user can escalate privileges) can be resolved by upgrading the web proxy. However, however all nodes need to be upgraded to mitigate all vulnerabilities.
 
 ### Bugfixes
 
@@ -1255,8 +1261,8 @@ certificates did not work correctly in this release due to #529
 ### Bugfixes
 
 * Wrong url to register new users. #497
-* Logged in users inherit Teleport supplemental groups bug security. #507 
-* Joining a session running on a trusted cluster does not work. #504 
+* Logged in users inherit Teleport supplemental groups bug security. #507
+* Joining a session running on a trusted cluster does not work. #504
 
 ## 1.0.4
 
