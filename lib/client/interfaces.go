@@ -340,6 +340,6 @@ func (k *Key) HostKeyCallback() (ssh.HostKeyCallback, error) {
 				return nil
 			}
 		}
-		return trace.AccessDenied("host %v is untrusted", host)
+		return trace.AccessDenied("host %v is untrusted or Teleport CA has been rotated; try getting new credentials by logging in again ('tsh login') or re-exporting the identity file ('tctl auth sign' or 'tsh login -o'), depending on how you got them initially", host)
 	}, nil
 }

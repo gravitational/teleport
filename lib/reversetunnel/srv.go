@@ -695,11 +695,11 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 		var ok bool
 		clusterName, ok = cert.Extensions[utils.CertExtensionAuthority]
 		if !ok || clusterName == "" {
-			return nil, trace.BadParameter("certificate missing %q extension", utils.CertExtensionAuthority)
+			return nil, trace.BadParameter("certificate missing %q extension; this SSH host certificate was not issued by Teleport or issued by an older version of Teleport; try upgrading your Teleport nodes/proxies", utils.CertExtensionAuthority)
 		}
 		certRole, ok = cert.Extensions[utils.CertExtensionRole]
 		if !ok || certRole == "" {
-			return nil, trace.BadParameter("certificate missing %q extension", utils.CertExtensionRole)
+			return nil, trace.BadParameter("certificate missing %q extension; this SSH host certificate was not issued by Teleport or issued by an older version of Teleport; try upgrading your Teleport nodes/proxies", utils.CertExtensionRole)
 		}
 		certType = extCertTypeHost
 		caType = services.HostCA
@@ -711,14 +711,14 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 		}
 		encRoles, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
 		if !ok || encRoles == "" {
-			return nil, trace.BadParameter("certificate missing %q extension", teleport.CertExtensionTeleportRoles)
+			return nil, trace.BadParameter("certificate missing %q extension; this SSH user certificate was not issued by Teleport or issued by an older version of Teleport; try upgrading your Teleport proxies/auth servers and logging in again (or exporting an identity file, if that's what you used)", teleport.CertExtensionTeleportRoles)
 		}
 		roles, err := services.UnmarshalCertRoles(encRoles)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if len(roles) == 0 {
-			return nil, trace.BadParameter("certificate missing roles in %q extension", teleport.CertExtensionTeleportRoles)
+			return nil, trace.BadParameter("certificate missing roles in %q extension; make sure your user has some roles assigned (or ask your Teleport admin to) and log in again (or export an identity file, if that's what you used)", teleport.CertExtensionTeleportRoles)
 		}
 		certRole = roles[0]
 		certType = extCertTypeUser
