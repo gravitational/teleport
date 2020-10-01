@@ -1327,7 +1327,7 @@ type AccessChecker interface {
 
 	// CheckKubeGroupsAndUsers check if role can login into kubernetes
 	// and returns two lists of combined allowed groups and users
-	CheckKubeGroupsAndUsers(ttl time.Duration) (groups []string, users []string, err error)
+	CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool) (groups []string, users []string, err error)
 
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged
@@ -1705,13 +1705,13 @@ func (set RoleSet) AdjustDisconnectExpiredCert(disconnect bool) bool {
 
 // CheckKubeGroupsAndUsers check if role can login into kubernetes
 // and returns two lists of allowed groups and users
-func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration) ([]string, []string, error) {
+func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool) ([]string, []string, error) {
 	groups := make(map[string]struct{})
 	users := make(map[string]struct{})
 	var matchedTTL bool
 	for _, role := range set {
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
-		if ttl <= maxSessionTTL && maxSessionTTL != 0 {
+		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
 			for _, group := range role.GetKubeGroups(Allow) {
 				groups[group] = struct{}{}

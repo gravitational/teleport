@@ -357,7 +357,7 @@ func (f *Forwarder) setupContext(ctx auth.AuthContext, req *http.Request, isRemo
 	sessionTTL := roles.AdjustSessionTTL(time.Hour)
 
 	// check signing TTL and return a list of allowed logins
-	kubeGroups, kubeUsers, err := roles.CheckKubeGroupsAndUsers(sessionTTL)
+	kubeGroups, kubeUsers, err := roles.CheckKubeGroupsAndUsers(sessionTTL, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
