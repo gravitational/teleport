@@ -175,7 +175,12 @@ type Matcher interface {
 //
 // These expressions do not support variable interpolation (e.g.
 // `{{internal.logins}}`), like Expression does.
-func NewMatcher(value string) (Matcher, error) {
+func NewMatcher(value string) (m Matcher, err error) {
+	defer func() {
+		if err != nil {
+			err = trace.WrapWithMessage(err, "see supported syntax at https://gravitational.com/teleport/docs/enterprise/ssh-rbac/#rbac-for-hosts")
+		}
+	}()
 	match := reVariable.FindStringSubmatch(value)
 	if len(match) == 0 {
 		if strings.Contains(value, "{{") || strings.Contains(value, "}}") {
@@ -191,7 +196,7 @@ func NewMatcher(value string) (Matcher, error) {
 	// parse and get the ast of the expression
 	expr, err := parser.ParseExpr(variable)
 	if err != nil {
-		return nil, trace.BadParameter("failed to parse %q: %v", variable, err)
+		return nil, trace.BadParameter("failed to parse %q: %v", value, err)
 	}
 
 	// walk the ast tree and gather the variable parts
@@ -204,7 +209,7 @@ func NewMatcher(value string) (Matcher, error) {
 	// the matching logic. For example
 	// `{{regexp.match(external.allowed_env_trait)}}`.
 	if result.transform != nil || len(result.parts) > 0 {
-		return nil, trace.BadParameter("%q is not a valid matcher expression - no variables and transformations are allowed", variable)
+		return nil, trace.BadParameter("%q is not a valid matcher expression - no variables and transformations are allowed", value)
 	}
 	return newPrefixSuffixMatcher(prefix, suffix, result.match), nil
 }
@@ -345,8 +350,7 @@ func walk(node ast.Node) (*walkResult, error) {
 					if err != nil {
 						return nil, trace.Wrap(err)
 					}
-					// If this is not_match, wrap the regexpMatcher to invert
-					// it.
+					// If this is not_match, wrap the regexpMatcher to invert it.
 					if fn == RegexpNotMatchFnName {
 						result.match = notMatcher{result.match}
 					}
