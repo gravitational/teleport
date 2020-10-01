@@ -829,6 +829,9 @@ type Kube struct {
 	// if specified, teleport will use API server address and
 	// trusted certificate authority information from it
 	KubeconfigFile string `yaml:"kubeconfig_file,omitempty"`
+	// ClusterName is the name of a kubernetes cluster this proxy is running
+	// in. If set, this proxy will handle kubernetes requests for the cluster.
+	ClusterName string `yaml:"cluster_name,omitempty"`
 }
 
 // ReverseTunnel is a SSH reverse tunnel maintained by one cluster's
