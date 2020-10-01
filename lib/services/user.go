@@ -492,7 +492,10 @@ func (u *UserV1) Check() error {
 	}
 	for _, login := range u.AllowedLogins {
 		e, err := parse.NewExpression(login)
-		if err == nil && e.Namespace() != parse.LiteralNamespace {
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if e.Namespace() != parse.LiteralNamespace {
 			return trace.BadParameter("role variables not allowed in allowed logins")
 		}
 	}
