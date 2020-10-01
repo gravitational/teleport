@@ -220,7 +220,7 @@ An example policy is shown below:
 
 !!! note "Note"
 
-    `arn:aws:dynamodb:REGION:ACCOUNTID:table/DYNAMODB-RESOURCE-A` and `RESOURCE-B` will need to be replaced with your two DynamoDB instances.
+    `arn:aws:dynamodb:REGION:ACCOUNTID:table/DYNAMODB-RESOURCE-A` and `RESOURCE-B` will need to be replaced with your two DynamoDB tables.
 
 ### ACM
 
@@ -273,7 +273,7 @@ To upgrade to a newer version of Teleport:
 - Back up `/etc/teleport.yaml`, `/etc/teleport.d/` and the contents of `/var/lib/teleport`
 - Launch a new instance with the correct AMI for a newer version of Teleport
 - Copy `/etc/teleport.yaml`, `/etc/teleport.d/` and `/var/lib/teleport` to the new instance, overwriting anything that already exists
-- Copy and its contents should also be backed up and copied over to the new instance.
+- Backup the contents and copy them over to the new instance.
 - Either restart the instance, or log in via SSH and run `sudo systemctl restart teleport.service`
 
 ## Using Teleport with EKS
