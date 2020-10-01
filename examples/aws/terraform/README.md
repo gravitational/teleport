@@ -1,71 +1,37 @@
-## Terraform based provisioning example (Amazon single AMI)
+# Teleport AWS Terraform
 
-Terraform specifies example provisioning script for Teleport auth, proxy and nodes in HA mode.
+This section of the Teleport Github repo contains AWS Terraform definitions for two Teleport cluster configurations.
 
-Use these examples as possible deployment patterns suggested by Teleport developers.
+- A simple starter Teleport cluster to, quickly and cost-effectively, demo or POC Teleport on a single node (auth, proxy, and node processes running on one t3.nano ec2 instance).
+- A production worthy high-availability auto-scaling Teleport Cluster. This cluster makes use of several AWS technologies, provisioned and configured using Terraform.
 
-The scripts set up Letsencrypt certificates using DNS-01 challenge. This means that users have to control the DNS zone
-via Route 53. ACM can optionally be used too, but Route 53 integration is still required.
+If you are planning on using our Terraform example in production, please reference the high-availability auto-scaling Teleport Cluster for best practices. Our Production Guide outlines in-depth details on how to run Teleport in production.
 
-Teleport join tokens are distributed using SSM parameter store, and certificates are distributed using encrypted S3
-bucket.
+## Prerequisites
 
-There are a couple of tricks using DynamoDB locking to make sure there is only one auth server node rotating join token
-at a time, but those could be easilly replaced and are not critical for performance.
+We recommend familiarizing yourself with the following resources prior to reviewing our Terraform examples:
 
-Important bits are that auth servers and proxies are not running as root and are secured exposing absolute minimum of
-the ports to the other parts.
+- [Teleport Architecture](https://gravitational.com/teleport/docs/architecture/teleport_architecture_overview/)
+- [Admin Guide](https://gravitational.com/teleport/docs/admin-guide/)
 
-```bash
-# Set variables for Terraform
+In order to spin up AWS resources using these Terraform examples, you need the following software:
 
-# Region to run in - we currently have AMIs in the following regions:
-# ap-south-1,ap-northeast-2,ap-southeast-1,ap-southeast-2,ap-northeast-1,ca-central-1,eu-central-1,eu-west-1,eu-west-2
-# sa-east-1,us-east-1,us-east-2,us-west-1,us-west-2
-export TF_VAR_region="us-west-2"
+- terraform v0.12+ [install docs](https://learn.hashicorp.com/terraform/getting-started/install.html)
+- awscli v1.14+ [install docs](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
 
-# Cluster name is a unique cluster name to use, should be unique and not contain spaces or other special characters
-export TF_VAR_cluster_name="teleport.example.com"
+## Projects
 
-# AMI name contains the version of Teleport to install, and whether to use OSS or Enterprise version
-# These AMIs are published by Gravitational and shared as public whenever a new version of Teleport is released
-# To list available AMIs:
-# OSS: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'
-# Enterprise: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*'
-# FIPS 140-2 images are also available for Enterprise customers, look for '-fips' on the end of the AMI's name
-export TF_VAR_ami_name="gravitational-teleport-ami-ent-4.3.5"
+- Starter Teleport Cluster
+  - [Get Started](starter-cluster/README.md)
 
-# AWS SSH key name to provision in installed instances, should be available in the region
-export TF_VAR_key_name="example"
+- HA Auto-Scaling Teleport Cluster
+  - [Get Started](ha-autoscale-cluster/README.md)
 
-# Full absolute path to the license file for Teleport Enterprise or Pro.
-# This license will be copied into SSM and then pulled down on the auth nodes to enable Enterprise/Pro functionality
-export TF_VAR_license_path="/path/to/license"
+## How to get help
 
-# Route 53 zone to use, should be the zone registered in AWS, e.g. example.com
-export TF_VAR_route53_zone="example.com"
+If you're having trouble, check out our [Discourse community](https://community.gravitational.com). 
 
-# Subdomain to set up in the zone above, e.g. cluster.example.com
-# This will be used for internet access for users connecting to teleport proxy
-export TF_VAR_route53_domain="cluster.example.com"
-
-# Bucket name to store encrypted letsencrypt certificates.
-export TF_VAR_s3_bucket_name="teleport.example.com"
-
-# Email of your support org, used for Letsencrypt cert registration process.
-export TF_VAR_email="support@example.com"
-
-# Setup grafana password for "admin" user. Grafana will be served on https://cluster.example.com:8443 after install
-export TF_VAR_grafana_pass="CHANGE_THIS_VALUE"
-
-# (optional) Set to true to use ACM (Amazon Certificate Manager) to provision certificates rather than Letsencrypt
-# If you wish to use a pre-existing ACM certificate rather than having Terraform generate one for you, you can import it:
-# terraform import aws_acm_certificate.cert <certificate_arn>
-# export TF_VAR_use_acm="false"
-
-# plan
-make plan
-```
+For bugs related to this code, please [open an issue](https://github.com/gravitational/teleport/issues/new/choose).
 
 ## Public Teleport AMI IDs
 
