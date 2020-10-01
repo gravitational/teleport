@@ -188,7 +188,7 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 		if clientConfig.sshConfig == nil {
 			// No identity file was provided, don't try dialing via a reverse
 			// tunnel on the proxy.
-			return nil, err
+			return nil, trace.Wrap(err)
 		}
 
 		// If direct dial failed, we may have a proxy address in
