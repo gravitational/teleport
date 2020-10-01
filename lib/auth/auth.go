@@ -546,7 +546,7 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	kubeGroups, kubeUsers, err := req.checker.CheckKubeGroupsAndUsers(sessionTTL)
+	kubeGroups, kubeUsers, err := req.checker.CheckKubeGroupsAndUsers(sessionTTL, req.overrideRoleTTL)
 	// NotFound errors are acceptable - this user may have no k8s access
 	// granted and that shouldn't prevent us from issuing a TLS cert.
 	if err != nil && !trace.IsNotFound(err) {
