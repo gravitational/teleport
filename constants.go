@@ -297,6 +297,9 @@ const (
 	// Text means text serialization format
 	Text = "text"
 
+	// Names is for formatting node names in plain text
+	Names = "names"
+
 	// LinuxAdminGID is the ID of the standard adm group on linux
 	LinuxAdminGID = 4
 

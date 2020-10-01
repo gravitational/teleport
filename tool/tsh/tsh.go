@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -151,6 +152,9 @@ type CLIConf struct {
 	// Verbose is used to print extra output.
 	Verbose bool
 
+	// Format is used to change the format of output
+	Format string
+
 	// NoRemoteExec will not execute a remote command after connecting to a host,
 	// will block instead. Useful when port forwarding. Equivalent of -N for OpenSSH.
 	NoRemoteExec bool
@@ -269,7 +273,8 @@ func Run(args []string) {
 	ls := app.Command("ls", "List remote SSH nodes")
 	ls.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
 	ls.Arg("labels", "List of labels to filter node list").StringVar(&cf.UserHost)
-	ls.Flag("verbose", "One-line output, including node UUIDs").Short('v').BoolVar(&cf.Verbose)
+	ls.Flag("verbose", "One-line output (for text format), including node UUIDs").Short('v').BoolVar(&cf.Verbose)
+	ls.Flag("format", "Format output (text, json, names)").Short('f').Default(teleport.Text).StringVar(&cf.Format)
 	// clusters
 	clusters := app.Command("clusters", "List available Teleport clusters")
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
@@ -724,7 +729,10 @@ func onListNodes(cf *CLIConf) {
 		return nodes[i].GetHostname() < nodes[j].GetHostname()
 	})
 
-	showNodes(nodes, cf.Verbose)
+	if err := printNodes(nodes, cf.Format, cf.Verbose); err != nil {
+		utils.FatalError(err)
+	}
+
 }
 
 func executeAccessRequest(cf *CLIConf) {
@@ -754,44 +762,64 @@ func executeAccessRequest(cf *CLIConf) {
 	onStatus(cf)
 }
 
-func showNodes(nodes []services.Server, verbose bool) {
+func printNodes(nodes []services.Server, format string, verbose bool) error {
+	switch strings.ToLower(format) {
+	case teleport.Text:
+		printNodesAsText(nodes, verbose)
+	case teleport.JSON:
+		out, err := json.MarshalIndent(nodes, "", "  ")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(string(out))
+	case teleport.Names:
+		for _, n := range nodes {
+			fmt.Println(n.GetHostname())
+		}
+	default:
+		return trace.BadParameter("unsupported format. try 'json', 'text', or 'names'")
+	}
+
+	return nil
+}
+
+func printNodesAsText(nodes []services.Server, verbose bool) {
+	// Reusable function to get addr or tunnel for each node
+	getAddr := func(n services.Server) string {
+		if n.GetUseTunnel() {
+			return "⟵ Tunnel"
+		}
+		return n.GetAddr()
+	}
+
+	var t asciitable.Table
 	switch verbose {
 	// In verbose mode, print everything on a single line and include the Node
 	// ID (UUID). Useful for machines that need to parse the output of "tsh ls".
 	case true:
-		t := asciitable.MakeTable([]string{"Node Name", "Node ID", "Address", "Labels"})
+		t = asciitable.MakeTable([]string{"Node Name", "Node ID", "Address", "Labels"})
 		for _, n := range nodes {
-			addr := n.GetAddr()
-			if n.GetUseTunnel() {
-				addr = "⟵ Tunnel"
-			}
-
 			t.AddRow([]string{
-				n.GetHostname(), n.GetName(), addr, n.LabelsString(),
+				n.GetHostname(), n.GetName(), getAddr(n), n.LabelsString(),
 			})
 		}
-		fmt.Println(t.AsBuffer().String())
 	// In normal mode chunk the labels and print two per line and allow multiple
 	// lines per node.
 	case false:
-		t := asciitable.MakeTable([]string{"Node Name", "Address", "Labels"})
+		t = asciitable.MakeTable([]string{"Node Name", "Address", "Labels"})
 		for _, n := range nodes {
 			labelChunks := chunkLabels(n.GetAllLabels(), 2)
 			for i, v := range labelChunks {
-				var hostname string
-				var addr string
 				if i == 0 {
-					hostname = n.GetHostname()
-					addr = n.GetAddr()
-					if n.GetUseTunnel() {
-						addr = "⟵ Tunnel"
-					}
+					t.AddRow([]string{n.GetHostname(), getAddr(n), strings.Join(v, ", ")})
+				} else {
+					t.AddRow([]string{"", "", strings.Join(v, ", ")})
 				}
-				t.AddRow([]string{hostname, addr, strings.Join(v, ", ")})
 			}
 		}
-		fmt.Println(t.AsBuffer().String())
 	}
+
+	fmt.Println(t.AsBuffer().String())
 }
 
 // chunkLabels breaks labels into sized chunks. Used to improve readability
@@ -874,7 +902,7 @@ func onSSH(cf *CLIConf) {
 				}
 			}
 			fmt.Fprintf(os.Stderr, "error: ambiguous host could match multiple nodes\n\n")
-			showNodes(nodes, true)
+			printNodesAsText(nodes, true)
 			fmt.Fprintf(os.Stderr, "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
 			fmt.Fprintf(os.Stderr, "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
 			fmt.Fprintf(os.Stderr, "\n")
