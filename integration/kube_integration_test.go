@@ -175,7 +175,7 @@ func (s *KubeSuite) TestKubeExec(c *check.C) {
 		username:      username,
 		kubeUsers:     kubeUsers,
 		kubeGroups:    kubeGroups,
-		impersonation: &rest.ImpersonationConfig{UserName: "bob", Groups: []string{"system: masters"}},
+		impersonation: &rest.ImpersonationConfig{UserName: "bob", Groups: []string{"system:masters"}},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -456,7 +456,7 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 		t:             t,
 		username:      username,
 		kubeGroups:    kubeGroups,
-		impersonation: &rest.ImpersonationConfig{UserName: "bob", Groups: []string{"system: masters"}},
+		impersonation: &rest.ImpersonationConfig{UserName: "bob", Groups: []string{"system:masters"}},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -592,7 +592,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 		t:              main,
 		username:       username,
 		kubeGroups:     mainKubeGroups,
-		impersonation:  &rest.ImpersonationConfig{UserName: "bob", Groups: []string{"system: masters"}},
+		impersonation:  &rest.ImpersonationConfig{UserName: "bob", Groups: []string{"system:masters"}},
 		routeToCluster: clusterAux,
 	})
 	c.Assert(err, check.IsNil)
@@ -744,7 +744,7 @@ loop:
 
 }
 
-// TestKubeTrustedClustersSNI tests scenario with trusted clsuters
+// TestKubeTrustedClustersSNI tests scenario with trusted clusters
 // using SNI-forwarding
 // DELETE IN(4.3.0)
 func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
@@ -815,7 +815,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 	c.Assert(err, check.IsNil)
 	err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
 	c.Assert(err, check.IsNil)
-	trustedClusterToken := "trusted-clsuter-token"
+	trustedClusterToken := "trusted-cluster-token"
 	err = main.Process.GetAuthServer().UpsertToken(
 		services.MustCreateProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{}))
 	c.Assert(err, check.IsNil)
@@ -865,7 +865,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 		t:             main,
 		username:      username,
 		kubeGroups:    mainKubeGroups,
-		impersonation: &rest.ImpersonationConfig{UserName: "bob", Groups: []string{"system: masters"}},
+		impersonation: &rest.ImpersonationConfig{UserName: "bob", Groups: []string{"system:masters"}},
 	})
 	c.Assert(err, check.IsNil)
 
