@@ -130,9 +130,8 @@ steps:
       - echo "$INTEGRATION_CI_KUBECONFIG" > /go/kubeconfig.ci
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
-      # TOOD(gus): uncomment after testing
+      # TOOD(gus): uncomment/remove after testing
       #- make -C build.assets integration
-      - ls -l /go
       - |
         docker run --rm=true -v "$(pwd)/":/go/src/github.com/gravitational/teleport \
         -v /tmp:/tmp -w /go/src/github.com/gravitational/teleport -h buildbox \
@@ -2801,6 +2800,6 @@ volumes:
 
 ---
 kind: signature
-hmac: cc4343de57122bfe006c151620c7a75466cb56ba0fb8aa99e8faad26652893cd
+hmac: 842c838ac45aae7d714b736d164612e0bdf3212c913d44741686f5edee28de73
 
 ...
