@@ -123,7 +123,11 @@ spec:
       'environment': ['test', 'staging']
       # regular expressions are also supported, for example the equivalent
       # of the list example above can be expressed as:
+      'environment': '{{regexp.match("^test|staging$")}}'
+      # or using the simpler legacy syntax:
       'environment': '^test|staging$'
+      # negative regular expressions can be used to avoid strict deny rules:
+      'environment': '{{regexp.not_match("prod")}}'
 
     # defines roles that this user can can request.
     # needed for teleport's request workflow
@@ -236,6 +240,34 @@ spec:
     of an executable. In this case, you can implement "permissions follow workload"
     policies (eg., any server where PostgreSQL is running becomes _automatically_
     accessible only by the members of the "DBA" group and nobody else).
+
+### Extended Node Labels Syntax
+
+Below are a few examples for more complex filtering using various regexes.
+
+```yaml
+kind: role
+version: v3
+metadata:
+  name: example-role
+spec:
+  allow:
+    node_labels:
+      # literal strings:
+      'environment': 'test'
+      # the wildcard ('*') means "any node"
+      '*': '*'
+      # a list of alternative options:
+      'environment': ['test', 'staging']
+      # regular expressions are also supported, for example the equivalent
+      # of the list example above can be expressed as:
+      'environment': '{{regexp.match("^test|staging$")}}'
+      # or using the simpler legacy syntax:
+      'environment': '^test|staging$'
+      # negative regular expressions can be used to avoid strict deny rules:
+      'environment': '{{regexp.not_match("prod")}}'
+```
+
 
 ## RBAC for Sessions
 
