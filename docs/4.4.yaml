@@ -6,8 +6,8 @@ site_author: Gravitational Inc
 copyright: Gravitational Inc, 2016-20
 
 # output directory:
-site_dir: ../build/docs/4.3
-docs_dir: "4.3"
+site_dir: ../build/docs/4.4
+docs_dir: "4.4"
 
 theme:
     name: null
@@ -31,15 +31,15 @@ plugins:
     - markdownextradata: {}
 extra_javascript: []
 extra:
-    version: 4.3
+    version: 4.4
     teleport:
-        version: 4.3.7
+        version: 4.4.0
         golang: 1.14
-        sha: c6e5a788f995d2ef923ad834a43e856475b0aae1af67ab4e98b9b94de5fabdf7
+        sha: 58a7e800038098aba13ec876bced46c8ce43f3a7b505559db55d82dc72c26860
         plugin:
             version: 0.2.0
-        latest_oss_docker_image: quay.io/gravitational/teleport:4.3
-        latest_ent_docker_image: quay.io/gravitational/teleport-ent:4.3
+        latest_oss_docker_image: quay.io/gravitational/teleport:4.4
+        latest_ent_docker_image: quay.io/gravitational/teleport-ent:4.4
 nav:
     - Documentation:
         - Introduction: index.md
