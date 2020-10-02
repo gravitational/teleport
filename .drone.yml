@@ -119,8 +119,8 @@ steps:
       GOPATH: /go
       INTEGRATION_CI_KUBECONFIG:
         from_secret: INTEGRATION_CI_KUBECONFIG
-      #KUBECONFIG: /mnt/kube/config
-      #TEST_KUBE: true
+      KUBECONFIG: /go/kubeconfig.ci
+      TEST_KUBE: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -2800,6 +2800,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 842c838ac45aae7d714b736d164612e0bdf3212c913d44741686f5edee28de73
+hmac: 4f71245ab61a41f45090e94e76fb34bd1260a57e8687a4af95a289e536d731b4
 
 ...
