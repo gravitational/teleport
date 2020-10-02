@@ -3,7 +3,6 @@ title: Running Teleport on AWS
 description: How to install and configure Gravitational Teleport on AWS for SSH and Kubernetes access.
 ---
 
-
 # Running Teleport on AWS
 
 We've created this guide to give customers a high level overview of how to use Teleport
@@ -16,8 +15,7 @@ We have split this guide into:
 - [Authenticating to EKS Using GitHub Credentials with Teleport Community Edition](#using-teleport-with-eks)
 - [Setting up Teleport Enterprise on AWS](#running-teleport-enterprise-on-aws)
 - [Teleport AWS Tips & Tricks](#teleport-aws-tips-tricks)
-
--  [AWS HA with Terraform](aws-terraform-guide.md)
+- [AWS HA with Terraform](aws-terraform-guide.md)
 
 ### Teleport on AWS FAQ
 
@@ -82,7 +80,7 @@ to specify `New Image` from the streaming options. DynamoDB back-end supports tw
 types of Teleport data:
 
 * Cluster state
-* Audit log events
+* Cluster events
 
 See [DynamoDB Admin Guide for more information](https://gravitational.com/teleport/docs/admin-guide/#using-dynamodb)
 
@@ -93,12 +91,26 @@ Setting Stream to `NEW IMAGE`
 For maintainability and ease of use, we recommend following our [Terraform example](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/dynamo.tf)
 but below are high level definitions for the tables required to run Teleport.
 
-Cluster State:
+DynamoDB Table A - Teleport Cluster State:
 
 | Table name            | teleport-cluster-name |
 |-----------------------|-----------------------|
 | Primary partition key | HashKey (String)      |
 | Primary sort key      | FullPath (String)     |
+
+
+DynamoDB Table B - Teleport Cluster Events:
+
+| Table name            | teleport-cluster-name-events |
+|-----------------------|------------------------------|
+| Primary partition key | SessionID (String)           |
+| Primary sort key      | EventIndex (Number)          |
+
+| Indexes - `timesearch`| teleport-cluster-name-events |
+|-----------------------|------------------------------|
+| Primary partition key | EventNamespace (String)      |
+| Primary sort key      | CreatedAt (Number)           |
+| Attributes            | ALL                          |
 
 ### S3
 Amazon Simple Storage Service (Amazon S3) is an object storage service that offers
@@ -173,24 +185,42 @@ An example policy is shown below:
     "Version": "2012-10-17",
     "Statement": [
         {
-            "Sid": "AllAPIActionsOnTeleportAuth",
+            "Sid": "AllAPIActionsOnTeleportClusterState",
             "Effect": "Allow",
             "Action": "dynamodb:*",
-            "Resource": "arn:aws:dynamodb:eu-west-1:123456789012:table/prod.teleport.auth"
+            "Resource": "arn:aws:dynamodb:REGION:ACCOUNTID:table/DYNAMODB-RESOURCE-A"
         },
         {
-            "Sid": "AllAPIActionsOnTeleportStreams",
+            "Sid": "AllAPIActionsOnTeleportClusterStateStreams",
             "Effect": "Allow",
             "Action": "dynamodb:*",
-            "Resource": "arn:aws:dynamodb:eu-west-1:123456789012:table/prod.teleport.auth/stream/*"
-        }
+            "Resource": "arn:aws:dynamodb:REGION:ACCOUNTID:table/DYNAMODB-RESOURCE-A/stream/*"
+        },
+        {
+            "Sid": "AllAPIActionsOnTeleportClusterEvents",
+            "Effect": "Allow",
+            "Action": "dynamodb:*",
+            "Resource": "arn:aws:dynamodb:REGION:ACCOUNTID:table/DYNAMODB-RESOURCE-B"
+        },
+        {
+            "Sid": "AllAPIActionsOnTeleportClusterEventsStreams",
+            "Effect": "Allow",
+            "Action": "dynamodb:*",
+            "Resource": "arn:aws:dynamodb:REGION:ACCOUNTID:table/DYNAMODB-RESOURCE-B/stream/*"
+        },
+        {
+            "Sid": "AllAPIActionsOnTeleportClusterEventIndex",
+            "Effect": "Allow",
+            "Action": "dynamodb:*",
+            "Resource": "arn:aws:dynamodb:REGION:ACCOUNTID:table/DYNAMODB-RESOURCE-B/index/*"
+        },
     ]
 }
 ```
 
 !!! note "Note"
 
-    `eu-west-1:123456789012:table/prod.teleport.auth` will need to be replaced with your DynamoDB instance.
+    `arn:aws:dynamodb:REGION:ACCOUNTID:table/DYNAMODB-RESOURCE-A` and `RESOURCE-B` will need to be replaced with your two DynamoDB tables.
 
 ### ACM
 
@@ -205,6 +235,7 @@ To add new nodes to a Teleport Cluster, we recommend using a [strong static toke
 enterprise licence.
 
 ## Setting up a HA Teleport Cluster
+
 Teleport's config based setup offers a wide range of customization for customers.
 This guide offers a range of setup options for AWS. If you have a very large account,
 multiple accounts, or over 10k users we would recommend getting in touch. We are
@@ -212,148 +243,8 @@ more than happy to help you architect, setup and deploy Teleport into your envir
 
 We have these options for you.
 
-- [Using AWS Marketplace (Manual Setup)](#single-oss-teleport-amis-manual-gui-setup)
 - [Deploying with CloudFormation](#deploying-with-cloudformation)
 - [Deploying with Terraform HA + Monitoring](#deploying-with-terraform)
-
-### Single OSS Teleport AMIs (Manual / GUI Setup)
-This guide provides instructions on deploying Teleport using AMIs, the below instructions
-are designed for using the AMI and GUI. It doesn't setup Teleport in HA, so we recommend
-this as a starting point, but then look at the more advanced sections.
-
-### Prerequisites
-
-- Obtain a SSL/TLS Certificate using ACM.
-
-Prerequisites setup.
-
-1. Generate and issue a certificate in [ACM](https://console.aws.amazon.com/acm/home?#)
-for `teleport.acmeinc.com`, use email or DNS validation as appropriate and make sure
-it’s approved successfully.
-
-#### Step 1: Subscribe to Teleport Community Edition
-Subscribe to the Teleport Community Edition on the [AWS Marketplace](https://aws.amazon.com/marketplace/pp/B07FYTZB9B).
-
-1. Select 'Continue to Subscribe'
-2. Review the Terms and Conditions, and click `Continue to Configuration'
-3. Configure this software. Keep options as set, you might want to change region
-to be in the same place as the rest of your infrastructure. Click Continue to Launch
-4. _Launch this software_ Under Choose Action, select Launch through EC2.
-
-
-![AWS Marketplace Subscribe](img/aws/aws-marketplace-subscribe.png)
-![AWS Launch via EC2](img/aws/launch-through-ec2.png)
-
-5. Launch through EC2. At this point AWS will take you from the marketplace and drop
-you into the EC2 panel. [Link: Shortcut to EC2 Wizard](https://console.aws.amazon.com/ec2/v2/home?region=us-east-1#LaunchInstanceWizard:ami=ami-04e79542e3e5fbf02;product=92c3dc07-bdfa-4e88-8c8b-e6187dac50af)
-
-
-#### Step 2: Build instance
-We recommend using an `m4.large`, but a `t2.medium` should be good for POC testing.
-
-![AWS Instance Size ](img/aws/aws-pick-instance-size.png)
-
-
-4. Make sure to write appropriate values to `/etc/teleport.d/conf` via user-data
-    (using something like this):
-
-```json
-#!/bin/bash
-cat >/etc/teleport.d/conf <<EOF
-USE_ACM="true"
-TELEPORT_DOMAIN_NAME="teleport.acmeinc.com"
-TELEPORT_EXTERNAL_HOSTNAME="teleport.acmeinc.com"
-TELEPORT_EXTERNAL_PORT="443"
-TELEPORT_AUTH_SERVER_LB="teleport-nlb.acmeinc.com"
-EOF
-```
-
-Screenshot of where to put it in via AWS console.
-
-![Config Instance Details](img/aws/adding-user-data.png)
-
-!!! note "Note"
-
-    `TELEPORT_DOMAIN_NAME` and `TELEPORT_EXTERNAL_HOSTNAME` are more or less the
-    same thing but we keep them separate just in case you want to use a load balancer
-    on a different hostname.
-
-The CA certificates for the server will be generated to have `TELEPORT_EXTERNAL_HOSTNAME` as a CN,
-assuming it's set when the server starts.
-
-#### Step 3: Create the Load Balancers
-2.  When using ACM you must use an [application load balancer](https://console.aws.amazon.com/ec2/v2/home?region=us-east-1#LoadBalancers:sort=loadBalancerName) (ALB) as this will terminate SSL.
-    1. Add the ACM certificate that you approved for `teleport.acmeinc.com`
-    - Add a listener on the ALB for HTTPS on `443/tcp`
-    - Target group will point to your instance - point to HTTP on `3080/tcp`
-    - Create a http health check, pointing to the [diagnostic endpoint](metrics-logs-reference.md).
-
-        - The default port is `3000` but if using the community image, use port `3434` as outlined in [Teleport AWS Proxy Service](https://github.com/gravitational/teleport/blob/master/assets/aws/files/system/teleport-proxy.service#L16).
-        - The healthcheck path should be set to `/readyz`.
-
-    - Create a DNS record for `teleport.acmeinc.com`
-    - Point this to the public A record of the ALB as provided by Amazon.
-
-
-3. You also need to set up a network load balancer (NLB) for the auth traffic:
-    1. Set up a listener on `3025/tcp`
-    - Target group will point to your instance - point to `3025/tcp`
-    - Create a DNS record for `teleport-nlb.acmeinc.com`
-    - Point this to the public A record of the NLB as provided by Amazon
-    - Make sure that your DNS record is also reflected in `TELEPORT_AUTH_SERVER_LB` in the user data
-    - Launch the instance (you can also use an already-running instance if you
-    follow the instructions at the bottom of this section)
-
-#### Step 4: Create Teleport user
-1. We are going to use `tctl` command to create a user for Teleport. The first step
-is to SSH into the newly created OSS Teleport box.
-
-`ssh -i id_rsa ec2-user@[IP_OF_TELEPORT_AUTH]`
-
-
-```
-➜  ~ ssh -i id_rsa ec2-user@IP_OF_TELEPORT_AUTH
-Last login: Tue Jun 18 00:07:25 2019 from 13.88.188.155
-
-       __|  __|_  )
-       _|  (     /   Amazon Linux 2 AMI
-      ___|\___|___|
-
-https://aws.amazon.com/amazon-linux-2/
-No packages needed for security; 7 packages available
-Run "sudo yum update" to apply all updates.
-[ec2-user@ip-172-30-0-111 ~]$
-```
-
-2. Apply Updates `sudo yum update`
-3. Create a new admin user: `sudo tctl users add teleport-admin ec2-user`
-
-```
-[ec2-user@ip-172-30-0-111 ~]$ sudo tctl users add teleport-admin ec2-user
-Signup token has been created and is valid for 1 hours. Share this URL with the user:
-https://teleport.acmeinc.com:443/web/newuser/cea9871a42e780dff86528fa1b53f382
-
-NOTE: Make sure teleport.acmeinc.com:443 points at a Teleport proxy which users can access.
-```
-
-![Summary for AWS Load Balancer](img/aws/teleport-admin.png)
-
-#### Step 5: Finish
-You've now successfully setup a simple Teleport AMI, that uses local storage and
-has itself as a node. Next we'll look at using HA services to create a more scalable
-Teleport install.
-
-
-#### Reconfiguring/using a pre-existing instance
-
-To reconfigure any of this, or to do it on a running instance:
-
-1. Make the appropriate changes to `/etc/teleport.d/conf`
-    1. `rm -f /etc/teleport.yaml`
-    * `systemctl restart teleport-generate-config.service`
-    * `systemctl restart teleport-acm.service`
-
-If you have changed the external hostname, you may need to delete `/var/lib/teleport` and start again.
 
 ## Deploying with CloudFormation
 We are currently working on an updated CloudFormation guide but you can start with our
@@ -382,15 +273,13 @@ To upgrade to a newer version of Teleport:
 - Back up `/etc/teleport.yaml`, `/etc/teleport.d/` and the contents of `/var/lib/teleport`
 - Launch a new instance with the correct AMI for a newer version of Teleport
 - Copy `/etc/teleport.yaml`, `/etc/teleport.d/` and `/var/lib/teleport` to the new instance, overwriting anything that already exists
-- Copy  and its contents should also be backed up and copied over to the new instance.
+- Backup the contents and copy them over to the new instance.
 - Either restart the instance, or log in via SSH and run `sudo systemctl restart teleport.service`
 
 ## Using Teleport with EKS
 
 In this section, we will set Kubernetes RBAC permissions needed by Teleport and
-configure the EC2 instance running Teleport to map to those permissions. This guide
-is based on an original post from AWS Open Source Blog - [Authenticating to EKS Using GitHub Credentials with Teleport](https://aws.amazon.com/blogs/opensource/authenticating-eks-github-credentials-teleport/)
-but will be updated with latest Teleport version & best practices.
+configure the EC2 instance running Teleport to map to those permissions.
 
 ### Prerequisites
 You’ll need a functioning EKS cluster, we recommend version 1.16.  If you’re unfamiliar
@@ -664,7 +553,6 @@ sudo /usr/local/bin/tctl create -f ./github.yaml
 
 #### Testing Teleport & EKS Setup
 
-
 ```
 ➜  ~ tsh login --proxy=[teleport-proxy-url].practice.io:3080
 If browser window does not open automatically, open it by clicking on the link:
@@ -732,4 +620,4 @@ below to Teleport Nodes in `etc/teleport.yaml` to have helpful labels in the Tel
         period: 1h0m0s
 ```
 
-Create labels based on [EC2 Tags](https://github.com/gravitational/teleport/issues/1346).
+Create labels based on [EC2 Tags](https://community.gravitational.com/t/setting-teleport-labels-based-on-ec2-tags-for-use-with-rbac/558).
