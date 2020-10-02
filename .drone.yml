@@ -119,8 +119,8 @@ steps:
       GOPATH: /go
       INTEGRATION_CI_KUBECONFIG:
         from_secret: INTEGRATION_CI_KUBECONFIG
-      KUBECONFIG: /mnt/kube/config
-      TEST_KUBE: true
+      #KUBECONFIG: /mnt/kube/config
+      #TEST_KUBE: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -129,15 +129,16 @@ steps:
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       # write kubeconfig to disk for use in kube_integration_test
-      - echo "$INTEGRATION_CI_KUBECONFIG" > /tmp/kubeconfig.ci
+      - echo "$INTEGRATION_CI_KUBECONFIG" > /tmp/kubeconfig
       # TOOD(gus): uncomment after testing
       #- make -C build.assets integration
+      - ls -l /tmp
       - |
         docker run --rm=true -v "$(pwd)/":/go/src/github.com/gravitational/teleport \
         -v /tmp:/tmp -w /go/src/github.com/gravitational/teleport -h buildbox \
-        -v /tmp/kubeconfig.ci:/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=true \
+        -v /tmp/kubeconfig:/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=true \
         -v "$(pwd)/bcc:/usr/include/bcc" -u $(id -u):$(id -g) -t quay.io/gravitational/teleport-buildbox:go1.14.4 \
-        /bin/bash -c "go test ./integration/... -v -cover -check.f=TestKube"
+        /bin/bash -c "ls -l /mnt/kube && ls -l /mnt/kube/config && go test ./integration/... -v -cover -check.f=TestKube"
 
 services:
   - name: Start Docker
@@ -2799,6 +2800,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 1d9715326d051bb1689c91c4d8805b4d355af940e546d3918c35a9ccb8dee088
+hmac: f4a253f94f078ea85c2a9738fd70d9e402cd92a42683f958f2aaf7d46729a1f1
 
 ...
