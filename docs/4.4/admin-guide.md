@@ -113,8 +113,8 @@ numbers.
 By default, a Teleport node has the following files present. The location of all
 of them is configurable.
 
-| Full path                 | Purpose                                                                                                                                                                                                                                |
-|---------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Full path                 | Purpose               |
+|---------------------------|-----------------------|
 | `/etc/teleport.yaml` | Teleport configuration file (optional).|
 | `/usr/local/bin/teleport` | Teleport daemon binary.|
 | `/usr/local/bin/tctl` | Teleport admin tool. It is only needed for auth servers.|
