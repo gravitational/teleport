@@ -91,7 +91,7 @@ Setting Stream to `NEW IMAGE`
 For maintainability and ease of use, we recommend following our [Terraform example](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/dynamo.tf)
 but below are high level definitions for the tables required to run Teleport.
 
-Table 1 - Cluster State:
+DynamoDB Table A - Teleport Cluster State:
 
 | Table name            | teleport-cluster-name |
 |-----------------------|-----------------------|
@@ -99,7 +99,7 @@ Table 1 - Cluster State:
 | Primary sort key      | FullPath (String)     |
 
 
-Table 2 - Cluster Events:
+DynamoDB Table B - Teleport Cluster Events:
 
 | Table name            | teleport-cluster-name-events |
 |-----------------------|------------------------------|
