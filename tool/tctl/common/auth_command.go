@@ -418,7 +418,7 @@ func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
 		}
 		uaddr, err := utils.ParseAddr(addr)
 		if err != nil {
-			logrus.Warningf("invalid public address on the proxy %q: %q: %v", p.GetName(), addr, err)
+			logrus.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
 			continue
 		}
 		a.proxyAddr = fmt.Sprintf("https://%s:%d", uaddr.Host(), defaults.KubeProxyListenPort)
