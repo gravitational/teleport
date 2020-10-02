@@ -139,7 +139,6 @@ func (u *Uploader) Serve() error {
 	for {
 		select {
 		case <-u.ctx.Done():
-			u.log.Debugf("Uploader is exiting.")
 			return nil
 		case <-t.Chan():
 			if err := u.uploadCompleter.CheckUploads(u.ctx); err != nil {
@@ -162,7 +161,7 @@ func (u *Uploader) Scan() error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	u.log.Debugf("Found %v files in dir %v.", len(files), u.cfg.ScanDir)
+	scanned, started := 0, 0
 	for i := range files {
 		fi := files[i]
 		if fi.IsDir() {
@@ -171,13 +170,22 @@ func (u *Uploader) Scan() error {
 		if filepath.Ext(fi.Name()) == checkpointExt {
 			continue
 		}
+		scanned++
 		if err := u.startUpload(fi.Name()); err != nil {
 			if trace.IsCompareFailed(err) {
-				u.log.Debugf("Uploader detected locked file %v, another process is processing it.", fi.Name())
+				u.log.Debugf("Scan is skipping recording %v that is locked by another process.", fi.Name())
+				continue
+			}
+			if trace.IsNotFound(err) {
+				u.log.Debugf("Recording %v was uploaded by another process.", fi.Name())
 				continue
 			}
 			return trace.Wrap(err)
 		}
+		started++
+	}
+	if scanned > 0 {
+		u.log.Debugf("Scanned %v uploads, started %v in %v.", scanned, started, u.cfg.ScanDir)
 	}
 	return nil
 }
@@ -299,7 +307,9 @@ func (u *Uploader) startUpload(fileName string) error {
 		}
 		return trace.Wrap(err)
 	}
-	u.log.Debugf("Semaphore acquired in %v for upload %v.", time.Since(start), fileName)
+	if time.Since(start) > 500*time.Millisecond {
+		u.log.Debugf("Semaphore acquired in %v for upload %v.", time.Since(start), fileName)
+	}
 	go func() {
 		if err := u.upload(upload); err != nil {
 			u.log.WithError(err).Warningf("Upload failed.")
@@ -331,13 +341,11 @@ func (u *Uploader) upload(up *upload) error {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-		u.log.Debugf("Starting upload for session %v.", up.sessionID)
 		stream, err = u.cfg.Streamer.CreateAuditStream(u.ctx, up.sessionID)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
-		u.log.Debugf("Resuming upload for session %v, upload ID %v.", up.sessionID, status.UploadID)
 		stream, err = u.cfg.Streamer.ResumeAuditStream(u.ctx, up.sessionID, status.UploadID)
 		if err != nil {
 			if !trace.IsNotFound(err) {
@@ -377,7 +385,6 @@ func (u *Uploader) upload(up *upload) error {
 	defer cancel()
 	go u.monitorStreamStatus(u.ctx, up, stream, cancel)
 
-	start := u.cfg.Clock.Now().UTC()
 	for {
 		event, err := up.reader.Read(ctx)
 		if err != nil {
@@ -413,7 +420,6 @@ func (u *Uploader) upload(up *upload) error {
 			"Checkpoint function failed to complete the write due to timeout. Possible slow disk write.")
 	}
 
-	u.log.WithFields(log.Fields{"duration": u.cfg.Clock.Since(start), "session-id": up.sessionID}).Infof("Session upload completed.")
 	// In linux it is possible to remove a file while holding a file descriptor
 	if err := up.removeFiles(); err != nil {
 		u.log.WithError(err).Warningf("Failed to remove session files.")
@@ -434,8 +440,6 @@ func (u *Uploader) monitorStreamStatus(ctx context.Context, up *upload, stream e
 		case status := <-stream.Status():
 			if err := up.writeStatus(status); err != nil {
 				u.log.WithError(err).Debugf("Got stream status: %v.", status)
-			} else {
-				u.log.Debugf("Got stream status: %v.", status)
 			}
 		}
 	}

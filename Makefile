@@ -248,14 +248,18 @@ docs-test-links:
 	done
 
 #
-# tests everything: called by Jenkins
+# Runs all tests except integration, called by CI/CD.
+#
+# Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
 #
 .PHONY: test
 test: ensure-webassets
 test: FLAGS ?= '-race'
 test: PACKAGES := $(shell go list ./... | grep -v integration)
+test: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
 test: $(VERSRC)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover
 
 #
 # Integration tests. Need a TTY to work.
