@@ -10,7 +10,7 @@ rm -f latest.yaml
 
 # find all *.yaml files and convert them to array, pick the latest
 cfiles=$(find . -maxdepth 1 -name '*.yaml' | sort)
-cfiles_array=$(matfile -t array <<< "$cfiles")
+mapfile -t cfiles_array <<< "$cfiles"
 latest_cfile=${cfiles_array[-1]} # becomes "3.1.yaml"
 latest_ver=${latest_cfile%.yaml}         # becomes "3.1"
 
