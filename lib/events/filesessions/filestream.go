@@ -26,7 +26,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
@@ -53,9 +52,6 @@ func NewStreamer(dir string) (*events.ProtoStreamer, error) {
 
 // CreateUpload creates a multipart upload
 func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*events.StreamUpload, error) {
-	start := time.Now()
-	defer func() { h.Infof("Upload created in %v.", time.Since(start)) }()
-
 	if err := os.MkdirAll(h.uploadsPath(), teleport.PrivateDirMode); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -77,11 +73,6 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 
 // UploadPart uploads part
 func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
-	start := time.Now()
-	defer func() {
-		h.Debugf("UploadPart(%v) part(%v) uploaded in %v.", upload.ID, partNumber, time.Since(start))
-	}()
-
 	if err := checkUpload(upload); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -105,9 +96,6 @@ func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, pa
 
 // CompleteUpload completes the upload
 func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
-	start := time.Now()
-	defer func() { h.Debugf("UploadPart(%v) completed in %v.", upload.ID, time.Since(start)) }()
-
 	if len(parts) == 0 {
 		return trace.BadParameter("need at least one part to complete the upload")
 	}
@@ -234,15 +222,19 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 		}
 		files, err := ioutil.ReadDir(filepath.Join(h.uploadsPath(), dir.Name()))
 		if err != nil {
-			return nil, trace.ConvertSystemError(err)
+			err = trace.ConvertSystemError(err)
+			if trace.IsNotFound(err) {
+				continue
+			}
+			return nil, trace.Wrap(err)
 		}
 		// expect just one subdirectory - session ID
 		if len(files) != 1 {
-			h.WithError(err).Warningf("Skipping upload %v, missing subdirectory.", uploadID)
+			h.Warningf("Skipping upload %v, missing subdirectory.", uploadID)
 			continue
 		}
 		if !files[0].IsDir() {
-			h.WithError(err).Warningf("Skipping upload %v, not a directory.", uploadID)
+			h.Warningf("Skipping upload %v, not a directory.", uploadID)
 			continue
 		}
 		uploads = append(uploads, events.StreamUpload{
