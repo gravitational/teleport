@@ -135,7 +135,7 @@ steps:
       - |
         docker run --rm=true -v "$(pwd)/":/go/src/github.com/gravitational/teleport \
         -v /tmp:/tmp -w /go/src/github.com/gravitational/teleport -h buildbox \
-        -v /tmp/kubeconfig.ci:/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=true
+        -v /tmp/kubeconfig.ci:/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=true \
         -v "$(pwd)/bcc:/usr/include/bcc" -u $(id -u):$(id -g) -t quay.io/gravitational/teleport-buildbox:go1.14.4 \
         /bin/bash -c "go test ./integration/... -v -cover -check.f=TestKube"
 
@@ -2799,6 +2799,6 @@ volumes:
 
 ---
 kind: signature
-hmac: a32cdd2704164c47e94374900c9c278557f662af3598117382ae7b395f898b0e
+hmac: 1d9715326d051bb1689c91c4d8805b4d355af940e546d3918c35a9ccb8dee088
 
 ...
