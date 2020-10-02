@@ -74,48 +74,53 @@ steps:
           fi
         fi
 
-  - name: Build buildbox
-    image: docker
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-      - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets buildbox
+  # TODO(gus): uncomment after testing
+  # - name: Build buildbox
+  #   image: docker
+  #   volumes:
+  #     - name: dockersock
+  #       path: /var/run
+  #   commands:
+  #     - apk add --no-cache make
+  #     - chown -R $UID:$GID /go
+  #     - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+  #     - cd /go/src/github.com/gravitational/teleport
+  #     - make -C build.assets buildbox
 
-  - name: Run linter
-    image: docker
-    environment:
-      GOPATH: /go
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets lint
+  # - name: Run linter
+  #   image: docker
+  #   environment:
+  #     GOPATH: /go
+  #   volumes:
+  #     - name: dockersock
+  #       path: /var/run
+  #   commands:
+  #     - apk add --no-cache make
+  #     - chown -R $UID:$GID /go
+  #     - cd /go/src/github.com/gravitational/teleport
+  #     - make -C build.assets lint
 
-  - name: Run unit and chaos tests
-    image: docker
-    environment:
-      GOPATH: /go
-    volumes:
-      - name: dockersock
-        path: /var/run
-    commands:
-      - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets test
+  # - name: Run unit tests
+  #   image: docker
+  #   environment:
+  #     GOPATH: /go
+  #   volumes:
+  #     - name: dockersock
+  #       path: /var/run
+  #   commands:
+  #     - apk add --no-cache make
+  #     - chown -R $UID:$GID /go
+  #     - cd /go/src/github.com/gravitational/teleport
+  #     - make -C build.assets test
 
   - name: Run integration tests
     image: docker
     environment:
       GOPATH: /go
+      INTEGRATION_CI_KUBECONFIG:
+        from_secret: INTEGRATION_CI_KUBECONFIG
+      KUBECONFIG: /mnt/kube/config
+      TEST_KUBE: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -123,7 +128,16 @@ steps:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
-      - make -C build.assets integration
+      # write kubeconfig to disk for use in kube_integration_test
+      - echo "$INTEGRATION_CI_KUBECONFIG" > /tmp/kubeconfig.ci
+      # TOOD(gus): uncomment after testing
+      #- make -C build.assets integration
+      - |
+        docker run --rm=true -v "$(pwd)/":/go/src/github.com/gravitational/teleport \
+        -v /tmp:/tmp -w /go/src/github.com/gravitational/teleport -h buildbox \
+        -v /tmp/kubeconfig.ci:/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=true
+        -v "$(pwd)/bcc:/usr/include/bcc" -u $(id -u):$(id -g) -t quay.io/gravitational/teleport-buildbox:go1.14.4 \
+        /bin/bash -c "go test ./integration/... -v -cover -check.f=TestKube"
 
 services:
   - name: Start Docker
@@ -2785,6 +2799,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 46f777cd44caf6593159d4eb85b91242739a50a16e948f321757c68c33faa31d
+hmac: a32cdd2704164c47e94374900c9c278557f662af3598117382ae7b395f898b0e
 
 ...
