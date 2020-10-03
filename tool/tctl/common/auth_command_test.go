@@ -45,8 +45,8 @@ func TestAuthSignKubeconfig(t *testing.T) {
 	ca.SetTLSKeyPairs([]services.TLSKeyPair{{Cert: []byte("TLS CA cert")}})
 
 	client := mockClient{
-		clusterName: clusterName,
-		remoteClusters: []services.RemoteCluster {remoteCluster},
+		clusterName:    clusterName,
+		remoteClusters: []services.RemoteCluster{remoteCluster},
 		userCerts: &proto.Certs{
 			SSH: []byte("SSH cert"),
 			TLS: []byte("TLS cert"),
@@ -57,7 +57,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		output:       filepath.Join(tmpDir, "kubeconfig"),
 		outputFormat: identityfile.FormatKubernetes,
 		proxyAddr:    "proxy.example.com",
-		cluster:	  remoteCluster.GetMetadata().Name,
+		cluster:      remoteCluster.GetMetadata().Name,
 	}
 
 	// Generate kubeconfig.
@@ -92,16 +92,16 @@ func TestAuthSignKubeconfig(t *testing.T) {
 
 	expected := "couldn't find leaf cluster named \"doesnotexist.example.com\""
 	if err.Error() != expected {
-        t.Errorf("Expected error %v, got %v", expected, err)
+		t.Errorf("Expected error %v, got %v", expected, err)
 	}
 }
 
 type mockClient struct {
 	auth.ClientI
 
-	clusterName services.ClusterName
-	userCerts   *proto.Certs
-	cas         []services.CertAuthority
+	clusterName    services.ClusterName
+	userCerts      *proto.Certs
+	cas            []services.CertAuthority
 	remoteClusters []services.RemoteCluster
 }
 
