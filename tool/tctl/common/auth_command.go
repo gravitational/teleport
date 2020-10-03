@@ -358,7 +358,7 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	if (a.cluster != "") {
+	if a.cluster != "" {
 		key.ClusterName = a.cluster
 	} else {
 		cn, err := clusterAPI.GetClusterName()
@@ -370,10 +370,10 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 
 	// Request signed certs from `auth` server.
 	certs, err := clusterAPI.GenerateUserCerts(context.TODO(), proto.UserCertsRequest{
-		PublicKey: key.Pub,
-		Username:  a.genUser,
-		Expires:   time.Now().UTC().Add(a.genTTL),
-		Format:    certificateFormat,
+		PublicKey:      key.Pub,
+		Username:       a.genUser,
+		Expires:        time.Now().UTC().Add(a.genTTL),
+		Format:         certificateFormat,
 		RouteToCluster: a.cluster,
 	})
 	if err != nil {
@@ -415,7 +415,7 @@ func (a *AuthCommand) checkCluster(clusterAPI auth.ClientI) error {
 	}
 
 	for _, cluster := range clusters {
-		if (cluster.GetMetadata().Name == a.cluster) {
+		if cluster.GetMetadata().Name == a.cluster {
 			return nil
 		}
 	}
