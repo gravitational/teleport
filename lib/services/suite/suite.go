@@ -29,6 +29,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -37,11 +39,11 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/tstranex/u2f"
-	"golang.org/x/crypto/ssh"
 
+	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
+	"github.com/tstranex/u2f"
 	"gopkg.in/check.v1"
 )
 
@@ -358,6 +360,60 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	c.Assert(out, check.DeepEquals, []services.Server{auth})
 }
 
+// NewAapServer creates a new application server resource.
+func NewAppServer(name string, internalAddr string, publicAddr string) *services.ServerV2 {
+	return &services.ServerV2{
+		Kind:    services.KindAppServer,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      uuid.New(),
+			Namespace: defaults.Namespace,
+		},
+		Spec: services.ServerSpecV2{
+			Apps: []*services.App{
+				&services.App{
+					Name:       name,
+					URI:        internalAddr,
+					PublicAddr: publicAddr,
+				},
+			},
+		},
+	}
+}
+
+// AppServerCRUD tests CRUD functionality for services.Server.
+func (s *ServicesTestSuite) AppServerCRUD(c *check.C) {
+	ctx := context.Background()
+
+	// Create application.
+	server := NewAppServer("foo", "http://127.0.0.1:8080", "foo.example.com")
+
+	// Expect not to be returned any applications and trace.NotFound.
+	out, err := s.PresenceS.GetAppServers(ctx, defaults.Namespace)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(out), check.Equals, 0)
+
+	// Upsert application.
+	_, err = s.PresenceS.UpsertAppServer(ctx, server)
+	c.Assert(err, check.IsNil)
+
+	// Check again, expect a single application to be found.
+	out, err = s.PresenceS.GetAppServers(ctx, server.GetNamespace())
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+	server.SetResourceID(out[0].GetResourceID())
+	fixtures.DeepCompare(c, out, []services.Server{server})
+
+	// Remove the application.
+	err = s.PresenceS.DeleteAppServer(ctx, server.Metadata.Namespace, server.GetName())
+	c.Assert(err, check.IsNil)
+
+	// Now expect no applications to be returned.
+	out, err = s.PresenceS.GetAppServers(ctx, server.Metadata.Namespace)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 0)
+}
+
 func newReverseTunnel(clusterName string, dialAddrs []string) *services.ReverseTunnelV2 {
 	return &services.ReverseTunnelV2{
 		Kind:    services.KindReverseTunnel,
@@ -545,6 +601,7 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 			Allow: services.RoleConditions{
 				Logins:     []string{"root", "bob"},
 				NodeLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+				AppLabels:  services.Labels{services.Wildcard: []string{services.Wildcard}},
 				Namespaces: []string{defaults.Namespace},
 				Rules: []services.Rule{
 					services.NewRule(services.KindRole, services.RO()),

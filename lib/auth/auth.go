@@ -1642,6 +1642,11 @@ func (a *AuthServer) GetAllTunnelConnections(opts ...services.MarshalOption) (co
 	return a.GetCache().GetAllTunnelConnections(opts...)
 }
 
+// GetAppServers is a part of the auth.AccessPoint implementation..
+func (a *AuthServer) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	return a.GetCache().GetAppServers(ctx, namespace, opts...)
+}
+
 // CreateAuditStream creates audit event stream
 func (a *AuthServer) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
 	streamer, err := a.modeStreamer()
@@ -1703,7 +1708,7 @@ func (k *authKeepAliver) forwardKeepAlives() {
 		case <-k.ctx.Done():
 			return
 		case keepAlive := <-k.keepAlivesC:
-			err := k.a.KeepAliveNode(k.ctx, keepAlive)
+			err := k.a.KeepAliveResource(k.ctx, keepAlive)
 			if err != nil {
 				k.closeWithError(err)
 				return

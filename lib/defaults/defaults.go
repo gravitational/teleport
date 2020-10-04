@@ -359,6 +359,9 @@ var (
 	// NodeQueueSize is node service queue size
 	NodeQueueSize = 128
 
+	// AppsQueueSize is apps service queue size.
+	AppsQueueSize = 128
+
 	// CASignatureAlgorithm is the default signing algorithm to use when
 	// creating new SSH CAs.
 	CASignatureAlgorithm = ssh.SigAlgoRSASHA2512

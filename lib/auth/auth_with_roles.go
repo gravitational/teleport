@@ -123,6 +123,14 @@ func (a *AuthWithRoles) hasLocalUserRole(checker services.AccessChecker) bool {
 	return true
 }
 
+// hasUserRole checks if the role set belongs to a local or remote user.
+func (a *AuthWithRoles) hasUserRole(checker services.AccessChecker) bool {
+	_, okLocal := checker.(LocalUserRoleSet)
+	_, okRemote := checker.(RemoteUserRoleSet)
+
+	return okLocal || okRemote
+}
+
 // AuthenticateWebUser authenticates web user, creates and  returns web session
 // in case if authentication is successful
 func (a *AuthWithRoles) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error) {
@@ -370,6 +378,9 @@ func (a *AuthWithRoles) UpsertNode(s services.Server) (*services.KeepAlive, erro
 	return a.authServer.UpsertNode(s)
 }
 
+// DELETE IN: 5.1.0
+//
+// This logic has moved to KeepAliveResource.
 func (a *AuthWithRoles) KeepAliveNode(ctx context.Context, handle services.KeepAlive) error {
 	if !a.hasBuiltinRole(string(teleport.RoleNode)) {
 		return trace.AccessDenied("[10] access denied")
@@ -382,13 +393,47 @@ func (a *AuthWithRoles) KeepAliveNode(ctx context.Context, handle services.KeepA
 	if err != nil {
 		return trace.AccessDenied("[10] access denied")
 	}
-	if serverName != handle.ServerName {
+	if serverName != handle.Name {
 		return trace.AccessDenied("[10] access denied")
 	}
 	if err := a.action(defaults.Namespace, services.KindNode, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.KeepAliveNode(ctx, handle)
+}
+
+func (a *AuthWithRoles) KeepAliveResource(ctx context.Context, handle services.KeepAlive) error {
+	switch handle.GetType() {
+	case teleport.KeepAliveServer:
+		if !a.hasBuiltinRole(string(teleport.RoleNode)) {
+			return trace.AccessDenied("[10] access denied")
+		}
+		clusterName, err := a.GetDomainName()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		serverName, err := ExtractHostID(a.context.User.GetName(), clusterName)
+		if err != nil {
+			return trace.AccessDenied("[10] access denied")
+		}
+		if serverName != handle.Name {
+			return trace.AccessDenied("[10] access denied")
+		}
+		if err := a.action(defaults.Namespace, services.KindNode, services.VerbUpdate); err != nil {
+			return trace.Wrap(err)
+		}
+	case teleport.KeepAliveApp:
+		if !a.hasBuiltinRole(string(teleport.RoleApp)) {
+			return trace.AccessDenied("access denied")
+		}
+		if err := a.action(defaults.Namespace, services.KindAppServer, services.VerbUpdate); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.BadParameter("unknown keep alive type: %q", handle.Type)
+	}
+
+	return a.authServer.KeepAliveResource(ctx, handle)
 }
 
 // NewWatcher returns a new event watcher
@@ -465,6 +510,10 @@ func (a *AuthWithRoles) NewWatcher(ctx context.Context, watch services.Watch) (s
 				if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbRead); err != nil {
 					return nil, trace.Wrap(err)
 				}
+			}
+		case services.KindAppServer:
+			if err := a.action(defaults.Namespace, services.KindAppServer, services.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
 			}
 		default:
 			return nil, trace.AccessDenied("not authorized to watch %v events", kind.Kind)
@@ -1958,6 +2007,76 @@ func (a *AuthWithRoles) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) {
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 	return a.authServer.ProcessKubeCSR(req)
+}
+
+// GetAppServers gets all application servers.
+func (a *AuthWithRoles) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	if err := a.action(namespace, services.KindAppServer, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(namespace, services.KindAppServer, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := a.authServer.GetAppServers(ctx, namespace, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Loop over all servers and filter out applications on each server and only
+	// return the applications the caller has access to.
+	for _, server := range servers {
+		filteredApps := make([]*services.App, 0, len(server.GetApps()))
+		for _, app := range server.GetApps() {
+			err := a.context.Checker.CheckAccessToApp(server.GetNamespace(), app)
+			if err != nil {
+				if trace.IsAccessDenied(err) {
+					continue
+				}
+				return nil, trace.Wrap(err)
+			}
+			filteredApps = append(filteredApps, app)
+		}
+		server.SetApps(filteredApps)
+	}
+
+	return servers, nil
+}
+
+// UpsertAppServer adds an application server.
+func (a *AuthWithRoles) UpsertAppServer(ctx context.Context, server services.Server) (*services.KeepAlive, error) {
+	if err := a.action(server.GetNamespace(), services.KindAppServer, services.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(server.GetNamespace(), services.KindAppServer, services.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.UpsertAppServer(ctx, server)
+}
+
+// DeleteAppServer removes an application server.
+func (a *AuthWithRoles) DeleteAppServer(ctx context.Context, namespace string, name string) error {
+	if err := a.action(namespace, services.KindAppServer, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.authServer.DeleteAppServer(ctx, namespace, name); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteAllAppServers removes all application servers.
+func (a *AuthWithRoles) DeleteAllAppServers(ctx context.Context, namespace string) error {
+	if err := a.action(namespace, services.KindAppServer, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.authServer.DeleteAllAppServers(ctx, namespace); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func (a *AuthWithRoles) Close() error {

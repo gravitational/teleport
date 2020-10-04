@@ -252,7 +252,11 @@ func (s *PresenceService) UpsertNode(server services.Server) (*services.KeepAliv
 	if server.Expiry().IsZero() {
 		return &services.KeepAlive{}, nil
 	}
-	return &services.KeepAlive{LeaseID: lease.ID, ServerName: server.GetName()}, nil
+	return &services.KeepAlive{
+		Type:    services.KeepAlive_SERVER,
+		LeaseID: lease.ID,
+		Name:    server.GetName(),
+	}, nil
 }
 
 // KeepAliveNode updates node expiry
@@ -262,7 +266,7 @@ func (s *PresenceService) KeepAliveNode(ctx context.Context, h services.KeepAliv
 	}
 	err := s.KeepAlive(ctx, backend.Lease{
 		ID:  h.LeaseID,
-		Key: backend.Key(nodesPrefix, h.Namespace, h.ServerName),
+		Key: backend.Key(nodesPrefix, h.Namespace, h.Name),
 	}, h.Expires)
 	return trace.Wrap(err)
 }
@@ -966,6 +970,78 @@ func (s *PresenceService) DeleteSemaphore(ctx context.Context, filter services.S
 	return trace.Wrap(s.Delete(ctx, backend.Key(semaphoresPrefix, filter.SemaphoreKind, filter.SemaphoreName)))
 }
 
+// GetAppServers gets all application servers.
+func (s *PresenceService) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing namespace")
+	}
+
+	// Get all items in the bucket.
+	startKey := backend.Key(appsPrefix, namespace)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Marshal values into a []services.Server slice.
+	servers := make([]services.Server, len(result.Items))
+	for i, item := range result.Items {
+		server, err := services.GetServerMarshaler().UnmarshalServer(
+			item.Value,
+			services.KindAppServer,
+			services.AddOptions(opts,
+				services.WithResourceID(item.ID),
+				services.WithExpires(item.Expires))...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		servers[i] = server
+	}
+
+	return servers, nil
+}
+
+// UpsertAppServer adds an application server.
+func (s *PresenceService) UpsertAppServer(ctx context.Context, server services.Server) (*services.KeepAlive, error) {
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	value, err := services.GetServerMarshaler().MarshalServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	lease, err := s.Put(ctx, backend.Item{
+		Key:     backend.Key(appsPrefix, server.GetNamespace(), server.GetName()),
+		Value:   value,
+		Expires: server.Expiry(),
+		ID:      server.GetResourceID(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if server.Expiry().IsZero() {
+		return &services.KeepAlive{}, nil
+	}
+	return &services.KeepAlive{
+		Type:    services.KeepAlive_APP,
+		LeaseID: lease.ID,
+		Name:    server.GetName(),
+	}, nil
+}
+
+// DeleteAppServer removes an application server.
+func (s *PresenceService) DeleteAppServer(ctx context.Context, namespace string, name string) error {
+	key := backend.Key(appsPrefix, namespace, name)
+	return s.Delete(ctx, key)
+}
+
+// DeleteAllAppServers removes all application servers.
+func (s *PresenceService) DeleteAllAppServers(ctx context.Context, namespace string) error {
+	startKey := backend.Key(appsPrefix, namespace)
+	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+}
+
 const (
 	localClusterPrefix      = "localCluster"
 	reverseTunnelsPrefix    = "reverseTunnels"
@@ -973,6 +1049,7 @@ const (
 	trustedClustersPrefix   = "trustedclusters"
 	remoteClustersPrefix    = "remoteClusters"
 	nodesPrefix             = "nodes"
+	appsPrefix              = "apps"
 	namespacesPrefix        = "namespaces"
 	authServersPrefix       = "authservers"
 	proxiesPrefix           = "proxies"

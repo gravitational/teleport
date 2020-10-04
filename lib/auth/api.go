@@ -43,12 +43,16 @@ type Announcer interface {
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
+
+	// UpsertAppServer adds an application server.
+	UpsertAppServer(context.Context, services.Server) (*services.KeepAlive, error)
 }
 
 // ReadAccessPoint is an API interface implemented by a certificate authority (CA)
 type ReadAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
+
 	// GetReverseTunnels returns  a list of reverse tunnels
 	GetReverseTunnels(opts ...services.MarshalOption) ([]services.ReverseTunnel, error)
 
@@ -96,12 +100,16 @@ type ReadAccessPoint interface {
 
 	// GetTunnelConnections returns tunnel connections for a given cluster
 	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]services.TunnelConnection, error)
+
+	// GetAppServers gets all application servers.
+	GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error)
 }
 
 // AccessPoint is an API interface implemented by a certificate authority (CA)
 type AccessPoint interface {
 	// ReadAccessPoint provides methods to read data
 	ReadAccessPoint
+
 	// Announcer adds methods used to announce presence
 	Announcer
 	// Streamer creates and manages audit streams
@@ -235,6 +243,11 @@ func (w *Wrapper) GetSemaphores(ctx context.Context, filter services.SemaphoreFi
 // DeleteSemaphore deletes a semaphore matching supplied filter.
 func (w *Wrapper) DeleteSemaphore(ctx context.Context, filter services.SemaphoreFilter) error {
 	return w.NoCache.DeleteSemaphore(ctx, filter)
+}
+
+// UpsertAppServer adds an application server.
+func (w *Wrapper) UpsertAppServer(ctx context.Context, server services.Server) (*services.KeepAlive, error) {
+	return w.NoCache.UpsertAppServer(ctx, server)
 }
 
 // NewCachingAcessPoint returns new caching access point using

@@ -88,6 +88,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 				return nil, trace.Wrap(err)
 			}
 			parser = p
+		case services.KindAppServer:
+			parser = newAppServerParser()
 		default:
 			return nil, trace.BadParameter("watcher on object kind %v is not supported", kind)
 		}
@@ -737,6 +739,28 @@ func (p *reverseTunnelParser) parse(event backend.Event) (services.Resource, err
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
+}
+
+func newAppServerParser() *appServerParser {
+	return &appServerParser{
+		matchPrefix: backend.Key(appsPrefix, defaults.Namespace),
+	}
+}
+
+type appServerParser struct {
+	matchPrefix []byte
+}
+
+func (p *appServerParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *appServerParser) match(key []byte) bool {
+	return bytes.HasPrefix(key, p.matchPrefix)
+}
+
+func (p *appServerParser) parse(event backend.Event) (services.Resource, error) {
+	return parseServer(event, services.KindAppServer)
 }
 
 func parseServer(event backend.Event, kind string) (services.Resource, error) {

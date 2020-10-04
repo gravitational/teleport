@@ -83,7 +83,7 @@ func (g *GRPCServer) SendKeepAlives(stream proto.AuthService_SendKeepAlivesServe
 			g.Debugf("Failed to receive heartbeat: %v", err)
 			return trail.ToGRPC(err)
 		}
-		err = auth.KeepAliveNode(stream.Context(), *keepAlive)
+		err = auth.KeepAliveResource(stream.Context(), *keepAlive)
 		if err != nil {
 			return trail.ToGRPC(err)
 		}
@@ -634,6 +634,81 @@ func (g *GRPCServer) DeleteSemaphore(ctx context.Context, req *services.Semaphor
 	if err := auth.DeleteSemaphore(ctx, *req); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
+	return &empty.Empty{}, nil
+}
+
+// GetAppServers gets all application servers.
+func (g *GRPCServer) GetAppServers(ctx context.Context, req *proto.GetAppServersRequest) (*proto.GetAppServersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var opts []services.MarshalOption
+	if req.GetSkipValidation() {
+		opts = append(opts, services.SkipValidation())
+	}
+
+	appServers, err := auth.GetAppServers(ctx, req.GetNamespace(), opts...)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var servers []*services.ServerV2
+	for _, s := range appServers {
+		server, ok := s.(*services.ServerV2)
+		if !ok {
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", s))
+		}
+		servers = append(servers, server)
+	}
+
+	return &proto.GetAppServersResponse{
+		Servers: servers,
+	}, nil
+}
+
+// UpsertAppServer adds an application server.
+func (g *GRPCServer) UpsertAppServer(ctx context.Context, req *proto.UpsertAppServerRequest) (*services.KeepAlive, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	keepAlive, err := auth.UpsertAppServer(ctx, req.GetServer())
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return keepAlive, nil
+}
+
+// DeleteAppServer removes an application server.
+func (g *GRPCServer) DeleteAppServer(ctx context.Context, req *proto.DeleteAppServerRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	err = auth.DeleteAppServer(ctx, req.GetNamespace(), req.GetName())
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllAppServers removes all application servers.
+func (g *GRPCServer) DeleteAllAppServers(ctx context.Context, req *proto.DeleteAllAppServersRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	err = auth.DeleteAllAppServers(ctx, req.GetNamespace())
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
 	return &empty.Empty{}, nil
 }
 

@@ -49,6 +49,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: services.KindReverseTunnel},
 		{Kind: services.KindTunnelConnection},
 		{Kind: services.KindAccessRequest},
+		{Kind: services.KindAppServer},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -68,6 +69,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: services.KindAuthServer},
 		{Kind: services.KindReverseTunnel},
 		{Kind: services.KindTunnelConnection},
+		{Kind: services.KindAppServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -87,6 +89,22 @@ func ForNode(cfg Config) Config {
 		{Kind: services.KindNamespace, Name: defaults.Namespace},
 	}
 	cfg.QueueSize = defaults.NodeQueueSize
+	return cfg
+}
+
+// ForApps sets up watch configuration for apps.
+func ForApps(cfg Config) Config {
+	cfg.Watches = []services.WatchKind{
+		{Kind: services.KindCertAuthority, LoadSecrets: false},
+		{Kind: services.KindClusterName},
+		{Kind: services.KindClusterConfig},
+		{Kind: services.KindUser},
+		{Kind: services.KindRole},
+		// Applications only need to "know" about default namespace events to avoid
+		// matching too much data about other namespaces or events.
+		{Kind: services.KindNamespace, Name: defaults.Namespace},
+	}
+	cfg.QueueSize = defaults.AppsQueueSize
 	return cfg
 }
 
@@ -660,4 +678,9 @@ func (c *Cache) GetTunnelConnections(clusterName string, opts ...services.Marsha
 // to be called periodically and always return fresh data
 func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns []services.TunnelConnection, err error) {
 	return c.presenceCache.GetAllTunnelConnections(opts...)
+}
+
+// GetAppServers gets all application servers.
+func (c *Cache) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	return c.presenceCache.GetAppServers(ctx, namespace, opts...)
 }

@@ -727,8 +727,17 @@ func (c *Client) UpsertNode(s services.Server) (*services.KeepAlive, error) {
 	return keepAlive, nil
 }
 
-// KeepAliveNode updates node keep alive information
+// DELETE IN: 5.1.0
+//
+// This logic has been moved to KeepAliveResource.
+//
+// KeepAliveNode updates node keep alive information.
 func (c *Client) KeepAliveNode(ctx context.Context, keepAlive services.KeepAlive) error {
+	return trace.BadParameter("not implemented, use StreamKeepAlives instead")
+}
+
+// KeepAliveResource is not implemented.
+func (c *Client) KeepAliveResource(ctx context.Context, keepAlive services.KeepAlive) error {
 	return trace.BadParameter("not implemented, use StreamKeepAlives instead")
 }
 
@@ -2917,6 +2926,90 @@ func (c *Client) DeleteSemaphore(ctx context.Context, filter services.SemaphoreF
 	if _, err := clt.DeleteSemaphore(ctx, &filter); err != nil {
 		return trail.FromGRPC(err)
 	}
+	return nil
+}
+
+// GetAppServers gets all application servers.
+func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg, err := services.CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.GetAppServers(ctx, &proto.GetAppServersRequest{
+		Namespace:      namespace,
+		SkipValidation: cfg.SkipValidation,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	var servers []services.Server
+	for _, server := range resp.GetServers() {
+		servers = append(servers, server)
+	}
+
+	return servers, nil
+}
+
+// UpsertAppServer adds an application server.
+func (c *Client) UpsertAppServer(ctx context.Context, server services.Server) (*services.KeepAlive, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s, ok := server.(*services.ServerV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", server)
+	}
+
+	keepAlive, err := clt.UpsertAppServer(ctx, &proto.UpsertAppServerRequest{
+		Server: s,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return keepAlive, nil
+}
+
+// DeleteAppServer removes an application server.
+func (c *Client) DeleteAppServer(ctx context.Context, namespace string, name string) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = clt.DeleteAppServer(ctx, &proto.DeleteAppServerRequest{
+		Namespace: namespace,
+		Name:      name,
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
+}
+
+// DeleteAllAppServers removes all application servers.
+func (c *Client) DeleteAllAppServers(ctx context.Context, namespace string) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = clt.DeleteAllAppServers(ctx, &proto.DeleteAllAppServersRequest{
+		Namespace: namespace,
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+
 	return nil
 }
 
