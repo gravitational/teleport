@@ -425,6 +425,8 @@ const (
 	// RoleAuthService is authentication and authorization service,
 	// the only stateful role in the system
 	RoleAuthService = "auth"
+	// RoleApp is a application proxy.
+	RoleApp = "app"
 )
 
 const (
