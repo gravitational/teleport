@@ -228,6 +228,23 @@ type Identity interface {
 
 	// GetResetPasswordTokenSecrets returns token secrets
 	GetResetPasswordTokenSecrets(ctx context.Context, tokenID string) (ResetPasswordTokenSecrets, error)
+
+	// AppIdentity defines application and application web session features.
+	AppIdentity
+}
+
+// AppIdentity defines application and application web session features.
+type AppIdentity interface {
+	// GetAppSession gets an application session.
+	GetAppSession(ctx context.Context, sessionID string) (AppSession, error)
+	// GetAppSessions gets all application session.
+	GetAppSessions(ctx context.Context) ([]AppSession, error)
+	// UpsertAppSession creates an application session.
+	UpsertAppSession(ctx context.Context, session AppSession) error
+	// DeleteAppSession removes an application session.
+	DeleteAppSession(ctx context.Context, sessionID string) error
+	// DeleteAllAppSessions removes all application sessions.
+	DeleteAllAppSessions(ctx context.Context) error
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),

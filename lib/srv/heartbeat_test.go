@@ -265,6 +265,14 @@ type fakeAnnouncer struct {
 	keepAlivesC chan<- services.KeepAlive
 }
 
+func (f *fakeAnnouncer) UpsertAppServer(ctx context.Context, s services.Server) (*services.KeepAlive, error) {
+	f.upsertCalls[HeartbeatModeApp] += 1
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &services.KeepAlive{}, nil
+}
+
 func (f *fakeAnnouncer) UpsertNode(s services.Server) (*services.KeepAlive, error) {
 	f.upsertCalls[HeartbeatModeNode] += 1
 	if f.err != nil {

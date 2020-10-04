@@ -72,6 +72,7 @@ type testPack struct {
 	accessS        services.Access
 	dynamicAccessS services.DynamicAccess
 	presenceS      services.Presence
+	appIdentityS   services.AppIdentity
 }
 
 func (t *testPack) Close() {
@@ -129,6 +130,8 @@ func (s *CacheSuite) newPackWithoutCache(c *check.C, setupConfig SetupConfigFn) 
 	p.usersS = local.NewIdentityService(p.backend)
 	p.accessS = local.NewAccessService(p.backend)
 	p.dynamicAccessS = local.NewDynamicAccessService(p.backend)
+	p.appIdentityS = local.NewIdentityService(p.backend)
+
 	return p
 }
 
@@ -147,6 +150,7 @@ func (s *CacheSuite) newPack(c *check.C, setupConfig func(c Config) Config) *tes
 		Access:        p.accessS,
 		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
+		AppIdentity:   p.appIdentityS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 	}))
@@ -211,6 +215,7 @@ func (s *CacheSuite) TestOnlyRecentInit(c *check.C) {
 		Access:        p.accessS,
 		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
+		AppIdentity:   p.appIdentityS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 	}))
@@ -411,6 +416,7 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 		Access:        p.accessS,
 		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
+		AppIdentity:   p.appIdentityS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 		PreferRecent: PreferRecent{

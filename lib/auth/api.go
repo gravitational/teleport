@@ -103,6 +103,7 @@ type ReadAccessPoint interface {
 
 	// GetAppServers gets all application servers.
 	GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error)
+	GetAppSession(ctx context.Context, sessionID string) (services.AppSession, error)
 }
 
 // AccessPoint is an API interface implemented by a certificate authority (CA)

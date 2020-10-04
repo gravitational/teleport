@@ -61,6 +61,10 @@ type Presence interface {
 	// UpsertNodes bulk inserts nodes.
 	UpsertNodes(namespace string, servers []Server) error
 
+	// DELETE IN: 5.1.0
+	//
+	// This logic has been moved to KeepAliveResource.
+	//
 	// KeepAliveNode updates node TTL in the storage
 	KeepAliveNode(ctx context.Context, h KeepAlive) error
 
@@ -179,6 +183,9 @@ type Presence interface {
 
 	// DeleteAllAppServers removes all application servers.
 	DeleteAllAppServers(context.Context, string) error
+
+	// KeepAliveResource updates TTL of the resource in the backend.
+	KeepAliveResource(ctx context.Context, h KeepAlive) error
 }
 
 // NewNamespace returns new namespace

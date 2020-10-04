@@ -712,6 +712,105 @@ func (g *GRPCServer) DeleteAllAppServers(ctx context.Context, req *proto.DeleteA
 	return &empty.Empty{}, nil
 }
 
+// GetAppSession gets an application session.
+func (g *GRPCServer) GetAppSession(ctx context.Context, req *proto.GetAppSessionRequest) (*proto.GetAppSessionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	session, err := auth.GetAppSession(ctx, req.SessionID)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	sess, ok := session.(*services.AppSessionV3)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", session))
+	}
+
+	return &proto.GetAppSessionResponse{
+		Session: sess,
+	}, nil
+}
+
+// GetAppSessions gets all application session.
+func (g *GRPCServer) GetAppSessions(ctx context.Context, _ *empty.Empty) (*proto.GetAppSessionsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	sessions, err := auth.GetAppSessions(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var protoSessions []*services.AppSessionV3
+	for _, session := range sessions {
+		sess, ok := session.(*services.AppSessionV3)
+		if !ok {
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", session))
+		}
+		protoSessions = append(protoSessions, sess)
+	}
+
+	return &proto.GetAppSessionsResponse{
+		Sessions: protoSessions,
+	}, nil
+}
+
+// CreateAppSession creates an application session. Application sessions
+// are only created if the calling identity has access to the application requested.
+func (g *GRPCServer) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (*proto.CreateAppSessionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	session, err := auth.CreateAppSession(ctx, services.CreateAppSessionRequest{
+		PublicAddr: req.PublicAddr,
+	})
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	sess, ok := session.(*services.AppSessionV3)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", session))
+	}
+
+	return &proto.CreateAppSessionResponse{
+		Session: sess,
+	}, nil
+}
+
+// DeleteAppSession removes an application session.
+func (g *GRPCServer) DeleteAppSession(ctx context.Context, req *proto.DeleteAppSessionRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.DeleteAppSession(ctx, req.SessionID); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllAppSessions removes all application sessions.
+func (g *GRPCServer) DeleteAllAppSessions(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.DeleteAllAppSessions(ctx); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
 type grpcContext struct {
 	*AuthContext
 	*AuthWithRoles
@@ -874,6 +973,10 @@ func eventToGRPC(in services.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_AccessRequest{
 			AccessRequest: r,
 		}
+	case *services.AppSessionV3:
+		out.Resource = &proto.Event_AppSession{
+			AppSession: r,
+		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
 	}
@@ -941,6 +1044,9 @@ func eventFromGRPC(in proto.Event) (*services.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetAccessRequest(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetAppSession(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else {

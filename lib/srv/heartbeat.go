@@ -108,6 +108,8 @@ const (
 	// HeartbeatModeAuth sets heartbeat to auth
 	// that does not support keep alives
 	HeartbeatModeAuth HeartbeatMode = iota
+	// HeartbeatModeApp sets heartbeat to apps and will use keep alives.
+	HeartbeatModeApp HeartbeatMode = iota
 )
 
 // NewHeartbeat returns a new instance of heartbeat

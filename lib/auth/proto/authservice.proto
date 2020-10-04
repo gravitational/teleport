@@ -63,6 +63,7 @@ message Event {
         // AccessRequest is a resource for access requests
         services.AccessRequestV3 AccessRequest = 14
             [ (gogoproto.jsontag) = "access_request,omitempty" ];
+        services.AppSessionV3 AppSession = 16 [ (gogoproto.jsontag) = "app_session,omitempty" ];
     }
 }
 
@@ -285,6 +286,31 @@ message DeleteAllAppServersRequest {
     string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
 }
 
+// GetAppSessionRequest are the parameters used to request an application session.
+message GetAppSessionRequest { string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ]; }
+
+// GetAppSessionResponse contains the requested application session.
+message GetAppSessionResponse {
+    services.AppSessionV3 Session = 1 [ (gogoproto.jsontag) = "session" ];
+}
+
+// GetAppSessionsResponse contains all application sessions.
+message GetAppSessionsResponse {
+    repeated services.AppSessionV3 Sessions = 1 [ (gogoproto.jsontag) = "sessions" ];
+}
+
+// CreateAppSessionRequest contains the parameters used to create an application session.
+message CreateAppSessionRequest { string PublicAddr = 1 [ (gogoproto.jsontag) = "public_addr" ]; }
+
+// CreateAppSessionResponse contains the application session that was created.
+message CreateAppSessionResponse {
+    services.AppSessionV3 Session = 1 [ (gogoproto.jsontag) = "session" ];
+}
+
+// GenerateAppTokenResponse contains a signed token with claims.
+message GenerateAppTokenResponse { string Token = 1 [ (gogoproto.jsontag) = "token" ]; }
+message DeleteAppSessionRequest { string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ]; }
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -355,4 +381,16 @@ service AuthService {
     rpc DeleteAppServer(DeleteAppServerRequest) returns (google.protobuf.Empty);
     // DeleteAllAppServers removes all application servers.
     rpc DeleteAllAppServers(DeleteAllAppServersRequest) returns (google.protobuf.Empty);
+
+    // GetAppSession gets an application session.
+    rpc GetAppSession(GetAppSessionRequest) returns (GetAppSessionResponse);
+    // GetAppSessions gets all application session.
+    rpc GetAppSessions(google.protobuf.Empty) returns (GetAppSessionsResponse);
+    // CreateAppSession creates an application session. Application sessions
+    // are only created if the calling identity has access to the application requested.
+    rpc CreateAppSession(CreateAppSessionRequest) returns (CreateAppSessionResponse);
+    // DeleteAppSession removes an application session.
+    rpc DeleteAppSession(DeleteAppSessionRequest) returns (google.protobuf.Empty);
+    // DeleteAllAppSessions removes all application sessions.
+    rpc DeleteAllAppSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
 }

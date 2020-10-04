@@ -1112,3 +1112,32 @@ message SemaphoreSpecV3 {
     repeated SemaphoreLeaseRef Leases = 1
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "leases" ];
 }
+
+// AppSession represents a specific application session.
+message AppSessionV3 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is a resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is ResetPasswordToken metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is an AppSessionSpecV3 specification.
+    AppSessionSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// AppSessionSpecV3 defines the specification of a application session.
+message AppSessionSpecV3 {
+    // PublicAddr is the public address of the application.
+    string PublicAddr = 1 [ (gogoproto.jsontag) = "public_addr" ];
+    // Username is the Teleport username linked to this session.
+    string Username = 2 [ (gogoproto.jsontag) = "username" ];
+    // Roles is the Teleport roles linked to this session.
+    repeated string Roles = 3 [ (gogoproto.jsontag) = "roles" ];
+    // JWT is the token forwarded to the internal application.
+    string JWT = 4 [ (gogoproto.jsontag) = "jwt" ];
+}

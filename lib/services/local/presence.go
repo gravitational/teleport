@@ -23,6 +23,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -259,6 +260,10 @@ func (s *PresenceService) UpsertNode(server services.Server) (*services.KeepAliv
 	}, nil
 }
 
+// DELETE IN: 5.1.0.
+//
+// This logic has been moved to KeepAliveResource.
+//
 // KeepAliveNode updates node expiry
 func (s *PresenceService) KeepAliveNode(ctx context.Context, h services.KeepAlive) error {
 	if err := h.CheckAndSetDefaults(); err != nil {
@@ -1040,6 +1045,30 @@ func (s *PresenceService) DeleteAppServer(ctx context.Context, namespace string,
 func (s *PresenceService) DeleteAllAppServers(ctx context.Context, namespace string) error {
 	startKey := backend.Key(appsPrefix, namespace)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+}
+
+// KeepAliveResource updates expiry time of the resource.
+func (s *PresenceService) KeepAliveResource(ctx context.Context, h services.KeepAlive) error {
+	if err := h.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Update the prefix off the type information in the keep alive.
+	var prefix string
+	switch h.GetType() {
+	case teleport.KeepAliveServer:
+		prefix = nodesPrefix
+	case teleport.KeepAliveApp:
+		prefix = appsPrefix
+	default:
+		return trace.BadParameter("unknown keep-alive type %q", h.GetType())
+	}
+
+	err := s.KeepAlive(ctx, backend.Lease{
+		ID:  h.LeaseID,
+		Key: backend.Key(prefix, h.Namespace, h.Name),
+	}, h.Expires)
+	return trace.Wrap(err)
 }
 
 const (

@@ -515,6 +515,10 @@ func (a *AuthWithRoles) NewWatcher(ctx context.Context, watch services.Watch) (s
 			if err := a.action(defaults.Namespace, services.KindAppServer, services.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
+		case services.KindAppSession:
+			if err := a.action(defaults.Namespace, services.KindAppSession, services.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		default:
 			return nil, trace.AccessDenied("not authorized to watch %v events", kind.Kind)
 		}
@@ -2074,6 +2078,82 @@ func (a *AuthWithRoles) DeleteAllAppServers(ctx context.Context, namespace strin
 	}
 
 	if err := a.authServer.DeleteAllAppServers(ctx, namespace); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetAppSession gets an application session.
+func (a *AuthWithRoles) GetAppSession(ctx context.Context, sessionID string) (services.AppSession, error) {
+	if err := a.action(defaults.Namespace, services.KindAppSession, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	session, err := a.authServer.Identity.GetAppSession(ctx, sessionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return session, nil
+}
+
+// GetAppSessions gets all application session.
+func (a *AuthWithRoles) GetAppSessions(ctx context.Context) ([]services.AppSession, error) {
+	if err := a.action(defaults.Namespace, services.KindAppSession, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindAppSession, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sessions, err := a.authServer.Identity.GetAppSessions(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sessions, nil
+}
+
+// CreateAppSession creates an application session. Application sessions
+// are only created if the calling identity has access to the application requested.
+func (a *AuthWithRoles) CreateAppSession(ctx context.Context, req services.CreateAppSessionRequest) (services.AppSession, error) {
+	// Allow any user to request an application session, however auth will check
+	// if the caller has access to the requested application. This matches the
+	// behavior of SSH sessions: anyone with a valid identity can request a
+	// session, but auth decides if access to the requested server is allowed.
+	if !a.hasUserRole(a.context.Checker) {
+		return nil, trace.AccessDenied("identity can not create application sessions")
+	}
+
+	session, err := a.authServer.CreateAppSession(ctx, req, a.context.User, a.context.Checker)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return session, nil
+}
+
+// UpsertAppSession is not implemented.
+func (a *AuthWithRoles) UpsertAppSession(ctx context.Context, session services.AppSession) error {
+	return trace.NotImplemented("not implemented")
+}
+
+// DeleteAppSession removes an application session.
+func (a *AuthWithRoles) DeleteAppSession(ctx context.Context, sessionID string) error {
+	if err := a.action(defaults.Namespace, services.KindAppSession, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.authServer.Identity.DeleteAppSession(ctx, sessionID); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteAllAppSessions removes all application sessions.
+func (a *AuthWithRoles) DeleteAllAppSessions(ctx context.Context) error {
+	if err := a.action(defaults.Namespace, services.KindAppSession, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.authServer.Identity.DeleteAllAppSessions(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

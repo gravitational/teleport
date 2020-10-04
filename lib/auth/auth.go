@@ -1684,6 +1684,11 @@ func (a *AuthServer) modeStreamer() (events.Streamer, error) {
 	return a.streamer, nil
 }
 
+// GetApps is a part of the auth.AccessPoint implementation..
+func (a *AuthServer) GetAppSession(ctx context.Context, sessionID string) (services.AppSession, error) {
+	return a.GetCache().GetAppSession(ctx, sessionID)
+}
+
 // authKeepAliver is a keep aliver using auth server directly
 type authKeepAliver struct {
 	sync.RWMutex

@@ -50,6 +50,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: services.KindTunnelConnection},
 		{Kind: services.KindAccessRequest},
 		{Kind: services.KindAppServer},
+		{Kind: services.KindAppSession},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -103,6 +104,7 @@ func ForApps(cfg Config) Config {
 		// Applications only need to "know" about default namespace events to avoid
 		// matching too much data about other namespaces or events.
 		{Kind: services.KindNamespace, Name: defaults.Namespace},
+		{Kind: services.KindAppSession},
 	}
 	cfg.QueueSize = defaults.AppsQueueSize
 	return cfg
@@ -139,6 +141,7 @@ type Cache struct {
 	accessCache        services.Access
 	dynamicAccessCache services.DynamicAccessExt
 	presenceCache      services.Presence
+	appIdentityCache   services.AppIdentity
 	eventsFanout       *services.Fanout
 
 	// closedFlag is set to indicate that the services are closed
@@ -169,6 +172,8 @@ type Config struct {
 	DynamicAccess services.DynamicAccess
 	// Presence is a presence service
 	Presence services.Presence
+	// AppIdentity holds web and application sessions for AAP.
+	AppIdentity services.AppIdentity
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// RetryPeriod is a period between cache retries on failures
@@ -293,6 +298,7 @@ func New(config Config) (*Cache, error) {
 		accessCache:        local.NewAccessService(wrapper),
 		dynamicAccessCache: local.NewDynamicAccessService(wrapper),
 		presenceCache:      local.NewPresenceService(wrapper),
+		appIdentityCache:   local.NewIdentityService(wrapper),
 		eventsFanout:       services.NewFanout(),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
@@ -683,4 +689,9 @@ func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns [
 // GetAppServers gets all application servers.
 func (c *Cache) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	return c.presenceCache.GetAppServers(ctx, namespace, opts...)
+}
+
+// GetAppSession gets an application session.
+func (c *Cache) GetAppSession(ctx context.Context, sessionID string) (services.AppSession, error) {
+	return c.appIdentityCache.GetAppSession(ctx, sessionID)
 }
