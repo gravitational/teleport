@@ -117,6 +117,9 @@ const (
 	// before cutting the connections forcefully.
 	DefaultGracefulShutdownTimeout = 5 * time.Minute
 
+	// AppsStartTimeout is how long all applications have to startup.
+	AppsStartTimeout = 30 * time.Second
+
 	// ShutdownPollPeriod is a polling period for graceful shutdowns of SSH servers
 	ShutdownPollPeriod = 500 * time.Millisecond
 

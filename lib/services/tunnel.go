@@ -386,6 +386,9 @@ const (
 
 	// ProxyTunnel is a tunnel where a proxy connects to the proxy (trusted cluster).
 	ProxyTunnel TunnelType = "proxy"
+
+	// AppTunnel is a tunnel where the application proxy dials back to the proxy.
+	AppTunnel TunnelType = "app"
 )
 
 // TunnelType is the type of tunnel. Either node or proxy.

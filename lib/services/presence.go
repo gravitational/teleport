@@ -230,7 +230,7 @@ func (s *KeepAlive) GetType() string {
 
 func (s *KeepAlive) CheckAndSetDefaults() error {
 	if s.IsEmpty() {
-		return trace.BadParameter("no lease ID or server name is specified")
+		return trace.BadParameter("invalid keep alive, missing lease ID and resource name")
 	}
 	if s.Namespace == "" {
 		s.Namespace = defaults.Namespace

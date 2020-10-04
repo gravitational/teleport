@@ -125,6 +125,9 @@ const (
 	// ComponentProxy is SSH proxy (SSH server forwarding connections)
 	ComponentProxy = "proxy"
 
+	// ComponentApp is the application proxy service (AAP).
+	ComponentApp = "app"
+
 	// ComponentDiagnostic is a diagnostic service
 	ComponentDiagnostic = "diag"
 
@@ -688,4 +691,17 @@ const (
 	KeepAliveServer = "server"
 	// KeepAliveApp is the keep alive type for application proxy server.
 	KeepAliveApp = "app"
+)
+
+const (
+	// AppSessionIDHeader is the header used to transfer the application session
+	// ID from the proxy to application service.
+	AppSessionIDHeader = "x-teleport-session-id"
+
+	// AppJWTHeader is the JWT header used to pass identity information to the
+	// internal application being proxied.
+	AppJWTHeader = "x-teleport-jwt-assertion"
+
+	// AppCFHeader is a compatibility header.
+	AppCFHeader = "Cf-access-token"
 )

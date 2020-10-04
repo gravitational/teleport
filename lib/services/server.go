@@ -47,8 +47,10 @@ type Server interface {
 	GetAllLabels() map[string]string
 	// GetLabels returns server's static label key pairs
 	GetLabels() map[string]string
-	// GetCmdLabels returns command labels
+	// GetCmdLabels gets command labels
 	GetCmdLabels() map[string]CommandLabel
+	// SetCmdLabels sets command labels.
+	SetCmdLabels(cmdLabels map[string]CommandLabel)
 	// GetPublicAddr is an optional field that returns the public address this cluster can be reached at.
 	GetPublicAddr() string
 	// GetRotation gets the state of certificate authority rotation.

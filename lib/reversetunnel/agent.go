@@ -78,9 +78,9 @@ type AgentConfig struct {
 	EventsC chan string
 	// KubeDialAddr is a dial address for kubernetes proxy
 	KubeDialAddr utils.NetAddr
-	// Server is a SSH server that can handle a connection (perform a handshake
-	// then process). Only set with the agent is running within a node.
-	Server ServerHandler
+	// Server is either an SSH or application server. It can handle a connection
+	// (perform handshake and handle request).
+	Server ConnHandler
 	// ReverseTunnelServer holds all reverse tunnel connections.
 	ReverseTunnelServer Server
 	// LocalClusterName is the name of the cluster this agent is running in.
@@ -112,6 +112,7 @@ func (a *AgentConfig) CheckAndSetDefaults() error {
 	if len(a.Username) == 0 {
 		return trace.BadParameter("missing parameter Username")
 	}
+
 	if a.Clock == nil {
 		a.Clock = clockwork.NewRealClock()
 	}
@@ -513,6 +514,9 @@ const (
 	// LocalNode is a special non-resolvable address that indicates the request
 	// wants to connect to a dialed back node.
 	LocalNode = "@local-node"
+	// LocalApp is special non-resolvable address that indicates the request
+	// wants to connection to a dialed back app.
+	LocalApp = "@local-app"
 	// RemoteAuthServer is a special non-resolvable address that indicates client
 	// requests a connection to the remote auth server.
 	RemoteAuthServer = "@remote-auth-server"
