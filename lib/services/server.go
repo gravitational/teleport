@@ -73,6 +73,10 @@ type Server interface {
 	// SetKubernetesClusters sets kubernetes clusters accessible through this
 	// proxy.
 	SetKubernetesClusters([]string)
+	// GetApps gets the list of applications this server is proxying.
+	GetApps() []*App
+	// GetApps gets the list of applications this server is proxying.
+	SetApps([]*App)
 	// V1 returns V1 version for backwards compatibility
 	V1() *ServerV1
 	// MatchAgainst takes a map of labels and returns True if this server
@@ -247,12 +251,22 @@ func (s *ServerV2) GetCmdLabels() map[string]CommandLabel {
 	if s.Spec.CmdLabels == nil {
 		return nil
 	}
-	out := make(map[string]CommandLabel, len(s.Spec.CmdLabels))
-	for key := range s.Spec.CmdLabels {
-		val := s.Spec.CmdLabels[key]
-		out[key] = &val
-	}
-	return out
+	return V2ToLabels(s.Spec.CmdLabels)
+}
+
+// SetCmdLabels sets dynamic labels.
+func (s *ServerV2) SetCmdLabels(cmdLabels map[string]CommandLabel) {
+	s.Spec.CmdLabels = LabelsToV2(cmdLabels)
+}
+
+// GetApps gets the list of applications this server is proxying.
+func (s *ServerV2) GetApps() []*App {
+	return s.Spec.Apps
+}
+
+// GetApps gets the list of applications this server is proxying.
+func (s *ServerV2) SetApps(apps []*App) {
+	s.Spec.Apps = apps
 }
 
 func (s *ServerV2) String() string {
@@ -267,11 +281,16 @@ func (s *ServerV2) GetNamespace() string {
 // GetAllLabels returns the full key:value map of both static labels and
 // "command labels"
 func (s *ServerV2) GetAllLabels() map[string]string {
+	return CombineLabels(s.Metadata.Labels, s.Spec.CmdLabels)
+}
+
+// CombineLabels combines the passed in static and dynamic labels.
+func CombineLabels(static map[string]string, dynamic map[string]CommandLabelV2) map[string]string {
 	lmap := make(map[string]string)
-	for key, value := range s.Metadata.Labels {
+	for key, value := range static {
 		lmap[key] = value
 	}
-	for key, cmd := range s.Spec.CmdLabels {
+	for key, cmd := range dynamic {
 		lmap[key] = cmd.Result
 	}
 	return lmap
@@ -305,13 +324,19 @@ func (s *ServerV2) MatchAgainst(labels map[string]string) bool {
 	return true
 }
 
-// LabelsString returns a comma separated string with all node's labels
+// LabelsString returns a comma separated string of all labels.
 func (s *ServerV2) LabelsString() string {
+	return LabelsAsString(s.Metadata.Labels, s.Spec.CmdLabels)
+}
+
+// LabelsAsString combines static and dynamic labels and returns a comma
+// separated string.
+func LabelsAsString(static map[string]string, dynamic map[string]CommandLabelV2) string {
 	labels := []string{}
-	for key, val := range s.Metadata.Labels {
+	for key, val := range static {
 		labels = append(labels, fmt.Sprintf("%s=%s", key, val))
 	}
-	for key, val := range s.Spec.CmdLabels {
+	for key, val := range dynamic {
 		labels = append(labels, fmt.Sprintf("%s=%s", key, val.Result))
 	}
 	sort.Strings(labels)
@@ -350,6 +375,9 @@ const (
 // CompareServers returns difference between two server
 // objects, Equal (0) if identical, OnlyTimestampsDifferent(1) if only timestamps differ, Different(2) otherwise
 func CompareServers(a, b Server) int {
+	if a.GetKind() != b.GetKind() {
+		return Different
+	}
 	if a.GetName() != b.GetName() {
 		return Different
 	}
@@ -387,6 +415,38 @@ func CompareServers(a, b Server) int {
 	if !utils.StringSlicesEqual(a.GetKubernetesClusters(), b.GetKubernetesClusters()) {
 		return Different
 	}
+
+	// If this server is proxying applications, compare the applications to
+	// make sure they match.
+	if a.GetKind() == KindAppServer {
+		return CompareApps(a.GetApps(), b.GetApps())
+	}
+
+	return Equal
+}
+
+// CompareApps compares two slices of apps and returns if they are equal or
+// different.
+func CompareApps(a []*App, b []*App) int {
+	for i := range a {
+		if a[i].Name != b[i].Name {
+			return Different
+		}
+		if a[i].URI != b[i].URI {
+			return Different
+		}
+		if a[i].PublicAddr != b[i].PublicAddr {
+			return Different
+		}
+		if !utils.StringMapsEqual(a[i].StaticLabels, b[i].StaticLabels) {
+			return Different
+		}
+		if !CmdLabelMapsEqual(
+			V2ToLabels(a[i].DynamicLabels),
+			V2ToLabels(b[i].DynamicLabels)) {
+			return Different
+		}
+	}
 	return Equal
 }
 
@@ -415,7 +475,43 @@ const ServerSpecV2Schema = `{
   "properties": {
 	"version": {"type": "string"},
     "addr": {"type": "string"},
+    "protocol": {"type": "integer"},
     "public_addr": {"type": "string"},
+    "apps":  {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {"type": "string"},
+          "uri": {"type": "string"},
+          "public_addr": {"type": "string"},
+          "labels": {
+             "type": "object",
+             "additionalProperties": false,
+             "patternProperties": {
+               "^.*$":  { "type": "string" }
+             }
+          },
+          "commands": {
+            "type": "object",
+            "additionalProperties": false,
+            "patternProperties": {
+              "^.*$": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["command"],
+                "properties": {
+                  "command": {"type": "array", "items": {"type": "string"}},
+                  "period": {"type": "string"},
+                  "result": {"type": "string"}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "hostname": {"type": "string"},
     "use_tunnel": {"type": "boolean"},
     "labels": {
@@ -441,8 +537,7 @@ const ServerSpecV2Schema = `{
         }
       }
     },
-    "rotation": %v,
-    "kubernetes_clusters": {"type": "array", "items": {"type": "string"}}
+    "rotation": %v
   }
 }`
 
@@ -487,6 +582,16 @@ func (s *ServerV1) V2() *ServerV2 {
 			CmdLabels: labels,
 		},
 	}
+}
+
+// V2ToLabels converts concrete type to command label interface.
+func V2ToLabels(l map[string]CommandLabelV2) map[string]CommandLabel {
+	out := make(map[string]CommandLabel, len(l))
+	for key := range l {
+		val := l[key]
+		out[key] = &val
+	}
+	return out
 }
 
 // LabelsToV2 converts labels from interface to V2 spec
