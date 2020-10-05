@@ -134,7 +134,7 @@ func (h *Histogram) Max() int64 {
 			max = i.highestEquivalentValue
 		}
 	}
-	return h.lowestEquivalentValue(max)
+	return h.highestEquivalentValue(max)
 }
 
 // Min returns the approximate minimum recorded value.
@@ -275,6 +275,49 @@ func (h *Histogram) CumulativeDistribution() []Bracket {
 	return result
 }
 
+// SignificantFigures returns the significant figures used to create the
+// histogram
+func (h *Histogram) SignificantFigures() int64 {
+	return h.significantFigures
+}
+
+// LowestTrackableValue returns the lower bound on values that will be added
+// to the histogram
+func (h *Histogram) LowestTrackableValue() int64 {
+	return h.lowestTrackableValue
+}
+
+// HighestTrackableValue returns the upper bound on values that will be added
+// to the histogram
+func (h *Histogram) HighestTrackableValue() int64 {
+	return h.highestTrackableValue
+}
+
+// Histogram bar for plotting
+type Bar struct {
+	From, To, Count int64
+}
+
+// Pretty print as csv for easy plotting
+func (b Bar) String() string {
+	return fmt.Sprintf("%v, %v, %v\n", b.From, b.To, b.Count)
+}
+
+// Distribution returns an ordered list of bars of the
+// distribution of recorded values, counts can be normalized to a probability
+func (h *Histogram) Distribution() (result []Bar) {
+	i := h.iterator()
+	for i.next() {
+		result = append(result, Bar{
+			Count: i.countAtIdx,
+			From:  h.lowestEquivalentValue(i.valueFromIdx),
+			To:    i.highestEquivalentValue,
+		})
+	}
+
+	return result
+}
+
 // Equals returns true if the two Histograms are equivalent, false if not.
 func (h *Histogram) Equals(other *Histogram) bool {
 	switch {
@@ -308,11 +351,12 @@ func (h *Histogram) Export() *Snapshot {
 		LowestTrackableValue:  h.lowestTrackableValue,
 		HighestTrackableValue: h.highestTrackableValue,
 		SignificantFigures:    h.significantFigures,
-		Counts:                h.counts,
+		Counts:                append([]int64(nil), h.counts...), // copy
 	}
 }
 
-// Import returns a new Histogram populated from the Snapshot data.
+// Import returns a new Histogram populated from the Snapshot data (which the
+// caller must stop accessing).
 func Import(s *Snapshot) *Histogram {
 	h := New(s.LowestTrackableValue, s.HighestTrackableValue, int(s.SignificantFigures))
 	h.counts = s.Counts
