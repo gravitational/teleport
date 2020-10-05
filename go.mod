@@ -7,6 +7,7 @@ require (
 	cloud.google.com/go/pubsub v1.2.0 // indirect
 	cloud.google.com/go/storage v1.5.0
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
+	github.com/HdrHistogram/hdrhistogram-go v0.9.0
 	github.com/Microsoft/go-winio v0.4.9
 	github.com/alecthomas/assert v0.0.0-20170929043011-405dbfeb8e38 // indirect
 	github.com/alecthomas/colour v0.1.0 // indirect
@@ -16,7 +17,7 @@ require (
 	github.com/beevik/etree v1.1.0
 	github.com/boombuler/barcode v0.0.0-20161226211916-fe0f26ff6d26 // indirect
 	github.com/cjbassi/drawille-go v0.1.0 // indirect
-	github.com/codahale/hdrhistogram v0.0.0-20150708134006-954f16e8b9ef
+	github.com/codahale/hdrhistogram v0.9.0 // indirect
 	github.com/coreos/go-oidc v0.0.3
 	github.com/coreos/go-semver v0.2.0
 	github.com/coreos/pkg v0.0.0-20160727233714-3ac0863d7acf // indirect

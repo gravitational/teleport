@@ -35,6 +35,9 @@ github.com/Azure/go-autorest/logger
 github.com/Azure/go-autorest/tracing
 # github.com/BurntSushi/toml v0.3.1
 github.com/BurntSushi/toml
+# github.com/HdrHistogram/hdrhistogram-go v0.9.0
+## explicit
+github.com/HdrHistogram/hdrhistogram-go
 # github.com/Microsoft/go-winio v0.4.9
 ## explicit
 github.com/Microsoft/go-winio
@@ -117,9 +120,8 @@ github.com/boombuler/barcode/utils
 # github.com/cjbassi/drawille-go v0.1.0
 ## explicit
 github.com/cjbassi/drawille-go
-# github.com/codahale/hdrhistogram v0.0.0-20150708134006-954f16e8b9ef
+# github.com/codahale/hdrhistogram v0.9.0
 ## explicit
-github.com/codahale/hdrhistogram
 # github.com/coreos/go-oidc v0.0.3 => github.com/gravitational/go-oidc v0.0.3
 ## explicit
 github.com/coreos/go-oidc/http
