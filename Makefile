@@ -525,7 +525,8 @@ deb:
 .PHONY: update-helm-charts
 update-helm-charts:
 	sed -i -E "s/^  tag: [a-z0-9.-]+$$/  tag: $(VERSION)/" examples/chart/teleport/values.yaml
-	sed -i -E "s/^teleportVersion: [a-z0-9.-]+$$/teleportVersion: $(VERSION)/" examples/chart/teleport-demo/values.yaml
+	sed -i -E "s/^  tag: [a-z0-9.-]+$$/  tag: $(VERSION)/" examples/chart/teleport-auto-trustedcluster/values.yaml
+	sed -i -E "s/^  tag: [a-z0-9.-]+$$/  tag: $(VERSION)/" examples/chart/teleport-daemonset/values.yaml
 
 .PHONY: ensure-webassets
 ensure-webassets:
