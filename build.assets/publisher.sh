@@ -7,6 +7,6 @@ GIT_REV=$(git rev-parse --verify HEAD)
 BINARY_NAME=teleport-${GIT_REV}.tgz
 CHECKSUM_NAME=checksums-${GIT_REV}.txt
 
-sha512sum teleport.tgz > $CHECKSUM_NAME
-aws s3 cp --acl $AWS_ACL teleport.tgz s3://$S3_BUCKET/$BINARY_NAME
-aws s3 cp --acl $AWS_ACL $CHECKSUM_NAME s3://$S3_BUCKET/$CHECKSUM_NAME
+sha512sum teleport.tgz > "$CHECKSUM_NAME"
+aws s3 cp --acl "$AWS_ACL" teleport.tgz s3://"$S3_BUCKET"/"$BINARY_NAME"
+aws s3 cp --acl "$AWS_ACL" "$CHECKSUM_NAME" s3://"$S3_BUCKET"/"$CHECKSUM_NAME"

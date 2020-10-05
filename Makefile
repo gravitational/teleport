@@ -295,7 +295,6 @@ lint-sh: SH_LINT_FLAGS ?=
 lint-sh:
 	find . -type f -name '*.sh' | grep -v vendor | xargs \
 		shellcheck \
-		--exclude=SC2086 \
 		$(SH_LINT_FLAGS)
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
