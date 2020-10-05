@@ -50,7 +50,7 @@ type TLSServerConfig struct {
 	// API is API server configuration
 	APIConfig
 	// LimiterConfig is limiter config
-	LimiterConfig limiter.LimiterConfig
+	LimiterConfig limiter.Config
 	// AccessPoint is a caching access point
 	AccessPoint AccessCache
 	// Component is used for debugging purposes
@@ -121,7 +121,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
-	authMiddleware := &AuthMiddleware{
+	authMiddleware := &Middleware{
 		AccessPoint:   cfg.AccessPoint,
 		AcceptedUsage: cfg.AcceptedUsage,
 		Limiter:       limiter,
@@ -288,8 +288,8 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 	return tlsCopy, nil
 }
 
-// AuthMiddleware is authentication middleware checking every request
-type AuthMiddleware struct {
+// Middleware is authentication middleware checking every request
+type Middleware struct {
 	// AccessPoint is a caching access point for auth server
 	AccessPoint AccessCache
 	// Handler is HTTP handler called after the middleware checks requests
@@ -306,13 +306,13 @@ type AuthMiddleware struct {
 }
 
 // Wrap sets next handler in chain
-func (a *AuthMiddleware) Wrap(h http.Handler) {
+func (a *Middleware) Wrap(h http.Handler) {
 	a.Handler = h
 }
 
 // UnaryInterceptor is GPRC unary interceptor that authenticates requests
 // and passes the user information as context metadata
-func (a *AuthMiddleware) UnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
+func (a *Middleware) UnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
 	peerInfo, ok := peer.FromContext(ctx)
 	if !ok {
 		return nil, trail.ToGRPC(trace.AccessDenied("missing authentication"))
@@ -344,7 +344,7 @@ func (a *AuthMiddleware) UnaryInterceptor(ctx context.Context, req interface{}, 
 
 // StreamInterceptor is GPRC unary interceptor that authenticates requests
 // and passes the user information as context metadata
-func (a *AuthMiddleware) StreamInterceptor(srv interface{}, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+func (a *Middleware) StreamInterceptor(srv interface{}, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	peerInfo, ok := peer.FromContext(serverStream.Context())
 	if !ok {
 		return trail.ToGRPC(trace.AccessDenied("missing authentication"))
@@ -386,7 +386,7 @@ func (a *authenticatedStream) Context() context.Context {
 }
 
 // GetUser returns authenticated user based on request metadata set by HTTP server
-func (a *AuthMiddleware) GetUser(connState tls.ConnectionState) (IdentityGetter, error) {
+func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, error) {
 	peers := connState.PeerCertificates
 	if len(peers) > 1 {
 		// when turning intermediaries on, don't forget to verify
@@ -499,7 +499,7 @@ func findSystemRole(roles []string) *teleport.Role {
 }
 
 // ServeHTTP serves HTTP requests
-func (a *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	baseContext := r.Context()
 	if baseContext == nil {
 		baseContext = context.TODO()

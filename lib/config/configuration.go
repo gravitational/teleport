@@ -297,7 +297,7 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// apply connection throttling:
-	limiters := []*limiter.LimiterConfig{
+	limiters := []*limiter.Config{
 		&cfg.SSH.Limiter,
 		&cfg.Auth.Limiter,
 		&cfg.Proxy.Limiter,

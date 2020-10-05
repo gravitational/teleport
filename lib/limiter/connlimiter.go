@@ -36,7 +36,7 @@ type ConnectionsLimiter struct {
 
 // NewConnectionsLimiter returns new connection limiter, in case if connection
 // limits are not set, they won't be tracked
-func NewConnectionsLimiter(config LimiterConfig) (*ConnectionsLimiter, error) {
+func NewConnectionsLimiter(config Config) (*ConnectionsLimiter, error) {
 	limiter := ConnectionsLimiter{
 		Mutex:          &sync.Mutex{},
 		maxConnections: config.MaxConnections,

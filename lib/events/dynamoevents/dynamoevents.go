@@ -511,9 +511,9 @@ func (l *Log) WaitForDelivery(ctx context.Context) error {
 	return nil
 }
 
-func (b *Log) turnOnTimeToLive() error {
-	status, err := b.svc.DescribeTimeToLive(&dynamodb.DescribeTimeToLiveInput{
-		TableName: aws.String(b.Tablename),
+func (l *Log) turnOnTimeToLive() error {
+	status, err := l.svc.DescribeTimeToLive(&dynamodb.DescribeTimeToLiveInput{
+		TableName: aws.String(l.Tablename),
 	})
 	if err != nil {
 		return trace.Wrap(convertError(err))
@@ -522,8 +522,8 @@ func (b *Log) turnOnTimeToLive() error {
 	case dynamodb.TimeToLiveStatusEnabled, dynamodb.TimeToLiveStatusEnabling:
 		return nil
 	}
-	_, err = b.svc.UpdateTimeToLive(&dynamodb.UpdateTimeToLiveInput{
-		TableName: aws.String(b.Tablename),
+	_, err = l.svc.UpdateTimeToLive(&dynamodb.UpdateTimeToLiveInput{
+		TableName: aws.String(l.Tablename),
 		TimeToLiveSpecification: &dynamodb.TimeToLiveSpecification{
 			AttributeName: aws.String(keyExpires),
 			Enabled:       aws.Bool(true),
@@ -533,8 +533,8 @@ func (b *Log) turnOnTimeToLive() error {
 }
 
 // getTableStatus checks if a given table exists
-func (b *Log) getTableStatus(tableName string) (tableStatus, error) {
-	_, err := b.svc.DescribeTable(&dynamodb.DescribeTableInput{
+func (l *Log) getTableStatus(tableName string) (tableStatus, error) {
+	_, err := l.svc.DescribeTable(&dynamodb.DescribeTableInput{
 		TableName: aws.String(tableName),
 	})
 	err = convertError(err)
@@ -553,10 +553,10 @@ func (b *Log) getTableStatus(tableName string) (tableStatus, error) {
 // rangeKey is the name of the 'range key' the schema requires.
 // currently is always set to "FullPath" (used to be something else, that's
 // why it's a parameter for migration purposes)
-func (b *Log) createTable(tableName string) error {
+func (l *Log) createTable(tableName string) error {
 	provisionedThroughput := dynamodb.ProvisionedThroughput{
-		ReadCapacityUnits:  aws.Int64(b.ReadCapacityUnits),
-		WriteCapacityUnits: aws.Int64(b.WriteCapacityUnits),
+		ReadCapacityUnits:  aws.Int64(l.ReadCapacityUnits),
+		WriteCapacityUnits: aws.Int64(l.WriteCapacityUnits),
 	}
 	def := []*dynamodb.AttributeDefinition{
 		{
@@ -611,12 +611,12 @@ func (b *Log) createTable(tableName string) error {
 			},
 		},
 	}
-	_, err := b.svc.CreateTable(&c)
+	_, err := l.svc.CreateTable(&c)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	log.Infof("Waiting until table %q is created", tableName)
-	err = b.svc.WaitUntilTableExists(&dynamodb.DescribeTableInput{
+	err = l.svc.WaitUntilTableExists(&dynamodb.DescribeTableInput{
 		TableName: aws.String(tableName),
 	})
 	if err == nil {
@@ -626,13 +626,13 @@ func (b *Log) createTable(tableName string) error {
 }
 
 // Close the DynamoDB driver
-func (b *Log) Close() error {
+func (l *Log) Close() error {
 	return nil
 }
 
 // deleteAllItems deletes all items from the database, used in tests
-func (b *Log) deleteAllItems() error {
-	out, err := b.svc.Scan(&dynamodb.ScanInput{TableName: aws.String(b.Tablename)})
+func (l *Log) deleteAllItems() error {
+	out, err := l.svc.Scan(&dynamodb.ScanInput{TableName: aws.String(l.Tablename)})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -650,9 +650,9 @@ func (b *Log) deleteAllItems() error {
 	if len(requests) == 0 {
 		return nil
 	}
-	req, _ := b.svc.BatchWriteItemRequest(&dynamodb.BatchWriteItemInput{
+	req, _ := l.svc.BatchWriteItemRequest(&dynamodb.BatchWriteItemInput{
 		RequestItems: map[string][]*dynamodb.WriteRequest{
-			b.Tablename: requests,
+			l.Tablename: requests,
 		},
 	})
 	err = req.Send()
@@ -664,15 +664,15 @@ func (b *Log) deleteAllItems() error {
 }
 
 // deleteTable deletes DynamoDB table with a given name
-func (b *Log) deleteTable(tableName string, wait bool) error {
+func (l *Log) deleteTable(tableName string, wait bool) error {
 	tn := aws.String(tableName)
-	_, err := b.svc.DeleteTable(&dynamodb.DeleteTableInput{TableName: tn})
+	_, err := l.svc.DeleteTable(&dynamodb.DeleteTableInput{TableName: tn})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if wait {
 		return trace.Wrap(
-			b.svc.WaitUntilTableNotExists(&dynamodb.DescribeTableInput{TableName: tn}))
+			l.svc.WaitUntilTableNotExists(&dynamodb.DescribeTableInput{TableName: tn}))
 	}
 	return nil
 }

@@ -340,7 +340,7 @@ func (mc *multiCloser) Close() error {
 }
 
 // MultiCloser implements io.Close, it sequentially calls Close() on each object
-func MultiCloser(closers ...io.Closer) *multiCloser {
+func MultiCloser(closers ...io.Closer) io.Closer {
 	return &multiCloser{
 		closers: closers,
 	}

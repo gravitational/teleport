@@ -159,9 +159,8 @@ func (cfg *EventsConfig) SetFromParams(params backend.Params) error {
 	err := utils.ObjectToStruct(params, &cfg)
 	if err != nil {
 		return trace.BadParameter("firestore: configuration is invalid: %v", err)
-	} else {
-		return nil
 	}
+	return nil
 }
 
 // SetFromURL establishes values on an EventsConfig from the supplied URI
@@ -192,9 +191,8 @@ func (cfg *EventsConfig) SetFromURL(url *url.URL) error {
 	if projectIDParamString == "" {
 		return trace.BadParameter("parameter %s with value '%s' is invalid",
 			projectID, projectIDParamString)
-	} else {
-		cfg.ProjectID = projectIDParamString
 	}
+	cfg.ProjectID = projectIDParamString
 
 	eventRetentionPeriodParamString := url.Query().Get(eventRetentionPeriodPropertyKey)
 	if eventRetentionPeriodParamString == "" {
@@ -238,9 +236,8 @@ func (cfg *EventsConfig) SetFromURL(url *url.URL) error {
 
 	if url.Host == "" {
 		return trace.BadParameter("host should be set to the collection name for event storage")
-	} else {
-		cfg.CollectionName = url.Host
 	}
+	cfg.CollectionName = url.Host
 
 	return nil
 }

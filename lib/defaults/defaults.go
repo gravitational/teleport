@@ -509,7 +509,7 @@ const (
 )
 
 // ConfigureLimiter assigns the default parameters to a connection throttler (AKA limiter)
-func ConfigureLimiter(lc *limiter.LimiterConfig) {
+func ConfigureLimiter(lc *limiter.Config) {
 	lc.MaxConnections = LimiterMaxConnections
 	lc.MaxNumberOfUsers = LimiterMaxConcurrentUsers
 }
@@ -640,7 +640,7 @@ var (
 // CheckPasswordLimiter creates a rate limit that can be used to slow down
 // requests that come to the check password endpoint.
 func CheckPasswordLimiter() *limiter.Limiter {
-	limiter, err := limiter.NewLimiter(limiter.LimiterConfig{
+	limiter, err := limiter.NewLimiter(limiter.Config{
 		MaxConnections:   LimiterMaxConnections,
 		MaxNumberOfUsers: LimiterMaxConcurrentUsers,
 		Rates: []limiter.Rate{

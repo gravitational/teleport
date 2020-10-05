@@ -59,7 +59,7 @@ type testPack struct {
 	dataDir      string
 	backend      *backend.Wrapper
 	clock        clockwork.Clock
-	eventsC      chan CacheEvent
+	eventsC      chan Event
 	cache        *Cache
 	cacheBackend backend.Backend
 
@@ -119,7 +119,7 @@ func (s *CacheSuite) newPackWithoutCache(c *check.C, setupConfig SetupConfigFn) 
 		})
 	c.Assert(err, check.IsNil)
 
-	p.eventsC = make(chan CacheEvent, 100)
+	p.eventsC = make(chan Event, 100)
 
 	p.trustS = local.NewCAService(p.backend)
 	p.clusterConfigS = local.NewClusterConfigurationService(p.backend)
@@ -363,11 +363,11 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 	}
 }
 
-func waitForRestart(c *check.C, eventsC <-chan CacheEvent) {
+func waitForRestart(c *check.C, eventsC <-chan Event) {
 	waitForEvent(c, eventsC, WatcherStarted, WatcherFailed)
 }
 
-func waitForEvent(c *check.C, eventsC <-chan CacheEvent, expectedEvent string, skipEvents ...string) {
+func waitForEvent(c *check.C, eventsC <-chan Event, expectedEvent string, skipEvents ...string) {
 	timeC := time.After(5 * time.Second)
 	for {
 		// wait for watcher to restart
