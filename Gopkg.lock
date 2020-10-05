@@ -206,17 +206,6 @@
   revision = "bc6354cbbc295e925e4c611ffe90c1f287ee54db"
 
 [[projects]]
-  digest = "1:f8e6f07329067bc182633dcb19a3df53ce5d454b551e1b5a1cac2163748648d9"
-  name = "github.com/emicklei/go-restful"
-  packages = [
-    ".",
-    "log",
-  ]
-  pruneopts = "NUT"
-  revision = "2810ccc68e0ca445fa81ebfa03fbf70aca5c41ae"
-  version = "v2.7.0"
-
-[[projects]]
   digest = "1:ade392a843b2035effb4b4a2efa2c3bab3eb29b992e98bacf9c898b0ecb54e45"
   name = "github.com/fatih/color"
   packages = ["."]
@@ -240,7 +229,7 @@
   version = "v1.30.3"
 
 [[projects]]
-  digest = "1:acba7f3d06725b78c6999c2ba6c40b80539c10346fe37b4681072f1666c87d0c"
+  digest = "1:37234906013da82d4c05666262eda5bdec8f736bafa7d4ec1fb3314e965b476f"
   name = "github.com/gogo/protobuf"
   packages = [
     "gogoproto",
@@ -342,17 +331,6 @@
   revision = "52bc17adf63c0807b5e5b5d91350703630f621c7"
 
 [[projects]]
-  digest = "1:637144c8995935a3a02d03ade2d1374abeac2a47fdafb798a05642d3e19ff86c"
-  name = "github.com/gravitational/license"
-  packages = [
-    ".",
-    "constants",
-  ]
-  pruneopts = "NUT"
-  revision = "4f189e3bd6e3fa5dee7522341fae24342c6b35cd"
-  version = "0.0.6"
-
-[[projects]]
   digest = "1:9f8b10110aeb7160b903de8bc72e11df95302b090d8a5d345a07144415d3bd35"
   name = "github.com/gravitational/oxy"
   packages = [
@@ -364,18 +342,6 @@
   pruneopts = "NUT"
   revision = "e4a7e35311e6c4da4cf9e73c6a3d8cf523937211"
   version = "1.0.2"
-
-[[projects]]
-  digest = "1:9886b8d44d98b6521bbec88954396cd6ca85f2247946bbd568b1c00a8b7bf6c1"
-  name = "github.com/gravitational/reporting"
-  packages = [
-    ".",
-    "client",
-    "types",
-  ]
-  pruneopts = "NUT"
-  revision = "ac7b85c75c4ccc89f7891be4612bc2a8e4238640"
-  version = "0.0.6"
 
 [[projects]]
   digest = "1:1920655c8439bf875819f7d8db882b089f3ca6cb9b3c9ca6413bc2ec2217ea82"
@@ -511,18 +477,6 @@
   packages = ["."]
   pruneopts = "NUT"
   revision = "16b258d86efc53ac5cf3e550604f566c32624fab"
-
-[[projects]]
-  branch = "master"
-  digest = "1:ada518b8c338e10e0afa443d84671476d3bd1d926e13713938088e8ddbee1a3e"
-  name = "github.com/mailru/easyjson"
-  packages = [
-    "buffer",
-    "jlexer",
-    "jwriter",
-  ]
-  pruneopts = "NUT"
-  revision = "8b799c424f57fa123fc63a99d6383bc6e4c02578"
 
 [[projects]]
   digest = "1:08c231ec84231a7e23d67e4b58f975e1423695a32467a362ee55a803f9de8061"
@@ -664,7 +618,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:c1b6e4313972f8f3eff84689d6aa486138b0ce9d0308127db4f682de580edb45"
+  digest = "1:b4507a5fe7842decf6ba093f0f3bd631ddb7c063760e6d7b64f6d2c485a37f8b"
   name = "github.com/russellhaering/goxmldsig"
   packages = [
     ".",
@@ -672,7 +626,7 @@
     "types",
   ]
   pruneopts = "NUT"
-  revision = "605161228693b2efadce55323c9c661a40c5fbaa"
+  revision = "6f318b2f18251aa66983056c1db7e4eef312103c"
 
 [[projects]]
   digest = "1:54f275b550b8a8a20bc91e2067ed740600b69dae9dcf9cdfe905bac1b9cfd1d0"
@@ -743,25 +697,26 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:d53159fbd36af90d2d9a48a68342e09e944a6171a6389be69fd4277d02781994"
+  digest = "1:f9f37cb4b357338ff776d835a380337207e519843512d6d21987454c869629f0"
   name = "golang.org/x/crypto"
   packages = [
     "bcrypt",
     "blowfish",
+    "chacha20",
     "curve25519",
     "ed25519",
     "ed25519/internal/edwards25519",
-    "internal/chacha20",
     "internal/subtle",
     "nacl/secretbox",
     "poly1305",
     "salsa20/salsa",
     "ssh",
     "ssh/agent",
+    "ssh/internal/bcrypt_pbkdf",
     "ssh/terminal",
   ]
   pruneopts = "NUT"
-  revision = "3d3f9f413869b949e48070b5bc593aa22cc2b8f2"
+  revision = "bac4c82f69751a6dd76e702d54b3ceb88adab236"
 
 [[projects]]
   branch = "master"
@@ -796,14 +751,15 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:8cac879720b683f6e1c14fa63076f5b5538ff95fd8f43028940ad396d81b5bee"
+  digest = "1:7864e7e170bbb40aab1897695942d4b504adb4850122550c4d8cc57b6e4e8615"
   name = "golang.org/x/sys"
   packages = [
+    "cpu",
     "unix",
     "windows",
   ]
   pruneopts = "NUT"
-  revision = "1d206c9fa8975fb4cf00df1dc8bf3283dc24ba0e"
+  revision = "cb0a6d8edb6c3528b01a0be84a5fe513dbf880a6"
 
 [[projects]]
   digest = "1:614e8fcd1af8120d1487b9ad3fd0926ff862d9f0bc6835f63c6c0ae2e286cd1d"
@@ -1130,13 +1086,10 @@
     "github.com/gravitational/configure/jsonschema",
     "github.com/gravitational/form",
     "github.com/gravitational/kingpin",
-    "github.com/gravitational/license",
     "github.com/gravitational/oxy/connlimit",
     "github.com/gravitational/oxy/forward",
     "github.com/gravitational/oxy/ratelimit",
     "github.com/gravitational/oxy/utils",
-    "github.com/gravitational/reporting/client",
-    "github.com/gravitational/reporting/types",
     "github.com/gravitational/roundtrip",
     "github.com/gravitational/trace",
     "github.com/gravitational/ttlmap",

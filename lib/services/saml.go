@@ -540,15 +540,17 @@ func (o *SAMLConnectorV2) GetServiceProvider(clock clockwork.Clock) (*saml2.SAML
 		}
 
 		for _, kd := range metadata.IDPSSODescriptor.KeyDescriptors {
-			certData, err := base64.StdEncoding.DecodeString(kd.KeyInfo.X509Data.X509Certificate.Data)
-			if err != nil {
-				return nil, trace.Wrap(err)
+			for _, samlCert := range kd.KeyInfo.X509Data.X509Certificates {
+				certData, err := base64.StdEncoding.DecodeString(strings.TrimSpace(samlCert.Data))
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				cert, err := x509.ParseCertificate(certData)
+				if err != nil {
+					return nil, trace.Wrap(err, "failed to parse certificate in metadata")
+				}
+				certStore.Roots = append(certStore.Roots, cert)
 			}
-			cert, err := x509.ParseCertificate(certData)
-			if err != nil {
-				return nil, trace.Wrap(err, "failed to parse certificate in metadata")
-			}
-			certStore.Roots = append(certStore.Roots, cert)
 		}
 		o.Spec.Issuer = metadata.EntityID
 		o.Spec.SSO = metadata.IDPSSODescriptor.SingleSignOnService.Location
