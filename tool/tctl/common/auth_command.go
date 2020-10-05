@@ -41,7 +41,7 @@ type AuthCommand struct {
 	compatVersion              string
 	compatibility              string
 	proxyAddr                  string
-	cluster                    string
+	kubeCluster                string
 
 	rotateGracePeriod time.Duration
 	rotateType        string
@@ -82,7 +82,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 		DurationVar(&a.genTTL)
 	a.authSign.Flag("compat", "OpenSSH compatibility flag").StringVar(&a.compatibility)
 	a.authSign.Flag("proxy", `Address of the teleport proxy. When --format is set to "kubernetes", this address will be set as cluster address in the generated kubeconfig file`).StringVar(&a.proxyAddr)
-	a.authSign.Flag("cluster", `Leaf cluster to generate identity file for when --format is set to "kubernetes"`).StringVar(&a.cluster)
+	a.authSign.Flag("kube-cluster", `Leaf cluster to generate identity file for when --format is set to "kubernetes"`).StringVar(&a.kubeCluster)
 
 	a.authRotate = auth.Command("rotate", "Rotate certificate authorities in the cluster")
 	a.authRotate.Flag("grace-period", "Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to relogin and nodes to re-register.").
@@ -353,7 +353,7 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	if a.cluster != "" {
+	if a.kubeCluster != "" {
 		if err := a.checkCluster(clusterAPI); err != nil {
 			return trace.Wrap(err)
 		}
@@ -362,9 +362,9 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		a.cluster = cn.GetClusterName()
+		a.kubeCluster = cn.GetClusterName()
 	}
-	key.ClusterName = a.cluster
+	key.ClusterName = a.kubeCluster
 
 	// Request signed certs from `auth` server.
 	certs, err := clusterAPI.GenerateUserCerts(context.TODO(), proto.UserCertsRequest{
@@ -372,7 +372,7 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 		Username:       a.genUser,
 		Expires:        time.Now().UTC().Add(a.genTTL),
 		Format:         certificateFormat,
-		RouteToCluster: a.cluster,
+		RouteToCluster: a.kubeCluster,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -396,7 +396,7 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 }
 
 func (a *AuthCommand) checkCluster(clusterAPI auth.ClientI) error {
-	if a.outputFormat != identityfile.FormatKubernetes && a.cluster != "" {
+	if a.outputFormat != identityfile.FormatKubernetes && a.kubeCluster != "" {
 		// User set --cluster but it's not actually used for the chosen --format.
 		// Print a warning but continue.
 		fmt.Printf("Note: --cluster is only used with --format=%q, ignoring for --format=%q\n", identityfile.FormatKubernetes, a.outputFormat)
@@ -412,12 +412,12 @@ func (a *AuthCommand) checkCluster(clusterAPI auth.ClientI) error {
 	}
 
 	for _, cluster := range clusters {
-		if cluster.GetMetadata().Name == a.cluster {
+		if cluster.GetMetadata().Name == a.kubeCluster {
 			return nil
 		}
 	}
 
-	return trace.BadParameter("couldn't find leaf cluster named %q", a.cluster)
+	return trace.BadParameter("couldn't find leaf cluster named %q", a.kubeCluster)
 
 }
 

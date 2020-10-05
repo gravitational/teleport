@@ -711,7 +711,7 @@ Create an identity file(s) for a given user
 `--ttl` | none | relative duration like 5s, 2m, or 3h | TTL (time to live) for the generated certificate
 `--compat` | `""` | `standard` or `oldssh` | OpenSSH compatibility flag
 `--proxy` | `""` |  Address of the teleport proxy. | When --format is set to "kubernetes", this address will be set as cluster address in the generated kubeconfig file
-`--cluster` | `""` |  The name of a leaf cluster. | When --format is set to "kubernetes", the kubeconfig generated will allow access to this leaf cluster.
+`--kube-cluster` | `""` |  The name of a leaf cluster. | When --format is set to "kubernetes", the kubeconfig generated will allow access to this leaf cluster.
 
 
 ### [Global Flags](#tctl-global-flags)
@@ -744,7 +744,7 @@ $ tctl auth sign --ttl=24h --user=jenkins --out=jenkins.pem
 $ tctl auth sign --ttl=24h --user=jenkins --out=kubeconfig --format=kubernetes
 # create a certificate with a TTL of 1 day for the jenkins user for a leaf cluster named two
 # The kubeconfig file can later be used with `kubectl` or compatible tooling.
-$ tctl auth sign --ttl=24h --user=jenkins --out=kubeconfig --format=kubernetes --cluster two
+$ tctl auth sign --ttl=24h --user=jenkins --out=kubeconfig --format=kubernetes --kube-cluster two
 # Exports an identity from the Auth Server in preparation for remote
 # tctl execution.
 $ tctl auth sign --user=admin --out=identity.pem
