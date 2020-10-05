@@ -125,11 +125,11 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			wantAddr: "https://proxy-from-api.example.com:3026",
 		},
 		{
-			desc: "--cluster specified with valid cluster",
+			desc: "--kube-cluster specified with valid cluster",
 			ac: AuthCommand{
 				output:       filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat: identityfile.FormatKubernetes,
-				cluster:      remoteCluster.GetMetadata().Name,
+				kubeCluster:  remoteCluster.GetMetadata().Name,
 				config: &service.Config{Proxy: service.ProxyConfig{
 					Kube: service.KubeProxyConfig{
 						Enabled: false,
@@ -139,11 +139,11 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			wantCluster: remoteCluster.GetMetadata().Name,
 		},
 		{
-			desc: "--cluster specified with invalid cluster",
+			desc: "--kube-cluster specified with invalid cluster",
 			ac: AuthCommand{
 				output:       filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat: identityfile.FormatKubernetes,
-				cluster:      "doesnotexist.example.com",
+				kubeCluster:  "doesnotexist.example.com",
 				config: &service.Config{Proxy: service.ProxyConfig{
 					Kube: service.KubeProxyConfig{
 						Enabled: false,
