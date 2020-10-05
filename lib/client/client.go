@@ -753,13 +753,13 @@ func (proxy *ProxyClient) Close() error {
 
 // ExecuteSCP runs remote scp command(shellCmd) on the remote server and
 // runs local scp handler using SCP Command
-func (client *NodeClient) ExecuteSCP(cmd scp.Command) error {
+func (c *NodeClient) ExecuteSCP(cmd scp.Command) error {
 	shellCmd, err := cmd.GetRemoteShellCmd()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	s, err := client.Client.NewSession()
+	s, err := c.Client.NewSession()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -935,8 +935,8 @@ func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listene
 }
 
 // Close closes client and it's operations
-func (client *NodeClient) Close() error {
-	return client.Client.Close()
+func (c *NodeClient) Close() error {
+	return c.Client.Close()
 }
 
 // currentCluster returns the connection to the API of the current cluster

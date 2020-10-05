@@ -32,7 +32,7 @@ import (
 func TestFirestoreDB(t *testing.T) { check.TestingT(t) }
 
 type FirestoreSuite struct {
-	bk    *FirestoreBackend
+	bk    *Backend
 	suite test.BackendSuite
 }
 
@@ -55,7 +55,7 @@ func (s *FirestoreSuite) SetUpSuite(c *check.C) {
 	}
 	bk, err := newBackend()
 	c.Assert(err, check.IsNil)
-	s.bk = bk.(*FirestoreBackend)
+	s.bk = bk.(*Backend)
 	s.suite.B = s.bk
 	s.suite.NewBackend = newBackend
 }

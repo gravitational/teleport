@@ -529,7 +529,7 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 }
 
 // Continue does nothing for remote command execution.
-func (r *remoteTerminal) Continue() {}
+func (t *remoteTerminal) Continue() {}
 
 func (t *remoteTerminal) Kill() error {
 	err := t.session.Signal(ssh.SIGKILL)

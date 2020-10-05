@@ -81,7 +81,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	assert.Empty(t, cmp.Diff(rc, gotRC))
 }
 
-func newTestAuthServer(t *testing.T) *AuthServer {
+func newTestAuthServer(t *testing.T) *Server {
 	// Create SQLite backend in a temp directory.
 	dataDir, err := ioutil.TempDir("", "teleport")
 	assert.NoError(t, err)
@@ -101,7 +101,7 @@ func newTestAuthServer(t *testing.T) *AuthServer {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}
-	a, err := NewAuthServer(authConfig)
+	a, err := NewServer(authConfig)
 	assert.NoError(t, err)
 	t.Cleanup(func() { a.Close() })
 	assert.NoError(t, a.SetClusterConfig(services.DefaultClusterConfig()))

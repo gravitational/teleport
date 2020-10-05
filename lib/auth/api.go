@@ -132,9 +132,9 @@ type AccessCache interface {
 	GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error)
 }
 
-// AuthCache is a subset of the auth interface hanlding
+// Cache is a subset of the auth interface hanlding
 // access to the discovery API and static tokens
-type AuthCache interface {
+type Cache interface {
 	ReadAccessPoint
 
 	// GetStaticTokens gets the list of static tokens used to provision nodes.

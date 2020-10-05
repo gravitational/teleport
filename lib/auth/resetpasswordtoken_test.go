@@ -35,7 +35,7 @@ import (
 
 type ResetPasswordTokenTest struct {
 	bk          backend.Backend
-	a           *AuthServer
+	a           *Server
 	mockEmitter *events.MockEmitter
 }
 
@@ -62,7 +62,7 @@ func (s *ResetPasswordTokenTest) SetUpTest(c *check.C) {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}
-	s.a, err = NewAuthServer(authConfig)
+	s.a, err = NewServer(authConfig)
 	c.Assert(err, check.IsNil)
 
 	err = s.a.SetClusterName(clusterName)

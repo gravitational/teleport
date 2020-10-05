@@ -217,7 +217,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.Limiter == nil {
 		var err error
-		cfg.Limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
+		cfg.Limiter, err = limiter.NewLimiter(limiter.Config{})
 		if err != nil {
 			return trace.Wrap(err)
 		}

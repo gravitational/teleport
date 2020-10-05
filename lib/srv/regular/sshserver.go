@@ -501,7 +501,7 @@ func New(addr utils.NetAddr,
 		clock:           clockwork.NewRealClock(),
 		dataDir:         dataDir,
 	}
-	s.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
+	s.limiter, err = limiter.NewLimiter(limiter.Config{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

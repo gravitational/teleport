@@ -475,7 +475,7 @@ func (l *FileLog) findInFile(fn string, query url.Values, total *int, limit int)
 		}
 		if accepted || !doFilter {
 			retval = append(retval, ef)
-			*total += 1
+			*total++
 			if limit > 0 && *total >= limit {
 				break
 			}

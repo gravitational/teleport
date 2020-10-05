@@ -598,7 +598,7 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 
 	dir = FullProfilePath(dir)
 
-	var cp ClientProfile
+	var cp Profile
 	cp.Username = c.Username
 	cp.WebProxyAddr = c.WebProxyAddr
 	cp.SSHProxyAddr = c.SSHProxyAddr

@@ -37,7 +37,7 @@ func TestProfileBasics(t *testing.T) {
 	assert.NoError(t, err)
 	defer os.RemoveAll(dir)
 
-	p := &ClientProfile{
+	p := &Profile{
 		WebProxyAddr:          "proxy:3088",
 		SSHProxyAddr:          "proxy:3023",
 		Username:              "testuser",

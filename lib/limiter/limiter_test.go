@@ -44,7 +44,7 @@ func (s *LimiterSuite) TearDownTest(c *C) {
 
 func (s *LimiterSuite) TestConnectionsLimiter(c *C) {
 	limiter, err := NewLimiter(
-		LimiterConfig{
+		Config{
 			MaxConnections: 0,
 		},
 	)
@@ -65,7 +65,7 @@ func (s *LimiterSuite) TestConnectionsLimiter(c *C) {
 	}
 
 	limiter, err = NewLimiter(
-		LimiterConfig{
+		Config{
 			MaxConnections: 5,
 		},
 	)
@@ -102,7 +102,7 @@ func (s *LimiterSuite) TestRateLimiter(c *C) {
 	}
 
 	limiter, err := NewLimiter(
-		LimiterConfig{
+		Config{
 			Clock: clock,
 			Rates: []Rate{
 				Rate{

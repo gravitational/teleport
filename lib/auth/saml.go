@@ -35,11 +35,11 @@ import (
 )
 
 // UpsertSAMLConnector creates or updates a SAML connector.
-func (s *AuthServer) UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
-	if err := s.Identity.UpsertSAMLConnector(connector); err != nil {
+func (a *Server) UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
+	if err := a.Identity.UpsertSAMLConnector(connector); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := s.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorCreate{
+	if err := a.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorCreate{
 		Metadata: events.Metadata{
 			Type: events.SAMLConnectorCreatedEvent,
 			Code: events.SAMLConnectorCreatedCode,
@@ -58,11 +58,11 @@ func (s *AuthServer) UpsertSAMLConnector(ctx context.Context, connector services
 }
 
 // DeleteSAMLConnector deletes a SAML connector by name.
-func (s *AuthServer) DeleteSAMLConnector(ctx context.Context, connectorName string) error {
-	if err := s.Identity.DeleteSAMLConnector(connectorName); err != nil {
+func (a *Server) DeleteSAMLConnector(ctx context.Context, connectorName string) error {
+	if err := a.Identity.DeleteSAMLConnector(connectorName); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := s.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorDelete{
+	if err := a.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorDelete{
 		Metadata: events.Metadata{
 			Type: events.SAMLConnectorDeletedEvent,
 			Code: events.SAMLConnectorDeletedCode,
@@ -80,12 +80,12 @@ func (s *AuthServer) DeleteSAMLConnector(ctx context.Context, connectorName stri
 	return nil
 }
 
-func (s *AuthServer) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
-	connector, err := s.Identity.GetSAMLConnector(req.ConnectorID, true)
+func (a *Server) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*services.SAMLAuthRequest, error) {
+	connector, err := a.Identity.GetSAMLConnector(req.ConnectorID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	provider, err := s.getSAMLProvider(connector)
+	provider, err := a.getSAMLProvider(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -106,35 +106,35 @@ func (s *AuthServer) CreateSAMLAuthRequest(req services.SAMLAuthRequest) (*servi
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.Identity.CreateSAMLAuthRequest(req, defaults.SAMLAuthRequestTTL)
+	err = a.Identity.CreateSAMLAuthRequest(req, defaults.SAMLAuthRequestTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &req, nil
 }
 
-func (s *AuthServer) getSAMLProvider(conn services.SAMLConnector) (*saml2.SAMLServiceProvider, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+func (a *Server) getSAMLProvider(conn services.SAMLConnector) (*saml2.SAMLServiceProvider, error) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
 
-	providerPack, ok := s.samlProviders[conn.GetName()]
+	providerPack, ok := a.samlProviders[conn.GetName()]
 	if ok && providerPack.connector.Equals(conn) {
 		return providerPack.provider, nil
 	}
-	delete(s.samlProviders, conn.GetName())
+	delete(a.samlProviders, conn.GetName())
 
-	serviceProvider, err := conn.GetServiceProvider(s.clock)
+	serviceProvider, err := conn.GetServiceProvider(a.clock)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	s.samlProviders[conn.GetName()] = &samlProvider{connector: conn, provider: serviceProvider}
+	a.samlProviders[conn.GetName()] = &samlProvider{connector: conn, provider: serviceProvider}
 
 	return serviceProvider, nil
 }
 
 // buildSAMLRoles takes a connector and claims and returns a slice of roles.
-func (a *AuthServer) buildSAMLRoles(connector services.SAMLConnector, assertionInfo saml2.AssertionInfo) ([]string, error) {
+func (a *Server) buildSAMLRoles(connector services.SAMLConnector, assertionInfo saml2.AssertionInfo) ([]string, error) {
 	roles := connector.MapAttributes(assertionInfo)
 	if len(roles) == 0 {
 		return nil, trace.AccessDenied("unable to map attributes to role for connector: %v", connector.GetName())
@@ -159,7 +159,7 @@ func assertionsToTraitMap(assertionInfo saml2.AssertionInfo) map[string][]string
 	return traits
 }
 
-func (a *AuthServer) calculateSAMLUser(connector services.SAMLConnector, assertionInfo saml2.AssertionInfo, request *services.SAMLAuthRequest) (*createUserParams, error) {
+func (a *Server) calculateSAMLUser(connector services.SAMLConnector, assertionInfo saml2.AssertionInfo, request *services.SAMLAuthRequest) (*createUserParams, error) {
 	var err error
 
 	p := createUserParams{
@@ -184,7 +184,7 @@ func (a *AuthServer) calculateSAMLUser(connector services.SAMLConnector, asserti
 	return &p, nil
 }
 
-func (a *AuthServer) createSAMLUser(p *createUserParams) (services.User, error) {
+func (a *Server) createSAMLUser(p *createUserParams) (services.User, error) {
 	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
 
 	log.Debugf("Generating dynamic SAML identity %v/%v with roles: %v.", p.connectorName, p.username, p.roles)
@@ -317,7 +317,7 @@ type SAMLAuthResponse struct {
 }
 
 // ValidateSAMLResponse consumes attribute statements from SAML identity provider
-func (a *AuthServer) ValidateSAMLResponse(samlResponse string) (*SAMLAuthResponse, error) {
+func (a *Server) ValidateSAMLResponse(samlResponse string) (*SAMLAuthResponse, error) {
 	event := &events.UserLogin{
 		Metadata: events.Metadata{
 			Type: events.UserLoginEvent,
@@ -357,7 +357,7 @@ type samlAuthResponse struct {
 	attributeStatements map[string][]string
 }
 
-func (a *AuthServer) validateSAMLResponse(samlResponse string) (*samlAuthResponse, error) {
+func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, error) {
 	requestID, err := parseSAMLInResponseTo(samlResponse)
 	if err != nil {
 		return nil, trace.Wrap(err)

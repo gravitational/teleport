@@ -33,7 +33,7 @@ import (
 // LocalRegister is used to generate host keys when a node or proxy is running
 // within the same process as the Auth Server and as such, does not need to
 // use provisioning tokens.
-func LocalRegister(id IdentityID, authServer *AuthServer, additionalPrincipals, dnsNames []string, remoteAddr string) (*Identity, error) {
+func LocalRegister(id IdentityID, authServer *Server, additionalPrincipals, dnsNames []string, remoteAddr string) (*Identity, error) {
 	// If local registration is happening and no remote address was passed in
 	// (which means no advertise IP was set), use localhost.
 	if remoteAddr == "" {

@@ -82,7 +82,7 @@ type SessionCreds struct {
 }
 
 // AuthenticateUser authenticates user based on the request type
-func (s *AuthServer) AuthenticateUser(req AuthenticateUserRequest) error {
+func (s *Server) AuthenticateUser(req AuthenticateUserRequest) error {
 	err := s.authenticateUser(req)
 	event := &events.UserLogin{
 		Metadata: events.Metadata{
@@ -108,7 +108,7 @@ func (s *AuthServer) AuthenticateUser(req AuthenticateUserRequest) error {
 	return err
 }
 
-func (s *AuthServer) authenticateUser(req AuthenticateUserRequest) error {
+func (s *Server) authenticateUser(req AuthenticateUserRequest) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -169,7 +169,7 @@ func (s *AuthServer) authenticateUser(req AuthenticateUserRequest) error {
 // in case if authentication is successful. In case if existing session id
 // is used to authenticate, returns session associated with the existing session id
 // instead of creating the new one
-func (s *AuthServer) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error) {
+func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error) {
 	clusterConfig, err := s.GetClusterConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -301,7 +301,7 @@ func AuthoritiesToTrustedCerts(authorities []services.CertAuthority) []TrustedCe
 
 // AuthenticateSSHUser authenticates an SSH user and returns SSH and TLS
 // certificates for the public key in req.
-func (s *AuthServer) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
+func (s *Server) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error) {
 	clusterConfig, err := s.GetClusterConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -365,7 +365,7 @@ func (s *AuthServer) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginR
 }
 
 // emitNoLocalAuthEvent creates and emits a local authentication is disabled message.
-func (s *AuthServer) emitNoLocalAuthEvent(username string) {
+func (s *Server) emitNoLocalAuthEvent(username string) {
 	if err := s.emitter.EmitAuditEvent(s.closeCtx, &events.AuthAttempt{
 		Metadata: events.Metadata{
 			Type: events.AuthAttemptEvent,
@@ -383,7 +383,7 @@ func (s *AuthServer) emitNoLocalAuthEvent(username string) {
 	}
 }
 
-func (s *AuthServer) createUserWebSession(user services.User) (services.WebSession, error) {
+func (s *Server) createUserWebSession(user services.User) (services.WebSession, error) {
 	// It's safe to extract the roles and traits directly from services.User as	this method
 	// is only used for local accounts.
 	sess, err := s.NewWebSession(user.GetName(), user.GetRoles(), user.GetTraits())
