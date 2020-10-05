@@ -20,7 +20,6 @@ like:
 
 !!! warning "Version Warning"
 
-
     This guide requires a commercial edition of Teleport. The open source
     edition of Teleport only supports [Github](../../admin-guide.md#github-oauth-20) as
     an SSO provider.
@@ -201,4 +200,3 @@ $ sudo journalctl -fu teleport
 
 If you wish to increase the verbosity of Teleport's syslog, you can pass
 `--debug` flag to `teleport start` command.
-

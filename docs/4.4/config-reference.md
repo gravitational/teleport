@@ -85,7 +85,7 @@ teleport:
     # CA Signing algorithm used for OpenSSH Certificates
     # Defaults to rsa-sha2-512 in 4.3 and above.
     # valid values are: ssh-rsa, rsa-sha2-256, rsa-sha2-512; ssh-rsa is SHA1
-    ca_signature_algo: “rsa-sha2-512”
+    ca_signature_algo: "rsa-sha2-512"
 
     # Cipher algorithms that the server supports. This section only needs to be
     # set if you want to override the defaults.
@@ -154,7 +154,6 @@ auth_service:
             app_id: https://localhost:3080
             # facets must list all proxy servers if there are more than one deployed
             facets:
-
             - https://localhost:3080
 
     # IP and the port to bind to. Other Teleport nodes will be connecting to
