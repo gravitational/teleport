@@ -341,11 +341,6 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 	if err := a.checkProxyAddr(clusterAPI); err != nil {
 		return trace.Wrap(err)
 	}
-
-	if err := a.checkCluster(clusterAPI); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// parse compatibility parameter
 	certificateFormat, err := utils.CheckCertificateFormatFlag(a.compatibility)
 	if err != nil {
@@ -359,14 +354,17 @@ func (a *AuthCommand) generateUserKeys(clusterAPI auth.ClientI) error {
 	}
 
 	if a.cluster != "" {
-		key.ClusterName = a.cluster
+		if err := a.checkCluster(clusterAPI); err != nil {
+			return trace.Wrap(err)
+		}
 	} else {
 		cn, err := clusterAPI.GetClusterName()
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		key.ClusterName = cn.GetClusterName()
+		a.cluster = cn.GetClusterName()
 	}
+	key.ClusterName = a.cluster
 
 	// Request signed certs from `auth` server.
 	certs, err := clusterAPI.GenerateUserCerts(context.TODO(), proto.UserCertsRequest{
@@ -409,7 +407,6 @@ func (a *AuthCommand) checkCluster(clusterAPI auth.ClientI) error {
 	}
 
 	clusters, err := clusterAPI.GetRemoteClusters()
-
 	if err != nil {
 		return trace.WrapWithMessage(err, "couldn't load leaf clusters")
 	}
