@@ -599,6 +599,11 @@ func (c *certAuthority) erase() error {
 			return trace.Wrap(err)
 		}
 	}
+	if err := c.trustCache.DeleteAllCertAuthorities(services.JWTSigner); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
 
@@ -607,6 +612,9 @@ func (c *certAuthority) fetch(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	if err := c.updateCertAuthorities(services.UserCA); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := c.updateCertAuthorities(services.JWTSigner); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

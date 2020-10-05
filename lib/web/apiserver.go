@@ -157,6 +157,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// OIDC connectors and auth preferences
 	h.GET("/webapi/find", httplib.MakeHandler(h.find))
 
+	// Unauthenticated access to public keys.
+	h.GET("/webapi/certs", httplib.MakeHandler(h.jwtPublicKeys))
+
 	// Web sessions
 	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.createSession))
 	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
@@ -681,6 +684,30 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 
 	fmt.Fprintf(w, "var GRV_CONFIG = %v;", string(out))
 	return nil, nil
+}
+
+type jwtPublicKeysResponse struct {
+	JWTKeys []services.JWTKeyPair `json:"jwt_keys"`
+}
+
+func (h *Handler) jwtPublicKeys(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	clusterName, err := h.cfg.ProxyClient.GetDomainName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fetch the host CA public keys only.
+	ca, err := h.cfg.ProxyClient.GetCertAuthority(services.CertAuthID{
+		Type:       services.JWTSigner,
+		DomainName: clusterName,
+	}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &jwtPublicKeysResponse{
+		JWTKeys: ca.GetJWTKeyPairs(),
+	}, nil
 }
 
 func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {

@@ -64,15 +64,25 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 	serverVersion := pingRsp.ServerVersion
 	clusterName := pingRsp.ClusterName
 
+	authorities := []services.CertAuthority{}
+
 	hostCAs, err := client.GetCertAuthorities(services.HostCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	authorities = append(authorities, hostCAs...)
 
 	userCAs, err := client.GetCertAuthorities(services.UserCA, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	authorities = append(authorities, userCAs...)
+
+	jwtKeys, err := client.GetCertAuthorities(services.JWTSigner, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	authorities = append(authorities, jwtKeys...)
 
 	// Calculate the CA pin for this cluster. The CA pin is used by the client
 	// to verify the identity of the Auth Server.
@@ -81,7 +91,6 @@ func (c *StatusCommand) Status(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	authorities := append(userCAs, hostCAs...)
 	view := func() string {
 		table := asciitable.MakeHeadlessTable(2)
 		table.AddRow([]string{"Cluster", clusterName})

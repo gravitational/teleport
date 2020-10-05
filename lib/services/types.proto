@@ -208,6 +208,14 @@ message TLSKeyPair {
     bytes Key = 2 [ (gogoproto.jsontag) = "key,omitempty" ];
 }
 
+// JWTKeyPair is a PEM encoded keypair used for signing JWT tokens.
+message JWTKeyPair {
+    // PublicKey is a PEM encoded public key.
+    bytes PublicKey = 1 [ (gogoproto.jsontag) = "public_key,omitempty" ];
+    // PrivateKey is a PEM encoded private key.
+    bytes PrivateKey = 2 [ (gogoproto.jsontag) = "private_key,omitempty" ];
+}
+
 // CertAuthorityV2 is version 2 resource spec for Cert Authority
 message CertAuthorityV2 {
     option (gogoproto.goproto_stringer) = false;
@@ -238,7 +246,7 @@ message CertAuthoritySpecV2 {
     string ClusterName = 2 [ (gogoproto.jsontag) = "cluster_name" ];
     // Checkers is a list of SSH public keys that can be used to check
     // certificate signatures
-    repeated bytes CheckingKeys = 3 [ (gogoproto.jsontag) = "checking_keys" ];
+    repeated bytes CheckingKeys = 3 [ (gogoproto.jsontag) = "checking_keys,omitempty" ];
     // SigningKeys is a list of private keys used for signing
     repeated bytes SigningKeys = 4 [ (gogoproto.jsontag) = "signing_keys,omitempty" ];
     // Roles is a list of roles assumed by users signed by this CA
@@ -261,6 +269,9 @@ message CertAuthoritySpecV2 {
         RSA_SHA2_512 = 3;
     }
     SigningAlgType SigningAlg = 9 [ (gogoproto.jsontag) = "signing_alg,omitempty" ];
+    // JWTKeyPair is a list of JWT key pairs.
+    repeated JWTKeyPair JWTKeyPairs = 10
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "jwt_key_pairs,omitempty" ];
 }
 
 // RoleMappping provides mapping of remote roles to local roles

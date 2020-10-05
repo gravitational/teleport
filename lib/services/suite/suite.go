@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -75,6 +76,11 @@ func NewTestCA(caType services.CertAuthType, clusterName string, privateKeys ...
 		panic(err)
 	}
 
+	publicKey, privateKey, err := jwt.GenerateKeyPair()
+	if err != nil {
+		panic(err)
+	}
+
 	return &services.CertAuthorityV2{
 		Kind:    services.KindCertAuthority,
 		SubKind: string(caType),
@@ -89,6 +95,12 @@ func NewTestCA(caType services.CertAuthType, clusterName string, privateKeys ...
 			CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(signer.PublicKey())},
 			SigningKeys:  [][]byte{keyBytes},
 			TLSKeyPairs:  []services.TLSKeyPair{{Cert: cert, Key: key}},
+			JWTKeyPairs: []services.JWTKeyPair{
+				{
+					PublicKey:  publicKey,
+					PrivateKey: privateKey,
+				},
+			},
 		},
 	}
 }
@@ -252,6 +264,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *check.C) {
 	ca2 := *ca
 	ca2.Spec.SigningKeys = nil
 	ca2.Spec.TLSKeyPairs = []services.TLSKeyPair{{Cert: ca2.Spec.TLSKeyPairs[0].Cert}}
+	ca2.Spec.JWTKeyPairs = []services.JWTKeyPair{{PublicKey: ca2.Spec.JWTKeyPairs[0].PublicKey}}
 	fixtures.DeepCompare(c, cas[0], &ca2)
 
 	cas, err = s.CAS.GetCertAuthorities(services.UserCA, true)
