@@ -5,6 +5,7 @@
 #     * edit 8.1.yaml
 #     * edit theme/scripts.html and update docVersions variable
 
+# shellcheck disable=SC2046
 cd $(dirname "$0") || exit
 rm -f latest.yaml
 

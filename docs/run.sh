@@ -6,6 +6,7 @@
 #     * edit theme/base.html and update docVersions variable
 PORT=6600
 
+# shellcheck disable=SC2046
 cd $(dirname "$0") || exit
 ./build.sh || exit $?
 
