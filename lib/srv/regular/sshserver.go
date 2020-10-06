@@ -913,7 +913,8 @@ func (s *Server) HandleNewConn(ctx context.Context, ccx *sshutils.ConnectionCont
 					RemoteAddr: ccx.ServerConn.RemoteAddr().String(),
 				},
 				ServerMetadata: events.ServerMetadata{
-					ServerID: s.uuid,
+					ServerID:        s.uuid,
+					ServerNamespace: s.GetNamespace(),
 				},
 				Reason:  events.SessionRejectedReasonMaxConnections,
 				Maximum: maxConnections,
@@ -1011,7 +1012,8 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 						RemoteAddr: ccx.ServerConn.RemoteAddr().String(),
 					},
 					ServerMetadata: events.ServerMetadata{
-						ServerID: s.uuid,
+						ServerID:        s.uuid,
+						ServerNamespace: s.GetNamespace(),
 					},
 					Reason:  events.SessionRejectedReasonMaxSessions,
 					Maximum: max,
