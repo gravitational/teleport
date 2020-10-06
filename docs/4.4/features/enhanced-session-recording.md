@@ -220,7 +220,7 @@ Run the following script to download the prerequisites to build BCC tools, build
     bcc.x86_64 0:0.10.0-1.amzn2.0.1
 
     Dependency Installed:
-      bcc-tools.x86_64 0:0.10.0-1.amzn2.0.1                                                                                       python2-bcc.x86_64 0:0.10.0-1.amzn2.0.1
+      bcc-tools.x86_64 0:0.10.0-1.amzn2.0.1  python2-bcc.x86_64 0:0.10.0-1.amzn2.0.1
     ```
 
 ## 3. Install & Configure Teleport Node
