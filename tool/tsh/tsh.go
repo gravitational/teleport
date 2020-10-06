@@ -941,8 +941,8 @@ func onBenchmark(cf *CLIConf) {
 	if cf.BenchExport {
 		fullPath := client.FullProfilePath("") + "/latency_profile.txt"
 		fo, err := os.Create(fullPath)
-		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 		if err != nil {
+			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 			os.Exit(255)
 		}
 		brackets := result.Histogram.CumulativeDistribution()
