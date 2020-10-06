@@ -42,8 +42,8 @@ func ValidateServerMetadata(event AuditEvent, serverID string) error {
 	if getter.GetServerID() != serverID {
 		return trace.BadParameter("server %q can't emit event with server ID %q", serverID, getter.GetServerID())
 	}
-	if !services.IsValidNamespace(getter.GetServerNamespace()) {
-		return trace.BadParameter("invalid namespace %q", getter.GetServerNamespace())
+	if ns := getter.GetServerNamespace(); ns != "" && !services.IsValidNamespace(ns) {
+		return trace.BadParameter("invalid namespace %q", ns)
 	}
 	return nil
 }
