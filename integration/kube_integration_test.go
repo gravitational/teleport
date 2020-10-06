@@ -124,6 +124,7 @@ func (s *KubeSuite) SetUpSuite(c *check.C) {
 }
 
 const kubeSystemNamespace = "kube-system"
+const testImpersonationGroup = "teleport-ci-test-group"
 
 var kubeDNSLabels = labels.Set{"k8s-app": "kube-dns"}
 
@@ -175,7 +176,7 @@ func (s *KubeSuite) TestKubeExec(c *check.C) {
 		username:      username,
 		kubeUsers:     kubeUsers,
 		kubeGroups:    kubeGroups,
-		impersonation: &rest.ImpersonationConfig{UserName: "bob", Groups: []string{"system:masters"}},
+		impersonation: &rest.ImpersonationConfig{UserName: "bob", Groups: []string{testImpersonationGroup}},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -456,7 +457,7 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 		t:             t,
 		username:      username,
 		kubeGroups:    kubeGroups,
-		impersonation: &rest.ImpersonationConfig{UserName: "bob", Groups: []string{"system:masters"}},
+		impersonation: &rest.ImpersonationConfig{UserName: "bob", Groups: []string{testImpersonationGroup}},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -592,7 +593,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 		t:              main,
 		username:       username,
 		kubeGroups:     mainKubeGroups,
-		impersonation:  &rest.ImpersonationConfig{UserName: "bob", Groups: []string{"system:masters"}},
+		impersonation:  &rest.ImpersonationConfig{UserName: "bob", Groups: []string{testImpersonationGroup}},
 		routeToCluster: clusterAux,
 	})
 	c.Assert(err, check.IsNil)
@@ -763,7 +764,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 
 	// main cluster has a role and user called main-kube
 	username := s.me.Username
-	mainKubeGroups := []string{teleport.KubeSystemMasters}
+	mainKubeGroups := []string{testImpersonationGroup}
 	mainRole, err := services.NewRole("main-kube", services.RoleSpecV3{
 		Allow: services.RoleConditions{
 			Logins:     []string{username},
@@ -865,7 +866,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 		t:             main,
 		username:      username,
 		kubeGroups:    mainKubeGroups,
-		impersonation: &rest.ImpersonationConfig{UserName: "bob", Groups: []string{"system:masters"}},
+		impersonation: &rest.ImpersonationConfig{UserName: "bob", Groups: []string{testImpersonationGroup}},
 	})
 	c.Assert(err, check.IsNil)
 
