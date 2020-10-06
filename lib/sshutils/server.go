@@ -488,7 +488,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			}
 			s.Debugf("Received out-of-band request: %+v.", req)
 			if s.reqHandler != nil {
-				go s.reqHandler.HandleRequest(req)
+				go s.reqHandler.HandleRequest(req, ccx)
 			}
 			// handle channels:
 		case nch := <-chans:
@@ -512,7 +512,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 type RequestHandler interface {
-	HandleRequest(r *ssh.Request)
+	HandleRequest(r *ssh.Request, ccx *ConnectionContext)
 }
 
 type NewChanHandler interface {

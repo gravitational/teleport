@@ -97,6 +97,19 @@ func (p *ForwardedPort) ToString() string {
 	return net.JoinHostPort(p.SrcIP, sport) + ":" + net.JoinHostPort(p.DestHost, dport)
 }
 
+// RemoteForwardedPort specifies local tunnel to remote
+// destination managed by the client, is equivalent
+// of ssh -L src:host:dst command
+type RemoteForwardedPort struct {
+	SrcIP    string
+	SrcPort  int
+	DestPort int
+	DestHost string
+}
+
+// RemoteForwardedPorts contains an array of forwarded port structs
+type RemoteForwardedPorts []RemoteForwardedPort
+
 // DynamicForwardedPort local port for dynamic application-level port
 // forwarding. Whenever a connection is made to this port, SOCKS5 protocol
 // is used to determine the address of the remote host. More or less
@@ -205,6 +218,10 @@ type Config struct {
 	// LocalForwardPorts are the local ports tsh listens on for port forwarding
 	// (parameters to -L ssh flag).
 	LocalForwardPorts ForwardedPorts
+
+	// RemoteForwardPorts are the local ports tsh listens on for port forwarding
+	// (parameters to -R ssh flag).
+	RemoteForwardPorts RemoteForwardedPorts
 
 	// DynamicForwardedPorts are the list of ports tsh listens on for dynamic
 	// port forwarding (parameters to -D ssh flag).
@@ -1000,6 +1017,13 @@ func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *N
 				continue
 			}
 			go nodeClient.listenAndForward(ctx, socket, net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort)))
+		}
+	}
+	if len(tc.Config.RemoteForwardPorts) > 0 {
+		for _, fp := range tc.Config.RemoteForwardPorts {
+			sourceAddr := net.JoinHostPort(fp.SrcIP, strconv.Itoa(fp.SrcPort))
+			destAddr := net.JoinHostPort(fp.DestHost, strconv.Itoa(fp.DestPort))
+			go nodeClient.remoteListenAndForward(ctx, sourceAddr, destAddr)
 		}
 	}
 	if len(tc.Config.DynamicForwardedPorts) > 0 {
@@ -2356,6 +2380,38 @@ func ParsePortForwardSpec(spec []string) (ports ForwardedPorts, err error) {
 	}
 	const errTemplate = "Invalid port forwarding spec: '%s'. Could be like `80:remote.host:80`"
 	ports = make([]ForwardedPort, len(spec))
+
+	for i, str := range spec {
+		parts := strings.Split(str, ":")
+		if len(parts) < 3 || len(parts) > 4 {
+			return nil, fmt.Errorf(errTemplate, str)
+		}
+		if len(parts) == 3 {
+			parts = append([]string{"127.0.0.1"}, parts...)
+		}
+		p := &ports[i]
+		p.SrcIP = parts[0]
+		p.SrcPort, err = strconv.Atoi(parts[1])
+		if err != nil {
+			return nil, fmt.Errorf(errTemplate, str)
+		}
+		p.DestHost = parts[2]
+		p.DestPort, err = strconv.Atoi(parts[3])
+		if err != nil {
+			return nil, fmt.Errorf(errTemplate, str)
+		}
+	}
+	return ports, nil
+}
+
+// ParsePortRemoteForwardSpec parses parameter to -D flag, i.e. strings like "[ip]:80:remote.host:3000"
+// The opposite of this function (spec generation) is ForwardedPorts.String()
+func ParsePortRemoteForwardSpec(spec []string) (ports RemoteForwardedPorts, err error) {
+	if len(spec) == 0 {
+		return ports, nil
+	}
+	const errTemplate = "Invalid port forwarding spec: '%s'. Could be like `80:remote.host:80`"
+	ports = make([]RemoteForwardedPort, len(spec))
 
 	for i, str := range spec {
 		parts := strings.Split(str, ":")
