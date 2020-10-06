@@ -12,6 +12,7 @@ trigger:
   branch:
     - master
     - branch/*
+    - stratus
   event:
     exclude:
       - cron
@@ -130,26 +131,6 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets integration
 
-  - name: Send Slack notification for build failures
-    image: plugins/slack
-    settings:
-      webhook:
-        from_secret: SLACK_WEBHOOK
-      channel: teleport-builds
-      template: |
-        {{#if build.pull }}
-          *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}*: <https://github.com/{{ repo.owner }}/{{ repo.name }}/pull/{{ build.pull }}|Pull Request #{{ build.pull }}>
-        {{else}}
-          *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        {{/if}}
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
-        Author: {{ build.author }}
-        <{{ build.link }}|Visit build page ↗>
-    when:
-      event: [push]
-      status: [failure]
-
 services:
   - name: Start Docker
     image: docker:dind
@@ -171,6 +152,7 @@ trigger:
   branch:
     - master
     - branch/*
+    - stratus
   event:
     exclude:
       - cron
@@ -2660,6 +2642,6 @@ steps:
 
 ---
 kind: signature
-hmac: 382d9ed0ef2248daf1c75e74c0f1560291365c3671f441894f0ad723406a183f
+hmac: 1f499aac9ab8cbe2bc6c7bab7633d1df2dcee79203a4100ecfa161f5d8527c6a
 
 ...
