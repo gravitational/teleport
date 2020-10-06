@@ -86,32 +86,31 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets buildbox
 
-  # TODO(gus): uncomment after testing
-  # - name: Run linter
-  #   image: docker
-  #   environment:
-  #     GOPATH: /go
-  #   volumes:
-  #     - name: dockersock
-  #       path: /var/run
-  #   commands:
-  #     - apk add --no-cache make
-  #     - chown -R $UID:$GID /go
-  #     - cd /go/src/github.com/gravitational/teleport
-  #     - make -C build.assets lint
+  - name: Run linter
+    image: docker
+    environment:
+      GOPATH: /go
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets lint
 
-  # - name: Run unit tests
-  #   image: docker
-  #   environment:
-  #     GOPATH: /go
-  #   volumes:
-  #     - name: dockersock
-  #       path: /var/run
-  #   commands:
-  #     - apk add --no-cache make
-  #     - chown -R $UID:$GID /go
-  #     - cd /go/src/github.com/gravitational/teleport
-  #     - make -C build.assets test
+  - name: Run unit tests
+    image: docker
+    environment:
+      GOPATH: /go
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets test
 
   - name: Run integration tests
     image: docker
@@ -2793,6 +2792,6 @@ volumes:
 
 ---
 kind: signature
-hmac: b8af3885750f7d36b69756fbffea8b1e91f6d51bedcd15831b9ddaca715686be
+hmac: d274d308b282db08a4cd0fcf098657c59a272cc450e7429752cdf1c0a6de5383
 
 ...
