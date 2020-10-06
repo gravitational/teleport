@@ -267,7 +267,7 @@ mkdir -p "${TARBALL_DIRECTORY}"
 if [ ! -f "${TARBALL_DIRECTORY}/${TARBALL_FILENAME}" ]; then
     if [[ "${DOWNLOAD_IF_NEEDED}" == "true" ]]; then
         echo "Downloading ${URL} to ${TARBALL_DIRECTORY}"
-        curl -sL "${URL}" -o "${TARBALL_DIRECTORY}${TARBALL_FILENAME}"
+        curl -sL "${URL}" -o "${TARBALL_DIRECTORY}/${TARBALL_FILENAME}"
     else
         echo "Can't find ${TARBALL_DIRECTORY}/${TARBALL_FILENAME}"
         echo "Downloading from ${DOWNLOAD_ROOT} is disabled when a path is provided with -s"
