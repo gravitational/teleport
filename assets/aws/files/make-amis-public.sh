@@ -6,7 +6,8 @@ REGION_LIST="us-east-1 us-east-2 us-west-1 us-west-2 ap-south-1 ap-northeast-2 a
 
 # Exit if oss/ent parameters not provided
 if [[ "$1" == "" ]]; then
-    echo "Usage: $(basename "$0") [oss/ent/ent-fips]"
+    # shellcheck disable=SC2086
+    echo "Usage: $(basename $0) [oss/ent/ent-fips]"
     exit 1
 else
     RUN_MODE="$1"
