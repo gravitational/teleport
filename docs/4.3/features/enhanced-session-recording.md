@@ -198,7 +198,7 @@ Run the following script to download the prerequisites to build BCC tools, build
     echo "Install is complete, try running /usr/share/bcc/tools/execsnoop to verify install."
     ```
 
-=== "Amazon Linux 2"
+=== "Amazon Linux"
     
     **Example Script to install relevant bcc packages for Amazon 2 Linux**
 
