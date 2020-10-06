@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"strings"
 	"time"
+
 	"github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/gravitational/trace"
 )
