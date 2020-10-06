@@ -74,19 +74,19 @@ steps:
           fi
         fi
 
-  # TODO(gus): uncomment after testing
-  # - name: Build buildbox
-  #   image: docker
-  #   volumes:
-  #     - name: dockersock
-  #       path: /var/run
-  #   commands:
-  #     - apk add --no-cache make
-  #     - chown -R $UID:$GID /go
-  #     - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-  #     - cd /go/src/github.com/gravitational/teleport
-  #     - make -C build.assets buildbox
+  - name: Build buildbox
+    image: docker
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets buildbox
 
+  # TODO(gus): uncomment after testing
   # - name: Run linter
   #   image: docker
   #   environment:
@@ -2793,6 +2793,6 @@ volumes:
 
 ---
 kind: signature
-hmac: a5149325e44c6e01bd02df93a3b5ba2ebc6f73b2776947bb239fd8bfc298318e
+hmac: b8af3885750f7d36b69756fbffea8b1e91f6d51bedcd15831b9ddaca715686be
 
 ...
