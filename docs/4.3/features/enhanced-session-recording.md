@@ -198,6 +198,32 @@ Run the following script to download the prerequisites to build BCC tools, build
     echo "Install is complete, try running /usr/share/bcc/tools/execsnoop to verify install."
     ```
 
+=== "Amazon Linux 2"
+    
+    **Example Script to install relevant bcc packages for Amazon 2 Linux**
+
+
+    Make sure the the machine is at Kernel 4.19+/5+ (```uname -r```). Run the following script, sourced from [BCC github](https://github.com/iovisor/bcc/blob/master/INSTALL.md#amazon-linux-2---binary), to enable BCC in Amazon Linux Extras, install required kernel-devel package for the Kernel version and install the BCC tools.
+
+    ```sh
+    #!/bin/bash
+    #Enable BCC within the Amazon Linux Extras
+    sudo amazon-linux-extras enable BCC
+    #Install the kernal devel package for this kernel
+    sudo yum install -y kernel-devel-$(uname -r)
+    # Install BCC
+    sudo yum install -y bcc
+    ```
+    You should see output similar to below:
+    ```
+    Installed:
+    bcc.x86_64 0:0.10.0-1.amzn2.0.1
+
+    Dependency Installed:
+      bcc-tools.x86_64 0:0.10.0-1.amzn2.0.1                                                                                       python2-bcc.x86_64 0:0.10.0-1.amzn2.0.1
+    ```
+
+
 ## 3. Install & Configure Teleport Node
 
 Follow our [installation instructions](../installation.md) to install Teleport Auth, Proxy
