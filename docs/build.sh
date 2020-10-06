@@ -5,7 +5,7 @@
 #     * edit 8.1.yaml
 #     * edit theme/scripts.html and update docVersions variable
 
-cd "$(dirname "$0")" || exit
+cd $(dirname "$0") || exit
 rm -f latest.yaml
 
 # find all *.yaml files and convert them to array, pick the latest
