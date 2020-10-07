@@ -1,7 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# shellcheck disable=SC2086
 usage() { echo "Usage: $(basename $0) [-a <AWS account ID>] [-m <cloudformation/terraform>] [-t <oss/ent/ent-fips>] [-r <comma-separated regions>] [-v version]" 1>&2; exit 1; }
 while getopts ":a:m:t:r:v:" o; do
     case "${o}" in
@@ -64,7 +63,7 @@ for REGION in ${REGIONS//,/ }; do
     else
         AMI_ID_STUB="gravitational-teleport-ami-${TYPE}-${VERSION}"
     fi
-    IMAGE_ID=$(aws ec2 describe-images --owners "${AWS_ACCOUNT_ID}" --filters "Name=name,Values=${AMI_ID_STUB}" --region "${REGION}" | jq -r ".Images[].ImageId")
+    IMAGE_ID=$(aws ec2 describe-images --owners ${AWS_ACCOUNT_ID} --filters "Name=name,Values=${AMI_ID_STUB}" --region ${REGION} | jq -r ".Images[].ImageId")
     if [[ "${IMAGE_ID}" == "" ]]; then
         echo "Error getting ${TYPE} image ID for Teleport ${VERSION} in region ${REGION}"
         exit 3
@@ -85,7 +84,7 @@ if [[ "${MODE}" == "cloudformation" ]]; then
     fi
     # replace AMI ID in place
     for REGION in ${REGIONS//,/ }; do
-        OLD_AMI_ID=$(grep "$REGION" "$CLOUDFORMATION_PATH" | sed -n -E "s/$REGION: \{HVM64 : (ami.*)\}/\1/p" | tr -d " ")
+        OLD_AMI_ID=$(grep $REGION $CLOUDFORMATION_PATH | sed -n -E "s/$REGION: \{HVM64 : (ami.*)\}/\1/p" | tr -d " ")
         NEW_AMI_ID=${IMAGE_IDS[$REGION]}
         sed -i -E "s/$REGION: \{HVM64 : ami(.*)\}$/$REGION: \{HVM64 : $NEW_AMI_ID\}/g" $CLOUDFORMATION_PATH
         echo "[${TYPE}: ${REGION}] ${OLD_AMI_ID} -> ${NEW_AMI_ID}"
