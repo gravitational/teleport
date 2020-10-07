@@ -29,13 +29,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -219,28 +217,9 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 		watchDone:        make(chan struct{}),
 		buf:              buf,
 	}
-
 	if err = b.reconnect(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Check that the etcd nodes are at least the minimum version supported
-	timeout, cancel := context.WithTimeout(ctx, time.Second*3*time.Duration(len(cfg.Nodes)))
-	defer cancel()
-	for _, n := range cfg.Nodes {
-		status, err := b.client.Status(timeout, n)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		ver := semver.New(status.Version)
-		min := semver.New(teleport.MinimumEtcdVersion)
-		if ver.LessThan(*min) {
-			return nil, trace.BadParameter("unsupported version of etcd %v for node %v, must be %v or greater",
-				status.Version, n, teleport.MinimumEtcdVersion)
-		}
-	}
-
 	// Wrap backend in a input sanitizer and return it.
 	return b, nil
 }
