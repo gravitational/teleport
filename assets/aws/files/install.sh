@@ -15,17 +15,20 @@ amazon-linux-extras install nginx1.12
 CURL_OPTS="-L --retry 100 --retry-delay 0 --connect-timeout 10 --max-time 300"
 
 # Install telegraf to collect stats from influx
-curl "${CURL_OPTS}" -o /tmp/telegraf.rpm "https://dl.influxdata.com/telegraf/releases/telegraf-${TELEGRAF_VERSION}-1.x86_64.rpm"
+# shellcheck disable=SC2086
+curl ${CURL_OPTS} -o /tmp/telegraf.rpm "https://dl.influxdata.com/telegraf/releases/telegraf-${TELEGRAF_VERSION}-1.x86_64.rpm"
 yum install -y /tmp/telegraf.rpm
 rm -f /tmp/telegraf.rpm
 
 # Install grafana
-curl "${CURL_OPTS}" -o /tmp/grafana.rpm "https://s3-us-west-2.amazonaws.com/grafana-releases/release/grafana-${GRAFANA_VERSION}-1.x86_64.rpm"
+# shellcheck disable=SC2086
+curl ${CURL_OPTS} -o /tmp/grafana.rpm "https://s3-us-west-2.amazonaws.com/grafana-releases/release/grafana-${GRAFANA_VERSION}-1.x86_64.rpm"
 yum install -y /tmp/grafana.rpm
 rm -f /tmp/grafana.rpm
 
 # Install InfluxDB
-curl "$CURL_OPTS" -o /tmp/influxdb.rpm "https://dl.influxdata.com/influxdb/releases/influxdb-${INFLUXDB_VERSION}.x86_64.rpm"
+# shellcheck disable=SC2086
+curl ${CURL_OPTS} -o /tmp/influxdb.rpm "https://dl.influxdata.com/influxdb/releases/influxdb-${INFLUXDB_VERSION}.x86_64.rpm"
 yum install -y /tmp/influxdb.rpm
 rm -f /tmp/influxdb.rpm
 
@@ -58,7 +61,8 @@ if [ -f /tmp/teleport-fips ]; then
         mv "${TARBALL_FILENAME}" /tmp/teleport.tar.gz
     else
         echo "Installing Enterprise Teleport version ${TELEPORT_VERSION} with FIPS support"
-        curl "${CURL_OPTS}" -o teleport.tar.gz "https://get.gravitational.com/teleport/${TELEPORT_VERSION}/teleport-ent-v${TELEPORT_VERSION}-linux-amd64-fips-bin.tar.gz"
+        # shellcheck disable=SC2086
+        curl ${CURL_OPTS} -o teleport.tar.gz "https://get.gravitational.com/teleport/${TELEPORT_VERSION}/teleport-ent-v${TELEPORT_VERSION}-linux-amd64-fips-bin.tar.gz"
     fi
     tar -xzf teleport.tar.gz
     cp teleport-ent/tctl teleport-ent/tsh teleport-ent/teleport /usr/bin
@@ -74,7 +78,8 @@ else
             mv "${TARBALL_FILENAME}" /tmp/teleport.tar.gz
         else
             echo "Installing OSS Teleport version ${TELEPORT_VERSION}"
-            curl "${CURL_OPTS}" -o teleport.tar.gz "https://get.gravitational.com/teleport/${TELEPORT_VERSION}/teleport-v${TELEPORT_VERSION}-linux-amd64-bin.tar.gz"
+            # shellcheck disable=SC2086
+            curl ${CURL_OPTS} -o teleport.tar.gz "https://get.gravitational.com/teleport/${TELEPORT_VERSION}/teleport-v${TELEPORT_VERSION}-linux-amd64-bin.tar.gz"
         fi
         tar -xzf teleport.tar.gz
         cp teleport/tctl teleport/tsh teleport/teleport /usr/bin
@@ -87,7 +92,8 @@ else
             mv "${TARBALL_FILENAME}" /tmp/teleport.tar.gz
         else
             echo "Installing Enterprise Teleport version ${TELEPORT_VERSION}"
-            curl "${CURL_OPTS}" -o teleport.tar.gz "https://get.gravitational.com/teleport/${TELEPORT_VERSION}/teleport-ent-v${TELEPORT_VERSION}-linux-amd64-bin.tar.gz"
+            # shellcheck disable=SC2086
+            curl ${CURL_OPTS} -o teleport.tar.gz "https://get.gravitational.com/teleport/${TELEPORT_VERSION}/teleport-ent-v${TELEPORT_VERSION}-linux-amd64-bin.tar.gz"
         fi
         tar -xzf teleport.tar.gz
         cp teleport-ent/tctl teleport-ent/tsh teleport-ent/teleport /usr/bin
