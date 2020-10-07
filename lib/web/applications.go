@@ -74,6 +74,8 @@ type createAppSessionRequest struct {
 type createAppSessionResponse struct {
 	// CookieValue is aap application cookie value
 	CookieValue string `json:"value"`
+	// FQDN is application fqdn
+	FQDN string `json:"fqdn"`
 }
 
 func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -84,20 +86,20 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 
 	// Use the information the caller provided to attempt to resolve to an
 	// application running within either the root or leaf cluster.
-	application, server, clusterName, err := h.resolveRequest(r.Context(), req)
+	result, err := h.validateAppSessionRequest(r.Context(), req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "Unable to resolve FQDN: %v", req.FQDN)
 	}
 
-	log.Debugf("Attempting to create application session for %v in %v.", application.PublicAddr, clusterName)
+	log.Debugf("Attempting to create application session for %v in %v.", result.PublicAddr, result.ClusterName)
 
 	// Get a client connected to either to local auth or remote auth with the
 	// users identity.
 	var userClient auth.ClientI
-	if clusterName == h.cfg.DomainName {
+	if result.ClusterName == h.cfg.DomainName {
 		userClient, err = ctx.GetClient()
 	} else {
-		remoteClient, err := h.cfg.Proxy.GetSite(clusterName)
+		remoteClient, err := h.cfg.Proxy.GetSite(result.ClusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -111,7 +113,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	// user requested. This requests goes to the root (or leaf) auth cluster
 	// where access to the application is checked.
 	appSession, err := userClient.CreateAppSession(r.Context(), services.CreateAppSessionRequest{
-		PublicAddr: application.PublicAddr,
+		PublicAddr: result.PublicAddr,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -128,9 +130,9 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		Username:      ctx.GetUser(),
 		ParentSession: ctx.sess.GetName(),
 		AppSessionID:  appSession.GetName(),
-		ServerID:      server.GetName(),
-		ClusterName:   clusterName,
 		Expires:       appSession.Expiry(),
+		ServerID:      result.ServerID,
+		ClusterName:   result.ClusterName,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -149,14 +151,35 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 
 	return &createAppSessionResponse{
 		CookieValue: appCookieValue,
+		FQDN:        result.FQDN,
 	}, nil
 }
 
-func (h *Handler) resolveRequest(ctx context.Context, req *createAppSessionRequest) (*services.App, services.Server, string, error) {
-	if req.PublicAddr != "" && req.ClusterName != "" {
-		return h.resolveDirect(ctx, req.PublicAddr, req.ClusterName)
+func (h *Handler) validateAppSessionRequest(ctx context.Context, req *createAppSessionRequest) (*validateAppSessionResult, error) {
+	// To safely redirect a user to the app URL, the FQDN should be always resolved
+	app, server, clusterName, err := h.resolveFQDN(ctx, req.FQDN)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return h.resolveFQDN(ctx, req.FQDN)
+
+	if req.PublicAddr != "" && req.ClusterName != "" {
+		app, server, clusterName, err = h.resolveDirect(ctx, req.PublicAddr, req.ClusterName)
+		return nil, trace.Wrap(err)
+	}
+
+	return &validateAppSessionResult{
+		PublicAddr:  app.PublicAddr,
+		ServerID:    server.GetName(),
+		ClusterName: clusterName,
+		FQDN:        req.FQDN,
+	}, nil
+}
+
+type validateAppSessionResult struct {
+	PublicAddr  string
+	ServerID    string
+	ClusterName string
+	FQDN        string
 }
 
 func (h *Handler) resolveDirect(ctx context.Context, publicAddr string, clusterName string) (*services.App, services.Server, string, error) {
