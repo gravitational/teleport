@@ -515,6 +515,10 @@ func (a *AuthWithRoles) NewWatcher(ctx context.Context, watch services.Watch) (s
 			if err := a.action(defaults.Namespace, services.KindAppServer, services.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
+		case services.KindAppWebSession:
+			if err := a.action(defaults.Namespace, services.KindAppWebSession, services.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		case services.KindAppSession:
 			if err := a.action(defaults.Namespace, services.KindAppSession, services.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
@@ -2078,6 +2082,78 @@ func (a *AuthWithRoles) DeleteAllAppServers(ctx context.Context, namespace strin
 	}
 
 	if err := a.authServer.DeleteAllAppServers(ctx, namespace); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetAppWebSession gets an application web session.
+func (a *AuthWithRoles) GetAppWebSession(ctx context.Context, req services.GetAppWebSessionRequest) (services.WebSession, error) {
+	if err := a.action(defaults.Namespace, services.KindAppWebSession, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	session, err := a.authServer.Identity.GetAppWebSession(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return session, nil
+}
+
+// GetAppWebSessions gets all application web sessions.
+func (a *AuthWithRoles) GetAppWebSessions(ctx context.Context) ([]services.WebSession, error) {
+	if err := a.action(defaults.Namespace, services.KindAppWebSession, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindAppWebSession, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sessions, err := a.authServer.Identity.GetAppWebSessions(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sessions, nil
+}
+
+// CreateAppWebSession creates an application web session. Application web
+// sessions represent a browser session the client holds.
+func (a *AuthWithRoles) CreateAppWebSession(ctx context.Context, req services.CreateAppWebSessionRequest) (services.WebSession, error) {
+	if err := a.currentUserAction(req.Username); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	session, err := a.authServer.CreateAppWebSession(ctx, req, a.context.User, a.context.Checker)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return session, nil
+}
+
+// UpsertAppWebSession is not implemented.
+func (a *AuthWithRoles) UpsertAppWebSession(ctx context.Context, session services.WebSession) error {
+	return trace.NotImplemented("not implemented")
+}
+
+// DeleteAppWebSession removes an application web sessions.
+func (a *AuthWithRoles) DeleteAppWebSession(ctx context.Context, req services.DeleteAppWebSessionRequest) error {
+	if err := a.action(defaults.Namespace, services.KindAppWebSession, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.authServer.Identity.DeleteAppWebSession(ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteAllAppWebSessions removes all application web sessions.
+func (a *AuthWithRoles) DeleteAllAppWebSessions(ctx context.Context) error {
+	if err := a.action(defaults.Namespace, services.KindAppWebSession, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.authServer.Identity.DeleteAllAppWebSessions(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

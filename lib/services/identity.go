@@ -235,6 +235,12 @@ type Identity interface {
 
 // AppIdentity defines application and application web session features.
 type AppIdentity interface {
+	GetAppWebSession(context.Context, GetAppWebSessionRequest) (WebSession, error)
+	GetAppWebSessions(context.Context) ([]WebSession, error)
+	UpsertAppWebSession(context.Context, WebSession) error
+	DeleteAppWebSession(context.Context, DeleteAppWebSessionRequest) error
+	DeleteAllAppWebSessions(context.Context) error
+
 	// GetAppSession gets an application session.
 	GetAppSession(ctx context.Context, sessionID string) (AppSession, error)
 	// GetAppSessions gets all application session.

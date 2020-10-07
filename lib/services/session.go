@@ -482,3 +482,80 @@ func (*TeleportWebSessionMarshaler) MarshalWebSession(ws WebSession, opts ...Mar
 		return nil, trace.BadParameter("version %v is not supported", version)
 	}
 }
+
+// GetAppWebSessionRequest contains the parameters to request a application
+// web session.
+type GetAppWebSessionRequest struct {
+	// Username is the Teleport identity of the requester.
+	Username string
+	// ParentHash is the hash of the parent session ID.
+	ParentHash string
+	// SessionID is the session ID of the application session itself.
+	SessionID string
+}
+
+// Check validates the request.
+func (r *GetAppWebSessionRequest) Check() error {
+	if r.Username == "" {
+		return trace.BadParameter("username missing")
+	}
+	if r.ParentHash == "" {
+		return trace.BadParameter("parent hash missing")
+	}
+	if r.SessionID == "" {
+		return trace.BadParameter("session ID missing")
+	}
+	return nil
+}
+
+// CreateAppWebSessionRequest contains the parameters needed to request
+// creating an application web session.
+type CreateAppWebSessionRequest struct {
+	// Username is the identity of the user requesting the session.
+	Username string `json:"username"`
+	// ParentSession is the session ID of the parent session.
+	ParentSession string `json:"parent_session"`
+	// AppSessionID is the ID of the services.AppSession.
+	AppSessionID string `json:"app_session"`
+	// ServerID is the ID of the application session that will forward the request.
+	ServerID string `json:"server_id"`
+	// ClusterName is the name of the cluster within which the application is running.
+	ClusterName string `json:"cluster_name"`
+	// Expires is the requested expiration of the session.
+	Expires time.Time `json:"expires"`
+}
+
+// Check validates the request.
+func (r CreateAppWebSessionRequest) Check() error {
+	if r.Username == "" {
+		return trace.BadParameter("username missing")
+	}
+	if r.ParentSession == "" {
+		return trace.BadParameter("parent session missing")
+	}
+	if r.AppSessionID == "" {
+		return trace.BadParameter("application session ID missing")
+	}
+	if r.ServerID == "" {
+		return trace.BadParameter("server ID missing")
+	}
+	if r.ClusterName == "" {
+		return trace.BadParameter("cluster name missing")
+	}
+	if r.Expires.IsZero() {
+		return trace.BadParameter("expires missing")
+	}
+
+	return nil
+}
+
+// DeleteAppWebSessionRequest are the parameters used to request removal of
+// an application web session.
+type DeleteAppWebSessionRequest struct {
+	// Username is the Teleport username.
+	Username string `json:"username"`
+	// ParentHash is the hash of the parent session ID.
+	ParentHash string `json:"parent_hash"`
+	// SessionID is the ID of the session.
+	SessionID string `json:"session_id"`
+}

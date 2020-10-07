@@ -90,6 +90,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 			parser = p
 		case services.KindAppServer:
 			parser = newAppServerParser()
+		case services.KindAppWebSession:
+			parser = newAppWebSessionParser()
 		case services.KindAppSession:
 			parser = newAppSessionParser()
 		default:
@@ -763,6 +765,42 @@ func (p *appServerParser) match(key []byte) bool {
 
 func (p *appServerParser) parse(event backend.Event) (services.Resource, error) {
 	return parseServer(event, services.KindAppServer)
+}
+
+func newAppWebSessionParser() *appWebSessionParser {
+	return &appWebSessionParser{
+		matchPrefix: backend.Key(webPrefix, sessionsPrefix, appsPrefix),
+	}
+}
+
+type appWebSessionParser struct {
+	matchPrefix []byte
+}
+
+func (p *appWebSessionParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *appWebSessionParser) match(key []byte) bool {
+	return bytes.HasPrefix(key, p.matchPrefix)
+}
+
+func (p *appWebSessionParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		return resourceHeader(event, services.KindAppWebSession, services.V2, 0)
+	case backend.OpPut:
+		resource, err := services.GetWebSessionMarshaler().UnmarshalWebSession(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
 }
 
 func newAppSessionParser() *appSessionParser {

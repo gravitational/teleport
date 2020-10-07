@@ -50,6 +50,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: services.KindTunnelConnection},
 		{Kind: services.KindAccessRequest},
 		{Kind: services.KindAppServer},
+		{Kind: services.KindAppWebSession},
 		{Kind: services.KindAppSession},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
@@ -71,6 +72,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: services.KindReverseTunnel},
 		{Kind: services.KindTunnelConnection},
 		{Kind: services.KindAppServer},
+		{Kind: services.KindAppWebSession},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -689,6 +691,11 @@ func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns [
 // GetAppServers gets all application servers.
 func (c *Cache) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	return c.presenceCache.GetAppServers(ctx, namespace, opts...)
+}
+
+// GetAppWebSession gets an application web session.
+func (c *Cache) GetAppWebSession(ctx context.Context, req services.GetAppWebSessionRequest) (services.WebSession, error) {
+	return c.appIdentityCache.GetAppWebSession(ctx, req)
 }
 
 // GetAppSession gets an application session.

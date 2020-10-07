@@ -1685,6 +1685,11 @@ func (a *AuthServer) modeStreamer() (events.Streamer, error) {
 }
 
 // GetApps is a part of the auth.AccessPoint implementation..
+func (a *AuthServer) GetAppWebSession(ctx context.Context, req services.GetAppWebSessionRequest) (services.WebSession, error) {
+	return a.GetCache().GetAppWebSession(ctx, req)
+}
+
+// GetApps is a part of the auth.AccessPoint implementation..
 func (a *AuthServer) GetAppSession(ctx context.Context, sessionID string) (services.AppSession, error) {
 	return a.GetCache().GetAppSession(ctx, sessionID)
 }

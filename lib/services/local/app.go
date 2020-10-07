@@ -25,6 +25,78 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// GetAppWebSession gets an application web session.
+func (s *IdentityService) GetAppWebSession(ctx context.Context, req services.GetAppWebSessionRequest) (services.WebSession, error) {
+	if err := req.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item, err := s.Get(ctx, backend.Key(webPrefix, sessionsPrefix, appsPrefix, req.Username, req.ParentHash, req.SessionID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(item.Value, services.SkipValidation())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return session, nil
+}
+
+// GetAppWebSessions gets all application web sessions.
+func (s *IdentityService) GetAppWebSessions(ctx context.Context) ([]services.WebSession, error) {
+	startKey := backend.Key(webPrefix, sessionsPrefix, appsPrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := make([]services.WebSession, len(result.Items))
+	for i, item := range result.Items {
+		session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(item.Value, services.SkipValidation())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out[i] = session
+	}
+	return out, nil
+}
+
+// UpsertAppWebSession creates an application web session.
+func (s *IdentityService) UpsertAppWebSession(ctx context.Context, session services.WebSession) error {
+	value, err := services.GetWebSessionMarshaler().MarshalWebSession(session)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	item := backend.Item{
+		Key:     backend.Key(webPrefix, sessionsPrefix, appsPrefix, session.GetUser(), session.GetParentHash(), session.GetName()),
+		Value:   value,
+		Expires: session.GetExpiryTime(),
+	}
+
+	if _, err = s.Put(ctx, item); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteAppWebSession removes an application web sessions.
+func (s *IdentityService) DeleteAppWebSession(ctx context.Context, req services.DeleteAppWebSessionRequest) error {
+	if err := s.Delete(ctx, backend.Key(webPrefix, sessionsPrefix, appsPrefix, req.Username, req.ParentHash, req.SessionID)); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteAllAppWebSessions removes all application web sessions.
+func (s *IdentityService) DeleteAllAppWebSessions(ctx context.Context) error {
+	startKey := backend.Key(webPrefix, sessionsPrefix, appsPrefix)
+	if err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // GetAppSession gets an application session.
 func (s *IdentityService) GetAppSession(ctx context.Context, sessionID string) (services.AppSession, error) {
 	item, err := s.Get(ctx, backend.Key(sessionsPrefix, appsPrefix, sessionID))

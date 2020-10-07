@@ -3013,6 +3013,106 @@ func (c *Client) DeleteAllAppServers(ctx context.Context, namespace string) erro
 	return nil
 }
 
+// GetAppWebSession gets an application web session.
+func (c *Client) GetAppWebSession(ctx context.Context, req services.GetAppWebSessionRequest) (services.WebSession, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.GetAppWebSession(ctx, &proto.GetAppWebSessionRequest{
+		Username:   req.Username,
+		ParentHash: req.ParentHash,
+		SessionID:  req.SessionID,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp.GetSession(), nil
+}
+
+// GetAppWebSessions gets all application web sessions.
+func (c *Client) GetAppWebSessions(ctx context.Context) ([]services.WebSession, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.GetAppWebSessions(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	out := make([]services.WebSession, 0, len(resp.GetSessions()))
+	for _, v := range resp.GetSessions() {
+		out = append(out, v)
+	}
+	return out, nil
+}
+
+// CreateAppWebSession creates an application web session. Application web
+// sessions represent a browser session the client holds.
+func (c *Client) CreateAppWebSession(ctx context.Context, req services.CreateAppWebSessionRequest) (services.WebSession, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.CreateAppWebSession(ctx, &proto.CreateAppWebSessionRequest{
+		Username:      req.Username,
+		ParentSession: req.ParentSession,
+		AppSessionID:  req.AppSessionID,
+		ServerID:      req.ServerID,
+		ClusterName:   req.ClusterName,
+		Expires:       req.Expires,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp.GetSession(), nil
+}
+
+// UpsertAppWebSession is not implemented.
+func (c *Client) UpsertAppWebSession(ctx context.Context, session services.WebSession) error {
+	return trace.NotImplemented("not implemented")
+}
+
+// DeleteAppWebSession removes an application web sessions.
+func (c *Client) DeleteAppWebSession(ctx context.Context, req services.DeleteAppWebSessionRequest) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = clt.DeleteAppWebSession(ctx, &proto.DeleteAppWebSessionRequest{
+		Username:   req.Username,
+		ParentHash: req.ParentHash,
+		SessionID:  req.SessionID,
+	})
+	if err != nil {
+
+		return trail.FromGRPC(err)
+	}
+
+	return nil
+}
+
+// DeleteAllAppWebSessions removes all application web sessions.
+func (c *Client) DeleteAllAppWebSessions(ctx context.Context) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := clt.DeleteAllAppWebSessions(ctx, &empty.Empty{}); err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
+}
+
 // GetAppSession gets an application session.
 func (c *Client) GetAppSession(ctx context.Context, sessionID string) (services.AppSession, error) {
 	clt, err := c.grpc()
@@ -3332,5 +3432,12 @@ type ClientI interface {
 
 	// Ping gets basic info about the auth server.
 	Ping(ctx context.Context) (proto.PingResponse, error)
+
+	// CreateAppWebSession creates an application web session. Application web
+	// sessions represent a browser session the client holds.
+	CreateAppWebSession(context.Context, services.CreateAppWebSessionRequest) (services.WebSession, error)
+
+	// CreateAppSession creates an application session. Application sessions
+	// are only created if the calling identity has access to the application requested.
 	CreateAppSession(context.Context, services.CreateAppSessionRequest) (services.AppSession, error)
 }

@@ -712,6 +712,118 @@ func (g *GRPCServer) DeleteAllAppServers(ctx context.Context, req *proto.DeleteA
 	return &empty.Empty{}, nil
 }
 
+// GetAppWebSession gets an application web session.
+func (g *GRPCServer) GetAppWebSession(ctx context.Context, req *proto.GetAppWebSessionRequest) (*proto.GetAppWebSessionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	session, err := auth.GetAppWebSession(ctx, services.GetAppWebSessionRequest{
+		Username:   req.GetUsername(),
+		ParentHash: req.GetParentHash(),
+		SessionID:  req.GetSessionID(),
+	})
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	sess, ok := session.(*services.WebSessionV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unexpected session type %T", session))
+	}
+
+	return &proto.GetAppWebSessionResponse{
+		Session: sess,
+	}, nil
+}
+
+// GetAppWebSessions gets all application web sessions.
+func (g *GRPCServer) GetAppWebSessions(ctx context.Context, _ *empty.Empty) (*proto.GetAppWebSessionsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	sessions, err := auth.GetAppWebSessions(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var out []*services.WebSessionV2
+	for _, session := range sessions {
+		sess, ok := session.(*services.WebSessionV2)
+		if !ok {
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", session))
+		}
+		out = append(out, sess)
+	}
+
+	return &proto.GetAppWebSessionsResponse{
+		Sessions: out,
+	}, nil
+}
+
+// CreateAppWebSession creates an application web session. Application web
+// sessions represent a browser session the client holds.
+func (g *GRPCServer) CreateAppWebSession(ctx context.Context, req *proto.CreateAppWebSessionRequest) (*proto.CreateAppWebSessionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	session, err := auth.CreateAppWebSession(ctx, services.CreateAppWebSessionRequest{
+		Username:      req.GetUsername(),
+		ParentSession: req.GetParentSession(),
+		AppSessionID:  req.GetAppSessionID(),
+		ServerID:      req.GetServerID(),
+		ClusterName:   req.GetClusterName(),
+		Expires:       req.GetExpires(),
+	})
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	sess, ok := session.(*services.WebSessionV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", session))
+	}
+
+	return &proto.CreateAppWebSessionResponse{
+		Session: sess,
+	}, nil
+}
+
+// DeleteAppWebSession removes an application web sessions.
+func (g *GRPCServer) DeleteAppWebSession(ctx context.Context, req *proto.DeleteAppWebSessionRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.DeleteAppWebSession(ctx, services.DeleteAppWebSessionRequest{
+		Username:   req.GetUsername(),
+		ParentHash: req.GetParentHash(),
+		SessionID:  req.GetSessionID(),
+	}); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllAppWebSessions removes all application web sessions.
+func (g *GRPCServer) DeleteAllAppWebSessions(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.DeleteAllAppWebSessions(ctx); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
 // GetAppSession gets an application session.
 func (g *GRPCServer) GetAppSession(ctx context.Context, req *proto.GetAppSessionRequest) (*proto.GetAppSessionResponse, error) {
 	auth, err := g.authenticate(ctx)
@@ -973,6 +1085,10 @@ func eventToGRPC(in services.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_AccessRequest{
 			AccessRequest: r,
 		}
+	case *services.WebSessionV2:
+		out.Resource = &proto.Event_AppWebSession{
+			AppWebSession: r,
+		}
 	case *services.AppSessionV3:
 		out.Resource = &proto.Event_AppSession{
 			AppSession: r,
@@ -1044,6 +1160,9 @@ func eventFromGRPC(in proto.Event) (*services.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetAccessRequest(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetAppWebSession(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetAppSession(); r != nil {
