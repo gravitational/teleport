@@ -199,7 +199,7 @@ Run the following script to download the prerequisites to build BCC tools, build
     ```
 
 === "Amazon Linux"
-    
+
     **Example Script to install relevant bcc packages for Amazon 2 Linux**
 
 
