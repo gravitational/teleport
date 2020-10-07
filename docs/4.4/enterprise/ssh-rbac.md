@@ -92,14 +92,20 @@ spec:
     forward_agent: true
     # port_forwarding controls whether TCP port forwarding is allowed
     port_forwarding: true
-    # determines if SSH sessions to cluster nodes are forcefully terminated
-    # after no activity from a client (idle client). it overrides the global
-    # cluster setting. examples: "30m", "1h" or "1h30m"
+    # client_idle_timeout determines if SSH sessions to cluster nodes are forcefully
+    # terminated after no activity from a client (idle client). it overrides the
+    # global cluster setting. examples: "30m", "1h" or "1h30m"
     client_idle_timeout: never
     # determines if the clients will be forcefully disconnected when their
     # certificates expire in the middle of an active SSH session.
     # it overrides the global cluster setting.
     disconnect_expired_cert: no
+    # Optional: max_connections Per user limit of concurrent sessions within a
+    # cluster.
+    max_connections: 2
+    # Optional: max_sessions total number of session channels which can be established
+    # across a single connection. 10 will match OpenSSH default behavior.
+    max_sessions: 10
 
   # allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. by default nothing is allowed.
@@ -123,11 +129,11 @@ spec:
       'environment': ['test', 'staging']
       # regular expressions are also supported, for example the equivalent
       # of the list example above can be expressed as:
-      'environment': '{{regexp.match("^test|staging$")}}'
+      'environment': '{% raw %}{{regexp.match("^test|staging$")}}{% endraw %}'
       # or using the simpler legacy syntax:
       'environment': '^test|staging$'
       # negative regular expressions can be used to avoid strict deny rules:
-      'environment': '{{regexp.not_match("prod")}}'
+      'environment': '{% raw %}{{regexp.not_match("prod")}}{% endraw %}'
 
     # defines roles that this user can can request.
     # needed for teleport's request workflow
@@ -195,6 +201,8 @@ Option                    | Description                          | Multi-role be
 `port_forwarding`         | Allow TCP port forwarding          | Logical "OR" i.e. if any role allows port forwarding, it's allowed
 `client_idle_timeout`     | Forcefully terminate active SSH sessions after an idle interval | The shortest timeout value wins, i.e. the most restrictive value is selected
 `disconnect_expired_cert` | Forcefully terminate active SSH sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination
+`max_connections`         | Limit on how many Teleport active SSH sessions can be started
+`max_sessions`            | Total number of session channels which can be established across a single SSH connection
 
 
 ## RBAC for Hosts
@@ -261,11 +269,11 @@ spec:
       'environment': ['test', 'staging']
       # regular expressions are also supported, for example the equivalent
       # of the list example above can be expressed as:
-      'environment': '{{regexp.match("^test|staging$")}}'
+      'environment': "{% raw %}{{regexp.match("^test|staging$")}}{% endraw %}"
       # or using the simpler legacy syntax:
       'environment': '^test|staging$'
       # negative regular expressions can be used to avoid strict deny rules:
-      'environment': '{{regexp.not_match("prod")}}'
+      'environment': "{% raw %}{{regexp.not_match("prod")}}{% endraw %}"
 ```
 
 
