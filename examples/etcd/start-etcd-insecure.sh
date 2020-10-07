@@ -6,9 +6,8 @@
 #
 # NOTE: this file is also used to run etcd tests.
 #
-HERE=$(readlink -f "$0")
-# shellcheck disable=SC2046
-cd $(dirname "$HERE") || exit
+HERE=$(readlink -f $0)
+cd "$(dirname $HERE)" || exit
 
 mkdir -p data
 etcd --name teleportstorage \
