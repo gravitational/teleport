@@ -278,17 +278,23 @@ else
 fi
 
 # extract necessary files from tarball
-tar -C "$(pwd)" -xvzf "${TARBALL_DIRECTORY}/${TARBALL_FILENAME}" "${FILE_LIST}"
+# this line actually relies on word splitting as it's a list of files
+# shellcheck disable=SC2086
+tar -C "$(pwd)" -xvzf "${TARBALL_DIRECTORY}/${TARBALL_FILENAME}" ${FILE_LIST}
 
 # move files into correct locations before building the package
 if [[ "${PACKAGE_TYPE}" != "pkg" ]]; then
     if [[ "${LINUX_BINARY_FILE_LIST}" != "" ]]; then
         mkdir -p "${PACKAGE_TEMPDIR}/buildroot${LINUX_BINARY_DIR}"
-        mv -v "${LINUX_BINARY_FILE_LIST}" "${PACKAGE_TEMPDIR}/buildroot${LINUX_BINARY_DIR}"
+        # this relies on word splitting as it's a list of files
+        # shellcheck disable=SC2086
+        mv -v ${LINUX_BINARY_FILE_LIST} "${PACKAGE_TEMPDIR}/buildroot${LINUX_BINARY_DIR}"
     fi
     if [[ "${LINUX_SYSTEMD_FILE_LIST}" != "" ]]; then
         mkdir -p "${PACKAGE_TEMPDIR}/buildroot${LINUX_SYSTEMD_DIR}"
-        mv -v "${LINUX_SYSTEMD_FILE_LIST}" "${PACKAGE_TEMPDIR}/buildroot${LINUX_SYSTEMD_DIR}"
+        # this relies on word splitting as it's a list of files
+        # shellcheck disable=SC2086
+        mv -v ${LINUX_SYSTEMD_FILE_LIST} "${PACKAGE_TEMPDIR}/buildroot${LINUX_SYSTEMD_DIR}"
     fi
     if [[ "${LINUX_CONFIG_FILE}" != "" ]]; then
         mkdir -p "${PACKAGE_TEMPDIR}/buildroot${LINUX_CONFIG_DIR}"
