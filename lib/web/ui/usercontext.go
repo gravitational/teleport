@@ -43,6 +43,8 @@ type userACL struct {
 	TrustedClusters access `json:"trustedClusters"`
 	// Events defines access to audit logs
 	Events access `json:"events"`
+	// AppServers defines access to application servers.
+	AppServers access `json:"appServers"`
 	// SSH defines access to servers
 	SSHLogins []string `json:"sshLogins"`
 }
@@ -118,9 +120,11 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*userContex
 	trustedClusterAccess := newAccess(userRoles, ctx, services.KindTrustedCluster)
 	eventAccess := newAccess(userRoles, ctx, services.KindEvent)
 	userAccess := newAccess(userRoles, ctx, services.KindUser)
+	appServerAccess := newAccess(userRoles, ctx, "TODO: ADD THE RIGHT RESOURCE")
 	logins := getLogins(userRoles)
 
 	acl := userACL{
+		AppServers:      appServerAccess,
 		AuthConnectors:  authConnectors,
 		TrustedClusters: trustedClusterAccess,
 		Sessions:        sessionAccess,
