@@ -99,7 +99,7 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets lint
 
-  - name: Run unit tests
+  - name: Run unit and chaos tests
     image: docker
     environment:
       GOPATH: /go
@@ -2792,6 +2792,6 @@ volumes:
 
 ---
 kind: signature
-hmac: f47f415ffb75d0ef2f5ecfb6bd9b982f8f0c50fe6eaee28fbc6a6950b9c5e0f1
+hmac: fada4e800dbad247638e74e9ec61d41597257507fba5f35e18b9182be2278a21
 
 ...
