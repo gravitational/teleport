@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-# shellcheck disable=SC2086
 usage() { echo "Usage: $(basename $0) [-t <oss/ent>] [-v <version>] [-p <package type>] <-a [amd64/x86_64]|[386/i386]> <-r go1.9.7|fips> <-s tarball source dir> <-m tsh>" 1>&2; exit 1; }
 while getopts ":t:v:p:a:r:s:m:" o; do
     case "${o}" in
@@ -260,14 +259,14 @@ pushd "$(mktemp -d)"
 PACKAGE_TEMPDIR=$(pwd)
 # automatically clean up on exit
 trap 'rm -rf ${PACKAGE_TEMPDIR}' EXIT
-mkdir -p "${PACKAGE_TEMPDIR}/buildroot"
+mkdir -p ${PACKAGE_TEMPDIR}/buildroot
 
 # implement a rudimentary download cache for repeat builds on the same host
-mkdir -p "${TARBALL_DIRECTORY}"
-if [ ! -f "${TARBALL_DIRECTORY}/${TARBALL_FILENAME}" ]; then
+mkdir -p ${TARBALL_DIRECTORY}
+if [ ! -f ${TARBALL_DIRECTORY}/${TARBALL_FILENAME} ]; then
     if [[ "${DOWNLOAD_IF_NEEDED}" == "true" ]]; then
         echo "Downloading ${URL} to ${TARBALL_DIRECTORY}"
-        curl -sL "${URL}" -o "${TARBALL_DIRECTORY}/${TARBALL_FILENAME}"
+        curl -sL ${URL} -o ${TARBALL_DIRECTORY}/${TARBALL_FILENAME}
     else
         echo "Can't find ${TARBALL_DIRECTORY}/${TARBALL_FILENAME}"
         echo "Downloading from ${DOWNLOAD_ROOT} is disabled when a path is provided with -s"
@@ -278,32 +277,32 @@ else
 fi
 
 # extract necessary files from tarball
-tar -C "$(pwd)" -xvzf "${TARBALL_DIRECTORY}/${TARBALL_FILENAME}" "${FILE_LIST}"
+tar -C "$(pwd)" -xvzf ${TARBALL_DIRECTORY}/${TARBALL_FILENAME} ${FILE_LIST}
 
 # move files into correct locations before building the package
 if [[ "${PACKAGE_TYPE}" != "pkg" ]]; then
     if [[ "${LINUX_BINARY_FILE_LIST}" != "" ]]; then
-        mkdir -p "${PACKAGE_TEMPDIR}/buildroot${LINUX_BINARY_DIR}"
-        mv -v "${LINUX_BINARY_FILE_LIST}" "${PACKAGE_TEMPDIR}/buildroot${LINUX_BINARY_DIR}"
+        mkdir -p ${PACKAGE_TEMPDIR}/buildroot${LINUX_BINARY_DIR}
+        mv -v ${LINUX_BINARY_FILE_LIST} ${PACKAGE_TEMPDIR}/buildroot${LINUX_BINARY_DIR}
     fi
     if [[ "${LINUX_SYSTEMD_FILE_LIST}" != "" ]]; then
-        mkdir -p "${PACKAGE_TEMPDIR}/buildroot${LINUX_SYSTEMD_DIR}"
-        mv -v "${LINUX_SYSTEMD_FILE_LIST}" "${PACKAGE_TEMPDIR}/buildroot${LINUX_SYSTEMD_DIR}"
+        mkdir -p ${PACKAGE_TEMPDIR}/buildroot${LINUX_SYSTEMD_DIR}
+        mv -v ${LINUX_SYSTEMD_FILE_LIST} ${PACKAGE_TEMPDIR}/buildroot${LINUX_SYSTEMD_DIR}
     fi
     if [[ "${LINUX_CONFIG_FILE}" != "" ]]; then
-        mkdir -p "${PACKAGE_TEMPDIR}/buildroot${LINUX_CONFIG_DIR}"
-        mv -v "${LINUX_CONFIG_FILE}" "${PACKAGE_TEMPDIR}/buildroot${LINUX_CONFIG_DIR}"
+        mkdir -p ${PACKAGE_TEMPDIR}/buildroot${LINUX_CONFIG_DIR}
+        mv -v ${LINUX_CONFIG_FILE} ${PACKAGE_TEMPDIR}/buildroot${LINUX_CONFIG_DIR}
         CONFIG_FILE_STANZA="--config-files /src/buildroot${LINUX_CONFIG_DIR}/${LINUX_CONFIG_FILE} "
     fi
     # /var/lib/teleport
     # shellcheck disable=SC2174
-    mkdir -p -m0700 "${PACKAGE_TEMPDIR}/buildroot${LINUX_DATA_DIR}"
+    mkdir -p -m0700 ${PACKAGE_TEMPDIR}/buildroot${LINUX_DATA_DIR}
 fi
 popd
 
 if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
     # erase any existing versions of the package in the output directory first
-    rm -f "${PKG_FILENAME}"
+    rm -f ${PKG_FILENAME}
 
     if [[ "${SIGN_PKG}" == "true" ]]; then
         # run codesign to sign binaries
@@ -313,31 +312,31 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
                 -v \
                 --timestamp \
                 --options runtime \
-                "${PACKAGE_TEMPDIR}/${FILE}"
+                ${PACKAGE_TEMPDIR}/${FILE}
         done
     fi
 
     # build the package for OS X
     pkgbuild \
-        --root "${PACKAGE_TEMPDIR}/${TAR_PATH}" \
+        --root ${PACKAGE_TEMPDIR}/${TAR_PATH} \
         --identifier ${BUNDLE_ID} \
-        --version "${TELEPORT_VERSION}" \
+        --version ${TELEPORT_VERSION} \
         --install-location /usr/local/bin \
-        "${PKG_FILENAME}"
+        ${PKG_FILENAME}
 
     if [[ "${SIGN_PKG}" == "true" ]]; then
         # mark package as unsigned first
-        mv "${PKG_FILENAME}" "${PKG_FILENAME}.unsigned"
+        mv ${PKG_FILENAME} ${PKG_FILENAME}.unsigned
 
         # run productsign to sign package
         productsign \
             --sign "${DEVELOPER_ID_INSTALLER}" \
             --timestamp \
-            "${PKG_FILENAME}.unsigned" \
-            "${PKG_FILENAME}"
+            ${PKG_FILENAME}.unsigned \
+            ${PKG_FILENAME}
 
         # remove unsigned package after successful signing
-        rm -f "${PKG_FILENAME}.unsigned"
+        rm -f ${PKG_FILENAME}.unsigned
     fi
 
     # write gon config file
@@ -352,25 +351,25 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
                 \"username\": \"${APPLE_USERNAME}\",
                 \"password\": \"${APPLE_PASSWORD}\"
             }
-        }" > "${PACKAGE_TEMPDIR}/gon-config.json"
+        }" > ${PACKAGE_TEMPDIR}/gon-config.json
 
         # notarise built package using gon
-        gon "${PACKAGE_TEMPDIR}/gon-config.json"
+        gon ${PACKAGE_TEMPDIR}/gon-config.json
     fi
 
     # checksum created packages
     for PACKAGE in *."${PACKAGE_TYPE}"; do
-        shasum -a 256 "${PACKAGE}" > "${PACKAGE}.sha256"
+        shasum -a 256 ${PACKAGE} > ${PACKAGE}.sha256
     done
 else
     # erase any existing packages of the same type/version/arch in the output directory first
-    rm -vf "${OUTPUT_FILENAME}"
+    rm -vf ${OUTPUT_FILENAME}
 
     # build for other platforms
-    docker run -v "${PACKAGE_TEMPDIR}:/src" --rm ${DOCKER_IMAGE} \
+    docker run -v ${PACKAGE_TEMPDIR}:/src --rm ${DOCKER_IMAGE} \
         fpm \
         --input-type dir \
-        --output-type "${PACKAGE_TYPE}" \
+        --output-type ${PACKAGE_TYPE} \
         --name ${TAR_PATH} \
         --version "${TELEPORT_VERSION}" \
         --maintainer "${MAINTAINER}" \
@@ -379,20 +378,20 @@ else
         --vendor "${VENDOR}" \
         --description "${DESCRIPTION} ${TYPE_DESCRIPTION}" \
         --architecture ${ARCH} \
-        --package "${OUTPUT_FILENAME}" \
+        --package ${OUTPUT_FILENAME} \
         --chdir /src/buildroot \
         --directories ${LINUX_DATA_DIR} \
         --provides teleport \
         --prefix / \
         --verbose \
-        "${CONFIG_FILE_STANZA}" \
-        "${FILE_PERMISSIONS_STANZA}" .
+        ${CONFIG_FILE_STANZA} \
+        ${FILE_PERMISSIONS_STANZA} .
 
     # copy created package back to current directory
-    cp "${PACKAGE_TEMPDIR}/*.${PACKAGE_TYPE}" .
+    cp ${PACKAGE_TEMPDIR}/*."${PACKAGE_TYPE}" .
 
     # checksum created packages
     for FILE in *."${PACKAGE_TYPE}"; do
-        sha256sum "${FILE}" > "${FILE}.sha256"
+        sha256sum ${FILE} > ${FILE}.sha256
     done
 fi
