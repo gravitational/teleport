@@ -5,6 +5,7 @@ package hdrhistogram
 
 import (
 	"fmt"
+	"io"
 	"math"
 )
 
@@ -102,6 +103,10 @@ func New(minValue, maxValue int64, sigfigs int) *Histogram {
 // small, constant, and specific to the compiler version.
 func (h *Histogram) ByteSize() int {
 	return 6*8 + 5*4 + len(h.counts)*8
+}
+
+func (h *Histogram) getNormalizingIndexOffset() int32 {
+	return 1
 }
 
 // Merge merges the data stored in the given histogram with the receiver,
@@ -232,10 +237,14 @@ func (h *Histogram) RecordValues(v, n int64) error {
 	if idx < 0 || int(h.countsLen) <= idx {
 		return fmt.Errorf("value %d is too large to be recorded", v)
 	}
-	h.counts[idx] += n
-	h.totalCount += n
+	h.setCountAtIndex(idx, n)
 
 	return nil
+}
+
+func (h *Histogram) setCountAtIndex(idx int, n int64) {
+	h.counts[idx] += n
+	h.totalCount += n
 }
 
 // ValueAtQuantile returns the recorded value at the given quantile (0..100).
@@ -455,6 +464,10 @@ func (h *Histogram) countsIndexFor(v int64) int {
 	return int(h.countsIndex(bucketIdx, subBucketIdx))
 }
 
+func (h *Histogram) getIntegerToDoubleValueConversionRatio() float64 {
+	return 1.0
+}
+
 type iterator struct {
 	h                                    *Histogram
 	bucketIdx, subBucketIdx              int32
@@ -560,5 +573,57 @@ func bitLen(x int64) (n int64) {
 	if x >= 0x1 {
 		n++
 	}
+	return
+}
+
+// CumulativeDistribution returns an ordered list of brackets of the
+// distribution of recorded values.
+func (h *Histogram) CumulativeDistributionWithTicks(ticksPerHalfDistance int32) []Bracket {
+	var result []Bracket
+
+	i := h.pIterator(ticksPerHalfDistance)
+	for i.next() {
+		result = append(result, Bracket{
+			Quantile: i.percentile,
+			Count:    i.countToIdx,
+			ValueAt:  int64(i.highestEquivalentValue),
+		})
+	}
+
+	return result
+}
+
+// Output the percentiles distribution in a text format
+func (h *Histogram) PercentilesPrint(writer io.Writer, ticksPerHalfDistance int32, valueScale float64) (outputWriter io.Writer, err error) {
+	outputWriter = writer
+	dist := h.CumulativeDistributionWithTicks(ticksPerHalfDistance)
+	_, err = outputWriter.Write([]byte(" Value\tPercentile\tTotalCount\t1/(1-Percentile)\n\n"))
+	if err != nil {
+		return
+	}
+	for _, slice := range dist {
+		percentile := slice.Quantile / 100.0
+		inverted_percentile := 1.0 / (1.0 - percentile)
+		var inverted_percentile_string = fmt.Sprintf("%12.2f", inverted_percentile)
+		// Given that other language implementations display inf (instead of Go's +Inf)
+		// we want to be as close as possible to them
+		if math.IsInf(inverted_percentile, 1) {
+			inverted_percentile_string = fmt.Sprintf("%12s", "inf")
+		}
+		_, err = outputWriter.Write([]byte(fmt.Sprintf("%12.3f %12f %12d %s\n", float64(slice.ValueAt)/valueScale, percentile, slice.Count, inverted_percentile_string)))
+		if err != nil {
+			return
+		}
+	}
+
+	footer := fmt.Sprintf("#[Mean    = %12.3f, StdDeviation   = %12.3f]\n#[Max     = %12.3f, Total count    = %12d]\n#[Buckets = %12d, SubBuckets     = %12d]\n",
+		h.Mean()/valueScale,
+		h.StdDev()/valueScale,
+		float64(h.Max())/valueScale,
+		h.TotalCount(),
+		h.bucketCount,
+		h.subBucketCount,
+	)
+	_, err = outputWriter.Write([]byte(footer))
 	return
 }

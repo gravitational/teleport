@@ -35,7 +35,7 @@ github.com/Azure/go-autorest/logger
 github.com/Azure/go-autorest/tracing
 # github.com/BurntSushi/toml v0.3.1
 github.com/BurntSushi/toml
-# github.com/HdrHistogram/hdrhistogram-go v0.9.0
+# github.com/HdrHistogram/hdrhistogram-go v0.9.1-0.20201006155429-aada4ab574ea
 ## explicit
 github.com/HdrHistogram/hdrhistogram-go
 # github.com/Microsoft/go-winio v0.4.9
@@ -120,8 +120,6 @@ github.com/boombuler/barcode/utils
 # github.com/cjbassi/drawille-go v0.1.0
 ## explicit
 github.com/cjbassi/drawille-go
-# github.com/codahale/hdrhistogram v0.9.0
-## explicit
 # github.com/coreos/go-oidc v0.0.3 => github.com/gravitational/go-oidc v0.0.3
 ## explicit
 github.com/coreos/go-oidc/http
@@ -129,13 +127,12 @@ github.com/coreos/go-oidc/jose
 github.com/coreos/go-oidc/key
 github.com/coreos/go-oidc/oauth2
 github.com/coreos/go-oidc/oidc
-# github.com/coreos/go-semver v0.2.0
+# github.com/coreos/go-semver v0.3.0
 ## explicit
 github.com/coreos/go-semver/semver
 # github.com/coreos/go-systemd/v22 v22.0.0
 github.com/coreos/go-systemd/v22/journal
-# github.com/coreos/pkg v0.0.0-20160727233714-3ac0863d7acf
-## explicit
+# github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 github.com/coreos/pkg/health
 github.com/coreos/pkg/httputil
 github.com/coreos/pkg/timeutil
@@ -197,7 +194,7 @@ github.com/golang/protobuf/ptypes/wrappers
 # github.com/google/btree v1.0.0
 ## explicit
 github.com/google/btree
-# github.com/google/go-cmp v0.5.1
+# github.com/google/go-cmp v0.5.2
 ## explicit
 github.com/google/go-cmp/cmp
 github.com/google/go-cmp/cmp/internal/diff
@@ -290,12 +287,10 @@ github.com/julienschmidt/httprouter
 # github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 ## explicit
 github.com/kardianos/osext
-# github.com/kr/pretty v0.2.0
-github.com/kr/pretty
 # github.com/kr/pty v1.1.1
 ## explicit
 github.com/kr/pty
-# github.com/kr/text v0.1.0
+# github.com/kr/text v0.2.0
 github.com/kr/text
 # github.com/kylelemons/godebug v0.0.0-20160406211939-eadb3ce320cb
 ## explicit
@@ -336,9 +331,11 @@ github.com/mitchellh/go-wordwrap
 github.com/modern-go/concurrent
 # github.com/modern-go/reflect2 v1.0.1
 github.com/modern-go/reflect2
+# github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e
+github.com/niemeyer/pretty
 # github.com/nsf/termbox-go v0.0.0-20190121233118-02980233997d
 github.com/nsf/termbox-go
-# github.com/pborman/uuid v0.0.0-20170612153648-e790cca94e6c
+# github.com/pborman/uuid v1.2.0
 ## explicit
 github.com/pborman/uuid
 # github.com/pmezard/go-difflib v1.0.0
@@ -385,7 +382,7 @@ github.com/satori/go.uuid
 # github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500
 ## explicit
 github.com/shabbyrobe/gocovmerge
-# github.com/sirupsen/logrus v1.4.2 => github.com/gravitational/logrus v0.10.1-0.20171120195323-8ab1e1b91d5f
+# github.com/sirupsen/logrus v1.6.0 => github.com/gravitational/logrus v0.10.1-0.20171120195323-8ab1e1b91d5f
 ## explicit
 github.com/sirupsen/logrus
 github.com/sirupsen/logrus/hooks/syslog
@@ -529,8 +526,7 @@ golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
 # golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 golang.org/x/time/rate
-# golang.org/x/tools v0.0.0-20200806022845-90696ccdc692
-## explicit
+# golang.org/x/tools v0.0.0-20200812195022-5ae4c3c160a0
 golang.org/x/tools/cmd/goimports
 golang.org/x/tools/cover
 golang.org/x/tools/go/analysis
@@ -555,10 +551,10 @@ golang.org/x/tools/internal/fastwalk
 golang.org/x/tools/internal/gocommand
 golang.org/x/tools/internal/gopathwalk
 golang.org/x/tools/internal/imports
+golang.org/x/tools/internal/lsp/fuzzy
 golang.org/x/tools/internal/packagesinternal
 golang.org/x/tools/internal/typesinternal
 # golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
-## explicit
 golang.org/x/xerrors
 golang.org/x/xerrors/internal
 # google.golang.org/api v0.22.0
@@ -697,20 +693,19 @@ google.golang.org/protobuf/types/known/structpb
 google.golang.org/protobuf/types/known/timestamppb
 google.golang.org/protobuf/types/known/wrapperspb
 google.golang.org/protobuf/types/pluginpb
-# gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15
+# gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
 ## explicit
 gopkg.in/check.v1
 # gopkg.in/inf.v0 v0.9.1
 gopkg.in/inf.v0
-# gopkg.in/yaml.v2 v2.2.8
+# gopkg.in/yaml.v2 v2.3.0
 ## explicit
 gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
 gopkg.in/yaml.v3
 # gotest.tools v2.2.0+incompatible
 ## explicit
-# honnef.co/go/tools v0.0.1-2020.1.4
-## explicit
+# honnef.co/go/tools v0.0.1-2020.1.5
 honnef.co/go/tools/arg
 honnef.co/go/tools/cmd/staticcheck
 honnef.co/go/tools/code
