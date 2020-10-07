@@ -1,7 +1,7 @@
 version: '2'
 services:
   etcd0:
-    image: quay.io/coreos/etcd:v3.1.16
+    image: quay.io/coreos/etcd:v3.4.13
     ports:
       - 2379
     networks:
@@ -35,7 +35,7 @@ services:
       - --client-cert-auth
       - --peer-client-cert-auth            
   etcd1:
-    image: quay.io/coreos/etcd:v3.1.16
+    image: quay.io/coreos/etcd:v3.4.13
     ports:
       - 2379
     networks:
@@ -69,7 +69,7 @@ services:
       - --client-cert-auth
       - --peer-client-cert-auth                  
   etcd2:
-    image: quay.io/coreos/etcd:v3.1.16
+    image: quay.io/coreos/etcd:v3.4.13
     networks:
       etcd:
         ipv4_address: 172.11.1.3
