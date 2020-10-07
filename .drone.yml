@@ -126,11 +126,11 @@ steps:
     commands:
       - apk add --no-cache make
       # write kubeconfig to disk for use in kube integrations tests
-      - echo "$INTEGRATION_CI_KUBECONFIG" > /go/kubeconfig.ci
+      - echo "$INTEGRATION_CI_KUBECONFIG" > "$KUBECONFIG"
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets integration
-      - rm -f /go/kubeconfig.ci
+      - rm -f "$KUBECONFIG"
 
 services:
   - name: Start Docker
@@ -2792,6 +2792,6 @@ volumes:
 
 ---
 kind: signature
-hmac: d274d308b282db08a4cd0fcf098657c59a272cc450e7429752cdf1c0a6de5383
+hmac: f47f415ffb75d0ef2f5ecfb6bd9b982f8f0c50fe6eaee28fbc6a6950b9c5e0f1
 
 ...
