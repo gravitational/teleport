@@ -602,16 +602,39 @@ func (s *IdentityService) GetWebSession(user, sid string) (services.WebSession, 
 	return session, nil
 }
 
-// DeleteWebSession deletes web session from the storage
-func (s *IdentityService) DeleteWebSession(user, sid string) error {
+// DeleteWebSession deletes the Web UI session as well as any application
+// specific sessions that may have been created from that parent Web UI session.
+func (s *IdentityService) DeleteWebSession(user string, sessionID string) error {
+	ctx := context.TODO()
+
 	if user == "" {
 		return trace.BadParameter("missing username")
 	}
-	if sid == "" {
+	if sessionID == "" {
 		return trace.BadParameter("missing session id")
 	}
-	err := s.Delete(context.TODO(), backend.Key(webPrefix, usersPrefix, user, sessionsPrefix, sid))
-	return trace.Wrap(err)
+
+	// Delete Web UI session.
+	key := backend.Key(webPrefix, usersPrefix, user, sessionsPrefix, sessionID)
+	if err := s.Delete(ctx, key); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Delete all application specific sessions.
+	if err := s.DeleteChildWebSessions(ctx, user, sessionID); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// DeleteChildWebSessions removes all child application web sessions for a user.
+func (s *IdentityService) DeleteChildWebSessions(ctx context.Context, user string, sessionID string) error {
+	startKey := backend.Key(webPrefix, sessionsPrefix, appsPrefix, user, services.SessionHash(sessionID))
+	if err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey)); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // UpsertPassword upserts new password hash into a backend.

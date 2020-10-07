@@ -1124,6 +1124,61 @@ message SemaphoreSpecV3 {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "leases" ];
 }
 
+// WebSessionV2 represents a web session for either the Web UI or a particular
+// proxied application (AAP).
+message WebSessionV2 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is a resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is a resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is a tunnel specification.
+    WebSessionSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// WebSessionSpecV2 is a specification for web session.
+message WebSessionSpecV2 {
+    // User is the identity of the user to which the web session belongs.
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
+    // Pub is the SSH certificate for the user.
+    bytes Pub = 2 [ (gogoproto.jsontag) = "pub" ];
+    // Priv is the SSH private key for the user.
+    bytes Priv = 3 [ (gogoproto.jsontag) = "priv,omitempty" ];
+    // TLSCert is the TLS certificate for the user.
+    bytes TLSCert = 4 [ (gogoproto.jsontag) = "tls_cert,omitempty" ];
+    // BearerToken is a token that is paired with the session cookie for
+    // authentication. It is periodically rotated so a stolen cookie itself
+    // is not enough to steal a session. In addition it is used for CSRF
+    // mitigation.
+    string BearerToken = 5 [ (gogoproto.jsontag) = "bearer_token" ];
+    // BearerTokenExpires is the absolute time when the token expires.
+    google.protobuf.Timestamp BearerTokenExpires = 6 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "bearer_token_expires"
+    ];
+    // Expires is the absolute time when the session expires.
+    google.protobuf.Timestamp Expires = 7 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "expires"
+    ];
+    // ParentHash is the has of the parent session ID.
+    string ParentHash = 8 [ (gogoproto.jsontag) = "parent_hash,omitempty" ];
+    // ServerID is the ID of the application server that will forward the request.
+    string ServerID = 10 [ (gogoproto.jsontag) = "server_id,omitempty" ];
+    // ClusterName is the name of the cluster that the application session resides in.
+    string ClusterName = 11 [ (gogoproto.jsontag) = "cluster_name,omitempty" ];
+    // SessionID is the application session ID.
+    string SessionID = 9 [ (gogoproto.jsontag) = "session_id,omitempty" ];
+}
+
 // AppSession represents a specific application session.
 message AppSessionV3 {
     option (gogoproto.goproto_stringer) = false;

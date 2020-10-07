@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"runtime/debug"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"

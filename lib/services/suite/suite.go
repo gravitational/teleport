@@ -497,7 +497,7 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *check.C) {
 	c.Assert(trace.IsNotFound(err), check.Equals, true, check.Commentf("%#v", err))
 
 	dt := time.Date(2015, 6, 5, 4, 3, 2, 1, time.UTC).UTC()
-	ws := services.NewWebSession("sid1", services.WebSessionSpecV2{
+	ws := services.NewWebSession("sid1", services.KindWebSession, services.WebSessionSpecV2{
 		Pub:     []byte("pub123"),
 		Priv:    []byte("priv123"),
 		Expires: dt,
@@ -509,8 +509,8 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.DeepEquals, ws)
 
-	ws1 := services.NewWebSession(
-		"sid1", services.WebSessionSpecV2{Pub: []byte("pub321"), Priv: []byte("priv321"), Expires: dt})
+	ws1 := services.NewWebSession("sid1", services.KindWebSession,
+		services.WebSessionSpecV2{Pub: []byte("pub321"), Priv: []byte("priv321"), Expires: dt})
 	err = s.WebS.UpsertWebSession("user1", "sid1", ws1)
 	c.Assert(err, check.IsNil)
 

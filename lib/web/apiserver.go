@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/gravitational/roundtrip"
@@ -112,15 +113,51 @@ type Config struct {
 	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
 	FIPS bool
+
+	// AccessPoint holds a cache to the Auth Server.
+	AccessPoint auth.AccessPoint
 }
 
 type RewritingHandler struct {
 	http.Handler
 	handler *Handler
+
+	// appHandler is a http.Handler to forward requests to applications.
+	appHandler *app.Handler
+
+	// publicAddr is the public address the proxy is running at.
+	publicAddr string
 }
 
-func (r *RewritingHandler) Close() error {
-	return r.handler.Close()
+// Check if this request should be forwarded to an application handler to
+// handled by the UI and redirect the request appropriately.
+func (h *RewritingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Check if the request is targeting the fragment authentication endpoint or
+	// if an application specific session cookie exists. If it does, forward the
+	// request to the application specific handlers.
+	if h.appHandler.IsAuthenticatedApp(r) {
+		h.appHandler.ServeHTTP(w, r)
+		return
+	}
+
+	// TODO(russjones): Only do this check if applications are registered.
+	// Check if the request in unauthenticated, but targeting an application. If
+	// it is, redirect to the launcher.
+	if launcherURL, ok := h.appHandler.IsUnauthenticatedApp(r, h.publicAddr); ok {
+		http.Redirect(w, r, launcherURL, http.StatusFound)
+		return
+	}
+
+	// Serve the Web UI.
+	h.Handler.ServeHTTP(w, r)
+}
+
+func (h *RewritingHandler) GetHandler() *Handler {
+	return h.handler
+}
+
+func (h *RewritingHandler) Close() error {
+	return h.handler.Close()
 }
 
 // NewHandler returns a new instance of web proxy handler
@@ -160,8 +197,19 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// Unauthenticated access to public keys.
 	h.GET("/webapi/certs", httplib.MakeHandler(h.jwtPublicKeys))
 
-	// Web sessions
+	// DELETE IN: 5.1.0
+	//
+	// Migrated this endpoint to /webapi/sessions/web below.
 	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.createSession))
+
+	// Web sessions
+	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.createWebSession))
+	// TODO(russjones): Add a rate limiter to this endpoint. A rate limiter is
+	// needed because the proxy will create a session without checking if the
+	// caller has access to the target application. That access check occurs on
+	// the remote side. So rate limit here to prevent someone from doing a DOS
+	// attack by creating a bunch of phony sessions.
+	h.POST("/webapi/sessions/app", h.WithAuth(h.createAppSession))
 	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
 	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
 
@@ -183,6 +231,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// get nodes
 	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes", h.WithClusterAuth(h.siteNodesGet))
+
+	// get aap applications
+	h.GET("/webapi/sites/:site/apps", h.WithClusterAuth(h.siteAppsGet))
 
 	// active sessions handlers
 	h.GET("/webapi/sites/:site/namespaces/:namespace/connect", h.WithClusterAuth(h.siteNodeConnect))       // connect to an active session (via websocket)
@@ -325,6 +376,17 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		plugin.AddHandlers(h)
 	}
 
+	// Create application specific handler. This handler handles sessions and
+	// forwarding for AAP applications.
+	appHandler, err := app.NewHandler(&app.HandlerConfig{
+		Clock:       h.clock,
+		AccessPoint: cfg.AccessPoint,
+		ProxyClient: cfg.Proxy,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &RewritingHandler{
 		Handler: httplib.RewritePaths(h,
 			httplib.Rewrite("/webapi/sites/([^/]+)/sessions/(.*)", "/webapi/sites/$1/namespaces/default/sessions/$2"),
@@ -332,7 +394,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 			httplib.Rewrite("/webapi/sites/([^/]+)/nodes", "/webapi/sites/$1/namespaces/default/nodes"),
 			httplib.Rewrite("/webapi/sites/([^/]+)/connect", "/webapi/sites/$1/namespaces/default/connect"),
 		),
-		handler: h,
+		handler:    h,
+		appHandler: appHandler,
+		publicAddr: cfg.ProxySettings.SSH.PublicAddr,
 	}, nil
 }
 
@@ -360,7 +424,6 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	// Extract services.RoleSet from certificate.
 	cert, _, err := c.GetCertificates()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1140,6 +1203,13 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	}, nil
 }
 
+// DELETE IN: 5.1.0
+//
+// Migrated this endpoint to /webapi/sessions/web below.
+func (h *Handler) createSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	return h.createWebSession(w, r, p)
+}
+
 // createSession creates a new web session based on user, pass and 2nd factor token
 //
 // POST /v1/webapi/sessions
@@ -1150,7 +1220,7 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 //
 // {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
 //
-func (h *Handler) createSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *createSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)

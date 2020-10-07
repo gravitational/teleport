@@ -17,12 +17,15 @@ limitations under the License.
 package services
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/trace"
 )
@@ -30,7 +33,8 @@ import (
 // WebSession stores key and value used to authenticate with SSH
 // notes on behalf of user
 type WebSession interface {
-	GetMetadata() Metadata
+	// Resource represents common properties for all resources.
+	Resource
 	// GetShortName returns visible short name used in logging
 	GetShortName() string
 	// GetName returns session name
@@ -49,6 +53,22 @@ type WebSession interface {
 	SetPriv([]byte)
 	// GetTLSCert returns PEM encoded TLS certificate associated with session
 	GetTLSCert() []byte
+	// GetSessionID gets the application session ID.
+	GetSessionID() string
+	// SetSessionID sets the application session ID.
+	SetSessionID(string)
+	// GetServerID gets the ID of the server the application is running on.
+	GetServerID() string
+	// GetServerID sets the ID of the server the application is running on.
+	SetServerID(string)
+	// GetParentHash gets the hash of the parent session.
+	GetParentHash() string
+	// SetParentHash sets the hash of the parent session.
+	SetParentHash(string)
+	// ClusterName gets the name of the cluster in which the application is running.
+	GetClusterName() string
+	// ClusterName sets the name of the cluster in which the application is running.
+	SetClusterName(string)
 	// BearerToken is a special bearer token used for additional
 	// bearer authentication
 	GetBearerToken() string
@@ -68,12 +88,16 @@ type WebSession interface {
 	WithoutSecrets() WebSession
 	// CheckAndSetDefaults checks and set default values for any missing fields.
 	CheckAndSetDefaults() error
+	// String returns string representation of the session.
+	String() string
+	// Expiry is the expiration time for this resource.
+	Expiry() time.Time
 }
 
 // NewWebSession returns new instance of the web session based on the V2 spec
-func NewWebSession(name string, spec WebSessionSpecV2) WebSession {
+func NewWebSession(name string, kind string, spec WebSessionSpecV2) WebSession {
 	return &WebSessionV2{
-		Kind:    KindWebSession,
+		Kind:    kind,
 		Version: V2,
 		Metadata: Metadata{
 			Name:      name,
@@ -83,40 +107,52 @@ func NewWebSession(name string, spec WebSessionSpecV2) WebSession {
 	}
 }
 
-// WebSessionV2 is version 2 spec for session
-type WebSessionV2 struct {
-	// Kind is a resource kind
-	Kind string `json:"kind"`
-	// Version is version
-	Version string `json:"version"`
-	// Metadata is connector metadata
-	Metadata Metadata `json:"metadata"`
-	// Spec contains cert authority specification
-	Spec WebSessionSpecV2 `json:"spec"`
+func (r *WebSessionV2) GetKind() string {
+	return r.Kind
 }
 
-// WebSessionSpecV2 is a spec for V2 session
-type WebSessionSpecV2 struct {
-	// User is a user this web session belongs to
-	User string `json:"user"`
-	// Pub is a public certificate signed by auth server
-	Pub []byte `json:"pub"`
-	// Priv is a private OpenSSH key used to auth with SSH nodes
-	Priv []byte `json:"priv,omitempty"`
-	// TLSCert is a TLS certificate used to auth with auth server
-	TLSCert []byte `json:"tls_cert,omitempty"`
-	// BearerToken is a special bearer token used for additional
-	// bearer authentication
-	BearerToken string `json:"bearer_token"`
-	// BearerTokenExpires - absolute time when token expires
-	BearerTokenExpires time.Time `json:"bearer_token_expires"`
-	// Expires - absolute time when session expires
-	Expires time.Time `json:"expires"`
+func (r *WebSessionV2) GetSubKind() string {
+	return r.SubKind
 }
 
-// GetMetadata returns metadata
-func (ws *WebSessionV2) GetMetadata() Metadata {
-	return ws.Metadata
+func (r *WebSessionV2) SetSubKind(subKind string) {
+	r.SubKind = subKind
+}
+
+func (r *WebSessionV2) GetVersion() string {
+	return r.Version
+}
+
+func (r *WebSessionV2) GetName() string {
+	return r.Metadata.Name
+}
+
+func (r *WebSessionV2) SetName(name string) {
+	r.Metadata.Name = name
+}
+
+func (r *WebSessionV2) Expiry() time.Time {
+	return r.Metadata.Expiry()
+}
+
+func (r *WebSessionV2) SetExpiry(expiry time.Time) {
+	r.Metadata.SetExpiry(expiry)
+}
+
+func (r *WebSessionV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+	r.Metadata.SetTTL(clock, ttl)
+}
+
+func (r *WebSessionV2) GetMetadata() Metadata {
+	return r.Metadata
+}
+
+func (r *WebSessionV2) GetResourceID() int64 {
+	return r.Metadata.GetID()
+}
+
+func (r *WebSessionV2) SetResourceID(id int64) {
+	r.Metadata.SetID(id)
 }
 
 // WithoutSecrets returns copy of the object but without secrets
@@ -136,9 +172,9 @@ func (ws *WebSessionV2) CheckAndSetDefaults() error {
 	return nil
 }
 
-// SetName sets session name
-func (ws *WebSessionV2) SetName(name string) {
-	ws.Metadata.Name = name
+// String returns string representation of the session.
+func (ws *WebSessionV2) String() string {
+	return fmt.Sprintf("WebSession(kind=%v,name=%v,id=%v)", ws.GetKind(), ws.GetUser(), ws.GetName())
 }
 
 // SetUser sets user associated with this session
@@ -159,14 +195,45 @@ func (ws *WebSessionV2) GetShortName() string {
 	return ws.Metadata.Name[:4]
 }
 
-// GetName returns session name
-func (ws *WebSessionV2) GetName() string {
-	return ws.Metadata.Name
-}
-
 // GetTLSCert returns PEM encoded TLS certificate associated with session
 func (ws *WebSessionV2) GetTLSCert() []byte {
 	return ws.Spec.TLSCert
+}
+
+// GetParentHash gets the hash of the parent session.
+func (ws *WebSessionV2) GetParentHash() string {
+	return ws.Spec.ParentHash
+}
+
+// SetParentHash sets the hash of the parent session.
+func (ws *WebSessionV2) SetParentHash(parentHash string) {
+	ws.Spec.ParentHash = parentHash
+}
+
+func (ws *WebSessionV2) GetSessionID() string {
+	return ws.Spec.SessionID
+}
+
+func (ws *WebSessionV2) SetSessionID(sessionID string) {
+	ws.Spec.SessionID = sessionID
+}
+
+func (ws *WebSessionV2) GetServerID() string {
+	return ws.Spec.ServerID
+}
+
+func (ws *WebSessionV2) SetServerID(serverID string) {
+	ws.Spec.ServerID = serverID
+}
+
+// ClusterName gets the name of the cluster in which the application is running.
+func (ws *WebSessionV2) GetClusterName() string {
+	return ws.Spec.ClusterName
+}
+
+// ClusterName sets the name of the cluster in which the application is running.
+func (ws *WebSessionV2) SetClusterName(clusterName string) {
+	ws.Spec.ClusterName = clusterName
 }
 
 // GetPub is returns public certificate signed by auth server
@@ -236,6 +303,11 @@ const WebSessionSpecV2Schema = `{
     "pub": {"type": "string"},
     "priv": {"type": "string"},
     "tls_cert": {"type": "string"},
+    "public_addr": {"type": "string"},
+    "parent_hash": {"type": "string"},
+    "server_id": {"type": "string"},
+    "cluster_name": {"type": "string"},
+    "session_id": {"type": "string"},
     "bearer_token": {"type": "string"},
     "bearer_token_expires": {"type": "string"},
     "expires": {"type": "string"}%v
@@ -375,7 +447,7 @@ func GetWebSessionMarshaler() WebSessionMarshaler {
 // mostly adds support for extended versions
 type WebSessionMarshaler interface {
 	// UnmarshalWebSession unmarhsals cert authority from binary representation
-	UnmarshalWebSession(bytes []byte) (WebSession, error)
+	UnmarshalWebSession(bytes []byte, opts ...MarshalOption) (WebSession, error)
 	// MarshalWebSession to binary representation
 	MarshalWebSession(c WebSession, opts ...MarshalOption) ([]byte, error)
 	// GenerateWebSession generates new web session and is used to
@@ -411,9 +483,14 @@ func (*TeleportWebSessionMarshaler) ExtendWebSession(ws WebSession) (WebSession,
 }
 
 // UnmarshalWebSession unmarshals web session from on-disk byte format
-func (*TeleportWebSessionMarshaler) UnmarshalWebSession(bytes []byte) (WebSession, error) {
+func (*TeleportWebSessionMarshaler) UnmarshalWebSession(bytes []byte, opts ...MarshalOption) (WebSession, error) {
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var h ResourceHeader
-	err := json.Unmarshal(bytes, &h)
+	err = json.Unmarshal(bytes, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -436,6 +513,12 @@ func (*TeleportWebSessionMarshaler) UnmarshalWebSession(bytes []byte) (WebSessio
 
 		if err := ws.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
+		}
+		if cfg.ID != 0 {
+			ws.SetResourceID(cfg.ID)
+		}
+		if !cfg.Expires.IsZero() {
+			ws.SetExpiry(cfg.Expires)
 		}
 
 		return &ws, nil
@@ -558,4 +641,11 @@ type DeleteAppWebSessionRequest struct {
 	ParentHash string `json:"parent_hash"`
 	// SessionID is the ID of the session.
 	SessionID string `json:"session_id"`
+}
+
+// SessionHash returns hex-encoded SHA256 hash of a session ID. Used by parent
+// session to identify application specific child sessions.
+func SessionHash(sessionID string) string {
+	hash := sha256.Sum256([]byte(sessionID))
+	return hex.EncodeToString(hash[:])
 }

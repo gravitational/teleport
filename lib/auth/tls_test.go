@@ -1913,6 +1913,9 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 //// TestGenerateAppToken checks the identity of the caller and makes sure only
 //// certain roles can request JWT tokens.
 //func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
+//	clock := clockwork.NewFakeClockAt(time.Now())
+//	s.server.Auth().SetClock(clock)
+//
 //	authClient, err := s.server.NewClient(TestBuiltin(teleport.RoleAdmin))
 //	c.Assert(err, check.IsNil)
 //
@@ -1962,9 +1965,9 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 //		c.Assert(err != nil, check.Equals, tt.outError, tt.inComment)
 //		if !tt.outError {
 //			claims, err := key.Verify(jwt.VerifyParams{
-//				Username:  "foo@example.com",
-//				RawToken:  token,
-//				Recipient: "panel",
+//				Username: "foo@example.com",
+//				RawToken: token,
+//				AppName:  "panel",
 //			})
 //			c.Assert(err, check.IsNil, tt.inComment)
 //			c.Assert(claims.Username, check.Equals, "foo@example.com", tt.inComment)

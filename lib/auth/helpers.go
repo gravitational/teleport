@@ -119,7 +119,6 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	srv := &TestAuthServer{
 		TestAuthServerConfig: cfg,
 	}
-	var err error
 	b, err := memory.New(memory.Config{
 		Context:   context.Background(),
 		Clock:     cfg.Clock,

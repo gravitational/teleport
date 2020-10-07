@@ -2323,6 +2323,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ProxySettings: proxySettings,
 				CipherSuites:  cfg.CipherSuites,
 				FIPS:          cfg.FIPS,
+				AccessPoint:   accessPoint,
 			})
 		if err != nil {
 			return trace.Wrap(err)
