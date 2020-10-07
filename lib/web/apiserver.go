@@ -723,6 +723,15 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 		return nil, trace.BadParameter("missing connector_id query parameter")
 	}
 
+	// If application name and cluster name are set, save them within the request
+	// and pass them back to the web application after successful login. Note
+	// neither the application nor the cluster are validated at this point, they
+	// will be validated when the user attempts to create a session. They are
+	// saved and extracted simply to propagate these values through the SSO
+	// login redirects.
+	publicAddr := query.Get("public_addr")
+	clusterName := query.Get("cluster")
+
 	csrfToken, err := csrf.ExtractTokenFromCookie(r)
 	if err != nil {
 		log.Warningf("unable to extract CSRF token from cookie: %v", err)
@@ -736,6 +745,8 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 			CreateWebSession:  true,
 			ClientRedirectURL: clientRedirectURL,
 			CheckUser:         true,
+			PublicAddr:        publicAddr,
+			ClusterName:       clusterName,
 		})
 	if err != nil {
 		// redirect to an error page
@@ -753,14 +764,26 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	logger := log.WithFields(log.Fields{trace.Component: "github"})
 	logger.Debug("Web login start.")
-	clientRedirectURL := r.URL.Query().Get("redirect_url")
+
+	query := r.URL.Query()
+	clientRedirectURL := query.Get("redirect_url")
 	if clientRedirectURL == "" {
 		return nil, trace.BadParameter("missing redirect_url query parameter")
 	}
-	connectorID := r.URL.Query().Get("connector_id")
+	connectorID := query.Get("connector_id")
 	if connectorID == "" {
 		return nil, trace.BadParameter("missing connector_id query parameter")
 	}
+
+	// If application name and cluster name are set, save them within the request
+	// and pass them back to the web application after successful login. Note
+	// neither the application nor the cluster are validated at this point, they
+	// will be validated when the user attempts to create a session. They are
+	// saved and extracted simply to propagate these values through the SSO
+	// login redirects.
+	publicAddr := query.Get("public_addr")
+	clusterName := query.Get("cluster")
+
 	csrfToken, err := csrf.ExtractTokenFromCookie(r)
 	if err != nil {
 		logger.Warnf("Unable to extract CSRF token from cookie: %v.", err)
@@ -772,6 +795,8 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 			ConnectorID:       connectorID,
 			CreateWebSession:  true,
 			ClientRedirectURL: clientRedirectURL,
+			PublicAddr:        publicAddr,
+			ClusterName:       clusterName,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -835,7 +860,13 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return nil, httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
+
+		// Construct the redirect URL from the parameters stored in backend.
+		u, err := redirURL(response.Req.ClientRedirectURL, response.Req.PublicAddr, response.Req.ClusterName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return nil, httplib.SafeRedirect(w, r, u)
 	}
 	logger.Infof("Callback is redirecting to console login.")
 	if len(response.Req.PublicKey) == 0 {
@@ -857,6 +888,25 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	}
 	http.Redirect(w, r, redirectURL.String(), http.StatusFound)
 	return nil, nil
+}
+
+func redirURL(path string, publicAddr string, clusterName string) (string, error) {
+	u, err := url.Parse(path)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	// If the caller was asking for a particular application, add that to the
+	// path. This value is fetched from backend and was validated to be a valid
+	// application address.
+	if publicAddr != "" && clusterName != "" {
+		v := url.Values{}
+		v.Set("public_addr", publicAddr)
+		v.Set("cluster", clusterName)
+		u.RawQuery = v.Encode()
+	}
+
+	return u.String(), nil
 }
 
 func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -914,7 +964,13 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request, p httprou
 		if err := SetSession(w, response.Username, response.Session.GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return nil, httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
+
+		// Construct the redirect URL from the parameters stored in backend.
+		u, err := redirURL(response.Req.ClientRedirectURL, response.Req.PublicAddr, response.Req.ClusterName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return nil, httplib.SafeRedirect(w, r, u)
 	}
 	log.Infof("oidcCallback redirecting to console login")
 	if len(response.Req.PublicKey) == 0 {

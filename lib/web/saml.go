@@ -45,6 +45,15 @@ func (m *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.P
 		return nil, trace.BadParameter("missing connector_id query parameter")
 	}
 
+	// If application name and cluster name are set, save them within the request
+	// and pass them back to the web application after successful login. Note
+	// neither the application nor the cluster are validated at this point, they
+	// will be validated when the user attempts to create a session. They are
+	// saved and extracted simply to propagate these values through the SSO
+	// login redirects.
+	publicAddr := query.Get("public_addr")
+	clusterName := query.Get("cluster")
+
 	csrfToken, err := csrf.ExtractTokenFromCookie(r)
 	if err != nil {
 		log.Warningf("unable to extract CSRF token from cookie %v", err)
@@ -57,6 +66,8 @@ func (m *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.P
 			CSRFToken:         csrfToken,
 			CreateWebSession:  true,
 			ClientRedirectURL: clientRedirectURL,
+			PublicAddr:        publicAddr,
+			ClusterName:       clusterName,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -131,7 +142,13 @@ func (m *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 		if err := SetSession(w, response.Username, response.Session.GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return nil, httplib.SafeRedirect(w, r, response.Req.ClientRedirectURL)
+
+		// Construct the redirect URL from the parameters stored in backend.
+		u, err := redirURL(response.Req.ClientRedirectURL, response.Req.PublicAddr, response.Req.ClusterName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return nil, httplib.SafeRedirect(w, r, u)
 	}
 	l.Debugf("samlCallback redirecting to console login")
 	if len(response.Req.PublicKey) == 0 {
