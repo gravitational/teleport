@@ -8,9 +8,10 @@
 
 # To update the Teleport version, update VERSION variable:
 # Naming convention:
-#	for stable releases we use "1.0.0" format
-#   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=4.4.0-alpha.1
+#	for stable releases we use    "1.0.0" format
+#   for pre-releases, we use      "1.0.0-beta.2" format
+#   for master/dev branch, we use "1.0.0-dev" format
+VERSION=5.0.0-dev
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
