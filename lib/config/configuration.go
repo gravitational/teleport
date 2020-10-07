@@ -506,32 +506,37 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Proxy.ReverseTunnelListenAddr = *addr
 	}
 
-	if fc.Proxy.KeyFile != "" {
-		if !fileExists(fc.Proxy.KeyFile) {
-			return trace.Errorf("https key does not exist: %s", fc.Proxy.KeyFile)
-		}
-		cfg.Proxy.TLSKey = fc.Proxy.KeyFile
+	// This is the legacy format. Continue to support it forever, but ideally
+	// users now use the list format below.
+	if fc.Proxy.KeyFile != "" || fc.Proxy.CertFile != "" {
+		cfg.Proxy.KeyPairs = append(cfg.Proxy.KeyPairs, service.KeyPairPath{
+			PrivateKey:  fc.Proxy.KeyFile,
+			Certificate: fc.Proxy.CertFile,
+		})
 	}
-	if fc.Proxy.CertFile != "" {
-		if !fileExists(fc.Proxy.CertFile) {
-			return trace.Errorf("https cert does not exist: %s", fc.Proxy.CertFile)
+	for _, p := range fc.Proxy.KeyPairs {
+		// Check that the certificate exists on disk. This exists to provide the
+		// user a sensible error message.
+		if !fileExists(p.PrivateKey) {
+			return trace.Errorf("https private key does not exist: %s", p.PrivateKey)
+		}
+		if !fileExists(p.Certificate) {
+			return trace.Errorf("https cert does not exist: %s", p.Certificate)
 		}
 
-		// read in certificate chain from disk
-		certificateChainBytes, err := utils.ReadPath(fc.Proxy.CertFile)
+		// Read in certificate from disk. If Teleport finds a self signed
+		// certificate chain, log a warning, and then accept whatever certificate
+		// was passed. If the certificate is not self signed, verify the certificate
+		// chain from leaf to root with the trust store on the computer so browsers
+		// don't complain.
+		certificateChainBytes, err := utils.ReadPath(p.Certificate)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		// parse certificate chain into []*x509.Certificate
 		certificateChain, err := utils.ReadCertificateChain(certificateChainBytes)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		// if starting teleport with a self signed certificate, print a warning, and
-		// then take whatever was passed to us. otherwise verify the certificate
-		// chain from leaf to root so browsers don't complain.
 		if utils.IsSelfSigned(certificateChain) {
 			warningMessage := "Starting Teleport with a self-signed TLS certificate, this is " +
 				"not safe for production clusters. Using a self-signed certificate opens " +
@@ -544,7 +549,10 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			}
 		}
 
-		cfg.Proxy.TLSCert = fc.Proxy.CertFile
+		cfg.Proxy.KeyPairs = append(cfg.Proxy.KeyPairs, service.KeyPairPath{
+			PrivateKey:  p.PrivateKey,
+			Certificate: p.Certificate,
+		})
 	}
 
 	// apply kubernetes proxy config, by default kube proxy is disabled

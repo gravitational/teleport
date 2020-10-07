@@ -167,6 +167,8 @@ var (
 		"protocol":                false,
 		"uri":                     false,
 		"apps":                    false,
+		"https_keypairs":          true,
+		"key_file":                false,
 	}
 )
 
@@ -871,6 +873,17 @@ type Proxy struct {
 	// endpoint. The hosts in PublicAddr are included in the list of host
 	// principals on the SSH certificate.
 	TunnelPublicAddr utils.Strings `yaml:"tunnel_public_addr,omitempty"`
+
+	// KeyPairs is a list of x509 key pairs the proxy will load.
+	KeyPairs []KeyPair `yaml:"https_keypairs"`
+}
+
+// KeyPair represent a path on disk to a private key and certificate.
+type KeyPair struct {
+	// PrivateKey is the path on disk to a PEM encoded private key,
+	PrivateKey string `yaml:"key_file"`
+	// Certificate is the path on disk to a PEM encoded x509 certificate.
+	Certificate string `yaml:"cert_file"`
 }
 
 // Kube is a `kubernetes_service`

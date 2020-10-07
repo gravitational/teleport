@@ -323,12 +323,6 @@ type ProxyConfig struct {
 	// SSHAddr is address of ssh proxy
 	SSHAddr utils.NetAddr
 
-	// TLSKey is a base64 encoded private key used by web portal
-	TLSKey string
-
-	// TLSCert is a base64 encoded certificate used by web portal
-	TLSCert string
-
 	Limiter limiter.LimiterConfig
 
 	// PublicAddrs is a list of the public addresses the proxy advertises
@@ -348,6 +342,17 @@ type ProxyConfig struct {
 
 	// Kube specifies kubernetes proxy configuration
 	Kube KubeProxyConfig
+
+	// KeyPairs are the key and certificate pairs that the proxy will load.
+	KeyPairs []KeyPairPath
+}
+
+// KeyPairPath are paths to a key and certificate file.
+type KeyPairPath struct {
+	// PrivateKey is the path to a PEM encoded private key.
+	PrivateKey string `yaml:"key_file"`
+	// Certificate is the path to a PEM encoded certificate.
+	Certificate string `yaml:"cert_file"`
 }
 
 func (c ProxyConfig) KubeAddr() (string, error) {
