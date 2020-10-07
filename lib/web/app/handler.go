@@ -151,7 +151,10 @@ func (h *Handler) IsUnauthenticatedApp(r *http.Request, publicAddr string) (stri
 		return "", false
 	}
 
-	u, err := url.Parse(fmt.Sprintf("https://%v/web/launch/%v", publicAddr, r.Host))
+	host, _, _ := net.SplitHostPort(r.Host)
+
+	//u, err := url.Parse(fmt.Sprintf("https://%v/web/launch/%v", publicAddr, r.Host))
+	u, err := url.Parse(fmt.Sprintf("https://%v/web/launch/%v", publicAddr, host))
 	if err != nil {
 		h.log.Debugf("Failed to parse while handling unauthenticated request to %v: %v.", r.Host, err)
 		return "", false

@@ -9,6 +9,10 @@ environment:
   GID: 1000
 
 trigger:
+  branch:
+    - master
+    - branch/*
+    - stratus
   event:
     include:
       - pull_request
@@ -217,6 +221,10 @@ type: kubernetes
 name: test-docs-external
 
 trigger:
+  branch:
+    - master
+    - branch/*
+    - stratus
   event:
     include:
       - pull_request

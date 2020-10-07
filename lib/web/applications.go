@@ -20,6 +20,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -83,6 +84,8 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	fmt.Printf("--> createAppSession: req.FQDN: %v.\n", req.FQDN)
 
 	// Use the information the caller provided to attempt to resolve to an
 	// application running within either the root or leaf cluster.
@@ -149,10 +152,14 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	return &createAppSessionResponse{
+	casr := &createAppSessionResponse{
 		CookieValue: appCookieValue,
 		FQDN:        result.FQDN,
-	}, nil
+	}
+
+	fmt.Printf("--> casr: %v.\n", casr)
+
+	return casr, nil
 }
 
 func (h *Handler) validateAppSessionRequest(ctx context.Context, req *createAppSessionRequest) (*validateAppSessionResult, error) {
