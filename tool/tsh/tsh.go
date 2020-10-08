@@ -118,6 +118,8 @@ type CLIConf struct {
 	BenchRate int
 	// BenchInteractive indicates that we should create interactive session
 	BenchInteractive bool
+	// BenchExport exports the latency profile
+	BenchExport bool
 	// Context is a context to control execution
 	Context context.Context
 	// Gops starts gops agent on a specified address
@@ -311,6 +313,7 @@ func Run(args []string) {
 	bench.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
 	bench.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
+	bench.Flag("export", "Export the latency profile, saved in ~/.tsh").BoolVar(&cf.BenchExport)
 
 	// show key
 	show := app.Command("show", "Read an identity from file and print to stdout").Hidden()
@@ -938,6 +941,38 @@ func onBenchmark(cf *CLIConf) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 		os.Exit(255)
+	}
+	if cf.BenchExport {
+		fullPath := client.FullProfilePath("") + "/latency_profile.txt"
+		fo, err := os.Create(fullPath)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+			os.Exit(255)
+		}
+		brackets := result.Histogram.CumulativeDistribution()
+		toFile := asciitable.MakeTable([]string{"Value", "Percentile", "TotalCount", "1/(1-Percentile)"})
+		for _, q := range brackets {
+			col := 1.0 / (1.0 - (q.Quantile / 100.0))
+			toFile.AddRow([]string{fmt.Sprintf("%v", q.ValueAt),
+				fmt.Sprintf("%v", q.Quantile),
+				fmt.Sprintf("%v", q.Count),
+				fmt.Sprintf("%v", col)})
+		}
+
+		defer func() {
+			if err := fo.Close(); err != nil {
+				fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+				return
+			}
+			fmt.Printf("Latency profile saved: %v", fullPath)
+			fmt.Printf("\n")
+		}()
+
+		_, err = io.Copy(fo, toFile.AsBuffer())
+		if err != nil {
+			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+			os.Exit(255)
+		}
 	}
 	fmt.Printf("\n")
 	fmt.Printf("* Requests originated: %v\n", result.RequestsOriginated)
