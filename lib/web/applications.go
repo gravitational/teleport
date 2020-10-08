@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -149,6 +150,35 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		SessionID:  webSession.GetName(),
 	})
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Emit "new session created" event for the interactive session.
+	appSessionStartEvent := &events.AppSessionStart{
+		Metadata: events.Metadata{
+			Type: events.AppSessionStartEvent,
+			Code: events.AppSessionStartCode,
+		},
+		ServerMetadata: events.ServerMetadata{
+			ServerID: h.cfg.HostUUID,
+			//ServerLabels: ctx.srv.GetInfo().GetAllLabels(),
+			//ServerHostname:  ctx.srv.GetInfo().GetHostname(),
+			ServerNamespace: defaults.Namespace,
+		},
+		SessionMetadata: events.SessionMetadata{
+			SessionID: appSession.GetName(),
+		},
+		UserMetadata: events.UserMetadata{
+			User: webSession.GetUser(),
+			//	Login: ctx.Identity.Login,
+		},
+		ConnectionMetadata: events.ConnectionMetadata{
+			RemoteAddr: r.RemoteAddr,
+		},
+		// TODO(russjones): include app name and server id here? can't do it above beause we assume thats the server thats emitting the event.
+		PublicAddr: appSession.GetPublicAddr(),
+	}
+	if err := h.cfg.Emitter.EmitAuditEvent(h.cfg.Context, appSessionStartEvent); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

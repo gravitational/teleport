@@ -2225,13 +2225,16 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	streamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
 		Inner: conn.Client,
 		Clock: process.Clock,
 	})
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	streamEmitter := &events.StreamerAndEmitter{
+		Emitter:  emitter,
+		Streamer: streamer,
 	}
 
 	// register SSH reverse tunnel server that accepts connections
@@ -2263,7 +2266,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				DataDir:       process.Config.DataDir,
 				PollingPeriod: process.Config.PollingPeriod,
 				FIPS:          cfg.FIPS,
-				Emitter:       &events.StreamerAndEmitter{Emitter: emitter, Streamer: streamer},
+				Emitter:       streamEmitter,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2324,6 +2327,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				CipherSuites:  cfg.CipherSuites,
 				FIPS:          cfg.FIPS,
 				AccessPoint:   accessPoint,
+				Emitter:       streamEmitter,
+				HostUUID:      process.Config.HostUUID,
+				Context:       process.ExitContext(),
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2593,6 +2599,12 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
+		// Start uploader that will scan a path on disk and upload completed
+		// sessions to the Auth Server.
+		if err := process.initUploaderService(authClient, conn.Client); err != nil {
+			return trace.Wrap(err)
+		}
+
 		// Loop over each application and create a server.
 		var applications []*services.App
 		for _, app := range process.Config.Apps.Apps {
@@ -2619,6 +2631,7 @@ func (process *TeleportProcess) initApps() {
 		}
 
 		appServer, err := app.New(process.ExitContext(), &app.Config{
+			AuthClient:  conn.Client,
 			AccessPoint: authClient,
 			GetRotation: process.getRotation,
 			Server:      server,

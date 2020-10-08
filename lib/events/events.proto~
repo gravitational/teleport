@@ -923,21 +923,18 @@ message AppSessionStart {
     // ConnectionMetadata holds information about the connection
     ConnectionMetadata Connection = 5
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
-
-    string PublicAddr = 7 [ (gogoproto.jsontag) = "public_addr" ];
 }
 
 // message AppSessionChunk {
 //    ParentSessionID
 //    StreamID
 //}
-
-message AppRequest {
-    // Common fields?
-    //uint32 Code = 1 [ (gogoproto.jsontag) = "code" ];
-    //string Path = 2 [ (gogoproto.jsontag) = "path" ];
-    //string RawQuery = 3 [ (gogoproto.jsontag) = "raw_query" ];
-}
+//
+// message AppRequest {
+//    Code
+//    Path
+//    QueryParams
+//}
 
 // OneOf is a union of one of audit events submitted to the auth service
 message OneOf {

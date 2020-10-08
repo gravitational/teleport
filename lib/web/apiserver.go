@@ -116,6 +116,13 @@ type Config struct {
 
 	// AccessPoint holds a cache to the Auth Server.
 	AccessPoint auth.AccessPoint
+
+	// Emitter is event emitter
+	Emitter events.StreamEmitter
+
+	HostUUID string
+
+	Context context.Context
 }
 
 type RewritingHandler struct {

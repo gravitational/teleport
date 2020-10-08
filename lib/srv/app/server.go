@@ -51,6 +51,9 @@ type Config struct {
 	// Clock used to control time.
 	Clock clockwork.Clock
 
+	// AuthClient is a client directly connected to the Auth server.
+	AuthClient *auth.Client
+
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint auth.AccessPoint
 
@@ -68,6 +71,9 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Clock = clockwork.NewRealClock()
 	}
 
+	if c.AuthClient == nil {
+		return trace.BadParameter("auth client log missing")
+	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("access point missing")
 	}
