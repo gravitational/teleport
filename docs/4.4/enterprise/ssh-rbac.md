@@ -100,6 +100,8 @@ spec:
     # certificates expire in the middle of an active SSH session.
     # it overrides the global cluster setting.
     disconnect_expired_cert: no
+    # permit_x11_forwarding allows users to use X11 forwarding with openssh clients and servers through the proxy
+    permit_x11_forwarding: true
 
   # allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. by default nothing is allowed.
