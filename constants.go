@@ -375,6 +375,9 @@ const (
 
 	// DebugLevel is a debug logging level name
 	DebugLevel = "debug"
+
+	// MinimumEtcdVersion is the minimum version of etcd supported by Teleport
+	MinimumEtcdVersion = "3.3.0"
 )
 
 const (
