@@ -116,14 +116,21 @@ steps:
     image: docker
     environment:
       GOPATH: /go
+      INTEGRATION_CI_KUBECONFIG:
+        from_secret: INTEGRATION_CI_KUBECONFIG
+      KUBECONFIG: /go/kubeconfig.ci
+      TEST_KUBE: true
     volumes:
       - name: dockersock
         path: /var/run
     commands:
       - apk add --no-cache make
+      # write kubeconfig to disk for use in kube integrations tests
+      - echo "$INTEGRATION_CI_KUBECONFIG" > "$KUBECONFIG"
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets integration
+      - rm -f "$KUBECONFIG"
 
 services:
   - name: Start Docker
@@ -2785,6 +2792,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 46f777cd44caf6593159d4eb85b91242739a50a16e948f321757c68c33faa31d
+hmac: fada4e800dbad247638e74e9ec61d41597257507fba5f35e18b9182be2278a21
 
 ...
