@@ -604,7 +604,7 @@ func startRollingBackRotation(ca services.CertAuthority) error {
 	// Rotation sets the first key to be the new key
 	// and keep only public keys/certs for the new CA.
 	signingKeys = [][]byte{signingKeys[1]}
-	checkingKeys = [][]byte{checkingKeys[1]}
+	checkingKeys = [][]byte{checkingKeys[1], checkingKeys[0]}
 
 	// Keep the new certificate as trusted
 	// as during the rollback phase, both types of clients may be present in the cluster.
