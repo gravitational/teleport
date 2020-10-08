@@ -24,6 +24,7 @@ import (
 	"math/rand"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -141,6 +142,16 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
+	// this is because cache does not get reflected right away and this sends us in a racy situation.
+	err = h.waitForSession(r.Context(), services.GetAppWebSessionRequest{
+		Username:   webSession.GetUser(),
+		ParentHash: webSession.GetParentHash(),
+		SessionID:  webSession.GetName(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Marshal cookie from application web session.
 	appCookie := app.Cookie{
 		Username:   webSession.GetUser(),
@@ -162,6 +173,25 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	return casr, nil
 }
 
+func (h *Handler) waitForSession(ctx context.Context, req services.GetAppWebSessionRequest) error {
+	start := time.Now()
+
+	tick := time.Tick(50 * time.Millisecond)
+	boom := time.After(5 * time.Second)
+	for {
+		select {
+		case <-tick:
+			_, err := h.cfg.AccessPoint.GetAppWebSession(ctx, req)
+			if err == nil {
+				fmt.Printf("--> Found session in %v.\n", time.Since(start))
+				return nil
+			}
+		case <-boom:
+			return trace.BadParameter("timed out waiting for session")
+		}
+	}
+}
+
 func (h *Handler) validateAppSessionRequest(ctx context.Context, req *createAppSessionRequest) (*validateAppSessionResult, error) {
 	// To safely redirect a user to the app URL, the FQDN should be always resolved
 	app, server, clusterName, err := h.resolveFQDN(ctx, req.FQDN)
@@ -171,7 +201,9 @@ func (h *Handler) validateAppSessionRequest(ctx context.Context, req *createAppS
 
 	if req.PublicAddr != "" && req.ClusterName != "" {
 		app, server, clusterName, err = h.resolveDirect(ctx, req.PublicAddr, req.ClusterName)
-		return nil, trace.Wrap(err)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return &validateAppSessionResult{
