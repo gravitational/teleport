@@ -48,8 +48,8 @@ const (
 	// run behind an environment/firewall which only allows outgoing connections)
 	SSHProxyTunnelListenPort = 3024
 
-	// KubeProxyListenPort is a default port for kubernetes proxies
-	KubeProxyListenPort = 3026
+	// KubeListenPort is a default port for kubernetes proxies
+	KubeListenPort = 3026
 
 	// When running as a "SSH Proxy" this port will be used to
 	// serve auth requests.
@@ -534,7 +534,7 @@ func ProxyListenAddr() *utils.NetAddr {
 
 // KubeProxyListenAddr returns the default listening address for the Kubernetes Proxy service
 func KubeProxyListenAddr() *utils.NetAddr {
-	return makeAddr(BindIP, KubeProxyListenPort)
+	return makeAddr(BindIP, KubeListenPort)
 }
 
 // ProxyWebListenAddr returns the default listening address for the Web-based SSH Proxy service

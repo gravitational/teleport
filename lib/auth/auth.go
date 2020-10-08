@@ -604,22 +604,9 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 
 // CheckKubeCluster validates kubernetes cluster name against known kubernetes
 // clusters.
-func CheckKubeCluster(kc string, pg services.ProxyGetter) error {
-	proxies, err := pg.GetProxies()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, p := range proxies {
-		pp, ok := p.(*services.ServerV2)
-		if !ok {
-			continue
-		}
-		for _, pkc := range pp.Spec.KubernetesClusters {
-			if pkc == kc {
-				return nil
-			}
-		}
-	}
+func CheckKubeCluster(kc string, p services.Presence) error {
+	// TODO(awly): implement this after `kubernetes_service` registration is
+	// ready.
 	return trace.BadParameter("kubernetes cluster %q is not registered in this teleport cluster; you can list registered kubernetes clusters using 'tsh kube clusters'", kc)
 }
 

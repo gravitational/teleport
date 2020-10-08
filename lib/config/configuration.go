@@ -169,6 +169,9 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Proxy.Disabled() {
 		cfg.Proxy.Enabled = false
 	}
+	if fc.Kube.Enabled() {
+		cfg.Kube.Enabled = true
+	}
 	applyString(fc.NodeName, &cfg.Hostname)
 
 	// apply "advertise_ip" setting:
@@ -335,6 +338,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.SSH.Enabled() {
 		err = applySSHConfig(fc, cfg)
 		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if fc.Kube.Enabled() {
+		if err := applyKubeConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -537,18 +545,15 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Proxy.Kube.KubeconfigFile != "" {
 		cfg.Proxy.Kube.KubeconfigPath = fc.Proxy.Kube.KubeconfigFile
 	}
-	if fc.Proxy.Kube.ClusterName != "" {
-		cfg.Proxy.Kube.ClusterName = fc.Proxy.Kube.ClusterName
-	}
 	if fc.Proxy.Kube.ListenAddress != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.Kube.ListenAddress, int(defaults.KubeProxyListenPort))
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.Kube.ListenAddress, int(defaults.KubeListenPort))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.Kube.ListenAddr = *addr
 	}
 	if len(fc.Proxy.Kube.PublicAddr) != 0 {
-		addrs, err := fc.Proxy.Kube.PublicAddr.Addrs(defaults.KubeProxyListenPort)
+		addrs, err := fc.Proxy.Kube.PublicAddr.Addrs(defaults.KubeListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -644,6 +649,49 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	return nil
+}
+
+// applyKubeConfig applies file configuration for the "kubernetes_service" section.
+func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
+	if fc.Proxy.ListenAddress != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, int(defaults.SSHProxyListenPort))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Kube.ListenAddr = addr
+	}
+	if len(fc.Kube.PublicAddr) != 0 {
+		addrs, err := fc.Kube.PublicAddr.Addrs(defaults.KubeListenPort)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Kube.PublicAddrs = addrs
+	}
+
+	if fc.Kube.KubeconfigFile != "" {
+		cfg.Kube.KubeconfigPath = fc.Kube.KubeconfigFile
+	}
+	if fc.Kube.KubeClusterName != "" {
+		cfg.Kube.KubeClusterName = fc.Kube.KubeClusterName
+	}
+	if fc.Kube.Labels != nil {
+		cfg.Kube.Labels = make(map[string]string)
+		for k, v := range fc.Kube.Labels {
+			cfg.Kube.Labels[k] = v
+		}
+	}
+	if fc.Kube.Commands != nil {
+		cfg.Kube.CmdLabels = make(services.CommandLabels)
+		for _, cmdLabel := range fc.Kube.Commands {
+			cfg.Kube.CmdLabels[cmdLabel.Name] = &services.CommandLabelV2{
+				Period:  services.NewDuration(cmdLabel.Period),
+				Command: cmdLabel.Command,
+				Result:  "",
+			}
+		}
+	}
+	return nil
+
 }
 
 // parseAuthorizedKeys parses keys in the authorized_keys format and

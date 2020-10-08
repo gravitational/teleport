@@ -164,6 +164,8 @@ var (
 		"disk_buffer_size":        false,
 		"network_buffer_size":     false,
 		"cgroup_path":             false,
+		"kubernetes_service":      true,
+		"kube_cluster_name":       false,
 	}
 )
 
@@ -182,6 +184,7 @@ type FileConfig struct {
 	Auth   Auth  `yaml:"auth_service,omitempty"`
 	SSH    SSH   `yaml:"ssh_service,omitempty"`
 	Proxy  Proxy `yaml:"proxy_service,omitempty"`
+	Kube   Kube  `yaml:"kubernetes_service,omitempty"`
 }
 
 type YAMLMap map[interface{}]interface{}
@@ -806,8 +809,8 @@ type Proxy struct {
 	// as only admin knows whether service is in front of trusted load balancer
 	// or not.
 	ProxyProtocol string `yaml:"proxy_protocol,omitempty"`
-	// Kube configures kubernetes protocol support of the proxy
-	Kube Kube `yaml:"kubernetes,omitempty"`
+	// KubeProxy configures kubernetes protocol support of the proxy
+	Kube KubeProxy `yaml:"kubernetes,omitempty"`
 
 	// PublicAddr sets the hostport the proxy advertises for the HTTP endpoint.
 	// The hosts in PublicAddr are included in the list of host principals
@@ -825,8 +828,8 @@ type Proxy struct {
 	TunnelPublicAddr utils.Strings `yaml:"tunnel_public_addr,omitempty"`
 }
 
-// Kube is a `kubernetes_service`
-type Kube struct {
+// KubeProxy is a `kubernetes` section in `proxy_service`.
+type KubeProxy struct {
 	// Service is a generic service configuration section
 	Service `yaml:",inline"`
 	// PublicAddr is a publicly advertised address of the kubernetes proxy
@@ -838,6 +841,25 @@ type Kube struct {
 	// ClusterName is the name of a kubernetes cluster this proxy is running
 	// in. If set, this proxy will handle kubernetes requests for the cluster.
 	ClusterName string `yaml:"cluster_name,omitempty"`
+}
+
+// Kube is a `kubernetes_service`
+type Kube struct {
+	// Service is a generic service configuration section
+	Service `yaml:",inline"`
+	// PublicAddr is a publicly advertised address of the kubernetes service
+	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
+	// KubeconfigFile is an optional path to kubeconfig file,
+	// if specified, teleport will use API server address and
+	// trusted certificate authority information from it
+	KubeconfigFile string `yaml:"kubeconfig_file,omitempty"`
+	// KubeClusterName is the name of a kubernetes cluster this service is
+	// running in. If set, this proxy will handle kubernetes requests for the
+	// cluster.
+	KubeClusterName string `yaml:"kube_cluster_name,omitempty"`
+	// Labels for RBAC on kubernetes clusters.
+	Labels   map[string]string `yaml:"labels,omitempty"`
+	Commands []CommandLabel    `yaml:"commands,omitempty"`
 }
 
 // ReverseTunnel is a SSH reverse tunnel maintained by one cluster's

@@ -21,12 +21,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -34,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/services"
@@ -186,6 +183,9 @@ type Config struct {
 
 	// BPFConfig holds configuration for the BPF service.
 	BPFConfig *bpf.Config
+
+	// Kube is a Kubernetes API gateway using Teleport client identities.
+	Kube KubeConfig
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -359,7 +359,7 @@ func (c ProxyConfig) KubeAddr() (string, error) {
 	if len(c.PublicAddrs) > 0 {
 		host = c.PublicAddrs[0].Host()
 	}
-	return fmt.Sprintf("https://%s:%d", host, c.Kube.ListenAddr.Port(defaults.KubeProxyListenPort)), nil
+	return fmt.Sprintf("https://%s:%d", host, c.Kube.ListenAddr.Port(defaults.KubeListenPort)), nil
 }
 
 // KubeProxyConfig specifies configuration for proxy service
@@ -386,71 +386,6 @@ type KubeProxyConfig struct {
 
 	// KubeconfigPath is a path to kubeconfig
 	KubeconfigPath string
-
-	// ClusterName is the name of a kubernetes cluster this proxy is running
-	// in. If set, this proxy will handle kubernetes requests for the cluster.
-	ClusterName string
-
-	// runningInPod reports whether the current process is running inside of a
-	// Kubernetes Pod. If nil, checks for the presence of on-disk service
-	// account credentials in standard paths.
-	//
-	// Used for test mocking.
-	runningInPod func() bool
-}
-
-// ClusterNames returns the complete list of kubernetes clusters from
-// ClusterName and kubeconfig.
-func (c KubeProxyConfig) ClusterNames(teleportClusterName string) ([]string, error) {
-	if !c.Enabled {
-		return nil, nil
-	}
-
-	clusters := make(map[string]struct{})
-	if c.ClusterName != "" {
-		clusters[c.ClusterName] = struct{}{}
-	} else {
-		// If a service account CA bundle exists at the standard path, we must
-		// be running inside of a Kubernetes pod. Since we don't have a
-		// ClusterName specified, use teleport cluster name as a fallback.
-		if c.runningInPod == nil {
-			c.runningInPod = func() bool {
-				_, err := os.Stat(teleport.KubeCAPath)
-				return err == nil
-			}
-		}
-		if c.runningInPod() {
-			clusters[teleportClusterName] = struct{}{}
-		}
-	}
-	if c.KubeconfigPath != "" {
-		cfg, err := kubeconfig.Load(c.KubeconfigPath)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed parsing kubeconfig file %q", c.KubeconfigPath)
-		}
-		for n := range cfg.Contexts {
-			if n != "" {
-				clusters[n] = struct{}{}
-			}
-		}
-		if cfg.CurrentContext != "" {
-			// DELETE IN 5.2
-			// Use teleport cluster name as an alias for the k8s cluster in
-			// current-context.
-			//
-			// This enables backwards-compatibility: when an older client
-			// requests a k8s cert without specifying a k8s cluster, we want to
-			// preserve pre-5.0 behavior. That is, when no specific cluster is
-			// requested, use current-context.
-			clusters[teleportClusterName] = struct{}{}
-		}
-	}
-	var uniqClusters []string
-	for n := range clusters {
-		uniqClusters = append(uniqClusters, n)
-	}
-	sort.Strings(uniqClusters)
-	return uniqClusters, nil
 }
 
 // AuthConfig is a configuration of the auth server
@@ -528,6 +463,31 @@ type SSHConfig struct {
 	BPF *bpf.Config
 }
 
+// KubeConfig specifies configuration for kubernetes service
+type KubeConfig struct {
+	// Enabled turns kubernetes service role on or off for this process
+	Enabled bool
+
+	// ListenAddr is the address to listen on for incoming kubernetes requests.
+	// Optional.
+	ListenAddr *utils.NetAddr
+
+	// PublicAddrs is a list of the public addresses the Teleport kubernetes
+	// service can be reached by the proxy service.
+	PublicAddrs []utils.NetAddr
+
+	// KubeClusterName is the name of a kubernetes cluster this proxy is running
+	// in. If empty, defaults to the Teleport cluster name.
+	KubeClusterName string
+
+	// KubeconfigPath is a path to kubeconfig
+	KubeconfigPath string
+
+	// Labels are used for RBAC on clusters.
+	Labels    map[string]string
+	CmdLabels services.CommandLabels
+}
+
 // MakeDefaultConfig creates a new Config structure and populates it with defaults
 func MakeDefaultConfig() (config *Config) {
 	config = &Config{}
@@ -599,6 +559,9 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 	cfg.SSH.PAM = &pam.Config{Enabled: false}
 	cfg.SSH.BPF = &bpf.Config{Enabled: false}
+
+	// Kubernetes service defaults.
+	cfg.Kube.Enabled = false
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2
