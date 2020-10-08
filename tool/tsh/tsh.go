@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -120,6 +121,10 @@ type CLIConf struct {
 	BenchInteractive bool
 	// BenchExport exports the latency profile
 	BenchExport bool
+	// BenchTicks
+	BenchTicks int32
+	// BenchValueScale
+	BenchValueScale float64
 	// Context is a context to control execution
 	Context context.Context
 	// Gops starts gops agent on a specified address
@@ -314,6 +319,8 @@ func Run(args []string) {
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
 	bench.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
 	bench.Flag("export", "Export the latency profile, saved in ~/.tsh").BoolVar(&cf.BenchExport)
+	bench.Flag("ticks", "Ticks per half distance").Default("10").Int32Var(&cf.BenchTicks)
+	bench.Flag("scale", "Value scale ").Default("10").Float64Var(&cf.BenchValueScale)
 
 	// show key
 	show := app.Command("show", "Read an identity from file and print to stdout").Hidden()
@@ -949,15 +956,7 @@ func onBenchmark(cf *CLIConf) {
 			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 			os.Exit(255)
 		}
-		brackets := result.Histogram.CumulativeDistribution()
-		toFile := asciitable.MakeTable([]string{"Value", "Percentile", "TotalCount", "1/(1-Percentile)"})
-		for _, q := range brackets {
-			col := 1.0 / (1.0 - (q.Quantile / 100.0))
-			toFile.AddRow([]string{fmt.Sprintf("%v", q.ValueAt),
-				fmt.Sprintf("%v", q.Quantile),
-				fmt.Sprintf("%v", q.Count),
-				fmt.Sprintf("%v", col)})
-		}
+		w := bufio.NewWriter(fo)
 
 		defer func() {
 			if err := fo.Close(); err != nil {
@@ -967,13 +966,12 @@ func onBenchmark(cf *CLIConf) {
 			fmt.Printf("Latency profile saved: %v", fullPath)
 			fmt.Printf("\n")
 		}()
-
-		_, err = io.Copy(fo, toFile.AsBuffer())
+		_, err = result.Histogram.PercentilesPrint(w, cf.BenchTicks, cf.BenchValueScale)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-			os.Exit(255)
 		}
 	}
+
 	fmt.Printf("\n")
 	fmt.Printf("* Requests originated: %v\n", result.RequestsOriginated)
 	fmt.Printf("* Requests failed: %v\n", result.RequestsFailed)
