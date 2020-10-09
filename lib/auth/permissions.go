@@ -189,8 +189,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*AuthConte
 					services.NewRule(services.KindReverseTunnel, services.RO()),
 					services.NewRule(services.KindTunnelConnection, services.RO()),
 					services.NewRule(services.KindClusterConfig, services.RO()),
-					// TODO(russjones): Verify this is not needed for Trusted Clusters.
-					//services.NewRule(services.KindAppWebSession, services.RO()),
+					services.NewRule(services.KindAppWebSession, services.RO()),
 					// this rule allows remote proxy to update the cluster's certificate authorities
 					// during certificates renewal
 					{
@@ -563,7 +562,10 @@ type BuiltinRole struct {
 
 // IsServer returns true if the role is one of auth, proxy or node
 func (r BuiltinRole) IsServer() bool {
-	return r.Role == teleport.RoleProxy || r.Role == teleport.RoleNode || r.Role == teleport.RoleAuth
+	return r.Role == teleport.RoleProxy ||
+		r.Role == teleport.RoleNode ||
+		r.Role == teleport.RoleAuth ||
+		r.Role == teleport.RoleApp
 }
 
 // GetServerID extracts the identity from the full name. The username
