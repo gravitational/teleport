@@ -87,6 +87,17 @@ type dialReq struct {
 	ConnType services.TunnelType `json:"conn_type"`
 }
 
+func (d *dialReq) CheckAndSetDefaults() error {
+	if d.ConnType == "" {
+		d.ConnType = services.NodeTunnel
+	}
+
+	if d.Address == "" && d.ServerID == "" {
+		return trace.BadParameter("serverID or address required")
+	}
+	return nil
+}
+
 // parseDialReq parses the dial request. Is backward compatible with legacy
 // payload.
 func parseDialReq(payload []byte) *dialReq {
@@ -206,7 +217,12 @@ func (p *transport) start() {
 
 	var servers []string
 
+	// Parse and extract the dial request from the client.
 	dreq := parseDialReq(req.Payload)
+	if err := dreq.CheckAndSetDefaults(); err != nil {
+		p.reply(req, false, []byte(err.Error()))
+		return
+	}
 	p.log.Debugf("Received out-of-band proxy transport request for %v [%v].", dreq.Address, dreq.ServerID)
 
 	// Handle special non-resolvable addresses first.
@@ -264,33 +280,6 @@ func (p *transport) start() {
 		}
 
 		// Hand connection off to the SSH server.
-		p.server.HandleConnection(utils.NewChConn(p.sconn, p.channel))
-		return
-	// LocalApp requests are for the single application (HTTP) server running
-	// in the agent pool.
-	case LocalApp:
-		// Transport is allocated with both teleport.ComponentReverseTunnelAgent
-		// and teleport.ComponentReverseTunneServer. However, dialing to this address
-		// only makes sense when running within a teleport.ComponentReverseTunnelAgent.
-		if p.component == teleport.ComponentReverseTunnelServer {
-			p.reply(req, false, []byte("connection rejected: no local node"))
-			return
-		}
-		if p.server == nil {
-			p.reply(req, false, []byte("connection rejected: server missing"))
-			return
-		}
-		if p.sconn == nil {
-			p.reply(req, false, []byte("connection rejected: server connection missing"))
-			return
-		}
-
-		// Caller has access to the application, reply that a connection has been
-		// established and hand off the connection the application proxy.
-		if err := req.Reply(true, []byte("Connected.")); err != nil {
-			p.log.Errorf("Failed responding OK to %q request: %v", req.Type, err)
-			return
-		}
 		p.server.HandleConnection(utils.NewChConn(p.sconn, p.channel))
 		return
 	default:

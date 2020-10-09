@@ -501,13 +501,6 @@ func (s *remoteSite) DialAuthServer() (net.Conn, error) {
 // located in a remote connected site, the connection goes through the
 // reverse proxy tunnel.
 func (s *remoteSite) Dial(params DialParams) (net.Conn, error) {
-	// DELETE IN: 5.1.
-	//
-	// If a connection type is not set, default to node tunnel.
-	if params.ConnType == "" {
-		params.ConnType = services.NodeTunnel
-	}
-
 	clusterConfig, err := s.localAccessPoint.GetClusterConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -522,21 +515,10 @@ func (s *remoteSite) Dial(params DialParams) (net.Conn, error) {
 }
 
 func (s *remoteSite) DialTCP(params DialParams) (net.Conn, error) {
-	// DELETE IN: 5.1.
-	//
-	// If a connection type is not set, default to node tunnel.
-	if params.ConnType == "" {
-		params.ConnType = services.NodeTunnel
-	}
-
-	var address string
-	if params.ConnType != services.AppTunnel {
-		address = params.To.String()
-	}
-	//s.Debugf("Dialing from %v to %v.", params.From, params.To)
+	s.Debugf("Dialing from %v to %v.", params.From, params.To)
 
 	conn, err := s.connThroughTunnel(&dialReq{
-		Address:  address,
+		Address:  params.To.String(),
 		ServerID: params.ServerID,
 		ConnType: params.ConnType,
 	})

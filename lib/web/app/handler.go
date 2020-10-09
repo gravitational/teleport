@@ -424,6 +424,10 @@ func newTransport(proxyClient reversetunnel.Server) (http.RoundTripper, error) {
 		}
 
 		conn, err := clusterClient.Dial(reversetunnel.DialParams{
+			// The "From" and "To" addresses don't mean anything for tunnel dialing,
+			// so they are simply filled out with dummy values.
+			From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@proxy"},
+			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: "@app"},
 			ServerID: fmt.Sprintf("%v.%v", serverID, clusterName),
 			ConnType: services.AppTunnel,
 		})

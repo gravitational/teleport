@@ -162,13 +162,6 @@ func (s *localSite) DialAuthServer() (conn net.Conn, err error) {
 }
 
 func (s *localSite) Dial(params DialParams) (net.Conn, error) {
-	// DELETE IN: 5.1.
-	//
-	// If a connection type is not set, default to node tunnel.
-	if params.ConnType == "" {
-		params.ConnType = services.NodeTunnel
-	}
-
 	// If the proxy is in recording mode use the agent to dial and build a
 	// in-memory forwarding server.
 	clusterConfig, err := s.accessPoint.GetClusterConfig()
@@ -184,13 +177,6 @@ func (s *localSite) Dial(params DialParams) (net.Conn, error) {
 }
 
 func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
-	// DELETE IN: 5.1.
-	//
-	// If a connection type is not set, default to node tunnel.
-	if params.ConnType == "" {
-		params.ConnType = services.NodeTunnel
-	}
-
 	s.log.Debugf("Dialing %v.", params)
 
 	conn, _, err := s.getConn(params)
@@ -443,22 +429,8 @@ func (s *localSite) getRemoteConn(params DialParams) (*remoteConn, error) {
 func (s *localSite) chanTransportConn(rconn *remoteConn, params DialParams) (net.Conn, error) {
 	s.log.Debugf("Connecting to %v through tunnel.", rconn.conn.RemoteAddr())
 
-	// For SSH nodes use the non-resolvable address @local-node and for
-	// applications use @local-app. For applications, the target host has to do
-	// additional routing to connect to the target application, extract that from
-	// the "To" parameter.
-	var address string
-	switch services.TunnelType(rconn.tunnelType) {
-	case services.NodeTunnel:
-		address = LocalNode
-	case services.AppTunnel:
-		address = LocalApp
-	default:
-		return nil, trace.BadParameter("unknown tunnel type: %v", rconn.tunnelType)
-	}
-
 	conn, markInvalid, err := connectProxyTransport(rconn.sconn, &dialReq{
-		Address:  address,
+		Address:  LocalNode,
 		ConnType: params.ConnType,
 	}, false)
 	if err != nil {

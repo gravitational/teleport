@@ -514,9 +514,6 @@ const (
 	// LocalNode is a special non-resolvable address that indicates the request
 	// wants to connect to a dialed back node.
 	LocalNode = "@local-node"
-	// LocalApp is special non-resolvable address that indicates the request
-	// wants to connection to a dialed back app.
-	LocalApp = "@local-app"
 	// RemoteAuthServer is a special non-resolvable address that indicates client
 	// requests a connection to the remote auth server.
 	RemoteAuthServer = "@remote-auth-server"
