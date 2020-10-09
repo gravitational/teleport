@@ -39,6 +39,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 )
@@ -769,11 +770,18 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		r.Spec.Allow.Namespaces = []string{defaults.Namespace}
 	}
 	if r.Spec.Allow.NodeLabels == nil {
-		r.Spec.Allow.NodeLabels = Labels{Wildcard: []string{Wildcard}}
+		if len(r.Spec.Allow.Logins) == 0 {
+			// no logins implies no node access
+			r.Spec.Allow.NodeLabels = Labels{}
+		} else {
+			r.Spec.Allow.NodeLabels = Labels{Wildcard: []string{Wildcard}}
+		}
 	}
+
 	if r.Spec.Allow.AppLabels == nil {
 		r.Spec.Allow.AppLabels = Labels{Wildcard: []string{Wildcard}}
 	}
+
 	if r.Spec.Deny.Namespaces == nil {
 		r.Spec.Deny.Namespaces = []string{defaults.Namespace}
 	}
@@ -833,6 +841,7 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 			return trace.BadParameter("failed to process 'deny' rule %v: %v", i, err)
 		}
 	}
+
 	return nil
 }
 
@@ -1594,6 +1603,14 @@ func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
 	if !matchedTTL {
 		return nil, trace.AccessDenied("this user cannot request a certificate for %v", ttl)
 	}
+	if len(logins) == 0 && !set.hasPossibleLogins() {
+		// user was deliberately configured to have no login capability,
+		// but ssh certificates must contain at least one valid principal.
+		// we add a single distinctive value which should be unique, and
+		// will never be a valid unix login (due to leading '-').
+		logins["-teleport-nologin-"+uuid.New()] = true
+	}
+
 	if len(logins) == 0 {
 		return nil, trace.AccessDenied("this user cannot create SSH sessions, has no allowed logins")
 	}
@@ -1685,6 +1702,18 @@ func (set RoleSet) CheckAccessToRemoteCluster(rc RemoteCluster) error {
 		}).Debugf("Access to cluster %v denied, no allow rule matched; %v", rc.GetName(), errs)
 	}
 	return trace.AccessDenied("access to cluster denied")
+}
+
+func (set RoleSet) hasPossibleLogins() bool {
+	for _, role := range set {
+		if role.GetName() == teleport.DefaultImplicitRole {
+			continue
+		}
+		if len(role.GetLogins(Allow)) != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // CheckAccessToServer checks if a role has access to a node. Deny rules are
@@ -2293,7 +2322,9 @@ const RoleSpecV3SchemaTemplate = `{
           "items": { "type": "string" }
         },
         "max_connections": { "type": "number" },
-        "max_sessions": {"type": "number"}
+        "max_sessions": {"type": "number"},
+        "request_access": { "type": "string" },
+        "request_prompt": { "type": "string" }
       }
     },
     "allow": { "$ref": "#/definitions/role_condition" },
@@ -2338,7 +2369,21 @@ const RoleSpecV3SchemaDefinitions = `
 		  "roles": {
 		    "type": "array",
 			"items": { "type": "string" }
-		  }
+		  },
+          "claims_to_roles": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "claim": {"type": "string"},
+              "value": {"type": "string"},
+              "roles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
 		}
 	  },
       "rules": {

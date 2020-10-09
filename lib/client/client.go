@@ -248,6 +248,19 @@ func (proxy *ProxyClient) GetAccessRequests(ctx context.Context, filter services
 	return reqs, nil
 }
 
+// GetRole loads a role resource by name.
+func (proxy *ProxyClient) GetRole(ctx context.Context, name string) (services.Role, error) {
+	site, err := proxy.ConnectToCurrentCluster(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	role, err := site.GetRole(name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return role, nil
+}
+
 // NewWatcher sets up a new event watcher.
 func (proxy *ProxyClient) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
 	site, err := proxy.ConnectToCurrentCluster(ctx, false)

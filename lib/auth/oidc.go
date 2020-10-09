@@ -439,35 +439,6 @@ type OIDCAuthResponse struct {
 	HostSigners []services.CertAuthority `json:"host_signers"`
 }
 
-// buildOIDCRoles takes a connector and claims and returns a slice of roles.
-func (a *Server) buildOIDCRoles(connector services.OIDCConnector, claims jose.Claims) ([]string, error) {
-	roles := connector.MapClaims(claims)
-	if len(roles) == 0 {
-		return nil, trace.AccessDenied("unable to map claims to role for connector: %v", connector.GetName())
-	}
-
-	return roles, nil
-}
-
-// claimsToTraitMap extracts all string claims and creates a map of traits
-// that can be used to populate role variables.
-func claimsToTraitMap(claims jose.Claims) map[string][]string {
-	traits := make(map[string][]string)
-
-	for claimName := range claims {
-		claimValue, ok, _ := claims.StringClaim(claimName)
-		if ok {
-			traits[claimName] = []string{claimValue}
-		}
-		claimValues, ok, _ := claims.StringsClaim(claimName)
-		if ok {
-			traits[claimName] = claimValues
-		}
-	}
-
-	return traits
-}
-
 func (a *Server) calculateOIDCUser(connector services.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *services.OIDCAuthRequest) (*createUserParams, error) {
 	var err error
 
@@ -476,11 +447,12 @@ func (a *Server) calculateOIDCUser(connector services.OIDCConnector, claims jose
 		username:      ident.Email,
 	}
 
-	p.roles, err = a.buildOIDCRoles(connector, claims)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	p.traits = services.OIDCClaimsToTraits(claims)
+
+	p.roles = connector.GetTraitMappings().TraitsToRoles(p.traits)
+	if len(p.roles) == 0 {
+		return nil, trace.AccessDenied("unable to map claims to role for connector: %v", connector.GetName())
 	}
-	p.traits = claimsToTraitMap(claims)
 
 	// Pick smaller for role: session TTL from role or requested TTL.
 	roles, err := services.FetchRoles(p.roles, a.Access, p.traits)

@@ -70,6 +70,8 @@ type CLIConf struct {
 	RemoteCommand []string
 	// DesiredRoles indicates one or more roles which should be requested.
 	DesiredRoles string
+	// RequestReason indicates the reason for an access request.
+	RequestReason string
 	// Username is the Teleport user's username (to login into proxies)
 	Username string
 	// Proxy keeps the hostname:port of the SSH proxy to use
@@ -307,6 +309,7 @@ func Run(args []string) {
 		identityfile.FormatKubernetes,
 	)).Default(string(identityfile.DefaultFormat)).StringVar((*string)(&cf.IdentityFormat))
 	login.Flag("request-roles", "Request one or more extra roles").StringVar(&cf.DesiredRoles)
+	login.Flag("request-reason", "Reason for requesting additional roles").StringVar(&cf.RequestReason)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	// TODO(awly): unhide this flag in 5.0, after 'tsh kube ...' commands are
@@ -497,7 +500,10 @@ func onLogin(cf *CLIConf) {
 		// but desired roles are specified, treat this as a privilege escalation
 		// request for the same login session.
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.DesiredRoles != "" && cf.IdentityFileOut == "":
-			executeAccessRequest(cf)
+			if err := executeAccessRequest(cf); err != nil {
+				utils.FatalError(err)
+			}
+			onStatus(cf)
 			return
 		// otherwise just passthrough to standard login
 		default:
@@ -510,12 +516,14 @@ func onLogin(cf *CLIConf) {
 
 	// -i flag specified? save the retreived cert into an identity file
 	makeIdentityFile := (cf.IdentityFileOut != "")
-	activateKey := !makeIdentityFile
 
-	key, err = tc.Login(cf.Context, activateKey)
+	key, err = tc.Login(cf.Context)
 	if err != nil {
 		utils.FatalError(err)
 	}
+
+	// TODO(fspmarshall): Refactor access request & cert reissue logic to allow
+	// access requests to be applied to identity files.
 
 	if makeIdentityFile {
 		if err := setupNoninteractiveClient(tc, key); err != nil {
@@ -538,6 +546,8 @@ func onLogin(cf *CLIConf) {
 		return
 	}
 
+	tc.ActivateKey(cf.Context, key)
+
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
 		if err := kubeconfig.UpdateWithClient("", tc); err != nil {
@@ -550,17 +560,50 @@ func onLogin(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 
+	if cf.DesiredRoles == "" {
+		var reason, auto bool
+		var prompt string
+		roleNames, err := key.CertRoles()
+		if err != nil {
+			tc.Logout()
+			utils.FatalError(err)
+		}
+		for _, roleName := range roleNames {
+			role, err := tc.GetRole(cf.Context, roleName)
+			if err != nil {
+				tc.Logout()
+				utils.FatalError(err)
+			}
+			reason = reason || role.GetOptions().RequestAccess.RequireReason()
+			auto = auto || role.GetOptions().RequestAccess.ShouldAutoRequest()
+		}
+		if reason && cf.RequestReason == "" {
+			tc.Logout()
+			msg := "--requst-reason must be specified"
+			if prompt != "" {
+				msg = msg + ", prompt=" + prompt
+			}
+			utils.FatalError(trace.BadParameter(msg))
+		}
+		if auto {
+			cf.DesiredRoles = "*"
+		}
+	}
+
+	if cf.DesiredRoles != "" {
+		fmt.Println("") // visually separate access request output
+		if err := executeAccessRequest(cf); err != nil {
+			tc.Logout()
+			utils.FatalError(err)
+		}
+	}
+
 	// Print status to show information of the logged in user. Update the
 	// command line flag (used to print status) for the proxy to make sure any
 	// advertised settings are picked up.
 	webProxyHost, _ := tc.WebProxyHostPort()
 	cf.Proxy = webProxyHost
-	if cf.DesiredRoles != "" {
-		fmt.Println("") // visually separate onRequestExecute output
-		executeAccessRequest(cf)
-	} else {
-		onStatus(cf)
-	}
+	onStatus(cf)
 }
 
 // setupNoninteractiveClient sets up existing client to use
@@ -762,31 +805,48 @@ func onListNodes(cf *CLIConf) {
 
 }
 
-func executeAccessRequest(cf *CLIConf) {
+func executeAccessRequest(cf *CLIConf) error {
 	if cf.DesiredRoles == "" {
-		utils.FatalError(trace.BadParameter("one or more roles must be specified"))
+		return trace.BadParameter("one or more roles must be specified")
 	}
 	roles := strings.Split(cf.DesiredRoles, ",")
 	tc, err := makeClient(cf, true)
 	if err != nil {
-		utils.FatalError(err)
+		return trace.Wrap(err)
 	}
 	if cf.Username == "" {
 		cf.Username = tc.Username
 	}
 	req, err := services.NewAccessRequest(cf.Username, roles...)
 	if err != nil {
-		utils.FatalError(err)
+		return trace.Wrap(err)
 	}
+	req.SetRequestReason(cf.RequestReason)
 	fmt.Fprintf(os.Stderr, "Seeking request approval... (id: %s)\n", req.GetName())
-	if err := getRequestApproval(cf, tc, req); err != nil {
-		utils.FatalError(err)
+
+	res, err := getRequestResolution(cf, tc, req)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	fmt.Fprintf(os.Stderr, "Approval received, getting updated certificates...\n\n")
+
+	if !res.GetState().IsApproved() {
+		msg := fmt.Sprintf("request %s has been set to %s", res.GetName(), res.GetState().String())
+		if reason := res.GetResolveReason(); reason != "" {
+			msg = fmt.Sprintf("%s, reason=%q", msg, reason)
+		}
+		return trace.Errorf(msg)
+	}
+
+	msg := "\nApproval received, getting updated certificates...\n\n"
+	if reason := res.GetResolveReason(); reason != "" {
+		msg = fmt.Sprintf("\nApproval received, reason=%q\nGetting updated certificates...\n\n", reason)
+	}
+	fmt.Fprint(os.Stderr, msg)
+
 	if err := reissueWithRequests(cf, tc, req.GetName()); err != nil {
-		utils.FatalError(err)
+		return trace.Wrap(err)
 	}
-	onStatus(cf)
+	return nil
 }
 
 func printNodes(nodes []services.Server, format string, verbose bool) error {
@@ -1462,8 +1522,8 @@ func host(in string) string {
 	return out
 }
 
-// getRequestApproval registers an access request with the auth server and waits for it to be approved.
-func getRequestApproval(cf *CLIConf, tc *client.TeleportClient, req services.AccessRequest) error {
+// getRequestResolution registers an access request with the auth server and waits for it to be resolved.
+func getRequestResolution(cf *CLIConf, tc *client.TeleportClient, req services.AccessRequest) (services.AccessRequest, error) {
 	// set up request watcher before submitting the request to the admin server
 	// in order to avoid potential race.
 	filter := services.AccessRequestFilter{
@@ -1479,11 +1539,11 @@ func getRequestApproval(cf *CLIConf, tc *client.TeleportClient, req services.Acc
 		},
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer watcher.Close()
 	if err := tc.CreateAccessRequest(cf.Context, req); err != nil {
-		utils.FatalError(err)
+		return nil, trace.Wrap(err)
 	}
 Loop:
 	for {
@@ -1496,27 +1556,24 @@ Loop:
 			case backend.OpPut:
 				r, ok := event.Resource.(*services.AccessRequestV3)
 				if !ok {
-					return trace.BadParameter("unexpected resource type %T", event.Resource)
+					return nil, trace.BadParameter("unexpected resource type %T", event.Resource)
 				}
 				if r.GetName() != req.GetName() || r.GetState().IsPending() {
-					log.Infof("Skipping put event id=%s,state=%s.", r.GetName(), r.GetState())
+					log.Debugf("Skipping put event id=%s,state=%s.", r.GetName(), r.GetState())
 					continue Loop
 				}
-				if !r.GetState().IsApproved() {
-					return trace.Errorf("request %s has been set to %s", r.GetName(), r.GetState().String())
-				}
-				return nil
+				return r, nil
 			case backend.OpDelete:
 				if event.Resource.GetName() != req.GetName() {
-					log.Infof("Skipping delete event id=%s", event.Resource.GetName())
+					log.Debugf("Skipping delete event id=%s", event.Resource.GetName())
 					continue Loop
 				}
-				return trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
+				return nil, trace.Errorf("request %s has expired or been deleted...", event.Resource.GetName())
 			default:
 				log.Warnf("Skipping unknown event type %s", event.Type)
 			}
 		case <-watcher.Done():
-			utils.FatalError(watcher.Error())
+			return nil, trace.Wrap(watcher.Error())
 		}
 	}
 }
