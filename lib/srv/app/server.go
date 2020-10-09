@@ -285,20 +285,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	// Authenticate the request based off the "x-teleport-session-id" header.
-	session, err := s.authenticate(s.closeContext, r)
+	appSession, err := s.authenticate(s.closeContext, r)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Fetch a cached request forwarder or create one if this is the first
 	// request (or the process has been restarted).
-	fwd, err := s.getForwarder(s.closeContext, session)
+	session, err := s.getSession(s.closeContext, appSession)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Forward request to the target application.
-	fwd.ServeHTTP(w, r)
+	session.fwd.ServeHTTP(w, r)
 	return nil
 }
 
@@ -325,176 +325,10 @@ func (s *Server) authenticate(ctx context.Context, r *http.Request) (services.Ap
 	return session, nil
 }
 
-// getForwarder returns a request forwarder used to proxy the request to the
-// target application. Always checks if the session is valid first and if so,
-// will return a cached forwarder, otherwise will create one.
-func (s *Server) getForwarder(ctx context.Context, session services.AppSession) (*forward.Forwarder, error) {
-	// If a cached forwarder exists, return it right away.
-	fwd, err := s.cacheGet(session.GetName())
-	if err == nil {
-		return fwd, nil
-	}
-
-	// Locally lookup the application the caller is targeting.
-	app, err := s.getApp(ctx, session.GetPublicAddr())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Create the forwarder.
-	fwder, err := newForwarder(&forwarderConfig{
-		publicAddr: app.PublicAddr,
-		uri:        app.URI,
-		jwt:        session.GetJWT(),
-		tr:         s.tr,
-		log:        s.log,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	fwd, err = forward.New(
-		forward.RoundTripper(fwder),
-		forward.Rewriter(fwder),
-		forward.Logger(s.log))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Put the forwarder in the cache so the next request can use it.
-	err = s.cacheSet(session.GetName(), fwd, session.Expiry().Sub(s.c.Clock.Now()))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return fwd, nil
-}
-
-// getApp returns an application matching the public address. If multiple
-// matching applications exist, the first one is returned. Random selection
-// (or round robin) does not need to occur here because they will all point
-// to the same target address. Random selection (or round robin) occurs at the
-// proxy to load balance requests to the application service.
-func (s *Server) getApp(ctx context.Context, publicAddr string) (*services.App, error) {
-	for _, a := range s.c.Server.GetApps() {
-		if publicAddr == a.PublicAddr {
-			return a, nil
-		}
-	}
-
-	return nil, trace.NotFound("no application at %v found", publicAddr)
-}
-
-// cacheGet will fetch the forwarder from the cache.
-func (s *Server) cacheGet(key string) (*forward.Forwarder, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if f, ok := s.cache.Get(key); ok {
-		if fwd, fok := f.(*forward.Forwarder); fok {
-			return fwd, nil
-		}
-		return nil, trace.BadParameter("invalid type stored in cache: %T", f)
-	}
-	return nil, trace.NotFound("forwarder not found")
-}
-
-// cacheSet will add the forwarder to the cache.
-func (s *Server) cacheSet(key string, value *forward.Forwarder, ttl time.Duration) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if err := s.cache.Set(key, value, ttl); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // activeConnections returns the number of active connections being proxied.
 // Used in tests.
 func (s *Server) activeConnections() int64 {
 	return atomic.LoadInt64(&s.activeConns)
-}
-
-// forwarderConfig is the configuration for a forwarder.
-type forwarderConfig struct {
-	publicAddr string
-	uri        string
-	jwt        string
-	tr         http.RoundTripper
-	log        *logrus.Entry
-}
-
-// Check will valid the configuration of a forwarder.
-func (c *forwarderConfig) Check() error {
-	if c.jwt == "" {
-		return trace.BadParameter("jwt missing")
-	}
-	if c.uri == "" {
-		return trace.BadParameter("uri missing")
-	}
-	if c.publicAddr == "" {
-		return trace.BadParameter("public addr missing")
-	}
-	if c.tr == nil {
-		return trace.BadParameter("round tripper missing")
-	}
-	if c.log == nil {
-		return trace.BadParameter("logger missing")
-	}
-	return nil
-}
-
-// forwarder will rewrite and forward the request to the target address.
-type forwarder struct {
-	c *forwarderConfig
-
-	uri *url.URL
-}
-
-// newForwarder creates a new forwarder that can re-write and round trip a
-// HTTP request.
-func newForwarder(c *forwarderConfig) (*forwarder, error) {
-	if err := c.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Parse the target address once then inject it into all requests.
-	uri, err := url.Parse(c.uri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &forwarder{
-		c:   c,
-		uri: uri,
-	}, nil
-}
-
-// RoundTrip make the request and log the request/response pair in the audit log.
-func (f *forwarder) RoundTrip(r *http.Request) (*http.Response, error) {
-	// Update the target address of the request so it's forwarded correctly.
-	r.URL.Scheme = f.uri.Scheme
-	r.URL.Host = f.uri.Host
-
-	resp, err := f.c.tr.RoundTrip(r)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// TODO(russjones): Hook audit log here.
-
-	return resp, nil
-}
-
-// Rewrite request headers to add in JWT header and remove any Teleport
-// related authentication headers.
-func (f *forwarder) Rewrite(r *http.Request) {
-	// Add in JWT headers.
-	r.Header.Add(teleport.AppJWTHeader, f.c.jwt)
-	r.Header.Add(teleport.AppCFHeader, f.c.jwt)
-
-	// Remove the session ID header before forwarding the session to the
-	// target application.
-	r.Header.Del(teleport.AppSessionIDHeader)
 }
 
 // newTransport returns a new http.RoundTripper with sensible defaults.
@@ -517,6 +351,10 @@ func newTransport() (http.RoundTripper, error) {
 	// connections open forever and will cause memory leaks in a long running
 	// process.
 	tr.IdleConnTimeout = defaults.HTTPIdleTimeout
+
+	// If Teleport was started with the --insecure flag, then don't validate the
+	// certificate if making TLS requests.
+	tr.TLSClientConfig.InsecureSkipVerify = lib.IsInsecureDevMode()
 
 	return tr, nil
 }

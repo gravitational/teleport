@@ -83,5 +83,5 @@ func decodeCookie(cookieValue string) (*Cookie, error) {
 }
 
 const (
-	cookieName = "teleport.app.session"
+	cookieName = "grv_app_session"
 )

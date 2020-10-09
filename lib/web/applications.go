@@ -143,7 +143,8 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	// this is because cache does not get reflected right away and this sends us in a racy situation.
+	// Block and wait a few seconds for the session that was created to show up
+	// in the cache. This is to prevent a racy session creation loop.
 	err = h.waitForSession(r.Context(), services.GetAppWebSessionRequest{
 		Username:   webSession.GetUser(),
 		ParentHash: webSession.GetParentHash(),
@@ -198,22 +199,17 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		FQDN:        result.FQDN,
 	}
 
-	fmt.Printf("--> casr: %v.\n", casr)
-
 	return casr, nil
 }
 
 func (h *Handler) waitForSession(ctx context.Context, req services.GetAppWebSessionRequest) error {
-	start := time.Now()
-
-	tick := time.Tick(50 * time.Millisecond)
+	tick := time.Tick(100 * time.Millisecond)
 	boom := time.After(5 * time.Second)
 	for {
 		select {
 		case <-tick:
 			_, err := h.cfg.AccessPoint.GetAppWebSession(ctx, req)
 			if err == nil {
-				fmt.Printf("--> Found session in %v.\n", time.Since(start))
 				return nil
 			}
 		case <-boom:

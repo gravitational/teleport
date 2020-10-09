@@ -364,8 +364,9 @@ func (f *forwarder) Rewrite(r *http.Request) {
 	// done by first wiping out the "Cookie" header then adding back all cookies
 	// except the Teleport application specific session cookie. This appears to
 	// be the best way to serialize cookies.
+	cookies := r.Cookies()
 	r.Header.Del("Cookie")
-	for _, cookie := range r.Cookies() {
+	for _, cookie := range cookies {
 		if cookie.Name == cookieName {
 			continue
 		}
