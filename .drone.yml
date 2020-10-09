@@ -2389,7 +2389,6 @@ steps:
       - cd /go/src/github.com/gravitational/teleport/assets/aws
       - export TELEPORT_VERSION=$(cat /go/.version.txt)
       - export PUBLIC_AMI_NAME=gravitational-teleport-ami-oss-$TELEPORT_VERSION
-      - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-oss-$TELEPORT_VERSION
       - |
         if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
           echo "---> Building production OSS AMIs"
@@ -2494,7 +2493,6 @@ steps:
       - export TELEPORT_VERSION=$(cat /go/.version.txt)
       - export PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-$TELEPORT_VERSION
       - export FIPS_AMI_NAME=gravitational-teleport-ami-ent-$TELEPORT_VERSION-fips
-      - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-ent-$TELEPORT_VERSION
       - |
         if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
           echo "---> Building production Enterprise AMIs"
@@ -2792,6 +2790,6 @@ volumes:
 
 ---
 kind: signature
-hmac: fada4e800dbad247638e74e9ec61d41597257507fba5f35e18b9182be2278a21
+hmac: 5e2de07e00d59e731a0f9bf76780c40ce8ead1aadee8a68affe89548806176b2
 
 ...
