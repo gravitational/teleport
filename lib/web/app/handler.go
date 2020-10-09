@@ -47,7 +47,9 @@ import (
 type HandlerConfig struct {
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
-	// AccessPoint is a caching client.
+	// AuthClient is a direct client to auth.
+	AuthClient auth.ClientI
+	// AccessPoint is caching client to auth.
 	AccessPoint auth.AccessPoint
 	// ProxyClient holds connections to leaf clusters.
 	ProxyClient reversetunnel.Server
@@ -59,6 +61,9 @@ func (c *HandlerConfig) CheckAndSetDefaults() error {
 		c.Clock = clockwork.NewRealClock()
 	}
 
+	if c.AuthClient == nil {
+		return trace.BadParameter("auth client missing")
+	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("access point missing")
 	}
@@ -108,6 +113,7 @@ func NewHandler(c *HandlerConfig) (*Handler, error) {
 		tr:    tr,
 		cache: cache,
 	}, nil
+
 }
 
 // ForwardToApp checks if the request is bound for the application handler.
@@ -174,10 +180,17 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
-	// If the target is an application but it hits the special "x-teleport-auth"
-	// endpoint, then perform redirect authentication logic.
-	if r.URL.Path == "/x-teleport-auth" {
+	// Only two special endpoints exist, one is used to pass authentication from
+	// one origin to another and the other is to logout. All other requests
+	// simply get forwarded.
+	switch r.URL.Path {
+	case "/x-teleport-auth":
 		if err := h.handleFragment(w, r); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	case "/x-teleport-logout":
+		if err := h.handleLogout(w, r); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
