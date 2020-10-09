@@ -7,9 +7,6 @@ BUILD_SUBNET_ID ?=
 # Public AMI name
 PUBLIC_AMI_NAME ?=
 
-# Marketplace AMI name ?=
-MARKETPLACE_AMI_NAME ?=
-
 # Default build region
 AWS_REGION ?= us-west-2
 
@@ -17,7 +14,7 @@ AWS_REGION ?= us-west-2
 # This must be a _released_ version of Teleport, i.e. one which has binaries
 # available for download on https://gravitational.com/teleport/download
 # Unreleased versions will fail to build.
-TELEPORT_VERSION ?= 4.3.7
+TELEPORT_VERSION ?= 4.4.0-rc.3
 
 # Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007
@@ -69,10 +66,9 @@ oss-ci-build: check-vars
 oss-ci-build:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) via CI"
 	@echo "Public AMI name: $(PUBLIC_AMI_NAME)"
-	@echo "Marketplace AMI name: $(MARKETPLACE_AMI_NAME)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	mkdir -p files/build
-	packer build -force -var ami_name=$(PUBLIC_AMI_NAME) -var marketplace_ami_name=$(MARKETPLACE_AMI_NAME) -var build_timestamp=$(BUILD_TIMESTAMP) -except teleport-aws-linux-fips single-ami.json
+	packer build -force -var ami_name=$(PUBLIC_AMI_NAME) -var build_timestamp=$(BUILD_TIMESTAMP) -except teleport-aws-linux-fips single-ami.json
 	@echo "$(BUILD_TIMESTAMP)" > files/build/oss_build_timestamp.txt
 
 .PHONY: change-amis-to-public-oss
@@ -98,10 +94,9 @@ ent-ci-build:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE) via CI"
 	@echo "Public AMI name: $(PUBLIC_AMI_NAME)"
 	@echo "FIPS AMI name: $(FIPS_AMI_NAME)"
-	@echo "Marketplace AMI name: $(MARKETPLACE_AMI_NAME)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	mkdir -p files/build
-	packer build -force -var ami_name=$(PUBLIC_AMI_NAME) -var fips_ami_name=$(FIPS_AMI_NAME) -var marketplace_ami_name=$(MARKETPLACE_AMI_NAME) -var build_timestamp=$(BUILD_TIMESTAMP) single-ami.json
+	packer build -force -var ami_name=$(PUBLIC_AMI_NAME) -var fips_ami_name=$(FIPS_AMI_NAME) -var build_timestamp=$(BUILD_TIMESTAMP) single-ami.json
 	@echo "$(BUILD_TIMESTAMP)" > files/build/ent_build_timestamp.txt
 
 .PHONY: change-amis-to-public-ent
