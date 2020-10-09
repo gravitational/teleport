@@ -6,6 +6,7 @@ import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "github.com/gravitational/teleport/lib/services/types.proto";
 import "github.com/gravitational/teleport/lib/events/events.proto";
+import "github.com/gravitational/teleport/lib/wrappers/wrappers.proto";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
@@ -168,6 +169,20 @@ message RequestStateSetter {
     // state update (used by plugins to indicate which user approved
     // or denied the request).
     string Delegator = 3 [ (gogoproto.jsontag) = "delegator,omitempty" ];
+    // Reason is an optional message indicating the reason for the
+    // resolution (approval, denail , etc...).
+    string Reason = 4 [ (gogoproto.jsontag) = "reason,omitempty" ];
+    // Annotations are key/value pairs received from plugins during request
+    // resolution.  They are currently only used to provide additional logging
+    // information.
+    wrappers.LabelValues Annotations = 5 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "annotations,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/lib/wrappers.Traits"
+    ];
+    // Roles, if present, overrides the existing set of roles associated
+    // with the access request.
+    repeated string Roles = 6 [ (gogoproto.jsontag) = "roles,omitempty" ];
 }
 
 // RequestID is the unique identifier of an access request.
