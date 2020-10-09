@@ -22,12 +22,52 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 )
+
+// RequestStrategy is an indicator of how access requests
+// should be handled for holders of a given role.
+type RequestStrategy string
+
+const (
+	// RequestStrategyOptional is the default request strategy,
+	// indicating that no special actions/requirements exist.
+	RequestStrategyOptional RequestStrategy = "optional"
+
+	// RequestStrategyReason indicates that client implementations
+	// should automatically generate wildcard requests on login, and
+	// users should be prompted for a reason.
+	RequestStrategyReason RequestStrategy = "reason"
+
+	// RequestStrategyAlways indicates that client implementations
+	// should automatically generate wildcard requests on login, but
+	// that reasons are not required.
+	RequestStrategyAlways RequestStrategy = "always"
+)
+
+// ShouldAutoRequest checks if the request strategy
+// indicates that a request should be automatically
+// generated on login.
+func (s RequestStrategy) ShouldAutoRequest() bool {
+	switch s {
+	case RequestStrategyReason, RequestStrategyAlways:
+		return true
+	default:
+		return false
+	}
+}
+
+// RequireReason checks if the request strategy
+// is one that requires users to always supply
+// reasons with their requests.
+func (s RequestStrategy) RequireReason() bool {
+	return s == RequestStrategyReason
+}
 
 // RequestIDs is a collection of IDs for privilege escalation requests.
 type RequestIDs struct {
@@ -140,12 +180,47 @@ func (f *AccessRequestFilter) Equals(o AccessRequestFilter) bool {
 	return f.ID == o.ID && f.User == o.User && f.State == o.State
 }
 
+// AccessRequestUpdate encompasses the parameters of a
+// SetAccessRequestState call.
+type AccessRequestUpdate struct {
+	// RequestID is the ID of the request to be updated.
+	RequestID string
+	// State is the state that the target request
+	// should resolve to.
+	State RequestState
+	// Reason is an optional description of *why* the
+	// the request is being resolved.
+	Reason string
+	// Annotations supplies extra data associated with
+	// the resolution; primarily for audit purposes.
+	Annotations map[string][]string
+	// Roles, if non-empty declares a list of roles
+	// that should override the role list of the request.
+	// This parameter is only accepted on approvals
+	// and must be a subset of the role list originally
+	// present on the request.
+	Roles []string
+}
+
+func (u *AccessRequestUpdate) Check() error {
+	if u.RequestID == "" {
+		return trace.BadParameter("missing request id")
+	}
+	if u.State.IsNone() {
+		return trace.BadParameter("missing request state")
+	}
+	if len(u.Roles) > 0 && !u.State.IsApproved() {
+		return trace.BadParameter("cannot override roles when setting state: %s", u.State)
+	}
+	return nil
+}
+
 // DynamicAccess is a service which manages dynamic RBAC.
 type DynamicAccess interface {
 	// CreateAccessRequest stores a new access request.
 	CreateAccessRequest(ctx context.Context, req AccessRequest) error
 	// SetAccessRequestState updates the state of an existing access request.
-	SetAccessRequestState(ctx context.Context, reqID string, state RequestState) error
+	SetAccessRequestState(ctx context.Context, params AccessRequestUpdate) error
 	// GetAccessRequests gets all currently active access requests.
 	GetAccessRequests(ctx context.Context, filter AccessRequestFilter) ([]AccessRequest, error)
 	// DeleteAccessRequest deletes an access request.
@@ -173,6 +248,8 @@ type AccessRequest interface {
 	GetUser() string
 	// GetRoles gets the roles being requested by the user
 	GetRoles() []string
+	// SetRoles overrides the roles being requested by the user
+	SetRoles([]string)
 	// GetState gets the current state of the request
 	GetState() RequestState
 	// SetState sets the approval state of the request
@@ -188,6 +265,24 @@ type AccessRequest interface {
 	// SetAccessExpiry sets the upper limit for which this request
 	// may be considered active.
 	SetAccessExpiry(time.Time)
+	// GetRequestReason gets the reason for the request's creation.
+	GetRequestReason() string
+	// SetRequestReason sets the reason for the request's creation.
+	SetRequestReason(string)
+	// GetResolveReason gets the reasson for the request's resolution.
+	GetResolveReason() string
+	// SetResolveReason sets the reason for the request's resolution.
+	SetResolveReason(string)
+	// GetResolveAnnotations gets the annotations associated with
+	// the request's resolution.
+	GetResolveAnnotations() map[string][]string
+	// SetResolveAnnotations sets the annotations associated with
+	// the request's resolution.
+	SetResolveAnnotations(map[string][]string)
+	// GetSystemAnnotations gets the teleport-applied annotations.
+	GetSystemAnnotations() map[string][]string
+	// SetSystemAnnotations sets the teleport-applied annotations.
+	SetSystemAnnotations(map[string][]string)
 	// CheckAndSetDefaults validates the access request and
 	// supplies default values where appropriate.
 	CheckAndSetDefaults() error
@@ -225,6 +320,10 @@ func (s RequestState) IsDenied() bool {
 	return s == RequestState_DENIED
 }
 
+func (s RequestState) IsResolved() bool {
+	return s.IsApproved() || s.IsDenied()
+}
+
 // NewAccessRequest assembled an AccessReqeust resource.
 func NewAccessRequest(user string, roles ...string) (AccessRequest, error) {
 	req := AccessRequestV3{
@@ -245,53 +344,212 @@ func NewAccessRequest(user string, roles ...string) (AccessRequest, error) {
 	return &req, nil
 }
 
+func (c AccessRequestConditions) GetTraitMappings() TraitMappingSet {
+	tm := make([]TraitMapping, 0, len(c.ClaimsToRoles))
+	for _, mapping := range c.ClaimsToRoles {
+		tm = append(tm, TraitMapping{
+			Trait: mapping.Claim,
+			Value: mapping.Value,
+			Roles: mapping.Roles,
+		})
+	}
+	return TraitMappingSet(tm)
+}
+
 type UserAndRoleGetter interface {
 	UserGetter
 	RoleGetter
+	GetRoles() ([]Role, error)
 }
 
-func ValidateAccessRequest(getter UserAndRoleGetter, req AccessRequest) error {
+// requestValidator collects state related to
+// access request validation.
+type requestValidator struct {
+	traits map[string][]string
+	state  RequestState
+	Roles  struct {
+		Allow, Deny []parse.Matcher
+	}
+	Annotations struct {
+		Allow, Deny map[string][]string
+	}
+}
+
+func newRequestValidator(traits map[string][]string, state RequestState) requestValidator {
+	m := requestValidator{
+		traits: traits,
+		state:  state,
+	}
+	if m.state.IsPending() {
+		// if request state is PENDING, we need to build
+		// system annotations.
+		m.Annotations.Allow = make(map[string][]string)
+		m.Annotations.Deny = make(map[string][]string)
+	}
+	return m
+}
+
+// push integrates a role's configuration into the request validator.
+// All roles must be pushed before validation begins.
+func (m *requestValidator) push(role Role) error {
+	for _, d := range role.GetAccessRequestConditions(Deny).Roles {
+		md, err := parse.NewMatcher(d)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		m.Roles.Deny = append(m.Roles.Deny, md)
+	}
+
+	mds, err := role.GetAccessRequestConditions(Deny).GetTraitMappings().TraitsToRoleMatchers(m.traits)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	m.Roles.Deny = append(m.Roles.Deny, mds...)
+
+	if m.state.IsPending() {
+		for kd, vd := range role.GetAccessRequestConditions(Deny).Annotations {
+			var vals []string
+		Dval:
+			for _, d := range vd {
+				applied, err := applyValueTraits(d, m.traits)
+				if err != nil {
+					continue Dval
+				}
+				vals = append(vals, applied...)
+			}
+			m.Annotations.Deny[kd] = append(m.Annotations.Deny[kd], vals...)
+		}
+	}
+
+	for _, a := range role.GetAccessRequestConditions(Allow).Roles {
+		ma, err := parse.NewMatcher(a)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		m.Roles.Allow = append(m.Roles.Allow, ma)
+	}
+
+	mas, err := role.GetAccessRequestConditions(Allow).GetTraitMappings().TraitsToRoleMatchers(m.traits)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	m.Roles.Allow = append(m.Roles.Allow, mas...)
+
+	if m.state.IsPending() {
+		for ka, va := range role.GetAccessRequestConditions(Allow).Annotations {
+			var vals []string
+		Avals:
+			for _, a := range va {
+				applied, err := applyValueTraits(a, m.traits)
+				if err != nil {
+					continue Avals
+				}
+				vals = append(vals, applied...)
+			}
+			m.Annotations.Allow[ka] = append(m.Annotations.Allow[ka], vals...)
+		}
+	}
+	return nil
+}
+
+// CanRequestRole checks if a given role can be requested.
+func (m *requestValidator) CanRequestRole(name string) bool {
+	for _, deny := range m.Roles.Deny {
+		if deny.Match(name) {
+			return false
+		}
+	}
+	for _, allow := range m.Roles.Allow {
+		if allow.Match(name) {
+			return true
+		}
+	}
+	return false
+}
+
+// SystemAnnotations calculates the system annotations for a pending
+// access request.
+func (m *requestValidator) SystemAnnotations() map[string][]string {
+	annotations := make(map[string][]string)
+	for k, va := range m.Annotations.Allow {
+		var filtered []string
+		for _, v := range va {
+			if !utils.SliceContainsStr(m.Annotations.Deny[k], v) {
+				filtered = append(filtered, v)
+			}
+		}
+		if len(filtered) == 0 {
+			continue
+		}
+		annotations[k] = filtered
+	}
+	return annotations
+}
+
+// ValidateAccessRequest validates an access request against the associated users's
+// *statically assigned* roles. If expandRoles is true, it will also expand wildcard
+// requests, setting their role list to include all roles the user is allowed to request.
+// Expansion should be performed before an access request is initially placed in the backend.
+func ValidateAccessRequest(getter UserAndRoleGetter, req AccessRequest, expandRoles bool) error {
 	user, err := getter.GetUser(req.GetUser(), false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	type rstate struct {
-		allowed bool
-		denied  bool
-	}
-	roleStates := make(map[string]rstate, len(req.GetRoles()))
-	for _, r := range req.GetRoles() {
-		roleStates[r] = rstate{false, false}
-	}
+
+	var requireReason bool
+	validator := newRequestValidator(user.GetTraits(), req.GetState())
+
 	for _, roleName := range user.GetRoles() {
 		role, err := getter.GetRole(roleName)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-	Allow:
-		for _, r := range role.GetAccessRequestConditions(Allow).Roles {
-			s, ok := roleStates[r]
-			if !ok {
-				continue Allow
-			}
-			s.allowed = true
-			roleStates[r] = s
+		if err := validator.push(role); err != nil {
+			return trace.Wrap(err)
 		}
-	Deny:
-		for _, r := range role.GetAccessRequestConditions(Deny).Roles {
-			s, ok := roleStates[r]
-			if !ok {
-				continue Deny
-			}
-			s.denied = true
-			roleStates[r] = s
+		if role.GetOptions().RequestAccess.RequireReason() {
+			requireReason = true
 		}
 	}
-	for roleName, roleState := range roleStates {
-		if roleState.denied || !roleState.allowed {
-			return trace.BadParameter("user %q cannot request role %q", req.GetUser(), roleName)
+
+	if requireReason && req.GetRequestReason() == "" {
+		return trace.BadParameter("request reason must be specified")
+	}
+
+	if r := req.GetRoles(); len(r) == 1 && r[0] == "*" {
+		if !expandRoles || !req.GetState().IsPending() {
+			return trace.BadParameter("unexpected wildcard access request")
+		}
+
+		allRoles, err := getter.GetRoles()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		var expanded []string
+		for _, role := range allRoles {
+			if n := role.GetName(); !utils.SliceContainsStr(user.GetRoles(), n) && validator.CanRequestRole(n) {
+				expanded = append(expanded, n)
+			}
+		}
+		if len(expanded) == 0 {
+			return trace.BadParameter("failed to expand wildcard request, no allowed roles found")
+		}
+		req.SetRoles(expanded)
+	}
+
+	for _, roleName := range req.GetRoles() {
+		if !validator.CanRequestRole(roleName) {
+			return trace.BadParameter("user %q cannot request/assume role %q", req.GetUser(), roleName)
 		}
 	}
+
+	if req.GetState().IsPending() {
+		req.SetSystemAnnotations(validator.SystemAnnotations())
+	}
+
 	return nil
 }
 
@@ -301,6 +559,10 @@ func (r *AccessRequestV3) GetUser() string {
 
 func (r *AccessRequestV3) GetRoles() []string {
 	return r.Spec.Roles
+}
+
+func (r *AccessRequestV3) SetRoles(roles []string) {
+	r.Spec.Roles = roles
 }
 
 func (r *AccessRequestV3) GetState() RequestState {
@@ -332,6 +594,38 @@ func (r *AccessRequestV3) GetAccessExpiry() time.Time {
 
 func (r *AccessRequestV3) SetAccessExpiry(expiry time.Time) {
 	r.Spec.Expires = expiry
+}
+
+func (r *AccessRequestV3) GetRequestReason() string {
+	return r.Spec.RequestReason
+}
+
+func (r *AccessRequestV3) SetRequestReason(reason string) {
+	r.Spec.RequestReason = reason
+}
+
+func (r *AccessRequestV3) GetResolveReason() string {
+	return r.Spec.ResolveReason
+}
+
+func (r *AccessRequestV3) SetResolveReason(reason string) {
+	r.Spec.ResolveReason = reason
+}
+
+func (r *AccessRequestV3) GetResolveAnnotations() map[string][]string {
+	return r.Spec.ResolveAnnotations
+}
+
+func (r *AccessRequestV3) SetResolveAnnotations(annotations map[string][]string) {
+	r.Spec.ResolveAnnotations = annotations
+}
+
+func (r *AccessRequestV3) GetSystemAnnotations() map[string][]string {
+	return r.Spec.SystemAnnotations
+}
+
+func (r *AccessRequestV3) SetSystemAnnotations(annotations map[string][]string) {
+	r.Spec.SystemAnnotations = annotations
 }
 
 func (r *AccessRequestV3) CheckAndSetDefaults() error {
@@ -367,6 +661,14 @@ func (r *AccessRequestV3) Check() error {
 	}
 	if len(r.GetRoles()) < 1 {
 		return trace.BadParameter("access request does not specify any roles")
+	}
+	if r.GetState().IsPending() {
+		if r.GetResolveReason() != "" {
+			return trace.BadParameter("pending requests cannot include resolve reason")
+		}
+		if len(r.GetResolveAnnotations()) != 0 {
+			return trace.BadParameter("pending requests cannot include resolve annotations")
+		}
 	}
 	return nil
 }
@@ -476,7 +778,11 @@ const AccessRequestSpecSchema = `{
 		},
 		"state": { "type": "integer" },
 		"created": { "type": "string" },
-		"expires": { "type": "string" }
+		"expires": { "type": "string" },
+		"request_reason": { "type": "string" },
+		"resolve_reason": { "type": "string" },
+		"resolve_annotations": { "type": "object" },
+		"system_annotations": { "type": "object" }
 	}
 }`
 

@@ -560,6 +560,31 @@ message AccessRequestSpecV3 {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "expires,omitempty"
     ];
+
+    // RequestReason is an optional message explaining the reason for the request.
+    string RequestReason = 6 [ (gogoproto.jsontag) = "request_reason,omitempty" ];
+
+    // ResolveReason is an optional message explaining the reason for the resolution
+    // of the request (approval, denail, etc...).
+    string ResolveReason = 7 [ (gogoproto.jsontag) = "resolve_reason,omitempty" ];
+
+    // ResolveAnnotations is a set of annotations received from plugins during request
+    // resolution.  They are currently only used to provide additional logging
+    // information.
+    wrappers.LabelValues ResolveAnnotations = 8 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "resolve_annotations,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/lib/wrappers.Traits"
+    ];
+
+    // SystemAnnotations is a set of programmatically generated annotations injected
+    // by teleport based on role configuration.  They have no purpose other than to
+    // propagate side-band information to resolving parties.
+    wrappers.LabelValues SystemAnnotations = 9 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "system_annotations,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/lib/wrappers.Traits"
+    ];
 }
 
 // AccessRequestFilter encodes filter params for access requests.
@@ -719,13 +744,23 @@ message RoleOptions {
     // MaxSessions defines the maximum number of
     // concurrent sessions per connection.
     int64 MaxSessions = 10 [ (gogoproto.jsontag) = "max_sessions,omitempty" ];
+
+    // RequestAccess defines the access request stategy (optional|note|always)
+    // where optional is the default.
+    string RequestAccess = 11 [
+        (gogoproto.jsontag) = "request_access,omitempty",
+        (gogoproto.casttype) = "RequestStrategy"
+    ];
+
+    // RequestPrompt is an optional message which tells users what they aught to
+    string RequestPrompt = 12 [ (gogoproto.jsontag) = "request_prompt,omitempty" ];
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or
 // denied access.
 message RoleConditions {
     // Logins is a list of *nix system logins.
-    repeated string Logins = 1 [ (gogoproto.jsontag) = "logins" ];
+    repeated string Logins = 1 [ (gogoproto.jsontag) = "logins,omitempty" ];
 
     // Namespaces is a list of namespaces (used to partition a cluster). The
     // field should be called "namespaces" when it returns in Teleport 2.4.
@@ -758,6 +793,32 @@ message RoleConditions {
 message AccessRequestConditions {
     // Roles is the name of roles which will match the request rule.
     repeated string Roles = 1 [ (gogoproto.jsontag) = "roles,omitempty" ];
+
+    // ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
+    repeated AccessRequestClaimMapping ClaimsToRoles = 2
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "claims_to_roles,omitempty" ];
+
+    // Annotations is a collection of annotations to be programmatically
+    // appended to access requests upon their creation.
+    wrappers.LabelValues Annotations = 3 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "annotations,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/lib/wrappers.Traits"
+    ];
+}
+
+// AccessRequestClaimMapping is a variant of the trait mapping pattern,
+// used to propagate requestable roles from external identity providers.
+message AccessRequestClaimMapping {
+    // Claim is the name of the trait to be matched against.
+    string Claim = 1 [ (gogoproto.jsontag) = "claim,omitempty" ];
+
+    // Value is matches a trait value.
+    string Value = 2 [ (gogoproto.jsontag) = "value,omitempty" ];
+
+    // Roles are the roles being mapped to.
+    repeated string Roles = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
+    ;
 }
 
 // Rule represents allow or deny rule that is executed to check

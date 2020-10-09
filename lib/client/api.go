@@ -339,11 +339,14 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		return trace.Wrap(err)
 	}
 	log.Debugf("Activating relogin on %v.", err)
-	key, err := tc.Login(ctx, true)
+	key, err := tc.Login(ctx)
 	if err != nil {
 		if trace.IsTrustError(err) {
 			return trace.Wrap(err, "refusing to connect to untrusted proxy %v without --insecure flag\n", tc.Config.SSHProxyAddr)
 		}
+		return trace.Wrap(err)
+	}
+	if err := tc.ActivateKey(ctx, key); err != nil {
 		return trace.Wrap(err)
 	}
 	// Save profile to record proxy credentials
@@ -900,6 +903,15 @@ func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter services
 		return nil, trace.Wrap(err)
 	}
 	return proxyClient.GetAccessRequests(ctx, filter)
+}
+
+// GetRole loads a role resource by name.
+func (tc *TeleportClient) GetRole(ctx context.Context, name string) (services.Role, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return proxyClient.GetRole(ctx, name)
 }
 
 // NewWatcher sets up a new event watcher.
@@ -1638,10 +1650,10 @@ func (tc *TeleportClient) LogoutAll() error {
 
 // Login logs the user into a Teleport cluster by talking to a Teleport proxy.
 //
-// If 'activateKey' is true, saves the received session cert into the local
-// keystore (and into the ssh-agent) for future use.
+// The returned Key should typically be passed to ActivateKey in order to
+// update local agent state.
 //
-func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, error) {
+func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	// preserve original web proxy host that could have
 	webProxyHost, _ := tc.WebProxyHostPort()
 
@@ -1717,39 +1729,48 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 	// Add the cluster name into the key from the host certificate.
 	key.ClusterName = response.HostSigners[0].ClusterName
 
-	if activateKey && tc.localAgent != nil {
-		// save the list of CAs client trusts to ~/.tsh/known_hosts
-		err = tc.localAgent.AddHostSignersToCache(response.HostSigners)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// save the list of TLS CAs client trusts
-		err = tc.localAgent.SaveCerts(response.HostSigners)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// save the cert to the local storage (~/.tsh usually):
-		_, err = tc.localAgent.AddKey(key)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Connect to the Auth Server of the main cluster and fetch the known hosts
-		// for this cluster.
-		if err := tc.UpdateTrustedCA(ctx, key.ClusterName); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Update the cluster name (which will be saved in the profile) with the
-		// name of the cluster the caller requested to connect to.
-		tc.SiteName, err = updateClusterName(ctx, tc, tc.SiteName, response.HostSigners)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
 	return key, nil
+}
+
+// ActivateKey saves the target session cert into the local
+// keystore (and into the ssh-agent) for future use.
+func (tc *TeleportClient) ActivateKey(ctx context.Context, key *Key) error {
+	if tc.localAgent == nil {
+		// skip activation if no local agent is present
+		return nil
+	}
+	// save the list of CAs client trusts to ~/.tsh/known_hosts
+	err := tc.localAgent.AddHostSignersToCache(key.TrustedCA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// save the list of TLS CAs client trusts
+	err = tc.localAgent.SaveCerts(key.TrustedCA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// save the cert to the local storage (~/.tsh usually):
+	_, err = tc.localAgent.AddKey(key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Connect to the Auth Server of the main cluster and fetch the known hosts
+	// for this cluster.
+	if err := tc.UpdateTrustedCA(ctx, key.ClusterName); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Update the cluster name (which will be saved in the profile) with the
+	// name of the cluster the caller requested to connect to.
+	tc.SiteName, err = updateClusterName(ctx, tc, tc.SiteName, key.TrustedCA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // Ping makes a ping request to the proxy, and updates tc based on the

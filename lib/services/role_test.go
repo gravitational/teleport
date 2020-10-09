@@ -256,7 +256,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						BPF:               defaults.EnhancedEvents(),
 					},
 					Allow: RoleConditions{
-						NodeLabels: Labels{Wildcard: []string{Wildcard}},
+						NodeLabels: Labels{},
 						Namespaces: []string{defaults.Namespace},
 					},
 					Deny: RoleConditions{

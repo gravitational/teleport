@@ -16,24 +16,15 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
+	"testing"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
 
-	"gopkg.in/check.v1"
+	"github.com/coreos/go-oidc/jose"
+	"github.com/stretchr/testify/require"
 )
 
-type OIDCSuite struct{}
-
-var _ = check.Suite(&OIDCSuite{})
-var _ = fmt.Printf
-
-func (s *OIDCSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
-}
-
-func (s *OIDCSuite) TestUnmarshal(c *check.C) {
+func TestOIDCUnmarshal(t *testing.T) {
 	input := `
       {
         "kind": "oidc",
@@ -73,19 +64,19 @@ func (s *OIDCSuite) TestUnmarshal(c *check.C) {
 	`
 
 	oc, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
-	c.Assert(oc.GetName(), check.Equals, "google")
-	c.Assert(oc.GetIssuerURL(), check.Equals, "https://accounts.google.com")
-	c.Assert(oc.GetClientID(), check.Equals, "id-from-google.apps.googleusercontent.com")
-	c.Assert(oc.GetRedirectURL(), check.Equals, "https://localhost:3080/v1/webapi/oidc/callback")
-	c.Assert(oc.GetDisplay(), check.Equals, "whatever")
-	c.Assert(oc.GetPrompt(), check.Equals, teleport.OIDCPromptSelectAccount)
+	require.Equal(t, "google", oc.GetName())
+	require.Equal(t, "https://accounts.google.com", oc.GetIssuerURL())
+	require.Equal(t, "id-from-google.apps.googleusercontent.com", oc.GetClientID())
+	require.Equal(t, "https://localhost:3080/v1/webapi/oidc/callback", oc.GetRedirectURL())
+	require.Equal(t, "whatever", oc.GetDisplay())
+	require.Equal(t, teleport.OIDCPromptSelectAccount, oc.GetPrompt())
 }
 
 // TestUnmarshalEmptyPrompt makes sure that empty prompt value
 // that is set does not default to select_account
-func (s *OIDCSuite) TestUnmarshalEmptyPrompt(c *check.C) {
+func TestOIDCUnmarshalEmptyPrompt(t *testing.T) {
 	input := `
       {
         "kind": "oidc",
@@ -106,18 +97,18 @@ func (s *OIDCSuite) TestUnmarshalEmptyPrompt(c *check.C) {
 	`
 
 	oc, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
-	c.Assert(oc.GetName(), check.Equals, "google")
-	c.Assert(oc.GetIssuerURL(), check.Equals, "https://accounts.google.com")
-	c.Assert(oc.GetClientID(), check.Equals, "id-from-google.apps.googleusercontent.com")
-	c.Assert(oc.GetRedirectURL(), check.Equals, "https://localhost:3080/v1/webapi/oidc/callback")
-	c.Assert(oc.GetDisplay(), check.Equals, "whatever")
-	c.Assert(oc.GetPrompt(), check.Equals, "")
+	require.Equal(t, "google", oc.GetName())
+	require.Equal(t, "https://accounts.google.com", oc.GetIssuerURL())
+	require.Equal(t, "id-from-google.apps.googleusercontent.com", oc.GetClientID())
+	require.Equal(t, "https://localhost:3080/v1/webapi/oidc/callback", oc.GetRedirectURL())
+	require.Equal(t, "whatever", oc.GetDisplay())
+	require.Equal(t, "", oc.GetPrompt())
 }
 
 // TestUnmarshalPromptValue makes sure that prompt value is set properly
-func (s *OIDCSuite) TestUnmarshalPromptValue(c *check.C) {
+func TestOIDCUnmarshalPromptValue(t *testing.T) {
 	input := `
       {
         "kind": "oidc",
@@ -138,17 +129,17 @@ func (s *OIDCSuite) TestUnmarshalPromptValue(c *check.C) {
 	`
 
 	oc, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
-	c.Assert(oc.GetName(), check.Equals, "google")
-	c.Assert(oc.GetIssuerURL(), check.Equals, "https://accounts.google.com")
-	c.Assert(oc.GetClientID(), check.Equals, "id-from-google.apps.googleusercontent.com")
-	c.Assert(oc.GetRedirectURL(), check.Equals, "https://localhost:3080/v1/webapi/oidc/callback")
-	c.Assert(oc.GetDisplay(), check.Equals, "whatever")
-	c.Assert(oc.GetPrompt(), check.Equals, "consent login")
+	require.Equal(t, "google", oc.GetName())
+	require.Equal(t, "https://accounts.google.com", oc.GetIssuerURL())
+	require.Equal(t, "id-from-google.apps.googleusercontent.com", oc.GetClientID())
+	require.Equal(t, "https://localhost:3080/v1/webapi/oidc/callback", oc.GetRedirectURL())
+	require.Equal(t, "whatever", oc.GetDisplay())
+	require.Equal(t, "consent login", oc.GetPrompt())
 }
 
-func (s *OIDCSuite) TestUnmarshalInvalid(c *check.C) {
+func TestOIDCUnmarshalInvalid(t *testing.T) {
 	input := `
       {
         "kind": "oidc",
@@ -189,5 +180,65 @@ func (s *OIDCSuite) TestUnmarshalInvalid(c *check.C) {
 	`
 
 	_, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
-	c.Assert(err, check.NotNil)
+	require.Error(t, err)
+}
+
+// Verify that an OIDC connector with no mappings produces no roles.
+func TestOIDCRoleMappingEmpty(t *testing.T) {
+	// create a connector
+	oidcConnector := NewOIDCConnector("example", OIDCConnectorSpecV2{
+		IssuerURL:    "https://www.exmaple.com",
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
+		Display:      "sign in with example.com",
+		Scope:        []string{"foo", "bar"},
+	})
+
+	// create some claims
+	var claims = make(jose.Claims)
+	claims.Add("roles", "teleport-user")
+	claims.Add("email", "foo@example.com")
+	claims.Add("nickname", "foo")
+	claims.Add("full_name", "foo bar")
+
+	traits := OIDCClaimsToTraits(claims)
+	require.Len(t, traits, 4)
+
+	roles := oidcConnector.GetTraitMappings().TraitsToRoles(traits)
+	require.Len(t, roles, 0)
+}
+
+// TestOIDCRoleMapping verifies basic mapping from OIDC claims to roles.
+func TestOIDCRoleMapping(t *testing.T) {
+	// create a connector
+	oidcConnector := NewOIDCConnector("example", OIDCConnectorSpecV2{
+		IssuerURL:    "https://www.exmaple.com",
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
+		Display:      "sign in with example.com",
+		Scope:        []string{"foo", "bar"},
+		ClaimsToRoles: []ClaimMapping{
+			ClaimMapping{
+				Claim: "roles",
+				Value: "teleport-user",
+				Roles: []string{"user"},
+			},
+		},
+	})
+
+	// create some claims
+	var claims = make(jose.Claims)
+	claims.Add("roles", "teleport-user")
+	claims.Add("email", "foo@example.com")
+	claims.Add("nickname", "foo")
+	claims.Add("full_name", "foo bar")
+
+	traits := OIDCClaimsToTraits(claims)
+	require.Len(t, traits, 4)
+
+	roles := oidcConnector.GetTraitMappings().TraitsToRoles(traits)
+	require.Len(t, roles, 1)
+	require.Equal(t, "user", roles[0])
 }
