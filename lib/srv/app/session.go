@@ -61,7 +61,7 @@ func (s *Server) getSession(ctx context.Context, appSession services.AppSession)
 	// Put the session in the cache so the next request can use it.
 	// TODO(russjones): Make this smaller of now+5 mins or expiry time.
 	//err = s.cacheSet(session.GetName(), session, session.Expiry().Sub(s.c.Clock.Now()))
-	err = s.cacheSet(appSession.GetName(), session, 2*time.Second)
+	err = s.cacheSet(appSession.GetName(), session, 60*time.Second)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
