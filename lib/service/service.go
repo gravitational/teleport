@@ -2821,9 +2821,9 @@ func validateConfig(cfg *Config) error {
 		cfg.Console = ioutil.Discard
 	}
 
-	if cfg.Proxy.Enabled && len(cfg.Proxy.KeyPairs) == 0 {
-		return trace.BadParameter("please supply TLS key and certificate")
-	}
+	//if cfg.Proxy.Enabled && len(cfg.Proxy.KeyPairs) == 0 {
+	//	return trace.BadParameter("please supply TLS key and certificate")
+	//}
 
 	if len(cfg.AuthServers) == 0 {
 		return trace.BadParameter("auth_servers is empty")
