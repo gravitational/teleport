@@ -529,10 +529,14 @@ func (s *remoteSite) DialTCP(params DialParams) (net.Conn, error) {
 		params.ConnType = services.NodeTunnel
 	}
 
+	var address string
+	if params.ConnType != services.AppTunnel {
+		address = params.To.String()
+	}
 	//s.Debugf("Dialing from %v to %v.", params.From, params.To)
 
 	conn, err := s.connThroughTunnel(&dialReq{
-		Address:  params.To.String(),
+		Address:  address,
 		ServerID: params.ServerID,
 		ConnType: params.ConnType,
 	})
