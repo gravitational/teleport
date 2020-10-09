@@ -20,7 +20,6 @@ package web
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"net/http"
 	"strings"
@@ -86,8 +85,6 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	fmt.Printf("--> createAppSession: req.FQDN: %v.\n", req.FQDN)
 
 	// Use the information the caller provided to attempt to resolve to an
 	// application running within either the root or leaf cluster.
@@ -161,9 +158,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 			Code: events.AppSessionStartCode,
 		},
 		ServerMetadata: events.ServerMetadata{
-			ServerID: h.cfg.HostUUID,
-			//ServerLabels: ctx.srv.GetInfo().GetAllLabels(),
-			//ServerHostname:  ctx.srv.GetInfo().GetHostname(),
+			ServerID:        h.cfg.HostUUID,
 			ServerNamespace: defaults.Namespace,
 		},
 		SessionMetadata: events.SessionMetadata{
@@ -171,12 +166,10 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		},
 		UserMetadata: events.UserMetadata{
 			User: webSession.GetUser(),
-			//	Login: ctx.Identity.Login,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
 			RemoteAddr: r.RemoteAddr,
 		},
-		// TODO(russjones): include app name and server id here? can't do it above beause we assume thats the server thats emitting the event.
 		PublicAddr: appSession.GetPublicAddr(),
 	}
 	if err := h.cfg.Emitter.EmitAuditEvent(h.cfg.Context, appSessionStartEvent); err != nil {

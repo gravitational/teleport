@@ -333,7 +333,9 @@ const (
 	// session has been rejected due to exceeding a session control limit.
 	SessionRejectedEvent = "session.rejected"
 
-	AppSessionStartEvent = "app.session.start"
+	AppSessionStartEvent   = "app.session.start"
+	AppSessionCreateEvent  = "app.session.create"
+	AppSessionRequestEvent = "app.session.request"
 
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.

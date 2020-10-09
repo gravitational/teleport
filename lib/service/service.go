@@ -2631,6 +2631,7 @@ func (process *TeleportProcess) initApps() {
 		}
 
 		appServer, err := app.New(process.ExitContext(), &app.Config{
+			DataDir:     process.Config.DataDir,
 			AuthClient:  conn.Client,
 			AccessPoint: authClient,
 			GetRotation: process.getRotation,

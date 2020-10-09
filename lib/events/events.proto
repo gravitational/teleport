@@ -927,16 +927,43 @@ message AppSessionStart {
     string PublicAddr = 7 [ (gogoproto.jsontag) = "public_addr" ];
 }
 
-// message AppSessionChunk {
-//    ParentSessionID
-//    StreamID
-//}
+message AppSessionCreate {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 
-message AppRequest {
-    // Common fields?
-    //uint32 Code = 1 [ (gogoproto.jsontag) = "code" ];
-    //string Path = 2 [ (gogoproto.jsontag) = "path" ];
-    //string RawQuery = 3 [ (gogoproto.jsontag) = "raw_query" ];
+    // User is a common user event metadata
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // SessionMetadata is a common event session metadata
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ServerMetadata is a common server metadata
+    ServerMetadata Server = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ConnectionMetadata holds information about the connection
+    ConnectionMetadata Connection = 5
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // SessionChunkID is the ID of the session that was created for this 5 minute
+    // application log chunk.
+    string SessionChunkID = 6 [ (gogoproto.jsontag) = "session_chunk_id" ];
+}
+
+message AppSessionRequest {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // StatusCode the HTTP response code for the request.
+    uint32 StatusCode = 2 [ (gogoproto.jsontag) = "status_code" ];
+    // Path is relative path in the URL.
+    string Path = 3 [ (gogoproto.jsontag) = "path" ];
+    // RawQuery are the encoded query values.
+    string RawQuery = 4 [ (gogoproto.jsontag) = "raw_query" ];
 }
 
 // OneOf is a union of one of audit events submitted to the auth service
@@ -979,6 +1006,8 @@ message OneOf {
         events.SAMLConnectorCreate SAMLConnectorCreate = 34;
         events.SAMLConnectorDelete SAMLConnectorDelete = 35;
         events.AppSessionStart AppSessionStart = 36;
+        events.AppSessionCreate AppSessionCreate = 37;
+        events.AppSessionRequest AppSessionRequest = 38;
     }
 }
 

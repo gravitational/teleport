@@ -151,7 +151,6 @@ func (h *RewritingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Check if the request in unauthenticated, but targeting an application. If
 	// it is, redirect to the launcher.
 	if launcherURL, ok := h.appHandler.IsUnauthenticatedApp(r, h.publicAddr); ok {
-		fmt.Printf("--> launcherURL: %v.\n", launcherURL)
 		http.Redirect(w, r, launcherURL, http.StatusFound)
 		return
 	}

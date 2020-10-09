@@ -18,20 +18,28 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"time"
 
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/services"
+	session_pkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/trace"
 
+	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 )
 
 type session struct {
-	fwd *forward.Forwarder
+	fwd          *forward.Forwarder
+	streamWriter events.StreamWriter
 }
 
 // getSession returns a request session used to proxy the request to the
@@ -68,9 +76,16 @@ func (s *Server) newSession(ctx context.Context, appSession services.AppSession)
 		return nil, trace.Wrap(err)
 	}
 
+	// Create the stream writer that will write this chunk to the audit log.
+	streamWriter, err := s.newStreamWriter(appSession)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create the forwarder.
 	fwder, err := newForwarder(s.closeContext,
 		&forwarderConfig{
+			w:          streamWriter,
 			publicAddr: app.PublicAddr,
 			uri:        app.URI,
 			jwt:        appSession.GetJWT(),
@@ -89,7 +104,8 @@ func (s *Server) newSession(ctx context.Context, appSession services.AppSession)
 	}
 
 	return &session{
-		fwd: fwd,
+		streamWriter: streamWriter,
+		fwd:          fwd,
 	}, nil
 }
 
@@ -141,7 +157,91 @@ func (s *Server) cacheExpire(key string, el interface{}) {
 		return
 	}
 
+	//if err := session.streamWriter.Close(s.closeContext); err != nil {
+	if err := session.streamWriter.Close(context.Background()); err != nil {
+		s.log.Debugf("Failed to close stream writer: %v.", err)
+	}
+
 	s.log.Debugf("Closing expired stream %v.", key)
+}
+
+func (s *Server) newStreamWriter(appSession services.AppSession) (events.StreamWriter, error) {
+	clusterConfig, err := s.c.AccessPoint.GetClusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sessionUUID := uuid.New()
+
+	streamer, err := s.newStreamer(s.closeContext, sessionUUID, clusterConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	streamWriter, err := events.NewAuditWriter(events.AuditWriterConfig{
+		// Audit stream is using server context, not session context,
+		// to make sure that session is uploaded even after it is closed
+		Context:  s.closeContext,
+		Streamer: streamer,
+		Clock:    s.c.Clock,
+		// Each session chunk has it's own unique ID. An event will be emitted to
+		// the main log that links the services.AppSession to this chunk.
+		SessionID:    session_pkg.ID(sessionUUID),
+		Namespace:    defaults.Namespace,
+		ServerID:     s.c.Server.GetName(),
+		RecordOutput: clusterConfig.GetSessionRecording() != services.RecordOff,
+		Component:    teleport.ComponentApp,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Emit the result of each request to the audit log.
+	appSessionCreateEvent := &events.AppSessionCreate{
+		Metadata: events.Metadata{
+			Type: events.AppSessionCreateEvent,
+			Code: events.AppSessionCreateCode,
+		},
+		ServerMetadata: events.ServerMetadata{
+			ServerID:        s.c.Server.GetName(),
+			ServerNamespace: defaults.Namespace,
+		},
+		SessionMetadata: events.SessionMetadata{
+			SessionID: appSession.GetName(),
+		},
+		SessionChunkID: sessionUUID,
+	}
+	if err := s.c.AuthClient.EmitAuditEvent(s.closeContext, appSessionCreateEvent); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return streamWriter, nil
+}
+
+// newStreamer returns sync or async streamer based on the configuration
+// of the server and the session, sync streamer sends the events
+// directly to the auth server and blocks if the events can not be received,
+// async streamer buffers the events to disk and uploads the events later
+func (s *Server) newStreamer(ctx context.Context, sessionID string, clusterConfig services.ClusterConfig) (events.Streamer, error) {
+	mode := clusterConfig.GetSessionRecording()
+	if services.IsRecordSync(mode) {
+		s.log.Debugf("Using sync streamer for session %v.", sessionID)
+		return s.c.AuthClient, nil
+	}
+
+	s.log.Debugf("Using async streamer for session %v.", sessionID)
+	uploadDir := filepath.Join(
+		s.c.DataDir, teleport.LogsDir, teleport.ComponentUpload,
+		events.StreamingLogsDir, defaults.Namespace,
+	)
+	fileStreamer, err := filesessions.NewStreamer(uploadDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return fileStreamer, nil
+	//// TeeStreamer sends non-print and non disk events
+	//// to the audit log in async mode, while buffering all
+	//// events on disk for further upload at the end of the session
+	//return events.NewTeeStreamer(fileStreamer, s.c.AuthClient), nil
 }
 
 // forwarderConfig is the configuration for a forwarder.
@@ -151,6 +251,7 @@ type forwarderConfig struct {
 	jwt        string
 	tr         http.RoundTripper
 	log        *logrus.Entry
+	w          events.StreamWriter
 }
 
 // Check will valid the configuration of a forwarder.
@@ -210,6 +311,21 @@ func (f *forwarder) RoundTrip(r *http.Request) (*http.Response, error) {
 
 	resp, err := f.c.tr.RoundTrip(r)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Emit the result of each request to the audit log.
+	appSessionRequestEvent := &events.AppSessionRequest{
+		Metadata: events.Metadata{
+			Type: events.AppSessionRequestEvent,
+			Code: events.AppSessionRequestCode,
+		},
+		StatusCode: uint32(resp.StatusCode),
+		Path:       r.URL.Path,
+		RawQuery:   r.URL.RawQuery,
+	}
+	if err := f.c.w.EmitAuditEvent(f.closeContext, appSessionRequestEvent); err != nil {
+		fmt.Printf("--> failing to emit: %v.\n", err)
 		return nil, trace.Wrap(err)
 	}
 

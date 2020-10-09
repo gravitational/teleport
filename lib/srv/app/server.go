@@ -23,12 +23,12 @@ import (
 	"context"
 	"net"
 	"net/http"
-	"net/url"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/labels"
@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 
@@ -50,6 +49,9 @@ type RotationGetter func(role teleport.Role) (*services.Rotation, error)
 type Config struct {
 	// Clock used to control time.
 	Clock clockwork.Clock
+
+	// DataDir is the path to the data directory for the server.
+	DataDir string
 
 	// AuthClient is a client directly connected to the Auth server.
 	AuthClient *auth.Client
@@ -73,6 +75,9 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.AuthClient == nil {
 		return trace.BadParameter("auth client log missing")
+	}
+	if c.DataDir == "" {
+		return trace.BadParameter("data dir missing")
 	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("access point missing")
@@ -139,7 +144,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	}
 
 	// Cache of request forwarders.
-	s.cache, err = ttlmap.New(defaults.ClientCacheSize)
+	s.cache, err = ttlmap.New(defaults.ClientCacheSize, ttlmap.CallOnExpire(s.cacheExpire))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
