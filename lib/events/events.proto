@@ -534,7 +534,7 @@ message AccessRequestCreate {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 
     // Roles is a list of roles for the user.
-    repeated string Roles = 4 [ (gogoproto.jsontag) = "roles" ];
+    repeated string Roles = 4 [ (gogoproto.jsontag) = "roles,omitempty" ];
 
     // RequestID is access request ID
     string RequestID = 5 [ (gogoproto.jsontag) = "id" ];
@@ -545,6 +545,15 @@ message AccessRequestCreate {
     // Delegator is used by teleport plugins to indicate the identity
     // which caused them to update state.
     string Delegator = 7 [ (gogoproto.jsontag) = "delegator,omitempty" ];
+
+    // Reason is an optional description of why the request is being
+    // created or updated.
+    string Reason = 8 [ (gogoproto.jsontag) = "reason,omitempty" ];
+
+    // Annotations is an optional set of attributes supplied by a plugin during
+    // approval/denail of the request.
+    google.protobuf.Struct Annotations = 9
+        [ (gogoproto.jsontag) = "annotations,omitempty", (gogoproto.casttype) = "Struct" ];
 }
 
 // PortForward is emitted when a user requests port forwarding.

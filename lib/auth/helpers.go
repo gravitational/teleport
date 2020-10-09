@@ -663,10 +663,10 @@ func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (se
 		return nil, trace.Wrap(err)
 	}
 	baseRole := services.RoleForUser(user)
-	baseRole.SetLogins(services.Allow, []string{username})
 	baseRole.SetAccessRequestConditions(services.Allow, services.AccessRequestConditions{
 		Roles: []string{rolename},
 	})
+	baseRole.SetLogins(services.Allow, nil)
 	err = clt.UpsertRole(ctx, baseRole)
 	if err != nil {
 		return nil, trace.Wrap(err)

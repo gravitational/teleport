@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -159,6 +160,24 @@ func (k *Key) CertPrincipals() ([]string, error) {
 		return nil, trace.Wrap(err)
 	}
 	return cert.ValidPrincipals, nil
+}
+
+func (k *Key) CertRoles() ([]string, error) {
+	cert, err := k.SSHCert()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Extract roles from certificate. Note, if the certificate is in old format,
+	// this will be empty.
+	var roles []string
+	rawRoles, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
+	if ok {
+		roles, err = services.UnmarshalCertRoles(rawRoles)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return roles, nil
 }
 
 // AsAgentKeys converts client.Key struct to a []*agent.AddedKey. All elements
