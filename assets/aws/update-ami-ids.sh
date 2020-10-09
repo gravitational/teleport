@@ -93,7 +93,12 @@ if [[ "${MODE}" == "cloudformation" ]]; then
     # update version number
     sed -i -E "s/# All AMIs from AWS - gravitational-teleport-ami-(.*)/# All AMIs from AWS - gravitational-teleport-ami-${TYPE}-${VERSION}/g" ${CLOUDFORMATION_PATH}
 elif [[ "${MODE}" == "terraform" ]]; then
-    TERRAFORM_PATH=../../examples/aws/terraform/AMIS.md
+    TERRAFORM_SUBDIR="../../examples/aws/terraform"
+    TERRAFORM_PATH="${TERRAFORM_SUBDIR}/AMIS.md"
+    # get a list of non-hidden directories one level under the terraform directory (one for each of our different terraform modes)
+    pushd ${TERRAFORM_SUBDIR}
+    TERRAFORM_MODES="$(find . -mindepth 1 -maxdepth 1 -type d -not -path '*/\.*' -printf '%P\n' | xargs)"
+    popd
     if [[ "${TYPE}" == "oss" ]]; then
         TYPE_STRING="OSS"
     elif [[ "${TYPE}" == "ent" ]]; then
@@ -101,6 +106,12 @@ elif [[ "${MODE}" == "terraform" ]]; then
     elif [[ "${TYPE}" == "ent-fips" ]]; then
         TYPE_STRING="Enterprise FIPS"
     fi
+    # change version numbers in TF_VAR_ami_name strings
+    # shellcheck disable=SC2086
+    for MODE in ${TERRAFORM_MODES}; do
+        echo "Updating version in README for ${MODE}"
+        sed -i -E "s/gravitational-teleport-ami-${TYPE}-([0-9.]+)/gravitational-teleport-ami-${TYPE}-${VERSION}/g" "${TERRAFORM_SUBDIR}/${MODE}/README.md"
+    done
     # replace AMI ID in place
     for REGION in ${REGIONS//,/ }; do
         OLD_AMI_ID=$(grep -E "# $REGION v(.*) ${TYPE_STRING}" $TERRAFORM_PATH | sed -n -E "s/# $REGION v(.*) ${TYPE_STRING}: (ami.*)/\2/p" | tr -d " ")
