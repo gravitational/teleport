@@ -1430,12 +1430,25 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 
 	// certContainsRole checks if a PEM encoded TLS cert contains the
 	// specified role.
-	certContainsRole := func(cert []byte, role string) bool {
-		tlsCert, err := tlsca.ParseCertificatePEM(cert)
+	certContainsRole := func(tlsCert []byte, role string) bool {
+		cert, err := tlsca.ParseCertificatePEM(tlsCert)
 		c.Assert(err, check.IsNil)
-		identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+
+		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 		c.Assert(err, check.IsNil)
+
 		return utils.SliceContainsStr(identity.Groups, role)
+	}
+
+	// certLogins extracts the logins from an ssh certificate
+	certLogins := func(sshCert []byte) []string {
+		key, _, _, _, err := ssh.ParseAuthorizedKey(sshCert)
+		c.Assert(err, check.IsNil)
+
+		cert, ok := key.(*ssh.Certificate)
+		c.Assert(ok, check.Equals, true)
+
+		return cert.ValidPrincipals
 	}
 
 	// sanity check; ensure that role is not held if no request is applied.
@@ -1445,6 +1458,13 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 		c.Errorf("unexpected role %s", role)
 	}
 
+	// verify that cert for user with no static logins is generated with
+	// exactly one login and that it is an invalid unix login (indicated
+	// by preceding dash (-).
+	logins := certLogins(userCerts.SSH)
+	c.Assert(len(logins), check.Equals, 1)
+	c.Assert(rune(logins[0][0]), check.Equals, '-')
+
 	// attempt to apply request in PENDING state (should fail)
 	_, err = generateCerts(req.GetName())
 	c.Assert(err, check.NotNil)
@@ -1453,10 +1473,10 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 
 	// verify that user does not have the ability to approve their own request (not a special case, this
 	// user just wasn't created with the necessary roles for request management).
-	c.Assert(userClient.SetAccessRequestState(ctx, req.GetName(), services.RequestState_APPROVED), check.NotNil)
+	c.Assert(userClient.SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_APPROVED}), check.NotNil)
 
 	// attempt to apply request in APPROVED state (should succeed)
-	c.Assert(s.server.Auth().SetAccessRequestState(ctx, req.GetName(), services.RequestState_APPROVED), check.IsNil)
+	c.Assert(s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_APPROVED}), check.IsNil)
 	userCerts, err = generateCerts(req.GetName())
 	c.Assert(err, check.IsNil)
 	// ensure that the requested role was actually applied to the cert
@@ -1464,16 +1484,22 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 		c.Errorf("missing requested role %s", role)
 	}
 
+	// verify that dynamically applied role granted a login,
+	// which is is valid and has replaced the dummy login.
+	logins = certLogins(userCerts.SSH)
+	c.Assert(len(logins), check.Equals, 1)
+	c.Assert(rune(logins[0][0]), check.Not(check.Equals), '-')
+
 	// attempt to apply request in DENIED state (should fail)
-	c.Assert(s.server.Auth().SetAccessRequestState(ctx, req.GetName(), services.RequestState_DENIED), check.IsNil)
+	c.Assert(s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_DENIED}), check.IsNil)
 	_, err = generateCerts(req.GetName())
 	c.Assert(err, check.NotNil)
 
 	// ensure that once in the DENIED state, a request cannot be set back to PENDING state.
-	c.Assert(s.server.Auth().SetAccessRequestState(ctx, req.GetName(), services.RequestState_PENDING), check.NotNil)
+	c.Assert(s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_PENDING}), check.NotNil)
 
 	// ensure that once in the DENIED state, a request cannot be set back to APPROVED state.
-	c.Assert(s.server.Auth().SetAccessRequestState(ctx, req.GetName(), services.RequestState_APPROVED), check.NotNil)
+	c.Assert(s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_APPROVED}), check.NotNil)
 }
 
 func (s *TLSSuite) TestPluginData(c *check.C) {

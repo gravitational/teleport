@@ -1463,7 +1463,13 @@ func (a *AuthServer) upsertRole(ctx context.Context, role services.Role) error {
 }
 
 func (a *AuthServer) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
-	if err := services.ValidateAccessRequest(a, req); err != nil {
+	err := services.ValidateAccessRequest(a, req,
+		// if request is in state pending, role expansion must be applied
+		services.ExpandRoles(req.GetState().IsPending()),
+		// always apply system annotations before storing new requests
+		services.ApplySystemAnnotations(true),
+	)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 	ttl, err := a.calculateMaxAccessTTL(req)
@@ -1501,12 +1507,13 @@ func (a *AuthServer) CreateAccessRequest(ctx context.Context, req services.Acces
 		Roles:        req.GetRoles(),
 		RequestID:    req.GetName(),
 		RequestState: req.GetState().String(),
+		Reason:       req.GetRequestReason(),
 	})
 	return trace.Wrap(err)
 }
 
-func (a *AuthServer) SetAccessRequestState(ctx context.Context, reqID string, state services.RequestState) error {
-	if err := a.DynamicAccess.SetAccessRequestState(ctx, reqID, state); err != nil {
+func (a *AuthServer) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) error {
+	if err := a.DynamicAccess.SetAccessRequestState(ctx, params); err != nil {
 		return trace.Wrap(err)
 	}
 	event := &events.AccessRequestCreate{
@@ -1517,11 +1524,23 @@ func (a *AuthServer) SetAccessRequestState(ctx context.Context, reqID string, st
 		ResourceMetadata: events.ResourceMetadata{
 			UpdatedBy: clientUsername(ctx),
 		},
-		RequestID:    reqID,
-		RequestState: state.String(),
+		RequestID:    params.RequestID,
+		RequestState: params.State.String(),
+		Reason:       params.Reason,
+		Roles:        params.Roles,
 	}
+
 	if delegator := getDelegator(ctx); delegator != "" {
 		event.Delegator = delegator
+	}
+
+	if len(params.Annotations) > 0 {
+		annotations, err := events.EncodeMapStrings(params.Annotations)
+		if err != nil {
+			log.WithError(err).Debugf("Failed to encode access request annotations.")
+		} else {
+			event.Annotations = annotations
+		}
 	}
 	err := a.emitter.EmitAuditEvent(a.closeCtx, event)
 	if err != nil {

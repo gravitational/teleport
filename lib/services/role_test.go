@@ -256,7 +256,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						BPF:               defaults.EnhancedEvents(),
 					},
 					Allow: RoleConditions{
-						NodeLabels: Labels{Wildcard: []string{Wildcard}},
+						NodeLabels: Labels{},
 						Namespaces: []string{defaults.Namespace},
 					},
 					Deny: RoleConditions{
@@ -747,6 +747,35 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 				{server: serverC, login: "admin", hasAccess: true},
 				{server: serverC2, login: "root", hasAccess: false},
 				{server: serverC2, login: "admin", hasAccess: true},
+			},
+		},
+		{
+			name: "no logins means no access",
+			roles: []RoleV3{
+				RoleV3{
+					Metadata: Metadata{
+						Name:      "somerole",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL: Duration(20 * time.Hour),
+						},
+						Allow: RoleConditions{
+							Logins:     nil,
+							NodeLabels: Labels{Wildcard: []string{Wildcard}},
+							Namespaces: []string{Wildcard},
+						},
+					},
+				},
+			},
+			checks: []check{
+				{server: serverA, login: "root", hasAccess: false},
+				{server: serverA, login: "admin", hasAccess: false},
+				{server: serverB, login: "root", hasAccess: false},
+				{server: serverB, login: "admin", hasAccess: false},
+				{server: serverC, login: "root", hasAccess: false},
+				{server: serverC, login: "admin", hasAccess: false},
 			},
 		},
 	}

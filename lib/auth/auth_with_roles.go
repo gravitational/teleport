@@ -807,11 +807,11 @@ func (a *AuthWithRoles) CreateAccessRequest(ctx context.Context, req services.Ac
 	return a.authServer.CreateAccessRequest(ctx, req)
 }
 
-func (a *AuthWithRoles) SetAccessRequestState(ctx context.Context, reqID string, state services.RequestState) error {
+func (a *AuthWithRoles) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) error {
 	if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.SetAccessRequestState(ctx, reqID, state)
+	return a.authServer.SetAccessRequestState(ctx, params)
 }
 
 // GetPluginData loads all plugin data matching the supplied filter.
