@@ -99,7 +99,7 @@ spec:
     # determines if the clients will be forcefully disconnected when their
     # certificates expire in the middle of an active SSH session.
     # it overrides the global cluster setting.
-    disconnect_expired_cert: no    
+    disconnect_expired_cert: no
     # permit_x11_forwarding allows users to use X11 forwarding with openssh clients and servers through the proxy
     permit_x11_forwarding: true
 
