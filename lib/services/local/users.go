@@ -620,20 +620,6 @@ func (s *IdentityService) DeleteWebSession(user string, sessionID string) error 
 		return trace.Wrap(err)
 	}
 
-	// Delete all application specific sessions.
-	if err := s.DeleteChildWebSessions(ctx, user, sessionID); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// DeleteChildWebSessions removes all child application web sessions for a user.
-func (s *IdentityService) DeleteChildWebSessions(ctx context.Context, user string, sessionID string) error {
-	startKey := backend.Key(webPrefix, sessionsPrefix, appsPrefix, user, services.SessionHash(sessionID))
-	if err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey)); err != nil {
-		return trace.Wrap(err)
-	}
 	return nil
 }
 

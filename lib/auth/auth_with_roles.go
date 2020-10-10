@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -2157,6 +2158,18 @@ func (a *AuthWithRoles) DeleteAllAppWebSessions(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func (a *AuthWithRoles) GenerateJWT(ctx context.Context, req jwt.SignParams) (string, error) {
+	if err := a.action(defaults.Namespace, services.KindJWT, services.VerbCreate); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	session, err := a.authServer.generateJWT(req.Username, req.Roles, req.URI, req.Expires)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return session, nil
 }
 
 // GetAppSession gets an application session.

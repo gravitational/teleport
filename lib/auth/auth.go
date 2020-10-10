@@ -437,6 +437,12 @@ type certRequest struct {
 	// activeRequests tracks privilege escalation requests applied
 	// during the construction of the certificate.
 	activeRequests services.RequestIDs
+	// appSessionID is the session ID of the application session.
+	appSessionID string
+	// appPublicAddr is the public address of the application.
+	appPublicAddr string
+	// appClusterName is the name of the cluster this application is in.
+	appClusterName string
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -573,6 +579,11 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		Traits:           req.traits,
 		KubernetesGroups: kubeGroups,
 		KubernetesUsers:  kubeUsers,
+		RouteToApp: tlsca.RouteToApp{
+			SessionID:   req.appSessionID,
+			PublicAddr:  req.appPublicAddr,
+			ClusterName: req.appClusterName,
+		},
 	}
 	subject, err := identity.Subject()
 	if err != nil {

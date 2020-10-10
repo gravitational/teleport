@@ -31,7 +31,7 @@ func (s *IdentityService) GetAppWebSession(ctx context.Context, req services.Get
 		return nil, trace.Wrap(err)
 	}
 
-	item, err := s.Get(ctx, backend.Key(webPrefix, sessionsPrefix, appsPrefix, req.Username, req.ParentHash, req.SessionID))
+	item, err := s.Get(ctx, backend.Key(sessionsPrefix, req.SessionID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -45,7 +45,7 @@ func (s *IdentityService) GetAppWebSession(ctx context.Context, req services.Get
 
 // GetAppWebSessions gets all application web sessions.
 func (s *IdentityService) GetAppWebSessions(ctx context.Context) ([]services.WebSession, error) {
-	startKey := backend.Key(webPrefix, sessionsPrefix, appsPrefix)
+	startKey := backend.Key(sessionsPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -69,7 +69,7 @@ func (s *IdentityService) UpsertAppWebSession(ctx context.Context, session servi
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(webPrefix, sessionsPrefix, appsPrefix, session.GetUser(), session.GetParentHash(), session.GetName()),
+		Key:     backend.Key(sessionsPrefix, session.GetName()),
 		Value:   value,
 		Expires: session.GetExpiryTime(),
 	}
@@ -82,7 +82,7 @@ func (s *IdentityService) UpsertAppWebSession(ctx context.Context, session servi
 
 // DeleteAppWebSession removes an application web sessions.
 func (s *IdentityService) DeleteAppWebSession(ctx context.Context, req services.DeleteAppWebSessionRequest) error {
-	if err := s.Delete(ctx, backend.Key(webPrefix, sessionsPrefix, appsPrefix, req.Username, req.ParentHash, req.SessionID)); err != nil {
+	if err := s.Delete(ctx, backend.Key(sessionsPrefix, req.SessionID)); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -90,7 +90,7 @@ func (s *IdentityService) DeleteAppWebSession(ctx context.Context, req services.
 
 // DeleteAllAppWebSessions removes all application web sessions.
 func (s *IdentityService) DeleteAllAppWebSessions(ctx context.Context) error {
-	startKey := backend.Key(webPrefix, sessionsPrefix, appsPrefix)
+	startKey := backend.Key(sessionsPrefix)
 	if err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
 		return trace.Wrap(err)
 	}

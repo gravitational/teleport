@@ -87,17 +87,39 @@ type Identity struct {
 	RouteToCluster string
 	// Traits hold claim data used to populate a role at runtime.
 	Traits wrappers.Traits
-	// RouteToApp holds routing information used to route requests from the
-	// proxy to the Teleport application proxy and from the application proxy
-	// to the target application.
-	RouteToApp AppRoute
+	// RouteToApp holds routing information for applications. Routing metadata
+	// allows Teleport web proxy to route HTTP requests to the appropriate
+	// cluster and Teleport application proxy within the cluster.
+	RouteToApp RouteToApp
 }
 
-type AppRoute struct {
-	ServerID    string
-	PublicAddr  string
+// RouteToApp holds routing information for applications.
+type RouteToApp struct {
+	// SessionID is a UUIDv4 used to identify application sessions created by
+	// this certificate. The reason a UUID was used instead of a hash of the
+	// SubjectPublicKeyInfo like the CA pin is for UX consistency. For example,
+	// the SessionID is emitted in the audit log, using a UUID matches how SSH
+	// sessions are identified.
+	SessionID string
+
+	// PublicAddr (and ClusterName) are used to route requests issued with this
+	// certificate to the appropriate application proxy/cluster.
+	PublicAddr string
+
+	// ClusterName (and PublicAddr) are used to route requests issued with this
+	// certificate to the appropriate application proxy/cluster.
 	ClusterName string
-	JWT         string
+}
+
+// GetRouteToApp returns application routing data. If missing, returns an error.
+func (i *Identity) GetRouteToApp() (RouteToApp, error) {
+	if i.RouteToApp.SessionID == "" ||
+		i.RouteToApp.PublicAddr == "" ||
+		i.RouteToApp.ClusterName == "" {
+		return RouteToApp{}, trace.BadParameter("identity is missing application routing metadata")
+	}
+
+	return i.RouteToApp, nil
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -108,6 +130,7 @@ func (i *Identity) CheckAndSetDefaults() error {
 	if len(i.Groups) == 0 {
 		return trace.BadParameter("missing identity groups")
 	}
+
 	return nil
 }
 
@@ -126,10 +149,17 @@ var KubeUsersASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 1}
 // license payload into certificates
 var KubeGroupsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 2}
 
-var AppServevIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 4}
-var AppClusterNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 5}
+// AppSessionIDASN1ExtensionOID is an extension ID used to encode the application
+// session ID into a certificate.
+var AppSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 4}
+
+// AppPublicAddrASN1ExtensionOID is an extension ID used to encode the application
+// public address into a certificate.
 var AppPublicAddrASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 6}
-var AppJWTASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 7}
+
+// AppClusterNameASN1ExtensionOID is an extension ID used to encode the application
+// cluster name into a certificate.
+var AppClusterNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 5}
 
 // Subject converts identity to X.509 subject name
 func (id *Identity) Subject() (pkix.Name, error) {
@@ -172,6 +202,29 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	// Encode application routing metadata if provided.
+	if id.RouteToApp.SessionID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AppSessionIDASN1ExtensionOID,
+				Value: id.RouteToApp.SessionID,
+			})
+	}
+	if id.RouteToApp.PublicAddr != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AppPublicAddrASN1ExtensionOID,
+				Value: id.RouteToApp.PublicAddr,
+			})
+	}
+	if id.RouteToApp.ClusterName != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AppClusterNameASN1ExtensionOID,
+				Value: id.RouteToApp.ClusterName,
+			})
+	}
+
 	return subject, nil
 }
 
@@ -205,6 +258,21 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.KubernetesGroups = append(id.KubernetesGroups, val)
+			}
+		case attr.Type.Equal(AppSessionIDASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToApp.SessionID = val
+			}
+		case attr.Type.Equal(AppPublicAddrASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToApp.PublicAddr = val
+			}
+		case attr.Type.Equal(AppClusterNameASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToApp.ClusterName = val
 			}
 		}
 	}

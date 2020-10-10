@@ -25,14 +25,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
 	log "github.com/sirupsen/logrus"
 
@@ -93,47 +92,25 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err, "Unable to resolve FQDN: %v", req.FQDN)
 	}
 
-	log.Debugf("Attempting to create application session for %v in %v.", result.PublicAddr, result.ClusterName)
+	log.Debugf("Creating application web session for %v in %v.", result.PublicAddr, result.ClusterName)
 
-	// Get a client connected to either to local auth or remote auth with the
-	// users identity.
-	var userClient auth.ClientI
-	if result.ClusterName == h.cfg.DomainName {
-		userClient, err = ctx.GetClient()
-	} else {
-		remoteClient, err := h.cfg.Proxy.GetSite(result.ClusterName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		userClient, err = ctx.GetUserClient(remoteClient)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	// Attempt to create an application session within whichever cluster the
-	// user requested. This requests goes to the root (or leaf) auth cluster
-	// where access to the application is checked.
-	appSession, err := userClient.CreateAppSession(r.Context(), services.CreateAppSessionRequest{
-		PublicAddr: result.PublicAddr,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Get a client connected to the local auth server with the users identity.
+	// Get an auth client connected with the users identity.
 	localClient, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Create an application web session within the cluster the request arrived.
-	webSession, err := localClient.CreateAppWebSession(r.Context(), services.CreateAppWebSessionRequest{
+	// Create an application web session.
+	//
+	// ParentSession is used to derive the TTL for the application session.
+	// Application sessions should not last longer than the parent session.
+	//
+	// PublicAddr and ClusterName will get encoded within the certificate and
+	// used for request routing.
+	ws, err := localClient.CreateAppWebSession(r.Context(), services.CreateAppWebSessionRequest{
 		Username:      ctx.GetUser(),
 		ParentSession: ctx.sess.GetName(),
-		AppSessionID:  appSession.GetName(),
-		Expires:       appSession.Expiry(),
-		ServerID:      result.ServerID,
+		PublicAddr:    result.PublicAddr,
 		ClusterName:   result.ClusterName,
 	})
 	if err != nil {
@@ -141,17 +118,25 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	// Block and wait a few seconds for the session that was created to show up
-	// in the cache. This is to prevent a racy session creation loop.
-	err = h.waitForSession(r.Context(), services.GetAppWebSessionRequest{
-		Username:   webSession.GetUser(),
-		ParentHash: webSession.GetParentHash(),
-		SessionID:  webSession.GetName(),
-	})
+	// in the cache. If this request is not blocked here, it can get struck in a
+	// racy session creation loop.
+	err = h.waitForSession(r.Context(), ws.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Emit "new session created" event for the interactive session.
+	// Extract the identity of the user.
+	certificate, err := tlsca.ParseCertificatePEM(ws.GetTLSCert())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Now that the certificate has been issued, emit a "new session created"
+	// for all events associated with this certificate.
 	appSessionStartEvent := &events.AppSessionStart{
 		Metadata: events.Metadata{
 			Type: events.AppSessionStartEvent,
@@ -162,62 +147,60 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 			ServerNamespace: defaults.Namespace,
 		},
 		SessionMetadata: events.SessionMetadata{
-			SessionID: appSession.GetName(),
+			SessionID: identity.RouteToApp.SessionID,
 		},
 		UserMetadata: events.UserMetadata{
-			User: webSession.GetUser(),
+			User: ws.GetUser(),
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
 			RemoteAddr: r.RemoteAddr,
 		},
-		PublicAddr: appSession.GetPublicAddr(),
+		PublicAddr: identity.RouteToApp.PublicAddr,
 	}
 	if err := h.cfg.Emitter.EmitAuditEvent(h.cfg.Context, appSessionStartEvent); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Marshal cookie from application web session.
-	appCookie := app.Cookie{
-		Username:   webSession.GetUser(),
-		ParentHash: webSession.GetParentHash(),
-		SessionID:  webSession.GetName(),
-	}
-	appCookieValue, err := app.EncodeCookie(&appCookie)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	casr := &createAppSessionResponse{
-		CookieValue: appCookieValue,
+	return &createAppSessionResponse{
+		CookieValue: ws.GetName(),
 		FQDN:        result.FQDN,
-	}
-
-	return casr, nil
+	}, nil
 }
 
-func (h *Handler) waitForSession(ctx context.Context, req services.GetAppWebSessionRequest) error {
-	tick := time.Tick(100 * time.Millisecond)
-	boom := time.After(5 * time.Second)
+// waitForSession will block until the requested session shows up in the
+// cache or a timeout occurs.
+func (h *Handler) waitForSession(ctx context.Context, sessionID string) error {
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	timeout := time.NewTimer(defaults.WebHeadersTimeout)
+	defer timeout.Stop()
+
 	for {
 		select {
-		case <-tick:
-			_, err := h.cfg.AccessPoint.GetAppWebSession(ctx, req)
+		case <-ticker.C:
+			_, err := h.cfg.AccessPoint.GetAppWebSession(ctx, services.GetAppWebSessionRequest{
+				SessionID: sessionID,
+			})
 			if err == nil {
 				return nil
 			}
-		case <-boom:
+		case <-timeout.C:
 			return trace.BadParameter("timed out waiting for session")
 		}
 	}
 }
 
 func (h *Handler) validateAppSessionRequest(ctx context.Context, req *createAppSessionRequest) (*validateAppSessionResult, error) {
-	// To safely redirect a user to the app URL, the FQDN should be always resolved
+	// To safely redirect a user to the app URL, the FQDN should be always
+	// resolved. This is to prevent open redirects.
 	app, server, clusterName, err := h.resolveFQDN(ctx, req.FQDN)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	// If the request contains a public address and cluster name (for example, if
+	// it came from the application launcher in the Web UI) directly exactly
+	// resolve the caller is requesting instead of best effort FQDN resolution.
 	if req.PublicAddr != "" && req.ClusterName != "" {
 		app, server, clusterName, err = h.resolveDirect(ctx, req.PublicAddr, req.ClusterName)
 		if err != nil {
@@ -226,20 +209,27 @@ func (h *Handler) validateAppSessionRequest(ctx context.Context, req *createAppS
 	}
 
 	return &validateAppSessionResult{
-		PublicAddr:  app.PublicAddr,
 		ServerID:    server.GetName(),
-		ClusterName: clusterName,
 		FQDN:        req.FQDN,
+		PublicAddr:  app.PublicAddr,
+		ClusterName: clusterName,
 	}, nil
 }
 
 type validateAppSessionResult struct {
-	PublicAddr  string
-	ServerID    string
+	// ServerID is the ID of the server this application is running on.
+	ServerID string
+	// FQDN is the best effort FQDN resolved for this application.
+	FQDN string
+	// PublicAddr of application requested.
+	PublicAddr string
+	// ClusterName is the name of the cluster within which the application
+	// is running.
 	ClusterName string
-	FQDN        string
 }
 
+// resolveDirect takes a public address and cluster name and exactly resolves
+// the application and the server on which it is running.
 func (h *Handler) resolveDirect(ctx context.Context, publicAddr string, clusterName string) (*services.App, services.Server, string, error) {
 	clusterClient, err := h.cfg.Proxy.GetSite(clusterName)
 	if err != nil {

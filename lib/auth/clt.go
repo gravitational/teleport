@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -3021,9 +3022,7 @@ func (c *Client) GetAppWebSession(ctx context.Context, req services.GetAppWebSes
 	}
 
 	resp, err := clt.GetAppWebSession(ctx, &proto.GetAppWebSessionRequest{
-		Username:   req.Username,
-		ParentHash: req.ParentHash,
-		SessionID:  req.SessionID,
+		SessionID: req.SessionID,
 	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -3062,10 +3061,8 @@ func (c *Client) CreateAppWebSession(ctx context.Context, req services.CreateApp
 	resp, err := clt.CreateAppWebSession(ctx, &proto.CreateAppWebSessionRequest{
 		Username:      req.Username,
 		ParentSession: req.ParentSession,
-		AppSessionID:  req.AppSessionID,
-		ServerID:      req.ServerID,
+		PublicAddr:    req.PublicAddr,
 		ClusterName:   req.ClusterName,
-		Expires:       req.Expires,
 	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -3087,12 +3084,9 @@ func (c *Client) DeleteAppWebSession(ctx context.Context, req services.DeleteApp
 	}
 
 	_, err = clt.DeleteAppWebSession(ctx, &proto.DeleteAppWebSessionRequest{
-		Username:   req.Username,
-		ParentHash: req.ParentHash,
-		SessionID:  req.SessionID,
+		SessionID: req.SessionID,
 	})
 	if err != nil {
-
 		return trail.FromGRPC(err)
 	}
 
@@ -3111,6 +3105,25 @@ func (c *Client) DeleteAllAppWebSessions(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (c *Client) GenerateJWT(ctx context.Context, req jwt.SignParams) (string, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	resp, err := clt.GenerateJWT(ctx, &proto.GenerateJWTRequest{
+		Username: req.Username,
+		Roles:    req.Roles,
+		URI:      req.URI,
+		Expires:  req.Expires,
+	})
+	if err != nil {
+		return "", trail.FromGRPC(err)
+	}
+
+	return resp.GetJWT(), nil
 }
 
 // GetAppSession gets an application session.

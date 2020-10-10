@@ -683,12 +683,21 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 
+		// Check if the application name contains spaces. Don't allow spaces because
+		// for trusted clusters the name is used to construct the vanity domain that
+		// the application will be running under.
+		if ok := strings.Contains(application.Name, " "); ok {
+			return trace.BadParameter("name can not contain spaces as it may be used as part of the application domain")
+		}
+
 		// Parse and validate URL.
 		_, err = url.Parse(application.URI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
+		// TODO(russjones): Make this optional and derive it if not provided.
+		//
 		// If a port was specified, return an error, public address should be a FQDN.
 		_, _, err = net.SplitHostPort(application.PublicAddr)
 		if err == nil {

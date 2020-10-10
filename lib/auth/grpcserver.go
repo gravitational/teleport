@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -720,9 +721,7 @@ func (g *GRPCServer) GetAppWebSession(ctx context.Context, req *proto.GetAppWebS
 	}
 
 	session, err := auth.GetAppWebSession(ctx, services.GetAppWebSessionRequest{
-		Username:   req.GetUsername(),
-		ParentHash: req.GetParentHash(),
-		SessionID:  req.GetSessionID(),
+		SessionID: req.GetSessionID(),
 	})
 	if err != nil {
 		return nil, trail.ToGRPC(err)
@@ -774,10 +773,8 @@ func (g *GRPCServer) CreateAppWebSession(ctx context.Context, req *proto.CreateA
 	session, err := auth.CreateAppWebSession(ctx, services.CreateAppWebSessionRequest{
 		Username:      req.GetUsername(),
 		ParentSession: req.GetParentSession(),
-		AppSessionID:  req.GetAppSessionID(),
-		ServerID:      req.GetServerID(),
+		PublicAddr:    req.GetPublicAddr(),
 		ClusterName:   req.GetClusterName(),
-		Expires:       req.GetExpires(),
 	})
 	if err != nil {
 		return nil, trail.ToGRPC(err)
@@ -800,9 +797,7 @@ func (g *GRPCServer) DeleteAppWebSession(ctx context.Context, req *proto.DeleteA
 	}
 
 	if err := auth.DeleteAppWebSession(ctx, services.DeleteAppWebSessionRequest{
-		Username:   req.GetUsername(),
-		ParentHash: req.GetParentHash(),
-		SessionID:  req.GetSessionID(),
+		SessionID: req.GetSessionID(),
 	}); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -822,6 +817,27 @@ func (g *GRPCServer) DeleteAllAppWebSessions(ctx context.Context, _ *empty.Empty
 	}
 
 	return &empty.Empty{}, nil
+}
+
+func (g GRPCServer) GenerateJWT(ctx context.Context, req *proto.GenerateJWTRequest) (*proto.GenerateJWTResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	token, err := auth.GenerateJWT(ctx, jwt.SignParams{
+		Username: req.Username,
+		Roles:    req.Roles,
+		URI:      req.URI,
+		Expires:  req.Expires,
+	})
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &proto.GenerateJWTResponse{
+		JWT: token,
+	}, nil
 }
 
 // GetAppSession gets an application session.

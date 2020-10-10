@@ -18,7 +18,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -29,8 +28,11 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
+	jwt_pkg "github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	session_pkg "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	"github.com/pborman/uuid"
@@ -45,23 +47,23 @@ type session struct {
 // getSession returns a request session used to proxy the request to the
 // target application. Always checks if the session is valid first and if so,
 // will return a cached session, otherwise will create one.
-func (s *Server) getSession(ctx context.Context, appSession services.AppSession) (*session, error) {
+func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app *services.App) (*session, error) {
 	// If a cached forwarder exists, return it right away.
-	session, err := s.cacheGet(appSession.GetName())
+	session, err := s.cacheGet(identity.RouteToApp.SessionID)
 	if err == nil {
 		return session, nil
 	}
 
 	// Create a new session with a recorder and forwarder in it.
-	session, err = s.newSession(ctx, appSession)
+	session, err = s.newSession(ctx, identity, app)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Put the session in the cache so the next request can use it.
-	// TODO(russjones): Make this smaller of now+5 mins or expiry time.
-	//err = s.cacheSet(session.GetName(), session, session.Expiry().Sub(s.c.Clock.Now()))
-	err = s.cacheSet(appSession.GetName(), session, 60*time.Second)
+	// Put the session in the cache so the next request can use it for 5 minutes
+	// or the time until the certificate expires, whichever comes first.
+	ttl := utils.MinTTL(identity.Expires.Sub(s.c.Clock.Now()), 5*time.Minute)
+	err = s.cacheSet(identity.RouteToApp.SessionID, session, ttl)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -69,15 +71,22 @@ func (s *Server) getSession(ctx context.Context, appSession services.AppSession)
 	return session, nil
 }
 
-func (s *Server) newSession(ctx context.Context, appSession services.AppSession) (*session, error) {
-	// Locally lookup the application the caller is targeting.
-	app, err := s.getApp(ctx, appSession.GetPublicAddr())
+// newSession creates a new session which is used to cache the stream writer,
+// JWT, and request forwarder.
+func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *services.App) (*session, error) {
+	// Create the stream writer that will write this chunk to the audit log.
+	streamWriter, err := s.newStreamWriter(identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Create the stream writer that will write this chunk to the audit log.
-	streamWriter, err := s.newStreamWriter(appSession)
+	// Create JWT token that will be attached to all requests.
+	jwt, err := s.c.AuthClient.GenerateJWT(ctx, jwt_pkg.SignParams{
+		Username: identity.Username,
+		Roles:    identity.Groups,
+		URI:      app.URI,
+		Expires:  identity.Expires,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -85,12 +94,11 @@ func (s *Server) newSession(ctx context.Context, appSession services.AppSession)
 	// Create the forwarder.
 	fwder, err := newForwarder(s.closeContext,
 		&forwarderConfig{
-			w:          streamWriter,
-			publicAddr: app.PublicAddr,
-			uri:        app.URI,
-			jwt:        appSession.GetJWT(),
-			tr:         s.tr,
-			log:        s.log,
+			w:   streamWriter,
+			uri: app.URI,
+			jwt: jwt,
+			tr:  s.tr,
+			log: s.log,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -107,21 +115,6 @@ func (s *Server) newSession(ctx context.Context, appSession services.AppSession)
 		streamWriter: streamWriter,
 		fwd:          fwd,
 	}, nil
-}
-
-// getApp returns an application matching the public address. If multiple
-// matching applications exist, the first one is returned. Random selection
-// (or round robin) does not need to occur here because they will all point
-// to the same target address. Random selection (or round robin) occurs at the
-// proxy to load balance requests to the application service.
-func (s *Server) getApp(ctx context.Context, publicAddr string) (*services.App, error) {
-	for _, a := range s.c.Server.GetApps() {
-		if publicAddr == a.PublicAddr {
-			return a, nil
-		}
-	}
-
-	return nil, trace.NotFound("no application at %v found", publicAddr)
 }
 
 // cacheGet will fetch the forwarder from the cache.
@@ -157,35 +150,37 @@ func (s *Server) cacheExpire(key string, el interface{}) {
 		return
 	}
 
-	//if err := session.streamWriter.Close(s.closeContext); err != nil {
-	if err := session.streamWriter.Close(context.Background()); err != nil {
+	if err := session.streamWriter.Close(s.closeContext); err != nil {
 		s.log.Debugf("Failed to close stream writer: %v.", err)
 	}
 
 	s.log.Debugf("Closing expired stream %v.", key)
 }
 
-func (s *Server) newStreamWriter(appSession services.AppSession) (events.StreamWriter, error) {
+// newStreamWriter creates a streamer that will be used to stream the
+// requests that occur within this session to the audit log.
+func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter, error) {
 	clusterConfig, err := s.c.AccessPoint.GetClusterConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sessionUUID := uuid.New()
+	// Each chunk has it's own ID. Create a new UUID for this chunk which will be
+	// emitted in a new event to the audit log that can be use to aggregate all
+	// chunks for a particular session.
+	chunkID := uuid.New()
 
-	streamer, err := s.newStreamer(s.closeContext, sessionUUID, clusterConfig)
+	streamer, err := s.newStreamer(s.closeContext, chunkID, clusterConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	streamWriter, err := events.NewAuditWriter(events.AuditWriterConfig{
 		// Audit stream is using server context, not session context,
 		// to make sure that session is uploaded even after it is closed
-		Context:  s.closeContext,
-		Streamer: streamer,
-		Clock:    s.c.Clock,
-		// Each session chunk has it's own unique ID. An event will be emitted to
-		// the main log that links the services.AppSession to this chunk.
-		SessionID:    session_pkg.ID(sessionUUID),
+		Context:      s.closeContext,
+		Streamer:     streamer,
+		Clock:        s.c.Clock,
+		SessionID:    session_pkg.ID(chunkID),
 		Namespace:    defaults.Namespace,
 		ServerID:     s.c.Server.GetName(),
 		RecordOutput: clusterConfig.GetSessionRecording() != services.RecordOff,
@@ -195,7 +190,7 @@ func (s *Server) newStreamWriter(appSession services.AppSession) (events.StreamW
 		return nil, trace.Wrap(err)
 	}
 
-	// Emit the result of each request to the audit log.
+	// Emit an event to the Audit Log that a new session chunk has been created.
 	appSessionCreateEvent := &events.AppSessionCreate{
 		Metadata: events.Metadata{
 			Type: events.AppSessionCreateEvent,
@@ -206,9 +201,9 @@ func (s *Server) newStreamWriter(appSession services.AppSession) (events.StreamW
 			ServerNamespace: defaults.Namespace,
 		},
 		SessionMetadata: events.SessionMetadata{
-			SessionID: appSession.GetName(),
+			SessionID: identity.RouteToApp.SessionID,
 		},
-		SessionChunkID: sessionUUID,
+		SessionChunkID: chunkID,
 	}
 	if err := s.c.AuthClient.EmitAuditEvent(s.closeContext, appSessionCreateEvent); err != nil {
 		return nil, trace.Wrap(err)
@@ -238,32 +233,27 @@ func (s *Server) newStreamer(ctx context.Context, sessionID string, clusterConfi
 		return nil, trace.Wrap(err)
 	}
 	return fileStreamer, nil
-	//// TeeStreamer sends non-print and non disk events
-	//// to the audit log in async mode, while buffering all
-	//// events on disk for further upload at the end of the session
-	//return events.NewTeeStreamer(fileStreamer, s.c.AuthClient), nil
 }
 
 // forwarderConfig is the configuration for a forwarder.
 type forwarderConfig struct {
-	publicAddr string
-	uri        string
-	jwt        string
-	tr         http.RoundTripper
-	log        *logrus.Entry
-	w          events.StreamWriter
+	w   events.StreamWriter
+	uri string
+	jwt string
+	tr  http.RoundTripper
+	log *logrus.Entry
 }
 
 // Check will valid the configuration of a forwarder.
 func (c *forwarderConfig) Check() error {
-	if c.jwt == "" {
-		return trace.BadParameter("jwt missing")
+	if c.w == nil {
+		return trace.BadParameter("stream writer missing")
 	}
 	if c.uri == "" {
 		return trace.BadParameter("uri missing")
 	}
-	if c.publicAddr == "" {
-		return trace.BadParameter("public addr missing")
+	if c.jwt == "" {
+		return trace.BadParameter("jwt missing")
 	}
 	if c.tr == nil {
 		return trace.BadParameter("round tripper missing")
@@ -271,6 +261,7 @@ func (c *forwarderConfig) Check() error {
 	if c.log == nil {
 		return trace.BadParameter("logger missing")
 	}
+
 	return nil
 }
 
@@ -325,21 +316,14 @@ func (f *forwarder) RoundTrip(r *http.Request) (*http.Response, error) {
 		RawQuery:   r.URL.RawQuery,
 	}
 	if err := f.c.w.EmitAuditEvent(f.closeContext, appSessionRequestEvent); err != nil {
-		fmt.Printf("--> failing to emit: %v.\n", err)
 		return nil, trace.Wrap(err)
 	}
 
 	return resp, nil
 }
 
-// Rewrite request headers to add in JWT header and remove any Teleport
-// related authentication headers.
+// Rewrite adds in JWT headers to the request.
 func (f *forwarder) Rewrite(r *http.Request) {
-	// Add in JWT headers.
 	r.Header.Add(teleport.AppJWTHeader, f.c.jwt)
 	r.Header.Add(teleport.AppCFHeader, f.c.jwt)
-
-	// Remove the session ID header before forwarding the session to the
-	// target application.
-	r.Header.Del(teleport.AppSessionIDHeader)
 }

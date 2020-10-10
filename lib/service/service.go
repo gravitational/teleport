@@ -2009,6 +2009,9 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 		} else {
 			addrs = append(addrs, process.Config.SSH.Addr)
 		}
+	case teleport.RoleApp:
+		principals = append(principals, process.Config.HostUUID)
+		//principals = append(principals, fmt.Sprintf("%v.%v", process.Config.HostUUID+teleport.APIDomain))
 	}
 	for _, addr := range addrs {
 		if addr.IsEmpty() {

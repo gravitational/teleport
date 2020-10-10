@@ -1180,9 +1180,9 @@ func (a *appWebSession) processEvent(ctx context.Context, event services.Event) 
 		}
 
 		err := a.appIdentityCache.DeleteAppWebSession(ctx, services.DeleteAppWebSessionRequest{
-			Username:   resource.GetUser(),
-			ParentHash: resource.GetParentHash(),
-			SessionID:  resource.GetName(),
+			//Username:   resource.GetUser(),
+			//ParentHash: resource.GetParentHash(),
+			SessionID: resource.GetName(),
 		})
 		if err != nil {
 			// Resource could be missing in the cache expired or not created, if the

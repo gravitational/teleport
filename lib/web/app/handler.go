@@ -20,16 +20,13 @@ package app
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -53,7 +50,9 @@ type HandlerConfig struct {
 	// AccessPoint is caching client to auth.
 	AccessPoint auth.AccessPoint
 	// ProxyClient holds connections to leaf clusters.
-	ProxyClient  reversetunnel.Server
+	ProxyClient reversetunnel.Server
+	// CipherSuites is the list of TLS cipher suites that have been configured
+	// for this process.
 	CipherSuites []uint16
 }
 
@@ -72,6 +71,9 @@ func (c *HandlerConfig) CheckAndSetDefaults() error {
 	if c.ProxyClient == nil {
 		return trace.BadParameter("proxy client missing")
 	}
+	if len(c.CipherSuites) == 0 {
+		return trace.BadParameter("ciphersuites missing")
+	}
 
 	return nil
 }
@@ -82,9 +84,6 @@ type Handler struct {
 
 	log *logrus.Entry
 
-	//tr http.RoundTripper
-	tr *http.Transport
-
 	mu    sync.Mutex
 	cache *ttlmap.TTLMap
 }
@@ -92,13 +91,6 @@ type Handler struct {
 // NewHandler returns a new application handler.
 func NewHandler(c *HandlerConfig) (*Handler, error) {
 	if err := c.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Create a http.RoundTripper that is used to cache and limit transport
-	// connections over the reverse tunnel subsystem.
-	tr, err := newTransport(c.ProxyClient)
-	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -113,7 +105,6 @@ func NewHandler(c *HandlerConfig) (*Handler, error) {
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentAppProxy,
 		}),
-		tr:    tr,
 		cache: cache,
 	}, nil
 
@@ -143,30 +134,32 @@ func (h *Handler) IsAuthenticatedApp(r *http.Request) bool {
 // host that is different than the public address of the proxy. If it is, it
 // redirects back to the application launcher in the Web UI.
 func (h *Handler) IsUnauthenticatedApp(r *http.Request, publicAddr string) (string, bool) {
-	requestedHost, err := utils.ParseAddr(r.Host)
+	addr, err := utils.ParseAddr(r.Host)
 	if err != nil {
 		return "", false
 	}
 
-	// TODO(russjones): Benchmark time to loop over all applications and look
-	// for a match.
-	if utils.IsLocalhost(requestedHost.Host()) {
+	// The following requests can not be for an application:
+	//
+	//  * The request is for localhost or loopback.
+	//  * The request is for an IP address.
+	//  * The request is for the public address of the proxy.
+	if utils.IsLocalhost(addr.Host()) {
 		return "", false
 	}
-	if net.ParseIP(requestedHost.Host()) != nil {
+	if net.ParseIP(addr.Host()) != nil {
 		return "", false
 	}
 	if r.Host == publicAddr {
 		return "", false
 	}
 
-	host, _, _ := net.SplitHostPort(r.Host)
-
-	//u, err := url.Parse(fmt.Sprintf("https://%v/web/launch/%v", publicAddr, r.Host))
-	u, err := url.Parse(fmt.Sprintf("https://%v/web/launch/%v", publicAddr, host))
-	if err != nil {
-		h.log.Debugf("Failed to parse while handling unauthenticated request to %v: %v.", r.Host, err)
-		return "", false
+	// At this point, it is assumed the caller is requesting an application and
+	// not the proxy, redirect the caller to the application launcher.
+	u := url.URL{
+		Scheme: "https",
+		Host:   publicAddr,
+		Path:   fmt.Sprintf("/web/launch/%v", addr.Host()),
 	}
 	return u.String(), true
 }
@@ -193,30 +186,30 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 		}
 	case "/x-teleport-logout":
 		// Authenticate the session based off the session cookie.
-		session, err := h.authenticate(r.Context(), r)
+		ws, err := h.authenticate(r.Context(), r)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if err := h.handleLogout(w, r, session); err != nil {
+		if err := h.handleLogout(w, r, ws); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
 		// Authenticate the session based off the session cookie.
-		session, err := h.authenticate(r.Context(), r)
+		ws, err := h.authenticate(r.Context(), r)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// Fetch a cached request forwarder or create one if this is the first
 		// request (or the process has been restarted).
-		fwd, err := h.getForwarder(r.Context(), session)
+		session, err := h.getSession(r.Context(), ws)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		// Forward the request to the Teleport application proxy service.
-		fwd.ServeHTTP(w, r)
+		session.fwd.ServeHTTP(w, r)
 	}
 
 	return nil
@@ -225,10 +218,9 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 // authenticate will check if request carries a session cookie matching a
 // session in the backend.
 func (h *Handler) authenticate(ctx context.Context, r *http.Request) (services.WebSession, error) {
-	// Extract the session cookie from the *http.Request.
-	cookie, err := parseCookie(r)
+	cookieValue, err := extractCookie(r)
 	if err != nil {
-		h.log.Warnf("Failed to parse session cookie: %v.", err)
+		h.log.Warnf("Failed to extract session cookie: %v.", err)
 		return nil, trace.AccessDenied("invalid session")
 	}
 
@@ -236,9 +228,7 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (services.W
 	// to logout and invalidate their application session immediately. This
 	// lookup should also be fast because it's in the local cache.
 	session, err := h.c.AccessPoint.GetAppWebSession(ctx, services.GetAppWebSessionRequest{
-		Username:   cookie.Username,
-		ParentHash: cookie.ParentHash,
-		SessionID:  cookie.SessionID,
+		SessionID: cookieValue,
 	})
 	if err != nil {
 		h.log.Warnf("Failed to fetch application session: %v.", err)
@@ -248,130 +238,22 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (services.W
 	return session, nil
 }
 
-// getForwarder returns a request forwarder used to proxy the request to the
-// application proxy component of Teleport which will then forward the
-// request to the target application.
-func (h *Handler) getForwarder(ctx context.Context, session services.WebSession) (*forward.Forwarder, error) {
-	// If a cached forwarder exists, return it right away.
-	fwd, err := h.cacheGet(session.GetName())
-	if err == nil {
-		return fwd, nil
-	}
-
-	// Works with local cluster.
-	//ca, err := h.c.AuthClient.GetCertAuthority(services.CertAuthID{
-	//	Type:       services.HostCA,
-	//	DomainName: "example.com",
-	//}, false)
-	//if err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
-	//certPool, err := services.CertPool(ca)
-	//if err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
-	//tlsConfig := utils.TLSConfig(h.c.CipherSuites)
-	//tlsCert, err := tls.X509KeyPair(session.GetTLSCert(), session.GetPriv())
-	//if err != nil {
-	//	return nil, trace.Wrap(err, "failed to parse TLS cert and key")
-	//}
-	//tlsConfig.Certificates = []tls.Certificate{tlsCert}
-	//tlsConfig.RootCAs = certPool
-	//// TODO(russjones): This might be due to hostname mistmatch?
-	////tlsConfig.InsecureSkipVerify = true
-	////tlsConfig.ServerName = auth.EncodeClusterName("example.com")
-	//tlsConfig.ServerName = "084449f1-c71b-4fdf-b49f-b4304d2a1f1f.example.com"
-	//cert := tlsConfig.Certificates[0]
-	//tlsConfig.Certificates = nil
-	//tlsConfig.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-	//	fmt.Printf("--> sending cert.\n")
-	//	return &cert, nil
-	//}
-	//tlsConfig.ServerName = "server04"
-	////tlsConfig.BuildNameToCertificate()
-	//tr, _ := newTransport(h.c.ProxyClient)
-	//tr.TLSClientConfig = tlsConfig
-
-	ca, err := h.c.AuthClient.GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
-		DomainName: "remote.example.com",
-	}, false)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certPool, err := services.CertPool(ca)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsConfig := utils.TLSConfig(h.c.CipherSuites)
-	tlsCert, err := tls.X509KeyPair(session.GetTLSCert(), session.GetPriv())
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse TLS cert and key")
-	}
-	tlsConfig.Certificates = []tls.Certificate{tlsCert}
-	tlsConfig.RootCAs = certPool
-	// TODO(russjones): This might be due to hostname mistmatch?
-	//tlsConfig.InsecureSkipVerify = true
-	//tlsConfig.ServerName = auth.EncodeClusterName("example.com")
-	//tlsConfig.ServerName = "a9c770b9-3b7c-4cbf-99a4-ee1821bfaae0.remote.example.com"
-	cert := tlsConfig.Certificates[0]
-	tlsConfig.Certificates = nil
-	tlsConfig.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-		fmt.Printf("--> sending cert.\n")
-		return &cert, nil
-	}
-	tlsConfig.ServerName = "server06" // <<-- surprusing dialing has to happen by host here.
-	//tlsConfig.BuildNameToCertificate()
-
-	tr, _ := newTransport(h.c.ProxyClient)
-	tr.TLSClientConfig = tlsConfig
-
-	// Create the forwarder.
-	fwder, err := newForwarder(forwarderConfig{
-		uri: fmt.Sprintf("https://%v.%v", session.GetServerID(), session.GetClusterName()),
-		//uri:       "https://" + teleport.APIDomain,
-		//uri:       "https://server04",
-		sessionID: session.GetSessionID(),
-		//tr:        h.tr,
-		tr:  tr,
-		log: h.log,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	fwd, err = forward.New(
-		forward.RoundTripper(fwder),
-		forward.Rewriter(fwder),
-		forward.Logger(h.log))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Put the forwarder in the cache so the next request can use it.
-	err = h.cacheSet(session.GetName(), fwd, session.Expiry().Sub(h.c.Clock.Now()))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return fwd, nil
-}
-
 // cacheGet will fetch the forwarder from the cache.
-func (h *Handler) cacheGet(key string) (*forward.Forwarder, error) {
+func (h *Handler) cacheGet(key string) (*session, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	if f, ok := h.cache.Get(key); ok {
-		if fwd, fok := f.(*forward.Forwarder); fok {
-			return fwd, nil
+	if s, ok := h.cache.Get(key); ok {
+		if sess, sok := s.(*session); sok {
+			return sess, nil
 		}
-		return nil, trace.BadParameter("invalid type stored in cache: %T", f)
+		return nil, trace.BadParameter("invalid type stored in cache: %T", s)
 	}
 	return nil, trace.NotFound("forwarder not found")
 }
 
 // cacheSet will add the forwarder to the cache.
-func (h *Handler) cacheSet(key string, value *forward.Forwarder, ttl time.Duration) error {
+func (h *Handler) cacheSet(key string, value *session, ttl time.Duration) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -381,160 +263,20 @@ func (h *Handler) cacheSet(key string, value *forward.Forwarder, ttl time.Durati
 	return nil
 }
 
-// forwarderConfig is the configuration for a forwarder.
-type forwarderConfig struct {
-	uri       string
-	sessionID string
-	tr        http.RoundTripper
-	log       *logrus.Entry
-}
-
-// Check will valid the configuration of a forwarder.
-func (c forwarderConfig) Check() error {
-	if c.uri == "" {
-		return trace.BadParameter("uri missing")
-	}
-	if c.sessionID == "" {
-		return trace.BadParameter("session ID missing")
-	}
-	if c.tr == nil {
-		return trace.BadParameter("round tripper missing")
-	}
-	if c.log == nil {
-		return trace.BadParameter("logger missing")
-	}
-
-	return nil
-}
-
-// forwarder will rewrite and forward the request to the target address.
-type forwarder struct {
-	c forwarderConfig
-
-	uri *url.URL
-}
-
-// newForwarder returns a new forwarder.
-func newForwarder(c forwarderConfig) (*forwarder, error) {
-	if err := c.Check(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Parse the target address once then inject it into all requests.
-	uri, err := url.Parse(c.uri)
+// extractCookie extracts the cookie from the *http.Request.
+func extractCookie(r *http.Request) (string, error) {
+	rawCookie, err := r.Cookie(cookieName)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
+	}
+	if rawCookie != nil && rawCookie.Value == "" {
+		return "", trace.BadParameter("cookie missing")
 	}
 
-	return &forwarder{
-		c:   c,
-		uri: uri,
-	}, nil
+	return rawCookie.Value, nil
 }
 
-func (f *forwarder) RoundTrip(r *http.Request) (*http.Response, error) {
-	// Update the target address of the request so it's forwarded correctly.
-	// Format is always serverID.clusterName.
-	r.URL.Scheme = f.uri.Scheme
-	r.URL.Host = "server06" //f.uri.Host
-
-	resp, err := f.c.tr.RoundTrip(r)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return resp, nil
-}
-
-func (f *forwarder) Rewrite(r *http.Request) {
-	// Pass the application session ID to the application service in a header.
-	// This will be removed by the application proxy service before forwarding
-	// the request to the target application.
-	r.Header.Set(teleport.AppSessionIDHeader, f.c.sessionID)
-
-	// Remove the application specific session cookie from the header. This is
-	// done by first wiping out the "Cookie" header then adding back all cookies
-	// except the Teleport application specific session cookie. This appears to
-	// be the best way to serialize cookies.
-	cookies := r.Cookies()
-	r.Header.Del("Cookie")
-	for _, cookie := range cookies {
-		if cookie.Name == cookieName {
-			continue
-		}
-		r.AddCookie(cookie)
-	}
-}
-
-// newTransport creates a http.RoundTripper that uses the reverse tunnel
-// subsystem to build the connection. This allows re-use of the transports
-// connection pooling logic instead of needing to write and maintain our own.
-func newTransport(proxyClient reversetunnel.Server) (*http.Transport, error) {
-	// Clone the default transport to pick up sensible defaults.
-	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
-	if !ok {
-		return nil, trace.BadParameter("invalid transport type %T", http.DefaultTransport)
-	}
-	tr := defaultTransport.Clone()
-
-	// Increase the size of the transports connection pool. This substantially
-	// improves the performance of Teleport under load as it reduces the number
-	// of TLS handshakes performed.
-	tr.MaxIdleConns = defaults.HTTPMaxIdleConns
-	tr.MaxIdleConnsPerHost = defaults.HTTPMaxIdleConnsPerHost
-
-	// Set IdleConnTimeout on the transport, this defines the maximum amount of
-	// time before idle connections are closed. Leaving this unset will lead to
-	// connections open forever and will cause memory leaks in a long running
-	// process.
-	tr.IdleConnTimeout = defaults.HTTPIdleTimeout
-
-	// The address field is always formatted as serverUUID.clusterName allowing
-	// the connection pool maintained by the transport to differentiate
-	// connections to different application proxy hosts.
-	tr.DialContext = func(ctx context.Context, network string, addr string) (net.Conn, error) {
-		//serverID, clusterName, err := extract(addr)
-		//if err != nil {
-		//	return nil, trace.Wrap(err)
-		//}
-		//clusterClient, err := proxyClient.GetSite(clusterName)
-		//	clusterClient, err := proxyClient.GetSite("example.com")
-		clusterClient, err := proxyClient.GetSite("remote.example.com")
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		conn, err := clusterClient.Dial(reversetunnel.DialParams{
-			// The "From" and "To" addresses don't mean anything for tunnel dialing,
-			// so they are simply filled out with dummy values.
-			From: &utils.NetAddr{AddrNetwork: "tcp", Addr: "@proxy"},
-			To:   &utils.NetAddr{AddrNetwork: "tcp", Addr: "@app"},
-			//ServerID: fmt.Sprintf("%v.%v", serverID, clusterName),
-			//ServerID: "084449f1-c71b-4fdf-b49f-b4304d2a1f1f.example.com",
-			ServerID: "a9c770b9-3b7c-4cbf-99a4-ee1821bfaae0.remote.example.com",
-			ConnType: services.AppTunnel,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return conn, nil
-	}
-
-	return tr, nil
-}
-
-// extract takes an address in the form http://serverID.clusterName:80 and
-// returns serverID and clusterName.
-func extract(address string) (string, string, error) {
-	// Strip port suffix.
-	address = strings.TrimSuffix(address, ":80")
-	address = strings.TrimSuffix(address, ":443")
-
-	// Split into two parts: serverID and clusterName.
-	index := strings.Index(address, ".")
-	if index == -1 {
-		return "", "", fmt.Errorf("")
-	}
-
-	return address[:index], address[index+1:], nil
-}
+const (
+	// cookieName is the name of the application session cookie.
+	cookieName = "grv_app_session"
+)

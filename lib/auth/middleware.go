@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
 	"math"
 	"net"
 	"net/http"
@@ -226,7 +225,6 @@ func (t *TLSServer) Serve() error {
 // and server's GetConfigForClient reloads the list of trusted
 // local and remote certificate authorities
 func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, error) {
-	fmt.Printf("--> GetConfigForClient: %v.\n", info.ServerName)
 	var clusterName string
 	var err error
 	switch info.ServerName {

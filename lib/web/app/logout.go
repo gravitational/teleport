@@ -26,15 +26,15 @@ import (
 )
 
 func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request, session services.WebSession) error {
+	// Remove the session from the backeend.
 	err := h.c.AuthClient.DeleteAppWebSession(context.Background(), services.DeleteAppWebSessionRequest{
-		Username:   session.GetUser(),
-		ParentHash: session.GetParentHash(),
-		SessionID:  session.GetName(),
+		SessionID: session.GetName(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	// Set Max-Age to 0 to tell the browser to delete this cookie.
 	http.SetCookie(w, &http.Cookie{
 		Name:     cookieName,
 		HttpOnly: true,

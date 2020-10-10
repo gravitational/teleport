@@ -1170,13 +1170,14 @@ message WebSessionSpecV2 {
         (gogoproto.jsontag) = "expires"
     ];
     // ParentHash is the has of the parent session ID.
-    string ParentHash = 8 [ (gogoproto.jsontag) = "parent_hash,omitempty" ];
-    // ServerID is the ID of the application server that will forward the request.
-    string ServerID = 10 [ (gogoproto.jsontag) = "server_id,omitempty" ];
+    // string ParentHash = 8 [ (gogoproto.jsontag) = "parent_hash,omitempty" ];
+    // string JWT = 9 [ (gogoproto.jsontag) = "jwt,omitempty" ];
+    //// ServerID is the ID of the application server that will forward the request.
+    // string ServerID = 10 [ (gogoproto.jsontag) = "server_id,omitempty" ];
     // ClusterName is the name of the cluster that the application session resides in.
-    string ClusterName = 11 [ (gogoproto.jsontag) = "cluster_name,omitempty" ];
-    // SessionID is the application session ID.
-    string SessionID = 9 [ (gogoproto.jsontag) = "session_id,omitempty" ];
+    // string ClusterName = 11 [ (gogoproto.jsontag) = "cluster_name,omitempty" ];
+    //// SessionID is the application session ID.
+    // string SessionID = 9 [ (gogoproto.jsontag) = "session_id,omitempty" ];
 }
 
 // AppSession represents a specific application session.

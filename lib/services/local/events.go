@@ -769,7 +769,7 @@ func (p *appServerParser) parse(event backend.Event) (services.Resource, error) 
 
 func newAppWebSessionParser() *appWebSessionParser {
 	return &appWebSessionParser{
-		matchPrefix: backend.Key(webPrefix, sessionsPrefix, appsPrefix),
+		matchPrefix: backend.Key(sessionsPrefix),
 	}
 }
 
