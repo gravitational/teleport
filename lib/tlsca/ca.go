@@ -87,6 +87,17 @@ type Identity struct {
 	RouteToCluster string
 	// Traits hold claim data used to populate a role at runtime.
 	Traits wrappers.Traits
+	// RouteToApp holds routing information used to route requests from the
+	// proxy to the Teleport application proxy and from the application proxy
+	// to the target application.
+	RouteToApp AppRoute
+}
+
+type AppRoute struct {
+	ServerID    string
+	PublicAddr  string
+	ClusterName string
+	JWT         string
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -114,6 +125,11 @@ var KubeUsersASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 1}
 // KubeGroupsASN1ExtensionOID is an extension ID used when encoding/decoding
 // license payload into certificates
 var KubeGroupsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 2}
+
+var AppServevIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 4}
+var AppClusterNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 5}
+var AppPublicAddrASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 6}
+var AppJWTASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 7}
 
 // Subject converts identity to X.509 subject name
 func (id *Identity) Subject() (pkix.Name, error) {

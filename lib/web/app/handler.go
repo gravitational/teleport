@@ -20,6 +20,7 @@ package app
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -52,7 +53,8 @@ type HandlerConfig struct {
 	// AccessPoint is caching client to auth.
 	AccessPoint auth.AccessPoint
 	// ProxyClient holds connections to leaf clusters.
-	ProxyClient reversetunnel.Server
+	ProxyClient  reversetunnel.Server
+	CipherSuites []uint16
 }
 
 // CheckAndSetDefaults validates configuration.
@@ -80,7 +82,8 @@ type Handler struct {
 
 	log *logrus.Entry
 
-	tr http.RoundTripper
+	//tr http.RoundTripper
+	tr *http.Transport
 
 	mu    sync.Mutex
 	cache *ttlmap.TTLMap
@@ -255,12 +258,83 @@ func (h *Handler) getForwarder(ctx context.Context, session services.WebSession)
 		return fwd, nil
 	}
 
+	// Works with local cluster.
+	//ca, err := h.c.AuthClient.GetCertAuthority(services.CertAuthID{
+	//	Type:       services.HostCA,
+	//	DomainName: "example.com",
+	//}, false)
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+	//certPool, err := services.CertPool(ca)
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+	//tlsConfig := utils.TLSConfig(h.c.CipherSuites)
+	//tlsCert, err := tls.X509KeyPair(session.GetTLSCert(), session.GetPriv())
+	//if err != nil {
+	//	return nil, trace.Wrap(err, "failed to parse TLS cert and key")
+	//}
+	//tlsConfig.Certificates = []tls.Certificate{tlsCert}
+	//tlsConfig.RootCAs = certPool
+	//// TODO(russjones): This might be due to hostname mistmatch?
+	////tlsConfig.InsecureSkipVerify = true
+	////tlsConfig.ServerName = auth.EncodeClusterName("example.com")
+	//tlsConfig.ServerName = "084449f1-c71b-4fdf-b49f-b4304d2a1f1f.example.com"
+	//cert := tlsConfig.Certificates[0]
+	//tlsConfig.Certificates = nil
+	//tlsConfig.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+	//	fmt.Printf("--> sending cert.\n")
+	//	return &cert, nil
+	//}
+	//tlsConfig.ServerName = "server04"
+	////tlsConfig.BuildNameToCertificate()
+	//tr, _ := newTransport(h.c.ProxyClient)
+	//tr.TLSClientConfig = tlsConfig
+
+	ca, err := h.c.AuthClient.GetCertAuthority(services.CertAuthID{
+		Type:       services.HostCA,
+		DomainName: "remote.example.com",
+	}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certPool, err := services.CertPool(ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsConfig := utils.TLSConfig(h.c.CipherSuites)
+	tlsCert, err := tls.X509KeyPair(session.GetTLSCert(), session.GetPriv())
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse TLS cert and key")
+	}
+	tlsConfig.Certificates = []tls.Certificate{tlsCert}
+	tlsConfig.RootCAs = certPool
+	// TODO(russjones): This might be due to hostname mistmatch?
+	//tlsConfig.InsecureSkipVerify = true
+	//tlsConfig.ServerName = auth.EncodeClusterName("example.com")
+	//tlsConfig.ServerName = "a9c770b9-3b7c-4cbf-99a4-ee1821bfaae0.remote.example.com"
+	cert := tlsConfig.Certificates[0]
+	tlsConfig.Certificates = nil
+	tlsConfig.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+		fmt.Printf("--> sending cert.\n")
+		return &cert, nil
+	}
+	tlsConfig.ServerName = "server06" // <<-- surprusing dialing has to happen by host here.
+	//tlsConfig.BuildNameToCertificate()
+
+	tr, _ := newTransport(h.c.ProxyClient)
+	tr.TLSClientConfig = tlsConfig
+
 	// Create the forwarder.
 	fwder, err := newForwarder(forwarderConfig{
-		uri:       fmt.Sprintf("http://%v.%v", session.GetServerID(), session.GetClusterName()),
+		uri: fmt.Sprintf("https://%v.%v", session.GetServerID(), session.GetClusterName()),
+		//uri:       "https://" + teleport.APIDomain,
+		//uri:       "https://server04",
 		sessionID: session.GetSessionID(),
-		tr:        h.tr,
-		log:       h.log,
+		//tr:        h.tr,
+		tr:  tr,
+		log: h.log,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -362,7 +436,7 @@ func (f *forwarder) RoundTrip(r *http.Request) (*http.Response, error) {
 	// Update the target address of the request so it's forwarded correctly.
 	// Format is always serverID.clusterName.
 	r.URL.Scheme = f.uri.Scheme
-	r.URL.Host = f.uri.Host
+	r.URL.Host = "server06" //f.uri.Host
 
 	resp, err := f.c.tr.RoundTrip(r)
 	if err != nil {
@@ -395,7 +469,7 @@ func (f *forwarder) Rewrite(r *http.Request) {
 // newTransport creates a http.RoundTripper that uses the reverse tunnel
 // subsystem to build the connection. This allows re-use of the transports
 // connection pooling logic instead of needing to write and maintain our own.
-func newTransport(proxyClient reversetunnel.Server) (http.RoundTripper, error) {
+func newTransport(proxyClient reversetunnel.Server) (*http.Transport, error) {
 	// Clone the default transport to pick up sensible defaults.
 	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
 	if !ok {
@@ -419,11 +493,13 @@ func newTransport(proxyClient reversetunnel.Server) (http.RoundTripper, error) {
 	// the connection pool maintained by the transport to differentiate
 	// connections to different application proxy hosts.
 	tr.DialContext = func(ctx context.Context, network string, addr string) (net.Conn, error) {
-		serverID, clusterName, err := extract(addr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		clusterClient, err := proxyClient.GetSite(clusterName)
+		//serverID, clusterName, err := extract(addr)
+		//if err != nil {
+		//	return nil, trace.Wrap(err)
+		//}
+		//clusterClient, err := proxyClient.GetSite(clusterName)
+		//	clusterClient, err := proxyClient.GetSite("example.com")
+		clusterClient, err := proxyClient.GetSite("remote.example.com")
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -431,9 +507,11 @@ func newTransport(proxyClient reversetunnel.Server) (http.RoundTripper, error) {
 		conn, err := clusterClient.Dial(reversetunnel.DialParams{
 			// The "From" and "To" addresses don't mean anything for tunnel dialing,
 			// so they are simply filled out with dummy values.
-			From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@proxy"},
-			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: "@app"},
-			ServerID: fmt.Sprintf("%v.%v", serverID, clusterName),
+			From: &utils.NetAddr{AddrNetwork: "tcp", Addr: "@proxy"},
+			To:   &utils.NetAddr{AddrNetwork: "tcp", Addr: "@app"},
+			//ServerID: fmt.Sprintf("%v.%v", serverID, clusterName),
+			//ServerID: "084449f1-c71b-4fdf-b49f-b4304d2a1f1f.example.com",
+			ServerID: "a9c770b9-3b7c-4cbf-99a4-ee1821bfaae0.remote.example.com",
 			ConnType: services.AppTunnel,
 		})
 		if err != nil {
@@ -450,6 +528,7 @@ func newTransport(proxyClient reversetunnel.Server) (http.RoundTripper, error) {
 func extract(address string) (string, string, error) {
 	// Strip port suffix.
 	address = strings.TrimSuffix(address, ":80")
+	address = strings.TrimSuffix(address, ":443")
 
 	// Split into two parts: serverID and clusterName.
 	index := strings.Index(address, ".")

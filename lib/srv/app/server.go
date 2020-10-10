@@ -21,6 +21,8 @@ package app
 
 import (
 	"context"
+	"crypto/tls"
+	"fmt"
 	"net"
 	"net/http"
 	"sync"
@@ -59,6 +61,11 @@ type Config struct {
 	// AccessPoint is a caching client connected to the Auth Server.
 	AccessPoint auth.AccessPoint
 
+	// TLSConfig is the *tls.Config this server presents.
+	TLSConfig *tls.Config
+
+	Authorizer auth.Authorizer
+
 	// GetRotation returns the certificate rotation state.
 	GetRotation RotationGetter
 
@@ -73,14 +80,20 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Clock = clockwork.NewRealClock()
 	}
 
-	if c.AuthClient == nil {
-		return trace.BadParameter("auth client log missing")
-	}
 	if c.DataDir == "" {
 		return trace.BadParameter("data dir missing")
 	}
+	if c.AuthClient == nil {
+		return trace.BadParameter("auth client log missing")
+	}
 	if c.AccessPoint == nil {
 		return trace.BadParameter("access point missing")
+	}
+	if c.TLSConfig == nil {
+		return trace.BadParameter("tls config missing")
+	}
+	if c.Authorizer == nil {
+		return trace.BadParameter("authorizer missing")
 	}
 	if c.GetRotation == nil {
 		return trace.BadParameter("rotation getter missing")
@@ -101,6 +114,7 @@ type Server struct {
 	closeFunc    context.CancelFunc
 
 	httpServer *http.Server
+	tlsConfig  *tls.Config
 
 	heartbeat     *srv.Heartbeat
 	dynamicLabels map[string]*labels.Dynamic
@@ -132,9 +146,28 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 
 	s.closeContext, s.closeFunc = context.WithCancel(ctx)
 
+	s.tlsConfig = c.TLSConfig
+	fmt.Printf("--> ClientCAs: %v.\n", s.tlsConfig.ClientCAs)
+	//s.tlsConfig.ClientAuth = tls.VerifyClientCertIfGiven
+	s.tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+
+	//pool, err := auth.ClientCertPool(s.c.AccessPoint, "example.com")
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+	//s.tlsConfig.ClientCAs = pool
+
+	s.tlsConfig.GetConfigForClient = s.GetConfigForClient
+
+	authMiddleware := &auth.AuthMiddleware{
+		AccessPoint: c.AccessPoint,
+		//AcceptedUsage: []string{teleport.UsageKubeOnly},
+	}
+	authMiddleware.Wrap(s)
+
 	// Create HTTP server that will be forwarding requests to target application.
 	s.httpServer = &http.Server{
-		Handler:           s,
+		Handler:           authMiddleware,
 		ReadHeaderTimeout: defaults.DefaultDialTimeout,
 	}
 
@@ -272,9 +305,13 @@ func (s *Server) ForceHeartbeat() error {
 // HandleConnection takes a connection and wraps it in a listener so it can
 // be passed to http.Serve to process as a HTTP request.
 func (s *Server) HandleConnection(conn net.Conn) {
-	if err := s.httpServer.Serve(newListener(s.closeContext, conn)); err != nil {
+	listener := newListener(s.closeContext, conn)
+	if err := s.httpServer.Serve(tls.NewListener(listener, s.tlsConfig)); err != nil {
 		s.log.Warnf("Failed to handle connection: %v.", err)
 	}
+	//if err := s.httpServer.Serve(newListener(s.closeContext, conn)); err != nil {
+	//	s.log.Warnf("Failed to handle connection: %v.", err)
+	//}
 }
 
 // ServeHTTP will forward the *http.Request to the target application.
@@ -310,24 +347,52 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 // authenticate will check if request carries a session cookie matching a
 // session in the backend.
 func (s *Server) authenticate(ctx context.Context, r *http.Request) (services.AppSession, error) {
-	sessionID := r.Header.Get(teleport.AppSessionIDHeader)
-	if sessionID == "" {
-		s.log.Warnf("Request missing session ID header.")
-		return nil, trace.AccessDenied("invalid session")
+	//sessionID := r.Header.Get(teleport.AppSessionIDHeader)
+	//if sessionID == "" {
+	//	s.log.Warnf("Request missing session ID header.")
+	//	return nil, trace.AccessDenied("invalid session")
+	//}
+
+	userTypeI := r.Context().Value(auth.ContextUser)
+	switch userTypeI.(type) {
+	case auth.LocalUser:
+		fmt.Printf("--> Got local user!\n")
+	case auth.RemoteUser:
+		fmt.Printf("--> Got remote user!\n")
+	default:
+		fmt.Printf("unknown type: %#v.\n", userTypeI)
 	}
 
-	// Always look for the session in the backend cache first. This allows the
-	// session to be invalidated in the backend and be immediately reflected here.
-	session, err := s.c.AccessPoint.GetAppSession(ctx, sessionID)
+	userContext, err := s.c.Authorizer.Authorize(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	app, err := s.getApp(r.Context(), "dumper.example.com")
 	if err != nil {
-		s.log.Warnf("Failed to fetch application session: %v.", err)
-		return nil, trace.AccessDenied("invalid session")
+		return nil, trace.Wrap(err)
 	}
 
-	return session, nil
+	err = userContext.Checker.CheckAccessToApp(defaults.Namespace, app)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	fmt.Printf("--> have access!.\n")
+	return nil, nil
+
+	//// Always look for the session in the backend cache first. This allows the
+	//// session to be invalidated in the backend and be immediately reflected here.
+	//session, err := s.c.AccessPoint.GetAppSession(ctx, sessionID)
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
+	//if err != nil {
+	//	s.log.Warnf("Failed to fetch application session: %v.", err)
+	//	return nil, trace.AccessDenied("invalid session")
+	//}
+
+	//return session, nil
 }
 
 // activeConnections returns the number of active connections being proxied.
@@ -362,4 +427,31 @@ func newTransport() (http.RoundTripper, error) {
 	tr.TLSClientConfig.InsecureSkipVerify = lib.IsInsecureDevMode()
 
 	return tr, nil
+}
+
+// GetConfigForClient is getting called on every connection
+// and server's GetConfigForClient reloads the list of trusted
+// local and remote certificate authorities
+func (s *Server) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, error) {
+	var clusterName string
+	var err error
+	if info.ServerName != "" {
+		clusterName, err = auth.DecodeClusterName(info.ServerName)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				//log.Debugf("Ignoring unsupported cluster name name %q.", info.ServerName)
+				clusterName = ""
+			}
+		}
+	}
+	pool, err := auth.ClientCertPool(s.c.AccessPoint, clusterName)
+	if err != nil {
+		fmt.Printf("--> failed to retrieve client pool: %v.\n", trace.DebugReport(err))
+		// this falls back to the default config
+		return nil, nil
+	}
+	//tlsCopy := t.TLS.Clone()
+	tlsCopy := s.c.TLSConfig.Clone()
+	tlsCopy.ClientCAs = pool
+	return tlsCopy, nil
 }

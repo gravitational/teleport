@@ -2630,10 +2630,21 @@ func (process *TeleportProcess) initApps() {
 			},
 		}
 
+		authorizer, err := auth.NewAuthorizer(conn.Client, conn.Client, conn.Client)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		tlsConfig, err := conn.ServerIdentity.TLSConfig(nil)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		appServer, err := app.New(process.ExitContext(), &app.Config{
 			DataDir:     process.Config.DataDir,
 			AuthClient:  conn.Client,
 			AccessPoint: authClient,
+			Authorizer:  authorizer,
+			TLSConfig:   tlsConfig,
 			GetRotation: process.getRotation,
 			Server:      server,
 		})
