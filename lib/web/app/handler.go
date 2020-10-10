@@ -188,29 +188,34 @@ func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 		if err := h.handleFragment(w, r); err != nil {
 			return trace.Wrap(err)
 		}
-		return nil
 	case "/x-teleport-logout":
-		if err := h.handleLogout(w, r); err != nil {
+		// Authenticate the session based off the session cookie.
+		session, err := h.authenticate(r.Context(), r)
+		if err != nil {
 			return trace.Wrap(err)
 		}
-		return nil
+
+		if err := h.handleLogout(w, r, session); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		// Authenticate the session based off the session cookie.
+		session, err := h.authenticate(r.Context(), r)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Fetch a cached request forwarder or create one if this is the first
+		// request (or the process has been restarted).
+		fwd, err := h.getForwarder(r.Context(), session)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Forward the request to the Teleport application proxy service.
+		fwd.ServeHTTP(w, r)
 	}
 
-	// Authenticate the session based off the session cookie.
-	session, err := h.authenticate(r.Context(), r)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Fetch a cached request forwarder or create one if this is the first
-	// request (or the process has been restarted).
-	fwd, err := h.getForwarder(r.Context(), session)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Forward the request to the Teleport application proxy service.
-	fwd.ServeHTTP(w, r)
 	return nil
 }
 

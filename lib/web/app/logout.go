@@ -25,14 +25,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) error {
-	// Authenticate the session based off the session cookie.
-	session, err := h.authenticate(r.Context(), r)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = h.c.AuthClient.DeleteAppWebSession(context.Background(), services.DeleteAppWebSessionRequest{
+func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request, session services.WebSession) error {
+	err := h.c.AuthClient.DeleteAppWebSession(context.Background(), services.DeleteAppWebSessionRequest{
 		Username:   session.GetUser(),
 		ParentHash: session.GetParentHash(),
 		SessionID:  session.GetName(),
