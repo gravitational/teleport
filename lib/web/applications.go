@@ -95,10 +95,12 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	log.Debugf("Creating application web session for %v in %v.", result.PublicAddr, result.ClusterName)
 
 	// Get an auth client connected with the users identity.
-	localClient, err := ctx.GetClient()
+	authClient, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// TODO(russjones): Close client.
+	//defer authClient.Close()
 
 	// Create an application web session.
 	//
@@ -107,7 +109,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	//
 	// PublicAddr and ClusterName will get encoded within the certificate and
 	// used for request routing.
-	ws, err := localClient.CreateAppWebSession(r.Context(), services.CreateAppWebSessionRequest{
+	ws, err := authClient.CreateAppWebSession(r.Context(), services.CreateAppWebSessionRequest{
 		Username:      ctx.GetUser(),
 		ParentSession: ctx.sess.GetName(),
 		PublicAddr:    result.PublicAddr,

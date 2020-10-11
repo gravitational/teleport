@@ -79,6 +79,7 @@ func (h *Handler) newSession(ctx context.Context, ws services.WebSession) (*sess
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// TODO(russjones): Close this access point.
 	accessPoint, err := clusterClient.CachingAccessPoint()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -98,7 +99,6 @@ func (h *Handler) newSession(ctx context.Context, ws services.WebSession) (*sess
 
 	// Create the forwarder.
 	fwder, err := newForwarder(forwarderConfig{
-		//uri: "https://" + teleport.APIDomain,
 		tr:  transport,
 		log: h.log,
 	})
@@ -224,6 +224,8 @@ func (h *Handler) newTransport(identity *tlsca.Identity, application *services.A
 			return nil, trace.Wrap(err)
 		}
 
+		// TODO(russjones): Do these connections need to be tracked and closed or
+		// does the transport take care of that?
 		conn, err := clusterClient.Dial(reversetunnel.DialParams{
 			// The "From" and "To" addresses are not actually used for tunnel dialing,
 			// they're filled out with "dummy values" that make logs easier to read and
