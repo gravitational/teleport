@@ -832,9 +832,6 @@ func (a *App) CheckAndSetDefaults() error {
 	if a.URI == "" {
 		return trace.BadParameter("missing URI")
 	}
-	if a.PublicAddr == "" {
-		return trace.BadParameter("missing public address")
-	}
 
 	return nil
 }

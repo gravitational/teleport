@@ -2608,13 +2608,24 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
+		cn, err := authClient.GetClusterName()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		// Loop over each application and create a server.
 		var applications []*services.App
 		for _, app := range process.Config.Apps.Apps {
+			publicAddr := app.PublicAddr
+			if publicAddr == "" {
+				publicAddr = fmt.Sprintf("%v.%v", app.Name, cn.GetClusterName())
+				log.Debugf("No public address specified, using: %v.", publicAddr)
+			}
+
 			applications = append(applications, &services.App{
 				Name:          app.Name,
 				URI:           app.URI,
-				PublicAddr:    app.PublicAddr,
+				PublicAddr:    publicAddr,
 				StaticLabels:  app.StaticLabels,
 				DynamicLabels: services.LabelsToV2(app.DynamicLabels),
 			})

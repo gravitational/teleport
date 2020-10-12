@@ -696,12 +696,12 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 
-		// TODO(russjones): Make this optional and derive it if not provided.
-		//
 		// If a port was specified, return an error, public address should be a FQDN.
-		_, _, err = net.SplitHostPort(application.PublicAddr)
-		if err == nil {
-			return trace.BadParameter("public address can only be a domain name")
+		if application.PublicAddr != "" {
+			_, _, err = net.SplitHostPort(application.PublicAddr)
+			if err == nil {
+				return trace.BadParameter("public address can only be a domain name")
+			}
 		}
 
 		// Parse the static labels of the application.
