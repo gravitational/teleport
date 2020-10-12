@@ -128,15 +128,25 @@ type GithubAuthResponse struct {
 	HostSigners []services.CertAuthority `json:"host_signers"`
 }
 
+type githubManager interface {
+	validateGithubAuthCallback(q url.Values) (*githubAuthResponse, error)
+}
+
 // ValidateGithubAuthCallback validates Github auth callback redirect
 func (a *Server) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error) {
-	re, err := a.validateGithubAuthCallback(q)
+	return validateGithubAuthCallbackHelper(a.closeCtx, a, q, a.emitter)
+}
+
+func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q url.Values, emitter events.Emitter) (*GithubAuthResponse, error) {
+	re, err := m.validateGithubAuthCallback(q)
+
 	event := &events.UserLogin{
 		Metadata: events.Metadata{
 			Type: events.UserLoginEvent,
 		},
 		Method: events.LoginMethodGithub,
 	}
+
 	if re != nil && re.claims != nil {
 		attributes, err := events.EncodeMapStrings(re.claims)
 		if err != nil {
@@ -145,19 +155,22 @@ func (a *Server) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, 
 			event.IdentityAttributes = attributes
 		}
 	}
+
 	if err != nil {
 		event.Code = events.UserSSOLoginFailureCode
 		event.Status.Success = false
 		event.Status.Error = err.Error()
-		a.emitter.EmitAuditEvent(a.closeCtx, event)
+		emitter.EmitAuditEvent(ctx, event)
 		return nil, trace.Wrap(err)
 	}
 	event.Code = events.UserSSOLoginCode
 	event.Status.Success = true
 	event.User = re.auth.Username
-	if err := a.emitter.EmitAuditEvent(a.closeCtx, event); err != nil {
+
+	if err := emitter.EmitAuditEvent(ctx, event); err != nil {
 		log.WithError(err).Warn("Failed to emit Github login event.")
 	}
+
 	return &re.auth, nil
 }
 
