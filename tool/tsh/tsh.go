@@ -121,9 +121,9 @@ type CLIConf struct {
 	BenchInteractive bool
 	// BenchExport exports the latency profile
 	BenchExport bool
-	// BenchTicks
+	// BenchTicks ticks per half distance
 	BenchTicks int32
-	// BenchValueScale
+	// BenchValueScale value at which to scale the values recorded
 	BenchValueScale float64
 	// Context is a context to control execution
 	Context context.Context
@@ -939,6 +939,7 @@ func onBenchmark(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
+	
 	result, err := tc.Benchmark(cf.Context, client.Benchmark{
 		Command:  cf.RemoteCommand,
 		Threads:  cf.BenchThreads,
@@ -950,7 +951,8 @@ func onBenchmark(cf *CLIConf) {
 		os.Exit(255)
 	}
 	if cf.BenchExport {
-		fullPath := client.FullProfilePath("") + "/latency_profile.txt"
+		timeStamp := fmt.Sprint(time.Now().Unix())
+		fullPath := client.FullProfilePath("") + "/latency_profile_" + timeStamp + ".txt"
 		fo, err := os.Create(fullPath)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
