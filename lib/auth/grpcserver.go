@@ -129,7 +129,7 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			return nil
 		}
 		if err != nil {
-			g.WithError(err).Debugf("Failed to receive stream request.")
+			g.WithError(err).Debugf("Failed to receive the stream request.")
 			return trail.ToGRPC(err)
 		}
 		if create := request.GetCreateStream(); create != nil {
