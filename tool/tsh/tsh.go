@@ -25,7 +25,9 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"os/user"
 	"path"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -121,6 +123,8 @@ type CLIConf struct {
 	BenchInteractive bool
 	// BenchExport exports the latency profile
 	BenchExport bool
+	// BenchExportPath saves the latency profile in provided path
+	BenchExportPath string
 	// BenchTicks ticks per half distance
 	BenchTicks int32
 	// BenchValueScale value at which to scale the values recorded
@@ -318,7 +322,8 @@ func Run(args []string) {
 	bench.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
 	bench.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
-	bench.Flag("export", "Export the latency profile, saved in ~/.tsh").BoolVar(&cf.BenchExport)
+	bench.Flag("export", "Export the latency profile").BoolVar(&cf.BenchExport)
+	bench.Flag("path", "Path to save the latency profile to, default path is where .tsh directory is").StringVar(&cf.BenchExportPath)
 	bench.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
 	bench.Flag("scale", "Value scale in which to scale the recorded values").Default("1.0").Float64Var(&cf.BenchValueScale)
 
@@ -951,8 +956,37 @@ func onBenchmark(cf *CLIConf) {
 		os.Exit(255)
 	}
 	if cf.BenchExport {
+		var fullPath string
 		timeStamp := fmt.Sprint(time.Now().Format("2006-01-02_15:04:05"))
-		fullPath := client.FullProfilePath("") + "/latency_profile_" + timeStamp + ".txt"
+		suffix := fmt.Sprint("/latency_profile_" + timeStamp + ".txt")
+		// If path is specified
+		if cf.BenchExportPath != "" {
+			usr, err := user.Current()
+			if err != nil {
+				fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+			}
+			dir := usr.HomeDir
+			// Expand tilde if used
+			if cf.BenchExportPath == "~" {
+				cf.BenchExportPath = dir
+			} else if strings.HasPrefix(cf.BenchExportPath, "~/") {
+				cf.BenchExportPath = filepath.Join(dir, cf.BenchExportPath[2:])
+			}
+			// Check if path is valid
+			if _, err := os.Stat(cf.BenchExportPath); err != nil {
+				if os.IsNotExist(err) {
+					fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+				}
+			}
+			// Remove trailing slash 
+			if cf.BenchExportPath[len(cf.BenchExportPath)-1] == '/' {
+				cf.BenchExportPath = cf.BenchExportPath[0 : len(cf.BenchExportPath)-1]
+			}
+			fullPath = fmt.Sprint(cf.BenchExportPath + suffix)
+		} else {
+			fullPath = fmt.Sprint(client.FullProfilePath("") + suffix)
+		}
+
 		fo, err := os.Create(fullPath)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
@@ -968,7 +1002,7 @@ func onBenchmark(cf *CLIConf) {
 			fmt.Printf("Latency profile saved: %v", fullPath)
 			fmt.Printf("\n")
 		}()
-		
+
 		_, err = result.Histogram.PercentilesPrint(w, cf.BenchTicks, cf.BenchValueScale)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
