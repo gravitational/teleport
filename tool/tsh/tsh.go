@@ -978,7 +978,7 @@ func onBenchmark(cf *CLIConf) {
 					fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 				}
 			}
-			// Remove trailing slash 
+			// Remove trailing slash
 			if cf.BenchExportPath[len(cf.BenchExportPath)-1] == '/' {
 				cf.BenchExportPath = cf.BenchExportPath[0 : len(cf.BenchExportPath)-1]
 			}
