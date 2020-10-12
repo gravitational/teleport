@@ -319,8 +319,8 @@ func Run(args []string) {
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
 	bench.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
 	bench.Flag("export", "Export the latency profile, saved in ~/.tsh").BoolVar(&cf.BenchExport)
-	bench.Flag("ticks", "Ticks per half distance").Default("10").Int32Var(&cf.BenchTicks)
-	bench.Flag("scale", "Value scale ").Default("10").Float64Var(&cf.BenchValueScale)
+	bench.Flag("ticks", "Ticks per half distance").Default("1").Int32Var(&cf.BenchTicks)
+	bench.Flag("scale", "Value scale in which to scale the recorded values").Default("1").Float64Var(&cf.BenchValueScale)
 
 	// show key
 	show := app.Command("show", "Read an identity from file and print to stdout").Hidden()
@@ -939,7 +939,7 @@ func onBenchmark(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	
+
 	result, err := tc.Benchmark(cf.Context, client.Benchmark{
 		Command:  cf.RemoteCommand,
 		Threads:  cf.BenchThreads,
@@ -958,6 +958,7 @@ func onBenchmark(cf *CLIConf) {
 			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 			os.Exit(255)
 		}
+
 		w := bufio.NewWriter(fo)
 
 		defer func() {
