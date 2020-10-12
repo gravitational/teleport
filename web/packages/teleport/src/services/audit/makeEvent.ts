@@ -409,6 +409,11 @@ export const formatters: Formatters = {
       return `User [${user}] has ended interactive session [${event.sid}] on node [${node}] `;
     },
   },
+  [CodeEnum.SESSION_REJECT]: {
+    desc: 'Session Rejected',
+    format: ({ user, login, server_id, reason }) =>
+      `User [${user}] was denied access to [${login}@${server_id}] because [${reason}]`,
+  },
   [CodeEnum.SESSION_LEAVE]: {
     desc: 'User Disconnected',
     format: ({ user, sid }) => `User [${user}] has left the session [${sid}]`,
@@ -524,6 +529,16 @@ export const formatters: Formatters = {
   [CodeEnum.TRUSTED_CLUSTER_TOKEN_CREATED]: {
     desc: 'Trusted Cluster Token Created',
     format: ({ user }) => `User [${user}] has created a trusted cluster token`,
+  },
+  [CodeEnum.TRUSTED_CLUSTER_CREATED]: {
+    desc: 'Trusted Cluster Created',
+    format: ({ user, name }) =>
+      `User [${user}] has created a trusted relationship with cluster [${name}]`,
+  },
+  [CodeEnum.TRUSTED_CLUSTER_DELETED]: {
+    desc: 'Trusted Cluster Deleted',
+    format: ({ user, name }) =>
+      `User [${user}] has deleted a trusted relationship with cluster [${name}]`,
   },
 };
 

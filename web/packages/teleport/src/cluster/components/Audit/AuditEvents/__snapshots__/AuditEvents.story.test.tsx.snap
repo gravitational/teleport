@@ -33,7 +33,7 @@ exports[`rendering of Events 1`] = `
   font-size: 16px;
 }
 
-.c13 {
+.c14 {
   display: inline-block;
   transition: color .3s;
   margin-left: 8px;
@@ -113,56 +113,7 @@ exports[`rendering of Events 1`] = `
   background-color: rgb(37,49,98);
 }
 
-.c12 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  background: #2C3A73;
-  border: 1px solid #1C254D;
-  opacity: .87;
-  color: rgba(255,255,255,0.87);
-  font-size: 10px;
-  min-height: 24px;
-  padding: 0px 16px;
-  height: 24px;
-}
-
-.c12:active {
-  opacity: 0.56;
-}
-
-.c12:hover,
-.c12:focus {
-  background: #2C3A73;
-  border: 1px solid rgba(255,255,255,0.1);
-  opacity: 1;
-}
-
-.c12:active {
-  opacity: 0.24;
-}
-
-.c12:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-}
-
-.c14 {
+.c11 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -191,22 +142,71 @@ exports[`rendering of Events 1`] = `
   width: 87px;
 }
 
-.c14:active {
+.c11:active {
   opacity: 0.56;
 }
 
-.c14:hover,
-.c14:focus {
+.c11:hover,
+.c11:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c14:active {
+.c11:active {
   opacity: 0.24;
 }
 
-.c14:disabled {
+.c11:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c13 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  height: 24px;
+}
+
+.c13:active {
+  opacity: 0.56;
+}
+
+.c13:hover,
+.c13:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
+}
+
+.c13:active {
+  opacity: 0.24;
+}
+
+.c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -264,7 +264,7 @@ exports[`rendering of Events 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c11 {
+.c12 {
   background: #000;
   border: 2px solid #651FFF;
   color: rgba(255,255,255,0.87);
@@ -279,14 +279,14 @@ exports[`rendering of Events 1`] = `
   transition: all 0.3s;
 }
 
-.c11:hover,
-.c11:active,
-.c11:focus {
+.c12:hover,
+.c12:active,
+.c12:focus {
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   color: #FFFFFF;
 }
 
-.c11:active {
+.c12:active {
   box-shadow: none;
   opacity: 0.56;
 }
@@ -360,12 +360,12 @@ exports[`rendering of Events 1`] = `
         </strong>
          - 
         <strong>
-          32
+          35
         </strong>
          
         of 
         <strong>
-          32
+          35
         </strong>
       </div>
       <div
@@ -428,6 +428,111 @@ exports[`rendering of Events 1`] = `
             <div
               class="c9"
             >
+              <span
+                class="c5 c10 icon icon-info_outline c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Trusted Cluster Deleted
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [df0274cf-9576-47fb-8e7a-e884b7a00986.ip-172-31-30-254] has deleted a trusted relationship with cluster [root-cluster-name]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2020-10-12 16:40:02
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-terminal c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Session Rejected
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [root] was denied access to [root@9cfeac5f-d7d4-4e53-8bf3-5fa272a96e03] because [max_connections limit reached]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2020-10-09 23:47:00
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
+              <span
+                class="c5 c10 icon icon-info_outline c5 c10"
+                color="light"
+                font-size="3"
+              />
+              Trusted Cluster Created
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [df0274cf-9576-47fb-8e7a-e884b7a00986.ip-172-31-30-254] has created a trusted relationship with cluster [root-cluster-name]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2020-10-09 23:42:21
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c11"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c9"
+            >
               <a
                 href="/web/cluster/localhost/session/941a4c65-c6cd-11ea-9bef-482ae3513733"
                 style="text-decoration: none;"
@@ -435,7 +540,7 @@ exports[`rendering of Events 1`] = `
                 title="Open Session Player"
               >
                 <span
-                  class="c5 c10 icon icon-terminal c11"
+                  class="c5 c10 icon icon-terminal c12"
                   color="light"
                   font-size="3"
                 />
@@ -457,13 +562,13 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c12"
+              class="c13"
               height="24px"
               kind="border"
             >
               OPTIONS
               <span
-                class="c5 c13 icon icon-caret-down "
+                class="c5 c14 icon icon-caret-down "
                 color="text.secondary"
                 font-size="2"
               />
@@ -497,7 +602,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -532,7 +637,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -567,7 +672,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -602,7 +707,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -637,7 +742,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -672,7 +777,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -707,7 +812,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -742,7 +847,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -777,7 +882,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -812,7 +917,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -847,7 +952,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -882,7 +987,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -917,7 +1022,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -952,7 +1057,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -987,7 +1092,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -1022,7 +1127,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -1057,7 +1162,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -1092,7 +1197,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -1127,7 +1232,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -1162,7 +1267,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -1197,7 +1302,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -1232,7 +1337,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -1267,7 +1372,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -1302,7 +1407,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -1337,7 +1442,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -1372,7 +1477,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -1407,7 +1512,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -1442,7 +1547,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -1477,7 +1582,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -1512,7 +1617,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >
@@ -1547,7 +1652,7 @@ exports[`rendering of Events 1`] = `
             align="right"
           >
             <button
-              class="c14"
+              class="c11"
               kind="border"
               width="87px"
             >

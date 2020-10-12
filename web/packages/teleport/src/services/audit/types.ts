@@ -28,6 +28,7 @@ export const CodeEnum = {
   SCP_UPLOAD: 'T3005I',
   SESSION_END: 'T2004I',
   SESSION_JOIN: 'T2001I',
+  SESSION_REJECT: 'T1006W',
   SESSION_LEAVE: 'T2003I',
   SESSION_START: 'T2000I',
   SESSION_UPLOAD: 'T2005I',
@@ -58,6 +59,8 @@ export const CodeEnum = {
   ACCESS_REQUEST_CREATED: 'T5000I',
   ACCESS_REQUEST_UPDATED: 'T5001I',
   TRUSTED_CLUSTER_TOKEN_CREATED: 'T7002I',
+  TRUSTED_CLUSTER_CREATED: 'T7000I',
+  TRUSTED_CLUSTER_DELETED: 'T7001I',
 
   // Gravity
   G_ALERT_CREATED: 'G1007I',
@@ -415,6 +418,14 @@ export type RawEvents = {
       sid: string;
     }
   >;
+  [CodeEnum.SESSION_REJECT]: RawEvent<
+    typeof CodeEnum.SESSION_REJECT,
+    {
+      login: string;
+      server_id: string;
+      reason: string;
+    }
+  >;
   [CodeEnum.SESSION_UPLOAD]: RawEvent<
     typeof CodeEnum.SESSION_UPLOAD,
     {
@@ -517,6 +528,18 @@ export type RawEvents = {
   [CodeEnum.G_ROLE_DELETED]: RawEvent<typeof CodeEnum.G_ROLE_DELETED, HasName>;
   [CodeEnum.TRUSTED_CLUSTER_TOKEN_CREATED]: RawEvent<
     typeof CodeEnum.TRUSTED_CLUSTER_TOKEN_CREATED
+  >;
+  [CodeEnum.TRUSTED_CLUSTER_CREATED]: RawEvent<
+    typeof CodeEnum.TRUSTED_CLUSTER_CREATED,
+    {
+      name: string;
+    }
+  >;
+  [CodeEnum.TRUSTED_CLUSTER_DELETED]: RawEvent<
+    typeof CodeEnum.TRUSTED_CLUSTER_DELETED,
+    {
+      name: string;
+    }
   >;
 };
 
