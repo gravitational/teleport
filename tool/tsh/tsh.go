@@ -319,8 +319,8 @@ func Run(args []string) {
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
 	bench.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
 	bench.Flag("export", "Export the latency profile, saved in ~/.tsh").BoolVar(&cf.BenchExport)
-	bench.Flag("ticks", "Ticks per half distance").Default("1").Int32Var(&cf.BenchTicks)
-	bench.Flag("scale", "Value scale in which to scale the recorded values").Default("1").Float64Var(&cf.BenchValueScale)
+	bench.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
+	bench.Flag("scale", "Value scale in which to scale the recorded values").Default("1.0").Float64Var(&cf.BenchValueScale)
 
 	// show key
 	show := app.Command("show", "Read an identity from file and print to stdout").Hidden()
@@ -951,7 +951,7 @@ func onBenchmark(cf *CLIConf) {
 		os.Exit(255)
 	}
 	if cf.BenchExport {
-		timeStamp := fmt.Sprint(time.Now().Unix())
+		timeStamp := fmt.Sprint(time.Now().Format("2006-01-02_15:04:05"))
 		fullPath := client.FullProfilePath("") + "/latency_profile_" + timeStamp + ".txt"
 		fo, err := os.Create(fullPath)
 		if err != nil {
@@ -960,7 +960,6 @@ func onBenchmark(cf *CLIConf) {
 		}
 
 		w := bufio.NewWriter(fo)
-
 		defer func() {
 			if err := fo.Close(); err != nil {
 				fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
@@ -969,10 +968,12 @@ func onBenchmark(cf *CLIConf) {
 			fmt.Printf("Latency profile saved: %v", fullPath)
 			fmt.Printf("\n")
 		}()
+		
 		_, err = result.Histogram.PercentilesPrint(w, cf.BenchTicks, cf.BenchValueScale)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 		}
+		w.Flush()
 	}
 
 	fmt.Printf("\n")
