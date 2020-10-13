@@ -117,21 +117,21 @@ Subtests
 ```go
 func TestParseInt(t *testing.T) {
 	tests := []struct {
-		desc    string
-		in      string
-		want    int
-		wantErr bool
+		desc      string
+		in        string
+		want      int
+		assertErr assert.ErrorAssertionFunc
 	}{
-		{desc: "positive", in: "123", want: 123},
-		{desc: "negative", in: "-123", want: -123},
-		{desc: "non-numeric", in: "abc", wantErr: true},
-		{desc: "empty", in: "", wantErr: true},
+		{desc: "positive", in: "123", want: 123, assertErr: assert.NoError},
+		{desc: "negative", in: "-123", want: -123, assertErr: assert.NoError},
+		{desc: "non-numeric", in: "abc", assertErr: assert.Error},
+		{desc: "empty", in: "", assertErr: assert.Error},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			got, gotErr := parseInt(tt.in)
-			assert.Equal(err != nil, tt.wantErr, "got error:", err)
-			assert.Equal(got, tt.want)
+            tt.assertErr(t, err)
+			assert.Equal(t, got, tt.want)
 		})
 	}
 }
@@ -154,7 +154,7 @@ func TestParseInt(t *testing.T) {
 	x := Foo{A: 1, B: Bar{C: "one", Time: time.Now()}}
 	y := Foo{A: 1, B: Bar{C: "one", Time: time.Now().Add(time.Minute)}}
 
-	assert.Empty(cmp.Diff(x, y, cmpopts.IgnoreFields(Bar{}, "Time")))
+	assert.Empty(t, cmp.Diff(x, y, cmpopts.IgnoreFields(Bar{}, "Time")))
 }
 ```
 
