@@ -974,9 +974,11 @@ func onBenchmark(cf *CLIConf) {
 	fmt.Printf("\n")
 
 	if cf.BenchExport {
-		err = exportLatencyProfile(cf, result.Histogram)
+		path, err := exportLatencyProfile(cf, result.Histogram)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed exporting latency profile: %s\n", utils.UserMessageFromError(err))
+		} else {
+			fmt.Printf("latency profile saved: %v\n", path)
 		}
 	}
 }
@@ -1495,7 +1497,8 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 	return nil
 }
 
-func exportLatencyProfile(cf *CLIConf, h *hdrhistogram.Histogram) error {
+// exportLatencyProfile exports the latency profile and returns the path as a string if no errors
+func exportLatencyProfile(cf *CLIConf, h *hdrhistogram.Histogram) (string, error) {
 	var fullPath string
 	timeStamp := time.Now().Format("2006-01-02_15:04:05")
 	suffix := fmt.Sprintf("latency_profile_%s.txt", timeStamp)
@@ -1504,11 +1507,10 @@ func exportLatencyProfile(cf *CLIConf, h *hdrhistogram.Histogram) error {
 		if _, err := os.Stat(cf.BenchExportPath); err != nil {
 			if os.IsNotExist(err) {
 				if err = os.MkdirAll(cf.BenchExportPath, 0700); err != nil {
-					return err
+					return "", err
 				}
-
 			} else {
-				return err
+				return "", err
 			}
 		}
 	}
@@ -1517,17 +1519,15 @@ func exportLatencyProfile(cf *CLIConf, h *hdrhistogram.Histogram) error {
 
 	fo, err := os.Create(fullPath)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if _, err := h.PercentilesPrint(fo, cf.BenchTicks, cf.BenchValueScale); err != nil {
-		return err
+		return "", err
 	}
 
 	if err := fo.Close(); err != nil {
-		return err
+		return "", err
 	}
-
-	fmt.Printf("Latency profile saved: %v\n", fo.Name())
-	return nil
+	return fo.Name(), nil
 }
