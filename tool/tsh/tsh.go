@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -25,7 +24,6 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"os/user"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -37,6 +35,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -323,7 +322,7 @@ func Run(args []string) {
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
 	bench.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
 	bench.Flag("export", "Export the latency profile").BoolVar(&cf.BenchExport)
-	bench.Flag("path", "Path to save the latency profile to, default path is where .tsh directory is").StringVar(&cf.BenchExportPath)
+	bench.Flag("path", "Directory to save the latency profile to, default path is the current directory").StringVar(&cf.BenchExportPath)
 	bench.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
 	bench.Flag("scale", "Value scale in which to scale the recorded values").Default("1.0").Float64Var(&cf.BenchValueScale)
 
@@ -955,59 +954,25 @@ func onBenchmark(cf *CLIConf) {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 		os.Exit(255)
 	}
+
 	if cf.BenchExport {
-		var fullPath string
-		timeStamp := fmt.Sprint(time.Now().Format("2006-01-02_15:04:05"))
-		suffix := fmt.Sprint("/latency_profile_" + timeStamp + ".txt")
-		// If path is specified
-		if cf.BenchExportPath != "" {
-			usr, err := user.Current()
-			if err != nil {
-				fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-			}
-			dir := usr.HomeDir
-			// Expand tilde if used
-			if cf.BenchExportPath == "~" {
-				cf.BenchExportPath = dir
-			} else if strings.HasPrefix(cf.BenchExportPath, "~/") {
-				cf.BenchExportPath = filepath.Join(dir, cf.BenchExportPath[2:])
-			}
-			// Check if path is valid
-			if _, err := os.Stat(cf.BenchExportPath); err != nil {
-				if os.IsNotExist(err) {
-					fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-				}
-			}
-			// Remove trailing slash
-			if cf.BenchExportPath[len(cf.BenchExportPath)-1] == '/' {
-				cf.BenchExportPath = cf.BenchExportPath[0 : len(cf.BenchExportPath)-1]
-			}
-			fullPath = fmt.Sprint(cf.BenchExportPath + suffix)
-		} else {
-			fullPath = fmt.Sprint(client.FullProfilePath("") + suffix)
-		}
-
-		fo, err := os.Create(fullPath)
+		fo, err := getLatencyProfileFile(cf.BenchExportPath)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-			os.Exit(255)
+			fmt.Printf("%v", err)
+			return
 		}
-
-		w := bufio.NewWriter(fo)
 		defer func() {
 			if err := fo.Close(); err != nil {
-				fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+				fmt.Fprintf(os.Stderr, "failed saving latency profile to %q: %s\n", fo.Name(), utils.UserMessageFromError(err))
 				return
 			}
-			fmt.Printf("Latency profile saved: %v", fullPath)
-			fmt.Printf("\n")
+			fmt.Printf("Latency profile saved: %v\n", fo.Name())
 		}()
 
-		_, err = result.Histogram.PercentilesPrint(w, cf.BenchTicks, cf.BenchValueScale)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+		if err := writeHistogram(fo, result.Histogram, cf.BenchTicks, cf.BenchValueScale); err != nil {
+			fmt.Fprintln(os.Stderr, trace.UserMessage(err))
+			return
 		}
-		w.Flush()
 	}
 
 	fmt.Printf("\n")
@@ -1539,6 +1504,54 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 	}
 	if err := kubeconfig.UpdateWithClient("", tc); err != nil {
 		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func getLatencyProfileFile(path string) (*os.File, error) {
+	var fullPath string
+	timeStamp := time.Now().Format("2006-01-02_15:04:05")
+	suffix := fmt.Sprintf("latency_profile_%s.txt", timeStamp)
+	if path != "" {
+		if _, err := os.Stat(path); err != nil {
+			if os.IsNotExist(err) {
+				// Make all if it does not exist
+				err = os.MkdirAll(path, 0700)
+				if err != nil {
+					fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+					return nil, err
+				}
+			} else {
+				fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+				return nil, err
+			}
+
+		}
+		// Remove trailing slash
+		if path[len(path)-1] == '/' {
+			path = path[0 : len(path)-1]
+		}
+		fullPath = filepath.Join(path, suffix)
+	} else {
+		dir, err := os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+		fullPath = filepath.Join(dir, suffix)
+	}
+	fo, err := os.Create(fullPath)
+	if err != nil {
+		fmt.Printf("%v", err)
+		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+		return nil, err
+	}
+	return fo, nil
+}
+
+func writeHistogram(w io.Writer, h *hdrhistogram.Histogram, ticks int32, scale float64) error {
+	_, err := h.PercentilesPrint(w, ticks, scale)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 	}
 	return nil
 }
