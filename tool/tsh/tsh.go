@@ -1551,7 +1551,7 @@ func getLatencyProfileFile(path string) (*os.File, error) {
 func writeHistogram(w io.Writer, h *hdrhistogram.Histogram, ticks int32, scale float64) error {
 	_, err := h.PercentilesPrint(w, ticks, scale)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+		return err 
 	}
 	return nil
 }
