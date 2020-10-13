@@ -42,6 +42,17 @@ type kubeCreds struct {
 	targetAddr string
 }
 
+var skipSelfPermissionCheck bool
+
+// TestOnlySkipSelfPermissionCheck sets whether or not to skip checking k8s
+// impersonation permissions granted to this instance.
+//
+// Used in CI integration tests, where we intentionally scope down permissions
+// from what a normal prod instance should have.
+func TestOnlySkipSelfPermissionCheck(skip bool) {
+	skipSelfPermissionCheck = skip
+}
+
 func getKubeCreds(ctx context.Context, log logrus.FieldLogger, kubeconfigPath string) (*kubeCreds, error) {
 	var cfg *rest.Config
 	// no kubeconfig is set, assume auth server is running in the cluster
@@ -126,6 +137,10 @@ func (c *kubeCreds) wrapTransport(rt http.RoundTripper) (http.RoundTripper, erro
 }
 
 func checkImpersonationPermissions(ctx context.Context, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
+	if skipSelfPermissionCheck {
+		return nil
+	}
+
 	for _, resource := range []string{"users", "groups", "serviceaccounts"} {
 		resp, err := sarClient.Create(ctx, &authzapi.SelfSubjectAccessReview{
 			Spec: authzapi.SelfSubjectAccessReviewSpec{
