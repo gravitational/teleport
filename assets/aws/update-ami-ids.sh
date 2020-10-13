@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
+# shellcheck disable=SC2086
 usage() { echo "Usage: $(basename $0) [-a <AWS account ID>] [-m <cloudformation/terraform>] [-t <oss/ent/ent-fips>] [-r <comma-separated regions>] [-v version]" 1>&2; exit 1; }
 while getopts ":a:m:t:r:v:" o; do
     case "${o}" in
@@ -63,9 +64,9 @@ for REGION in ${REGIONS//,/ }; do
     else
         AMI_ID_STUB="gravitational-teleport-ami-${TYPE}-${VERSION}"
     fi
-    IMAGE_ID=$(aws ec2 describe-images --owners ${AWS_ACCOUNT_ID} --filters "Name=name,Values=${AMI_ID_STUB}" --region ${REGION} | jq -r ".Images[].ImageId")
+    IMAGE_ID=$(aws ec2 describe-images --owners "${AWS_ACCOUNT_ID}" --filters "Name=name,Values=${AMI_ID_STUB}" "Name=is-public,Values=true" --region "${REGION}" | jq -r ".Images[].ImageId")
     if [[ "${IMAGE_ID}" == "" ]]; then
-        echo "Error getting ${TYPE} image ID for Teleport ${VERSION} in region ${REGION}"
+        echo "Error getting ${TYPE} image ID for Teleport ${VERSION} in region ${REGION}. This can happen if the image has not been made public."
         exit 3
     fi
     IMAGE_IDS[${REGION}]=${IMAGE_ID}
@@ -84,15 +85,20 @@ if [[ "${MODE}" == "cloudformation" ]]; then
     fi
     # replace AMI ID in place
     for REGION in ${REGIONS//,/ }; do
-        OLD_AMI_ID=$(grep $REGION $CLOUDFORMATION_PATH | sed -n -E "s/$REGION: \{HVM64 : (ami.*)\}/\1/p" | tr -d " ")
+        OLD_AMI_ID=$(grep "${REGION}" "${CLOUDFORMATION_PATH}" | sed -n -E "s/$REGION: \{HVM64 : (ami.*)\}/\1/p" | tr -d " ")
         NEW_AMI_ID=${IMAGE_IDS[$REGION]}
-        sed -i -E "s/$REGION: \{HVM64 : ami(.*)\}$/$REGION: \{HVM64 : $NEW_AMI_ID\}/g" $CLOUDFORMATION_PATH
+        sed -i -E "s/$REGION: \{HVM64 : ami(.*)\}$/$REGION: \{HVM64 : $NEW_AMI_ID\}/g" ${CLOUDFORMATION_PATH}
         echo "[${TYPE}: ${REGION}] ${OLD_AMI_ID} -> ${NEW_AMI_ID}"
     done
     # update version number
-    sed -i -E "s/# All AMIs from AWS - gravitational-teleport-ami-(.*)/# All AMIs from AWS - gravitational-teleport-ami-${TYPE}-${VERSION}/g" $CLOUDFORMATION_PATH
+    sed -i -E "s/# All AMIs from AWS - gravitational-teleport-ami-(.*)/# All AMIs from AWS - gravitational-teleport-ami-${TYPE}-${VERSION}/g" ${CLOUDFORMATION_PATH}
 elif [[ "${MODE}" == "terraform" ]]; then
-    TERRAFORM_PATH=../../examples/aws/terraform/README.md
+    TERRAFORM_SUBDIR="../../examples/aws/terraform"
+    TERRAFORM_PATH="${TERRAFORM_SUBDIR}/AMIS.md"
+    # get a list of non-hidden directories one level under the terraform directory (one for each of our different terraform modes)
+    pushd ${TERRAFORM_SUBDIR}
+    TERRAFORM_MODES="$(find . -mindepth 1 -maxdepth 1 -type d -not -path '*/\.*' -printf '%P\n' | xargs)"
+    popd
     if [[ "${TYPE}" == "oss" ]]; then
         TYPE_STRING="OSS"
     elif [[ "${TYPE}" == "ent" ]]; then
@@ -100,11 +106,17 @@ elif [[ "${MODE}" == "terraform" ]]; then
     elif [[ "${TYPE}" == "ent-fips" ]]; then
         TYPE_STRING="Enterprise FIPS"
     fi
+    # change version numbers in TF_VAR_ami_name strings
+    # shellcheck disable=SC2086
+    for MODE in ${TERRAFORM_MODES}; do
+        echo "Updating version in README for ${MODE}"
+        sed -i -E "s/gravitational-teleport-ami-${TYPE}-([0-9.]+)/gravitational-teleport-ami-${TYPE}-${VERSION}/g" "${TERRAFORM_SUBDIR}/${MODE}/README.md"
+    done
     # replace AMI ID in place
     for REGION in ${REGIONS//,/ }; do
         OLD_AMI_ID=$(grep -E "# $REGION v(.*) ${TYPE_STRING}" $TERRAFORM_PATH | sed -n -E "s/# $REGION v(.*) ${TYPE_STRING}: (ami.*)/\2/p" | tr -d " ")
         NEW_AMI_ID=${IMAGE_IDS[$REGION]}
-        sed -i -E "s/^# $REGION v(.*) ${TYPE_STRING}: ami(.*)$/# $REGION v${VERSION} ${TYPE_STRING}: $NEW_AMI_ID/g" $TERRAFORM_PATH
+        sed -i -E "s/^# $REGION v(.*) ${TYPE_STRING}: ami(.*)$/# $REGION v${VERSION} ${TYPE_STRING}: $NEW_AMI_ID/g" ${TERRAFORM_PATH}
         echo "[${TYPE}: ${REGION}] ${OLD_AMI_ID} -> ${NEW_AMI_ID}"
     done
 fi
