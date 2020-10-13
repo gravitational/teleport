@@ -114,7 +114,8 @@ all OpenSSH nodes. To generate a host certificate, run this on your Teleport aut
 # reason we recommend using Teleport SSH on nodes.
 $ tctl auth sign \
       --host=api.example.com,ssh.example.com,64.225.88.175,64.225.88.178 \
-      --format=openssh
+      --format=openssh \
+      --out=api.example.com
 
 The credentials have been written to api.example.com, api.example.com-cert.pub
 
