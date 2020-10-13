@@ -322,7 +322,7 @@ func Run(args []string) {
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
 	bench.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
 	bench.Flag("export", "Export the latency profile").BoolVar(&cf.BenchExport)
-	bench.Flag("path", "Directory to save the latency profile to, default path is the current directory").StringVar(&cf.BenchExportPath)
+	bench.Flag("path", "Directory to save the latency profile to, default path is the current directory").Default(".").StringVar(&cf.BenchExportPath)
 	bench.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
 	bench.Flag("scale", "Value scale in which to scale the recorded values").Default("1.0").Float64Var(&cf.BenchValueScale)
 
@@ -955,26 +955,6 @@ func onBenchmark(cf *CLIConf) {
 		os.Exit(255)
 	}
 
-	if cf.BenchExport {
-		fo, err := getLatencyProfileFile(cf.BenchExportPath)
-		if err != nil {
-			fmt.Printf("%v", err)
-			return
-		}
-		defer func() {
-			if err := fo.Close(); err != nil {
-				fmt.Fprintf(os.Stderr, "failed saving latency profile to %q: %s\n", fo.Name(), utils.UserMessageFromError(err))
-				return
-			}
-			fmt.Printf("Latency profile saved: %v\n", fo.Name())
-		}()
-
-		if err := writeHistogram(fo, result.Histogram, cf.BenchTicks, cf.BenchValueScale); err != nil {
-			fmt.Fprintln(os.Stderr, trace.UserMessage(err))
-			return
-		}
-	}
-
 	fmt.Printf("\n")
 	fmt.Printf("* Requests originated: %v\n", result.RequestsOriginated)
 	fmt.Printf("* Requests failed: %v\n", result.RequestsFailed)
@@ -992,6 +972,13 @@ func onBenchmark(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 	fmt.Printf("\n")
+
+	if cf.BenchExport {
+		err = exportLatencyProfile(cf, result.Histogram)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed exporting latency profile: %s\n", utils.UserMessageFromError(err))
+		}
+	}
 }
 
 // onJoin executes 'ssh join' command
@@ -1508,50 +1495,39 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 	return nil
 }
 
-func getLatencyProfileFile(path string) (*os.File, error) {
+func exportLatencyProfile(cf *CLIConf, h *hdrhistogram.Histogram) error {
 	var fullPath string
 	timeStamp := time.Now().Format("2006-01-02_15:04:05")
 	suffix := fmt.Sprintf("latency_profile_%s.txt", timeStamp)
-	if path != "" {
-		if _, err := os.Stat(path); err != nil {
-			if os.IsNotExist(err) {
-				// Make all if it does not exist
-				err = os.MkdirAll(path, 0700)
-				if err != nil {
-					fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-					return nil, err
-				}
-			} else {
-				fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-				return nil, err
-			}
 
+	if cf.BenchExportPath != "." {
+		if _, err := os.Stat(cf.BenchExportPath); err != nil {
+			if os.IsNotExist(err) {
+				if err = os.MkdirAll(cf.BenchExportPath, 0700); err != nil {
+					return err
+				}
+
+			} else {
+				return err
+			}
 		}
-		// Remove trailing slash
-		if path[len(path)-1] == '/' {
-			path = path[0 : len(path)-1]
-		}
-		fullPath = filepath.Join(path, suffix)
-	} else {
-		dir, err := os.Getwd()
-		if err != nil {
-			return nil, err
-		}
-		fullPath = filepath.Join(dir, suffix)
 	}
+
+	fullPath = filepath.Join(cf.BenchExportPath, suffix)
+
 	fo, err := os.Create(fullPath)
 	if err != nil {
-		fmt.Printf("%v", err)
-		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		return nil, err
+		return err
 	}
-	return fo, nil
-}
 
-func writeHistogram(w io.Writer, h *hdrhistogram.Histogram, ticks int32, scale float64) error {
-	_, err := h.PercentilesPrint(w, ticks, scale)
-	if err != nil {
-		return err 
+	if _, err := h.PercentilesPrint(fo, cf.BenchTicks, cf.BenchValueScale); err != nil {
+		return err
 	}
+
+	if err := fo.Close(); err != nil {
+		return err
+	}
+
+	fmt.Printf("Latency profile saved: %v\n", fo.Name())
 	return nil
 }
