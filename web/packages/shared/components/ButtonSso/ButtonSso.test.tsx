@@ -21,7 +21,7 @@ import { render } from 'design/utils/testing';
 test.each`
   ssoType           | expectedIcon
   ${'default type'} | ${'icon-openid'}
-  ${'microsoft'}    | ${'icon-windows'}
+  ${'Microsoft'}    | ${'icon-windows'}
   ${'github'}       | ${'icon-github'}
   ${'bitbucket'}    | ${'icon-bitbucket'}
   ${'google'}       | ${'icon-google-plus'}

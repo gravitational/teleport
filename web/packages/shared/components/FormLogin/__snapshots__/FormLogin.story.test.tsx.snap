@@ -1280,7 +1280,7 @@ exports[`sso providers rendering 1`] = `
           data-testid="icon"
         />
       </div>
-      microsoft
+      Microsoft
     </button>
   </div>
   <div

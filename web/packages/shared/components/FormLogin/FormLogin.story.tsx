@@ -89,7 +89,7 @@ export const SSOProviders = () => {
       url: '',
     } as const,
     {
-      displayName: 'microsoft',
+      displayName: 'Microsoft',
       name: 'microsoft',
       type: 'oidc',
       url: '',

@@ -24,6 +24,7 @@ import { AuthProviderType } from 'shared/services';
 const ButtonSso = (props: Props) => {
   const { ssoType = 'unknown', title, ...rest } = props;
   const { color, Icon } = getSSOIcon(ssoType);
+
   return (
     <StyledButton color={color} block {...rest}>
       {Boolean(Icon) && (
@@ -52,7 +53,7 @@ type SSOType =
   | 'unknown';
 
 function getSSOIcon(type: SSOType) {
-  switch (type) {
+  switch (type.toLowerCase()) {
     case 'microsoft':
       return { color: '#2672ec', Icon: Icons.Windows, type };
     case 'github':
@@ -68,9 +69,11 @@ function getSSOIcon(type: SSOType) {
 }
 
 export function guessProviderType(
-  name = '',
+  displayName = '',
   providerType: AuthProviderType
 ): SSOType {
+  const name = displayName.toLowerCase();
+
   if (name.indexOf('microsoft') !== -1) {
     return 'microsoft';
   }
