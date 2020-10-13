@@ -123,6 +123,8 @@ steps:
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmp-integration
+        path: /tmp
     commands:
       - apk add --no-cache make
       # write kubeconfig to disk for use in kube integrations tests
@@ -138,9 +140,15 @@ services:
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmp-dind
+        path: /tmp
 
 volumes:
   - name: dockersock
+    temp: {}
+  - name: tmp-dind
+    temp: {}
+  - name: tmp-integration
     temp: {}
 
 ---
@@ -2771,6 +2779,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 59ab393e20f33a7ea5e508e02dbd6a4864f3124f06c917df34950665bf54d39e
+hmac: 1e44447c5b66789512fb0c4e9925a336f005911f7f873d8b85a1877b2178b65a
 
 ...
