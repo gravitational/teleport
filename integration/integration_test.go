@@ -826,6 +826,9 @@ func (s *IntSuite) verifySessionJoin(c *check.C, t *TeleInstance) {
 // TestShutdown tests scenario with a graceful shutdown,
 // that session will be working after
 func (s *IntSuite) TestShutdown(c *check.C) {
+	utils.InitLogger(utils.LoggingForCLI, log.DebugLevel)
+	defer utils.InitLoggerForTests(false)
+
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
@@ -3877,6 +3880,9 @@ func runAndMatch(tc *client.TeleportClient, attempts int, command []string, patt
 // TestWindowChange checks if custom Teleport window change requests are sent
 // when the server side PTY changes its size.
 func (s *IntSuite) TestWindowChange(c *check.C) {
+	utils.InitLogger(utils.LoggingForCLI, log.DebugLevel)
+	defer utils.InitLoggerForTests(false)
+
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
