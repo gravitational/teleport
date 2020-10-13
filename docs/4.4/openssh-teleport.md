@@ -18,6 +18,11 @@ existing SSH implementations, such as OpenSSH. This section will cover:
 * Configuring OpenSSH client `ssh` to login into nodes inside a Teleport
   cluster.
 
+  !!! warning
+
+    The minimum OpenSSH version which will work with Teleport is version 6.9.
+    You can view your OpenSSH version with `ssh -V`.
+
 ## Architecture
 ![Node Service ping API](img/openssh-proxy.svg)
 
