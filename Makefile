@@ -9,7 +9,7 @@
 # To update the Teleport version, update VERSION variable:
 # Naming convention:
 #   Stable releases:   "1.0.0"
-#   Pre-releases:      "1.0.0-beta.2"
+#   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
 VERSION=5.0.0-dev
 
