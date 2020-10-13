@@ -200,6 +200,11 @@ Teleport cluster. Teleport supports SSH subsystems and includes a `proxy`
 subsystem that can be used like `netcat` is with `ProxyCommand` to connect
 through a jump host.
 
+!!! warning
+
+    The minimum OpenSSH client version which will work with Teleport is version 6.9.
+    You can view your OpenSSH client version with `ssh -V`.
+
 On your client machine, you need to import the public key of Teleport's host
 certificate. This will allow your OpenSSH client to verify that host certificates
 are signed by Teleport's trusted host CA:
