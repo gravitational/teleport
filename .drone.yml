@@ -123,6 +123,8 @@ steps:
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmp-integration
+        path: /tmp
     commands:
       - apk add --no-cache make
       # write kubeconfig to disk for use in kube integrations tests
@@ -135,13 +137,18 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmp-dind
+        path: /tmp
 
 volumes:
   - name: dockersock
+    temp: {}
+  - name: tmp-dind
+    temp: {}
+  - name: tmp-integration
     temp: {}
 
 ---
@@ -425,7 +432,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -579,7 +585,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -684,7 +689,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -789,7 +793,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -893,7 +896,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1006,7 +1008,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1120,7 +1121,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1233,7 +1233,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1348,7 +1347,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1452,7 +1450,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1565,7 +1562,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1678,7 +1674,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -2204,7 +2199,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -2315,7 +2309,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -2417,7 +2410,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -2522,7 +2514,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -2641,7 +2632,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -2781,7 +2771,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -2792,6 +2781,6 @@ volumes:
 
 ---
 kind: signature
-hmac: fada4e800dbad247638e74e9ec61d41597257507fba5f35e18b9182be2278a21
+hmac: 5693346e60f5154da0ac9b4c6e7ffa4bf6ff12ebe2bf21a30fff588c3d084974
 
 ...
