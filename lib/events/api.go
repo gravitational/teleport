@@ -343,6 +343,10 @@ const (
 	// Maximum is an event field specifying a maximal value (e.g. the value
 	// of `max_connections` for a `session.rejected` event).
 	Maximum = "max"
+
+	// KubeRequestEvent fires when a proxy handles a generic kubernetes
+	// request.
+	KubeRequestEvent = "kube.request"
 )
 
 const (
