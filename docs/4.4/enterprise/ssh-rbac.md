@@ -125,11 +125,11 @@ spec:
       'environment': ['test', 'staging']
       # regular expressions are also supported, for example the equivalent
       # of the list example above can be expressed as:
-      'environment': '{{regexp.match("^test|staging$")}}'
+      'environment': '{% raw %}{{regexp.match("^test|staging$")}}{% endraw %}'
       # or using the simpler legacy syntax:
       'environment': '^test|staging$'
       # negative regular expressions can be used to avoid strict deny rules:
-      'environment': '{{regexp.not_match("prod")}}'
+      'environment': '{% raw %}{{regexp.not_match("prod")}}{% endraw %}'
 
     # defines roles that this user can can request.
     # needed for teleport's request workflow
@@ -263,11 +263,11 @@ spec:
       'environment': ['test', 'staging']
       # regular expressions are also supported, for example the equivalent
       # of the list example above can be expressed as:
-      'environment': '{{regexp.match("^test|staging$")}}'
+      'environment': '{% raw %}{{regexp.match("^test|staging$")}}{% endraw %}'
       # or using the simpler legacy syntax:
       'environment': '^test|staging$'
       # negative regular expressions can be used to avoid strict deny rules:
-      'environment': '{{regexp.not_match("prod")}}'
+      'environment': '{% raw %}{{regexp.not_match("prod")}}{% endraw %}'
 ```
 
 
