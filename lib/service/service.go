@@ -2608,18 +2608,12 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
-		cn, err := authClient.GetClusterName()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
 		// Loop over each application and create a server.
 		var applications []*services.App
 		for _, app := range process.Config.Apps.Apps {
-			publicAddr := app.PublicAddr
-			if publicAddr == "" {
-				publicAddr = fmt.Sprintf("%v.%v", app.Name, cn.GetClusterName())
-				log.Debugf("No public address specified, using: %v.", publicAddr)
+			publicAddr, err := getPublicAddr(authClient, app)
+			if err != nil {
+				return trace.Wrap(err)
 			}
 
 			applications = append(applications, &services.App{
@@ -2909,4 +2903,34 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 		return trace.Wrap(err, "error writing key PEM")
 	}
 	return nil
+}
+
+func getPublicAddr(authClient auth.AccessPoint, a App) (string, error) {
+	// If the application has a public address already set, use it.
+	if a.PublicAddr != "" {
+		return a.PublicAddr, nil
+	}
+
+	// Fetch list of proxies, if first has public address set, use it.
+	servers, err := authClient.GetProxies()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if len(servers) == 0 {
+		return "", trace.BadParameter("cluster has no proxied registered, at least one proxy must be registered for application access")
+	}
+	if servers[0].GetPublicAddr() != "" {
+		addr, err := utils.ParseAddr(servers[0].GetPublicAddr())
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return fmt.Sprintf("%v.%v", a.Name, addr.Host()), nil
+	}
+
+	// Fall back to cluster name.
+	cn, err := authClient.GetClusterName()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return fmt.Sprintf("%v.%v", a.Name, cn.GetClusterName()), nil
 }

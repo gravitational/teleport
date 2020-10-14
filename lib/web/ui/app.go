@@ -74,6 +74,8 @@ func MakeApps(proxyName string, proxyHost string, appClusterName string, appServ
 	return result
 }
 
+// TODO(russjones): Move this function and the ones to resolve FQDN with a
+// matcher and GenerateFQDN close to each other. This one generates the "vanity URL".
 // resolveFQDN returns FQDN of the application based on proxy parameters.
 func resolveFQDN(proxyName string, proxyHost string, appClusterName string, app services.App) string {
 	// Use application public address if running on proxy.
