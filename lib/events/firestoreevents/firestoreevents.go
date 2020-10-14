@@ -302,6 +302,40 @@ func New(cfg EventsConfig) (*Log, error) {
 	return b, nil
 }
 
+// EmitAuditEvent emits audit event
+func (l *Log) EmitAuditEvent(ctx context.Context, in events.AuditEvent) error {
+	data, err := utils.FastMarshal(in)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var sessionID string
+	getter, ok := in.(events.SessionMetadataGetter)
+	if ok && getter.GetSessionID() != "" {
+		sessionID = getter.GetSessionID()
+	} else {
+		// no session id - global event gets a random uuid to get a good partition
+		// key distribution
+		sessionID = uuid.New()
+	}
+	event := event{
+		SessionID:      sessionID,
+		EventIndex:     in.GetIndex(),
+		EventType:      in.GetType(),
+		EventNamespace: defaults.Namespace,
+		CreatedAt:      in.GetTime().Unix(),
+		Fields:         string(data),
+	}
+	start := time.Now()
+	_, err = l.svc.Collection(l.CollectionName).Doc(l.getDocIDForEvent(event)).Create(l.svcContext, event)
+	writeLatencies.Observe(time.Since(start).Seconds())
+	writeRequests.Inc()
+	if err != nil {
+		return firestorebk.ConvertGRPCError(err)
+	}
+	return nil
+}
+
 // EmitAuditEventLegacy emits audit event
 func (l *Log) EmitAuditEventLegacy(ev events.Event, fields events.EventFields) error {
 	sessionID := fields.GetString(events.SessionEventID)
@@ -535,7 +569,7 @@ func (l *Log) Close() error {
 }
 
 func (l *Log) getDocIDForEvent(event event) string {
-	return event.SessionID + "-" + event.EventType
+	return uuid.New()
 }
 
 func (l *Log) purgeExpiredEvents() error {
