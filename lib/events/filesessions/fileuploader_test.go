@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 )
 
@@ -37,13 +37,13 @@ func TestStreams(t *testing.T) {
 	utils.InitLoggerForTests(testing.Verbose())
 
 	dir, err := ioutil.TempDir("", "teleport-streams")
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer os.RemoveAll(dir)
 
 	handler, err := NewHandler(Config{
 		Directory: dir,
 	})
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer handler.Close()
 
 	t.Run("Stream", func(t *testing.T) {
@@ -60,7 +60,7 @@ func TestStreams(t *testing.T) {
 				return nil
 			},
 		})
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		defer handler.Close()
 
 		test.StreamResumeManyParts(t, handler)

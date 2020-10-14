@@ -40,7 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/trace"
@@ -917,7 +917,7 @@ func TestCheckOrSetKubeCluster(t *testing.T) {
 		desc        string
 		kubeCluster string
 		proxies     []services.Server
-		assertErr   assert.ErrorAssertionFunc
+		assertErr   require.ErrorAssertionFunc
 	}{
 		{
 			desc:        "known cluster",
@@ -930,7 +930,7 @@ func TestCheckOrSetKubeCluster(t *testing.T) {
 					KubernetesClusters: []string{"foo", "bar"},
 				}},
 			},
-			assertErr: assert.NoError,
+			assertErr: require.NoError,
 		},
 		{
 			desc:        "unknown cluster",
@@ -943,7 +943,7 @@ func TestCheckOrSetKubeCluster(t *testing.T) {
 					KubernetesClusters: []string{"foo", "bar"},
 				}},
 			},
-			assertErr: assert.Error,
+			assertErr: require.Error,
 		},
 		{
 			desc:        "no cluster provided",
@@ -956,13 +956,13 @@ func TestCheckOrSetKubeCluster(t *testing.T) {
 					KubernetesClusters: []string{"foo", "bar"},
 				}},
 			},
-			assertErr: assert.Error,
+			assertErr: require.Error,
 		},
 		{
 			desc:        "cluster name provided but none registered",
 			kubeCluster: "foo",
 			proxies:     []services.Server{},
-			assertErr:   assert.Error,
+			assertErr:   require.Error,
 		},
 	}
 	for _, tt := range tests {

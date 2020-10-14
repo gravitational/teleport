@@ -26,11 +26,10 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/stretchr/testify/assert"
-
 	"github.com/gravitational/trace"
+
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 )
 
@@ -51,34 +50,34 @@ func TestAuditWriter(t *testing.T) {
 
 		for _, event := range inEvents {
 			err := test.writer.EmitAuditEvent(test.ctx, event)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 		err := test.writer.Complete(test.ctx)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		select {
 		case event := <-test.eventsCh:
-			assert.Equal(t, string(test.sid), event.SessionID)
-			assert.Nil(t, event.Error)
+			require.Equal(t, string(test.sid), event.SessionID)
+			require.Nil(t, event.Error)
 		case <-test.ctx.Done():
 			t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
 		}
 
 		var outEvents []AuditEvent
 		uploads, err := test.uploader.ListUploads(test.ctx)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		parts, err := test.uploader.GetParts(uploads[0].ID)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		for _, part := range parts {
 			reader := NewProtoReader(bytes.NewReader(part))
 			out, err := reader.ReadAll(test.ctx)
-			assert.Nil(t, err, "part crash %#v", part)
+			require.Nil(t, err, "part crash %#v", part)
 			outEvents = append(outEvents, out...)
 		}
 
-		assert.Equal(t, len(inEvents), len(outEvents))
-		assert.Equal(t, inEvents, outEvents)
+		require.Equal(t, len(inEvents), len(outEvents))
+		require.Equal(t, inEvents, outEvents)
 	})
 
 	// ResumeStart resumes stream after it was broken at the start of trasmission
@@ -99,7 +98,7 @@ func TestAuditWriter(t *testing.T) {
 				},
 				OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer Streamer) (Stream, error) {
 					stream, err := streamer.CreateAuditStream(ctx, sid)
-					assert.NoError(t, err)
+					require.NoError(t, err)
 					if streamCreated.Inc() == 1 {
 						// simulate status update loss
 						select {
@@ -113,7 +112,7 @@ func TestAuditWriter(t *testing.T) {
 				},
 				OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer Streamer) (Stream, error) {
 					stream, err := streamer.ResumeAuditStream(ctx, sid, uploadID)
-					assert.NoError(t, err)
+					require.NoError(t, err)
 					streamResumed.Inc()
 					return stream, nil
 				},
@@ -130,18 +129,18 @@ func TestAuditWriter(t *testing.T) {
 		start := time.Now()
 		for _, event := range inEvents {
 			err := test.writer.EmitAuditEvent(test.ctx, event)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 		log.Debugf("Emitted %v events in %v.", len(inEvents), time.Since(start))
 		err := test.writer.Complete(test.ctx)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		outEvents := test.collectEvents(t)
 
-		assert.Equal(t, len(inEvents), len(outEvents))
-		assert.Equal(t, inEvents, outEvents)
-		assert.Equal(t, 0, int(streamResumed.Load()), "Stream not resumed.")
-		assert.Equal(t, 2, int(streamCreated.Load()), "Stream created twice.")
+		require.Equal(t, len(inEvents), len(outEvents))
+		require.Equal(t, inEvents, outEvents)
+		require.Equal(t, 0, int(streamResumed.Load()), "Stream not resumed.")
+		require.Equal(t, 2, int(streamCreated.Load()), "Stream created twice.")
 	})
 
 	// ResumeMiddle resumes stream after it was broken in the middle of transmission
@@ -162,13 +161,13 @@ func TestAuditWriter(t *testing.T) {
 				},
 				OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer Streamer) (Stream, error) {
 					stream, err := streamer.CreateAuditStream(ctx, sid)
-					assert.NoError(t, err)
+					require.NoError(t, err)
 					streamCreated.Inc()
 					return stream, nil
 				},
 				OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer Streamer) (Stream, error) {
 					stream, err := streamer.ResumeAuditStream(ctx, sid, uploadID)
-					assert.NoError(t, err)
+					require.NoError(t, err)
 					streamResumed.Inc()
 					return stream, nil
 				},
@@ -185,18 +184,18 @@ func TestAuditWriter(t *testing.T) {
 		start := time.Now()
 		for _, event := range inEvents {
 			err := test.writer.EmitAuditEvent(test.ctx, event)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		}
 		log.Debugf("Emitted all events in %v.", time.Since(start))
 		err := test.writer.Complete(test.ctx)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		outEvents := test.collectEvents(t)
 
-		assert.Equal(t, len(inEvents), len(outEvents))
-		assert.Equal(t, inEvents, outEvents)
-		assert.Equal(t, 1, int(streamResumed.Load()), "Stream resumed once.")
-		assert.Equal(t, 1, int(streamResumed.Load()), "Stream created once.")
+		require.Equal(t, len(inEvents), len(outEvents))
+		require.Equal(t, inEvents, outEvents)
+		require.Equal(t, 1, int(streamResumed.Load()), "Stream resumed once.")
+		require.Equal(t, 1, int(streamResumed.Load()), "Stream created once.")
 	})
 
 }
@@ -218,12 +217,12 @@ func newAuditWriterTest(t *testing.T, newStreamer newStreamerFn) *auditWriterTes
 	protoStreamer, err := NewProtoStreamer(ProtoStreamerConfig{
 		Uploader: uploader,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	var streamer Streamer
 	if newStreamer != nil {
 		callbackStreamer, err := newStreamer(protoStreamer)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		streamer = callbackStreamer
 	} else {
 		streamer = protoStreamer
@@ -239,7 +238,7 @@ func newAuditWriterTest(t *testing.T, newStreamer newStreamerFn) *auditWriterTes
 		Streamer:     streamer,
 		Context:      ctx,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	return &auditWriterTest{
 		ctx:      ctx,
@@ -257,15 +256,15 @@ func (a *auditWriterTest) collectEvents(t *testing.T) []AuditEvent {
 	select {
 	case event := <-a.eventsCh:
 		log.Debugf("Got status update, upload %v in %v.", event.UploadID, time.Since(start))
-		assert.Equal(t, string(a.sid), event.SessionID)
-		assert.Nil(t, event.Error)
+		require.Equal(t, string(a.sid), event.SessionID)
+		require.Nil(t, event.Error)
 		uploadID = event.UploadID
 	case <-a.ctx.Done():
 		t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
 	}
 
 	parts, err := a.uploader.GetParts(uploadID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	var readers []io.Reader
 	for _, part := range parts {
@@ -273,7 +272,7 @@ func (a *auditWriterTest) collectEvents(t *testing.T) []AuditEvent {
 	}
 	reader := NewProtoReader(io.MultiReader(readers...))
 	outEvents, err := reader.ReadAll(a.ctx)
-	assert.Nil(t, err, "failed to read")
+	require.Nil(t, err, "failed to read")
 	log.WithFields(reader.GetStats().ToFields()).Debugf("Reader stats.")
 
 	return outEvents

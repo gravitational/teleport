@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestStreams tests various streaming upload scenarios
@@ -38,7 +38,7 @@ func TestStreams(t *testing.T) {
 		Path:   "/test/",
 		Bucket: fmt.Sprintf("teleport-unit-tests"),
 	})
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	defer handler.Close()
 

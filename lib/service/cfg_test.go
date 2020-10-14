@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"gopkg.in/check.v1"
 )
@@ -105,7 +105,7 @@ func TestKubeClusterNames(t *testing.T) {
 	t.Parallel()
 
 	kubeconfigFile, err := ioutil.TempFile("", "teleport")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	kubeconfigPath := kubeconfigFile.Name()
 	_, err = kubeconfigFile.Write([]byte(`
 apiVersion: v1
@@ -132,8 +132,8 @@ users:
 - name: user
   user:
 `))
-	assert.NoError(t, err)
-	assert.NoError(t, kubeconfigFile.Close())
+	require.NoError(t, err)
+	require.NoError(t, kubeconfigFile.Close())
 
 	tests := []struct {
 		desc string
@@ -199,8 +199,8 @@ users:
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			got, err := tt.cfg.ClusterNames("teleport-cluster-name")
-			assert.NoError(t, err)
-			assert.EqualValues(t, tt.want, got)
+			require.NoError(t, err)
+			require.EqualValues(t, tt.want, got)
 		})
 	}
 }
