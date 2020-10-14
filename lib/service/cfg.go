@@ -19,8 +19,11 @@ package service
 import (
 	"fmt"
 	"io"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -359,7 +362,11 @@ func (c ProxyConfig) KubeAddr() (string, error) {
 	if len(c.PublicAddrs) > 0 {
 		host = c.PublicAddrs[0].Host()
 	}
-	return fmt.Sprintf("https://%s:%d", host, c.Kube.ListenAddr.Port(defaults.KubeListenPort)), nil
+	u := url.URL{
+		Scheme: "https",
+		Host:   net.JoinHostPort(host, strconv.Itoa(c.Kube.ListenAddr.Port(defaults.KubeListenPort))),
+	}
+	return u.String(), nil
 }
 
 // KubeProxyConfig specifies configuration for proxy service
@@ -484,8 +491,8 @@ type KubeConfig struct {
 	KubeconfigPath string
 
 	// Labels are used for RBAC on clusters.
-	Labels    map[string]string
-	CmdLabels services.CommandLabels
+	StaticLabels  map[string]string
+	DynamicLabels services.CommandLabels
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults

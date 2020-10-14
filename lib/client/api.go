@@ -1928,7 +1928,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 		// interface hostname with default k8s port as a guess.
 		default:
 			webProxyHost, _ := tc.WebProxyHostPort()
-			tc.KubeProxyAddr = fmt.Sprintf("%s:%d", webProxyHost, defaults.KubeListenPort)
+			tc.KubeProxyAddr = net.JoinHostPort(webProxyHost, strconv.Itoa(defaults.KubeListenPort))
 		}
 	}
 

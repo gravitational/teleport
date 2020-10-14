@@ -857,9 +857,9 @@ type Kube struct {
 	// running in. If set, this proxy will handle kubernetes requests for the
 	// cluster.
 	KubeClusterName string `yaml:"kube_cluster_name,omitempty"`
-	// Labels for RBAC on kubernetes clusters.
-	Labels   map[string]string `yaml:"labels,omitempty"`
-	Commands []CommandLabel    `yaml:"commands,omitempty"`
+	// Static and dynamic labels for RBAC on kubernetes clusters.
+	StaticLabels  map[string]string `yaml:"static_labels,omitempty"`
+	DynamicLabels []CommandLabel    `yaml:"dynamic_labels,omitempty"`
 }
 
 // ReverseTunnel is a SSH reverse tunnel maintained by one cluster's

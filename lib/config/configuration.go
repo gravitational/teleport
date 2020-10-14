@@ -674,16 +674,16 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Kube.KubeClusterName != "" {
 		cfg.Kube.KubeClusterName = fc.Kube.KubeClusterName
 	}
-	if fc.Kube.Labels != nil {
-		cfg.Kube.Labels = make(map[string]string)
-		for k, v := range fc.Kube.Labels {
-			cfg.Kube.Labels[k] = v
+	if fc.Kube.StaticLabels != nil {
+		cfg.Kube.StaticLabels = make(map[string]string)
+		for k, v := range fc.Kube.StaticLabels {
+			cfg.Kube.StaticLabels[k] = v
 		}
 	}
-	if fc.Kube.Commands != nil {
-		cfg.Kube.CmdLabels = make(services.CommandLabels)
-		for _, cmdLabel := range fc.Kube.Commands {
-			cfg.Kube.CmdLabels[cmdLabel.Name] = &services.CommandLabelV2{
+	if fc.Kube.DynamicLabels != nil {
+		cfg.Kube.DynamicLabels = make(services.CommandLabels)
+		for _, cmdLabel := range fc.Kube.DynamicLabels {
+			cfg.Kube.DynamicLabels[cmdLabel.Name] = &services.CommandLabelV2{
 				Period:  services.NewDuration(cmdLabel.Period),
 				Command: cmdLabel.Command,
 				Result:  "",

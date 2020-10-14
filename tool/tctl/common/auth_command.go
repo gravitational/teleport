@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"net"
+	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -458,7 +461,11 @@ func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
 			logrus.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
 			continue
 		}
-		a.proxyAddr = fmt.Sprintf("https://%s:%d", uaddr.Host(), defaults.KubeListenPort)
+		u := url.URL{
+			Scheme: "https",
+			Host:   net.JoinHostPort(uaddr.Host(), strconv.Itoa(defaults.KubeListenPort)),
+		}
+		a.proxyAddr = u.String()
 		return nil
 	}
 
