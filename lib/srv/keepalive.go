@@ -75,7 +75,7 @@ func StartKeepAliveLoop(p KeepAliveParams) {
 			// Send a keep alive message on all connections and make sure a response
 			// was received on all.
 			for _, conn := range p.Conns {
-				ok := sendKeepAliveWithTimeout(conn, defaults.ReadHeadersTimeout, p.CloseContext)
+				ok := sendKeepAliveWithTimeout(p.CloseContext, conn, defaults.ReadHeadersTimeout)
 				if ok {
 					sentCount++
 				}
@@ -104,7 +104,7 @@ func StartKeepAliveLoop(p KeepAliveParams) {
 // sendKeepAliveWithTimeout sends a keepalive@openssh.com message to the remote
 // client. A manual timeout is needed here because SendRequest will wait for a
 // response forever.
-func sendKeepAliveWithTimeout(conn RequestSender, timeout time.Duration, closeContext context.Context) bool {
+func sendKeepAliveWithTimeout(closeContext context.Context, conn RequestSender, timeout time.Duration) bool {
 	errorCh := make(chan error, 1)
 
 	go func() {

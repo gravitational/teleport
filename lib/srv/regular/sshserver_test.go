@@ -1070,7 +1070,7 @@ func (s *SrvSuite) TestClientDisconnect(c *C) {
 
 func (s *SrvSuite) TestLimiter(c *C) {
 	limiter, err := limiter.NewLimiter(
-		limiter.LimiterConfig{
+		limiter.Config{
 			MaxConnections: 2,
 			Rates: []limiter.Rate{
 				limiter.Rate{

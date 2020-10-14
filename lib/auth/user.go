@@ -34,7 +34,7 @@ import (
 )
 
 // CreateUser inserts a new user entry in a backend.
-func (s *AuthServer) CreateUser(ctx context.Context, user services.User) error {
+func (s *Server) CreateUser(ctx context.Context, user services.User) error {
 	if user.GetCreatedBy().IsEmpty() {
 		user.SetCreatedBy(services.CreatedBy{
 			User: services.UserRef{Name: clientUsername(ctx)},
@@ -78,7 +78,7 @@ func (s *AuthServer) CreateUser(ctx context.Context, user services.User) error {
 }
 
 // UpdateUser updates an existing user in a backend.
-func (s *AuthServer) UpdateUser(ctx context.Context, user services.User) error {
+func (s *Server) UpdateUser(ctx context.Context, user services.User) error {
 	if err := s.Identity.UpdateUser(ctx, user); err != nil {
 		return trace.Wrap(err)
 	}
@@ -112,7 +112,7 @@ func (s *AuthServer) UpdateUser(ctx context.Context, user services.User) error {
 }
 
 // UpsertUser updates a user.
-func (s *AuthServer) UpsertUser(user services.User) error {
+func (s *Server) UpsertUser(user services.User) error {
 	err := s.Identity.UpsertUser(user)
 	if err != nil {
 		return trace.Wrap(err)
@@ -147,7 +147,7 @@ func (s *AuthServer) UpsertUser(user services.User) error {
 }
 
 // DeleteUser deletes an existng user in a backend by username.
-func (s *AuthServer) DeleteUser(ctx context.Context, user string) error {
+func (s *Server) DeleteUser(ctx context.Context, user string) error {
 	role, err := s.Access.GetRole(services.RoleNameForUser(user))
 	if err != nil {
 		if !trace.IsNotFound(err) {

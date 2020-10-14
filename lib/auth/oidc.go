@@ -38,22 +38,22 @@ import (
 	"golang.org/x/oauth2/jwt"
 )
 
-func (s *AuthServer) getOrCreateOIDCClient(conn services.OIDCConnector) (*oidc.Client, error) {
-	client, err := s.getOIDCClient(conn)
+func (a *Server) getOrCreateOIDCClient(conn services.OIDCConnector) (*oidc.Client, error) {
+	client, err := a.getOIDCClient(conn)
 	if err == nil {
 		return client, nil
 	}
 	if !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	return s.createOIDCClient(conn)
+	return a.createOIDCClient(conn)
 }
 
-func (s *AuthServer) getOIDCClient(conn services.OIDCConnector) (*oidc.Client, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+func (a *Server) getOIDCClient(conn services.OIDCConnector) (*oidc.Client, error) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
 
-	clientPack, ok := s.oidcClients[conn.GetName()]
+	clientPack, ok := a.oidcClients[conn.GetName()]
 	if !ok {
 		return nil, trace.NotFound("connector %v is not found", conn.GetName())
 	}
@@ -63,12 +63,12 @@ func (s *AuthServer) getOIDCClient(conn services.OIDCConnector) (*oidc.Client, e
 		return clientPack.client, nil
 	}
 
-	delete(s.oidcClients, conn.GetName())
+	delete(a.oidcClients, conn.GetName())
 	return nil, trace.NotFound("connector %v has updated the configuration and is invalidated", conn.GetName())
 
 }
 
-func (s *AuthServer) createOIDCClient(conn services.OIDCConnector) (*oidc.Client, error) {
+func (a *Server) createOIDCClient(conn services.OIDCConnector) (*oidc.Client, error) {
 	config := oidcConfig(conn)
 	client, err := oidc.NewClient(config)
 	if err != nil {
@@ -85,7 +85,7 @@ func (s *AuthServer) createOIDCClient(conn services.OIDCConnector) (*oidc.Client
 
 	select {
 	case <-ctx.Done():
-	case <-s.closeCtx.Done():
+	case <-a.closeCtx.Done():
 		return nil, trace.ConnectionProblem(nil, "auth server is shutting down")
 	}
 
@@ -102,7 +102,7 @@ func (s *AuthServer) createOIDCClient(conn services.OIDCConnector) (*oidc.Client
 				"unknown problem with connector %v, most likely URL %q is not valid or not accessible, check configuration and try to re-create the connector",
 				conn.GetName(), conn.GetIssuerURL())
 		}
-		if err := s.emitter.EmitAuditEvent(ctx, &events.UserLogin{
+		if err := a.emitter.EmitAuditEvent(ctx, &events.UserLogin{
 			Metadata: events.Metadata{
 				Type: events.UserLoginEvent,
 				Code: events.UserSSOLoginFailureCode,
@@ -123,10 +123,10 @@ func (s *AuthServer) createOIDCClient(conn services.OIDCConnector) (*oidc.Client
 			conn.GetDisplay())
 	}
 
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	a.lock.Lock()
+	defer a.lock.Unlock()
 
-	s.oidcClients[conn.GetName()] = &oidcClient{client: client, config: config}
+	a.oidcClients[conn.GetName()] = &oidcClient{client: client, config: config}
 
 	return client, nil
 }
@@ -144,11 +144,11 @@ func oidcConfig(conn services.OIDCConnector) oidc.ClientConfig {
 }
 
 // UpsertOIDCConnector creates or updates an OIDC connector.
-func (s *AuthServer) UpsertOIDCConnector(ctx context.Context, connector services.OIDCConnector) error {
-	if err := s.Identity.UpsertOIDCConnector(connector); err != nil {
+func (a *Server) UpsertOIDCConnector(ctx context.Context, connector services.OIDCConnector) error {
+	if err := a.Identity.UpsertOIDCConnector(connector); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := s.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorCreate{
+	if err := a.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorCreate{
 		Metadata: events.Metadata{
 			Type: events.OIDCConnectorCreatedEvent,
 			Code: events.OIDCConnectorCreatedCode,
@@ -167,11 +167,11 @@ func (s *AuthServer) UpsertOIDCConnector(ctx context.Context, connector services
 }
 
 // DeleteOIDCConnector deletes an OIDC connector by name.
-func (s *AuthServer) DeleteOIDCConnector(ctx context.Context, connectorName string) error {
-	if err := s.Identity.DeleteOIDCConnector(connectorName); err != nil {
+func (a *Server) DeleteOIDCConnector(ctx context.Context, connectorName string) error {
+	if err := a.Identity.DeleteOIDCConnector(connectorName); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := s.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorDelete{
+	if err := a.emitter.EmitAuditEvent(ctx, &events.OIDCConnectorDelete{
 		Metadata: events.Metadata{
 			Type: events.OIDCConnectorDeletedEvent,
 			Code: events.OIDCConnectorDeletedCode,
@@ -188,12 +188,12 @@ func (s *AuthServer) DeleteOIDCConnector(ctx context.Context, connectorName stri
 	return nil
 }
 
-func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
-	connector, err := s.Identity.GetOIDCConnector(req.ConnectorID, true)
+func (a *Server) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.OIDCAuthRequest, error) {
+	connector, err := a.Identity.GetOIDCConnector(req.ConnectorID, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	oidcClient, err := s.getOrCreateOIDCClient(connector)
+	oidcClient, err := a.getOrCreateOIDCClient(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -228,7 +228,7 @@ func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*servi
 
 	log.Debugf("OIDC redirect URL: %v.", req.RedirectURL)
 
-	err = s.Identity.CreateOIDCAuthRequest(req, defaults.OIDCAuthRequestTTL)
+	err = a.Identity.CreateOIDCAuthRequest(req, defaults.OIDCAuthRequestTTL)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -238,7 +238,7 @@ func (s *AuthServer) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*servi
 // ValidateOIDCAuthCallback is called by the proxy to check OIDC query parameters
 // returned by OIDC Provider, if everything checks out, auth server
 // will respond with OIDCAuthResponse, otherwise it will return error
-func (a *AuthServer) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
+func (a *Server) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
 	re, err := a.validateOIDCAuthCallback(q)
 	event := &events.UserLogin{
 		Metadata: events.Metadata{
@@ -284,7 +284,7 @@ type oidcAuthResponse struct {
 	claims jose.Claims
 }
 
-func (a *AuthServer) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, error) {
+func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, error) {
 	if error := q.Get("error"); error != "" {
 		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest, error, q)
 	}
@@ -440,7 +440,7 @@ type OIDCAuthResponse struct {
 }
 
 // buildOIDCRoles takes a connector and claims and returns a slice of roles.
-func (a *AuthServer) buildOIDCRoles(connector services.OIDCConnector, claims jose.Claims) ([]string, error) {
+func (a *Server) buildOIDCRoles(connector services.OIDCConnector, claims jose.Claims) ([]string, error) {
 	roles := connector.MapClaims(claims)
 	if len(roles) == 0 {
 		return nil, trace.AccessDenied("unable to map claims to role for connector: %v", connector.GetName())
@@ -468,7 +468,7 @@ func claimsToTraitMap(claims jose.Claims) map[string][]string {
 	return traits
 }
 
-func (a *AuthServer) calculateOIDCUser(connector services.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *services.OIDCAuthRequest) (*createUserParams, error) {
+func (a *Server) calculateOIDCUser(connector services.OIDCConnector, claims jose.Claims, ident *oidc.Identity, request *services.OIDCAuthRequest) (*createUserParams, error) {
 	var err error
 
 	p := createUserParams{
@@ -493,7 +493,7 @@ func (a *AuthServer) calculateOIDCUser(connector services.OIDCConnector, claims 
 	return &p, nil
 }
 
-func (a *AuthServer) createOIDCUser(p *createUserParams) (services.User, error) {
+func (a *Server) createOIDCUser(p *createUserParams) (services.User, error) {
 	expires := a.GetClock().Now().UTC().Add(p.sessionTTL)
 
 	log.Debugf("Generating dynamic OIDC identity %v/%v with roles: %v.", p.connectorName, p.username, p.roles)
@@ -643,7 +643,7 @@ func claimsFromUserInfo(oidcClient *oidc.Client, issuerURL string, accessToken s
 	return claims, nil
 }
 
-func (a *AuthServer) claimsFromGSuite(config *jwt.Config, issuerURL string, userEmail string, domain string) (jose.Claims, error) {
+func (a *Server) claimsFromGSuite(config *jwt.Config, issuerURL string, userEmail string, domain string) (jose.Claims, error) {
 	client, err := a.newGsuiteClient(config, issuerURL, userEmail, domain)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -651,7 +651,7 @@ func (a *AuthServer) claimsFromGSuite(config *jwt.Config, issuerURL string, user
 	return client.fetchGroups()
 }
 
-func (a *AuthServer) newGsuiteClient(config *jwt.Config, issuerURL string, userEmail string, domain string) (*gsuiteClient, error) {
+func (a *Server) newGsuiteClient(config *jwt.Config, issuerURL string, userEmail string, domain string) (*gsuiteClient, error) {
 	err := isHTTPS(issuerURL)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -796,7 +796,7 @@ func mergeClaims(a jose.Claims, b jose.Claims) (jose.Claims, error) {
 }
 
 // getClaims gets claims from ID token and UserInfo and returns UserInfo claims merged into ID token claims.
-func (a *AuthServer) getClaims(oidcClient *oidc.Client, connector services.OIDCConnector, code string) (jose.Claims, error) {
+func (a *Server) getClaims(oidcClient *oidc.Client, connector services.OIDCConnector, code string) (jose.Claims, error) {
 	var err error
 
 	oac, err := oidcClient.OAuthClient()
@@ -921,7 +921,7 @@ func (a *AuthServer) getClaims(oidcClient *oidc.Client, connector services.OIDCC
 // validateACRValues validates that we get an appropriate response for acr values. By default
 // we expect the same value we send, but this function also handles Identity Provider specific
 // forms of validation.
-func (a *AuthServer) validateACRValues(acrValue string, identityProvider string, claims jose.Claims) error {
+func (a *Server) validateACRValues(acrValue string, identityProvider string, claims jose.Claims) error {
 	switch identityProvider {
 	case teleport.NetIQ:
 		log.Debugf("Validating OIDC ACR values with '%v' rules.", identityProvider)

@@ -37,7 +37,7 @@ type TLSServerConfig struct {
 	// TLS is a base TLS configuration
 	TLS *tls.Config
 	// LimiterConfig is limiter config
-	LimiterConfig limiter.LimiterConfig
+	LimiterConfig limiter.Config
 	// AccessPoint is caching access point
 	AccessPoint auth.AccessPoint
 	// Component is used for debugging purposes
@@ -93,7 +93,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
-	authMiddleware := &auth.AuthMiddleware{
+	authMiddleware := &auth.Middleware{
 		AccessPoint:   cfg.AccessPoint,
 		AcceptedUsage: []string{teleport.UsageKubeOnly},
 	}

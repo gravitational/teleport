@@ -33,8 +33,8 @@ type Limiter struct {
 	rateLimiter *RateLimiter
 }
 
-// LimiterConfig sets up rate limits and configuration limits parameters
-type LimiterConfig struct {
+// Config sets up rate limits and configuration limits parameters
+type Config struct {
 	// Rates set ups rate limits
 	Rates []Rate
 	// MaxConnections configures maximum number of connections
@@ -46,7 +46,7 @@ type LimiterConfig struct {
 }
 
 // SetEnv reads LimiterConfig from JSON string
-func (l *LimiterConfig) SetEnv(v string) error {
+func (l *Config) SetEnv(v string) error {
 	if err := json.Unmarshal([]byte(v), l); err != nil {
 		return trace.Wrap(err, "expected JSON encoded remote certificate")
 	}
@@ -54,7 +54,7 @@ func (l *LimiterConfig) SetEnv(v string) error {
 }
 
 // NewLimiter returns new rate and connection limiter
-func NewLimiter(config LimiterConfig) (*Limiter, error) {
+func NewLimiter(config Config) (*Limiter, error) {
 	var err error
 	limiter := Limiter{}
 

@@ -157,7 +157,7 @@ type Config struct {
 	RetryPeriod time.Duration
 	// EventsC is a channel for event notifications,
 	// used in tests
-	EventsC chan CacheEvent
+	EventsC chan Event
 	// OnlyRecent configures cache behavior that always uses
 	// recent values, see OnlyRecent for details
 	OnlyRecent OnlyRecent
@@ -238,8 +238,8 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CacheEvent is event used in tests
-type CacheEvent struct {
+// Event is event used in tests
+type Event struct {
 	// Type is event type
 	Type string
 	// Event is event processed
@@ -382,7 +382,7 @@ func (c *Cache) setTTL(r services.Resource) {
 	r.SetTTL(c.Clock, c.PreferRecent.MaxTTL)
 }
 
-func (c *Cache) notify(event CacheEvent) {
+func (c *Cache) notify(event Event) {
 	if c.EventsC == nil {
 		return
 	}
@@ -437,7 +437,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry) error {
 		MetricComponent: c.MetricComponent,
 	})
 	if err != nil {
-		c.notify(CacheEvent{Type: WatcherFailed})
+		c.notify(Event{Type: WatcherFailed})
 		return trace.Wrap(err)
 	}
 	defer watcher.Close()
@@ -471,7 +471,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry) error {
 	}
 	retry.Reset()
 	c.wrapper.SetReadError(nil)
-	c.notify(CacheEvent{Type: WatcherStarted})
+	c.notify(Event{Type: WatcherStarted})
 	for {
 		select {
 		case <-watcher.Done():
@@ -483,7 +483,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			c.notify(CacheEvent{Event: event, Type: EventProcessed})
+			c.notify(Event{Event: event, Type: EventProcessed})
 		}
 	}
 }

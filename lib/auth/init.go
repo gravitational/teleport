@@ -153,7 +153,7 @@ type InitConfig struct {
 }
 
 // Init instantiates and configures an instance of AuthServer
-func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
+func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.DataDir == "" {
 		return nil, trace.BadParameter("DataDir: data dir can not be empty")
 	}
@@ -171,7 +171,7 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 	defer backend.ReleaseLock(ctx, cfg.Backend, domainName)
 
 	// check that user CA and host CA are present and set the certs if needed
-	asrv, err := NewAuthServer(&cfg, opts...)
+	asrv, err := NewServer(&cfg, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -457,7 +457,7 @@ func Init(cfg InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
 	return asrv, nil
 }
 
-func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *AuthServer) error {
+func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	err := migrateRemoteClusters(asrv)
 	if err != nil {
 		return trace.Wrap(err)
@@ -473,7 +473,7 @@ func migrateLegacyResources(ctx context.Context, cfg InitConfig, asrv *AuthServe
 
 // isFirstStart returns 'true' if the auth server is starting for the 1st time
 // on this server.
-func isFirstStart(authServer *AuthServer, cfg InitConfig) (bool, error) {
+func isFirstStart(authServer *Server, cfg InitConfig) (bool, error) {
 	// check if the CA exists?
 	_, err := authServer.GetCertAuthority(
 		services.CertAuthID{
@@ -526,7 +526,7 @@ func checkResourceConsistency(clusterName string, resources ...services.Resource
 }
 
 // GenerateIdentity generates identity for the auth server
-func GenerateIdentity(a *AuthServer, id IdentityID, additionalPrincipals, dnsNames []string) (*Identity, error) {
+func GenerateIdentity(a *Server, id IdentityID, additionalPrincipals, dnsNames []string) (*Identity, error) {
 	keys, err := a.GenerateServerKeys(GenerateServerKeysRequest{
 		HostID:               id.HostUUID,
 		NodeName:             id.NodeName,
@@ -890,7 +890,7 @@ func ReadLocalIdentity(dataDir string, id IdentityID) (*Identity, error) {
 // This migration adds remote cluster resource migrating from 2.5.0
 // where the presence of remote cluster was identified only by presence
 // of host certificate authority with cluster name not equal local cluster name
-func migrateRemoteClusters(asrv *AuthServer) error {
+func migrateRemoteClusters(asrv *Server) error {
 	clusterName, err := asrv.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -942,7 +942,7 @@ func migrateRemoteClusters(asrv *AuthServer) error {
 
 // DELETE IN: 4.3.0.
 // migrateRoleOptions adds the "enhanced_recording" option to all roles.
-func migrateRoleOptions(ctx context.Context, asrv *AuthServer) error {
+func migrateRoleOptions(ctx context.Context, asrv *Server) error {
 	roles, err := asrv.GetRoles()
 	if err != nil {
 		return trace.Wrap(err)

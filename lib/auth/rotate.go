@@ -197,7 +197,7 @@ type rotationReq struct {
 // It is possible to switch from automatic to manual by setting the phase
 // to the rollback phase.
 //
-func (a *AuthServer) RotateCertAuthority(req RotateRequest) error {
+func (a *Server) RotateCertAuthority(req RotateRequest) error {
 	if err := req.CheckAndSetDefaults(a.clock); err != nil {
 		return trace.Wrap(err)
 	}
@@ -245,7 +245,7 @@ func (a *AuthServer) RotateCertAuthority(req RotateRequest) error {
 // RotateExternalCertAuthority rotates external certificate authority,
 // this method is called by remote trusted cluster and is used to update
 // only public keys and certificates of the certificate authority.
-func (a *AuthServer) RotateExternalCertAuthority(ca services.CertAuthority) error {
+func (a *Server) RotateExternalCertAuthority(ca services.CertAuthority) error {
 	if ca == nil {
 		return trace.BadParameter("missing certificate authority")
 	}
@@ -287,7 +287,7 @@ func (a *AuthServer) RotateExternalCertAuthority(ca services.CertAuthority) erro
 // autoRotateCertAuthorities automatically rotates cert authorities,
 // does nothing if no rotation parameters were set up
 // or it is too early to rotate per schedule
-func (a *AuthServer) autoRotateCertAuthorities() error {
+func (a *Server) autoRotateCertAuthorities() error {
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
@@ -307,7 +307,7 @@ func (a *AuthServer) autoRotateCertAuthorities() error {
 	return nil
 }
 
-func (a *AuthServer) autoRotate(ca services.CertAuthority) error {
+func (a *Server) autoRotate(ca services.CertAuthority) error {
 	rotation := ca.GetRotation()
 	// rotation mode is not automatic, nothing to do
 	if rotation.Mode != services.RotationModeAuto {

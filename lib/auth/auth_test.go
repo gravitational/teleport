@@ -52,7 +52,7 @@ func TestAPI(t *testing.T) { TestingT(t) }
 
 type AuthSuite struct {
 	bk          backend.Backend
-	a           *AuthServer
+	a           *Server
 	dataDir     string
 	mockEmitter *events.MockEmitter
 }
@@ -80,7 +80,7 @@ func (s *AuthSuite) SetUpTest(c *C) {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}
-	s.a, err = NewAuthServer(authConfig)
+	s.a, err = NewServer(authConfig)
 	c.Assert(err, IsNil)
 
 	// set cluster name
@@ -657,7 +657,7 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}
-	authServer, err := NewAuthServer(authConfig)
+	authServer, err := NewServer(authConfig)
 	c.Assert(err, IsNil)
 
 	err = authServer.SetClusterName(clusterName)

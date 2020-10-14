@@ -93,11 +93,11 @@ type Identity struct {
 }
 
 // CheckAndSetDefaults checks and sets default values
-func (i *Identity) CheckAndSetDefaults() error {
-	if i.Username == "" {
+func (id *Identity) CheckAndSetDefaults() error {
+	if id.Username == "" {
 		return trace.BadParameter("missing identity username")
 	}
-	if len(i.Groups) == 0 {
+	if len(id.Groups) == 0 {
 		return trace.BadParameter("missing identity groups")
 	}
 	return nil

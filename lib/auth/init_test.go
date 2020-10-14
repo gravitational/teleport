@@ -350,7 +350,7 @@ func (s *AuthInitSuite) TestCASigningAlg(c *C) {
 		AuthPreference: authPreference,
 	}
 
-	verifyCAs := func(auth *AuthServer, alg string) {
+	verifyCAs := func(auth *Server, alg string) {
 		hostCAs, err := auth.GetCertAuthorities(services.HostCA, false)
 		c.Assert(err, IsNil)
 		for _, ca := range hostCAs {

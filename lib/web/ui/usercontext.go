@@ -54,7 +54,7 @@ const (
 	authSSO   authType = "sso"
 )
 
-type userContext struct {
+type UserContext struct {
 	// AuthType is auth method of this user
 	AuthType authType `json:"authType"`
 	// Name is this user name
@@ -110,7 +110,7 @@ func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) acc
 }
 
 // NewUserContext returns user context
-func NewUserContext(user services.User, userRoles services.RoleSet) (*userContext, error) {
+func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContext, error) {
 	ctx := &services.Context{User: user}
 	sessionAccess := newAccess(userRoles, ctx, services.KindSession)
 	roleAccess := newAccess(userRoles, ctx, services.KindRole)
@@ -143,7 +143,7 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*userContex
 		authType = authSSO
 	}
 
-	return &userContext{
+	return &UserContext{
 		Name:     user.GetName(),
 		ACL:      acl,
 		AuthType: authType,

@@ -129,16 +129,16 @@ func (tc *TeleportClient) Benchmark(ctx context.Context, bench Benchmark) (*Benc
 			timeoutC = time.After(waitTime)
 		case measure := <-responseC:
 			if measure.ThreadCompleted {
-				doneThreads += 1
+				doneThreads++
 				if doneThreads == bench.Threads {
 					return &result, nil
 				}
 			} else {
 				if measure.Error != nil {
-					result.RequestsFailed += 1
+					result.RequestsFailed++
 					result.LastError = measure.Error
 				}
-				result.RequestsOriginated += 1
+				result.RequestsOriginated++
 				result.Histogram.RecordValue(int64(measure.End.Sub(measure.Start) / time.Millisecond))
 			}
 		}

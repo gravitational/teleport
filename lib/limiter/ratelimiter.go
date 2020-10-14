@@ -47,7 +47,7 @@ type Rate struct {
 }
 
 // NewRateLimiter returns new request rate controller
-func NewRateLimiter(config LimiterConfig) (*RateLimiter, error) {
+func NewRateLimiter(config Config) (*RateLimiter, error) {
 	limiter := RateLimiter{
 		Mutex: &sync.Mutex{},
 	}
