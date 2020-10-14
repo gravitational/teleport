@@ -2664,12 +2664,21 @@ func (process *TeleportProcess) initApps() {
 		// and (dynamic) label update.
 		appServer.Start()
 
+		// If Teleport was started in the same process as the reverse tunnel, assume
+		// the user wants to use this proxy for the reverse tunnel. Mainly used for
+		// development and getting started with Teleport where you run everything
+		// within a single process.
+		tunnelAddr := conn.TunnelProxy()
+		if addr, ok := process.hasLocalTunnel(); ok {
+			tunnelAddr = addr
+		}
+
 		// Create and start an agent pool.
 		agentPool, err = reversetunnel.NewAgentPool(process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
 				Component:   teleport.ComponentApp,
 				HostUUID:    conn.ServerIdentity.ID.HostUUID,
-				ProxyAddr:   conn.TunnelProxy(),
+				ProxyAddr:   tunnelAddr,
 				Client:      conn.Client,
 				Server:      appServer,
 				AccessPoint: conn.Client,
@@ -2903,6 +2912,18 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 		return trace.Wrap(err, "error writing key PEM")
 	}
 	return nil
+}
+
+// hasLocalTunnel returns true of the reverse tunnel server is running within
+// this process and if a tunnel public address has been defined allowing a
+// local client to connect to itself.
+func (p *TeleportProcess) hasLocalTunnel() (string, bool) {
+	if p.Config.Proxy.Enabled &&
+		!p.Config.Proxy.DisableReverseTunnel &&
+		len(p.Config.Proxy.TunnelPublicAddrs) > 0 {
+		return p.Config.Proxy.TunnelPublicAddrs[0].String(), true
+	}
+	return "", false
 }
 
 func getPublicAddr(authClient auth.AccessPoint, a App) (string, error) {

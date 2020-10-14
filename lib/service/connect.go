@@ -783,16 +783,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 // falls back to trying to connect to the Auth Server through the proxy.
 func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity *auth.Identity) (*auth.Client, error) {
 	switch identity.ID.Role {
-	case teleport.RoleApp:
-		log.Debugf("Attempting to connect to Auth Server through tunnel.")
-		tunnelClient, err := process.newClientThroughTunnel(authServers, identity)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		log.Debugf("Connected to Auth Server through tunnel.")
-		return tunnelClient, nil
-	case teleport.RoleNode:
+	case teleport.RoleNode, teleport.RoleApp:
 		directClient, err := process.newClientDirect(authServers, identity)
 		if err != nil {
 			return nil, trace.Wrap(err)
