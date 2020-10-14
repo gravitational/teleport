@@ -34,10 +34,8 @@ fi
 # We use this to modify the auth service's configuration depending on whether FIPS is in use or not
 # With FIPS: auth_service.authentication.local_auth must be 'false' or Teleport will not start
 # Without FIPS: auth.service.authentication.second_factor should be set to 'otp'
-FIPS_AMI=false
 AUTHENTICATION_STANZA="second_factor: otp"
 if grep "ExecStart" /etc/systemd/system/teleport.service | grep -q "fips"; then
-  FIPS_AMI=true
   AUTHENTICATION_STANZA="local_auth: false"
 fi
 

@@ -24,11 +24,12 @@ echo Locking $PROCESS for $TTL.
 # Either renew the lease if agent still holds it, or grab the lease if it's expired
 aws dynamodb put-item \
     --region ${EC2_REGION} \
-    --table-name ${TELEPORT_LOCKS_TABLE_NAME}\
+    --table-name ${TELEPORT_LOCKS_TABLE_NAME} \
     --item  "{\"Lock\": {\"S\": \"/auth/servers\"}, \"Expires\": {\"S\": \"$TTL\"}, \"Process\": {\"S\": \"$PROCESS\"}}" \
     --condition-expression="(attribute_not_exists(Expires) OR Expires <= :timestamp) OR Process = :process"\
     --expression-attribute-values "{\":timestamp\":{\"S\":\"$NOW\"}, \":process\":{\"S\":\"$PROCESS\"}}"
 
+# shellcheck disable=SC2181
 if [ $? -eq 0 ]; then
     echo "Renewed or locked the lease for $PROCESS until $(date -d @$TTL)"
 else
