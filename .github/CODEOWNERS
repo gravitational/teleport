@@ -16,6 +16,7 @@ Makefile @webvictim @russjones @awly
 # Product.
 *.md @benarent @webvictim
 /docs/ @benarent @webvictim
+/rfd/ @klizhentas @russjones @benarent
 
 # Backend Engineering.
 /*.go @klizhentas @russjones @fspmarshall @webvictim @awly

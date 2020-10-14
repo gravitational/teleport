@@ -41,7 +41,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestMux tests multiplexing protocols
@@ -50,19 +50,19 @@ func TestMux(t *testing.T) {
 	utils.InitLoggerForTests(testing.Verbose())
 
 	_, signer, err := utils.CreateCertificate("foo", ssh.HostCert)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	// TestMux tests basic use case of multiplexing TLS
 	// and SSH on the same listener socket
 	t.Run("TLSSSH", func(t *testing.T) {
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
-		assert.Nil(t, err)
+		require.Nil(t, err)
 
 		mux, err := New(Config{
 			Listener:            listener,
 			EnableProxyProtocol: true,
 		})
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		go mux.Serve()
 		defer mux.Close()
 
@@ -80,7 +80,7 @@ func TestMux(t *testing.T) {
 		sshHandler := sshutils.NewChanHandlerFunc(func(_ context.Context, _ *sshutils.ConnectionContext, nch ssh.NewChannel) {
 			called = true
 			err := nch.Reject(ssh.Prohibited, "nothing to see here")
-			assert.Nil(t, err)
+			require.Nil(t, err)
 		})
 
 		srv, err := sshutils.NewServer(
@@ -90,7 +90,7 @@ func TestMux(t *testing.T) {
 			[]ssh.Signer{signer},
 			sshutils.AuthMethods{Password: pass("abc123")},
 		)
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		go srv.Serve(mux.SSH())
 		defer srv.Close()
 		clt, err := ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
@@ -98,22 +98,22 @@ func TestMux(t *testing.T) {
 			Timeout:         time.Second,
 			HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
 		})
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		defer clt.Close()
 
 		// call new session to initiate opening new channel
 		_, err = clt.NewSession()
-		assert.NotNil(t, err)
+		require.NotNil(t, err)
 		// make sure the channel handler was called OK
-		assert.Equal(t, called, true)
+		require.Equal(t, called, true)
 
 		client := testClient(backend1)
 		re, err := client.Get(backend1.URL)
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		defer re.Body.Close()
 		bytes, err := ioutil.ReadAll(re.Body)
-		assert.Nil(t, err)
-		assert.Equal(t, string(bytes), "backend 1")
+		require.Nil(t, err)
+		require.Equal(t, string(bytes), "backend 1")
 
 		// Close mux, new requests should fail
 		mux.Close()
@@ -125,19 +125,19 @@ func TestMux(t *testing.T) {
 		if err == nil {
 			re.Body.Close()
 		}
-		assert.NotNil(t, err)
+		require.NotNil(t, err)
 	})
 
 	// ProxyLine tests proxy line protocol
 	t.Run("ProxyLine", func(t *testing.T) {
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
-		assert.Nil(t, err)
+		require.Nil(t, err)
 
 		mux, err := New(Config{
 			Listener:            listener,
 			EnableProxyProtocol: true,
 		})
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		go mux.Serve()
 		defer mux.Close()
 
@@ -159,14 +159,14 @@ func TestMux(t *testing.T) {
 		}
 
 		parsedURL, err := url.Parse(backend1.URL)
-		assert.Nil(t, err)
+		require.Nil(t, err)
 
 		conn, err := net.Dial("tcp", parsedURL.Host)
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		defer conn.Close()
 		// send proxy line first before establishing TLS connection
 		_, err = fmt.Fprint(conn, proxyLine.String())
-		assert.Nil(t, err)
+		require.Nil(t, err)
 
 		// upgrade connection to TLS
 		tlsConn := tls.Client(conn, clientConfig(backend1))
@@ -175,21 +175,21 @@ func TestMux(t *testing.T) {
 		// make sure the TLS call succeeded and we got remote address
 		// correctly
 		out, err := utils.RoundtripWithConn(tlsConn)
-		assert.Nil(t, err)
-		assert.Equal(t, out, remoteAddr.String())
+		require.Nil(t, err)
+		require.Equal(t, out, remoteAddr.String())
 	})
 
 	// TestDisabledProxy makes sure the connection gets dropped
 	// when Proxy line support protocol is turned off
 	t.Run("DisabledProxy", func(t *testing.T) {
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
-		assert.Nil(t, err)
+		require.Nil(t, err)
 
 		mux, err := New(Config{
 			Listener:            listener,
 			EnableProxyProtocol: false,
 		})
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		go mux.Serve()
 		defer mux.Close()
 
@@ -211,14 +211,14 @@ func TestMux(t *testing.T) {
 		}
 
 		parsedURL, err := url.Parse(backend1.URL)
-		assert.Nil(t, err)
+		require.Nil(t, err)
 
 		conn, err := net.Dial("tcp", parsedURL.Host)
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		defer conn.Close()
 		// send proxy line first before establishing TLS connection
 		_, err = fmt.Fprint(conn, proxyLine.String())
-		assert.Nil(t, err)
+		require.Nil(t, err)
 
 		// upgrade connection to TLS
 		tlsConn := tls.Client(conn, clientConfig(backend1))
@@ -226,14 +226,14 @@ func TestMux(t *testing.T) {
 
 		// make sure the TLS call failed
 		_, err = utils.RoundtripWithConn(tlsConn)
-		assert.NotNil(t, err)
+		require.NotNil(t, err)
 	})
 
 	// Timeout tests client timeout - client dials, but writes nothing
 	// make sure server hangs up
 	t.Run("Timeout", func(t *testing.T) {
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
-		assert.Nil(t, err)
+		require.Nil(t, err)
 
 		config := Config{
 			Listener:            listener,
@@ -241,7 +241,7 @@ func TestMux(t *testing.T) {
 			EnableProxyProtocol: true,
 		}
 		mux, err := New(config)
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		go mux.Serve()
 		defer mux.Close()
 
@@ -256,10 +256,10 @@ func TestMux(t *testing.T) {
 		defer backend1.Close()
 
 		parsedURL, err := url.Parse(backend1.URL)
-		assert.Nil(t, err)
+		require.Nil(t, err)
 
 		conn, err := net.Dial("tcp", parsedURL.Host)
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		defer conn.Close()
 
 		time.Sleep(config.ReadDeadline + 5*time.Millisecond)
@@ -269,47 +269,47 @@ func TestMux(t *testing.T) {
 
 		// roundtrip should fail on the timeout
 		_, err = utils.RoundtripWithConn(tlsConn)
-		assert.NotNil(t, err)
+		require.NotNil(t, err)
 	})
 
 	// UnknownProtocol make sure that multiplexer closes connection
 	// with unknown protocol
 	t.Run("UnknownProtocol", func(t *testing.T) {
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
-		assert.Nil(t, err)
+		require.Nil(t, err)
 
 		mux, err := New(Config{
 			Listener:            listener,
 			EnableProxyProtocol: true,
 		})
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		go mux.Serve()
 		defer mux.Close()
 
 		conn, err := net.Dial("tcp", listener.Addr().String())
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		defer conn.Close()
 
 		// try plain HTTP
 		_, err = fmt.Fprintf(conn, "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
-		assert.Nil(t, err)
+		require.Nil(t, err)
 
 		// connection should be closed
 		_, err = conn.Read(make([]byte, 1))
-		assert.Equal(t, err, io.EOF)
+		require.Equal(t, err, io.EOF)
 	})
 
 	// DisableSSH disables SSH
 	t.Run("DisableSSH", func(t *testing.T) {
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
-		assert.Nil(t, err)
+		require.Nil(t, err)
 
 		mux, err := New(Config{
 			Listener:            listener,
 			EnableProxyProtocol: true,
 			DisableSSH:          true,
 		})
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		go mux.Serve()
 		defer mux.Close()
 
@@ -328,16 +328,16 @@ func TestMux(t *testing.T) {
 			Timeout:         time.Second,
 			HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
 		})
-		assert.NotNil(t, err)
+		require.NotNil(t, err)
 
 		// TLS requests will succeed
 		client := testClient(backend1)
 		re, err := client.Get(backend1.URL)
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		defer re.Body.Close()
 		bytes, err := ioutil.ReadAll(re.Body)
-		assert.Nil(t, err)
-		assert.Equal(t, string(bytes), "backend 1")
+		require.Nil(t, err)
+		require.Equal(t, string(bytes), "backend 1")
 
 		// Close mux, new requests should fail
 		mux.Close()
@@ -349,20 +349,20 @@ func TestMux(t *testing.T) {
 		if err == nil {
 			re.Body.Close()
 		}
-		assert.NotNil(t, err)
+		require.NotNil(t, err)
 	})
 
 	// TestDisableTLS tests scenario with disabled TLS
 	t.Run("DisableTLS", func(t *testing.T) {
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
-		assert.Nil(t, err)
+		require.Nil(t, err)
 
 		mux, err := New(Config{
 			Listener:            listener,
 			EnableProxyProtocol: true,
 			DisableTLS:          true,
 		})
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		go mux.Serve()
 		defer mux.Close()
 
@@ -380,7 +380,7 @@ func TestMux(t *testing.T) {
 		sshHandler := sshutils.NewChanHandlerFunc(func(_ context.Context, _ *sshutils.ConnectionContext, nch ssh.NewChannel) {
 			called = true
 			err := nch.Reject(ssh.Prohibited, "nothing to see here")
-			assert.Nil(t, err)
+			require.Nil(t, err)
 		})
 
 		srv, err := sshutils.NewServer(
@@ -390,7 +390,7 @@ func TestMux(t *testing.T) {
 			[]ssh.Signer{signer},
 			sshutils.AuthMethods{Password: pass("abc123")},
 		)
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		go srv.Serve(mux.SSH())
 		defer srv.Close()
 		clt, err := ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
@@ -398,21 +398,21 @@ func TestMux(t *testing.T) {
 			Timeout:         time.Second,
 			HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
 		})
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		defer clt.Close()
 
 		// call new session to initiate opening new channel
 		_, err = clt.NewSession()
-		assert.NotNil(t, err)
+		require.NotNil(t, err)
 		// make sure the channel handler was called OK
-		assert.Equal(t, called, true)
+		require.Equal(t, called, true)
 
 		client := testClient(backend1)
 		re, err := client.Get(backend1.URL)
 		if err == nil {
 			re.Body.Close()
 		}
-		assert.NotNil(t, err)
+		require.NotNil(t, err)
 
 		// Close mux, new requests should fail
 		mux.Close()
@@ -422,23 +422,23 @@ func TestMux(t *testing.T) {
 	// NextProto tests multiplexing using NextProto selector
 	t.Run("NextProto", func(t *testing.T) {
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
-		assert.Nil(t, err)
+		require.Nil(t, err)
 
 		mux, err := New(Config{
 			Listener:            listener,
 			EnableProxyProtocol: true,
 		})
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		go mux.Serve()
 		defer mux.Close()
 
 		cfg, err := fixtures.LocalTLSConfig()
-		assert.Nil(t, err)
+		require.Nil(t, err)
 
 		tlsLis, err := NewTLSListener(TLSListenerConfig{
 			Listener: tls.NewListener(mux.TLS(), cfg.TLS),
 		})
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		go tlsLis.Serve()
 
 		opts := []grpc.ServerOption{
@@ -471,24 +471,24 @@ func TestMux(t *testing.T) {
 		url := fmt.Sprintf("https://%s", listener.Addr())
 		client := cfg.NewClient()
 		re, err := client.Get(url)
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		defer re.Body.Close()
 		bytes, err := ioutil.ReadAll(re.Body)
-		assert.Nil(t, err)
-		assert.Equal(t, string(bytes), "http backend")
+		require.Nil(t, err)
+		require.Equal(t, string(bytes), "http backend")
 
 		creds := credentials.NewClientTLSFromCert(cfg.CertPool, "")
 
 		// Set up a connection to the server.
 		conn, err := grpc.Dial(listener.Addr().String(), grpc.WithTransportCredentials(creds), grpc.WithBlock())
-		assert.Nil(t, err)
+		require.Nil(t, err)
 		defer conn.Close()
 
 		gclient := test.NewPingerClient(conn)
 
 		out, err := gclient.Ping(context.TODO(), &test.Request{})
-		assert.Nil(t, err)
-		assert.Equal(t, out.GetPayload(), "grpc backend")
+		require.Nil(t, err)
+		require.Equal(t, out.GetPayload(), "grpc backend")
 
 		// Close mux, new requests should fail
 		mux.Close()
@@ -500,14 +500,14 @@ func TestMux(t *testing.T) {
 		if err == nil {
 			re.Body.Close()
 		}
-		assert.NotNil(t, err)
+		require.NotNil(t, err)
 
 		httpServer.Close()
 		s.Stop()
 		// wait for both servers to finish
 		for i := 0; i < 2; i++ {
 			err := <-errCh
-			assert.Nil(t, err)
+			require.Nil(t, err)
 		}
 	})
 }

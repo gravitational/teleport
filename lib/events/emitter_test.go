@@ -24,7 +24,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/session"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestProtoStreamer tests edge cases of proto streamer implementation
@@ -72,38 +72,38 @@ func TestProtoStreamer(t *testing.T) {
 				Uploader:       uploader,
 				MinUploadBytes: tc.minUploadBytes,
 			})
-			assert.Nil(t, err)
+			require.Nil(t, err)
 
 			sid := session.ID(fmt.Sprintf("test-%v", i))
 			stream, err := streamer.CreateAuditStream(ctx, sid)
-			assert.Nil(t, err)
+			require.Nil(t, err)
 
 			events := tc.events
 			for _, event := range events {
 				err := stream.EmitAuditEvent(ctx, event)
 				if tc.err != nil {
-					assert.IsType(t, tc.err, err)
+					require.IsType(t, tc.err, err)
 					return
 				}
-				assert.Nil(t, err)
+				require.Nil(t, err)
 			}
 			err = stream.Complete(ctx)
-			assert.Nil(t, err)
+			require.Nil(t, err)
 
 			var outEvents []AuditEvent
 			uploads, err := uploader.ListUploads(ctx)
-			assert.Nil(t, err)
+			require.Nil(t, err)
 			parts, err := uploader.GetParts(uploads[0].ID)
-			assert.Nil(t, err)
+			require.Nil(t, err)
 
 			for _, part := range parts {
 				reader := NewProtoReader(bytes.NewReader(part))
 				out, err := reader.ReadAll(ctx)
-				assert.Nil(t, err, "part crash %#v", part)
+				require.Nil(t, err, "part crash %#v", part)
 				outEvents = append(outEvents, out...)
 			}
 
-			assert.Equal(t, events, outEvents)
+			require.Equal(t, events, outEvents)
 		})
 	}
 }

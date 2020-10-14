@@ -57,15 +57,15 @@ tests and subtests that don't need to run serially.
 ### Asserts
 
 Use
-[testify/assert](https://pkg.go.dev/github.com/stretchr/testify/assert?tab=doc)
+[testify/require](https://pkg.go.dev/github.com/stretchr/testify/require?tab=doc)
 or a plain `if` condition, whichever is easiest.
 
-Skim through the `testify/assert` docs, it has many convenient helpers.
+Skim through the `testify/require` docs, it has many convenient helpers.
 
 ### Diffing
 
 For trivial comparisons, use helpers from
-[testify/assert](https://pkg.go.dev/github.com/stretchr/testify/assert?tab=doc).
+[testify/require](https://pkg.go.dev/github.com/stretchr/testify/require?tab=doc).
 
 For non-trivial comparisons (such as deeply-nested structs or protobufs), use
 [go-cmp](https://pkg.go.dev/github.com/google/go-cmp/cmp?tab=doc) with
@@ -120,18 +120,18 @@ func TestParseInt(t *testing.T) {
 		desc      string
 		in        string
 		want      int
-		assertErr assert.ErrorAssertionFunc
+		assertErr require.ErrorAssertionFunc
 	}{
-		{desc: "positive", in: "123", want: 123, assertErr: assert.NoError},
-		{desc: "negative", in: "-123", want: -123, assertErr: assert.NoError},
-		{desc: "non-numeric", in: "abc", assertErr: assert.Error},
-		{desc: "empty", in: "", assertErr: assert.Error},
+		{desc: "positive", in: "123", want: 123, assertErr: require.NoError},
+		{desc: "negative", in: "-123", want: -123, assertErr: require.NoError},
+		{desc: "non-numeric", in: "abc", assertErr: require.Error},
+		{desc: "empty", in: "", assertErr: require.Error},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			got, gotErr := parseInt(tt.in)
-            tt.assertErr(t, err)
-			assert.Equal(t, got, tt.want)
+			got, err := parseInt(tt.in)
+			tt.assertErr(t, err)
+			require.Equal(t, got, tt.want)
 		})
 	}
 }
@@ -154,7 +154,7 @@ func TestParseInt(t *testing.T) {
 	x := Foo{A: 1, B: Bar{C: "one", Time: time.Now()}}
 	y := Foo{A: 1, B: Bar{C: "one", Time: time.Now().Add(time.Minute)}}
 
-	assert.Empty(t, cmp.Diff(x, y, cmpopts.IgnoreFields(Bar{}, "Time")))
+	require.Empty(t, cmp.Diff(x, y, cmpopts.IgnoreFields(Bar{}, "Time")))
 }
 ```
 
@@ -185,7 +185,7 @@ Shared test setup/teardown
 ```go
 func expensiveTestSetup(t *testing.T) (*Foo, func()) {
 	f, err := newFoo()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	return f, func() {
 		f.Close()
 	}

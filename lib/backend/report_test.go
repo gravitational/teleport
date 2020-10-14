@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestReporterTopRequestsLimit(t *testing.T) {
@@ -18,7 +18,7 @@ func TestReporterTopRequestsLimit(t *testing.T) {
 		Component:        "test",
 		TopRequestsCount: topRequests,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	countTopRequests := func() int {
 		ch := make(chan prometheus.Metric)
@@ -35,7 +35,7 @@ func TestReporterTopRequestsLimit(t *testing.T) {
 	}
 
 	// At first, the metric should have no values.
-	assert.Equal(t, 0, countTopRequests())
+	require.Equal(t, 0, countTopRequests())
 
 	// Run through 1000 unique keys.
 	for i := 0; i < 1000; i++ {
@@ -43,5 +43,5 @@ func TestReporterTopRequestsLimit(t *testing.T) {
 	}
 
 	// Now the metric should have only 10 of the keys above.
-	assert.Equal(t, topRequests, countTopRequests())
+	require.Equal(t, topRequests, countTopRequests())
 }

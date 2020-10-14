@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
 
@@ -73,32 +73,32 @@ func TestMonitor(t *testing.T) {
 	cfg.Clock = fakeClock
 	var err error
 	cfg.DataDir, err = ioutil.TempDir("", "teleport")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer os.RemoveAll(cfg.DataDir)
 	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.AuthServers = []utils.NetAddr{{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}}
 	cfg.Auth.Enabled = true
 	cfg.Auth.StorageConfig.Params["path"], err = ioutil.TempDir("", "teleport")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer os.RemoveAll(cfg.DataDir)
 	cfg.Auth.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = false
 
 	process, err := NewTeleport(cfg)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	diagAddr, err := process.DiagnosticAddr()
-	assert.NoError(t, err)
-	assert.NotNil(t, diagAddr)
+	require.NoError(t, err)
+	require.NotNil(t, diagAddr)
 	endpoint := fmt.Sprintf("http://%v/readyz", diagAddr.String())
 
 	// Start Teleport and make sure the status is OK.
 	go func() {
-		assert.NoError(t, process.Run())
+		require.NoError(t, process.Run())
 	}()
 	err = waitForStatus(endpoint, http.StatusOK)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	tests := []struct {
 		desc         string
@@ -156,7 +156,7 @@ func TestMonitor(t *testing.T) {
 			fakeClock.Advance(tt.advanceClock)
 			process.BroadcastEvent(tt.event)
 			err = waitForStatus(endpoint, tt.wantStatus...)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 	}
 }

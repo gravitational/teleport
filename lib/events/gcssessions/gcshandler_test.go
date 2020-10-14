@@ -26,7 +26,7 @@ import (
 
 	"github.com/fsouza/fake-gcs-server/fakestorage"
 	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestFakeStreams tests various streaming upload scenarios
@@ -44,7 +44,7 @@ func TestFakeStreams(t *testing.T) {
 		Endpoint: server.URL(),
 		Bucket:   fmt.Sprintf("teleport-test-%v", uuid.New()),
 	}, server.Client())
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer handler.Close()
 
 	t.Run("UploadDownload", func(t *testing.T) {
