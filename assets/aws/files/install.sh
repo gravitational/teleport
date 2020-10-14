@@ -61,10 +61,10 @@ if [ -f /tmp/teleport-fips ]; then
         curl ${CURL_OPTS} -o teleport.tar.gz https://get.gravitational.com/teleport/${TELEPORT_VERSION}/teleport-ent-v${TELEPORT_VERSION}-linux-amd64-fips-bin.tar.gz
     fi
     tar -xzf teleport.tar.gz
-    cp teleport-ent/tctl teleport-ent/tsh teleport-ent/teleport /usr/bin
+    cp teleport-ent/tctl teleport-ent/tsh teleport-ent/teleport /usr/local/bin
     rm -rf /tmp/teleport.tar.gz /tmp/teleport-ent
     # add --fips to 'teleport start' commands in FIPS mode
-    sed -i -E "s_ExecStart=/usr/bin/teleport start(.*)_ExecStart=/usr/bin/teleport start --fips\1_g" /etc/systemd/system/teleport*.service
+    sed -i -E "s_ExecStart=/usr/local/bin/teleport start(.*)_ExecStart=/usr/local/bin/teleport start --fips\1_g" /etc/systemd/system/teleport*.service
 else
     if [[ "${TELEPORT_TYPE}" == "oss" ]]; then
         TARBALL_FILENAME="/tmp/files/teleport-v${TELEPORT_VERSION}-linux-amd64-bin.tar.gz"
@@ -77,7 +77,7 @@ else
             curl ${CURL_OPTS} -o teleport.tar.gz https://get.gravitational.com/teleport/${TELEPORT_VERSION}/teleport-v${TELEPORT_VERSION}-linux-amd64-bin.tar.gz
         fi
         tar -xzf teleport.tar.gz
-        cp teleport/tctl teleport/tsh teleport/teleport /usr/bin
+        cp teleport/tctl teleport/tsh teleport/teleport /usr/local/bin
         rm -rf /tmp/teleport.tar.gz /tmp/teleport
     else
         TARBALL_FILENAME="/tmp/files/teleport-ent-v${TELEPORT_VERSION}-linux-amd64-bin.tar.gz"
@@ -90,7 +90,7 @@ else
             curl ${CURL_OPTS} -o teleport.tar.gz https://get.gravitational.com/teleport/${TELEPORT_VERSION}/teleport-ent-v${TELEPORT_VERSION}-linux-amd64-bin.tar.gz
         fi
         tar -xzf teleport.tar.gz
-        cp teleport-ent/tctl teleport-ent/tsh teleport-ent/teleport /usr/bin
+        cp teleport-ent/tctl teleport-ent/tsh teleport-ent/teleport /usr/local/bin
         rm -rf /tmp/teleport.tar.gz /tmp/teleport-ent
     fi
 fi

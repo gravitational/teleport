@@ -258,12 +258,12 @@ Resources:
             EOF
 
             # Generate config and start proxy service
-            /usr/bin/teleport-generate-config
+            /usr/local/bin/teleport-generate-config
             systemctl enable teleport-ssm-publish-tokens.service teleport-ssm-publish-tokens.timer teleport-get-cert.service teleport-get-cert.timer teleport-renew-cert.service teleport-renew-cert.timer
             systemctl start --no-block teleport-auth teleport-ssm-publish-tokens.timer teleport-get-cert.timer teleport-renew-cert.timer
 
             # Write out healthcheck script
-            cat >> /usr/bin/teleport-cfn-signal-done <<EOF
+            cat >> /usr/local/bin/teleport-cfn-signal-done <<EOF
             #!/bin/bash
             for i in {1..10}; do systemctl status teleport-auth && break || sleep 10; done
             systemctl status teleport-auth
@@ -271,7 +271,7 @@ Resources:
             EOF
 
             # Make healthcheck script executable
-            chmod +x /usr/bin/teleport-cfn-signal-done
+            chmod +x /usr/local/bin/teleport-cfn-signal-done
 
             # Write out healthcheck systemd unit file
             cat >> /etc/systemd/system/cfn-signal-done.service <<EOF
@@ -283,7 +283,7 @@ Resources:
             User=root
             Group=adm
             Type=oneshot
-            ExecStart=/usr/bin/teleport-cfn-signal-done
+            ExecStart=/usr/local/bin/teleport-cfn-signal-done
             EOF
 
             # Make systemd healthcheck unit run
@@ -462,12 +462,12 @@ Resources:
             EOF
 
             # Generate config and start proxy service
-            /usr/bin/teleport-generate-config
+            /usr/local/bin/teleport-generate-config
             systemctl enable teleport-proxy.service teleport-check-cert.service teleport-check-cert.timer
             systemctl start --no-block teleport-proxy.service teleport-check-cert.timer
 
             # Write out healthcheck script
-            cat >> /usr/bin/teleport-cfn-signal-done <<EOF
+            cat >> /usr/local/bin/teleport-cfn-signal-done <<EOF
             #!/bin/bash
             for i in {1..40}; do systemctl status teleport-proxy && break || sleep 30; done
             systemctl status teleport-proxy
@@ -475,7 +475,7 @@ Resources:
             EOF
 
             # Make healthcheck script executable
-            chmod +x /usr/bin/teleport-cfn-signal-done
+            chmod +x /usr/local/bin/teleport-cfn-signal-done
 
             # Write out healthcheck systemd unit file
             cat >> /etc/systemd/system/cfn-signal-done.service <<EOF
@@ -487,7 +487,7 @@ Resources:
             User=root
             Group=adm
             Type=oneshot
-            ExecStart=/usr/bin/teleport-cfn-signal-done
+            ExecStart=/usr/local/bin/teleport-cfn-signal-done
             EOF
 
             # Make systemd healthcheck unit run
@@ -566,7 +566,7 @@ Resources:
             EOF
 
             # Generate config and start proxy service
-            /usr/bin/teleport-generate-config
+            /usr/local/bin/teleport-generate-config
             systemctl enable teleport-node.service
             systemctl start --no-block teleport-node.service
           - {

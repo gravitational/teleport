@@ -9,7 +9,7 @@ set -o pipefail
 # Source variables from user-data
 . /etc/teleport.d/conf
 
-TCTL=/usr/bin/tctl
+TCTL=/usr/local/bin/tctl
 
 # Proxy token authenticates proxies joining the cluster
 PROXY_TOKEN=$(uuid)
