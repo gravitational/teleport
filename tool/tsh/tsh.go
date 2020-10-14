@@ -1523,6 +1523,7 @@ func exportLatencyProfile(cf *CLIConf, h *hdrhistogram.Histogram) (string, error
 	}
 
 	if _, err := h.PercentilesPrint(fo, cf.BenchTicks, cf.BenchValueScale); err != nil {
+		fo.Close()
 		return "", err
 	}
 
