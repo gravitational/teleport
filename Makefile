@@ -135,12 +135,15 @@ endif
 clean:
 	@echo "---> Cleaning up OSS build artifacts."
 	rm -rf $(BUILDDIR)
-	-go clean -cache
 	rm -rf $(GOPKGDIR)
 	rm -rf teleport
 	rm -rf *.gz
 	rm -rf *.zip
 	rm -f gitref.go
+# don't clean the cache if the cache directory has been explicitly set
+ifndef GOCACHE
+	go clean -cache
+endif
 
 #
 # make release - Produces a binary release tarball.
