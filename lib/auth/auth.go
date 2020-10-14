@@ -562,7 +562,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		kc, err := defaultKubeCluster(s.Presence, clusterName)
+		kc, err := defaultKubeCluster(a.Presence, clusterName)
 		if err != nil {
 			log.Warningf("Failed setting default kubernetes cluster for user login (user did not provide a cluster): %v; leaving KubernetesCluster extension in the TLS certificate empty", err)
 		} else {
