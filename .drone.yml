@@ -89,6 +89,7 @@ steps:
   - name: Run linter
     image: docker
     environment:
+      GOCACHE: /go/cache
       GOPATH: /go
     volumes:
       - name: dockersock
@@ -102,6 +103,7 @@ steps:
   - name: Run unit and chaos tests
     image: docker
     environment:
+      GOCACHE: /go/cache
       GOPATH: /go
     volumes:
       - name: dockersock
@@ -115,6 +117,7 @@ steps:
   - name: Run integration tests
     image: docker
     environment:
+      GOCACHE: /go/cache
       GOPATH: /go
       INTEGRATION_CI_KUBECONFIG:
         from_secret: INTEGRATION_CI_KUBECONFIG
@@ -2885,6 +2888,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 7faeabe8d31da052de4744f5fbc4849a8f727157a8d8e0914a6e86e7b1e371d6
+hmac: 0bb27537c4baaa08f7aa7466e14a6b023ffa09aafed4ab761dd6354f1613b2a3
 
 ...

@@ -35,6 +35,10 @@ ifeq ("$(DRONE)","true")
 UID := 1000
 GID := 1000
 NOROOT := -u 1000:1000
+# mount the go cache into the container if we're running in CI
+ifneq ("$(GOCACHE)", "")
+DOCKERFLAGS := $(DOCKERFLAGS) -v $(GOCACHE):/go/cache -e GOCACHE=/go/cache
+endif
 endif
 export
 
