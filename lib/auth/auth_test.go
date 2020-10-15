@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/trace"
@@ -51,7 +52,7 @@ func TestAPI(t *testing.T) { TestingT(t) }
 
 type AuthSuite struct {
 	bk          backend.Backend
-	a           *AuthServer
+	a           *Server
 	dataDir     string
 	mockEmitter *events.MockEmitter
 }
@@ -79,7 +80,7 @@ func (s *AuthSuite) SetUpTest(c *C) {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}
-	s.a, err = NewAuthServer(authConfig)
+	s.a, err = NewServer(authConfig)
 	c.Assert(err, IsNil)
 
 	// set cluster name
@@ -656,7 +657,7 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 	}
-	authServer, err := NewAuthServer(authConfig)
+	authServer, err := NewServer(authConfig)
 	c.Assert(err, IsNil)
 
 	err = authServer.SetClusterName(clusterName)
@@ -909,4 +910,71 @@ func (s *AuthSuite) TestSAMLConnectorCRUDEventsEmitted(c *C) {
 	err = s.a.DeleteSAMLConnector(ctx, "test")
 	c.Assert(err, IsNil)
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.SAMLConnectorDeletedEvent)
+}
+
+func TestCheckOrSetKubeCluster(t *testing.T) {
+	tests := []struct {
+		desc        string
+		kubeCluster string
+		proxies     []services.Server
+		assertErr   assert.ErrorAssertionFunc
+	}{
+		{
+			desc:        "known cluster",
+			kubeCluster: "foo",
+			proxies: []services.Server{
+				&services.ServerV2{Spec: services.ServerSpecV2{
+					KubernetesClusters: []string{"bar", "baz"},
+				}},
+				&services.ServerV2{Spec: services.ServerSpecV2{
+					KubernetesClusters: []string{"foo", "bar"},
+				}},
+			},
+			assertErr: assert.NoError,
+		},
+		{
+			desc:        "unknown cluster",
+			kubeCluster: "qux",
+			proxies: []services.Server{
+				&services.ServerV2{Spec: services.ServerSpecV2{
+					KubernetesClusters: []string{"bar", "baz"},
+				}},
+				&services.ServerV2{Spec: services.ServerSpecV2{
+					KubernetesClusters: []string{"foo", "bar"},
+				}},
+			},
+			assertErr: assert.Error,
+		},
+		{
+			desc:        "no cluster provided",
+			kubeCluster: "",
+			proxies: []services.Server{
+				&services.ServerV2{Spec: services.ServerSpecV2{
+					KubernetesClusters: []string{"bar", "baz"},
+				}},
+				&services.ServerV2{Spec: services.ServerSpecV2{
+					KubernetesClusters: []string{"foo", "bar"},
+				}},
+			},
+			assertErr: assert.Error,
+		},
+		{
+			desc:        "cluster name provided but none registered",
+			kubeCluster: "foo",
+			proxies:     []services.Server{},
+			assertErr:   assert.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			err := CheckKubeCluster(tt.kubeCluster, mockProxyGetter(tt.proxies))
+			tt.assertErr(t, err)
+		})
+	}
+}
+
+type mockProxyGetter []services.Server
+
+func (g mockProxyGetter) GetProxies() ([]services.Server, error) {
+	return g, nil
 }

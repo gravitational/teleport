@@ -134,7 +134,7 @@ func (p *clusterPeers) DialTCP(params DialParams) (conn net.Conn, err error) {
 }
 
 // IsClosed always returns false because clusterPeers is never closed.
-func (s *clusterPeers) IsClosed() bool { return false }
+func (p *clusterPeers) IsClosed() bool { return false }
 
 // newClusterPeer returns new cluster peer
 func newClusterPeer(srv *server, connInfo services.TunnelConnection, offlineThreshold time.Duration) (*clusterPeer, error) {

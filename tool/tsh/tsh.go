@@ -100,6 +100,8 @@ type CLIConf struct {
 	LocalExec bool
 	// SiteName specifies remote site go login to
 	SiteName string
+	// KubernetesCluster specifies the kubernetes cluster to login to.
+	KubernetesCluster string
 	// Interactive, when set to true, launches remote command with the terminal attached
 	Interactive bool
 	// Quiet mode, -q command (disables progress printing)
@@ -291,6 +293,9 @@ func Run(args []string) {
 	login.Flag("request-roles", "Request one or more extra roles").StringVar(&cf.DesiredRoles)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
+	// TODO(awly): unhide this flag in 5.0, after 'tsh kube ...' commands are
+	// implemented.
+	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to").Hidden().StringVar(&cf.KubernetesCluster)
 	login.Alias(loginUsageFooter)
 
 	// logout deletes obtained session certificates in ~/.tsh
@@ -1139,6 +1144,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	if cf.SiteName != "" {
 		c.SiteName = cf.SiteName
 	}
+	if cf.KubernetesCluster != "" {
+		c.KubernetesCluster = cf.KubernetesCluster
+	}
 	// if host logins stored in profiles must be ignored...
 	if !useProfileLogin {
 		c.HostLogin = ""
@@ -1306,25 +1314,37 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 		humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))
 	}
 
-	fmt.Printf("%vProfile URL:  %v\n", prefix, p.ProxyURL.String())
-	fmt.Printf("  Logged in as: %v\n", p.Username)
+	fmt.Printf("%vProfile URL:        %v\n", prefix, p.ProxyURL.String())
+	fmt.Printf("  Logged in as:       %v\n", p.Username)
 	if p.Cluster != "" {
-		fmt.Printf("  Cluster:      %v\n", p.Cluster)
+		fmt.Printf("  Cluster:            %v\n", p.Cluster)
 	}
-	fmt.Printf("  Roles:        %v*\n", strings.Join(p.Roles, ", "))
+	fmt.Printf("  Roles:              %v*\n", strings.Join(p.Roles, ", "))
 	if debug {
 		for k, v := range p.Traits {
 			if count == 0 {
-				fmt.Printf("  Traits:       %v: %v\n", k, v)
+				fmt.Printf("  Traits:             %v: %v\n", k, v)
 			} else {
-				fmt.Printf("                %v: %v\n", k, v)
+				fmt.Printf("                      %v: %v\n", k, v)
 			}
 			count = count + 1
 		}
 	}
-	fmt.Printf("  Logins:       %v\n", strings.Join(p.Logins, ", "))
-	fmt.Printf("  Valid until:  %v [%v]\n", p.ValidUntil, humanDuration)
-	fmt.Printf("  Extensions:   %v\n", strings.Join(p.Extensions, ", "))
+	fmt.Printf("  Logins:             %v\n", strings.Join(p.Logins, ", "))
+	if p.KubeEnabled {
+		fmt.Printf("  Kubernetes:         enabled\n")
+		fmt.Printf("  Kubernetes cluster: %q\n", p.KubeCluster)
+		if len(p.KubeUsers) > 0 {
+			fmt.Printf("  Kubernetes users:   %v\n", strings.Join(p.KubeUsers, ", "))
+		}
+		if len(p.KubeGroups) > 0 {
+			fmt.Printf("  Kubernetes groups:  %v\n", strings.Join(p.KubeGroups, ", "))
+		}
+	} else {
+		fmt.Printf("  Kubernetes:         disabled\n")
+	}
+	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanDuration)
+	fmt.Printf("  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
 	fmt.Printf("\n")
 }

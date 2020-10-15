@@ -30,6 +30,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -58,11 +59,11 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// AuthServerOption allows setting options as functional arguments to AuthServer
-type AuthServerOption func(*AuthServer)
+// ServerOption allows setting options as functional arguments to Server
+type ServerOption func(*Server)
 
-// NewAuthServer creates and configures a new AuthServer instance
-func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, error) {
+// NewServer creates and configures a new Server instance
+func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Trust == nil {
 		cfg.Trust = local.NewCAService(cfg.Backend)
 	}
@@ -97,7 +98,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 		cfg.Streamer = events.NewDiscardEmitter()
 	}
 
-	limiter, err := limiter.NewConnectionsLimiter(limiter.LimiterConfig{
+	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
 	})
 	if err != nil {
@@ -105,7 +106,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
-	as := AuthServer{
+	as := Server{
 		bk:              cfg.Backend,
 		limiter:         limiter,
 		Authority:       cfg.Authority,
@@ -118,7 +119,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 		closeCtx:        closeCtx,
 		emitter:         cfg.Emitter,
 		streamer:        cfg.Streamer,
-		AuthServices: AuthServices{
+		Services: Services{
 			Trust:                cfg.Trust,
 			Presence:             cfg.Presence,
 			Provisioner:          cfg.Provisioner,
@@ -140,7 +141,7 @@ func NewAuthServer(cfg *InitConfig, opts ...AuthServerOption) (*AuthServer, erro
 	return &as, nil
 }
 
-type AuthServices struct {
+type Services struct {
 	services.Trust
 	services.Presence
 	services.Provisioner
@@ -182,14 +183,14 @@ var (
 	)
 )
 
-// AuthServer keeps the cluster together. It acts as a certificate authority (CA) for
+// Server keeps the cluster together. It acts as a certificate authority (CA) for
 // a cluster and:
 //   - generates the keypair for the node it's running on
 //	 - invites other SSH nodes to a cluster, by issuing invite tokens
 //	 - adds other SSH nodes to a cluster, by checking their token and signing their keys
 //   - same for users and their sessions
 //   - checks public keys to see if they're signed by it (can be trusted or not)
-type AuthServer struct {
+type Server struct {
 	lock          sync.RWMutex
 	oidcClients   map[string]*oidcClient
 	samlProviders map[string]*samlProvider
@@ -207,9 +208,9 @@ type AuthServer struct {
 	// It usually defaults to the hostname of the machine the Auth service runs on.
 	AuthServiceName string
 
-	// AuthServices encapsulate services - provisioner, trust, etc
+	// Services encapsulate services - provisioner, trust, etc
 	// used by the auth server in a separate structure
-	AuthServices
+	Services
 
 	// privateKey is used in tests to use pre-generated private keys
 	privateKey []byte
@@ -223,7 +224,7 @@ type AuthServer struct {
 	// cache is a fast cache that allows auth server
 	// to use cache for most frequent operations,
 	// if not set, cache uses itself
-	cache AuthCache
+	cache Cache
 
 	limiter *limiter.ConnectionsLimiter
 
@@ -236,25 +237,25 @@ type AuthServer struct {
 }
 
 // SetCache sets cache used by auth server
-func (a *AuthServer) SetCache(clt AuthCache) {
+func (a *Server) SetCache(clt Cache) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.cache = clt
 }
 
 // GetCache returns cache used by auth server
-func (a *AuthServer) GetCache() AuthCache {
+func (a *Server) GetCache() Cache {
 	a.lock.RLock()
 	defer a.lock.RUnlock()
 	if a.cache == nil {
-		return &a.AuthServices
+		return &a.Services
 	}
 	return a.cache
 }
 
 // runPeriodicOperations runs some periodic bookkeeping operations
 // performed by auth server
-func (a *AuthServer) runPeriodicOperations() {
+func (a *Server) runPeriodicOperations() {
 	// run periodic functions with a semi-random period
 	// to avoid contention on the database in case if there are multiple
 	// auth servers running - so they don't compete trying
@@ -281,7 +282,7 @@ func (a *AuthServer) runPeriodicOperations() {
 	}
 }
 
-func (a *AuthServer) Close() error {
+func (a *Server) Close() error {
 	a.cancelFunc()
 	if a.bk != nil {
 		return trace.Wrap(a.bk.Close())
@@ -289,38 +290,38 @@ func (a *AuthServer) Close() error {
 	return nil
 }
 
-func (a *AuthServer) GetClock() clockwork.Clock {
+func (a *Server) GetClock() clockwork.Clock {
 	a.lock.RLock()
 	defer a.lock.RUnlock()
 	return a.clock
 }
 
 // SetClock sets clock, used in tests
-func (a *AuthServer) SetClock(clock clockwork.Clock) {
+func (a *Server) SetClock(clock clockwork.Clock) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.clock = clock
 }
 
 // SetAuditLog sets the server's audit log
-func (a *AuthServer) SetAuditLog(auditLog events.IAuditLog) {
+func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
 	a.IAuditLog = auditLog
 }
 
 // GetClusterConfig gets ClusterConfig from the backend.
-func (a *AuthServer) GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error) {
+func (a *Server) GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error) {
 	return a.GetCache().GetClusterConfig(opts...)
 }
 
 // GetClusterName returns the domain name that identifies this authority server.
 // Also known as "cluster name"
-func (a *AuthServer) GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error) {
+func (a *Server) GetClusterName(opts ...services.MarshalOption) (services.ClusterName, error) {
 	return a.GetCache().GetClusterName(opts...)
 }
 
 // GetDomainName returns the domain name that identifies this authority server.
 // Also known as "cluster name"
-func (a *AuthServer) GetDomainName() (string, error) {
+func (a *Server) GetDomainName() (string, error) {
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -335,7 +336,7 @@ type LocalCAResponse struct {
 }
 
 // GetClusterCACert returns the CAs for the local cluster without signing keys.
-func (a *AuthServer) GetClusterCACert() (*LocalCAResponse, error) {
+func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
 	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -366,14 +367,14 @@ func (a *AuthServer) GetClusterCACert() (*LocalCAResponse, error) {
 
 // GenerateHostCert uses the private key of the CA to sign the public key of the host
 // (along with meta data like host ID, node name, roles, and ttl) to generate a host certificate.
-func (s *AuthServer) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
-	domainName, err := s.GetDomainName()
+func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string, principals []string, clusterName string, roles teleport.Roles, ttl time.Duration) ([]byte, error) {
+	domainName, err := a.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// get the certificate authority that will be signing the public key of the host
-	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
+	ca, err := a.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.HostCA,
 		DomainName: domainName,
 	}, true)
@@ -388,7 +389,7 @@ func (s *AuthServer) GenerateHostCert(hostPublicKey []byte, hostID, nodeName str
 	}
 
 	// create and sign!
-	return s.Authority.GenerateHostCert(services.HostCertParams{
+	return a.Authority.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: caPrivateKey,
 		CASigningAlg:        ca.GetSigningAlg(),
 		PublicHostKey:       hostPublicKey,
@@ -429,9 +430,13 @@ type certRequest struct {
 	// the cert can be only used against kubernetes endpoint, and not auth endpoint,
 	// no usage means unrestricted (to keep backwards compatibility)
 	usage []string
-	// routeToCluster is an optional cluster name to route the certificate requests to,
-	// this cluster name will be used to route the requests to in case of kubernetes
+	// routeToCluster is an optional teleport cluster name to route the
+	// certificate requests to, this teleport cluster name will be used to
+	// route the requests to in case of kubernetes
 	routeToCluster string
+	// kubernetesCluster specifies the target kubernetes cluster for TLS
+	// identities. This can be empty on older Teleport clients.
+	kubernetesCluster string
 	// traits hold claim data used to populate a role at runtime.
 	traits wrappers.Traits
 	// activeRequests tracks privilege escalation requests applied
@@ -440,7 +445,7 @@ type certRequest struct {
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
-func (a *AuthServer) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster string) ([]byte, []byte, error) {
+func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster string) ([]byte, []byte, error) {
 	user, err := a.Identity.GetUser(username, false)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -465,7 +470,7 @@ func (a *AuthServer) GenerateUserTestCerts(key []byte, username string, ttl time
 }
 
 // generateUserCert generates user certificates
-func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
+func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	// reuse the same RSA keys for SSH and TLS keys
 	cryptoPubKey, err := sshutils.CryptoPublicKey(req.publicKey)
 	if err != nil {
@@ -511,11 +516,11 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 		}
 	}
 
-	clusterName, err := s.GetDomainName()
+	clusterName, err := a.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ca, err := s.Trust.GetCertAuthority(services.CertAuthID{
+	ca, err := a.Trust.GetCertAuthority(services.CertAuthID{
 		Type:       services.UserCA,
 		DomainName: clusterName,
 	}, true)
@@ -526,7 +531,7 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sshCert, err := s.Authority.GenerateUserCert(services.UserCertParams{
+	sshCert, err := a.Authority.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey:   privateKey,
 		CASigningAlg:          ca.GetSigningAlg(),
 		PublicUserKey:         req.publicKey,
@@ -552,43 +557,104 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	userCA, err := s.Trust.GetCertAuthority(services.CertAuthID{
-		Type:       services.UserCA,
-		DomainName: clusterName,
-	}, true)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if req.kubernetesCluster != "" {
+		if err := CheckKubeCluster(req.kubernetesCluster, a.Presence); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		kc, err := defaultKubeCluster(a.Presence, clusterName)
+		if err != nil {
+			log.Warningf("Failed setting default kubernetes cluster for user login (user did not provide a cluster): %v; leaving KubernetesCluster extension in the TLS certificate empty", err)
+		} else {
+			req.kubernetesCluster = kc
+		}
 	}
 	// generate TLS certificate
-	tlsAuthority, err := userCA.TLSCA()
+	tlsAuthority, err := ca.TLSCA()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	identity := tlsca.Identity{
-		Username:         req.user.GetName(),
-		Groups:           req.checker.RoleNames(),
-		Principals:       allowedLogins,
-		Usage:            req.usage,
-		RouteToCluster:   req.routeToCluster,
-		Traits:           req.traits,
-		KubernetesGroups: kubeGroups,
-		KubernetesUsers:  kubeUsers,
+		Username:          req.user.GetName(),
+		Groups:            req.checker.RoleNames(),
+		Principals:        allowedLogins,
+		Usage:             req.usage,
+		RouteToCluster:    req.routeToCluster,
+		KubernetesCluster: req.kubernetesCluster,
+		Traits:            req.traits,
+		KubernetesGroups:  kubeGroups,
+		KubernetesUsers:   kubeUsers,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	certRequest := tlsca.CertificateRequest{
-		Clock:     s.clock,
+		Clock:     a.clock,
 		PublicKey: cryptoPubKey,
 		Subject:   subject,
-		NotAfter:  s.clock.Now().UTC().Add(sessionTTL),
+		NotAfter:  a.clock.Now().UTC().Add(sessionTTL),
 	}
 	tlsCert, err := tlsAuthority.GenerateCertificate(certRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &certs{ssh: sshCert, tls: tlsCert}, nil
+}
+
+// CheckKubeCluster validates kubernetes cluster name against known kubernetes
+// clusters.
+func CheckKubeCluster(kc string, pg services.ProxyGetter) error {
+	proxies, err := pg.GetProxies()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, p := range proxies {
+		pp, ok := p.(*services.ServerV2)
+		if !ok {
+			continue
+		}
+		for _, pkc := range pp.Spec.KubernetesClusters {
+			if pkc == kc {
+				return nil
+			}
+		}
+	}
+	return trace.BadParameter("kubernetes cluster %q is not registered in this teleport cluster; you can list registered kubernetes clusters using 'tsh kube clusters'", kc)
+}
+
+// defaultKubeCluster returns the default kubernetes cluster for user logins.
+//
+// This is the cluster with a name matching the Teleport cluster name (for
+// backwards-compatibility with pre-5.0 behavior) or the first name
+// alphabetically. If no clusters are registered, a NotFound error is returned.
+func defaultKubeCluster(pg services.ProxyGetter, teleportClusterName string) (string, error) {
+	proxies, err := pg.GetProxies()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	clusterNames := make(map[string]struct{})
+	for _, p := range proxies {
+		pp, ok := p.(*services.ServerV2)
+		if !ok {
+			continue
+		}
+		for _, pkc := range pp.Spec.KubernetesClusters {
+			if pkc == teleportClusterName {
+				return pkc, nil
+			}
+			clusterNames[pkc] = struct{}{}
+		}
+	}
+	if len(clusterNames) == 0 {
+		return "", trace.NotFound("no kubernetes clusters registered in this Teleport cluster")
+	}
+	var namesUniq []string
+	for n := range clusterNames {
+		namesUniq = append(namesUniq, n)
+	}
+	sort.Strings(namesUniq)
+	return namesUniq[0], nil
 }
 
 // WithUserLock executes function authenticateFn that performs user authentication
@@ -598,8 +664,8 @@ func (s *AuthServer) generateUserCert(req certRequest) (*certs, error) {
 // this is done to avoid potential user lockouts due to backend failures
 // In case if user exceeds defaults.MaxLoginAttempts
 // the user account will be locked for defaults.AccountLockInterval
-func (s *AuthServer) WithUserLock(username string, authenticateFn func() error) error {
-	user, err := s.Identity.GetUser(username, false)
+func (a *Server) WithUserLock(username string, authenticateFn func() error) error {
+	user, err := a.Identity.GetUser(username, false)
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// If user is not found, still call authenticateFn. It should
@@ -610,14 +676,14 @@ func (s *AuthServer) WithUserLock(username string, authenticateFn func() error) 
 		return trace.Wrap(err)
 	}
 	status := user.GetStatus()
-	if status.IsLocked && status.LockExpires.After(s.clock.Now().UTC()) {
+	if status.IsLocked && status.LockExpires.After(a.clock.Now().UTC()) {
 		return trace.AccessDenied("%v exceeds %v failed login attempts, locked until %v",
 			user.GetName(), defaults.MaxLoginAttempts, utils.HumanTimeFormat(status.LockExpires))
 	}
 	fnErr := authenticateFn()
 	if fnErr == nil {
 		// upon successful login, reset the failed attempt counter
-		err = s.DeleteUserLoginAttempts(username)
+		err = a.DeleteUserLoginAttempts(username)
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -629,13 +695,13 @@ func (s *AuthServer) WithUserLock(username string, authenticateFn func() error) 
 		return trace.Wrap(fnErr)
 	}
 	// log failed attempt and possibly lock user
-	attempt := services.LoginAttempt{Time: s.clock.Now().UTC(), Success: false}
-	err = s.AddUserLoginAttempt(username, attempt, defaults.AttemptTTL)
+	attempt := services.LoginAttempt{Time: a.clock.Now().UTC(), Success: false}
+	err = a.AddUserLoginAttempt(username, attempt, defaults.AttemptTTL)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.Wrap(fnErr)
 	}
-	loginAttempts, err := s.Identity.GetUserLoginAttempts(username)
+	loginAttempts, err := a.Identity.GetUserLoginAttempts(username)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.Wrap(fnErr)
@@ -644,12 +710,12 @@ func (s *AuthServer) WithUserLock(username string, authenticateFn func() error) 
 		log.Debugf("%v user has less than %v failed login attempts", username, defaults.MaxLoginAttempts)
 		return trace.Wrap(fnErr)
 	}
-	lockUntil := s.clock.Now().UTC().Add(defaults.AccountLockInterval)
+	lockUntil := a.clock.Now().UTC().Add(defaults.AccountLockInterval)
 	message := fmt.Sprintf("%v exceeds %v failed login attempts, locked until %v",
 		username, defaults.MaxLoginAttempts, utils.HumanTimeFormat(status.LockExpires))
 	log.Debug(message)
 	user.SetLocked(lockUntil, "user has exceeded maximum failed login attempts")
-	err = s.Identity.UpsertUser(user)
+	err = a.Identity.UpsertUser(user)
 	if err != nil {
 		log.Error(trace.DebugReport(err))
 		return trace.Wrap(fnErr)
@@ -659,23 +725,23 @@ func (s *AuthServer) WithUserLock(username string, authenticateFn func() error) 
 
 // PreAuthenticatedSignIn is for 2-way authentication methods like U2F where the password is
 // already checked before issuing the second factor challenge
-func (s *AuthServer) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (services.WebSession, error) {
-	roles, traits, err := services.ExtractFromIdentity(s, identity)
+func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (services.WebSession, error) {
+	roles, traits, err := services.ExtractFromIdentity(a, identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := s.NewWebSession(user, roles, traits)
+	sess, err := a.NewWebSession(user, roles, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := s.UpsertWebSession(user, sess); err != nil {
+	if err := a.UpsertWebSession(user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess.WithoutSecrets(), nil
 }
 
-func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
-	cap, err := s.GetAuthPreference()
+func (a *Server) U2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
+	cap, err := a.GetAuthPreference()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -685,13 +751,13 @@ func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequ
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.WithUserLock(user, func() error {
-		return s.CheckPasswordWOToken(user, password)
+	err = a.WithUserLock(user, func() error {
+		return a.CheckPasswordWOToken(user, password)
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	registration, err := s.GetU2FRegistration(user)
+	registration, err := a.GetU2FRegistration(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -700,7 +766,7 @@ func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = s.UpsertU2FSignChallenge(user, challenge)
+	err = a.UpsertU2FSignChallenge(user, challenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -710,9 +776,9 @@ func (s *AuthServer) U2FSignRequest(user string, password []byte) (*u2f.SignRequ
 	return u2fSignReq, nil
 }
 
-func (s *AuthServer) CheckU2FSignResponse(user string, response *u2f.SignResponse) error {
+func (a *Server) CheckU2FSignResponse(user string, response *u2f.SignResponse) error {
 	// before trying to register a user, see U2F is actually setup on the backend
-	cap, err := s.GetAuthPreference()
+	cap, err := a.GetAuthPreference()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -721,17 +787,17 @@ func (s *AuthServer) CheckU2FSignResponse(user string, response *u2f.SignRespons
 		return trace.Wrap(err)
 	}
 
-	reg, err := s.GetU2FRegistration(user)
+	reg, err := a.GetU2FRegistration(user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	counter, err := s.GetU2FRegistrationCounter(user)
+	counter, err := a.GetU2FRegistrationCounter(user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	challenge, err := s.GetU2FSignChallenge(user)
+	challenge, err := a.GetU2FSignChallenge(user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -741,7 +807,7 @@ func (s *AuthServer) CheckU2FSignResponse(user string, response *u2f.SignRespons
 		return trace.Wrap(err)
 	}
 
-	err = s.UpsertU2FRegistrationCounter(user, newCounter)
+	err = a.UpsertU2FRegistrationCounter(user, newCounter)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -751,8 +817,8 @@ func (s *AuthServer) CheckU2FSignResponse(user string, response *u2f.SignRespons
 
 // ExtendWebSession creates a new web session for a user based on a valid previous sessionID,
 // method is used to renew the web session for a user
-func (s *AuthServer) ExtendWebSession(user string, prevSessionID string, identity tlsca.Identity) (services.WebSession, error) {
-	prevSession, err := s.GetWebSession(user, prevSessionID)
+func (a *Server) ExtendWebSession(user string, prevSessionID string, identity tlsca.Identity) (services.WebSession, error) {
+	prevSession, err := a.GetWebSession(user, prevSessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -761,22 +827,22 @@ func (s *AuthServer) ExtendWebSession(user string, prevSessionID string, identit
 	// by some external identity serivce, so we can not renew this session
 	// any more without extra logic for renewal with external OIDC provider
 	expiresAt := prevSession.GetExpiryTime()
-	if !expiresAt.IsZero() && expiresAt.Before(s.clock.Now().UTC()) {
+	if !expiresAt.IsZero() && expiresAt.Before(a.clock.Now().UTC()) {
 		return nil, trace.NotFound("web session has expired")
 	}
 
-	roles, traits, err := services.ExtractFromIdentity(s, identity)
+	roles, traits, err := services.ExtractFromIdentity(a, identity)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := s.NewWebSession(user, roles, traits)
+	sess, err := a.NewWebSession(user, roles, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sess.SetExpiryTime(expiresAt)
-	bearerTokenTTL := utils.MinTTL(utils.ToTTL(s.clock, expiresAt), BearerTokenTTL)
-	sess.SetBearerTokenExpiryTime(s.clock.Now().UTC().Add(bearerTokenTTL))
-	if err := s.UpsertWebSession(user, sess); err != nil {
+	bearerTokenTTL := utils.MinTTL(utils.ToTTL(a.clock, expiresAt), BearerTokenTTL)
+	sess.SetBearerTokenExpiryTime(a.clock.Now().UTC().Add(bearerTokenTTL))
+	if err := a.UpsertWebSession(user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sess, err = services.GetWebSessionMarshaler().ExtendWebSession(sess)
@@ -788,16 +854,16 @@ func (s *AuthServer) ExtendWebSession(user string, prevSessionID string, identit
 
 // CreateWebSession creates a new web session for user without any
 // checks, is used by admins
-func (s *AuthServer) CreateWebSession(user string) (services.WebSession, error) {
-	u, err := s.GetUser(user, false)
+func (a *Server) CreateWebSession(user string) (services.WebSession, error) {
+	u, err := a.GetUser(user, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := s.NewWebSession(user, u.GetRoles(), u.GetTraits())
+	sess, err := a.NewWebSession(user, u.GetRoles(), u.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := s.UpsertWebSession(user, sess); err != nil {
+	if err := a.UpsertWebSession(user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sess, err = services.GetWebSessionMarshaler().GenerateWebSession(sess)
@@ -838,7 +904,7 @@ func (req *GenerateTokenRequest) CheckAndSetDefaults() error {
 }
 
 // GenerateToken generates multi-purpose authentication token.
-func (a *AuthServer) GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error) {
+func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (string, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -931,27 +997,27 @@ func (req *GenerateServerKeysRequest) CheckAndSetDefaults() error {
 
 // GenerateServerKeys generates new host private keys and certificates (signed
 // by the host certificate authority) for a node.
-func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys, error) {
+func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.limiter.AcquireConnection(req.Roles.String()); err != nil {
+	if err := a.limiter.AcquireConnection(req.Roles.String()); err != nil {
 		generateThrottledRequestsCount.Inc()
 		log.Debugf("Node %q [%v] is rate limited: %v.", req.NodeName, req.HostID, req.Roles)
 		return nil, trace.Wrap(err)
 	}
-	defer s.limiter.ReleaseConnection(req.Roles.String())
+	defer a.limiter.ReleaseConnection(req.Roles.String())
 
 	// only observe latencies for non-throttled requests
-	start := s.clock.Now()
+	start := a.clock.Now()
 	defer generateRequestsLatencies.Observe(time.Since(start).Seconds())
 
 	generateRequestsCount.Inc()
 	generateRequestsCurrent.Inc()
 	defer generateRequestsCurrent.Dec()
 
-	clusterName, err := s.GetClusterName()
+	clusterName, err := a.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -984,7 +1050,7 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 		}
 	} else {
 		// generate private key
-		privateKeyPEM, pubSSHKey, err = s.GenerateKeyPair("")
+		privateKeyPEM, pubSSHKey, err = a.GenerateKeyPair("")
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -998,9 +1064,9 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 	}
 
 	// get the certificate authority that will be signing the public key of the host,
-	client := s.GetCache()
+	client := a.GetCache()
 	if req.NoCache {
-		client = &s.AuthServices
+		client = &a.Services
 	}
 	ca, err := client.GetCertAuthority(services.CertAuthID{
 		Type:       services.HostCA,
@@ -1016,7 +1082,7 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 	// to the backend, which is a fine tradeoff
 	if !req.NoCache && req.Rotation != nil && !req.Rotation.Matches(ca.GetRotation()) {
 		log.Debugf("Client sent rotation state %v, cache state is %v, using state from the DB.", req.Rotation, ca.GetRotation())
-		ca, err = s.GetCertAuthority(services.CertAuthID{
+		ca, err = a.GetCertAuthority(services.CertAuthID{
 			Type:       services.HostCA,
 			DomainName: clusterName.GetClusterName(),
 		}, true)
@@ -1039,7 +1105,7 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 		return nil, trace.Wrap(err)
 	}
 	// generate hostSSH certificate
-	hostSSHCert, err := s.Authority.GenerateHostCert(services.HostCertParams{
+	hostSSHCert, err := a.Authority.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: caPrivateKey,
 		CASigningAlg:        ca.GetSigningAlg(),
 		PublicHostKey:       pubSSHKey,
@@ -1062,10 +1128,10 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 		return nil, trace.Wrap(err)
 	}
 	certRequest := tlsca.CertificateRequest{
-		Clock:     s.clock,
+		Clock:     a.clock,
 		PublicKey: cryptoPubKey,
 		Subject:   subject,
-		NotAfter:  s.clock.Now().UTC().Add(defaults.CATTL),
+		NotAfter:  a.clock.Now().UTC().Add(defaults.CATTL),
 		DNSNames:  append([]string{}, req.AdditionalPrincipals...),
 	}
 	// HTTPS requests need to specify DNS name that should be present in the
@@ -1095,8 +1161,8 @@ func (s *AuthServer) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedK
 // ValidateToken takes a provisioning token value and finds if it's valid. Returns
 // a list of roles this token allows its owner to assume, or an error if the token
 // cannot be found.
-func (s *AuthServer) ValidateToken(token string) (roles teleport.Roles, e error) {
-	tkns, err := s.GetCache().GetStaticTokens()
+func (a *Server) ValidateToken(token string) (roles teleport.Roles, e error) {
+	tkns, err := a.GetCache().GetStaticTokens()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1111,11 +1177,11 @@ func (s *AuthServer) ValidateToken(token string) (roles teleport.Roles, e error)
 
 	// If it's not a static token, check if it's a ephemeral token in the backend.
 	// If a ephemeral token is found, make sure it's still valid.
-	tok, err := s.GetCache().GetToken(token)
+	tok, err := a.GetCache().GetToken(token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if !s.checkTokenTTL(tok) {
+	if !a.checkTokenTTL(tok) {
 		return nil, trace.AccessDenied("token expired")
 	}
 
@@ -1124,10 +1190,10 @@ func (s *AuthServer) ValidateToken(token string) (roles teleport.Roles, e error)
 
 // checkTokenTTL checks if the token is still valid. If it is not, the token
 // is removed from the backend and returns false. Otherwise returns true.
-func (s *AuthServer) checkTokenTTL(tok services.ProvisionToken) bool {
-	now := s.clock.Now().UTC()
+func (a *Server) checkTokenTTL(tok services.ProvisionToken) bool {
+	now := a.clock.Now().UTC()
 	if tok.Expiry().Before(now) {
-		err := s.DeleteToken(tok.GetName())
+		err := a.DeleteToken(tok.GetName())
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				log.Warnf("Unable to delete token from backend: %v.", err)
@@ -1186,7 +1252,7 @@ func (r *RegisterUsingTokenRequest) CheckAndSetDefaults() error {
 // If a token was generated with a TTL, it gets enforced (can't register new nodes after TTL expires)
 // If a token was generated with a TTL=0, it means it's a single-use token and it gets destroyed
 // after a successful registration.
-func (s *AuthServer) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys, error) {
+func (a *Server) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys, error) {
 	log.Infof("Node %q [%v] is trying to join with role: %v.", req.NodeName, req.HostID, req.Role)
 
 	if err := req.CheckAndSetDefaults(); err != nil {
@@ -1194,7 +1260,7 @@ func (s *AuthServer) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedK
 	}
 
 	// make sure the token is valid
-	roles, err := s.ValidateToken(req.Token)
+	roles, err := a.ValidateToken(req.Token)
 	if err != nil {
 		log.Warningf("%q [%v] can not join the cluster with role %s, token error: %v", req.NodeName, req.HostID, req.Role, err)
 		return nil, trace.AccessDenied(fmt.Sprintf("%q [%v] can not join the cluster with role %s, the token is not valid", req.NodeName, req.HostID, req.Role))
@@ -1208,7 +1274,7 @@ func (s *AuthServer) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedK
 	}
 
 	// generate and return host certificate and keys
-	keys, err := s.GenerateServerKeys(GenerateServerKeysRequest{
+	keys, err := a.GenerateServerKeys(GenerateServerKeysRequest{
 		HostID:               req.HostID,
 		NodeName:             req.NodeName,
 		Roles:                teleport.Roles{req.Role},
@@ -1225,22 +1291,22 @@ func (s *AuthServer) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedK
 	return keys, nil
 }
 
-func (s *AuthServer) RegisterNewAuthServer(token string) error {
-	tok, err := s.Provisioner.GetToken(token)
+func (a *Server) RegisterNewAuthServer(token string) error {
+	tok, err := a.Provisioner.GetToken(token)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if !tok.GetRoles().Include(teleport.RoleAuth) {
 		return trace.AccessDenied("role does not match")
 	}
-	if err := s.DeleteToken(token); err != nil {
+	if err := a.DeleteToken(token); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (s *AuthServer) DeleteToken(token string) (err error) {
-	tkns, err := s.GetStaticTokens()
+func (a *Server) DeleteToken(token string) (err error) {
+	tkns, err := a.GetStaticTokens()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1252,11 +1318,11 @@ func (s *AuthServer) DeleteToken(token string) (err error) {
 		}
 	}
 	// delete reset password token:
-	if err = s.Identity.DeleteResetPasswordToken(context.TODO(), token); err == nil {
+	if err = a.Identity.DeleteResetPasswordToken(context.TODO(), token); err == nil {
 		return nil
 	}
 	// delete node token:
-	if err = s.Provisioner.DeleteToken(token); err == nil {
+	if err = a.Provisioner.DeleteToken(token); err == nil {
 		return nil
 	}
 	return trace.Wrap(err)
@@ -1264,14 +1330,14 @@ func (s *AuthServer) DeleteToken(token string) (err error) {
 
 // GetTokens returns all tokens (machine provisioning ones and user invitation tokens). Machine
 // tokens usually have "node roles", like auth,proxy,node and user invitation tokens have 'signup' role
-func (s *AuthServer) GetTokens(opts ...services.MarshalOption) (tokens []services.ProvisionToken, err error) {
+func (a *Server) GetTokens(opts ...services.MarshalOption) (tokens []services.ProvisionToken, err error) {
 	// get node tokens:
-	tokens, err = s.Provisioner.GetTokens()
+	tokens, err = a.Provisioner.GetTokens()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// get static tokens:
-	tkns, err := s.GetStaticTokens()
+	tkns, err := a.GetStaticTokens()
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -1279,7 +1345,7 @@ func (s *AuthServer) GetTokens(opts ...services.MarshalOption) (tokens []service
 		tokens = append(tokens, tkns.GetStaticTokens()...)
 	}
 	// get reset password tokens:
-	resetPasswordTokens, err := s.Identity.GetResetPasswordTokens(context.TODO())
+	resetPasswordTokens, err := a.Identity.GetResetPasswordTokens(context.TODO())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1295,22 +1361,22 @@ func (s *AuthServer) GetTokens(opts ...services.MarshalOption) (tokens []service
 	return tokens, nil
 }
 
-func (s *AuthServer) NewWebSession(username string, roles []string, traits wrappers.Traits) (services.WebSession, error) {
-	user, err := s.GetUser(username, false)
+func (a *Server) NewWebSession(username string, roles []string, traits wrappers.Traits) (services.WebSession, error) {
+	user, err := a.GetUser(username, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(roles, s.Access, traits)
+	checker, err := services.FetchRoles(roles, a.Access, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	priv, pub, err := s.GetNewKeyPairFromPool()
+	priv, pub, err := a.GetNewKeyPairFromPool()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	sessionTTL := checker.AdjustSessionTTL(defaults.CertDuration)
-	certs, err := s.generateUserCert(certRequest{
+	certs, err := a.generateUserCert(certRequest{
 		user:      user,
 		ttl:       sessionTTL,
 		publicKey: pub,
@@ -1334,55 +1400,55 @@ func (s *AuthServer) NewWebSession(username string, roles []string, traits wrapp
 		Priv:               priv,
 		Pub:                certs.ssh,
 		TLSCert:            certs.tls,
-		Expires:            s.clock.Now().UTC().Add(sessionTTL),
+		Expires:            a.clock.Now().UTC().Add(sessionTTL),
 		BearerToken:        bearerToken,
-		BearerTokenExpires: s.clock.Now().UTC().Add(bearerTokenTTL),
+		BearerTokenExpires: a.clock.Now().UTC().Add(bearerTokenTTL),
 	}), nil
 }
 
-func (s *AuthServer) UpsertWebSession(user string, sess services.WebSession) error {
-	return s.Identity.UpsertWebSession(user, sess.GetName(), sess)
+func (a *Server) UpsertWebSession(user string, sess services.WebSession) error {
+	return a.Identity.UpsertWebSession(user, sess.GetName(), sess)
 }
 
-func (s *AuthServer) GetWebSession(userName string, id string) (services.WebSession, error) {
-	return s.Identity.GetWebSession(userName, id)
+func (a *Server) GetWebSession(userName string, id string) (services.WebSession, error) {
+	return a.Identity.GetWebSession(userName, id)
 }
 
-func (s *AuthServer) GetWebSessionInfo(userName string, id string) (services.WebSession, error) {
-	sess, err := s.Identity.GetWebSession(userName, id)
+func (a *Server) GetWebSessionInfo(userName string, id string) (services.WebSession, error) {
+	sess, err := a.Identity.GetWebSession(userName, id)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess.WithoutSecrets(), nil
 }
 
-func (s *AuthServer) DeleteNamespace(namespace string) error {
+func (a *Server) DeleteNamespace(namespace string) error {
 	if namespace == defaults.Namespace {
 		return trace.AccessDenied("can't delete default namespace")
 	}
-	nodes, err := s.Presence.GetNodes(namespace, services.SkipValidation())
+	nodes, err := a.Presence.GetNodes(namespace, services.SkipValidation())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	if len(nodes) != 0 {
 		return trace.BadParameter("can't delete namespace %v that has %v registered nodes", namespace, len(nodes))
 	}
-	return s.Presence.DeleteNamespace(namespace)
+	return a.Presence.DeleteNamespace(namespace)
 }
 
-func (s *AuthServer) DeleteWebSession(user string, id string) error {
-	return trace.Wrap(s.Identity.DeleteWebSession(user, id))
+func (a *Server) DeleteWebSession(user string, id string) error {
+	return trace.Wrap(a.Identity.DeleteWebSession(user, id))
 }
 
 // NewWatcher returns a new event watcher. In case of an auth server
 // this watcher will return events as seen by the auth server's
 // in memory cache, not the backend.
-func (a *AuthServer) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
+func (a *Server) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
 	return a.GetCache().NewWatcher(ctx, watch)
 }
 
 // DeleteRole deletes a role by name of the role.
-func (a *AuthServer) DeleteRole(ctx context.Context, name string) error {
+func (a *Server) DeleteRole(ctx context.Context, name string) error {
 	// check if this role is used by CA or Users
 	users, err := a.Identity.GetUsers(false)
 	if err != nil {
@@ -1439,7 +1505,7 @@ func (a *AuthServer) DeleteRole(ctx context.Context, name string) error {
 }
 
 // UpsertRole creates or updates role.
-func (a *AuthServer) upsertRole(ctx context.Context, role services.Role) error {
+func (a *Server) upsertRole(ctx context.Context, role services.Role) error {
 	if err := a.UpsertRole(ctx, role); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1462,7 +1528,7 @@ func (a *AuthServer) upsertRole(ctx context.Context, role services.Role) error {
 	return nil
 }
 
-func (a *AuthServer) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
+func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
 	if err := services.ValidateAccessRequest(a, req); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1505,7 +1571,7 @@ func (a *AuthServer) CreateAccessRequest(ctx context.Context, req services.Acces
 	return trace.Wrap(err)
 }
 
-func (a *AuthServer) SetAccessRequestState(ctx context.Context, reqID string, state services.RequestState) error {
+func (a *Server) SetAccessRequestState(ctx context.Context, reqID string, state services.RequestState) error {
 	if err := a.DynamicAccess.SetAccessRequestState(ctx, reqID, state); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1533,7 +1599,7 @@ func (a *AuthServer) SetAccessRequestState(ctx context.Context, reqID string, st
 // calculateMaxAccessTTL determines the maximum allowable TTL for a given access request
 // based on the MaxSessionTTLs of the roles being requested (a access request's life cannot
 // exceed the smallest allowable MaxSessionTTL value of the roles that it requests).
-func (a *AuthServer) calculateMaxAccessTTL(req services.AccessRequest) (time.Duration, error) {
+func (a *Server) calculateMaxAccessTTL(req services.AccessRequest) (time.Duration, error) {
 	minTTL := defaults.MaxAccessDuration
 	for _, roleName := range req.GetRoles() {
 		role, err := a.GetRole(roleName)
@@ -1549,7 +1615,7 @@ func (a *AuthServer) calculateMaxAccessTTL(req services.AccessRequest) (time.Dur
 }
 
 // NewKeepAliver returns a new instance of keep aliver
-func (a *AuthServer) NewKeepAliver(ctx context.Context) (services.KeepAliver, error) {
+func (a *Server) NewKeepAliver(ctx context.Context) (services.KeepAliver, error) {
 	cancelCtx, cancel := context.WithCancel(ctx)
 	k := &authKeepAliver{
 		a:           a,
@@ -1563,87 +1629,87 @@ func (a *AuthServer) NewKeepAliver(ctx context.Context) (services.KeepAliver, er
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-func (a *AuthServer) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (services.CertAuthority, error) {
+func (a *Server) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (services.CertAuthority, error) {
 	return a.GetCache().GetCertAuthority(id, loadSigningKeys, opts...)
 }
 
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
-func (a *AuthServer) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]services.CertAuthority, error) {
+func (a *Server) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]services.CertAuthority, error) {
 	return a.GetCache().GetCertAuthorities(caType, loadSigningKeys, opts...)
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
-func (a *AuthServer) GetStaticTokens() (services.StaticTokens, error) {
+func (a *Server) GetStaticTokens() (services.StaticTokens, error) {
 	return a.GetCache().GetStaticTokens()
 }
 
 // GetToken finds and returns token by ID
-func (a *AuthServer) GetToken(token string) (services.ProvisionToken, error) {
+func (a *Server) GetToken(token string) (services.ProvisionToken, error) {
 	return a.GetCache().GetToken(token)
 }
 
 // GetRoles is a part of auth.AccessPoint implementation
-func (a *AuthServer) GetRoles() ([]services.Role, error) {
+func (a *Server) GetRoles() ([]services.Role, error) {
 	return a.GetCache().GetRoles()
 }
 
 // GetRole is a part of auth.AccessPoint implementation
-func (a *AuthServer) GetRole(name string) (services.Role, error) {
+func (a *Server) GetRole(name string) (services.Role, error) {
 	return a.GetCache().GetRole(name)
 }
 
 // GetNamespace returns namespace
-func (a *AuthServer) GetNamespace(name string) (*services.Namespace, error) {
+func (a *Server) GetNamespace(name string) (*services.Namespace, error) {
 	return a.GetCache().GetNamespace(name)
 }
 
 // GetNamespaces is a part of auth.AccessPoint implementation
-func (a *AuthServer) GetNamespaces() ([]services.Namespace, error) {
+func (a *Server) GetNamespaces() ([]services.Namespace, error) {
 	return a.GetCache().GetNamespaces()
 }
 
 // GetNodes is a part of auth.AccessPoint implementation
-func (a *AuthServer) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+func (a *Server) GetNodes(namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
 	return a.GetCache().GetNodes(namespace, opts...)
 }
 
 // GetReverseTunnels is a part of auth.AccessPoint implementation
-func (a *AuthServer) GetReverseTunnels(opts ...services.MarshalOption) ([]services.ReverseTunnel, error) {
+func (a *Server) GetReverseTunnels(opts ...services.MarshalOption) ([]services.ReverseTunnel, error) {
 	return a.GetCache().GetReverseTunnels(opts...)
 }
 
 // GetProxies is a part of auth.AccessPoint implementation
-func (a *AuthServer) GetProxies() ([]services.Server, error) {
+func (a *Server) GetProxies() ([]services.Server, error) {
 	return a.GetCache().GetProxies()
 }
 
 // GetUser is a part of auth.AccessPoint implementation.
-func (a *AuthServer) GetUser(name string, withSecrets bool) (user services.User, err error) {
+func (a *Server) GetUser(name string, withSecrets bool) (user services.User, err error) {
 	return a.GetCache().GetUser(name, withSecrets)
 }
 
 // GetUsers is a part of auth.AccessPoint implementation
-func (a *AuthServer) GetUsers(withSecrets bool) (users []services.User, err error) {
+func (a *Server) GetUsers(withSecrets bool) (users []services.User, err error) {
 	return a.GetCache().GetUsers(withSecrets)
 }
 
 // GetTunnelConnections is a part of auth.AccessPoint implementation
 // GetTunnelConnections are not using recent cache as they are designed
 // to be called periodically and always return fresh data
-func (a *AuthServer) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]services.TunnelConnection, error) {
+func (a *Server) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]services.TunnelConnection, error) {
 	return a.GetCache().GetTunnelConnections(clusterName, opts...)
 }
 
 // GetAllTunnelConnections is a part of auth.AccessPoint implementation
 // GetAllTunnelConnections are not using recent cache, as they are designed
 // to be called periodically and always return fresh data
-func (a *AuthServer) GetAllTunnelConnections(opts ...services.MarshalOption) (conns []services.TunnelConnection, err error) {
+func (a *Server) GetAllTunnelConnections(opts ...services.MarshalOption) (conns []services.TunnelConnection, err error) {
 	return a.GetCache().GetAllTunnelConnections(opts...)
 }
 
 // CreateAuditStream creates audit event stream
-func (a *AuthServer) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
+func (a *Server) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
 	streamer, err := a.modeStreamer()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1652,7 +1718,7 @@ func (a *AuthServer) CreateAuditStream(ctx context.Context, sid session.ID) (eve
 }
 
 // ResumeAuditStream resumes the stream that has been created
-func (a *AuthServer) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (events.Stream, error) {
+func (a *Server) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (events.Stream, error) {
 	streamer, err := a.modeStreamer()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1661,7 +1727,7 @@ func (a *AuthServer) ResumeAuditStream(ctx context.Context, sid session.ID, uplo
 }
 
 // modeStreamer creates streamer based on the event mode
-func (a *AuthServer) modeStreamer() (events.Streamer, error) {
+func (a *Server) modeStreamer() (events.Streamer, error) {
 	clusterConfig, err := a.GetClusterConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1682,7 +1748,7 @@ func (a *AuthServer) modeStreamer() (events.Streamer, error) {
 // authKeepAliver is a keep aliver using auth server directly
 type authKeepAliver struct {
 	sync.RWMutex
-	a           *AuthServer
+	a           *Server
 	ctx         context.Context
 	cancel      context.CancelFunc
 	keepAlivesC chan services.KeepAlive

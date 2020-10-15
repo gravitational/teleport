@@ -56,7 +56,7 @@ type ExecSuite struct {
 	ctx        *ServerContext
 	localAddr  net.Addr
 	remoteAddr net.Addr
-	a          *auth.AuthServer
+	a          *auth.Server
 }
 
 var _ = check.Suite(&ExecSuite{})
@@ -89,7 +89,7 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	c.Assert(err, check.IsNil)
-	s.a, err = auth.NewAuthServer(&auth.InitConfig{
+	s.a, err = auth.NewServer(&auth.InitConfig{
 		Backend:     bk,
 		Authority:   authority.New(),
 		ClusterName: clusterName,

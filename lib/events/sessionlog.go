@@ -389,8 +389,8 @@ func (sl *DiskSessionLogger) PostSessionSlice(slice SessionSlice) error {
 	return sl.flush()
 }
 
-// PrintEventFromChunk returns a print event converted from session chunk.
-func PrintEventFromChunk(chunk *SessionChunk) printEvent {
+// printEventFromChunk returns a print event converted from session chunk.
+func printEventFromChunk(chunk *SessionChunk) printEvent {
 	return printEvent{
 		Start:             time.Unix(0, chunk.Time).In(time.UTC).Round(time.Millisecond),
 		Type:              SessionPrintEvent,
@@ -469,7 +469,7 @@ func (sl *DiskSessionLogger) writeEventChunk(sessionID string, chunk *SessionChu
 	// than all other events.
 	switch chunk.EventType {
 	case SessionPrintEvent:
-		bytes, err = utils.FastMarshal(PrintEventFromChunk(chunk))
+		bytes, err = utils.FastMarshal(printEventFromChunk(chunk))
 		if err != nil {
 			return -1, trace.Wrap(err)
 		}

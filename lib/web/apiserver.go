@@ -756,11 +756,11 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	log.WithFields(log.Fields{trace.Component: "github"}).Debug(
 		"Console login start.")
-	var req client.SSOLoginConsoleReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	req := new(client.SSOLoginConsoleReq)
+	if err := httplib.ReadJSON(r, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := req.Check(); err != nil {
+	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(
@@ -771,6 +771,7 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 			ClientRedirectURL: req.RedirectURL,
 			Compatibility:     req.Compatibility,
 			RouteToCluster:    req.RouteToCluster,
+			KubernetesCluster: req.KubernetesCluster,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -834,11 +835,11 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 
 func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	log.Debug("oidcLoginConsole start")
-	var req client.SSOLoginConsoleReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
+	req := new(client.SSOLoginConsoleReq)
+	if err := httplib.ReadJSON(r, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := req.Check(); err != nil {
+	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	response, err := h.cfg.ProxyClient.CreateOIDCAuthRequest(
@@ -850,6 +851,7 @@ func (h *Handler) oidcLoginConsole(w http.ResponseWriter, r *http.Request, p htt
 			CheckUser:         true,
 			Compatibility:     req.Compatibility,
 			RouteToCluster:    req.RouteToCluster,
+			KubernetesCluster: req.KubernetesCluster,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1987,12 +1989,11 @@ func (h *Handler) validateTrustedCluster(w http.ResponseWriter, r *http.Request,
 
 	validateResponse, err := h.auth.ValidateTrustedCluster(validateRequest)
 	if err != nil {
+		log.WithError(err).Error("Failed validating trusted cluster")
 		if trace.IsAccessDenied(err) {
 			return nil, trace.AccessDenied("access denied: the cluster token has been rejected")
-		} else {
-			log.Error(err)
-			return nil, trace.Wrap(err)
 		}
+		return nil, trace.Wrap(err)
 	}
 
 	validateResponseRaw, err := validateResponse.ToRaw()

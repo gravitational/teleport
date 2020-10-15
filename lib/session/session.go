@@ -421,9 +421,8 @@ func (s *server) UpdateSession(req UpdateRequest) error {
 				continue
 			}
 			return trace.Wrap(err)
-		} else {
-			return nil
 		}
+		return nil
 	}
 	return trace.ConnectionProblem(nil, "failed concurrently update the session")
 }
@@ -453,7 +452,7 @@ type discardSessionServer struct {
 // NewDiscardSessionServer returns a new discarding session server. It's used
 // with the recording proxy so that nodes don't register active sessions to
 // the backend.
-func NewDiscardSessionServer() *discardSessionServer {
+func NewDiscardSessionServer() Service {
 	return &discardSessionServer{}
 }
 

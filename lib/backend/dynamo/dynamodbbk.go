@@ -43,9 +43,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// DynamoConfig structure represents DynamoDB confniguration as appears in `storage` section
+// Config structure represents DynamoDB confniguration as appears in `storage` section
 // of Teleport YAML
-type DynamoConfig struct {
+type Config struct {
 	// Region is where DynamoDB Table will be used to store k/v
 	Region string `json:"region,omitempty"`
 	// AWS AccessKey used to authenticate DynamoDB queries (prefer IAM role instead of hardcoded value)
@@ -69,7 +69,7 @@ type DynamoConfig struct {
 
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
 // is not enough to connect to DynamoDB
-func (cfg *DynamoConfig) CheckAndSetDefaults() error {
+func (cfg *Config) CheckAndSetDefaults() error {
 	// table is not configured?
 	if cfg.Tablename == "" {
 		return trace.BadParameter("DynamoDB: table_name is not specified")
@@ -92,10 +92,10 @@ func (cfg *DynamoConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// DynamoDBBackend is a DynamoDB-backed key value backend implementation.
-type DynamoDBBackend struct {
+// Backend is a DynamoDB-backed key value backend implementation.
+type Backend struct {
 	*log.Entry
-	DynamoConfig
+	Config
 	backend.NoMigrations
 	svc              *dynamodb.DynamoDB
 	streams          *dynamodbstreams.DynamoDBStreams
@@ -162,14 +162,14 @@ func GetName() string {
 }
 
 // keep this here to test interface conformance
-var _ backend.Backend = &DynamoDBBackend{}
+var _ backend.Backend = &Backend{}
 
 // New returns new instance of DynamoDB backend.
 // It's an implementation of backend API's NewFunc
-func New(ctx context.Context, params backend.Params) (*DynamoDBBackend, error) {
+func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	l := log.WithFields(log.Fields{trace.Component: BackendName})
 
-	var cfg *DynamoConfig
+	var cfg *Config
 	err := utils.ObjectToStruct(params, &cfg)
 	if err != nil {
 		return nil, trace.BadParameter("DynamoDB configuration is invalid: %v", err)
@@ -189,9 +189,9 @@ func New(ctx context.Context, params backend.Params) (*DynamoDBBackend, error) {
 	}
 	closeCtx, cancel := context.WithCancel(ctx)
 	watchStarted, signalWatchStart := context.WithCancel(ctx)
-	b := &DynamoDBBackend{
+	b := &Backend{
 		Entry:            l,
-		DynamoConfig:     *cfg,
+		Config:           *cfg,
 		clock:            clockwork.NewRealClock(),
 		buf:              buf,
 		ctx:              closeCtx,
@@ -270,7 +270,7 @@ func New(ctx context.Context, params backend.Params) (*DynamoDBBackend, error) {
 }
 
 // Create creates item if it does not exist
-func (b *DynamoDBBackend) Create(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+func (b *Backend) Create(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	err := b.create(ctx, item, modeCreate)
 	if trace.IsCompareFailed(err) {
 		err = trace.AlreadyExists(err.Error())
@@ -283,7 +283,7 @@ func (b *DynamoDBBackend) Create(ctx context.Context, item backend.Item) (*backe
 
 // Put puts value into backend (creates if it does not
 // exists, updates it otherwise)
-func (b *DynamoDBBackend) Put(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+func (b *Backend) Put(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	err := b.create(ctx, item, modePut)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -292,7 +292,7 @@ func (b *DynamoDBBackend) Put(ctx context.Context, item backend.Item) (*backend.
 }
 
 // Update updates value in the backend
-func (b *DynamoDBBackend) Update(ctx context.Context, item backend.Item) (*backend.Lease, error) {
+func (b *Backend) Update(ctx context.Context, item backend.Item) (*backend.Lease, error) {
 	err := b.create(ctx, item, modeUpdate)
 	if trace.IsCompareFailed(err) {
 		err = trace.NotFound(err.Error())
@@ -304,7 +304,7 @@ func (b *DynamoDBBackend) Update(ctx context.Context, item backend.Item) (*backe
 }
 
 // GetRange returns range of elements
-func (b *DynamoDBBackend) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*backend.GetResult, error) {
+func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*backend.GetResult, error) {
 	if len(startKey) == 0 {
 		return nil, trace.BadParameter("missing parameter startKey")
 	}
@@ -329,7 +329,7 @@ func (b *DynamoDBBackend) GetRange(ctx context.Context, startKey []byte, endKey 
 	return &backend.GetResult{Items: values}, nil
 }
 
-func (b *DynamoDBBackend) getAllRecords(ctx context.Context, startKey []byte, endKey []byte, limit int) (*getResult, error) {
+func (b *Backend) getAllRecords(ctx context.Context, startKey []byte, endKey []byte, limit int) (*getResult, error) {
 	var result getResult
 	// this code is being extra careful here not to introduce endless loop
 	// by some unfortunate series of events
@@ -349,7 +349,7 @@ func (b *DynamoDBBackend) getAllRecords(ctx context.Context, startKey []byte, en
 }
 
 // DeleteRange deletes range of items with keys between startKey and endKey
-func (b *DynamoDBBackend) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
+func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey []byte) error {
 	if len(startKey) == 0 {
 		return trace.BadParameter("missing parameter startKey")
 	}
@@ -396,7 +396,7 @@ func (b *DynamoDBBackend) DeleteRange(ctx context.Context, startKey, endKey []by
 }
 
 // Get returns a single item or not found error
-func (b *DynamoDBBackend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
+func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	r, err := b.getKey(ctx, key)
 	if err != nil {
 		return nil, err
@@ -415,7 +415,7 @@ func (b *DynamoDBBackend) Get(ctx context.Context, key []byte) (*backend.Item, e
 // CompareAndSwap compares and swap values in atomic operation
 // CompareAndSwap compares item with existing item
 // and replaces is with replaceWith item
-func (b *DynamoDBBackend) CompareAndSwap(ctx context.Context, expected backend.Item, replaceWith backend.Item) (*backend.Lease, error) {
+func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, replaceWith backend.Item) (*backend.Lease, error) {
 	if len(expected.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
@@ -465,7 +465,7 @@ func (b *DynamoDBBackend) CompareAndSwap(ctx context.Context, expected backend.I
 }
 
 // Delete deletes item by key
-func (b *DynamoDBBackend) Delete(ctx context.Context, key []byte) error {
+func (b *Backend) Delete(ctx context.Context, key []byte) error {
 	if len(key) == 0 {
 		return trace.BadParameter("missing parameter key")
 	}
@@ -476,7 +476,7 @@ func (b *DynamoDBBackend) Delete(ctx context.Context, key []byte) error {
 }
 
 // NewWatcher returns a new event watcher
-func (b *DynamoDBBackend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.Watcher, error) {
+func (b *Backend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.Watcher, error) {
 	select {
 	case <-b.watchStarted.Done():
 	case <-ctx.Done():
@@ -489,7 +489,7 @@ func (b *DynamoDBBackend) NewWatcher(ctx context.Context, watch backend.Watch) (
 // expires contains the new expiry to set on the lease,
 // some backends may ignore expires based on the implementation
 // in case if the lease managed server side
-func (b *DynamoDBBackend) KeepAlive(ctx context.Context, lease backend.Lease, expires time.Time) error {
+func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires time.Time) error {
 	if len(lease.Key) == 0 {
 		return trace.BadParameter("lease is missing key")
 	}
@@ -522,17 +522,17 @@ func (b *DynamoDBBackend) KeepAlive(ctx context.Context, lease backend.Lease, ex
 	return err
 }
 
-func (b *DynamoDBBackend) isClosed() bool {
+func (b *Backend) isClosed() bool {
 	return atomic.LoadInt32(&b.closedFlag) == 1
 }
 
-func (b *DynamoDBBackend) setClosed() {
+func (b *Backend) setClosed() {
 	atomic.StoreInt32(&b.closedFlag, 1)
 }
 
 // Close closes the DynamoDB driver
 // and releases associated resources
-func (b *DynamoDBBackend) Close() error {
+func (b *Backend) Close() error {
 	b.setClosed()
 	b.cancel()
 	return b.buf.Close()
@@ -540,7 +540,7 @@ func (b *DynamoDBBackend) Close() error {
 
 // CloseWatchers closes all the watchers
 // without closing the backend
-func (b *DynamoDBBackend) CloseWatchers() {
+func (b *Backend) CloseWatchers() {
 	b.buf.Reset()
 }
 
@@ -554,11 +554,11 @@ const (
 )
 
 // Clock returns wall clock
-func (b *DynamoDBBackend) Clock() clockwork.Clock {
+func (b *Backend) Clock() clockwork.Clock {
 	return b.clock
 }
 
-func (b *DynamoDBBackend) newLease(item backend.Item) *backend.Lease {
+func (b *Backend) newLease(item backend.Item) *backend.Lease {
 	var lease backend.Lease
 	if item.Expires.IsZero() {
 		return &lease
@@ -568,7 +568,7 @@ func (b *DynamoDBBackend) newLease(item backend.Item) *backend.Lease {
 }
 
 // getTableStatus checks if a given table exists
-func (b *DynamoDBBackend) getTableStatus(ctx context.Context, tableName string) (tableStatus, error) {
+func (b *Backend) getTableStatus(ctx context.Context, tableName string) (tableStatus, error) {
 	td, err := b.svc.DescribeTableWithContext(ctx, &dynamodb.DescribeTableInput{
 		TableName: aws.String(tableName),
 	})
@@ -593,7 +593,7 @@ func (b *DynamoDBBackend) getTableStatus(ctx context.Context, tableName string) 
 // rangeKey is the name of the 'range key' the schema requires.
 // currently is always set to "FullPath" (used to be something else, that's
 // why it's a parameter for migration purposes)
-func (b *DynamoDBBackend) createTable(ctx context.Context, tableName string, rangeKey string) error {
+func (b *Backend) createTable(ctx context.Context, tableName string, rangeKey string) error {
 	pThroughput := dynamodb.ProvisionedThroughput{
 		ReadCapacityUnits:  aws.Int64(b.ReadCapacityUnits),
 		WriteCapacityUnits: aws.Int64(b.WriteCapacityUnits),
@@ -647,7 +647,7 @@ type getResult struct {
 }
 
 // getRecords retrieves all keys by path
-func (b *DynamoDBBackend) getRecords(ctx context.Context, startKey, endKey string, limit int, lastEvaluatedKey map[string]*dynamodb.AttributeValue) (*getResult, error) {
+func (b *Backend) getRecords(ctx context.Context, startKey, endKey string, limit int, lastEvaluatedKey map[string]*dynamodb.AttributeValue) (*getResult, error) {
 	query := "HashKey = :hashKey AND FullPath BETWEEN :fullPath AND :rangeEnd"
 	attrV := map[string]interface{}{
 		":fullPath":  startKey,
@@ -740,7 +740,7 @@ func trimPrefix(key string) []byte {
 
 // create helper creates a new key/value pair in Dynamo with a given expiration
 // depending on mode, either creates, updates or forces create/update
-func (b *DynamoDBBackend) create(ctx context.Context, item backend.Item, mode int) error {
+func (b *Backend) create(ctx context.Context, item backend.Item, mode int) error {
 	r := record{
 		HashKey:   hashKey,
 		FullPath:  prependPrefix(item.Key),
@@ -776,7 +776,7 @@ func (b *DynamoDBBackend) create(ctx context.Context, item backend.Item, mode in
 	return nil
 }
 
-func (b *DynamoDBBackend) deleteKey(ctx context.Context, key []byte) error {
+func (b *Backend) deleteKey(ctx context.Context, key []byte) error {
 	av, err := dynamodbattribute.MarshalMap(keyLookup{
 		HashKey:  hashKey,
 		FullPath: prependPrefix(key),
@@ -791,7 +791,7 @@ func (b *DynamoDBBackend) deleteKey(ctx context.Context, key []byte) error {
 	return nil
 }
 
-func (b *DynamoDBBackend) getKey(ctx context.Context, key []byte) (*record, error) {
+func (b *Backend) getKey(ctx context.Context, key []byte) (*record, error) {
 	av, err := dynamodbattribute.MarshalMap(keyLookup{
 		HashKey:  hashKey,
 		FullPath: prependPrefix(key),

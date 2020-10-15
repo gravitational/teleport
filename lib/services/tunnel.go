@@ -83,8 +83,8 @@ func (r *ReverseTunnelV2) GetSubKind() string {
 }
 
 // SetSubKind sets resource subkind
-func (o *ReverseTunnelV2) SetSubKind(s string) {
-	o.SubKind = s
+func (r *ReverseTunnelV2) SetSubKind(s string) {
+	r.SubKind = s
 }
 
 // GetResourceID returns resource ID

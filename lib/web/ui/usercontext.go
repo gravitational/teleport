@@ -43,6 +43,10 @@ type userACL struct {
 	TrustedClusters access `json:"trustedClusters"`
 	// Events defines access to audit logs
 	Events access `json:"events"`
+	// Tokens defines access to tokens.
+	Tokens access `json:"tokens"`
+	// Nodes defines access to nodes.
+	Nodes access `json:"nodes"`
 	// SSH defines access to servers
 	SSHLogins []string `json:"sshLogins"`
 }
@@ -54,7 +58,7 @@ const (
 	authSSO   authType = "sso"
 )
 
-type userContext struct {
+type UserContext struct {
 	// AuthType is auth method of this user
 	AuthType authType `json:"authType"`
 	// Name is this user name
@@ -110,7 +114,7 @@ func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) acc
 }
 
 // NewUserContext returns user context
-func NewUserContext(user services.User, userRoles services.RoleSet) (*userContext, error) {
+func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContext, error) {
 	ctx := &services.Context{User: user}
 	sessionAccess := newAccess(userRoles, ctx, services.KindSession)
 	roleAccess := newAccess(userRoles, ctx, services.KindRole)
@@ -118,6 +122,8 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*userContex
 	trustedClusterAccess := newAccess(userRoles, ctx, services.KindTrustedCluster)
 	eventAccess := newAccess(userRoles, ctx, services.KindEvent)
 	userAccess := newAccess(userRoles, ctx, services.KindUser)
+	tokenAccess := newAccess(userRoles, ctx, services.KindToken)
+	nodeAccess := newAccess(userRoles, ctx, services.KindNode)
 	logins := getLogins(userRoles)
 
 	acl := userACL{
@@ -128,6 +134,8 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*userContex
 		Events:          eventAccess,
 		SSHLogins:       logins,
 		Users:           userAccess,
+		Tokens:          tokenAccess,
+		Nodes:           nodeAccess,
 	}
 
 	// local user
@@ -143,7 +151,7 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*userContex
 		authType = authSSO
 	}
 
-	return &userContext{
+	return &UserContext{
 		Name:     user.GetName(),
 		ACL:      acl,
 		AuthType: authType,

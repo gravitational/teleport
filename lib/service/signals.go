@@ -135,7 +135,7 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 			process.Info("Got request to shutdown, context is closing")
 			return nil
 		case event := <-serviceErrorsC:
-			se, ok := event.Payload.(ServiceExit)
+			se, ok := event.Payload.(ExitEventPayload)
 			if !ok {
 				process.Warningf("Failed to decode service exit event, %T", event.Payload)
 				continue
@@ -146,9 +146,8 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 					process.Errorf("Error when shutting down teleport %v.", err)
 				}
 				return trace.Wrap(se.Error)
-			} else {
-				process.Warningf("Non-critical service %v has exited with error %v, continuing to operate.", se.Service, se.Error)
 			}
+			process.Warningf("Non-critical service %v has exited with error %v, continuing to operate.", se.Service, se.Error)
 		}
 	}
 }

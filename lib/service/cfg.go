@@ -326,7 +326,7 @@ type ProxyConfig struct {
 	// TLSCert is a base64 encoded certificate used by web portal
 	TLSCert string
 
-	Limiter limiter.LimiterConfig
+	Limiter limiter.Config
 
 	// PublicAddrs is a list of the public addresses the proxy advertises
 	// for the HTTP endpoint. The hosts in in PublicAddr are included in the
@@ -488,7 +488,7 @@ type AuthConfig struct {
 	// StorageConfig contains configuration settings for the storage backend.
 	StorageConfig backend.Config
 
-	Limiter limiter.LimiterConfig
+	Limiter limiter.Config
 
 	// NoAudit, when set to true, disables session recording and event audit
 	NoAudit bool
@@ -513,7 +513,7 @@ type SSHConfig struct {
 	Addr                  utils.NetAddr
 	Namespace             string
 	Shell                 string
-	Limiter               limiter.LimiterConfig
+	Limiter               limiter.Config
 	Labels                map[string]string
 	CmdLabels             services.CommandLabels
 	PermitUserEnvironment bool

@@ -266,7 +266,7 @@ type fakeAnnouncer struct {
 }
 
 func (f *fakeAnnouncer) UpsertNode(s services.Server) (*services.KeepAlive, error) {
-	f.upsertCalls[HeartbeatModeNode] += 1
+	f.upsertCalls[HeartbeatModeNode]++
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -274,12 +274,12 @@ func (f *fakeAnnouncer) UpsertNode(s services.Server) (*services.KeepAlive, erro
 }
 
 func (f *fakeAnnouncer) UpsertProxy(s services.Server) error {
-	f.upsertCalls[HeartbeatModeProxy] += 1
+	f.upsertCalls[HeartbeatModeProxy]++
 	return f.err
 }
 
 func (f *fakeAnnouncer) UpsertAuthServer(s services.Server) error {
-	f.upsertCalls[HeartbeatModeAuth] += 1
+	f.upsertCalls[HeartbeatModeAuth]++
 	return f.err
 }
 
@@ -300,7 +300,7 @@ func (f *fakeAnnouncer) Done() <-chan struct{} {
 // Close closes the watcher and releases
 // all associated resources
 func (f *fakeAnnouncer) Close() error {
-	f.closeCalls += 1
+	f.closeCalls++
 	f.cancel()
 	return nil
 }

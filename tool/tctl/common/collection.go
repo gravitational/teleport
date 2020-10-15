@@ -44,11 +44,11 @@ type roleCollection struct {
 	roles []services.Role
 }
 
-func (c *roleCollection) resources() (r []services.Resource) {
-	for _, resource := range c.roles {
-		r = append(r, resource)
+func (r *roleCollection) resources() (res []services.Resource) {
+	for _, resource := range r.roles {
+		res = append(res, resource)
 	}
-	return r
+	return res
 }
 
 func (r *roleCollection) writeText(w io.Writer) error {
@@ -91,8 +91,8 @@ type namespaceCollection struct {
 	namespaces []services.Namespace
 }
 
-func (c *namespaceCollection) resources() (r []services.Resource) {
-	for _, resource := range c.namespaces {
+func (n *namespaceCollection) resources() (r []services.Resource) {
+	for _, resource := range n.namespaces {
 		r = append(r, &resource)
 	}
 	return r
@@ -150,8 +150,8 @@ type serverCollection struct {
 	servers []services.Server
 }
 
-func (c *serverCollection) resources() (r []services.Resource) {
-	for _, resource := range c.servers {
+func (s *serverCollection) resources() (r []services.Resource) {
+	for _, resource := range s.servers {
 		r = append(r, resource)
 	}
 	return r
@@ -184,32 +184,32 @@ func (s *serverCollection) toMarshal() interface{} {
 	return s.servers
 }
 
-func (r *serverCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, r.toMarshal())
+func (s *serverCollection) writeYAML(w io.Writer) error {
+	return utils.WriteYAML(w, s.toMarshal())
 }
 
 type userCollection struct {
 	users []services.User
 }
 
-func (c *userCollection) resources() (r []services.Resource) {
-	for _, resource := range c.users {
+func (u *userCollection) resources() (r []services.Resource) {
+	for _, resource := range u.users {
 		r = append(r, resource)
 	}
 	return r
 }
 
-func (s *userCollection) writeText(w io.Writer) error {
+func (u *userCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{"User"})
-	for _, u := range s.users {
-		t.AddRow([]string{u.GetName()})
+	for _, user := range u.users {
+		t.AddRow([]string{user.GetName()})
 	}
 	fmt.Println(t.AsBuffer().String())
 	return nil
 }
 
-func (s *userCollection) writeJSON(w io.Writer) error {
-	data, err := json.MarshalIndent(s.toMarshal(), "", "    ")
+func (u *userCollection) writeJSON(w io.Writer) error {
+	data, err := json.MarshalIndent(u.toMarshal(), "", "    ")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -217,23 +217,23 @@ func (s *userCollection) writeJSON(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-func (s *userCollection) toMarshal() interface{} {
-	if len(s.users) == 1 {
-		return s.users[0]
+func (u *userCollection) toMarshal() interface{} {
+	if len(u.users) == 1 {
+		return u.users[0]
 	}
-	return s.users
+	return u.users
 }
 
-func (r *userCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, r.toMarshal())
+func (u *userCollection) writeYAML(w io.Writer) error {
+	return utils.WriteYAML(w, u.toMarshal())
 }
 
 type authorityCollection struct {
 	cas []services.CertAuthority
 }
 
-func (c *authorityCollection) resources() (r []services.Resource) {
-	for _, resource := range c.cas {
+func (a *authorityCollection) resources() (r []services.Resource) {
+	for _, resource := range a.cas {
 		r = append(r, resource)
 	}
 	return r
@@ -289,11 +289,11 @@ type reverseTunnelCollection struct {
 	tunnels []services.ReverseTunnel
 }
 
-func (c *reverseTunnelCollection) resources() (r []services.Resource) {
-	for _, resource := range c.tunnels {
-		r = append(r, resource)
+func (r *reverseTunnelCollection) resources() (res []services.Resource) {
+	for _, resource := range r.tunnels {
+		res = append(res, resource)
 	}
-	return r
+	return res
 }
 
 func (r *reverseTunnelCollection) writeText(w io.Writer) error {
