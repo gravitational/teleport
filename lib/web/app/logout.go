@@ -23,9 +23,10 @@ import (
 
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
 )
 
-func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request, session services.WebSession) error {
+func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request, p httprouter.Params, session services.WebSession) error {
 	// Remove the session from the backeend.
 	err := h.c.AuthClient.DeleteAppSession(context.Background(), services.DeleteAppSessionRequest{
 		SessionID: session.GetName(),
@@ -42,7 +43,7 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request, session s
 		Expires:  time.Unix(0, 0),
 		SameSite: http.SameSiteLaxMode,
 	})
-
 	http.Error(w, "Logged out.", http.StatusOK)
+
 	return nil
 }

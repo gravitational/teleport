@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
 )
 
@@ -86,28 +87,37 @@ type Handler struct {
 
 	mu    sync.Mutex
 	cache *ttlmap.TTLMap
+
+	router *httprouter.Router
 }
 
 // NewHandler returns a new application handler.
 func NewHandler(c *HandlerConfig) (*Handler, error) {
-	if err := c.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Cache of request forwarders.
-	cache, err := ttlmap.New(defaults.ClientCacheSize)
+	err := c.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &Handler{
+	h := &Handler{
 		c: c,
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentAppProxy,
 		}),
-		cache: cache,
-	}, nil
+	}
 
+	// Cache of request forwarders.
+	h.cache, err = ttlmap.New(defaults.ClientCacheSize)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	h.router = httprouter.New()
+	h.router.GET("/x-teleport-auth", makeRouterHandler(h.handleFragment))
+	h.router.POST("/x-teleport-auth", makeRouterHandler(h.handleFragment))
+	h.router.GET("/x-teleport-logout", h.withRouterAuth(h.handleLogout))
+	h.router.NotFound = h.withAuth(h.handleForward)
+
+	return h, nil
 }
 
 // ForwardToApp checks if the request is bound for the application handler.
@@ -166,52 +176,19 @@ func (h *Handler) IsUnauthenticatedApp(r *http.Request, publicAddr string) (stri
 
 // ServeHTTP will forward the *http.Request to the application proxy service.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if err := h.serveHTTP(w, r); err != nil {
-		h.log.Warnf("Failed to serve request: %v.", err)
-
-		// Covert trace error type to HTTP and write response.
-		code := trace.ErrorToCode(err)
-		http.Error(w, http.StatusText(code), code)
-	}
+	h.router.ServeHTTP(w, r)
 }
 
-func (h *Handler) serveHTTP(w http.ResponseWriter, r *http.Request) error {
-	// Only two special endpoints exist, one is used to pass authentication from
-	// one origin to another and the other is to logout. All other requests
-	// simply get forwarded.
-	switch r.URL.Path {
-	case "/x-teleport-auth":
-		if err := h.handleFragment(w, r); err != nil {
-			return trace.Wrap(err)
-		}
-	case "/x-teleport-logout":
-		// Authenticate the session based off the session cookie.
-		ws, err := h.authenticate(r.Context(), r)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := h.handleLogout(w, r, ws); err != nil {
-			return trace.Wrap(err)
-		}
-	default:
-		// Authenticate the session based off the session cookie.
-		ws, err := h.authenticate(r.Context(), r)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Fetch a cached request forwarder or create one if this is the first
-		// request (or the process has been restarted).
-		session, err := h.getSession(r.Context(), ws)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Forward the request to the Teleport application proxy service.
-		session.fwd.ServeHTTP(w, r)
+func (h *Handler) handleForward(w http.ResponseWriter, r *http.Request, ws services.WebSession) error {
+	// Fetch a cached request forwarder or create one if this is the first
+	// request (or the process has been restarted).
+	session, err := h.getSession(r.Context(), ws)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
+	// Forward the request to the Teleport application proxy service.
+	session.fwd.ServeHTTP(w, r)
 	return nil
 }
 
@@ -274,6 +251,61 @@ func extractCookie(r *http.Request) (string, error) {
 	}
 
 	return rawCookie.Value, nil
+}
+
+type routerFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params) error
+type routerAuthFunc func(w http.ResponseWriter, r *http.Request, p httprouter.Params, ws services.WebSession) error
+
+type handlerAuthFunc func(w http.ResponseWriter, r *http.Request, ws services.WebSession) error
+type handlerFunc func(w http.ResponseWriter, r *http.Request) error
+
+func (h *Handler) withRouterAuth(handler routerAuthFunc) httprouter.Handle {
+	return makeRouterHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
+		ws, err := h.authenticate(r.Context(), r)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := handler(w, r, p, ws); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	})
+}
+
+func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
+	return makeHandler(func(w http.ResponseWriter, r *http.Request) error {
+		ws, err := h.authenticate(r.Context(), r)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := handler(w, r, ws); err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	})
+}
+
+func makeRouterHandler(handler routerFunc) httprouter.Handle {
+	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		if err := handler(w, r, p); err != nil {
+			writeError(w, err)
+			return
+		}
+	}
+}
+
+func makeHandler(handler handlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := handler(w, r); err != nil {
+			writeError(w, err)
+			return
+		}
+	}
+}
+
+func writeError(w http.ResponseWriter, err error) {
+	code := trace.ErrorToCode(err)
+	http.Error(w, http.StatusText(code), code)
 }
 
 const (

@@ -23,15 +23,16 @@ import (
 
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
-
 	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
 )
 
 type fragmentRequest struct {
 	CookieValue string `json:"cookie_value"`
 }
 
-func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request) error {
+func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
+	fmt.Printf("--> handleFragment.\n")
 	switch r.Method {
 	case http.MethodGet:
 		setRedirectPageHeaders(w.Header())
@@ -60,7 +61,7 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request) error {
 			SameSite: http.SameSiteLaxMode,
 		})
 	default:
-		return trace.BadParameter("unsupported method: %q", r.Method)
+		return trace.BadParameter("unsupported method %v", r.Method)
 	}
 	return nil
 }
