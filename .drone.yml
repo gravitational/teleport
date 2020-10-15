@@ -99,7 +99,6 @@ steps:
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
-      - ls -lR /go
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets lint
 
@@ -2897,6 +2896,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 8e5767b7ca472b253011f96f62d841b1c352ec7d108101c26bfb0d774ac08de8
+hmac: 4c963d2aeba79b5a65810b0db8631958165707360f67c1eb7f72a1219f01e814
 
 ...
