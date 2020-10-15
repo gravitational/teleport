@@ -1501,7 +1501,7 @@ func (s *Server) handleVersionRequest(req *ssh.Request) {
 	}
 }
 
-// handleDirectTCPIPRequest handles port forwarding requests.
+// handleTCPIPForwardRequest handles reverse port forwarding requests.
 func (s *Server) handleTCPIPForwardRequest(req *ssh.Request, ccx *sshutils.ConnectionContext) {
 	log.Debugf("Handling tcpip-forward request: %v", req)
 
@@ -1512,9 +1512,7 @@ func (s *Server) handleTCPIPForwardRequest(req *ssh.Request, ccx *sshutils.Conne
 	}
 	log.Debugf("parse results: %v", parsedHost)
 
-	tunnelListener := fmt.Sprintf("%v:%v", s.addr.Host(), parsedHost.Port)
-	log.Debugf(tunnelListener)
-	ln, err := net.Listen("tcp", tunnelListener)
+	ln, err := net.Listen("tcp", fmt.Sprintf("%v:%v", s.addr.Host(), parsedHost.Port))
 	if err != nil {
 		log.Debugf("error starting server side listener: %v", err)
 	}
@@ -1529,9 +1527,9 @@ func (s *Server) handleTCPIPForwardRequest(req *ssh.Request, ccx *sshutils.Conne
 
 			payload := ssh.Marshal(&remoteForwardChannelData{
 				DestAddr:   parsedHost.Host,
-				DestPort:   uint32(parsedHost.Port),
+				DestPort:   parsedHost.Port,
 				OriginAddr: parsedHost.Host,
-				OriginPort: uint32(parsedHost.Port),
+				OriginPort: parsedHost.Port,
 			})
 
 			go func() {
