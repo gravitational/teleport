@@ -39,9 +39,9 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/pborman/uuid"
-	"github.com/sirupsen/logrus"
 )
 
 type session struct {
@@ -97,22 +97,19 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 	}
 
 	// Create the forwarder.
-	fwder, err := newForwarder(s.closeContext,
+	fwder, err := s.newForwarder(s.closeContext,
 		&forwarderConfig{
 			w:                  streamWriter,
 			uri:                app.URI,
 			publicAddr:         app.PublicAddr,
-			accessPoint:        s.c.AccessPoint,
 			insecureSkipVerify: app.InsecureSkipVerify,
 			jwt:                jwt,
-			log:                s.log,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	fwd, err := forward.New(
 		forward.RoundTripper(fwder),
-		forward.Rewriter(fwder),
 		forward.Logger(s.log))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -269,9 +266,7 @@ type forwarderConfig struct {
 	uri                string
 	publicAddr         string
 	jwt                string
-	accessPoint        auth.AccessPoint
 	insecureSkipVerify bool
-	log                *logrus.Entry
 }
 
 // Check will valid the configuration of a forwarder.
@@ -288,12 +283,6 @@ func (c *forwarderConfig) Check() error {
 	if c.jwt == "" {
 		return trace.BadParameter("jwt missing")
 	}
-	if c.accessPoint == nil {
-		return trace.BadParameter("access point missing")
-	}
-	if c.log == nil {
-		return trace.BadParameter("logger missing")
-	}
 
 	return nil
 }
@@ -308,11 +297,13 @@ type forwarder struct {
 
 	uri  *url.URL
 	port string
+
+	log *logrus.Entry
 }
 
 // newForwarder creates a new forwarder that can re-write and round trip a
 // HTTP request.
-func newForwarder(ctx context.Context, c *forwarderConfig) (*forwarder, error) {
+func (s *Server) newForwarder(ctx context.Context, c *forwarderConfig) (*forwarder, error) {
 	if err := c.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -332,8 +323,9 @@ func newForwarder(ctx context.Context, c *forwarderConfig) (*forwarder, error) {
 		closeContext: ctx,
 		c:            c,
 		uri:          uri,
-		port:         guessProxyPort(c.accessPoint),
+		port:         guessProxyPort(s.c.AccessPoint),
 		tr:           tr,
+		log:          s.log,
 	}, nil
 }
 
@@ -342,6 +334,9 @@ func (f *forwarder) RoundTrip(r *http.Request) (*http.Response, error) {
 	// Update the target address of the request so it's forwarded correctly.
 	r.URL.Scheme = f.uri.Scheme
 	r.URL.Host = f.uri.Host
+
+	r.Header.Add(teleport.AppJWTHeader, f.c.jwt)
+	r.Header.Add(teleport.AppCFHeader, f.c.jwt)
 
 	resp, err := f.tr.RoundTrip(r)
 	if err != nil {
@@ -368,12 +363,6 @@ func (f *forwarder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	return resp, nil
-}
-
-// Rewrite adds in JWT headers to the request.
-func (f *forwarder) Rewrite(r *http.Request) {
-	r.Header.Add(teleport.AppJWTHeader, f.c.jwt)
-	r.Header.Add(teleport.AppCFHeader, f.c.jwt)
 }
 
 func (f *forwarder) rewriteResponse(resp *http.Response) error {
