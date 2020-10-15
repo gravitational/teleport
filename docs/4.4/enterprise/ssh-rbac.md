@@ -109,7 +109,6 @@ spec:
     # permit_x11_forwarding allows users to use X11 forwarding with openssh clients and servers through the proxy
     permit_x11_forwarding: true
 
-
   # allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. by default nothing is allowed.
   allow:
@@ -204,8 +203,8 @@ Option                    | Description                          | Multi-role be
 `port_forwarding`         | Allow TCP port forwarding          | Logical "OR" i.e. if any role allows port forwarding, it's allowed
 `client_idle_timeout`     | Forcefully terminate active SSH sessions after an idle interval | The shortest timeout value wins, i.e. the most restrictive value is selected
 `disconnect_expired_cert` | Forcefully terminate active SSH sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination
-`max_connections`         | Limit on how many Teleport active SSH sessions can be started
-`max_sessions`            | Total number of session channels which can be established across a single SSH connection
+`max_connections`         | Limit on how many active SSH sessions can be started via Teleport
+`max_sessions`            | Total number of session channels which can be established across a single SSH connection via Teleport
 
 
 ## RBAC for Hosts
@@ -272,11 +271,11 @@ spec:
       'environment': ['test', 'staging']
       # regular expressions are also supported, for example the equivalent
       # of the list example above can be expressed as:
-      'environment': "{% raw %}{{regexp.match("^test|staging$")}}{% endraw %}"
+      'environment': '{% raw %}{{regexp.match("^test|staging$")}}{% endraw %}'
       # or using the simpler legacy syntax:
       'environment': '^test|staging$'
       # negative regular expressions can be used to avoid strict deny rules:
-      'environment': "{% raw %}{{regexp.not_match("prod")}}{% endraw %}"
+      'environment': "{% raw %}{{regexp.not_match('prod')}}{% endraw %}"
 ```
 
 

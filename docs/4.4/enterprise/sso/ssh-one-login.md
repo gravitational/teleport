@@ -77,7 +77,7 @@ Add users to the application:
 
 ### Download SAML XML Metadata
 
-Once the Application is setup. Download `SAML Metadata`.
+Once the application is set up, download `SAML Metadata`.
 
 ![Configure APP](../../img/sso/onelogin/saml-download.png)
 
