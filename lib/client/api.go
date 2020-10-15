@@ -100,7 +100,7 @@ func (p *ForwardedPort) ToString() string {
 
 // RemoteForwardedPort specifies local tunnel to remote
 // destination managed by the client, is equivalent
-// of ssh -L src:host:dst command
+// of ssh -R src:host:dst command
 type RemoteForwardedPort struct {
 	SrcIP    string
 	SrcPort  int
@@ -2429,8 +2429,8 @@ func ParsePortForwardSpec(spec []string) (ports ForwardedPorts, err error) {
 	return ports, nil
 }
 
-// ParsePortRemoteForwardSpec parses parameter to -D flag, i.e. strings like "[ip]:80:remote.host:3000"
-// The opposite of this function (spec generation) is ForwardedPorts.String()
+// ParsePortRemoteForwardSpec parses parameter to -R flag, i.e. strings like "[ip]:80:remote.host:3000"
+// The opposite of this function (spec generation) is RemoteForwardedPorts.String()
 func ParsePortRemoteForwardSpec(spec []string) (ports RemoteForwardedPorts, err error) {
 	if len(spec) == 0 {
 		return ports, nil
