@@ -1124,8 +1124,7 @@ message SemaphoreSpecV3 {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "leases" ];
 }
 
-// WebSessionV2 represents a web session for either the Web UI or a particular
-// proxied application (AAP).
+// WebSessionV2 represents an application or UI web session.
 message WebSessionV2 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
@@ -1169,42 +1168,4 @@ message WebSessionSpecV2 {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "expires"
     ];
-    // ParentHash is the has of the parent session ID.
-    // string ParentHash = 8 [ (gogoproto.jsontag) = "parent_hash,omitempty" ];
-    // string JWT = 9 [ (gogoproto.jsontag) = "jwt,omitempty" ];
-    //// ServerID is the ID of the application server that will forward the request.
-    // string ServerID = 10 [ (gogoproto.jsontag) = "server_id,omitempty" ];
-    // ClusterName is the name of the cluster that the application session resides in.
-    // string ClusterName = 11 [ (gogoproto.jsontag) = "cluster_name,omitempty" ];
-    //// SessionID is the application session ID.
-    // string SessionID = 9 [ (gogoproto.jsontag) = "session_id,omitempty" ];
-}
-
-// AppSession represents a specific application session.
-message AppSessionV3 {
-    option (gogoproto.goproto_stringer) = false;
-    option (gogoproto.stringer) = false;
-
-    // Kind is a resource kind.
-    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
-    // SubKind is an optional resource sub kind, used in some resources.
-    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
-    // Version is version.
-    string Version = 3 [ (gogoproto.jsontag) = "version" ];
-    // Metadata is ResetPasswordToken metadata.
-    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
-    // Spec is an AppSessionSpecV3 specification.
-    AppSessionSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
-}
-
-// AppSessionSpecV3 defines the specification of a application session.
-message AppSessionSpecV3 {
-    // PublicAddr is the public address of the application.
-    string PublicAddr = 1 [ (gogoproto.jsontag) = "public_addr" ];
-    // Username is the Teleport username linked to this session.
-    string Username = 2 [ (gogoproto.jsontag) = "username" ];
-    // Roles is the Teleport roles linked to this session.
-    repeated string Roles = 3 [ (gogoproto.jsontag) = "roles" ];
-    // JWT is the token forwarded to the internal application.
-    string JWT = 4 [ (gogoproto.jsontag) = "jwt" ];
 }

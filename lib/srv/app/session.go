@@ -157,6 +157,27 @@ func (s *Server) cacheExpire(key string, el interface{}) {
 	s.log.Debugf("Closing expired stream %v.", key)
 }
 
+func (s *Server) expireSessions() {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.clearExpiredSessions()
+		case <-s.closeContext.Done():
+			return
+		}
+	}
+}
+
+func (s *Server) clearExpiredSessions() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.cache.RemoveExpired(10)
+}
+
 // newStreamWriter creates a streamer that will be used to stream the
 // requests that occur within this session to the audit log.
 func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter, error) {

@@ -44,7 +44,7 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request) error {
 		}
 
 		// Validate the caller is asking for a session that exists.
-		_, err := h.c.AccessPoint.GetAppWebSession(r.Context(), services.GetAppWebSessionRequest{
+		_, err := h.c.AccessPoint.GetAppSession(r.Context(), services.GetAppSessionRequest{
 			SessionID: req.CookieValue,
 		})
 		if err != nil {

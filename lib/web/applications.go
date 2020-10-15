@@ -109,7 +109,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	//
 	// PublicAddr and ClusterName will get encoded within the certificate and
 	// used for request routing.
-	ws, err := authClient.CreateAppWebSession(r.Context(), services.CreateAppWebSessionRequest{
+	ws, err := authClient.CreateAppSession(r.Context(), services.CreateAppSessionRequest{
 		Username:      ctx.GetUser(),
 		ParentSession: ctx.sess.GetName(),
 		PublicAddr:    result.PublicAddr,
@@ -180,7 +180,7 @@ func (h *Handler) waitForSession(ctx context.Context, sessionID string) error {
 	for {
 		select {
 		case <-ticker.C:
-			_, err := h.cfg.AccessPoint.GetAppWebSession(ctx, services.GetAppWebSessionRequest{
+			_, err := h.cfg.AccessPoint.GetAppSession(ctx, services.GetAppSessionRequest{
 				SessionID: sessionID,
 			})
 			if err == nil {

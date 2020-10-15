@@ -27,7 +27,7 @@ import (
 
 func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request, session services.WebSession) error {
 	// Remove the session from the backeend.
-	err := h.c.AuthClient.DeleteAppWebSession(context.Background(), services.DeleteAppWebSessionRequest{
+	err := h.c.AuthClient.DeleteAppSession(context.Background(), services.DeleteAppSessionRequest{
 		SessionID: session.GetName(),
 	})
 	if err != nil {

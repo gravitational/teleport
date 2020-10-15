@@ -235,22 +235,11 @@ type Identity interface {
 
 // AppIdentity defines application and application web session features.
 type AppIdentity interface {
-	GetAppWebSession(context.Context, GetAppWebSessionRequest) (WebSession, error)
-	GetAppWebSessions(context.Context) ([]WebSession, error)
-	UpsertAppWebSession(context.Context, WebSession) error
-	DeleteAppWebSession(context.Context, DeleteAppWebSessionRequest) error
-	DeleteAllAppWebSessions(context.Context) error
-
-	// GetAppSession gets an application session.
-	GetAppSession(ctx context.Context, sessionID string) (AppSession, error)
-	// GetAppSessions gets all application session.
-	GetAppSessions(ctx context.Context) ([]AppSession, error)
-	// UpsertAppSession creates an application session.
-	UpsertAppSession(ctx context.Context, session AppSession) error
-	// DeleteAppSession removes an application session.
-	DeleteAppSession(ctx context.Context, sessionID string) error
-	// DeleteAllAppSessions removes all application sessions.
-	DeleteAllAppSessions(ctx context.Context) error
+	GetAppSession(context.Context, GetAppSessionRequest) (WebSession, error)
+	GetAppSessions(context.Context) ([]WebSession, error)
+	UpsertAppSession(context.Context, WebSession) error
+	DeleteAppSession(context.Context, DeleteAppSessionRequest) error
+	DeleteAllAppSessions(context.Context) error
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),

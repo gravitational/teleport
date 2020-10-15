@@ -1695,14 +1695,14 @@ func (a *AuthServer) modeStreamer() (events.Streamer, error) {
 	return a.streamer, nil
 }
 
-// GetApps is a part of the auth.AccessPoint implementation..
-func (a *AuthServer) GetAppWebSession(ctx context.Context, req services.GetAppWebSessionRequest) (services.WebSession, error) {
-	return a.GetCache().GetAppWebSession(ctx, req)
-}
+//// GetAppSession is a part of the auth.AccessPoint implementation..
+//func (a *AuthServer) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+//	return a.GetCache().GetAppServers(ctx, namespace, opts...)
+//}
 
-// GetApps is a part of the auth.AccessPoint implementation..
-func (a *AuthServer) GetAppSession(ctx context.Context, sessionID string) (services.AppSession, error) {
-	return a.GetCache().GetAppSession(ctx, sessionID)
+// GetAppSession is a part of the auth.AccessPoint implementation..
+func (a *AuthServer) GetAppSession(ctx context.Context, req services.GetAppSessionRequest) (services.WebSession, error) {
+	return a.GetCache().GetAppSession(ctx, req)
 }
 
 // authKeepAliver is a keep aliver using auth server directly

@@ -50,7 +50,6 @@ func ForAuth(cfg Config) Config {
 		{Kind: services.KindTunnelConnection},
 		{Kind: services.KindAccessRequest},
 		{Kind: services.KindAppServer},
-		{Kind: services.KindAppWebSession},
 		{Kind: services.KindAppSession},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
@@ -72,7 +71,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: services.KindReverseTunnel},
 		{Kind: services.KindTunnelConnection},
 		{Kind: services.KindAppServer},
-		{Kind: services.KindAppWebSession},
+		{Kind: services.KindAppSession},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -107,7 +106,6 @@ func ForApps(cfg Config) Config {
 		// Applications only need to "know" about default namespace events to avoid
 		// matching too much data about other namespaces or events.
 		{Kind: services.KindNamespace, Name: defaults.Namespace},
-		{Kind: services.KindAppSession},
 	}
 	cfg.QueueSize = defaults.AppsQueueSize
 	return cfg
@@ -694,12 +692,7 @@ func (c *Cache) GetAppServers(ctx context.Context, namespace string, opts ...ser
 	return c.presenceCache.GetAppServers(ctx, namespace, opts...)
 }
 
-// GetAppWebSession gets an application web session.
-func (c *Cache) GetAppWebSession(ctx context.Context, req services.GetAppWebSessionRequest) (services.WebSession, error) {
-	return c.appIdentityCache.GetAppWebSession(ctx, req)
-}
-
-// GetAppSession gets an application session.
-func (c *Cache) GetAppSession(ctx context.Context, sessionID string) (services.AppSession, error) {
-	return c.appIdentityCache.GetAppSession(ctx, sessionID)
+// GetAppSession gets an application web session.
+func (c *Cache) GetAppSession(ctx context.Context, req services.GetAppSessionRequest) (services.WebSession, error) {
+	return c.appIdentityCache.GetAppSession(ctx, req)
 }

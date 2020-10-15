@@ -227,7 +227,7 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (services.W
 	// Check that the session exists in the backend cache. This allows the user
 	// to logout and invalidate their application session immediately. This
 	// lookup should also be fast because it's in the local cache.
-	session, err := h.c.AccessPoint.GetAppWebSession(ctx, services.GetAppWebSessionRequest{
+	session, err := h.c.AccessPoint.GetAppSession(ctx, services.GetAppSessionRequest{
 		SessionID: cookieValue,
 	})
 	if err != nil {

@@ -104,11 +104,8 @@ type ReadAccessPoint interface {
 	// GetAppServers gets all application servers.
 	GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error)
 
-	// GetAppWebSession gets an application web session.
-	GetAppWebSession(context.Context, services.GetAppWebSessionRequest) (services.WebSession, error)
-
-	// GetAppSession gets an application session.
-	GetAppSession(ctx context.Context, sessionID string) (services.AppSession, error)
+	// GetAppSession gets an application web session.
+	GetAppSession(context.Context, services.GetAppSessionRequest) (services.WebSession, error)
 }
 
 // AccessPoint is an API interface implemented by a certificate authority (CA)

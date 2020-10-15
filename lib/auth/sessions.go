@@ -35,7 +35,7 @@ import (
 // services.WebSession is used to match session cookies with a certificate.
 // The certificate is used for all access requests, which is where access
 // control is enforced.
-func (s *AuthServer) CreateAppWebSession(ctx context.Context, req services.CreateAppWebSessionRequest, user services.User, checker services.AccessChecker) (services.WebSession, error) {
+func (s *AuthServer) CreateAppSession(ctx context.Context, req services.CreateAppSessionRequest, user services.User, checker services.AccessChecker) (services.WebSession, error) {
 	// Check that a matching web session exists in the backend.
 	parentSession, err := s.GetWebSession(req.Username, req.ParentSession)
 	if err != nil {
@@ -77,14 +77,14 @@ func (s *AuthServer) CreateAppWebSession(ctx context.Context, req services.Creat
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session := services.NewWebSession(sessionID, services.KindAppWebSession, services.WebSessionSpecV2{
+	session := services.NewWebSession(sessionID, services.KindAppSession, services.WebSessionSpecV2{
 		User:    req.Username,
 		Priv:    privateKey,
 		Pub:     certs.ssh,
 		TLSCert: certs.tls,
 		Expires: s.clock.Now().Add(ttl),
 	})
-	if err = s.Identity.UpsertAppWebSession(ctx, session); err != nil {
+	if err = s.Identity.UpsertAppSession(ctx, session); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	log.Debugf("Generated application web session for %v with TTL %v.", req.Username, ttl)
@@ -125,84 +125,3 @@ func (s *AuthServer) generateJWT(username string, roles []string, uri string, ex
 
 	return token, nil
 }
-
-// TODO(russjones): Remove all code after here.
-func (s *AuthServer) CreateAppSession(ctx context.Context, req services.CreateAppSessionRequest, user services.User, checker services.AccessChecker) (services.AppSession, error) {
-	return nil, nil
-	//if err := req.Check(); err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
-
-	//// Fetch the application the caller is requesting.
-	//app, server, err := s.getApp(ctx, req.PublicAddr)
-	//if err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
-
-	//// Check if the caller has access to the requested application.
-	//if err := checker.CheckAccessToApp(server.GetNamespace(), app); err != nil {
-	//	log.Warnf("Access to %v denied: %v.", req.PublicAddr, err)
-	//	// TODO(russjones): Hook audit log here.
-
-	//	return nil, trace.AccessDenied("access denied")
-	//}
-
-	//// Synchronize expiration of JWT token and application session.
-	//ttl := checker.AdjustSessionTTL(defaults.CertDuration)
-	//expires := s.clock.Now().Add(ttl)
-
-	//// Generate a JWT that can be re-used during the lifetime of this
-	//// session to pass authentication information to the target application.
-	//jwt, err := s.generateJWT(user.GetName(), user.GetRoles(), app.URI, expires)
-	//if err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
-
-	//// Create a new application session.
-	//session, err := services.NewAppSession(expires, services.AppSessionSpecV3{
-	//	PublicAddr: req.PublicAddr,
-	//	Username:   user.GetName(),
-	//	Roles:      user.GetRoles(),
-	//	JWT:        jwt,
-	//})
-	//if err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
-	//if err := s.UpsertAppSession(ctx, session); err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
-	//log.Debugf("Generated application session for %v for %v with TTL %v.", req.PublicAddr, user.GetName(), ttl)
-	//return session, nil
-}
-
-//// getApp looks for an application registered for the requested public address
-//// in the cluster and returns it. In the situation multiple applications match,
-//// a random selection is returned. This is done on purpose to support HA to
-//// allow multiple application proxy nodes to be run and if one is down, at
-//// least the application can be accessible on the other.
-////
-//// In the future this function should be updated to keep state on application
-//// servers that are down and to not route requests to that server.
-//func (s *AuthServer) getApp(ctx context.Context, publicAddr string) (*services.App, services.Server, error) {
-//	var am []*services.App
-//	var sm []services.Server
-//
-//	servers, err := s.GetAppServers(ctx, defaults.Namespace)
-//	if err != nil {
-//		return nil, nil, trace.Wrap(err)
-//	}
-//	for _, server := range servers {
-//		for _, app := range server.GetApps() {
-//			if app.PublicAddr == publicAddr {
-//				am = append(am, app)
-//				sm = append(sm, server)
-//			}
-//		}
-//	}
-//
-//	if len(am) == 0 {
-//		return nil, nil, trace.NotFound("%q not found", publicAddr)
-//	}
-//	index := rand.Intn(len(am))
-//	return am[index], sm[index], nil
-//}

@@ -173,6 +173,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	go s.expireSessions()
 
 	// Create dynamic labels for all applications that are being proxied and
 	// sync them right away so the first heartbeat has correct dynamic labels.

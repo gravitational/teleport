@@ -509,13 +509,13 @@ func (*TeleportWebSessionMarshaler) MarshalWebSession(ws WebSession, opts ...Mar
 
 // GetAppWebSessionRequest contains the parameters to request a application
 // web session.
-type GetAppWebSessionRequest struct {
+type GetAppSessionRequest struct {
 	// SessionID is the session ID of the application session itself.
 	SessionID string
 }
 
 // Check validates the request.
-func (r *GetAppWebSessionRequest) Check() error {
+func (r *GetAppSessionRequest) Check() error {
 	if r.SessionID == "" {
 		return trace.BadParameter("session ID missing")
 	}
@@ -524,7 +524,7 @@ func (r *GetAppWebSessionRequest) Check() error {
 
 // CreateAppWebSessionRequest contains the parameters needed to request
 // creating an application web session.
-type CreateAppWebSessionRequest struct {
+type CreateAppSessionRequest struct {
 	// Username is the identity of the user requesting the session.
 	Username string `json:"username"`
 	// ParentSession is the session ID of the parent session.
@@ -536,7 +536,7 @@ type CreateAppWebSessionRequest struct {
 }
 
 // Check validates the request.
-func (r CreateAppWebSessionRequest) Check() error {
+func (r CreateAppSessionRequest) Check() error {
 	if r.Username == "" {
 		return trace.BadParameter("username missing")
 	}
@@ -555,6 +555,6 @@ func (r CreateAppWebSessionRequest) Check() error {
 
 // DeleteAppWebSessionRequest are the parameters used to request removal of
 // an application web session.
-type DeleteAppWebSessionRequest struct {
+type DeleteAppSessionRequest struct {
 	SessionID string `json:"session_id"`
 }
