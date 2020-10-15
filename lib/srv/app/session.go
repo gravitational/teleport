@@ -18,13 +18,16 @@ package app
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
@@ -94,11 +97,13 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 	// Create the forwarder.
 	fwder, err := newForwarder(s.closeContext,
 		&forwarderConfig{
-			w:   streamWriter,
-			uri: app.URI,
-			jwt: jwt,
-			tr:  s.tr,
-			log: s.log,
+			w:           streamWriter,
+			uri:         app.URI,
+			publicAddr:  app.PublicAddr,
+			accessPoint: s.c.AccessPoint,
+			jwt:         jwt,
+			tr:          s.tr,
+			log:         s.log,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -258,11 +263,13 @@ func (s *Server) newStreamer(ctx context.Context, sessionID string, clusterConfi
 
 // forwarderConfig is the configuration for a forwarder.
 type forwarderConfig struct {
-	w   events.StreamWriter
-	uri string
-	jwt string
-	tr  http.RoundTripper
-	log *logrus.Entry
+	w           events.StreamWriter
+	uri         string
+	publicAddr  string
+	jwt         string
+	accessPoint auth.AccessPoint
+	tr          http.RoundTripper
+	log         *logrus.Entry
 }
 
 // Check will valid the configuration of a forwarder.
@@ -273,8 +280,14 @@ func (c *forwarderConfig) Check() error {
 	if c.uri == "" {
 		return trace.BadParameter("uri missing")
 	}
+	if c.publicAddr == "" {
+		return trace.BadParameter("public addr missing")
+	}
 	if c.jwt == "" {
 		return trace.BadParameter("jwt missing")
+	}
+	if c.accessPoint == nil {
+		return trace.BadParameter("access point missing")
 	}
 	if c.tr == nil {
 		return trace.BadParameter("round tripper missing")
@@ -292,7 +305,8 @@ type forwarder struct {
 
 	c *forwarderConfig
 
-	uri *url.URL
+	uri  *url.URL
+	port string
 }
 
 // newForwarder creates a new forwarder that can re-write and round trip a
@@ -312,6 +326,7 @@ func newForwarder(ctx context.Context, c *forwarderConfig) (*forwarder, error) {
 		closeContext: ctx,
 		c:            c,
 		uri:          uri,
+		port:         guessProxyPort(c.accessPoint),
 	}, nil
 }
 
@@ -340,6 +355,11 @@ func (f *forwarder) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Perform any response rewriting before writing the response.
+	if err := f.rewriteResponse(resp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return resp, nil
 }
 
@@ -347,4 +367,46 @@ func (f *forwarder) RoundTrip(r *http.Request) (*http.Response, error) {
 func (f *forwarder) Rewrite(r *http.Request) {
 	r.Header.Add(teleport.AppJWTHeader, f.c.jwt)
 	r.Header.Add(teleport.AppCFHeader, f.c.jwt)
+}
+
+func (f *forwarder) rewriteResponse(resp *http.Response) error {
+	if resp.StatusCode >= http.StatusMultipleChoices &&
+		resp.StatusCode <= http.StatusPermanentRedirect {
+		location := resp.Header.Get("Location")
+		if location == "" {
+			return nil
+		}
+		u, err := url.Parse(location)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if utils.IsLoopback(host(u.Host)) {
+			u.Host = net.JoinHostPort(f.c.publicAddr, f.port)
+		}
+		resp.Header.Set("Location", u.String())
+	}
+	return nil
+}
+
+func host(addr string) string {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	return host
+}
+
+func guessProxyPort(accessPoint auth.AccessPoint) string {
+	servers, err := accessPoint.GetProxies()
+	if err != nil {
+		return strconv.Itoa(defaults.HTTPListenPort)
+	}
+	if len(servers) == 0 {
+		return strconv.Itoa(defaults.HTTPListenPort)
+	}
+	_, port, err := net.SplitHostPort(servers[0].GetPublicAddr())
+	if err != nil {
+		return strconv.Itoa(defaults.HTTPListenPort)
+	}
+	return port
 }
