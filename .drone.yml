@@ -89,39 +89,40 @@ steps:
   - name: Run linter
     image: docker
     environment:
-      GOCACHE: /gocache
+      GOCACHE: /go/cache
       GOPATH: /go
     volumes:
       - name: dockersock
         path: /var/run
       - name: gocache
-        path: /gocache
+        path: /go/cache
     commands:
       - apk add --no-cache make
-      - chown -R $UID:$GID /go /gocache
+      - chown -R $UID:$GID /go
+      - ls -lR /go
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets lint
 
   - name: Run unit and chaos tests
     image: docker
     environment:
-      GOCACHE: /gocache
+      GOCACHE: /go/cache
       GOPATH: /go
     volumes:
       - name: dockersock
         path: /var/run
       - name: gocache
-        path: /gocache
+        path: /go/cache
     commands:
       - apk add --no-cache make
-      - chown -R $UID:$GID /go /gocache
+      - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets test
 
   - name: Run integration tests
     image: docker
     environment:
-      GOCACHE: /gocache
+      GOCACHE: /go/cache
       GOPATH: /go
       INTEGRATION_CI_KUBECONFIG:
         from_secret: INTEGRATION_CI_KUBECONFIG
@@ -131,14 +132,14 @@ steps:
       - name: dockersock
         path: /var/run
       - name: gocache
-        path: /gocache
+        path: /go/cache
       - name: tmp-integration
         path: /tmp
     commands:
       - apk add --no-cache make
       # write kubeconfig to disk for use in kube integrations tests
       - echo "$INTEGRATION_CI_KUBECONFIG" > "$KUBECONFIG"
-      - chown -R $UID:$GID /go /gocache
+      - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets integration
       - rm -f "$KUBECONFIG"
@@ -2896,6 +2897,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 8e96a929b43722d5432a28834ad6907ef379311faf1ad83b82bf0a8aa540b508
+hmac: 8e5767b7ca472b253011f96f62d841b1c352ec7d108101c26bfb0d774ac08de8
 
 ...
