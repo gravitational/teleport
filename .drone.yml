@@ -90,6 +90,7 @@ steps:
     image: docker
     environment:
       GOCACHE: /go/cache
+      GOGC: off
       GOPATH: /go
     volumes:
       - name: dockersock
@@ -2896,6 +2897,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 4c963d2aeba79b5a65810b0db8631958165707360f67c1eb7f72a1219f01e814
+hmac: ecc45670e77825c186ba4eaec480eaf64f8850ab52f05b5168a9af5697d77c16
 
 ...

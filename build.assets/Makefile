@@ -35,6 +35,10 @@ ifeq ("$(DRONE)","true")
 UID := 1000
 GID := 1000
 NOROOT := -u 1000:1000
+# pass through GOGC value if running in CI (uses more RAM for quicker runs)
+ifneq ("$(GOGC)", "")
+DOCKERFLAGS := $(DOCKERFLAGS) -e GOGC=$(GOGC)
+endif
 # mount the go cache into the container if we're running in CI
 ifneq ("$(GOCACHE)", "")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(GOCACHE):/go/cache -e GOCACHE=/go/cache
