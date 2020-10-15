@@ -237,8 +237,9 @@ steps:
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
         Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
-        Author: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits?author={{ build.author }}>|{{ build.author }}
+        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
         <{{ build.link }}|Visit Drone build page ↗>
+        *Warning:* This is a genuine failure to build the Teleport binary from a branch (likely due to a bad merge or commit) and should be investigated immediately.
     when:
       status: [failure]
 
@@ -2881,6 +2882,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 061a276981b30c501473ebda9b2f31b147b4f306dde92997f5907a8c80fc4d7f
+hmac: c9878f4d9126b4dc38ae8131d0e9bf73f827df72fe68f0dadc889479b4f8a860
 
 ...
