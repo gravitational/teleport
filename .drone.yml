@@ -82,7 +82,9 @@ steps:
         # show output of git diff --raw for reference
         git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}
         # check whether there are any changes which don't touch "docs/*" or "*.md"
-        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs/' | grep -Ev '.md$' | grep -v ^$ | wc -l > /tmp/.change_count.txt
+        #git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs/' | grep -Ev '.md$' | grep -v ^$ | wc -l > /tmp/.change_count.txt
+        # exclude .drone.yml for testing
+        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs/' | grep -Ev '.md$' | grep -v ^$ | grep -v .drone.yml | wc -l > /tmp/.change_count.txt
         export CHANGE_COUNT=$(cat /tmp/.change_count.txt | tr -d '\n')
         if [ $$CHANGE_COUNT -gt 0 ]; then
           echo "---> $$CHANGE_COUNT changes to code were detected, tests will run"
@@ -2900,6 +2902,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 89590718fc0afa1c4af69979241982ce28d49cf49ac4f0c94906efd5cb627de0
+hmac: f779f903d1f2d5466d82c304b266a8a6b071b3101398f2685b04614e69d874cb
 
 ...
