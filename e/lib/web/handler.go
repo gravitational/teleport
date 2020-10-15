@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gravitational/teleport"
 	enterpriseAuth "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/web/ui"
-
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -16,9 +16,15 @@ import (
 	"github.com/gravitational/teleport/lib/web"
 
 	"github.com/gravitational/trace"
+
 	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
+
+var log = logrus.WithFields(logrus.Fields{
+	trace.Component: teleport.ComponentWeb,
+})
 
 // Plugin is our plugins to web API of teleport OSS
 type Plugin struct {
@@ -37,7 +43,19 @@ func (p *Plugin) AddHandlers(h *web.Handler) {
 	h.PUT("/enterprise/sites/:site/resources", h.WithClusterAuth(p.upsertResourceHandle))
 	h.POST("/enterprise/sites/:site/resources", h.WithClusterAuth(p.upsertResourceHandle))
 	h.DELETE("/enterprise/sites/:site/resources/:kind/:name", h.WithClusterAuth(p.deleteResourceHandle))
+
 	h.GET("/enterprise/license/status", httplib.MakeHandler(p.getLicenseCheckStatusHandle))
+
+	// User CRUDS that a user in context can apply to other users.
+	h.POST("/enterprise/users", h.WithAuth(p.createUserHandle))
+	h.PUT("/enterprise/users", h.WithAuth(p.updateUserHandle))
+	h.GET("/enterprise/users", h.WithAuth(p.getUsersHandle))
+	h.DELETE("/enterprise/users/:username", h.WithAuth(p.deleteUserHandle))
+
+	h.POST("/enterprise/nodes/token", h.WithAuth(p.createNodeJoinTokenHandle))
+
+	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(p.getNodeJoinScriptHandle))
+
 	p.ProxyClient = h.GetProxyClient()
 }
 
