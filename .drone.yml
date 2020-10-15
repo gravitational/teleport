@@ -154,6 +154,112 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
+name: build-on-push
+
+environment:
+  RUNTIME: go1.14.4
+  UID: 1000
+  GID: 1000
+
+trigger:
+  event:
+    include:
+      - push
+    exclude:
+      - pull_request
+  branch:
+    include:
+      - master
+      - branch/*
+      - stratus
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
+      - cd /go/src/github.com/gravitational/teleport
+      - git init && git remote add origin ${DRONE_REMOTE_URL}
+      - git fetch origin
+      - git checkout -qf ${DRONE_COMMIT_SHA}
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init webassets || true
+      - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      # do a recursive submodule checkout to get both webassets and webassets/e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+
+  - name: Pull buildbox image
+    image: docker
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+
+  - name: Build release
+    image: docker
+    environment:
+      GOPATH: /go
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets release
+
+  - name: Send Slack notification
+    image: plugins/slack
+    settings:
+      webhook:
+        from_secret: SLACK_WEBHOOK
+      channel: teleport-builds
+      template: |
+        {{#if build.pull }}
+          *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}*: <https://github.com/{{ repo.owner }}/{{ repo.name }}/pull/{{ build.pull }}|Pull Request #{{ build.pull }}>
+        {{else}}
+          *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+        {{/if}}
+        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
+        Author: {{ build.author }}
+        <{{ build.link }}|Visit build page ↗>
+    when:
+      status: [failure]
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
 name: test-docs-internal
 
 trigger:
@@ -2779,6 +2885,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 5693346e60f5154da0ac9b4c6e7ffa4bf6ff12ebe2bf21a30fff588c3d084974
+hmac: 7faeabe8d31da052de4744f5fbc4849a8f727157a8d8e0914a6e86e7b1e371d6
 
 ...
