@@ -18,6 +18,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -27,6 +28,7 @@ import (
 
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -97,13 +99,13 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 	// Create the forwarder.
 	fwder, err := newForwarder(s.closeContext,
 		&forwarderConfig{
-			w:           streamWriter,
-			uri:         app.URI,
-			publicAddr:  app.PublicAddr,
-			accessPoint: s.c.AccessPoint,
-			jwt:         jwt,
-			tr:          s.tr,
-			log:         s.log,
+			w:                  streamWriter,
+			uri:                app.URI,
+			publicAddr:         app.PublicAddr,
+			accessPoint:        s.c.AccessPoint,
+			insecureSkipVerify: app.InsecureSkipVerify,
+			jwt:                jwt,
+			log:                s.log,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -263,13 +265,13 @@ func (s *Server) newStreamer(ctx context.Context, sessionID string, clusterConfi
 
 // forwarderConfig is the configuration for a forwarder.
 type forwarderConfig struct {
-	w           events.StreamWriter
-	uri         string
-	publicAddr  string
-	jwt         string
-	accessPoint auth.AccessPoint
-	tr          http.RoundTripper
-	log         *logrus.Entry
+	w                  events.StreamWriter
+	uri                string
+	publicAddr         string
+	jwt                string
+	accessPoint        auth.AccessPoint
+	insecureSkipVerify bool
+	log                *logrus.Entry
 }
 
 // Check will valid the configuration of a forwarder.
@@ -289,9 +291,6 @@ func (c *forwarderConfig) Check() error {
 	if c.accessPoint == nil {
 		return trace.BadParameter("access point missing")
 	}
-	if c.tr == nil {
-		return trace.BadParameter("round tripper missing")
-	}
 	if c.log == nil {
 		return trace.BadParameter("logger missing")
 	}
@@ -304,6 +303,8 @@ type forwarder struct {
 	closeContext context.Context
 
 	c *forwarderConfig
+
+	tr http.RoundTripper
 
 	uri  *url.URL
 	port string
@@ -322,11 +323,17 @@ func newForwarder(ctx context.Context, c *forwarderConfig) (*forwarder, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	tr, err := newTransport(c.insecureSkipVerify)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &forwarder{
 		closeContext: ctx,
 		c:            c,
 		uri:          uri,
 		port:         guessProxyPort(c.accessPoint),
+		tr:           tr,
 	}, nil
 }
 
@@ -336,7 +343,7 @@ func (f *forwarder) RoundTrip(r *http.Request) (*http.Response, error) {
 	r.URL.Scheme = f.uri.Scheme
 	r.URL.Host = f.uri.Host
 
-	resp, err := f.c.tr.RoundTrip(r)
+	resp, err := f.tr.RoundTrip(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -409,4 +416,34 @@ func guessProxyPort(accessPoint auth.AccessPoint) string {
 		return strconv.Itoa(defaults.HTTPListenPort)
 	}
 	return port
+}
+
+// newTransport returns a new http.RoundTripper with sensible defaults.
+func newTransport(insecureSkipVerify bool) (http.RoundTripper, error) {
+	// Clone the default transport to pick up sensible defaults.
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return nil, trace.BadParameter("invalid transport type %T", http.DefaultTransport)
+	}
+	tr := defaultTransport.Clone()
+
+	// Increase the size of the transports connection pool. This substantially
+	// improves the performance of Teleport under load as it reduces the number
+	// of TLS handshakes performed.
+	tr.MaxIdleConns = defaults.HTTPMaxIdleConns
+	tr.MaxIdleConnsPerHost = defaults.HTTPMaxIdleConnsPerHost
+
+	// Set IdleConnTimeout on the transport, this defines the maximum amount of
+	// time before idle connections are closed. Leaving this unset will lead to
+	// connections open forever and will cause memory leaks in a long running
+	// process.
+	tr.IdleConnTimeout = defaults.HTTPIdleTimeout
+
+	// Don't verify the servers certificate if either Teleport was started with
+	// the --insecure flag or insecure skip verify was specifically requested in
+	// application config.
+	fmt.Printf("--> setting insecureSkipVerify: %v.\n", insecureSkipVerify)
+	tr.TLSClientConfig.InsecureSkipVerify = (lib.IsInsecureDevMode() || insecureSkipVerify)
+
+	return tr, nil
 }

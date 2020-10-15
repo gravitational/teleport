@@ -564,6 +564,9 @@ type App struct {
 
 	// DynamicLabels is a list of dynamic labels to apply to this application.
 	DynamicLabels services.CommandLabels `yaml:"commands,omitempty"`
+
+	// InsecureSkipVerify is used to skip validating the servers certificate.
+	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults

@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/labels"
@@ -122,8 +121,6 @@ type Server struct {
 
 	keepAlive time.Duration
 
-	tr http.RoundTripper
-
 	mu    sync.Mutex
 	cache *ttlmap.TTLMap
 
@@ -155,14 +152,6 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 
 	// Create and configure HTTP server with authorizing middleware.
 	s.httpServer = s.newHTTPServer()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Create a common transport that will be used to establish all connections
-	// to target applications. This allows Teleport to set process level limits
-	// on connections.
-	s.tr, err = newTransport()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -449,32 +438,4 @@ func copyAndConfigureTLS(config *tls.Config, fn func(*tls.ClientHelloInfo) (*tls
 	tlsConfig.GetConfigForClient = fn
 
 	return tlsConfig
-}
-
-// newTransport returns a new http.RoundTripper with sensible defaults.
-func newTransport() (http.RoundTripper, error) {
-	// Clone the default transport to pick up sensible defaults.
-	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
-	if !ok {
-		return nil, trace.BadParameter("invalid transport type %T", http.DefaultTransport)
-	}
-	tr := defaultTransport.Clone()
-
-	// Increase the size of the transports connection pool. This substantially
-	// improves the performance of Teleport under load as it reduces the number
-	// of TLS handshakes performed.
-	tr.MaxIdleConns = defaults.HTTPMaxIdleConns
-	tr.MaxIdleConnsPerHost = defaults.HTTPMaxIdleConnsPerHost
-
-	// Set IdleConnTimeout on the transport, this defines the maximum amount of
-	// time before idle connections are closed. Leaving this unset will lead to
-	// connections open forever and will cause memory leaks in a long running
-	// process.
-	tr.IdleConnTimeout = defaults.HTTPIdleTimeout
-
-	// If Teleport was started with the --insecure flag, then don't validate the
-	// certificate if making TLS requests.
-	tr.TLSClientConfig.InsecureSkipVerify = lib.IsInsecureDevMode()
-
-	return tr, nil
 }

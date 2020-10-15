@@ -169,6 +169,7 @@ var (
 		"apps":                    false,
 		"https_keypairs":          true,
 		"key_file":                false,
+		"insecure_skip_verify":    false,
 	}
 )
 
@@ -823,6 +824,9 @@ type App struct {
 
 	// Commands is a list of dynamic labels to apply to this application.
 	DynamicLabels []CommandLabel `yaml:"commands,omitempty"`
+
+	// InsecureSkipVerify is used to skip validating the servers certificate.
+	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
 }
 
 func (a *App) CheckAndSetDefaults() error {

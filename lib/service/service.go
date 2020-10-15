@@ -2617,11 +2617,12 @@ func (process *TeleportProcess) initApps() {
 			}
 
 			applications = append(applications, &services.App{
-				Name:          app.Name,
-				URI:           app.URI,
-				PublicAddr:    publicAddr,
-				StaticLabels:  app.StaticLabels,
-				DynamicLabels: services.LabelsToV2(app.DynamicLabels),
+				Name:               app.Name,
+				URI:                app.URI,
+				PublicAddr:         publicAddr,
+				StaticLabels:       app.StaticLabels,
+				DynamicLabels:      services.LabelsToV2(app.DynamicLabels),
+				InsecureSkipVerify: app.InsecureSkipVerify,
 			})
 		}
 		server := &services.ServerV2{

@@ -724,11 +724,12 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 
 		// Add the application to the list of proxied applications.
 		cfg.Apps.Apps = append(cfg.Apps.Apps, service.App{
-			Name:          application.Name,
-			URI:           application.URI,
-			PublicAddr:    application.PublicAddr,
-			StaticLabels:  staticLabels,
-			DynamicLabels: dynamicLabels,
+			Name:               application.Name,
+			URI:                application.URI,
+			PublicAddr:         application.PublicAddr,
+			StaticLabels:       staticLabels,
+			DynamicLabels:      dynamicLabels,
+			InsecureSkipVerify: application.InsecureSkipVerify,
 		})
 	}
 

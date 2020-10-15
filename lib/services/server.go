@@ -488,6 +488,7 @@ const ServerSpecV2Schema = `{
           "name": {"type": "string"},
           "uri": {"type": "string"},
           "public_addr": {"type": "string"},
+          "insecure_skip_verify": {"type": "boolean"},
           "labels": {
              "type": "object",
              "additionalProperties": false,
