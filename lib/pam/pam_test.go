@@ -70,9 +70,10 @@ func TestEcho(t *testing.T) {
 			"TELEPORT_LOGIN":    username,
 			"TELEPORT_ROLES":    "bar baz qux",
 		},
-		Stdin:  &discardReader{},
-		Stdout: &buf,
-		Stderr: &buf,
+		Stdin:      &discardReader{},
+		Stdout:     &buf,
+		Stderr:     &buf,
+		UsePAMAuth: true,
 	})
 	assert.NoError(t, err)
 	defer pamContext.Close()
@@ -128,6 +129,7 @@ func TestSuccess(t *testing.T) {
 		Stdin:       &discardReader{},
 		Stdout:      &buf,
 		Stderr:      &buf,
+		UsePAMAuth:  true,
 	})
 	assert.NoError(t, err)
 	defer pamContext.Close()
@@ -169,8 +171,33 @@ func TestAuthFailure(t *testing.T) {
 		Stdin:       &discardReader{},
 		Stdout:      &buf,
 		Stderr:      &buf,
+		UsePAMAuth:  true,
 	})
 	assert.Error(t, err)
+}
+
+func TestAuthDisabled(t *testing.T) {
+	t.Parallel()
+	checkTestModule(t, "teleport-auth-failure")
+	username := currentUser(t)
+
+	var buf bytes.Buffer
+	pamContext, err := Open(&Config{
+		Enabled:     true,
+		ServiceName: "teleport-auth-failure",
+		Login:       username,
+		Stdin:       &discardReader{},
+		Stdout:      &buf,
+		Stderr:      &buf,
+		UsePAMAuth:  false,
+	})
+	assert.NoError(t, err)
+	defer pamContext.Close()
+
+	assertOutput(t, buf.String(), []string{
+		"pam_sm_acct_mgmt OK",
+		"pam_sm_open_session OK",
+	})
 }
 
 func TestSessionFailure(t *testing.T) {
