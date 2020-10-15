@@ -212,8 +212,9 @@ auth_service:
     keep_alive_count_max: 3
 
     # Determines the internal session control timeout cluster wide. This value will
-    # be used with enterprise max_connections and max_sessions.
-    session_control_timeout: 2m
+    # be used with enterprise max_connections and max_sessions. It's unlikely that
+    # you'll need to change this.
+    # session_control_timeout: 2m
 
     # License file to start auth server with. Note that this setting is ignored
     # in open-source Teleport and is required only for Teleport Pro, Business
