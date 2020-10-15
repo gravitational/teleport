@@ -149,6 +149,7 @@ var (
 		"audit_sessions_uri":      false,
 		"audit_events_uri":        false,
 		"pam":                     true,
+		"use_pam_auth":            false,
 		"service_name":            false,
 		"client_idle_timeout":     false,
 		"session_control_timeout": false,
@@ -738,6 +739,10 @@ type PAM struct {
 
 	// ServiceName is the name of the PAM policy to apply.
 	ServiceName string `yaml:"service_name"`
+
+	// UsePAMAuth specifies whether to trigger the "auth" PAM modules from the
+	// policy.
+	UsePAMAuth bool `yaml:"use_pam_auth"`
 }
 
 // Parse returns a parsed pam.Config.
@@ -750,6 +755,7 @@ func (p *PAM) Parse() *pam.Config {
 	return &pam.Config{
 		Enabled:     enabled,
 		ServiceName: serviceName,
+		UsePAMAuth:  p.UsePAMAuth,
 	}
 }
 
