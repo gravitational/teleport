@@ -84,9 +84,8 @@ steps:
     commands:
     - |
         cd /go/src/github.com/gravitational/teleport
-        echo "---> git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}"
+        echo -e "\n---> git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}\n"
         git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}
-        echo ""
         git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs/' | grep -Ev '.md$' | grep -v ^$ | wc -l > /tmp/.change_count.txt
         export CHANGE_COUNT=$(cat /tmp/.change_count.txt | tr -d '\n')
         echo "---> Changes to Teleport code detected: $$CHANGE_COUNT"
@@ -2906,6 +2905,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 6d2997cacdbe314dc24284a887637498aeb01c050791645e5b5139e207b8febe
+hmac: 59a093528b491a7c2c496395c6a9c540e3ea3ad83dcf45c086c24f0618b5f33c
 
 ...
