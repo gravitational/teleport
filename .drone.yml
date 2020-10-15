@@ -87,9 +87,9 @@ steps:
         git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs/' | grep -Ev '.md$' | grep -v ^$ | grep -v .drone.yml | wc -l > /tmp/.change_count.txt
         export CHANGE_COUNT=$(cat /tmp/.change_count.txt | tr -d '\n')
         if [ $$CHANGE_COUNT -gt 0 ]; then
-          echo "---> $$CHANGE_COUNT changes to code were detected, tests will run"
+          echo "---> $$CHANGE_COUNT changes to code were detected, Teleport tests will run"
         else
-          echo "---> $$CHANGE_COUNT changes to code detected, tests will not run"
+          echo "---> $$CHANGE_COUNT changes to code detected, Teleport tests will not run"
           # https://discourse.drone.io/t/how-to-exit-a-pipeline-early-without-failing/3951
           exit 78
         fi
@@ -2902,6 +2902,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 6dc872e52d63981ebab549eac6658edd429601e95bcc62029176d589a691abe2
+hmac: 30130abcd867273e7dc3bcacd1a48376eb239f57297042bd9ba511ff8e0641ec
 
 ...
