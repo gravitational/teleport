@@ -17,7 +17,7 @@ trigger:
       - gravitational/*
 
 workspace:
-  path: /go/src/github.com/gravitational/teleport
+  path: /go
 
 clone:
   disable: true
@@ -89,39 +89,39 @@ steps:
   - name: Run linter
     image: docker
     environment:
-      GOCACHE: /go/cache
+      GOCACHE: /gocache
       GOPATH: /go
     volumes:
       - name: dockersock
         path: /var/run
       - name: gocache
-        path: /go/cache
+        path: /gocache
     commands:
       - apk add --no-cache make
-      - chown -R $UID:$GID /go
+      - chown -R $UID:$GID /go /gocache
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets lint
 
   - name: Run unit and chaos tests
     image: docker
     environment:
-      GOCACHE: /go/cache
+      GOCACHE: /gocache
       GOPATH: /go
     volumes:
       - name: dockersock
         path: /var/run
       - name: gocache
-        path: /go/cache
+        path: /gocache
     commands:
       - apk add --no-cache make
-      - chown -R $UID:$GID /go
+      - chown -R $UID:$GID /go /gocache
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets test
 
   - name: Run integration tests
     image: docker
     environment:
-      GOCACHE: /go/cache
+      GOCACHE: /gocache
       GOPATH: /go
       INTEGRATION_CI_KUBECONFIG:
         from_secret: INTEGRATION_CI_KUBECONFIG
@@ -130,15 +130,15 @@ steps:
     volumes:
       - name: dockersock
         path: /var/run
-      - name: tmp-integration
-        path: /tmp
       - name: gocache
         path: /gocache
+      - name: tmp-integration
+        path: /tmp
     commands:
       - apk add --no-cache make
       # write kubeconfig to disk for use in kube integrations tests
       - echo "$INTEGRATION_CI_KUBECONFIG" > "$KUBECONFIG"
-      - chown -R $UID:$GID /go
+      - chown -R $UID:$GID /go /gocache
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets integration
       - rm -f "$KUBECONFIG"
@@ -200,7 +200,7 @@ steps:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
     commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
+      - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
       - git init && git remote add origin ${DRONE_REMOTE_URL}
       - git fetch origin
@@ -2896,6 +2896,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 2478e26be15aed95b977691f41e230631774b69100f0039fd9e55ac510e1d53c
+hmac: 8e96a929b43722d5432a28834ad6907ef379311faf1ad83b82bf0a8aa540b508
 
 ...
