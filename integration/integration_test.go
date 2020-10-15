@@ -1733,7 +1733,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 // tryCreateTrustedCluster performs several attempts to create a trusted cluster,
 // retries on connection problems and access denied errors to let caches
 // propagate and services to start
-func tryCreateTrustedCluster(c *check.C, authServer *auth.AuthServer, trustedCluster services.TrustedCluster) {
+func tryCreateTrustedCluster(c *check.C, authServer *auth.Server, trustedCluster services.TrustedCluster) {
 	ctx := context.TODO()
 	for i := 0; i < 10; i++ {
 		log.Debugf("Will create trusted cluster %v, attempt %v.", trustedCluster, i)
@@ -2613,7 +2613,7 @@ func waitForNodeCount(t *TeleInstance, clusterName string, count int) error {
 }
 
 // waitForTunnelConnections waits for remote tunnels connections
-func waitForTunnelConnections(c *check.C, authServer *auth.AuthServer, clusterName string, expectedCount int) {
+func waitForTunnelConnections(c *check.C, authServer *auth.Server, clusterName string, expectedCount int) {
 	var conns []services.TunnelConnection
 	for i := 0; i < 30; i++ {
 		conns, err := authServer.Presence.GetTunnelConnections(clusterName)

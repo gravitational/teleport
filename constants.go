@@ -375,6 +375,9 @@ const (
 
 	// DebugLevel is a debug logging level name
 	DebugLevel = "debug"
+
+	// MinimumEtcdVersion is the minimum version of etcd supported by Teleport
+	MinimumEtcdVersion = "3.3.0"
 )
 
 const (
@@ -569,23 +572,8 @@ const (
 	// KubeCAPath is a hardcode of mounted CA inside every pod of K8s
 	KubeCAPath = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 
-	// KubeKindCSR is a certificate signing requests
-	KubeKindCSR = "CertificateSigningRequest"
-
-	// KubeKindPod is a kubernetes pod
-	KubeKindPod = "Pod"
-
-	// KubeMetadataNameSelector is a selector for name metadata in API requests
-	KubeMetadataNameSelector = "metadata.name"
-
-	// KubeMetadataLabelSelector is a selector for label
-	KubeMetadataLabelSelector = "metadata.label"
-
 	// KubeRunTests turns on kubernetes tests
 	KubeRunTests = "TEST_KUBE"
-
-	// KubeSystemMasters is a name of the builtin kubernets group for master nodes
-	KubeSystemMasters = "system:masters"
 
 	// KubeSystemAuthenticated is a builtin group that allows
 	// any user to access common API methods, e.g. discovery methods

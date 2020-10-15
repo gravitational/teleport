@@ -184,12 +184,12 @@ func (l *Forwarder) setupSlice(slice *SessionSlice) ([]*SessionChunk, error) {
 			return nil, trace.BadParameter("missing event type")
 		case SessionCommandEvent, SessionDiskEvent, SessionNetworkEvent:
 			chunk.EventIndex = l.enhancedIndexes[chunk.EventType]
-			l.enhancedIndexes[chunk.EventType] += 1
+			l.enhancedIndexes[chunk.EventType]++
 
 			chunks = append(chunks, chunk)
 		case SessionPrintEvent:
 			chunk.EventIndex = l.eventIndex
-			l.eventIndex += 1
+			l.eventIndex++
 
 			// Filter out chunks with session print events, as this logger forwards
 			// only audit events to the auth server.
@@ -201,7 +201,7 @@ func (l *Forwarder) setupSlice(slice *SessionSlice) ([]*SessionChunk, error) {
 			l.lastChunk = chunk
 		default:
 			chunk.EventIndex = l.eventIndex
-			l.eventIndex += 1
+			l.eventIndex++
 
 			chunks = append(chunks, chunk)
 		}

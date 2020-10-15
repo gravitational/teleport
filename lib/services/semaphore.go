@@ -146,15 +146,15 @@ func (l *SemaphoreLock) Renewed() <-chan struct{} {
 	return l.renewalC
 }
 
-func (lock *SemaphoreLock) KeepAlive(ctx context.Context) {
+func (l *SemaphoreLock) KeepAlive(ctx context.Context) {
 	var nodrop bool
 	var err error
-	lease := lock.lease0
+	lease := l.lease0
 	ctx, cancel := context.WithCancel(ctx)
 	defer func() {
 		cancel()
-		lock.Stop()
-		defer lock.finish(err)
+		l.Stop()
+		defer l.finish(err)
 		if nodrop {
 			// non-standard exit conditions; don't bother handling
 			// cancellation/expiry.
@@ -164,9 +164,9 @@ func (lock *SemaphoreLock) KeepAlive(ctx context.Context) {
 			// parent context is closed. create orphan context with generous
 			// timeout for lease cancellation scope.  this will not block any
 			// caller that is not explicitly waiting on the final error value.
-			cancelContext, cancel := context.WithTimeout(context.Background(), lock.cfg.Expiry/4)
+			cancelContext, cancel := context.WithTimeout(context.Background(), l.cfg.Expiry/4)
 			defer cancel()
-			err = lock.cfg.Service.CancelSemaphoreLease(cancelContext, lease)
+			err = l.cfg.Service.CancelSemaphoreLease(cancelContext, lease)
 			if err != nil {
 				log.Warnf("Failed to cancel semaphore lease %s/%s: %v", lease.SemaphoreKind, lease.SemaphoreName, err)
 			}
@@ -177,12 +177,12 @@ func (lock *SemaphoreLock) KeepAlive(ctx context.Context) {
 Outer:
 	for {
 		select {
-		case tick := <-lock.ticker.C:
+		case tick := <-l.ticker.C:
 			leaseContext, leaseCancel := context.WithDeadline(ctx, lease.Expires)
 			nextLease := lease
-			nextLease.Expires = tick.Add(lock.cfg.Expiry)
+			nextLease.Expires = tick.Add(l.cfg.Expiry)
 			for {
-				err = lock.cfg.Service.KeepAliveSemaphoreLease(leaseContext, nextLease)
+				err = l.cfg.Service.KeepAliveSemaphoreLease(leaseContext, nextLease)
 				if trace.IsNotFound(err) {
 					leaseCancel()
 					// semaphore and/or lease no longer exist; best to log the error
@@ -194,28 +194,28 @@ Outer:
 				if err == nil {
 					leaseCancel()
 					lease = nextLease
-					lock.retry.Reset()
+					l.retry.Reset()
 					select {
-					case lock.renewalC <- struct{}{}:
+					case l.renewalC <- struct{}{}:
 					default:
 					}
 					continue Outer
 				}
 				log.Debugf("Failed to renew semaphore lease %s/%s: %v", lease.SemaphoreKind, lease.SemaphoreName, err)
-				lock.retry.Inc()
+				l.retry.Inc()
 				select {
-				case <-lock.retry.After():
+				case <-l.retry.After():
 				case <-leaseContext.Done():
 					leaseCancel() // demanded by linter
 					return
-				case <-lock.Done():
+				case <-l.Done():
 					leaseCancel()
 					return
 				}
 			}
 		case <-ctx.Done():
 			return
-		case <-lock.Done():
+		case <-l.Done():
 			return
 		}
 	}

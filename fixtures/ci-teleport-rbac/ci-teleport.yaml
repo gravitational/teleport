@@ -6,45 +6,42 @@ metadata:
   name: ci-teleport
 rules:
 - apiGroups: [""]
-  resources: ["users", "groups", "serviceaccounts"]
+  resources: ["users", "groups"]
   verbs: ["impersonate"]
 - apiGroups: [""]
   resources: ["namespaces"]
-  verbs: ["create", "delete"]
-- apiGroups: ["authorization.k8s.io"]
-  resources: ["selfsubjectaccessreviews", "selfsubjectrulesreviews"]
   verbs: ["create"]
 ---
-# role to allow pod operations in kube-system namespace
+# role to allow pod operations in teletest namespace
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: ci-teleport-sa
-  namespace: kube-system
+  namespace: teletest
 rules:
 - apiGroups: [""]
   resources: ["pods"]
-  verbs: ["list"]
-- apiGroups: [""]
-  resources: ["pods/log"]
-  verbs: ["get"]
+  verbs: ["create"]
 ---
-# role to allow pod operations via impersonation in kube-system namespace
+# role to allow pod operations via impersonation in teletest namespace
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: ci-teleport-group
-  namespace: kube-system
+  namespace: teletest
 rules:
 - apiGroups: [""]
   resources: ["pods"]
-  verbs: ["list"]
+  verbs: ["get"]
+  resourceNames: ["test-pod"]
 - apiGroups: [""]
   resources: ["pods/exec"]
   verbs: ["create"]
+  resourceNames: ["test-pod"]
 - apiGroups: [""]
   resources: ["pods/portforward"]
   verbs: ["create"]
+  resourceNames: ["test-pod"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -63,7 +60,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: ci-teleport-sa
-  namespace: kube-system
+  namespace: teletest
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -77,7 +74,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: ci-teleport-group
-  namespace: kube-system
+  namespace: teletest
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role

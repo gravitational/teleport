@@ -1,6 +1,25 @@
 # Changelog
 
-### 4.3.6
+## 4.3.7
+
+This release of Teleport contains a security fix and a bug fix.
+
+* Mitigated [CVE-2020-15216](https://nvd.nist.gov/vuln/detail/CVE-2020-15216) by updating github.com/russellhaering/goxmldsig.
+
+### Details
+A vulnerability was discovered in the `github.com/russellhaering/goxmldsig` library which is used by Teleport to validate the
+signatures of XML files used to configure SAML 2.0 connectors. With a carefully crafted XML file, an attacker can completely
+bypass XML signature validation and pass off an altered file as a signed one.
+
+### Actions
+The `goxmldsig` library has been updated upstream and Teleport 4.3.7 includes the fix. Any Enterprise SSO users using Okta,
+Active Directory, OneLogin or custom SAML connectors should upgrade their auth servers to version 4.3.7 and restart Teleport.
+
+If you are unable to upgrade immediately, we suggest deleting SAML connectors for all clusters until the updates can be applied.
+
+* Fixed an issue where DynamoDB connections made by Teleport would not respect the `HTTP_PROXY` or `HTTPS_PROXY` environment variables. [#4271](https://github.com/gravitational/teleport/pull/4271)
+
+## 4.3.6
 
 This release of Teleport contains multiple bug fixes.
 
@@ -9,13 +28,13 @@ This release of Teleport contains multiple bug fixes.
 * Updated `/readyz` endpoint to recover faster after node goes into degraded state. [#4223](https://github.com/gravitational/teleport/pull/4223)
 * Added node UUID to debug logs to allow correlation between TCP connections and nodes. [#4291](https://github.com/gravitational/teleport/pull/4291)
 
-### 4.3.5
+## 4.3.5
 
 This release of Teleport contains a bug fix.
 
 * Fixed issue that caused Teleport Docker images to be built incorrectly. [#4201](https://github.com/gravitational/teleport/pull/4201)
 
-### 4.3.4
+## 4.3.4
 
 This release of Teleport contains multiple bug fixes.
 
@@ -24,7 +43,7 @@ This release of Teleport contains multiple bug fixes.
 * Fixed issue that prevented local user creation using Firestore. [#4160](https://github.com/gravitational/teleport/pull/4160)
 * Fixed issue that could cause `tsh` to panic when using a PEM file. [#4189](https://github.com/gravitational/teleport/pull/4189)
 
-### 4.3.2
+## 4.3.2
 
 This release of Teleport contains multiple bug fixes.
 
@@ -36,7 +55,7 @@ This release of Teleport contains multiple bug fixes.
 * Fixed an issue that would prevent playback of Kubernetes session [#4055](https://github.com/gravitational/teleport/issues/4055)
 * Fixed regressions in the UI. [#4013](https://github.com/gravitational/teleport/issues/4013) [#4012](https://github.com/gravitational/teleport/issues/4012)  [#4035](https://github.com/gravitational/teleport/issues/4035)  [#4051](https://github.com/gravitational/teleport/issues/4051)  [#4044](https://github.com/gravitational/teleport/issues/4044)
 
-### 4.3.0
+## 4.3.0
 
 This is a major Teleport release with a focus on new features, functionality, and bug fixes. It’s a substantial release and users can review [4.3 closed issues](https://github.com/gravitational/teleport/milestone/37?closed=1) on Github for details of all items. We would love your feedback - please pick a [time slot for a remote UX feedback session](https://calendly.com/benarent-gravitational/teleport-4-3-feedback-session?month=2020-06) if you’re interested.
 
@@ -128,6 +147,23 @@ The minimum set of Kubernetes permissions that need to be granted to Teleport pr
 The [etcd backend](https://gravitational.com/teleport/docs/admin-guide/#using-etcd) now correctly uses the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will migrate the data as needed at startup. Make sure you follow our Teleport [upgrade guidance](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport).
 
 **Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](https://gravitational.com/teleport/docs/admin-guide/#backing-up-teleport) into the downgraded cluster.**
+
+## 4.2.12
+
+This release of Teleport contains a security fix.
+
+* Mitigated [CVE-2020-15216](https://nvd.nist.gov/vuln/detail/CVE-2020-15216) by updating github.com/russellhaering/goxmldsig.
+
+### Details
+A vulnerability was discovered in the `github.com/russellhaering/goxmldsig` library which is used by Teleport to validate the
+signatures of XML files used to configure SAML 2.0 connectors. With a carefully crafted XML file, an attacker can completely
+bypass XML signature validation and pass off an altered file as a signed one.
+
+### Actions
+The `goxmldsig` library has been updated upstream and Teleport 4.2.12 includes the fix. Any Enterprise SSO users using Okta,
+Active Directory, OneLogin or custom SAML connectors should upgrade their auth servers to version 4.2.12 and restart Teleport.
+
+If you are unable to upgrade immediately, we suggest deleting SAML connectors for all clusters until the updates can be applied.
 
 ## 4.2.11
 
@@ -243,6 +279,23 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 * Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](https://gravitational.com/teleport/docs/ver/4.2/trustedclusters/).
 * Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](https://gravitational.com/teleport/docs/ver/4.2/enterprise/ssh_fips/).
+
+## 4.1.11
+
+This release of Teleport contains a security fix.
+
+* Mitigated [CVE-2020-15216](https://nvd.nist.gov/vuln/detail/CVE-2020-15216) by updating github.com/russellhaering/goxmldsig.
+
+### Details
+A vulnerability was discovered in the `github.com/russellhaering/goxmldsig` library which is used by Teleport to validate the
+signatures of XML files used to configure SAML 2.0 connectors. With a carefully crafted XML file, an attacker can completely
+bypass XML signature validation and pass off an altered file as a signed one.
+
+### Actions
+The `goxmldsig` library has been updated upstream and Teleport 4.1.11 includes the fix. Any Enterprise SSO users using Okta,
+Active Directory, OneLogin or custom SAML connectors should upgrade their auth servers to version 4.1.11 and restart Teleport.
+
+If you are unable to upgrade immediately, we suggest deleting SAML connectors for all clusters until the updates can be applied.
 
 ## 4.1.10
 

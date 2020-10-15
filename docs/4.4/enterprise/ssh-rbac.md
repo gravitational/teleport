@@ -106,6 +106,9 @@ spec:
     # Optional: max_sessions total number of session channels which can be established
     # across a single connection. 10 will match OpenSSH default behavior.
     max_sessions: 10
+    # permit_x11_forwarding allows users to use X11 forwarding with openssh clients and servers through the proxy
+    permit_x11_forwarding: true
+
 
   # allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. by default nothing is allowed.

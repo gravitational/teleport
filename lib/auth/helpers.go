@@ -100,7 +100,7 @@ type TestAuthServer struct {
 	// TestAuthServer config is configuration used for auth server setup
 	TestAuthServerConfig
 	// AuthServer is an auth server
-	AuthServer *AuthServer
+	AuthServer *Server
 	// AuditLog is an event audit log
 	AuditLog events.IAuditLog
 	// SessionLogger is a session logger
@@ -158,7 +158,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	srv.AuthServer, err = NewAuthServer(&InitConfig{
+	srv.AuthServer, err = NewServer(&InitConfig{
 		Backend:                srv.Backend,
 		Authority:              authority.New(),
 		Access:                 access,
@@ -256,7 +256,7 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 
 // generateCertificate generates certificate for identity,
 // returns private public key pair
-func generateCertificate(authServer *AuthServer, identity TestIdentity) ([]byte, []byte, error) {
+func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []byte, error) {
 	switch id := identity.I.(type) {
 	case LocalUser:
 		user, err := authServer.GetUser(id.Username, false)
@@ -391,7 +391,7 @@ type TestTLSServerConfig struct {
 	// AuthServer is a test auth server used to serve requests
 	AuthServer *TestAuthServer
 	// Limiter is a connection and request limiter
-	Limiter *limiter.LimiterConfig
+	Limiter *limiter.Config
 	// Listener is a listener to serve requests on
 	Listener net.Listener
 	// AcceptedUsage is a list of accepted usage restrictions
@@ -399,7 +399,7 @@ type TestTLSServerConfig struct {
 }
 
 // Auth returns auth server used by this TLS server
-func (t *TestTLSServer) Auth() *AuthServer {
+func (t *TestTLSServer) Auth() *Server {
 	return t.AuthServer.AuthServer
 }
 
@@ -433,7 +433,7 @@ func (cfg *TestTLSServerConfig) CheckAndSetDefaults() error {
 	}
 	// use very permissive limiter configuration by default
 	if cfg.Limiter == nil {
-		cfg.Limiter = &limiter.LimiterConfig{
+		cfg.Limiter = &limiter.Config{
 			MaxConnections:   1000,
 			MaxNumberOfUsers: 1000,
 		}
@@ -635,7 +635,7 @@ func (t *TestTLSServer) Stop() error {
 }
 
 // NewServerIdentity generates new server identity, used in tests
-func NewServerIdentity(clt *AuthServer, hostID string, role teleport.Role) (*Identity, error) {
+func NewServerIdentity(clt *Server, hostID string, role teleport.Role) (*Identity, error) {
 	keys, err := clt.GenerateServerKeys(GenerateServerKeysRequest{
 		HostID:   hostID,
 		NodeName: hostID,

@@ -45,7 +45,7 @@ import (
 )
 
 type APIConfig struct {
-	AuthServer     *AuthServer
+	AuthServer     *Server
 	SessionService session.Service
 	AuditLog       events.IAuditLog
 	Authorizer     Authorizer
@@ -275,7 +275,7 @@ func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 
 			return nil, trace.AccessDenied(accessDeniedMsg + "[00]")
 		}
-		auth := &AuthWithRoles{
+		auth := &ServerWithRoles{
 			authServer: s.AuthServer,
 			context:    *authContext,
 			sessions:   s.SessionService,

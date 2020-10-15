@@ -99,7 +99,7 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets lint
 
-  - name: Run unit tests
+  - name: Run unit and chaos tests
     image: docker
     environment:
       GOPATH: /go
@@ -123,6 +123,8 @@ steps:
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmp-integration
+        path: /tmp
     commands:
       - apk add --no-cache make
       # write kubeconfig to disk for use in kube integrations tests
@@ -135,7 +137,115 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
+    volumes:
+      - name: dockersock
+        path: /var/run
+      - name: tmp-dind
+        path: /tmp
+
+volumes:
+  - name: dockersock
+    temp: {}
+  - name: tmp-dind
+    temp: {}
+  - name: tmp-integration
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: build-on-push
+
+environment:
+  RUNTIME: go1.14.4
+  UID: 1000
+  GID: 1000
+
+trigger:
+  event:
+    include:
+      - push
+    exclude:
+      - pull_request
+  branch:
+    include:
+      - master
+      - branch/*
+      - stratus
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
+      - cd /go/src/github.com/gravitational/teleport
+      - git init && git remote add origin ${DRONE_REMOTE_URL}
+      - git fetch origin
+      - git checkout -qf ${DRONE_COMMIT_SHA}
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init webassets || true
+      - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      # do a recursive submodule checkout to get both webassets and webassets/e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+
+  - name: Pull buildbox image
+    image: docker
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+
+  - name: Build release
+    image: docker
+    environment:
+      GOPATH: /go
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets release
+
+  - name: Send Slack notification
+    image: plugins/slack
+    settings:
+      webhook:
+        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+      channel: dev-teleport
+      template: |
+        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
+        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+        <{{ build.link }}|Visit Drone build page ↗>
+        *Warning:* This is a genuine failure to build the Teleport binary from a branch (likely due to a bad merge or commit) and should be investigated immediately.
+    when:
+      status: [failure]
+
+services:
+  - name: Start Docker
+    image: docker:dind
     volumes:
       - name: dockersock
         path: /var/run
@@ -425,7 +535,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -579,7 +688,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -684,7 +792,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -789,7 +896,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -893,7 +999,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1006,7 +1111,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1120,7 +1224,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1233,7 +1336,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1348,7 +1450,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1452,7 +1553,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1565,7 +1665,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1678,7 +1777,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -2204,7 +2302,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -2315,7 +2412,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -2389,7 +2485,6 @@ steps:
       - cd /go/src/github.com/gravitational/teleport/assets/aws
       - export TELEPORT_VERSION=$(cat /go/.version.txt)
       - export PUBLIC_AMI_NAME=gravitational-teleport-ami-oss-$TELEPORT_VERSION
-      - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-oss-$TELEPORT_VERSION
       - |
         if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
           echo "---> Building production OSS AMIs"
@@ -2417,7 +2512,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -2494,7 +2588,6 @@ steps:
       - export TELEPORT_VERSION=$(cat /go/.version.txt)
       - export PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-$TELEPORT_VERSION
       - export FIPS_AMI_NAME=gravitational-teleport-ami-ent-$TELEPORT_VERSION-fips
-      - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-ent-$TELEPORT_VERSION
       - |
         if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
           echo "---> Building production Enterprise AMIs"
@@ -2522,7 +2615,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -2641,7 +2733,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -2781,7 +2872,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -2792,6 +2882,6 @@ volumes:
 
 ---
 kind: signature
-hmac: f47f415ffb75d0ef2f5ecfb6bd9b982f8f0c50fe6eaee28fbc6a6950b9c5e0f1
+hmac: c9878f4d9126b4dc38ae8131d0e9bf73f827df72fe68f0dadc889479b4f8a860
 
 ...
