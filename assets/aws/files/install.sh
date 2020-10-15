@@ -96,6 +96,9 @@ else
 fi
 popd || exit
 
+# Add /usr/local/bin to path used by sudo (so 'sudo tctl users add' will work as per the docs)
+echo "Defaults    secure_path = /sbin:/bin:/usr/sbin:/usr/bin:/usr/local/bin" > /etc/sudoers.d/secure_path
+
 # Clean up the authorized keys not used
 rm -f /root/.ssh/authorized_keys
 rm -f /home/ec2-user/.ssh/authorized_keys
