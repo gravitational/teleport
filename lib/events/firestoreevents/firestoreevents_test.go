@@ -41,7 +41,7 @@ func (s *FirestoreeventsSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests()
 
 	if !emulatorRunning() {
-		c.Skip("firestore emulator not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
+		c.Skip("Firestore emulator is not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
 	}
 
 	fakeClock := clockwork.NewFakeClock()

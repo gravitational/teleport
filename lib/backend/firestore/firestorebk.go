@@ -24,7 +24,6 @@ import (
 
 	"cloud.google.com/go/firestore"
 	apiv1 "cloud.google.com/go/firestore/apiv1/admin"
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -33,13 +32,14 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 )
 
-// FirestoreConfig structure represents Firestore configuration as appears in `storage` section of Teleport YAML
+// Config structure represents Firestore configuration as appears in `storage` section of Teleport YAML
 type Config struct {
 	// Credentials path for the Firestore client
 	CredentialsPath string `json:"credentials_path,omitempty"`
@@ -244,8 +244,8 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	if err != nil {
 		return nil, trace.BadParameter("firestore: configuration is invalid: %v", err)
 	}
-	l.Infof("Firestore: initializing backend.")
-	defer l.Debug("Firestore: backend created.")
+	l.Info("Initializing backend.")
+	defer l.Info("Backend created.")
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -569,13 +569,13 @@ func (b *Backend) keyToDocumentID(key []byte) string {
 func RetryingAsyncFunctionRunner(ctx context.Context, retryConfig utils.LinearConfig, logger *log.Logger, task func() error, taskName string) {
 	retry, err := utils.NewLinear(retryConfig)
 	if err != nil {
-		logger.Errorf("bad retry parameters: %v, returning and not running", err)
+		logger.WithError(err).Error("Bad retry parameters, returning and not running.")
 		return
 	}
 	for {
 		err := task()
-		if err != nil && (err != context.Canceled || status.Convert(err).Code() != codes.Canceled) {
-			logger.Errorf("%v returned with error: %v", taskName, err)
+		if err != nil && !isCanceled(err) {
+			logger.WithError(err).Errorf("Task %v has returned with error.", taskName)
 		}
 		logger.Debugf("Reloading %v for %s.", retry, taskName)
 		select {
@@ -585,6 +585,20 @@ func RetryingAsyncFunctionRunner(ctx context.Context, retryConfig utils.LinearCo
 			logger.Debugf("Returning from %v loop.", taskName)
 			return
 		}
+	}
+}
+
+func isCanceled(err error) bool {
+	err = trace.Unwrap(err)
+	switch {
+	case err == nil:
+		return false
+	case err == context.Canceled:
+		return true
+	case status.Convert(err).Code() == codes.Canceled:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -625,7 +639,6 @@ func (b *Backend) watchCollection() error {
 					},
 				}
 			}
-			b.Logger.Debugf("pushing event %v for key '%v'.", e.Type.String(), r.Key)
 			b.buf.Push(e)
 		}
 	}
@@ -724,10 +737,8 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 			},
 		})
 		if err != nil && status.Code(err) != codes.AlreadyExists {
-			l.Debug("non-already exists error, returning.")
 			return ConvertGRPCError(err)
 		}
-
 		// operation can be nil if error code is codes.AlreadyExists.
 		if operation != nil {
 			meta := adminpb.IndexOperationMetadata{}
@@ -743,11 +754,16 @@ func EnsureIndexes(ctx context.Context, adminSvc *apiv1.FirestoreAdminClient, tu
 
 	// check for statuses and block
 	for len(tuplesToIndexNames) != 0 {
-		time.Sleep(timeInBetweenIndexCreationStatusChecks)
+		select {
+		case <-time.After(timeInBetweenIndexCreationStatusChecks):
+		case <-ctx.Done():
+			return trace.ConnectionProblem(ctx.Err(), "context timed out or canceled")
+		}
+
 		for tuple, name := range tuplesToIndexNames {
 			index, err := adminSvc.GetIndex(ctx, &adminpb.GetIndexRequest{Name: name})
 			if err != nil {
-				l.Warningf("error fetching index %q: %v", name, err)
+				l.WithError(err).Warningf("Failed to fetch index %q.", name)
 				continue
 			}
 			l.Infof("Index for tuple %s-%s, %s, state is %s.", tuple.FirstField, tuple.SecondField, index.Name, index.State)
