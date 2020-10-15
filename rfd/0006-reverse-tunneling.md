@@ -31,9 +31,19 @@ These requests are sent when the client requests port forwarding to be canceled.
 
 ### tsh client
 
-Minor modifications are required to the client to support Reverse Tunneling. We will need to add an additional command line argument and an additional case for Remote Port Forwarding in the startPortForwarding function.
+Minor modifications are required to the client to support Reverse Tunneling. The syntax for Remote Forwarding with `tsh ssh -R` is similar to local tunneling. Since Reverse and Local Tunnels are so similar, adding support for parsing Reverse Tunnels is trivial. Below is an example of how a party could set up a Reverse Port Forward with `tsh ssh -R`.
 
+```
+$ tsh ssh -R 9090:127.0.0.1:9090 user@node
+```
+
+This would set up a local listener on port 127.0.0.1:9090 and set up a remote listener on 127.0.0.1:9090. Any connections established on the remote side will be proxied down to the client.
 
 ### SSH Config support
 
-To encourage `tsh` adoption, we should support reading `ReverseForward` directives from users ssh configs.
+To encourage `tsh` adoption, we should support reading `RemoteForward` directives from users ssh configs. Below is an example config of what `tsh` should aim to support:
+
+```
+Match final host test-machine
+        RemoteForward 127.0.0.1:9089 127.0.0.1:9089
+```
