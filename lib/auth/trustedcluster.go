@@ -439,7 +439,15 @@ func (a *Server) GetRemoteClusters(opts ...services.MarshalOption) ([]services.R
 	return remoteClusters, nil
 }
 
-func (a *Server) validateTrustedCluster(validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
+func (a *Server) validateTrustedCluster(validateRequest *ValidateTrustedClusterRequest) (resp *ValidateTrustedClusterResponse, err error) {
+	defer func() {
+		if err != nil {
+			log.WithError(err).Info("Trusted cluster validation failed")
+		}
+	}()
+
+	log.Debugf("Received validate request: token=%v, CAs=%v", validateRequest.Token, validateRequest.CAs)
+
 	domainName, err := a.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -450,9 +458,6 @@ func (a *Server) validateTrustedCluster(validateRequest *ValidateTrustedClusterR
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// log the remote certificate authorities we are adding
-	log.Debugf("Received validate request: token=%v, CAs=%v", validateRequest.Token, validateRequest.CAs)
 
 	// add remote cluster resource to keep track of the remote cluster
 	var remoteClusterName string
