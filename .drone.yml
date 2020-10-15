@@ -74,25 +74,30 @@ steps:
           fi
         fi
 
+  # https://discourse.drone.io/t/how-to-exit-a-pipeline-early-without-failing/3951
+  # this step looks at the output of git diff --raw to determine whether any files
+  # which don't match the pattern '^docs/' or '.md$' were changed. if there are no
+  # changes to non-docs code, we skip the Teleport tests and exit early with a special
+  # Drone exit code to speed up iteration on docs (as milv is much quicker to run)
   - name: Optionally skip tests
     image: docker:git
     commands:
     - |
         cd /go/src/github.com/gravitational/teleport
-        # show output of git diff --raw for reference
+        echo "---> git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}"
         git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}
-        # check whether there are any changes which don't touch "docs/*" or "*.md"
-        #git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs/' | grep -Ev '.md$' | grep -v ^$ | wc -l > /tmp/.change_count.txt
-        # exclude .drone.yml for testing
-        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs/' | grep -Ev '.md$' | grep -v ^$ | grep -v .drone.yml | wc -l > /tmp/.change_count.txt
+        echo ""
+        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs/' | grep -Ev '.md$' | grep -v ^$ | wc -l > /tmp/.change_count.txt
         export CHANGE_COUNT=$(cat /tmp/.change_count.txt | tr -d '\n')
+        echo "---> $$CHANGE_COUNT changes to Teleport code were detected"
+        echo ""
         if [ $$CHANGE_COUNT -gt 0 ]; then
-          echo "---> $$CHANGE_COUNT changes to code were detected, Teleport tests will run"
+          echo "---> Teleport tests will run normally"
         else
-          echo "---> $$CHANGE_COUNT changes to code detected, Teleport tests will not run"
-          # https://discourse.drone.io/t/how-to-exit-a-pipeline-early-without-failing/3951
+          echo "---> Skipping Teleport tests and exiting early"
           exit 78
         fi
+        echo ""
 
   - name: Build buildbox
     image: docker
@@ -2902,6 +2907,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 30130abcd867273e7dc3bcacd1a48376eb239f57297042bd9ba511ff8e0641ec
+hmac: ee708f8b7bd6b9adb07e938e16b969372f8e14bf09ea23f50d5e4d7c851be5ee
 
 ...
