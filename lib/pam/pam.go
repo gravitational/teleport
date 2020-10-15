@@ -350,13 +350,15 @@ func Open(config *Config) (*PAM, error) {
 		return nil, p.codeToError(retval)
 	}
 
-	// Trigger the "auth" PAM hooks for this login.
-	//
-	// These would perform any extra authentication steps configured in the PAM
-	// stack, like per-session 2FA.
-	retval = C._pam_authenticate(pamHandle, p.pamh, 0)
-	if retval != C.PAM_SUCCESS {
-		return nil, p.codeToError(retval)
+	if config.UsePAMAuth {
+		// Trigger the "auth" PAM hooks for this login.
+		//
+		// These would perform any extra authentication steps configured in the PAM
+		// stack, like per-session 2FA.
+		retval = C._pam_authenticate(pamHandle, p.pamh, 0)
+		if retval != C.PAM_SUCCESS {
+			return nil, p.codeToError(retval)
+		}
 	}
 
 	// Trigger the "session" PAM hooks for this login.

@@ -80,6 +80,10 @@ type ExecCommand struct {
 	// ServiceName is the name of the PAM service requested if PAM is enabled.
 	ServiceName string `json:"service_name"`
 
+	// UsePAMAuth specifies whether to trigger the "auth" PAM modules from the
+	// policy.
+	UsePAMAuth bool `json:"use_pam_auth"`
+
 	// Environment is a list of environment variables to add to the defaults.
 	Environment []string `json:"environment"`
 
@@ -160,6 +164,7 @@ func RunCommand() (io.Writer, int, error) {
 		// Open the PAM context.
 		pamContext, err := pam.Open(&pam.Config{
 			ServiceName: c.ServiceName,
+			UsePAMAuth:  c.UsePAMAuth,
 			Login:       c.Login,
 			// Set Teleport specific environment variables that PAM modules
 			// like pam_script.so can pick up to potentially customize the
