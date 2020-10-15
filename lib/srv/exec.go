@@ -301,11 +301,11 @@ func (e *remoteExec) SetCommand(command string) {
 
 // Start launches the given command returns (nil, nil) if successful.
 // ExecResult is only used to communicate an error while launching.
-func (r *remoteExec) Start(ch ssh.Channel) (*ExecResult, error) {
+func (e *remoteExec) Start(ch ssh.Channel) (*ExecResult, error) {
 	// hook up stdout/err the channel so the user can interact with the command
-	r.session.Stdout = ch
-	r.session.Stderr = ch.Stderr()
-	inputWriter, err := r.session.StdinPipe()
+	e.session.Stdout = ch
+	e.session.Stderr = ch.Stderr()
+	inputWriter, err := e.session.StdinPipe()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -313,12 +313,12 @@ func (r *remoteExec) Start(ch ssh.Channel) (*ExecResult, error) {
 	go func() {
 		// copy from the channel (client) into stdin of the process
 		if _, err := io.Copy(inputWriter, ch); err != nil {
-			r.ctx.Warnf("Failed copying data from SSH channel to remote command stdin: %v", err)
+			e.ctx.Warnf("Failed copying data from SSH channel to remote command stdin: %v", err)
 		}
 		inputWriter.Close()
 	}()
 
-	err = r.session.Start(r.command)
+	err = e.session.Start(e.command)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -327,29 +327,29 @@ func (r *remoteExec) Start(ch ssh.Channel) (*ExecResult, error) {
 }
 
 // Wait will block while the command executes.
-func (r *remoteExec) Wait() *ExecResult {
+func (e *remoteExec) Wait() *ExecResult {
 	// Block until the command is finished executing.
-	err := r.session.Wait()
+	err := e.session.Wait()
 	if err != nil {
-		r.ctx.Debugf("Remote command failed: %v.", err)
+		e.ctx.Debugf("Remote command failed: %v.", err)
 	} else {
-		r.ctx.Debugf("Remote command successfully executed.")
+		e.ctx.Debugf("Remote command successfully executed.")
 	}
 
 	// Emit the result of execution to the Audit Log.
-	emitExecAuditEvent(r.ctx, r.command, err)
+	emitExecAuditEvent(e.ctx, e.command, err)
 
 	return &ExecResult{
-		Command: r.GetCommand(),
+		Command: e.GetCommand(),
 		Code:    exitCode(err),
 	}
 }
 
 // Continue does nothing for remote command execution.
-func (r *remoteExec) Continue() {}
+func (e *remoteExec) Continue() {}
 
 // PID returns an invalid PID for remotExec.
-func (r *remoteExec) PID() int {
+func (e *remoteExec) PID() int {
 	return 0
 }
 

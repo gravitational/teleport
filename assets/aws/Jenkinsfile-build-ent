@@ -20,7 +20,7 @@ pipeline {
         stage('Run Packer to build specified version') {
             steps {
                 dir('assets/aws') {
-                    sh "PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-${params.version} FIPS_AMI_NAME=gravitational-teleport-ami-ent-${params.version}-fips MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-ent-${params.version} TELEPORT_VERSION=${params.version} make ent-ci-build"
+                    sh "PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-${params.version} FIPS_AMI_NAME=gravitational-teleport-ami-ent-${params.version}-fips TELEPORT_VERSION=${params.version} make ent-ci-build"
                 }
             }
         }

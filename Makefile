@@ -8,9 +8,10 @@
 
 # To update the Teleport version, update VERSION variable:
 # Naming convention:
-#	for stable releases we use "1.0.0" format
-#   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=4.4.0-alpha.1
+#   Stable releases:   "1.0.0"
+#   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
+#   Master/dev branch: "1.0.0-dev"
+VERSION=5.0.0-dev
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -299,6 +300,7 @@ lint-sh: SH_LINT_FLAGS ?=
 lint-sh:
 	find . -type f -name '*.sh' | grep -v vendor | xargs \
 		shellcheck \
+		--exclude=SC2086 \
 		$(SH_LINT_FLAGS)
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes

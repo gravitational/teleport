@@ -100,6 +100,8 @@ spec:
     # certificates expire in the middle of an active SSH session.
     # it overrides the global cluster setting.
     disconnect_expired_cert: no
+    # permit_x11_forwarding allows users to use X11 forwarding with openssh clients and servers through the proxy
+    permit_x11_forwarding: true
 
   # allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. by default nothing is allowed.
@@ -123,11 +125,11 @@ spec:
       'environment': ['test', 'staging']
       # regular expressions are also supported, for example the equivalent
       # of the list example above can be expressed as:
-      'environment': '{{regexp.match("^test|staging$")}}'
+      'environment': '{% raw %}{{regexp.match("^test|staging$")}}{% endraw %}'
       # or using the simpler legacy syntax:
       'environment': '^test|staging$'
       # negative regular expressions can be used to avoid strict deny rules:
-      'environment': '{{regexp.not_match("prod")}}'
+      'environment': '{% raw %}{{regexp.not_match("prod")}}{% endraw %}'
 
     # defines roles that this user can can request.
     # needed for teleport's request workflow
@@ -261,11 +263,11 @@ spec:
       'environment': ['test', 'staging']
       # regular expressions are also supported, for example the equivalent
       # of the list example above can be expressed as:
-      'environment': '{{regexp.match("^test|staging$")}}'
+      'environment': '{% raw %}{{regexp.match("^test|staging$")}}{% endraw %}'
       # or using the simpler legacy syntax:
       'environment': '^test|staging$'
       # negative regular expressions can be used to avoid strict deny rules:
-      'environment': '{{regexp.not_match("prod")}}'
+      'environment': '{% raw %}{{regexp.not_match("prod")}}{% endraw %}'
 ```
 
 

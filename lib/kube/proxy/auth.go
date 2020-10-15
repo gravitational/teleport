@@ -42,6 +42,17 @@ type kubeCreds struct {
 	targetAddr string
 }
 
+var skipSelfPermissionCheck bool
+
+// TestOnlySkipSelfPermissionCheck sets whether or not to skip checking k8s
+// impersonation permissions granted to this instance.
+//
+// Used in CI integration tests, where we intentionally scope down permissions
+// from what a normal prod instance should have.
+func TestOnlySkipSelfPermissionCheck(skip bool) {
+	skipSelfPermissionCheck = skip
+}
+
 func getKubeCreds(ctx context.Context, log logrus.FieldLogger, kubeconfigPath string) (*kubeCreds, error) {
 	var cfg *rest.Config
 	// no kubeconfig is set, assume auth server is running in the cluster
@@ -79,9 +90,21 @@ running in a kubernetes cluster, but could not init in-cluster kubernetes client
 		return nil, trace.Wrap(err, "failed to generate kubernetes client from kubeconfig: %v", err)
 	}
 	if err := checkImpersonationPermissions(ctx, client.AuthorizationV1().SelfSubjectAccessReviews()); err != nil {
-		return nil, trace.Wrap(err)
+		if kubeconfigPath == "" {
+			return nil, trace.Wrap(err)
+		}
+		// Some users run proxies in root teleport clusters with k8s
+		// integration enabled but no local k8s cluster. They only forward
+		// requests to leaf teleport clusters.
+		//
+		// Before https://github.com/gravitational/teleport/pull/3811,
+		// users needed to add a dummy kubeconfig_file in the root proxy to
+		// get it to start. To allow those users to upgrade without a
+		// config change, log the error but don't fail startup.
+		log.WithError(err).Errorf("Failed to self-verify the kubernetes permissions using kubeconfig file %q; proceeding with startup but kubernetes integration on this proxy might not work; if this is a root proxy in trusted cluster setup and you only plan to forward kubernetes requests to leaf clusters, you can remove 'kubeconfig_file' from 'proxy_service' in your teleport.yaml to suppress this error", kubeconfigPath)
+	} else {
+		log.Debugf("Proxy has all necessary kubernetes impersonation permissions.")
 	}
-	log.Debugf("Proxy has all necessary kubernetes impersonation permissions.")
 
 	targetAddr, err := parseKubeHost(cfg.Host)
 	if err != nil {
@@ -126,6 +149,10 @@ func (c *kubeCreds) wrapTransport(rt http.RoundTripper) (http.RoundTripper, erro
 }
 
 func checkImpersonationPermissions(ctx context.Context, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
+	if skipSelfPermissionCheck {
+		return nil
+	}
+
 	for _, resource := range []string{"users", "groups", "serviceaccounts"} {
 		resp, err := sarClient.Create(ctx, &authzapi.SelfSubjectAccessReview{
 			Spec: authzapi.SelfSubjectAccessReviewSpec{

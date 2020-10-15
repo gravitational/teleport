@@ -32,23 +32,23 @@ type Anonymizer interface {
 }
 
 // hmacAnonymizer implements anonymization using HMAC
-type hmacAnonymizer struct {
+type HMACAnonymizer struct {
 	// key is the HMAC key
 	key string
 }
 
 // NewHMACAnonymizer returns a new HMAC-based anonymizer
-func NewHMACAnonymizer(key string) (*hmacAnonymizer, error) {
+func NewHMACAnonymizer(key string) (*HMACAnonymizer, error) {
 	if strings.TrimSpace(key) == "" {
 		return nil, trace.BadParameter("HMAC key must not be empty")
 	}
-	return &hmacAnonymizer{
+	return &HMACAnonymizer{
 		key: key,
 	}, nil
 }
 
 // Anonymize anonymizes the provided data using HMAC
-func (a *hmacAnonymizer) Anonymize(data []byte) string {
+func (a *HMACAnonymizer) Anonymize(data []byte) string {
 	h := hmac.New(sha256.New, []byte(a.key))
 	h.Write(data)
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))

@@ -101,107 +101,107 @@ func (t *Tracker) run(ctx context.Context) {
 
 // Acquire grants access to the Acquire channel of the
 // embedded work group.
-func (p *Tracker) Acquire() <-chan Lease {
-	return p.wp.Acquire()
+func (t *Tracker) Acquire() <-chan Lease {
+	return t.wp.Acquire()
 }
 
 // TrackExpected starts/refreshes tracking for expected proxies.  Called by
 // agents when gossip messages are received.
-func (p *Tracker) TrackExpected(lease Lease, proxies ...string) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+func (t *Tracker) TrackExpected(lease Lease, proxies ...string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	addr := lease.Key().(utils.NetAddr)
-	set, ok := p.sets[addr]
+	set, ok := t.sets[addr]
 	if !ok {
 		return
 	}
-	t := time.Now()
+	now := time.Now()
 	for _, name := range proxies {
-		set.markSeen(t, name)
+		set.markSeen(now, name)
 	}
 	count := len(set.proxies)
 	if count < 1 {
 		count = 1
 	}
-	p.wp.Set(addr, uint64(count))
+	t.wp.Set(addr, uint64(count))
 }
 
 // Start starts tracking for specified proxy address.
-func (p *Tracker) Start(addr utils.NetAddr) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.getOrCreate(addr)
+func (t *Tracker) Start(addr utils.NetAddr) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.getOrCreate(addr)
 }
 
 // Stop stops tracking for specified proxy address.
-func (p *Tracker) Stop(addr utils.NetAddr) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if _, ok := p.sets[addr]; !ok {
+func (t *Tracker) Stop(addr utils.NetAddr) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if _, ok := t.sets[addr]; !ok {
 		return
 	}
-	delete(p.sets, addr)
-	p.wp.Set(addr, 0)
+	delete(t.sets, addr)
+	t.wp.Set(addr, 0)
 }
 
 // StopAll permanently deactivates this tracker and cleans
 // up all background goroutines.
-func (p *Tracker) StopAll() {
-	p.cancel()
+func (t *Tracker) StopAll() {
+	t.cancel()
 }
 
-func (p *Tracker) tick() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	cutoff := time.Now().Add(-1 * p.ProxyExpiry)
-	for addr, set := range p.sets {
+func (t *Tracker) tick() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	cutoff := time.Now().Add(-1 * t.ProxyExpiry)
+	for addr, set := range t.sets {
 		if set.expire(cutoff) > 0 {
 			count := len(set.proxies)
 			if count < 1 {
 				count = 1
 			}
-			p.wp.Set(addr, uint64(count))
+			t.wp.Set(addr, uint64(count))
 		}
 	}
 }
 
-func (p *Tracker) getOrCreate(addr utils.NetAddr) *proxySet {
-	if s, ok := p.sets[addr]; ok {
+func (t *Tracker) getOrCreate(addr utils.NetAddr) *proxySet {
+	if s, ok := t.sets[addr]; ok {
 		return s
 	}
-	set := newProxySet(addr, p.ClusterName)
-	p.sets[addr] = set
-	p.wp.Set(addr, 1)
+	set := newProxySet(addr, t.ClusterName)
+	t.sets[addr] = set
+	t.wp.Set(addr, 1)
 	return set
 }
 
 // WithProxy runs the supplied closure if and only if
 // no other work is currently being done with the proxy
 // identified by principals.
-func (p *Tracker) WithProxy(work func(), lease Lease, principals ...string) (didWork bool) {
+func (t *Tracker) WithProxy(work func(), lease Lease, principals ...string) (didWork bool) {
 	addr := lease.Key().(utils.NetAddr)
-	if ok := p.claim(addr, principals...); !ok {
+	if ok := t.claim(addr, principals...); !ok {
 		return false
 	}
-	defer p.unclaim(addr, principals...)
+	defer t.unclaim(addr, principals...)
 	work()
 	return true
 }
 
-func (p *Tracker) claim(addr utils.NetAddr, principals ...string) (ok bool) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	set, ok := p.sets[addr]
+func (t *Tracker) claim(addr utils.NetAddr, principals ...string) (ok bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	set, ok := t.sets[addr]
 	if !ok {
 		return false
 	}
 	return set.claim(principals...)
 }
 
-func (p *Tracker) unclaim(addr utils.NetAddr, principals ...string) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	set, ok := p.sets[addr]
+func (t *Tracker) unclaim(addr utils.NetAddr, principals ...string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	set, ok := t.sets[addr]
 	if !ok {
 		return
 	}

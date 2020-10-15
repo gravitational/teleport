@@ -151,7 +151,7 @@ func NewServer(
 		closeContext:   closeContext,
 		closeFunc:      cancel,
 	}
-	s.limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
+	s.limiter, err = limiter.NewLimiter(limiter.Config{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
