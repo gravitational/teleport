@@ -108,7 +108,7 @@ To generate the `kubeconfig_file` for the Teleport proxy service:
 
 ```bash
 # Download the script.
-$ curl -o get-kubeconfig.sh https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh
+$ curl -o get-kubeconfig.sh https://raw.githubusercontent.com/gravitational/teleport/master/examples/k8s-auth/get-kubeconfig.sh
 
 # Make it executable.
 $ chmod +x get-kubeconfig.sh
