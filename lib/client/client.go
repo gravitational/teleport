@@ -968,8 +968,8 @@ func (c *NodeClient) listenAndForward(ctx context.Context, ln net.Listener, remo
 	}
 }
 
-// listenAndForward listens on a given socket and forwards all incoming
-// commands to the remote address through the SSH tunnel.
+// remoteListenAndForward listens asks the remote end to open a socket and pulls down all incoming
+// connections to a local port through the SSH tunnel.
 func (c *NodeClient) remoteListenAndForward(ctx context.Context, sourceAddr string, remoteAddr string) {
 	defer c.Close()
 
