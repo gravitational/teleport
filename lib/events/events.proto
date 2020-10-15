@@ -903,6 +903,40 @@ message SAMLConnectorDelete {
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
+// KubeRequest specifies a Kubernetes API request event.
+message KubeRequest {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // User is a common user event metadata
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ConnectionMetadata holds information about the connection
+    ConnectionMetadata Connection = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ServerMetadata is a common server metadata
+    ServerMetadata Server = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // RequestPath is the raw request URL path.
+    string RequestPath = 5 [ (gogoproto.jsontag) = "request_path" ];
+    // Verb is the HTTP verb used for this request (e.g. GET, POST, etc)
+    string Verb = 6 [ (gogoproto.jsontag) = "verb" ];
+    // ResourceAPIGroup is the resource API group.
+    string ResourceAPIGroup = 7 [ (gogoproto.jsontag) = "resource_api_group,omitempty" ];
+    // ResourceNamespace is the resource namespace.
+    string ResourceNamespace = 8 [ (gogoproto.jsontag) = "resource_namespace,omitempty" ];
+    // ResourceKind is the API resource kind (e.g. "pod", "service", etc).
+    string ResourceKind = 9 [ (gogoproto.jsontag) = "resource_kind,omitempty" ];
+    // ResourceName is the API resource name.
+    string ResourceName = 10 [ (gogoproto.jsontag) = "resource_name,omitempty" ];
+    // ResponseCode is the HTTP response code for this request.
+    int32 ResponseCode = 11 [ (gogoproto.jsontag) = "response_code" ];
+}
+
 // OneOf is a union of one of audit events submitted to the auth service
 message OneOf {
     // Event is one of the audit events
@@ -942,6 +976,7 @@ message OneOf {
         events.OIDCConnectorDelete OIDCConnectorDelete = 33;
         events.SAMLConnectorCreate SAMLConnectorCreate = 34;
         events.SAMLConnectorDelete SAMLConnectorDelete = 35;
+        events.KubeRequest KubeRequest = 36;
     }
 }
 

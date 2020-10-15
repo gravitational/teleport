@@ -261,25 +261,25 @@ type WebSessionV1 struct {
 }
 
 // V1 returns V1 version of the resource
-func (s *WebSessionV1) V1() *WebSessionV1 {
-	return s
+func (ws *WebSessionV1) V1() *WebSessionV1 {
+	return ws
 }
 
 // V2 returns V2 version of the resource
-func (s *WebSessionV1) V2() *WebSessionV2 {
+func (ws *WebSessionV1) V2() *WebSessionV2 {
 	return &WebSessionV2{
 		Kind:    KindWebSession,
 		Version: V2,
 		Metadata: Metadata{
-			Name:      s.ID,
+			Name:      ws.ID,
 			Namespace: defaults.Namespace,
 		},
 		Spec: WebSessionSpecV2{
-			Pub:                s.Pub,
-			Priv:               s.Priv,
-			BearerToken:        s.BearerToken,
-			Expires:            s.Expires,
-			BearerTokenExpires: s.Expires,
+			Pub:                ws.Pub,
+			Priv:               ws.Priv,
+			BearerToken:        ws.BearerToken,
+			Expires:            ws.Expires,
+			BearerTokenExpires: ws.Expires,
 		},
 	}
 }

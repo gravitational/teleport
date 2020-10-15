@@ -218,7 +218,7 @@ func (f *Forwarder) Close() error {
 // authContext is a context of authenticated user,
 // contains information about user, target cluster and authenticated groups
 type authContext struct {
-	auth.AuthContext
+	auth.Context
 	kubeGroups    map[string]struct{}
 	kubeUsers     map[string]struct{}
 	cluster       cluster
@@ -344,7 +344,7 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
 	})
 }
 
-func (f *Forwarder) setupContext(ctx auth.AuthContext, req *http.Request, isRemoteUser bool, certExpires time.Time) (*authContext, error) {
+func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUser bool, certExpires time.Time) (*authContext, error) {
 	roles := ctx.Checker
 
 	clusterConfig, err := f.AccessPoint.GetClusterConfig()
@@ -422,7 +422,7 @@ func (f *Forwarder) setupContext(ctx auth.AuthContext, req *http.Request, isRemo
 	authCtx := &authContext{
 		clientIdleTimeout: roles.AdjustClientIdleTimeout(clusterConfig.GetClientIdleTimeout()),
 		sessionTTL:        sessionTTL,
-		AuthContext:       ctx,
+		Context:           ctx,
 		kubeGroups:        utils.StringsSet(kubeGroups),
 		kubeUsers:         utils.StringsSet(kubeUsers),
 		clusterConfig:     clusterConfig,
@@ -907,7 +907,41 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 		f.Errorf("Failed to set up forwarding headers: %v.", err)
 		return nil, trace.Wrap(err)
 	}
+
+	w = &responseStatusRecorder{ResponseWriter: w}
 	sess.forwarder.ServeHTTP(w, req)
+
+	event := &events.KubeRequest{
+		Metadata: events.Metadata{
+			Type: events.KubeRequestEvent,
+			Code: events.KubeRequestCode,
+		},
+		UserMetadata: events.UserMetadata{
+			User:  ctx.User.GetName(),
+			Login: ctx.User.GetName(),
+		},
+		ConnectionMetadata: events.ConnectionMetadata{
+			RemoteAddr: req.RemoteAddr,
+			LocalAddr:  sess.cluster.targetAddr,
+			Protocol:   events.EventProtocolKube,
+		},
+		ServerMetadata: events.ServerMetadata{
+			ServerID:        f.ServerID,
+			ServerNamespace: f.Namespace,
+		},
+		RequestPath:  req.URL.Path,
+		Verb:         req.Method,
+		ResponseCode: int32(w.(*responseStatusRecorder).getStatus()),
+	}
+	r := parseResourcePath(req.URL.Path)
+	if r.skipEvent {
+		return nil, nil
+	}
+	r.populateEvent(event)
+	if err := f.Client.EmitAuditEvent(f.Context, event); err != nil {
+		f.WithError(err).Warn("Failed to emit event.")
+	}
+
 	return nil, nil
 }
 
@@ -1259,4 +1293,23 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 	tlsConfig.BuildNameToCertificate()
 
 	return tlsConfig, nil
+}
+
+type responseStatusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (r *responseStatusRecorder) WriteHeader(status int) {
+	r.status = status
+	r.ResponseWriter.WriteHeader(status)
+}
+
+func (r *responseStatusRecorder) getStatus() int {
+	// http.ResponseWriter implicitly sets StatusOK, if WriteHeader hasn't been
+	// explicitly called.
+	if r.status == 0 {
+		return http.StatusOK
+	}
+	return r.status
 }

@@ -53,7 +53,7 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 		cluster: cluster{
 			RemoteSite: mockRemoteSite{name: "site a"},
 		},
-		AuthContext: auth.AuthContext{
+		Context: auth.Context{
 			User: user,
 			Identity: auth.WrapIdentity(tlsca.Identity{
 				Username:         "bob",
@@ -102,7 +102,7 @@ func (s ForwarderSuite) TestGetClusterSession(c *check.C) {
 			isRemote:   true,
 			RemoteSite: remote,
 		},
-		AuthContext: auth.AuthContext{
+		Context: auth.Context{
 			User: user,
 		},
 	}
@@ -260,7 +260,7 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 			},
 		})
 		c.Assert(err, check.IsNil)
-		authCtx := auth.AuthContext{
+		authCtx := auth.Context{
 			User:     user,
 			Checker:  roles,
 			Identity: auth.WrapIdentity(tlsca.Identity{RouteToCluster: tt.routeToCluster}),
@@ -444,7 +444,7 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 
 	c.Log("newClusterSession for a local cluster without kubeconfig")
 	authCtx := authContext{
-		AuthContext: auth.AuthContext{
+		Context: auth.Context{
 			User: user,
 			Identity: auth.WrapIdentity(tlsca.Identity{
 				Username:         "bob",
@@ -473,7 +473,7 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 
 	c.Log("newClusterSession for a local cluster")
 	authCtx = authContext{
-		AuthContext: auth.AuthContext{
+		Context: auth.Context{
 			User: user,
 			Identity: auth.WrapIdentity(tlsca.Identity{
 				Username:         "bob",
@@ -501,7 +501,7 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 
 	c.Log("newClusterSession for a remote cluster")
 	authCtx = authContext{
-		AuthContext: auth.AuthContext{
+		Context: auth.Context{
 			User: user,
 			Identity: auth.WrapIdentity(tlsca.Identity{
 				Username:         "bob",
@@ -622,10 +622,10 @@ func (t mockRevTunnel) GetSites() []reversetunnel.RemoteSite {
 }
 
 type mockAuthorizer struct {
-	ctx *auth.AuthContext
+	ctx *auth.Context
 	err error
 }
 
-func (a mockAuthorizer) Authorize(context.Context) (*auth.AuthContext, error) {
+func (a mockAuthorizer) Authorize(context.Context) (*auth.Context, error) {
 	return a.ctx, a.err
 }

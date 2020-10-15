@@ -580,9 +580,8 @@ func sendOK(ch io.ReadWriter) error {
 	_, err := ch.Write([]byte{OKByte})
 	if err != nil {
 		return trace.Wrap(err)
-	} else {
-		return nil
 	}
+	return nil
 }
 
 type state struct {

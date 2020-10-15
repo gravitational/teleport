@@ -24,13 +24,13 @@ const CurrentProfileSymlink = "profile"
 // currently active profile.
 const CurrentProfileFilename = "current-profile"
 
-// ClientProfile is a collection of most frequently used CLI flags
+// Profile is a collection of most frequently used CLI flags
 // for "tsh".
 //
 // Profiles can be stored in a profile file, allowing TSH users to
 // type fewer CLI args.
 //
-type ClientProfile struct {
+type Profile struct {
 	// WebProxyAddr is the host:port the web proxy can be accessed at.
 	WebProxyAddr string `yaml:"web_proxy_addr,omitempty"`
 
@@ -58,10 +58,10 @@ type ClientProfile struct {
 }
 
 // Name returns the name of the profile.
-func (c *ClientProfile) Name() string {
-	addr, _, err := net.SplitHostPort(c.WebProxyAddr)
+func (cp *Profile) Name() string {
+	addr, _, err := net.SplitHostPort(cp.WebProxyAddr)
 	if err != nil {
-		return c.WebProxyAddr
+		return cp.WebProxyAddr
 	}
 
 	return addr
@@ -200,7 +200,7 @@ func FullProfilePath(dir string) string {
 // ProfileFromDir reads the user (yaml) profile from a given directory. If
 // name is empty, this function defaults to loading the currently active
 // profile (if any).
-func ProfileFromDir(dir string, name string) (*ClientProfile, error) {
+func ProfileFromDir(dir string, name string) (*Profile, error) {
 	if dir == "" {
 		return nil, trace.BadParameter("cannot load profile: missing dir")
 	}
@@ -216,19 +216,19 @@ func ProfileFromDir(dir string, name string) (*ClientProfile, error) {
 }
 
 // ProfileFromFile loads the profile from a YAML file
-func ProfileFromFile(filePath string) (*ClientProfile, error) {
+func ProfileFromFile(filePath string) (*Profile, error) {
 	bytes, err := ioutil.ReadFile(filePath)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	var cp *ClientProfile
+	var cp *Profile
 	if err := yaml.Unmarshal(bytes, &cp); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return cp, nil
 }
 
-func (cp *ClientProfile) SaveToDir(dir string, makeCurrent bool) error {
+func (cp *Profile) SaveToDir(dir string, makeCurrent bool) error {
 	if dir == "" {
 		return trace.BadParameter("cannot save profile: missing dir")
 	}
@@ -241,8 +241,8 @@ func (cp *ClientProfile) SaveToDir(dir string, makeCurrent bool) error {
 	return nil
 }
 
-// SaveToFile saves ClientProfile to the target file.
-func (cp *ClientProfile) SaveToFile(filepath string) error {
+// SaveToFile saves Profile to the target file.
+func (cp *Profile) SaveToFile(filepath string) error {
 	bytes, err := yaml.Marshal(&cp)
 	if err != nil {
 		return trace.Wrap(err)

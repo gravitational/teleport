@@ -30,7 +30,7 @@ import (
 )
 
 // NewAdminContext returns new admin auth context
-func NewAdminContext() (*AuthContext, error) {
+func NewAdminContext() (*Context, error) {
 	authContext, err := contextForBuiltinRole("", nil, teleport.RoleAdmin, fmt.Sprintf("%v", teleport.RoleAdmin))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -55,7 +55,7 @@ func NewAuthorizer(access services.Access, identity services.UserGetter, trust s
 // Authorizer authorizes identity and returns auth context
 type Authorizer interface {
 	// Authorize authorizes user based on identity supplied via context
-	Authorize(ctx context.Context) (*AuthContext, error)
+	Authorize(ctx context.Context) (*Context, error)
 }
 
 // authorizer creates new local authorizer
@@ -66,7 +66,7 @@ type authorizer struct {
 }
 
 // AuthContext is authorization context
-type AuthContext struct {
+type Context struct {
 	// User is the user name
 	User services.User
 	// Checker is access checker
@@ -77,7 +77,7 @@ type AuthContext struct {
 }
 
 // Authorize authorizes user based on identity supplied via context
-func (a *authorizer) Authorize(ctx context.Context) (*AuthContext, error) {
+func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if ctx == nil {
 		return nil, trace.AccessDenied("missing authentication context")
 	}
@@ -94,7 +94,7 @@ func (a *authorizer) Authorize(ctx context.Context) (*AuthContext, error) {
 	return authContext, nil
 }
 
-func (a *authorizer) fromUser(userI interface{}) (*AuthContext, error) {
+func (a *authorizer) fromUser(userI interface{}) (*Context, error) {
 	switch user := userI.(type) {
 	case LocalUser:
 		return a.authorizeLocalUser(user)
@@ -110,12 +110,12 @@ func (a *authorizer) fromUser(userI interface{}) (*AuthContext, error) {
 }
 
 // authorizeLocalUser returns authz context based on the username
-func (a *authorizer) authorizeLocalUser(u LocalUser) (*AuthContext, error) {
+func (a *authorizer) authorizeLocalUser(u LocalUser) (*Context, error) {
 	return contextForLocalUser(u, a.identity, a.access)
 }
 
 // authorizeRemoteUser returns checker based on cert authority roles
-func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*AuthContext, error) {
+func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
 	ca, err := a.trust.GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: u.ClusterName}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -154,14 +154,14 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*AuthContext, error) {
 	// Set the list of roles this user has in the remote cluster.
 	user.SetRoles(roleNames)
 
-	return &AuthContext{
+	return &Context{
 		User:    user,
 		Checker: RemoteUserRoleSet{checker},
 	}, nil
 }
 
 // authorizeBuiltinRole authorizes builtin role
-func (a *authorizer) authorizeBuiltinRole(r BuiltinRole) (*AuthContext, error) {
+func (a *authorizer) authorizeBuiltinRole(r BuiltinRole) (*Context, error) {
 	config, err := r.GetClusterConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -169,7 +169,7 @@ func (a *authorizer) authorizeBuiltinRole(r BuiltinRole) (*AuthContext, error) {
 	return contextForBuiltinRole(r.ClusterName, config, r.Role, r.Username)
 }
 
-func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*AuthContext, error) {
+func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, error) {
 	if r.Role != teleport.RoleProxy {
 		return nil, trace.AccessDenied("access denied for remote %v connecting to cluster", r.Role)
 	}
@@ -211,7 +211,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*AuthConte
 		return nil, trace.Wrap(err)
 	}
 	user.SetRoles([]string{string(teleport.RoleRemoteProxy)})
-	return &AuthContext{
+	return &Context{
 		User:    user,
 		Checker: RemoteBuiltinRoleSet{roles},
 	}, nil
@@ -421,7 +421,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 	return nil, trace.NotFound("%v is not reconginzed", role.String())
 }
 
-func contextForBuiltinRole(clusterName string, clusterConfig services.ClusterConfig, r teleport.Role, username string) (*AuthContext, error) {
+func contextForBuiltinRole(clusterName string, clusterConfig services.ClusterConfig, r teleport.Role, username string) (*Context, error) {
 	checker, err := GetCheckerForBuiltinRole(clusterName, clusterConfig, r)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -431,13 +431,13 @@ func contextForBuiltinRole(clusterName string, clusterConfig services.ClusterCon
 		return nil, trace.Wrap(err)
 	}
 	user.SetRoles([]string{string(r)})
-	return &AuthContext{
+	return &Context{
 		User:    user,
 		Checker: BuiltinRoleSet{checker},
 	}, nil
 }
 
-func contextForLocalUser(u LocalUser, identity services.UserGetter, access services.Access) (*AuthContext, error) {
+func contextForLocalUser(u LocalUser, identity services.UserGetter, access services.Access) (*Context, error) {
 	// User has to be fetched to check if it's a blocked username
 	user, err := identity.GetUser(u.Username, false)
 	if err != nil {
@@ -461,7 +461,7 @@ func contextForLocalUser(u LocalUser, identity services.UserGetter, access servi
 	user.SetRoles(roles)
 	user.SetTraits(traits)
 
-	return &AuthContext{
+	return &Context{
 		User:    user,
 		Checker: LocalUserRoleSet{checker},
 	}, nil

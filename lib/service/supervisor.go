@@ -37,12 +37,12 @@ type Supervisor interface {
 
 	// RegisterFunc creates a service from function spec and registers
 	// it within the system
-	RegisterFunc(name string, fn ServiceFunc)
+	RegisterFunc(name string, fn Func)
 
 	// RegisterCriticalFunc creates a critical service from function spec and registers
 	// it within the system, if this service exits with error,
 	// the process shuts down.
-	RegisterCriticalFunc(name string, fn ServiceFunc)
+	RegisterCriticalFunc(name string, fn Func)
 
 	// ServiceCount returns the number of registered and actively running
 	// services
@@ -196,14 +196,14 @@ func (s *LocalSupervisor) ServiceCount() int {
 
 // RegisterFunc creates a service from function spec and registers
 // it within the system
-func (s *LocalSupervisor) RegisterFunc(name string, fn ServiceFunc) {
+func (s *LocalSupervisor) RegisterFunc(name string, fn Func) {
 	s.Register(&LocalService{Function: fn, ServiceName: name})
 }
 
 // RegisterCriticalFunc creates a critical service from function spec and registers
 // it within the system, if this service exits with error,
 // the process shuts down.
-func (s *LocalSupervisor) RegisterCriticalFunc(name string, fn ServiceFunc) {
+func (s *LocalSupervisor) RegisterCriticalFunc(name string, fn Func) {
 	s.Register(&LocalService{Function: fn, ServiceName: name, Critical: true})
 }
 
@@ -223,9 +223,9 @@ func (s *LocalSupervisor) RemoveService(srv Service) error {
 	return trace.NotFound("service %v is not found", srv)
 }
 
-// ServiceExit contains information about service
+// ExitEventPayload contains information about service
 // name, and service error if it exited with error
-type ServiceExit struct {
+type ExitEventPayload struct {
 	// Service is the service that exited
 	Service Service
 	// Error is the error of the service exit
@@ -247,7 +247,7 @@ func (s *LocalSupervisor) serve(srv Service) {
 				l.Warningf("Teleport process has exited with error: %v", err)
 				s.BroadcastEvent(Event{
 					Name:    ServiceExitedWithErrorEvent,
-					Payload: ServiceExit{Service: srv, Error: err},
+					Payload: ExitEventPayload{Service: srv, Error: err},
 				})
 			}
 		}
@@ -430,7 +430,7 @@ type Service interface {
 // LocalService is a locally defined service
 type LocalService struct {
 	// Function is a function to call
-	Function ServiceFunc
+	Function Func
 	// ServiceName is a service name
 	ServiceName string
 	// Critical is set to true
@@ -460,8 +460,8 @@ func (l *LocalService) Name() string {
 	return l.ServiceName
 }
 
-// ServiceFunc is a service function
-type ServiceFunc func() error
+// Func is a service function
+type Func func() error
 
 const (
 	stateCreated = iota

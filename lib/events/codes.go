@@ -338,6 +338,11 @@ const (
 	X11ForwardCode = "T3008I"
 	// X11ForwardFailureCode is the x11 forward failure event code.
 	X11ForwardFailureCode = "T3008W"
+	// KubeRequestCode is an event code for a generic kubernetes request.
+	//
+	// Note: some requests (like exec into a pod) use other codes (like
+	// ExecCode).
+	KubeRequestCode = "T3009I"
 
 	// SessionCommandCode is a session command code.
 	SessionCommandCode = "T4000I"
