@@ -552,10 +552,12 @@ const (
 	// version they are running.
 	VersionRequest = "x-teleport-version"
 
-	// TCPIPForward Event
+	// TCPIPForwardRequest is sent by clients to server requesting that
+	// the server set up reverse tunneling to the client
 	TCPIPForwardRequest = "tcpip-forward"
 
-	// TCPIPForward Event
+	// CancelTCPIPForward is sent by the client to cancel reverse tunneling
+	// set up by TCPIPForwardRequest
 	CancelTCPIPForwardRequest = "cancel-tcpip-forward"
 )
 
