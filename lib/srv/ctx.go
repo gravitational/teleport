@@ -656,6 +656,7 @@ func (c *ServerContext) String() string {
 func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 	var pamEnabled bool
 	var pamServiceName string
+	var pamUseAuth bool
 
 	// If this code is running on a node, check if PAM is enabled or not.
 	if c.srv.Component() == teleport.ComponentNode {
@@ -665,6 +666,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		}
 		pamEnabled = conf.Enabled
 		pamServiceName = conf.ServiceName
+		pamUseAuth = conf.UsePAMAuth
 	}
 
 	// If the identity has roles, extract the role names.
@@ -701,6 +703,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		Environment:           buildEnvironment(c),
 		PAM:                   pamEnabled,
 		ServiceName:           pamServiceName,
+		UsePAMAuth:            pamUseAuth,
 		IsTestStub:            c.IsTestStub,
 	}, nil
 }

@@ -7,8 +7,8 @@ description: How to configure Teleport SSH access to play nicely with PAM (plugg
 
 Teleport's node service can be configured to integrate with [PAM](https://en.wikipedia.org/wiki/Linux_PAM). This allows Teleport to create user sessions using PAM session profiles.
 
-Teleport only supports the `account` and `session` stack. The `auth` PAM module is
-not currently supported with Teleport.
+Teleport only supports the `auth`, `account` and `session` stack. The `auth`
+stack is optional and not used by default.
 
 
 ## Introduction to Pluggable Authentication Modules
@@ -57,6 +57,9 @@ teleport:
          enabled: true
          # use /etc/pam.d/sshd configuration (the default)
          service_name: "sshd"
+         # use the "auth" modules in the PAM config
+         # "no" by default
+         use_pam_auth: true
 ```
 
 Please note that most Linux distributions come with a number of PAM services in
@@ -286,3 +289,17 @@ ssh_service:
 
 Now attempting to login as an existing user should result in the creation of the
 user and a successful login.
+
+## Additional authentication steps
+
+Using the PAM `auth` modules, it is possible to add additional authentication
+steps during user login. These can include passwords, 2nd factor or even
+biometrics.
+
+Note that Teleport enables strong SSH authentication out of the box using
+certificates. For most users, hardening [the initial Teleport
+authentication](../admin-guide#authentication) (e.g. `tsh login`) is preferred.
+
+By default, `auth` modules are not used to avoid the default system behavior
+(usually using local Unix passwords). You can enable them by setting
+`use_pam_auth` in the `pam` section of your `teleport.yaml`.
