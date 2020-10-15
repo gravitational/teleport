@@ -88,7 +88,7 @@ steps:
         git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}
         git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs/' | grep -Ev '.md$' | grep -v ^$ | wc -l > /tmp/.change_count.txt
         export CHANGE_COUNT=$(cat /tmp/.change_count.txt | tr -d '\n')
-        echo "---> Changes to Teleport code detected: $$CHANGE_COUNT"
+        echo -e "\n---> Changes to Teleport code detected: $$CHANGE_COUNT"
         if [ $$CHANGE_COUNT -gt 0 ]; then
           echo "---> Teleport tests will run normally"
         else
@@ -2905,6 +2905,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 59a093528b491a7c2c496395c6a9c540e3ea3ad83dcf45c086c24f0618b5f33c
+hmac: 5ade1d82409c5084d8e341196b01501fb0aa28f6fe8724f1976f787b6ce53c64
 
 ...
