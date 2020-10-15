@@ -211,7 +211,7 @@ auth_service:
     keep_alive_interval: 5m
     keep_alive_count_max: 3
 
-    # Determines the internal session control timeout cluster wide, this value will
+    # Determines the internal session control timeout cluster wide. This value will
     # be used with enterprise max_connections and max_sessions.
     session_control_timeout: 2m
 
