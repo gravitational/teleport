@@ -58,7 +58,7 @@ teleport:
          # use /etc/pam.d/sshd configuration (the default)
          service_name: "sshd"
          # use the "auth" modules in the PAM config
-         # "no" by default
+         # "false" by default
          use_pam_auth: true
 ```
 
@@ -298,7 +298,7 @@ biometrics.
 
 Note that Teleport enables strong SSH authentication out of the box using
 certificates. For most users, hardening [the initial Teleport
-authentication](../admin-guide#authentication) (e.g. `tsh login`) is preferred.
+authentication](../admin-guide.md#authentication) (e.g. `tsh login`) is preferred.
 
 By default, `auth` modules are not used to avoid the default system behavior
 (usually using local Unix passwords). You can enable them by setting
