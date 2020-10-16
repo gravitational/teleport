@@ -391,6 +391,7 @@ github.com/spf13/pflag
 # github.com/stretchr/testify v1.6.1
 ## explicit
 github.com/stretchr/testify/assert
+github.com/stretchr/testify/require
 # github.com/tstranex/u2f v0.0.0-20160508205855-eb799ce68da4
 ## explicit
 github.com/tstranex/u2f

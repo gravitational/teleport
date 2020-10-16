@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 )
 
@@ -41,22 +41,22 @@ func UploadDownload(t *testing.T, handler events.MultipartHandler) {
 	val := "hello, how is it going? this is the uploaded file"
 	id := session.NewID()
 	_, err := handler.Upload(context.TODO(), id, bytes.NewBuffer([]byte(val)))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	f, err := ioutil.TempFile("", string(id))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
 
 	err = handler.Download(context.TODO(), id, f)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	_, err = f.Seek(0, 0)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	data, err := ioutil.ReadAll(f)
-	assert.Nil(t, err)
-	assert.Equal(t, string(data), val)
+	require.Nil(t, err)
+	require.Equal(t, string(data), val)
 }
 
 // DownloadNotFound tests handling of the scenario when download is not found
@@ -64,7 +64,7 @@ func DownloadNotFound(t *testing.T, handler events.MultipartHandler) {
 	id := session.NewID()
 
 	f, err := ioutil.TempFile("", string(id))
-	assert.Nil(t, err)
+	require.Nil(t, err)
 	defer os.Remove(f.Name())
 	defer f.Close()
 

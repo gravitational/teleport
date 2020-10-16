@@ -30,7 +30,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 )
 
@@ -45,14 +45,14 @@ func TestStreams(t *testing.T) {
 				teleport.GCSTestURI))
 	}
 	u, err := url.Parse(uri)
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	config := Config{}
 	err = config.SetFromURL(u)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	handler, err := DefaultNewHandler(config)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer handler.Close()
 
 	// Stream with handler and many parts
@@ -70,7 +70,7 @@ func TestStreams(t *testing.T) {
 	t.Run("ResumeOnComposeFailure", func(t *testing.T) {
 		config := Config{}
 		err = config.SetFromURL(u)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		composeCount := atomic.NewUint64(0)
 
@@ -82,7 +82,7 @@ func TestStreams(t *testing.T) {
 		}
 
 		handler, err := DefaultNewHandler(config)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		defer handler.Close()
 
 		test.StreamResumeManyParts(t, handler)
@@ -92,7 +92,7 @@ func TestStreams(t *testing.T) {
 	t.Run("ResumeOnCleanupFailure", func(t *testing.T) {
 		config := Config{}
 		err = config.SetFromURL(u)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		deleteFailed := atomic.NewUint64(0)
 
@@ -108,7 +108,7 @@ func TestStreams(t *testing.T) {
 		}
 
 		handler, err := DefaultNewHandler(config)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		defer handler.Close()
 
 		test.StreamResumeManyParts(t, handler)

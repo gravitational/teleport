@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestProcessStateGetState(t *testing.T) {
@@ -68,7 +68,7 @@ func TestProcessStateGetState(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			ps := &processState{states: tt.states}
 			got := ps.getState()
-			assert.Equal(t, got, tt.want)
+			require.Equal(t, got, tt.want)
 		})
 	}
 }

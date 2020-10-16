@@ -25,7 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestProfileBasics verifies basic profile operations such as
@@ -34,7 +34,7 @@ func TestProfileBasics(t *testing.T) {
 	t.Parallel()
 
 	dir, err := ioutil.TempDir("", "teleport")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
 	p := &Profile{
@@ -46,42 +46,42 @@ func TestProfileBasics(t *testing.T) {
 	}
 
 	// verify that profile name is proxy host component
-	assert.Equal(t, "proxy", p.Name())
+	require.Equal(t, "proxy", p.Name())
 
 	// save to a file:
 	err = p.SaveToDir(dir, false)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// verify that the resulting file exists and is of the form `<profile-dir>/<profile-name>.yaml`.
 	_, err = os.Stat(filepath.Join(dir, p.Name()+".yaml"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// try to save to non-existent dir, should get an error
 	err = p.SaveToDir("/bad/directory/", false)
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	// make sure current profile was not set
 	_, err = GetCurrentProfileName(dir)
-	assert.True(t, trace.IsNotFound(err))
+	require.True(t, trace.IsNotFound(err))
 
 	// save again, this time also making current
 	err = p.SaveToDir(dir, true)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// verify that current profile is set and matches this profile
 	name, err := GetCurrentProfileName(dir)
-	assert.NoError(t, err)
-	assert.Equal(t, p.Name(), name)
+	require.NoError(t, err)
+	require.Equal(t, p.Name(), name)
 
 	// load and verify current profile
 	clone, err := ProfileFromDir(dir, "")
-	assert.NoError(t, err)
-	assert.Equal(t, *p, *clone)
+	require.NoError(t, err)
+	require.Equal(t, *p, *clone)
 
 	// load and verify directly
 	clone, err = ProfileFromDir(dir, p.Name())
-	assert.NoError(t, err)
-	assert.Equal(t, *p, *clone)
+	require.NoError(t, err)
+	require.Equal(t, *p, *clone)
 }
 
 // TestProfileSymlinkMigration verifies that the old `profile` symlink
@@ -92,7 +92,7 @@ func TestProfileSymlinkMigration(t *testing.T) {
 	t.Parallel()
 
 	dir, err := ioutil.TempDir("", "teleport")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer os.RemoveAll(dir)
 
 	name := "some-profile"
@@ -104,27 +104,27 @@ func TestProfileSymlinkMigration(t *testing.T) {
 	// to a `current-profile` file.
 
 	// create old style symlink
-	assert.NoError(t, os.Symlink(file, link))
+	require.NoError(t, os.Symlink(file, link))
 
 	// ensure that link exists
 	_, err = os.Lstat(link)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// load current profile name; this should automatically
 	// trigger the migration and return the correct name.
 	cn, err := GetCurrentProfileName(dir)
-	assert.NoError(t, err)
-	assert.Equal(t, name, cn)
+	require.NoError(t, err)
+	require.Equal(t, name, cn)
 
 	// verify that current-profile file now exists
 	_, err = os.Stat(filepath.Join(dir, CurrentProfileFilename))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// forcibly remove the symlink
-	assert.NoError(t, os.Remove(link))
+	require.NoError(t, os.Remove(link))
 
 	// loading current profile should still succeed.
 	cn, err = GetCurrentProfileName(dir)
-	assert.NoError(t, err)
-	assert.Equal(t, name, cn)
+	require.NoError(t, err)
+	require.Equal(t, name, cn)
 }

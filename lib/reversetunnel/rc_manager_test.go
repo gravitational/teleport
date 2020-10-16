@@ -9,7 +9,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRemoteClusterTunnelManagerSync(t *testing.T) {
@@ -33,12 +33,12 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 		reverseTunnelsErr error
 		newAgentPoolErr   error
 		wantPools         map[remoteClusterKey]*AgentPool
-		assertErr         assert.ErrorAssertionFunc
+		assertErr         require.ErrorAssertionFunc
 	}{
 		{
 			desc:      "no reverse tunnels",
 			wantPools: map[remoteClusterKey]*AgentPool{},
-			assertErr: assert.NoError,
+			assertErr: require.NoError,
 		},
 		{
 			desc: "one reverse tunnel with one address",
@@ -48,7 +48,7 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 			wantPools: map[remoteClusterKey]*AgentPool{
 				remoteClusterKey{cluster: "cluster-a", addr: "addr-a"}: &AgentPool{cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-a"}},
 			},
-			assertErr: assert.NoError,
+			assertErr: require.NoError,
 		},
 		{
 			desc: "one reverse tunnel added with multiple addresses",
@@ -60,7 +60,7 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 				remoteClusterKey{cluster: "cluster-a", addr: "addr-b"}: &AgentPool{cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-b"}},
 				remoteClusterKey{cluster: "cluster-a", addr: "addr-c"}: &AgentPool{cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-c"}},
 			},
-			assertErr: assert.NoError,
+			assertErr: require.NoError,
 		},
 		{
 			desc: "one reverse tunnel added and one removed",
@@ -70,7 +70,7 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 			wantPools: map[remoteClusterKey]*AgentPool{
 				remoteClusterKey{cluster: "cluster-b", addr: "addr-b"}: &AgentPool{cfg: AgentPoolConfig{Cluster: "cluster-b", ProxyAddr: "addr-b"}},
 			},
-			assertErr: assert.NoError,
+			assertErr: require.NoError,
 		},
 		{
 			desc: "multiple reverse tunnels",
@@ -84,7 +84,7 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 				remoteClusterKey{cluster: "cluster-a", addr: "addr-c"}: &AgentPool{cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-c"}},
 				remoteClusterKey{cluster: "cluster-b", addr: "addr-b"}: &AgentPool{cfg: AgentPoolConfig{Cluster: "cluster-b", ProxyAddr: "addr-b"}},
 			},
-			assertErr: assert.NoError,
+			assertErr: require.NoError,
 		},
 		{
 			desc:              "GetReverseTunnels error, keep existing pools",
@@ -95,7 +95,7 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 				remoteClusterKey{cluster: "cluster-a", addr: "addr-c"}: &AgentPool{cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-c"}},
 				remoteClusterKey{cluster: "cluster-b", addr: "addr-b"}: &AgentPool{cfg: AgentPoolConfig{Cluster: "cluster-b", ProxyAddr: "addr-b"}},
 			},
-			assertErr: assert.Error,
+			assertErr: require.Error,
 		},
 		{
 			desc: "AgentPool creation fails, keep existing pools",
@@ -111,7 +111,7 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 				remoteClusterKey{cluster: "cluster-a", addr: "addr-c"}: &AgentPool{cfg: AgentPoolConfig{Cluster: "cluster-a", ProxyAddr: "addr-c"}},
 				remoteClusterKey{cluster: "cluster-b", addr: "addr-b"}: &AgentPool{cfg: AgentPoolConfig{Cluster: "cluster-b", ProxyAddr: "addr-b"}},
 			},
-			assertErr: assert.Error,
+			assertErr: require.Error,
 		},
 	}
 
@@ -127,7 +127,7 @@ func TestRemoteClusterTunnelManagerSync(t *testing.T) {
 			err := w.Sync(ctx)
 			tt.assertErr(t, err)
 
-			assert.Empty(t, cmp.Diff(
+			require.Empty(t, cmp.Diff(
 				w.pools,
 				tt.wantPools,
 				// Tweaks to get comparison working with our complex types.

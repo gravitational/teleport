@@ -22,7 +22,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestVariable tests variable parsing
@@ -115,11 +115,11 @@ func TestVariable(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			variable, err := NewExpression(tt.in)
 			if tt.err != nil {
-				assert.IsType(t, tt.err, err)
+				require.IsType(t, tt.err, err)
 				return
 			}
-			assert.NoError(t, err)
-			assert.Empty(t, cmp.Diff(tt.out, *variable, cmp.AllowUnexported(Expression{})))
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(tt.out, *variable, cmp.AllowUnexported(Expression{})))
 		})
 	}
 }
@@ -179,12 +179,12 @@ func TestInterpolate(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			values, err := tt.in.Interpolate(tt.traits)
 			if tt.res.err != nil {
-				assert.IsType(t, tt.res.err, err)
-				assert.Empty(t, values)
+				require.IsType(t, tt.res.err, err)
+				require.Empty(t, values)
 				return
 			}
-			assert.NoError(t, err)
-			assert.Empty(t, cmp.Diff(tt.res.values, values))
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(tt.res.values, values))
 		})
 	}
 }
@@ -271,11 +271,11 @@ func TestMatch(t *testing.T) {
 		t.Run(tt.title, func(t *testing.T) {
 			matcher, err := NewMatcher(tt.in)
 			if tt.err != nil {
-				assert.IsType(t, tt.err, err, err)
+				require.IsType(t, tt.err, err, err)
 				return
 			}
-			assert.NoError(t, err)
-			assert.Empty(t, cmp.Diff(tt.out, matcher, cmp.AllowUnexported(
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(tt.out, matcher, cmp.AllowUnexported(
 				regexpMatcher{}, prefixSuffixMatcher{}, notMatcher{}, regexp.Regexp{},
 			)))
 		})
@@ -325,7 +325,7 @@ func TestMatchers(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.title, func(t *testing.T) {
 			got := tt.matcher.Match(tt.in)
-			assert.Equal(t, tt.want, got)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
