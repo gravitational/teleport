@@ -3043,18 +3043,21 @@ func (s *IntSuite) TestPAM(c *check.C) {
 	var tests = []struct {
 		inEnabled     bool
 		inServiceName string
+		inUsePAMAuth  bool
 		outContains   []string
 	}{
 		// 0 - No PAM support, session should work but no PAM related output.
 		{
 			inEnabled:     false,
 			inServiceName: "",
+			inUsePAMAuth:  true,
 			outContains:   []string{},
 		},
 		// 1 - PAM enabled, module account and session functions return success.
 		{
 			inEnabled:     true,
 			inServiceName: "teleport-success",
+			inUsePAMAuth:  true,
 			outContains: []string{
 				"pam_sm_acct_mgmt OK",
 				"pam_sm_authenticate OK",
@@ -3062,16 +3065,29 @@ func (s *IntSuite) TestPAM(c *check.C) {
 				"pam_sm_close_session OK",
 			},
 		},
-		// 2 - PAM enabled, module account functions fail.
+		// 2 - PAM enabled, module account and session functions return success.
+		{
+			inEnabled:     true,
+			inServiceName: "teleport-success",
+			inUsePAMAuth:  false,
+			outContains: []string{
+				"pam_sm_acct_mgmt OK",
+				"pam_sm_open_session OK",
+				"pam_sm_close_session OK",
+			},
+		},
+		// 3 - PAM enabled, module account functions fail.
 		{
 			inEnabled:     true,
 			inServiceName: "teleport-acct-failure",
+			inUsePAMAuth:  true,
 			outContains:   []string{},
 		},
-		// 3 - PAM enabled, module session functions fail.
+		// 4 - PAM enabled, module session functions fail.
 		{
 			inEnabled:     true,
 			inServiceName: "teleport-session-failure",
+			inUsePAMAuth:  true,
 			outContains:   []string{},
 		},
 	}
@@ -3090,6 +3106,7 @@ func (s *IntSuite) TestPAM(c *check.C) {
 			tconf.SSH.Enabled = true
 			tconf.SSH.PAM.Enabled = tt.inEnabled
 			tconf.SSH.PAM.ServiceName = tt.inServiceName
+			tconf.SSH.PAM.UsePAMAuth = tt.inUsePAMAuth
 
 			return c, nil, nil, tconf
 		}
