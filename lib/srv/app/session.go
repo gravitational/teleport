@@ -18,7 +18,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"net/http"
 	"net/url"
@@ -104,6 +103,7 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 			publicAddr:         app.PublicAddr,
 			insecureSkipVerify: app.InsecureSkipVerify,
 			jwt:                jwt,
+			rewrite:            app.Rewrite,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -267,6 +267,7 @@ type forwarderConfig struct {
 	publicAddr         string
 	jwt                string
 	insecureSkipVerify bool
+	rewrite            *services.Rewrite
 }
 
 // Check will valid the configuration of a forwarder.
@@ -358,30 +359,51 @@ func (f *forwarder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	// Perform any response rewriting before writing the response.
-	if err := f.rewriteResponse(resp); err != nil {
-		return nil, trace.Wrap(err)
+	if f.c.rewrite != nil {
+		if err := f.rewriteResponse(resp); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return resp, nil
 }
 
 func (f *forwarder) rewriteResponse(resp *http.Response) error {
-	if resp.StatusCode >= http.StatusMultipleChoices &&
-		resp.StatusCode <= http.StatusPermanentRedirect {
-		location := resp.Header.Get("Location")
-		if location == "" {
-			return nil
-		}
-		u, err := url.Parse(location)
+	switch {
+	case len(f.c.rewrite.Redirect) > 0:
+		err := f.rewriteRedirect(resp)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if utils.IsLoopback(host(u.Host)) {
+	default:
+	}
+	return nil
+}
+
+func (f *forwarder) rewriteRedirect(resp *http.Response) error {
+	if isRedirect(resp.StatusCode) {
+		// Parse the "Location" header.
+		u, err := url.Parse(resp.Header.Get("Location"))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// If the redirect location is one of the hosts specified in the list of
+		// redirects, rewrite the header.
+		if utils.SliceContainsStr(f.c.rewrite.Redirect, host(u.Host)) {
+			u.Scheme = "https"
 			u.Host = net.JoinHostPort(f.c.publicAddr, f.port)
 		}
 		resp.Header.Set("Location", u.String())
 	}
 	return nil
+}
+
+func isRedirect(code int) bool {
+	if code >= http.StatusMultipleChoices && code <= http.StatusPermanentRedirect {
+		return true
+	}
+	return false
 }
 
 func host(addr string) string {
@@ -431,7 +453,6 @@ func newTransport(insecureSkipVerify bool) (http.RoundTripper, error) {
 	// Don't verify the servers certificate if either Teleport was started with
 	// the --insecure flag or insecure skip verify was specifically requested in
 	// application config.
-	fmt.Printf("--> setting insecureSkipVerify: %v.\n", insecureSkipVerify)
 	tr.TLSClientConfig.InsecureSkipVerify = (lib.IsInsecureDevMode() || insecureSkipVerify)
 
 	return tr, nil

@@ -489,6 +489,13 @@ const ServerSpecV2Schema = `{
           "uri": {"type": "string"},
           "public_addr": {"type": "string"},
           "insecure_skip_verify": {"type": "boolean"},
+          "rewrite": {
+             "type": "object",
+             "additionalProperties": false,
+             "properties": {
+                "redirect": {"type": ["array"], "items": {"type": "string"}}
+             }
+          },
           "labels": {
              "type": "object",
              "additionalProperties": false,

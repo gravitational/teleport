@@ -567,6 +567,13 @@ type App struct {
 
 	// InsecureSkipVerify is used to skip validating the servers certificate.
 	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
+
+	// Rewrite defines a block that is used to rewrite requests and responses.
+	Rewrite *Rewrite `yaml:"rewrite,omitempty"`
+}
+
+type Rewrite struct {
+	Redirect []string `yaml:"redirect"`
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults

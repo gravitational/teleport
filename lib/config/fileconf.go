@@ -170,6 +170,8 @@ var (
 		"https_keypairs":          true,
 		"key_file":                false,
 		"insecure_skip_verify":    false,
+		"rewrite":                 false,
+		"redirect":                false,
 	}
 )
 
@@ -827,6 +829,13 @@ type App struct {
 
 	// InsecureSkipVerify is used to skip validating the servers certificate.
 	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
+
+	// Rewrite defines a block that is used to rewrite requests and responses.
+	Rewrite *Rewrite `yaml:"rewrite,omitempty"`
+}
+
+type Rewrite struct {
+	Redirect []string `yaml:"redirect"`
 }
 
 func (a *App) CheckAndSetDefaults() error {

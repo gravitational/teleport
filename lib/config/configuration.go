@@ -723,14 +723,20 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 
 		// Add the application to the list of proxied applications.
-		cfg.Apps.Apps = append(cfg.Apps.Apps, service.App{
+		a := service.App{
 			Name:               application.Name,
 			URI:                application.URI,
 			PublicAddr:         application.PublicAddr,
 			StaticLabels:       staticLabels,
 			DynamicLabels:      dynamicLabels,
 			InsecureSkipVerify: application.InsecureSkipVerify,
-		})
+		}
+		if application.Rewrite != nil {
+			a.Rewrite = &service.Rewrite{
+				Redirect: application.Rewrite.Redirect,
+			}
+		}
+		cfg.Apps.Apps = append(cfg.Apps.Apps, a)
 	}
 
 	return nil

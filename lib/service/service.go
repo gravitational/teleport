@@ -2616,14 +2616,21 @@ func (process *TeleportProcess) initApps() {
 				return trace.Wrap(err)
 			}
 
-			applications = append(applications, &services.App{
+			a := &services.App{
 				Name:               app.Name,
 				URI:                app.URI,
 				PublicAddr:         publicAddr,
 				StaticLabels:       app.StaticLabels,
 				DynamicLabels:      services.LabelsToV2(app.DynamicLabels),
 				InsecureSkipVerify: app.InsecureSkipVerify,
-			})
+			}
+			if app.Rewrite != nil {
+				a.Rewrite = &services.Rewrite{
+					Redirect: app.Rewrite.Redirect,
+				}
+			}
+
+			applications = append(applications, a)
 		}
 		server := &services.ServerV2{
 			Kind:    services.KindAppServer,

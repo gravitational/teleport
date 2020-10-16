@@ -32,7 +32,6 @@ type fragmentRequest struct {
 }
 
 func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
-	fmt.Printf("--> handleFragment.\n")
 	switch r.Method {
 	case http.MethodGet:
 		setRedirectPageHeaders(w.Header())

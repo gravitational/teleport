@@ -188,6 +188,15 @@ message App {
     map<string, CommandLabelV2> DynamicLabels = 5
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "commands,omitempty" ];
     bool InsecureSkipVerify = 6 [ (gogoproto.jsontag) = "insecure_skip_verify" ];
+    // Rewrite defines request and response writing that will occur on every
+    // request and response pair.
+    Rewrite Rewrite = 7 [ (gogoproto.jsontag) = "rewrite,omitempty" ];
+}
+
+message Rewrite {
+    // Rewrite defines a list of hosts which will be rewritten to the public
+    // address of the application if they occur in the "Location" header.
+    repeated string Redirect = 1 [ (gogoproto.jsontag) = "redirect" ];
 }
 
 // CommandLabelV2 is a label that has a value as a result of the
