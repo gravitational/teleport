@@ -184,7 +184,7 @@ kind: access_request
 metadata:
   name: request-id
 spec:
-  note: 'ticket-12345`
+  note: 'ticket-12345'
   user: 'bob'
   # the list can be empty, in case if Bob tries to access a resource
   # and not a specific role
