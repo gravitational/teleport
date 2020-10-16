@@ -317,7 +317,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	// Forward request to the target application.
-	session.fwd.ServeHTTP(w, r)
+	session.ServeHTTP(w, r)
 	return nil
 }
 

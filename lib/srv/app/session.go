@@ -44,8 +44,24 @@ import (
 )
 
 type session struct {
+	uri *url.URL
+
+	publicAddr string
+	publicPort string
+
 	fwd          *forward.Forwarder
 	streamWriter events.StreamWriter
+}
+
+func (s *session) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// If path redirection needs to occur, redirect the caller and don't forward
+	// the request.
+	if path, ok := s.pathRedirect(r); ok {
+		http.Redirect(w, r, path, http.StatusFound)
+		return
+	}
+
+	s.fwd.ServeHTTP(w, r)
 }
 
 // getSession returns a request session used to proxy the request to the
@@ -78,6 +94,11 @@ func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app *
 // newSession creates a new session which is used to cache the stream writer,
 // JWT, and request forwarder.
 func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *services.App) (*session, error) {
+	uri, err := url.Parse(app.URI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create the stream writer that will write this chunk to the audit log.
 	streamWriter, err := s.newStreamWriter(identity)
 	if err != nil {
@@ -116,6 +137,9 @@ func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *
 	}
 
 	return &session{
+		uri:          uri,
+		publicAddr:   app.PublicAddr,
+		publicPort:   guessProxyPort(s.c.AccessPoint),
 		streamWriter: streamWriter,
 		fwd:          fwd,
 	}, nil
@@ -339,6 +363,7 @@ func (f *forwarder) RoundTrip(r *http.Request) (*http.Response, error) {
 	r.Header.Add(teleport.AppJWTHeader, f.c.jwt)
 	r.Header.Add(teleport.AppCFHeader, f.c.jwt)
 
+	// Forward the request to the target application.
 	resp, err := f.tr.RoundTrip(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -359,18 +384,40 @@ func (f *forwarder) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	// Perform any response rewriting before writing the response.
-	if f.c.rewrite != nil {
-		if err := f.rewriteResponse(resp); err != nil {
-			return nil, trace.Wrap(err)
-		}
+	if err := f.rewriteResponse(resp); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return resp, nil
 }
 
+// TODO(russjones): Really what this function should do is if you are trying
+// to access any address that does not that the prefix matching what the URI is, then redir.
+// pathRedirect checks if the caller is asking for a specific internal URI,
+// for example http://localhost:8080/appName and the request comes in simply
+// for https://publicAddr. In that case, redirect the user to the specific
+// path being requested.
+func (s *session) pathRedirect(r *http.Request) (string, bool) {
+	// If the URI does not contain a path, no redirection needs to occur.
+	if s.uri.Path == "" || s.uri.Path == "/" {
+		return "", false
+	}
+	// If the requested URL is a path, then path redirection does not occur.
+	if r.URL.Path != "" && r.URL.Path != "/" {
+		return "", false
+	}
+
+	u := url.URL{
+		Scheme: "https",
+		Host:   net.JoinHostPort(s.publicAddr, s.publicPort),
+		Path:   s.uri.Path,
+	}
+	return u.String(), true
+}
+
 func (f *forwarder) rewriteResponse(resp *http.Response) error {
 	switch {
-	case len(f.c.rewrite.Redirect) > 0:
+	case f.c.rewrite != nil && len(f.c.rewrite.Redirect) > 0:
 		err := f.rewriteRedirect(resp)
 		if err != nil {
 			return trace.Wrap(err)
