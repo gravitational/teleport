@@ -191,7 +191,7 @@ func TestAuthDisabled(t *testing.T) {
 		Stderr:      &buf,
 		UsePAMAuth:  false,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer pamContext.Close()
 
 	assertOutput(t, buf.String(), []string{
