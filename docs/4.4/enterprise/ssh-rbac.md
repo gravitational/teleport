@@ -275,7 +275,7 @@ spec:
       # or using the simpler legacy syntax:
       'environment': '^test|staging$'
       # negative regular expressions can be used to avoid strict deny rules:
-      'environment': "{% raw %}{{regexp.not_match('prod')}}{% endraw %}"
+      'environment': '{% raw %}{{regexp.not_match("prod")}}{% endraw %}'
 ```
 
 

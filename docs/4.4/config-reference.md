@@ -181,7 +181,8 @@ auth_service:
     #    "proxy" : recording on the proxy level, see "recording proxy mode" section.
     #    "off"   : session recording is turned off
     #
-    #    EXPERIMENTAL *-sync modes proxy and node send logs directly to S3 or other
+    # EXPERIMENTAL *-sync modes
+    # Proxy and node send logs directly to S3 or other
     #    storage without storing the records on disk at all. *-sync requires all
     #    nodes to be upgraded to 4.4
     #
