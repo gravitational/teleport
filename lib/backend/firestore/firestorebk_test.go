@@ -26,8 +26,26 @@ import (
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/stretchr/testify/assert"
+	adminpb "google.golang.org/genproto/googleapis/firestore/admin/v1"
+	"google.golang.org/protobuf/proto"
+
 	"gopkg.in/check.v1"
 )
+
+// TestMarshal tests index operation metadata marshal and unmarshal
+// to verify backwards compatibility. Gogoproto is incompatible with ApiV2 protoc-gen-go code.
+//
+// Track the issue here: https://github.com/gogo/protobuf/issues/678
+//
+func TestMarshal(t *testing.T) {
+	meta := adminpb.IndexOperationMetadata{}
+	data, err := proto.Marshal(&meta)
+	assert.NoError(t, err)
+	out := adminpb.IndexOperationMetadata{}
+	err = proto.Unmarshal(data, &out)
+	assert.NoError(t, err)
+}
 
 func TestFirestoreDB(t *testing.T) { check.TestingT(t) }
 
@@ -42,7 +60,7 @@ func (s *FirestoreSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())
 
 	if !emulatorRunning() {
-		c.Skip("firestore emulator not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
+		c.Skip("Firestore emulator is not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
 	}
 
 	newBackend := func() (backend.Backend, error) {

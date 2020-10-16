@@ -710,18 +710,6 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {
 			return trace.BadParameter("selector *:<val> is not supported")
 		}
-		for _, l := range val {
-			if _, err := parse.NewMatcher(l); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-	}
-	for _, val := range r.Spec.Deny.NodeLabels {
-		for _, l := range val {
-			if _, err := parse.NewMatcher(l); err != nil {
-				return trace.Wrap(err)
-			}
-		}
 	}
 	for i := range r.Spec.Allow.Rules {
 		err := r.Spec.Allow.Rules[i].CheckAndSetDefaults()
@@ -1597,19 +1585,11 @@ func MatchLabels(selector Labels, target map[string]string) (bool, string, error
 		}
 
 		if !utils.SliceContainsStr(selectorValues, Wildcard) {
-			matched := false
-			for _, expr := range selectorValues {
-				m, err := parse.NewMatcher(expr)
-				if err != nil {
-					return false, "", trace.Wrap(err)
-				}
-				if m.Match(targetVal) {
-					matched = true
-					break
-				}
-			}
-			if !matched {
-				return false, fmt.Sprintf("no value match: got %q want: %q", targetVal, selectorValues), nil
+			result, err := utils.SliceMatchesRegex(targetVal, selectorValues)
+			if err != nil {
+				return false, "", trace.Wrap(err)
+			} else if !result {
+				return false, fmt.Sprintf("no value match: got '%v' want: '%v'", targetVal, selectorValues), nil
 			}
 		}
 	}

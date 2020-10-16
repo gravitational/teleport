@@ -28,14 +28,14 @@ import (
 	"github.com/gravitational/teleport/lib/utils/testlog"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
 
 func TestServerKeyAuth(t *testing.T) {
 	ca := testauthority.New()
 	priv, pub, err := ca.GenerateKeyPair("")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	s := &server{
 		Entry: testlog.FailureOnly(t),
@@ -53,7 +53,7 @@ func TestServerKeyAuth(t *testing.T) {
 		desc           string
 		key            ssh.PublicKey
 		wantExtensions map[string]string
-		wantErr        assert.ErrorAssertionFunc
+		wantErr        require.ErrorAssertionFunc
 	}{
 		{
 			desc: "host cert",
@@ -67,9 +67,9 @@ func TestServerKeyAuth(t *testing.T) {
 					ClusterName:         "host-cluster-name",
 					Roles:               teleport.Roles{teleport.RoleNode},
 				})
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				key, _, _, _, err := ssh.ParseAuthorizedKey(rawCert)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				return key
 			}(),
 			wantExtensions: map[string]string{
@@ -78,7 +78,7 @@ func TestServerKeyAuth(t *testing.T) {
 				extCertRole:  string(teleport.RoleNode),
 				extAuthority: "host-cluster-name",
 			},
-			wantErr: assert.NoError,
+			wantErr: require.NoError,
 		},
 		{
 			desc: "user cert",
@@ -93,9 +93,9 @@ func TestServerKeyAuth(t *testing.T) {
 					RouteToCluster:      "user-cluster-name",
 					CertificateFormat:   teleport.CertificateFormatStandard,
 				})
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				key, _, _, _, err := ssh.ParseAuthorizedKey(rawCert)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				return key
 			}(),
 			wantExtensions: map[string]string{
@@ -104,16 +104,16 @@ func TestServerKeyAuth(t *testing.T) {
 				extCertRole:  "dev",
 				extAuthority: "user-cluster-name",
 			},
-			wantErr: assert.NoError,
+			wantErr: require.NoError,
 		},
 		{
 			desc: "not a cert",
 			key: func() ssh.PublicKey {
 				key, _, _, _, err := ssh.ParseAuthorizedKey(pub)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				return key
 			}(),
-			wantErr: assert.Error,
+			wantErr: require.Error,
 		},
 	}
 
@@ -122,7 +122,7 @@ func TestServerKeyAuth(t *testing.T) {
 			perm, err := s.keyAuth(con, tt.key)
 			tt.wantErr(t, err)
 			if err == nil {
-				assert.Empty(t, cmp.Diff(perm, &ssh.Permissions{Extensions: tt.wantExtensions}))
+				require.Empty(t, cmp.Diff(perm, &ssh.Permissions{Extensions: tt.wantExtensions}))
 			}
 		})
 	}

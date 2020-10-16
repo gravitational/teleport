@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 )
 
@@ -63,10 +63,10 @@ func TestChaosUpload(t *testing.T) {
 		Uploader:       memUploader,
 		MinUploadBytes: 1024,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	scanDir, err := ioutil.TempDir("", "teleport-streams")
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer os.RemoveAll(scanDir)
 
 	terminateConnection := atomic.NewUint64(0)
@@ -105,7 +105,7 @@ func TestChaosUpload(t *testing.T) {
 					}
 					if fi.Name() == sid.String()+checkpointExt {
 						err := os.Remove(filepath.Join(scanDir, fi.Name()))
-						assert.NoError(t, err)
+						require.NoError(t, err)
 						log.Debugf("Deleted checkpoint file: %v.", fi.Name())
 						break
 					}
@@ -114,7 +114,7 @@ func TestChaosUpload(t *testing.T) {
 			return streamer.ResumeAuditStream(ctx, sid, uploadID)
 		},
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	scanPeriod := 10 * time.Second
 	uploader, err := NewUploader(UploaderConfig{
@@ -124,7 +124,7 @@ func TestChaosUpload(t *testing.T) {
 		Streamer:   faultyStreamer,
 		Clock:      clock,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	go uploader.Serve()
 	// wait until uploader blocks on the clock
 	clock.BlockUntil(1)
@@ -132,7 +132,7 @@ func TestChaosUpload(t *testing.T) {
 	defer uploader.Close()
 
 	fileStreamer, err := NewStreamer(scanDir)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	parallelStreams := 20
 	type streamState struct {
@@ -186,7 +186,7 @@ func TestChaosUpload(t *testing.T) {
 	for i := 0; i < parallelStreams; i++ {
 		select {
 		case status := <-streamsCh:
-			assert.NoError(t, status.err)
+			require.NoError(t, status.err)
 			streams[status.sid] = status
 		case <-ctx.Done():
 			t.Fatalf("Timeout waiting for parallel stream complete, try `go test -v` to get more logs for details")
@@ -197,7 +197,7 @@ func TestChaosUpload(t *testing.T) {
 	for i := 0; i < parallelStreams; i++ {
 		select {
 		case err := <-scansCh:
-			assert.NoError(t, err, trace.DebugReport(err))
+			require.NoError(t, err, trace.DebugReport(err))
 		case <-ctx.Done():
 			t.Fatalf("Timeout waiting for parallel scan complete, try `go test -v` to get more logs for details")
 		}
@@ -206,17 +206,17 @@ func TestChaosUpload(t *testing.T) {
 	for i := 0; i < parallelStreams; i++ {
 		// do scans to catch remaining uploads
 		err = uploader.Scan()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// wait for the upload events
 		var event events.UploadEvent
 		select {
 		case event = <-eventsC:
-			assert.NoError(t, event.Error)
+			require.NoError(t, event.Error)
 			state, ok := streams[event.SessionID]
-			assert.True(t, ok)
+			require.True(t, ok)
 			outEvents := readStream(ctx, t, event.UploadID, memUploader)
-			assert.Equal(t, len(state.events), len(outEvents), fmt.Sprintf("event: %v", event))
+			require.Equal(t, len(state.events), len(outEvents), fmt.Sprintf("event: %v", event))
 		case <-ctx.Done():
 			t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
 		}

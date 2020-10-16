@@ -30,7 +30,7 @@ import (
 	"github.com/johannesboyne/gofakes3"
 	"github.com/johannesboyne/gofakes3/backend/s3mem"
 	"github.com/pborman/uuid"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestThirdpartyStreams tests various streaming upload scenarios
@@ -51,7 +51,7 @@ func TestThirdpartyStreams(t *testing.T) {
 		Endpoint:                    server.URL,
 		DisableServerSideEncryption: true,
 	})
-	assert.Nil(t, err)
+	require.Nil(t, err)
 
 	defer func() {
 		if err := handler.deleteBucket(); err != nil {

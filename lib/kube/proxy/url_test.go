@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseResourcePath(t *testing.T) {
@@ -61,7 +61,7 @@ func TestParseResourcePath(t *testing.T) {
 		t.Run(tt.path, func(t *testing.T) {
 			got := parseResourcePath(tt.path)
 			diff := cmp.Diff(got, tt.want, cmp.AllowUnexported(apiResource{}))
-			assert.Empty(t, diff, "parsing path %q", tt.path)
+			require.Empty(t, diff, "parsing path %q", tt.path)
 		})
 	}
 }
