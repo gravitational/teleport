@@ -215,6 +215,13 @@ func UnmarshalRemoteCluster(bytes []byte, opts ...MarshalOption) (RemoteCluster,
 		return nil, trace.Wrap(err)
 	}
 
+	if cfg.ID != 0 {
+		cluster.SetResourceID(cfg.ID)
+	}
+	if !cfg.Expires.IsZero() {
+		cluster.SetExpiry(cfg.Expires)
+	}
+
 	return &cluster, nil
 }
 

@@ -96,6 +96,12 @@ type ReadAccessPoint interface {
 
 	// GetTunnelConnections returns tunnel connections for a given cluster
 	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]services.TunnelConnection, error)
+
+	// GetRemoteClusters returns a list of remote clusters
+	GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error)
+
+	// GetRemoteCluster returns a remote cluster by name
+	GetRemoteCluster(clusterName string) (services.RemoteCluster, error)
 }
 
 // AccessPoint is an API interface implemented by a certificate authority (CA)

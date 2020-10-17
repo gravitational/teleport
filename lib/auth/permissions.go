@@ -264,7 +264,8 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 				role.String(),
 				services.RoleSpecV3{
 					Allow: services.RoleConditions{
-						Namespaces: []string{services.Wildcard},
+						Namespaces:    []string{services.Wildcard},
+						ClusterLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
 						Rules: []services.Rule{
 							services.NewRule(services.KindProxy, services.RW()),
 							services.NewRule(services.KindOIDCRequest, services.RW()),
@@ -316,7 +317,8 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 			role.String(),
 			services.RoleSpecV3{
 				Allow: services.RoleConditions{
-					Namespaces: []string{services.Wildcard},
+					Namespaces:    []string{services.Wildcard},
+					ClusterLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
 					Rules: []services.Rule{
 						services.NewRule(services.KindProxy, services.RW()),
 						services.NewRule(services.KindOIDCRequest, services.RW()),
@@ -399,9 +401,10 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 					MaxSessionTTL: services.MaxDuration(),
 				},
 				Allow: services.RoleConditions{
-					Namespaces: []string{services.Wildcard},
-					Logins:     []string{},
-					NodeLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+					Namespaces:    []string{services.Wildcard},
+					Logins:        []string{},
+					NodeLabels:    services.Labels{services.Wildcard: []string{services.Wildcard}},
+					ClusterLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
 					Rules: []services.Rule{
 						services.NewRule(services.Wildcard, services.RW()),
 					},

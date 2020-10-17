@@ -1466,6 +1466,25 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				return out[0]
 			},
 		},
+		{
+			name: "Remote cluster",
+			kind: services.WatchKind{
+				Kind: services.KindRemoteCluster,
+			},
+			crud: func() services.Resource {
+				rc, err := services.NewRemoteCluster("example.com")
+				c.Assert(err, check.IsNil)
+				c.Assert(s.PresenceS.CreateRemoteCluster(rc), check.IsNil)
+
+				out, err := s.PresenceS.GetRemoteClusters()
+				c.Assert(err, check.IsNil)
+
+				err = s.PresenceS.DeleteRemoteCluster(rc.GetName())
+				c.Assert(err, check.IsNil)
+
+				return out[0]
+			},
+		},
 	}
 	s.runEventsTests(c, testCases)
 

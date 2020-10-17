@@ -636,7 +636,7 @@ func (r *RoleV3) SetNodeLabels(rct RoleConditionType, labels Labels) {
 // GetClusterLabels gets the map of cluster labels this role is allowed or denied access to.
 func (r *RoleV3) GetClusterLabels(rct RoleConditionType) Labels {
 	if rct == Allow {
-		return defaultAllowClusterLabels(r.Spec.Allow.ClusterLabels)
+		return r.Spec.Allow.ClusterLabels
 	}
 	return r.Spec.Deny.ClusterLabels
 }
@@ -648,15 +648,6 @@ func (r *RoleV3) SetClusterLabels(rct RoleConditionType, labels Labels) {
 	} else {
 		r.Spec.Deny.ClusterLabels = labels.Clone()
 	}
-}
-
-// defaultAllowClusterLabels returns '*':'*' for roles that don't have cluster
-// labels set
-func defaultAllowClusterLabels(in Labels) Labels {
-	if in == nil {
-		return Labels{Wildcard: utils.Strings{Wildcard}}
-	}
-	return in
 }
 
 // GetRules gets all allow or deny rules.
@@ -1555,6 +1546,26 @@ func (set RoleSet) CheckAccessToRemoteCluster(rc RemoteCluster) error {
 
 	rcLabels := rc.GetMetadata().Labels
 
+	// If there is no role in the set with labels and the cluster
+	// is not labelled ,assume that the role set has access to the cluster.
+	usesLabels := false
+	for _, role := range set {
+		if len(role.GetClusterLabels(Allow)) != 0 || len(role.GetClusterLabels(Deny)) != 0 {
+			usesLabels = true
+			break
+		}
+	}
+
+	if usesLabels == false && len(rcLabels) == 0 {
+		if log.GetLevel() == log.DebugLevel {
+			log.WithFields(log.Fields{
+				trace.Component: teleport.ComponentRBAC,
+			}).Debugf("Grant access to cluster %v - no role in %v uses cluster labels and the cluster is not labeled.",
+				rc.GetName(), set.RoleNames())
+		}
+		return nil
+	}
+
 	// Check deny rules first: a single matching namespace, label, or login from
 	// the deny role set prohibits access.
 	for _, role := range set {
@@ -1579,7 +1590,8 @@ func (set RoleSet) CheckAccessToRemoteCluster(rc RemoteCluster) error {
 		matchLabels, labelsMessage, err := MatchLabels(role.GetClusterLabels(Allow), rcLabels)
 		log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Check access to rc(%v, labels=%v) matchLabels=%v, msg=%v, err=%v", rc.GetName(), rcLabels, matchLabels, labelsMessage, err)
+		}).Debugf("Check access to role(%v) rc(%v, labels=%v) matchLabels=%v, msg=%v, err=%v allow=%v rcLabels=%v",
+			role.GetName(), rc.GetName(), rcLabels, matchLabels, labelsMessage, err, role.GetClusterLabels(Allow), rcLabels)
 		if err != nil {
 			return trace.Wrap(err)
 		}

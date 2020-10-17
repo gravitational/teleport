@@ -100,26 +100,6 @@ func (s *RoleSuite) TestConnAndSessLimits(c *C) {
 	}
 }
 
-func (s *RoleSuite) TestRoleExtension(c *C) {
-	type Spec struct {
-		RoleSpecV2
-		A string `json:"a"`
-	}
-	type ExtendedRole struct {
-		Spec Spec `json:"spec"`
-	}
-	in := `{"kind": "role", "metadata": {"name": "name1"}, "spec": {"a": "b"}}`
-	var role ExtendedRole
-	err := utils.UnmarshalWithSchema(GetRoleSchema(V2, `"a": {"type": "string"}`), &role, []byte(in))
-	c.Assert(err, IsNil)
-	c.Assert(role.Spec.A, Equals, "b")
-
-	// this is a bad type
-	in = `{"kind": "role", "metadata": {"name": "name1"}, "spec": {"a": 12}}`
-	err = utils.UnmarshalWithSchema(GetRoleSchema(V2, `"a": {"type": "string"}`), &role, []byte(in))
-	c.Assert(err, NotNil)
-}
-
 func (s *RoleSuite) TestRoleParse(c *C) {
 	testCases := []struct {
 		name         string
@@ -1052,7 +1032,7 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 					context: testContext{
 						buffer: &bytes.Buffer{},
 						Context: Context{
-							Resource: &RoleV2{
+							Resource: &RoleV3{
 								Metadata: Metadata{
 									Labels: map[string]string{"team": "dev"},
 								},
@@ -1100,7 +1080,7 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 					context: testContext{
 						buffer: &bytes.Buffer{},
 						Context: Context{
-							Resource: &RoleV2{
+							Resource: &RoleV3{
 								Metadata: Metadata{
 									Labels: map[string]string{"team": "dev"},
 								},

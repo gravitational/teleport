@@ -1192,6 +1192,77 @@ func (s *CacheSuite) TestAuthServers(c *check.C) {
 	c.Assert(out, check.HasLen, 0)
 }
 
+// TestRemoteClusters tests remote clusters caching
+func (s *CacheSuite) TestRemoteClusters(c *check.C) {
+	p := s.newPackForProxy(c)
+	defer p.Close()
+
+	clusterName := "example.com"
+	rc, err := services.NewRemoteCluster(clusterName)
+	c.Assert(err, check.IsNil)
+	c.Assert(p.presenceS.CreateRemoteCluster(rc), check.IsNil)
+
+	out, err := p.presenceS.GetRemoteClusters()
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+	rc = out[0]
+
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	out, err = p.cache.GetRemoteClusters()
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+
+	rc.SetResourceID(out[0].GetResourceID())
+	fixtures.DeepCompare(c, rc, out[0])
+
+	// update conn's parameters
+	meta := rc.GetMetadata()
+	meta.Labels = map[string]string{"env": "prod"}
+	rc.SetMetadata(meta)
+
+	ctx := context.TODO()
+	err = p.presenceS.UpdateRemoteCluster(ctx, rc)
+	c.Assert(err, check.IsNil)
+
+	out, err = p.presenceS.GetRemoteClusters()
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+	rc = out[0]
+
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	out, err = p.cache.GetRemoteClusters()
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+
+	rc.SetResourceID(out[0].GetResourceID())
+	fixtures.DeepCompare(c, rc, out[0])
+
+	err = p.presenceS.DeleteAllRemoteClusters()
+	c.Assert(err, check.IsNil)
+
+	select {
+	case <-p.eventsC:
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	out, err = p.cache.GetRemoteClusters()
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 0)
+}
+
 type proxyEvents struct {
 	sync.Mutex
 	watchers []services.Watcher

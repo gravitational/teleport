@@ -27,11 +27,12 @@ func TestRemoteClusterStatus(t *testing.T) {
 	// Initially, no tunnels exist and status should be "offline".
 	wantRC.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 	gotRC, err := a.GetRemoteCluster(rc.GetName())
+	gotRC.SetResourceID(0)
 	assert.NoError(t, err)
 	assert.Empty(t, cmp.Diff(rc, gotRC))
 
 	// Create several tunnel connections.
-	lastHeartbeat := a.clock.Now()
+	lastHeartbeat := a.clock.Now().UTC()
 	tc1, err := services.NewTunnelConnection("conn-1", services.TunnelConnectionSpecV2{
 		ClusterName:   rc.GetName(),
 		ProxyName:     "proxy-1",
@@ -57,6 +58,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	wantRC.SetLastHeartbeat(tc2.GetLastHeartbeat())
 	gotRC, err = a.GetRemoteCluster(rc.GetName())
 	assert.NoError(t, err)
+	gotRC.SetResourceID(0)
 	assert.Empty(t, cmp.Diff(rc, gotRC))
 
 	// Delete the latest connection.
@@ -67,6 +69,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	// heartbeat.
 	wantRC.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
 	gotRC, err = a.GetRemoteCluster(rc.GetName())
+	gotRC.SetResourceID(0)
 	assert.NoError(t, err)
 	assert.Empty(t, cmp.Diff(rc, gotRC))
 
@@ -77,6 +80,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	// The last_heartbeat should remain the same.
 	wantRC.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 	gotRC, err = a.GetRemoteCluster(rc.GetName())
+	gotRC.SetResourceID(0)
 	assert.NoError(t, err)
 	assert.Empty(t, cmp.Diff(rc, gotRC))
 }

@@ -110,6 +110,11 @@ func setupCollections(c *Cache, watches []services.WatchKind) (map[string]collec
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[watch.Kind] = &tunnelConnection{watch: watch, Cache: c}
+		case services.KindRemoteCluster:
+			if c.Presence == nil {
+				return nil, trace.BadParameter("missing parameter RemoteCluster")
+			}
+			collections[watch.Kind] = &remoteCluster{watch: watch, Cache: c}
 		case services.KindAccessRequest:
 			if c.DynamicAccess == nil {
 				return nil, trace.BadParameter("missing parameter DynamicAccess")
@@ -245,6 +250,76 @@ func (c *tunnelConnection) processEvent(ctx context.Context, event services.Even
 }
 
 func (c *tunnelConnection) watchKind() services.WatchKind {
+	return c.watch
+}
+
+type remoteCluster struct {
+	*Cache
+	watch services.WatchKind
+}
+
+// erase erases all data in the collection
+func (c *remoteCluster) erase() error {
+	if err := c.presenceCache.DeleteAllRemoteClusters(); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *remoteCluster) fetch(ctx context.Context) error {
+	resources, err := c.Presence.GetRemoteClusters()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := c.erase(); err != nil {
+		return trace.Wrap(err)
+	}
+	for _, resource := range resources {
+		if err := c.presenceCache.CreateRemoteCluster(resource); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (c *remoteCluster) processEvent(ctx context.Context, event services.Event) error {
+	switch event.Type {
+	case backend.OpDelete:
+		err := c.presenceCache.DeleteRemoteCluster(event.Resource.GetName())
+		if err != nil {
+			// resource could be missing in the cache
+			// expired or not created, if the first consumed
+			// event is delete
+			if !trace.IsNotFound(err) {
+				c.WithError(err).Warningf("Failed to delete remote cluster %v.", event.Resource.GetName())
+				return trace.Wrap(err)
+			}
+		}
+	case backend.OpPut:
+		resource, ok := event.Resource.(services.RemoteCluster)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		c.setTTL(resource)
+		err := c.presenceCache.DeleteRemoteCluster(event.Resource.GetName())
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				c.WithError(err).Warningf("Failed to delete remote cluster %v.", event.Resource.GetName())
+				return trace.Wrap(err)
+			}
+		}
+		if err := c.presenceCache.CreateRemoteCluster(resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		c.Warningf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (c *remoteCluster) watchKind() services.WatchKind {
 	return c.watch
 }
 

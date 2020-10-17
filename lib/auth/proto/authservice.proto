@@ -63,6 +63,9 @@ message Event {
         // AccessRequest is a resource for access requests
         services.AccessRequestV3 AccessRequest = 14
             [ (gogoproto.jsontag) = "access_request,omitempty" ];
+        // RemoteCluster is a resource for remote clusters
+        services.RemoteClusterV3 RemoteCluster = 15
+            [ (gogoproto.jsontag) = "remote_cluster,omitempty" ];
     }
 }
 
