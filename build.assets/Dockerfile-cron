@@ -33,10 +33,10 @@ COPY --from=download /tmp/build/tctl /usr/local/bin/tctl
 COPY --from=download /tmp/build/tsh /usr/local/bin/tsh
 
 # Run Teleport inside the image with a default config file location.
-ENTRYPOINT ["/usr/local/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml"]
+ENTRYPOINT ["/usr/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml"]
 
 # Optional third stage which is only run when building the FIPS image.
 FROM teleport AS teleport-fips
 
 # Override the standard entrypoint set in the previous image with the --fips argument to start in FIPS mode.
-ENTRYPOINT ["/usr/local/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml", "--fips"]
+ENTRYPOINT ["/usr/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml", "--fips"]
