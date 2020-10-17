@@ -9,10 +9,12 @@ ARG ARCH
 ARG EXTRA_DOWNLOAD_ARGS=""
 
 WORKDIR /tmp
+# Install dependencies.
+RUN apk --update --no-cache add curl tar
+
 # Download the appropriate binary tarball from get.gravitational.com and extract the binaries into
 # a temporary directory for us to use in the second stage.
-RUN apk --update --no-cache add curl tar && \
-    mkdir -p build && \
+RUN mkdir -p build && \
     curl -Ls https://get.gravitational.com/${DOWNLOAD_TYPE}-${VERSION_TAG}-${OS}-${ARCH}${EXTRA_DOWNLOAD_ARGS}-bin.tar.gz | tar -xzf - && \
     cp $DOWNLOAD_TYPE/teleport $DOWNLOAD_TYPE/tctl $DOWNLOAD_TYPE/tsh build
 
