@@ -476,6 +476,8 @@ steps:
       - for FILE in /go/build/*.txt; do echo $FILE; cat $FILE; done
       # get Dockerfiles
       - curl -Ls -o /go/build/Dockerfile-cron https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron
+      # TODO(gus): testing
+      - sleep 3
 
   - name: Build and push Teleport containers (CURRENT_VERSION)
     image: docker
@@ -2914,6 +2916,6 @@ volumes:
 
 ---
 kind: signature
-hmac: bffe5b1323ff4a370cb57bec5d1f2805b51fdc22c01d684b2e90e1fbb422e2cd
+hmac: 2ba918f0126bcf3f8f87502debf2bc5311423b547414f6f71f7106457a15950c
 
 ...
