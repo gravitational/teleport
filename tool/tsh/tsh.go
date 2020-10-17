@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -34,6 +35,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -118,6 +120,14 @@ type CLIConf struct {
 	BenchRate int
 	// BenchInteractive indicates that we should create interactive session
 	BenchInteractive bool
+	// BenchExport exports the latency profile
+	BenchExport bool
+	// BenchExportPath saves the latency profile in provided path
+	BenchExportPath string
+	// BenchTicks ticks per half distance
+	BenchTicks int32
+	// BenchValueScale value at which to scale the values recorded
+	BenchValueScale float64
 	// Context is a context to control execution
 	Context context.Context
 	// Gops starts gops agent on a specified address
@@ -311,6 +321,10 @@ func Run(args []string) {
 	bench.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
 	bench.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
+	bench.Flag("export", "Export the latency profile").BoolVar(&cf.BenchExport)
+	bench.Flag("path", "Directory to save the latency profile to, default path is the current directory").Default(".").StringVar(&cf.BenchExportPath)
+	bench.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
+	bench.Flag("scale", "Value scale in which to scale the recorded values").Default("1.0").Float64Var(&cf.BenchValueScale)
 
 	// show key
 	show := app.Command("show", "Read an identity from file and print to stdout").Hidden()
@@ -929,6 +943,7 @@ func onBenchmark(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
+
 	result, err := tc.Benchmark(cf.Context, client.Benchmark{
 		Command:  cf.RemoteCommand,
 		Threads:  cf.BenchThreads,
@@ -939,6 +954,7 @@ func onBenchmark(cf *CLIConf) {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 		os.Exit(255)
 	}
+
 	fmt.Printf("\n")
 	fmt.Printf("* Requests originated: %v\n", result.RequestsOriginated)
 	fmt.Printf("* Requests failed: %v\n", result.RequestsFailed)
@@ -956,6 +972,15 @@ func onBenchmark(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 	fmt.Printf("\n")
+
+	if cf.BenchExport {
+		path, err := exportLatencyProfile(cf, result.Histogram)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed exporting latency profile: %s\n", utils.UserMessageFromError(err))
+		} else {
+			fmt.Printf("latency profile saved: %v\n", path)
+		}
+	}
 }
 
 // onJoin executes 'ssh join' command
@@ -1482,4 +1507,40 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// exportLatencyProfile exports the latency profile and returns the path as a string if no errors
+func exportLatencyProfile(cf *CLIConf, h *hdrhistogram.Histogram) (string, error) {
+	var fullPath string
+	timeStamp := time.Now().Format("2006-01-02_15:04:05")
+	suffix := fmt.Sprintf("latency_profile_%s.txt", timeStamp)
+
+	if cf.BenchExportPath != "." {
+		if _, err := os.Stat(cf.BenchExportPath); err != nil {
+			if os.IsNotExist(err) {
+				if err = os.MkdirAll(cf.BenchExportPath, 0700); err != nil {
+					return "", err
+				}
+			} else {
+				return "", err
+			}
+		}
+	}
+
+	fullPath = filepath.Join(cf.BenchExportPath, suffix)
+
+	fo, err := os.Create(fullPath)
+	if err != nil {
+		return "", err
+	}
+
+	if _, err := h.PercentilesPrint(fo, cf.BenchTicks, cf.BenchValueScale); err != nil {
+		fo.Close()
+		return "", err
+	}
+
+	if err := fo.Close(); err != nil {
+		return "", err
+	}
+	return fo.Name(), nil
 }
