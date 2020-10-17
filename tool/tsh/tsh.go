@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -128,6 +129,8 @@ type CLIConf struct {
 	BenchTicks int32
 	// BenchValueScale value at which to scale the values recorded
 	BenchValueScale float64
+	// BenchGeneratorConfig specifies the type of generator and its attributes
+	BenchGeneratorConfig string
 	// Context is a context to control execution
 	Context context.Context
 	// Gops starts gops agent on a specified address
@@ -325,6 +328,7 @@ func Run(args []string) {
 	bench.Flag("path", "Directory to save the latency profile to, default path is the current directory").Default(".").StringVar(&cf.BenchExportPath)
 	bench.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
 	bench.Flag("scale", "Value scale in which to scale the recorded values").Default("1.0").Float64Var(&cf.BenchValueScale)
+	bench.Flag("config", "Path to generator config file").StringVar(&cf.BenchGeneratorConfig)
 
 	// show key
 	show := app.Command("show", "Read an identity from file and print to stdout").Hidden()
@@ -944,12 +948,13 @@ func onBenchmark(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 
-	result, err := tc.Benchmark(cf.Context, client.Benchmark{
+	result, err := benchmark.ConfigureAndRun(cf.Context, benchmark.Config{
 		Command:  cf.RemoteCommand,
 		Threads:  cf.BenchThreads,
 		Duration: cf.BenchDuration,
 		Rate:     cf.BenchRate,
-	})
+	}, tc, cf.BenchGeneratorConfig)
+
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 		os.Exit(255)
