@@ -534,7 +534,7 @@ steps:
       - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       #- docker push $ENT_IMAGE_NAME
       # Enterprise FIPS
-      - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-fips-cron /go/build
+      - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       #- docker push $ENT_FIPS_IMAGE_NAME
 
   - name: Build and push Teleport containers (PREVIOUS_VERSION_TWO)
@@ -2916,6 +2916,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 2ba918f0126bcf3f8f87502debf2bc5311423b547414f6f71f7106457a15950c
+hmac: 93feed2d6a4545b4528ccc210f42f2ae1d4c7a7dbb595351219ecadeb5538d91
 
 ...
