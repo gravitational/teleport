@@ -177,7 +177,8 @@ func TestChaosUpload(t *testing.T) {
 				scansCh <- trace.Wrap(err)
 				return
 			}
-			scansCh <- trace.Wrap(uploader.Scan())
+			_, err := uploader.Scan()
+			scansCh <- trace.Wrap(err)
 		}()
 	}
 
@@ -205,7 +206,7 @@ func TestChaosUpload(t *testing.T) {
 
 	for i := 0; i < parallelStreams; i++ {
 		// do scans to catch remaining uploads
-		err = uploader.Scan()
+		_, err = uploader.Scan()
 		assert.NoError(t, err)
 
 		// wait for the upload events
