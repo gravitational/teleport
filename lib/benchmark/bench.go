@@ -71,10 +71,16 @@ func ConfigureAndRun(ctx context.Context, benchConfig Config, tc *client.Telepor
 	var results []*Result
 	var total int
 
-	if configPath != "" {
-		linearConfig, err = parseConfig(configPath)
-		if err != nil {
-			log.Fatalf("Unable to parse config file %v", err)
+	if isProgressive {
+
+		if configPath == "" {
+			linearConfig = defaultConfig()
+		} else {
+
+			linearConfig, err = parseConfig(configPath)
+			if err != nil {
+				log.Fatalf("Unable to parse config file %v", err)
+			}
 		}
 
 		// Generate increases the RPS based in config rate until upper bound is exceeded
@@ -85,7 +91,7 @@ func ConfigureAndRun(ctx context.Context, benchConfig Config, tc *client.Telepor
 			}
 			benchmarkC.Threads = 1
 			benchmarkC.Command = benchConfig.Command
-			result, err = ProgressiveBenchmark(c, benchmarkC, tc)
+			result, err = benchmarkC.ProgressiveBenchmark(c, benchmarkC, tc)
 			total = result.RequestsOriginated
 			results = append(results, result)
 			fmt.Printf("current generation requests: %v, duration: %v", total, result.Duration)
@@ -98,26 +104,24 @@ func ConfigureAndRun(ctx context.Context, benchConfig Config, tc *client.Telepor
 	return result, err
 }
 
-// ProgressiveBenchmark ...
-func ProgressiveBenchmark(ctx context.Context, benchConfig Config, tc *client.TeleportClient) (*Result, error) {
+// ProgressiveBenchmark runs progressive load benchmarking
+func (c Config)ProgressiveBenchmark(ctx context.Context, tc *client.TeleportClient) (*Result, error) {
 	tc.Stdout = ioutil.Discard
 	tc.Stderr = ioutil.Discard
 	tc.Stdin = &bytes.Buffer{}
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
 	defer cancelWorkers()
 
-	minMeasures := benchConfig.MinimumMeasurements
-
 	resultC := make(chan *benchMeasure)
-	responseC := make(chan *benchMeasure, benchConfig.Threads)
+	responseC := make(chan *benchMeasure, c.Threads)
 
-	for i := 0; i < benchConfig.Threads; i++ {
+	for i := 0; i < c.Threads; i++ {
 		thread := &benchmarkThread{
 			id:          i,
 			ctx:         ctx,
 			client:      tc,
-			command:     benchConfig.Command,
-			interactive: benchConfig.Interactive,
+			command:     c.Command,
+			interactive: c.Interactive,
 			receiveC:    resultC,
 			sendC:       responseC,
 		}
@@ -125,7 +129,7 @@ func ProgressiveBenchmark(ctx context.Context, benchConfig Config, tc *client.Te
 	}
 
 	go func() {
-		interval := time.Duration(float64(1) / float64(benchConfig.Rate) * float64(time.Second))
+		interval := time.Duration(float64(1) / float64(c.Rate) * float64(time.Second))
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 
@@ -146,13 +150,13 @@ func ProgressiveBenchmark(ctx context.Context, benchConfig Config, tc *client.Te
 	var timeoutC <-chan time.Time
 
 	result.Histogram = hdrhistogram.New(1, 60000, 3)
-	results := make([]*benchMeasure, 0, minMeasures)
+	results := make([]*benchMeasure, 0, c.MinimumMeasurements)
 	statusTicker := time.NewTicker(1 * time.Second)
 	timeElapsed := false
 	start := time.Now()
 
 	for {
-		if benchConfig.MinimumWindow <= time.Since(start) {
+		if c.MinimumWindow <= time.Since(start) {
 			timeElapsed = true
 		}
 		select {
@@ -165,7 +169,7 @@ func ProgressiveBenchmark(ctx context.Context, benchConfig Config, tc *client.Te
 				log.Println(err)
 			}
 			results = append(results, measure)
-			if timeElapsed && len(results) >= benchConfig.MinimumMeasurements {
+			if timeElapsed && len(results) >= c.MinimumMeasurements {
 				go cancelWorkers()
 			}
 			if measure.Error != nil {
@@ -363,14 +367,14 @@ func (b *benchmarkThread) run() {
 	}
 }
 
-func defaultConfig() (*Linear) {
+func defaultConfig() *Linear {
 	defaultDuration := 30 * time.Second
 	return &Linear{
-		LowerBound: 10, 
-		UpperBound: 50,
-		Step: 10, 
-		MinimumMeasurements: 1000, 
-		MinimumWindow: defaultDuration,
+		LowerBound:          10,
+		UpperBound:          50,
+		Step:                10,
+		MinimumMeasurements: 1000,
+		MinimumWindow:       defaultDuration,
 	}
 }
 
