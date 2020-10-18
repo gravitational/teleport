@@ -359,7 +359,194 @@ func TestUploadResume(t *testing.T) {
 			runResume(t, tc)
 		})
 	}
+}
 
+// TestUploadBackoff introduces upload failure
+// and makes sure that the uploader starts backing off.
+func TestUploadBackoff(t *testing.T) {
+	utils.InitLoggerForTests(testing.Verbose())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	clock := clockwork.NewFakeClock()
+	eventsC := make(chan events.UploadEvent, 100)
+	memUploader := events.NewMemoryUploader(eventsC)
+	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+		Uploader:       memUploader,
+		MinUploadBytes: 1024,
+	})
+	assert.NoError(t, err)
+
+	scanDir, err := ioutil.TempDir("", "teleport-streams")
+	assert.NoError(t, err)
+	defer os.RemoveAll(scanDir)
+
+	terminateConnectionAt := atomic.NewInt64(700)
+
+	faultyStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
+		Inner: streamer,
+		OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event events.AuditEvent) error {
+			terminateAt := terminateConnectionAt.Load()
+			if terminateAt > 0 && event.GetIndex() >= terminateAt {
+				log.Debugf("Terminating connection at event %v", event.GetIndex())
+				return trace.ConnectionProblem(nil, "connection terminated at event index %v", terminateAt)
+			}
+			return nil
+		},
+	})
+	assert.NoError(t, err)
+
+	scanPeriod := 10 * time.Second
+	uploader, err := NewUploader(UploaderConfig{
+		Context:    ctx,
+		ScanDir:    scanDir,
+		ScanPeriod: scanPeriod,
+		Streamer:   faultyStreamer,
+		Clock:      clock,
+		EventsC:    eventsC,
+	})
+	assert.NoError(t, err)
+	go uploader.Serve()
+	// wait until uploader blocks on the clock
+	clock.BlockUntil(1)
+
+	defer uploader.Close()
+
+	fileStreamer, err := NewStreamer(scanDir)
+	assert.NoError(t, err)
+
+	inEvents := events.GenerateTestSession(events.SessionParams{PrintEvents: 4096})
+	sid := inEvents[0].(events.SessionMetadataGetter).GetSessionID()
+
+	// wait until uploader blocks on the clock before creating the stream
+	clock.BlockUntil(1)
+	stream, err := fileStreamer.CreateAuditStream(ctx, session.ID(sid))
+	assert.NoError(t, err)
+
+	for _, event := range inEvents {
+		err := stream.EmitAuditEvent(ctx, event)
+		assert.NoError(t, err)
+	}
+	err = stream.Complete(ctx)
+	assert.NoError(t, err)
+
+	// initiate the scan by advancing clock past
+	// block period
+	clock.Advance(scanPeriod + time.Second)
+
+	// initiate several scan attempts and increase the scan period
+	attempts := 10
+	var prev time.Time
+	var diffs []time.Duration
+	for i := 0; i < attempts; i++ {
+		// wait for the upload event
+		var event events.UploadEvent
+		select {
+		case event = <-eventsC:
+			assert.Error(t, event.Error)
+			if prev.IsZero() {
+				prev = event.Created
+			} else {
+				diffs = append(diffs, event.Created.Sub(prev))
+				prev = event.Created
+			}
+		case <-ctx.Done():
+			t.Fatalf("Timeout waiting for async upload %v, try `go test -v` to get more logs for details", i)
+		}
+
+		// Block until Scan has been called two times,
+		// first time after doing the scan, and second
+		// on receiving the event to <- eventsCh
+		clock.BlockUntil(2)
+		clock.Advance(scanPeriod*time.Duration(i+2) + time.Second)
+	}
+
+	// Make sure that durations between retries are increasing
+	for i, diff := range diffs {
+		if i > 0 {
+			assert.True(t, diff > diffs[i-1], "Expected next retry to take longer, got %v vs %v", diffs[i-1], diff)
+		}
+	}
+
+	// Fix the streamer, make sure the upload succeeds
+	terminateConnectionAt.Store(0)
+	clock.BlockUntil(2)
+	clock.Advance(time.Hour)
+	select {
+	case event := <-eventsC:
+		assert.NoError(t, event.Error)
+	case <-ctx.Done():
+		t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
+	}
+}
+
+// TestUploadBadSession creates a corrupted session file
+// and makes sure the uploader marks it as faulty
+func TestUploadBadSession(t *testing.T) {
+	utils.InitLoggerForTests(testing.Verbose())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	clock := clockwork.NewFakeClock()
+	eventsC := make(chan events.UploadEvent, 100)
+	memUploader := events.NewMemoryUploader(eventsC)
+	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
+		Uploader:       memUploader,
+		MinUploadBytes: 1024,
+	})
+	assert.NoError(t, err)
+
+	scanDir, err := ioutil.TempDir("", "teleport-streams")
+	assert.NoError(t, err)
+	defer os.RemoveAll(scanDir)
+
+	scanPeriod := 10 * time.Second
+	uploader, err := NewUploader(UploaderConfig{
+		Context:    ctx,
+		ScanDir:    scanDir,
+		ScanPeriod: scanPeriod,
+		Streamer:   streamer,
+		Clock:      clock,
+		EventsC:    eventsC,
+	})
+	assert.NoError(t, err)
+	go uploader.Serve()
+	// wait until uploader blocks on the clock
+	clock.BlockUntil(1)
+
+	defer uploader.Close()
+
+	// wait until uploader blocks on the clock before creating the stream
+	clock.BlockUntil(1)
+
+	sessionID := session.NewID()
+	fileName := filepath.Join(scanDir, string(sessionID)+tarExt)
+
+	err = ioutil.WriteFile(fileName, []byte("this session is corrupted"), 0600)
+	assert.NoError(t, err)
+
+	// initiate the scan by advancing clock past
+	// block period
+	clock.Advance(scanPeriod + time.Second)
+
+	// wait for the upload event, make sure
+	// the error is the problem error
+	var event events.UploadEvent
+	select {
+	case event = <-eventsC:
+		assert.Error(t, event.Error)
+		assert.True(t, isSessionError(event.Error))
+	case <-ctx.Done():
+		t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
+	}
+
+	stats, err := uploader.Scan()
+	assert.NoError(t, err)
+	// Bad records have been scanned, but uploads have not started
+	assert.Equal(t, 1, stats.Scanned)
+	assert.Equal(t, 0, stats.Started)
 }
 
 // runResume runs resume scenario based on the test case specification
@@ -425,8 +612,11 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 		if testCase.onRetry != nil {
 			testCase.onRetry(t, i, uploader)
 		}
-		clock.BlockUntil(1)
-		clock.Advance(scanPeriod + time.Second)
+		// Block until Scan has been called two times,
+		// first time after doing the scan, and second
+		// on receiving the event to <- eventsCh
+		clock.BlockUntil(2)
+		clock.Advance(scanPeriod*time.Duration(i+2) + time.Second)
 
 		// wait for upload success
 		select {

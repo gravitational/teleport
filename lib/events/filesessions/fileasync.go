@@ -114,13 +114,24 @@ func NewUploader(cfg UploaderConfig) (*Uploader, error) {
 		cancel:    cancel,
 		ctx:       ctx,
 		semaphore: make(chan struct{}, cfg.ConcurrentUploads),
+		eventsCh:  make(chan events.UploadEvent, cfg.ConcurrentUploads),
 	}
 	return uploader, nil
 }
 
-// Uploader implements a disk based session logger. The important
-// property of the disk based logger is that it never fails and can be used as
-// a fallback implementation behind more sophisticated loggers.
+// Uploader periodically scans session records in a folder.
+//
+// Once it finds the sessions it opens parallel upload streams
+// to the streaming server.
+//
+// It keeps checkpoints of the upload state and resumes
+// the upload that have been aborted.
+//
+// The uploader completes the sessions that have been
+// abandoned longer than the grace period.
+//
+// It marks corrupted session files to skip their processing.
+//
 type Uploader struct {
 	semaphore chan struct{}
 
@@ -128,49 +139,126 @@ type Uploader struct {
 	log             *log.Entry
 	uploadCompleter *events.UploadCompleter
 
-	cancel context.CancelFunc
-	ctx    context.Context
+	cancel   context.CancelFunc
+	ctx      context.Context
+	eventsCh chan events.UploadEvent
+}
+
+func (u *Uploader) writeSessionError(sessionID session.ID, err error) error {
+	if sessionID == "" {
+		return trace.BadParameter("missing session ID")
+	}
+	path := u.sessionErrorFilePath(sessionID)
+	return trace.ConvertSystemError(ioutil.WriteFile(path, []byte(err.Error()), 0600))
+}
+
+func (u *Uploader) checkSessionError(sessionID session.ID) (bool, error) {
+	if sessionID == "" {
+		return false, trace.BadParameter("missing session ID")
+	}
+	_, err := os.Stat(u.sessionErrorFilePath(sessionID))
+	if err != nil {
+		err = trace.ConvertSystemError(err)
+		if trace.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 // Serve runs the uploader until stopped
 func (u *Uploader) Serve() error {
-	t := u.cfg.Clock.NewTicker(u.cfg.ScanPeriod)
-	defer t.Stop()
+	backoff, err := utils.NewLinear(utils.LinearConfig{
+		Step:  u.cfg.ScanPeriod,
+		Max:   u.cfg.ScanPeriod * 100,
+		Clock: u.cfg.Clock,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	for {
 		select {
 		case <-u.ctx.Done():
 			return nil
-		case <-t.Chan():
+			// Successful and failed upload events are used to speed up and
+			// slow down the scans and uploads.
+		case event := <-u.eventsCh:
+			switch {
+			case event.Error == nil:
+				backoff.ResetToDelay()
+			case isSessionError(event.Error):
+				u.log.WithError(event.Error).Warningf(
+					"Failed to read session recording %v, will skip future uploads.", event.SessionID)
+				if err := u.writeSessionError(session.ID(event.SessionID), event.Error); err != nil {
+					u.log.WithError(err).Warningf(
+						"Failed to write session %v error.", event.SessionID)
+				}
+			default:
+				backoff.Inc()
+				u.log.WithError(event.Error).Warningf(
+					"Backing off, will retry after %v.", backoff.Duration())
+			}
+			// forward the event to channel that used in tests
+			if u.cfg.EventsC != nil {
+				select {
+				case u.cfg.EventsC <- event:
+					u.log.Warningf("Forwarded the event to the channel.")
+				default:
+					u.log.Warningf("Skip send event on a blocked channel.")
+				}
+			}
+		// Tick at scan period but slow down (and speeds up) on errors.
+		case <-backoff.After():
+			var failed bool
 			if err := u.uploadCompleter.CheckUploads(u.ctx); err != nil {
 				if trace.Unwrap(err) != errContext {
+					failed = true
 					u.log.WithError(err).Warningf("Completer scan failed.")
 				}
 			}
-			if err := u.Scan(); err != nil {
+			if _, err := u.Scan(); err != nil {
 				if trace.Unwrap(err) != errContext {
+					failed = true
 					u.log.WithError(err).Warningf("Uploader scan failed.")
 				}
+			}
+			if failed {
+				backoff.Inc()
+				u.log.Debugf("Scan failed, backing off, will retry after %v.", backoff.Duration())
+			} else {
+				backoff.ResetToDelay()
 			}
 		}
 	}
 }
 
+// ScanStats provides scan statistics,
+// used in tests
+type ScanStats struct {
+	// Scanned is how many uploads have been scanned
+	Scanned int
+	// Started is how many uploads have been started
+	Started int
+}
+
 // Scan scans the streaming directory and uploads recordings
-func (u *Uploader) Scan() error {
+func (u *Uploader) Scan() (*ScanStats, error) {
 	files, err := ioutil.ReadDir(u.cfg.ScanDir)
 	if err != nil {
-		return trace.ConvertSystemError(err)
+		return nil, trace.ConvertSystemError(err)
 	}
-	scanned, started := 0, 0
+	var stats ScanStats
 	for i := range files {
 		fi := files[i]
 		if fi.IsDir() {
 			continue
 		}
-		if filepath.Ext(fi.Name()) == checkpointExt {
+		ext := filepath.Ext(fi.Name())
+		if ext == checkpointExt || ext == errorExt {
 			continue
 		}
-		scanned++
+		stats.Scanned++
 		if err := u.startUpload(fi.Name()); err != nil {
 			if trace.IsCompareFailed(err) {
 				u.log.Debugf("Scan is skipping recording %v that is locked by another process.", fi.Name())
@@ -180,19 +268,28 @@ func (u *Uploader) Scan() error {
 				u.log.Debugf("Recording %v was uploaded by another process.", fi.Name())
 				continue
 			}
-			return trace.Wrap(err)
+			if isSessionError(err) {
+				u.log.WithError(err).Warningf("Skipped session recording %v.", fi.Name())
+				continue
+			}
+			return nil, trace.Wrap(err)
 		}
-		started++
+		stats.Started++
 	}
-	if scanned > 0 {
-		u.log.Debugf("Scanned %v uploads, started %v in %v.", scanned, started, u.cfg.ScanDir)
+	if stats.Scanned > 0 {
+		u.log.Debugf("Scanned %v uploads, started %v in %v.", stats.Scanned, stats.Started, u.cfg.ScanDir)
 	}
-	return nil
+	return &stats, nil
 }
 
-// checkpointFilePath  returns a path to checkpoint file for a session
+// checkpointFilePath returns a path to checkpoint file for a session
 func (u *Uploader) checkpointFilePath(sid session.ID) string {
 	return filepath.Join(u.cfg.ScanDir, sid.String()+checkpointExt)
+}
+
+// sessionErrorFilePath returns a path to checkpoint file for a session
+func (u *Uploader) sessionErrorFilePath(sid session.ID) string {
+	return filepath.Join(u.cfg.ScanDir, sid.String()+errorExt)
 }
 
 // Close closes all operations
@@ -274,8 +371,22 @@ func (u *Uploader) startUpload(fileName string) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Apparently, exclusive lock can be obtained only in RDWR mode on NFS
 	sessionFilePath := filepath.Join(u.cfg.ScanDir, fileName)
+	// Corrupted session records can clog the uploader
+	// that will indefinitely try to upload them.
+	isSessionError, err := u.checkSessionError(sessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if isSessionError {
+		return sessionError{
+			err: trace.BadParameter(
+				"session recording %v is either corrupted or is using unsupported format, remove the file %v to correct the problem, remove the %v file to retry the upload",
+				sessionID, sessionFilePath, u.sessionErrorFilePath(sessionID)),
+		}
+	}
+
+	// Apparently, exclusive lock can be obtained only in RDWR mode on NFS
 	sessionFile, err := os.OpenFile(sessionFilePath, os.O_RDWR, 0)
 	if err != nil {
 		return trace.ConvertSystemError(err)
@@ -316,11 +427,13 @@ func (u *Uploader) startUpload(fileName string) error {
 			u.emitEvent(events.UploadEvent{
 				SessionID: string(upload.sessionID),
 				Error:     err,
+				Created:   u.cfg.Clock.Now().UTC(),
 			})
 			return
 		}
 		u.emitEvent(events.UploadEvent{
 			SessionID: string(upload.sessionID),
+			Created:   u.cfg.Clock.Now().UTC(),
 		})
 
 	}()
@@ -391,7 +504,7 @@ func (u *Uploader) upload(up *upload) error {
 			if err == io.EOF {
 				break
 			}
-			return trace.Wrap(err)
+			return sessionError{err: trace.Wrap(err)}
 		}
 		// skip events that have been already submitted
 		if status != nil && event.GetIndex() <= status.LastEventIndex {
@@ -403,7 +516,7 @@ func (u *Uploader) upload(up *upload) error {
 	}
 
 	if err := stream.Complete(u.ctx); err != nil {
-		u.log.WithError(err).Errorf("Failed to complete upload.")
+		u.log.WithError(err).Error("Failed to complete upload.")
 		return trace.Wrap(err)
 	}
 
@@ -422,7 +535,9 @@ func (u *Uploader) upload(up *upload) error {
 
 	// In linux it is possible to remove a file while holding a file descriptor
 	if err := up.removeFiles(); err != nil {
-		u.log.WithError(err).Warningf("Failed to remove session files.")
+		if !trace.IsNotFound(err) {
+			u.log.WithError(err).Warningf("Failed to remove session files.")
+		}
 	}
 	return nil
 }
@@ -466,13 +581,28 @@ func (u *Uploader) releaseSemaphore() error {
 }
 
 func (u *Uploader) emitEvent(e events.UploadEvent) {
-	if u.cfg.EventsC == nil {
-		return
-	}
+	// This channel is used by scanner to slow down/speed up.
 	select {
-	case u.cfg.EventsC <- e:
-		return
+	case u.eventsCh <- e:
 	default:
-		u.log.Warningf("Skip send event on a blocked channel.")
+		// It's OK to drop the event if the Scan is overloaded.
+		// These events are used in tests and to speed up and slow down
+		// scans, so lost events will have little impact on the logic.
 	}
+}
+
+func isSessionError(err error) bool {
+	_, ok := trace.Unwrap(err).(sessionError)
+	return ok
+}
+
+// sessionError highlights problems with session
+// playback, corrupted files or incompatible disk format
+type sessionError struct {
+	err error
+}
+
+func (s sessionError) Error() string {
+	return fmt.Sprintf(
+		"session file could be corrupted or is using unsupported format: %v", s.err.Error())
 }
