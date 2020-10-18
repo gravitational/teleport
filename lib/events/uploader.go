@@ -59,6 +59,8 @@ type UploadEvent struct {
 	UploadID string
 	// Error is set in case if event resulted in error
 	Error error
+	// Created is a time of when the event has been created
+	Created time.Time
 }
 
 // UploaderConfig sets up configuration for uploader service

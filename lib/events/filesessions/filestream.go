@@ -314,4 +314,6 @@ const (
 	tarExt = ".tar"
 	// checkpointExt is a suffix for checkpoint extensions
 	checkpointExt = ".checkpoint"
+	// errorExt is a suffix for files storing session errors
+	errorExt = ".error"
 )
