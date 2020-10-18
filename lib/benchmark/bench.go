@@ -64,7 +64,7 @@ type Result struct {
 }
 
 // ConfigureAndRun configures the type of benchmark and runs it
-func ConfigureAndRun(ctx context.Context, benchConfig Config, tc *client.TeleportClient, configPath string) (*Result, error) {
+func ConfigureAndRun(ctx context.Context, benchConfig Config, tc *client.TeleportClient, configPath string, isProgressive bool) (*Result, error) {
 	var linearConfig *Linear
 	var result *Result
 	var err error
@@ -83,7 +83,6 @@ func ConfigureAndRun(ctx context.Context, benchConfig Config, tc *client.Telepor
 			if err != nil {
 				break
 			}
-
 			benchmarkC.Threads = 1
 			benchmarkC.Command = benchConfig.Command
 			result, err = ProgressiveBenchmark(c, benchmarkC, tc)
@@ -112,16 +111,18 @@ func ProgressiveBenchmark(ctx context.Context, benchConfig Config, tc *client.Te
 	resultC := make(chan *benchMeasure)
 	responseC := make(chan *benchMeasure, benchConfig.Threads)
 
-	thread := &benchmarkThread{
-		id:          1,
-		ctx:         ctx,
-		client:      tc,
-		command:     benchConfig.Command,
-		interactive: benchConfig.Interactive,
-		receiveC:    resultC,
-		sendC:       responseC,
+	for i := 0; i < benchConfig.Threads; i++ {
+		thread := &benchmarkThread{
+			id:          i,
+			ctx:         ctx,
+			client:      tc,
+			command:     benchConfig.Command,
+			interactive: benchConfig.Interactive,
+			receiveC:    resultC,
+			sendC:       responseC,
+		}
+		go thread.run()
 	}
-	go thread.run()
 
 	go func() {
 		interval := time.Duration(float64(1) / float64(benchConfig.Rate) * float64(time.Second))
@@ -134,9 +135,7 @@ func ProgressiveBenchmark(ctx context.Context, benchConfig Config, tc *client.Te
 				measure := &benchMeasure{
 					Start: time.Now(),
 				}
-
 				resultC <- measure
-
 			case <-ctx.Done():
 				return
 			}
@@ -144,6 +143,8 @@ func ProgressiveBenchmark(ctx context.Context, benchConfig Config, tc *client.Te
 	}()
 
 	var result Result
+	var timeoutC <-chan time.Time
+
 	result.Histogram = hdrhistogram.New(1, 60000, 3)
 	results := make([]*benchMeasure, 0, minMeasures)
 	statusTicker := time.NewTicker(1 * time.Second)
@@ -155,20 +156,29 @@ func ProgressiveBenchmark(ctx context.Context, benchConfig Config, tc *client.Te
 			timeElapsed = true
 		}
 		select {
-		case currMeasure := <-resultC:
-			results = append(results, currMeasure)
+		case <-timeoutC:
+			result.LastError = trace.BadParameter("several requests hang: timeout waiting for threads to finish")
+			return &Result{RequestsOriginated: len(results), Duration: time.Since(start), Histogram: result.Histogram, LastError: result.LastError}, nil
+		case measure := <-responseC:
+			err := result.Histogram.RecordValue(int64(measure.End.Sub(measure.Start) / time.Millisecond))
+			if err != nil {
+				log.Println(err)
+			}
+			results = append(results, measure)
 			if timeElapsed && len(results) >= benchConfig.MinimumMeasurements {
 				go cancelWorkers()
 			}
-
-			if currMeasure.Error != nil {
+			if measure.Error != nil {
 				result.RequestsFailed++
-				result.LastError = currMeasure.Error
+				result.LastError = measure.Error
 			}
 			result.RequestsOriginated++
-			result.Histogram.RecordValue(int64(currMeasure.End.Sub(currMeasure.Start) / time.Millisecond))
-
 		case <-workerCtx.Done():
+			workerCtx = nil
+			waitTime := time.Duration(result.Histogram.Max()) * time.Millisecond
+			// going to wait latency + buffer to give requests in flight to wrap up
+			waitTime = time.Duration(1.2 * float64(waitTime))
+			timeoutC = time.After(waitTime)
 			return &Result{RequestsOriginated: len(results), Duration: time.Since(start), Histogram: result.Histogram, LastError: result.LastError}, nil
 		case <-statusTicker.C:
 			log.Printf("working... observations: %d", len(results))
@@ -218,7 +228,6 @@ func Benchmark(ctx context.Context, benchConfig Config, tc *client.TeleportClien
 				measure := &benchMeasure{
 					Start: time.Now(),
 				}
-
 				select {
 				case requestC <- measure:
 				case <-ctx.Done():
@@ -351,6 +360,17 @@ func (b *benchmarkThread) run() {
 			})
 			return
 		}
+	}
+}
+
+func defaultConfig() (*Linear) {
+	defaultDuration := 30 * time.Second
+	return &Linear{
+		LowerBound: 10, 
+		UpperBound: 50,
+		Step: 10, 
+		MinimumMeasurements: 1000, 
+		MinimumWindow: defaultDuration,
 	}
 }
 

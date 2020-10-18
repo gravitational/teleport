@@ -131,6 +131,8 @@ type CLIConf struct {
 	BenchValueScale float64
 	// BenchGeneratorConfig specifies the type of generator and its attributes
 	BenchGeneratorConfig string
+	// BenchProgressive indicates to use progressive load benchmarking
+	BenchProgressive bool
 	// Context is a context to control execution
 	Context context.Context
 	// Gops starts gops agent on a specified address
@@ -329,6 +331,7 @@ func Run(args []string) {
 	bench.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
 	bench.Flag("scale", "Value scale in which to scale the recorded values").Default("1.0").Float64Var(&cf.BenchValueScale)
 	bench.Flag("config", "Path to generator config file").StringVar(&cf.BenchGeneratorConfig)
+	bench.Flag("progressive", "Use progressive load benchmarking").BoolVar(&cf.BenchProgressive)
 
 	// show key
 	show := app.Command("show", "Read an identity from file and print to stdout").Hidden()
@@ -953,7 +956,7 @@ func onBenchmark(cf *CLIConf) {
 		Threads:  cf.BenchThreads,
 		Duration: cf.BenchDuration,
 		Rate:     cf.BenchRate,
-	}, tc, cf.BenchGeneratorConfig)
+	}, tc, cf.BenchGeneratorConfig, cf.BenchProgressive)
 
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
@@ -966,6 +969,7 @@ func onBenchmark(cf *CLIConf) {
 	if result.LastError != nil {
 		fmt.Printf("* Last error: %v\n", result.LastError)
 	}
+
 	fmt.Printf("\nHistogram\n\n")
 	t := asciitable.MakeTable([]string{"Percentile", "Duration"})
 	for _, quantile := range []float64{25, 50, 75, 90, 95, 99, 100} {
