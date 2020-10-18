@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/trace"
 	logrus "github.com/sirupsen/logrus"
-	yaml "gopkg.in/yaml.v2"
 )
 
 // Config specifies benchmark requests to run
@@ -63,49 +62,37 @@ type Result struct {
 	Duration time.Duration
 }
 
-// ConfigureAndRun configures the type of benchmark and runs it
-func ConfigureAndRun(ctx context.Context, benchConfig Config, tc *client.TeleportClient, configPath string, isProgressive bool) (*Result, error) {
-	var linearConfig *Linear
+// Run is used to run the benchmarks
+func Run(ctx context.Context, cnf *Linear, cmd string) {
 	var result *Result
-	var err error
 	var results []*Result
 	var total int
-
-	if isProgressive {
-
-		if configPath == "" {
-			linearConfig = defaultConfig()
-		} else {
-
-			linearConfig, err = parseConfig(configPath)
-			if err != nil {
-				log.Fatalf("Unable to parse config file %v", err)
-			}
-		}
-
-		// Generate increases the RPS based in config rate until upper bound is exceeded
-		for linearConfig.Generate() {
-			c, benchmarkC, err := linearConfig.GetBenchmark()
-			if err != nil {
-				break
-			}
-			benchmarkC.Threads = 1
-			benchmarkC.Command = benchConfig.Command
-			result, err = benchmarkC.ProgressiveBenchmark(c, benchmarkC, tc)
-			total = result.RequestsOriginated
-			results = append(results, result)
-			fmt.Printf("current generation requests: %v, duration: %v", total, result.Duration)
-			time.Sleep(5 * time.Second)
-		}
-		return result, err
+	tc, err := createTeleportClient()
+	if err != nil {
+		log.Fatalf("Teleport client: %v", err)
 	}
+	logrus.SetLevel(logrus.ErrorLevel)
+	out := &bytes.Buffer{}
+	tc.Stdout = out
 
-	result, err = Benchmark(ctx, benchConfig, tc)
-	return result, err
+	command := strings.Split(cmd, " ")
+	for cnf.Generate() {
+		c, benchmarkC, err := cnf.GetBenchmark()
+		if err != nil {
+			break
+		}
+		benchmarkC.Threads = 1
+		benchmarkC.Command = command
+		result, err = benchmarkC.ProgressiveBenchmark(c, tc)
+		total = result.RequestsOriginated
+		results = append(results, result)
+		fmt.Printf("current generation requests: %v, duration: %v", total, result.Duration)
+		time.Sleep(5 * time.Second)
+	}
 }
 
 // ProgressiveBenchmark runs progressive load benchmarking
-func (c Config)ProgressiveBenchmark(ctx context.Context, tc *client.TeleportClient) (*Result, error) {
+func (c Config) ProgressiveBenchmark(ctx context.Context, tc *client.TeleportClient) (*Result, error) {
 	tc.Stdout = ioutil.Discard
 	tc.Stderr = ioutil.Discard
 	tc.Stdin = &bytes.Buffer{}
@@ -193,25 +180,25 @@ func (c Config)ProgressiveBenchmark(ctx context.Context, tc *client.TeleportClie
 // Benchmark connects to remote server and executes requests in parallel according
 // to benchmark spec. It returns benchmark result when completed.
 // This is a blocking function that can be cancelled via context argument.
-func Benchmark(ctx context.Context, benchConfig Config, tc *client.TeleportClient) (*Result, error) {
+func (c Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (*Result, error) {
 	tc.Stdout = ioutil.Discard
 	tc.Stderr = ioutil.Discard
 	tc.Stdin = &bytes.Buffer{}
-	ctx, cancel := context.WithTimeout(ctx, benchConfig.Duration)
 
+	ctx, cancel := context.WithTimeout(ctx, c.Duration)
 	defer cancel()
 
 	requestC := make(chan *benchMeasure)
-	responseC := make(chan *benchMeasure, benchConfig.Threads)
+	responseC := make(chan *benchMeasure, c.Threads)
 
 	// create goroutines for concurrency
-	for i := 0; i < benchConfig.Threads; i++ {
+	for i := 0; i < c.Threads; i++ {
 		thread := &benchmarkThread{
 			id:          i,
 			ctx:         ctx,
 			client:      tc,
-			command:     benchConfig.Command,
-			interactive: benchConfig.Interactive,
+			command:     c.Command,
+			interactive: c.Interactive,
 			receiveC:    requestC,
 			sendC:       responseC,
 		}
@@ -220,7 +207,7 @@ func Benchmark(ctx context.Context, benchConfig Config, tc *client.TeleportClien
 
 	// producer goroutine
 	go func() {
-		interval := time.Duration(float64(1) / float64(benchConfig.Rate) * float64(time.Second))
+		interval := time.Duration(float64(1) / float64(c.Rate) * float64(time.Second))
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
@@ -253,7 +240,7 @@ func Benchmark(ctx context.Context, benchConfig Config, tc *client.TeleportClien
 	for {
 		select {
 		case <-timeoutC:
-			result.LastError = trace.BadParameter("several requests hang: timeout waiting for %v threads to finish", benchConfig.Threads-doneThreads)
+			result.LastError = trace.BadParameter("several requests hang: timeout waiting for %v threads to finish", c.Threads-doneThreads)
 			return &result, nil
 		case <-doneC:
 			// give it a couple of seconds to wrap up the goroutines,
@@ -266,7 +253,7 @@ func Benchmark(ctx context.Context, benchConfig Config, tc *client.TeleportClien
 		case measure := <-responseC:
 			if measure.ThreadCompleted {
 				doneThreads++
-				if doneThreads == benchConfig.Threads {
+				if doneThreads == c.Threads {
 					return &result, nil
 				}
 			} else {
@@ -279,7 +266,6 @@ func Benchmark(ctx context.Context, benchConfig Config, tc *client.TeleportClien
 			}
 		}
 	}
-
 }
 
 type benchMeasure struct {
@@ -367,26 +353,13 @@ func (b *benchmarkThread) run() {
 	}
 }
 
-func defaultConfig() *Linear {
-	defaultDuration := 30 * time.Second
-	return &Linear{
-		LowerBound:          10,
-		UpperBound:          50,
-		Step:                10,
-		MinimumMeasurements: 1000,
-		MinimumWindow:       defaultDuration,
-	}
-}
-
-func parseConfig(path string) (*Linear, error) {
-	linearConfig := &Linear{}
-	yamlFile, err := ioutil.ReadFile(path)
+func createTeleportClient() (*client.TeleportClient, error) {
+	c := client.Config{}
+	path := client.FullProfilePath("")
+	c.LoadProfile(path, "")
+	tc, err := client.NewClient(&c)
 	if err != nil {
 		return nil, err
 	}
-	err = yaml.Unmarshal(yamlFile, linearConfig)
-	if err != nil {
-		return nil, err
-	}
-	return linearConfig, nil
+	return tc, err
 }

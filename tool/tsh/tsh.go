@@ -129,10 +129,7 @@ type CLIConf struct {
 	BenchTicks int32
 	// BenchValueScale value at which to scale the values recorded
 	BenchValueScale float64
-	// BenchGeneratorConfig specifies the type of generator and its attributes
-	BenchGeneratorConfig string
-	// BenchProgressive indicates to use progressive load benchmarking
-	BenchProgressive bool
+
 	// Context is a context to control execution
 	Context context.Context
 	// Gops starts gops agent on a specified address
@@ -330,8 +327,8 @@ func Run(args []string) {
 	bench.Flag("path", "Directory to save the latency profile to, default path is the current directory").Default(".").StringVar(&cf.BenchExportPath)
 	bench.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
 	bench.Flag("scale", "Value scale in which to scale the recorded values").Default("1.0").Float64Var(&cf.BenchValueScale)
-	bench.Flag("config", "Path to generator config file").StringVar(&cf.BenchGeneratorConfig)
-	bench.Flag("progressive", "Use progressive load benchmarking").BoolVar(&cf.BenchProgressive)
+	
+	
 
 	// show key
 	show := app.Command("show", "Read an identity from file and print to stdout").Hidden()
@@ -950,13 +947,14 @@ func onBenchmark(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-
-	result, err := benchmark.ConfigureAndRun(cf.Context, benchmark.Config{
+	cnf := benchmark.Config{
 		Command:  cf.RemoteCommand,
 		Threads:  cf.BenchThreads,
 		Duration: cf.BenchDuration,
 		Rate:     cf.BenchRate,
-	}, tc, cf.BenchGeneratorConfig, cf.BenchProgressive)
+	}
+
+	result, err := cnf.Benchmark(cf.Context, tc)
 
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
