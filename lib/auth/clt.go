@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -727,8 +728,17 @@ func (c *Client) UpsertNode(s services.Server) (*services.KeepAlive, error) {
 	return keepAlive, nil
 }
 
-// KeepAliveNode updates node keep alive information
+// DELETE IN: 5.1.0
+//
+// This logic has been moved to KeepAliveResource.
+//
+// KeepAliveNode updates node keep alive information.
 func (c *Client) KeepAliveNode(ctx context.Context, keepAlive services.KeepAlive) error {
+	return trace.BadParameter("not implemented, use StreamKeepAlives instead")
+}
+
+// KeepAliveResource is not implemented.
+func (c *Client) KeepAliveResource(ctx context.Context, keepAlive services.KeepAlive) error {
 	return trace.BadParameter("not implemented, use StreamKeepAlives instead")
 }
 
@@ -2920,6 +2930,203 @@ func (c *Client) DeleteSemaphore(ctx context.Context, filter services.SemaphoreF
 	return nil
 }
 
+// GetAppServers gets all application servers.
+func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg, err := services.CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.GetAppServers(ctx, &proto.GetAppServersRequest{
+		Namespace:      namespace,
+		SkipValidation: cfg.SkipValidation,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	var servers []services.Server
+	for _, server := range resp.GetServers() {
+		servers = append(servers, server)
+	}
+
+	return servers, nil
+}
+
+// UpsertAppServer adds an application server.
+func (c *Client) UpsertAppServer(ctx context.Context, server services.Server) (*services.KeepAlive, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s, ok := server.(*services.ServerV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", server)
+	}
+
+	keepAlive, err := clt.UpsertAppServer(ctx, &proto.UpsertAppServerRequest{
+		Server: s,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return keepAlive, nil
+}
+
+// DeleteAppServer removes an application server.
+func (c *Client) DeleteAppServer(ctx context.Context, namespace string, name string) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = clt.DeleteAppServer(ctx, &proto.DeleteAppServerRequest{
+		Namespace: namespace,
+		Name:      name,
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
+}
+
+// DeleteAllAppServers removes all application servers.
+func (c *Client) DeleteAllAppServers(ctx context.Context, namespace string) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = clt.DeleteAllAppServers(ctx, &proto.DeleteAllAppServersRequest{
+		Namespace: namespace,
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
+}
+
+// GetAppSession gets an application web session.
+func (c *Client) GetAppSession(ctx context.Context, req services.GetAppSessionRequest) (services.WebSession, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.GetAppSession(ctx, &proto.GetAppSessionRequest{
+		SessionID: req.SessionID,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp.GetSession(), nil
+}
+
+// GetAppSessions gets all application web sessions.
+func (c *Client) GetAppSessions(ctx context.Context) ([]services.WebSession, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.GetAppSessions(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	out := make([]services.WebSession, 0, len(resp.GetSessions()))
+	for _, v := range resp.GetSessions() {
+		out = append(out, v)
+	}
+	return out, nil
+}
+
+// CreateAppSession creates an application web session. Application web
+// sessions represent a browser session the client holds.
+func (c *Client) CreateAppSession(ctx context.Context, req services.CreateAppSessionRequest) (services.WebSession, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
+		Username:      req.Username,
+		ParentSession: req.ParentSession,
+		PublicAddr:    req.PublicAddr,
+		ClusterName:   req.ClusterName,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp.GetSession(), nil
+}
+
+// UpsertAppSession is not implemented.
+func (c *Client) UpsertAppSession(ctx context.Context, session services.WebSession) error {
+	return trace.NotImplemented("not implemented")
+}
+
+// DeleteAppSession removes an application web sessions.
+func (c *Client) DeleteAppSession(ctx context.Context, req services.DeleteAppSessionRequest) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = clt.DeleteAppSession(ctx, &proto.DeleteAppSessionRequest{
+		SessionID: req.SessionID,
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
+}
+
+// DeleteAllAppSessions removes all application web sessions.
+func (c *Client) DeleteAllAppSessions(ctx context.Context) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := clt.DeleteAllAppSessions(ctx, &empty.Empty{}); err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
+}
+
+// GenerateAppToken creates a JWT token with application access.
+func (c *Client) GenerateAppToken(ctx context.Context, req jwt.GenerateAppTokenRequest) (string, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	resp, err := clt.GenerateAppToken(ctx, &proto.GenerateAppTokenRequest{
+		Username: req.Username,
+		Roles:    req.Roles,
+		URI:      req.URI,
+		Expires:  req.Expires,
+	})
+	if err != nil {
+		return "", trail.FromGRPC(err)
+	}
+
+	return resp.GetToken(), nil
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
@@ -2932,6 +3139,9 @@ type WebService interface {
 	CreateWebSession(user string) (services.WebSession, error)
 	// DeleteWebSession deletes a web session for this user by id
 	DeleteWebSession(user string, sid string) error
+
+	// AppSession defines application session features.
+	services.AppSession
 }
 
 // IdentityService manages identities and users
@@ -3145,4 +3355,8 @@ type ClientI interface {
 
 	// Ping gets basic info about the auth server.
 	Ping(ctx context.Context) (proto.PingResponse, error)
+
+	// CreateAppSession creates an application web session. Application web
+	// sessions represent a browser session the client holds.
+	CreateAppSession(context.Context, services.CreateAppSessionRequest) (services.WebSession, error)
 }

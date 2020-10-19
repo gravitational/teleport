@@ -125,6 +125,15 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 		"Start Teleport in FedRAMP/FIPS 140-2 mode.").
 		Default("false").
 		BoolVar(&ccf.FIPS)
+	start.Flag("app_name",
+		"Name of the application to start").
+		StringVar(&ccf.AppName)
+	start.Flag("app_uri",
+		"Internal address of the application to proxy.").
+		StringVar(&ccf.AppURI)
+	start.Flag("app_public_addr",
+		"Public address of the application to proxy.").
+		StringVar(&ccf.AppPublicAddr)
 
 	// define start's usage info (we use kingpin's "alias" field for this)
 	start.Alias(usageNotes + usageExamples)

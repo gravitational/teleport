@@ -119,7 +119,6 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	srv := &TestAuthServer{
 		TestAuthServerConfig: cfg,
 	}
-	var err error
 	b, err := memory.New(memory.Config{
 		Context:   context.Background(),
 		Clock:     cfg.Clock,
@@ -212,15 +211,18 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// set up host private key and certificate
-	err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCA(services.HostCA, srv.ClusterName))
-	if err != nil {
+
+	// Setup certificate and signing authorities.
+	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCA(services.HostCA, srv.ClusterName)); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCA(services.UserCA, srv.ClusterName))
-	if err != nil {
+	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCA(services.UserCA, srv.ClusterName)); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCA(services.JWTSigner, srv.ClusterName)); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	srv.Authorizer, err = NewAuthorizer(srv.AuthServer.Access, srv.AuthServer.Identity, srv.AuthServer.Trust)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -101,6 +101,15 @@ type CommandLineFlags struct {
 	// FIPS mode means Teleport starts in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
 	FIPS bool
+
+	// AppName is the name of the application to proxy.
+	AppName string
+
+	// AppURI is the internal address of the application to proxy.
+	AppURI string
+
+	// AppPublicAddr is the public address of the application to proxy.
+	AppPublicAddr string
 }
 
 // readConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -171,6 +180,9 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	if fc.Kube.Enabled() {
 		cfg.Kube.Enabled = true
+	}
+	if fc.Apps.Disabled() {
+		cfg.Apps.Enabled = false
 	}
 	applyString(fc.NodeName, &cfg.Hostname)
 
@@ -321,8 +333,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
-	// Apply configuration for "auth_service", "proxy_service", and
-	// "ssh_service" if it's enabled.
+	// Apply configuration for "auth_service", "proxy_service", "ssh_service",
+	// and "app_service" if they are enabled.
 	if fc.Auth.Enabled() {
 		err = applyAuthConfig(fc, cfg)
 		if err != nil {
@@ -343,6 +355,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	if fc.Kube.Enabled() {
 		if err := applyKubeConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if fc.Apps.Enabled() {
+		if err := applyAppsConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -497,32 +514,37 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Proxy.ReverseTunnelListenAddr = *addr
 	}
 
-	if fc.Proxy.KeyFile != "" {
-		if !fileExists(fc.Proxy.KeyFile) {
-			return trace.Errorf("https key does not exist: %s", fc.Proxy.KeyFile)
-		}
-		cfg.Proxy.TLSKey = fc.Proxy.KeyFile
+	// This is the legacy format. Continue to support it forever, but ideally
+	// users now use the list format below.
+	if fc.Proxy.KeyFile != "" || fc.Proxy.CertFile != "" {
+		cfg.Proxy.KeyPairs = append(cfg.Proxy.KeyPairs, service.KeyPairPath{
+			PrivateKey:  fc.Proxy.KeyFile,
+			Certificate: fc.Proxy.CertFile,
+		})
 	}
-	if fc.Proxy.CertFile != "" {
-		if !fileExists(fc.Proxy.CertFile) {
-			return trace.Errorf("https cert does not exist: %s", fc.Proxy.CertFile)
+	for _, p := range fc.Proxy.KeyPairs {
+		// Check that the certificate exists on disk. This exists to provide the
+		// user a sensible error message.
+		if !fileExists(p.PrivateKey) {
+			return trace.Errorf("https private key does not exist: %s", p.PrivateKey)
+		}
+		if !fileExists(p.Certificate) {
+			return trace.Errorf("https cert does not exist: %s", p.Certificate)
 		}
 
-		// read in certificate chain from disk
-		certificateChainBytes, err := utils.ReadPath(fc.Proxy.CertFile)
+		// Read in certificate from disk. If Teleport finds a self signed
+		// certificate chain, log a warning, and then accept whatever certificate
+		// was passed. If the certificate is not self signed, verify the certificate
+		// chain from leaf to root with the trust store on the computer so browsers
+		// don't complain.
+		certificateChainBytes, err := utils.ReadPath(p.Certificate)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		// parse certificate chain into []*x509.Certificate
 		certificateChain, err := utils.ReadCertificateChain(certificateChainBytes)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		// if starting teleport with a self signed certificate, print a warning, and
-		// then take whatever was passed to us. otherwise verify the certificate
-		// chain from leaf to root so browsers don't complain.
 		if utils.IsSelfSigned(certificateChain) {
 			warningMessage := "Starting Teleport with a self-signed TLS certificate, this is " +
 				"not safe for production clusters. Using a self-signed certificate opens " +
@@ -535,7 +557,10 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			}
 		}
 
-		cfg.Proxy.TLSCert = fc.Proxy.CertFile
+		cfg.Proxy.KeyPairs = append(cfg.Proxy.KeyPairs, service.KeyPairPath{
+			PrivateKey:  p.PrivateKey,
+			Certificate: p.Certificate,
+		})
 	}
 
 	// apply kubernetes proxy config, by default kube proxy is disabled
@@ -691,7 +716,77 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 	return nil
+}
 
+// applyAppsConfig applies file configuration for the "app_service" section.
+func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
+	// Apps are enabled.
+	cfg.Apps.Enabled = true
+
+	// Loop over all apps and load app configuration.
+	for _, application := range fc.Apps.Apps {
+		err := application.CheckAndSetDefaults()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Check if the application name contains spaces. Don't allow spaces because
+		// for trusted clusters the name is used to construct the vanity domain that
+		// the application will be running under.
+		if ok := strings.Contains(application.Name, " "); ok {
+			return trace.BadParameter("name can not contain spaces as it may be used as part of the application domain")
+		}
+
+		// Parse and validate URL.
+		_, err = url.Parse(application.URI)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// If a port was specified, return an error, public address should be a FQDN.
+		if application.PublicAddr != "" {
+			_, _, err = net.SplitHostPort(application.PublicAddr)
+			if err == nil {
+				return trace.BadParameter("public address can only be a domain name")
+			}
+		}
+
+		// Parse the static labels of the application.
+		staticLabels := make(map[string]string)
+		if application.StaticLabels != nil {
+			staticLabels = application.StaticLabels
+		}
+
+		// Parse the dynamic labels of the application.
+		dynamicLabels := make(services.CommandLabels)
+		if application.DynamicLabels != nil {
+			for _, v := range application.DynamicLabels {
+				dynamicLabels[v.Name] = &services.CommandLabelV2{
+					Period:  services.NewDuration(v.Period),
+					Command: v.Command,
+					Result:  "",
+				}
+			}
+		}
+
+		// Add the application to the list of proxied applications.
+		a := service.App{
+			Name:               application.Name,
+			URI:                application.URI,
+			PublicAddr:         application.PublicAddr,
+			StaticLabels:       staticLabels,
+			DynamicLabels:      dynamicLabels,
+			InsecureSkipVerify: application.InsecureSkipVerify,
+		}
+		if application.Rewrite != nil {
+			a.Rewrite = &service.Rewrite{
+				Redirect: application.Rewrite.Redirect,
+			}
+		}
+		cfg.Apps.Apps = append(cfg.Apps.Apps, a)
+	}
+
+	return nil
 }
 
 // parseAuthorizedKeys parses keys in the authorized_keys format and
@@ -915,6 +1010,25 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		}
 	}
 
+	// If application name was specified on command line, add to configuration.
+	if clf.AppName != "" {
+		cfg.Apps.Enabled = true
+
+		// Validate the URI.
+		_, err = url.Parse(clf.AppURI)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		cfg.Apps.Apps = append(cfg.Apps.Apps, service.App{
+			Name:          clf.AppName,
+			URI:           clf.AppURI,
+			PublicAddr:    clf.AppPublicAddr,
+			StaticLabels:  make(map[string]string),
+			DynamicLabels: make(services.CommandLabels),
+		})
+	}
+
 	if err = ApplyFileConfig(fileConf, cfg); err != nil {
 		return trace.Wrap(err)
 	}
@@ -987,6 +1101,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		cfg.SSH.Enabled = strings.Contains(clf.Roles, defaults.RoleNode)
 		cfg.Auth.Enabled = strings.Contains(clf.Roles, defaults.RoleAuthService)
 		cfg.Proxy.Enabled = strings.Contains(clf.Roles, defaults.RoleProxy)
+		cfg.Apps.Enabled = strings.Contains(clf.Roles, defaults.RoleApp)
 	}
 
 	// apply --auth-server flag:
@@ -1175,7 +1290,8 @@ func validateRoles(roles string) error {
 		switch role {
 		case defaults.RoleAuthService,
 			defaults.RoleNode,
-			defaults.RoleProxy:
+			defaults.RoleProxy,
+			defaults.RoleApp:
 			break
 		default:
 			return trace.Errorf("unknown role: '%s'", role)

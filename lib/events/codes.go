@@ -310,6 +310,13 @@ const (
 	// SessionDataCode is the session data event code.
 	SessionDataCode = "T2006I"
 
+	// AppSessionStartCode is the application session start code.
+	AppSessionStartCode = "T2007I"
+	// AppSessionCreateCode is the application session chunk create code.
+	AppSessionCreateCode = "T2008I"
+	// AppSessionRequestCode is the application request/response code.
+	AppSessionRequestCode = "T2009I"
+
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"
 	// SubsystemFailureCode is the subsystem failure event code.

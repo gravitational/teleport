@@ -166,6 +166,15 @@ var (
 		"cgroup_path":             false,
 		"kubernetes_service":      true,
 		"kube_cluster_name":       false,
+		"app_service":             true,
+		"protocol":                false,
+		"uri":                     false,
+		"apps":                    false,
+		"https_keypairs":          true,
+		"key_file":                false,
+		"insecure_skip_verify":    false,
+		"rewrite":                 false,
+		"redirect":                false,
 	}
 )
 
@@ -185,6 +194,10 @@ type FileConfig struct {
 	SSH    SSH   `yaml:"ssh_service,omitempty"`
 	Proxy  Proxy `yaml:"proxy_service,omitempty"`
 	Kube   Kube  `yaml:"kubernetes_service,omitempty"`
+
+	// Apps is the "app_service" section in Teleport file configuration which
+	// defines application access configuration.
+	Apps Apps `yaml:"app_service,omitempty"`
 }
 
 type YAMLMap map[interface{}]interface{}
@@ -792,6 +805,62 @@ func (b *BPF) Parse() *bpf.Config {
 	}
 }
 
+// Apps represents the configuration for the collection of applications this
+// service will start. In file configuration this would be the "app_service"
+// section.
+type Apps struct {
+	// Service contains fields common to all services like "enabled" and
+	// "listen_addr".
+	Service `yaml:",inline"`
+
+	// Apps is a list of applications that will be run by this service.
+	Apps []*App `yaml:"apps"`
+}
+
+// App is the specific application that will be proxied by the application
+// service.
+type App struct {
+	// Name of the application.
+	Name string `yaml:"name"`
+
+	// URI is the internal address of the application.
+	URI string `yaml:"uri"`
+
+	// Public address of the application. This is the address users will access
+	// the application at.
+	PublicAddr string `yaml:"public_addr"`
+
+	// Labels is a map of static labels to apply to this application.
+	StaticLabels map[string]string `yaml:"labels,omitempty"`
+
+	// Commands is a list of dynamic labels to apply to this application.
+	DynamicLabels []CommandLabel `yaml:"commands,omitempty"`
+
+	// InsecureSkipVerify is used to skip validating the servers certificate.
+	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
+
+	// Rewrite defines a block that is used to rewrite requests and responses.
+	Rewrite *Rewrite `yaml:"rewrite,omitempty"`
+}
+
+// Rewrite is a list of rewriting rules to apply to requests and responses.
+type Rewrite struct {
+	// Redirect is a list of hosts that should be rewritten to the public address.
+	Redirect []string `yaml:"redirect"`
+}
+
+// CheckAndSetDefaults validates an application.
+func (a *App) CheckAndSetDefaults() error {
+	if a.Name == "" {
+		return trace.BadParameter("missing name")
+	}
+	if a.URI == "" {
+		return trace.BadParameter("missing URI")
+	}
+
+	return nil
+}
+
 // Proxy is a `proxy_service` section of the config file:
 type Proxy struct {
 	// Service is a generic service configuration section
@@ -826,6 +895,17 @@ type Proxy struct {
 	// endpoint. The hosts in PublicAddr are included in the list of host
 	// principals on the SSH certificate.
 	TunnelPublicAddr utils.Strings `yaml:"tunnel_public_addr,omitempty"`
+
+	// KeyPairs is a list of x509 key pairs the proxy will load.
+	KeyPairs []KeyPair `yaml:"https_keypairs"`
+}
+
+// KeyPair represent a path on disk to a private key and certificate.
+type KeyPair struct {
+	// PrivateKey is the path on disk to a PEM encoded private key,
+	PrivateKey string `yaml:"key_file"`
+	// Certificate is the path on disk to a PEM encoded x509 certificate.
+	Certificate string `yaml:"cert_file"`
 }
 
 // KubeProxy is a `kubernetes` section in `proxy_service`.
