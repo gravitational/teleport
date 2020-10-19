@@ -183,12 +183,12 @@ auth_service:
     #
     # EXPERIMENTAL *-sync modes
     # Proxy and node send logs directly to S3 or other
-    #    storage without storing the records on disk at all. *-sync requires all
-    #    nodes to be upgraded to 4.4
-    #
-    #    "node-sync" : sessions recording will be streamed from node -> auth -> storage service
-    #    "proxy-sync : sessions recording will be streamed from proxy -> auth -> storage service
-    #
+#    storage without storing the records on disk at all. *-sync requires all
+#    nodes to be upgraded to 4.4
+#
+#    "node-sync" : sessions recording will be streamed from node -> auth -> storage service
+#    "proxy-sync : sessions recording will be streamed from proxy -> auth -> storage service
+#
     session_recording: "node"
 
     # This setting determines if a Teleport proxy performs strict host key checks.
