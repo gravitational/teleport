@@ -118,12 +118,10 @@ func (c *Config) ProgressiveBenchmark(ctx context.Context, tc *client.TeleportCl
 		select {
 		case <-timeoutC:
 			result.LastError = trace.BadParameter("several requests hang: timeout waiting for threads to finish")
-			return &Result{RequestsOriginated: len(results), Duration: time.Since(start), Histogram: result.Histogram, LastError: result.LastError}, nil
+			result.Duration = time.Since(start)
+			return &result, nil
 		case measure := <-responseC:
-			err := result.Histogram.RecordValue(int64(measure.End.Sub(measure.Start) / time.Millisecond))
-			if err != nil {
-				log.Println(err)
-			}
+			result.Histogram.RecordValue(int64(measure.End.Sub(measure.Start) / time.Millisecond))
 			results = append(results, measure)
 			if timeElapsed && len(results) >= c.MinimumMeasurements {
 				go cancelWorkers()
@@ -138,7 +136,8 @@ func (c *Config) ProgressiveBenchmark(ctx context.Context, tc *client.TeleportCl
 			waitTime := time.Duration(result.Histogram.Max()) * time.Millisecond
 			waitTime = time.Duration(1.2 * float64(waitTime))
 			timeoutC = time.After(waitTime)
-			return &Result{RequestsOriginated: len(results), Duration: time.Since(start), Histogram: result.Histogram, LastError: result.LastError}, nil
+			result.Duration = time.Since(start)
+			return &result, nil
 		case <-statusTicker.C:
 			log.Printf("working... observations: %d", len(results))
 		}

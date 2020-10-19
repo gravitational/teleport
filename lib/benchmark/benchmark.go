@@ -13,8 +13,7 @@ import (
 type Generator interface {
 	Generator() bool
 	GetBenchmark() (context.Context, Config, error)
-	GetBenchmarkResults(Result) error
-	RunBenchmark(Config, error)
+	Benchmark([]string, error, *client.TeleportClient)
 }
 
 // Run is used to run the benchmarks
@@ -27,16 +26,18 @@ func Run(cnf interface{}, cmd, host string) ([]*Result, error) {
 	logrus.SetLevel(logrus.ErrorLevel)
 	command := strings.Split(cmd, " ")
 
+	// Using type introspection here even though it's not relevant now, 
+	// but it will be needed when I add more generators to the benchmark package
 	if l, ok := cnf.(*Linear); ok {
-		results, err = l.RunBenchmark(command, tc)
+		results, err = l.Benchmark(command, tc)
 		if err != nil {
-			log.Println(err)
+			return results, err
 		}
-
 	}
 	return results, nil
 }
 
+// makeTeleportClient creates an instance of a teleport client
 func makeTeleportClient(host string) (*client.TeleportClient, error) {
 	c := client.Config{}
 	path := client.FullProfilePath("")
