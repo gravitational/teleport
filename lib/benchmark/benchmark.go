@@ -5,7 +5,7 @@ import (
 	"errors"
 	"log"
 	"strings"
-	
+
 	"github.com/gravitational/teleport/lib/client"
 	logrus "github.com/sirupsen/logrus"
 )
@@ -14,10 +14,10 @@ import (
 type Generator interface {
 	Generator() bool
 	GetBenchmark() (context.Context, Config, error)
-	Benchmark([]string, error, *client.TeleportClient)
+	Benchmark([]string, *client.TeleportClient) ([]*Result, error)
 }
 
-// Run is used to run the benchmarks, it is given a generator, command to run, 
+// Run is used to run the benchmarks, it is given a generator, command to run,
 // a host, host login, and proxy. If host login or proxy is an empty string, it will
 // use the default login
 func Run(cnf interface{}, cmd, host, login, proxy string) ([]*Result, error) {

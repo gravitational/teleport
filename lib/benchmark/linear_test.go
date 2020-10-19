@@ -4,29 +4,29 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGenerate(t *testing.T) {
 	d, _ := time.ParseDuration("30s")
 
 	initial := Config{
-		Threads:            10,
-		Rate:               0,
-		Command:            []string{"ls"},
-		Interactive:        false,
-		MinimumWindow:      d,
+		Threads:             10,
+		Rate:                0,
+		Command:             []string{"ls"},
+		Interactive:         false,
+		MinimumWindow:       d,
 		MinimumMeasurements: 1000,
 	}
 
 	linearConfig := Linear{
-		LowerBound:        10,
-		UpperBound:        50,
-		Step:              10,
+		LowerBound:          10,
+		UpperBound:          50,
+		Step:                10,
 		MinimumMeasurements: 1000,
-		MinimumWindow:     d,
-		config:            initial,
+		MinimumWindow:       d,
+		config:              initial,
 	}
 	// First generation
 	res := linearConfig.Generate()
@@ -39,9 +39,8 @@ func TestGenerate(t *testing.T) {
 	}
 	expected := initial
 	expected.Rate = 10
-	
-	assert.Empty(t, cmp.Diff(expected, bm))
 
+	assert.Empty(t, cmp.Diff(expected, bm))
 
 	// Second generation
 	res = linearConfig.Generate()
@@ -113,26 +112,26 @@ func TestGenerateNotEvenMultiple(t *testing.T) {
 	d, _ := time.ParseDuration("30s")
 
 	initial := Config{
-		Threads:            10,
-		Rate:               0,
-		Command:            []string{"ls"},
-		Interactive:        false,
-		MinimumWindow:      d,
+		Threads:             10,
+		Rate:                0,
+		Command:             []string{"ls"},
+		Interactive:         false,
+		MinimumWindow:       d,
 		MinimumMeasurements: 1000,
 	}
 
 	linearConfig := Linear{
-		LowerBound:        10,
-		UpperBound:        20,
-		Step:              7,
+		LowerBound:          10,
+		UpperBound:          20,
+		Step:                7,
 		MinimumMeasurements: 1000,
-		MinimumWindow:     d,
-		config:            initial,
+		MinimumWindow:       d,
+		config:              initial,
 	}
 	expected := initial
 
 	res := linearConfig.Generate()
-	
+
 	if res != true {
 		t.Errorf("failed to generate first generation")
 	}
@@ -174,20 +173,20 @@ func TestGenerateNotEvenMultiple(t *testing.T) {
 func TestGetBenchmark(t *testing.T) {
 	d, _ := time.ParseDuration("30s")
 	initial := Config{
-		Threads:            10,
-		Rate:               0,
-		Command:            []string{"ls"},
-		Interactive:        false,
-		MinimumWindow:      d,
+		Threads:             10,
+		Rate:                0,
+		Command:             []string{"ls"},
+		Interactive:         false,
+		MinimumWindow:       d,
 		MinimumMeasurements: 1000,
 	}
 	linearConfig := Linear{
-		LowerBound:        10,
-		UpperBound:        20,
-		Step:              10,
+		LowerBound:          10,
+		UpperBound:          20,
+		Step:                10,
 		MinimumMeasurements: 1000,
-		MinimumWindow:     d,
-		config:            initial,
+		MinimumWindow:       d,
+		config:              initial,
 	}
 
 	// GetBenchmark with current generation
