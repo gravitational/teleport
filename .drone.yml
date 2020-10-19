@@ -99,6 +99,29 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets lint
 
+  # https://discourse.drone.io/t/how-to-exit-a-pipeline-early-without-failing/3951
+  # this step looks at the output of git diff --raw to determine whether any files
+  # which don't match the pattern '^docs/' or '.md$' were changed. if there are no
+  # changes to non-docs code, we skip the Teleport tests and exit early with a special
+  # Drone exit code to speed up iteration on docs (as milv is much quicker to run)
+  - name: Optionally skip tests
+    image: docker:git
+    commands:
+    - |
+        cd /go/src/github.com/gravitational/teleport
+        echo -e "\n---> git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}\n"
+        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}
+        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs/' | grep -Ev '.md$' | grep -v ^$ | wc -l > /tmp/.change_count.txt
+        export CHANGE_COUNT=$(cat /tmp/.change_count.txt | tr -d '\n')
+        echo -e "\n---> Changes to Teleport code detected: $$CHANGE_COUNT"
+        if [ $$CHANGE_COUNT -gt 0 ]; then
+          echo "---> Teleport tests will run normally"
+        else
+          echo "---> Skipping Teleport tests and exiting early"
+          exit 78
+        fi
+        echo ""
+
   - name: Run unit and chaos tests
     image: docker
     environment:
@@ -2882,6 +2905,6 @@ volumes:
 
 ---
 kind: signature
-hmac: c9878f4d9126b4dc38ae8131d0e9bf73f827df72fe68f0dadc889479b4f8a860
+hmac: 441ec44ad88c704e7e4ea5670e56d34b213ad1217d96111d0295f5ba933c952b
 
 ...
