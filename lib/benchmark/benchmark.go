@@ -24,7 +24,7 @@ func Run(cnf interface{}, cmd, host, login, proxy string) ([]*Result, error) {
 	var results []*Result
 	tc, err := makeTeleportClient(host, login, proxy)
 	if err != nil {
-		log.Fatalf("unable to make teleport client: %v", err)
+		log.Fatalf("Unable to make teleport client: %v", err)
 	}
 	logrus.SetLevel(logrus.ErrorLevel)
 	command := strings.Split(cmd, " ")
@@ -46,9 +46,7 @@ func Run(cnf interface{}, cmd, host, login, proxy string) ([]*Result, error) {
 func makeTeleportClient(host, login, proxy string) (*client.TeleportClient, error) {
 	c := client.Config{}
 	path := client.FullProfilePath("")
-	if err := c.LoadProfile(path, proxy); err != nil {
-		return nil, err
-	}
+
 	c.Host = host
 	if login != "" {
 		c.HostLogin = login
@@ -57,6 +55,10 @@ func makeTeleportClient(host, login, proxy string) (*client.TeleportClient, erro
 	if proxy != "" {
 		c.SSHProxyAddr = proxy
 	}
+	if err := c.LoadProfile(path, proxy); err != nil {
+		return nil, err
+	}
+
 	tc, err := client.NewClient(&c)
 	if err != nil {
 		return nil, err

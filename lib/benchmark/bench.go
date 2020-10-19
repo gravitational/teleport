@@ -85,26 +85,9 @@ func (c *Config) ProgressiveBenchmark(ctx context.Context, tc *client.TeleportCl
 		go thread.run()
 	}
 
-	go func() {
-		interval := time.Duration(float64(1) / float64(c.Rate) * float64(time.Second))
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-
-				measure := &benchMeasure{
-					Start: time.Now(),
-				}
-				resultC <- measure
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
+	go produceMeasures(ctx, c.Rate, resultC)
 
 	var result Result
-	var timeoutC <-chan time.Time
 	result.Histogram = hdrhistogram.New(1, 60000, 3)
 	results := make([]*benchMeasure, 0, c.MinimumMeasurements)
 	statusTicker := time.NewTicker(1 * time.Second)
@@ -116,10 +99,6 @@ func (c *Config) ProgressiveBenchmark(ctx context.Context, tc *client.TeleportCl
 			timeElapsed = true
 		}
 		select {
-		case <-timeoutC:
-			result.LastError = trace.BadParameter("several requests hang: timeout waiting for threads to finish")
-			result.Duration = time.Since(start)
-			return &result, nil
 		case measure := <-responseC:
 			result.Histogram.RecordValue(int64(measure.End.Sub(measure.Start) / time.Millisecond))
 			results = append(results, measure)
@@ -132,11 +111,6 @@ func (c *Config) ProgressiveBenchmark(ctx context.Context, tc *client.TeleportCl
 			}
 			result.RequestsOriginated++
 		case <-workerCtx.Done():
-			workerCtx = nil
-			waitTime := time.Duration(result.Histogram.Max()) * time.Millisecond
-			waitTime = time.Duration(1.2 * float64(waitTime))
-			timeoutC = time.After(waitTime)
-			result.Duration = time.Since(start)
 			return &result, nil
 		case <-statusTicker.C:
 			log.Printf("working... observations: %d", len(results))
@@ -148,6 +122,7 @@ func (c *Config) ProgressiveBenchmark(ctx context.Context, tc *client.TeleportCl
 // to benchmark spec. It returns benchmark result when completed.
 // This is a blocking function that can be cancelled via context argument.
 func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (*Result, error) {
+	log.Println("with tick")
 	tc.Stdout = ioutil.Discard
 	tc.Stderr = ioutil.Discard
 	tc.Stdin = &bytes.Buffer{}
@@ -173,29 +148,7 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (*Res
 	}
 
 	// producer goroutine
-	go func() {
-		interval := time.Duration(float64(1) / float64(c.Rate) * float64(time.Second))
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				// notice how we start the timer regardless of whether any goroutine can process it
-				// this is to account for coordinated omission,
-				// http://psy-lob-saw.blogspot.com/2015/03/fixing-ycsb-coordinated-omission.html
-				measure := &benchMeasure{
-					Start: time.Now(),
-				}
-				select {
-				case requestC <- measure:
-				case <-ctx.Done():
-					return
-				}
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
+	go produceMeasures(ctx, c.Rate, requestC)
 
 	var result Result
 	// from one millisecond to 60000 milliseconds (minute) with 3 digits precision
@@ -233,6 +186,24 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (*Res
 			}
 		}
 	}
+}
+
+func produceMeasures(ctx context.Context, rate int, c chan<- *benchMeasure) {
+	interval := time.Duration(float64(1) / float64(rate) * float64(time.Second))
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+
+			measure := &benchMeasure{
+				Start: time.Now(),
+			}
+			c <- measure
+		case <-ctx.Done():
+			return
+		}
+	}                               
 }
 
 type benchMeasure struct {
