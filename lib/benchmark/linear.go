@@ -3,9 +3,11 @@ package benchmark
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
-)
 
+	"github.com/gravitational/teleport/lib/client"
+)
 
 // Linear generator
 type Linear struct {
@@ -40,9 +42,29 @@ func (l *Linear) GetBenchmark() (context.Context, Config, error) {
 	}
 
 	return context.TODO(), Config{
-		MinimumWindow: l.MinimumWindow, 
+		MinimumWindow:       l.MinimumWindow,
 		MinimumMeasurements: l.MinimumMeasurements,
-		Rate: l.currentRPS,
-		Duration: 0,
+		Rate:                l.currentRPS,
+		Duration:            0,
 	}, nil
+}
+
+// RunBenchmark ...
+func (l *Linear) RunBenchmark(command []string, tc *client.TeleportClient) ([]*Result, error) {
+	var result *Result
+	var results []*Result
+	
+	for l.Generate() {
+		c, benchmarkC, err := l.GetBenchmark()
+		if err != nil {
+			break
+		}
+		benchmarkC.Threads = 1
+		benchmarkC.Command = command
+		result, err = benchmarkC.ProgressiveBenchmark(c, tc)
+		results = append(results, result)
+		fmt.Printf("current generation requests: %v, duration: %v", result.RequestsOriginated, result.Duration)
+		time.Sleep(10 * time.Second)
+	}
+	return results, nil
 }

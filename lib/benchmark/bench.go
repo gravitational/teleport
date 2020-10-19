@@ -16,7 +16,6 @@ package benchmark
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"strings"
@@ -62,37 +61,8 @@ type Result struct {
 	Duration time.Duration
 }
 
-// Run is used to run the benchmarks
-func Run(ctx context.Context, cnf *Linear, cmd string) {
-	var result *Result
-	var results []*Result
-	var total int
-	tc, err := createTeleportClient()
-	if err != nil {
-		log.Fatalf("Teleport client: %v", err)
-	}
-	logrus.SetLevel(logrus.ErrorLevel)
-	out := &bytes.Buffer{}
-	tc.Stdout = out
-
-	command := strings.Split(cmd, " ")
-	for cnf.Generate() {
-		c, benchmarkC, err := cnf.GetBenchmark()
-		if err != nil {
-			break
-		}
-		benchmarkC.Threads = 1
-		benchmarkC.Command = command
-		result, err = benchmarkC.ProgressiveBenchmark(c, tc)
-		total = result.RequestsOriginated
-		results = append(results, result)
-		fmt.Printf("current generation requests: %v, duration: %v", total, result.Duration)
-		time.Sleep(5 * time.Second)
-	}
-}
-
 // ProgressiveBenchmark runs progressive load benchmarking
-func (c Config) ProgressiveBenchmark(ctx context.Context, tc *client.TeleportClient) (*Result, error) {
+func (c *Config) ProgressiveBenchmark(ctx context.Context, tc *client.TeleportClient) (*Result, error) {
 	tc.Stdout = ioutil.Discard
 	tc.Stderr = ioutil.Discard
 	tc.Stdin = &bytes.Buffer{}
@@ -119,10 +89,10 @@ func (c Config) ProgressiveBenchmark(ctx context.Context, tc *client.TeleportCli
 		interval := time.Duration(float64(1) / float64(c.Rate) * float64(time.Second))
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
-
 		for {
 			select {
 			case <-ticker.C:
+
 				measure := &benchMeasure{
 					Start: time.Now(),
 				}
@@ -135,7 +105,6 @@ func (c Config) ProgressiveBenchmark(ctx context.Context, tc *client.TeleportCli
 
 	var result Result
 	var timeoutC <-chan time.Time
-
 	result.Histogram = hdrhistogram.New(1, 60000, 3)
 	results := make([]*benchMeasure, 0, c.MinimumMeasurements)
 	statusTicker := time.NewTicker(1 * time.Second)
@@ -167,7 +136,6 @@ func (c Config) ProgressiveBenchmark(ctx context.Context, tc *client.TeleportCli
 		case <-workerCtx.Done():
 			workerCtx = nil
 			waitTime := time.Duration(result.Histogram.Max()) * time.Millisecond
-			// going to wait latency + buffer to give requests in flight to wrap up
 			waitTime = time.Duration(1.2 * float64(waitTime))
 			timeoutC = time.After(waitTime)
 			return &Result{RequestsOriginated: len(results), Duration: time.Since(start), Histogram: result.Histogram, LastError: result.LastError}, nil
@@ -180,7 +148,7 @@ func (c Config) ProgressiveBenchmark(ctx context.Context, tc *client.TeleportCli
 // Benchmark connects to remote server and executes requests in parallel according
 // to benchmark spec. It returns benchmark result when completed.
 // This is a blocking function that can be cancelled via context argument.
-func (c Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (*Result, error) {
+func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (*Result, error) {
 	tc.Stdout = ioutil.Discard
 	tc.Stderr = ioutil.Discard
 	tc.Stdin = &bytes.Buffer{}
@@ -314,12 +282,9 @@ func (b *benchmarkThread) execute(measure *benchMeasure) {
 		measure.Error = b.client.SSH(b.ctx, nil, false)
 		measure.End = time.Now()
 		b.sendMeasure(measure)
-
 		close(done)
 	}()
-
 	writer.Write([]byte(strings.Join(b.command, " ") + "\r\nexit\r\n"))
-
 	<-done
 }
 
@@ -353,13 +318,13 @@ func (b *benchmarkThread) run() {
 	}
 }
 
-func createTeleportClient() (*client.TeleportClient, error) {
-	c := client.Config{}
-	path := client.FullProfilePath("")
-	c.LoadProfile(path, "")
-	tc, err := client.NewClient(&c)
-	if err != nil {
-		return nil, err
+func defaultConfig() *Linear {
+	defaultDuration := 30 * time.Second
+	return &Linear{
+		LowerBound:          10,
+		UpperBound:          50,
+		Step:                10,
+		MinimumMeasurements: 1000,
+		MinimumWindow:       defaultDuration,
 	}
-	return tc, err
 }
