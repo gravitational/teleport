@@ -50,6 +50,10 @@ type Config struct {
 	// Stderr is the output stream which the conversation function will use to
 	// report errors to the user.
 	Stderr io.Writer
+
+	// UsePAMAuth specifies whether to trigger the "auth" PAM modules from the
+	// policy.
+	UsePAMAuth bool
 }
 
 // CheckDefaults makes sure the Config structure has minimum required values.
