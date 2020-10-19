@@ -47,12 +47,19 @@ type Announcer interface {
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
+
+	// UpsertAppServer adds an application server.
+	UpsertAppServer(context.Context, services.Server) (*services.KeepAlive, error)
 }
 
 // ReadAccessPoint is an API interface implemented by a certificate authority (CA)
 type ReadAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
+
+	// NewWatcher returns a new event watcher.
+	NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error)
+
 	// GetReverseTunnels returns  a list of reverse tunnels
 	GetReverseTunnels(opts ...services.MarshalOption) ([]services.ReverseTunnel, error)
 
@@ -103,6 +110,12 @@ type ReadAccessPoint interface {
 
 	// GetKubeServices returns a list of kubernetes services registered in the cluster
 	GetKubeServices() ([]services.Server, error)
+
+	// GetAppServers gets all application servers.
+	GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error)
+
+	// GetAppSession gets an application web session.
+	GetAppSession(context.Context, services.GetAppSessionRequest) (services.WebSession, error)
 }
 
 // AccessPoint is an API interface implemented by a certificate authority (CA)
@@ -249,6 +262,11 @@ func (w *Wrapper) UpsertKubeService(s services.Server) error {
 	return w.NoCache.UpsertKubeService(s)
 }
 
+// UpsertAppServer adds an application server.
+func (w *Wrapper) UpsertAppServer(ctx context.Context, server services.Server) (*services.KeepAlive, error) {
+	return w.NoCache.UpsertAppServer(ctx, server)
+}
+
 // NewCachingAcessPoint returns new caching access point using
 // access point policy
 type NewCachingAccessPoint func(clt ClientI, cacheName []string) (AccessPoint, error)
@@ -257,3 +275,7 @@ type NewCachingAccessPoint func(clt ClientI, cacheName []string) (AccessPoint, e
 func NoCache(clt ClientI, cacheName []string) (AccessPoint, error) {
 	return clt, nil
 }
+
+// notImplementedMessage is the message to return for endpoints that are not
+// implemented. This is due to how service interfaces are used with Teleport.
+const notImplementedMessage = "not implemented: can only be called by auth locally"

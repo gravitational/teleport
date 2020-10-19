@@ -57,17 +57,17 @@ const (
 	HeartbeatStateInit KeepAliveState = iota
 	// HeartbeatStateAnnounce is set when full
 	// state has to be announced back to the auth server
-	HeartbeatStateAnnounce KeepAliveState = iota
+	HeartbeatStateAnnounce
 	// HeartbeatStateAnnounceWait is set after successful
 	// announce, heartbeat will wait until server updates
 	// information, or time for next announce comes
-	HeartbeatStateAnnounceWait KeepAliveState = iota
+	HeartbeatStateAnnounceWait
 	// HeartbeatStateKeepAlive is set when
 	// only sending keep alives is necessary
-	HeartbeatStateKeepAlive KeepAliveState = iota
+	HeartbeatStateKeepAlive
 	// HeartbeatStateKeepAliveWait is set when
 	// heartbeat will waiting until it's time to send keep alive
-	HeartbeatStateKeepAliveWait KeepAliveState = iota
+	HeartbeatStateKeepAliveWait
 )
 
 // HeartbeatMode represents the mode of the heartbeat
@@ -77,7 +77,7 @@ type HeartbeatMode int
 // CheckAndSetDefaults checks values and sets defaults
 func (h HeartbeatMode) CheckAndSetDefaults() error {
 	switch h {
-	case HeartbeatModeNode, HeartbeatModeProxy, HeartbeatModeAuth, HeartbeatModeKube:
+	case HeartbeatModeNode, HeartbeatModeProxy, HeartbeatModeAuth, HeartbeatModeKube, HeartbeatModeApp:
 		return nil
 	default:
 		return trace.BadParameter("unrecognized mode")
@@ -95,6 +95,8 @@ func (h HeartbeatMode) String() string {
 		return "Auth"
 	case HeartbeatModeKube:
 		return "Kube"
+	case HeartbeatModeApp:
+		return "App"
 	default:
 		return fmt.Sprintf("<unknown: %v>", int(h))
 	}
@@ -112,6 +114,8 @@ const (
 	HeartbeatModeAuth HeartbeatMode = iota
 	// HeartbeatModeKube is a mode for kubernetes service heartbeats.
 	HeartbeatModeKube HeartbeatMode = iota
+	// HeartbeatModeApp sets heartbeat to apps and will use keep alives.
+	HeartbeatModeApp HeartbeatMode = iota
 )
 
 // NewHeartbeat returns a new instance of heartbeat
@@ -140,7 +144,7 @@ type GetServerInfoFn func() (services.Server, error)
 
 // HeartbeatConfig is a heartbeat configuration
 type HeartbeatConfig struct {
-	// Mode sets one of the proxy, auth or node moes
+	// Mode sets one of the proxy, auth or node modes.
 	Mode HeartbeatMode
 	// Context is parent context that signals
 	// heartbeat cancel
@@ -416,8 +420,25 @@ func (h *Heartbeat) announce() error {
 			h.notifySend()
 			h.setState(HeartbeatStateAnnounceWait)
 			return nil
+		case HeartbeatModeApp:
+			keepAlive, err := h.Announcer.UpsertAppServer(h.cancelCtx, h.current)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			h.notifySend()
+			keepAliver, err := h.Announcer.NewKeepAliver(h.cancelCtx)
+			if err != nil {
+				h.reset(HeartbeatStateInit)
+				return trace.Wrap(err)
+			}
+			h.nextAnnounce = h.Clock.Now().UTC().Add(h.AnnouncePeriod)
+			h.nextKeepAlive = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
+			h.keepAlive = keepAlive
+			h.keepAliver = keepAliver
+			h.setState(HeartbeatStateKeepAliveWait)
+			return nil
 		default:
-			return trace.BadParameter("unknown heartbeat mode %v", h.Mode)
+			return trace.BadParameter("unknown mode %q", h.Mode)
 		}
 	case HeartbeatStateKeepAlive:
 		keepAlive := *h.keepAlive

@@ -406,8 +406,9 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 
 		dialFn = func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return targetCluster.DialTCP(reversetunnel.DialParams{
-				From: &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
-				To:   &utils.NetAddr{AddrNetwork: "tcp", Addr: addr},
+				From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
+				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: addr},
+				ConnType: services.NodeTunnel,
 			})
 		}
 		isRemoteClosed = targetCluster.IsClosed

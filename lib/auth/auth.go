@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/wrappers"
+	"github.com/pborman/uuid"
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
@@ -441,6 +442,12 @@ type certRequest struct {
 	// activeRequests tracks privilege escalation requests applied
 	// during the construction of the certificate.
 	activeRequests services.RequestIDs
+	// appSessionID is the session ID of the application session.
+	appSessionID string
+	// appPublicAddr is the public address of the application.
+	appPublicAddr string
+	// appClusterName is the name of the cluster this application is in.
+	appClusterName string
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -466,6 +473,42 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 		return nil, nil, trace.Wrap(err)
 	}
 	return certs.ssh, certs.tls, nil
+}
+
+// GenerateUserAppTestCert generates an application specific certificate, used
+// internally for tests.
+func (a *Server) GenerateUserAppTestCert(publicKey []byte, username string, ttl time.Duration, publicAddr string, clusterName string) ([]byte, error) {
+	user, err := a.Identity.GetUser(username, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certs, err := a.generateUserCert(certRequest{
+		user:      user,
+		publicKey: publicKey,
+		checker:   checker,
+		ttl:       ttl,
+		// Set the login to be a random string. Application certificates are never
+		// used to log into servers but SSH certificate generation code requires a
+		// principal be in the certificate.
+		traits: wrappers.Traits(map[string][]string{
+			teleport.TraitLogins: []string{uuid.New()},
+		}),
+		// Only allow this certificate to be used for applications.
+		usage: []string{teleport.UsageAppsOnly},
+		// Add in the application routing information.
+		appSessionID:   uuid.New(),
+		appPublicAddr:  publicAddr,
+		appClusterName: clusterName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return certs.tls, nil
 }
 
 // generateUserCert generates user certificates
@@ -583,6 +626,11 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 		Traits:            req.traits,
 		KubernetesGroups:  kubeGroups,
 		KubernetesUsers:   kubeUsers,
+		RouteToApp: tlsca.RouteToApp{
+			SessionID:   req.appSessionID,
+			PublicAddr:  req.appPublicAddr,
+			ClusterName: req.appClusterName,
+		},
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -1100,7 +1148,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	// HTTPS requests need to specify DNS name that should be present in the
 	// certificate as one of the DNS Names. It is not known in advance,
 	// that is why there is a default one for all certificates
-	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) {
+	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) || req.Roles.Include(teleport.RoleApp) {
 		certRequest.DNSNames = append(certRequest.DNSNames, "*."+teleport.APIDomain, teleport.APIDomain)
 	}
 	// Unlike additional principals, DNS Names is x509 specific
@@ -1349,16 +1397,16 @@ func (a *Server) NewWebSession(username string, roles []string, traits wrappers.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	token, err := utils.CryptoRandomHex(TokenLenBytes)
+	token, err := utils.CryptoRandomHex(SessionTokenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	bearerToken, err := utils.CryptoRandomHex(TokenLenBytes)
+	bearerToken, err := utils.CryptoRandomHex(SessionTokenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	bearerTokenTTL := utils.MinTTL(sessionTTL, BearerTokenTTL)
-	return services.NewWebSession(token, services.WebSessionSpecV2{
+	return services.NewWebSession(token, services.KindWebSession, services.KindWebSession, services.WebSessionSpecV2{
 		User:               user.GetName(),
 		Priv:               priv,
 		Pub:                certs.ssh,
@@ -1708,6 +1756,16 @@ func (a *Server) modeStreamer() (events.Streamer, error) {
 	return a.streamer, nil
 }
 
+// GetAppServers is a part of the auth.AccessPoint implementation.
+func (a *Server) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	return a.GetCache().GetAppServers(ctx, namespace, opts...)
+}
+
+// GetAppSession is a part of the auth.AccessPoint implementation.
+func (a *Server) GetAppSession(ctx context.Context, req services.GetAppSessionRequest) (services.WebSession, error) {
+	return a.GetCache().GetAppSession(ctx, req)
+}
+
 // authKeepAliver is a keep aliver using auth server directly
 type authKeepAliver struct {
 	sync.RWMutex
@@ -1732,7 +1790,7 @@ func (k *authKeepAliver) forwardKeepAlives() {
 		case <-k.ctx.Done():
 			return
 		case keepAlive := <-k.keepAlivesC:
-			err := k.a.KeepAliveNode(k.ctx, keepAlive)
+			err := k.a.KeepAliveServer(k.ctx, keepAlive)
 			if err != nil {
 				k.closeWithError(err)
 				return
@@ -1772,8 +1830,12 @@ const (
 	// BearerTokenTTL specifies standard bearer token to exist before
 	// it has to be renewed by the client
 	BearerTokenTTL = 10 * time.Minute
+
 	// TokenLenBytes is len in bytes of the invite token
 	TokenLenBytes = 16
+
+	// SessionTokenBytes is the number of bytes of a web or application session.
+	SessionTokenBytes = 32
 )
 
 // oidcClient is internal structure that stores OIDC client and its config
