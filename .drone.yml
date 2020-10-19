@@ -465,8 +465,10 @@ steps:
       - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $PREVIOUS_VERSION_TWO_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /go/build/PREVIOUS_VERSION_TWO_TAG.txt
       - echo "$(cat /go/build/PREVIOUS_VERSION_TWO_TAG.txt | cut -d. -f1-2 | cut -dv -f2)" > /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt
       - for FILE in /go/build/*.txt; do echo $FILE; cat $FILE; done
-      # get Dockerfile
+      # get Dockerfiles
       - curl -Ls -o /go/build/Dockerfile-cron https://raw.githubusercontent.com/gravitational/teleport/${DRONE_SOURCE_BRANCH:-master}/build.assets/Dockerfile-cron
+      # wait for Docker to be ready
+      - sleep 3
 
   - name: Build and push Teleport containers (CURRENT_VERSION)
     image: docker
@@ -488,13 +490,13 @@ steps:
       - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/CURRENT_VERSION_TAG_GENERIC.txt)-fips"
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       # OSS
-      - docker build --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $OSS_IMAGE_NAME
       # Enterprise
-      - docker build --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $ENT_IMAGE_NAME
       # Enterprise FIPS
-      - docker build --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
+      - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $ENT_FIPS_IMAGE_NAME
 
   - name: Build and push Teleport containers (PREVIOUS_VERSION_ONE)
@@ -517,13 +519,13 @@ steps:
       - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-fips"
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       # OSS
-      - docker build --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $OSS_IMAGE_NAME
       # Enterprise
-      - docker build --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $ENT_IMAGE_NAME
       # Enterprise FIPS
-      - docker build --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
+      - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $ENT_FIPS_IMAGE_NAME
 
   - name: Build and push Teleport containers (PREVIOUS_VERSION_TWO)
@@ -546,13 +548,13 @@ steps:
       - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-fips"
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       # OSS
-      - docker build --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $OSS_IMAGE_NAME
       # Enterprise
-      - docker build --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $ENT_IMAGE_NAME
       # Enterprise FIPS
-      - docker build --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
+      - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $ENT_FIPS_IMAGE_NAME
 
 services:
@@ -2905,6 +2907,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 441ec44ad88c704e7e4ea5670e56d34b213ad1217d96111d0295f5ba933c952b
+hmac: d4b954361a1c55bf076830b366e4f16c8cb20a6416671fcd694bea63a88a25f6
 
 ...
