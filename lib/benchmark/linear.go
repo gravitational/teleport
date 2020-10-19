@@ -68,7 +68,7 @@ func (l *Linear) Benchmark(command []string, tc *client.TeleportClient) ([]*Resu
 		}
 		results = append(results, result)
 		fmt.Printf("current generation requests: %v, duration: %v", result.RequestsOriginated, result.Duration)
-		time.Sleep(10 * time.Second)
+		time.Sleep(5 * time.Second)
 	}
 	return results, nil
 }
