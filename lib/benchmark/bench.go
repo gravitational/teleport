@@ -123,7 +123,6 @@ func (c *Config) ProgressiveBenchmark(ctx context.Context, tc *client.TeleportCl
 // to benchmark spec. It returns benchmark result when completed.
 // This is a blocking function that can be cancelled via context argument.
 func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (*Result, error) {
-	log.Println("with tick")
 	tc.Stdout = ioutil.Discard
 	tc.Stderr = ioutil.Discard
 	tc.Stdin = &bytes.Buffer{}
