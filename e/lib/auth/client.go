@@ -23,7 +23,7 @@ type client struct {
 }
 
 // NewClient returns a new enterprise auth client
-func NewClient(clt *auth.Client) (*client, error) {
+func NewClient(clt *auth.Client) (Client, error) {
 	return &client{
 		Client: clt,
 	}, nil

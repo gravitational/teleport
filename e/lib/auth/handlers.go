@@ -12,8 +12,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-// AuthPlugin extends OSS auth server API with enterprise-specific features
-type AuthPlugin struct {
+// authPlugin extends OSS auth server API with enterprise-specific features
+type authPlugin struct {
 	// enforcer is a service that heartbeats back to the control plane,
 	// here it provides access to the heartbeat results for the handler
 	enforcer *pro.Enforcer
@@ -30,11 +30,11 @@ func SetEnforcer(enforcer *pro.Enforcer) {
 }
 
 // AddHandler plugs in new handlers into OSS auth server router
-func (ap *AuthPlugin) AddHandlers(srv *auth.APIServer) {
+func (ap *authPlugin) AddHandlers(srv *auth.APIServer) {
 	srv.GET("/:version/license/status", httplib.MakeHandler(ap.getLicenseCheckResult))
 }
 
-func (ap *AuthPlugin) getLicenseCheckResult(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (ap *authPlugin) getLicenseCheckResult(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	if ap.enforcer == nil {
 		return types.NewHeartbeat(), nil
 	}
@@ -42,4 +42,4 @@ func (ap *AuthPlugin) getLicenseCheckResult(w http.ResponseWriter, r *http.Reque
 }
 
 // plugin is the auth plugin
-var plugin = &AuthPlugin{}
+var plugin = &authPlugin{}
