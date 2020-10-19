@@ -57,6 +57,9 @@ const (
 	// KindHostCert is a host certificate
 	KindHostCert = "host_cert"
 
+	// KindJWT is a JWT token signer.
+	KindJWT = "jwt"
+
 	// KindLicense is a license resource
 	KindLicense = "license"
 
@@ -96,6 +99,9 @@ const (
 	// KindWebSession is a web session resource
 	KindWebSession = "web_session"
 
+	// KindAppSession represents an application specific web session.
+	KindAppSession = "app_session"
+
 	// KindEvent is structured audit logging event
 	KindEvent = "event"
 
@@ -107,6 +113,9 @@ const (
 
 	// KindNode is node resource
 	KindNode = "node"
+
+	// KindAppServer is an application server resource.
+	KindAppServer = "app_server"
 
 	// KindToken is a provisioning token resource
 	KindToken = "token"
@@ -620,7 +629,7 @@ func (u *UnknownResource) UnmarshalJSON(raw []byte) error {
 	return nil
 }
 
-// Resource represents common properties for resources
+// Resource represents common properties for all resources.
 type Resource interface {
 	// GetKind returns resource kind
 	GetKind() string

@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"runtime/debug"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -115,6 +116,16 @@ func setupCollections(c *Cache, watches []services.WatchKind) (map[string]collec
 				return nil, trace.BadParameter("missing parameter DynamicAccess")
 			}
 			collections[watch.Kind] = &accessRequest{watch: watch, Cache: c}
+		case services.KindAppServer:
+			if c.Presence == nil {
+				return nil, trace.BadParameter("missing parameter Presence")
+			}
+			collections[watch.Kind] = &appServer{watch: watch, Cache: c}
+		case services.KindAppSession:
+			if c.AppSession == nil {
+				return nil, trace.BadParameter("missing parameter AppSession")
+			}
+			collections[watch.Kind] = &appSession{watch: watch, Cache: c}
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -589,6 +600,11 @@ func (c *certAuthority) erase() error {
 			return trace.Wrap(err)
 		}
 	}
+	if err := c.trustCache.DeleteAllCertAuthorities(services.JWTSigner); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
 
@@ -597,6 +613,9 @@ func (c *certAuthority) fetch(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	if err := c.updateCertAuthorities(services.UserCA); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := c.updateCertAuthorities(services.JWTSigner); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1050,4 +1069,137 @@ func (c *role) processEvent(ctx context.Context, event services.Event) error {
 
 func (c *role) watchKind() services.WatchKind {
 	return c.watch
+}
+
+type appServer struct {
+	*Cache
+	watch services.WatchKind
+}
+
+// erase erases all data in the collection
+func (a *appServer) erase() error {
+	if err := a.presenceCache.DeleteAllAppServers(context.TODO(), defaults.Namespace); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (a *appServer) fetch(ctx context.Context) error {
+	resources, err := a.Presence.GetAppServers(ctx, defaults.Namespace)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.erase(); err != nil {
+		return trace.Wrap(err)
+	}
+	for _, resource := range resources {
+		a.setTTL(resource)
+		if _, err := a.presenceCache.UpsertAppServer(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (a *appServer) processEvent(ctx context.Context, event services.Event) error {
+	switch event.Type {
+	case backend.OpDelete:
+		err := a.presenceCache.DeleteAppServer(ctx, event.Resource.GetMetadata().Namespace, event.Resource.GetName())
+		if err != nil {
+			// Resource could be missing in the cache expired or not created, if the
+			// first consumed event is delete.
+			if !trace.IsNotFound(err) {
+				a.Warningf("Failed to delete resource %v.", err)
+				return trace.Wrap(err)
+			}
+		}
+	case backend.OpPut:
+		resource, ok := event.Resource.(services.Server)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		a.setTTL(resource)
+		if _, err := a.presenceCache.UpsertAppServer(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		a.Warningf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (a *appServer) watchKind() services.WatchKind {
+	return a.watch
+}
+
+type appSession struct {
+	*Cache
+	watch services.WatchKind
+}
+
+func (a *appSession) erase() error {
+	if err := a.appSessionCache.DeleteAllAppSessions(context.TODO()); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (a *appSession) fetch(ctx context.Context) error {
+	resources, err := a.AppSession.GetAppSessions(ctx)
+	if err != nil {
+		debug.PrintStack()
+		return trace.Wrap(err)
+	}
+	if err := a.erase(); err != nil {
+		return trace.Wrap(err)
+	}
+	for _, resource := range resources {
+		a.setTTL(resource)
+		if err := a.appSessionCache.UpsertAppSession(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (a *appSession) processEvent(ctx context.Context, event services.Event) error {
+	switch event.Type {
+	case backend.OpDelete:
+		resource, ok := event.Resource.(services.WebSession)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+
+		err := a.appSessionCache.DeleteAppSession(ctx, services.DeleteAppSessionRequest{
+			SessionID: resource.GetName(),
+		})
+		if err != nil {
+			// Resource could be missing in the cache expired or not created, if the
+			// first consumed event is delete.
+			if !trace.IsNotFound(err) {
+				a.Warningf("Failed to delete resource %v.", err)
+				return trace.Wrap(err)
+			}
+		}
+	case backend.OpPut:
+		resource, ok := event.Resource.(services.WebSession)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		a.setTTL(resource)
+		if err := a.appSessionCache.UpsertAppSession(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		a.Warningf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (a *appSession) watchKind() services.WatchKind {
+	return a.watch
 }

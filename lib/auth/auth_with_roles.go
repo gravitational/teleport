@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -370,6 +371,9 @@ func (a *ServerWithRoles) UpsertNode(s services.Server) (*services.KeepAlive, er
 	return a.authServer.UpsertNode(s)
 }
 
+// DELETE IN: 5.1.0
+//
+// This logic has moved to KeepAliveResource.
 func (a *ServerWithRoles) KeepAliveNode(ctx context.Context, handle services.KeepAlive) error {
 	if !a.hasBuiltinRole(string(teleport.RoleNode)) {
 		return trace.AccessDenied("[10] access denied")
@@ -382,13 +386,48 @@ func (a *ServerWithRoles) KeepAliveNode(ctx context.Context, handle services.Kee
 	if err != nil {
 		return trace.AccessDenied("[10] access denied")
 	}
-	if serverName != handle.ServerName {
+	if serverName != handle.Name {
 		return trace.AccessDenied("[10] access denied")
 	}
 	if err := a.action(defaults.Namespace, services.KindNode, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 	return a.authServer.KeepAliveNode(ctx, handle)
+}
+
+func (a *ServerWithRoles) KeepAliveResource(ctx context.Context, handle services.KeepAlive) error {
+	clusterName, err := a.GetDomainName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	serverName, err := ExtractHostID(a.context.User.GetName(), clusterName)
+	if err != nil {
+		return trace.AccessDenied("[10] access denied")
+	}
+	if serverName != handle.Name {
+		return trace.AccessDenied("[10] access denied")
+	}
+
+	switch handle.GetType() {
+	case teleport.KeepAliveServer:
+		if !a.hasBuiltinRole(string(teleport.RoleNode)) {
+			return trace.AccessDenied("[10] access denied")
+		}
+		if err := a.action(defaults.Namespace, services.KindNode, services.VerbUpdate); err != nil {
+			return trace.Wrap(err)
+		}
+	case teleport.KeepAliveApp:
+		if !a.hasBuiltinRole(string(teleport.RoleApp)) {
+			return trace.AccessDenied("access denied")
+		}
+		if err := a.action(defaults.Namespace, services.KindAppServer, services.VerbUpdate); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.BadParameter("unknown keep alive type %q", handle.Type)
+	}
+
+	return a.authServer.KeepAliveResource(ctx, handle)
 }
 
 // NewWatcher returns a new event watcher
@@ -465,6 +504,14 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch services.Watch) 
 				if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbRead); err != nil {
 					return nil, trace.Wrap(err)
 				}
+			}
+		case services.KindAppServer:
+			if err := a.action(defaults.Namespace, services.KindAppServer, services.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		case services.KindAppSession:
+			if err := a.action(defaults.Namespace, services.KindAppSession, services.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
 			}
 		default:
 			return nil, trace.AccessDenied("not authorized to watch %v events", kind.Kind)
@@ -1959,6 +2006,161 @@ func (a *ServerWithRoles) ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error) 
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 	return a.authServer.ProcessKubeCSR(req)
+}
+
+// GetAppServers gets all application servers.
+func (a *ServerWithRoles) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	if err := a.action(namespace, services.KindAppServer, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(namespace, services.KindAppServer, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := a.authServer.GetAppServers(ctx, namespace, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Loop over all servers and filter out applications on each server and only
+	// return the applications the caller has access to.
+	for _, server := range servers {
+		filteredApps := make([]*services.App, 0, len(server.GetApps()))
+		for _, app := range server.GetApps() {
+			err := a.context.Checker.CheckAccessToApp(server.GetNamespace(), app)
+			if err != nil {
+				if trace.IsAccessDenied(err) {
+					continue
+				}
+				return nil, trace.Wrap(err)
+			}
+			filteredApps = append(filteredApps, app)
+		}
+		server.SetApps(filteredApps)
+	}
+
+	return servers, nil
+}
+
+// UpsertAppServer adds an application server.
+func (a *ServerWithRoles) UpsertAppServer(ctx context.Context, server services.Server) (*services.KeepAlive, error) {
+	if err := a.action(server.GetNamespace(), services.KindAppServer, services.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(server.GetNamespace(), services.KindAppServer, services.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.UpsertAppServer(ctx, server)
+}
+
+// DeleteAppServer removes an application server.
+func (a *ServerWithRoles) DeleteAppServer(ctx context.Context, namespace string, name string) error {
+	if err := a.action(namespace, services.KindAppServer, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.authServer.DeleteAppServer(ctx, namespace, name); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteAllAppServers removes all application servers.
+func (a *ServerWithRoles) DeleteAllAppServers(ctx context.Context, namespace string) error {
+	if err := a.action(namespace, services.KindAppServer, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.authServer.DeleteAllAppServers(ctx, namespace); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GetAppSession gets an application web session.
+func (a *ServerWithRoles) GetAppSession(ctx context.Context, req services.GetAppSessionRequest) (services.WebSession, error) {
+	if err := a.action(defaults.Namespace, services.KindAppSession, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	session, err := a.authServer.GetAppSession(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return session, nil
+}
+
+// GetAppSessions gets all application web sessions.
+func (a *ServerWithRoles) GetAppSessions(ctx context.Context) ([]services.WebSession, error) {
+	if err := a.action(defaults.Namespace, services.KindAppSession, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindAppSession, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sessions, err := a.authServer.GetAppSessions(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sessions, nil
+}
+
+// CreateAppSession creates an application web session. Application web
+// sessions represent a browser session the client holds.
+func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req services.CreateAppSessionRequest) (services.WebSession, error) {
+	if err := a.currentUserAction(req.Username); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	session, err := a.authServer.CreateAppSession(ctx, req, a.context.User, a.context.Checker)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return session, nil
+}
+
+// UpsertAppSession is not implemented.
+func (a *ServerWithRoles) UpsertAppSession(ctx context.Context, session services.WebSession) error {
+	return trace.NotImplemented("not implemented")
+}
+
+// DeleteAppSession removes an application web sessions.
+func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req services.DeleteAppSessionRequest) error {
+	if err := a.action(defaults.Namespace, services.KindAppSession, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.authServer.DeleteAppSession(ctx, req); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteAllAppSessions removes all application web sessions.
+func (a *ServerWithRoles) DeleteAllAppSessions(ctx context.Context) error {
+	if err := a.action(defaults.Namespace, services.KindAppSession, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.authServer.DeleteAllAppSessions(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// GenerateAppToken creates a JWT token with application access.
+func (a *ServerWithRoles) GenerateAppToken(ctx context.Context, req jwt.GenerateAppTokenRequest) (string, error) {
+	if err := a.action(defaults.Namespace, services.KindJWT, services.VerbCreate); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	session, err := a.authServer.generateAppToken(req.Username, req.Roles, req.URI, req.Expires)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return session, nil
 }
 
 func (a *ServerWithRoles) Close() error {

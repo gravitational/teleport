@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"encoding/base32"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -71,9 +72,11 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/jonboulle/clockwork"
 	lemma_secret "github.com/mailgun/lemma/secret"
+	"github.com/pborman/uuid"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
+	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
@@ -250,6 +253,10 @@ func (s *WebSuite) SetUpTest(c *C) {
 		DomainName:   s.server.ClusterName(),
 		ProxyClient:  s.proxyClient,
 		CipherSuites: utils.DefaultCipherSuites(),
+		AccessPoint:  s.proxyClient,
+		Context:      context.Background(),
+		HostUUID:     proxyID,
+		Emitter:      s.proxyClient,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond))
 	c.Assert(err, IsNil)
 
@@ -1784,6 +1791,114 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	// Expected empty, b/c test auth server doesn't set up
 	// heartbeat which where ServerSpecV2 version would've been set
 	c.Assert(cluster.AuthVersion, Equals, "")
+}
+
+// TestCreateAppSession verifies that an existing session to the Web UI can
+// be exchanged for a application specific session.
+func (s *WebSuite) TestCreateAppSession(c *C) {
+	pack := s.authPack(c, "foo@example.com")
+
+	// Register an application called "panel".
+	server := &services.ServerV2{
+		Kind:    services.KindAppServer,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Namespace: defaults.Namespace,
+			Name:      uuid.New(),
+		},
+		Spec: services.ServerSpecV2{
+			Version: teleport.Version,
+			Apps: []*services.App{
+				&services.App{
+					Name:       "panel",
+					PublicAddr: "panel.example.com",
+					URI:        "http://127.0.0.1:8080",
+				},
+			},
+		},
+	}
+	_, err := s.server.Auth().UpsertAppServer(context.Background(), server)
+	c.Assert(err, check.IsNil)
+
+	// Extract the session ID and bearer token for the current session.
+	rawCookie := *pack.cookies[0]
+	cookieBytes, err := hex.DecodeString(rawCookie.Value)
+	var sessionCookie SessionCookie
+	err = json.Unmarshal(cookieBytes, &sessionCookie)
+	c.Assert(err, check.IsNil)
+
+	var tests = []struct {
+		inComment       CommentInterface
+		inCreateRequest *createAppSessionRequest
+		outError        bool
+		outUsername     string
+		outParentHash   string
+	}{
+		{
+			inComment: Commentf("Valid request."),
+			inCreateRequest: &createAppSessionRequest{
+				FQDN:        "panel.example.com",
+				PublicAddr:  "panel.example.com",
+				ClusterName: "localhost",
+			},
+			outError:    false,
+			outUsername: "foo@example.com",
+		},
+		{
+			inComment: Commentf("Invalid application."),
+			inCreateRequest: &createAppSessionRequest{
+				FQDN:        "panel.example.com",
+				PublicAddr:  "invalid.example.com",
+				ClusterName: "localhost",
+			},
+			outError: true,
+		},
+		{
+			inComment: Commentf("Invalid cluster name."),
+			inCreateRequest: &createAppSessionRequest{
+				FQDN:        "panel.example.com",
+				PublicAddr:  "panel.example.com",
+				ClusterName: "example.com",
+			},
+			outError: true,
+		},
+		{
+			inComment: Commentf("Missing FQDN."),
+			inCreateRequest: &createAppSessionRequest{
+				PublicAddr:  "panel.example.com",
+				ClusterName: "localhost",
+			},
+			outError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		// Make a request to create an application session for "panel".
+		endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
+		resp, err := pack.clt.PostJSON(context.Background(), endpoint, tt.inCreateRequest)
+		c.Assert(err != nil, check.Equals, tt.outError, tt.inComment)
+		if tt.outError {
+			continue
+		}
+
+		// Unmarshal the response.
+		var response *createAppSessionResponse
+		c.Assert(json.Unmarshal(resp.Bytes(), &response), IsNil, tt.inComment)
+
+		// Verify that the application session was created.
+		session, err := s.server.Auth().GetAppSession(context.Background(), services.GetAppSessionRequest{
+			SessionID: response.CookieValue,
+		})
+		c.Assert(err, check.IsNil)
+		c.Assert(session.GetUser(), check.Equals, tt.outUsername)
+		c.Assert(session.GetName(), check.Equals, response.CookieValue)
+	}
+}
+
+// TestAppRouting makes sure that requests that are authenticated for
+// applications get directed to application get re-routed to application
+// handlers and requests coming in for the proxy go to the UI handlers.
+func (s *WebSuite) TestRouting(c *C) {
 }
 
 type authProviderMock struct {

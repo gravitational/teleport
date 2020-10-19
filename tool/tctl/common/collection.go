@@ -686,3 +686,44 @@ func (c *semaphoreCollection) toMarshal() interface{} {
 func (c *semaphoreCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, c.toMarshal())
 }
+
+type appCollection struct {
+	servers []services.Server
+}
+
+func (a *appCollection) resources() (r []services.Resource) {
+	for _, resource := range a.servers {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (a *appCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Application", "Host", "Public Address", "URI", "Labels"})
+	for _, server := range a.servers {
+		for _, app := range server.GetApps() {
+			t.AddRow([]string{
+				app.Name, server.GetHostname(), app.PublicAddr, app.URI, services.LabelsAsString(app.StaticLabels, app.DynamicLabels),
+			})
+		}
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+func (a *appCollection) writeJSON(w io.Writer) error {
+	data, err := json.MarshalIndent(a.toMarshal(), "", "    ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}
+
+func (a *appCollection) toMarshal() interface{} {
+	return a.servers
+}
+
+func (a *appCollection) writeYAML(w io.Writer) error {
+	return utils.WriteYAML(w, a.toMarshal())
+}

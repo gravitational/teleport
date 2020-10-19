@@ -1,0 +1,266 @@
+/*
+Copyright 2020 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package app
+
+import (
+	"context"
+	"path/filepath"
+	"sync"
+	"time"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/filesessions"
+	jwt_pkg "github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/services"
+	session_pkg "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/tlsca"
+
+	"github.com/gravitational/oxy/forward"
+	"github.com/gravitational/trace"
+	"github.com/gravitational/ttlmap"
+
+	"github.com/pborman/uuid"
+	"github.com/sirupsen/logrus"
+)
+
+// session holds a request forwarder and audit log for this chunk.
+type session struct {
+	// fwd can rewrite and forward requests to the target application.
+	fwd *forward.Forwarder
+	// streamWriter can emit events to the audit log.
+	streamWriter events.StreamWriter
+}
+
+// newSession creates a new session.
+func (s *Server) newSession(ctx context.Context, identity *tlsca.Identity, app *services.App) (*session, error) {
+	// Create the stream writer that will write this chunk to the audit log.
+	streamWriter, err := s.newStreamWriter(identity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Request a JWT token that will be attached to all requests.
+	jwt, err := s.c.AuthClient.GenerateAppToken(ctx, jwt_pkg.GenerateAppTokenRequest{
+		Username: identity.Username,
+		Roles:    identity.Groups,
+		URI:      app.URI,
+		Expires:  identity.Expires,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Create a rewriting transport that will be used to forward requests.
+	transport, err := newTransport(s.closeContext,
+		&transportConfig{
+			w:                  streamWriter,
+			uri:                app.URI,
+			publicAddr:         app.PublicAddr,
+			publicPort:         s.proxyPort,
+			cipherSuites:       s.c.CipherSuites,
+			insecureSkipVerify: app.InsecureSkipVerify,
+			jwt:                jwt,
+			rewrite:            app.Rewrite,
+		})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	fwd, err := forward.New(
+		forward.RoundTripper(transport),
+		forward.Logger(logrus.StandardLogger()))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &session{
+		fwd:          fwd,
+		streamWriter: streamWriter,
+	}, nil
+}
+
+// newStreamWriter creates a streamer that will be used to stream the
+// requests that occur within this session to the audit log.
+func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter, error) {
+	clusterConfig, err := s.c.AccessPoint.GetClusterConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Each chunk has it's own ID. Create a new UUID for this chunk which will be
+	// emitted in a new event to the audit log that can be use to aggregate all
+	// chunks for a particular session.
+	chunkID := uuid.New()
+
+	// Create a sync or async streamer depending on configuration of cluster.
+	streamer, err := s.newStreamer(s.closeContext, chunkID, clusterConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	streamWriter, err := events.NewAuditWriter(events.AuditWriterConfig{
+		// Audit stream is using server context, not session context,
+		// to make sure that session is uploaded even after it is closed
+		Context:      s.closeContext,
+		Streamer:     streamer,
+		Clock:        s.c.Clock,
+		SessionID:    session_pkg.ID(chunkID),
+		Namespace:    defaults.Namespace,
+		ServerID:     s.c.Server.GetName(),
+		RecordOutput: clusterConfig.GetSessionRecording() != services.RecordOff,
+		Component:    teleport.ComponentApp,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Emit an event to the Audit Log that a new session chunk has been created.
+	appSessionCreateEvent := &events.AppSessionCreate{
+		Metadata: events.Metadata{
+			Type: events.AppSessionCreateEvent,
+			Code: events.AppSessionCreateCode,
+		},
+		ServerMetadata: events.ServerMetadata{
+			ServerID:        s.c.Server.GetName(),
+			ServerNamespace: defaults.Namespace,
+		},
+		SessionMetadata: events.SessionMetadata{
+			SessionID: identity.RouteToApp.SessionID,
+		},
+		SessionChunkID: chunkID,
+	}
+	if err := s.c.AuthClient.EmitAuditEvent(s.closeContext, appSessionCreateEvent); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return streamWriter, nil
+}
+
+// newStreamer returns sync or async streamer based on the configuration
+// of the server and the session, sync streamer sends the events
+// directly to the auth server and blocks if the events can not be received,
+// async streamer buffers the events to disk and uploads the events later
+func (s *Server) newStreamer(ctx context.Context, sessionID string, clusterConfig services.ClusterConfig) (events.Streamer, error) {
+	mode := clusterConfig.GetSessionRecording()
+	if services.IsRecordSync(mode) {
+		s.log.Debugf("Using sync streamer for session %v.", sessionID)
+		return s.c.AuthClient, nil
+	}
+
+	s.log.Debugf("Using async streamer for session %v.", sessionID)
+	uploadDir := filepath.Join(
+		s.c.DataDir, teleport.LogsDir, teleport.ComponentUpload,
+		events.StreamingLogsDir, defaults.Namespace,
+	)
+	fileStreamer, err := filesessions.NewStreamer(uploadDir)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return fileStreamer, nil
+}
+
+// sessionCache holds a cache of sessions that are used to forward requests.
+type sessionCache struct {
+	mu    sync.Mutex
+	cache *ttlmap.TTLMap
+
+	closeContext context.Context
+
+	log *logrus.Entry
+}
+
+// newSessionCache creates a new session cache.
+func newSessionCache(ctx context.Context, log *logrus.Entry) (*sessionCache, error) {
+	var err error
+
+	s := &sessionCache{
+		closeContext: ctx,
+	}
+
+	// Cache of request forwarders. Set an expire function that can be used to
+	// close and upload the stream of events to the Audit Log.
+	s.cache, err = ttlmap.New(defaults.ClientCacheSize, ttlmap.CallOnExpire(s.expire))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	go s.expireSessions()
+
+	return s, nil
+}
+
+// get will fetch the session from the cache.
+func (s *sessionCache) get(key string) (*session, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if f, ok := s.cache.Get(key); ok {
+		if fwd, fok := f.(*session); fok {
+			return fwd, nil
+		}
+		return nil, trace.BadParameter("invalid type stored in cache: %T", f)
+	}
+	return nil, trace.NotFound("session not found")
+}
+
+// set will add the session to the cache.
+func (s *sessionCache) set(key string, value *session, ttl time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err := s.cache.Set(key, value, ttl); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// expire will close the stream writer.
+func (s *sessionCache) expire(key string, el interface{}) {
+	session, ok := el.(*session)
+	if !ok {
+		s.log.Debugf("Invalid type stored in cache: %T.", el)
+		return
+	}
+
+	if err := session.streamWriter.Close(s.closeContext); err != nil {
+		s.log.Debugf("Failed to close stream writer: %v.", err)
+	}
+
+	s.log.Debugf("Closing expired stream %v.", key)
+}
+
+// expireSessions ticks every second trying to close expire sessions.
+func (s *sessionCache) expireSessions() {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			s.expiredSession()
+		case <-s.closeContext.Done():
+			return
+		}
+	}
+}
+
+// expiredSession tries to expire sessions in the cache.
+func (s *sessionCache) expiredSession() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.cache.RemoveExpired(10)
+}

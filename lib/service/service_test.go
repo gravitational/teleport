@@ -61,8 +61,9 @@ func (s *ServiceTestSuite) TestSelfSignedHTTPS(c *check.C) {
 	}
 	err := initSelfSignedHTTPSCert(cfg)
 	c.Assert(err, check.IsNil)
-	c.Assert(fileExists(cfg.Proxy.TLSCert), check.Equals, true)
-	c.Assert(fileExists(cfg.Proxy.TLSKey), check.Equals, true)
+	c.Assert(cfg.Proxy.KeyPairs, check.HasLen, 1)
+	c.Assert(fileExists(cfg.Proxy.KeyPairs[0].Certificate), check.Equals, true)
+	c.Assert(fileExists(cfg.Proxy.KeyPairs[0].PrivateKey), check.Equals, true)
 }
 
 func TestMonitor(t *testing.T) {

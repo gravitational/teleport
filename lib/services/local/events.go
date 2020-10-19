@@ -88,6 +88,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 				return nil, trace.Wrap(err)
 			}
 			parser = p
+		case services.KindAppServer:
+			parser = newAppServerParser()
+		case services.KindAppSession:
+			parser = newAppSessionParser()
 		default:
 			return nil, trace.BadParameter("watcher on object kind %v is not supported", kind)
 		}
@@ -727,6 +731,64 @@ func (p *reverseTunnelParser) parse(event backend.Event) (services.Resource, err
 		return resourceHeader(event, services.KindReverseTunnel, services.V2, 0)
 	case backend.OpPut:
 		resource, err := services.UnmarshalReverseTunnel(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newAppServerParser() *appServerParser {
+	return &appServerParser{
+		matchPrefix: backend.Key(appsPrefix, defaults.Namespace),
+	}
+}
+
+type appServerParser struct {
+	matchPrefix []byte
+}
+
+func (p *appServerParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *appServerParser) match(key []byte) bool {
+	return bytes.HasPrefix(key, p.matchPrefix)
+}
+
+func (p *appServerParser) parse(event backend.Event) (services.Resource, error) {
+	return parseServer(event, services.KindAppServer)
+}
+
+func newAppSessionParser() *appSessionParser {
+	return &appSessionParser{
+		matchPrefix: backend.Key(sessionsPrefix),
+	}
+}
+
+type appSessionParser struct {
+	matchPrefix []byte
+}
+
+func (p *appSessionParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *appSessionParser) match(key []byte) bool {
+	return bytes.HasPrefix(key, p.matchPrefix)
+}
+
+func (p *appSessionParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		return resourceHeader(event, services.KindAppSession, services.V2, 0)
+	case backend.OpPut:
+		resource, err := services.GetWebSessionMarshaler().UnmarshalWebSession(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)

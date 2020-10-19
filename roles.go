@@ -52,6 +52,8 @@ const (
 	RoleNop Role = "Nop"
 	// RoleRemoteProxy is a role for remote SSH proxy in the cluster
 	RoleRemoteProxy Role = "RemoteProxy"
+	// RoleApp is a role for a app proxy in the cluster.
+	RoleApp Role = "App"
 )
 
 // this constant exists for backwards compatibility reasons, needed to upgrade to 2.3
@@ -165,7 +167,7 @@ func (r *Role) String() string {
 // if it's ok, false otherwise
 func (r *Role) Check() error {
 	switch *r {
-	case RoleAuth, RoleWeb, RoleNode,
+	case RoleAuth, RoleWeb, RoleNode, RoleApp,
 		RoleAdmin, RoleProvisionToken,
 		RoleTrustedCluster, LegacyClusterTokenType,
 		RoleSignup, RoleProxy, RoleNop:

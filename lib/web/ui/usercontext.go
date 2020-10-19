@@ -47,6 +47,8 @@ type userACL struct {
 	Tokens access `json:"tokens"`
 	// Nodes defines access to nodes.
 	Nodes access `json:"nodes"`
+	// AppServers defines access to application servers.
+	AppServers access `json:"appServers"`
 	// SSH defines access to servers
 	SSHLogins []string `json:"sshLogins"`
 }
@@ -124,9 +126,11 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 	userAccess := newAccess(userRoles, ctx, services.KindUser)
 	tokenAccess := newAccess(userRoles, ctx, services.KindToken)
 	nodeAccess := newAccess(userRoles, ctx, services.KindNode)
+	appServerAccess := newAccess(userRoles, ctx, "TODO: ADD THE RIGHT RESOURCE")
 	logins := getLogins(userRoles)
 
 	acl := userACL{
+		AppServers:      appServerAccess,
 		AuthConnectors:  authConnectors,
 		TrustedClusters: trustedClusterAccess,
 		Sessions:        sessionAccess,

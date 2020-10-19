@@ -21,12 +21,17 @@ package defaults
 import (
 	"crypto/tls"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+
 	"golang.org/x/crypto/ssh"
+
+	"gopkg.in/square/go-jose.v2"
 )
 
 // Default port numbers used by all teleport tools
@@ -362,6 +367,9 @@ var (
 	// NodeQueueSize is node service queue size
 	NodeQueueSize = 128
 
+	// AppsQueueSize is apps service queue size.
+	AppsQueueSize = 128
+
 	// CASignatureAlgorithm is the default signing algorithm to use when
 	// creating new SSH CAs.
 	CASignatureAlgorithm = ssh.SigAlgoRSASHA2512
@@ -428,6 +436,8 @@ const (
 	// RoleAuthService is authentication and authorization service,
 	// the only stateful role in the system
 	RoleAuthService = "auth"
+	// RoleApp is a application proxy.
+	RoleApp = "app"
 )
 
 const (
@@ -593,6 +603,12 @@ const (
 	HMACSHA196               = "hmac-sha1-96"
 )
 
+const (
+	// ApplicationTokenAlgorithm is the default algorithm used to sign
+	// application access tokens.
+	ApplicationTokenAlgorithm = jose.RS256
+)
+
 // WindowsOpenSSHNamedPipe is the address of the named pipe that the
 // OpenSSH agent is on.
 const WindowsOpenSSHNamedPipe = `\\.\pipe\openssh-ssh-agent`
@@ -658,4 +674,28 @@ func CheckPasswordLimiter() *limiter.Limiter {
 		panic(fmt.Sprintf("Failed to create limiter: %v.", err))
 	}
 	return limiter
+}
+
+// Transport returns a new http.RoundTripper with sensible defaults.
+func Transport() (*http.Transport, error) {
+	// Clone the default transport to pick up sensible defaults.
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return nil, trace.BadParameter("invalid transport type %T", http.DefaultTransport)
+	}
+	tr := defaultTransport.Clone()
+
+	// Increase the size of the transports connection pool. This substantially
+	// improves the performance of Teleport under load as it reduces the number
+	// of TLS handshakes performed.
+	tr.MaxIdleConns = HTTPMaxIdleConns
+	tr.MaxIdleConnsPerHost = HTTPMaxIdleConnsPerHost
+
+	// Set IdleConnTimeout on the transport, this defines the maximum amount of
+	// time before idle connections are closed. Leaving this unset will lead to
+	// connections open forever and will cause memory leaks in a long running
+	// process.
+	tr.IdleConnTimeout = HTTPIdleTimeout
+
+	return tr, nil
 }

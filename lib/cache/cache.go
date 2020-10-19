@@ -49,6 +49,8 @@ func ForAuth(cfg Config) Config {
 		{Kind: services.KindReverseTunnel},
 		{Kind: services.KindTunnelConnection},
 		{Kind: services.KindAccessRequest},
+		{Kind: services.KindAppServer},
+		{Kind: services.KindAppSession},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -68,6 +70,8 @@ func ForProxy(cfg Config) Config {
 		{Kind: services.KindAuthServer},
 		{Kind: services.KindReverseTunnel},
 		{Kind: services.KindTunnelConnection},
+		{Kind: services.KindAppServer},
+		{Kind: services.KindAppSession},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -87,6 +91,23 @@ func ForNode(cfg Config) Config {
 		{Kind: services.KindNamespace, Name: defaults.Namespace},
 	}
 	cfg.QueueSize = defaults.NodeQueueSize
+	return cfg
+}
+
+// ForApps sets up watch configuration for apps.
+func ForApps(cfg Config) Config {
+	cfg.Watches = []services.WatchKind{
+		{Kind: services.KindCertAuthority, LoadSecrets: false},
+		{Kind: services.KindClusterName},
+		{Kind: services.KindClusterConfig},
+		{Kind: services.KindUser},
+		{Kind: services.KindRole},
+		{Kind: services.KindProxy},
+		// Applications only need to "know" about default namespace events to avoid
+		// matching too much data about other namespaces or events.
+		{Kind: services.KindNamespace, Name: defaults.Namespace},
+	}
+	cfg.QueueSize = defaults.AppsQueueSize
 	return cfg
 }
 
@@ -121,6 +142,7 @@ type Cache struct {
 	accessCache        services.Access
 	dynamicAccessCache services.DynamicAccessExt
 	presenceCache      services.Presence
+	appSessionCache    services.AppSession
 	eventsFanout       *services.Fanout
 
 	// closedFlag is set to indicate that the services are closed
@@ -151,6 +173,8 @@ type Config struct {
 	DynamicAccess services.DynamicAccess
 	// Presence is a presence service
 	Presence services.Presence
+	// AppSession holds application sessions.
+	AppSession services.AppSession
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// RetryPeriod is a period between cache retries on failures
@@ -275,6 +299,7 @@ func New(config Config) (*Cache, error) {
 		accessCache:        local.NewAccessService(wrapper),
 		dynamicAccessCache: local.NewDynamicAccessService(wrapper),
 		presenceCache:      local.NewPresenceService(wrapper),
+		appSessionCache:    local.NewIdentityService(wrapper),
 		eventsFanout:       services.NewFanout(),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
@@ -660,4 +685,14 @@ func (c *Cache) GetTunnelConnections(clusterName string, opts ...services.Marsha
 // to be called periodically and always return fresh data
 func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns []services.TunnelConnection, err error) {
 	return c.presenceCache.GetAllTunnelConnections(opts...)
+}
+
+// GetAppServers gets all application servers.
+func (c *Cache) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	return c.presenceCache.GetAppServers(ctx, namespace, opts...)
+}
+
+// GetAppSession gets an application web session.
+func (c *Cache) GetAppSession(ctx context.Context, req services.GetAppSessionRequest) (services.WebSession, error) {
+	return c.appSessionCache.GetAppSession(ctx, req)
 }

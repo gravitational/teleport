@@ -434,6 +434,23 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 
+	// If a JWT signer does not exist for this cluster, create one.
+	jwtSigner, err := asrv.GetCertAuthority(services.CertAuthID{
+		DomainName: cfg.ClusterName.GetClusterName(),
+		Type:       services.JWTSigner,
+	}, true)
+	if trace.IsNotFound(err) || len(jwtSigner.GetJWTKeyPairs()) == 0 {
+		log.Infof("Migrate: Adding JWT key to existing cluster %q.", cfg.ClusterName.GetClusterName())
+
+		jwtSigner, err = services.NewJWTAuthority(cfg.ClusterName.GetClusterName())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := asrv.Trust.UpsertCertAuthority(jwtSigner); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	if lib.IsInsecureDevMode() {
 		warningMessage := "Starting teleport in insecure mode. This is " +
 			"dangerous! Sensitive information will be logged to console and " +
@@ -951,7 +968,6 @@ func migrateRoleOptions(ctx context.Context, asrv *Server) error {
 	for _, role := range roles {
 		options := role.GetOptions()
 		if options.BPF == nil {
-			fmt.Printf("--> Migrating role %v. Added default enhanced events.", role.GetName())
 			log.Debugf("Migrating role %v. Added default enhanced events.", role.GetName())
 			options.BPF = defaults.EnhancedEvents()
 		} else {

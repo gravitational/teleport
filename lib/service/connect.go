@@ -782,33 +782,37 @@ func (process *TeleportProcess) rotate(conn *Connector, localState auth.StateV2,
 // newClient attempts to connect directly to the Auth Server. If it fails, it
 // falls back to trying to connect to the Auth Server through the proxy.
 func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity *auth.Identity) (*auth.Client, error) {
-	directClient, err := process.newClientDirect(authServers, identity)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Try and connect to the Auth Server. If the request fails, try and
-	// connect through a tunnel.
-	log.Debugf("Attempting to connect to Auth Server directly.")
-	_, err = directClient.GetLocalClusterName()
-	if err != nil {
-		// Only attempt to connect through the proxy for nodes.
-		if identity.ID.Role != teleport.RoleNode {
-			return nil, trace.Unwrap(err)
-		}
-
-		log.Debugf("Attempting to connect to Auth Server through tunnel.")
-		tunnelClient, err := process.newClientThroughTunnel(authServers, identity)
+	switch identity.ID.Role {
+	case teleport.RoleNode, teleport.RoleApp:
+		directClient, err := process.newClientDirect(authServers, identity)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		log.Debugf("Connected to Auth Server through tunnel.")
-		return tunnelClient, nil
-	}
+		// Try and connect to the Auth Server. If the request fails, try and
+		// connect through a tunnel.
+		log.Debugf("Attempting to connect to Auth Server directly.")
+		_, err = directClient.GetLocalClusterName()
+		if err != nil {
+			log.Debugf("Attempting to connect to Auth Server through tunnel.")
+			tunnelClient, err := process.newClientThroughTunnel(authServers, identity)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 
-	log.Debugf("Connected to Auth Server with direct connection.")
-	return directClient, nil
+			log.Debugf("Connected to Auth Server through tunnel.")
+			return tunnelClient, nil
+		}
+		log.Debugf("Connected to Auth Server with direct connection.")
+		return directClient, nil
+	default:
+		directClient, err := process.newClientDirect(authServers, identity)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		log.Debugf("Connected to Auth Server with direct connection.")
+		return directClient, nil
+	}
 }
 
 // findReverseTunnel uses the web proxy to discover where the SSH reverse tunnel
