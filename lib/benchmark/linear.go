@@ -11,11 +11,11 @@ import (
 
 // Linear generator
 type Linear struct {
-	LowerBound          int          
-	UpperBound          int          
-	Step                int          
-	MinimumMeasurements int           
-	MinimumWindow       time.Duration 
+	LowerBound          int
+	UpperBound          int
+	Step                int
+	MinimumMeasurements int
+	MinimumWindow       time.Duration
 	currentRPS          int
 	config              Config
 }
@@ -28,10 +28,7 @@ func (l *Linear) Generate() bool {
 		return true
 	}
 	l.currentRPS += l.Step
-	if l.currentRPS > l.UpperBound {
-		return false
-	}
-	return true
+	return l.currentRPS <= l.UpperBound
 }
 
 // GetBenchmark returns the benchmark config for the current generation.
@@ -51,7 +48,7 @@ func (l *Linear) GetBenchmark() (context.Context, Config, error) {
 	}, nil
 }
 
-// Benchmark runs the benchmark of reciever type
+// Benchmark runs the benchmark of receiver type
 // return an array of Results that contain information about the generations
 func (l *Linear) Benchmark(command []string, tc *client.TeleportClient) ([]*Result, error) {
 	var result *Result

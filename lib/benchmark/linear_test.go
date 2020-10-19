@@ -101,7 +101,7 @@ func TestGenerate(t *testing.T) {
 		t.Errorf("expected false, got true")
 	}
 
-	_, bm, err = linearConfig.GetBenchmark()
+	_, _, err = linearConfig.GetBenchmark()
 	if err == nil {
 		t.Errorf("generating more benchmarks than expected")
 	}
@@ -206,7 +206,7 @@ func TestGetBenchmark(t *testing.T) {
 	res = linearConfig.Generate()
 	assert.Equal(t, res, false)
 
-	_, conf, err = linearConfig.GetBenchmark()
+	_, _, err = linearConfig.GetBenchmark()
 	if err == nil {
 		t.Errorf("There should be no current generations, expected error")
 	}

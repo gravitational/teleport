@@ -288,4 +288,3 @@ func (b *benchmarkThread) run() {
 		}
 	}
 }
-
