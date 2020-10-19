@@ -72,6 +72,7 @@ type testPack struct {
 	accessS        services.Access
 	dynamicAccessS services.DynamicAccess
 	presenceS      services.Presence
+	appSessionS    services.AppSession
 }
 
 func (t *testPack) Close() {
@@ -129,6 +130,8 @@ func (s *CacheSuite) newPackWithoutCache(c *check.C, setupConfig SetupConfigFn) 
 	p.usersS = local.NewIdentityService(p.backend)
 	p.accessS = local.NewAccessService(p.backend)
 	p.dynamicAccessS = local.NewDynamicAccessService(p.backend)
+	p.appSessionS = local.NewIdentityService(p.backend)
+
 	return p
 }
 
@@ -147,6 +150,7 @@ func (s *CacheSuite) newPack(c *check.C, setupConfig func(c Config) Config) *tes
 		Access:        p.accessS,
 		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
+		AppSession:    p.appSessionS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 	}))
@@ -211,6 +215,7 @@ func (s *CacheSuite) TestOnlyRecentInit(c *check.C) {
 		Access:        p.accessS,
 		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
+		AppSession:    p.appSessionS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 	}))
@@ -411,6 +416,7 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 		Access:        p.accessS,
 		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
+		AppSession:    p.appSessionS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 		PreferRecent: PreferRecent{
@@ -1188,6 +1194,91 @@ func (s *CacheSuite) TestAuthServers(c *check.C) {
 	}
 
 	out, err = p.cache.GetAuthServers()
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 0)
+}
+
+// TestAppServers tests that CRUD operations are replicated from the backend to
+// the cache.
+func (s *CacheSuite) TestAppServers(c *check.C) {
+	p := s.newPackForProxy(c)
+	defer p.Close()
+
+	// Upsert application into backend.
+	server := suite.NewAppServer("foo", "http://127.0.0.1:8080", "foo.example.com")
+	_, err := p.presenceS.UpsertAppServer(context.Background(), server)
+	c.Assert(err, check.IsNil)
+
+	// Check that the application is now in the backend.
+	out, err := p.presenceS.GetAppServers(context.Background(), defaults.Namespace)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+	srv := out[0]
+
+	// Wait until the information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single application in it.
+	out, err = p.cache.GetAppServers(context.Background(), defaults.Namespace)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+
+	// Check that the value in the cache, value in the backend, and original
+	// services.App all exactly match.
+	srv.SetResourceID(out[0].GetResourceID())
+	server.SetResourceID(out[0].GetResourceID())
+	fixtures.DeepCompare(c, srv, out[0])
+	fixtures.DeepCompare(c, server, out[0])
+
+	// Update the application and upsert it into the backend again.
+	srv.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
+	_, err = p.presenceS.UpsertAppServer(context.Background(), srv)
+	c.Assert(err, check.IsNil)
+
+	// Check that the application is in the backend and only one exists (so an
+	// update occurred).
+	out, err = p.presenceS.GetAppServers(context.Background(), defaults.Namespace)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+	srv = out[0]
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single application in it.
+	out, err = p.cache.GetAppServers(context.Background(), defaults.Namespace)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+
+	// Check that the value in the cache, value in the backend, and original
+	// services.App all exactly match.
+	srv.SetResourceID(out[0].GetResourceID())
+	fixtures.DeepCompare(c, srv, out[0])
+
+	// Remove all applications from the backend.
+	err = p.presenceS.DeleteAllAppServers(context.Background(), defaults.Namespace)
+	c.Assert(err, check.IsNil)
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	// Check that the cache is now empty.
+	out, err = p.cache.GetAppServers(context.Background(), defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 0)
 }

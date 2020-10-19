@@ -700,18 +700,19 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	listener, reverseTunnelAddress := s.mustListen(c)
 	defer listener.Close()
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ClientTLS:             s.proxyClient.TLSConfig(),
-		ID:                    hostID,
-		ClusterName:           s.server.ClusterName(),
-		Listener:              listener,
-		HostSigners:           []ssh.Signer{proxySigner},
-		LocalAuthClient:       s.proxyClient,
-		LocalAccessPoint:      s.proxyClient,
-		NewCachingAccessPoint: auth.NoCache,
-		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
-		DataDir:               c.MkDir(),
-		Component:             teleport.ComponentProxy,
-		Emitter:               s.proxyClient,
+		ClientTLS:                     s.proxyClient.TLSConfig(),
+		ID:                            hostID,
+		ClusterName:                   s.server.ClusterName(),
+		Listener:                      listener,
+		HostSigners:                   []ssh.Signer{proxySigner},
+		LocalAuthClient:               s.proxyClient,
+		LocalAccessPoint:              s.proxyClient,
+		NewCachingAccessPoint:         auth.NoCache,
+		NewCachingAccessPointOldProxy: auth.NoCache,
+		DirectClusters:                []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
+		DataDir:                       c.MkDir(),
+		Component:                     teleport.ComponentProxy,
+		Emitter:                       s.proxyClient,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
@@ -864,17 +865,18 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 
 	listener, reverseTunnelAddress := s.mustListen(c)
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ClusterName:           s.server.ClusterName(),
-		ClientTLS:             s.proxyClient.TLSConfig(),
-		ID:                    hostID,
-		Listener:              listener,
-		HostSigners:           []ssh.Signer{s.signer},
-		LocalAuthClient:       s.proxyClient,
-		LocalAccessPoint:      s.proxyClient,
-		NewCachingAccessPoint: auth.NoCache,
-		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
-		DataDir:               c.MkDir(),
-		Emitter:               s.proxyClient,
+		ClusterName:                   s.server.ClusterName(),
+		ClientTLS:                     s.proxyClient.TLSConfig(),
+		ID:                            hostID,
+		Listener:                      listener,
+		HostSigners:                   []ssh.Signer{s.signer},
+		LocalAuthClient:               s.proxyClient,
+		LocalAccessPoint:              s.proxyClient,
+		NewCachingAccessPoint:         auth.NoCache,
+		NewCachingAccessPointOldProxy: auth.NoCache,
+		DirectClusters:                []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
+		DataDir:                       c.MkDir(),
+		Emitter:                       s.proxyClient,
 	})
 	c.Assert(err, IsNil)
 
@@ -966,17 +968,18 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	listener, _ := s.mustListen(c)
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ClientTLS:             s.proxyClient.TLSConfig(),
-		ID:                    hostID,
-		ClusterName:           s.server.ClusterName(),
-		Listener:              listener,
-		HostSigners:           []ssh.Signer{s.signer},
-		LocalAuthClient:       s.proxyClient,
-		LocalAccessPoint:      s.proxyClient,
-		NewCachingAccessPoint: auth.NoCache,
-		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
-		DataDir:               c.MkDir(),
-		Emitter:               s.proxyClient,
+		ClientTLS:                     s.proxyClient.TLSConfig(),
+		ID:                            hostID,
+		ClusterName:                   s.server.ClusterName(),
+		Listener:                      listener,
+		HostSigners:                   []ssh.Signer{s.signer},
+		LocalAuthClient:               s.proxyClient,
+		LocalAccessPoint:              s.proxyClient,
+		NewCachingAccessPoint:         auth.NoCache,
+		NewCachingAccessPointOldProxy: auth.NoCache,
+		DirectClusters:                []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
+		DataDir:                       c.MkDir(),
+		Emitter:                       s.proxyClient,
 	})
 	c.Assert(err, IsNil)
 

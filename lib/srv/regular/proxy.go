@@ -428,6 +428,7 @@ func (t *proxySubsys) proxyToHost(
 		Address:      t.host,
 		ServerID:     serverID,
 		Principals:   principals,
+		ConnType:     services.NodeTunnel,
 	})
 	if err != nil {
 		return trace.Wrap(err)

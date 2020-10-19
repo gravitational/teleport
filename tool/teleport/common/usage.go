@@ -2,7 +2,7 @@ package common
 
 const (
 	usageNotes = `Notes:
-  --roles=node,proxy,auth
+  --roles=node,proxy,auth,app
 
   This flag tells Teleport which services to run. By default it runs all three. 
   In a production environment you may want to separate them.

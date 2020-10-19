@@ -25,13 +25,11 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"golang.org/x/crypto/ssh"
 
@@ -40,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -79,9 +78,11 @@ type Server struct {
 	sessionServer rsession.Service
 	limiter       *limiter.Limiter
 
-	labels      map[string]string                //static server labels
-	cmdLabels   map[string]services.CommandLabel //dymanic server labels
-	labelsMutex *sync.Mutex
+	// labels are static labels.
+	labels map[string]string
+
+	// dynamicLabels are the result of command execution.
+	dynamicLabels *labels.Dynamic
 
 	proxyMode bool
 	proxyTun  reversetunnel.Server
@@ -246,8 +247,10 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 // Start starts server
 func (s *Server) Start() error {
-	if len(s.getCommandLabels()) > 0 {
-		s.updateLabels()
+	// If the server has dynamic labels defined, start a loop that will
+	// asynchronously keep them updated.
+	if s.dynamicLabels != nil {
+		go s.dynamicLabels.Start()
 	}
 
 	// If the server requested connections to it arrive over a reverse tunnel,
@@ -270,9 +273,12 @@ func (s *Server) Start() error {
 
 // Serve servers service on started listener
 func (s *Server) Serve(l net.Listener) error {
-	if len(s.getCommandLabels()) > 0 {
-		s.updateLabels()
+	// If the server has dynamic labels defined, start a loop that will
+	// asynchronously keep them updated.
+	if s.dynamicLabels != nil {
+		go s.dynamicLabels.Start()
 	}
+
 	go s.heartbeat.Run()
 	return s.srv.Serve(l)
 }
@@ -329,16 +335,17 @@ func SetProxyMode(tsrv reversetunnel.Server) ServerOption {
 }
 
 // SetLabels sets dynamic and static labels that server will report to the
-// auth servers
-func SetLabels(labels map[string]string,
-	cmdLabels services.CommandLabels) ServerOption {
+// auth servers.
+func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels) ServerOption {
 	return func(s *Server) error {
+		var err error
+
 		// clone and validate labels and cmdLabels.  in theory,
 		// only cmdLabels should experience concurrent writes,
 		// but this operation is only run once on startup
 		// so a little defensive cloning is harmless.
-		labelsClone := make(map[string]string, len(labels))
-		for name, label := range labels {
+		labelsClone := make(map[string]string, len(staticLabels))
+		for name, label := range staticLabels {
 			if !services.IsValidLabelKey(name) {
 				return trace.BadParameter("invalid label key: %q", name)
 			}
@@ -346,18 +353,14 @@ func SetLabels(labels map[string]string,
 		}
 		s.labels = labelsClone
 
-		cmdLabels = cmdLabels.Clone()
-		for name, label := range cmdLabels {
-			if !services.IsValidLabelKey(name) {
-				return trace.BadParameter("invalid label key: %q", name)
-			}
-			if label.GetPeriod() < time.Second {
-				label.SetPeriod(time.Second)
-				cmdLabels[name] = label
-				log.Warningf("Label period can't be less than 1 second. Period for label '%v' was set to 1 second.", name)
-			}
+		// Create dynamic labels.
+		s.dynamicLabels, err = labels.NewDynamic(s.ctx, &labels.DynamicConfig{
+			Labels: cmdLabels,
+		})
+		if err != nil {
+			return trace.Wrap(err)
 		}
-		s.cmdLabels = cmdLabels
+
 		return nil
 	}
 }
@@ -478,7 +481,6 @@ func New(addr utils.NetAddr,
 		addr:            addr,
 		authService:     authService,
 		hostname:        hostname,
-		labelsMutex:     &sync.Mutex{},
 		proxyPublicAddr: proxyPublicAddr,
 		uuid:            uuid,
 		cancel:          cancel,
@@ -669,6 +671,15 @@ func (s *Server) getRole() teleport.Role {
 	return teleport.RoleNode
 }
 
+// getDynamicLabels returns all dynamic labels. If no dynamic labels are
+// defined, return an empty set.
+func (s *Server) getDynamicLabels() map[string]services.CommandLabelV2 {
+	if s.dynamicLabels == nil {
+		return make(map[string]services.CommandLabelV2)
+	}
+	return services.LabelsToV2(s.dynamicLabels.Get())
+}
+
 // GetInfo returns a services.Server that represents this server.
 func (s *Server) GetInfo() services.Server {
 	// Only set the address for non-tunnel nodes.
@@ -686,7 +697,7 @@ func (s *Server) GetInfo() services.Server {
 			Labels:    s.labels,
 		},
 		Spec: services.ServerSpecV2{
-			CmdLabels: services.LabelsToV2(s.getCommandLabels()),
+			CmdLabels: s.getDynamicLabels(),
 			Addr:      addr,
 			Hostname:  s.hostname,
 			UseTunnel: s.useTunnel,
@@ -712,56 +723,9 @@ func (s *Server) getServerInfo() (services.Server, error) {
 	return server, nil
 }
 
-func (s *Server) updateLabels() {
-	for name, label := range s.getCommandLabels() {
-		go s.periodicUpdateLabel(name, label.Clone())
-	}
-}
-
+// syncUpdateLabels synchronously updates dynamic labels. Only used in tests.
 func (s *Server) syncUpdateLabels() {
-	for name, label := range s.getCommandLabels() {
-		s.updateLabel(name, label)
-	}
-}
-
-func (s *Server) updateLabel(name string, label services.CommandLabel) {
-	out, err := exec.Command(label.GetCommand()[0], label.GetCommand()[1:]...).Output()
-	if err != nil {
-		log.Errorf(err.Error())
-		label.SetResult(err.Error() + " output: " + string(out))
-	} else {
-		label.SetResult(strings.TrimSpace(string(out)))
-	}
-	s.setCommandLabel(name, label)
-}
-
-func (s *Server) periodicUpdateLabel(name string, label services.CommandLabel) {
-	t := time.NewTicker(label.GetPeriod())
-	defer t.Stop()
-	for {
-		s.updateLabel(name, label.Clone())
-		select {
-		case <-t.C:
-		case <-s.ctx.Done():
-			return
-		}
-	}
-}
-
-func (s *Server) setCommandLabel(name string, value services.CommandLabel) {
-	s.labelsMutex.Lock()
-	defer s.labelsMutex.Unlock()
-	s.cmdLabels[name] = value
-}
-
-func (s *Server) getCommandLabels() map[string]services.CommandLabel {
-	s.labelsMutex.Lock()
-	defer s.labelsMutex.Unlock()
-	out := make(map[string]services.CommandLabel, len(s.cmdLabels))
-	for key, val := range s.cmdLabels {
-		out[key] = val.Clone()
-	}
-	return out
+	s.dynamicLabels.Sync()
 }
 
 // serveAgent will build the a sock path for this user and serve an SSH agent on unix socket.

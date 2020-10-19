@@ -257,6 +257,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 					},
 					Allow: RoleConditions{
 						NodeLabels: Labels{Wildcard: []string{Wildcard}},
+						AppLabels:  Labels{Wildcard: []string{Wildcard}},
 						Namespaces: []string{defaults.Namespace},
 					},
 					Deny: RoleConditions{
@@ -283,6 +284,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 					                    },
 					                    "allow": {
 					                      "node_labels": {"a": "b", "c-d": "e"},
+					                      "app_labels": {"a": "b", "c-d": "e"},
 					                      "namespaces": ["default"],
 					                      "rules": [
 					                        {
@@ -319,6 +321,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 					},
 					Allow: RoleConditions{
 						NodeLabels: Labels{"a": []string{"b"}, "c-d": []string{"e"}},
+						AppLabels:  Labels{"a": []string{"b"}, "c-d": []string{"e"}},
 						Namespaces: []string{"default"},
 						Rules: []Rule{
 							Rule{
@@ -357,6 +360,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 		                    },
 		                    "allow": {
 		                      "node_labels": {"a": "b"},
+		                      "app_labels": {"a": "b"},
 		                      "namespaces": ["default"],
 		                      "rules": [
 		                        {
@@ -393,6 +397,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 					},
 					Allow: RoleConditions{
 						NodeLabels: Labels{"a": []string{"b"}},
+						AppLabels:  Labels{"a": []string{"b"}},
 						Namespaces: []string{"default"},
 						Rules: []Rule{
 							Rule{
@@ -430,7 +435,8 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 		                      "enhanced_recording": ["command", "network"]
 		                    },
 		                    "allow": {
-		                      "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]}
+		                      "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
+		                      "app_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]}
 		                    },
 		                    "deny": {
 		                      "logins": ["c"]
@@ -456,6 +462,11 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 					},
 					Allow: RoleConditions{
 						NodeLabels: Labels{
+							"a":    []string{"b"},
+							"key":  []string{"val"},
+							"key2": []string{"val2", "val3"},
+						},
+						AppLabels: Labels{
 							"a":    []string{"b"},
 							"key":  []string{"val"},
 							"key2": []string{"val2", "val3"},
