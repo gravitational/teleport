@@ -289,13 +289,3 @@ func (b *benchmarkThread) run() {
 	}
 }
 
-func defaultConfig() *Linear {
-	defaultDuration := 30 * time.Second
-	return &Linear{
-		LowerBound:          10,
-		UpperBound:          50,
-		Step:                10,
-		MinimumMeasurements: 1000,
-		MinimumWindow:       defaultDuration,
-	}
-}

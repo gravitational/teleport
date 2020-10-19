@@ -129,7 +129,6 @@ type CLIConf struct {
 	BenchTicks int32
 	// BenchValueScale value at which to scale the values recorded
 	BenchValueScale float64
-
 	// Context is a context to control execution
 	Context context.Context
 	// Gops starts gops agent on a specified address
@@ -327,8 +326,6 @@ func Run(args []string) {
 	bench.Flag("path", "Directory to save the latency profile to, default path is the current directory").Default(".").StringVar(&cf.BenchExportPath)
 	bench.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
 	bench.Flag("scale", "Value scale in which to scale the recorded values").Default("1.0").Float64Var(&cf.BenchValueScale)
-	
-	
 
 	// show key
 	show := app.Command("show", "Read an identity from file and print to stdout").Hidden()
@@ -953,9 +950,7 @@ func onBenchmark(cf *CLIConf) {
 		Duration: cf.BenchDuration,
 		Rate:     cf.BenchRate,
 	}
-
 	result, err := cnf.Benchmark(cf.Context, tc)
-
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 		os.Exit(255)
@@ -967,7 +962,6 @@ func onBenchmark(cf *CLIConf) {
 	if result.LastError != nil {
 		fmt.Printf("* Last error: %v\n", result.LastError)
 	}
-
 	fmt.Printf("\nHistogram\n\n")
 	t := asciitable.MakeTable([]string{"Percentile", "Duration"})
 	for _, quantile := range []float64{25, 50, 75, 90, 95, 99, 100} {

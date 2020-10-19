@@ -11,11 +11,11 @@ import (
 
 // Linear generator
 type Linear struct {
-	LowerBound          int           `yaml:"lowerBound"`
-	UpperBound          int           `yaml:"upperBound"`
-	Step                int           `yaml:"step"`
-	MinimumMeasurements int           `yaml:"minimumMeasurements"`
-	MinimumWindow       time.Duration `yaml:"minimumWindow"`
+	LowerBound          int          
+	UpperBound          int          
+	Step                int          
+	MinimumMeasurements int           
+	MinimumWindow       time.Duration 
 	currentRPS          int
 	config              Config
 }
