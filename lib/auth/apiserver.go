@@ -376,7 +376,7 @@ func (s *APIServer) keepAliveNode(auth ClientI, w http.ResponseWriter, r *http.R
 	if err := httplib.ReadJSON(r, &handle); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.KeepAliveNode(r.Context(), handle); err != nil {
+	if err := auth.KeepAliveResource(r.Context(), handle); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil

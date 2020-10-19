@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/proxy"
 
@@ -71,13 +72,26 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, network string, addr
 // dialReq is a request for the address to connect to. Supports special
 // non-resolvable addresses and search names if connection over a tunnel.
 type dialReq struct {
-	// Address is the target host to make a connection to. Address may be a
-	// special non-resolvable address like @remote-auth-server.
+	// Address is the target host to make a connection to.
 	Address string `json:"address,omitempty"`
 
-	// ServerID is the hostUUID.clusterName of th enode. ServerID is used when
-	// dialing through a tunnel.
+	// ServerID is the hostUUID.clusterName of the node. ServerID is used when
+	// dialing through a tunnel to SSH and application nodes.
 	ServerID string `json:"server_id,omitempty"`
+
+	// ConnType is the type of connection requested, either node or application.
+	ConnType services.TunnelType `json:"conn_type"`
+}
+
+func (d *dialReq) CheckAndSetDefaults() error {
+	if d.ConnType == "" {
+		d.ConnType = services.NodeTunnel
+	}
+
+	if d.Address == "" && d.ServerID == "" {
+		return trace.BadParameter("serverID or address required")
+	}
+	return nil
 }
 
 // parseDialReq parses the dial request. Is backward compatible with legacy
@@ -161,11 +175,13 @@ type transport struct {
 
 	// sconn is a SSH connection to the remote host. Used for dial back nodes.
 	sconn ssh.Conn
-	// server is the underlying SSH server. Used for dial back nodes.
-	server ServerHandler
 
 	// reverseTunnelServer holds all reverse tunnel connections.
 	reverseTunnelServer Server
+
+	// server is either an SSH or application server. It can handle a connection
+	// (perform handshake and handle request).
+	server ConnHandler
 }
 
 // start will start the transporting data over the tunnel. This function will
@@ -197,7 +213,12 @@ func (p *transport) start() {
 
 	var servers []string
 
+	// Parse and extract the dial request from the client.
 	dreq := parseDialReq(req.Payload)
+	if err := dreq.CheckAndSetDefaults(); err != nil {
+		p.reply(req, false, []byte(err.Error()))
+		return
+	}
 	p.log.Debugf("Received out-of-band proxy transport request for %v [%v].", dreq.Address, dreq.ServerID)
 
 	// Handle special non-resolvable addresses first.
@@ -233,6 +254,9 @@ func (p *transport) start() {
 		servers = append(servers, p.kubeDialAddr.Addr)
 	// LocalNode requests are for the single server running in the agent pool.
 	case LocalNode:
+		// Transport is allocated with both teleport.ComponentReverseTunnelAgent
+		// and teleport.ComponentReverseTunneServer. However, dialing to this address
+		// only makes sense when running within a teleport.ComponentReverseTunnelAgent.
 		if p.component == teleport.ComponentReverseTunnelServer {
 			p.reply(req, false, []byte("connection rejected: no local node"))
 			return
@@ -261,7 +285,7 @@ func (p *transport) start() {
 	// Get a connection to the target address. If a tunnel exists with matching
 	// search names, connection over the tunnel is returned. Otherwise a direct
 	// net.Dial is performed.
-	conn, useTunnel, err := p.getConn(servers, dreq.ServerID)
+	conn, useTunnel, err := p.getConn(servers, dreq)
 	if err != nil {
 		errorMessage := fmt.Sprintf("connection rejected: %v", err)
 		fmt.Fprint(p.channel.Stderr(), errorMessage)
@@ -335,11 +359,11 @@ func (p *transport) handleChannelRequests(closeContext context.Context, useTunne
 // getConn checks if the local site holds a connection to the target host,
 // and if it does, attempts to dial through the tunnel. Otherwise directly
 // dials to host.
-func (p *transport) getConn(servers []string, serverID string) (net.Conn, bool, error) {
+func (p *transport) getConn(servers []string, r *dialReq) (net.Conn, bool, error) {
 	// This function doesn't attempt to dial if a host with one of the
 	// search names is not registered. It's a fast check.
-	p.log.Debugf("Attempting to dial through tunnel with server ID %v.", serverID)
-	conn, err := p.tunnelDial(serverID)
+	p.log.Debugf("Attempting to dial through tunnel with server ID %v.", r.ServerID)
+	conn, err := p.tunnelDial(r)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, false, trace.Wrap(err)
@@ -356,13 +380,13 @@ func (p *transport) getConn(servers []string, serverID string) (net.Conn, bool, 
 		return conn, false, nil
 	}
 
-	p.log.Debugf("Returning connection dialed through tunnel with server ID %v.", serverID)
+	p.log.Debugf("Returning connection dialed through tunnel with server ID %v.", r.ServerID)
 	return conn, true, nil
 }
 
 // tunnelDial looks up the search names in the local site for a matching tunnel
 // connection. If a connection exists, it's used to dial through the tunnel.
-func (p *transport) tunnelDial(serverID string) (net.Conn, error) {
+func (p *transport) tunnelDial(r *dialReq) (net.Conn, error) {
 	// Extract the local site from the tunnel server. If no tunnel server
 	// exists, then exit right away this code may be running outside of a
 	// remote site.
@@ -379,7 +403,8 @@ func (p *transport) tunnelDial(serverID string) (net.Conn, error) {
 	}
 
 	conn, err := localCluster.dialTunnel(DialParams{
-		ServerID: serverID,
+		ServerID: r.ServerID,
+		ConnType: r.ConnType,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -369,6 +369,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_KubeRequest{
 			KubeRequest: e,
 		}
+	case *AppSessionStart:
+		out.Event = &OneOf_AppSessionStart{
+			AppSessionStart: e,
+		}
+	case *AppSessionCreate:
+		out.Event = &OneOf_AppSessionCreate{
+			AppSessionCreate: e,
+		}
+	case *AppSessionRequest:
+		out.Event = &OneOf_AppSessionRequest{
+			AppSessionRequest: e,
+		}
 	default:
 		return nil, trace.BadParameter("event type %T is not supported", in)
 	}
@@ -448,6 +460,12 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 	} else if e := in.GetSAMLConnectorDelete(); e != nil {
 		return e, nil
 	} else if e := in.GetKubeRequest(); e != nil {
+		return e, nil
+	} else if e := in.GetAppSessionStart(); e != nil {
+		return e, nil
+	} else if e := in.GetAppSessionCreate(); e != nil {
+		return e, nil
+	} else if e := in.GetAppSessionRequest(); e != nil {
 		return e, nil
 	} else {
 		if in.Event == nil {

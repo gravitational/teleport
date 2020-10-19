@@ -937,6 +937,75 @@ message KubeRequest {
     int32 ResponseCode = 11 [ (gogoproto.jsontag) = "response_code" ];
 }
 
+// AppSessionStartEvent is emitted when a user is issued an application certificate.
+message AppSessionStart {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // User is a common user event metadata
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // SessionMetadata is a common event session metadata
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ServerMetadata is a common server metadata
+    ServerMetadata Server = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ConnectionMetadata holds information about the connection
+    ConnectionMetadata Connection = 5
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // PublicAddr is the public address of the application being requested.
+    string PublicAddr = 7 [ (gogoproto.jsontag) = "public_addr" ];
+}
+
+// AppSessionCreateEvent is emitted at the start of a 5 minute chunk on each
+// proxy. This chunk is used to buffer 5 minutes of audit events at a time
+// for applications.
+message AppSessionCreate {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // User is a common user event metadata
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // SessionMetadata is a common event session metadata
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ServerMetadata is a common server metadata
+    ServerMetadata Server = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // ConnectionMetadata holds information about the connection
+    ConnectionMetadata Connection = 5
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // SessionChunkID is the ID of the session that was created for this 5 minute
+    // application log chunk.
+    string SessionChunkID = 6 [ (gogoproto.jsontag) = "session_chunk_id" ];
+}
+
+// AppSessionRequestEvent is an HTTP request and response.
+message AppSessionRequest {
+    // Metadata is a common event metadata
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // StatusCode the HTTP response code for the request.
+    uint32 StatusCode = 2 [ (gogoproto.jsontag) = "status_code" ];
+    // Path is relative path in the URL.
+    string Path = 3 [ (gogoproto.jsontag) = "path" ];
+    // RawQuery are the encoded query values.
+    string RawQuery = 4 [ (gogoproto.jsontag) = "raw_query" ];
+}
+
 // OneOf is a union of one of audit events submitted to the auth service
 message OneOf {
     // Event is one of the audit events
@@ -977,6 +1046,9 @@ message OneOf {
         events.SAMLConnectorCreate SAMLConnectorCreate = 34;
         events.SAMLConnectorDelete SAMLConnectorDelete = 35;
         events.KubeRequest KubeRequest = 36;
+        events.AppSessionStart AppSessionStart = 37;
+        events.AppSessionCreate AppSessionCreate = 38;
+        events.AppSessionRequest AppSessionRequest = 39;
     }
 }
 

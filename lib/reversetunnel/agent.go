@@ -78,9 +78,9 @@ type AgentConfig struct {
 	EventsC chan string
 	// KubeDialAddr is a dial address for kubernetes proxy
 	KubeDialAddr utils.NetAddr
-	// Server is a SSH server that can handle a connection (perform a handshake
-	// then process). Only set with the agent is running within a node.
-	Server ServerHandler
+	// Server is either an SSH or application server. It can handle a connection
+	// (perform handshake and handle request).
+	Server ConnHandler
 	// ReverseTunnelServer holds all reverse tunnel connections.
 	ReverseTunnelServer Server
 	// LocalClusterName is the name of the cluster this agent is running in.
