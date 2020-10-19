@@ -111,6 +111,7 @@ func (c *Config) ProgressiveBenchmark(ctx context.Context, tc *client.TeleportCl
 			}
 			result.RequestsOriginated++
 		case <-workerCtx.Done():
+			result.Duration = time.Since(start)
 			return &result, nil
 		case <-statusTicker.C:
 			log.Printf("working... observations: %d", len(results))
@@ -203,7 +204,7 @@ func produceMeasures(ctx context.Context, rate int, c chan<- *benchMeasure) {
 		case <-ctx.Done():
 			return
 		}
-	}                               
+	}
 }
 
 type benchMeasure struct {
