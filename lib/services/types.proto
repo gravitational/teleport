@@ -10,18 +10,25 @@ option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_getters_all) = false;
 
 message KeepAlive {
-    // ServerName is a server name to keep alive
-    string ServerName = 1 [ (gogoproto.jsontag) = "server_name" ];
-    // Namespace is a server namespace
+    // Name of the resource to keep alive.
+    string Name = 1 [ (gogoproto.jsontag) = "server_name" ];
+    // Namespace is the namespace of the resource.
     string Namespace = 2 [ (gogoproto.jsontag) = "namespace" ];
-    // LeaseID is ID of the lease
+    // LeaseID is ID of the lease.
     int64 LeaseID = 3 [ (gogoproto.jsontag) = "lease_id" ];
-    // Expires is set to update expiry time
+    // Expires is set to update expiry time of the resource.
     google.protobuf.Timestamp Expires = 4 [
         (gogoproto.stdtime) = true,
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "expires"
     ];
+    // Type is the type of keep alive, either server or app.
+    enum KeepAliveType {
+        UNKNOWN = 0;
+        SERVER = 1;
+        APP = 2;
+    }
+    KeepAliveType Type = 9 [ (gogoproto.jsontag) = "type" ];
 }
 
 // Metadata is resource metadata
@@ -120,7 +127,7 @@ message ResourceHeader {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata,omitempty" ];
 }
 
-// ServerV2 represents a Node, Proxy or Auth server in a Teleport cluster
+// ServerV2 represents a Node, App, Proxy or Auth server in a Teleport cluster.
 message ServerV2 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
@@ -159,6 +166,35 @@ message ServerSpecV2 {
     bool UseTunnel = 6 [ (gogoproto.jsontag) = "use_tunnel,omitempty" ];
     // TeleportVersion is the teleport version that the server is running on
     string Version = 7 [ (gogoproto.jsontag) = "version" ];
+    // Apps is a list of applications this server is proxying.
+    repeated App Apps = 9 [ (gogoproto.jsontag) = "apps,omitempty" ];
+}
+
+// App is a specific application that a server proxies.
+message App {
+    // Name is the name of the application.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    // URI is the internal address the application is available at.
+    string URI = 2 [ (gogoproto.jsontag) = "uri" ];
+    // PublicAddr is the public address the application is accessible at.
+    string PublicAddr = 3 [ (gogoproto.jsontag) = "public_addr,omitempty" ];
+    // StaticLabels is map of static labels associated with an application.
+    // Used for RBAC.
+    map<string, string> StaticLabels = 4 [ (gogoproto.jsontag) = "labels,omitempty" ];
+    // DynamicLabels is map of dynamic labels associated with an application.
+    // Used for RBAC.
+    map<string, CommandLabelV2> DynamicLabels = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "commands,omitempty" ];
+    bool InsecureSkipVerify = 6 [ (gogoproto.jsontag) = "insecure_skip_verify" ];
+    // Rewrite defines request and response writing that will occur on every
+    // request and response pair.
+    Rewrite Rewrite = 7 [ (gogoproto.jsontag) = "rewrite,omitempty" ];
+}
+
+message Rewrite {
+    // Rewrite defines a list of hosts which will be rewritten to the public
+    // address of the application if they occur in the "Location" header.
+    repeated string Redirect = 1 [ (gogoproto.jsontag) = "redirect" ];
 }
 
 // CommandLabelV2 is a label that has a value as a result of the
@@ -178,6 +214,14 @@ message TLSKeyPair {
     bytes Cert = 1 [ (gogoproto.jsontag) = "cert,omitempty" ];
     // Key is a PEM encoded TLS key
     bytes Key = 2 [ (gogoproto.jsontag) = "key,omitempty" ];
+}
+
+// JWTKeyPair is a PEM encoded keypair used for signing JWT tokens.
+message JWTKeyPair {
+    // PublicKey is a PEM encoded public key.
+    bytes PublicKey = 1 [ (gogoproto.jsontag) = "public_key,omitempty" ];
+    // PrivateKey is a PEM encoded private key.
+    bytes PrivateKey = 2 [ (gogoproto.jsontag) = "private_key,omitempty" ];
 }
 
 // CertAuthorityV2 is version 2 resource spec for Cert Authority
@@ -210,7 +254,7 @@ message CertAuthoritySpecV2 {
     string ClusterName = 2 [ (gogoproto.jsontag) = "cluster_name" ];
     // Checkers is a list of SSH public keys that can be used to check
     // certificate signatures
-    repeated bytes CheckingKeys = 3 [ (gogoproto.jsontag) = "checking_keys" ];
+    repeated bytes CheckingKeys = 3 [ (gogoproto.jsontag) = "checking_keys,omitempty" ];
     // SigningKeys is a list of private keys used for signing
     repeated bytes SigningKeys = 4 [ (gogoproto.jsontag) = "signing_keys,omitempty" ];
     // Roles is a list of roles assumed by users signed by this CA
@@ -233,6 +277,9 @@ message CertAuthoritySpecV2 {
         RSA_SHA2_512 = 3;
     }
     SigningAlgType SigningAlg = 9 [ (gogoproto.jsontag) = "signing_alg,omitempty" ];
+    // JWTKeyPair is a list of JWT key pairs.
+    repeated JWTKeyPair JWTKeyPairs = 10
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "jwt_key_pairs,omitempty" ];
 }
 
 // RoleMappping provides mapping of remote roles to local roles
@@ -750,6 +797,13 @@ message RoleConditions {
 
     // KubeUsers is an optional kubernetes users to impersonate
     repeated string KubeUsers = 7 [ (gogoproto.jsontag) = "kubernetes_users,omitempty" ];
+
+    // AppLabels is a map of labels used as part of the RBAC system.
+    wrappers.LabelValues AppLabels = 8 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "app_labels,omitempty",
+        (gogoproto.customtype) = "Labels"
+    ];
 }
 
 // AccessRequestConditions is a matcher for allow/deny restrictions on
@@ -1076,4 +1130,50 @@ message SemaphoreSpecV3 {
     // Leases is a list of all currently acquired leases.
     repeated SemaphoreLeaseRef Leases = 1
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "leases" ];
+}
+
+// WebSessionV2 represents an application or UI web session.
+message WebSessionV2 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is a resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is a resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is a tunnel specification.
+    WebSessionSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// WebSessionSpecV2 is a specification for web session.
+message WebSessionSpecV2 {
+    // User is the identity of the user to which the web session belongs.
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
+    // Pub is the SSH certificate for the user.
+    bytes Pub = 2 [ (gogoproto.jsontag) = "pub" ];
+    // Priv is the SSH private key for the user.
+    bytes Priv = 3 [ (gogoproto.jsontag) = "priv,omitempty" ];
+    // TLSCert is the TLS certificate for the user.
+    bytes TLSCert = 4 [ (gogoproto.jsontag) = "tls_cert,omitempty" ];
+    // BearerToken is a token that is paired with the session cookie for
+    // authentication. It is periodically rotated so a stolen cookie itself
+    // is not enough to steal a session. In addition it is used for CSRF
+    // mitigation.
+    string BearerToken = 5 [ (gogoproto.jsontag) = "bearer_token" ];
+    // BearerTokenExpires is the absolute time when the token expires.
+    google.protobuf.Timestamp BearerTokenExpires = 6 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "bearer_token_expires"
+    ];
+    // Expires is the absolute time when the session expires.
+    google.protobuf.Timestamp Expires = 7 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "expires"
+    ];
 }

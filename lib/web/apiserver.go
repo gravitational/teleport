@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/gravitational/roundtrip"
@@ -112,15 +113,53 @@ type Config struct {
 	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
 	FIPS bool
+
+	// AccessPoint holds a cache to the Auth Server.
+	AccessPoint auth.AccessPoint
+
+	// Emitter is event emitter
+	Emitter events.StreamEmitter
+
+	// HostUUID is the UUID of this process.
+	HostUUID string
+
+	// Context is used to signal process exit.
+	Context context.Context
 }
 
 type RewritingHandler struct {
 	http.Handler
 	handler *Handler
+
+	// appHandler is a http.Handler to forward requests to applications.
+	appHandler *app.Handler
+
+	// publicAddr is the public address the proxy is running at.
+	publicAddr string
 }
 
-func (r *RewritingHandler) Close() error {
-	return r.handler.Close()
+// Check if this request should be forwarded to an application handler to
+// handled by the UI and handle the request appropriately.
+func (h *RewritingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// If the request is either to the fragment authentication endpoint or if the
+	// request is already authenticated (has a session cookie), forward to
+	// application handlers. If the request is unauthenticated and requesting a
+	// FQDN that is not of the proxy, redirect to application launcher.
+	if app.HasFragment(r) || app.HasSession(r) {
+		h.appHandler.ServeHTTP(w, r)
+		return
+	}
+	if redir, ok := app.HasName(r, h.publicAddr); ok {
+		http.Redirect(w, r, redir, http.StatusFound)
+		return
+	}
+
+	// Serve the Web UI.
+	h.Handler.ServeHTTP(w, r)
+}
+
+func (h *RewritingHandler) Close() error {
+	return h.handler.Close()
 }
 
 // NewHandler returns a new instance of web proxy handler
@@ -157,8 +196,17 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// OIDC connectors and auth preferences
 	h.GET("/webapi/find", httplib.MakeHandler(h.find))
 
-	// Web sessions
+	// Unauthenticated access to JWT public keys.
+	h.GET("/.well-known/jwks.json", httplib.MakeHandler(h.jwtPublicKeys))
+
+	// DELETE IN: 5.1.0
+	//
+	// Migrated this endpoint to /webapi/sessions/web below.
 	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.createSession))
+
+	// Web sessions
+	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.createWebSession))
+	h.POST("/webapi/sessions/app", h.WithAuth(h.createAppSession))
 	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
 	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
 
@@ -180,6 +228,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	// get nodes
 	h.GET("/webapi/sites/:site/namespaces/:namespace/nodes", h.WithClusterAuth(h.siteNodesGet))
+
+	// Get applications.
+	h.GET("/webapi/sites/:site/apps", h.WithClusterAuth(h.siteAppsGet))
 
 	// active sessions handlers
 	h.GET("/webapi/sites/:site/namespaces/:namespace/connect", h.WithClusterAuth(h.siteNodeConnect))       // connect to an active session (via websocket)
@@ -322,6 +373,19 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		plugin.AddHandlers(h)
 	}
 
+	// Create application specific handler. This handler handles sessions and
+	// forwarding for application access.
+	appHandler, err := app.NewHandler(cfg.Context, &app.HandlerConfig{
+		Clock:        h.clock,
+		AuthClient:   cfg.ProxyClient,
+		AccessPoint:  cfg.AccessPoint,
+		ProxyClient:  cfg.Proxy,
+		CipherSuites: cfg.CipherSuites,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &RewritingHandler{
 		Handler: httplib.RewritePaths(h,
 			httplib.Rewrite("/webapi/sites/([^/]+)/sessions/(.*)", "/webapi/sites/$1/namespaces/default/sessions/$2"),
@@ -329,7 +393,9 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 			httplib.Rewrite("/webapi/sites/([^/]+)/nodes", "/webapi/sites/$1/namespaces/default/nodes"),
 			httplib.Rewrite("/webapi/sites/([^/]+)/connect", "/webapi/sites/$1/namespaces/default/connect"),
 		),
-		handler: h,
+		handler:    h,
+		appHandler: appHandler,
+		publicAddr: cfg.ProxySettings.SSH.PublicAddr,
 	}, nil
 }
 
@@ -357,7 +423,6 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	// Extract services.RoleSet from certificate.
 	cert, _, err := c.GetCertificates()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -683,6 +748,30 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	return nil, nil
 }
 
+type jwtPublicKeysResponse struct {
+	JWTKeys []services.JWTKeyPair `json:"keys"`
+}
+
+func (h *Handler) jwtPublicKeys(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	clusterName, err := h.cfg.ProxyClient.GetDomainName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fetch the JWT public keys only.
+	ca, err := h.cfg.ProxyClient.GetCertAuthority(services.CertAuthID{
+		Type:       services.JWTSigner,
+		DomainName: clusterName,
+	}, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &jwtPublicKeysResponse{
+		JWTKeys: ca.GetJWTKeyPairs(),
+	}, nil
+}
+
 func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	log.Infof("oidcLoginWeb start")
 
@@ -726,14 +815,17 @@ func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprou
 func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	logger := log.WithFields(log.Fields{trace.Component: "github"})
 	logger.Debug("Web login start.")
-	clientRedirectURL := r.URL.Query().Get("redirect_url")
+
+	query := r.URL.Query()
+	clientRedirectURL := query.Get("redirect_url")
 	if clientRedirectURL == "" {
 		return nil, trace.BadParameter("missing redirect_url query parameter")
 	}
-	connectorID := r.URL.Query().Get("connector_id")
+	connectorID := query.Get("connector_id")
 	if connectorID == "" {
 		return nil, trace.BadParameter("missing connector_id query parameter")
 	}
+
 	csrfToken, err := csrf.ExtractTokenFromCookie(r)
 	if err != nil {
 		logger.Warnf("Unable to extract CSRF token from cookie: %v.", err)
@@ -1059,6 +1151,13 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	}, nil
 }
 
+// DELETE IN: 5.1.0
+//
+// Migrated this endpoint to /webapi/sessions/web below.
+func (h *Handler) createSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	return h.createWebSession(w, r, p)
+}
+
 // createSession creates a new web session based on user, pass and 2nd factor token
 //
 // POST /v1/webapi/sessions
@@ -1069,7 +1168,7 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 //
 // {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
 //
-func (h *Handler) createSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req *createSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)

@@ -265,17 +265,18 @@ func (s *InstanceSecrets) GetCAs() []services.CertAuthority {
 		services.CertAuthoritySpecV2_RSA_SHA2_512,
 	)
 	hostCA.SetTLSKeyPairs([]services.TLSKeyPair{{Cert: s.TLSCACert, Key: s.PrivKey}})
-	return []services.CertAuthority{
-		hostCA,
-		services.NewCertAuthority(
-			services.UserCA,
-			s.SiteName,
-			[][]byte{s.PrivKey},
-			[][]byte{s.PubKey},
-			[]string{services.RoleNameForCertAuthority(s.SiteName)},
-			services.CertAuthoritySpecV2_RSA_SHA2_512,
-		),
-	}
+
+	userCA := services.NewCertAuthority(
+		services.UserCA,
+		s.SiteName,
+		[][]byte{s.PrivKey},
+		[][]byte{s.PubKey},
+		[]string{services.RoleNameForCertAuthority(s.SiteName)},
+		services.CertAuthoritySpecV2_RSA_SHA2_512,
+	)
+	userCA.SetTLSKeyPairs([]services.TLSKeyPair{{Cert: s.TLSCACert, Key: s.PrivKey}})
+
+	return []services.CertAuthority{hostCA, userCA}
 }
 
 func (s *InstanceSecrets) AllowedLogins() []string {

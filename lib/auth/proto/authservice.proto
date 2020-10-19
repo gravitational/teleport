@@ -63,6 +63,7 @@ message Event {
         // AccessRequest is a resource for access requests
         services.AccessRequestV3 AccessRequest = 14
             [ (gogoproto.jsontag) = "access_request,omitempty" ];
+        services.WebSessionV2 AppSession = 15 [ (gogoproto.jsontag) = "app_session,omitempty" ];
     }
 }
 
@@ -257,6 +258,96 @@ message CompleteStream {}
 // FlushAndCloseStream flushes the stream data and closes the stream
 message FlushAndCloseStream {}
 
+// GetAppServersRequest are the parameters used to request application servers.
+message GetAppServersRequest {
+    // Namespace is the namespace for application.
+    string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
+    // SkipValidation is used to skip JSON schema validation.
+    bool SkipValidation = 2 [ (gogoproto.jsontag) = "skip_validation" ];
+}
+
+// GetAppServersResponse contains all requested application servers.
+message GetAppServersResponse {
+    // Apps is a slice of services.Server that represent applications.
+    repeated services.ServerV2 Servers = 1 [ (gogoproto.jsontag) = "servers" ];
+}
+
+// UpsertAppServerRequest are the parameters used to add an application.
+message UpsertAppServerRequest { services.ServerV2 Server = 1 [ (gogoproto.jsontag) = "server" ]; }
+
+// DeleteAppServerRequest are the parameters used to remove an application.
+message DeleteAppServerRequest {
+    // Namespace is the namespace for application.
+    string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
+    // Name is the name of the application to delete.
+    string Name = 2 [ (gogoproto.jsontag) = "name" ];
+}
+
+// DeleteAllAppServersRequest are the parameters used to remove all applications.
+message DeleteAllAppServersRequest {
+    // Namespace is the namespace for application.
+    string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
+}
+
+// GenerateAppTokenRequest are the parameters used to request an application
+// token.
+message GenerateAppTokenRequest {
+    // Username is the Teleport username.
+    string Username = 1 [ (gogoproto.jsontag) = "username" ];
+    // Roles is a list of Teleport roles assigned to the user.
+    repeated string Roles = 2 [ (gogoproto.jsontag) = "roles" ];
+    // URI is the URI of the application this token is targeting.
+    string URI = 3 [ (gogoproto.jsontag) = "uri" ];
+    // Expires is the time this token expires.
+    google.protobuf.Timestamp Expires = 4 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "expires"
+    ];
+}
+
+// GenerateAppTokenResponse
+message GenerateAppTokenResponse { string Token = 1 [ (gogoproto.jsontag) = "token" ]; }
+
+// GetAppSessionRequest are the parameters used to request an application web session.
+message GetAppSessionRequest {
+    // SessionID is the ID of the session being requested.
+    string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ];
+}
+
+// GetAppSessionResponse contains the requested application web session.
+message GetAppSessionResponse {
+    // Session is the application web session.
+    services.WebSessionV2 Session = 1 [ (gogoproto.jsontag) = "session" ];
+}
+
+// GetAppSessionsResponse contains all the requested application web sessions.
+message GetAppSessionsResponse {
+    // Sessions is a list of application web sessions.
+    repeated services.WebSessionV2 Sessions = 1 [ (gogoproto.jsontag) = "sessions" ];
+}
+
+// CreateAppSessionRequest contains the parameters to request a application web session.
+message CreateAppSessionRequest {
+    // Username is the name of the user requesting the session.
+    string Username = 1 [ (gogoproto.jsontag) = "username" ];
+    // ParentSession is the session ID of the parent session.
+    string ParentSession = 2 [ (gogoproto.jsontag) = "parent_session" ];
+    // PublicAddr is the public address the application.
+    string PublicAddr = 3 [ (gogoproto.jsontag) = "public_addr" ];
+    // ClusterName is cluster within which the application is running.
+    string ClusterName = 4 [ (gogoproto.jsontag) = "cluster_name" ];
+}
+
+// CreateAppSessionResponse contains the requested application web session.
+message CreateAppSessionResponse {
+    // Session is the application web session.
+    services.WebSessionV2 Session = 1 [ (gogoproto.jsontag) = "session" ];
+}
+
+// DeleteAppSessionRequest contains the parameters used to remove an application web session.
+message DeleteAppSessionRequest { string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ]; }
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -318,4 +409,28 @@ service AuthService {
     rpc EmitAuditEvent(events.OneOf) returns (google.protobuf.Empty);
     // CreateAuditStream creates or resumes audit events streams
     rpc CreateAuditStream(stream AuditStreamRequest) returns (stream events.StreamStatus);
+
+    // GetAppServers gets all application servers.
+    rpc GetAppServers(GetAppServersRequest) returns (GetAppServersResponse);
+    // UpsertAppServer adds an application server.
+    rpc UpsertAppServer(UpsertAppServerRequest) returns (services.KeepAlive);
+    // DeleteAppServer removes an application server.
+    rpc DeleteAppServer(DeleteAppServerRequest) returns (google.protobuf.Empty);
+    // DeleteAllAppServers removes all application servers.
+    rpc DeleteAllAppServers(DeleteAllAppServersRequest) returns (google.protobuf.Empty);
+
+    // GenerateAppToken will generate a JWT token for application access.
+    rpc GenerateAppToken(GenerateAppTokenRequest) returns (GenerateAppTokenResponse);
+
+    // GetAppSession gets an application web session.
+    rpc GetAppSession(GetAppSessionRequest) returns (GetAppSessionResponse);
+    // GetAppSessions gets all application web sessions.
+    rpc GetAppSessions(google.protobuf.Empty) returns (GetAppSessionsResponse);
+    // CreateAppSession creates an application web session. Application web
+    // sessions represent a browser session the client holds.
+    rpc CreateAppSession(CreateAppSessionRequest) returns (CreateAppSessionResponse);
+    // DeleteAppSession removes an application web sessions.
+    rpc DeleteAppSession(DeleteAppSessionRequest) returns (google.protobuf.Empty);
+    // DeleteAllAppSessions removes all application web sessions.
+    rpc DeleteAllAppSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
 }

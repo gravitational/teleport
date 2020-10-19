@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 )
 
@@ -52,6 +53,10 @@ type DialParams struct {
 	// ServerID the hostUUID.clusterName of a Teleport node. Used with nodes
 	// that are connected over a reverse tunnel.
 	ServerID string
+
+	// ConnType is the type of connection requested, either node or application.
+	// Only used when connecting through a tunnel.
+	ConnType services.TunnelType
 }
 
 func (params DialParams) String() string {

@@ -63,6 +63,7 @@ var DefaultImplicitRules = []Rule{
 	NewRule(KindClusterAuthPreference, RO()),
 	NewRule(KindClusterName, RO()),
 	NewRule(KindSSHSession, RO()),
+	NewRule(KindAppServer, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
@@ -107,6 +108,7 @@ func NewAdminRole() Role {
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
 				NodeLabels: Labels{Wildcard: []string{Wildcard}},
+				AppLabels:  Labels{Wildcard: []string{Wildcard}},
 				Rules:      CopyRulesSlice(AdminUserRules),
 			},
 		},
@@ -163,6 +165,7 @@ func RoleForUser(u User) Role {
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
 				NodeLabels: Labels{Wildcard: []string{Wildcard}},
+				AppLabels:  Labels{Wildcard: []string{Wildcard}},
 				Rules:      CopyRulesSlice(AdminUserRules),
 			},
 		},
@@ -185,6 +188,7 @@ func RoleForCertAuthority(ca CertAuthority) Role {
 			Allow: RoleConditions{
 				Namespaces: []string{defaults.Namespace},
 				NodeLabels: Labels{Wildcard: []string{Wildcard}},
+				AppLabels:  Labels{Wildcard: []string{Wildcard}},
 				Rules:      CopyRulesSlice(DefaultCertAuthorityRules),
 			},
 		},
@@ -263,6 +267,11 @@ type Role interface {
 	GetNodeLabels(RoleConditionType) Labels
 	// SetNodeLabels sets the map of node labels this role is allowed or denied access to.
 	SetNodeLabels(RoleConditionType, Labels)
+
+	// GetAppLabels gets the map of app labels this role is allowed or denied access to.
+	GetAppLabels(RoleConditionType) Labels
+	// SetAppLabels sets the map of app labels this role is allowed or denied access to.
+	SetAppLabels(RoleConditionType, Labels)
 
 	// GetRules gets all allow or deny rules.
 	GetRules(rct RoleConditionType) []Rule
@@ -456,6 +465,9 @@ func (r *RoleV3) Equals(other Role) bool {
 		if !r.GetNodeLabels(condition).Equals(other.GetNodeLabels(condition)) {
 			return false
 		}
+		if !r.GetAppLabels(condition).Equals(other.GetAppLabels(condition)) {
+			return false
+		}
 		if !RuleSlicesEqual(r.GetRules(condition), other.GetRules(condition)) {
 			return false
 		}
@@ -624,6 +636,23 @@ func (r *RoleV3) SetNodeLabels(rct RoleConditionType, labels Labels) {
 	}
 }
 
+// GetAppLabels gets the map of app labels this role is allowed or denied access to.
+func (r *RoleV3) GetAppLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return r.Spec.Allow.AppLabels
+	}
+	return r.Spec.Deny.AppLabels
+}
+
+// SetAppLabels sets the map of node labels this role is allowed or denied access to.
+func (r *RoleV3) SetAppLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.AppLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.AppLabels = labels.Clone()
+	}
+}
+
 // GetRules gets all allow or deny rules.
 func (r *RoleV3) GetRules(rct RoleConditionType) []Rule {
 	if rct == Allow {
@@ -669,6 +698,9 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 	if r.Spec.Allow.NodeLabels == nil {
 		r.Spec.Allow.NodeLabels = Labels{Wildcard: []string{Wildcard}}
 	}
+	if r.Spec.Allow.AppLabels == nil {
+		r.Spec.Allow.AppLabels = Labels{Wildcard: []string{Wildcard}}
+	}
 	if r.Spec.Deny.Namespaces == nil {
 		r.Spec.Deny.Namespaces = []string{defaults.Namespace}
 	}
@@ -707,6 +739,11 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		}
 	}
 	for key, val := range r.Spec.Allow.NodeLabels {
+		if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {
+			return trace.BadParameter("selector *:<val> is not supported")
+		}
+	}
+	for key, val := range r.Spec.Allow.AppLabels {
 		if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {
 			return trace.BadParameter("selector *:<val> is not supported")
 		}
@@ -753,6 +790,9 @@ func (r *RoleConditions) Equals(o RoleConditions) bool {
 		return false
 	}
 	if !r.NodeLabels.Equals(o.NodeLabels) {
+		return false
+	}
+	if !r.AppLabels.Equals(o.AppLabels) {
 		return false
 	}
 	if len(r.Rules) != len(o.Rules) {
@@ -1363,6 +1403,9 @@ type AccessChecker interface {
 	// EnhancedRecordingSet returns a set of events that will be recorded
 	// for enhanced session recording.
 	EnhancedRecordingSet() map[string]bool
+
+	// CheckAccessToApp checks access to an application.
+	CheckAccessToApp(string, *App) error
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -1813,6 +1856,56 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 		}).Debugf("Access to node %v denied, no allow rule matched; %v", s.GetHostname(), errs)
 	}
 	return trace.AccessDenied("access to server denied")
+}
+
+// CheckAccessToApp checks if a role has access to an application. Deny rules
+// are checked first then allow rules. Access to an application is determined by
+// namespaces and labels.
+func (set RoleSet) CheckAccessToApp(namespace string, app *App) error {
+	var errs []error
+
+	// Check deny rules: a matching namespace and label in the deny section
+	// prohibits access.
+	for _, role := range set {
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), namespace)
+		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Deny), CombineLabels(app.StaticLabels, app.DynamicLabels))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matchNamespace && matchLabels {
+			if log.GetLevel() == log.DebugLevel {
+				log.WithFields(log.Fields{
+					trace.Component: teleport.ComponentRBAC,
+				}).Debugf("Access to app %v denied, deny rule in %v matched; match(namespace=%v, label=%v)",
+					app.Name, role.GetName(), namespaceMessage, labelsMessage)
+			}
+			return trace.AccessDenied("access to app denied")
+		}
+	}
+
+	// Check allow rules: namespace and label both have to match in to be granted access.
+	for _, role := range set {
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), namespace)
+		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Allow), CombineLabels(app.StaticLabels, app.DynamicLabels))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matchNamespace && matchLabels {
+			return nil
+		}
+		if log.GetLevel() == log.DebugLevel {
+			deniedError := trace.AccessDenied("role=%v, match(namespace=%v, label=%v)",
+				role.GetName(), namespaceMessage, labelsMessage)
+			errs = append(errs, deniedError)
+		}
+	}
+
+	if log.GetLevel() == log.DebugLevel {
+		log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentRBAC,
+		}).Debugf("Access to app %v denied, no allow rule matched; %v", app.Name, errs)
+	}
+	return trace.AccessDenied("access to app denied")
 }
 
 // CanForwardAgents returns true if role set allows forwarding agents.

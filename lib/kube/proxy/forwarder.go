@@ -256,15 +256,17 @@ type cluster struct {
 
 func (c *cluster) Dial(_, _ string) (net.Conn, error) {
 	return c.RemoteSite.DialTCP(reversetunnel.DialParams{
-		From: &c.remoteAddr,
-		To:   &utils.NetAddr{AddrNetwork: "tcp", Addr: c.targetAddr},
+		From:     &c.remoteAddr,
+		To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: c.targetAddr},
+		ConnType: services.NodeTunnel,
 	})
 }
 
 func (c *cluster) DialWithContext(ctx context.Context, _, _ string) (net.Conn, error) {
 	return c.RemoteSite.DialTCP(reversetunnel.DialParams{
-		From: &c.remoteAddr,
-		To:   &utils.NetAddr{AddrNetwork: "tcp", Addr: c.targetAddr},
+		From:     &c.remoteAddr,
+		To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: c.targetAddr},
+		ConnType: services.NodeTunnel,
 	})
 }
 
