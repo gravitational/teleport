@@ -30,7 +30,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net/url"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -616,32 +615,9 @@ func CheckKubeCluster(kc string, p services.Presence) error {
 // backwards-compatibility with pre-5.0 behavior) or the first name
 // alphabetically. If no clusters are registered, a NotFound error is returned.
 func defaultKubeCluster(pg services.ProxyGetter, teleportClusterName string) (string, error) {
-	proxies, err := pg.GetProxies()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	clusterNames := make(map[string]struct{})
-	for _, p := range proxies {
-		pp, ok := p.(*services.ServerV2)
-		if !ok {
-			continue
-		}
-		for _, pkc := range pp.Spec.KubernetesClusters {
-			if pkc == teleportClusterName {
-				return pkc, nil
-			}
-			clusterNames[pkc] = struct{}{}
-		}
-	}
-	if len(clusterNames) == 0 {
-		return "", trace.NotFound("no kubernetes clusters registered in this Teleport cluster")
-	}
-	var namesUniq []string
-	for n := range clusterNames {
-		namesUniq = append(namesUniq, n)
-	}
-	sort.Strings(namesUniq)
-	return namesUniq[0], nil
+	// TODO(awly): implement this after `kubernetes_service` registration is
+	// ready.
+	return "", trace.NotFound("no kubernetes clusters registered in this Teleport cluster")
 }
 
 // WithUserLock executes function authenticateFn that performs user authentication
