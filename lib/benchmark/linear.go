@@ -45,12 +45,14 @@ func (l *Linear) GetBenchmark() (context.Context, Config, error) {
 		MinimumWindow:       l.MinimumWindow,
 		MinimumMeasurements: l.MinimumMeasurements,
 		Rate:                l.currentRPS,
+		Threads:             10,
 		Duration:            0,
+		Command:             l.config.Command,
 	}, nil
 }
 
 // Benchmark runs the benchmark of reciever type
-// return an array of Results that contain information about the generations 
+// return an array of Results that contain information about the generations
 func (l *Linear) Benchmark(command []string, tc *client.TeleportClient) ([]*Result, error) {
 	var result *Result
 	var results []*Result
@@ -60,11 +62,9 @@ func (l *Linear) Benchmark(command []string, tc *client.TeleportClient) ([]*Resu
 		if err != nil {
 			break
 		}
-		benchmarkC.Threads = 1
-		benchmarkC.Command = command
 		result, err = benchmarkC.ProgressiveBenchmark(c, tc)
 		if err != nil {
-			return results, err 
+			return results, err
 		}
 		results = append(results, result)
 		fmt.Printf("current generation requests: %v, duration: %v", result.RequestsOriginated, result.Duration)

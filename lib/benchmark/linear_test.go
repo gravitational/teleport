@@ -17,7 +17,7 @@ func TestGenerate(t *testing.T) {
 		Command:            []string{"ls"},
 		Interactive:        false,
 		MinimumWindow:      d,
-		MinimumMeasurements: 0,
+		MinimumMeasurements: 1000,
 	}
 
 	linearConfig := Linear{
@@ -33,14 +33,16 @@ func TestGenerate(t *testing.T) {
 	if res != true {
 		t.Errorf("failed to generate first generation")
 	}
-
 	_, bm, err := linearConfig.GetBenchmark()
 	if err != nil {
 		t.Errorf("failed to get current benchmark")
 	}
 	expected := initial
 	expected.Rate = 10
+	
 	assert.Empty(t, cmp.Diff(expected, bm))
+
+
 	// Second generation
 	res = linearConfig.Generate()
 	if res != true {
@@ -116,7 +118,7 @@ func TestGenerateNotEvenMultiple(t *testing.T) {
 		Command:            []string{"ls"},
 		Interactive:        false,
 		MinimumWindow:      d,
-		MinimumMeasurements: 0,
+		MinimumMeasurements: 1000,
 	}
 
 	linearConfig := Linear{
@@ -128,7 +130,9 @@ func TestGenerateNotEvenMultiple(t *testing.T) {
 		config:            initial,
 	}
 	expected := initial
+
 	res := linearConfig.Generate()
+	
 	if res != true {
 		t.Errorf("failed to generate first generation")
 	}
@@ -175,7 +179,7 @@ func TestGetBenchmark(t *testing.T) {
 		Command:            []string{"ls"},
 		Interactive:        false,
 		MinimumWindow:      d,
-		MinimumMeasurements: 0,
+		MinimumMeasurements: 1000,
 	}
 	linearConfig := Linear{
 		LowerBound:        10,
@@ -188,6 +192,7 @@ func TestGetBenchmark(t *testing.T) {
 
 	// GetBenchmark with current generation
 	res := linearConfig.Generate()
+	initial.MinimumMeasurements = linearConfig.MinimumMeasurements
 	assert.Equal(t, res, true)
 	_, conf, err := linearConfig.GetBenchmark()
 	if err != nil {

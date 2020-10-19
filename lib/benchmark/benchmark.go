@@ -32,6 +32,7 @@ func Run(cnf interface{}, cmd, host, login, proxy string) ([]*Result, error) {
 	// Using type introspection here even though it's not relevant now,
 	// but it will be needed when I add more generators to the benchmark package
 	if l, ok := cnf.(*Linear); ok {
+		l.config.Command = command
 		results, err = l.Benchmark(command, tc)
 		if err != nil {
 			return results, err
