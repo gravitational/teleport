@@ -18,6 +18,7 @@ package reversetunnel
 
 import (
 	"context"
+	"io"
 	"net"
 	"sync"
 	"time"
@@ -313,3 +314,48 @@ func (m *AgentPool) removeDisconnected() {
 		}
 	}
 }
+
+// Make sure ServerHandlerToListener implements both interfaces.
+var _ = net.Listener(ServerHandlerToListener{})
+var _ = ServerHandler(ServerHandlerToListener{})
+
+// ServerHandlerToListener is an adapter from ServerHandler to net.Listener. It
+// can be used as a Server field in AgentPoolConfig, while also being passed to
+// http.Server.Serve (or any other func Serve(net.Listener)).
+type ServerHandlerToListener struct {
+	connCh    chan net.Conn
+	closeOnce *sync.Once
+}
+
+// NewServerHandlerToListener creates a new ServerHandlerToListener adapter.
+func NewServerHandlerToListener() ServerHandlerToListener {
+	return ServerHandlerToListener{connCh: make(chan net.Conn), closeOnce: new(sync.Once)}
+}
+
+func (l ServerHandlerToListener) HandleConnection(c net.Conn) {
+	l.connCh <- c
+}
+
+func (l ServerHandlerToListener) Accept() (net.Conn, error) {
+	c, ok := <-l.connCh
+	if !ok {
+		return nil, io.EOF
+	}
+	return c, nil
+}
+
+func (l ServerHandlerToListener) Close() error {
+	l.closeOnce.Do(func() { close(l.connCh) })
+	return nil
+}
+
+func (l ServerHandlerToListener) Addr() net.Addr {
+	return reverseTunnelAddr{}
+}
+
+// reverseTunnelAddr is a net.Addr implementation for a listener based on a
+// reverse tunnel.
+type reverseTunnelAddr struct{}
+
+func (reverseTunnelAddr) Network() string { return "ssh" }
+func (reverseTunnelAddr) String() string  { return "ssh://kube.reversetunnel.teleport.cluster.local" }

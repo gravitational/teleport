@@ -416,6 +416,23 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 					Rules:      []services.Rule{},
 				},
 			})
+	case teleport.RoleKube:
+		return services.FromSpec(
+			role.String(),
+			services.RoleSpecV3{
+				Allow: services.RoleConditions{
+					Namespaces: []string{services.Wildcard},
+					Rules: []services.Rule{
+						services.NewRule(services.KindKubeService, services.RW()),
+						services.NewRule(services.KindEvent, services.RW()),
+						services.NewRule(services.KindCertAuthority, services.ReadNoSecrets()),
+						services.NewRule(services.KindClusterConfig, services.RO()),
+						services.NewRule(services.KindUser, services.RO()),
+						services.NewRule(services.KindRole, services.RO()),
+						services.NewRule(services.KindNamespace, services.RO()),
+					},
+				},
+			})
 	}
 
 	return nil, trace.NotFound("%v is not reconginzed", role.String())

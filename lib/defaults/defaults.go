@@ -362,6 +362,9 @@ var (
 	// NodeQueueSize is node service queue size
 	NodeQueueSize = 128
 
+	// KubernetesQueueSize is kubernetes service watch queue size
+	KubernetesQueueSize = 128
+
 	// CASignatureAlgorithm is the default signing algorithm to use when
 	// creating new SSH CAs.
 	CASignatureAlgorithm = ssh.SigAlgoRSASHA2512

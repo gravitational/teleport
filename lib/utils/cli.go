@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -174,7 +175,11 @@ func Consolef(w io.Writer, component string, msg string, params ...interface{}) 
 	entry.Info(msg)
 	if w != nil {
 		component := strings.ToUpper(component)
-		fmt.Fprintf(w, "[%v]%v%v\n", strings.ToUpper(component), strings.Repeat(" ", 8-len(component)), msg)
+		// 13 is the length of "[KUBERNETES]", which is the longest component
+		// name prefix we have *today*. Use a Max function here to avoid
+		// negative spacing, in case we add longer component names.
+		spacing := int(math.Max(float64(12-len(component)), 0))
+		fmt.Fprintf(w, "[%v]%v %v\n", strings.ToUpper(component), strings.Repeat(" ", spacing), msg)
 	}
 }
 

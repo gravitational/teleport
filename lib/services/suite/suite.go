@@ -303,6 +303,7 @@ func NewServer(kind, name, addr, namespace string) *services.ServerV2 {
 }
 
 func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
+	// SSH service.
 	out, err := s.PresenceS.GetNodes(defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
@@ -324,6 +325,7 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 0)
 
+	// Proxy service.
 	out, err = s.PresenceS.GetProxies()
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
@@ -344,6 +346,7 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 0)
 
+	// Auth service.
 	out, err = s.PresenceS.GetAuthServers()
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
@@ -356,6 +359,20 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	c.Assert(out, check.HasLen, 1)
 	auth.SetResourceID(out[0].GetResourceID())
 	c.Assert(out, check.DeepEquals, []services.Server{auth})
+
+	// Kubernetes service.
+	out, err = s.PresenceS.GetKubeServices()
+	c.Assert(err, check.IsNil)
+	c.Assert(len(out), check.Equals, 0)
+
+	kube := NewServer(services.KindKubeService, "kube1", "127.0.0.1:3026", defaults.Namespace)
+	c.Assert(s.PresenceS.UpsertKubeService(kube), check.IsNil)
+
+	out, err = s.PresenceS.GetKubeServices()
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+	kube.SetResourceID(out[0].GetResourceID())
+	c.Assert(out, check.DeepEquals, []services.Server{kube})
 }
 
 func newReverseTunnel(clusterName string, dialAddrs []string) *services.ReverseTunnelV2 {

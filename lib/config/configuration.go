@@ -160,16 +160,16 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		return nil
 	}
 	// merge file-based config with defaults in 'cfg'
-	if fc.Auth.Disabled() {
+	if fc.Auth.Disabled(true) {
 		cfg.Auth.Enabled = false
 	}
-	if fc.SSH.Disabled() {
+	if fc.SSH.Disabled(true) {
 		cfg.SSH.Enabled = false
 	}
-	if fc.Proxy.Disabled() {
+	if fc.Proxy.Disabled(true) {
 		cfg.Proxy.Enabled = false
 	}
-	if fc.Kube.Enabled() {
+	if fc.Kube.Enabled(false) {
 		cfg.Kube.Enabled = true
 	}
 	applyString(fc.NodeName, &cfg.Hostname)
@@ -323,25 +323,25 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 
 	// Apply configuration for "auth_service", "proxy_service", and
 	// "ssh_service" if it's enabled.
-	if fc.Auth.Enabled() {
+	if fc.Auth.Enabled(true) {
 		err = applyAuthConfig(fc, cfg)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	if fc.Proxy.Enabled() {
+	if fc.Proxy.Enabled(true) {
 		err = applyProxyConfig(fc, cfg)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	if fc.SSH.Enabled() {
+	if fc.SSH.Enabled(true) {
 		err = applySSHConfig(fc, cfg)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	if fc.Kube.Enabled() {
+	if fc.Kube.Enabled(false) {
 		if err := applyKubeConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}
@@ -670,8 +670,8 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) error {
 
 // applyKubeConfig applies file configuration for the "kubernetes_service" section.
 func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
-	if fc.Proxy.ListenAddress != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, int(defaults.SSHProxyListenPort))
+	if fc.Kube.ListenAddress != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Kube.ListenAddress, int(defaults.SSHProxyListenPort))
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -104,8 +104,8 @@ const (
 	// ComponentLabel is a component label name used in reporting
 	ComponentLabel = "component"
 
-	// ComponentKube is a kubernetes proxy
-	ComponentKube = "proxy:kube"
+	// ComponentProxyKube is a kubernetes proxy
+	ComponentProxyKube = "proxy:kube"
 
 	// ComponentAuth is the cluster CA node (auth server API)
 	ComponentAuth = "auth"
@@ -218,6 +218,9 @@ const (
 
 	// ComponentCgroup is the cgroup package.
 	ComponentCgroup = "cgroups"
+
+	// ComponentKube is an Kubernetes API gateway.
+	ComponentKube = "kubernetes"
 
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
