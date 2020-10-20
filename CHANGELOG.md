@@ -41,7 +41,7 @@ auth_service:
 
 Teleport 4.4 includes a complete refactoring of our event system.  This resolved a few customer bug reports such as [#3800 Events overwritten in DynamoDB](https://github.com/gravitational/teleport/issues/3800)(Events overwritten in DynamoDB) and [#3182 Teleport consuming all disk space with multipart uploads](https://github.com/gravitational/teleport/issues/3182).
 
-Along with foundational improvements 4.4 includes two new experimental `session_recording` options, `node_sync` and `proxy_sync`.
+Along with foundational improvements 4.4 includes two new experimental `session_recording` options, `node-sync` and `proxy-sync`.
 
 ```yaml
 # This section configures the 'auth service':
