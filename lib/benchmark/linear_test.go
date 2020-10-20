@@ -26,6 +26,7 @@ func TestGenerate(t *testing.T) {
 		Step:                10,
 		MinimumMeasurements: 1000,
 		MinimumWindow:       d,
+		Threads:             10,
 		config:              initial,
 	}
 	// First generation
@@ -126,7 +127,8 @@ func TestGenerateNotEvenMultiple(t *testing.T) {
 		Step:                7,
 		MinimumMeasurements: 1000,
 		MinimumWindow:       d,
-		config:              initial,
+		Threads: 10,
+		config:  initial,
 	}
 	expected := initial
 
