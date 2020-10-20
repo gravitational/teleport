@@ -25,8 +25,16 @@ import (
 
 	"github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/trace"
 	logrus "github.com/sirupsen/logrus"
+)
+
+const (
+	// MinValue is the min millisecond recorded for histogram
+	MinValue = 1
+	// MaxValue is the max millisecond recorded for histogram 
+	MaxValue = 60000
+	// SignificantFigures is the precision of the values 
+	SignificantFigures = 3
 )
 
 // Config specifies benchmark requests to run
@@ -35,8 +43,6 @@ type Config struct {
 	Threads int
 	// Rate is requests per second origination rate
 	Rate int
-	// Duration is the test duration, used to run original benchmark
-	Duration time.Duration
 	// Command is a command to run
 	Command []string
 	// Interactive turns on interactive sessions
@@ -61,14 +67,16 @@ type Result struct {
 	Duration time.Duration
 }
 
-// ProgressiveBenchmark runs progressive load benchmarking
-func (c *Config) ProgressiveBenchmark(ctx context.Context, tc *client.TeleportClient) (*Result, error) {
+// Benchmark connects to remote server and executes requests in parallel according
+// to benchmark spec. It returns benchmark result when completed.
+// This is a blocking function that can be cancelled via context argument. 
+func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (*Result, error) {
 	tc.Stdout = ioutil.Discard
 	tc.Stderr = ioutil.Discard
 	tc.Stdin = &bytes.Buffer{}
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
 	defer cancelWorkers()
-
+	
 	resultC := make(chan *benchMeasure)
 	responseC := make(chan *benchMeasure, c.Threads)
 
@@ -88,7 +96,8 @@ func (c *Config) ProgressiveBenchmark(ctx context.Context, tc *client.TeleportCl
 	go produceMeasures(ctx, c.Rate, resultC)
 
 	var result Result
-	result.Histogram = hdrhistogram.New(1, 60000, 3)
+	// from one millisecond to 60000 milliseconds (minute) with 3 digits precision, refer to constants
+	result.Histogram = hdrhistogram.New(MinValue, MaxValue, SignificantFigures)
 	results := make([]*benchMeasure, 0, c.MinimumMeasurements)
 	statusTicker := time.NewTicker(1 * time.Second)
 	timeElapsed := false
@@ -119,74 +128,7 @@ func (c *Config) ProgressiveBenchmark(ctx context.Context, tc *client.TeleportCl
 	}
 }
 
-// Benchmark connects to remote server and executes requests in parallel according
-// to benchmark spec. It returns benchmark result when completed.
-// This is a blocking function that can be cancelled via context argument.
-func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (*Result, error) {
-	tc.Stdout = ioutil.Discard
-	tc.Stderr = ioutil.Discard
-	tc.Stdin = &bytes.Buffer{}
 
-	ctx, cancel := context.WithTimeout(ctx, c.Duration)
-	defer cancel()
-
-	requestC := make(chan *benchMeasure)
-	responseC := make(chan *benchMeasure, c.Threads)
-
-	// create goroutines for concurrency
-	for i := 0; i < c.Threads; i++ {
-		thread := &benchmarkThread{
-			id:          i,
-			ctx:         ctx,
-			client:      tc,
-			command:     c.Command,
-			interactive: c.Interactive,
-			receiveC:    requestC,
-			sendC:       responseC,
-		}
-		go thread.run()
-	}
-
-	// producer goroutine
-	go produceMeasures(ctx, c.Rate, requestC)
-
-	var result Result
-	// from one millisecond to 60000 milliseconds (minute) with 3 digits precision
-	result.Histogram = hdrhistogram.New(1, 60000, 3)
-
-	var doneThreads int
-	var timeoutC <-chan time.Time
-	doneC := ctx.Done()
-	for {
-		select {
-		case <-timeoutC:
-			result.LastError = trace.BadParameter("several requests hang: timeout waiting for %v threads to finish", c.Threads-doneThreads)
-			return &result, nil
-		case <-doneC:
-			// give it a couple of seconds to wrap up the goroutines,
-			// set up the timer that will fire up if the all goroutines were not finished
-			doneC = nil
-			waitTime := time.Duration(result.Histogram.Max()) * time.Millisecond
-			// going to wait latency + buffer to give requests in flight to wrap up
-			waitTime = time.Duration(1.2 * float64(waitTime))
-			timeoutC = time.After(waitTime)
-		case measure := <-responseC:
-			if measure.ThreadCompleted {
-				doneThreads++
-				if doneThreads == c.Threads {
-					return &result, nil
-				}
-			} else {
-				if measure.Error != nil {
-					result.RequestsFailed++
-					result.LastError = measure.Error
-				}
-				result.RequestsOriginated++
-				result.Histogram.RecordValue(int64(measure.End.Sub(measure.Start) / time.Millisecond))
-			}
-		}
-	}
-}
 
 func produceMeasures(ctx context.Context, rate int, c chan<- *benchMeasure) {
 	interval := time.Duration(float64(1) / float64(rate) * float64(time.Second))
@@ -199,7 +141,11 @@ func produceMeasures(ctx context.Context, rate int, c chan<- *benchMeasure) {
 			measure := &benchMeasure{
 				Start: time.Now(),
 			}
-			c <- measure
+			select {
+			case c <- measure:
+			case <-ctx.Done():
+				return
+			}
 		case <-ctx.Done():
 			return
 		}

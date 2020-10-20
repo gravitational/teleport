@@ -16,56 +16,60 @@ type Linear struct {
 	Step                int
 	MinimumMeasurements int
 	MinimumWindow       time.Duration
+	Threads             int
 	currentRPS          int
 	config              Config
 }
 
 // Generate advances the Generator to the next generation.
 // It returns false when the generator no longer has configurations to run.
-func (l *Linear) Generate() bool {
-	if l.currentRPS < l.LowerBound {
-		l.currentRPS = l.LowerBound
+func (lg *Linear) Generate() bool {
+	if lg.currentRPS < lg.LowerBound {
+		lg.currentRPS = lg.LowerBound
 		return true
 	}
-	l.currentRPS += l.Step
-	return l.currentRPS <= l.UpperBound
+	lg.currentRPS += lg.Step
+	return lg.currentRPS <= lg.UpperBound
 }
 
 // GetBenchmark returns the benchmark config for the current generation.
 // If called after Generate() returns false, this will result in an error.
-func (l *Linear) GetBenchmark() (context.Context, Config, error) {
-	if l.currentRPS > l.UpperBound {
+func (lg *Linear) GetBenchmark() (context.Context, Config, error) {
+	if lg.currentRPS > lg.UpperBound {
 		return nil, Config{}, errors.New("No more generations")
 	}
 
 	return context.TODO(), Config{
-		MinimumWindow:       l.MinimumWindow,
-		MinimumMeasurements: l.MinimumMeasurements,
-		Rate:                l.currentRPS,
-		Threads:             10,
-		Duration:            0,
-		Command:             l.config.Command,
+		MinimumWindow:       lg.MinimumWindow,
+		MinimumMeasurements: lg.MinimumMeasurements,
+		Rate:                lg.currentRPS,
+		Threads:             lg.Threads,
+		Command:             lg.config.Command,
 	}, nil
 }
 
 // Benchmark runs the benchmark of receiver type
 // return an array of Results that contain information about the generations
-func (l *Linear) Benchmark(command []string, tc *client.TeleportClient) ([]*Result, error) {
+func (lg *Linear) Benchmark(command []string, tc *client.TeleportClient) ([]*Result, error) {
 	var result *Result
 	var results []*Result
-
-	for l.Generate() {
-		c, benchmarkC, err := l.GetBenchmark()
+	sleep := false
+	for lg.Generate() {
+		if sleep {
+			// artificial pause between generations to allow remote state to pause
+			time.Sleep(PauseTimeBetweenBenchmarks)
+		}
+		c, benchmarkC, err := lg.GetBenchmark()
 		if err != nil {
 			break
 		}
-		result, err = benchmarkC.ProgressiveBenchmark(c, tc)
+		result, err = benchmarkC.Benchmark(c, tc)
 		if err != nil {
 			return results, err
 		}
 		results = append(results, result)
 		fmt.Printf("current generation requests: %v, duration: %v\n", result.RequestsOriginated, result.Duration)
-		time.Sleep(5 * time.Second)
+		sleep = true
 	}
 	return results, nil
 }

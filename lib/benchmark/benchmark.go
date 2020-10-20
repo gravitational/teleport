@@ -3,11 +3,21 @@ package benchmark
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/gravitational/teleport/lib/client"
 	logrus "github.com/sirupsen/logrus"
+)
+
+const (
+	// PauseTimeBetweenBenchmarks is the time to pause between each benchmark
+	PauseTimeBetweenBenchmarks = time.Second * 5
 )
 
 // Generator provides a standardized way to get successive benchmarks from a consistent interface
@@ -31,9 +41,10 @@ func Run(cnf interface{}, cmd, host, login, proxy string) ([]*Result, error) {
 
 	// Using type introspection here even though it's not relevant now,
 	// but it will be needed when I add more generators to the benchmark package
-	if l, ok := cnf.(*Linear); ok {
-		l.config.Command = command
-		results, err = l.Benchmark(command, tc)
+	switch c := cnf.(type) {
+	case *Linear:
+		c.config.Command = command
+		results, err = c.Benchmark(command, tc)
 		if err != nil {
 			return results, err
 		}
@@ -64,4 +75,38 @@ func makeTeleportClient(host, login, proxy string) (*client.TeleportClient, erro
 		return nil, err
 	}
 	return tc, err
+}
+
+// ExportLatencyProfile exports the latency profile and returns the path as a string if no errors
+func ExportLatencyProfile(path string, h *hdrhistogram.Histogram, ticks int32, valueScale float64) (string, error) {
+	var fullPath string
+	timeStamp := time.Now().Format("2006-01-02_15:04:05")
+	suffix := fmt.Sprintf("latency_profile_%s.txt", timeStamp)
+
+	if path != "." {
+		if _, err := os.Stat(path); err != nil {
+			if os.IsNotExist(err) {
+				if err = os.MkdirAll(path, 0700); err != nil {
+					return "", err
+				}
+			} else {
+				return "", err
+			}
+		}
+	}
+	fullPath = filepath.Join(path, suffix)
+	fo, err := os.Create(fullPath)
+	if err != nil {
+		return "", err
+	}
+
+	if _, err := h.PercentilesPrint(fo, ticks, valueScale); err != nil {
+		fo.Close()
+		return "", err
+	}
+
+	if err := fo.Close(); err != nil {
+		return "", err
+	}
+	return fo.Name(), nil
 }
