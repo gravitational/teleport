@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/trace"
 	logrus "github.com/sirupsen/logrus"
 )
 
@@ -22,29 +22,33 @@ const (
 
 // Generator provides a standardized way to get successive benchmarks from a consistent interface
 type Generator interface {
+	// Generate advances the Generator to the next generation.
+	// It returns false when the generator no longer has configurations to run.
 	Generator() bool
+	// GetBenchmark returns the benchmark config for the current generation.
+	// If called after Generate() returns false, this will result in an error.
 	GetBenchmark() (context.Context, Config, error)
+	// Benchmark runs the benchmark of receiver type
+	// return an array of Results that contain information about the generations
 	Benchmark([]string, *client.TeleportClient) ([]*Result, error)
 }
 
 // Run is used to run the benchmarks, it is given a generator, command to run,
 // a host, host login, and proxy. If host login or proxy is an empty string, it will
 // use the default login
-func Run(cnf interface{}, cmd, host, login, proxy string) ([]*Result, error) {
-	var results []*Result
+func Run(cnf interface{}, cmd, host, login, proxy string) ([]Result, error) {
+	var results []Result
 	tc, err := makeTeleportClient(host, login, proxy)
 	if err != nil {
-		log.Fatalf("Unable to make teleport client: %v", err)
+		return nil, err
 	}
 	logrus.SetLevel(logrus.ErrorLevel)
 	command := strings.Split(cmd, " ")
 
-	// Using type introspection here even though it's not relevant now,
-	// but it will be needed when I add more generators to the benchmark package
 	switch c := cnf.(type) {
 	case *Linear:
 		c.config.Command = command
-		results, err = c.Benchmark(command, tc)
+		results, err = c.Benchmark(context.Background(), command, tc)
 		if err != nil {
 			return results, err
 		}
@@ -67,14 +71,14 @@ func makeTeleportClient(host, login, proxy string) (*client.TeleportClient, erro
 		c.SSHProxyAddr = proxy
 	}
 	if err := c.LoadProfile(path, proxy); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 
 	tc, err := client.NewClient(&c)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
-	return tc, err
+	return tc, nil
 }
 
 // ExportLatencyProfile exports the latency profile and returns the path as a string if no errors
@@ -87,26 +91,29 @@ func ExportLatencyProfile(path string, h *hdrhistogram.Histogram, ticks int32, v
 		if _, err := os.Stat(path); err != nil {
 			if os.IsNotExist(err) {
 				if err = os.MkdirAll(path, 0700); err != nil {
-					return "", err
+					return "", trace.Wrap(err)
 				}
 			} else {
-				return "", err
+				return "", trace.Wrap(err)
 			}
 		}
 	}
 	fullPath = filepath.Join(path, suffix)
 	fo, err := os.Create(fullPath)
 	if err != nil {
-		return "", err
+		return "", trace.Wrap(err)
 	}
 
 	if _, err := h.PercentilesPrint(fo, ticks, valueScale); err != nil {
-		fo.Close()
-		return "", err
+		err := fo.Close()
+		if err != nil {
+			logrus.WithError(err).Warningf("Failed to close file")
+		}
+		return "", trace.Wrap(err)
 	}
 
 	if err := fo.Close(); err != nil {
-		return "", err
+		return "", trace.Wrap(err)
 	}
 	return fo.Name(), nil
 }

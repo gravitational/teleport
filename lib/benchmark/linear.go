@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/trace"
 )
 
 // Linear generator
@@ -22,7 +23,6 @@ type Linear struct {
 }
 
 // Generate advances the Generator to the next generation.
-// It returns false when the generator no longer has configurations to run.
 func (lg *Linear) Generate() bool {
 	if lg.currentRPS < lg.LowerBound {
 		lg.currentRPS = lg.LowerBound
@@ -33,7 +33,6 @@ func (lg *Linear) Generate() bool {
 }
 
 // GetBenchmark returns the benchmark config for the current generation.
-// If called after Generate() returns false, this will result in an error.
 func (lg *Linear) GetBenchmark() (context.Context, Config, error) {
 	if lg.currentRPS > lg.UpperBound {
 		return nil, Config{}, errors.New("No more generations")
@@ -49,15 +48,20 @@ func (lg *Linear) GetBenchmark() (context.Context, Config, error) {
 }
 
 // Benchmark runs the benchmark of receiver type
-// return an array of Results that contain information about the generations
-func (lg *Linear) Benchmark(command []string, tc *client.TeleportClient) ([]*Result, error) {
-	var result *Result
-	var results []*Result
+func (lg *Linear) Benchmark(ctx context.Context, command []string, tc *client.TeleportClient) ([]Result, error) {
+	var result Result
+	var results []Result
 	sleep := false
+
 	for lg.Generate() {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		// artificial pause between generations to allow remote state to pause
 		if sleep {
-			// artificial pause between generations to allow remote state to pause
-			time.Sleep(PauseTimeBetweenBenchmarks)
+			select {
+			case <-ctx.Done():
+			case <-time.After(PauseTimeBetweenBenchmarks):
+			}
 		}
 		c, benchmarkC, err := lg.GetBenchmark()
 		if err != nil {
@@ -65,7 +69,7 @@ func (lg *Linear) Benchmark(command []string, tc *client.TeleportClient) ([]*Res
 		}
 		result, err = benchmarkC.Benchmark(c, tc)
 		if err != nil {
-			return results, err
+			return results, trace.Wrap(err)
 		}
 		results = append(results, result)
 		fmt.Printf("current generation requests: %v, duration: %v\n", result.RequestsOriginated, result.Duration)
