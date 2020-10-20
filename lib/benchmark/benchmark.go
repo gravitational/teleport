@@ -22,7 +22,7 @@ const (
 
 // Generator provides a standardized way to get successive benchmarks from a consistent interface
 type Generator interface {
-	// Generate advances the Generator to the next generation.
+	// Generator advances the Generator to the next generation.
 	// It returns false when the generator no longer has configurations to run.
 	Generator() bool
 	// GetBenchmark returns the benchmark config for the current generation.
