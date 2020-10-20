@@ -127,8 +127,8 @@ func TestGenerateNotEvenMultiple(t *testing.T) {
 		Step:                7,
 		MinimumMeasurements: 1000,
 		MinimumWindow:       d,
-		Threads: 10,
-		config:  initial,
+		Threads:             10,
+		config:              initial,
 	}
 	expected := initial
 
