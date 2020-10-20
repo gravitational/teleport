@@ -1,5 +1,5 @@
 /*
-Copyright 2018 Gravitational, Inc.
+Copyright 2018-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,10 +26,19 @@ import (
 )
 
 // NewMultiLog returns a new instance of a multi logger
-func NewMultiLog(loggers ...IAuditLog) *MultiLog {
-	return &MultiLog{
-		loggers: loggers,
+func NewMultiLog(loggers ...IAuditLog) (*MultiLog, error) {
+	emitters := make([]Emitter, 0, len(loggers))
+	for _, logger := range loggers {
+		emitter, ok := logger.(Emitter)
+		if !ok {
+			return nil, trace.BadParameter("expected emitter, got %T", logger)
+		}
+		emitters = append(emitters, emitter)
 	}
+	return &MultiLog{
+		MultiEmitter: NewMultiEmitter(emitters...),
+		loggers:      loggers,
+	}, nil
 }
 
 // MultiLog is a logger that fan outs write operations
@@ -37,6 +46,7 @@ func NewMultiLog(loggers ...IAuditLog) *MultiLog {
 // on the first logger that implements the operation
 type MultiLog struct {
 	loggers []IAuditLog
+	*MultiEmitter
 }
 
 // WaitForDelivery waits for resources to be released and outstanding requests to
@@ -45,7 +55,7 @@ func (m *MultiLog) WaitForDelivery(ctx context.Context) error {
 	return nil
 }
 
-// Closer releases connections and resources associated with logs if any
+// Close releases connections and resources associated with logs if any
 func (m *MultiLog) Close() error {
 	var errors []error
 	for _, log := range m.loggers {
