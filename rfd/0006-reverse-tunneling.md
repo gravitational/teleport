@@ -38,12 +38,3 @@ $ tsh ssh -R 9090:127.0.0.1:9090 user@node
 ```
 
 This would set up a local listener on port 127.0.0.1:9090 and set up a remote listener on 127.0.0.1:9090. Any connections established on the remote side will be proxied down to the client.
-
-### SSH Config support
-
-To encourage `tsh` adoption, we should support reading `RemoteForward` directives from users ssh configs. Below is an example config of what `tsh` should aim to support:
-
-```
-Match final host test-machine
-        RemoteForward 127.0.0.1:9089 127.0.0.1:9089
-```
