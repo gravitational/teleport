@@ -1,0 +1,34 @@
+kind: user
+metadata:
+  name: api-admin
+spec:
+  roles: ['api-admin']
+version: v2
+---
+kind: role
+metadata:
+  name: api-admin
+spec:
+  # allow section declares a list of resource/verb combinations that are
+  # allowed for the users of this role. By default nothing is allowed.
+  allow:
+    rules:
+      - resources: ['role']
+        verbs: ['create', 'list','read','update', 'delete']
+      - resources: ['token']
+        verbs: ['create', 'list','read','update', 'delete']
+      - resources: ['access_request']
+        verbs: ['create', 'list','read','update', 'delete']
+      - resources: ['remote_cluster']
+        verbs: ['create', 'list','read','update', 'delete']
+    # teleport currently refuses to issue certs for a user with 0 logins,
+    # this restriction may be lifted in future versions.
+    logins: ['api-admin']
+    request:
+      roles: ['*']
+  # the deny section uses the identical format as the 'allow' section.
+  # the deny rules always override allow rules.
+  deny:
+    node_labels:
+      '*': '*'
+version: v3
