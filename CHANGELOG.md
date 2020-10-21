@@ -1,5 +1,11 @@
 # Changelog
 
+### 4.4.1
+
+This release of Teleport contains a bug fix.
+
+* Fixed an issue where defining multiple logging configurations would cause Teleport to crash. [#4598](https://github.com/gravitational/teleport/issues/4598)
+
 ### 4.4.0
 
 This is a major Teleport release with a focus on new features, functionality, and bug fixes. It’s a substantial release and users can review [4.3 closed issues](https://github.com/gravitational/teleport/milestone/40?closed=1) on Github for details of all items.
