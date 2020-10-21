@@ -449,9 +449,10 @@ steps:
     image: docker:git
     environment:
       # increment these variables when a new major/minor version is released to bump the automatic builds
-      CURRENT_VERSION_ROOT: 4.3
-      PREVIOUS_VERSION_ONE_ROOT: 4.2
-      PREVIOUS_VERSION_TWO_ROOT: 4.1
+      # this only needs to be done on the master branch, as that's the branch that the Drone cron is configured for
+      CURRENT_VERSION_ROOT: 4.4
+      PREVIOUS_VERSION_ONE_ROOT: 4.3
+      PREVIOUS_VERSION_TWO_ROOT: 4.2
     commands:
       - apk --update --no-cache add curl
       - mkdir -p /go/build && cd /go/build
@@ -2907,6 +2908,6 @@ volumes:
 
 ---
 kind: signature
-hmac: d4b954361a1c55bf076830b366e4f16c8cb20a6416671fcd694bea63a88a25f6
+hmac: d359fb02cbf4f6043aa01d596efc61b60331046d3af21a35b24320f71b13f2da
 
 ...
