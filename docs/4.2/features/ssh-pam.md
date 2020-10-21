@@ -45,13 +45,12 @@ Teleport currently supports account management and session management.
 To enable PAM on a given Linux machine, update `/etc/teleport.yaml` with:
 
 ```yaml
-teleport:
-   ssh_service:
-      pam:
-         # "no" by default
-         enabled: true
-         # use /etc/pam.d/sshd configuration (the default)
-         service_name: "sshd"
+ssh_service:
+  pam:
+    # "no" by default
+    enabled: true
+    # use /etc/pam.d/sshd configuration (the default)
+    service_name: "sshd"
 ```
 
 Please note that most Linux distributions come with a number of PAM services in
@@ -275,9 +274,9 @@ setting the service_name.
 
 ```yaml
 ssh_service:
-   pam:
-     enabled: true
-     service_name: "teleport"
+  pam:
+    enabled: true
+    service_name: "teleport"
 ```
 
 Now attempting to login as an existing user should result in the creation of the

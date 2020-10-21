@@ -22,6 +22,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/trace"
 )
 
@@ -83,6 +85,8 @@ type LinearConfig struct {
 	// AutoReset, if greater than zero, causes the linear retry to automatically
 	// reset after Max * AutoReset has elapsed since the last call to Incr.
 	AutoReset int64
+	// Clock to override clock in tests
+	Clock clockwork.Clock
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -92,6 +96,9 @@ func (c *LinearConfig) CheckAndSetDefaults() error {
 	}
 	if c.Max == 0 {
 		return trace.BadParameter("missing parameter Max")
+	}
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
 	}
 	return nil
 }
@@ -125,9 +132,16 @@ type Linear struct {
 	closedChan chan time.Time
 }
 
-// Reset resetes retry period to initial state
+// Reset resets retry period to initial state
 func (r *Linear) Reset() {
 	r.attempt = 0
+}
+
+// ResetToDelay resetes retry period to initial and increments to the next attempt
+// similar to Reset() and Inc()
+func (r *Linear) ResetToDelay() {
+	r.Reset()
+	r.Inc()
 }
 
 // Clone creates an identical copy of Linear with fresh state.
@@ -149,7 +163,7 @@ func (r *Linear) Inc() {
 	// Linear to function like as a long-lived rate-limiting
 	// device.
 	prev := r.lastIncr
-	r.lastIncr = time.Now()
+	r.lastIncr = r.Clock.Now()
 	if prev.IsZero() {
 		return
 	}
@@ -181,7 +195,7 @@ func (r *Linear) After() <-chan time.Time {
 	if d < 1 {
 		return r.closedChan
 	}
-	return time.After(d)
+	return r.Clock.After(d)
 }
 
 // String returns user-friendly representation of the LinearPeriod
