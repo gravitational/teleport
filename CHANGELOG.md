@@ -8,15 +8,15 @@ This is a major Teleport release with a focus on new features, functionality, an
 
 ##### Concurrent Session Control
 
-This addition to Teleport helps customers obtain AC-10 control. We now provide two new optional configuration values `max_connections` and `max_sessions`.
+This addition to Teleport helps customers obtain AC-10 control. We now provide two new optional configuration values: `max_connections` and `max_sessions`.
 
 ###### `max_connections`
 
-This value is the total number of concurrent sessions within a cluster to nodes running Teleport. This value is applied at a per user level. If you set `max_connections` to 1, a `tsh` user would only be able to `tsh ssh` into a node at one time.
+This value is the total number of concurrent sessions within a cluster to nodes running Teleport. This value is applied at a per user level. If you set `max_connections` to 1, a `tsh` user would only be able to `tsh ssh` into one node at a time.
 
 ###### `max_sessions` per connection
 
-This value limits the total number of session channels which can be established across a single SSH connection (typically used for interactive terminals or remote exec operations).  This is for cases in which nodes have Teleport setup but the Developer is using OpenSSH to connect to them. It is essentially equivalent to the `MaxSessions` configuration value accepted by `sshd`.
+This value limits the total number of session channels which can be established across a single SSH connection (typically used for interactive terminals or remote exec operations). This is for cases where nodes have Teleport set up, but a user is using OpenSSH to connect to them. It is essentially equivalent to the `MaxSessions` configuration value accepted by `sshd`.
 
 ```yaml
 spec:
@@ -29,7 +29,7 @@ spec:
 
 ###### `session_control_timeout`
 
-A new `session_control_timeout` configuration value has been added to the `auth_service` configuration block of the teleport config file. It's unlikely that you'll need to modify this.
+A new `session_control_timeout` configuration value has been added to the `auth_service` configuration block of the Teleport config file. It's unlikely that you'll need to modify this.
 
 ```yaml
 auth_service:
@@ -39,24 +39,27 @@ auth_service:
 
 #### Session Streaming Improvements
 
-Teleport 4.4 includes a complete refactoring of our event system.  This resolved a few customer bug reports such as [#3800 Events overwritten in DynamoDB](https://github.com/gravitational/teleport/issues/3800)(Events overwritten in DynamoDB) and [#3182 Teleport consuming all disk space with multipart uploads](https://github.com/gravitational/teleport/issues/3182).
+Teleport 4.4 includes a complete refactoring of our event system. This resolved a few customer bug reports such as [#3800: Events overwritten in DynamoDB](https://github.com/gravitational/teleport/issues/3800) and [#3182: Teleport consuming all disk space with multipart uploads](https://github.com/gravitational/teleport/issues/3182).
 
-Along with foundational improvements 4.4 includes two new experimental `session_recording` options, `node-sync` and `proxy-sync`.
+Along with foundational improvements, 4.4 includes two new experimental `session_recording` options: `node-sync` and `proxy-sync`.
+NOTE: These experimental modes require all Teleport auth servers, proxy servers and nodes to be running Teleport 4.4.
 
 ```yaml
 # This section configures the 'auth service':
 auth_service:
     # Optional setting for configuring session recording. Possible values are:
-    #    "node"  : sessions will be recorded on the node level  (the default)
-    #    "proxy" : recording on the proxy level, see "recording proxy mode" section.
-    #    "off"   : session recording is turned off
+    #     "node"  : sessions will be recorded on the node level (the default)
+    #     "proxy" : recording on the proxy level, see "recording proxy mode" section.
+    #     "off"   : session recording is turned off
     #
-    #    EXPERIMENTAL *-sync modes proxy and node sends logs directly to S3 or other
-    #    storage without storing the records on disk at all. This mode will kill a
-    #    connection if network connectivity is lost.
+    #     EXPERIMENTAL *-sync modes: proxy and node send logs directly to S3 or other
+    #     storage without storing the records on disk at all. This mode will kill a
+    #     connection if network connectivity is lost.
+    #     NOTE: These experimental modes require all Teleport auth servers, proxy servers and
+    #     nodes to be running Teleport 4.4.
     #
-    #    "node-sync" : sessions recording will be streamed from node -> auth -> storage
-    #    "proxy-sync : sessions recording will be streamed from proxy -> auth -> storage
+    #     "node-sync" : sessions recording will be streamed from node -> auth -> storage
+    #     "proxy-sync : sessions recording will be streamed from proxy -> auth -> storage
     #
     session_recording: "node-sync"
 ```
@@ -87,7 +90,7 @@ auth_service:
 
 #### Upgrade Notes
 
-Please follow our [standard upgrade procedure](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport)
+Please follow our [standard upgrade procedure](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport).
 
 ## 4.3.7
 
