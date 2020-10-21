@@ -18,6 +18,8 @@ package events
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -166,6 +168,39 @@ func (*DiscardEmitter) CreateAuditStream(ctx context.Context, sid session.ID) (S
 // ResumeAuditStream resumes a stream that discards all events
 func (*DiscardEmitter) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (Stream, error) {
 	return &DiscardStream{}, nil
+}
+
+// NewWriterEmitter returns a new instance of emitter writing to writer
+func NewWriterEmitter(w io.WriteCloser) *WriterEmitter {
+	return &WriterEmitter{
+		w:         w,
+		WriterLog: NewWriterLog(w),
+	}
+}
+
+// WriterEmitter is an emitter that emits all events
+// to the external writer
+type WriterEmitter struct {
+	w io.WriteCloser
+	*WriterLog
+}
+
+// Close closes the underlying io.WriteCloser passed in NewWriterEmitter
+func (w *WriterEmitter) Close() error {
+	return trace.NewAggregate(
+		w.w.Close(),
+		w.WriterLog.Close())
+}
+
+// EmitAuditEvent writes the event to the writer
+func (w *WriterEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+	// line is the text to be logged
+	line, err := utils.FastMarshal(event)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = fmt.Fprintln(w.w, string(line))
+	return trace.ConvertSystemError(err)
 }
 
 // NewLoggingEmitter returns an emitter that logs all events to the console

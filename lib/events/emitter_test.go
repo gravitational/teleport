@@ -17,12 +17,15 @@ limitations under the License.
 package events
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -105,5 +108,24 @@ func TestProtoStreamer(t *testing.T) {
 
 			assert.Equal(t, events, outEvents)
 		})
+	}
+}
+
+func TestWriterEmitter(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+	defer cancel()
+
+	events := GenerateTestSession(SessionParams{PrintEvents: 0})
+	buf := &bytes.Buffer{}
+	emitter := NewWriterEmitter(utils.NopWriteCloser(buf))
+
+	for _, event := range events {
+		err := emitter.EmitAuditEvent(ctx, event)
+		assert.NoError(t, err)
+	}
+
+	scanner := bufio.NewScanner(buf)
+	for i := 0; scanner.Scan(); i++ {
+		assert.Contains(t, scanner.Text(), events[i].GetCode())
 	}
 }

@@ -168,7 +168,9 @@ func (b *DynamoDBBackend) pollShard(ctx context.Context, streamArn *string, shar
 			if err != nil {
 				return convertError(err)
 			}
-			b.Debugf("Got %v stream shard records.", len(out.Records))
+			if len(out.Records) > 0 {
+				b.Debugf("Got %v new stream shard records.", len(out.Records))
+			}
 			if len(out.Records) == 0 {
 				if out.NextShardIterator == nil {
 					b.Debugf("Shard is closed: %v.", aws.StringValue(shard.ShardId))
