@@ -30,7 +30,6 @@ import (
 	"fmt"
 	"math/rand"
 	"net/url"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -604,22 +603,9 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 
 // CheckKubeCluster validates kubernetes cluster name against known kubernetes
 // clusters.
-func CheckKubeCluster(kc string, pg services.ProxyGetter) error {
-	proxies, err := pg.GetProxies()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	for _, p := range proxies {
-		pp, ok := p.(*services.ServerV2)
-		if !ok {
-			continue
-		}
-		for _, pkc := range pp.Spec.KubernetesClusters {
-			if pkc == kc {
-				return nil
-			}
-		}
-	}
+func CheckKubeCluster(kc string, p services.Presence) error {
+	// TODO(awly): implement this after `kubernetes_service` registration is
+	// ready.
 	return trace.BadParameter("kubernetes cluster %q is not registered in this teleport cluster; you can list registered kubernetes clusters using 'tsh kube clusters'", kc)
 }
 
@@ -629,32 +615,9 @@ func CheckKubeCluster(kc string, pg services.ProxyGetter) error {
 // backwards-compatibility with pre-5.0 behavior) or the first name
 // alphabetically. If no clusters are registered, a NotFound error is returned.
 func defaultKubeCluster(pg services.ProxyGetter, teleportClusterName string) (string, error) {
-	proxies, err := pg.GetProxies()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	clusterNames := make(map[string]struct{})
-	for _, p := range proxies {
-		pp, ok := p.(*services.ServerV2)
-		if !ok {
-			continue
-		}
-		for _, pkc := range pp.Spec.KubernetesClusters {
-			if pkc == teleportClusterName {
-				return pkc, nil
-			}
-			clusterNames[pkc] = struct{}{}
-		}
-	}
-	if len(clusterNames) == 0 {
-		return "", trace.NotFound("no kubernetes clusters registered in this Teleport cluster")
-	}
-	var namesUniq []string
-	for n := range clusterNames {
-		namesUniq = append(namesUniq, n)
-	}
-	sort.Strings(namesUniq)
-	return namesUniq[0], nil
+	// TODO(awly): implement this after `kubernetes_service` registration is
+	// ready.
+	return "", trace.NotFound("no kubernetes clusters registered in this Teleport cluster")
 }
 
 // WithUserLock executes function authenticateFn that performs user authentication

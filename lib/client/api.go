@@ -690,12 +690,12 @@ func (c *Config) KubeProxyHostPort() (string, int) {
 	if c.KubeProxyAddr != "" {
 		addr, err := utils.ParseAddr(c.KubeProxyAddr)
 		if err == nil {
-			return addr.Host(), addr.Port(defaults.KubeProxyListenPort)
+			return addr.Host(), addr.Port(defaults.KubeListenPort)
 		}
 	}
 
 	webProxyHost, _ := c.WebProxyHostPort()
-	return webProxyHost, defaults.KubeProxyListenPort
+	return webProxyHost, defaults.KubeListenPort
 }
 
 // KubeClusterAddr returns a public HTTPS address of the proxy for use by
@@ -1928,7 +1928,7 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 		// interface hostname with default k8s port as a guess.
 		default:
 			webProxyHost, _ := tc.WebProxyHostPort()
-			tc.KubeProxyAddr = fmt.Sprintf("%s:%d", webProxyHost, defaults.KubeProxyListenPort)
+			tc.KubeProxyAddr = net.JoinHostPort(webProxyHost, strconv.Itoa(defaults.KubeListenPort))
 		}
 	}
 

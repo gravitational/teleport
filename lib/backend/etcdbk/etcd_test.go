@@ -30,7 +30,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"go.etcd.io/etcd/clientv3"
 
-	"github.com/gravitational/trace"
 	"gopkg.in/check.v1"
 )
 
@@ -73,7 +72,7 @@ func (s *EtcdSuite) SetUpTest(c *check.C) {
 	// Initiate a backend with a registry
 	b, err := s.suite.NewBackend()
 	if err != nil {
-		if strings.Contains(err.Error(), "connection refused") {
+		if strings.Contains(err.Error(), "connection refused") || strings.Contains(err.Error(), "context deadline exceeded") {
 			fmt.Printf("WARNING: etcd cluster is not available: %v.\n", err)
 			fmt.Printf("WARNING: Start examples/etcd/start-etcd.sh.\n")
 			c.Skip(err.Error())
@@ -83,19 +82,6 @@ func (s *EtcdSuite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 	s.bk = b.(*EtcdBackend)
 	s.suite.B = s.bk
-
-	// Check connectivity and disable the suite
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	_, err = s.bk.GetRange(ctx, []byte("/"), backend.RangeEnd([]byte("/")), backend.NoLimit)
-	err = convertErr(err)
-	if err != nil && !trace.IsNotFound(err) {
-		if strings.Contains(err.Error(), "connection refused") || trace.IsConnectionProblem(err) {
-			fmt.Println("WARNING: etcd cluster is not available. Start examples/etcd/start-etcd.sh")
-			c.Skip(err.Error())
-		}
-		c.Assert(err, check.IsNil)
-	}
 
 	s.bk.cfg.Key = legacyDefaultPrefix
 }
