@@ -53,14 +53,14 @@ func TestOnlySkipSelfPermissionCheck(skip bool) {
 	skipSelfPermissionCheck = skip
 }
 
-func getKubeCreds(ctx context.Context, log logrus.FieldLogger, kubeconfigPath string, strictImeprsonationCheck bool) (*kubeCreds, error) {
+func getKubeCreds(ctx context.Context, log logrus.FieldLogger, kubeconfigPath string, strictImpersonationCheck bool) (*kubeCreds, error) {
 	var cfg *rest.Config
 	// no kubeconfig is set, assume auth server is running in the cluster
 	if kubeconfigPath == "" {
 		caPEM, err := ioutil.ReadFile(teleport.KubeCAPath)
 		if err != nil {
 			if os.IsNotExist(err) {
-				log.Debugf("kubeconfig_file was not provided in the config and %q doesn't exist; this proxy will still be able to forward requests to trusted leaf Teleport clusters, but not to a Kubernetes cluster directly", teleport.KubeCAPath)
+				log.Debugf("kubeconfig_file was not provided in the config and %q doesn't exist; this proxy will still be able to forward requests to trusted leaf Teleport clusters, but not to a kubernetes cluster directly", teleport.KubeCAPath)
 				return nil, nil
 			}
 			return nil, trace.BadParameter(`auth server assumed that it is
@@ -90,7 +90,7 @@ running in a kubernetes cluster, but could not init in-cluster kubernetes client
 		return nil, trace.Wrap(err, "failed to generate kubernetes client from kubeconfig: %v", err)
 	}
 	if err := checkImpersonationPermissions(ctx, client.AuthorizationV1().SelfSubjectAccessReviews()); err != nil {
-		if strictImeprsonationCheck {
+		if strictImpersonationCheck {
 			return nil, trace.Wrap(err)
 		}
 		// Some Teleport proxies run without direct access to a k8s cluster.
@@ -102,9 +102,9 @@ running in a kubernetes cluster, but could not init in-cluster kubernetes client
 		// https://github.com/gravitational/teleport/pull/3811, users needed to
 		// add a dummy kubeconfig_file in the root proxy to get it to start.
 		if kubeconfigPath != "" {
-			log.WithError(err).Warningf("Failed to test the necessary kubernetes permissions from %q. This teleport process will still handle kubernetes requests towards other Kubernetes clusters", kubeconfigPath)
+			log.WithError(err).Warningf("Failed to test the necessary kubernetes permissions from %q. This teleport process will still handle kubernetes requests towards other kubernetes clusters", kubeconfigPath)
 		} else {
-			log.WithError(err).Warning("Failed to test the necessary kubernetes permissions for this teleport pod. This teleport pod will still handle kubernetes requests towards other Kubernetes clusters")
+			log.WithError(err).Warning("Failed to test the necessary kubernetes permissions for this teleport pod. This teleport pod will still handle kubernetes requests towards other kubernetes clusters")
 		}
 		// Don't return here, in case this process can impersonate but can't do
 		// a SelfSubjectAccessReview (the k8s permissions self-test API).
