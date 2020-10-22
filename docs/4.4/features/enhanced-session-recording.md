@@ -53,10 +53,9 @@ Linux ip-172-31-43-104.ec2.internal 4.19.72-25.58.amzn2.x86_64 x86_64 x86_64 x86
 === "Ubuntu"
 
     |       |                   | Kernel Version        |
-    |-------|-------------------|-----------------------|
-    | 18.10 | Cosmic Cuttlefish | 4.18 - Patch Kernel   |
-    | 19.04 | Disco Dingo       | 5.0 ✅        |
-    | 19.10 | Eoan Ermine       | 5.3 ✅        |
+    |-------|-------------------|-----------------------|    
+    | 18.04 | Bionic Beaver       | 4.18+ ✅        |
+    | 20.04 | Focal Fossa       | 5.4 ✅        |
 
 === "CentOS"
 
