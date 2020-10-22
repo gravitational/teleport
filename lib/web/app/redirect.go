@@ -17,18 +17,19 @@ limitations under the License.
 package app
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/gravitational/teleport/lib/httplib"
 )
 
-func setRedirectPageHeaders(h http.Header) {
+func setRedirectPageHeaders(h http.Header, nonce string) {
 	httplib.SetIndexHTMLHeaders(h)
 	// Set content policy flags
 	var csp = strings.Join([]string{
-		// should match the <script> tab nonce (random value)
-		"script-src 'nonce-83452726c7f26c'",
+		// Should match the <script> tab nonce (random value).
+		fmt.Sprintf("script-src 'nonce-%v'", nonce),
 		"style-src 'self'",
 		"object-src 'self'",
 		"img-src 'self'",
@@ -43,7 +44,7 @@ const js = `
 <html lang="en">
   <head>
     <title>Teleport Redirection Service</title>
-    <script nonce="83452726c7f26c">
+    <script nonce="%v">
       (function() {
         var parts = window.location.hash.split('=');
         if (parts.length === 2 && parts[0] === '#value') {

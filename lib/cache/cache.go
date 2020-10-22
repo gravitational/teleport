@@ -77,6 +77,26 @@ func ForProxy(cfg Config) Config {
 	return cfg
 }
 
+// ForRemoteProxy sets up watch configuration for remote proxies.
+func ForRemoteProxy(cfg Config) Config {
+	cfg.Watches = []services.WatchKind{
+		{Kind: services.KindCertAuthority, LoadSecrets: false},
+		{Kind: services.KindClusterName},
+		{Kind: services.KindClusterConfig},
+		{Kind: services.KindUser},
+		{Kind: services.KindRole},
+		{Kind: services.KindNamespace},
+		{Kind: services.KindNode},
+		{Kind: services.KindProxy},
+		{Kind: services.KindAuthServer},
+		{Kind: services.KindReverseTunnel},
+		{Kind: services.KindTunnelConnection},
+		{Kind: services.KindAppServer},
+	}
+	cfg.QueueSize = defaults.ProxyQueueSize
+	return cfg
+}
+
 // ForNode sets up watch configuration for node
 func ForNode(cfg Config) Config {
 	cfg.Watches = []services.WatchKind{

@@ -203,19 +203,13 @@ func extractCookie(r *http.Request) (string, error) {
 // HasFragment checks if the request is coming to the fragment authentication
 // endpoint.
 func HasFragment(r *http.Request) bool {
-	if r.URL.Path == "/x-teleport-auth" {
-		return true
-	}
-	return false
+	return r.URL.Path == "/x-teleport-auth"
 }
 
 // HasSession checks if an application specific cookie exists.
 func HasSession(r *http.Request) bool {
 	_, err := r.Cookie(cookieName)
-	if err != nil {
-		return false
-	}
-	return true
+	return err == nil
 }
 
 // HasName checks if the client is attempting to connect to a

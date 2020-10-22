@@ -43,6 +43,7 @@ type transportConfig struct {
 	server       services.Server
 	app          *services.App
 	ws           services.WebSession
+	clusterName  string
 }
 
 // Check validates configuration.
@@ -67,6 +68,9 @@ func (c transportConfig) Check() error {
 	}
 	if c.ws == nil {
 		return trace.BadParameter("web session missing")
+	}
+	if c.clusterName == "" {
+		return trace.BadParameter("cluster name missing")
 	}
 
 	return nil
@@ -198,18 +202,9 @@ func configureTLS(c *transportConfig) (*tls.Config, error) {
 	}
 	tlsConfig.Certificates = []tls.Certificate{certificate}
 
-	// Make sure the server this client connects to presents a certificate for
-	// hostUUID.clusterName.
-	tlsConfig.ServerName = fmt.Sprintf("%v.%v", c.server.GetName(), c.identity.RouteToApp.ClusterName)
-
-	// This is a hack used elsewhere within Teleport to ensure that a client
-	// always sends it's clients certificate when establishing a connection. It's
-	// unclear if it's still needed in recent versions of Go.
-	cert := tlsConfig.Certificates[0]
-	tlsConfig.Certificates = nil
-	tlsConfig.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-		return &cert, nil
-	}
+	// Use SNI to tell the other side which cluster signed the CA so it doesn't
+	// have to fetch all CAs when verifying the cert.
+	tlsConfig.ServerName = auth.EncodeClusterName(c.clusterName)
 
 	return tlsConfig, nil
 }

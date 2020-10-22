@@ -189,6 +189,7 @@ func newSessionCache(ctx context.Context, log *logrus.Entry) (*sessionCache, err
 
 	s := &sessionCache{
 		closeContext: ctx,
+		log:          log,
 	}
 
 	// Cache of request forwarders. Set an expire function that can be used to
