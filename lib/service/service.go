@@ -902,7 +902,7 @@ func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error)
 			}
 			loggers = append(loggers, logger)
 		case teleport.SchemeStdout:
-			logger := events.NewWriterLog(utils.NopWriteCloser(os.Stdout))
+			logger := events.NewWriterEmitter(utils.NopWriteCloser(os.Stdout))
 			loggers = append(loggers, logger)
 		default:
 			return nil, trace.BadParameter(
@@ -922,7 +922,7 @@ func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error)
 	}
 
 	if len(loggers) > 1 {
-		return events.NewMultiLog(loggers...), nil
+		return events.NewMultiLog(loggers...)
 	}
 
 	return loggers[0], nil

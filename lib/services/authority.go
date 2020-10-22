@@ -343,125 +343,125 @@ func CertAuthoritiesToV1(in []CertAuthority) ([]CertAuthorityV1, error) {
 }
 
 // GetVersion returns resource version
-func (c *CertAuthorityV2) GetVersion() string {
-	return c.Version
+func (ca *CertAuthorityV2) GetVersion() string {
+	return ca.Version
 }
 
 // GetKind returns resource kind
-func (c *CertAuthorityV2) GetKind() string {
-	return c.Kind
+func (ca *CertAuthorityV2) GetKind() string {
+	return ca.Kind
 }
 
 // GetSubKind returns resource sub kind
-func (c *CertAuthorityV2) GetSubKind() string {
-	return c.SubKind
+func (ca *CertAuthorityV2) GetSubKind() string {
+	return ca.SubKind
 }
 
 // SetSubKind sets resource subkind
-func (c *CertAuthorityV2) SetSubKind(s string) {
-	c.SubKind = s
+func (ca *CertAuthorityV2) SetSubKind(s string) {
+	ca.SubKind = s
 }
 
 // Clone returns a copy of the cert authority object.
-func (c *CertAuthorityV2) Clone() CertAuthority {
-	out := *c
-	out.Spec.CheckingKeys = utils.CopyByteSlices(c.Spec.CheckingKeys)
-	out.Spec.SigningKeys = utils.CopyByteSlices(c.Spec.SigningKeys)
-	for i, kp := range c.Spec.TLSKeyPairs {
+func (ca *CertAuthorityV2) Clone() CertAuthority {
+	out := *ca
+	out.Spec.CheckingKeys = utils.CopyByteSlices(ca.Spec.CheckingKeys)
+	out.Spec.SigningKeys = utils.CopyByteSlices(ca.Spec.SigningKeys)
+	for i, kp := range ca.Spec.TLSKeyPairs {
 		out.Spec.TLSKeyPairs[i] = TLSKeyPair{
 			Key:  utils.CopyByteSlice(kp.Key),
 			Cert: utils.CopyByteSlice(kp.Cert),
 		}
 	}
-	out.Spec.Roles = utils.CopyStrings(c.Spec.Roles)
+	out.Spec.Roles = utils.CopyStrings(ca.Spec.Roles)
 	return &out
 }
 
 // GetRotation returns rotation state.
-func (c *CertAuthorityV2) GetRotation() Rotation {
-	if c.Spec.Rotation == nil {
+func (ca *CertAuthorityV2) GetRotation() Rotation {
+	if ca.Spec.Rotation == nil {
 		return Rotation{}
 	}
-	return *c.Spec.Rotation
+	return *ca.Spec.Rotation
 }
 
 // SetRotation sets rotation state.
-func (c *CertAuthorityV2) SetRotation(r Rotation) {
-	c.Spec.Rotation = &r
+func (ca *CertAuthorityV2) SetRotation(r Rotation) {
+	ca.Spec.Rotation = &r
 }
 
 // TLSCA returns TLS certificate authority
-func (c *CertAuthorityV2) TLSCA() (*tlsca.CertAuthority, error) {
-	if len(c.Spec.TLSKeyPairs) == 0 {
+func (ca *CertAuthorityV2) TLSCA() (*tlsca.CertAuthority, error) {
+	if len(ca.Spec.TLSKeyPairs) == 0 {
 		return nil, trace.BadParameter("no TLS key pairs found for certificate authority")
 	}
-	return tlsca.New(c.Spec.TLSKeyPairs[0].Cert, c.Spec.TLSKeyPairs[0].Key)
+	return tlsca.New(ca.Spec.TLSKeyPairs[0].Cert, ca.Spec.TLSKeyPairs[0].Key)
 }
 
 // SetTLSPrivateKey sets TLS key pairs
-func (c *CertAuthorityV2) SetTLSKeyPairs(pairs []TLSKeyPair) {
-	c.Spec.TLSKeyPairs = pairs
+func (ca *CertAuthorityV2) SetTLSKeyPairs(pairs []TLSKeyPair) {
+	ca.Spec.TLSKeyPairs = pairs
 }
 
 // GetTLSPrivateKey returns TLS key pairs
-func (c *CertAuthorityV2) GetTLSKeyPairs() []TLSKeyPair {
-	return c.Spec.TLSKeyPairs
+func (ca *CertAuthorityV2) GetTLSKeyPairs() []TLSKeyPair {
+	return ca.Spec.TLSKeyPairs
 }
 
 // GetMetadata returns object metadata
-func (c *CertAuthorityV2) GetMetadata() Metadata {
-	return c.Metadata
+func (ca *CertAuthorityV2) GetMetadata() Metadata {
+	return ca.Metadata
 }
 
 // SetExpiry sets expiry time for the object
-func (c *CertAuthorityV2) SetExpiry(expires time.Time) {
-	c.Metadata.SetExpiry(expires)
+func (ca *CertAuthorityV2) SetExpiry(expires time.Time) {
+	ca.Metadata.SetExpiry(expires)
 }
 
 // Expires returns object expiry setting
-func (c *CertAuthorityV2) Expiry() time.Time {
-	return c.Metadata.Expiry()
+func (ca *CertAuthorityV2) Expiry() time.Time {
+	return ca.Metadata.Expiry()
 }
 
 // SetTTL sets Expires header using realtime clock
-func (c *CertAuthorityV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
-	c.Metadata.SetTTL(clock, ttl)
+func (ca *CertAuthorityV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+	ca.Metadata.SetTTL(clock, ttl)
 }
 
 // GetResourceID returns resource ID
-func (c *CertAuthorityV2) GetResourceID() int64 {
-	return c.Metadata.ID
+func (ca *CertAuthorityV2) GetResourceID() int64 {
+	return ca.Metadata.ID
 }
 
 // SetResourceID sets resource ID
-func (c *CertAuthorityV2) SetResourceID(id int64) {
-	c.Metadata.ID = id
+func (ca *CertAuthorityV2) SetResourceID(id int64) {
+	ca.Metadata.ID = id
 }
 
 // WithoutSecrets returns an instance of resource without secrets.
-func (c *CertAuthorityV2) WithoutSecrets() Resource {
-	c2 := c.Clone()
-	RemoveCASecrets(c2)
-	return c2
+func (ca *CertAuthorityV2) WithoutSecrets() Resource {
+	ca2 := ca.Clone()
+	RemoveCASecrets(ca2)
+	return ca2
 }
 
 // V2 returns V2 version of the resouirce - itself
-func (c *CertAuthorityV2) V2() *CertAuthorityV2 {
-	return c
+func (ca *CertAuthorityV2) V2() *CertAuthorityV2 {
+	return ca
 }
 
 // String returns human readable version of the CertAuthorityV2.
-func (c *CertAuthorityV2) String() string {
-	return fmt.Sprintf("CA(name=%v, type=%v)", c.GetClusterName(), c.GetType())
+func (ca *CertAuthorityV2) String() string {
+	return fmt.Sprintf("CA(name=%v, type=%v)", ca.GetClusterName(), ca.GetType())
 }
 
 // V1 returns V1 version of the object
-func (c *CertAuthorityV2) V1() *CertAuthorityV1 {
+func (ca *CertAuthorityV2) V1() *CertAuthorityV1 {
 	return &CertAuthorityV1{
-		Type:         c.Spec.Type,
-		DomainName:   c.Spec.ClusterName,
-		CheckingKeys: c.Spec.CheckingKeys,
-		SigningKeys:  c.Spec.SigningKeys,
+		Type:         ca.Spec.Type,
+		DomainName:   ca.Spec.ClusterName,
+		CheckingKeys: ca.Spec.CheckingKeys,
+		SigningKeys:  ca.Spec.SigningKeys,
 	}
 }
 
@@ -549,8 +549,8 @@ func (ca *CertAuthorityV2) GetRoleMap() RoleMap {
 }
 
 // SetRoleMap sets role map
-func (c *CertAuthorityV2) SetRoleMap(m RoleMap) {
-	c.Spec.RoleMap = []RoleMapping(m)
+func (ca *CertAuthorityV2) SetRoleMap(m RoleMap) {
+	ca.Spec.RoleMap = []RoleMapping(m)
 }
 
 // FirstSigningKey returns first signing key or returns error if it's not here
@@ -729,8 +729,8 @@ var RotatePhases = []string{
 // external rotation state, phase and rotation ID should match,
 // notice that matches does not behave like Equals because it does not require
 // all fields to be the same.
-func (s *Rotation) Matches(rotation Rotation) bool {
-	return s.CurrentID == rotation.CurrentID && s.State == rotation.State && s.Phase == rotation.Phase
+func (r *Rotation) Matches(rotation Rotation) bool {
+	return r.CurrentID == rotation.CurrentID && r.State == rotation.State && r.Phase == rotation.Phase
 }
 
 // LastRotatedDescription returns human friendly description.
@@ -940,35 +940,35 @@ func (ca *CertAuthorityV1) GetRoleMap() RoleMap {
 }
 
 // SetRoleMap sets role map
-func (c *CertAuthorityV1) SetRoleMap(m RoleMap) {
+func (ca *CertAuthorityV1) SetRoleMap(m RoleMap) {
 }
 
 // V1 returns V1 version of the resource
-func (c *CertAuthorityV1) V1() *CertAuthorityV1 {
-	return c
+func (ca *CertAuthorityV1) V1() *CertAuthorityV1 {
+	return ca
 }
 
 // V2 returns V2 version of the resource
-func (c *CertAuthorityV1) V2() *CertAuthorityV2 {
+func (ca *CertAuthorityV1) V2() *CertAuthorityV2 {
 	return &CertAuthorityV2{
 		Kind:    KindCertAuthority,
 		Version: V2,
 		Metadata: Metadata{
-			Name:      c.DomainName,
+			Name:      ca.DomainName,
 			Namespace: defaults.Namespace,
 		},
 		Spec: CertAuthoritySpecV2{
-			Type:         c.Type,
-			ClusterName:  c.DomainName,
-			CheckingKeys: c.CheckingKeys,
-			SigningKeys:  c.SigningKeys,
+			Type:         ca.Type,
+			ClusterName:  ca.DomainName,
+			CheckingKeys: ca.CheckingKeys,
+			SigningKeys:  ca.SigningKeys,
 		},
 	}
 }
 
 // String returns human readable version of the CertAuthorityV1.
-func (c *CertAuthorityV1) String() string {
-	return fmt.Sprintf("CA(name=%v, type=%v)", c.DomainName, c.Type)
+func (ca *CertAuthorityV1) String() string {
+	return fmt.Sprintf("CA(name=%v, type=%v)", ca.DomainName, ca.Type)
 }
 
 var certAuthorityMarshaler CertAuthorityMarshaler = &TeleportCertAuthorityMarshaler{}

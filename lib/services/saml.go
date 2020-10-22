@@ -778,7 +778,7 @@ type AttributeMapping struct {
 	RoleTemplate *RoleV2 `json:"role_template,omitempty"`
 }
 
-// AttribueMappingSchema is JSON schema for claim mapping
+// AttributeMappingSchema is JSON schema for claim mapping
 var AttributeMappingSchema = fmt.Sprintf(`{
   "type": "object",
   "additionalProperties": false,
@@ -796,7 +796,7 @@ var AttributeMappingSchema = fmt.Sprintf(`{
   }
 }`, GetRoleSchema(V2, ""))
 
-// SigningKeyPairSchema
+// SigningKeyPairSchema is the JSON schema for signing key pair.
 var SigningKeyPairSchema = `{
   "type": "object",
   "additionalProperties": false,

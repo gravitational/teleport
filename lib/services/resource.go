@@ -831,9 +831,8 @@ func (r *Ref) Set(v string) error {
 func (r *Ref) String() string {
 	if r.SubKind == "" {
 		return fmt.Sprintf("%s/%s", r.Kind, r.Name)
-	} else {
-		return fmt.Sprintf("%s/%s/%s", r.Kind, r.SubKind, r.Name)
 	}
+	return fmt.Sprintf("%s/%s/%s", r.Kind, r.SubKind, r.Name)
 }
 
 // Refs is a set of resource references
