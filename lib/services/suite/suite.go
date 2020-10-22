@@ -606,10 +606,10 @@ func (s *ServicesTestSuite) NamespacesCRUD(c *check.C) {
 
 func (s *ServicesTestSuite) U2FCRUD(c *check.C) {
 	token := "tok1"
-	appId := "https://localhost"
+	appID := "https://localhost"
 	user1 := "user1"
 
-	challenge, err := u2f.NewChallenge(appId, []string{appId})
+	challenge, err := u2f.NewChallenge(appID, []string{appID})
 	c.Assert(err, check.IsNil)
 
 	err = s.WebS.UpsertU2FRegisterChallenge(token, challenge)
@@ -923,26 +923,26 @@ func (s *ServicesTestSuite) StaticTokens(c *check.C) {
 	fixtures.ExpectNotFound(c, err)
 }
 
-// SuiteOptions provides functional arguments
+// Options provides functional arguments
 // to turn certain parts of the test suite off
-type SuiteOptions struct {
+type Options struct {
 	// SkipDelete turns off deletes in tests
 	SkipDelete bool
 }
 
-// SuiteOption is a functional suite option
-type SuiteOption func(s *SuiteOptions)
+// Option is a functional suite option
+type Option func(s *Options)
 
 // SkipDelete instructs tests to skip testing delete features
-func SkipDelete() SuiteOption {
-	return func(s *SuiteOptions) {
+func SkipDelete() Option {
+	return func(s *Options) {
 		s.SkipDelete = true
 	}
 }
 
 // CollectOptions collects suite options
-func CollectOptions(opts ...SuiteOption) SuiteOptions {
-	var suiteOpts SuiteOptions
+func CollectOptions(opts ...Option) Options {
+	var suiteOpts Options
 	for _, o := range opts {
 		o(&suiteOpts)
 	}
@@ -950,7 +950,7 @@ func CollectOptions(opts ...SuiteOption) SuiteOptions {
 }
 
 // ClusterConfig tests cluster configuration
-func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...SuiteOption) {
+func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	config, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 		ClientIdleTimeout:     services.NewDuration(17 * time.Second),
 		DisconnectExpiredCert: services.NewBool(true),
