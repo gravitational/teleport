@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport/lib/client"
@@ -33,12 +34,12 @@ func (lg *Linear) Generate() bool {
 }
 
 // GetBenchmark returns the benchmark config for the current generation.
-func (lg *Linear) GetBenchmark() (context.Context, Config, error) {
+func (lg *Linear) GetBenchmark() (Config, error) {
 	if lg.currentRPS > lg.UpperBound {
-		return nil, Config{}, errors.New("No more generations")
+		return Config{}, errors.New("No more generations")
 	}
 
-	return context.TODO(), Config{
+	return Config{
 		MinimumWindow:       lg.MinimumWindow,
 		MinimumMeasurements: lg.MinimumMeasurements,
 		Rate:                lg.currentRPS,
@@ -48,26 +49,23 @@ func (lg *Linear) GetBenchmark() (context.Context, Config, error) {
 }
 
 // Benchmark runs the benchmark of receiver type
-func (lg *Linear) Benchmark(ctx context.Context, command []string, tc *client.TeleportClient) ([]Result, error) {
+func (lg *Linear) Benchmark(ctx context.Context, cmd string, tc *client.TeleportClient) ([]Result, error) {
 	var result Result
 	var results []Result
+	c := strings.Split(cmd, " ")
+	lg.config.Command = c
 	sleep := false
 
 	for lg.Generate() {
-		ctx, cancel := context.WithCancel(ctx)
-		defer cancel()
 		// artificial pause between generations to allow remote state to pause
 		if sleep {
-			select {
-			case <-ctx.Done():
-			case <-time.After(PauseTimeBetweenBenchmarks):
-			}
+			time.Sleep(PauseTimeBetweenBenchmarks)
 		}
-		c, benchmarkC, err := lg.GetBenchmark()
+		benchmarkC, err := lg.GetBenchmark()
 		if err != nil {
-			break
+			return nil, trace.Wrap(err)
 		}
-		result, err = benchmarkC.Benchmark(c, tc)
+		result, err = benchmarkC.Benchmark(context.TODO(), tc)
 		if err != nil {
 			return results, trace.Wrap(err)
 		}

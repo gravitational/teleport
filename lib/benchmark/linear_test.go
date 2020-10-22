@@ -34,7 +34,7 @@ func TestGenerate(t *testing.T) {
 	if res != true {
 		t.Errorf("failed to generate first generation")
 	}
-	_, bm, err := linearConfig.GetBenchmark()
+	bm, err := linearConfig.GetBenchmark()
 	if err != nil {
 		t.Errorf("failed to get current benchmark")
 	}
@@ -49,7 +49,7 @@ func TestGenerate(t *testing.T) {
 		t.Errorf("failed to generate #2 generation")
 	}
 
-	_, bm, err = linearConfig.GetBenchmark()
+	bm, err = linearConfig.GetBenchmark()
 	if err != nil {
 		t.Errorf("failed to get current benchmark")
 	}
@@ -63,7 +63,7 @@ func TestGenerate(t *testing.T) {
 		t.Errorf("failed to generate #3 generation")
 	}
 
-	_, bm, err = linearConfig.GetBenchmark()
+	bm, err = linearConfig.GetBenchmark()
 	if err != nil {
 		t.Errorf("failed to get current benchmark")
 	}
@@ -76,7 +76,7 @@ func TestGenerate(t *testing.T) {
 		t.Errorf("failed to generate #4 generation")
 	}
 
-	_, bm, err = linearConfig.GetBenchmark()
+	bm, err = linearConfig.GetBenchmark()
 	if err != nil {
 		t.Errorf("failed to get current benchmark")
 	}
@@ -89,7 +89,7 @@ func TestGenerate(t *testing.T) {
 		t.Errorf("failed to generate #5 generation")
 	}
 
-	_, bm, err = linearConfig.GetBenchmark()
+	bm, err = linearConfig.GetBenchmark()
 	if err != nil {
 		t.Errorf("failed to get current benchmark")
 	}
@@ -102,7 +102,7 @@ func TestGenerate(t *testing.T) {
 		t.Errorf("expected false, got true")
 	}
 
-	_, _, err = linearConfig.GetBenchmark()
+	_, err = linearConfig.GetBenchmark()
 	if err == nil {
 		t.Errorf("generating more benchmarks than expected")
 	}
@@ -138,7 +138,7 @@ func TestGenerateNotEvenMultiple(t *testing.T) {
 		t.Errorf("failed to generate first generation")
 	}
 
-	_, bm, err := linearConfig.GetBenchmark()
+	bm, err := linearConfig.GetBenchmark()
 	if err != nil {
 		t.Errorf("failed to get current benchmark")
 	}
@@ -151,7 +151,7 @@ func TestGenerateNotEvenMultiple(t *testing.T) {
 		t.Errorf("failed to generate first generation")
 	}
 
-	_, bm, err = linearConfig.GetBenchmark()
+	bm, err = linearConfig.GetBenchmark()
 	if err != nil {
 		t.Errorf("failed to get current benchmark")
 	}
@@ -164,7 +164,7 @@ func TestGenerateNotEvenMultiple(t *testing.T) {
 		t.Errorf("expected false, exceeded upper bound")
 	}
 
-	_, _, err = linearConfig.GetBenchmark()
+	_, err = linearConfig.GetBenchmark()
 	if err == nil {
 		t.Errorf("generating more benchmarks than expected")
 	}
@@ -195,7 +195,7 @@ func TestGetBenchmark(t *testing.T) {
 	res := linearConfig.Generate()
 	initial.MinimumMeasurements = linearConfig.MinimumMeasurements
 	assert.Equal(t, res, true)
-	_, conf, err := linearConfig.GetBenchmark()
+	conf, err := linearConfig.GetBenchmark()
 	if err != nil {
 		t.Errorf("expected benchmark, got error: %v", err)
 	}
@@ -208,7 +208,7 @@ func TestGetBenchmark(t *testing.T) {
 	res = linearConfig.Generate()
 	assert.Equal(t, res, false)
 
-	_, _, err = linearConfig.GetBenchmark()
+	_, err = linearConfig.GetBenchmark()
 	if err == nil {
 		t.Errorf("There should be no current generations, expected error")
 	}

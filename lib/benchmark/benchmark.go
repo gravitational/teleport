@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/HdrHistogram/hdrhistogram-go"
@@ -22,9 +21,9 @@ const (
 
 // Generator provides a standardized way to get successive benchmarks from a consistent interface
 type Generator interface {
-	// Generator advances the Generator to the next generation.
+	// Generate advances the Generator to the next generation.
 	// It returns false when the generator no longer has configurations to run.
-	Generator() bool
+	Generate() bool
 	// GetBenchmark returns the benchmark config for the current generation.
 	// If called after Generate() returns false, this will result in an error.
 	GetBenchmark() (context.Context, Config, error)
@@ -37,22 +36,15 @@ type Generator interface {
 // a host, host login, and proxy. If host login or proxy is an empty string, it will
 // use the default login
 func Run(cnf interface{}, cmd, host, login, proxy string) ([]Result, error) {
-	var results []Result
 	tc, err := makeTeleportClient(host, login, proxy)
 	if err != nil {
 		return nil, err
 	}
 	logrus.SetLevel(logrus.ErrorLevel)
-	command := strings.Split(cmd, " ")
-
 	switch c := cnf.(type) {
 	case *Linear:
-		c.config.Command = command
-		results, err = c.Benchmark(context.Background(), command, tc)
-		if err != nil {
-			return results, err
-		}
-		return results, nil
+		return c.Benchmark(context.Background(), cmd, tc)
+
 	}
 	return nil, errors.New("Invalid generator, not of type Linear")
 }
