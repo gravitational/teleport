@@ -30,6 +30,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1455,9 +1456,14 @@ func (process *TeleportProcess) setupCachePolicy(in cache.SetupConfigFn) cache.S
 	}
 }
 
-// newAccessPointCache returns new instance of access point configured for proxy
+// newLocalCacheForProxy returns new instance of access point configured for a local proxy.
 func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
 	return process.newLocalCache(clt, cache.ForProxy, cacheName)
+}
+
+// newLocalCacheForRemoteProxy returns new instance of access point configured for a remote proxy.
+func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
+	return process.newLocalCache(clt, cache.ForRemoteProxy, cacheName)
 }
 
 // newLocalCache returns new instance of access point
@@ -2254,7 +2260,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				HostSigners:           []ssh.Signer{conn.ServerIdentity.KeySigner},
 				LocalAuthClient:       conn.Client,
 				LocalAccessPoint:      accessPoint,
-				NewCachingAccessPoint: process.newLocalCacheForProxy,
+				NewCachingAccessPoint: process.newLocalCacheForRemoteProxy,
 				Limiter:               reverseTunnelLimiter,
 				DirectClusters: []reversetunnel.DirectCluster{
 					{
@@ -2659,6 +2665,13 @@ func (process *TeleportProcess) initApps() {
 			CipherSuites: process.Config.CipherSuites,
 			GetRotation:  process.getRotation,
 			Server:       server,
+			OnHeartbeat: func(err error) {
+				if err != nil {
+					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentApp})
+				} else {
+					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentApp})
+				}
+			},
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2668,13 +2681,21 @@ func (process *TeleportProcess) initApps() {
 		// and (dynamic) label update.
 		appServer.Start()
 
-		// If Teleport was started in the same process as the reverse tunnel, assume
-		// the user wants to use this proxy for the reverse tunnel. Mainly used for
+		// If this process connected through the web proxy, it will have found the
+		// reverse tunnel address itself correctly. If it was not, the only
+		// situation supported is if auth and the reverse tunnel subsystem is
+		// running locally in a single process setup which is used for
 		// development and getting started with Teleport where you run everything
 		// within a single process.
-		tunnelAddr := conn.TunnelProxy()
-		if addr, ok := process.hasLocalTunnel(); ok {
-			tunnelAddr = addr
+		var tunnelAddr string
+		if conn.TunnelProxy() != "" {
+			tunnelAddr = conn.TunnelProxy()
+		} else {
+			if tunnelAddr, ok = process.hasLocalTunnel(); !ok {
+				return trace.BadParameter("failed to find reverse tunnel address, if " +
+					"running in single process mode, make sure \"auth_service\", \"proxy_service\" " +
+					", and \"app_service\" are all enabled")
+			}
 		}
 
 		// Create and start an agent pool.
@@ -2918,12 +2939,16 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 // this process and if a tunnel public address has been defined allowing a
 // local client to connect to itself.
 func (p *TeleportProcess) hasLocalTunnel() (string, bool) {
-	if p.Config.Proxy.Enabled &&
-		!p.Config.Proxy.DisableReverseTunnel &&
-		len(p.Config.Proxy.TunnelPublicAddrs) > 0 {
-		return p.Config.Proxy.TunnelPublicAddrs[0].String(), true
+	if !p.Config.Proxy.Enabled || !p.Config.Auth.Enabled {
+		return "", false
 	}
-	return "", false
+	if p.Config.Proxy.DisableReverseTunnel {
+		return "", false
+	}
+	if len(p.Config.Proxy.TunnelPublicAddrs) == 0 {
+		return net.JoinHostPort(string(teleport.PrincipalLocalhost), strconv.Itoa(defaults.SSHProxyTunnelListenPort)), true
+	}
+	return p.Config.Proxy.TunnelPublicAddrs[0].String(), true
 }
 
 func getPublicAddr(authClient auth.AccessPoint, a App) (string, error) {

@@ -71,6 +71,11 @@ func (h *Handler) newSession(ctx context.Context, ws services.WebSession) (*sess
 		return nil, trace.Wrap(err)
 	}
 
+	cn, err := h.c.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(&transportConfig{
 		proxyClient:  h.c.ProxyClient,
@@ -80,6 +85,7 @@ func (h *Handler) newSession(ctx context.Context, ws services.WebSession) (*sess
 		server:       server,
 		app:          application,
 		ws:           ws,
+		clusterName:  cn.GetClusterName(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -113,6 +119,7 @@ func newSessionCache(ctx context.Context, log *logrus.Entry) (*sessionCache, err
 
 	s := &sessionCache{
 		closeContext: ctx,
+		log:          log,
 	}
 
 	// Cache of request forwarders. Set an expire function that can be used to

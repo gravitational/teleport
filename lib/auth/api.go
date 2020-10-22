@@ -52,6 +52,10 @@ type Announcer interface {
 type ReadAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
+
+	// NewWatcher returns a new event watcher.
+	NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error)
+
 	// GetReverseTunnels returns  a list of reverse tunnels
 	GetReverseTunnels(opts ...services.MarshalOption) ([]services.ReverseTunnel, error)
 

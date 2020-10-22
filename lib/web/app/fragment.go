@@ -21,8 +21,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	"github.com/julienschmidt/httprouter"
@@ -35,8 +37,13 @@ type fragmentRequest struct {
 func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
 	switch r.Method {
 	case http.MethodGet:
-		setRedirectPageHeaders(w.Header())
-		fmt.Fprintf(w, js)
+		nonce, err := utils.CryptoRandomHex(auth.TokenLenBytes)
+		if err != nil {
+			h.log.Debugf("Failed to generate and encode random numbers: %v.", err)
+			return trace.AccessDenied("access denied")
+		}
+		setRedirectPageHeaders(w.Header(), nonce)
+		fmt.Fprintf(w, js, nonce)
 	case http.MethodPost:
 		httplib.SetNoCacheHeaders(w.Header())
 		var req fragmentRequest

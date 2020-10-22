@@ -1111,18 +1111,13 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	// HTTPS requests need to specify DNS name that should be present in the
 	// certificate as one of the DNS Names. It is not known in advance,
 	// that is why there is a default one for all certificates
-	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) {
+	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) || req.Roles.Include(teleport.RoleApp) {
 		certRequest.DNSNames = append(certRequest.DNSNames, "*."+teleport.APIDomain, teleport.APIDomain)
 	}
 	// Unlike additional principals, DNS Names is x509 specific
 	// and is limited to auth servers and proxies
 	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) || req.Roles.Include(teleport.RoleProxy) {
 		certRequest.DNSNames = append(certRequest.DNSNames, req.DNSNames...)
-	}
-	// Add in hostUUID.clusterName for application roles. This is how the web
-	// proxy validates the app proxy.
-	if req.Roles.Include(teleport.RoleApp) {
-		certRequest.DNSNames = append(certRequest.DNSNames, HostFQDN(req.HostID, clusterName.GetClusterName()))
 	}
 	hostTLSCert, err := tlsAuthority.GenerateCertificate(certRequest)
 	if err != nil {

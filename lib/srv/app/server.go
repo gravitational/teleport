@@ -74,6 +74,9 @@ type Config struct {
 
 	// Server contains the list of applications that will be proxied.
 	Server services.Server
+
+	// OnHeartbeat is called after every heartbeat. Used to update process state.
+	OnHeartbeat func(error)
 }
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
@@ -106,6 +109,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.Server == nil {
 		return trace.BadParameter("server missing")
+	}
+	if c.OnHeartbeat == nil {
+		return trace.BadParameter("heartbeat missing")
 	}
 
 	return nil
@@ -200,6 +206,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/2),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
 		ServerTTL:       defaults.ServerAnnounceTTL,
+		OnHeartbeat:     c.OnHeartbeat,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
