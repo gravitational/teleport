@@ -161,6 +161,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.createSession))
 	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteSession))
 	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewSession))
+	h.POST("/webapi/sessions/renew/:requestId", h.WithAuth(h.renewSession))
 
 	h.GET("/webapi/users/password/token/:token", httplib.MakeHandler(h.getResetPasswordTokenHandle))
 	h.PUT("/webapi/users/password/token", httplib.WithCSRFProtection(h.changePasswordWithToken))
@@ -1135,19 +1136,16 @@ func (h *Handler) logout(w http.ResponseWriter, ctx *SessionContext) error {
 	return nil
 }
 
-// renewSession is called to renew the session that is about to expire
-// it issues the new session and generates new session cookie.
-// It's important to understand that the old session becomes effectively invalid.
+// renewSession is called in two ways:
+// 	- Without requestId: Creates new session that is about to expire.
+// 	- With requestId: Creates new session that includes additional roles assigned with approving access request.
 //
-// POST /v1/webapi/sessions/renew
-//
-// Response
-//
-// {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
-//
-//
-func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	newSess, err := ctx.ExtendWebSession()
+// 	It issues the new session and generates new session cookie.
+// 	It's important to understand that the old session becomes effectively invalid.
+func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
+	requestID := params.ByName("requestId")
+
+	newSess, err := ctx.ExtendWebSession(requestID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

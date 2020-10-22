@@ -30,6 +30,15 @@ type access struct {
 	Delete bool `json:"remove"`
 }
 
+type accessStrategy struct {
+	// Type determines how a user should access teleport resources.
+	// ie: does the user require a request to access resources?
+	Type services.RequestStrategy `json:"type"`
+	// Prompt is the optional dialogue shown to user,
+	// when a access strategy type requires a reason.
+	Prompt string `json:"prompt"`
+}
+
 type userACL struct {
 	// Sessions defines access to recorded sessions
 	Sessions access `json:"sessions"`
@@ -43,6 +52,12 @@ type userACL struct {
 	TrustedClusters access `json:"trustedClusters"`
 	// Events defines access to audit logs
 	Events access `json:"events"`
+	// Tokens defines access to tokens.
+	Tokens access `json:"tokens"`
+	// Nodes defines access to nodes.
+	Nodes access `json:"nodes"`
+	// AccessStrategy describes how a user should access teleport resources.
+	AccessStrategy accessStrategy `json:"accessStrategy"`
 	// SSH defines access to servers
 	SSHLogins []string `json:"sshLogins"`
 }
@@ -109,6 +124,30 @@ func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) acc
 	}
 }
 
+func getAccessStrategy(roleset services.RoleSet) accessStrategy {
+	strategy := services.RequestStrategyOptional
+	prompt := ""
+
+	for _, role := range roleset {
+		options := role.GetOptions()
+
+		if options.RequestAccess == services.RequestStrategyReason {
+			strategy = services.RequestStrategyReason
+			prompt = options.RequestPrompt
+			break
+		}
+
+		if options.RequestAccess == services.RequestStrategyAlways {
+			strategy = services.RequestStrategyAlways
+		}
+	}
+
+	return accessStrategy{
+		Type:   strategy,
+		Prompt: prompt,
+	}
+}
+
 // NewUserContext returns user context
 func NewUserContext(user services.User, userRoles services.RoleSet) (*userContext, error) {
 	ctx := &services.Context{User: user}
@@ -119,6 +158,7 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*userContex
 	eventAccess := newAccess(userRoles, ctx, services.KindEvent)
 	userAccess := newAccess(userRoles, ctx, services.KindUser)
 	logins := getLogins(userRoles)
+	requestAccess := getAccessStrategy(userRoles)
 
 	acl := userACL{
 		AuthConnectors:  authConnectors,
@@ -128,6 +168,7 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*userContex
 		Events:          eventAccess,
 		SSHLogins:       logins,
 		Users:           userAccess,
+		AccessStrategy:  requestAccess,
 	}
 
 	// local user
