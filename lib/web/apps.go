@@ -25,6 +25,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -171,22 +173,63 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 // waitForSession will block until the requested session shows up in the
 // cache or a timeout occurs.
 func (h *Handler) waitForSession(ctx context.Context, sessionID string) error {
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
 	timeout := time.NewTimer(defaults.WebHeadersTimeout)
 	defer timeout.Stop()
 
+	// Establish a watch on application session.
+	watcher, err := h.cfg.AccessPoint.NewWatcher(ctx, services.Watch{
+		Name: teleport.ComponentAppProxy,
+		Kinds: []services.WatchKind{
+			services.WatchKind{
+				Kind: services.KindAppSession,
+			},
+		},
+		MetricComponent: teleport.ComponentAppProxy,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer watcher.Close()
+
+	select {
+	// Received an event, first event should always be an initialize event.
+	case event := <-watcher.Events():
+		if event.Type != backend.OpInit {
+			return trace.BadParameter("expected init event, got %v instead", event.Type)
+		}
+	// Watcher closed, probably due to a network error.
+	case <-watcher.Done():
+		return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
+	// Timed out waiting for initialize event.
+	case <-timeout.C:
+		return trace.BadParameter("timed out waiting for initialize event")
+	}
+
+	// Check if the session exists in the backend.
+	_, err = h.cfg.AccessPoint.GetAppSession(ctx, services.GetAppSessionRequest{
+		SessionID: sessionID,
+	})
+	if err == nil {
+		return nil
+	}
+
 	for {
 		select {
-		case <-ticker.C:
-			_, err := h.cfg.AccessPoint.GetAppSession(ctx, services.GetAppSessionRequest{
-				SessionID: sessionID,
-			})
-			if err == nil {
+		// If the event is the expected one, return right away.
+		case event := <-watcher.Events():
+			if event.Resource.GetKind() != services.KindAppSession {
+				return trace.BadParameter("unexpected event: %v.", event.Resource.GetKind())
+			}
+			if event.Type == backend.OpPut && event.Resource.GetName() == sessionID {
 				return nil
 			}
+		// Watcher closed, probably due to a network error.
+		case <-watcher.Done():
+			return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
+		// Timed out waiting for initialize event.
 		case <-timeout.C:
 			return trace.BadParameter("timed out waiting for session")
+
 		}
 	}
 }

@@ -1823,6 +1823,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 	// Extract the session ID and bearer token for the current session.
 	rawCookie := *pack.cookies[0]
 	cookieBytes, err := hex.DecodeString(rawCookie.Value)
+	c.Assert(err, check.IsNil)
 	var sessionCookie SessionCookie
 	err = json.Unmarshal(cookieBytes, &sessionCookie)
 	c.Assert(err, check.IsNil)

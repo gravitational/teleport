@@ -126,7 +126,7 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 	userAccess := newAccess(userRoles, ctx, services.KindUser)
 	tokenAccess := newAccess(userRoles, ctx, services.KindToken)
 	nodeAccess := newAccess(userRoles, ctx, services.KindNode)
-	appServerAccess := newAccess(userRoles, ctx, "TODO: ADD THE RIGHT RESOURCE")
+	appServerAccess := newAccess(userRoles, ctx, services.KindAppServer)
 	logins := getLogins(userRoles)
 
 	acl := userACL{
