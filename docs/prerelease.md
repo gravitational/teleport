@@ -1,8 +1,7 @@
-## Prerelease Checklist
+## Pre-release Checklist
 
-This checklist is to be run prior to cutting a Release.
+This checklist is to be run prior to cutting a release.
 
-- [ ] Collaborate on Changelog / Release notes
-- [ ] Share Release notes and timing with Marketing Team
-- [ ] Check Apple Dev Portal https://developer.apple.com/ to confirm any TOCs
-- [ ] Create PR to update default Teleport version in Helm chart (https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/values.yaml#L15) and docs
+- [ ] Collaborate on changelog/release notes
+- [ ] Share release notes and timing with marketing team
+- [ ] Check [Apple Developer Portal](https://developer.apple.com/) to confirm any oustanding T&Cs
