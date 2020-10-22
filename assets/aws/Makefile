@@ -132,3 +132,17 @@ update-ami-ids-terraform:
 	./update-ami-ids.sh -a $(AWS_ACCOUNT_ID) -m terraform -t ent -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
 	@echo -e "\nUpdating Enterprise FIPS Terraform image IDs"
 	./update-ami-ids.sh -a $(AWS_ACCOUNT_ID) -m terraform -t ent-fips -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
+
+# you will need the Github 'gh' CLI installed and working to be able to use this target
+# https://github.com/cli/cli/releases/latest
+AUTO_BRANCH_NAME := "version-auto-pr-$(shell date +%s)"
+MAKEFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
+.PHONY: create-update-pr
+create-update-pr: update-ami-ids-cloudformation update-ami-ids-terraform
+	@echo "Creating PR for updates"
+	sed -i -E "s/^TELEPORT_VERSION \?= [0-9.]+$$/TELEPORT_VERSION ?= $(TELEPORT_VERSION)/g" $(MAKEFILE_PATH)
+	git add -A ../../examples/aws $(shell pwd)
+	git checkout -b $(AUTO_BRANCH_NAME)
+	git commit -am "[auto] Update Terraform and Cloudformation to $(TELEPORT_VERSION)"
+	git push --set-upstream origin $(AUTO_BRANCH_NAME)
+	gh pr create --fill --label terraform
