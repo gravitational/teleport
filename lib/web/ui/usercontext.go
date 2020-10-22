@@ -30,6 +30,11 @@ type access struct {
 	Delete bool `json:"remove"`
 }
 
+type dynamicAccess struct {
+	RequestStrategy string `json:"requestStrategy"`
+	RequestPrompt   string `json:"requestPrompt"`
+}
+
 type userACL struct {
 	// Sessions defines access to recorded sessions
 	Sessions access `json:"sessions"`
@@ -115,6 +120,30 @@ func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) acc
 	}
 }
 
+func getRequestAccess(roleset services.RoleSet) dynamicAccess {
+	strategy := services.RequestStrategyOptional
+	prompt := ""
+
+	for _, role := range roleset {
+		r := role.GetOptions()
+
+		if r.RequestAccess == services.RequestStrategyReason {
+			strategy = services.RequestStrategyReason
+			prompt = r.RequestPrompt
+			break
+		}
+
+		if r.RequestAccess == services.RequestStrategyAlways {
+			strategy = services.RequestStrategyAlways
+		}
+	}
+
+	return dynamicAccess{
+		RequestStrategy: strategy,
+		RequestPrompt:   prompt,
+	}
+}
+
 // NewUserContext returns user context
 func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContext, error) {
 	ctx := &services.Context{User: user}
@@ -128,6 +157,7 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 	nodeAccess := newAccess(userRoles, ctx, services.KindNode)
 	appServerAccess := newAccess(userRoles, ctx, services.KindAppServer)
 	logins := getLogins(userRoles)
+	requestAccess := getRequestAccess(userRoles)
 
 	acl := userACL{
 		AppServers:      appServerAccess,
@@ -140,6 +170,7 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 		Users:           userAccess,
 		Tokens:          tokenAccess,
 		Nodes:           nodeAccess,
+		Request:         requestAccess,
 	}
 
 	// local user
