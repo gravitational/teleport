@@ -57,7 +57,7 @@ and the access would have to be granted/denied by administrators in slack channe
 Let's add missing features to Teleport and use them to compose a solution
 for scenarios described in "Why" section.
 
-#### Dynamic role requests
+## Dynamic role requests
 
 We are going to modify `request` part of the roles to support pattern matching.
 
@@ -76,7 +76,7 @@ spec:
     # ...
 ```
 
-#### Request access role option
+## Request access role option
 
 Role option 'request_access' modifies the login
 screen for `tsh login` and web UI login.
@@ -150,8 +150,15 @@ a note and creates a request.
 If there are two roles with concurrent `note` and `auto`, the `note` will be
 picked as the most restrictive.
 
+#### Request access traits
 
-#### Cluster access labels
+For external systems to make better decisions on incoming request. The request should
+send forward on any claims/traits provided by the IdP. This is configurable by the
+Teleport Admin as part of Teleport Setup.
+https://gravitational.com/teleport/docs/enterprise/sso/ssh-sso/.
+
+
+## Cluster access labels
 
 Clusters labels, similarly to `node_labels`,
 limit the access to clusters from the root cluster.
@@ -174,7 +181,7 @@ spec:
 To preserve backwards compatibility, if not specified, `cluster_labels` default
 value is: `'*':'*'`, granting visibility and access to all clusters.
 
-#### Access request metadata
+## Access request metadata
 
 Access request gets additional fields to specify information about requests
 to individual resources:
@@ -213,7 +220,7 @@ $ tctl role create custom.yaml
 $ tctl request approve request-id --roles=custom
 ```
 
-#### Denying access request
+## Denying access request
 
 Plugins and admins can set a rejection reason
 and labels added to `user.login` failed error message
@@ -248,7 +255,24 @@ request-id-1      bob       ssh root@mongodb     ticket-1234  07 Nov 19 19:38 UT
 $ tctl request deny request-id --reason='User wanted to know too much' --reason-labels=key=value
 ```
 
-#### User interface flows
+User flow for requesting and logging in.
+```bash
+$ tsh login --request-roles=dictator --nowait
+
+# Requested roles dictator, check the status by calling
+
+$ tsh requests ls
+
+Token                                Requestor Metadata       Created At (UTC)    Status
+------------------------------------ --------- -------------- ------------------- -------
+request-id-1                         alice     roles=dictator 07 Nov 19 19:38 UTC PENDING
+
+$ tsh login --request-id=request-12345
+Granted by Bob... logging in
+```
+
+
+## User interface flows
 
 Imagine Bob has the following default role:
 
@@ -301,7 +325,7 @@ In both cases, Bob waits until the request gets approved, and in the case
 if it does, Bob sees a notification, UI gets reloaded and Bob gets access
 to the node/or sees the new list of nodes.
 
-### Examples
+## Examples
 
 #### Automatic approval for contractors
 
@@ -363,7 +387,7 @@ spec:
 
 Trusted cluster spec will map `customer-a` role to `remote-contractor` role:
 
-```
+```yaml
 kind: trusted_cluster
 metadata:
   name: "acme"
@@ -376,6 +400,16 @@ spec:
 
 **User experience**
 
-Contractors will log in and enter the ticket number, Teleport will generate access request on their behalf
-because of the `always_request_access` role option, and if granted by plugin
-based on the ticket number, they will see the clusters to access.
+Contractors will log in and enter the note / ticket number.  Teleport will generate
+access request and if granted by plugin based on the ticket number or meta data in
+the request, they will see the clusters to access.
+
+## Audit Log
+All request events will be tracked by Teleports Audit Log. These will recorded under
+access_request.  These are tracked using these two event codes.
+
+`T5000I` - AccessRequestCreateCode is the the access request creation code.
+`T5001I` - AccessRequestUpdateCode is the access request state update code.
+
+AccessRequestUpdateCode provides an option for plugins to update the state off a request
+with extra meta data about its reason for who approved, or why it was denied. See (Teleport Plugin)[https://github.com/gravitational/teleport-plugins/blob/22334ec352bc62fc6bddd98f2284228442da73fb/access/access.go#L128] as an example.
