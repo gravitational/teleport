@@ -1113,7 +1113,7 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
       - mkdir /tmp/gnupg
-      - cat $GPG_RPM_SIGNING_ARCHIVE | base64 -d | tar -C /tmp/gnupg -xzf -
+      - echo $GPG_RPM_SIGNING_ARCHIVE | base64 -d | tar -C /tmp/gnupg -xzf -
       - make rpm
       - rm -rf /tmp/gnupg
 
@@ -1228,8 +1228,11 @@ steps:
       - apk add --no-cache bash curl make tar
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
+      - mkdir /tmp/gnupg
+      - echo $GPG_RPM_SIGNING_ARCHIVE | base64 -d | tar -C /tmp/gnupg -xzf -
       # build enterprise only
       - make -C e rpm
+      - rm -rf /tmp/gnupg
 
   - name: Copy FIPS RPM artifacts
     image: docker
@@ -1669,7 +1672,10 @@ steps:
       - apk add --no-cache bash curl make tar
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
+      - mkdir /tmp/gnupg
+      - echo $GPG_RPM_SIGNING_ARCHIVE | base64 -d | tar -C /tmp/gnupg -xzf -
       - make rpm
+      - rm -rf /tmp/gnupg
 
   - name: Copy i386 RPM artifacts
     image: docker
@@ -2913,6 +2919,6 @@ volumes:
 
 ---
 kind: signature
-hmac: b12d5e27c934c9b2325ad723f86cab9b0f84a84a802b09ed5ddc5e07f19c0ece
+hmac: 73461e6659a1fa7f0ae89d59d2b7d9d32520a214bcba287e72d0c3cd5cd87807
 
 ...
