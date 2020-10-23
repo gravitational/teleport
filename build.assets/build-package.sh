@@ -154,9 +154,9 @@ else
 
     # set docker image appropriately
     if [[ "${PACKAGE_TYPE}" == "deb" ]]; then
-        DOCKER_IMAGE="cdrx/fpm-debian:8"
+        DOCKER_IMAGE="quay.io/gravitational/fpm-debian:8"
     elif [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
-        DOCKER_IMAGE="cdrx/fpm-centos:7"
+        DOCKER_IMAGE="quay.io/gravitational/fpm-centos:8"
     fi
 
     # if client-only build is requested for a non-Mac platform, unset it
@@ -245,9 +245,18 @@ else
     FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/examples/systemd/teleport.service"
     LINUX_BINARY_FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport"
     LINUX_SYSTEMD_FILE_LIST="${TAR_PATH}/examples/systemd/teleport.service"
+    EXTRA_DOCKER_OPTIONS=""
+    RPM_SIGN_STANZA=""
     if [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
         OUTPUT_FILENAME="${TAR_PATH}-${TELEPORT_VERSION}-1${OPTIONAL_RUNTIME_SECTION}.${ARCH}.rpm"
         FILE_PERMISSIONS_STANZA="--rpm-user root --rpm-group root --rpm-use-file-permissions "
+        # if this file exists, don't sign RPMs (can be used for testing without the signing keys)
+        if [ ! -f /tmp/dont-sign-teleport-rpms ]; then
+            # the /tmp/gnupg location here is assumed to contain a complete ~/.gnupg directory structure
+            # with pubring.kbx and trustdb.gpg files, plus a private-keys-v1.d directory with signing keys
+            EXTRA_DOCKER_OPTIONS="-v $(pwd)/rpm-sign/rpmmacros:/root/.rpmmacros -v $(pwd)/rpm-sign/popt-override:/etc/popt.d/rpmsign-override -v /tmp/gnupg:/root/.gnupg"
+            RPM_SIGN_STANZA="--rpm-sign"
+        fi
     elif [[ "${PACKAGE_TYPE}" == "deb" ]]; then
         OUTPUT_FILENAME="${TAR_PATH}_${TELEPORT_VERSION}${OPTIONAL_RUNTIME_SECTION}_${ARCH}.deb"
         FILE_PERMISSIONS_STANZA="--deb-user root --deb-group root "
@@ -366,7 +375,7 @@ else
     rm -vf ${OUTPUT_FILENAME}
 
     # build for other platforms
-    docker run -v ${PACKAGE_TEMPDIR}:/src --rm ${DOCKER_IMAGE} \
+    docker run -v ${PACKAGE_TEMPDIR}:/src --rm ${EXTRA_DOCKER_OPTIONS} ${DOCKER_IMAGE} \
         fpm \
         --input-type dir \
         --output-type ${PACKAGE_TYPE} \
@@ -385,7 +394,8 @@ else
         --prefix / \
         --verbose \
         ${CONFIG_FILE_STANZA} \
-        ${FILE_PERMISSIONS_STANZA} .
+        ${FILE_PERMISSIONS_STANZA} \
+        ${RPM_SIGN_STANZA} .
 
     # copy created package back to current directory
     cp ${PACKAGE_TEMPDIR}/*."${PACKAGE_TYPE}" .

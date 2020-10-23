@@ -1103,6 +1103,8 @@ steps:
       TMPDIR: /go
       OSS_TARBALL_PATH: /go/artifacts
       ENT_TARBALL_PATH: /go/artifacts
+      GPG_RPM_SIGNING_ARCHIVE:
+        from_secret: GPG_RPM_SIGNING_ARCHIVE
     volumes:
       - name: dockersock
         path: /var/run
@@ -1110,7 +1112,10 @@ steps:
       - apk add --no-cache bash curl go make tar
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
+      - mkdir /tmp/gnupg
+      - cat $GPG_RPM_SIGNING_ARCHIVE | base64 -d | tar -C /tmp/gnupg -xzf -
       - make rpm
+      - rm -rf /tmp/gnupg
 
   - name: Copy RPM artifacts
     image: docker
@@ -2908,6 +2913,6 @@ volumes:
 
 ---
 kind: signature
-hmac: ee47fbaec438cc2b42f5066442b1cbba3b512a0743055a7fbe5c43d40dc9d5a1
+hmac: b12d5e27c934c9b2325ad723f86cab9b0f84a84a802b09ed5ddc5e07f19c0ece
 
 ...

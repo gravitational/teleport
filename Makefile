@@ -511,8 +511,16 @@ rpm:
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
+	cp -ax ./build.assets/rpm-sign $(BUILDDIR)/
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p rpm -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e rpm; fi
+
+# build unsigned .rpm (for testing)
+.PHONY: rpm-unsigned
+rpm-unsigned:
+	touch /tmp/dont-sign-teleport-rpms
+	$(MAKE) rpm
+	rm -f /tmp/dont-sign-teleport-rpms
 
 # build .deb
 .PHONY: deb
