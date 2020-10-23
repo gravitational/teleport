@@ -1427,14 +1427,14 @@ func (tc *TeleportClient) ListNodes(ctx context.Context) ([]services.Server, err
 }
 
 // ListAppServers returns a list of application servers.
-func (c *TeleportClient) ListAppServers(ctx context.Context) ([]services.Server, error) {
-	proxyClient, err := c.ConnectToProxy(ctx)
+func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]services.Server, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer proxyClient.Close()
 
-	return proxyClient.GetAppServers(ctx, c.Namespace)
+	return proxyClient.GetAppServers(ctx, tc.Namespace)
 }
 
 // ListAllNodes is the same as ListNodes except that it ignores labels.
