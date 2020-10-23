@@ -1113,7 +1113,10 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
       - mkdir /tmp/gnupg
-      - echo "${GPG_RPM_SIGNING_ARCHIVE}" | base64 -d | tar -C /tmp/gnupg -xzf -
+      - echo "$GPG_RPM_SIGNING_ARCHIVE" | wc -c
+      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | wc -c
+      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d > /tmp/gnupg/archive.tar.gz
+      - tar -C /tmp/gnupg -xzf /tmp/gnupg/archive.tar.gz
       - make rpm
       - rm -rf /tmp/gnupg
 
@@ -1231,7 +1234,10 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
       - mkdir /tmp/gnupg
-      - echo "${GPG_RPM_SIGNING_ARCHIVE}" | base64 -d | tar -C /tmp/gnupg -xzf -
+      - echo "$GPG_RPM_SIGNING_ARCHIVE" | wc -c
+      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | wc -c
+      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d > /tmp/gnupg/archive.tar.gz
+      - tar -C /tmp/gnupg -xzf /tmp/gnupg/archive.tar.gz
       # build enterprise only
       - make -C e rpm
       - rm -rf /tmp/gnupg
@@ -1679,8 +1685,7 @@ steps:
       - mkdir /tmp/gnupg
       - echo "$GPG_RPM_SIGNING_ARCHIVE" | wc -c
       - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | wc -c
-      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d -i | wc -c
-      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d -i > /tmp/gnupg/archive.tar.gz
+      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d > /tmp/gnupg/archive.tar.gz
       - tar -C /tmp/gnupg -xzf /tmp/gnupg/archive.tar.gz
       - make rpm
       - rm -rf /tmp/gnupg
@@ -2927,6 +2932,6 @@ volumes:
 
 ---
 kind: signature
-hmac: ca29f6da9039dab6c9fbe4b4f90b1fb50038f851e69a35160a32ef7954768b54
+hmac: c68069fae84dbe94b8aa07564846ea2a980d0ddb77b9a0bf0587488f6a31a341
 
 ...
