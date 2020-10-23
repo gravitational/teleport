@@ -1147,14 +1147,23 @@ steps:
       TMPDIR: /go
       OSS_TARBALL_PATH: /go/artifacts
       ENT_TARBALL_PATH: /go/artifacts
+      GNUPG_DIR: /tmpfs/gnupg
+      GPG_RPM_SIGNING_ARCHIVE:
+        from_secret: GPG_RPM_SIGNING_ARCHIVE
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmpfs
+        path: /tmpfs
     commands:
-      - apk add --no-cache bash curl go make tar
+      - apk add --no-cache bash curl gzip make tar
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
+      - mkdir -m0700 $GNUPG_DIR
+      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR
+      - chown -R root:root $GNUPG_DIR
       - make rpm
+      - rm -rf $GNUPG_DIR
 
   - name: Copy RPM artifacts
     image: docker
@@ -1184,10 +1193,15 @@ services:
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmpfs
+        path: /tmpfs
 
 volumes:
   - name: dockersock
     temp: {}
+  - name: tmpfs
+    temp:
+      medium: memory
 
 ---
 kind: pipeline
@@ -1260,15 +1274,24 @@ steps:
       RUNTIME: fips
       TMPDIR: /go
       ENT_TARBALL_PATH: /go/artifacts
+      GNUPG_DIR: /tmpfs/gnupg
+      GPG_RPM_SIGNING_ARCHIVE:
+        from_secret: GPG_RPM_SIGNING_ARCHIVE
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmpfs
+        path: /tmpfs
     commands:
-      - apk add --no-cache bash curl make tar
+      - apk add --no-cache bash curl gzip make tar
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
+      - mkdir -m0700 $GNUPG_DIR
+      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR
+      - chown -R root:root $GNUPG_DIR
       # build enterprise only
       - make -C e rpm
+      - rm -rf $GNUPG_DIR
 
   - name: Copy FIPS RPM artifacts
     image: docker
@@ -1297,10 +1320,15 @@ services:
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmpfs
+        path: /tmpfs
 
 volumes:
   - name: dockersock
     temp: {}
+  - name: tmpfs
+    temp:
+      medium: memory
 
 ---
 kind: pipeline
@@ -1701,14 +1729,23 @@ steps:
       TMPDIR: /go
       OSS_TARBALL_PATH: /go/artifacts
       ENT_TARBALL_PATH: /go/artifacts
+      GNUPG_DIR: /tmpfs/gnupg
+      GPG_RPM_SIGNING_ARCHIVE:
+        from_secret: GPG_RPM_SIGNING_ARCHIVE
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmpfs
+        path: /tmpfs
     commands:
-      - apk add --no-cache bash curl make tar
+      - apk add --no-cache bash curl gzip make tar
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
+      - mkdir -m0700 $GNUPG_DIR
+      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR
+      - chown -R root:root $GNUPG_DIR
       - make rpm
+      - rm -rf $GNUPG_DIR
 
   - name: Copy i386 RPM artifacts
     image: docker
@@ -1738,10 +1775,15 @@ services:
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmpfs
+        path: /tmpfs
 
 volumes:
   - name: dockersock
     temp: {}
+  - name: tmpfs
+    temp:
+      medium: memory
 
 ---
 kind: pipeline
@@ -3046,6 +3088,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 289a3b88913526ba2228afd60cc4fa60539f9f76ef89453164a8e5abc4c16255
+hmac: 76d394171bb5b83a4107f4490e5bf2df1a541c5efd1b072c6e8c84c8b5c6cacb
 
 ...
