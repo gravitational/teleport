@@ -1113,7 +1113,7 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
       - mkdir /tmp/gnupg
-      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -C /tmp/gnupg -xzf -
+      - echo "${GPG_RPM_SIGNING_ARCHIVE}" | base64 -d | tar -C /tmp/gnupg -xzf -
       - make rpm
       - rm -rf /tmp/gnupg
 
@@ -1221,6 +1221,8 @@ steps:
       RUNTIME: fips
       TMPDIR: /go
       ENT_TARBALL_PATH: /go/artifacts
+      GPG_RPM_SIGNING_ARCHIVE:
+        from_secret: GPG_RPM_SIGNING_ARCHIVE
     volumes:
       - name: dockersock
         path: /var/run
@@ -1229,7 +1231,7 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
       - mkdir /tmp/gnupg
-      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -C /tmp/gnupg -xzf -
+      - echo "${GPG_RPM_SIGNING_ARCHIVE}" | base64 -d | tar -C /tmp/gnupg -xzf -
       # build enterprise only
       - make -C e rpm
       - rm -rf /tmp/gnupg
@@ -1665,6 +1667,8 @@ steps:
       TMPDIR: /go
       OSS_TARBALL_PATH: /go/artifacts
       ENT_TARBALL_PATH: /go/artifacts
+      GPG_RPM_SIGNING_ARCHIVE:
+        from_secret: GPG_RPM_SIGNING_ARCHIVE
     volumes:
       - name: dockersock
         path: /var/run
@@ -1673,7 +1677,7 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
       - mkdir /tmp/gnupg
-      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -C /tmp/gnupg -xzf -
+      - echo "${GPG_RPM_SIGNING_ARCHIVE}" | base64 -d | tar -C /tmp/gnupg -xzf -
       - make rpm
       - rm -rf /tmp/gnupg
 
@@ -2919,6 +2923,6 @@ volumes:
 
 ---
 kind: signature
-hmac: ca26763076b956ddbc9919cd80c00401272e918fffe87a3c880238f66a040385
+hmac: 989a0a8bf9dcd5012cc2db4ad8f61e8d16717ad803a15c6a5cb5f33738fe7a40
 
 ...
