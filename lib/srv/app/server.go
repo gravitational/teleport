@@ -25,7 +25,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -126,6 +126,9 @@ type Server struct {
 	closeContext context.Context
 	closeFunc    context.CancelFunc
 
+	mu     sync.RWMutex
+	server services.Server
+
 	httpServer *http.Server
 	tlsConfig  *tls.Config
 
@@ -136,8 +139,6 @@ type Server struct {
 	proxyPort string
 
 	cache *sessionCache
-
-	activeConns int64
 }
 
 // New returns a new application server.
@@ -152,6 +153,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentApp,
 		}),
+		server: c.Server,
 	}
 
 	s.closeContext, s.closeFunc = context.WithCancel(ctx)
@@ -179,7 +181,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	// Create dynamic labels for all applications that are being proxied and
 	// sync them right away so the first heartbeat has correct dynamic labels.
 	s.dynamicLabels = make(map[string]*labels.Dynamic)
-	for _, a := range c.Server.GetApps() {
+	for _, a := range s.server.GetApps() {
 		if len(a.DynamicLabels) == 0 {
 			continue
 		}
@@ -228,19 +230,22 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 // GetServerInfo returns a services.Server representing the application. Used
 // in heartbeat code.
 func (s *Server) GetServerInfo() (services.Server, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	// Update dynamic labels on all apps.
-	apps := s.c.Server.GetApps()
-	for _, a := range apps {
+	apps := s.server.GetApps()
+	for _, a := range s.server.GetApps() {
 		dl, ok := s.dynamicLabels[a.Name]
 		if !ok {
 			continue
 		}
 		a.DynamicLabels = services.LabelsToV2(dl.Get())
 	}
-	s.c.Server.SetApps(apps)
+	s.server.SetApps(apps)
 
 	// Update the TTL.
-	s.c.Server.SetTTL(s.c.Clock, defaults.ServerAnnounceTTL)
+	s.server.SetTTL(s.c.Clock, defaults.ServerAnnounceTTL)
 
 	// Update rotation state.
 	rotation, err := s.c.GetRotation(teleport.RoleApp)
@@ -249,10 +254,10 @@ func (s *Server) GetServerInfo() (services.Server, error) {
 			s.log.Warningf("Failed to get rotation state: %v.", err)
 		}
 	} else {
-		s.c.Server.SetRotation(*rotation)
+		s.server.SetRotation(*rotation)
 	}
 
-	return s.c.Server, nil
+	return s.server, nil
 }
 
 // Start starts heart beating the presence of service.Apps that this
@@ -411,12 +416,14 @@ func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app *
 // to the same target address. Random selection (or round robin) occurs at the
 // web proxy to load balance requests to the application service.
 func (s *Server) getApp(ctx context.Context, publicAddr string) (*services.App, error) {
-	for _, a := range s.c.Server.GetApps() {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	for _, a := range s.server.GetApps() {
 		if publicAddr == a.PublicAddr {
 			return a, nil
 		}
 	}
-
 	return nil, trace.NotFound("no application at %v found", publicAddr)
 }
 
@@ -435,12 +442,6 @@ func (s *Server) newHTTPServer() *http.Server {
 		Handler:           authMiddleware,
 		ReadHeaderTimeout: defaults.DefaultDialTimeout,
 	}
-}
-
-// activeConnections returns the number of active connections being proxied.
-// Used in tests.
-func (s *Server) activeConnections() int64 {
-	return atomic.LoadInt64(&s.activeConns)
 }
 
 // getProxyPort tries to figure out the address the proxy is running at.

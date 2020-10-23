@@ -429,26 +429,6 @@ func (c *semaphoreCollection) writeText(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
-func (c *semaphoreCollection) writeJSON(w io.Writer) error {
-	data, err := json.MarshalIndent(c.toMarshal(), "", "    ")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = w.Write(data)
-	return trace.Wrap(err)
-}
-
-func (c *semaphoreCollection) toMarshal() interface{} {
-	if len(c.sems) == 1 {
-		return c.sems[0]
-	}
-	return c.sems
-}
-
-func (c *semaphoreCollection) writeYAML(w io.Writer) error {
-	return utils.WriteYAML(w, c.toMarshal())
-}
-
 type appCollection struct {
 	servers []services.Server
 }

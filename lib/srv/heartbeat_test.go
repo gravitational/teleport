@@ -278,7 +278,7 @@ type fakeAnnouncer struct {
 }
 
 func (f *fakeAnnouncer) UpsertAppServer(ctx context.Context, s services.Server) (*services.KeepAlive, error) {
-	f.upsertCalls[HeartbeatModeApp] += 1
+	f.upsertCalls[HeartbeatModeApp]++
 	if f.err != nil {
 		return nil, f.err
 	}

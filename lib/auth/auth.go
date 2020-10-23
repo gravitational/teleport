@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/wrappers"
+	"github.com/pborman/uuid"
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
@@ -472,6 +473,42 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 		return nil, nil, trace.Wrap(err)
 	}
 	return certs.ssh, certs.tls, nil
+}
+
+// GenerateUserAppTestCert generates a application specific certificate, used
+// internally for tests.
+func (a *Server) GenerateUserAppTestCert(publicKey []byte, username string, ttl time.Duration, publicAddr string, clusterName string) ([]byte, error) {
+	user, err := a.Identity.GetUser(username, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certs, err := a.generateUserCert(certRequest{
+		user:      user,
+		publicKey: publicKey,
+		checker:   checker,
+		ttl:       ttl,
+		// Set the login to be a random string. Application certificates are never
+		// used to log into servers but SSH certificate generation code requires a
+		// principal be in the certificate.
+		traits: wrappers.Traits(map[string][]string{
+			teleport.TraitLogins: []string{uuid.New()},
+		}),
+		// Only allow this certificate to be used for applications.
+		usage: []string{teleport.UsageAppsOnly},
+		// Add in the application routing information.
+		appSessionID:   uuid.New(),
+		appPublicAddr:  publicAddr,
+		appClusterName: clusterName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return certs.tls, nil
 }
 
 // generateUserCert generates user certificates

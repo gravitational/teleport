@@ -2938,17 +2938,17 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 // hasLocalTunnel returns true of the reverse tunnel server is running within
 // this process and if a tunnel public address has been defined allowing a
 // local client to connect to itself.
-func (p *TeleportProcess) hasLocalTunnel() (string, bool) {
-	if !p.Config.Proxy.Enabled || !p.Config.Auth.Enabled {
+func (process *TeleportProcess) hasLocalTunnel() (string, bool) {
+	if !process.Config.Proxy.Enabled || !process.Config.Auth.Enabled {
 		return "", false
 	}
-	if p.Config.Proxy.DisableReverseTunnel {
+	if process.Config.Proxy.DisableReverseTunnel {
 		return "", false
 	}
-	if len(p.Config.Proxy.TunnelPublicAddrs) == 0 {
+	if len(process.Config.Proxy.TunnelPublicAddrs) == 0 {
 		return net.JoinHostPort(string(teleport.PrincipalLocalhost), strconv.Itoa(defaults.SSHProxyTunnelListenPort)), true
 	}
-	return p.Config.Proxy.TunnelPublicAddrs[0].String(), true
+	return process.Config.Proxy.TunnelPublicAddrs[0].String(), true
 }
 
 func getPublicAddr(authClient auth.AccessPoint, a App) (string, error) {

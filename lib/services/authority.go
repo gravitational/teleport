@@ -443,17 +443,17 @@ func (ca *CertAuthorityV2) GetTLSKeyPairs() []TLSKeyPair {
 }
 
 // JWTSigner returns the active JWT key used to sign tokens.
-func (c *CertAuthorityV2) JWTSigner() (*jwt.Key, error) {
-	if len(c.Spec.JWTKeyPairs) == 0 {
+func (ca *CertAuthorityV2) JWTSigner() (*jwt.Key, error) {
+	if len(ca.Spec.JWTKeyPairs) == 0 {
 		return nil, trace.BadParameter("no JWT keypairs found")
 	}
-	privateKey, err := utils.ParsePrivateKey(c.Spec.JWTKeyPairs[0].PrivateKey)
+	privateKey, err := utils.ParsePrivateKey(ca.Spec.JWTKeyPairs[0].PrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	key, err := jwt.New(&jwt.Config{
 		Algorithm:   defaults.ApplicationTokenAlgorithm,
-		ClusterName: c.Spec.ClusterName,
+		ClusterName: ca.Spec.ClusterName,
 		PrivateKey:  privateKey,
 	})
 	if err != nil {
@@ -464,13 +464,13 @@ func (c *CertAuthorityV2) JWTSigner() (*jwt.Key, error) {
 }
 
 // GetJWTKeyPairs gets all JWT keypairs used to sign a JWT.
-func (c *CertAuthorityV2) GetJWTKeyPairs() []JWTKeyPair {
-	return c.Spec.JWTKeyPairs
+func (ca *CertAuthorityV2) GetJWTKeyPairs() []JWTKeyPair {
+	return ca.Spec.JWTKeyPairs
 }
 
 // SetJWTKeyPairs sets ll JWT keypairs used to sign a JWT.
-func (c *CertAuthorityV2) SetJWTKeyPairs(keyPairs []JWTKeyPair) {
-	c.Spec.JWTKeyPairs = keyPairs
+func (ca *CertAuthorityV2) SetJWTKeyPairs(keyPairs []JWTKeyPair) {
+	ca.Spec.JWTKeyPairs = keyPairs
 }
 
 // GetMetadata returns object metadata
