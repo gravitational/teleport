@@ -86,11 +86,24 @@ kind: role
 metadata:
   name: contractor
 spec:
+  allow:
+    request:
+      roles: ['{{external.groups}}']
+    # pass some extra metadata to the plugin; nothing special, just a mapping that obeys
+    claims_to_roles:
+      - claim: "group"
+         value: ".*"
+         roles: [ "admins" ]
   options:
-     # 'none' - default value if not set
-     # 'auto' - blocks the login screen and creates an access request
-     # 'note' - requests for a note to be filled in and creates access request
+     # 'optional' - allow user to request access if `can_access` is setup for the
+     #              role  (default value for all roles)
+     # 'reason'   - create access request after asking for note if `can_access`
+     #              is setup for the role
+     # 'always'   - always create access request after login without asking for
+     #              note if `can_access` is setup for the role
      request_access: 'note'
+     request_prompt: |
+       Hey, Enter the Ticker number from https://ibm.com/tickets
   allow:
     request:
       roles: ['^customer-.*$']
@@ -115,8 +128,8 @@ metadata:
   name: contractor
 spec:
   options:
-     # 'none' - default value if not set
-     request_access: 'auto'
+     # 'optional' - default value if not set
+     request_access: 'always'
   allow:
     request:
       roles: ['^customer-.*$']
@@ -144,10 +157,10 @@ spec:
 
 **Note**
 
-`note` presents a dialog after the successfull login, requests
+`reason` presents a dialog after the successful login, requests
 a note and creates a request.
 
-If there are two roles with concurrent `note` and `auto`, the `note` will be
+If there are two roles with concurrent `reason` and `always`, the `reason` will be
 picked as the most restrictive.
 
 #### Request access traits
