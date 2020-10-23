@@ -89,52 +89,52 @@ func NewWebSession(name string, kind string, spec WebSessionSpecV2) WebSession {
 	}
 }
 
-func (r *WebSessionV2) GetKind() string {
-	return r.Kind
+func (ws *WebSessionV2) GetKind() string {
+	return ws.Kind
 }
 
-func (r *WebSessionV2) GetSubKind() string {
-	return r.SubKind
+func (ws *WebSessionV2) GetSubKind() string {
+	return ws.SubKind
 }
 
-func (r *WebSessionV2) SetSubKind(subKind string) {
-	r.SubKind = subKind
+func (ws *WebSessionV2) SetSubKind(subKind string) {
+	ws.SubKind = subKind
 }
 
-func (r *WebSessionV2) GetVersion() string {
-	return r.Version
+func (ws *WebSessionV2) GetVersion() string {
+	return ws.Version
 }
 
-func (r *WebSessionV2) GetName() string {
-	return r.Metadata.Name
+func (ws *WebSessionV2) GetName() string {
+	return ws.Metadata.Name
 }
 
-func (r *WebSessionV2) SetName(name string) {
-	r.Metadata.Name = name
+func (ws *WebSessionV2) SetName(name string) {
+	ws.Metadata.Name = name
 }
 
-func (r *WebSessionV2) Expiry() time.Time {
-	return r.Metadata.Expiry()
+func (ws *WebSessionV2) Expiry() time.Time {
+	return ws.Metadata.Expiry()
 }
 
-func (r *WebSessionV2) SetExpiry(expiry time.Time) {
-	r.Metadata.SetExpiry(expiry)
+func (ws *WebSessionV2) SetExpiry(expiry time.Time) {
+	ws.Metadata.SetExpiry(expiry)
 }
 
-func (r *WebSessionV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
-	r.Metadata.SetTTL(clock, ttl)
+func (ws *WebSessionV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+	ws.Metadata.SetTTL(clock, ttl)
 }
 
-func (r *WebSessionV2) GetMetadata() Metadata {
-	return r.Metadata
+func (ws *WebSessionV2) GetMetadata() Metadata {
+	return ws.Metadata
 }
 
-func (r *WebSessionV2) GetResourceID() int64 {
-	return r.Metadata.GetID()
+func (ws *WebSessionV2) GetResourceID() int64 {
+	return ws.Metadata.GetID()
 }
 
-func (r *WebSessionV2) SetResourceID(id int64) {
-	r.Metadata.SetID(id)
+func (ws *WebSessionV2) SetResourceID(id int64) {
+	ws.Metadata.SetID(id)
 }
 
 // WithoutSecrets returns copy of the object but without secrets

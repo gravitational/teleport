@@ -115,14 +115,14 @@ type RouteToApp struct {
 }
 
 // GetRouteToApp returns application routing data. If missing, returns an error.
-func (i *Identity) GetRouteToApp() (RouteToApp, error) {
-	if i.RouteToApp.SessionID == "" ||
-		i.RouteToApp.PublicAddr == "" ||
-		i.RouteToApp.ClusterName == "" {
+func (id *Identity) GetRouteToApp() (RouteToApp, error) {
+	if id.RouteToApp.SessionID == "" ||
+		id.RouteToApp.PublicAddr == "" ||
+		id.RouteToApp.ClusterName == "" {
 		return RouteToApp{}, trace.BadParameter("identity is missing application routing metadata")
 	}
 
-	return i.RouteToApp, nil
+	return id.RouteToApp, nil
 }
 
 // CheckAndSetDefaults checks and sets default values

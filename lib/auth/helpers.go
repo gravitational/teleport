@@ -530,10 +530,10 @@ func TestBuiltin(role teleport.Role) TestIdentity {
 }
 
 // TestServerID returns a TestIdentity for a node with the passed in serverID.
-func TestServerID(serverID string) TestIdentity {
+func TestServerID(role teleport.Role, serverID string) TestIdentity {
 	return TestIdentity{
 		I: BuiltinRole{
-			Role:     teleport.RoleNode,
+			Role:     role,
 			Username: serverID,
 		},
 	}

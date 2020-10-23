@@ -25,7 +25,6 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -136,8 +135,6 @@ type Server struct {
 	proxyPort string
 
 	cache *sessionCache
-
-	activeConns int64
 }
 
 // New returns a new application server.
@@ -435,12 +432,6 @@ func (s *Server) newHTTPServer() *http.Server {
 		Handler:           authMiddleware,
 		ReadHeaderTimeout: defaults.DefaultDialTimeout,
 	}
-}
-
-// activeConnections returns the number of active connections being proxied.
-// Used in tests.
-func (s *Server) activeConnections() int64 {
-	return atomic.LoadInt64(&s.activeConns)
 }
 
 // getProxyPort tries to figure out the address the proxy is running at.
