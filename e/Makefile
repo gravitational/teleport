@@ -277,6 +277,7 @@ rpm:
 	mkdir -p $(BUILDDIR)/
 	cp ../build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
+	cp -a ../build.assets/rpm-sign $(BUILDDIR)/
 	cd $(BUILDDIR) && ./build-package.sh -t ent -v $(VERSION) -p rpm -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 
 # build .deb
