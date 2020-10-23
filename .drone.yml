@@ -1687,6 +1687,7 @@ steps:
       - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | wc -c
       - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d > /tmp/gnupg/archive.tar.gz
       - tar -C /tmp/gnupg -xzf /tmp/gnupg/archive.tar.gz
+      - chown -R root:root /tmp/gnug
       - ls -lR /tmp/gnupg
       - make rpm
       - rm -rf /tmp/gnupg
@@ -2933,6 +2934,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 8eb28621f715962d764774d90b668af43227f8284ba00fff2f6b3bef3a60b706
+hmac: 67c6c5acdec001380b30088e4029102453c69c3e12d0e243d4d2637901ed1dac
 
 ...
