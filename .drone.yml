@@ -619,886 +619,886 @@ steps:
       target: /
       strip_prefix: /go/chart
 
-# ---
-# kind: pipeline
-# type: kubernetes
-# name: build-linux-amd64
-
-# environment:
-#   RUNTIME: go1.14.4
-
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
-
-# workspace:
-#   path: /go
-
-# clone:
-#   disable: true
-
-# steps:
-#   - name: Check out code
-#     image: docker:git
-#     environment:
-#       GITHUB_PRIVATE_KEY:
-#         from_secret: GITHUB_PRIVATE_KEY
-#     commands:
-#       - mkdir -p /go/src/github.com/gravitational/teleport
-#       - cd /go/src/github.com/gravitational/teleport
-#       - git clone https://github.com/gravitational/teleport.git .
-#       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-#       # fetch enterprise submodules
-#       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-#       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-#       - git submodule update --init e
-#       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-#       - git submodule update --init --recursive webassets || true
-#       - rm -f /root/.ssh/id_rsa
-#       # create necessary directories
-#       - mkdir -p /go/cache /go/artifacts/e
-#       # set version
-#       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
-
-#   - name: Build release artifacts
-#     image: docker
-#     environment:
-#       UID: 1000
-#       GID: 1000
-#       GOPATH: /go
-#       OS: linux
-#       ARCH: amd64
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-#     commands:
-#       - apk add --no-cache make
-#       - chown -R $UID:$GID /go
-#       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-#       - cd /go/src/github.com/gravitational/teleport
-#       - make -C build.assets release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
-
-#   - name: Copy artifacts
-#     image: docker
-#     commands:
-#       - cd /go/src/github.com/gravitational/teleport
-#       # copy release archives to artifact directory
-#       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
-#       - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/e \;
-#       # rename artifact
-#       - export VERSION=$(cat /go/.version.txt)
-#       - mv /go/artifacts/e/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz
-#       # generate checksums
-#       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
-
-#   - name: Upload to S3
-#     image: plugins/s3
-#     settings:
-#       bucket:
-#         from_secret: AWS_S3_BUCKET
-#       access_key:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       secret_key:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       region: us-west-2
-#       source: /go/artifacts/*
-#       target: teleport/tag/${DRONE_TAG##v}
-#       strip_prefix: /go/artifacts/
-
-# services:
-#   - name: Start Docker
-#     image: docker:dind
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-
-# volumes:
-#   - name: dockersock
-#     temp: {}
-
-# ---
-# kind: pipeline
-# type: kubernetes
-# name: build-linux-amd64-fips
-
-# environment:
-#   RUNTIME: go1.14.4
-
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
-
-# workspace:
-#   path: /go
-
-# clone:
-#   disable: true
-
-# steps:
-#   - name: Check out code
-#     image: docker:git
-#     environment:
-#       GITHUB_PRIVATE_KEY:
-#         from_secret: GITHUB_PRIVATE_KEY
-#     commands:
-#       - mkdir -p /go/src/github.com/gravitational/teleport
-#       - cd /go/src/github.com/gravitational/teleport
-#       - git clone https://github.com/gravitational/teleport.git .
-#       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-#       # fetch enterprise submodules
-#       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-#       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-#       - git submodule update --init e
-#       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-#       - git submodule update --init --recursive webassets || true
-#       - rm -f /root/.ssh/id_rsa
-#       # create necessary directories
-#       - mkdir -p /go/cache /go/artifacts
-#       # set version
-#       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
-
-#   - name: Build FIPS release artifacts
-#     image: docker
-#     environment:
-#       UID: 1000
-#       GID: 1000
-#       GOPATH: /go
-#       OS: linux
-#       ARCH: amd64
-#       FIPS: "yes"
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-#     commands:
-#       - apk add --no-cache make
-#       - chown -R $UID:$GID /go
-#       - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
-#       - cd /go/src/github.com/gravitational/teleport
-#       - export VERSION=$(cat /go/.version.txt)
-#       - make -C build.assets release-fips VERSION=$VERSION OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS
-
-#   - name: Copy FIPS artifacts
-#     image: docker
-#     commands:
-#       - cd /go/src/github.com/gravitational/teleport
-#       # copy release archives to artifact directory
-#       - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
-#       # rename artifact
-#       - export VERSION=$(cat /go/.version.txt)
-#       - mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz
-#       # generate checksums
-#       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
-
-#   - name: Upload to S3
-#     image: plugins/s3
-#     settings:
-#       bucket:
-#         from_secret: AWS_S3_BUCKET
-#       access_key:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       secret_key:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       region: us-west-2
-#       source: /go/artifacts/*
-#       target: teleport/tag/${DRONE_TAG##v}
-#       strip_prefix: /go/artifacts/
-
-# services:
-#   - name: Start Docker
-#     image: docker:dind
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-
-# volumes:
-#   - name: dockersock
-#     temp: {}
-
-# ---
-# kind: pipeline
-# type: kubernetes
-# name: build-linux-amd64-centos6
-
-# environment:
-#   RUNTIME: go1.14.4
-
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
-
-# workspace:
-#   path: /go
-
-# clone:
-#   disable: true
-
-# steps:
-#   - name: Check out code
-#     image: docker:git
-#     environment:
-#       GITHUB_PRIVATE_KEY:
-#         from_secret: GITHUB_PRIVATE_KEY
-#     commands:
-#       - mkdir -p /go/src/github.com/gravitational/teleport
-#       - cd /go/src/github.com/gravitational/teleport
-#       - git clone https://github.com/gravitational/teleport.git .
-#       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-#       # fetch enterprise submodules
-#       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-#       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-#       - git submodule update --init e
-#       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-#       - git submodule update --init --recursive webassets || true
-#       - rm -f /root/.ssh/id_rsa
-#       # create necessary directories
-#       - mkdir -p /go/cache /go/artifacts/e
-#       # set version
-#       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
-
-#   - name: Build CentOS 6 release artifacts
-#     image: docker
-#     environment:
-#       UID: 1000
-#       GID: 1000
-#       GOPATH: /go
-#       OS: linux
-#       ARCH: amd64
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-#     commands:
-#       - apk add --no-cache make
-#       - chown -R $UID:$GID /go
-#       - docker pull quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME || true
-#       - cd /go/src/github.com/gravitational/teleport
-#       - make -C build.assets release-centos6 OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
-
-#   - name: Copy CentOS 6 artifacts
-#     image: docker
-#     commands:
-#       - cd /go/src/github.com/gravitational/teleport
-#       # copy release archives to artifact directory
-#       - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
-#       - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/e \;
-#       # rename artifacts
-#       - export VERSION=$(cat /go/.version.txt)
-#       - mv /go/artifacts/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-v$${VERSION}-linux-amd64-centos6-bin.tar.gz
-#       - mv /go/artifacts/e/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-bin.tar.gz
-#       # generate checksums
-#       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
-
-#   - name: Upload to S3
-#     image: plugins/s3
-#     settings:
-#       bucket:
-#         from_secret: AWS_S3_BUCKET
-#       access_key:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       secret_key:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       region: us-west-2
-#       source: /go/artifacts/*
-#       target: teleport/tag/${DRONE_TAG##v}
-#       strip_prefix: /go/artifacts/
-
-# services:
-#   - name: Start Docker
-#     image: docker:dind
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-
-# volumes:
-#   - name: dockersock
-#     temp: {}
-
-# ---
-# kind: pipeline
-# type: kubernetes
-# name: build-linux-amd64-centos6-fips
-
-# environment:
-#   RUNTIME: go1.14.4
-
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
-
-# workspace:
-#   path: /go
-
-# clone:
-#   disable: true
-
-# steps:
-#   - name: Check out code
-#     image: docker:git
-#     environment:
-#       GITHUB_PRIVATE_KEY:
-#         from_secret: GITHUB_PRIVATE_KEY
-#     commands:
-#       - mkdir -p /go/src/github.com/gravitational/teleport
-#       - cd /go/src/github.com/gravitational/teleport
-#       - git clone https://github.com/gravitational/teleport.git .
-#       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-#       # fetch enterprise submodules
-#       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-#       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-#       - git submodule update --init e
-#       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-#       - git submodule update --init --recursive webassets || true
-#       - rm -f /root/.ssh/id_rsa
-#       # create necessary directories
-#       - mkdir -p /go/cache /go/artifacts
-#       # set version
-#       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
-
-#   - name: Build CentOS 6 FIPS release artifacts
-#     image: docker
-#     environment:
-#       UID: 1000
-#       GID: 1000
-#       GOPATH: /go
-#       OS: linux
-#       ARCH: amd64
-#       FIPS: "yes"
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-#     commands:
-#       - apk add --no-cache make
-#       - chown -R $UID:$GID /go
-#       - docker pull quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME || true
-#       - cd /go/src/github.com/gravitational/teleport
-#       - make -C build.assets release-centos6-fips OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS
-
-#   - name: Copy CentOS 6 FIPS artifacts
-#     image: docker
-#     commands:
-#       - cd /go/src/github.com/gravitational/teleport
-#       # copy release archives to artifact directory
-#       - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
-#       # rename artifact
-#       - export VERSION=$(cat /go/.version.txt)
-#       - mv /go/artifacts/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-fips-bin.tar.gz
-#       # generate checksums
-#       - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
-
-#   - name: Upload to S3
-#     image: plugins/s3
-#     settings:
-#       bucket:
-#         from_secret: AWS_S3_BUCKET
-#       access_key:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       secret_key:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       region: us-west-2
-#       source: /go/artifacts/*
-#       target: teleport/tag/${DRONE_TAG##v}
-#       strip_prefix: /go/artifacts/
-
-# services:
-#   - name: Start Docker
-#     image: docker:dind
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-
-# volumes:
-#   - name: dockersock
-#     temp: {}
-
-# ---
-# kind: pipeline
-# type: kubernetes
-# name: build-linux-amd64-rpm
-
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
-
-# depends_on:
-#   - build-linux-amd64
-
-# workspace:
-#   path: /go
-
-# clone:
-#   disable: true
-
-# steps:
-#   - name: Check out code
-#     image: docker:git
-#     environment:
-#       GITHUB_PRIVATE_KEY:
-#         from_secret: GITHUB_PRIVATE_KEY
-#     commands:
-#       - mkdir -p /go/src/github.com/gravitational/teleport
-#       - cd /go/src/github.com/gravitational/teleport
-#       - git clone https://github.com/gravitational/teleport.git .
-#       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-#       # fetch enterprise submodules
-#       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-#       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-#       - git submodule update --init e
-#       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-#       - git submodule update --init --recursive webassets || true
-#       - rm -f /root/.ssh/id_rsa
-#       # create necessary directories
-#       - mkdir -p /go/cache /go/artifacts
-#       # set version
-#       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
-
-#   - name: Download built tarball artifacts from S3
-#     image: amazon/aws-cli
-#     environment:
-#       AWS_S3_BUCKET:
-#         from_secret: AWS_S3_BUCKET
-#       AWS_ACCESS_KEY_ID:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       AWS_SECRET_ACCESS_KEY:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       AWS_REGION: us-west-2
-#     commands:
-#       - export VERSION=$(cat /go/.version.txt)
-#       - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
-#       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
-#       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
-
-#   - name: Build RPM artifacts
-#     image: docker
-#     environment:
-#       ARCH: amd64
-#       TMPDIR: /go
-#       OSS_TARBALL_PATH: /go/artifacts
-#       ENT_TARBALL_PATH: /go/artifacts
-#       GPG_RPM_SIGNING_ARCHIVE:
-#         from_secret: GPG_RPM_SIGNING_ARCHIVE
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-#     commands:
-#       - apk add --no-cache bash curl make tar
-#       - cd /go/src/github.com/gravitational/teleport
-#       - export VERSION=$(cat /go/.version.txt)
-#       - mkdir -m0700 /tmp/gnupg
-#       - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d > /tmp/gnupg/archive.tar.gz
-#       - tar -C /tmp/gnupg -xzf /tmp/gnupg/archive.tar.gz
-#       - chown -R root:root /tmp/gnupg
-#       - ls -lR /tmp/gnupg
-#       - make rpm
-#       - rm -rf /tmp/gnupg
-
-#   - name: Copy RPM artifacts
-#     image: docker
-#     commands:
-#       - cd /go/src/github.com/gravitational/teleport
-#       # copy release archives (and checksums) to artifact directory
-#       - find build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
-#       - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
-
-#   - name: Upload to S3
-#     image: plugins/s3
-#     settings:
-#       bucket:
-#         from_secret: AWS_S3_BUCKET
-#       access_key:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       secret_key:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       region: us-west-2
-#       source: /go/artifacts/*
-#       target: teleport/tag/${DRONE_TAG##v}
-#       strip_prefix: /go/artifacts/
-
-# services:
-#   - name: Start Docker
-#     image: docker:dind
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-
-# volumes:
-#   - name: dockersock
-#     temp: {}
-
-# ---
-# kind: pipeline
-# type: kubernetes
-# name: build-linux-amd64-fips-rpm
-
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
-
-# depends_on:
-#   - build-linux-amd64-fips
-
-# workspace:
-#   path: /go
-
-# clone:
-#   disable: true
-
-# steps:
-#   - name: Check out code
-#     image: docker:git
-#     environment:
-#       GITHUB_PRIVATE_KEY:
-#         from_secret: GITHUB_PRIVATE_KEY
-#     commands:
-#       - mkdir -p /go/src/github.com/gravitational/teleport
-#       - cd /go/src/github.com/gravitational/teleport
-#       - git clone https://github.com/gravitational/teleport.git .
-#       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-#       # fetch enterprise submodules
-#       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-#       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-#       - git submodule update --init e
-#       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-#       - git submodule update --init --recursive webassets || true
-#       - rm -f /root/.ssh/id_rsa
-#       # create necessary directories
-#       - mkdir -p /go/cache /go/artifacts
-#       # set version
-#       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
-
-#   - name: Download built tarball artifacts from S3
-#     image: amazon/aws-cli
-#     environment:
-#       AWS_S3_BUCKET:
-#         from_secret: AWS_S3_BUCKET
-#       AWS_ACCESS_KEY_ID:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       AWS_SECRET_ACCESS_KEY:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       AWS_REGION: us-west-2
-#     commands:
-#       - export VERSION=$(cat /go/.version.txt)
-#       - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
-#       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
-
-#   - name: Build FIPS RPM artifacts
-#     image: docker
-#     environment:
-#       ARCH: amd64
-#       FIPS: "yes"
-#       # weird quirk of FIPS package builds
-#       RUNTIME: fips
-#       TMPDIR: /go
-#       ENT_TARBALL_PATH: /go/artifacts
-#       GPG_RPM_SIGNING_ARCHIVE:
-#         from_secret: GPG_RPM_SIGNING_ARCHIVE
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-#     commands:
-#       - apk add --no-cache bash curl make tar
-#       - cd /go/src/github.com/gravitational/teleport
-#       - export VERSION=$(cat /go/.version.txt)
-#       - mkdir -m0700 /tmp/gnupg
-#       - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d > /tmp/gnupg/archive.tar.gz
-#       - tar -C /tmp/gnupg -xzf /tmp/gnupg/archive.tar.gz
-#       - chown -R root:root /tmp/gnupg
-#       - ls -lR /tmp/gnupg
-#       # build enterprise only
-#       - make -C e rpm
-#       - rm -rf /tmp/gnupg
-
-#   - name: Copy FIPS RPM artifacts
-#     image: docker
-#     commands:
-#       - cd /go/src/github.com/gravitational/teleport
-#       # copy release archives (and checksums) to artifact directory
-#       - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
-
-#   - name: Upload to S3
-#     image: plugins/s3
-#     settings:
-#       bucket:
-#         from_secret: AWS_S3_BUCKET
-#       access_key:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       secret_key:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       region: us-west-2
-#       source: /go/artifacts/*
-#       target: teleport/tag/${DRONE_TAG##v}
-#       strip_prefix: /go/artifacts/
-
-# services:
-#   - name: Start Docker
-#     image: docker:dind
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-
-# volumes:
-#   - name: dockersock
-#     temp: {}
-
-# ---
-# kind: pipeline
-# type: kubernetes
-# name: build-linux-amd64-deb
-
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
-
-# depends_on:
-#   - build-linux-amd64
-
-# workspace:
-#   path: /go
-
-# clone:
-#   disable: true
-
-# steps:
-#   - name: Check out code
-#     image: docker:git
-#     environment:
-#       GITHUB_PRIVATE_KEY:
-#         from_secret: GITHUB_PRIVATE_KEY
-#     commands:
-#       - mkdir -p /go/src/github.com/gravitational/teleport
-#       - cd /go/src/github.com/gravitational/teleport
-#       - git clone https://github.com/gravitational/teleport.git .
-#       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-#       # fetch enterprise submodules
-#       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-#       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-#       - git submodule update --init e
-#       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-#       - git submodule update --init --recursive webassets || true
-#       - rm -f /root/.ssh/id_rsa
-#       # create necessary directories
-#       - mkdir -p /go/cache /go/artifacts
-#       # set version
-#       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
-
-#   - name: Download built tarball artifacts from S3
-#     image: amazon/aws-cli
-#     environment:
-#       AWS_S3_BUCKET:
-#         from_secret: AWS_S3_BUCKET
-#       AWS_ACCESS_KEY_ID:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       AWS_SECRET_ACCESS_KEY:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       AWS_REGION: us-west-2
-#     commands:
-#       - export VERSION=$(cat /go/.version.txt)
-#       - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
-#       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
-#       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
-
-#   - name: Build DEB artifacts
-#     image: docker
-#     environment:
-#       ARCH: amd64
-#       TMPDIR: /go
-#       OSS_TARBALL_PATH: /go/artifacts
-#       ENT_TARBALL_PATH: /go/artifacts
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-#     commands:
-#       - apk add --no-cache bash curl make tar
-#       - cd /go/src/github.com/gravitational/teleport
-#       - export VERSION=$(cat /go/.version.txt)
-#       - make deb
-
-#   - name: Copy DEB artifacts
-#     image: docker
-#     commands:
-#       - cd /go/src/github.com/gravitational/teleport
-#       # copy release archives (and checksums) to artifact directory
-#       - find build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
-#       - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
-
-#   - name: Upload to S3
-#     image: plugins/s3
-#     settings:
-#       bucket:
-#         from_secret: AWS_S3_BUCKET
-#       access_key:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       secret_key:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       region: us-west-2
-#       source: /go/artifacts/*
-#       target: teleport/tag/${DRONE_TAG##v}
-#       strip_prefix: /go/artifacts/
-
-# services:
-#   - name: Start Docker
-#     image: docker:dind
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-
-# volumes:
-#   - name: dockersock
-#     temp: {}
-
-# ---
-# kind: pipeline
-# type: kubernetes
-# name: build-linux-amd64-fips-deb
-
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
-
-# depends_on:
-#   - build-linux-amd64-fips
-
-# workspace:
-#   path: /go
-
-# clone:
-#   disable: true
-
-# steps:
-#   - name: Check out code
-#     image: docker:git
-#     environment:
-#       GITHUB_PRIVATE_KEY:
-#         from_secret: GITHUB_PRIVATE_KEY
-#     commands:
-#       - mkdir -p /go/src/github.com/gravitational/teleport
-#       - cd /go/src/github.com/gravitational/teleport
-#       - git clone https://github.com/gravitational/teleport.git .
-#       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-#       # fetch enterprise submodules
-#       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-#       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-#       - git submodule update --init e
-#       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-#       - git submodule update --init --recursive webassets || true
-#       - rm -f /root/.ssh/id_rsa
-#       # create necessary directories
-#       - mkdir -p /go/cache /go/artifacts
-#       # set version
-#       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
-
-#   - name: Download built tarball artifacts from S3
-#     image: amazon/aws-cli
-#     environment:
-#       AWS_S3_BUCKET:
-#         from_secret: AWS_S3_BUCKET
-#       AWS_ACCESS_KEY_ID:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       AWS_SECRET_ACCESS_KEY:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       AWS_REGION: us-west-2
-#     commands:
-#       - export VERSION=$(cat /go/.version.txt)
-#       - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
-#       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
-
-#   - name: Build FIPS DEB artifacts
-#     image: docker
-#     environment:
-#       ARCH: amd64
-#       FIPS: "yes"
-#       # weird quirk with FIPS package builds
-#       RUNTIME: "fips"
-#       TMPDIR: /go
-#       ENT_TARBALL_PATH: /go/artifacts
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-#     commands:
-#       - apk add --no-cache bash curl make tar
-#       - cd /go/src/github.com/gravitational/teleport
-#       - export VERSION=$(cat /go/.version.txt)
-#       # build enterprise only
-#       - make -C e deb
-
-#   - name: Copy FIPS DEB artifacts
-#     image: docker
-#     commands:
-#       - cd /go/src/github.com/gravitational/teleport
-#       # copy release archives (and checksums) to artifact directory
-#       - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
-#       - ls -l /go/artifacts
-
-#   - name: Upload to S3
-#     image: plugins/s3
-#     settings:
-#       bucket:
-#         from_secret: AWS_S3_BUCKET
-#       access_key:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       secret_key:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       region: us-west-2
-#       source: /go/artifacts/*
-#       target: teleport/tag/${DRONE_TAG##v}
-#       strip_prefix: /go/artifacts/
-
-# services:
-#   - name: Start Docker
-#     image: docker:dind
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-
-# volumes:
-#   - name: dockersock
-#     temp: {}
+---
+kind: pipeline
+type: kubernetes
+name: build-linux-amd64
+
+environment:
+  RUNTIME: go1.14.4
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # fetch enterprise submodules
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts/e
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+
+  - name: Build release artifacts
+    image: docker
+    environment:
+      UID: 1000
+      GID: 1000
+      GOPATH: /go
+      OS: linux
+      ARCH: amd64
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+
+  - name: Copy artifacts
+    image: docker
+    commands:
+      - cd /go/src/github.com/gravitational/teleport
+      # copy release archives to artifact directory
+      - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
+      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/e \;
+      # rename artifact
+      - export VERSION=$(cat /go/.version.txt)
+      - mv /go/artifacts/e/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz
+      # generate checksums
+      - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
+
+  - name: Upload to S3
+    image: plugins/s3
+    settings:
+      bucket:
+        from_secret: AWS_S3_BUCKET
+      access_key:
+        from_secret: AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      region: us-west-2
+      source: /go/artifacts/*
+      target: teleport/tag/${DRONE_TAG##v}
+      strip_prefix: /go/artifacts/
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: build-linux-amd64-fips
+
+environment:
+  RUNTIME: go1.14.4
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # fetch enterprise submodules
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+
+  - name: Build FIPS release artifacts
+    image: docker
+    environment:
+      UID: 1000
+      GID: 1000
+      GOPATH: /go
+      OS: linux
+      ARCH: amd64
+      FIPS: "yes"
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /go/.version.txt)
+      - make -C build.assets release-fips VERSION=$VERSION OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS
+
+  - name: Copy FIPS artifacts
+    image: docker
+    commands:
+      - cd /go/src/github.com/gravitational/teleport
+      # copy release archives to artifact directory
+      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
+      # rename artifact
+      - export VERSION=$(cat /go/.version.txt)
+      - mv /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz
+      # generate checksums
+      - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
+
+  - name: Upload to S3
+    image: plugins/s3
+    settings:
+      bucket:
+        from_secret: AWS_S3_BUCKET
+      access_key:
+        from_secret: AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      region: us-west-2
+      source: /go/artifacts/*
+      target: teleport/tag/${DRONE_TAG##v}
+      strip_prefix: /go/artifacts/
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: build-linux-amd64-centos6
+
+environment:
+  RUNTIME: go1.14.4
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # fetch enterprise submodules
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts/e
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+
+  - name: Build CentOS 6 release artifacts
+    image: docker
+    environment:
+      UID: 1000
+      GID: 1000
+      GOPATH: /go
+      OS: linux
+      ARCH: amd64
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets release-centos6 OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+
+  - name: Copy CentOS 6 artifacts
+    image: docker
+    commands:
+      - cd /go/src/github.com/gravitational/teleport
+      # copy release archives to artifact directory
+      - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
+      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts/e \;
+      # rename artifacts
+      - export VERSION=$(cat /go/.version.txt)
+      - mv /go/artifacts/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-v$${VERSION}-linux-amd64-centos6-bin.tar.gz
+      - mv /go/artifacts/e/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-bin.tar.gz
+      # generate checksums
+      - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
+
+  - name: Upload to S3
+    image: plugins/s3
+    settings:
+      bucket:
+        from_secret: AWS_S3_BUCKET
+      access_key:
+        from_secret: AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      region: us-west-2
+      source: /go/artifacts/*
+      target: teleport/tag/${DRONE_TAG##v}
+      strip_prefix: /go/artifacts/
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: build-linux-amd64-centos6-fips
+
+environment:
+  RUNTIME: go1.14.4
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # fetch enterprise submodules
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+
+  - name: Build CentOS 6 FIPS release artifacts
+    image: docker
+    environment:
+      UID: 1000
+      GID: 1000
+      GOPATH: /go
+      OS: linux
+      ARCH: amd64
+      FIPS: "yes"
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets release-centos6-fips OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME FIPS=$FIPS
+
+  - name: Copy CentOS 6 FIPS artifacts
+    image: docker
+    commands:
+      - cd /go/src/github.com/gravitational/teleport
+      # copy release archives to artifact directory
+      - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts \;
+      # rename artifact
+      - export VERSION=$(cat /go/.version.txt)
+      - mv /go/artifacts/teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/teleport-ent-v$${VERSION}-linux-amd64-centos6-fips-bin.tar.gz
+      # generate checksums
+      - cd /go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
+
+  - name: Upload to S3
+    image: plugins/s3
+    settings:
+      bucket:
+        from_secret: AWS_S3_BUCKET
+      access_key:
+        from_secret: AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      region: us-west-2
+      source: /go/artifacts/*
+      target: teleport/tag/${DRONE_TAG##v}
+      strip_prefix: /go/artifacts/
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: build-linux-amd64-rpm
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+depends_on:
+  - build-linux-amd64
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # fetch enterprise submodules
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+
+  - name: Download built tarball artifacts from S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
+
+  - name: Build RPM artifacts
+    image: docker
+    environment:
+      ARCH: amd64
+      TMPDIR: /go
+      OSS_TARBALL_PATH: /go/artifacts
+      ENT_TARBALL_PATH: /go/artifacts
+      GNUPG_DIR: /go/gnupg
+      GPG_RPM_SIGNING_ARCHIVE:
+        from_secret: GPG_RPM_SIGNING_ARCHIVE
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache bash curl make tar
+      - cd /go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /go/.version.txt)
+      - mkdir -m0700 ${GNUPG_DIR}
+      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d > ${GNUPG_DIR}/archive.tar.gz
+      - tar -C ${GNUPG_DIR} -xzf /tmp/gnupg/archive.tar.gz
+      - chown -R root:root ${GNUPG_DIR}
+      - make rpm
+      - rm -rf ${GNUPG_DIR} /tmp/gnupg
+
+  - name: Copy RPM artifacts
+    image: docker
+    commands:
+      - cd /go/src/github.com/gravitational/teleport
+      # copy release archives (and checksums) to artifact directory
+      - find build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
+      - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
+
+  - name: Upload to S3
+    image: plugins/s3
+    settings:
+      bucket:
+        from_secret: AWS_S3_BUCKET
+      access_key:
+        from_secret: AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      region: us-west-2
+      source: /go/artifacts/*
+      target: teleport/tag/${DRONE_TAG##v}
+      strip_prefix: /go/artifacts/
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: build-linux-amd64-fips-rpm
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+depends_on:
+  - build-linux-amd64-fips
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # fetch enterprise submodules
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+
+  - name: Download built tarball artifacts from S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
+
+  - name: Build FIPS RPM artifacts
+    image: docker
+    environment:
+      ARCH: amd64
+      FIPS: "yes"
+      # weird quirk of FIPS package builds
+      RUNTIME: fips
+      TMPDIR: /go
+      ENT_TARBALL_PATH: /go/artifacts
+      GNUPG_DIR: /go/gnupg
+      GPG_RPM_SIGNING_ARCHIVE:
+        from_secret: GPG_RPM_SIGNING_ARCHIVE
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache bash curl make tar
+      - cd /go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /go/.version.txt)
+      - mkdir -m0700 ${GNUPG_DIR}
+      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d > ${GNUPG_DIR}/archive.tar.gz
+      - tar -C ${GNUPG_DIR} -xzf /tmp/gnupg/archive.tar.gz
+      - chown -R root:root ${GNUPG_DIR}
+      # build enterprise only
+      - make -C e rpm
+      - rm -rf ${GNUPG_DIR}
+
+  - name: Copy FIPS RPM artifacts
+    image: docker
+    commands:
+      - cd /go/src/github.com/gravitational/teleport
+      # copy release archives (and checksums) to artifact directory
+      - find e/build -maxdepth 1 -iname "teleport*.rpm*" -print -exec cp {} /go/artifacts \;
+
+  - name: Upload to S3
+    image: plugins/s3
+    settings:
+      bucket:
+        from_secret: AWS_S3_BUCKET
+      access_key:
+        from_secret: AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      region: us-west-2
+      source: /go/artifacts/*
+      target: teleport/tag/${DRONE_TAG##v}
+      strip_prefix: /go/artifacts/
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: build-linux-amd64-deb
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+depends_on:
+  - build-linux-amd64
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # fetch enterprise submodules
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+
+  - name: Download built tarball artifacts from S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/artifacts/
+
+  - name: Build DEB artifacts
+    image: docker
+    environment:
+      ARCH: amd64
+      TMPDIR: /go
+      OSS_TARBALL_PATH: /go/artifacts
+      ENT_TARBALL_PATH: /go/artifacts
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache bash curl make tar
+      - cd /go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /go/.version.txt)
+      - make deb
+
+  - name: Copy DEB artifacts
+    image: docker
+    commands:
+      - cd /go/src/github.com/gravitational/teleport
+      # copy release archives (and checksums) to artifact directory
+      - find build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
+      - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
+
+  - name: Upload to S3
+    image: plugins/s3
+    settings:
+      bucket:
+        from_secret: AWS_S3_BUCKET
+      access_key:
+        from_secret: AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      region: us-west-2
+      source: /go/artifacts/*
+      target: teleport/tag/${DRONE_TAG##v}
+      strip_prefix: /go/artifacts/
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: build-linux-amd64-fips-deb
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+depends_on:
+  - build-linux-amd64-fips
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # fetch enterprise submodules
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+
+  - name: Download built tarball artifacts from S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/artifacts/
+
+  - name: Build FIPS DEB artifacts
+    image: docker
+    environment:
+      ARCH: amd64
+      FIPS: "yes"
+      # weird quirk with FIPS package builds
+      RUNTIME: "fips"
+      TMPDIR: /go
+      ENT_TARBALL_PATH: /go/artifacts
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache bash curl make tar
+      - cd /go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /go/.version.txt)
+      # build enterprise only
+      - make -C e deb
+
+  - name: Copy FIPS DEB artifacts
+    image: docker
+    commands:
+      - cd /go/src/github.com/gravitational/teleport
+      # copy release archives (and checksums) to artifact directory
+      - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
+      - ls -l /go/artifacts
+
+  - name: Upload to S3
+    image: plugins/s3
+    settings:
+      bucket:
+        from_secret: AWS_S3_BUCKET
+      access_key:
+        from_secret: AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      region: us-west-2
+      source: /go/artifacts/*
+      target: teleport/tag/${DRONE_TAG##v}
+      strip_prefix: /go/artifacts/
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
 
 ---
 kind: pipeline
@@ -1673,9 +1673,9 @@ steps:
       TMPDIR: /go
       OSS_TARBALL_PATH: /go/artifacts
       ENT_TARBALL_PATH: /go/artifacts
+      GNUPG_DIR: /go/gnupg
       GPG_RPM_SIGNING_ARCHIVE:
         from_secret: GPG_RPM_SIGNING_ARCHIVE
-      GNUPG_DIR: /go/gnupg
     volumes:
       - name: dockersock
         path: /var/run
@@ -1683,13 +1683,12 @@ steps:
       - apk add --no-cache bash curl make tar
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
-      - mkdir -m0700 /go/gnupg /tmp/gnupg
-      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d > /tmp/gnupg/archive.tar.gz
-      - tar -C /go/gnupg -xzf /tmp/gnupg/archive.tar.gz
-      - chown -R root:root /go/gnupg
-      - ls -lR /go/gnupg
+      - mkdir -m0700 ${GNUPG_DIR}
+      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d > ${GNUPG_DIR}/archive.tar.gz
+      - tar -C ${GNUPG_DIR} -xzf /tmp/gnupg/archive.tar.gz
+      - chown -R root:root ${GNUPG_DIR}
       - make rpm
-      - rm -rf /go/gnupg /tmp/gnupg
+      - rm -rf ${GNUPG_DIR} /tmp/gnupg
 
   - name: Copy i386 RPM artifacts
     image: docker
@@ -1724,1073 +1723,1073 @@ volumes:
   - name: dockersock
     temp: {}
 
-# ---
-# kind: pipeline
-# type: kubernetes
-# name: build-linux-i386-deb
-
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
-
-# depends_on:
-#   - build-linux-i386
-
-# workspace:
-#   path: /go
-
-# clone:
-#   disable: true
-
-# steps:
-#   - name: Check out code
-#     image: docker:git
-#     environment:
-#       GITHUB_PRIVATE_KEY:
-#         from_secret: GITHUB_PRIVATE_KEY
-#     commands:
-#       - mkdir -p /go/src/github.com/gravitational/teleport
-#       - cd /go/src/github.com/gravitational/teleport
-#       - git clone https://github.com/gravitational/teleport.git .
-#       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-#       # fetch enterprise submodules
-#       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-#       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-#       - git submodule update --init e
-#       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-#       - git submodule update --init --recursive webassets || true
-#       - rm -f /root/.ssh/id_rsa
-#       # create necessary directories
-#       - mkdir -p /go/cache /go/artifacts
-#       # set version
-#       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
-
-#   - name: Download built tarball artifacts from S3
-#     image: amazon/aws-cli
-#     environment:
-#       AWS_S3_BUCKET:
-#         from_secret: AWS_S3_BUCKET
-#       AWS_ACCESS_KEY_ID:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       AWS_SECRET_ACCESS_KEY:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       AWS_REGION: us-west-2
-#     commands:
-#       - export VERSION=$(cat /go/.version.txt)
-#       - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
-#       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
-#       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
-
-#   - name: Build i386 DEB artifacts
-#     image: docker
-#     environment:
-#       ARCH: "386"
-#       TMPDIR: /go
-#       OSS_TARBALL_PATH: /go/artifacts
-#       ENT_TARBALL_PATH: /go/artifacts
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-#     commands:
-#       - apk add --no-cache bash curl make tar
-#       - cd /go/src/github.com/gravitational/teleport
-#       - export VERSION=$(cat /go/.version.txt)
-#       - make deb
-
-#   - name: Copy i386 DEB artifacts
-#     image: docker
-#     commands:
-#       - cd /go/src/github.com/gravitational/teleport
-#       # copy release archives (and checksums) to artifact directory
-#       - find build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
-#       - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
-
-#   - name: Upload to S3
-#     image: plugins/s3
-#     settings:
-#       bucket:
-#         from_secret: AWS_S3_BUCKET
-#       access_key:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       secret_key:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       region: us-west-2
-#       source: /go/artifacts/*
-#       target: teleport/tag/${DRONE_TAG##v}
-#       strip_prefix: /go/artifacts/
-
-# services:
-#   - name: Start Docker
-#     image: docker:dind
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-
-# volumes:
-#   - name: dockersock
-#     temp: {}
-
-# ---
-# kind: pipeline
-# type: exec
-# name: build-darwin-amd64
-
-# concurrency:
-#   limit: 1
-
-# platform:
-#   os: darwin
-#   arch: amd64
-
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
-
-# workspace:
-#   path: /tmp/build-darwin-amd64
-
-# clone:
-#   disable: true
-
-# steps:
-#   - name: Set up exec runner storage
-#     commands:
-#       - mkdir -p /tmp/build-darwin-amd64
-#       - chmod -R u+rw /tmp/build-darwin-amd64
-#       - rm -rf /tmp/build-darwin-amd64/go
-
-#   - name: Check out code
-#     environment:
-#       GITHUB_PRIVATE_KEY:
-#         from_secret: GITHUB_PRIVATE_KEY
-#     commands:
-#       - mkdir -p /tmp/build-darwin-amd64/go/src/github.com/gravitational/teleport
-#       - cd /tmp/build-darwin-amd64/go/src/github.com/gravitational/teleport
-#       - git clone https://github.com/gravitational/teleport.git .
-#       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-#       # fetch enterprise submodules
-#       - mkdir -m 0700 ~/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
-#       - ssh-keyscan -H github.com > ~/.ssh/known_hosts 2>/dev/null && chmod 600 ~/.ssh/known_hosts
-#       - git submodule update --init e
-#       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-#       - git submodule update --init --recursive webassets || true
-#       - rm -f ~/.ssh/id_rsa
-#       - mkdir -p /tmp/build-darwin-amd64/go/artifacts /tmp/build-darwin-amd64/go/cache
-#       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /tmp/build-darwin-amd64/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/build-darwin-amd64/go/.version.txt; fi; cat /tmp/build-darwin-amd64/go/.version.txt
-
-#   - name: Build Mac release artifacts
-#     environment:
-#       GOPATH: /tmp/build-darwin-amd64/go
-#       GOCACHE: /tmp/build-darwin-amd64/go/cache
-#       OS: darwin
-#       ARCH: amd64
-#     commands:
-#       - cd /tmp/build-darwin-amd64/go/src/github.com/gravitational/teleport
-#       - make clean release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
-
-#   - name: Copy Mac artifacts
-#     commands:
-#       - cd /tmp/build-darwin-amd64/go/src/github.com/gravitational/teleport
-#       # copy release archives to artifact directory
-#       - cp teleport*.tar.gz /tmp/build-darwin-amd64/go/artifacts
-#       - cp e/teleport-ent*.tar.gz /tmp/build-darwin-amd64/go/artifacts
-#       # generate checksums (for mac)
-#       - cd /tmp/build-darwin-amd64/go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
-
-#   - name: Upload to S3
-#     environment:
-#       AWS_S3_BUCKET:
-#         from_secret: AWS_S3_BUCKET
-#       AWS_ACCESS_KEY_ID:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       AWS_SECRET_ACCESS_KEY:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       AWS_REGION: us-west-2
-#     commands:
-#       - cd /tmp/build-darwin-amd64/go/artifacts
-#       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
-
-#   - name: Clean up exec runner storage (post)
-#     commands:
-#       - chmod -R u+rw /tmp/build-darwin-amd64
-#       - rm -rf /tmp/build-darwin-amd64/go
-
-# ---
-# kind: pipeline
-# type: exec
-# name: build-darwin-amd64-pkg
-
-# concurrency:
-#   limit: 1
-
-# platform:
-#   os: darwin
-#   arch: amd64
-
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
-
-# depends_on:
-#   - build-darwin-amd64
-
-# workspace:
-#   path: /tmp/build-darwin-amd64-pkg
-
-# clone:
-#   disable: true
-
-# steps:
-#   - name: Set up exec runner storage
-#     commands:
-#       - mkdir -p /tmp/build-darwin-amd64-pkg
-#       - chmod -R u+rw /tmp/build-darwin-amd64-pkg
-#       - rm -rf /tmp/build-darwin-amd64-pkg/go
-
-#   - name: Check out code
-#     environment:
-#       GITHUB_PRIVATE_KEY:
-#         from_secret: GITHUB_PRIVATE_KEY
-#     commands:
-#       - mkdir -p /tmp/build-darwin-amd64-pkg/go/src/github.com/gravitational/teleport
-#       - cd /tmp/build-darwin-amd64-pkg/go/src/github.com/gravitational/teleport
-#       - git clone https://github.com/gravitational/teleport.git .
-#       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-#       # fetch enterprise submodules
-#       - mkdir -m 0700 ~/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
-#       - ssh-keyscan -H github.com > ~/.ssh/known_hosts 2>/dev/null && chmod 600 ~/.ssh/known_hosts
-#       - git submodule update --init e
-#       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-#       - git submodule update --init --recursive webassets || true
-#       - rm -f ~/.ssh/id_rsa
-#       - mkdir -p /tmp/build-darwin-amd64-pkg/go/artifacts /tmp/build-darwin-amd64-pkg/go/cache
-#       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /tmp/build-darwin-amd64-pkg/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/build-darwin-amd64-pkg/go/.version.txt; fi; cat /tmp/build-darwin-amd64-pkg/go/.version.txt
-
-#   - name: Download built tarball artifacts from S3
-#     environment:
-#       AWS_S3_BUCKET:
-#         from_secret: AWS_S3_BUCKET
-#       AWS_ACCESS_KEY_ID:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       AWS_SECRET_ACCESS_KEY:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       AWS_REGION: us-west-2
-#     commands:
-#       - export VERSION=$(cat /tmp/build-darwin-amd64-pkg/go/.version.txt)
-#       - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
-#       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-darwin-amd64-bin.tar.gz /tmp/build-darwin-amd64-pkg/go/artifacts/
-#       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-darwin-amd64-bin.tar.gz /tmp/build-darwin-amd64-pkg/go/artifacts/
-
-#   - name: Build Mac pkg release artifacts
-#     environment:
-#       OS: darwin
-#       ARCH: amd64
-#       OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
-#       ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
-#     commands:
-#       - cd /tmp/build-darwin-amd64-pkg/go/src/github.com/gravitational/teleport
-#       - export VERSION=$(cat /tmp/build-darwin-amd64-pkg/go/.version.txt)
-#       - make pkg OS=$OS ARCH=$ARCH
-
-#   - name: Copy Mac pkg artifacts
-#     commands:
-#       - cd /tmp/build-darwin-amd64-pkg/go/src/github.com/gravitational/teleport
-#       # delete temporary tarball artifacts so we don't re-upload them in the next stage
-#       - rm -rf /tmp/build-darwin-amd64-pkg/go/artifacts/*.tar.gz
-#       # copy release archives to artifact directory
-#       - cp build/teleport*.pkg /tmp/build-darwin-amd64-pkg/go/artifacts
-#       - cp e/build/teleport-ent*.pkg /tmp/build-darwin-amd64-pkg/go/artifacts
-#       # generate checksums (for mac)
-#       - cd /tmp/build-darwin-amd64-pkg/go/artifacts && for FILE in teleport*.pkg; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
-
-#   - name: Upload to S3
-#     environment:
-#       AWS_S3_BUCKET:
-#         from_secret: AWS_S3_BUCKET
-#       AWS_ACCESS_KEY_ID:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       AWS_SECRET_ACCESS_KEY:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       AWS_REGION: us-west-2
-#     commands:
-#       - cd /tmp/build-darwin-amd64-pkg/go/artifacts
-#       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
-
-#   - name: Clean up exec runner storage
-#     commands:
-#       - chmod -R u+rw /tmp/build-darwin-amd64-pkg
-#       - rm -rf /tmp/build-darwin-amd64-pkg/go
-
-# ---
-# kind: pipeline
-# type: exec
-# name: build-darwin-amd64-pkg-tsh
-
-# concurrency:
-#   limit: 1
-
-# platform:
-#   os: darwin
-#   arch: amd64
-
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
-
-# depends_on:
-#   - build-darwin-amd64
-
-# workspace:
-#   path: /tmp/build-darwin-amd64-pkg-tsh
-
-# clone:
-#   disable: true
-
-# steps:
-#   - name: Set up exec runner storage
-#     commands:
-#       - mkdir -p /tmp/build-darwin-amd64-pkg-tsh
-#       - chmod -R u+rw /tmp/build-darwin-amd64-pkg-tsh
-#       - rm -rf /tmp/build-darwin-amd64-pkg-tsh/go
-
-#   - name: Check out code
-#     environment:
-#       GITHUB_PRIVATE_KEY:
-#         from_secret: GITHUB_PRIVATE_KEY
-#     commands:
-#       - mkdir -p /tmp/build-darwin-amd64-pkg-tsh/go/src/github.com/gravitational/teleport
-#       - cd /tmp/build-darwin-amd64-pkg-tsh/go/src/github.com/gravitational/teleport
-#       - git clone https://github.com/gravitational/teleport.git .
-#       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-#       # fetch enterprise submodules
-#       - mkdir -m 0700 ~/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
-#       - ssh-keyscan -H github.com > ~/.ssh/known_hosts 2>/dev/null && chmod 600 ~/.ssh/known_hosts
-#       - git submodule update --init e
-#       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-#       - git submodule update --init --recursive webassets || true
-#       - rm -f ~/.ssh/id_rsa
-#       - mkdir -p /tmp/build-darwin-amd64-pkg-tsh/go/artifacts /tmp/build-darwin-amd64-pkg-tsh/go/cache
-#       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt; fi; cat /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt
-
-#   - name: Download built tarball artifact from S3
-#     environment:
-#       AWS_S3_BUCKET:
-#         from_secret: AWS_S3_BUCKET
-#       AWS_ACCESS_KEY_ID:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       AWS_SECRET_ACCESS_KEY:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       AWS_REGION: us-west-2
-#     commands:
-#       - export VERSION=$(cat /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt)
-#       - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
-#       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-darwin-amd64-bin.tar.gz /tmp/build-darwin-amd64-pkg-tsh/go/artifacts/
-
-#   - name: Build Mac tsh pkg release artifacts
-#     environment:
-#       OS: darwin
-#       ARCH: amd64
-#       APPLE_USERNAME:
-#         from_secret: APPLE_USERNAME
-#       APPLE_PASSWORD:
-#         from_secret: APPLE_PASSWORD
-#       BUILDBOX_PASSWORD:
-#         from_secret: BUILDBOX_PASSWORD
-#       OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
-#     commands:
-#       - cd /tmp/build-darwin-amd64-pkg-tsh/go/src/github.com/gravitational/teleport
-#       - export VERSION=$(cat /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt)
-#       # set HOME explicitly (as Drone overrides it normally)
-#       - export HOME=/Users/build
-#       # unlock login keychain
-#       - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
-#       # show available certificates
-#       - security find-identity -v
-#       # build pkg
-#       - make pkg-tsh OS=$OS ARCH=$ARCH
-
-#   - name: Copy Mac tsh pkg artifacts
-#     commands:
-#       - cd /tmp/build-darwin-amd64-pkg-tsh/go/src/github.com/gravitational/teleport
-#       # delete temporary tarball artifacts so we don't re-upload them in the next stage
-#       - rm -rf /tmp/build-darwin-amd64-pkg-tsh/go/artifacts/*.tar.gz
-#       # copy release archives to artifact directory
-#       - cp build/tsh*.pkg /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
-#       # generate checksums (for mac)
-#       - cd /tmp/build-darwin-amd64-pkg-tsh/go/artifacts && for FILE in tsh*.pkg; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
-
-#   - name: Upload to S3
-#     environment:
-#       AWS_S3_BUCKET:
-#         from_secret: AWS_S3_BUCKET
-#       AWS_ACCESS_KEY_ID:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       AWS_SECRET_ACCESS_KEY:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       AWS_REGION: us-west-2
-#     commands:
-#       - cd /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
-#       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
-
-#   - name: Clean up exec runner storage
-#     commands:
-#       - chmod -R u+rw /tmp/build-darwin-amd64-pkg-tsh
-#       - rm -rf /tmp/build-darwin-amd64-pkg-tsh/go
-
-# ---
-# kind: pipeline
-# type: exec
-# name: build-arm
-
-# concurrency:
-#   limit: 1
-
-# platform:
-#   os: linux
-#   arch: arm
-
-# # use ramfs for go build cache
-# # saves wear and tear on the SD card, plus it's faster
-# environment:
-#   TMPDIR: /dev/shm
-
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
-
-# workspace:
-#   path: /dev/shm/tmp
-
-# clone:
-#   disable: true
-
-# steps:
-#   - name: Clean up exec runner storage (pre)
-#     commands:
-#       - chmod -R u+rw /dev/shm/tmp
-#       - rm -rf /dev/shm/tmp/go
-
-#   - name: Check out code
-#     environment:
-#       GITHUB_PRIVATE_KEY:
-#         from_secret: GITHUB_PRIVATE_KEY
-#     commands:
-#       - mkdir -p /dev/shm/tmp/go/src/github.com/gravitational/teleport
-#       - cd /dev/shm/tmp/go/src/github.com/gravitational/teleport
-#       - git clone https://github.com/gravitational/teleport.git .
-#       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-#       # fetch enterprise submodules
-#       - mkdir -m 0700 ~/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
-#       - ssh-keyscan -H github.com > ~/.ssh/known_hosts 2>/dev/null && chmod 600 ~/.ssh/known_hosts
-#       - git submodule update --init e
-#       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-#       - git submodule update --init --recursive webassets || true
-#       - rm -f ~/.ssh/id_rsa
-#       - mkdir -p /dev/shm/tmp/go/artifacts /dev/shm/tmp/go/cache
-#       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /dev/shm/tmp/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /dev/shm/tmp/go/.version.txt; fi; cat /dev/shm/tmp/go/.version.txt
-
-#   - name: Build ARM release artifacts
-#     environment:
-#       GOPATH: /dev/shm/tmp/go
-#       GOCACHE: /dev/shm/tmp/go/cache
-#       OS: linux
-#       ARCH: arm
-#     commands:
-#       - cd /dev/shm/tmp/go/src/github.com/gravitational/teleport
-#       - make clean release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
-
-#   - name: Copy ARM artifacts
-#     commands:
-#       - cd /dev/shm/tmp/go/src/github.com/gravitational/teleport
-#       # copy release archives to artifact directory
-#       - cp teleport*.tar.gz /dev/shm/tmp/go/artifacts
-#       - cp e/teleport-ent*.tar.gz /dev/shm/tmp/go/artifacts
-#       # generate checksums
-#       - cd /dev/shm/tmp/go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
-
-#   - name: Upload to S3
-#     environment:
-#       AWS_S3_BUCKET:
-#         from_secret: AWS_S3_BUCKET
-#       AWS_ACCESS_KEY_ID:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       AWS_SECRET_ACCESS_KEY:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       AWS_REGION: us-west-2
-#     commands:
-#       - cd /dev/shm/tmp/go/artifacts
-#       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
-
-#   - name: Clean up exec runner storage (post)
-#     commands:
-#       - chmod -R u+rw /dev/shm/tmp
-#       - rm -rf /dev/shm/tmp/go
-
-# ---
-# kind: pipeline
-# type: kubernetes
-# name: build-windows
-
-# environment:
-#   RUNTIME: go1.14.4
-
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
-
-# workspace:
-#   path: /go
-
-# clone:
-#   disable: true
-
-# steps:
-#   - name: Check out code
-#     image: docker:git
-#     environment:
-#       GITHUB_PRIVATE_KEY:
-#         from_secret: GITHUB_PRIVATE_KEY
-#     commands:
-#       - mkdir -p /go/src/github.com/gravitational/teleport
-#       - cd /go/src/github.com/gravitational/teleport
-#       - git clone https://github.com/gravitational/teleport.git .
-#       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-#       # fetch enterprise submodules
-#       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-#       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-#       - git submodule update --init e
-#       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-#       - git submodule update --init --recursive webassets || true
-#       - rm -f /root/.ssh/id_rsa
-#       # create necessary directories
-#       - mkdir -p /go/cache /go/artifacts
-#       # set version
-#       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
-
-#   - name: Build Windows release artifacts
-#     image: docker
-#     environment:
-#       UID: 1000
-#       GID: 1000
-#       GOPATH: /go
-#       OS: windows
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-#     commands:
-#       - apk add --no-cache make
-#       - chown -R $UID:$GID /go
-#       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-#       - cd /go/src/github.com/gravitational/teleport
-#       - make -C build.assets release-windows OS=$OS
-
-#   - name: Copy Windows artifacts
-#     image: docker
-#     commands:
-#       - cd /go/src/github.com/gravitational/teleport
-#       # copy release archives to build directory
-#       - mkdir -p /go/artifacts/windows
-#       - find . -maxdepth 1 -iname "teleport*.zip" -print -exec cp {} /go/artifacts \;
-#       # make a copy of the Windows binaries named 'teleport-ent'
-#       # our download portal looks for downloads starting with 'teleport-ent' to serve up, so
-#       # for us to list any Windows Enterprise downloads, we need a 'teleport-ent*zip' binary
-#       # The Windows artifacts only contain tsh.exe, which is the same for both OSS and Enterprise.
-#       - export VERSION=$(cat /go/.version.txt)
-#       - cp /go/artifacts/teleport-v$${VERSION}-windows-amd64-bin.zip /go/artifacts/teleport-ent-v$${VERSION}-windows-amd64-bin.zip
-#       # generate checksums
-#       - cd /go/artifacts && for FILE in teleport*.zip; do sha256sum $FILE > $FILE.sha256; done && ls -l
-
-#   - name: Upload to S3
-#     image: plugins/s3
-#     settings:
-#       bucket:
-#         from_secret: AWS_S3_BUCKET
-#       access_key:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       secret_key:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       region: us-west-2
-#       source: /go/artifacts/*
-#       target: teleport/tag/${DRONE_TAG##v}
-#       strip_prefix: /go/artifacts/
-
-# services:
-#   - name: Start Docker
-#     image: docker:dind
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-
-# volumes:
-#   - name: dockersock
-#     temp: {}
-
-# ---
-# kind: pipeline
-# type: kubernetes
-# name: build-docker-images
-
-# environment:
-#   RUNTIME: go1.14.4
-
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
-
-# workspace:
-#   path: /go
-
-# clone:
-#   disable: true
-
-# steps:
-#   - name: Check out code
-#     image: docker:git
-#     environment:
-#       GITHUB_PRIVATE_KEY:
-#         from_secret: GITHUB_PRIVATE_KEY
-#     commands:
-#       - mkdir -p /go/src/github.com/gravitational/teleport
-#       - cd /go/src/github.com/gravitational/teleport
-#       - git clone https://github.com/gravitational/teleport.git .
-#       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-#       # fetch enterprise submodules
-#       - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-#       - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-#       - git submodule update --init e
-#       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-#       - git submodule update --init --recursive webassets || true
-#       - rm -f /root/.ssh/id_rsa
-#       # create necessary directories
-#       - mkdir -p /go/cache /go/artifacts
-#       # set version
-#       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
-
-#   - name: Build/push OSS/Enterprise Docker images
-#     image: docker
-#     environment:
-#       UID: 1000
-#       GID: 1000
-#       GOPATH: /go
-#       OS: linux
-#       ARCH: amd64
-#     settings:
-#       username:
-#         from_secret: QUAYIO_DOCKER_USERNAME
-#       password:
-#         from_secret: QUAYIO_DOCKER_PASSWORD
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-#     commands:
-#       - apk add --no-cache make
-#       - chown -R $UID:$GID /go
-#       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
-#       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-#       - cd /go/src/github.com/gravitational/teleport
-#       - make image-ci publish-ci
-
-#   - name: Build/push FIPS Docker image
-#     image: docker
-#     environment:
-#       UID: 1000
-#       GID: 1000
-#       GOPATH: /go
-#       OS: linux
-#       ARCH: amd64
-#     settings:
-#       username:
-#         from_secret: QUAYIO_DOCKER_USERNAME
-#       password:
-#         from_secret: QUAYIO_DOCKER_PASSWORD
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-#     commands:
-#       - apk add --no-cache make
-#       - chown -R $UID:$GID /go
-#       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
-#       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-#       - cd /go/src/github.com/gravitational/teleport
-#       # VERSION needs to be set manually when running in the e directory.
-#       # Normally, the version is set and exported by the root Makefile and then inherited,
-#       # but this is not the case for FIPS builds (which only run in e/Makefile)
-#       - export VERSION=$(cat /go/.version.txt)
-#       - make -C e image-fips-ci publish-fips-ci
-
-# services:
-#   - name: Start Docker
-#     image: docker:dind
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-
-# volumes:
-#   - name: dockersock
-#     temp: {}
-
-# ---
-# kind: pipeline
-# type: kubernetes
-# name: build-oss-amis
-
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
-
-# depends_on:
-#   - build-linux-amd64
-
-# workspace:
-#   path: /go
-
-# clone:
-#   disable: true
-
-# steps:
-#   - name: Check out code
-#     image: docker:git
-#     commands:
-#       - mkdir -p /go/src/github.com/gravitational/teleport
-#       - cd /go/src/github.com/gravitational/teleport
-#       - git clone https://github.com/gravitational/teleport.git .
-#       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-#       # set version
-#       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
-
-#   - name: Download built tarball artifacts from S3
-#     image: amazon/aws-cli
-#     environment:
-#       AWS_S3_BUCKET:
-#         from_secret: AWS_S3_BUCKET
-#       AWS_ACCESS_KEY_ID:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       AWS_SECRET_ACCESS_KEY:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       AWS_REGION: us-west-2
-#     commands:
-#       - export VERSION=$(cat /go/.version.txt)
-#       - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
-#       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
-
-#   - name: Build OSS AMIs
-#     image: hashicorp/packer
-#     environment:
-#       AWS_ACCESS_KEY_ID:
-#         from_secret: AWS_PACKER_ACCESS_KEY_ID
-#       AWS_SECRET_ACCESS_KEY:
-#         from_secret: AWS_PACKER_SECRET_ACCESS_KEY
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-#     commands:
-#       - apk add --no-cache aws-cli jq make
-#       - cd /go/src/github.com/gravitational/teleport/assets/aws
-#       - export TELEPORT_VERSION=$(cat /go/.version.txt)
-#       - export PUBLIC_AMI_NAME=gravitational-teleport-ami-oss-$TELEPORT_VERSION
-#       - |
-#         if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
-#           echo "---> Building production OSS AMIs"
-#           echo "---> Note: these AMIs will not be made public until the 'promote' step is run"
-#           make oss-ci-build
-#         else
-#           echo "---> Building debug OSS AMIs"
-#           make oss
-#         fi
-
-#   - name: Sync OSS build timestamp to S3
-#     image: amazon/aws-cli
-#     environment:
-#       AWS_S3_BUCKET:
-#         from_secret: AWS_S3_BUCKET
-#       AWS_ACCESS_KEY_ID:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       AWS_SECRET_ACCESS_KEY:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       AWS_REGION: us-west-2
-#     commands:
-#       - export VERSION=$(cat /go/.version.txt)
-#       - aws s3 cp /go/src/github.com/gravitational/teleport/assets/aws/files/build/oss_build_timestamp.txt s3://$AWS_S3_BUCKET/teleport/ami/$${VERSION}/
-
-# services:
-#   - name: Start Docker
-#     image: docker:dind
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-
-# volumes:
-#   - name: dockersock
-#     temp: {}
-
-# ---
-# kind: pipeline
-# type: kubernetes
-# name: build-ent-amis
-
-# trigger:
-#   event:
-#     - tag
-#   ref:
-#     include:
-#       - refs/tags/v*
-#   repo:
-#     include:
-#       - gravitational/*
-
-# depends_on:
-#   - build-linux-amd64
-#   - build-linux-amd64-fips
-
-# workspace:
-#   path: /go
-
-# clone:
-#   disable: true
-
-# steps:
-#   - name: Check out code
-#     image: docker:git
-#     commands:
-#       - mkdir -p /go/src/github.com/gravitational/teleport
-#       - cd /go/src/github.com/gravitational/teleport
-#       - git clone https://github.com/gravitational/teleport.git .
-#       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-#       # set version
-#       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
-
-#   - name: Download built tarball artifacts from S3
-#     image: amazon/aws-cli
-#     environment:
-#       AWS_S3_BUCKET:
-#         from_secret: AWS_S3_BUCKET
-#       AWS_ACCESS_KEY_ID:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       AWS_SECRET_ACCESS_KEY:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       AWS_REGION: us-west-2
-#     commands:
-#       - export VERSION=$(cat /go/.version.txt)
-#       - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
-#       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
-#       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
-
-#   - name: Build Enterprise AMIs
-#     image: hashicorp/packer
-#     environment:
-#       AWS_ACCESS_KEY_ID:
-#         from_secret: AWS_PACKER_ACCESS_KEY_ID
-#       AWS_SECRET_ACCESS_KEY:
-#         from_secret: AWS_PACKER_SECRET_ACCESS_KEY
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-#     commands:
-#       - apk add --no-cache aws-cli jq make
-#       - cd /go/src/github.com/gravitational/teleport/assets/aws
-#       - export TELEPORT_VERSION=$(cat /go/.version.txt)
-#       - export PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-$TELEPORT_VERSION
-#       - export FIPS_AMI_NAME=gravitational-teleport-ami-ent-$TELEPORT_VERSION-fips
-#       - |
-#         if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
-#           echo "---> Building production Enterprise AMIs"
-#           echo "---> Note: these AMIs will not be made public until the 'promote' step is run"
-#           make ent-ci-build
-#         else
-#           echo "---> Building debug Enterprise AMIs"
-#           make ent
-#         fi
-
-#   - name: Sync Enterprise build timestamp to S3
-#     image: amazon/aws-cli
-#     environment:
-#       AWS_S3_BUCKET:
-#         from_secret: AWS_S3_BUCKET
-#       AWS_ACCESS_KEY_ID:
-#         from_secret: AWS_ACCESS_KEY_ID
-#       AWS_SECRET_ACCESS_KEY:
-#         from_secret: AWS_SECRET_ACCESS_KEY
-#       AWS_REGION: us-west-2
-#     commands:
-#       - export VERSION=$(cat /go/.version.txt)
-#       - aws s3 cp /go/src/github.com/gravitational/teleport/assets/aws/files/build/ent_build_timestamp.txt s3://$AWS_S3_BUCKET/teleport/ami/$${VERSION}/
-
-# services:
-#   - name: Start Docker
-#     image: docker:dind
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-
-# volumes:
-#   - name: dockersock
-#     temp: {}
-
-# ---
-# kind: pipeline
-# type: kubernetes
-# name: build-buildboxes
-
-# environment:
-#   RUNTIME: go1.14.4
-#   UID: 1000
-#   GID: 1000
-
-# trigger:
-#   branch:
-#     - master
-#   event:
-#     - push
-#   repo:
-#     include:
-#       - gravitational/*
-
-# workspace:
-#   path: /go/src/github.com/gravitational/teleport
-
-# clone:
-#   disable: true
-
-# steps:
-#   - name: Check out code
-#     image: docker:git
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-#     commands:
-#       - git clone https://github.com/gravitational/teleport.git .
-#       - git checkout ${DRONE_COMMIT}
-
-#   - name: Build and push buildbox container
-#     image: docker
-#     environment:
-#       QUAYIO_DOCKER_USERNAME:
-#         from_secret: QUAYIO_DOCKER_USERNAME
-#       QUAYIO_DOCKER_PASSWORD:
-#         from_secret: QUAYIO_DOCKER_PASSWORD
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-#     commands:
-#       - apk add --no-cache make
-#       - chown -R $UID:$GID /go
-#       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
-#       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-#       - make -C build.assets buildbox
-#       - docker push quay.io/gravitational/teleport-buildbox:$RUNTIME
-
-#   - name: Build and push buildbox-fips container
-#     image: docker
-#     environment:
-#       QUAYIO_DOCKER_USERNAME:
-#         from_secret: QUAYIO_DOCKER_USERNAME
-#       QUAYIO_DOCKER_PASSWORD:
-#         from_secret: QUAYIO_DOCKER_PASSWORD
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-#     commands:
-#       - apk add --no-cache make
-#       - chown -R $UID:$GID /go
-#       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
-#       - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
-#       - make -C build.assets buildbox-fips
-#       - docker push quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
-
-#   - name: Build and push buildbox-centos6 container
-#     image: docker
-#     environment:
-#       QUAYIO_DOCKER_USERNAME:
-#         from_secret: QUAYIO_DOCKER_USERNAME
-#       QUAYIO_DOCKER_PASSWORD:
-#         from_secret: QUAYIO_DOCKER_PASSWORD
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-#     commands:
-#       - apk add --no-cache make
-#       - chown -R $UID:$GID /go
-#       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
-#       - docker pull quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME || true
-#       - make -C build.assets buildbox-centos6
-#       - docker push quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
-
-#   - name: Build and push buildbox-centos6-fips container
-#     image: docker
-#     environment:
-#       QUAYIO_DOCKER_USERNAME:
-#         from_secret: QUAYIO_DOCKER_USERNAME
-#       QUAYIO_DOCKER_PASSWORD:
-#         from_secret: QUAYIO_DOCKER_PASSWORD
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-#     commands:
-#       - apk add --no-cache make
-#       - chown -R $UID:$GID /go
-#       - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
-#       - docker pull quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME || true
-#       - make -C build.assets buildbox-centos6-fips
-#       - docker push quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
-
-# services:
-#   - name: Start Docker
-#     image: docker:dind
-#     volumes:
-#       - name: dockersock
-#         path: /var/run
-
-# volumes:
-#   - name: dockersock
-#     temp: {}
+---
+kind: pipeline
+type: kubernetes
+name: build-linux-i386-deb
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+depends_on:
+  - build-linux-i386
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # fetch enterprise submodules
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+
+  - name: Download built tarball artifacts from S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-386-bin.tar.gz /go/artifacts/
+
+  - name: Build i386 DEB artifacts
+    image: docker
+    environment:
+      ARCH: "386"
+      TMPDIR: /go
+      OSS_TARBALL_PATH: /go/artifacts
+      ENT_TARBALL_PATH: /go/artifacts
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache bash curl make tar
+      - cd /go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /go/.version.txt)
+      - make deb
+
+  - name: Copy i386 DEB artifacts
+    image: docker
+    commands:
+      - cd /go/src/github.com/gravitational/teleport
+      # copy release archives (and checksums) to artifact directory
+      - find build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
+      - find e/build -maxdepth 1 -iname "teleport*.deb*" -print -exec cp {} /go/artifacts \;
+
+  - name: Upload to S3
+    image: plugins/s3
+    settings:
+      bucket:
+        from_secret: AWS_S3_BUCKET
+      access_key:
+        from_secret: AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      region: us-west-2
+      source: /go/artifacts/*
+      target: teleport/tag/${DRONE_TAG##v}
+      strip_prefix: /go/artifacts/
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: exec
+name: build-darwin-amd64
+
+concurrency:
+  limit: 1
+
+platform:
+  os: darwin
+  arch: amd64
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /tmp/build-darwin-amd64
+
+clone:
+  disable: true
+
+steps:
+  - name: Set up exec runner storage
+    commands:
+      - mkdir -p /tmp/build-darwin-amd64
+      - chmod -R u+rw /tmp/build-darwin-amd64
+      - rm -rf /tmp/build-darwin-amd64/go
+
+  - name: Check out code
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /tmp/build-darwin-amd64/go/src/github.com/gravitational/teleport
+      - cd /tmp/build-darwin-amd64/go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # fetch enterprise submodules
+      - mkdir -m 0700 ~/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
+      - ssh-keyscan -H github.com > ~/.ssh/known_hosts 2>/dev/null && chmod 600 ~/.ssh/known_hosts
+      - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f ~/.ssh/id_rsa
+      - mkdir -p /tmp/build-darwin-amd64/go/artifacts /tmp/build-darwin-amd64/go/cache
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /tmp/build-darwin-amd64/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/build-darwin-amd64/go/.version.txt; fi; cat /tmp/build-darwin-amd64/go/.version.txt
+
+  - name: Build Mac release artifacts
+    environment:
+      GOPATH: /tmp/build-darwin-amd64/go
+      GOCACHE: /tmp/build-darwin-amd64/go/cache
+      OS: darwin
+      ARCH: amd64
+    commands:
+      - cd /tmp/build-darwin-amd64/go/src/github.com/gravitational/teleport
+      - make clean release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+
+  - name: Copy Mac artifacts
+    commands:
+      - cd /tmp/build-darwin-amd64/go/src/github.com/gravitational/teleport
+      # copy release archives to artifact directory
+      - cp teleport*.tar.gz /tmp/build-darwin-amd64/go/artifacts
+      - cp e/teleport-ent*.tar.gz /tmp/build-darwin-amd64/go/artifacts
+      # generate checksums (for mac)
+      - cd /tmp/build-darwin-amd64/go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
+
+  - name: Upload to S3
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - cd /tmp/build-darwin-amd64/go/artifacts
+      - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+
+  - name: Clean up exec runner storage (post)
+    commands:
+      - chmod -R u+rw /tmp/build-darwin-amd64
+      - rm -rf /tmp/build-darwin-amd64/go
+
+---
+kind: pipeline
+type: exec
+name: build-darwin-amd64-pkg
+
+concurrency:
+  limit: 1
+
+platform:
+  os: darwin
+  arch: amd64
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+depends_on:
+  - build-darwin-amd64
+
+workspace:
+  path: /tmp/build-darwin-amd64-pkg
+
+clone:
+  disable: true
+
+steps:
+  - name: Set up exec runner storage
+    commands:
+      - mkdir -p /tmp/build-darwin-amd64-pkg
+      - chmod -R u+rw /tmp/build-darwin-amd64-pkg
+      - rm -rf /tmp/build-darwin-amd64-pkg/go
+
+  - name: Check out code
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /tmp/build-darwin-amd64-pkg/go/src/github.com/gravitational/teleport
+      - cd /tmp/build-darwin-amd64-pkg/go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # fetch enterprise submodules
+      - mkdir -m 0700 ~/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
+      - ssh-keyscan -H github.com > ~/.ssh/known_hosts 2>/dev/null && chmod 600 ~/.ssh/known_hosts
+      - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f ~/.ssh/id_rsa
+      - mkdir -p /tmp/build-darwin-amd64-pkg/go/artifacts /tmp/build-darwin-amd64-pkg/go/cache
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /tmp/build-darwin-amd64-pkg/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/build-darwin-amd64-pkg/go/.version.txt; fi; cat /tmp/build-darwin-amd64-pkg/go/.version.txt
+
+  - name: Download built tarball artifacts from S3
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /tmp/build-darwin-amd64-pkg/go/.version.txt)
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-darwin-amd64-bin.tar.gz /tmp/build-darwin-amd64-pkg/go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-darwin-amd64-bin.tar.gz /tmp/build-darwin-amd64-pkg/go/artifacts/
+
+  - name: Build Mac pkg release artifacts
+    environment:
+      OS: darwin
+      ARCH: amd64
+      OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
+      ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
+    commands:
+      - cd /tmp/build-darwin-amd64-pkg/go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /tmp/build-darwin-amd64-pkg/go/.version.txt)
+      - make pkg OS=$OS ARCH=$ARCH
+
+  - name: Copy Mac pkg artifacts
+    commands:
+      - cd /tmp/build-darwin-amd64-pkg/go/src/github.com/gravitational/teleport
+      # delete temporary tarball artifacts so we don't re-upload them in the next stage
+      - rm -rf /tmp/build-darwin-amd64-pkg/go/artifacts/*.tar.gz
+      # copy release archives to artifact directory
+      - cp build/teleport*.pkg /tmp/build-darwin-amd64-pkg/go/artifacts
+      - cp e/build/teleport-ent*.pkg /tmp/build-darwin-amd64-pkg/go/artifacts
+      # generate checksums (for mac)
+      - cd /tmp/build-darwin-amd64-pkg/go/artifacts && for FILE in teleport*.pkg; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
+
+  - name: Upload to S3
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - cd /tmp/build-darwin-amd64-pkg/go/artifacts
+      - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+
+  - name: Clean up exec runner storage
+    commands:
+      - chmod -R u+rw /tmp/build-darwin-amd64-pkg
+      - rm -rf /tmp/build-darwin-amd64-pkg/go
+
+---
+kind: pipeline
+type: exec
+name: build-darwin-amd64-pkg-tsh
+
+concurrency:
+  limit: 1
+
+platform:
+  os: darwin
+  arch: amd64
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+depends_on:
+  - build-darwin-amd64
+
+workspace:
+  path: /tmp/build-darwin-amd64-pkg-tsh
+
+clone:
+  disable: true
+
+steps:
+  - name: Set up exec runner storage
+    commands:
+      - mkdir -p /tmp/build-darwin-amd64-pkg-tsh
+      - chmod -R u+rw /tmp/build-darwin-amd64-pkg-tsh
+      - rm -rf /tmp/build-darwin-amd64-pkg-tsh/go
+
+  - name: Check out code
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /tmp/build-darwin-amd64-pkg-tsh/go/src/github.com/gravitational/teleport
+      - cd /tmp/build-darwin-amd64-pkg-tsh/go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # fetch enterprise submodules
+      - mkdir -m 0700 ~/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
+      - ssh-keyscan -H github.com > ~/.ssh/known_hosts 2>/dev/null && chmod 600 ~/.ssh/known_hosts
+      - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f ~/.ssh/id_rsa
+      - mkdir -p /tmp/build-darwin-amd64-pkg-tsh/go/artifacts /tmp/build-darwin-amd64-pkg-tsh/go/cache
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt; fi; cat /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt
+
+  - name: Download built tarball artifact from S3
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt)
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-darwin-amd64-bin.tar.gz /tmp/build-darwin-amd64-pkg-tsh/go/artifacts/
+
+  - name: Build Mac tsh pkg release artifacts
+    environment:
+      OS: darwin
+      ARCH: amd64
+      APPLE_USERNAME:
+        from_secret: APPLE_USERNAME
+      APPLE_PASSWORD:
+        from_secret: APPLE_PASSWORD
+      BUILDBOX_PASSWORD:
+        from_secret: BUILDBOX_PASSWORD
+      OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
+    commands:
+      - cd /tmp/build-darwin-amd64-pkg-tsh/go/src/github.com/gravitational/teleport
+      - export VERSION=$(cat /tmp/build-darwin-amd64-pkg-tsh/go/.version.txt)
+      # set HOME explicitly (as Drone overrides it normally)
+      - export HOME=/Users/build
+      # unlock login keychain
+      - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
+      # show available certificates
+      - security find-identity -v
+      # build pkg
+      - make pkg-tsh OS=$OS ARCH=$ARCH
+
+  - name: Copy Mac tsh pkg artifacts
+    commands:
+      - cd /tmp/build-darwin-amd64-pkg-tsh/go/src/github.com/gravitational/teleport
+      # delete temporary tarball artifacts so we don't re-upload them in the next stage
+      - rm -rf /tmp/build-darwin-amd64-pkg-tsh/go/artifacts/*.tar.gz
+      # copy release archives to artifact directory
+      - cp build/tsh*.pkg /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
+      # generate checksums (for mac)
+      - cd /tmp/build-darwin-amd64-pkg-tsh/go/artifacts && for FILE in tsh*.pkg; do shasum -a 256 $FILE > $FILE.sha256; done && ls -l
+
+  - name: Upload to S3
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - cd /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
+      - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+
+  - name: Clean up exec runner storage
+    commands:
+      - chmod -R u+rw /tmp/build-darwin-amd64-pkg-tsh
+      - rm -rf /tmp/build-darwin-amd64-pkg-tsh/go
+
+---
+kind: pipeline
+type: exec
+name: build-arm
+
+concurrency:
+  limit: 1
+
+platform:
+  os: linux
+  arch: arm
+
+# use ramfs for go build cache
+# saves wear and tear on the SD card, plus it's faster
+environment:
+  TMPDIR: /dev/shm
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /dev/shm/tmp
+
+clone:
+  disable: true
+
+steps:
+  - name: Clean up exec runner storage (pre)
+    commands:
+      - chmod -R u+rw /dev/shm/tmp
+      - rm -rf /dev/shm/tmp/go
+
+  - name: Check out code
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /dev/shm/tmp/go/src/github.com/gravitational/teleport
+      - cd /dev/shm/tmp/go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # fetch enterprise submodules
+      - mkdir -m 0700 ~/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
+      - ssh-keyscan -H github.com > ~/.ssh/known_hosts 2>/dev/null && chmod 600 ~/.ssh/known_hosts
+      - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f ~/.ssh/id_rsa
+      - mkdir -p /dev/shm/tmp/go/artifacts /dev/shm/tmp/go/cache
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /dev/shm/tmp/go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /dev/shm/tmp/go/.version.txt; fi; cat /dev/shm/tmp/go/.version.txt
+
+  - name: Build ARM release artifacts
+    environment:
+      GOPATH: /dev/shm/tmp/go
+      GOCACHE: /dev/shm/tmp/go/cache
+      OS: linux
+      ARCH: arm
+    commands:
+      - cd /dev/shm/tmp/go/src/github.com/gravitational/teleport
+      - make clean release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+
+  - name: Copy ARM artifacts
+    commands:
+      - cd /dev/shm/tmp/go/src/github.com/gravitational/teleport
+      # copy release archives to artifact directory
+      - cp teleport*.tar.gz /dev/shm/tmp/go/artifacts
+      - cp e/teleport-ent*.tar.gz /dev/shm/tmp/go/artifacts
+      # generate checksums
+      - cd /dev/shm/tmp/go/artifacts && for FILE in teleport*.tar.gz; do sha256sum $FILE > $FILE.sha256; done && ls -l
+
+  - name: Upload to S3
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - cd /dev/shm/tmp/go/artifacts
+      - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
+
+  - name: Clean up exec runner storage (post)
+    commands:
+      - chmod -R u+rw /dev/shm/tmp
+      - rm -rf /dev/shm/tmp/go
+
+---
+kind: pipeline
+type: kubernetes
+name: build-windows
+
+environment:
+  RUNTIME: go1.14.4
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # fetch enterprise submodules
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+
+  - name: Build Windows release artifacts
+    image: docker
+    environment:
+      UID: 1000
+      GID: 1000
+      GOPATH: /go
+      OS: windows
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - make -C build.assets release-windows OS=$OS
+
+  - name: Copy Windows artifacts
+    image: docker
+    commands:
+      - cd /go/src/github.com/gravitational/teleport
+      # copy release archives to build directory
+      - mkdir -p /go/artifacts/windows
+      - find . -maxdepth 1 -iname "teleport*.zip" -print -exec cp {} /go/artifacts \;
+      # make a copy of the Windows binaries named 'teleport-ent'
+      # our download portal looks for downloads starting with 'teleport-ent' to serve up, so
+      # for us to list any Windows Enterprise downloads, we need a 'teleport-ent*zip' binary
+      # The Windows artifacts only contain tsh.exe, which is the same for both OSS and Enterprise.
+      - export VERSION=$(cat /go/.version.txt)
+      - cp /go/artifacts/teleport-v$${VERSION}-windows-amd64-bin.zip /go/artifacts/teleport-ent-v$${VERSION}-windows-amd64-bin.zip
+      # generate checksums
+      - cd /go/artifacts && for FILE in teleport*.zip; do sha256sum $FILE > $FILE.sha256; done && ls -l
+
+  - name: Upload to S3
+    image: plugins/s3
+    settings:
+      bucket:
+        from_secret: AWS_S3_BUCKET
+      access_key:
+        from_secret: AWS_ACCESS_KEY_ID
+      secret_key:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      region: us-west-2
+      source: /go/artifacts/*
+      target: teleport/tag/${DRONE_TAG##v}
+      strip_prefix: /go/artifacts/
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: build-docker-images
+
+environment:
+  RUNTIME: go1.14.4
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    environment:
+      GITHUB_PRIVATE_KEY:
+        from_secret: GITHUB_PRIVATE_KEY
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # fetch enterprise submodules
+      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+      - git submodule update --init e
+      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+      - git submodule update --init --recursive webassets || true
+      - rm -f /root/.ssh/id_rsa
+      # create necessary directories
+      - mkdir -p /go/cache /go/artifacts
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+
+  - name: Build/push OSS/Enterprise Docker images
+    image: docker
+    environment:
+      UID: 1000
+      GID: 1000
+      GOPATH: /go
+      OS: linux
+      ARCH: amd64
+    settings:
+      username:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      password:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      - make image-ci publish-ci
+
+  - name: Build/push FIPS Docker image
+    image: docker
+    environment:
+      UID: 1000
+      GID: 1000
+      GOPATH: /go
+      OS: linux
+      ARCH: amd64
+    settings:
+      username:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      password:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - cd /go/src/github.com/gravitational/teleport
+      # VERSION needs to be set manually when running in the e directory.
+      # Normally, the version is set and exported by the root Makefile and then inherited,
+      # but this is not the case for FIPS builds (which only run in e/Makefile)
+      - export VERSION=$(cat /go/.version.txt)
+      - make -C e image-fips-ci publish-fips-ci
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: build-oss-amis
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+depends_on:
+  - build-linux-amd64
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+
+  - name: Download built tarball artifacts from S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-linux-amd64-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
+
+  - name: Build OSS AMIs
+    image: hashicorp/packer
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_PACKER_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_PACKER_SECRET_ACCESS_KEY
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache aws-cli jq make
+      - cd /go/src/github.com/gravitational/teleport/assets/aws
+      - export TELEPORT_VERSION=$(cat /go/.version.txt)
+      - export PUBLIC_AMI_NAME=gravitational-teleport-ami-oss-$TELEPORT_VERSION
+      - |
+        if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
+          echo "---> Building production OSS AMIs"
+          echo "---> Note: these AMIs will not be made public until the 'promote' step is run"
+          make oss-ci-build
+        else
+          echo "---> Building debug OSS AMIs"
+          make oss
+        fi
+
+  - name: Sync OSS build timestamp to S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - aws s3 cp /go/src/github.com/gravitational/teleport/assets/aws/files/build/oss_build_timestamp.txt s3://$AWS_S3_BUCKET/teleport/ami/$${VERSION}/
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: build-ent-amis
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+depends_on:
+  - build-linux-amd64
+  - build-linux-amd64-fips
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
+      # set version
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
+
+  - name: Download built tarball artifacts from S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-linux-amd64-fips-bin.tar.gz /go/src/github.com/gravitational/teleport/assets/aws/files
+
+  - name: Build Enterprise AMIs
+    image: hashicorp/packer
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_PACKER_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_PACKER_SECRET_ACCESS_KEY
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache aws-cli jq make
+      - cd /go/src/github.com/gravitational/teleport/assets/aws
+      - export TELEPORT_VERSION=$(cat /go/.version.txt)
+      - export PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-$TELEPORT_VERSION
+      - export FIPS_AMI_NAME=gravitational-teleport-ami-ent-$TELEPORT_VERSION-fips
+      - |
+        if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
+          echo "---> Building production Enterprise AMIs"
+          echo "---> Note: these AMIs will not be made public until the 'promote' step is run"
+          make ent-ci-build
+        else
+          echo "---> Building debug Enterprise AMIs"
+          make ent
+        fi
+
+  - name: Sync Enterprise build timestamp to S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - aws s3 cp /go/src/github.com/gravitational/teleport/assets/aws/files/build/ent_build_timestamp.txt s3://$AWS_S3_BUCKET/teleport/ami/$${VERSION}/
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: build-buildboxes
+
+environment:
+  RUNTIME: go1.14.4
+  UID: 1000
+  GID: 1000
+
+trigger:
+  branch:
+    - master
+  event:
+    - push
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /go/src/github.com/gravitational/teleport
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: docker:git
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - git clone https://github.com/gravitational/teleport.git .
+      - git checkout ${DRONE_COMMIT}
+
+  - name: Build and push buildbox container
+    image: docker
+    environment:
+      QUAYIO_DOCKER_USERNAME:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      QUAYIO_DOCKER_PASSWORD:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
+      - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
+      - make -C build.assets buildbox
+      - docker push quay.io/gravitational/teleport-buildbox:$RUNTIME
+
+  - name: Build and push buildbox-fips container
+    image: docker
+    environment:
+      QUAYIO_DOCKER_USERNAME:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      QUAYIO_DOCKER_PASSWORD:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
+      - docker pull quay.io/gravitational/teleport-buildbox-fips:$RUNTIME || true
+      - make -C build.assets buildbox-fips
+      - docker push quay.io/gravitational/teleport-buildbox-fips:$RUNTIME
+
+  - name: Build and push buildbox-centos6 container
+    image: docker
+    environment:
+      QUAYIO_DOCKER_USERNAME:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      QUAYIO_DOCKER_PASSWORD:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
+      - docker pull quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME || true
+      - make -C build.assets buildbox-centos6
+      - docker push quay.io/gravitational/teleport-buildbox-centos6:$RUNTIME
+
+  - name: Build and push buildbox-centos6-fips container
+    image: docker
+    environment:
+      QUAYIO_DOCKER_USERNAME:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      QUAYIO_DOCKER_PASSWORD:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - apk add --no-cache make
+      - chown -R $UID:$GID /go
+      - docker login -u="$QUAYIO_DOCKER_USERNAME" -p="$QUAYIO_DOCKER_PASSWORD" quay.io
+      - docker pull quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME || true
+      - make -C build.assets buildbox-centos6-fips
+      - docker push quay.io/gravitational/teleport-buildbox-centos6-fips:$RUNTIME
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
 
 ---
 kind: pipeline
@@ -2933,6 +2932,6 @@ volumes:
 
 ---
 kind: signature
-hmac: a94dc2917ccab36e6a6179e0fc1e20031dbf99e6d0a2f7dff7ff446cac1f2c71
+hmac: c0d1b0ff95166ee30201f9c587994836f539d10fdf43ce7dae15651b0a8e53f2
 
 ...

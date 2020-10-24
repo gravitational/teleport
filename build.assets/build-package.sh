@@ -252,7 +252,9 @@ else
         OUTPUT_FILENAME="${TAR_PATH}-${TELEPORT_VERSION}-1${OPTIONAL_RUNTIME_SECTION}.${ARCH}.rpm"
         FILE_PERMISSIONS_STANZA="--rpm-user root --rpm-group root --rpm-use-file-permissions "
         # if this file exists, don't sign RPMs (can be used for testing without the signing keys)
-        if [ ! -f /tmp/dont-sign-teleport-rpms ]; then
+        if [ "${UNSIGNED_RPM}" == "true" ]; then
+            echo "RPMs will not be signed as requested"
+        else
             # the /tmp/gnupg location here is assumed to contain a complete ~/.gnupg directory structure
             # with pubring.kbx and trustdb.gpg files, plus a private-keys-v1.d directory with signing keys
             EXTRA_DOCKER_OPTIONS="-v $(pwd)/rpm-sign/rpmmacros:/root/.rpmmacros -v $(pwd)/rpm-sign/popt-override:/etc/popt.d/rpmsign-override -v ${GNUPG_DIR}:/root/.gnupg"
