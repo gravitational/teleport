@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 set -e
 
 usage() { echo "Usage: $(basename $0) [-t <oss/ent>] [-v <version>] [-p <package type>] <-a [amd64/x86_64]|[386/i386]> <-r go1.9.7|fips> <-s tarball source dir> <-m tsh>" 1>&2; exit 1; }
@@ -251,7 +251,8 @@ else
     if [[ "${PACKAGE_TYPE}" == "rpm" ]]; then
         OUTPUT_FILENAME="${TAR_PATH}-${TELEPORT_VERSION}-1${OPTIONAL_RUNTIME_SECTION}.${ARCH}.rpm"
         FILE_PERMISSIONS_STANZA="--rpm-user root --rpm-group root --rpm-use-file-permissions "
-        # if this file exists, don't sign RPMs (can be used for testing without the signing keys)
+        # if we set this environment variable, don't sign RPMs (can be useful for building test RPMs
+        # without having the signing keys)
         if [ "${UNSIGNED_RPM}" == "true" ]; then
             echo "RPMs will not be signed as requested"
         else
