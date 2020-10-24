@@ -49,6 +49,7 @@ RUNTIME=${r}
 BUILD_MODE=${m}
 TARBALL_DIRECTORY=/tmp/teleport-tarballs
 DOWNLOAD_IF_NEEDED=true
+GNUPG_DIR=${GNUPG_DIR:-/tmp/gnupg}
 if [[ "${s}" != "" ]]; then
     DOWNLOAD_IF_NEEDED=false
     TARBALL_DIRECTORY=${s}
@@ -254,7 +255,7 @@ else
         if [ ! -f /tmp/dont-sign-teleport-rpms ]; then
             # the /tmp/gnupg location here is assumed to contain a complete ~/.gnupg directory structure
             # with pubring.kbx and trustdb.gpg files, plus a private-keys-v1.d directory with signing keys
-            EXTRA_DOCKER_OPTIONS="-v $(pwd)/rpm-sign/rpmmacros:/root/.rpmmacros -v $(pwd)/rpm-sign/popt-override:/etc/popt.d/rpmsign-override -v /tmp/gnupg:/root/.gnupg"
+            EXTRA_DOCKER_OPTIONS="-v $(pwd)/rpm-sign/rpmmacros:/root/.rpmmacros -v $(pwd)/rpm-sign/popt-override:/etc/popt.d/rpmsign-override -v ${GNUPG_DIR}:/root/.gnupg"
             RPM_SIGN_STANZA="--rpm-sign"
         fi
     elif [[ "${PACKAGE_TYPE}" == "deb" ]]; then
