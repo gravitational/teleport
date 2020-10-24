@@ -1110,15 +1110,14 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache bash curl make tar
+      - apk add --no-cache bash curl gzip make tar
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
-      - mkdir -m0700 ${GNUPG_DIR}
-      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d > ${GNUPG_DIR}/archive.tar.gz
-      - tar -C ${GNUPG_DIR} -xzf /tmp/gnupg/archive.tar.gz
-      - chown -R root:root ${GNUPG_DIR}
+      - mkdir -m0700 $GNUPG_DIR
+      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xvzf - -C $GNUPG_DIR
+      - chown -R root:root $GNUPG_DIR
       - make rpm
-      - rm -rf ${GNUPG_DIR} /tmp/gnupg
+      - rm -rf $GNUPG_DIR
 
   - name: Copy RPM artifacts
     image: docker
@@ -1231,16 +1230,16 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache bash curl make tar
+      - apk add --no-cache bash curl gzip make tar
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
-      - mkdir -m0700 ${GNUPG_DIR}
-      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d > ${GNUPG_DIR}/archive.tar.gz
-      - tar -C ${GNUPG_DIR} -xzf /tmp/gnupg/archive.tar.gz
-      - chown -R root:root ${GNUPG_DIR}
+      - mkdir -m0700 $GNUPG_DIR
+      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d > $GNUPG_DIR/archive.tar.gz
+      - tar -C $GNUPG_DIR -xzf /tmp/gnupg/archive.tar.gz
+      - chown -R root:root $GNUPG_DIR
       # build enterprise only
       - make -C e rpm
-      - rm -rf ${GNUPG_DIR}
+      - rm -rf $GNUPG_DIR
 
   - name: Copy FIPS RPM artifacts
     image: docker
@@ -1680,15 +1679,15 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - apk add --no-cache bash curl make tar
+      - apk add --no-cache bash curl gzip make tar
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
-      - mkdir -m0700 ${GNUPG_DIR}
-      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d > ${GNUPG_DIR}/archive.tar.gz
-      - tar -C ${GNUPG_DIR} -xzf /tmp/gnupg/archive.tar.gz
-      - chown -R root:root ${GNUPG_DIR}
+      - mkdir -m0700 $GNUPG_DIR
+      - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d > $GNUPG_DIR/archive.tar.gz
+      - tar -C $GNUPG_DIR -xzf $GNUPG_DIR/archive.tar.gz
+      - chown -R root:root $GNUPG_DIR
       - make rpm
-      - rm -rf ${GNUPG_DIR} /tmp/gnupg
+      - rm -rf $GNUPG_DIR
 
   - name: Copy i386 RPM artifacts
     image: docker
@@ -2932,6 +2931,6 @@ volumes:
 
 ---
 kind: signature
-hmac: c0d1b0ff95166ee30201f9c587994836f539d10fdf43ce7dae15651b0a8e53f2
+hmac: 121ebb4c13b96f46810ffdb6d31e6cbdd8d084381d5ee82e22aef552ed129c50
 
 ...
