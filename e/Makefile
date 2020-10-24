@@ -280,6 +280,11 @@ rpm:
 	cp -a ../build.assets/rpm-sign $(BUILDDIR)/
 	cd $(BUILDDIR) && ./build-package.sh -t ent -v $(VERSION) -p rpm -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 
+# build unsigned .rpm (for testing)
+.PHONY: rpm-unsigned
+rpm-unsigned:
+	$(MAKE) UNSIGNED_RPM=true rpm
+
 # build .deb
 .PHONY: deb
 deb:
