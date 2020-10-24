@@ -2248,12 +2248,20 @@ platform:
 environment:
   TMPDIR: /dev/shm
 
+# TODO(gus): uncomment after testing
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
   event:
-    - tag
-  ref:
     include:
-      - refs/tags/v*
+      - pull_request
   repo:
     include:
       - gravitational/*
@@ -3003,6 +3011,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 8882a4f91de7303dba637e9add9167f0ad7516906e859b6f5d60f86bb0d141be
+hmac: 44a1a8de388f0253a63c89b479cef4afe87b43023f572cfb2e4e336c18c67f43
 
 ...
