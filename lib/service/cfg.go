@@ -504,6 +504,9 @@ type AppsConfig struct {
 	// Enabled enables application proxying service.
 	Enabled bool
 
+	// DebugApp enabled a header dumping debugging application.
+	DebugApp bool
+
 	// Apps is the list of applications that are being proxied.
 	Apps []App
 }

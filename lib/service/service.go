@@ -20,12 +20,16 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
 	"net/http/pprof"
 	"os"
 	"path/filepath"
@@ -111,6 +115,10 @@ const (
 	// ProxyReverseTunnelReady is generated when the proxy has initialized the
 	// reverse tunnel server and is ready to start accepting connections.
 	ProxyReverseTunnelReady = "ProxyReverseTunnelReady"
+
+	// DebugAppReady is generated when the debugging application has been started
+	// and is ready to serve requests.
+	DebugAppReady = "DebugAppReady"
 
 	// ProxyAgentPoolReady is generated when the proxy has initialized the
 	// remote cluster watcher (to spawn reverse tunnels) and is ready to start
@@ -2592,7 +2600,7 @@ func (process *TeleportProcess) initApps() {
 	// If no applications are specified, exit early. This is due to the strange
 	// behavior in reading file configuration. If the user does not specify an
 	// "app_service" section, that is considered enabling "app_service".
-	if len(process.Config.Apps.Apps) == 0 {
+	if len(process.Config.Apps.Apps) == 0 && !process.Config.Apps.DebugApp {
 		return
 	}
 
@@ -2661,6 +2669,29 @@ func (process *TeleportProcess) initApps() {
 		// sessions to the Auth Server.
 		if err := process.initUploaderService(authClient, conn.Client); err != nil {
 			return trace.Wrap(err)
+		}
+
+		// Start header dumping debugging application if requested.
+		if process.Config.Apps.DebugApp {
+			debugCh := make(chan Event)
+			process.WaitForEvent(process.ExitContext(), DebugAppReady, debugCh)
+			process.initDebugApp()
+
+			// Block until the header dumper application is ready, and once it is,
+			// figure out where it's running and add it to the list of applications.
+			select {
+			case event := <-debugCh:
+				server, ok := event.Payload.(*httptest.Server)
+				if !ok {
+					return trace.BadParameter("unexpected payload %T", event.Payload)
+				}
+				process.Config.Apps.Apps = append(process.Config.Apps.Apps, App{
+					Name: "dumper",
+					URI:  server.URL,
+				})
+			case <-process.ExitContext().Done():
+				return trace.Wrap(process.ExitContext().Err())
+			}
 		}
 
 		// Loop over each application and create a server.
@@ -2974,6 +3005,23 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 	return nil
 }
 
+// initDebugApp starts a debug server that dumpers request headers.
+func (process *TeleportProcess) initDebugApp() {
+	var server *httptest.Server
+
+	process.RegisterFunc("debug.app.service", func() error {
+		server = httptest.NewServer(http.HandlerFunc(dumperHandler))
+		process.BroadcastEvent(Event{Name: DebugAppReady, Payload: server})
+		return nil
+	})
+	process.onExit("debug.app.shutdown", func(payload interface{}) {
+		if server != nil {
+			server.Close()
+		}
+		log.Infof("Exited.")
+	})
+}
+
 // singleProcessMode returns true when running all components needed within
 // the same process. It's used for development and demo purposes.
 func (process *TeleportProcess) singleProcessMode() (string, bool) {
@@ -2989,7 +3037,51 @@ func (process *TeleportProcess) singleProcessMode() (string, bool) {
 	return process.Config.Proxy.TunnelPublicAddrs[0].String(), true
 }
 
+// dumperHandler is an Application Access debugging application that will
+// dump the headers of a request.
+func dumperHandler(w http.ResponseWriter, r *http.Request) {
+	requestDump, err := httputil.DumpRequest(r, true)
+	if err != nil {
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		return
+	}
+
+	randomBytes := make([]byte, 8)
+	rand.Reader.Read(randomBytes)
+	cookieValue := hex.EncodeToString(randomBytes)
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "dumper.session.cookie",
+		Value:    cookieValue,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	fmt.Fprint(w, string(requestDump))
+}
+
+// getPublicAddr waits for a proxy to be registered with Teleport.
 func getPublicAddr(authClient auth.AccessPoint, a App) (string, error) {
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	timeout := time.NewTimer(5 * time.Second)
+	defer timeout.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			publicAddr, err := findPublicAddr(authClient, a)
+			if err == nil {
+				return publicAddr, nil
+			}
+		case <-timeout.C:
+			return "", trace.BadParameter("timed out waiting for proxy with public address")
+		}
+	}
+}
+
+// findPublicAddr tries to resolve the public address of the proxy of this cluster.
+func findPublicAddr(authClient auth.AccessPoint, a App) (string, error) {
 	// If the application has a public address already set, use it.
 	if a.PublicAddr != "" {
 		return a.PublicAddr, nil
