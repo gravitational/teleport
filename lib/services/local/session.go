@@ -31,7 +31,7 @@ func (s *IdentityService) GetAppSession(ctx context.Context, req services.GetApp
 		return nil, trace.Wrap(err)
 	}
 
-	item, err := s.Get(ctx, backend.Key(sessionsPrefix, req.SessionID))
+	item, err := s.Get(ctx, backend.Key(appsPrefix, sessionsPrefix, req.SessionID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -44,7 +44,7 @@ func (s *IdentityService) GetAppSession(ctx context.Context, req services.GetApp
 
 // GetAppSessions gets all application web sessions.
 func (s *IdentityService) GetAppSessions(ctx context.Context) ([]services.WebSession, error) {
-	startKey := backend.Key(sessionsPrefix)
+	startKey := backend.Key(appsPrefix, sessionsPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -68,7 +68,7 @@ func (s *IdentityService) UpsertAppSession(ctx context.Context, session services
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(sessionsPrefix, session.GetName()),
+		Key:     backend.Key(appsPrefix, sessionsPrefix, session.GetName()),
 		Value:   value,
 		Expires: session.GetExpiryTime(),
 	}
@@ -81,7 +81,7 @@ func (s *IdentityService) UpsertAppSession(ctx context.Context, session services
 
 // DeleteAppSession removes an application web sessions.
 func (s *IdentityService) DeleteAppSession(ctx context.Context, req services.DeleteAppSessionRequest) error {
-	if err := s.Delete(ctx, backend.Key(sessionsPrefix, req.SessionID)); err != nil {
+	if err := s.Delete(ctx, backend.Key(appsPrefix, sessionsPrefix, req.SessionID)); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -89,7 +89,7 @@ func (s *IdentityService) DeleteAppSession(ctx context.Context, req services.Del
 
 // DeleteAllAppSessions removes all application web sessions.
 func (s *IdentityService) DeleteAllAppSessions(ctx context.Context) error {
-	startKey := backend.Key(sessionsPrefix)
+	startKey := backend.Key(appsPrefix, sessionsPrefix)
 	if err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
 		return trace.Wrap(err)
 	}

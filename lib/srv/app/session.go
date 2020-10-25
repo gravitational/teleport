@@ -129,10 +129,10 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 	}
 
 	// Emit an event to the Audit Log that a new session chunk has been created.
-	appSessionCreateEvent := &events.AppSessionCreate{
+	appSessionChunkEvent := &events.AppSessionChunk{
 		Metadata: events.Metadata{
-			Type: events.AppSessionCreateEvent,
-			Code: events.AppSessionCreateCode,
+			Type: events.AppSessionChunkEvent,
+			Code: events.AppSessionChunkCode,
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        s.c.Server.GetName(),
@@ -143,7 +143,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 		},
 		SessionChunkID: chunkID,
 	}
-	if err := s.c.AuthClient.EmitAuditEvent(s.closeContext, appSessionCreateEvent); err != nil {
+	if err := s.c.AuthClient.EmitAuditEvent(s.closeContext, appSessionChunkEvent); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -236,11 +236,20 @@ func (s *sessionCache) expire(key string, el interface{}) {
 		return
 	}
 
-	if err := session.streamWriter.Close(s.closeContext); err != nil {
-		s.log.Debugf("Failed to close stream writer: %v.", err)
-	}
+	// Closing the stream writer may trigger a flush operation which could be
+	// time-consuming. Launch in another go routine since this occurs under a
+	// lock and expire can get called during a "get" operation on the ttlmap.
+	go s.closeStreamWriter(s.closeContext, session)
 
 	s.log.Debugf("Closing expired stream %v.", key)
+}
+
+// closeStreamWriter will close the stream writer. This could be a
+// time-consuming operation.
+func (s *sessionCache) closeStreamWriter(ctx context.Context, session *session) {
+	if err := session.streamWriter.Close(ctx); err != nil {
+		s.log.Debugf("Failed to close stream writer: %v.", err)
+	}
 }
 
 // expireSessions ticks every second trying to close expire sessions.

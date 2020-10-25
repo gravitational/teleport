@@ -1406,7 +1406,7 @@ func (a *Server) NewWebSession(username string, roles []string, traits wrappers.
 		return nil, trace.Wrap(err)
 	}
 	bearerTokenTTL := utils.MinTTL(sessionTTL, BearerTokenTTL)
-	return services.NewWebSession(token, services.KindWebSession, services.WebSessionSpecV2{
+	return services.NewWebSession(token, services.KindWebSession, services.KindWebSession, services.WebSessionSpecV2{
 		User:               user.GetName(),
 		Priv:               priv,
 		Pub:                certs.ssh,
@@ -1790,7 +1790,7 @@ func (k *authKeepAliver) forwardKeepAlives() {
 		case <-k.ctx.Done():
 			return
 		case keepAlive := <-k.keepAlivesC:
-			err := k.a.KeepAliveResource(k.ctx, keepAlive)
+			err := k.a.KeepAliveServer(k.ctx, keepAlive)
 			if err != nil {
 				k.closeWithError(err)
 				return

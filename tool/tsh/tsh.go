@@ -270,6 +270,7 @@ func Run(args []string) {
 	apps := app.Command("apps", "View and control proxied applications.")
 	lsApps := apps.Command("ls", "List available applications.")
 	lsApps.Flag("verbose", "Show extra application fields.").Short('v').BoolVar(&cf.Verbose)
+	lsApps.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
 
 	// join
 	join := app.Command("join", "Join the active SSH session")
@@ -857,7 +858,7 @@ func showApps(servers []services.Server, verbose bool) {
 		for _, server := range servers {
 			for _, app := range server.GetApps() {
 				t.AddRow([]string{
-					app.Name, server.GetHostname(), app.PublicAddr, app.URI, services.LabelsAsString(app.StaticLabels, app.DynamicLabels),
+					app.Name, server.GetName(), app.PublicAddr, app.URI, services.LabelsAsString(app.StaticLabels, app.DynamicLabels),
 				})
 			}
 		}

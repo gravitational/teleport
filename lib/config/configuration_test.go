@@ -243,13 +243,13 @@ func (s *ConfigTestSuite) TestLabelParsing(c *check.C) {
 	var conf service.SSHConfig
 	var err error
 	// empty spec. no errors, no labels
-	err = parseLabels("", &conf)
+	err = parseLabelsApply("", &conf)
 	c.Assert(err, check.IsNil)
 	c.Assert(conf.CmdLabels, check.IsNil)
 	c.Assert(conf.Labels, check.IsNil)
 
 	// simple static labels
-	err = parseLabels(`key=value,more="much better"`, &conf)
+	err = parseLabelsApply(`key=value,more="much better"`, &conf)
 	c.Assert(err, check.IsNil)
 	c.Assert(conf.CmdLabels, check.NotNil)
 	c.Assert(conf.CmdLabels, check.HasLen, 0)
@@ -259,7 +259,7 @@ func (s *ConfigTestSuite) TestLabelParsing(c *check.C) {
 	})
 
 	// static labels + command labels
-	err = parseLabels(`key=value,more="much better",arch=[5m2s:/bin/uname -m "p1 p2"]`, &conf)
+	err = parseLabelsApply(`key=value,more="much better",arch=[5m2s:/bin/uname -m "p1 p2"]`, &conf)
 	c.Assert(err, check.IsNil)
 	c.Assert(conf.Labels, check.DeepEquals, map[string]string{
 		"key":  "value",

@@ -734,7 +734,7 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 		// for trusted clusters the name is used to construct the vanity domain that
 		// the application will be running under.
 		if ok := strings.Contains(application.Name, " "); ok {
-			return trace.BadParameter("name can not contain spaces as it may be used as part of the application domain")
+			return trace.BadParameter("application name %q can not contain spaces as it may be used as part of the application domain", application.Name)
 		}
 
 		// Parse and validate URL.
@@ -747,7 +747,7 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 		if application.PublicAddr != "" {
 			_, _, err = net.SplitHostPort(application.PublicAddr)
 			if err == nil {
-				return trace.BadParameter("public address can only be a domain name")
+				return trace.BadParameter("public address %q can not contan a port", application.PublicAddr)
 			}
 		}
 
@@ -1014,18 +1014,39 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	if clf.AppName != "" {
 		cfg.Apps.Enabled = true
 
-		// Validate the URI.
+		// Check if the application name contains spaces. Don't allow spaces because
+		// for trusted clusters the name is used to construct the vanity domain that
+		// the application will be running under.
+		if ok := strings.Contains(clf.AppName, " "); ok {
+			return trace.BadParameter("application name %q can not contain spaces as it may be used as part of the application domain", clf.AppName)
+		}
+
+		// Parse and validate URL.
 		_, err = url.Parse(clf.AppURI)
 		if err != nil {
 			return trace.Wrap(err)
+		}
+
+		// If a port was specified, return an error, public address should be a FQDN.
+		if clf.AppPublicAddr != "" {
+			_, _, err = net.SplitHostPort(clf.AppPublicAddr)
+			if err == nil {
+				return trace.BadParameter("public address %q can not contan a port", clf.AppPublicAddr)
+			}
+		}
+
+		// Parse and validate labels.
+		static, dynamic, err := parseLabels(clf.Labels)
+		if err != nil {
+			return trace.BadParameter("labels invalid: %v", err)
 		}
 
 		cfg.Apps.Apps = append(cfg.Apps.Apps, service.App{
 			Name:          clf.AppName,
 			URI:           clf.AppURI,
 			PublicAddr:    clf.AppPublicAddr,
-			StaticLabels:  make(map[string]string),
-			DynamicLabels: make(services.CommandLabels),
+			StaticLabels:  static,
+			DynamicLabels: dynamic,
 		})
 	}
 
@@ -1154,7 +1175,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 
 	// apply --labels flag
-	if err = parseLabels(clf.Labels, &cfg.SSH); err != nil {
+	if err := parseLabelsApply(clf.Labels, &cfg.SSH); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1181,33 +1202,51 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	return nil
 }
 
-// parseLabels takes the value of --labels flag and tries to correctly populate
-// sshConf.Labels and sshConf.CmdLabels
-func parseLabels(spec string, sshConf *service.SSHConfig) error {
+// parseLabels parses the labels command line flag and returns static and
+// dynamic labels.
+func parseLabels(spec string) (map[string]string, services.CommandLabels, error) {
+	// Base syntax parsing, the spec must be in the form of 'key=value,more="better"'.
+	lmap, err := client.ParseLabelSpec(spec)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	static := make(map[string]string)
+	dynamic := make(services.CommandLabels)
+
+	if len(lmap) == 0 {
+		return static, dynamic, nil
+	}
+
+	// Loop over all parses labels and set either static or dynamic labels.
+	for key, value := range lmap {
+		dynamicLabel, err := isCmdLabelSpec(value)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		if dynamicLabel != nil {
+			dynamic[key] = dynamicLabel
+		} else {
+			static[key] = value
+		}
+	}
+
+	return static, dynamic, nil
+}
+
+// parseLabelsApply reads in the labels command line flag and tries to
+// correctly populate static and dynamic labels for the SSH service.
+func parseLabelsApply(spec string, sshConf *service.SSHConfig) error {
 	if spec == "" {
 		return nil
 	}
-	// base syntax parsing, the spec must be in the form of 'key=value,more="better"`
-	lmap, err := client.ParseLabelSpec(spec)
+
+	var err error
+	sshConf.Labels, sshConf.CmdLabels, err = parseLabels(spec)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(lmap) > 0 {
-		sshConf.CmdLabels = make(services.CommandLabels)
-		sshConf.Labels = make(map[string]string)
-	}
-	// see which labels are actually command labels:
-	for key, value := range lmap {
-		cmdLabel, err := isCmdLabelSpec(value)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if cmdLabel != nil {
-			sshConf.CmdLabels[key] = cmdLabel
-		} else {
-			sshConf.Labels[key] = value
-		}
-	}
+
 	return nil
 }
 

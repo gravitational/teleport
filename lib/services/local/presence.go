@@ -254,7 +254,7 @@ func (s *PresenceService) UpsertNode(server services.Server) (*services.KeepAliv
 		return &services.KeepAlive{}, nil
 	}
 	return &services.KeepAlive{
-		Type:    services.KeepAlive_SERVER,
+		Type:    services.KeepAlive_NODE,
 		LeaseID: lease.ID,
 		Name:    server.GetName(),
 	}, nil
@@ -262,7 +262,7 @@ func (s *PresenceService) UpsertNode(server services.Server) (*services.KeepAliv
 
 // DELETE IN: 5.1.0.
 //
-// This logic has been moved to KeepAliveResource.
+// This logic has been moved to KeepAliveServer.
 //
 // KeepAliveNode updates node expiry
 func (s *PresenceService) KeepAliveNode(ctx context.Context, h services.KeepAlive) error {
@@ -982,7 +982,7 @@ func (s *PresenceService) GetAppServers(ctx context.Context, namespace string, o
 	}
 
 	// Get all items in the bucket.
-	startKey := backend.Key(appsPrefix, namespace)
+	startKey := backend.Key(appsPrefix, serversPrefix, namespace)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1017,7 +1017,7 @@ func (s *PresenceService) UpsertAppServer(ctx context.Context, server services.S
 		return nil, trace.Wrap(err)
 	}
 	lease, err := s.Put(ctx, backend.Item{
-		Key:     backend.Key(appsPrefix, server.GetNamespace(), server.GetName()),
+		Key:     backend.Key(appsPrefix, serversPrefix, server.GetNamespace(), server.GetName()),
 		Value:   value,
 		Expires: server.Expiry(),
 		ID:      server.GetResourceID(),
@@ -1037,36 +1037,36 @@ func (s *PresenceService) UpsertAppServer(ctx context.Context, server services.S
 
 // DeleteAppServer removes an application server.
 func (s *PresenceService) DeleteAppServer(ctx context.Context, namespace string, name string) error {
-	key := backend.Key(appsPrefix, namespace, name)
+	key := backend.Key(appsPrefix, serversPrefix, namespace, name)
 	return s.Delete(ctx, key)
 }
 
 // DeleteAllAppServers removes all application servers.
 func (s *PresenceService) DeleteAllAppServers(ctx context.Context, namespace string) error {
-	startKey := backend.Key(appsPrefix, namespace)
+	startKey := backend.Key(appsPrefix, serversPrefix, namespace)
 	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 }
 
-// KeepAliveResource updates expiry time of the resource.
-func (s *PresenceService) KeepAliveResource(ctx context.Context, h services.KeepAlive) error {
+// KeepAliveServer updates expiry time of a server resource.
+func (s *PresenceService) KeepAliveServer(ctx context.Context, h services.KeepAlive) error {
 	if err := h.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Update the prefix off the type information in the keep alive.
-	var prefix string
+	var key []byte
 	switch h.GetType() {
-	case teleport.KeepAliveServer:
-		prefix = nodesPrefix
+	case teleport.KeepAliveNode:
+		key = backend.Key(nodesPrefix, h.Namespace, h.Name)
 	case teleport.KeepAliveApp:
-		prefix = appsPrefix
+		key = backend.Key(appsPrefix, serversPrefix, h.Namespace, h.Name)
 	default:
 		return trace.BadParameter("unknown keep-alive type %q", h.GetType())
 	}
 
 	err := s.KeepAlive(ctx, backend.Lease{
 		ID:  h.LeaseID,
-		Key: backend.Key(prefix, h.Namespace, h.Name),
+		Key: key,
 	}, h.Expires)
 	return trace.Wrap(err)
 }
@@ -1079,6 +1079,7 @@ const (
 	remoteClustersPrefix    = "remoteClusters"
 	nodesPrefix             = "nodes"
 	appsPrefix              = "apps"
+	serversPrefix           = "servers"
 	namespacesPrefix        = "namespaces"
 	authServersPrefix       = "authservers"
 	proxiesPrefix           = "proxies"

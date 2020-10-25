@@ -261,6 +261,10 @@ type TeleportProcess struct {
 
 	// reporter is used to report some in memory stats
 	reporter *backend.Reporter
+
+	// appDependCh is used by application service in single process mode to block
+	// until auth and reverse tunnel servers are ready.
+	appDependCh chan Event
 }
 
 type keyPairKey struct {
@@ -609,7 +613,10 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		storage:             storage,
 		id:                  processID,
 		keyPairs:            make(map[keyPairKey]KeyPair),
+		appDependCh:         make(chan Event, 1024),
 	}
+
+	process.registerAppDepend()
 
 	process.Entry = logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentProcess, process.id),
@@ -2553,6 +2560,34 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	return nil
 }
 
+// registerAppDepend will register dependencies for application service.
+func (process *TeleportProcess) registerAppDepend() {
+	for _, eventName := range appDependEvents {
+		process.WaitForEvent(process.ExitContext(), eventName, process.appDependCh)
+	}
+}
+
+// waitForAppDepend waits until all dependencies for an application service
+// are ready.
+func (process *TeleportProcess) waitForAppDepend() {
+	for i := 0; i < len(appDependEvents); i++ {
+		select {
+		case <-process.appDependCh:
+		case <-process.ExitContext().Done():
+			log.Debugf("Process is exiting.")
+		}
+	}
+}
+
+// appDependEvents is a list of events that the application service depends on.
+var appDependEvents = []string{
+	AuthTLSReady,
+	AuthIdentityEvent,
+	ProxySSHReady,
+	ProxyWebServerReady,
+	ProxyReverseTunnelReady,
+}
+
 func (process *TeleportProcess) initApps() {
 	// If no applications are specified, exit early. This is due to the strange
 	// behavior in reading file configuration. If the user does not specify an
@@ -2594,6 +2629,25 @@ func (process *TeleportProcess) initApps() {
 		conn, ok := (event.Payload).(*Connector)
 		if !ok {
 			return trace.BadParameter("unsupported event payload type %q", event.Payload)
+		}
+
+		// If this process connected through the web proxy, it will discover the
+		// reverse tunnel address correctly and store it in the connector.
+		//
+		// If it was not, it is running in single process mode which is used for
+		// development and demos. In that case, wait until all dependencies (like
+		// auth and reverse tunnel server) are ready before starting.
+		var tunnelAddr string
+		if conn.TunnelProxy() != "" {
+			tunnelAddr = conn.TunnelProxy()
+		} else {
+			if tunnelAddr, ok = process.singleProcessMode(); !ok {
+				return trace.BadParameter(`failed to find reverse tunnel address, if running in single process mode, make sure "auth_service", "proxy_service", and "app_service" are all enabled`)
+			}
+
+			// Block and wait for all dependencies to start before starting.
+			log.Debugf("Waiting for application service dependencies to start.")
+			process.waitForAppDepend()
 		}
 
 		// Create a caching client to the Auth Server. Is is to reduce load on
@@ -2656,7 +2710,7 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
-		appServer, err := app.New(process.ExitContext(), &app.Config{
+		appServer, err = app.New(process.ExitContext(), &app.Config{
 			DataDir:      process.Config.DataDir,
 			AuthClient:   conn.Client,
 			AccessPoint:  authClient,
@@ -2680,23 +2734,6 @@ func (process *TeleportProcess) initApps() {
 		// Start the apps server. This starts the server, heartbeat (services.App),
 		// and (dynamic) label update.
 		appServer.Start()
-
-		// If this process connected through the web proxy, it will have found the
-		// reverse tunnel address itself correctly. If it was not, the only
-		// situation supported is if auth and the reverse tunnel subsystem is
-		// running locally in a single process setup which is used for
-		// development and getting started with Teleport where you run everything
-		// within a single process.
-		var tunnelAddr string
-		if conn.TunnelProxy() != "" {
-			tunnelAddr = conn.TunnelProxy()
-		} else {
-			if tunnelAddr, ok = process.hasLocalTunnel(); !ok {
-				return trace.BadParameter("failed to find reverse tunnel address, if " +
-					"running in single process mode, make sure \"auth_service\", \"proxy_service\" " +
-					", and \"app_service\" are all enabled")
-			}
-		}
 
 		// Create and start an agent pool.
 		agentPool, err = reversetunnel.NewAgentPool(process.ExitContext(),
@@ -2736,7 +2773,9 @@ func (process *TeleportProcess) initApps() {
 		if appServer != nil {
 			warnOnErr(appServer.Close())
 		}
-		agentPool.Stop()
+		if agentPool != nil {
+			agentPool.Stop()
+		}
 
 		log.Infof("Exited.")
 	})
@@ -2935,10 +2974,9 @@ func initSelfSignedHTTPSCert(cfg *Config) (err error) {
 	return nil
 }
 
-// hasLocalTunnel returns true of the reverse tunnel server is running within
-// this process and if a tunnel public address has been defined allowing a
-// local client to connect to itself.
-func (process *TeleportProcess) hasLocalTunnel() (string, bool) {
+// singleProcessMode returns true when running all components needed within
+// the same process. It's used for development and demo purposes.
+func (process *TeleportProcess) singleProcessMode() (string, bool) {
 	if !process.Config.Proxy.Enabled || !process.Config.Auth.Enabled {
 		return "", false
 	}

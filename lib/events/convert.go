@@ -373,9 +373,9 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppSessionStart{
 			AppSessionStart: e,
 		}
-	case *AppSessionCreate:
-		out.Event = &OneOf_AppSessionCreate{
-			AppSessionCreate: e,
+	case *AppSessionChunk:
+		out.Event = &OneOf_AppSessionChunk{
+			AppSessionChunk: e,
 		}
 	case *AppSessionRequest:
 		out.Event = &OneOf_AppSessionRequest{
@@ -463,7 +463,7 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 		return e, nil
 	} else if e := in.GetAppSessionStart(); e != nil {
 		return e, nil
-	} else if e := in.GetAppSessionCreate(); e != nil {
+	} else if e := in.GetAppSessionChunk(); e != nil {
 		return e, nil
 	} else if e := in.GetAppSessionRequest(); e != nil {
 		return e, nil

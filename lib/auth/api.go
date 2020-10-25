@@ -263,3 +263,7 @@ type NewCachingAccessPoint func(clt ClientI, cacheName []string) (AccessPoint, e
 func NoCache(clt ClientI, cacheName []string) (AccessPoint, error) {
 	return clt, nil
 }
+
+// notImplementedMessage is the message to return for endpoints that are not
+// implemented. This is due to how service interfaces are used with Teleport.
+const notImplementedMessage = "not implemented: can only be called by auth locally"

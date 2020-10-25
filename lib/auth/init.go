@@ -439,6 +439,9 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		DomainName: cfg.ClusterName.GetClusterName(),
 		Type:       services.JWTSigner,
 	}, true)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
 	if trace.IsNotFound(err) || len(jwtSigner.GetJWTKeyPairs()) == 0 {
 		log.Infof("Migrate: Adding JWT key to existing cluster %q.", cfg.ClusterName.GetClusterName())
 

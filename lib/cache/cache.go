@@ -50,7 +50,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: services.KindTunnelConnection},
 		{Kind: services.KindAccessRequest},
 		{Kind: services.KindAppServer},
-		{Kind: services.KindAppSession},
+		{Kind: services.KindWebSession},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -71,7 +71,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: services.KindReverseTunnel},
 		{Kind: services.KindTunnelConnection},
 		{Kind: services.KindAppServer},
-		{Kind: services.KindAppSession},
+		{Kind: services.KindWebSession},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg

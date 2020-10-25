@@ -65,9 +65,6 @@ func (c *HandlerConfig) CheckAndSetDefaults() error {
 	if c.AccessPoint == nil {
 		return trace.BadParameter("access point missing")
 	}
-	if c.ProxyClient == nil {
-		return trace.BadParameter("proxy client missing")
-	}
 	if len(c.CipherSuites) == 0 {
 		return trace.BadParameter("ciphersuites missing")
 	}

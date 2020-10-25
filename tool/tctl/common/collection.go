@@ -445,7 +445,7 @@ func (a *appCollection) writeText(w io.Writer) error {
 	for _, server := range a.servers {
 		for _, app := range server.GetApps() {
 			t.AddRow([]string{
-				app.Name, server.GetHostname(), app.PublicAddr, app.URI, services.LabelsAsString(app.StaticLabels, app.DynamicLabels),
+				app.Name, server.GetName(), app.PublicAddr, app.URI, services.LabelsAsString(app.StaticLabels, app.DynamicLabels),
 			})
 		}
 	}

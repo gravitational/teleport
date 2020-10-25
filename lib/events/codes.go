@@ -312,8 +312,8 @@ const (
 
 	// AppSessionStartCode is the application session start code.
 	AppSessionStartCode = "T2007I"
-	// AppSessionCreateCode is the application session chunk create code.
-	AppSessionCreateCode = "T2008I"
+	// AppSessionChunkCode is the application session chunk create code.
+	AppSessionChunkCode = "T2008I"
 	// AppSessionRequestCode is the application request/response code.
 	AppSessionRequestCode = "T2009I"
 

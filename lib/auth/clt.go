@@ -488,9 +488,9 @@ func (c *Client) WaitForDelivery(context.Context) error {
 	return nil
 }
 
-// CreateCertAuthority inserts new cert authority
+// CreateCertAuthority not implemented: can only be called locally.
 func (c *Client) CreateCertAuthority(ca services.CertAuthority) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process.
@@ -590,16 +590,14 @@ func (c *Client) DeleteCertAuthority(id services.CertAuthID) error {
 	return trace.Wrap(err)
 }
 
-// ActivateCertAuthority moves a CertAuthority from the deactivated list to
-// the normal list.
+// ActivateCertAuthority not implemented: can only be called locally.
 func (c *Client) ActivateCertAuthority(id services.CertAuthID) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeactivateCertAuthority moves a CertAuthority from the normal list to
-// the deactivated list.
+// DeactivateCertAuthority not implemented: can only be called locally.
 func (c *Client) DeactivateCertAuthority(id services.CertAuthID) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // GenerateToken creates a special provisioning token for a new SSH server
@@ -730,15 +728,15 @@ func (c *Client) UpsertNode(s services.Server) (*services.KeepAlive, error) {
 
 // DELETE IN: 5.1.0
 //
-// This logic has been moved to KeepAliveResource.
+// This logic has been moved to KeepAliveServer.
 //
 // KeepAliveNode updates node keep alive information.
 func (c *Client) KeepAliveNode(ctx context.Context, keepAlive services.KeepAlive) error {
 	return trace.BadParameter("not implemented, use StreamKeepAlives instead")
 }
 
-// KeepAliveResource is not implemented.
-func (c *Client) KeepAliveResource(ctx context.Context, keepAlive services.KeepAlive) error {
+// KeepAliveServer not implemented: can only be called locally.
+func (c *Client) KeepAliveServer(ctx context.Context, keepAlive services.KeepAlive) error {
 	return trace.BadParameter("not implemented, use StreamKeepAlives instead")
 }
 
@@ -1001,9 +999,9 @@ func (c *Client) UpsertReverseTunnel(tunnel services.ReverseTunnel) error {
 	return trace.Wrap(err)
 }
 
-// GetReverseTunnel returns reverse tunnel by name
+// GetReverseTunnel not implemented: can only be called locally.
 func (c *Client) GetReverseTunnel(name string, opts ...services.MarshalOption) (services.ReverseTunnel, error) {
-	return nil, trace.NotImplemented("not implemented")
+	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // GetReverseTunnels returns the list of created reverse tunnels
@@ -1118,9 +1116,9 @@ func (c *Client) DeleteTunnelConnections(clusterName string) error {
 	return trace.Wrap(err)
 }
 
-// DeleteAllTokens deletes all tokens
+// DeleteAllTokens not implemented: can only be called locally.
 func (c *Client) DeleteAllTokens() error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // DeleteAllTunnelConnections deletes all tunnel connections
@@ -1200,9 +1198,9 @@ func (c *Client) CreateRemoteCluster(rc services.RemoteCluster) error {
 	return trace.Wrap(err)
 }
 
-// UpdateRemoteCluster updates remote cluster resource
+// UpdateRemoteCluster not implemented: can only be called locally.
 func (c *Client) UpdateRemoteCluster(ctx context.Context, rc services.RemoteCluster) error {
-	return trace.NotImplemented("not implemented: remote clusters can only be updated by auth server locally")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // UpsertAuthServer is used by auth servers to report their presence
@@ -1240,14 +1238,14 @@ func (c *Client) GetAuthServers() ([]services.Server, error) {
 	return re, nil
 }
 
-// DeleteAllAuthServers deletes all auth servers
+// DeleteAllAuthServers not implemented: can only be called locally.
 func (c *Client) DeleteAllAuthServers() error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAuthServer deletes auth server by name
+// DeleteAuthServer not implemented: can only be called locally.
 func (c *Client) DeleteAuthServer(name string) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // UpsertProxy is used by proxies to report their presence
@@ -2412,9 +2410,9 @@ func (c *Client) GetRoles() ([]services.Role, error) {
 	return roles, nil
 }
 
-// CreateRole creates a role.
+// CreateRole not implemented: can only be called locally.
 func (c *Client) CreateRole(role services.Role) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // UpsertRole creates or updates role
@@ -2510,9 +2508,9 @@ func (c *Client) SetClusterName(cn services.ClusterName) error {
 	return nil
 }
 
-// UpsertClusterName updates or creates cluster name once
+// UpsertClusterName not implemented: can only be called locally.
 func (c *Client) UpsertClusterName(cn services.ClusterName) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // DeleteStaticTokens deletes static tokens
@@ -2584,44 +2582,44 @@ func (c *Client) GetLocalClusterName() (string, error) {
 	return c.GetDomainName()
 }
 
-// DeleteClusterConfig deletes cluster config
+// DeleteClusterConfig not implemented: can only be called locally.
 func (c *Client) DeleteClusterConfig() error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteClusterName deletes cluster name
+// DeleteClusterName not implemented: can only be called locally.
 func (c *Client) DeleteClusterName() error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// UpsertLocalClusterName upserts local cluster name
+// UpsertLocalClusterName not implemented: can only be called locally.
 func (c *Client) UpsertLocalClusterName(string) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllCertAuthorities deletes all certificate authorities of a certain type
+// DeleteAllCertAuthorities not implemented: can only be called locally.
 func (c *Client) DeleteAllCertAuthorities(caType services.CertAuthType) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllReverseTunnels deletes all reverse tunnels
+// DeleteAllReverseTunnels not implemented: can only be called locally.
 func (c *Client) DeleteAllReverseTunnels() error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllCertNamespaces deletes all namespaces
+// DeleteAllCertNamespaces not implemented: can only be called locally.
 func (c *Client) DeleteAllNamespaces() error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllRoles deletes all roles
+// DeleteAllRoles not implemented: can only be called locally.
 func (c *Client) DeleteAllRoles() error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllUsers deletes all users
+// DeleteAllUsers not implemented: can only be called locally.
 func (c *Client) DeleteAllUsers() error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 func (c *Client) GetTrustedCluster(name string) (services.TrustedCluster, error) {
@@ -3071,9 +3069,9 @@ func (c *Client) CreateAppSession(ctx context.Context, req services.CreateAppSes
 	return resp.GetSession(), nil
 }
 
-// UpsertAppSession is not implemented.
+// UpsertAppSession not implemented: can only be called locally.
 func (c *Client) UpsertAppSession(ctx context.Context, session services.WebSession) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // DeleteAppSession removes an application web sessions.

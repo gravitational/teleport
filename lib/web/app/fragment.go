@@ -39,7 +39,7 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request, p httpr
 	case http.MethodGet:
 		nonce, err := utils.CryptoRandomHex(auth.TokenLenBytes)
 		if err != nil {
-			h.log.Debugf("Failed to generate and encode random numbers: %v.", err)
+			h.log.WithError(err).Debugf("Failed to generate and encode random numbers.")
 			return trace.AccessDenied("access denied")
 		}
 		setRedirectPageHeaders(w.Header(), nonce)

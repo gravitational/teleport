@@ -22,10 +22,11 @@ message KeepAlive {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "expires"
     ];
-    // Type is the type of keep alive, either server or app.
+    // Type is the type of keep alive, used by servers. At the moment only
+    // "node" and "app" are supported.
     enum KeepAliveType {
         UNKNOWN = 0;
-        SERVER = 1;
+        NODE = 1;
         APP = 2;
     }
     KeepAliveType Type = 9 [ (gogoproto.jsontag) = "type" ];
@@ -186,13 +187,13 @@ message App {
     map<string, CommandLabelV2> DynamicLabels = 5
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "commands,omitempty" ];
     bool InsecureSkipVerify = 6 [ (gogoproto.jsontag) = "insecure_skip_verify" ];
-    // Rewrite defines request and response writing that will occur on every
-    // request and response pair.
+    // Rewrite is a list of rewriting rules to apply to requests and responses.
     Rewrite Rewrite = 7 [ (gogoproto.jsontag) = "rewrite,omitempty" ];
 }
 
+// Rewrite is a list of rewriting rules to apply to requests and responses.
 message Rewrite {
-    // Rewrite defines a list of hosts which will be rewritten to the public
+    // Redirect defines a list of hosts which will be rewritten to the public
     // address of the application if they occur in the "Location" header.
     repeated string Redirect = 1 [ (gogoproto.jsontag) = "redirect" ];
 }

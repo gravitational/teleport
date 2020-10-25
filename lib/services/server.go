@@ -405,6 +405,9 @@ func CompareServers(a, b Server) int {
 // CompareApps compares two slices of apps and returns if they are equal or
 // different.
 func CompareApps(a []*App, b []*App) int {
+	if len(a) != len(b) {
+		return Different
+	}
 	for i := range a {
 		if a[i].Name != b[i].Name {
 			return Different

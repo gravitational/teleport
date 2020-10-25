@@ -74,6 +74,8 @@ func MakeApps(proxyName string, proxyHost string, appClusterName string, appServ
 	return result
 }
 
+// resolveFQDN will return the applications FQDN. This function can resolve
+// the FQDN for an application for local cluster and remote clusters.
 func resolveFQDN(proxyName string, proxyHost string, appClusterName string, app services.App) string {
 	// Use application public address if running on proxy.
 	isProxyCluster := proxyName == appClusterName
