@@ -175,6 +175,7 @@ var (
 		"insecure_skip_verify":    false,
 		"rewrite":                 false,
 		"redirect":                false,
+		"debug_app":               false,
 	}
 )
 
@@ -812,6 +813,9 @@ type Apps struct {
 	// Service contains fields common to all services like "enabled" and
 	// "listen_addr".
 	Service `yaml:",inline"`
+
+	// DebugApp turns on a header debugging application.
+	DebugApp bool `yaml:"debug_app"`
 
 	// Apps is a list of applications that will be run by this service.
 	Apps []*App `yaml:"apps"`

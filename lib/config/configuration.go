@@ -723,6 +723,9 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 	// Apps are enabled.
 	cfg.Apps.Enabled = true
 
+	// Enable debugging application if requested.
+	cfg.Apps.DebugApp = fc.Apps.DebugApp
+
 	// Loop over all apps and load app configuration.
 	for _, application := range fc.Apps.Apps {
 		err := application.CheckAndSetDefaults()
