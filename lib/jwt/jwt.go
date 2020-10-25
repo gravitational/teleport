@@ -109,13 +109,16 @@ type SignParams struct {
 // Check verifies all the values are valid.
 func (p *SignParams) Check() error {
 	if p.Username == "" {
-		return trace.BadParameter("missing username")
+		return trace.BadParameter("username missing")
 	}
 	if len(p.Roles) == 0 {
-		return trace.BadParameter("missing roles")
+		return trace.BadParameter("roles missing")
 	}
 	if p.Expires.IsZero() {
-		return trace.BadParameter("expires required")
+		return trace.BadParameter("expires missing")
+	}
+	if p.URI == "" {
+		return trace.BadParameter("uri missing")
 	}
 
 	return nil

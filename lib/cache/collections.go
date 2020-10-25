@@ -18,7 +18,6 @@ package cache
 
 import (
 	"context"
-	"runtime/debug"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -121,7 +120,7 @@ func setupCollections(c *Cache, watches []services.WatchKind) (map[string]collec
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[watch.Kind] = &appServer{watch: watch, Cache: c}
-		case services.KindAppSession:
+		case services.KindWebSession:
 			if c.AppSession == nil {
 				return nil, trace.BadParameter("missing parameter AppSession")
 			}
@@ -1151,7 +1150,6 @@ func (a *appSession) erase() error {
 func (a *appSession) fetch(ctx context.Context) error {
 	resources, err := a.AppSession.GetAppSessions(ctx)
 	if err != nil {
-		debug.PrintStack()
 		return trace.Wrap(err)
 	}
 	if err := a.erase(); err != nil {

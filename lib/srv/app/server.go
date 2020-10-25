@@ -190,7 +190,6 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 			Log:    s.log,
 		})
 		if err != nil {
-
 			return nil, trace.Wrap(err)
 		}
 		dl.Sync()
@@ -324,7 +323,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 // ServeHTTP will forward the *http.Request to the target application.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := s.serveHTTP(w, r); err != nil {
-		s.log.Debugf("Failed to serve request: %v.", err)
+		s.log.Warnf("Failed to serve request: %v.", err)
 
 		// Covert trace error type to HTTP and write response.
 		code := trace.ErrorToCode(err)

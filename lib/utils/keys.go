@@ -46,7 +46,7 @@ func MarshalPrivateKey(key crypto.Signer) ([]byte, []byte, error) {
 
 		return publicBytes, privateBytes, nil
 	default:
-		return nil, nil, trace.BadParameter("unsupported private key type %q", key)
+		return nil, nil, trace.BadParameter("unsupported private key type %T", key)
 	}
 }
 

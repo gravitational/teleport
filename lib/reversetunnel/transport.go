@@ -83,6 +83,7 @@ type dialReq struct {
 	ConnType services.TunnelType `json:"conn_type"`
 }
 
+// CheckAndSetDefaults verifies all the values are valid.
 func (d *dialReq) CheckAndSetDefaults() error {
 	if d.ConnType == "" {
 		d.ConnType = services.NodeTunnel

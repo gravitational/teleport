@@ -677,14 +677,14 @@ func startRollingBackRotation(ca services.CertAuthority) error {
 	// Perform a length check because not every CA has all types of keys.
 	// For example, a JWT services.CertAuthority will not have SSH or TLS keys.
 	// Similarly SSH and TLS services.CertAuthority do not have JWT keys.
-	if len(signingKeys) > 0 {
+	if len(signingKeys) > 1 {
 		signingKeys = [][]byte{signingKeys[1]}
 		checkingKeys = [][]byte{checkingKeys[1], checkingKeys[0]}
 	}
-	if len(tlsKeyPairs) > 0 {
+	if len(tlsKeyPairs) > 1 {
 		tlsKeyPairs = []services.TLSKeyPair{tlsKeyPairs[1], services.TLSKeyPair{Cert: tlsKeyPairs[0].Cert}}
 	}
-	if len(jwtKeyPairs) > 0 {
+	if len(jwtKeyPairs) > 1 {
 		jwtKeyPairs = []services.JWTKeyPair{jwtKeyPairs[1], services.JWTKeyPair{PublicKey: jwtKeyPairs[0].PublicKey}}
 	}
 

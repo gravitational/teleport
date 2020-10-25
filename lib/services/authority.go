@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"crypto"
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
@@ -407,6 +408,12 @@ func (ca *CertAuthorityV2) Clone() CertAuthority {
 			Cert: utils.CopyByteSlice(kp.Cert),
 		}
 	}
+	for i, kp := range ca.Spec.JWTKeyPairs {
+		out.Spec.JWTKeyPairs[i] = JWTKeyPair{
+			PublicKey:  utils.CopyByteSlice(kp.PublicKey),
+			PrivateKey: utils.CopyByteSlice(kp.PrivateKey),
+		}
+	}
 	out.Spec.Roles = utils.CopyStrings(ca.Spec.Roles)
 	return &out
 }
@@ -733,36 +740,29 @@ func (ca *CertAuthorityV2) checkJWTKeys() error {
 		return trace.BadParameter("missing JWT CA")
 	}
 
+	var err error
+	var privateKey crypto.Signer
+
 	// Check that the JWT keys set are valid.
 	for _, pair := range ca.Spec.JWTKeyPairs {
-		// If a private key is set, check the private and public keys, otherwise
-		// only check the public key parts.
 		if len(pair.PrivateKey) > 0 {
-			privateKey, err := utils.ParsePrivateKey(pair.PrivateKey)
+			privateKey, err = utils.ParsePrivateKey(pair.PrivateKey)
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			_, err = jwt.New(&jwt.Config{
-				Algorithm:   defaults.ApplicationTokenAlgorithm,
-				ClusterName: ca.Spec.ClusterName,
-				PrivateKey:  privateKey,
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		} else {
-			publicKey, err := utils.ParsePublicKey(pair.PublicKey)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			_, err = jwt.New(&jwt.Config{
-				Algorithm:   defaults.ApplicationTokenAlgorithm,
-				ClusterName: ca.Spec.ClusterName,
-				PublicKey:   publicKey,
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
+		}
+		publicKey, err := utils.ParsePublicKey(pair.PublicKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		_, err = jwt.New(&jwt.Config{
+			Algorithm:   defaults.ApplicationTokenAlgorithm,
+			ClusterName: ca.Spec.ClusterName,
+			PrivateKey:  privateKey,
+			PublicKey:   publicKey,
+		})
+		if err != nil {
+			return trace.Wrap(err)
 		}
 	}
 

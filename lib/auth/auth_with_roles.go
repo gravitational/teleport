@@ -183,8 +183,9 @@ func (a *ServerWithRoles) DeleteSession(namespace string, id session.ID) error {
 	return a.sessions.DeleteSession(namespace, id)
 }
 
+// CreateCertAuthority not implemented: can only be called locally.
 func (a *ServerWithRoles) CreateCertAuthority(ca services.CertAuthority) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process.
@@ -302,12 +303,14 @@ func (a *ServerWithRoles) DeleteCertAuthority(id services.CertAuthID) error {
 	return a.authServer.DeleteCertAuthority(id)
 }
 
+// ActivateCertAuthority not implemented: can only be called locally.
 func (a *ServerWithRoles) ActivateCertAuthority(id services.CertAuthID) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
+// DeactivateCertAuthority not implemented: can only be called locally.
 func (a *ServerWithRoles) DeactivateCertAuthority(id services.CertAuthID) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // GenerateToken generates multi-purpose authentication token.
@@ -373,7 +376,7 @@ func (a *ServerWithRoles) UpsertNode(s services.Server) (*services.KeepAlive, er
 
 // DELETE IN: 5.1.0
 //
-// This logic has moved to KeepAliveResource.
+// This logic has moved to KeepAliveServer.
 func (a *ServerWithRoles) KeepAliveNode(ctx context.Context, handle services.KeepAlive) error {
 	if !a.hasBuiltinRole(string(teleport.RoleNode)) {
 		return trace.AccessDenied("[10] access denied")
@@ -395,23 +398,23 @@ func (a *ServerWithRoles) KeepAliveNode(ctx context.Context, handle services.Kee
 	return a.authServer.KeepAliveNode(ctx, handle)
 }
 
-func (a *ServerWithRoles) KeepAliveResource(ctx context.Context, handle services.KeepAlive) error {
+func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle services.KeepAlive) error {
 	clusterName, err := a.GetDomainName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	serverName, err := ExtractHostID(a.context.User.GetName(), clusterName)
 	if err != nil {
-		return trace.AccessDenied("[10] access denied")
+		return trace.AccessDenied("access denied")
 	}
 	if serverName != handle.Name {
-		return trace.AccessDenied("[10] access denied")
+		return trace.AccessDenied("access denied")
 	}
 
 	switch handle.GetType() {
-	case teleport.KeepAliveServer:
+	case teleport.KeepAliveNode:
 		if !a.hasBuiltinRole(string(teleport.RoleNode)) {
-			return trace.AccessDenied("[10] access denied")
+			return trace.AccessDenied("access denied")
 		}
 		if err := a.action(defaults.Namespace, services.KindNode, services.VerbUpdate); err != nil {
 			return trace.Wrap(err)
@@ -427,7 +430,7 @@ func (a *ServerWithRoles) KeepAliveResource(ctx context.Context, handle services
 		return trace.BadParameter("unknown keep alive type %q", handle.Type)
 	}
 
-	return a.authServer.KeepAliveResource(ctx, handle)
+	return a.authServer.KeepAliveServer(ctx, handle)
 }
 
 // NewWatcher returns a new event watcher
@@ -509,8 +512,8 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch services.Watch) 
 			if err := a.action(defaults.Namespace, services.KindAppServer, services.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
-		case services.KindAppSession:
-			if err := a.action(defaults.Namespace, services.KindAppSession, services.VerbRead); err != nil {
+		case services.KindWebSession:
+			if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		default:
@@ -1026,9 +1029,9 @@ func (a *ServerWithRoles) GenerateHostCert(
 	return a.authServer.GenerateHostCert(key, hostID, nodeName, principals, clusterName, roles, ttl)
 }
 
-// NewKeepAliver returns a new instance of keep aliver
+// NewKeepAliver not implemented: can only be called locally.
 func (a *ServerWithRoles) NewKeepAliver(ctx context.Context) (services.KeepAliver, error) {
-	return nil, trace.NotImplemented("not implemented")
+	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // GenerateUserCerts generates users certificates
@@ -1635,9 +1638,9 @@ func (a *ServerWithRoles) GetRoles() ([]services.Role, error) {
 	return a.authServer.GetRoles()
 }
 
-// CreateRole creates a role.
+// CreateRole not implemented: can only be called locally.
 func (a *ServerWithRoles) CreateRole(role services.Role) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // UpsertRole creates or updates role.
@@ -1784,34 +1787,34 @@ func (a *ServerWithRoles) SetAuthPreference(cap services.AuthPreference) error {
 	return a.authServer.SetAuthPreference(cap)
 }
 
-// DeleteAllTokens deletes all tokens
+// DeleteAllTokens not implemented: can only be called locally.
 func (a *ServerWithRoles) DeleteAllTokens() error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllCertAuthorities deletes all certificate authorities of a certain type
+// DeleteAllCertAuthorities not implemented: can only be called locally.
 func (a *ServerWithRoles) DeleteAllCertAuthorities(caType services.CertAuthType) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllCertNamespaces deletes all namespaces
+// DeleteAllCertNamespaces not implemented: can only be called locally.
 func (a *ServerWithRoles) DeleteAllNamespaces() error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllReverseTunnels deletes all reverse tunnels
+// DeleteAllReverseTunnels not implemented: can only be called locally.
 func (a *ServerWithRoles) DeleteAllReverseTunnels() error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllRoles deletes all roles
+// DeleteAllRoles not implemented: can only be called locally.
 func (a *ServerWithRoles) DeleteAllRoles() error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllUsers deletes all users
+// DeleteAllUsers not implemented: can only be called locally.
 func (a *ServerWithRoles) DeleteAllUsers() error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 func (a *ServerWithRoles) GetTrustedClusters() ([]services.TrustedCluster, error) {
@@ -1917,8 +1920,9 @@ func (a *ServerWithRoles) CreateRemoteCluster(conn services.RemoteCluster) error
 	return a.authServer.CreateRemoteCluster(conn)
 }
 
+// UpdateRemoteCluster not implemented: can only be called locally.
 func (a *ServerWithRoles) UpdateRemoteCluster(ctx context.Context, conn services.RemoteCluster) error {
-	return trace.NotImplemented("not implemented: remote clusters can only be updated by auth server locally")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 func (a *ServerWithRoles) GetRemoteCluster(clusterName string) (services.RemoteCluster, error) {
@@ -2068,6 +2072,9 @@ func (a *ServerWithRoles) DeleteAppServer(ctx context.Context, namespace string,
 
 // DeleteAllAppServers removes all application servers.
 func (a *ServerWithRoles) DeleteAllAppServers(ctx context.Context, namespace string) error {
+	if err := a.action(namespace, services.KindAppServer, services.VerbList); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := a.action(namespace, services.KindAppServer, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2080,7 +2087,7 @@ func (a *ServerWithRoles) DeleteAllAppServers(ctx context.Context, namespace str
 
 // GetAppSession gets an application web session.
 func (a *ServerWithRoles) GetAppSession(ctx context.Context, req services.GetAppSessionRequest) (services.WebSession, error) {
-	if err := a.action(defaults.Namespace, services.KindAppSession, services.VerbRead); err != nil {
+	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2093,10 +2100,10 @@ func (a *ServerWithRoles) GetAppSession(ctx context.Context, req services.GetApp
 
 // GetAppSessions gets all application web sessions.
 func (a *ServerWithRoles) GetAppSessions(ctx context.Context) ([]services.WebSession, error) {
-	if err := a.action(defaults.Namespace, services.KindAppSession, services.VerbList); err != nil {
+	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.action(defaults.Namespace, services.KindAppSession, services.VerbRead); err != nil {
+	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2121,14 +2128,14 @@ func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req services.Cre
 	return session, nil
 }
 
-// UpsertAppSession is not implemented.
+// UpsertAppSession not implemented: can only be called locally.
 func (a *ServerWithRoles) UpsertAppSession(ctx context.Context, session services.WebSession) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // DeleteAppSession removes an application web sessions.
 func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req services.DeleteAppSessionRequest) error {
-	if err := a.action(defaults.Namespace, services.KindAppSession, services.VerbDelete); err != nil {
+	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2140,7 +2147,10 @@ func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req services.Del
 
 // DeleteAllAppSessions removes all application web sessions.
 func (a *ServerWithRoles) DeleteAllAppSessions(ctx context.Context) error {
-	if err := a.action(defaults.Namespace, services.KindAppSession, services.VerbDelete); err != nil {
+	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbList); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 

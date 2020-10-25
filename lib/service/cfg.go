@@ -353,9 +353,9 @@ type ProxyConfig struct {
 // KeyPairPath are paths to a key and certificate file.
 type KeyPairPath struct {
 	// PrivateKey is the path to a PEM encoded private key.
-	PrivateKey string `yaml:"key_file"`
+	PrivateKey string
 	// Certificate is the path to a PEM encoded certificate.
-	Certificate string `yaml:"cert_file"`
+	Certificate string
 }
 
 // KubeAddr returns the address for the Kubernetes endpoint on this proxy that
@@ -513,32 +513,32 @@ type AppsConfig struct {
 // directly create a services.App it will get into circular imports.
 type App struct {
 	// Name of the application.
-	Name string `yaml:"name"`
+	Name string
 
 	// URI is the internal address of the application.
-	URI string `yaml:"uri"`
+	URI string
 
 	// Public address of the application. This is the address users will access
 	// the application at.
-	PublicAddr string `yaml:"public_addr"`
+	PublicAddr string
 
 	// StaticLabels is a map of static labels to apply to this application.
-	StaticLabels map[string]string `yaml:"labels,omitempty"`
+	StaticLabels map[string]string
 
 	// DynamicLabels is a list of dynamic labels to apply to this application.
-	DynamicLabels services.CommandLabels `yaml:"commands,omitempty"`
+	DynamicLabels services.CommandLabels
 
 	// InsecureSkipVerify is used to skip validating the servers certificate.
-	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
+	InsecureSkipVerify bool
 
 	// Rewrite defines a block that is used to rewrite requests and responses.
-	Rewrite *Rewrite `yaml:"rewrite,omitempty"`
+	Rewrite *Rewrite
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.
 type Rewrite struct {
 	// Redirect is a list of hosts that should be rewritten to the public address.
-	Redirect []string `yaml:"redirect"`
+	Redirect []string
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults

@@ -202,7 +202,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// DELETE IN: 5.1.0
 	//
 	// Migrated this endpoint to /webapi/sessions/web below.
-	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.createSession))
+	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.createWebSession))
 
 	// Web sessions
 	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.createWebSession))
@@ -1151,14 +1151,7 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	}, nil
 }
 
-// DELETE IN: 5.1.0
-//
-// Migrated this endpoint to /webapi/sessions/web below.
-func (h *Handler) createSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	return h.createWebSession(w, r, p)
-}
-
-// createSession creates a new web session based on user, pass and 2nd factor token
+// createWebSession creates a new web session based on user, pass and 2nd factor token
 //
 // POST /v1/webapi/sessions
 //

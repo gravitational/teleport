@@ -20,7 +20,6 @@ package web
 
 import (
 	"context"
-	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -34,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
 
 	"github.com/gravitational/trace"
@@ -181,7 +181,7 @@ func (h *Handler) waitForSession(ctx context.Context, sessionID string) error {
 		Name: teleport.ComponentAppProxy,
 		Kinds: []services.WatchKind{
 			services.WatchKind{
-				Kind: services.KindAppSession,
+				Kind: services.KindWebSession,
 			},
 		},
 		MetricComponent: teleport.ComponentAppProxy,
@@ -217,7 +217,7 @@ func (h *Handler) waitForSession(ctx context.Context, sessionID string) error {
 		select {
 		// If the event is the expected one, return right away.
 		case event := <-watcher.Events():
-			if event.Resource.GetKind() != services.KindAppSession {
+			if event.Resource.GetKind() != services.KindWebSession {
 				return trace.BadParameter("unexpected event: %v.", event.Resource.GetKind())
 			}
 			if event.Type == backend.OpPut && event.Resource.GetName() == sessionID {
@@ -285,7 +285,7 @@ func (h *Handler) resolveDirect(ctx context.Context, publicAddr string, clusterN
 		return nil, nil, "", trace.Wrap(err)
 	}
 
-	app, server, err := h.match(ctx, authClient, matchPublicAddr(publicAddr))
+	app, server, err := app.Match(ctx, authClient, app.MatchPublicAddr(publicAddr))
 	if err != nil {
 		return nil, nil, "", trace.Wrap(err)
 	}
@@ -309,9 +309,9 @@ func (h *Handler) resolveFQDN(ctx context.Context, fqdn string) (*services.App, 
 	}
 
 	// Try and match FQDN to public address of application within cluster.
-	app, server, err := h.match(ctx, h.cfg.ProxyClient, matchPublicAddr(addr.Host()))
+	application, server, err := app.Match(ctx, h.cfg.ProxyClient, app.MatchPublicAddr(addr.Host()))
 	if err == nil {
-		return app, server, h.auth.clusterName, nil
+		return application, server, h.auth.clusterName, nil
 	}
 
 	// Extract the first subdomain from the FQDN and attempt to use this as the
@@ -319,9 +319,9 @@ func (h *Handler) resolveFQDN(ctx context.Context, fqdn string) (*services.App, 
 	appName := strings.Split(addr.Host(), ".")[0]
 
 	// Try and match application name to an application within the cluster.
-	app, server, err = h.match(ctx, h.cfg.ProxyClient, matchName(appName))
+	application, server, err = app.Match(ctx, h.cfg.ProxyClient, app.MatchName(appName))
 	if err == nil {
-		return app, server, h.auth.clusterName, nil
+		return application, server, h.auth.clusterName, nil
 	}
 
 	// Loop over all clusters and try and match application name to an
@@ -332,56 +332,11 @@ func (h *Handler) resolveFQDN(ctx context.Context, fqdn string) (*services.App, 
 			return nil, nil, "", trace.Wrap(err)
 		}
 
-		app, server, err = h.match(ctx, authClient, matchName(appName))
+		application, server, err = app.Match(ctx, authClient, app.MatchName(appName))
 		if err == nil {
-			return app, server, remoteClient.GetName(), nil
+			return application, server, remoteClient.GetName(), nil
 		}
 	}
 
 	return nil, nil, "", trace.NotFound("failed to resolve %v to any application within any cluster", fqdn)
-}
-
-// match will match an application with the passed in matcher function. Matcher
-// functions that can match on public address and name are available.
-func (h *Handler) match(ctx context.Context, authClient appGetter, fn matcher) (*services.App, services.Server, error) {
-	servers, err := authClient.GetAppServers(ctx, defaults.Namespace)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	var ma []*services.App
-	var ms []services.Server
-
-	for _, server := range servers {
-		for _, app := range server.GetApps() {
-			if fn(app) {
-				ma = append(ma, app)
-				ms = append(ms, server)
-			}
-		}
-	}
-
-	if len(ma) == 0 {
-		return nil, nil, trace.NotFound("failed to match application")
-	}
-	index := rand.Intn(len(ma))
-	return ma[index], ms[index], nil
-}
-
-type matcher func(*services.App) bool
-
-func matchPublicAddr(publicAddr string) matcher {
-	return func(app *services.App) bool {
-		return app.PublicAddr == publicAddr
-	}
-}
-
-func matchName(name string) matcher {
-	return func(app *services.App) bool {
-		return app.Name == name
-	}
-}
-
-type appGetter interface {
-	GetAppServers(context.Context, string, ...services.MarshalOption) ([]services.Server, error)
 }

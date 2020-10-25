@@ -233,7 +233,7 @@ type Identity interface {
 	AppSession
 }
 
-// AppIdentity defines application session features.
+// AppSession defines application session features.
 type AppSession interface {
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, GetAppSessionRequest) (WebSession, error)

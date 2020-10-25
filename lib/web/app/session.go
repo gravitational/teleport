@@ -18,7 +18,6 @@ package app
 
 import (
 	"context"
-	"math/rand"
 	"sync"
 	"time"
 
@@ -66,7 +65,7 @@ func (h *Handler) newSession(ctx context.Context, ws services.WebSession) (*sess
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	application, server, err := getApp(ctx, accessPoint, identity.RouteToApp.PublicAddr)
+	application, server, err := Match(ctx, accessPoint, MatchPublicAddr(identity.RouteToApp.PublicAddr))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -192,36 +191,4 @@ func (s *sessionCache) expiredSession() {
 	defer s.mu.Unlock()
 
 	s.cache.RemoveExpired(10)
-}
-
-// getApp looks for an application registered for the requested public address
-// in the cluster and returns it. In the situation multiple applications match,
-// a random selection is returned. This is done on purpose to support HA to
-// allow multiple application proxy nodes to be run and if one is down, at
-// least the application can be accessible on the other.
-//
-// In the future this function should be updated to keep state on application
-// servers that are down and to not route requests to that server.
-func getApp(ctx context.Context, accessPoint auth.AccessPoint, publicAddr string) (*services.App, services.Server, error) {
-	var am []*services.App
-	var sm []services.Server
-
-	servers, err := accessPoint.GetAppServers(ctx, defaults.Namespace)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	for _, server := range servers {
-		for _, app := range server.GetApps() {
-			if app.PublicAddr == publicAddr {
-				am = append(am, app)
-				sm = append(sm, server)
-			}
-		}
-	}
-
-	if len(am) == 0 {
-		return nil, nil, trace.NotFound("%q not found", publicAddr)
-	}
-	index := rand.Intn(len(am))
-	return am[index], sm[index], nil
 }

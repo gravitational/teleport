@@ -90,7 +90,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 			parser = p
 		case services.KindAppServer:
 			parser = newAppServerParser()
-		case services.KindAppSession:
+		case services.KindWebSession:
 			parser = newAppSessionParser()
 		default:
 			return nil, trace.BadParameter("watcher on object kind %v is not supported", kind)
@@ -745,7 +745,7 @@ func (p *reverseTunnelParser) parse(event backend.Event) (services.Resource, err
 
 func newAppServerParser() *appServerParser {
 	return &appServerParser{
-		matchPrefix: backend.Key(appsPrefix, defaults.Namespace),
+		matchPrefix: backend.Key(appsPrefix, serversPrefix, defaults.Namespace),
 	}
 }
 
@@ -765,28 +765,28 @@ func (p *appServerParser) parse(event backend.Event) (services.Resource, error) 
 	return parseServer(event, services.KindAppServer)
 }
 
-func newAppSessionParser() *appSessionParser {
-	return &appSessionParser{
-		matchPrefix: backend.Key(sessionsPrefix),
+func newAppSessionParser() *webSessionParser {
+	return &webSessionParser{
+		matchPrefix: backend.Key(appsPrefix, sessionsPrefix),
 	}
 }
 
-type appSessionParser struct {
+type webSessionParser struct {
 	matchPrefix []byte
 }
 
-func (p *appSessionParser) prefix() []byte {
+func (p *webSessionParser) prefix() []byte {
 	return p.matchPrefix
 }
 
-func (p *appSessionParser) match(key []byte) bool {
+func (p *webSessionParser) match(key []byte) bool {
 	return bytes.HasPrefix(key, p.matchPrefix)
 }
 
-func (p *appSessionParser) parse(event backend.Event) (services.Resource, error) {
+func (p *webSessionParser) parse(event backend.Event) (services.Resource, error) {
 	switch event.Type {
 	case backend.OpDelete:
-		return resourceHeader(event, services.KindAppSession, services.V2, 0)
+		return resourceHeader(event, services.KindWebSession, services.V2, 0)
 	case backend.OpPut:
 		resource, err := services.GetWebSessionMarshaler().UnmarshalWebSession(event.Item.Value,
 			services.WithResourceID(event.Item.ID),

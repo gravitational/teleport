@@ -77,9 +77,10 @@ type WebSession interface {
 }
 
 // NewWebSession returns new instance of the web session based on the V2 spec
-func NewWebSession(name string, kind string, spec WebSessionSpecV2) WebSession {
+func NewWebSession(name string, kind string, subkind string, spec WebSessionSpecV2) WebSession {
 	return &WebSessionV2{
 		Kind:    kind,
+		SubKind: subkind,
 		Version: V2,
 		Metadata: Metadata{
 			Name:      name,

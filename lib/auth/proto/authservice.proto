@@ -268,7 +268,7 @@ message GetAppServersRequest {
 
 // GetAppServersResponse contains all requested application servers.
 message GetAppServersResponse {
-    // Apps is a slice of services.Server that represent applications.
+    // Servers is a slice of services.Server that represent applications.
     repeated services.ServerV2 Servers = 1 [ (gogoproto.jsontag) = "servers" ];
 }
 
@@ -306,7 +306,7 @@ message GenerateAppTokenRequest {
     ];
 }
 
-// GenerateAppTokenResponse
+// GenerateAppTokenResponse contains a signed application token.
 message GenerateAppTokenResponse { string Token = 1 [ (gogoproto.jsontag) = "token" ]; }
 
 // GetAppSessionRequest are the parameters used to request an application web session.

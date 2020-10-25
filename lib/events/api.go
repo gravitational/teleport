@@ -336,10 +336,10 @@ const (
 	// AppSessionStartEvent is emitted when a user is issued an application certificate.
 	AppSessionStartEvent = "app.session.start"
 
-	// AppSessionCreateEvent is emitted at the start of a 5 minute chunk on each
+	// AppSessionChunkEvent is emitted at the start of a 5 minute chunk on each
 	// proxy. This chunk is used to buffer 5 minutes of audit events at a time
 	// for applications.
-	AppSessionCreateEvent = "app.session.create"
+	AppSessionChunkEvent = "app.session.chunk"
 
 	// AppSessionRequestEvent is an HTTP request and response.
 	AppSessionRequestEvent = "app.session.request"

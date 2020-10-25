@@ -242,7 +242,7 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 	return nodes, nil
 }
 
-// ListAppServers returns a list of application servers.
+// GetAppServers returns a list of application servers.
 func (proxy *ProxyClient) GetAppServers(ctx context.Context, namespace string) ([]services.Server, error) {
 	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)
 	if err != nil {

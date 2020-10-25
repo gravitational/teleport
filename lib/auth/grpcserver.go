@@ -86,7 +86,7 @@ func (g *GRPCServer) SendKeepAlives(stream proto.AuthService_SendKeepAlivesServe
 			g.Debugf("Failed to receive heartbeat: %v", err)
 			return trail.ToGRPC(err)
 		}
-		err = auth.KeepAliveResource(stream.Context(), *keepAlive)
+		err = auth.KeepAliveServer(stream.Context(), *keepAlive)
 		if err != nil {
 			return trail.ToGRPC(err)
 		}
@@ -1006,6 +1006,9 @@ func eventToGRPC(in services.Event) (*proto.Event, error) {
 			AccessRequest: r,
 		}
 	case *services.WebSessionV2:
+		if r.GetSubKind() != services.KindAppSession {
+			return nil, trace.BadParameter("only %v supported", services.KindAppSession)
+		}
 		out.Resource = &proto.Event_AppSession{
 			AppSession: r,
 		}

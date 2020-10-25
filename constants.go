@@ -682,17 +682,17 @@ const (
 const UserSystem = "system"
 
 const (
-	// KeepAliveServer is the keep alive type for auth, node, and proxy servers.
-	KeepAliveServer = "server"
-	// KeepAliveApp is the keep alive type for application proxy server.
+	// KeepAliveNode is the keep alive type for SSH servers.
+	KeepAliveNode = "node"
+	// KeepAliveApp is the keep alive type for application server.
 	KeepAliveApp = "app"
 )
 
 const (
 	// AppJWTHeader is the JWT header used to pass identity information to the
 	// internal application being proxied.
-	AppJWTHeader = "x-teleport-jwt-assertion"
+	AppJWTHeader = "teleport-jwt-assertion"
 
 	// AppCFHeader is a compatibility header.
-	AppCFHeader = "Cf-access-token"
+	AppCFHeader = "cf-access-token"
 )

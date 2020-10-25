@@ -63,7 +63,7 @@ type Presence interface {
 
 	// DELETE IN: 5.1.0
 	//
-	// This logic has been moved to KeepAliveResource.
+	// This logic has been moved to KeepAliveServer.
 	//
 	// KeepAliveNode updates node TTL in the storage
 	KeepAliveNode(ctx context.Context, h KeepAlive) error
@@ -184,8 +184,8 @@ type Presence interface {
 	// DeleteAllAppServers removes all application servers.
 	DeleteAllAppServers(context.Context, string) error
 
-	// KeepAliveResource updates TTL of the resource in the backend.
-	KeepAliveResource(ctx context.Context, h KeepAlive) error
+	// KeepAliveServer updates TTL of the server resource in the backend.
+	KeepAliveServer(ctx context.Context, h KeepAlive) error
 }
 
 // NewNamespace returns new namespace
@@ -219,12 +219,12 @@ func (s *KeepAlive) IsEmpty() bool {
 // GetType return the type of keep alive: either application or server.
 func (s *KeepAlive) GetType() string {
 	switch s.Type {
-	case KeepAlive_SERVER:
-		return teleport.KeepAliveServer
+	case KeepAlive_NODE:
+		return teleport.KeepAliveNode
 	case KeepAlive_APP:
 		return teleport.KeepAliveApp
 	default:
-		return teleport.KeepAliveServer
+		return teleport.KeepAliveNode
 	}
 }
 

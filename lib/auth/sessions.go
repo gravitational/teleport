@@ -29,7 +29,7 @@ import (
 	"github.com/pborman/uuid"
 )
 
-// CreateAppWebSession creates and inserts a services.WebSession into the
+// CreateAppSession creates and inserts a services.WebSession into the
 // backend with the identity of the caller used to generate the certificate.
 // The certificate is used for all access requests, which is where access
 // control is enforced.
@@ -75,7 +75,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req services.CreateAppSes
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session := services.NewWebSession(sessionID, services.KindAppSession, services.WebSessionSpecV2{
+	session := services.NewWebSession(sessionID, services.KindWebSession, services.KindAppSession, services.WebSessionSpecV2{
 		User:    req.Username,
 		Priv:    privateKey,
 		Pub:     certs.ssh,
