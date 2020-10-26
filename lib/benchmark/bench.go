@@ -39,8 +39,6 @@ const (
 
 // Config specifies benchmark requests to run
 type Config struct {
-	// Threads is amount of concurrent execution threads to run
-	Threads int
 	// Rate is requests per second origination rate
 	Rate int
 	// Command is a command to run
@@ -70,7 +68,6 @@ type Result struct {
 }
 
 //
-type runner func(context.Context, <-chan *benchMeasure, chan<- *benchMeasure)
 
 // Benchmark connects to remote server and executes requests in parallel according
 // to benchmark spec. It returns benchmark result when completed.
@@ -80,13 +77,6 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 	tc.Stderr = ioutil.Discard
 	tc.Stdin = &bytes.Buffer{}
 	var delay time.Duration = 0
-	var run runner
-
-	if c.Threads > 1 {
-		run = threadRunner(c.Threads)
-	} else {
-		run = measureRunner
-	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -166,35 +156,12 @@ type benchMeasure struct {
 	interactive   bool
 }
 
-func measureRunner(ctx context.Context, request <-chan *benchMeasure, done chan<- *benchMeasure) {
+func run(ctx context.Context, request <-chan *benchMeasure, done chan<- *benchMeasure) {
 	for {
 		select {
 		case m := <-request:
 			go worker(ctx, m, done)
 		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-func threadRunner(threads int) runner {
-	return func(ctx context.Context, request <-chan *benchMeasure, done chan<- *benchMeasure) {
-		for i := 0; i < threads; i++ {
-			go runThreadWorker(ctx, request, done)
-		}
-	}
-}
-
-func runThreadWorker(ctx context.Context, request <-chan *benchMeasure, done chan<- *benchMeasure) {
-	for {
-		select {
-		case m, ok := <-request:
-			if !ok {
-				return
-			}
-			worker(ctx, m, done) // blocking because the original benchmark with threads blocked
-		case <-ctx.Done():
-			close(done)
 			return
 		}
 	}

@@ -18,7 +18,6 @@ type Linear struct {
 	Step                int
 	MinimumMeasurements int
 	MinimumWindow       time.Duration
-	Threads             int
 	currentRPS          int
 	config              Config
 }
@@ -43,7 +42,6 @@ func (lg *Linear) GetBenchmark() (Config, error) {
 		MinimumWindow:       lg.MinimumWindow,
 		MinimumMeasurements: lg.MinimumMeasurements,
 		Rate:                lg.currentRPS,
-		Threads:             lg.Threads,
 		Command:             lg.config.Command,
 	}, nil
 }

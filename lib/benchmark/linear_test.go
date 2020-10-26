@@ -12,7 +12,6 @@ func TestGenerate(t *testing.T) {
 	d, _ := time.ParseDuration("30s")
 
 	initial := Config{
-		Threads:             10,
 		Rate:                0,
 		Command:             []string{"ls"},
 		Interactive:         false,
@@ -26,7 +25,6 @@ func TestGenerate(t *testing.T) {
 		Step:                10,
 		MinimumMeasurements: 1000,
 		MinimumWindow:       d,
-		Threads:             10,
 		config:              initial,
 	}
 	// First generation
@@ -113,7 +111,6 @@ func TestGenerateNotEvenMultiple(t *testing.T) {
 	d, _ := time.ParseDuration("30s")
 
 	initial := Config{
-		Threads:             10,
 		Rate:                0,
 		Command:             []string{"ls"},
 		Interactive:         false,
@@ -127,7 +124,6 @@ func TestGenerateNotEvenMultiple(t *testing.T) {
 		Step:                7,
 		MinimumMeasurements: 1000,
 		MinimumWindow:       d,
-		Threads:             10,
 		config:              initial,
 	}
 	expected := initial
@@ -175,7 +171,6 @@ func TestGenerateNotEvenMultiple(t *testing.T) {
 func TestGetBenchmark(t *testing.T) {
 	d, _ := time.ParseDuration("30s")
 	initial := Config{
-		Threads:             10,
 		Rate:                0,
 		Command:             []string{"ls"},
 		Interactive:         false,
