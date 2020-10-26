@@ -1115,7 +1115,7 @@ steps:
       - apk add --no-cache bash curl gzip make tar
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
-      - mkdir -m0700 $GNUPG_DIR/
+      - mkdir -m0700 $GNUPG_DIR
       - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR
       - chown -R root:root $GNUPG_DIR
       - make rpm
@@ -1149,6 +1149,8 @@ services:
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmpfs
+        path: /tmpfs
 
 volumes:
   - name: dockersock
@@ -1234,8 +1236,6 @@ steps:
     volumes:
       - name: dockersock
         path: /var/run
-      - name: tmpfs
-        path: /tmpfs
     commands:
       - apk add --no-cache bash curl gzip make tar
       - cd /go/src/github.com/gravitational/teleport
@@ -1271,6 +1271,8 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
+    tmpfs:
+      - /tmpfs
     volumes:
       - name: dockersock
         path: /var/run
@@ -1278,9 +1280,6 @@ services:
 volumes:
   - name: dockersock
     temp: {}
-  - name: tmpfs
-    temp:
-      medium: memory
 
 ---
 kind: pipeline
@@ -1687,8 +1686,6 @@ steps:
     volumes:
       - name: dockersock
         path: /var/run
-      - name: tmpfs
-        path: /tmpfs
     commands:
       - apk add --no-cache bash curl gzip make tar
       - cd /go/src/github.com/gravitational/teleport
@@ -1727,6 +1724,8 @@ services:
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmpfs
+        path: /tmpfs
 
 volumes:
   - name: dockersock
@@ -2944,6 +2943,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 143245d89fadba81fe1538da97dccbe6101e72d488f86605af28719d80ab4675
+hmac: 6fd508916960a275ba5ef30e28c88e0f03c8a43ece0ccef9100e7e158ef2c4c4
 
 ...
