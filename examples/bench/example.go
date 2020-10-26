@@ -14,7 +14,6 @@ func main() {
 		Step:                10,
 		MinimumMeasurements: 1000,
 		MinimumWindow:       30 * time.Second,
-		Threads:             10,
 	}
 
 	results, err := benchmark.Run(linear, "ls -l /", "ec2-3-15-147-120.us-east-2.compute.amazonaws.com", "ec2-user", "ec2-3-15-147-120.us-east-2.compute.amazonaws.com")

@@ -157,6 +157,11 @@ type benchMeasure struct {
 }
 
 func run(ctx context.Context, request <-chan *benchMeasure, done chan<- *benchMeasure) {
+	defer func() {
+		if r := recover(); r != nil {
+			logrus.Warningf("recover from panic: %v", r)
+		}
+	}()
 	for {
 		select {
 		case m := <-request:
@@ -168,11 +173,6 @@ func run(ctx context.Context, request <-chan *benchMeasure, done chan<- *benchMe
 }
 
 func worker(ctx context.Context, m *benchMeasure, send chan<- *benchMeasure) {
-	defer func() {
-		if r := recover(); r != nil {
-			logrus.Warningf("recover from panic: %v", r)
-		}
-	}()
 	m.ServiceStart = time.Now()
 	execute(m)
 	m.End = time.Now()
