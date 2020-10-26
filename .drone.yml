@@ -1236,6 +1236,8 @@ steps:
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmpfs
+        path: /tmpfs
     commands:
       - apk add --no-cache bash curl gzip make tar
       - cd /go/src/github.com/gravitational/teleport
@@ -1271,15 +1273,18 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    tmpfs:
-      - /tmpfs
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmpfs
+        path: /tmpfs
 
 volumes:
   - name: dockersock
     temp: {}
+  - name: tmpfs
+    temp:
+      medium: memory
 
 ---
 kind: pipeline
@@ -1686,6 +1691,8 @@ steps:
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmpfs
+        path: /tmpfs
     commands:
       - apk add --no-cache bash curl gzip make tar
       - cd /go/src/github.com/gravitational/teleport
@@ -2943,6 +2950,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 6fd508916960a275ba5ef30e28c88e0f03c8a43ece0ccef9100e7e158ef2c4c4
+hmac: 76d394171bb5b83a4107f4490e5bf2df1a541c5efd1b072c6e8c84c8b5c6cacb
 
 ...
