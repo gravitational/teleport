@@ -59,13 +59,18 @@ type Result struct {
 	RequestsOriginated int
 	// RequestsFailed is amount of requests failed
 	RequestsFailed int
-	// Histogram is a duration histogram
-	Histogram *hdrhistogram.Histogram
+	// ResponseHistogram is a duration actual request histogram
+	ResponseHistogram *hdrhistogram.Histogram
+	//ServiceHistogram is the duration of service histogram
+	ServiceHistogram *hdrhistogram.Histogram
 	// LastError contains last recorded error
 	LastError error
 	// Duration it takes for the whole benchmark to run
 	Duration time.Duration
 }
+
+//
+type runner func(context.Context, <-chan *benchMeasure, chan<- *benchMeasure)
 
 // Benchmark connects to remote server and executes requests in parallel according
 // to benchmark spec. It returns benchmark result when completed.
@@ -74,111 +79,172 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 	tc.Stdout = ioutil.Discard
 	tc.Stderr = ioutil.Discard
 	tc.Stdin = &bytes.Buffer{}
-	workerCtx, cancelWorkers := context.WithCancel(context.Background())
-	defer cancelWorkers()
+	var delay time.Duration = 0
+	var run runner
 
-	requestC := make(chan benchMeasure)
-	responseC := make(chan benchMeasure, c.Threads)
-
-	for i := 0; i < c.Threads; i++ {
-		thread := &benchmarkThread{
-			id:          i,
-			ctx:         ctx,
-			client:      tc,
-			command:     c.Command,
-			interactive: c.Interactive,
-			receiveC:    requestC,
-			sendC:       responseC,
-		}
-		go thread.run()
+	if c.Threads > 1 {
+		run = threadRunner(c.Threads)
+	} else {
+		run = measureRunner
 	}
 
-	go produceMeasures(ctx, c.Rate, requestC)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	requestsC := make(chan *benchMeasure)
+	resultC := make(chan *benchMeasure)
+
+	go func() {
+		interval := time.Duration(float64(1) / float64(c.Rate) * float64(time.Second))
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		start := time.Now()
+		for {
+			select {
+			case <-ticker.C:
+				delay = delay + interval
+				t := start.Add(delay)
+				measure := benchMeasure{
+					ResponseStart: t,
+					command:       c.Command,
+					client:        tc,
+					ctx:           ctx,
+					interactive:   c.Interactive,
+				}
+				requestsC <- &measure
+			case <-ctx.Done():
+				close(requestsC)
+				return
+			}
+		}
+	}()
+
+	go run(ctx, requestsC, resultC)
 
 	var result Result
-	// from one millisecond to 60000 milliseconds (minute) with 3 digits precision, refer to constants
-	result.Histogram = hdrhistogram.New(MinValue, MaxValue, SignificantFigures)
-	results := make([]benchMeasure, 0, c.MinimumMeasurements)
+	result.ResponseHistogram = hdrhistogram.New(MinValue, MaxValue, SignificantFigures)
+	result.ServiceHistogram = hdrhistogram.New(MinValue, MaxValue, SignificantFigures)
+	results := make([]*benchMeasure, 0, c.MinimumMeasurements)
 	statusTicker := time.NewTicker(1 * time.Second)
 	timeElapsed := false
 	start := time.Now()
-
 	for {
 		if c.MinimumWindow <= time.Since(start) {
 			timeElapsed = true
 		}
 		select {
-		case measure := <-responseC:
-			result.Histogram.RecordValue(int64(measure.End.Sub(measure.Start) / time.Millisecond))
+		case measure := <-resultC:
 			results = append(results, measure)
 			if timeElapsed && len(results) >= c.MinimumMeasurements {
-				go cancelWorkers()
+				go cancel()
 			}
 			if measure.Error != nil {
 				result.RequestsFailed++
 				result.LastError = measure.Error
 			}
+			result.ResponseHistogram.RecordValue(int64(measure.End.Sub(measure.ResponseStart) / time.Millisecond))
+			result.ServiceHistogram.RecordValue(int64(measure.End.Sub(measure.ServiceStart) / time.Millisecond))
 			result.RequestsOriginated++
-		case <-workerCtx.Done():
+		case <-ctx.Done():
 			result.Duration = time.Since(start)
 			return result, nil
 		case <-statusTicker.C:
-			log.Printf("working... observations: %d", len(results))
+			log.Printf("working... current observation count: %d", len(results))
 		}
 	}
+
 }
 
-func produceMeasures(ctx context.Context, rate int, c chan<- benchMeasure) {
-	interval := time.Duration(float64(1) / float64(rate) * float64(time.Second))
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+type benchMeasure struct {
+	ResponseStart time.Time
+	ServiceStart  time.Time
+	End           time.Time
+	Error         error
+	ctx           context.Context
+	client        *client.TeleportClient
+	command       []string
+	interactive   bool
+}
+
+type benchmarkThread struct {
+	id       int
+	ctx      context.Context
+	receiveC <-chan *benchMeasure
+	sendC    chan<- *benchMeasure
+}
+
+func measureRunner(ctx context.Context, request <-chan *benchMeasure, done chan<- *benchMeasure) {
+	defer func() {
+		if r := recover(); r != nil {
+			logrus.Warningf("recover from panic: %v", r)
+		}
+	}()
+
 	for {
 		select {
-		case <-ticker.C:
-
-			measure := benchMeasure{
-				Start: time.Now(),
-			}
-			select {
-			case c <- measure:
-			case <-ctx.Done():
-				return
-			}
+		case m := <-request:
+			go worker(ctx, m, done)
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-type benchMeasure struct {
-	Start           time.Time
-	End             time.Time
-	ThreadCompleted bool
-	ThreadID        int
-	Error           error
+func threadRunner(threads int) runner {
+	return func(ctx context.Context, request <-chan *benchMeasure, done chan<- *benchMeasure) {
+		for i := 0; i < threads; i++ {
+			thread := &benchmarkThread{
+				id:       i,
+				ctx:      ctx,
+				receiveC: request,
+				sendC:    done,
+			}
+
+			go thread.runThreadWorker(ctx, request, done)
+		}
+	}
 }
 
-type benchmarkThread struct {
-	id          int
-	ctx         context.Context
-	client      *client.TeleportClient
-	command     []string
-	interactive bool
-	receiveC    chan benchMeasure
-	sendC       chan benchMeasure
+func (b *benchmarkThread) runThreadWorker(ctx context.Context, request <-chan *benchMeasure, done chan<- *benchMeasure) {
+	defer func() {
+		if r := recover(); r != nil {
+			logrus.Warningf("recover from panic: %v", r)
+		}
+	}()
+	for {
+		select {
+		case m, ok := <-request:
+			if !ok {
+				return
+			}
+			worker(ctx, m, done)
+		case <-b.ctx.Done():
+			return
+		}
+	}
 }
 
-func (b *benchmarkThread) execute(measure benchMeasure) {
-	if !b.interactive {
+func worker(ctx context.Context, m *benchMeasure, send chan<- *benchMeasure) {
+	m.ServiceStart = time.Now()
+	execute(m)
+	m.End = time.Now()
+	select {
+	case send <- m:
+	case <-ctx.Done():
+		return
+	}
+}
+
+func execute(m *benchMeasure) {
+	if !m.interactive {
 		// do not use parent context that will cancel in flight requests
 		// because we give test some time to gracefully wrap up
 		// the in-flight connections to avoid extra errors
-		measure.Error = b.client.SSH(context.TODO(), nil, false)
-		measure.End = time.Now()
-		b.sendMeasure(measure)
+		m.Error = m.client.SSH(context.TODO(), nil, false)
+		m.End = time.Now()
 		return
 	}
-	config := b.client.Config
+	config := m.client.Config
 	client, err := client.NewClient(&config)
 	reader, writer := io.Pipe()
 	client.Stdin = reader
@@ -186,48 +252,16 @@ func (b *benchmarkThread) execute(measure benchMeasure) {
 	client.Stdout = out
 	client.Stderr = out
 	if err != nil {
-		measure.Error = err
-		measure.End = time.Now()
-		b.sendMeasure(measure)
+		m.Error = err
+		m.End = time.Now()
 		return
 	}
 	done := make(chan bool)
 	go func() {
-		measure.Error = b.client.SSH(b.ctx, nil, false)
-		measure.End = time.Now()
-		b.sendMeasure(measure)
+		m.Error = m.client.SSH(m.ctx, nil, false)
+		m.End = time.Now()
 		close(done)
 	}()
-	writer.Write([]byte(strings.Join(b.command, " ") + "\r\nexit\r\n"))
+	writer.Write([]byte(strings.Join(m.command, " ") + "\r\nexit\r\n"))
 	<-done
-}
-
-func (b *benchmarkThread) sendMeasure(measure benchMeasure) {
-	measure.ThreadID = b.id
-	select {
-	case b.sendC <- measure:
-	default:
-		logrus.Warningf("blocked on measure send\n")
-	}
-}
-
-func (b *benchmarkThread) run() {
-	defer func() {
-		if r := recover(); r != nil {
-			logrus.Warningf("recover from panic: %v", r)
-			b.sendMeasure(benchMeasure{ThreadCompleted: true})
-		}
-	}()
-
-	for {
-		select {
-		case measure := <-b.receiveC:
-			b.execute(measure)
-		case <-b.ctx.Done():
-			b.sendMeasure(benchMeasure{
-				ThreadCompleted: true,
-			})
-			return
-		}
-	}
 }
