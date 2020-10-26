@@ -166,20 +166,7 @@ type benchMeasure struct {
 	interactive   bool
 }
 
-type benchmarkThread struct {
-	id       int
-	ctx      context.Context
-	receiveC <-chan *benchMeasure
-	sendC    chan<- *benchMeasure
-}
-
 func measureRunner(ctx context.Context, request <-chan *benchMeasure, done chan<- *benchMeasure) {
-	defer func() {
-		if r := recover(); r != nil {
-			logrus.Warningf("recover from panic: %v", r)
-		}
-	}()
-
 	for {
 		select {
 		case m := <-request:
@@ -193,38 +180,32 @@ func measureRunner(ctx context.Context, request <-chan *benchMeasure, done chan<
 func threadRunner(threads int) runner {
 	return func(ctx context.Context, request <-chan *benchMeasure, done chan<- *benchMeasure) {
 		for i := 0; i < threads; i++ {
-			thread := &benchmarkThread{
-				id:       i,
-				ctx:      ctx,
-				receiveC: request,
-				sendC:    done,
-			}
-
-			go thread.runThreadWorker(ctx, request, done)
+			go runThreadWorker(ctx, request, done)
 		}
 	}
 }
 
-func (b *benchmarkThread) runThreadWorker(ctx context.Context, request <-chan *benchMeasure, done chan<- *benchMeasure) {
-	defer func() {
-		if r := recover(); r != nil {
-			logrus.Warningf("recover from panic: %v", r)
-		}
-	}()
+func runThreadWorker(ctx context.Context, request <-chan *benchMeasure, done chan<- *benchMeasure) {
 	for {
 		select {
 		case m, ok := <-request:
 			if !ok {
 				return
 			}
-			worker(ctx, m, done)
-		case <-b.ctx.Done():
+			worker(ctx, m, done) // blocking because the original benchmark with threads blocked
+		case <-ctx.Done():
+			close(done)
 			return
 		}
 	}
 }
 
 func worker(ctx context.Context, m *benchMeasure, send chan<- *benchMeasure) {
+	defer func() {
+		if r := recover(); r != nil {
+			logrus.Warningf("recover from panic: %v", r)
+		}
+	}()
 	m.ServiceStart = time.Now()
 	execute(m)
 	m.End = time.Now()
