@@ -1103,7 +1103,7 @@ steps:
       TMPDIR: /go
       OSS_TARBALL_PATH: /go/artifacts
       ENT_TARBALL_PATH: /go/artifacts
-      GNUPG_DIR: /tmpfs
+      GNUPG_DIR: /tmpfs/gnupg
       GPG_RPM_SIGNING_ARCHIVE:
         from_secret: GPG_RPM_SIGNING_ARCHIVE
     volumes:
@@ -1115,7 +1115,7 @@ steps:
       - apk add --no-cache bash curl gzip make tar
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
-      - mkdir -m0700 $GNUPG_DIR
+      - mkdir -m0700 $GNUPG_DIR/
       - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR
       - chown -R root:root $GNUPG_DIR
       - make rpm
@@ -1228,7 +1228,7 @@ steps:
       RUNTIME: fips
       TMPDIR: /go
       ENT_TARBALL_PATH: /go/artifacts
-      GNUPG_DIR: /tmpfs
+      GNUPG_DIR: /tmpfs/gnupg
       GPG_RPM_SIGNING_ARCHIVE:
         from_secret: GPG_RPM_SIGNING_ARCHIVE
     volumes:
@@ -1681,7 +1681,7 @@ steps:
       TMPDIR: /go
       OSS_TARBALL_PATH: /go/artifacts
       ENT_TARBALL_PATH: /go/artifacts
-      GNUPG_DIR: /tmpfs
+      GNUPG_DIR: /tmpfs/gnupg
       GPG_RPM_SIGNING_ARCHIVE:
         from_secret: GPG_RPM_SIGNING_ARCHIVE
     volumes:
@@ -2944,6 +2944,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 18a9dcc04beb93357fe310df6eb1c553cbf7f05f40f236e4e311684c4fe3cc35
+hmac: 143245d89fadba81fe1538da97dccbe6101e72d488f86605af28719d80ab4675
 
 ...
