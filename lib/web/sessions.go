@@ -329,6 +329,7 @@ func newSessionCache(proxyClient auth.ClientI, servers []utils.NetAddr, cipherSu
 		authServers:  servers,
 		closer:       utils.NewCloseBroadcaster(),
 		cipherSuites: cipherSuites,
+		log:          newPackageLogger(),
 	}
 	// periodically close expired and unused sessions
 	go cache.expireSessions()
@@ -347,11 +348,12 @@ type sessionCache struct {
 
 	// cipherSuites is the list of supported TLS cipher suites.
 	cipherSuites []uint16
+	log          log.FieldLogger
 }
 
 // Close closes all allocated resources and stops goroutines
 func (s *sessionCache) Close() error {
-	log.Infof("[WEB] closing session cache")
+	s.log.Info("Closing session cache.")
 	return s.closer.Close()
 }
 
@@ -359,14 +361,15 @@ func (s *sessionCache) Close() error {
 // cache and will clean up connections
 func closeContext(key string, val interface{}) {
 	go func() {
-		log.Infof("[WEB] closing context %v", key)
+		logger := newPackageLogger()
+		logger.Infof("Closing context %v.", key)
 		ctx, ok := val.(*SessionContext)
 		if !ok {
-			log.Warningf("warning, not valid value type %T", val)
+			logger.Warnf("Warning: not valid value type %T.", val)
 			return
 		}
 		if err := ctx.Close(); err != nil {
-			log.Infof("failed to close context: %v", err)
+			logger.Warnf("Failed to close context: %v.", err)
 		}
 	}()
 }
@@ -390,7 +393,7 @@ func (s *sessionCache) clearExpiredSessions() {
 	defer s.Unlock()
 	expired := s.contexts.RemoveExpired(10)
 	if expired != 0 {
-		log.Infof("[WEB] removed %v expired sessions", expired)
+		s.log.Infof("Removed %v expired sessions.", expired)
 	}
 }
 

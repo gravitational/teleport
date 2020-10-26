@@ -56,3 +56,6 @@ terraform.tfstate
 # ansible stuff
 ssh.config
 *.retry
+
+# vim-specific files
+*.swp
