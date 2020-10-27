@@ -123,6 +123,7 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 			timeElapsed = true
 		}
 		select {
+
 		case measure := <-resultC:
 			results = append(results, measure)
 			if timeElapsed && len(results) >= c.MinimumMeasurements {
@@ -141,8 +142,8 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 		case <-statusTicker.C:
 			log.Printf("working... current observation count: %d", len(results))
 		}
-	}
 
+	}
 }
 
 type benchMeasure struct {
@@ -162,14 +163,21 @@ func run(ctx context.Context, request <-chan *benchMeasure, done chan<- *benchMe
 			logrus.Warningf("recover from panic: %v", r)
 		}
 	}()
+
 	for {
 		select {
-		case m := <-request:
+
+		case m, ok := <-request:
+			if !ok {
+				return
+			}
 			go worker(ctx, m, done)
 		case <-ctx.Done():
 			return
 		}
+
 	}
+
 }
 
 func worker(ctx context.Context, m *benchMeasure, send chan<- *benchMeasure) {
@@ -181,6 +189,7 @@ func worker(ctx context.Context, m *benchMeasure, send chan<- *benchMeasure) {
 	case <-ctx.Done():
 		return
 	}
+
 }
 
 func execute(m *benchMeasure) {
@@ -188,6 +197,7 @@ func execute(m *benchMeasure) {
 		// do not use parent context that will cancel in flight requests
 		// because we give test some time to gracefully wrap up
 		// the in-flight connections to avoid extra errors
+
 		m.Error = m.client.SSH(context.TODO(), nil, false)
 		m.End = time.Now()
 		return
