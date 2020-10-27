@@ -10,8 +10,9 @@ if [ -f /etc/teleport.yaml ]; then
 fi
 
 # Setup Teleport config file
-LOCAL_IP=$(curl -sS http://169.254.169.254/latest/meta-data/local-ipv4)
-LOCAL_HOSTNAME=$(curl -sS http://169.254.169.254/latest/meta-data/local-hostname)
+IMDS_TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+LOCAL_IP=$(curl -sS -H \"X-aws-ec2-metadata-token: ${IMDS_TOKEN}\" http://169.254.169.254/latest/meta-data/local-ipv4)
+LOCAL_HOSTNAME=$(curl -sS -H \"X-aws-ec2-metadata-token: ${IMDS_TOKEN}\" http://169.254.169.254/latest/meta-data/local-hostname)
 LOCAL_HOSTNAME=${LOCAL_HOSTNAME//./-}
 
 # Source variables from user-data
@@ -224,10 +225,10 @@ elif [[ "${TELEPORT_ROLE}" == "auth,node,proxy" ]]; then
   echo "Teleport all-in-one configuration selected."
   # if the instance doesn't have a public IPv4 address, we get a 404 from the metadata
   # which will break the generated config, so we use the local IP instead
-  if curl -sS -i http://169.254.169.254/latest/meta-data/public-ipv4 | grep -q 404; then
+  if curl -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" -i http://169.254.169.254/latest/meta-data/public-ipv4 | grep -q 404; then
     PUBLIC_IP=${LOCAL_IP}
   else
-    PUBLIC_IP=$(curl -sS http://169.254.169.254/latest/meta-data/public-ipv4)
+    PUBLIC_IP=$(curl -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" http://169.254.169.254/latest/meta-data/public-ipv4)
   fi
 
   # tunnel_listen_addr needs to be changed if we're using ACM as the listener cannot understand HTTP, only HTTPS
@@ -355,10 +356,10 @@ else
     echo "No Teleport role provided via TELEPORT_ROLE; using generic all-in-one config"
     # if the instance doesn't have a public IPv4 address, we get a 404 from the metadata
     # which will break the generated config, so we use the local IP instead
-    if curl -sS -i http://169.254.169.254/latest/meta-data/public-ipv4 | grep -q 404; then
+    if curl -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" -i http://169.254.169.254/latest/meta-data/public-ipv4 | grep -q 404; then
       PUBLIC_IP=${LOCAL_IP}
     else
-      PUBLIC_IP=$(curl -sS http://169.254.169.254/latest/meta-data/public-ipv4)
+      PUBLIC_IP=$(curl -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" http://169.254.169.254/latest/meta-data/public-ipv4)
     fi
 
     # tunnel_listen_addr needs to be changed if we're using ACM as the listener cannot understand HTTP, only HTTPS
