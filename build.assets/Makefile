@@ -35,6 +35,8 @@ ifeq ("$(DRONE)","true")
 UID := 1000
 GID := 1000
 NOROOT := -u 1000:1000
+# pass external gocache path through to docker containers
+DOCKERFLAGS := $(DOCKERFLAGS) -v $(GOCACHE):/go/cache -e GOCACHE=/go/cache
 endif
 export
 
