@@ -563,7 +563,11 @@ func (c *Cache) GetTokens(opts ...services.MarshalOption) ([]services.ProvisionT
 
 // GetToken finds and returns token by ID
 func (c *Cache) GetToken(token string) (services.ProvisionToken, error) {
-	return c.provisionerCache.GetToken(token)
+	t, err := c.provisionerCache.GetToken(token)
+	if trace.IsNotFound(err) {
+		return c.Provisioner.GetToken(token)
+	}
+	return t, err
 }
 
 // GetClusterConfig gets services.ClusterConfig from the backend.
