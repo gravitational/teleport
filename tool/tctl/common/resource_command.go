@@ -152,12 +152,12 @@ func (rc *ResourceCommand) Get(client auth.ClientI) error {
 	// Note that only YAML is officially supported. Support for text and JSON
 	// is experimental.
 	switch rc.format {
-	case teleport.YAML:
-		return collection.writeYAML(os.Stdout)
 	case teleport.Text:
 		return collection.writeText(os.Stdout)
+	case teleport.YAML:
+		return writeYAML(collection, os.Stdout)
 	case teleport.JSON:
-		return collection.writeJSON(os.Stdout)
+		return writeJSON(collection, os.Stdout)
 	}
 	return trace.BadParameter("unsupported format")
 }

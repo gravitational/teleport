@@ -200,8 +200,8 @@ func (p *ProvisionTokenV2) SetExpiry(expires time.Time) {
 }
 
 // Expires returns object expiry setting
-func (s *ProvisionTokenV2) Expiry() time.Time {
-	return s.Metadata.Expiry()
+func (p *ProvisionTokenV2) Expiry() time.Time {
+	return p.Metadata.Expiry()
 }
 
 // SetTTL sets Expires header using realtime clock

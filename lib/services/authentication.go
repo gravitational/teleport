@@ -112,13 +112,13 @@ type AuthPreferenceV2 struct {
 }
 
 // SetExpiry sets expiry time for the object
-func (s *AuthPreferenceV2) SetExpiry(expires time.Time) {
-	s.Metadata.SetExpiry(expires)
+func (c *AuthPreferenceV2) SetExpiry(expires time.Time) {
+	c.Metadata.SetExpiry(expires)
 }
 
 // Expirey returns object expiry setting
-func (s *AuthPreferenceV2) Expiry() time.Time {
-	return s.Metadata.Expiry()
+func (c *AuthPreferenceV2) Expiry() time.Time {
+	return c.Metadata.Expiry()
 }
 
 // GetResourceID returns resource ID
@@ -379,17 +379,17 @@ func (reg *U2FRegistrationData) Check() error {
 }
 
 // Equals checks equality (nil safe).
-func (lhs *U2FRegistrationData) Equals(rhs *U2FRegistrationData) bool {
-	if (lhs == nil) || (rhs == nil) {
-		return (lhs == nil) && (rhs == nil)
+func (reg *U2FRegistrationData) Equals(other *U2FRegistrationData) bool {
+	if (reg == nil) || (other == nil) {
+		return (reg == nil) && (other == nil)
 	}
-	if !bytes.Equal(lhs.Raw, rhs.Raw) {
+	if !bytes.Equal(reg.Raw, other.Raw) {
 		return false
 	}
-	if !bytes.Equal(lhs.KeyHandle, rhs.KeyHandle) {
+	if !bytes.Equal(reg.KeyHandle, other.KeyHandle) {
 		return false
 	}
-	return bytes.Equal(lhs.PubKey, rhs.PubKey)
+	return bytes.Equal(reg.PubKey, other.PubKey)
 }
 
 // GetU2FRegistration decodes the u2f registration data and builds the expected
@@ -452,20 +452,20 @@ func (l *LocalAuthSecrets) Check() error {
 }
 
 // Equals checks equality (nil safe).
-func (lhs *LocalAuthSecrets) Equals(rhs *LocalAuthSecrets) bool {
-	if (lhs == nil) || (rhs == nil) {
-		return (lhs == nil) && (rhs == nil)
+func (l *LocalAuthSecrets) Equals(other *LocalAuthSecrets) bool {
+	if (l == nil) || (other == nil) {
+		return (l == nil) && (other == nil)
 	}
-	if !bytes.Equal(lhs.PasswordHash, rhs.PasswordHash) {
+	if !bytes.Equal(l.PasswordHash, other.PasswordHash) {
 		return false
 	}
-	if !(lhs.TOTPKey == rhs.TOTPKey) {
+	if !(l.TOTPKey == other.TOTPKey) {
 		return false
 	}
-	if !(lhs.U2FCounter == rhs.U2FCounter) {
+	if !(l.U2FCounter == other.U2FCounter) {
 		return false
 	}
-	return lhs.U2FRegistration.Equals(rhs.U2FRegistration)
+	return l.U2FRegistration.Equals(other.U2FRegistration)
 }
 
 // LocalAuthSecretsSchema is a JSON schema for LocalAuthSecrets

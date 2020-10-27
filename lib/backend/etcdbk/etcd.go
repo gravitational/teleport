@@ -43,6 +43,7 @@ import (
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes"
 	"go.etcd.io/etcd/mvcc/mvccpb"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -220,7 +221,7 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 		buf:              buf,
 	}
 
-	if err = b.reconnect(); err != nil {
+	if err = b.reconnect(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -295,7 +296,7 @@ func (b *EtcdBackend) CloseWatchers() {
 	b.buf.Reset()
 }
 
-func (b *EtcdBackend) reconnect() error {
+func (b *EtcdBackend) reconnect(ctx context.Context) error {
 	tlsConfig := utils.TLSConfig(nil)
 
 	if b.cfg.TLSCertFile != "" {
@@ -337,6 +338,7 @@ func (b *EtcdBackend) reconnect() error {
 		Endpoints:   b.nodes,
 		TLS:         tlsConfig,
 		DialTimeout: b.cfg.DialTimeout,
+		DialOptions: []grpc.DialOption{grpc.WithBlock()},
 		Username:    b.cfg.Username,
 		Password:    b.cfg.Password,
 	})

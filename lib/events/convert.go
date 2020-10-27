@@ -450,6 +450,9 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 	} else if e := in.GetKubeRequest(); e != nil {
 		return e, nil
 	} else {
+		if in.Event == nil {
+			return nil, trace.BadParameter("failed to parse event, session record is corrupted")
+		}
 		return nil, trace.BadParameter("received unsupported event %T", in.Event)
 	}
 }

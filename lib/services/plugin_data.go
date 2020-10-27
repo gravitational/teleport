@@ -44,11 +44,11 @@ type PluginData interface {
 	CheckAndSetDefaults() error
 }
 
-func (d *PluginDataV3) CheckAndSetDefaults() error {
-	if err := d.Metadata.CheckAndSetDefaults(); err != nil {
+func (r *PluginDataV3) CheckAndSetDefaults() error {
+	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if d.SubKind == "" {
+	if r.SubKind == "" {
 		return trace.BadParameter("plugin data missing subkind")
 	}
 	return nil
@@ -77,41 +77,41 @@ func NewPluginData(resourceName string, resourceKind string) (PluginData, error)
 	return &data, nil
 }
 
-func (d *PluginDataV3) Entries() map[string]*PluginDataEntry {
-	if d.Spec.Entries == nil {
-		d.Spec.Entries = make(map[string]*PluginDataEntry)
+func (r *PluginDataV3) Entries() map[string]*PluginDataEntry {
+	if r.Spec.Entries == nil {
+		r.Spec.Entries = make(map[string]*PluginDataEntry)
 	}
-	return d.Spec.Entries
+	return r.Spec.Entries
 }
 
-func (d *PluginDataV3) Update(params PluginDataUpdateParams) error {
+func (r *PluginDataV3) Update(params PluginDataUpdateParams) error {
 	// See #3286 for a complete discussion of the design constraints at play here.
 
-	if params.Kind != d.GetSubKind() {
+	if params.Kind != r.GetSubKind() {
 		return trace.BadParameter("resource kind mismatch in update params")
 	}
 
-	if params.Resource != d.GetName() {
+	if params.Resource != r.GetName() {
 		return trace.BadParameter("resource name mismatch in update params")
 	}
 
 	// If expectations were given, ensure that they are met before continuing
 	if params.Expect != nil {
-		if err := d.checkExpectations(params.Plugin, params.Expect); err != nil {
+		if err := r.checkExpectations(params.Plugin, params.Expect); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 	// Ensure that Entries has been initialized
-	if d.Spec.Entries == nil {
-		d.Spec.Entries = make(map[string]*PluginDataEntry, 1)
+	if r.Spec.Entries == nil {
+		r.Spec.Entries = make(map[string]*PluginDataEntry, 1)
 	}
 	// Ensure that the specific Plugin has been initialized
-	if d.Spec.Entries[params.Plugin] == nil {
-		d.Spec.Entries[params.Plugin] = &PluginDataEntry{
+	if r.Spec.Entries[params.Plugin] == nil {
+		r.Spec.Entries[params.Plugin] = &PluginDataEntry{
 			Data: make(map[string]string, len(params.Set)),
 		}
 	}
-	entry := d.Spec.Entries[params.Plugin]
+	entry := r.Spec.Entries[params.Plugin]
 	for key, val := range params.Set {
 		// Keys which are explicitly set to the empty string are
 		// treated as DELETE operations.
@@ -124,7 +124,7 @@ func (d *PluginDataV3) Update(params PluginDataUpdateParams) error {
 	// Its possible that this update was simply clearing all data;
 	// if that is the case, remove the entry.
 	if len(entry.Data) == 0 {
-		delete(d.Spec.Entries, params.Plugin)
+		delete(r.Spec.Entries, params.Plugin)
 	}
 	return nil
 }
@@ -132,10 +132,10 @@ func (d *PluginDataV3) Update(params PluginDataUpdateParams) error {
 // checkExpectations verifies that the data for `plugin` matches the expected
 // state described by `expect`.  This function implements the behavior of the
 // `PluginDataUpdateParams.Expect` mapping.
-func (d *PluginDataV3) checkExpectations(plugin string, expect map[string]string) error {
+func (r *PluginDataV3) checkExpectations(plugin string, expect map[string]string) error {
 	var entry *PluginDataEntry
-	if d.Spec.Entries != nil {
-		entry = d.Spec.Entries[plugin]
+	if r.Spec.Entries != nil {
+		entry = r.Spec.Entries[plugin]
 	}
 	if entry == nil {
 		// If no entry currently exists, then the only expectation that can
@@ -308,6 +308,6 @@ func (r *PluginDataV3) SetResourceID(id int64) {
 	r.Metadata.SetID(id)
 }
 
-func (d *PluginDataV3) String() string {
-	return fmt.Sprintf("PluginData(kind=%s,resource=%s,entries=%d)", d.GetSubKind(), d.GetName(), len(d.Spec.Entries))
+func (r *PluginDataV3) String() string {
+	return fmt.Sprintf("PluginData(kind=%s,resource=%s,entries=%d)", r.GetSubKind(), r.GetName(), len(r.Spec.Entries))
 }

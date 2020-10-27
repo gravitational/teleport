@@ -74,6 +74,14 @@ Add users to the application:
 
 ![Configure APP](../../img/sso/onelogin/onelogin-saml-5.png)
 
+
+### Download SAML XML Metadata
+
+Once the application is set up, download `SAML Metadata`.
+
+![Configure APP](../../img/sso/onelogin/saml-download.png)
+
+
 ## Create a SAML Connector
 
 Now, create a SAML connector [resource](../../admin-guide.md#resources).

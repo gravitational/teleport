@@ -483,7 +483,7 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) (
 		}
 		if accepted || !doFilter {
 			values = append(values, fields)
-			total += 1
+			total++
 			if limit > 0 && total >= limit {
 				break
 			}

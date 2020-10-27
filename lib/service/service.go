@@ -902,7 +902,7 @@ func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error)
 			}
 			loggers = append(loggers, logger)
 		case teleport.SchemeStdout:
-			logger := events.NewWriterLog(utils.NopWriteCloser(os.Stdout))
+			logger := events.NewWriterEmitter(utils.NopWriteCloser(os.Stdout))
 			loggers = append(loggers, logger)
 		default:
 			return nil, trace.BadParameter(
@@ -922,7 +922,7 @@ func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error)
 	}
 
 	if len(loggers) > 1 {
-		return events.NewMultiLog(loggers...), nil
+		return events.NewMultiLog(loggers...)
 	}
 
 	return loggers[0], nil
@@ -2339,10 +2339,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	kubeClusterNames, err := cfg.Proxy.Kube.ClusterNames(conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority])
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	sshProxy, err := regular.New(cfg.Proxy.SSHAddr,
 		cfg.Hostname,
 		[]ssh.Signer{conn.ServerIdentity.KeySigner},
@@ -2367,7 +2363,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 		}),
 		regular.SetEmitter(&events.StreamerAndEmitter{Emitter: emitter, Streamer: streamer}),
-		regular.SetKubernetesClusters(kubeClusterNames),
 	)
 	if err != nil {
 		return trace.Wrap(err)

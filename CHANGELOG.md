@@ -1,5 +1,103 @@
 # Changelog
 
+### 4.4.1
+
+This release of Teleport contains a bug fix.
+
+* Fixed an issue where defining multiple logging configurations would cause Teleport to crash. [#4598](https://github.com/gravitational/teleport/issues/4598)
+
+### 4.4.0
+
+This is a major Teleport release with a focus on new features, functionality, and bug fixes. It’s a substantial release and users can review [4.3 closed issues](https://github.com/gravitational/teleport/milestone/40?closed=1) on Github for details of all items.
+
+#### New Features
+
+##### Concurrent Session Control
+
+This addition to Teleport helps customers obtain AC-10 control. We now provide two new optional configuration values: `max_connections` and `max_sessions`.
+
+###### `max_connections`
+
+This value is the total number of concurrent sessions within a cluster to nodes running Teleport. This value is applied at a per user level. If you set `max_connections` to 1, a `tsh` user would only be able to `tsh ssh` into one node at a time.
+
+###### `max_sessions` per connection
+
+This value limits the total number of session channels which can be established across a single SSH connection (typically used for interactive terminals or remote exec operations). This is for cases where nodes have Teleport set up, but a user is using OpenSSH to connect to them. It is essentially equivalent to the `MaxSessions` configuration value accepted by `sshd`.
+
+```yaml
+spec:
+  options:
+    # Optional: Required to be set for AC-10 Compliance
+    max_connections: 2
+    # Optional: To match OpenSSH behavior set to 10
+    max_sessions: 10
+```
+
+###### `session_control_timeout`
+
+A new `session_control_timeout` configuration value has been added to the `auth_service` configuration block of the Teleport config file. It's unlikely that you'll need to modify this.
+
+```yaml
+auth_service:
+  session_control_timeout: 2m # default
+# ...
+```
+
+#### Session Streaming Improvements
+
+Teleport 4.4 includes a complete refactoring of our event system. This resolved a few customer bug reports such as [#3800: Events overwritten in DynamoDB](https://github.com/gravitational/teleport/issues/3800) and [#3182: Teleport consuming all disk space with multipart uploads](https://github.com/gravitational/teleport/issues/3182).
+
+Along with foundational improvements, 4.4 includes two new experimental `session_recording` options: `node-sync` and `proxy-sync`.
+NOTE: These experimental modes require all Teleport auth servers, proxy servers and nodes to be running Teleport 4.4.
+
+```yaml
+# This section configures the 'auth service':
+auth_service:
+    # Optional setting for configuring session recording. Possible values are:
+    #     "node"  : sessions will be recorded on the node level (the default)
+    #     "proxy" : recording on the proxy level, see "recording proxy mode" section.
+    #     "off"   : session recording is turned off
+    #
+    #     EXPERIMENTAL *-sync modes: proxy and node send logs directly to S3 or other
+    #     storage without storing the records on disk at all. This mode will kill a
+    #     connection if network connectivity is lost.
+    #     NOTE: These experimental modes require all Teleport auth servers, proxy servers and
+    #     nodes to be running Teleport 4.4.
+    #
+    #     "node-sync" : sessions recording will be streamed from node -> auth -> storage
+    #     "proxy-sync : sessions recording will be streamed from proxy -> auth -> storage
+    #
+    session_recording: "node-sync"
+```
+
+#### Improvements
+
+* Added session streaming. [#4045](https://github.com/gravitational/teleport/pull/4045)
+* Added concurrent session control. [#4138](https://github.com/gravitational/teleport/pull/4138)
+* Added ability to specify leaf cluster when generating `kubeconfig` via `tctl auth sign`. [#4446](https://github.com/gravitational/teleport/pull/4446)
+* Added output options (like JSON) for `tsh ls`. [#4390](https://github.com/gravitational/teleport/pull/4390)
+* Added node ID to heartbeat debug log [#4291](https://github.com/gravitational/teleport/pull/4291)
+* Added the option to trigger `pam_authenticate` on login [#3966](https://github.com/gravitational/teleport/pull/3966)
+
+#### Fixes
+
+* Fixed issue that caused some idle `kubectl exec` sessions to terminate. [#4377](https://github.com/gravitational/teleport/pull/4377)
+* Fixed symlink issued when using `tsh` on Windows. [#4347](https://github.com/gravitational/teleport/pull/4347)
+* Fixed `tctl top` so it runs without the debug flag and on dark terminals. [#4282](https://github.com/gravitational/teleport/pull/4282) [#4231](https://github.com/gravitational/teleport/pull/4231)
+* Fixed issue that caused DynamoDB not to respect HTTP CONNECT proxies. [#4271](https://github.com/gravitational/teleport/pull/4271)
+* Fixed `/readyz` endpoint to recover much quicker. [#4223](https://github.com/gravitational/teleport/pull/4223)
+
+#### Documentation
+
+* Updated Google Workspace documentation to add clarification on supported account types. [#4394](https://github.com/gravitational/teleport/pull/4394)
+* Updated IoT instructions on necessary ports. [#4398](https://github.com/gravitational/teleport/pull/4398)
+* Updated Trusted Cluster documentation on how to remove trust from root and leaf clusters. [#4358](https://github.com/gravitational/teleport/pull/4358)
+* Updated the PAM documentation with PAM authentication usage information. [#4352](https://github.com/gravitational/teleport/pull/4352)
+
+#### Upgrade Notes
+
+Please follow our [standard upgrade procedure](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport).
+
 ## 4.3.7
 
 This release of Teleport contains a security fix and a bug fix.

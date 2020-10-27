@@ -139,6 +139,9 @@ message ServerV2 {
 
 // ServerSpecV2 is a specification for V2 Server
 message ServerSpecV2 {
+    reserved 8;
+    reserved "KubernetesClusters";
+
     // Addr is server host:port address
     string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
     // PublicAddr is the public address this cluster can be reached at.
@@ -156,10 +159,6 @@ message ServerSpecV2 {
     bool UseTunnel = 6 [ (gogoproto.jsontag) = "use_tunnel,omitempty" ];
     // TeleportVersion is the teleport version that the server is running on
     string Version = 7 [ (gogoproto.jsontag) = "version" ];
-    // KubernetesClusters is a list of kubernetes clusters reachable through
-    // this proxy.
-    repeated string KubernetesClusters = 8
-        [ (gogoproto.jsontag) = "kubernetes_clusters,omitempty" ];
 }
 
 // CommandLabelV2 is a label that has a value as a result of the

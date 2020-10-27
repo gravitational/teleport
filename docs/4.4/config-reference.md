@@ -180,6 +180,15 @@ auth_service:
     #    "node"  : sessions will be recorded on the node level  (the default)
     #    "proxy" : recording on the proxy level, see "recording proxy mode" section.
     #    "off"   : session recording is turned off
+    #
+    # EXPERIMENTAL *-sync modes
+    # Proxy and node send logs directly to S3 or other
+#    storage without storing the records on disk at all. *-sync requires all
+#    nodes to be upgraded to 4.4
+#
+#    "node-sync" : sessions recording will be streamed from node -> auth -> storage service
+#    "proxy-sync : sessions recording will be streamed from proxy -> auth -> storage service
+#
     session_recording: "node"
 
     # This setting determines if a Teleport proxy performs strict host key checks.
@@ -203,6 +212,11 @@ auth_service:
     keep_alive_interval: 5m
     keep_alive_count_max: 3
 
+    # Determines the internal session control timeout cluster wide. This value will
+    # be used with enterprise max_connections and max_sessions. It's unlikely that
+    # you'll need to change this.
+    # session_control_timeout: 2m
+
     # License file to start auth server with. Note that this setting is ignored
     # in open-source Teleport and is required only for Teleport Pro, Business
     # and Enterprise subscription plans.
@@ -213,9 +227,6 @@ auth_service:
     # If not set, by default Teleport will look for the `license.pem` file in
     # the configured `data_dir` .
     license_file: /var/lib/teleport/license.pem
-
-    # DEPRECATED in Teleport 3.2 (moved to proxy_service section)
-    kubeconfig_file: /path/to/kubeconfig
 
 # This section configures the 'node service':
 ssh_service:
@@ -247,7 +258,7 @@ ssh_service:
     # set to false, can be set true here or as a command line flag.
     permit_user_env: false
 
-    # Enhanced Session Recording was introduced with Teleport 4.2. For more details
+    # Enhanced Session Recording
     # see https://gravitational.com/teleport/docs/features/enhanced-session-recording
     enhanced_recording:
        # Enable or disable enhanced auditing for this node. Default value:
