@@ -52,9 +52,10 @@ func TestGenerate(t *testing.T) {
 
 func TestGenerateNotEvenMultiple(t *testing.T) {
 	d, _ := time.ParseDuration("30s")
+	invalidBenchmarkD, _ := time.ParseDuration("0s")
 	var tests = []struct {
 		expected bool
-		conf Config
+		conf     Config
 	}{
 		{true, Config{
 			Rate:                10,
@@ -74,7 +75,7 @@ func TestGenerateNotEvenMultiple(t *testing.T) {
 			Rate:                0,
 			Command:             nil,
 			Interactive:         false,
-			MinimumWindow:       d - d,
+			MinimumWindow:       invalidBenchmarkD,
 			MinimumMeasurements: 0,
 		}},
 	}

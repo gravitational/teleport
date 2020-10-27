@@ -26,6 +26,7 @@ import (
 
 	"github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/utils"
 	logrus "github.com/sirupsen/logrus"
 )
 
@@ -91,7 +92,7 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 		for {
 			select {
 			case <-ticker.C:
-				delay = delay + interval // ticker makes its first tick after the given duration, not immediately 
+				delay = delay + interval // ticker makes its first tick after the given duration, not immediately
 				t := start.Add(delay)
 				measure := benchMeasure{
 					ResponseStart: t,
@@ -197,9 +198,9 @@ func execute(m *benchMeasure) {
 	client, err := client.NewClient(&config)
 	reader, writer := io.Pipe()
 	client.Stdin = reader
-	buffer := &bytes.Buffer{}
-	client.Stdout = buffer
-	client.Stderr = buffer
+	out := &utils.SyncBuffer{}
+	client.Stdout = out
+	client.Stderr = out
 	if err != nil {
 		m.Error = err
 		return
