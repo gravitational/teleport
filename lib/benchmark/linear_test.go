@@ -1,16 +1,16 @@
 package benchmark
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGenerate(t *testing.T) {
 	d, _ := time.ParseDuration("30s")
-
 	initial := Config{
 		Rate:                0,
 		Command:             []string{"ls"},
@@ -27,91 +27,60 @@ func TestGenerate(t *testing.T) {
 		MinimumWindow:       d,
 		config:              initial,
 	}
-	// First generation
+
+	i := 0
+	for i < linearConfig.UpperBound {
+		res := linearConfig.Generate()
+		require.True(t, res, "failed to generate generation %v", i/linearConfig.Step)
+		bm, err := linearConfig.GetBenchmark()
+		if err != nil {
+			t.Errorf("failed to get current benchmark")
+		}
+		expected := initial
+		expected.Rate = i + linearConfig.Step
+		require.Empty(t, cmp.Diff(expected, bm))
+		i += linearConfig.Step
+	}
+
 	res := linearConfig.Generate()
-	if res != true {
-		t.Errorf("failed to generate first generation")
-	}
-	bm, err := linearConfig.GetBenchmark()
-	if err != nil {
-		t.Errorf("failed to get current benchmark")
-	}
-	expected := initial
-	expected.Rate = 10
-
-	assert.Empty(t, cmp.Diff(expected, bm))
-
-	// Second generation
-	res = linearConfig.Generate()
-	if res != true {
-		t.Errorf("failed to generate #2 generation")
-	}
-
-	bm, err = linearConfig.GetBenchmark()
-	if err != nil {
-		t.Errorf("failed to get current benchmark")
-	}
-
-	expected.Rate = 20
-	assert.Empty(t, cmp.Diff(expected, bm))
-
-	// Third generation
-	res = linearConfig.Generate()
-	if res != true {
-		t.Errorf("failed to generate #3 generation")
-	}
-
-	bm, err = linearConfig.GetBenchmark()
-	if err != nil {
-		t.Errorf("failed to get current benchmark")
-	}
-	expected.Rate = 30
-	assert.Empty(t, cmp.Diff(expected, bm))
-
-	// Fourth generation
-	res = linearConfig.Generate()
-	if res != true {
-		t.Errorf("failed to generate #4 generation")
-	}
-
-	bm, err = linearConfig.GetBenchmark()
-	if err != nil {
-		t.Errorf("failed to get current benchmark")
-	}
-	expected.Rate = 40
-	assert.Empty(t, cmp.Diff(expected, bm))
-
-	// Fifth generation
-	res = linearConfig.Generate()
-	if res != true {
-		t.Errorf("failed to generate #5 generation")
-	}
-
-	bm, err = linearConfig.GetBenchmark()
-	if err != nil {
-		t.Errorf("failed to get current benchmark")
-	}
-	expected.Rate = 50
-	assert.Empty(t, cmp.Diff(expected, bm))
-
-	// Sixth generation, should return false
-	res = linearConfig.Generate()
-	if res != false {
-		t.Errorf("expected false, got true")
-	}
-
-	_, err = linearConfig.GetBenchmark()
+	require.False(t, res, "failed to generate generation %v", i/linearConfig.Step)
+	_, err := linearConfig.GetBenchmark()
 	if err == nil {
 		t.Errorf("generating more benchmarks than expected")
 	}
 }
 
 func TestGenerateNotEvenMultiple(t *testing.T) {
-
 	d, _ := time.ParseDuration("30s")
+	var tests = []struct {
+		expected bool
+		conf Config
+	}{
+		{true, Config{
+			Rate:                10,
+			Command:             []string{"ls"},
+			Interactive:         false,
+			MinimumWindow:       d,
+			MinimumMeasurements: 1000,
+		}},
+		{true, Config{
+			Rate:                17,
+			Command:             []string{"ls"},
+			Interactive:         false,
+			MinimumWindow:       d,
+			MinimumMeasurements: 1000,
+		}},
+		{false, Config{
+			Rate:                0,
+			Command:             nil,
+			Interactive:         false,
+			MinimumWindow:       d - d,
+			MinimumMeasurements: 0,
+		}},
+	}
 
 	initial := Config{
-		Rate:                0,
+		Rate:                10,
 		Command:             []string{"ls"},
 		Interactive:         false,
 		MinimumWindow:       d,
@@ -126,46 +95,22 @@ func TestGenerateNotEvenMultiple(t *testing.T) {
 		MinimumWindow:       d,
 		config:              initial,
 	}
-	expected := initial
 
-	res := linearConfig.Generate()
+	for _, tt := range tests {
+		t.Run("", func(t *testing.T) {
+			res := linearConfig.Generate()
+			if res != tt.expected {
+				t.Errorf("got %v, want %v", res, tt.conf.Rate)
+			}
+			fmt.Println(linearConfig.currentRPS)
 
-	if res != true {
-		t.Errorf("failed to generate first generation")
+			bm, err := linearConfig.GetBenchmark()
+			if err != nil && bm.Rate != 0 {
+				t.Errorf("failed to get current benchmark")
+			}
+			require.Empty(t, cmp.Diff(tt.conf, bm))
+		})
 	}
-
-	bm, err := linearConfig.GetBenchmark()
-	if err != nil {
-		t.Errorf("failed to get current benchmark")
-	}
-	expected.Rate = 10
-	assert.Empty(t, cmp.Diff(expected, bm))
-
-	// Second generation, rate = 17
-	res = linearConfig.Generate()
-	if res != true {
-		t.Errorf("failed to generate first generation")
-	}
-
-	bm, err = linearConfig.GetBenchmark()
-	if err != nil {
-		t.Errorf("failed to get current benchmark")
-	}
-	expected.Rate = 17
-	assert.Empty(t, cmp.Diff(expected, bm))
-
-	// Third generation, rate > upper bound
-	res = linearConfig.Generate()
-	if res != false {
-		t.Errorf("expected false, exceeded upper bound")
-	}
-
-	_, err = linearConfig.GetBenchmark()
-	if err == nil {
-		t.Errorf("generating more benchmarks than expected")
-	}
-	expected.Rate = 17
-	assert.Empty(t, cmp.Diff(expected, bm))
 }
 
 func TestGetBenchmark(t *testing.T) {
@@ -185,27 +130,24 @@ func TestGetBenchmark(t *testing.T) {
 		MinimumWindow:       d,
 		config:              initial,
 	}
-
 	// GetBenchmark with current generation
 	res := linearConfig.Generate()
 	initial.MinimumMeasurements = linearConfig.MinimumMeasurements
-	assert.Equal(t, res, true)
+	require.Equal(t, res, true)
 	conf, err := linearConfig.GetBenchmark()
 	if err != nil {
 		t.Errorf("expected benchmark, got error: %v", err)
 	}
-	assert.Equal(t, conf.Rate, linearConfig.currentRPS)
+	require.Equal(t, conf.Rate, linearConfig.currentRPS)
 
 	res = linearConfig.Generate()
-	assert.Equal(t, res, true)
+	require.Equal(t, res, true)
 
 	// GetBenchmark when Generate returns false
 	res = linearConfig.Generate()
-	assert.Equal(t, res, false)
+	require.Equal(t, res, false)
 
-	_, err = linearConfig.GetBenchmark()
-	if err == nil {
+	if _, err = linearConfig.GetBenchmark(); err == nil {
 		t.Errorf("There should be no current generations, expected error")
 	}
-
 }

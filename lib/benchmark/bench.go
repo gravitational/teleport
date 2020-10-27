@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2020 Gravitational, Inc.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
@@ -19,6 +19,7 @@ import (
 	"io"
 	"io/ioutil"
 	"strings"
+	"sync"
 	"time"
 
 	"log"
@@ -66,8 +67,6 @@ type Result struct {
 	// Duration it takes for the whole benchmark to run
 	Duration time.Duration
 }
-
-//
 
 // Benchmark connects to remote server and executes requests in parallel according
 // to benchmark spec. It returns benchmark result when completed.
@@ -123,7 +122,6 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 			timeElapsed = true
 		}
 		select {
-
 		case measure := <-resultC:
 			results = append(results, measure)
 			if timeElapsed && len(results) >= c.MinimumMeasurements {
@@ -163,10 +161,8 @@ func run(ctx context.Context, request <-chan *benchMeasure, done chan<- *benchMe
 			logrus.Warningf("recover from panic: %v", r)
 		}
 	}()
-
 	for {
 		select {
-
 		case m, ok := <-request:
 			if !ok {
 				return
@@ -175,9 +171,7 @@ func run(ctx context.Context, request <-chan *benchMeasure, done chan<- *benchMe
 		case <-ctx.Done():
 			return
 		}
-
 	}
-
 }
 
 func worker(ctx context.Context, m *benchMeasure, send chan<- *benchMeasure) {
@@ -189,7 +183,6 @@ func worker(ctx context.Context, m *benchMeasure, send chan<- *benchMeasure) {
 	case <-ctx.Done():
 		return
 	}
-
 }
 
 func execute(m *benchMeasure) {
@@ -197,7 +190,6 @@ func execute(m *benchMeasure) {
 		// do not use parent context that will cancel in flight requests
 		// because we give test some time to gracefully wrap up
 		// the in-flight connections to avoid extra errors
-
 		m.Error = m.client.SSH(context.TODO(), nil, false)
 		m.End = time.Now()
 		return
@@ -206,9 +198,12 @@ func execute(m *benchMeasure) {
 	client, err := client.NewClient(&config)
 	reader, writer := io.Pipe()
 	client.Stdin = reader
-	out := &bytes.Buffer{}
-	client.Stdout = out
-	client.Stderr = out
+	out := sync.Pool{New: func() interface{} {
+		return new(bytes.Buffer)
+	}}
+	buffer := out.Get().(*bytes.Buffer)
+	client.Stdout = buffer
+	client.Stderr = buffer
 	if err != nil {
 		m.Error = err
 		m.End = time.Now()

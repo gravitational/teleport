@@ -1,8 +1,20 @@
+/*
+Copyright 2020 Gravitational, Inc.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package benchmark
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,27 +38,27 @@ type Generator interface {
 	Generate() bool
 	// GetBenchmark returns the benchmark config for the current generation.
 	// If called after Generate() returns false, this will result in an error.
-	GetBenchmark() (context.Context, Config, error)
+	GetBenchmark() (Config, error)
 	// Benchmark runs the benchmark of receiver type
 	// return an array of Results that contain information about the generations
-	Benchmark([]string, *client.TeleportClient) ([]*Result, error)
+	Benchmark(context.Context, []string, *client.TeleportClient) ([]*Result, error)
 }
 
 // Run is used to run the benchmarks, it is given a generator, command to run,
 // a host, host login, and proxy. If host login or proxy is an empty string, it will
 // use the default login
-func Run(cnf interface{}, cmd, host, login, proxy string) ([]Result, error) {
+func Run(ctx context.Context, cnf interface{}, cmd, host, login, proxy string) ([]Result, error) {
 	tc, err := makeTeleportClient(host, login, proxy)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	logrus.SetLevel(logrus.ErrorLevel)
 	switch c := cnf.(type) {
 	case *Linear:
-		return c.Benchmark(context.Background(), cmd, tc)
+		return c.Benchmark(ctx, cmd, tc)
 
 	}
-	return nil, errors.New("Invalid generator, not of type Linear")
+	return nil, trace.BadParameter("invalid generator, not of type linear")
 }
 
 // makeTeleportClient creates an instance of a teleport client
