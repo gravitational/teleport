@@ -41,7 +41,7 @@ func (lg *Linear) Generate() bool {
 		lg.currentRPS = lg.LowerBound
 		return true
 	}
-	
+
 	lg.currentRPS += lg.Step
 	return lg.currentRPS <= lg.UpperBound
 }
@@ -86,7 +86,7 @@ func (lg *Linear) Benchmark(ctx context.Context, cmd string, tc *client.Teleport
 		}
 		results = append(results, result)
 		sleep = true
-		fmt.Printf("The current generation made %v requests in %v\n.", result.RequestsOriginated, result.Duration)
+		fmt.Printf("The current generation made %v requests in %v.\n", result.RequestsOriginated, result.Duration)
 	}
 	return results, nil
 }

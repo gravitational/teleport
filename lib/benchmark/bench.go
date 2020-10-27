@@ -19,7 +19,7 @@ import (
 	"io"
 	"io/ioutil"
 	"strings"
-	"sync"
+
 	"time"
 
 	"log"
@@ -77,7 +77,7 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 	tc.Stdin = &bytes.Buffer{}
 	var delay time.Duration = 0
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	requestsC := make(chan *benchMeasure)
@@ -91,7 +91,7 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 		for {
 			select {
 			case <-ticker.C:
-				delay = delay + interval
+				delay = delay + interval // ticker makes its first tick after the given duration, not immediately 
 				t := start.Add(delay)
 				measure := benchMeasure{
 					ResponseStart: t,
@@ -167,14 +167,14 @@ func run(ctx context.Context, request <-chan *benchMeasure, done chan<- *benchMe
 			if !ok {
 				return
 			}
-			go worker(ctx, m, done)
+			go work(ctx, m, done)
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-func worker(ctx context.Context, m *benchMeasure, send chan<- *benchMeasure) {
+func work(ctx context.Context, m *benchMeasure, send chan<- *benchMeasure) {
 	m.ServiceStart = time.Now()
 	execute(m)
 	m.End = time.Now()
@@ -191,28 +191,22 @@ func execute(m *benchMeasure) {
 		// because we give test some time to gracefully wrap up
 		// the in-flight connections to avoid extra errors
 		m.Error = m.client.SSH(context.TODO(), nil, false)
-		m.End = time.Now()
 		return
 	}
 	config := m.client.Config
 	client, err := client.NewClient(&config)
 	reader, writer := io.Pipe()
 	client.Stdin = reader
-	out := sync.Pool{New: func() interface{} {
-		return new(bytes.Buffer)
-	}}
-	buffer := out.Get().(*bytes.Buffer)
+	buffer := &bytes.Buffer{}
 	client.Stdout = buffer
 	client.Stderr = buffer
 	if err != nil {
 		m.Error = err
-		m.End = time.Now()
 		return
 	}
 	done := make(chan bool)
 	go func() {
 		m.Error = m.client.SSH(m.ctx, nil, false)
-		m.End = time.Now()
 		close(done)
 	}()
 	writer.Write([]byte(strings.Join(m.command, " ") + "\r\nexit\r\n"))
