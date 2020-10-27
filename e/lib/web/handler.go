@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gravitational/teleport"
 	enterpriseAuth "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/auth"
@@ -18,13 +17,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
-
-var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentWeb,
-})
 
 // Plugin is our plugins to web API of teleport OSS
 type Plugin struct {

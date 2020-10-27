@@ -29,3 +29,6 @@ start-houston
 build-houston
 
 /tool/modules/fips.go
+
+# vim-specific files
+*.swp
