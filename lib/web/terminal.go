@@ -224,9 +224,9 @@ func (t *TerminalHandler) handler(ws *websocket.Conn) {
 	// the terminal.
 	tc, err := t.makeClient(ws)
 	if err != nil {
-		er := t.writeError(err, ws)
-		if er != nil {
-			t.log.Warnf("Unable to send error to terminal: %v: %v.", err, er)
+		writeErr := t.writeError(err, ws)
+		if writeErr != nil {
+			t.log.WithError(err).Warnf("Unable to send error to terminal: %v.", writeErr)
 		}
 		return
 	}
@@ -324,7 +324,7 @@ func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
 				return
 			}
 		case <-t.terminalContext.Done():
-			t.log.Debugf("Terminating websocket ping loop.")
+			t.log.Debug("Terminating websocket ping loop.")
 			return
 		}
 	}
@@ -344,7 +344,7 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 	// Make connecting by UUID the default instead of the fallback.
 	//
 	if err != nil && strings.Contains(err.Error(), teleport.NodeIsAmbiguous) {
-		t.log.Debugf("Ambiguous hostname %q, attempting to connect by UUID (%q)", t.hostName, t.hostUUID)
+		t.log.Debugf("Ambiguous hostname %q, attempting to connect by UUID (%q).", t.hostName, t.hostUUID)
 		tc.Host = t.hostUUID
 		// We don't technically need to zero the HostPort, but future version won't look up
 		// HostPort when connecting by UUID, so its best to keep behavior consistent.
@@ -398,8 +398,9 @@ func (t *TerminalHandler) streamEvents(ws *websocket.Conn, tc *client.TeleportCl
 		// Send push events that come over the events channel to the web client.
 		case event := <-tc.EventsChannel():
 			data, err := json.Marshal(event)
+			logger := t.log.WithField("event", event.GetType())
 			if err != nil {
-				t.log.Errorf("Unable to marshal audit event %v: %v.", event.GetType(), err)
+				logger.Errorf("Unable to marshal audit event: %v.", err)
 				continue
 			}
 
@@ -408,7 +409,7 @@ func (t *TerminalHandler) streamEvents(ws *websocket.Conn, tc *client.TeleportCl
 			// UTF-8 encode the error message and then wrap it in a raw envelope.
 			encodedPayload, err := t.encoder.String(string(data))
 			if err != nil {
-				t.log.Debugf("Unable to send audit event %v to web client: %v.", event.GetType(), err)
+				logger.Debugf("Unable to send audit event to web client: %v.", err)
 				continue
 			}
 			envelope := &Envelope{
@@ -418,14 +419,14 @@ func (t *TerminalHandler) streamEvents(ws *websocket.Conn, tc *client.TeleportCl
 			}
 			envelopeBytes, err := proto.Marshal(envelope)
 			if err != nil {
-				t.log.Debugf("Unable to send audit event %v to web client: %v.", event.GetType(), err)
+				logger.Debugf("Unable to send audit event to web client: %v.", err)
 				continue
 			}
 
 			// Send bytes over the websocket to the web client.
 			err = websocket.Message.Send(ws, envelopeBytes)
 			if err != nil {
-				t.log.Errorf("Unable to send audit event %v to web client: %v.", event.GetType(), err)
+				logger.Errorf("Unable to send audit event to web client: %v.", err)
 				continue
 			}
 		// Once the terminal stream is over (and the close envelope has been sent),

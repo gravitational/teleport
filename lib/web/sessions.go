@@ -41,7 +41,7 @@ import (
 	"github.com/gravitational/ttlmap"
 
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 )
 
@@ -51,7 +51,7 @@ import (
 // to the auth server on every page hit
 type SessionContext struct {
 	sync.Mutex
-	*log.Entry
+	logrus.FieldLogger
 	sess      services.WebSession
 	user      string
 	clt       auth.ClientI
@@ -329,7 +329,6 @@ func newSessionCache(proxyClient auth.ClientI, servers []utils.NetAddr, cipherSu
 		authServers:  servers,
 		closer:       utils.NewCloseBroadcaster(),
 		cipherSuites: cipherSuites,
-		log:          newPackageLogger(),
 	}
 	// periodically close expired and unused sessions
 	go cache.expireSessions()
@@ -348,12 +347,11 @@ type sessionCache struct {
 
 	// cipherSuites is the list of supported TLS cipher suites.
 	cipherSuites []uint16
-	log          log.FieldLogger
 }
 
 // Close closes all allocated resources and stops goroutines
 func (s *sessionCache) Close() error {
-	s.log.Info("Closing session cache.")
+	log.Info("Closing session cache.")
 	return s.closer.Close()
 }
 
@@ -361,15 +359,14 @@ func (s *sessionCache) Close() error {
 // cache and will clean up connections
 func closeContext(key string, val interface{}) {
 	go func() {
-		logger := newPackageLogger()
-		logger.Infof("Closing context %v.", key)
+		log.Infof("Closing context %v.", key)
 		ctx, ok := val.(*SessionContext)
 		if !ok {
-			logger.Warnf("Warning: not valid value type %T.", val)
+			log.Warnf("Invalid value type %T.", val)
 			return
 		}
 		if err := ctx.Close(); err != nil {
-			logger.Warnf("Failed to close context: %v.", err)
+			log.Warnf("Failed to close context: %v.", err)
 		}
 	}()
 }
@@ -393,7 +390,7 @@ func (s *sessionCache) clearExpiredSessions() {
 	defer s.Unlock()
 	expired := s.contexts.RemoveExpired(10)
 	if expired != 0 {
-		s.log.Infof("Removed %v expired sessions.", expired)
+		log.Infof("Removed %v expired sessions.", expired)
 	}
 }
 
@@ -591,11 +588,11 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 		user:      user,
 		sess:      sess,
 		parent:    s,
+		FieldLogger: log.WithFields(logrus.Fields{
+			"user": user,
+			"sess": sess.GetShortName(),
+		}),
 	}
-	c.Entry = log.WithFields(log.Fields{
-		"user": user,
-		"sess": sess.GetShortName(),
-	})
 
 	ttl := utils.ToTTL(clockwork.NewRealClock(), sess.GetBearerTokenExpiryTime())
 	out, err := s.insertContext(user, sid, c, ttl)
