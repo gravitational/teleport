@@ -186,7 +186,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 
 	_, sshPort, err := net.SplitHostPort(cfg.ProxySSHAddr.String())
 	if err != nil {
-		log.WithError(err).Warn("Invalid SSH proxy address, will use default port %v.", defaults.SSHProxyListenPort)
+		log.WithError(err).Warnf("Invalid SSH proxy address, will use default port %v.", defaults.SSHProxyListenPort)
 		sshPort = strconv.Itoa(defaults.SSHProxyListenPort)
 	}
 	h.sshPort = sshPort
