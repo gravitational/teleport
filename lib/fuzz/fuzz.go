@@ -1,3 +1,5 @@
+// +build gofuzz
+
 package fuzz
 
 import (
