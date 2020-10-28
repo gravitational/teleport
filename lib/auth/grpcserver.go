@@ -649,6 +649,100 @@ func (g *GRPCServer) DeleteSemaphore(ctx context.Context, req *services.Semaphor
 	return &empty.Empty{}, nil
 }
 
+// GetDatabaseServers returns all registered database proxy servers.
+func (g *GRPCServer) GetDatabaseServers(ctx context.Context, req *proto.GetDatabaseServersRequest) (*proto.GetDatabaseServersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	var opts []services.MarshalOption
+	if req.GetSkipValidation() {
+		opts = append(opts, services.SkipValidation())
+	}
+	databaseServers, err := auth.GetDatabaseServers(ctx, req.GetNamespace(), opts...)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	var servers []*services.DatabaseServerV2
+	for _, s := range databaseServers {
+		server, ok := s.(*services.DatabaseServerV2)
+		if !ok {
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", s))
+		}
+		servers = append(servers, server)
+	}
+	return &proto.GetDatabaseServersResponse{
+		Servers: servers,
+	}, nil
+}
+
+// UpsertDatabaseServer registers a new database proxy server.
+func (g *GRPCServer) UpsertDatabaseServer(ctx context.Context, req *proto.UpsertDatabaseServerRequest) (*services.KeepAlive, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	keepAlive, err := auth.UpsertDatabaseServer(ctx, req.GetServer())
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return keepAlive, nil
+}
+
+// DeleteDatabaseServer removes the specified database proxy server.
+func (g *GRPCServer) DeleteDatabaseServer(ctx context.Context, req *proto.DeleteDatabaseServerRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	err = auth.DeleteDatabaseServer(ctx, req.GetNamespace(), req.GetHostID(), req.GetName())
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllDatabaseServers removes all registered database proxy servers.
+func (g *GRPCServer) DeleteAllDatabaseServers(ctx context.Context, req *proto.DeleteAllDatabaseServersRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	err = auth.DeleteAllDatabaseServers(ctx, req.GetNamespace())
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// SignDatabaseCSR generates a client certificate used by proxy when talking
+// to a remote database service.
+func (g *GRPCServer) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	response, err := auth.SignDatabaseCSR(ctx, req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return response, nil
+}
+
+// GenerateDatabaseCert generates client certificate used by a database
+// service to authenticate with the database instance.
+func (g *GRPCServer) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	response, err := auth.GenerateDatabaseCert(ctx, req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return response, nil
+}
+
 // GetAppServers gets all application servers.
 func (g *GRPCServer) GetAppServers(ctx context.Context, req *proto.GetAppServersRequest) (*proto.GetAppServersResponse, error) {
 	auth, err := g.authenticate(ctx)
@@ -1120,6 +1214,10 @@ func eventToGRPC(in services.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_RemoteCluster{
 			RemoteCluster: r,
 		}
+	case *services.DatabaseServerV2:
+		out.Resource = &proto.Event_DatabaseServer{
+			DatabaseServer: r,
+		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
 	}
@@ -1193,6 +1291,9 @@ func eventFromGRPC(in proto.Event) (*services.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetRemoteCluster(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetDatabaseServer(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else {

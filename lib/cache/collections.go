@@ -138,6 +138,11 @@ func setupCollections(c *Cache, watches []services.WatchKind) (map[string]collec
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
 			collections[watch.Kind] = &kubeService{watch: watch, Cache: c}
+		case services.KindDatabaseServer:
+			if c.Presence == nil {
+				return nil, trace.BadParameter("missing parameter Presence")
+			}
+			collections[watch.Kind] = &databaseServer{watch: watch, Cache: c}
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -1219,6 +1224,72 @@ func (c *role) processEvent(ctx context.Context, event services.Event) error {
 
 func (c *role) watchKind() services.WatchKind {
 	return c.watch
+}
+
+type databaseServer struct {
+	*Cache
+	watch services.WatchKind
+}
+
+func (s *databaseServer) erase(ctx context.Context) error {
+	err := s.presenceCache.DeleteAllDatabaseServers(ctx, defaults.Namespace)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *databaseServer) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := s.Presence.GetDatabaseServers(ctx, defaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return func(ctx context.Context) error {
+		if err := s.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		for _, resource := range resources {
+			s.setTTL(resource)
+			if _, err := s.presenceCache.UpsertDatabaseServer(ctx, resource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (s *databaseServer) processEvent(ctx context.Context, event services.Event) error {
+	switch event.Type {
+	case backend.OpDelete:
+		err := s.presenceCache.DeleteDatabaseServer(ctx,
+			event.Resource.GetMetadata().Namespace,
+			event.Resource.GetMetadata().Description, // Cache passes host ID via description field.
+			event.Resource.GetName())
+		if err != nil {
+			// Resource could be missing in the cache expired or not created,
+			// if the first consumed event is delete.
+			if !trace.IsNotFound(err) {
+				s.WithError(err).Warn("Failed to delete resource.")
+				return trace.Wrap(err)
+			}
+		}
+	case backend.OpPut:
+		resource, ok := event.Resource.(services.DatabaseServer)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		s.setTTL(resource)
+		if _, err := s.presenceCache.UpsertDatabaseServer(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		s.Warnf("Skipping unsupported event type %v.", event.Type)
+	}
+	return nil
+}
+
+func (s *databaseServer) watchKind() services.WatchKind {
+	return s.watch
 }
 
 type appServer struct {

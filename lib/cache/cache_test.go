@@ -34,15 +34,16 @@ import (
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 )
 
-type CacheSuite struct {
-	clock clockwork.Clock
-}
+type CacheSuite struct{}
 
 var _ = check.Suite(&CacheSuite{})
 
@@ -51,7 +52,6 @@ func TestState(t *testing.T) { check.TestingT(t) }
 
 func (s *CacheSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())
-	s.clock = clockwork.NewRealClock()
 }
 
 // testPack contains pack of
@@ -59,7 +59,6 @@ func (s *CacheSuite) SetUpSuite(c *check.C) {
 type testPack struct {
 	dataDir      string
 	backend      *backend.Wrapper
-	clock        clockwork.Clock
 	eventsC      chan Event
 	cache        *Cache
 	cacheBackend backend.Backend
@@ -101,17 +100,30 @@ func (s *CacheSuite) newPackForNode(c *check.C) *testPack {
 	return s.newPack(c, ForNode)
 }
 
-// newPackWithoutCache returns a new test pack without creating cache
+func (s *CacheSuite) newPack(c *check.C, setupConfig SetupConfigFn) *testPack {
+	pack, err := newPack(c.MkDir(), setupConfig)
+	c.Assert(err, check.IsNil)
+	return pack
+}
+
 func (s *CacheSuite) newPackWithoutCache(c *check.C, setupConfig SetupConfigFn) *testPack {
+	pack, err := newPackWithoutCache(c.MkDir(), setupConfig)
+	c.Assert(err, check.IsNil)
+	return pack
+}
+
+// newPackWithoutCache returns a new test pack without creating cache
+func newPackWithoutCache(dir string, ssetupConfig SetupConfigFn) (*testPack, error) {
 	p := &testPack{
-		dataDir: c.MkDir(),
-		clock:   s.clock,
+		dataDir: dir,
 	}
 	bk, err := lite.NewWithConfig(context.TODO(), lite.Config{
 		Path:             p.dataDir,
 		PollStreamPeriod: 200 * time.Millisecond,
 	})
-	c.Assert(err, check.IsNil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	p.backend = backend.NewWrapper(bk)
 
 	p.cacheBackend, err = memory.New(
@@ -119,7 +131,9 @@ func (s *CacheSuite) newPackWithoutCache(c *check.C, setupConfig SetupConfigFn) 
 			Context: context.TODO(),
 			Mirror:  true,
 		})
-	c.Assert(err, check.IsNil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	p.eventsC = make(chan Event, 100)
 
@@ -133,13 +147,16 @@ func (s *CacheSuite) newPackWithoutCache(c *check.C, setupConfig SetupConfigFn) 
 	p.dynamicAccessS = local.NewDynamicAccessService(p.backend)
 	p.appSessionS = local.NewIdentityService(p.backend)
 
-	return p
+	return p, nil
 }
 
 // newPack returns a new test pack or fails the test on error
-func (s *CacheSuite) newPack(c *check.C, setupConfig func(c Config) Config) *testPack {
-	p := s.newPackWithoutCache(c, setupConfig)
-	var err error
+func newPack(dir string, setupConfig func(c Config) Config) (*testPack, error) {
+	p, err := newPackWithoutCache(dir, setupConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	p.cache, err = New(setupConfig(Config{
 		Context:       context.TODO(),
 		Backend:       p.cacheBackend,
@@ -155,15 +172,16 @@ func (s *CacheSuite) newPack(c *check.C, setupConfig func(c Config) Config) *tes
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 	}))
-	c.Assert(err, check.IsNil)
-	c.Assert(p.cache, check.NotNil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	select {
 	case <-p.eventsC:
 	case <-time.After(time.Second):
-		c.Fatalf("wait for the watcher to start")
+		return nil, trace.ConnectionProblem(nil, "wait for the watcher to start")
 	}
-	return p
+	return p, nil
 }
 
 // TestCA tests certificate authorities
@@ -1553,6 +1571,90 @@ func (s *CacheSuite) TestAppServers(c *check.C) {
 	out, err = p.cache.GetAppServers(context.Background(), defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 0)
+}
+
+// TestDatabaseServers tests that CRUD operations on database servers are
+// replicated from the backend to the cache.
+func TestDatabaseServers(t *testing.T) {
+	p, err := newPack(t.TempDir(), ForProxy)
+	require.NoError(t, err)
+	defer p.Close()
+
+	ctx := context.Background()
+
+	// Upsert database server into backend.
+	server := services.NewDatabaseServerV2("foo", nil,
+		services.DatabaseServerSpecV2{
+			Protocol: defaults.ProtocolPostgres,
+			URI:      "localhost:5432",
+			Hostname: "localhost",
+			HostID:   uuid.New(),
+		})
+	_, err = p.presenceS.UpsertDatabaseServer(ctx, server)
+	require.NoError(t, err)
+
+	// Check that the database server is now in the backend.
+	out, err := p.presenceS.GetDatabaseServers(context.Background(), defaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]services.DatabaseServer{server}, out,
+		cmpopts.IgnoreFields(services.Metadata{}, "ID")))
+
+	// Wait until the information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single database server in it.
+	out, err = p.cache.GetDatabaseServers(context.Background(), defaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]services.DatabaseServer{server}, out,
+		cmpopts.IgnoreFields(services.Metadata{}, "ID")))
+
+	// Update the server and upsert it into the backend again.
+	server.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
+	_, err = p.presenceS.UpsertDatabaseServer(context.Background(), server)
+	require.NoError(t, err)
+
+	// Check that the server is in the backend and only one exists (so an
+	// update occurred).
+	out, err = p.presenceS.GetDatabaseServers(context.Background(), defaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]services.DatabaseServer{server}, out,
+		cmpopts.IgnoreFields(services.Metadata{}, "ID")))
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single database server in it.
+	out, err = p.cache.GetDatabaseServers(context.Background(), defaults.Namespace)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]services.DatabaseServer{server}, out,
+		cmpopts.IgnoreFields(services.Metadata{}, "ID")))
+
+	// Remove all database servers from the backend.
+	err = p.presenceS.DeleteAllDatabaseServers(context.Background(), defaults.Namespace)
+	require.NoError(t, err)
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// Check that the cache is now empty.
+	out, err = p.cache.GetDatabaseServers(context.Background(), defaults.Namespace)
+	require.NoError(t, err)
+	require.Equal(t, 0, len(out))
 }
 
 type proxyEvents struct {

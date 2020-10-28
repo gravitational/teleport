@@ -468,6 +468,8 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 			Principals:       identity.Principals,
 			KubernetesGroups: identity.KubernetesGroups,
 			KubernetesUsers:  identity.KubernetesUsers,
+			DatabaseNames:    identity.DatabaseNames,
+			DatabaseUsers:    identity.DatabaseUsers,
 			RemoteRoles:      identity.Groups,
 			Identity:         *identity,
 		}, nil
@@ -525,6 +527,17 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// determine authenticated user based on the request parameters
 	requestWithContext := r.WithContext(context.WithValue(baseContext, ContextUser, user))
 	a.Handler.ServeHTTP(w, requestWithContext)
+}
+
+// WrapContext enriches the provided context with the identity information
+// extracted from the provided TLS connection.
+func (a *Middleware) WrapContext(ctx context.Context, conn *tls.Conn) (context.Context, error) {
+	user, err := a.GetUser(conn.ConnectionState())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	requestWithContext := context.WithValue(ctx, ContextUser, user)
+	return requestWithContext, nil
 }
 
 // ClientCertPool returns trusted x509 cerificate authority pool

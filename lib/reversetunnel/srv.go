@@ -633,6 +633,9 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 	// Kubernetes service is dialing back.
 	case teleport.RoleKube:
 		s.handleNewService(role, conn, sconn, nch, services.KubeTunnel)
+	// Database proxy is dialing back.
+	case teleport.RoleDatabase:
+		s.handleNewService(role, conn, sconn, nch, services.DatabaseTunnel)
 	// Proxy is dialing back.
 	case teleport.RoleProxy:
 		s.handleNewCluster(conn, sconn, nch)

@@ -69,6 +69,9 @@ message Event {
         // RemoteCluster is a resource for remote clusters
         services.RemoteClusterV3 RemoteCluster = 16
             [ (gogoproto.jsontag) = "remote_cluster,omitempty" ];
+        // DatabaseServer is a resource for database servers.
+        services.DatabaseServerV2 DatabaseServer = 17
+            [ (gogoproto.jsontag) = "database_server,omitempty" ];
     }
 }
 
@@ -131,6 +134,22 @@ message UserCertsRequest {
     // KubernetesCluster specifies the target kubernetes cluster for TLS
     // identities. This can be empty on older Teleport clients.
     string KubernetesCluster = 7 [ (gogoproto.jsontag) = "kubernetes_cluster,omitempty" ];
+    // RouteToDatabase specifies the target database proxy name to encode into
+    // certificate so database client requests are routed appropriately.
+    RouteToDatabase RouteToDatabase = 8
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "route_to_database,omitempty" ];
+}
+
+// RouteToDatabase combines parameters for database service routing information.
+message RouteToDatabase {
+    // ServiceName is the Teleport database proxy service name the cert is for.
+    string ServiceName = 1 [ (gogoproto.jsontag) = "service_name" ];
+    // Protocol is the type of the database the cert is for.
+    string Protocol = 2 [ (gogoproto.jsontag) = "protocol" ];
+    // Username is an optional database username to embed.
+    string Username = 3 [ (gogoproto.jsontag) = "username,omitempty" ];
+    // Database is an optional database name to embed.
+    string Database = 4 [ (gogoproto.jsontag) = "database,omitempty" ];
 }
 
 // GetUserRequest specifies parameters for the GetUser method.
@@ -392,6 +411,78 @@ message DeleteKubeServiceRequest {
 // DeleteAllKubeServicesRequest are the parameters used to remove all kubernetes services.
 message DeleteAllKubeServicesRequest {}
 
+// GetDatabaseServersRequest is a request to return all registered database servers.
+message GetDatabaseServersRequest {
+    // Namespace is the database server namespace.
+    string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
+    // SkipValidation allows to turn off JSON schema validation.
+    bool SkipValidation = 2 [ (gogoproto.jsontag) = "skip_validation" ];
+}
+
+// GetDatabaseServersResponse contains all registered database servers.
+message GetDatabaseServersResponse {
+    // Servers is a list of database proxy servers.
+    repeated services.DatabaseServerV2 Servers = 1 [ (gogoproto.jsontag) = "servers" ];
+}
+
+// UpsertDatabaseServerRequest is a request to register database server.
+message UpsertDatabaseServerRequest {
+    // Server is the database proxy server to register.
+    services.DatabaseServerV2 Server = 1 [ (gogoproto.jsontag) = "server" ];
+}
+
+// DeleteDatabaseServerRequest is a request to delete a database server.
+message DeleteDatabaseServerRequest {
+    // Namespace is the database server namespace.
+    string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
+    // HostID is the ID of the host database server is running on.
+    string HostID = 2 [ (gogoproto.jsontag) = "host_id" ];
+    // Name is the database server name.
+    string Name = 3 [ (gogoproto.jsontag) = "name" ];
+}
+
+// DeleteAllDatabaseServersRequest is a request to delete all database servers.
+message DeleteAllDatabaseServersRequest {
+    // Namespace is the database servers namespace.
+    string Namespace = 1 [ (gogoproto.jsontag) = "namespace" ];
+}
+
+// DatabaseCSRRequest is a request to generate a client certificate used
+// by the proxy to authenticate with a remote database service.
+message DatabaseCSRRequest {
+    // CSR is the request to sign.
+    bytes CSR = 1 [ (gogoproto.jsontag) = "csr" ];
+    // ClusterName is the name of the cluster the request is for.
+    string ClusterName = 2 [ (gogoproto.jsontag) = "cluster_name" ];
+}
+
+// DatabaseCSRResponse contains the signed database certificate.
+message DatabaseCSRResponse {
+    // Cert is the signed certificate.
+    bytes Cert = 1 [ (gogoproto.jsontag) = "cert" ];
+    // CACerts is a list of certificate authorities.
+    repeated bytes CACerts = 2 [ (gogoproto.jsontag) = "ca_certs" ];
+}
+
+// DatabaseCertRequest is a request to generate a client certificate used
+// by a database service to authenticate with a database instance.
+message DatabaseCertRequest {
+    // CSR is the request to sign.
+    bytes CSR = 1 [ (gogoproto.jsontag) = "csr" ];
+    // ServerName is the SAN to include in the certificate.
+    string ServerName = 2 [ (gogoproto.jsontag) = "server_name" ];
+    // TTL is the certificate validity period.
+    int64 TTL = 3 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "Duration" ];
+}
+
+// DatabaseCertResponse contains the signed certificate.
+message DatabaseCertResponse {
+    // Cert is the signed certificate.
+    bytes Cert = 1 [ (gogoproto.jsontag) = "cert" ];
+    // CACerts is a list of certificate authorities.
+    repeated bytes CACerts = 2 [ (gogoproto.jsontag) = "ca_certs" ];
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -489,4 +580,20 @@ service AuthService {
     rpc DeleteKubeService(DeleteKubeServiceRequest) returns (google.protobuf.Empty);
     // DeleteAllKubeServices removes all kubernetes services.
     rpc DeleteAllKubeServices(DeleteAllKubeServicesRequest) returns (google.protobuf.Empty);
+
+    // GetDatabaseServers returns all registered database proxy servers.
+    rpc GetDatabaseServers(GetDatabaseServersRequest) returns (GetDatabaseServersResponse);
+    // UpsertDatabaseServer registers a new database proxy server.
+    rpc UpsertDatabaseServer(UpsertDatabaseServerRequest) returns (services.KeepAlive);
+    // DeleteDatabaseServer removes the specified database proxy server.
+    rpc DeleteDatabaseServer(DeleteDatabaseServerRequest) returns (google.protobuf.Empty);
+    // DeleteAllDatabaseServers removes all registered database proxy servers.
+    rpc DeleteAllDatabaseServers(DeleteAllDatabaseServersRequest) returns (google.protobuf.Empty);
+
+    // SignDatabaseCSR generates client certificate used by proxy to
+    // authenticate with a remote database service.
+    rpc SignDatabaseCSR(DatabaseCSRRequest) returns (DatabaseCSRResponse);
+    // GenerateDatabaseCert generates client certificate used by a database
+    // service to authenticate with the database instance.
+    rpc GenerateDatabaseCert(DatabaseCertRequest) returns (DatabaseCertResponse);
 }

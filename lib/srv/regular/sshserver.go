@@ -710,7 +710,7 @@ func (s *Server) GetInfo() services.Server {
 	}
 }
 
-func (s *Server) getServerInfo() (services.Server, error) {
+func (s *Server) getServerInfo() (services.Resource, error) {
 	server := s.GetInfo()
 	if s.getRotation != nil {
 		rotation, err := s.getRotation(s.getRole())

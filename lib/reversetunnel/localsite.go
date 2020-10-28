@@ -295,9 +295,13 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 
 	s.log.WithError(tunnelErr).WithField("address", dreq.Address).Debug("Error occurred while dialing through a tunnel.")
 
-	// Connections to applications should never occur over a direct dial, return right away.
-	if params.ConnType == services.AppTunnel {
-		return nil, false, trace.ConnectionProblem(tunnelErr, "failed to connect to application")
+	// Connections to application and database servers should never occur
+	// over a direct dial, return right away.
+	switch params.ConnType {
+	case services.AppTunnel:
+		return nil, false, trace.ConnectionProblem(err, "failed to connect to application server")
+	case services.DatabaseTunnel:
+		return nil, false, trace.ConnectionProblem(err, "failed to connect to database server")
 	}
 
 	offlineMsg := "the node is offline or has disconnected, if the issue " +

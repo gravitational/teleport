@@ -392,6 +392,9 @@ const (
 
 	// KubeTunnel is a tunnel where the kubernetes service dials back to the proxy.
 	KubeTunnel TunnelType = "kube"
+
+	// DatabaseTunnel is a tunnel where a database proxy dials back to the proxy.
+	DatabaseTunnel TunnelType = "db"
 )
 
 // TunnelType is the type of tunnel. Either node or proxy.

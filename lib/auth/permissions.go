@@ -137,6 +137,8 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
 		teleport.TraitLogins:     u.Principals,
 		teleport.TraitKubeGroups: u.KubernetesGroups,
 		teleport.TraitKubeUsers:  u.KubernetesUsers,
+		teleport.TraitDBNames:    u.DatabaseNames,
+		teleport.TraitDBUsers:    u.DatabaseUsers,
 	}
 	log.Debugf("Mapped roles %v of remote user %q to local roles %v and traits %v.",
 		u.RemoteRoles, u.Username, roleNames, traits)
@@ -281,6 +283,27 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 					},
 				},
 			})
+	case teleport.RoleDatabase:
+		return services.FromSpec(
+			role.String(),
+			services.RoleSpecV3{
+				Allow: services.RoleConditions{
+					Namespaces: []string{services.Wildcard},
+					Rules: []services.Rule{
+						services.NewRule(services.KindEvent, services.RW()),
+						services.NewRule(services.KindProxy, services.RO()),
+						services.NewRule(services.KindCertAuthority, services.ReadNoSecrets()),
+						services.NewRule(services.KindUser, services.RO()),
+						services.NewRule(services.KindNamespace, services.RO()),
+						services.NewRule(services.KindRole, services.RO()),
+						services.NewRule(services.KindAuthServer, services.RO()),
+						services.NewRule(services.KindReverseTunnel, services.RW()),
+						services.NewRule(services.KindTunnelConnection, services.RO()),
+						services.NewRule(services.KindClusterConfig, services.RO()),
+						services.NewRule(services.KindDatabaseServer, services.RW()),
+					},
+				},
+			})
 	case teleport.RoleProxy:
 		// if in recording mode, return a different set of permissions than regular
 		// mode. recording proxy needs to be able to generate host certificates.
@@ -320,6 +343,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 							services.NewRule(services.KindAppServer, services.RO()),
 							services.NewRule(services.KindWebSession, services.RW()),
 							services.NewRule(services.KindKubeService, services.RW()),
+							services.NewRule(services.KindDatabaseServer, services.RO()),
 							// this rule allows local proxy to update the remote cluster's host certificate authorities
 							// during certificates renewal
 							{
@@ -375,6 +399,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 						services.NewRule(services.KindAppServer, services.RO()),
 						services.NewRule(services.KindWebSession, services.RW()),
 						services.NewRule(services.KindKubeService, services.RW()),
+						services.NewRule(services.KindDatabaseServer, services.RO()),
 						// this rule allows local proxy to update the remote cluster's host certificate authorities
 						// during certificates renewal
 						{
@@ -597,7 +622,8 @@ func (r BuiltinRole) IsServer() bool {
 		r.Role == teleport.RoleNode ||
 		r.Role == teleport.RoleAuth ||
 		r.Role == teleport.RoleApp ||
-		r.Role == teleport.RoleKube
+		r.Role == teleport.RoleKube ||
+		r.Role == teleport.RoleDatabase
 }
 
 // GetServerID extracts the identity from the full name. The username
@@ -683,6 +709,12 @@ type RemoteUser struct {
 
 	// KubernetesUsers is a list of Kubernetes users
 	KubernetesUsers []string `json:"kubernetes_users"`
+
+	// DatabaseNames is a list of database names a user can connect to.
+	DatabaseNames []string `json:"database_names"`
+
+	// DatabaseUsers is a list of database users a user can connect as.
+	DatabaseUsers []string `json:"database_users"`
 
 	// Identity is source x509 used to build this role
 	Identity tlsca.Identity

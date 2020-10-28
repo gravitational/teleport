@@ -23,13 +23,16 @@ message KeepAlive {
         (gogoproto.jsontag) = "expires"
     ];
     // Type is the type of keep alive, used by servers. At the moment only
-    // "node" and "app" are supported.
+    // "node", "app" and "database" are supported.
     enum KeepAliveType {
         UNKNOWN = 0;
         NODE = 1;
         APP = 2;
+        DATABASE = 3;
     }
     KeepAliveType Type = 9 [ (gogoproto.jsontag) = "type" ];
+    // HostID is an optional UUID of the host the resource belongs to.
+    string HostID = 10 [ (gogoproto.jsontag) = "host_id,omitempty" ];
 }
 
 // Metadata is resource metadata
@@ -128,7 +131,56 @@ message ResourceHeader {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata,omitempty" ];
 }
 
-// ServerV2 represents a Node, App, Proxy or Auth server in a Teleport cluster.
+// DatabaseServerV2 represents a database access server.
+message DatabaseServerV2 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is the database server resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource subkind.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is the database server metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is the database server spec.
+    DatabaseServerSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// DatabaseServerSpecV2 is the database server spec.
+message DatabaseServerSpecV2 {
+    // Description is a free-form text describing this database server.
+    string Description = 1 [ (gogoproto.jsontag) = "description,omitempty" ];
+    // Protocol is the database type e.g. postgres, mysql, etc.
+    string Protocol = 2 [ (gogoproto.jsontag) = "protocol" ];
+    // URI is the database connection address.
+    string URI = 3 [ (gogoproto.jsontag) = "uri" ];
+    // CACert is an optional base64-encoded database CA certificate.
+    bytes CACert = 4 [ (gogoproto.jsontag) = "ca_cert,omitempty" ];
+    // AWS contains AWS specific settings for RDS/Aurora databases.
+    AWS AWS = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "aws" ];
+    // Version is the Teleport version that the server is running.
+    string Version = 6 [ (gogoproto.jsontag) = "version" ];
+    // Hostname is the database server hostname.
+    string Hostname = 7 [ (gogoproto.jsontag) = "hostname" ];
+    // HostID is the ID of the host the database server is running on.
+    string HostID = 8 [ (gogoproto.jsontag) = "host_id" ];
+    // DynamicLabels is the database server dynamic labels.
+    map<string, CommandLabelV2> DynamicLabels = 9
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
+    // Rotation contains the server CA rotation information.
+    Rotation Rotation = 10
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "rotation,omitempty" ];
+}
+
+// AWS contains AWS specific settings such as region.
+message AWS {
+    // Region is a AWS cloud region.
+    string Region = 1 [ (gogoproto.jsontag) = "region,omitempty" ];
+}
+
+// ServerV2 represents a Node, App, Database, Proxy or Auth server in a Teleport cluster.
 message ServerV2 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
@@ -883,6 +935,18 @@ message RoleConditions {
         (gogoproto.jsontag) = "kubernetes_labels,omitempty",
         (gogoproto.customtype) = "Labels"
     ];
+
+    // DatabaseLabels are used in RBAC system to allow/deny access to databases.
+    wrappers.LabelValues DatabaseLabels = 11 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "db_labels,omitempty",
+        (gogoproto.customtype) = "Labels"
+    ];
+
+    // DatabaseNames is a list of database names this role is allowed to connect to.
+    repeated string DatabaseNames = 12 [ (gogoproto.jsontag) = "db_names,omitempty" ];
+    // DatabaseUsers is a list of databaes users this role is allowed to connect as.
+    repeated string DatabaseUsers = 13 [ (gogoproto.jsontag) = "db_users,omitempty" ];
 }
 
 // AccessRequestConditions is a matcher for allow/deny restrictions on

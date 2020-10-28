@@ -435,6 +435,21 @@ const (
 	Different = iota
 )
 
+// Compare compares two provided resources.
+func Compare(a, b Resource) int {
+	if serverA, ok := a.(Server); ok {
+		if serverB, ok := b.(Server); ok {
+			return CompareServers(serverA, serverB)
+		}
+	}
+	if dbA, ok := a.(DatabaseServer); ok {
+		if dbB, ok := b.(DatabaseServer); ok {
+			return CompareDatabaseServers(dbA, dbB)
+		}
+	}
+	return Different
+}
+
 // CompareServers returns difference between two server
 // objects, Equal (0) if identical, OnlyTimestampsDifferent(1) if only timestamps differ, Different(2) otherwise
 func CompareServers(a, b Server) int {
@@ -475,8 +490,8 @@ func CompareServers(a, b Server) int {
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
 		return Different
 	}
-	// If this server is proxying applications, compare the applications to
-	// make sure they match.
+
+	// If this server is proxying applications, compare them to make sure they match.
 	if a.GetKind() == KindAppServer {
 		return CompareApps(a.GetApps(), b.GetApps())
 	}
@@ -548,7 +563,7 @@ const ServerSpecV2Schema = `{
   "type": "object",
   "additionalProperties": false,
   "properties": {
-	"version": {"type": "string"},
+    "version": {"type": "string"},
     "addr": {"type": "string"},
     "protocol": {"type": "integer"},
     "public_addr": {"type": "string"},

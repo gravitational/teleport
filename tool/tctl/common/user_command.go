@@ -42,6 +42,8 @@ type UserCommand struct {
 	allowedLogins string
 	kubeUsers     string
 	kubeGroups    string
+	dbNames       string
+	dbUsers       string
 	roles         string
 	ttl           time.Duration
 
@@ -70,6 +72,10 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 		Default("").StringVar(&u.kubeUsers)
 	u.userAdd.Flag("k8s-groups", "Kubernetes groups to assign to a user.").
 		Default("").StringVar(&u.kubeGroups)
+	u.userAdd.Flag("db-names", "Database names this user can log into.").
+		Default("").StringVar(&u.dbNames)
+	u.userAdd.Flag("db-users", "Database users this user can log in as.").
+		Default("").StringVar(&u.dbUsers)
 	u.userAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.SignupTokenTTL, defaults.MaxSignupTokenTTL)).
 		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).DurationVar(&u.ttl)
@@ -190,6 +196,9 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 	if u.kubeUsers == "" {
 		u.kubeUsers = u.login
 	}
+	if u.dbUsers == "" {
+		u.dbUsers = u.login
+	}
 	var kubeGroups []string
 	if u.kubeGroups != "" {
 		kubeGroups = strings.Split(u.kubeGroups, ",")
@@ -204,6 +213,8 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 		teleport.TraitLogins:     strings.Split(u.allowedLogins, ","),
 		teleport.TraitKubeUsers:  strings.Split(u.kubeUsers, ","),
 		teleport.TraitKubeGroups: kubeGroups,
+		teleport.TraitDBNames:    strings.Split(u.dbNames, ","),
+		teleport.TraitDBUsers:    strings.Split(u.dbUsers, ","),
 	}
 
 	user.SetTraits(traits)

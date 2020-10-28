@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 )
 
 // ClusterName returns cluster name from organization
@@ -97,6 +98,26 @@ func ParseCertificateRequestPEM(bytes []byte) (*x509.CertificateRequest, error) 
 		return nil, trace.BadParameter(err.Error())
 	}
 	return csr, nil
+}
+
+// GenerateCertificateRequestPEM returns PEM-encoded certificate signing
+// request from the provided subject and private key.
+func GenerateCertificateRequestPEM(subject pkix.Name, privateKeyBytes []byte) ([]byte, error) {
+	privateKey, err := ssh.ParseRawPrivateKey(privateKeyBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	csr := &x509.CertificateRequest{
+		Subject: subject,
+	}
+	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, csr, privateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE REQUEST",
+		Bytes: csrBytes,
+	}), nil
 }
 
 // ParseCertificatePEM parses PEM-encoded certificate
