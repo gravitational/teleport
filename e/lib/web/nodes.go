@@ -37,14 +37,14 @@ func (p *Plugin) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 	script, err := getNodeJoinScript(token, p.ProxyClient)
 	if err != nil {
 		log.WithError(err).Info("Failed to return the install node script.")
-		http.Error(w, scripts.ErrorBashScript, http.StatusBadRequest)
+		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
 		log.WithError(err).Debug("Failed to return the install node script.")
-		http.Error(w, scripts.ErrorBashScript, http.StatusInternalServerError)
+		w.Write(scripts.ErrorBashScript)
 	}
 
 	return nil, nil

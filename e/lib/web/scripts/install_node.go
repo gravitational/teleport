@@ -16,11 +16,11 @@ func SetScriptHeaders(h http.Header) {
 
 // ErrorBashScript is used to display friendly error message when
 // there is an error prepping the actual script.
-const ErrorBashScript = `
+var ErrorBashScript = []byte(`
 #!/bin/sh
 echo -e "An error has occurred. \nThe token may be expired or invalid. \nPlease check log for further details."
 exit 1
-`
+`)
 
 // InstallNodeBashScript is the script that will run on user's machine
 // to install teleport and join a teleport cluster.
