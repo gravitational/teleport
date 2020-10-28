@@ -76,8 +76,8 @@ func (c transportConfig) Check() error {
 	return nil
 }
 
-// transport is a rewriting http.RoundTripper that can forward requests a
-// application service.
+// transport is a rewriting http.RoundTripper that can forward requests to
+// an application service.
 type transport struct {
 	c *transportConfig
 
@@ -124,7 +124,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-// rewriteRequest applies any rewriting rules to request before it's forwarded.
+// rewriteRequest applies any rewriting rules to the request before it's forwarded.
 func (t *transport) rewriteRequest(r *http.Request) error {
 	// Set dummy values for the request forwarder. Dialing through the tunnel is
 	// actually performed using the transport created for this session but these
@@ -173,7 +173,7 @@ func dialFunc(c *transportConfig) func(ctx context.Context, network string, addr
 	}
 }
 
-// configureTLS creates and configures a *tls.Config will be used for
+// configureTLS creates and configures a *tls.Config that will be used for
 // mutual authentication.
 func configureTLS(c *transportConfig) (*tls.Config, error) {
 	tlsConfig := utils.TLSConfig(c.cipherSuites)

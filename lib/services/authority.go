@@ -241,7 +241,7 @@ type CertAuthority interface {
 	GetTLSKeyPairs() []TLSKeyPair
 	// JWTSigner returns the active JWT key used to sign tokens.
 	JWTSigner() (*jwt.Key, error)
-	// GetJWTKeyPairs set all JWT key pairs.
+	// GetJWTKeyPairs gets all JWT key pairs.
 	GetJWTKeyPairs() []JWTKeyPair
 	// SetJWTKeyPairs sets all JWT key pairs.
 	SetJWTKeyPairs(keyPairs []JWTKeyPair)
@@ -475,7 +475,7 @@ func (ca *CertAuthorityV2) GetJWTKeyPairs() []JWTKeyPair {
 	return ca.Spec.JWTKeyPairs
 }
 
-// SetJWTKeyPairs sets ll JWT keypairs used to sign a JWT.
+// SetJWTKeyPairs sets all JWT keypairs used to sign a JWT.
 func (ca *CertAuthorityV2) SetJWTKeyPairs(keyPairs []JWTKeyPair) {
 	ca.Spec.JWTKeyPairs = keyPairs
 }

@@ -139,7 +139,7 @@ type RewritingHandler struct {
 }
 
 // Check if this request should be forwarded to an application handler to
-// handled by the UI and handle the request appropriately.
+// be handled by the UI and handle the request appropriately.
 func (h *RewritingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// If the request is either to the fragment authentication endpoint or if the
 	// request is already authenticated (has a session cookie), forward to

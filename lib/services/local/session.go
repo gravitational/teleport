@@ -79,7 +79,7 @@ func (s *IdentityService) UpsertAppSession(ctx context.Context, session services
 	return nil
 }
 
-// DeleteAppSession removes an application web sessions.
+// DeleteAppSession removes an application web session.
 func (s *IdentityService) DeleteAppSession(ctx context.Context, req services.DeleteAppSessionRequest) error {
 	if err := s.Delete(ctx, backend.Key(appsPrefix, sessionsPrefix, req.SessionID)); err != nil {
 		return trace.Wrap(err)

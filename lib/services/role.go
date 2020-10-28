@@ -1859,7 +1859,7 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 }
 
 // CheckAccessToApp checks if a role has access to an application. Deny rules
-// are checked first then allow rules. Access to an application is determined by
+// are checked first, then allow rules. Access to an application is determined by
 // namespaces and labels.
 func (set RoleSet) CheckAccessToApp(namespace string, app *App) error {
 	var errs []error
@@ -1883,7 +1883,7 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *App) error {
 		}
 	}
 
-	// Check allow rules: namespace and label both have to match in to be granted access.
+	// Check allow rules: namespace and label both have to match to be granted access.
 	for _, role := range set {
 		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), namespace)
 		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Allow), CombineLabels(app.StaticLabels, app.DynamicLabels))

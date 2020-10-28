@@ -91,7 +91,7 @@ func (s *Suite) SetUpSuite(c *check.C) {
 	s.user, s.role, err = auth.CreateUserAndRole(s.tlsServer.Auth(), "foo", []string{"foo-login"})
 	c.Assert(err, check.IsNil)
 
-	// Give the users role application label "bar: baz".
+	// Grant the user's role access to the application label "bar: baz".
 	s.role.SetAppLabels(services.Allow, services.Labels{"bar": []string{"baz"}})
 	err = s.tlsServer.Auth().UpsertRole(context.Background(), s.role)
 	c.Assert(err, check.IsNil)
@@ -126,7 +126,7 @@ func (s *Suite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 	s.hostport = u.Host
 
-	// Create a services.App that will be used for each tests.
+	// Create a services.App that will be used for each test.
 	staticLabels := map[string]string{
 		"bar": "baz",
 	}
@@ -175,7 +175,7 @@ func (s *Suite) SetUpTest(c *check.C) {
 	s.clientCertificate, err = tls.X509KeyPair(certificate, privateKey)
 	c.Assert(err, check.IsNil)
 
-	// Make sure the upload
+	// Make sure the upload directory is created.
 	err = os.MkdirAll(filepath.Join(
 		s.dataDir, teleport.LogsDir, teleport.ComponentUpload,
 		events.StreamingLogsDir, defaults.Namespace,
@@ -217,7 +217,7 @@ func (s *Suite) TearDownTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-// TestStart makes sure after the server has started a correct services.App
+// TestStart makes sure that after the server has started, a correct services.App
 // has been created.
 func (s *Suite) TestStart(c *check.C) {
 	// Fetch the services.App that the service heartbeat.
@@ -226,7 +226,7 @@ func (s *Suite) TestStart(c *check.C) {
 	c.Assert(servers, check.HasLen, 1)
 	server := servers[0]
 
-	// Check that the services.Server that was heartbeat is correct. For example,
+	// Check that the services.Server sent via heartbeat is correct. For example,
 	// check that the dynamic labels have been evaluated.
 	c.Assert(server.GetApps(), check.HasLen, 1)
 	app := server.GetApps()[0]
@@ -267,13 +267,13 @@ func (s *Suite) TestWaitStop(c *check.C) {
 	c.Assert(err, check.Equals, context.Canceled)
 }
 
-// TestHandleConnection verify requests with valid certificates are forwarded.
+// TestHandleConnection verifies that requests with valid certificates are forwarded.
 func (s *Suite) TestHandleConnection(c *check.C) {
 	pr, pw := net.Pipe()
 	defer pw.Close()
 	defer pr.Close()
 
-	// Create an HTTP client authenticated with the users credentials. This acts
+	// Create an HTTP client authenticated with the user's credentials. This acts
 	// like the proxy does.
 	httpClient := &http.Client{
 		Transport: &http.Transport{
@@ -284,13 +284,13 @@ func (s *Suite) TestHandleConnection(c *check.C) {
 				// RootCAs is a pool of host certificates used to verify the identity of
 				// the server this client is connecting to.
 				RootCAs: s.hostCertPool,
-				// Certificates is the users application specific certificate.
+				// Certificates is the user's application specific certificate.
 				Certificates: []tls.Certificate{s.clientCertificate},
 			},
 		},
 	}
 
-	// Handle the connection in another go routine.
+	// Handle the connection in another goroutine.
 	go s.appServer.HandleConnection(pw)
 
 	// Issue request.
@@ -314,7 +314,7 @@ func (s *Suite) TestHandleConnection(c *check.C) {
 func (s *Suite) TestAuthorize(c *check.C) {
 }
 
-// TestGetConfigForClient verifies that only the CA of the requested cluster are returned.
+// TestGetConfigForClient verifies that only the CAs of the requested cluster are returned.
 func (s *Suite) TestGetConfigForClient(c *check.C) {
 }
 
@@ -326,7 +326,7 @@ func (s *Suite) TestRewriteRequest(c *check.C) {
 func (s *Suite) TestRewriteResponse(c *check.C) {
 }
 
-// TestSessionClose make sure sessions are closed after the given session time period.
+// TestSessionClose makes sure sessions are closed after the given session time period.
 func (s *Suite) TestSessionClose(c *check.C) {
 }
 

@@ -268,7 +268,7 @@ func (p *GenerateAppTokenRequest) Check() error {
 	return nil
 }
 
-// GenerateKeyPair  generate and return a PEM encoded private and public
+// GenerateKeyPair generates and return a PEM encoded private and public
 // key in the format used by this package.
 func GenerateKeyPair() ([]byte, []byte, error) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)

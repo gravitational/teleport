@@ -65,10 +65,10 @@ func (h *Handler) siteAppsGet(w http.ResponseWriter, r *http.Request, p httprout
 }
 
 type createAppSessionRequest struct {
-	// FQDN is the full qualified domain name of the application.
+	// FQDN is the fully qualified domain name of the application.
 	FQDN string `json:"fqdn"`
 
-	// PublicAddr is the public address the application.
+	// PublicAddr is the public address of the application.
 	PublicAddr string `json:"public_addr"`
 
 	// ClusterName is the cluster within which this application is running.
@@ -242,9 +242,9 @@ func (h *Handler) validateAppSessionRequest(ctx context.Context, req *createAppS
 		return nil, trace.Wrap(err)
 	}
 
-	// If the request contains a public address and cluster name (for example, if
-	// it came from the application launcher in the Web UI) directly exactly
-	// resolve the caller is requesting instead of best effort FQDN resolution.
+	// If the request contains a public address and cluster name (for example, if it came
+	// from the application launcher in the Web UI) then directly exactly resolve the
+	// application that the caller is requesting, instead of using best effort FQDN resolution.
 	if req.PublicAddr != "" && req.ClusterName != "" {
 		app, server, clusterName, err = h.resolveDirect(ctx, req.PublicAddr, req.ClusterName)
 		if err != nil {

@@ -560,7 +560,7 @@ type BuiltinRole struct {
 	Identity tlsca.Identity
 }
 
-// IsServer returns true if the role is one of auth, proxy or node
+// IsServer returns true if the role is one of auth, proxy, node or app
 func (r BuiltinRole) IsServer() bool {
 	return r.Role == teleport.RoleProxy ||
 		r.Role == teleport.RoleNode ||

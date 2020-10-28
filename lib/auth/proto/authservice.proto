@@ -429,7 +429,7 @@ service AuthService {
     // CreateAppSession creates an application web session. Application web
     // sessions represent a browser session the client holds.
     rpc CreateAppSession(CreateAppSessionRequest) returns (CreateAppSessionResponse);
-    // DeleteAppSession removes an application web sessions.
+    // DeleteAppSession removes an application web session.
     rpc DeleteAppSession(DeleteAppSessionRequest) returns (google.protobuf.Empty);
     // DeleteAllAppSessions removes all application web sessions.
     rpc DeleteAllAppSessions(google.protobuf.Empty) returns (google.protobuf.Empty);

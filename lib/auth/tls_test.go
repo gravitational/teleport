@@ -733,7 +733,7 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	// At this point in rotation, two JWT keys pairs should exist.
+	// At this point in rotation, two JWT key pairs should exist.
 	oldCA, err = s.server.Auth().GetCertAuthority(services.CertAuthID{
 		DomainName: s.server.ClusterName(),
 		Type:       services.JWTSigner,
@@ -756,7 +756,7 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	// New tokens should now fail the validate with the old key.
+	// New tokens should now fail to validate with the old key.
 	newJWT, err := client.GenerateAppToken(context.Background(),
 		jwt.GenerateAppTokenRequest{
 			Username: "foo",
@@ -823,7 +823,7 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 	c.Assert(newCA.GetJWTKeyPairs(), check.HasLen, 1)
 	c.Assert(newCA.GetRotation().Phase, check.Equals, services.RotationPhaseStandby)
 
-	// Old token should not longer validate.
+	// Old token should no longer validate.
 	_, err = s.verifyJWT(clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), oldJWT)
 	c.Assert(err, check.NotNil)
 	_, err = s.verifyJWT(clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), newJWT)

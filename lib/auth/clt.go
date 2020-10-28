@@ -3074,7 +3074,7 @@ func (c *Client) UpsertAppSession(ctx context.Context, session services.WebSessi
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAppSession removes an application web sessions.
+// DeleteAppSession removes an application web session.
 func (c *Client) DeleteAppSession(ctx context.Context, req services.DeleteAppSessionRequest) error {
 	clt, err := c.grpc()
 	if err != nil {

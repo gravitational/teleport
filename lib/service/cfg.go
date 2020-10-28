@@ -535,7 +535,7 @@ type App struct {
 	// DynamicLabels is a list of dynamic labels to apply to this application.
 	DynamicLabels services.CommandLabels
 
-	// InsecureSkipVerify is used to skip validating the servers certificate.
+	// InsecureSkipVerify is used to skip validating the server's certificate.
 	InsecureSkipVerify bool
 
 	// Rewrite defines a block that is used to rewrite requests and responses.

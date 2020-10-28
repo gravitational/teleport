@@ -47,7 +47,7 @@ type RotationGetter func(role teleport.Role) (*services.Rotation, error)
 
 // Config is the configuration for an application server.
 type Config struct {
-	// Clock used to control time.
+	// Clock is used to control time.
 	Clock clockwork.Clock
 
 	// DataDir is the path to the data directory for the server.
@@ -158,7 +158,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 
 	s.closeContext, s.closeFunc = context.WithCancel(ctx)
 
-	// Make copy of servers TLS configuration and update it with the specific
+	// Make copy of server's TLS configuration and update it with the specific
 	// functionality this server needs, like requiring client certificates.
 	s.tlsConfig = copyAndConfigureTLS(s.c.TLSConfig, s.getConfigForClient)
 	if err != nil {
@@ -259,7 +259,7 @@ func (s *Server) GetServerInfo() (services.Server, error) {
 	return s.server, nil
 }
 
-// Start starts heart beating the presence of service.Apps that this
+// Start starts heartbeating the presence of service.Apps that this
 // server is proxying along with any dynamic labels.
 func (s *Server) Start() {
 	for _, dynamicLabel := range s.dynamicLabels {
@@ -351,7 +351,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-// authenticate will check if request carries a session cookie matching a
+// authorize will check if request carries a session cookie matching a
 // session in the backend.
 func (s *Server) authorize(ctx context.Context, r *http.Request) (*tlsca.Identity, *services.App, error) {
 	// Only allow local and remote identities to proxy to an application.
@@ -427,7 +427,7 @@ func (s *Server) getApp(ctx context.Context, publicAddr string) (*services.App, 
 }
 
 // newHTTPServer creates an *http.Server that can authorize and forward
-// request to a target application.
+// requests to a target application.
 func (s *Server) newHTTPServer() *http.Server {
 	// Reuse the auth.Middleware to authorize requests but only accept
 	// certificates that were specifically generated for applications.
@@ -460,17 +460,17 @@ func (s *Server) getProxyPort() string {
 }
 
 // getConfigForClient returns the list of CAs that could have signed the
-// clients certificate.
+// client's certificate.
 func (s *Server) getConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, error) {
 	var clusterName string
 	var err error
 
-	// Try and extract the name of the cluster that signed the clients certificate.
+	// Try and extract the name of the cluster that signed the client's certificate.
 	if info.ServerName != "" {
 		clusterName, err = auth.DecodeClusterName(info.ServerName)
 		if err != nil {
 			if !trace.IsNotFound(err) {
-				s.log.Debugf("Ignoring unsupported cluster name name %q.", info.ServerName)
+				s.log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
 				clusterName = ""
 			}
 		}
@@ -485,7 +485,7 @@ func (s *Server) getConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, err
 		return nil, nil
 	}
 
-	// Don't modify the servers *tls.Config, create one per connection because
+	// Don't modify the server's *tls.Config, create one per connection because
 	// the requests could be coming from different clusters.
 	tlsCopy := s.tlsConfig.Clone()
 	tlsCopy.ClientCAs = pool
@@ -497,11 +497,11 @@ func (s *Server) getConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, err
 func copyAndConfigureTLS(config *tls.Config, fn func(*tls.ClientHelloInfo) (*tls.Config, error)) *tls.Config {
 	tlsConfig := config.Clone()
 
-	// Require clients present a certificate
+	// Require clients to present a certificate
 	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
 	// Configure function that will be used to fetch the CA that signed the
-	// clients certificate to verify the chain presented. If the client does not
+	// client's certificate to verify the chain presented. If the client does not
 	// pass in the cluster name, this functions pulls back all CA to try and
 	// match the certificate presented against any CA.
 	tlsConfig.GetConfigForClient = fn

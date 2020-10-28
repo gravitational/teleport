@@ -73,8 +73,8 @@ const (
 	// UserCA identifies the key as a user certificate authority
 	UserCA CertAuthType = "user"
 	// JWTSigner identifies type of certificate authority as JWT signer. In this
-	// case JWT is not a certificate authority because it does not issues
-	// certificates but rather an authority that signs tokens, however it behaves
+	// case JWT is not a certificate authority because it does not issue
+	// certificates but rather is an authority that signs tokens, however it behaves
 	// much like a CA in terms of rotation and storage.
 	JWTSigner CertAuthType = "jwt"
 )

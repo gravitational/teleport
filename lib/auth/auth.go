@@ -475,7 +475,7 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 	return certs.ssh, certs.tls, nil
 }
 
-// GenerateUserAppTestCert generates a application specific certificate, used
+// GenerateUserAppTestCert generates an application specific certificate, used
 // internally for tests.
 func (a *Server) GenerateUserAppTestCert(publicKey []byte, username string, ttl time.Duration, publicAddr string, clusterName string) ([]byte, error) {
 	user, err := a.Identity.GetUser(username, false)
