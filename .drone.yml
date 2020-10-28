@@ -28,9 +28,12 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
+    volumes:
+      - name: tmpfs
+        path: /tmpfs
     commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
-      - cd /go/src/github.com/gravitational/teleport
+      - mkdir -p /tmpfs/go/src/github.com/gravitational/teleport /tmpfs/go/cache
+      - cd /tmpfs/go/src/github.com/gravitational/teleport
       - git init && git remote add origin ${DRONE_REMOTE_URL}
       - |
         # handle pull requests
@@ -79,24 +82,29 @@ steps:
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmpfs
+        path: /tmpfs
     commands:
       - apk add --no-cache make
-      - chown -R $UID:$GID /go
+      - chown -R $UID:$GID /tmpfs/go
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
-      - cd /go/src/github.com/gravitational/teleport
+      - cd /tmpfs/go/src/github.com/gravitational/teleport
       - make -C build.assets buildbox
 
   - name: Run linter
     image: docker
     environment:
-      GOPATH: /go
+      GOCACHE: /tmpfs/go/cache
+      GOPATH: /tmpfs/go
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmpfs
+        path: /tmpfs
     commands:
       - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - cd /go/src/github.com/gravitational/teleport
+      - chown -R $UID:$GID /tmpfs/go
+      - cd /tmpfs/go/src/github.com/gravitational/teleport
       - make -C build.assets lint
 
   # https://discourse.drone.io/t/how-to-exit-a-pipeline-early-without-failing/3951
@@ -106,9 +114,12 @@ steps:
   # Drone exit code to speed up iteration on docs (as milv is much quicker to run)
   - name: Optionally skip tests
     image: docker:git
+    volumes:
+      - name: tmpfs
+        path: /tmpfs
     commands:
     - |
-        cd /go/src/github.com/gravitational/teleport
+        cd /tmpfs/go/src/github.com/gravitational/teleport
         echo -e "\n---> git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}\n"
         git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}
         git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs/' | grep -Ev '.md$' | grep -v ^$ | wc -l > /tmp/.change_count.txt
@@ -125,35 +136,41 @@ steps:
   - name: Run unit and chaos tests
     image: docker
     environment:
-      GOPATH: /go
+      GOCACHE: /tmpfs/go/cache
+      GOPATH: /tmpfs/go
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmpfs
+        path: /tmpfs
     commands:
       - apk add --no-cache make
-      - chown -R $UID:$GID /go
-      - cd /go/src/github.com/gravitational/teleport
+      - chown -R $UID:$GID /tmpfs/go
+      - cd /tmpfs/go/src/github.com/gravitational/teleport
       - make -C build.assets test
 
   - name: Run integration tests
     image: docker
     environment:
-      GOPATH: /go
+      GOCACHE: /tmpfs/go/cache
+      GOPATH: /tmpfs/go
       INTEGRATION_CI_KUBECONFIG:
         from_secret: INTEGRATION_CI_KUBECONFIG
-      KUBECONFIG: /go/kubeconfig.ci
+      KUBECONFIG: /tmpfs/go/kubeconfig.ci
       TEST_KUBE: true
     volumes:
       - name: dockersock
         path: /var/run
       - name: tmp-integration
         path: /tmp
+      - name: tmpfs
+        path: /tmpfs
     commands:
       - apk add --no-cache make
       # write kubeconfig to disk for use in kube integrations tests
       - echo "$INTEGRATION_CI_KUBECONFIG" > "$KUBECONFIG"
-      - chown -R $UID:$GID /go
-      - cd /go/src/github.com/gravitational/teleport
+      - chown -R $UID:$GID /tmpfs/go
+      - cd /tmpfs/go/src/github.com/gravitational/teleport
       - make -C build.assets integration
       - rm -f "$KUBECONFIG"
 
@@ -165,6 +182,8 @@ services:
         path: /var/run
       - name: tmp-dind
         path: /tmp
+      - name: tmpfs
+        path: /tmpfs
 
 volumes:
   - name: dockersock
@@ -173,6 +192,9 @@ volumes:
     temp: {}
   - name: tmp-integration
     temp: {}
+  - name: tmpfs
+    temp:
+      medium: memory
 
 ---
 kind: pipeline
@@ -299,9 +321,12 @@ clone:
 steps:
   - name: Check out code
     image: golang:1.14.4
+    volumes:
+      - name: tmpfs
+        path: /tmpfs
     commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport
-      - cd /go/src/github.com/gravitational/teleport
+      - mkdir -p /tmpfs/go/src/github.com/gravitational/teleport
+      - cd /tmpfs/go/src/github.com/gravitational/teleport
       - git init && git remote add origin ${DRONE_REMOTE_URL}
       - |
         # handle pull requests
@@ -327,9 +352,12 @@ steps:
 
   - name: Run docs tests (internal links only)
     image: golang:1.14.4
+    volumes:
+      - name: tmpfs
+        path: /tmpfs
     commands:
       - |
-        cd /go/src/github.com/gravitational/teleport
+        cd /tmpfs/go/src/github.com/gravitational/teleport
         git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
         if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
           echo "---> Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
@@ -350,6 +378,11 @@ steps:
           done
           else echo "---> No changes to docs detected, not running tests"
         fi
+
+volumes:
+  - name: tmpfs
+    temp:
+      medium: memory
 
 ---
 kind: pipeline
@@ -373,9 +406,12 @@ clone:
 steps:
   - name: Check out code
     image: golang:1.14.4
+    volumes:
+      - name: tmpfs
+        path: /tmpfs
     commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport
-      - cd /go/src/github.com/gravitational/teleport
+      - mkdir -p /tmpfs/go/src/github.com/gravitational/teleport
+      - cd /tmpfs/go/src/github.com/gravitational/teleport
       - git init && git remote add origin ${DRONE_REMOTE_URL}
       - |
         # handle pull requests
@@ -402,9 +438,12 @@ steps:
   - name: Run docs tests (external links only)
     image: golang:1.14.4
     failure: ignore
+    volumes:
+      - name: tmpfs
+        path: /tmpfs
     commands:
       - |
-        cd /go/src/github.com/gravitational/teleport
+        cd /tmpfs/go/src/github.com/gravitational/teleport
         git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
         if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
           echo "---> Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
@@ -425,6 +464,11 @@ steps:
           done
           else echo "---> No changes to docs detected, not running tests"
         fi
+
+volumes:
+  - name: tmpfs
+    temp:
+      medium: memory
 
 ---
 kind: pipeline
@@ -2908,6 +2952,6 @@ volumes:
 
 ---
 kind: signature
-hmac: ee47fbaec438cc2b42f5066442b1cbba3b512a0743055a7fbe5c43d40dc9d5a1
+hmac: 517c1b118554d59a5597ebd2d7dfd2ed9b0569e1768058fa50de4b92f4a407b4
 
 ...
