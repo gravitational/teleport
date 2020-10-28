@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// AppLabel describes application label
+// AppLabel describes an application label
 type AppLabel struct {
 	// Name is this label name
 	Name string `json:"name"`
@@ -42,7 +42,7 @@ type App struct {
 	FQDN string `json:"fqdn"`
 	// ClusterID is this app cluster ID
 	ClusterID string `json:"clusterId"`
-	// Labels is map of static labels associated with an application.
+	// Labels is a map of static labels associated with an application.
 	Labels []AppLabel `json:"labels"`
 }
 
@@ -74,7 +74,7 @@ func MakeApps(proxyName string, proxyHost string, appClusterName string, appServ
 	return result
 }
 
-// resolveFQDN will return the applications FQDN. This function can resolve
+// resolveFQDN will return the application's FQDN. This function can resolve
 // the FQDN for an application for local cluster and remote clusters.
 func resolveFQDN(proxyName string, proxyHost string, appClusterName string, app services.App) string {
 	// Use application public address if running on proxy.

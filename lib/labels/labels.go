@@ -61,7 +61,7 @@ func (c *DynamicConfig) CheckAndSetDefaults() error {
 		if label.GetPeriod() < time.Second {
 			label.SetPeriod(time.Second)
 			labels[name] = label
-			c.Log.Warnf("Label period can't be less that 1 second. Period for label %q was set to 1 second.", name)
+			c.Log.Warnf("Label period can't be less than 1 second. Period for label %q was set to 1 second.", name)
 		}
 	}
 	c.Labels = labels
@@ -69,7 +69,7 @@ func (c *DynamicConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Dynamic allow defining a set of labels whose output is the result
+// Dynamic allows defining a set of labels whose output is the result
 // of some command execution. Dynamic labels can be configured to update
 // periodically to provide updated information.
 type Dynamic struct {
@@ -144,11 +144,11 @@ func (l *Dynamic) periodicUpdateLabel(name string, label services.CommandLabel) 
 	}
 }
 
-// updateLabel will run a command the update the value of a label.
+// updateLabel will run a command, then update the value of a label.
 func (l *Dynamic) updateLabel(name string, label services.CommandLabel) {
 	out, err := exec.Command(label.GetCommand()[0], label.GetCommand()[1:]...).Output()
 	if err != nil {
-		l.c.Log.Errorf("Failed run command and update label: %v.", err)
+		l.c.Log.Errorf("Failed to run command and update label: %v.", err)
 		label.SetResult(err.Error() + " output: " + string(out))
 	} else {
 		label.SetResult(strings.TrimSpace(string(out)))

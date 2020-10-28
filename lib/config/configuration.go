@@ -1244,7 +1244,7 @@ func parseLabels(spec string) (map[string]string, services.CommandLabels, error)
 		return static, dynamic, nil
 	}
 
-	// Loop over all parses labels and set either static or dynamic labels.
+	// Loop over all parsed labels and set either static or dynamic labels.
 	for key, value := range lmap {
 		dynamicLabel, err := isCmdLabelSpec(value)
 		if err != nil {

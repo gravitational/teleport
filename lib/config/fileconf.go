@@ -908,7 +908,7 @@ type Proxy struct {
 	KeyPairs []KeyPair `yaml:"https_keypairs"`
 }
 
-// KeyPair represent a path on disk to a private key and certificate.
+// KeyPair represents a path on disk to a private key and certificate.
 type KeyPair struct {
 	// PrivateKey is the path on disk to a PEM encoded private key,
 	PrivateKey string `yaml:"key_file"`

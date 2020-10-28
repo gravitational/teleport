@@ -851,7 +851,7 @@ func printNodesAsText(nodes []services.Server, verbose bool) {
 
 func showApps(servers []services.Server, verbose bool) {
 	// In verbose mode, print everything on a single line and include host UUID.
-	// In normal mode chunk the labels and print two per line and allow multiple
+	// In normal mode, chunk the labels, print two per line and allow multiple
 	// lines per node.
 	if verbose {
 		t := asciitable.MakeTable([]string{"Application", "Host", "Public Address", "URI", "Labels"})

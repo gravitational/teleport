@@ -102,7 +102,7 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 		return nil, trace.Wrap(err)
 	}
 
-	// Each chunk has it's own ID. Create a new UUID for this chunk which will be
+	// Each chunk has its own ID. Create a new UUID for this chunk which will be
 	// emitted in a new event to the audit log that can be use to aggregate all
 	// chunks for a particular session.
 	chunkID := uuid.New()
@@ -237,7 +237,7 @@ func (s *sessionCache) expire(key string, el interface{}) {
 	}
 
 	// Closing the stream writer may trigger a flush operation which could be
-	// time-consuming. Launch in another go routine since this occurs under a
+	// time-consuming. Launch in another goroutine since this occurs under a
 	// lock and expire can get called during a "get" operation on the ttlmap.
 	go s.closeStreamWriter(s.closeContext, session)
 
@@ -252,7 +252,7 @@ func (s *sessionCache) closeStreamWriter(ctx context.Context, session *session) 
 	}
 }
 
-// expireSessions ticks every second trying to close expire sessions.
+// expireSessions ticks every second trying to close expired sessions.
 func (s *sessionCache) expireSessions() {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()

@@ -170,7 +170,7 @@ func (s *sessionCache) expire(key string, el interface{}) {
 	}
 }
 
-// expireSessions ticks every second trying to close expire sessions.
+// expireSessions ticks every second trying to close expired sessions.
 func (s *sessionCache) expireSessions() {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()

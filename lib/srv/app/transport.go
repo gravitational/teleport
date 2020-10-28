@@ -135,7 +135,7 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-// rewriteRequest applies any rewriting rules to request before it's forwarded.
+// rewriteRequest applies any rewriting rules to the request before it's forwarded.
 func (t *transport) rewriteRequest(r *http.Request) error {
 	// Update the target address of the request so it's forwarded correctly.
 	r.URL.Scheme = t.uri.Scheme
@@ -198,14 +198,14 @@ func (t *transport) emitAuditEvent(req *http.Request, resp *http.Response) error
 	return nil
 }
 
-// configureTLS creates and configures a *tls.Config will be used for
+// configureTLS creates and configures a *tls.Config that will be used for
 // mutual authentication.
 func configureTLS(c *transportConfig) (*tls.Config, error) {
 	tlsConfig := utils.TLSConfig(c.cipherSuites)
 
-	// Don't verify the servers certificate if either Teleport was started with
-	// the --insecure flag or insecure skip verify was specifically requested in
-	// application config.
+	// Don't verify the server's certificate if Teleport was started with
+	// the --insecure flag, or 'insecure_skip_verify' was specifically requested in
+	// the application config.
 	tlsConfig.InsecureSkipVerify = (lib.IsInsecureDevMode() || c.insecureSkipVerify)
 
 	return tlsConfig, nil

@@ -373,7 +373,7 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	c.Assert(out, check.DeepEquals, []services.Server{auth})
 }
 
-// NewAapServer creates a new application server resource.
+// NewAppServer creates a new application server resource.
 func NewAppServer(name string, internalAddr string, publicAddr string) *services.ServerV2 {
 	return &services.ServerV2{
 		Kind:    services.KindAppServer,

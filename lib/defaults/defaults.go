@@ -436,7 +436,7 @@ const (
 	// RoleAuthService is authentication and authorization service,
 	// the only stateful role in the system
 	RoleAuthService = "auth"
-	// RoleApp is a application proxy.
+	// RoleApp is an application proxy.
 	RoleApp = "app"
 )
 
@@ -685,13 +685,13 @@ func Transport() (*http.Transport, error) {
 	}
 	tr := defaultTransport.Clone()
 
-	// Increase the size of the transports connection pool. This substantially
+	// Increase the size of the transport's connection pool. This substantially
 	// improves the performance of Teleport under load as it reduces the number
 	// of TLS handshakes performed.
 	tr.MaxIdleConns = HTTPMaxIdleConns
 	tr.MaxIdleConnsPerHost = HTTPMaxIdleConnsPerHost
 
-	// Set IdleConnTimeout on the transport, this defines the maximum amount of
+	// Set IdleConnTimeout on the transport. This defines the maximum amount of
 	// time before idle connections are closed. Leaving this unset will lead to
 	// connections open forever and will cause memory leaks in a long running
 	// process.

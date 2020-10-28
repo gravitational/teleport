@@ -133,7 +133,7 @@ func (s *Suite) TestPublicOnlyVerify(c *check.C) {
 	c.Assert(err, check.NotNil)
 }
 
-// TestExpiry checks that tokens expiration works.
+// TestExpiry checks that token expiration works.
 func (s *Suite) TestExpiry(c *check.C) {
 	_, privateBytes, err := GenerateKeyPair()
 	c.Assert(err, check.IsNil)

@@ -2026,7 +2026,7 @@ func (a *ServerWithRoles) GetAppServers(ctx context.Context, namespace string, o
 		return nil, trace.Wrap(err)
 	}
 
-	// Loop over all servers and filter out applications on each server and only
+	// Loop over all servers, filter out applications on each server and only
 	// return the applications the caller has access to.
 	for _, server := range servers {
 		filteredApps := make([]*services.App, 0, len(server.GetApps()))
@@ -2133,7 +2133,7 @@ func (a *ServerWithRoles) UpsertAppSession(ctx context.Context, session services
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAppSession removes an application web sessions.
+// DeleteAppSession removes an application web session.
 func (a *ServerWithRoles) DeleteAppSession(ctx context.Context, req services.DeleteAppSessionRequest) error {
 	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
 		return trace.Wrap(err)

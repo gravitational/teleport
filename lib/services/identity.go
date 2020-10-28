@@ -243,7 +243,7 @@ type AppSession interface {
 	UpsertAppSession(context.Context, WebSession) error
 	// DeleteAppSession removes an application web session.
 	DeleteAppSession(context.Context, DeleteAppSessionRequest) error
-	// DeleteAllAppSessions removes all application web session.
+	// DeleteAllAppSessions removes all application web sessions.
 	DeleteAllAppSessions(context.Context) error
 }
 

@@ -508,7 +508,7 @@ func (*TeleportWebSessionMarshaler) MarshalWebSession(ws WebSession, opts ...Mar
 	}
 }
 
-// GetAppWebSessionRequest contains the parameters to request a application
+// GetAppWebSessionRequest contains the parameters to request an application
 // web session.
 type GetAppSessionRequest struct {
 	// SessionID is the session ID of the application session itself.
