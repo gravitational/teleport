@@ -42,6 +42,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// siteAppsGet returns a list of applications in a form the UI can present.
 func (h *Handler) siteAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	appClusterName := p.ByName("site")
 
@@ -244,7 +245,7 @@ func (h *Handler) validateAppSessionRequest(ctx context.Context, req *createAppS
 
 	// If the request contains a public address and cluster name (for example, if it came
 	// from the application launcher in the Web UI) then directly exactly resolve the
-	// application that the caller is requesting, instead of using best effort FQDN resolution.
+	// application that the caller is requesting. If it does not, do best effort FQDN resolution.
 	if req.PublicAddr != "" && req.ClusterName != "" {
 		app, server, clusterName, err = h.resolveDirect(ctx, req.PublicAddr, req.ClusterName)
 		if err != nil {
@@ -296,11 +297,11 @@ func (h *Handler) resolveDirect(ctx context.Context, publicAddr string, clusterN
 // resolveFQDN makes a best effort attempt to resolve FQDN to an application
 // running a root or leaf cluster.
 //
-// Known edge cases this function can incorrectly resolve an application exist.
-// For example, if you have an application named "acme" within both the root
-// and leaf cluster, this method will always return "acme" running within the
-// root cluster. Always supply public address and cluster name to
-// deterministically resolve an application.
+// Note: This function can incorrectly resolve application names. For example,
+// if you have an application named "acme" within both the root and leaf
+// cluster, this method will always return "acme" running within the root
+// cluster. Always supply public address and cluster name to deterministically
+// resolve an application.
 func (h *Handler) resolveFQDN(ctx context.Context, fqdn string) (*services.App, services.Server, string, error) {
 	// Parse the address to remove the port if it's set.
 	addr, err := utils.ParseAddr(fqdn)

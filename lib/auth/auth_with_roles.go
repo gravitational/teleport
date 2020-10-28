@@ -398,6 +398,7 @@ func (a *ServerWithRoles) KeepAliveNode(ctx context.Context, handle services.Kee
 	return a.authServer.KeepAliveNode(ctx, handle)
 }
 
+// KeepAliveServer updates expiry time of a server resource.
 func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle services.KeepAlive) error {
 	clusterName, err := a.GetDomainName()
 	if err != nil {

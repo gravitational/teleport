@@ -2839,6 +2839,7 @@ func (s *TLSSuite) TestAPIBackwardsCompatibilityLogic(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `test-other-error`)
 }
 
+// verifyJWT verifies that the token was signed by one the passed in key pair.
 func (s *TLSSuite) verifyJWT(clock clockwork.Clock, clusterName string, pairs []services.JWTKeyPair, token string) (*jwt.Claims, error) {
 	errs := []error{}
 	for _, pair := range pairs {
