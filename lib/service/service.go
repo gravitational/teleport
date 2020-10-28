@@ -2786,14 +2786,14 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
+		process.BroadcastEvent(Event{Name: AppsReady, Payload: nil})
+		log.Infof("All applications successfully started.")
+
 		// Block and wait while the server and agent pool are running.
 		if err := appServer.Wait(); err != nil {
 			return trace.Wrap(err)
 		}
 		agentPool.Wait()
-
-		process.BroadcastEvent(Event{Name: AppsReady, Payload: nil})
-		log.Infof("All applications successfully started.")
 
 		return nil
 	})

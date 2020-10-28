@@ -95,14 +95,15 @@ Fill out and run this command on a node to make the application available:
    --token=%v \
    --ca-pin=%v \
    --auth-server=%v \
-   --app-name=%v \
-   --app-uri=%v \
-   --app-public-addr=%v 
+   --app-name=%-30v \ # Change "%v" to the name of your application.
+   --app-uri=%-33v # Change "%v" to the address of your application.
+
+Your application will be available at %v.
 
 Please note:
 
   - This invitation token will expire in %d minutes.
-  - %v must be reachable from the new application service..
+  - %v must be reachable from the new application service.
   - Update DNS to point %v to the Teleport proxy.
-  - Add a TLS certificate for %v to the Teleport proxy.
+  - Add a TLS certificate for %v to the Teleport proxy under "https_keypairs".
 `
