@@ -58,9 +58,6 @@ type TokenCommand struct {
 	// appURI is the URI (target address) of the application to add.
 	appURI string
 
-	// appPublicAddr is the public address of the application to add.
-	appPublicAddr string
-
 	// ttl is how long the token will live for.
 	ttl time.Duration
 
@@ -87,9 +84,8 @@ func (c *TokenCommand) Initialize(app *kingpin.Application, config *service.Conf
 	c.tokenAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v hour, maximum is %v hours",
 		int(defaults.SignupTokenTTL/time.Hour), int(defaults.MaxSignupTokenTTL/time.Hour))).
 		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).DurationVar(&c.ttl)
-	c.tokenAdd.Flag("app-name", "Name of the application to add").Default("<Application Name>").StringVar(&c.appName)
-	c.tokenAdd.Flag("app-uri", "URI of the application to add").Default("<URI of Application>").StringVar(&c.appURI)
-	c.tokenAdd.Flag("app-public-addr", "Public address of the application to add").Default("<Public Address of Application>").StringVar(&c.appPublicAddr)
+	c.tokenAdd.Flag("app-name", "Name of the application to add").Default("example-app").StringVar(&c.appName)
+	c.tokenAdd.Flag("app-uri", "URI of the application to add").Default("http://localhost:8080").StringVar(&c.appURI)
 
 	// "tctl tokens rm ..."
 	c.tokenDel = tokens.Command("rm", "Delete/revoke an invitation token").Alias("del")
@@ -146,26 +142,37 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 	if len(authServers) == 0 {
-		return trace.Errorf("this cluster has no auth servers")
+		return trace.BadParameter("this cluster has no auth servers")
 	}
 
 	// Print signup message.
 	switch {
 	case roles.Include(teleport.RoleApp):
+		proxies, err := client.GetProxies()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(proxies) == 0 {
+			return trace.BadParameter("cluster has no proxies")
+		}
+		appPublicAddr := fmt.Sprintf("%v.%v", c.appName, proxies[0].GetPublicAddr())
+
 		fmt.Printf(appMessage,
 			token,
 			int(c.ttl.Minutes()),
 			strings.ToLower(roles.String()),
 			token,
 			caPin,
-			authServers[0].GetAddr(),
+			proxies[0].GetPublicAddr(),
+			c.appName,
 			c.appName,
 			c.appURI,
-			c.appPublicAddr,
+			c.appURI,
+			appPublicAddr,
 			int(c.ttl.Minutes()),
-			authServers[0].GetAddr(),
-			c.appPublicAddr,
-			c.appPublicAddr)
+			proxies[0].GetPublicAddr(),
+			appPublicAddr,
+			appPublicAddr)
 	case roles.Include(teleport.RoleTrustedCluster), roles.Include(teleport.LegacyClusterTokenType):
 		fmt.Printf(trustedClusterMessage,
 			token,
