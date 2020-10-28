@@ -447,14 +447,14 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 	c.Assert(err, IsNil)
 	// clt must be nullified to prevent double-close during test cleanup
 	s.clt = nil
-	for i := 0; i < 4; i++ {
+	for i := 0; i < 10; i++ {
 		_, err = net.Dial("unix", socketPath)
 		if err != nil {
 			return
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	c.Fatalf("expected socket to be closed, still could dial after 150 ms")
+	c.Fatalf("expected socket to be closed, still could dial after 450 ms")
 }
 
 func (s *SrvSuite) TestAllowedUsers(c *C) {
