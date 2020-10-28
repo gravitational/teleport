@@ -192,11 +192,11 @@ func UserMessageFromError(err error) string {
 
 		// If the error is a trace error, check if it has a user message embedded in
 		// it, if it does, print it, otherwise escape and print the original error.
-		if er, ok := err.(*trace.TraceErr); ok {
-			for _, message := range er.Messages {
+		if traceErr, ok := err.(*trace.TraceErr); ok {
+			for _, message := range traceErr.Messages {
 				fmt.Fprintln(&buf, AllowNewlines(message))
 			}
-			fmt.Fprintln(&buf, AllowNewlines(trace.Unwrap(er).Error()))
+			fmt.Fprintln(&buf, AllowNewlines(trace.Unwrap(traceErr).Error()))
 		} else {
 			strErr := err.Error()
 			// Error can be of type trace.proxyError where error message didn't get captured.

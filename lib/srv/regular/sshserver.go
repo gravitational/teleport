@@ -1570,6 +1570,13 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
 	log.Error(err)
 	message := trace.UserMessage(err)
+	// Terminate the error with a newline when writing to remote channel's
+	// stderr so the output does not mix with the rest of the output if the remote
+	// side is not doing additional formatting for extended data.
+	// See github.com/gravitational/teleport/issues/4542
+	if !strings.HasSuffix(message, "\n") {
+		message = message + "\n"
+	}
 	writeStderr(ch, message)
 	if req.WantReply {
 		if err := req.Reply(false, []byte(message)); err != nil {
@@ -1593,7 +1600,7 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext)
 }
 
 func writeStderr(ch ssh.Channel, msg string) {
-	if _, err := fmt.Fprint(ch.Stderr(), msg); err != nil {
+	if _, err := io.WriteString(ch.Stderr(), msg); err != nil {
 		log.Warnf("Failed writing to ssh.Channel.Stderr(): %v", err)
 	}
 }
