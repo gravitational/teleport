@@ -98,7 +98,7 @@ func (s *MemorySuite) TestPutRange(c *check.C) {
 }
 
 func (s *MemorySuite) TestLocking(c *check.C) {
-	s.suite.Locking(c)
+	s.suite.Locking(c, s.bk)
 }
 
 func (s *MemorySuite) TestConcurrentOperations(c *check.C) {

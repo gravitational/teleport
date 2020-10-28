@@ -99,7 +99,7 @@ func (s *LiteMemSuite) TestPutRange(c *check.C) {
 }
 
 func (s *LiteMemSuite) TestLocking(c *check.C) {
-	s.suite.Locking(c)
+	s.suite.Locking(c, s.bk)
 }
 
 func (s *LiteMemSuite) TestConcurrentOperations(c *check.C) {

@@ -137,7 +137,7 @@ func (s *EtcdSuite) TestWatchersClose(c *check.C) {
 }
 
 func (s *EtcdSuite) TestLocking(c *check.C) {
-	s.suite.Locking(c)
+	s.suite.Locking(c, s.bk)
 }
 
 func (s *EtcdSuite) TestPrefix(c *check.C) {
