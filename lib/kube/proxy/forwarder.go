@@ -218,10 +218,10 @@ func (f *Forwarder) Close() error {
 // contains information about user, target cluster and authenticated groups
 type authContext struct {
 	auth.Context
-	kubeGroups    map[string]struct{}
-	kubeUsers     map[string]struct{}
-	tpCluster     tpClusterClient
-	clusterConfig services.ClusterConfig
+	kubeGroups      map[string]struct{}
+	kubeUsers       map[string]struct{}
+	teleportCluster teleportClusterClient
+	clusterConfig   services.ClusterConfig
 	// clientIdleTimeout sets information on client idle timeout
 	clientIdleTimeout time.Duration
 	// disconnectExpiredCert if set, controls the time when the connection
@@ -232,18 +232,18 @@ type authContext struct {
 }
 
 func (c authContext) String() string {
-	return fmt.Sprintf("user: %v, users: %v, groups: %v, cluster: %v", c.User.GetName(), c.kubeUsers, c.kubeGroups, c.tpCluster.name)
+	return fmt.Sprintf("user: %v, users: %v, groups: %v, cluster: %v", c.User.GetName(), c.kubeUsers, c.kubeGroups, c.teleportCluster.name)
 }
 
 func (c *authContext) key() string {
 	// it is important that the context key contains user, kubernetes groups and certificate expiry,
 	// so that new logins with different parameters will not reuse this context
-	return fmt.Sprintf("%v:%v:%v:%v:%v", c.tpCluster.name, c.User.GetName(), c.kubeUsers, c.kubeGroups, c.disconnectExpiredCert.UTC().Unix())
+	return fmt.Sprintf("%v:%v:%v:%v:%v", c.teleportCluster.name, c.User.GetName(), c.kubeUsers, c.kubeGroups, c.disconnectExpiredCert.UTC().Unix())
 }
 
-// tpClusterClient is a client for either a k8s endpoint in local cluster or a
+// teleportClusterClient is a client for either a k8s endpoint in local cluster or a
 // proxy endpoint in a remote cluster.
-type tpClusterClient struct {
+type teleportClusterClient struct {
 	remoteAddr     utils.NetAddr
 	name           string
 	dial           func(context.Context, string, string) (net.Conn, error)
@@ -252,11 +252,11 @@ type tpClusterClient struct {
 	isRemoteClosed func() bool
 }
 
-func (c *tpClusterClient) Dial(network, addr string) (net.Conn, error) {
+func (c *teleportClusterClient) Dial(network, addr string) (net.Conn, error) {
 	return c.DialWithContext(context.Background(), network, addr)
 }
 
-func (c *tpClusterClient) DialWithContext(ctx context.Context, network, addr string) (net.Conn, error) {
+func (c *teleportClusterClient) DialWithContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	return c.dial(ctx, network, c.targetAddr)
 }
 
@@ -372,11 +372,11 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	}
 
 	identity := ctx.Identity.GetIdentity()
-	tpClusterName := identity.RouteToCluster
-	if tpClusterName == "" {
-		tpClusterName = f.ClusterName
+	teleportClusterName := identity.RouteToCluster
+	if teleportClusterName == "" {
+		teleportClusterName = f.ClusterName
 	}
-	isRemoteCluster := f.ClusterName != tpClusterName
+	isRemoteCluster := f.ClusterName != teleportClusterName
 
 	if isRemoteCluster && isRemoteUser {
 		return nil, trace.AccessDenied("access denied: remote user can not access remote cluster")
@@ -399,7 +399,7 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 			return nil, trace.BadParameter("this Teleport process can not dial Kubernetes endpoints in remote Teleport clusters; only proxy_service supports this, make sure a Teleport proxy is first in the request path")
 		}
 
-		targetCluster, err := f.Tunnel.GetSite(tpClusterName)
+		targetCluster, err := f.Tunnel.GetSite(teleportClusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -423,8 +423,8 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 		kubeGroups:        utils.StringsSet(kubeGroups),
 		kubeUsers:         utils.StringsSet(kubeUsers),
 		clusterConfig:     clusterConfig,
-		tpCluster: tpClusterClient{
-			name:           tpClusterName,
+		teleportCluster: teleportClusterClient{
+			name:           teleportClusterName,
 			remoteAddr:     utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
 			dial:           dialFn,
 			isRemote:       isRemoteCluster,
@@ -576,8 +576,8 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			ServerMetadata: events.ServerMetadata{
 				ServerID:        f.ServerID,
 				ServerNamespace: f.Namespace,
-				ServerHostname:  sess.tpCluster.name,
-				ServerAddr:      sess.tpCluster.targetAddr,
+				ServerHostname:  sess.teleportCluster.name,
+				ServerAddr:      sess.teleportCluster.targetAddr,
 			},
 			SessionMetadata: events.SessionMetadata{
 				SessionID: string(sessionID),
@@ -588,7 +588,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			},
 			ConnectionMetadata: events.ConnectionMetadata{
 				RemoteAddr: req.RemoteAddr,
-				LocalAddr:  sess.tpCluster.targetAddr,
+				LocalAddr:  sess.teleportCluster.targetAddr,
 				Protocol:   events.EventProtocolKube,
 			},
 			TerminalSize: termParams.Serialize(),
@@ -647,7 +647,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			},
 			ConnectionMetadata: events.ConnectionMetadata{
 				RemoteAddr: req.RemoteAddr,
-				LocalAddr:  sess.tpCluster.targetAddr,
+				LocalAddr:  sess.teleportCluster.targetAddr,
 				Protocol:   events.EventProtocolKube,
 			},
 			Interactive: true,
@@ -677,7 +677,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			},
 			ConnectionMetadata: events.ConnectionMetadata{
 				RemoteAddr: req.RemoteAddr,
-				LocalAddr:  sess.tpCluster.targetAddr,
+				LocalAddr:  sess.teleportCluster.targetAddr,
 				Protocol:   events.EventProtocolKube,
 			},
 			CommandMetadata: events.CommandMetadata{
@@ -734,7 +734,7 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 				User:  ctx.User.GetName(),
 			},
 			ConnectionMetadata: events.ConnectionMetadata{
-				LocalAddr:  sess.tpCluster.targetAddr,
+				LocalAddr:  sess.teleportCluster.targetAddr,
 				RemoteAddr: req.RemoteAddr,
 				Protocol:   events.EventProtocolKube,
 			},
@@ -791,7 +791,7 @@ func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Reque
 
 	// Setup scheme, override target URL to the destination address
 	req.URL.Scheme = "https"
-	req.URL.Host = sess.tpCluster.targetAddr
+	req.URL.Host = sess.teleportCluster.targetAddr
 	req.RequestURI = req.URL.Path + "?" + req.URL.RawQuery
 
 	// add origin headers so the service consuming the request on the other site
@@ -878,7 +878,7 @@ func setupImpersonationHeaders(log log.FieldLogger, ctx authContext, headers htt
 		}
 	}
 
-	if !ctx.tpCluster.isRemote {
+	if !ctx.teleportCluster.isRemote {
 		headers.Set(ImpersonateUserHeader, impersonateUser)
 
 		// Make sure to overwrite the exiting headers, instead of appending to
@@ -921,7 +921,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
 			RemoteAddr: req.RemoteAddr,
-			LocalAddr:  sess.tpCluster.targetAddr,
+			LocalAddr:  sess.teleportCluster.targetAddr,
 			Protocol:   events.EventProtocolKube,
 		},
 		ServerMetadata: events.ServerMetadata{
@@ -1026,11 +1026,11 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 }
 
 func (s *clusterSession) Dial(network, addr string) (net.Conn, error) {
-	return s.monitorConn(s.tpCluster.Dial(network, addr))
+	return s.monitorConn(s.teleportCluster.Dial(network, addr))
 }
 
 func (s *clusterSession) DialWithContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	return s.monitorConn(s.tpCluster.DialWithContext(ctx, network, addr))
+	return s.monitorConn(s.teleportCluster.DialWithContext(ctx, network, addr))
 }
 
 type trackingConn struct {
@@ -1086,8 +1086,8 @@ func (f *Forwarder) getClusterSession(ctx authContext) *clusterSession {
 		return nil
 	}
 	s := creds.(*clusterSession)
-	if s.tpCluster.isRemote && s.tpCluster.isRemoteClosed() {
-		f.Debugf("Found an existing clusterSession for remote cluster %q but it has been closed. Discarding it to create a new clusterSession.", ctx.tpCluster.name)
+	if s.teleportCluster.isRemote && s.teleportCluster.isRemoteClosed() {
+		f.Debugf("Found an existing clusterSession for remote cluster %q but it has been closed. Discarding it to create a new clusterSession.", ctx.teleportCluster.name)
 		f.clusterSessions.Remove(ctx.key())
 		return nil
 	}
@@ -1122,7 +1122,7 @@ func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) 
 	// For remote (trusted) clusters, generate a new teleport TLS client
 	// certificate for the user via auth server. Effectively, impersonate the
 	// user to the remote proxy.
-	if ctx.tpCluster.isRemote {
+	if ctx.teleportCluster.isRemote {
 		var err error
 		tlsConfig, err = f.requestCertificate(ctx)
 		if err != nil {
@@ -1138,10 +1138,10 @@ func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) 
 
 	// remote clusters use special hardcoded URL,
 	// and use a special dialer
-	if ctx.tpCluster.isRemote {
-		ctx.tpCluster.targetAddr = reversetunnel.LocalKubernetes
+	if ctx.teleportCluster.isRemote {
+		ctx.teleportCluster.targetAddr = reversetunnel.LocalKubernetes
 	} else {
-		ctx.tpCluster.targetAddr = f.creds.targetAddr
+		ctx.teleportCluster.targetAddr = f.creds.targetAddr
 	}
 
 	sess := &clusterSession{
@@ -1159,7 +1159,7 @@ func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) 
 	//
 	// When forwarding request to a remote cluster, this is not needed
 	// as the proxy uses client cert auth to reach out to remote proxy.
-	if !ctx.tpCluster.isRemote {
+	if !ctx.teleportCluster.isRemote {
 		var err error
 		transport, err = f.creds.wrapTransport(transport)
 		if err != nil {
@@ -1265,7 +1265,7 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 
 	response, err := f.Client.ProcessKubeCSR(auth.KubeCSR{
 		Username:    ctx.User.GetName(),
-		ClusterName: ctx.tpCluster.name,
+		ClusterName: ctx.teleportCluster.name,
 		CSR:         csrPEM,
 	})
 	if err != nil {

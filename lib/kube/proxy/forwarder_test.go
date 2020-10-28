@@ -50,7 +50,7 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 	user, err := services.NewUser("bob")
 	c.Assert(err, check.IsNil)
 	ctx := authContext{
-		tpCluster: tpClusterClient{
+		teleportCluster: teleportClusterClient{
 			name: "site a",
 		},
 		Context: auth.Context{
@@ -74,7 +74,7 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 
 	// Check the KubeCSR fields.
 	c.Assert(cl.gotCSR.Username, check.DeepEquals, ctx.User.GetName())
-	c.Assert(cl.gotCSR.ClusterName, check.DeepEquals, ctx.tpCluster.name)
+	c.Assert(cl.gotCSR.ClusterName, check.DeepEquals, ctx.teleportCluster.name)
 
 	// Parse x509 CSR and check the subject.
 	csrBlock, _ := pem.Decode(cl.gotCSR.CSR)
@@ -97,7 +97,7 @@ func (s ForwarderSuite) TestGetClusterSession(c *check.C) {
 	user, err := services.NewUser("bob")
 	c.Assert(err, check.IsNil)
 	ctx := authContext{
-		tpCluster: tpClusterClient{
+		teleportCluster: teleportClusterClient{
 			isRemote:       true,
 			name:           "site a",
 			isRemoteClosed: func() bool { return false },
@@ -118,7 +118,7 @@ func (s ForwarderSuite) TestGetClusterSession(c *check.C) {
 	// Close the RemoteSite out-of-band (like when a remote cluster got removed
 	// via tctl), getClusterSession should notice this and discard the
 	// clusterSession.
-	sess.authContext.tpCluster.isRemoteClosed = func() bool { return true }
+	sess.authContext.teleportCluster.isRemoteClosed = func() bool { return true }
 	c.Assert(f.getClusterSession(ctx), check.IsNil)
 	_, ok := f.clusterSessions.Get(ctx.key())
 	c.Assert(ok, check.Equals, false)
@@ -329,9 +329,9 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 
 		c.Assert(gotCtx.kubeUsers, check.DeepEquals, utils.StringsSet(tt.wantKubeUsers))
 		c.Assert(gotCtx.kubeGroups, check.DeepEquals, utils.StringsSet(tt.wantKubeGroups))
-		c.Assert(gotCtx.tpCluster.isRemote, check.Equals, tt.wantRemote)
-		c.Assert(gotCtx.tpCluster.name, check.Equals, tt.routeToCluster)
-		c.Assert(gotCtx.tpCluster.remoteAddr.String(), check.Equals, req.RemoteAddr)
+		c.Assert(gotCtx.teleportCluster.isRemote, check.Equals, tt.wantRemote)
+		c.Assert(gotCtx.teleportCluster.name, check.Equals, tt.routeToCluster)
+		c.Assert(gotCtx.teleportCluster.remoteAddr.String(), check.Equals, req.RemoteAddr)
 		c.Assert(gotCtx.disconnectExpiredCert, check.DeepEquals, req.TLS.PeerCertificates[0].NotAfter)
 	}
 }
@@ -437,9 +437,9 @@ func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
 		err := setupImpersonationHeaders(
 			logrus.NewEntry(logrus.New()),
 			authContext{
-				kubeUsers:  utils.StringsSet(tt.kubeUsers),
-				kubeGroups: utils.StringsSet(tt.kubeGroups),
-				tpCluster:  tpClusterClient{isRemote: tt.remoteCluster},
+				kubeUsers:       utils.StringsSet(tt.kubeUsers),
+				kubeGroups:      utils.StringsSet(tt.kubeGroups),
+				teleportCluster: teleportClusterClient{isRemote: tt.remoteCluster},
 			},
 			tt.inHeaders,
 		)
@@ -484,7 +484,7 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
 			}),
 		},
-		tpCluster: tpClusterClient{
+		teleportCluster: teleportClusterClient{
 			name: "local",
 		},
 		sessionTTL: time.Minute,
@@ -513,7 +513,7 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
 			}),
 		},
-		tpCluster: tpClusterClient{
+		teleportCluster: teleportClusterClient{
 			name: "local",
 		},
 		sessionTTL: time.Minute,
@@ -521,7 +521,7 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 	sess, err := f.newClusterSession(authCtx)
 	c.Assert(err, check.IsNil)
 	c.Assert(f.clusterSessions.Len(), check.Equals, 1)
-	c.Assert(sess.authContext.tpCluster.targetAddr, check.Equals, f.creds.targetAddr)
+	c.Assert(sess.authContext.teleportCluster.targetAddr, check.Equals, f.creds.targetAddr)
 	c.Assert(sess.forwarder, check.NotNil)
 	// Make sure newClusterSession used f.creds instead of requesting a
 	// Teleport client cert.
@@ -541,7 +541,7 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 				Traits:           map[string][]string{"trait a": []string{"b", "c"}},
 			}),
 		},
-		tpCluster: tpClusterClient{
+		teleportCluster: teleportClusterClient{
 			name:     "remote",
 			isRemote: true,
 		},
@@ -550,7 +550,7 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 	sess, err = f.newClusterSession(authCtx)
 	c.Assert(err, check.IsNil)
 	c.Assert(f.clusterSessions.Len(), check.Equals, 2)
-	c.Assert(sess.authContext.tpCluster.targetAddr, check.Equals, reversetunnel.LocalKubernetes)
+	c.Assert(sess.authContext.teleportCluster.targetAddr, check.Equals, reversetunnel.LocalKubernetes)
 	c.Assert(sess.forwarder, check.NotNil)
 	// Make sure newClusterSession obtained a new client cert instead of using
 	// f.creds.

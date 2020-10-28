@@ -160,16 +160,16 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		return nil
 	}
 	// merge file-based config with defaults in 'cfg'
-	if fc.Auth.Disabled(true) {
+	if fc.Auth.Disabled() {
 		cfg.Auth.Enabled = false
 	}
-	if fc.SSH.Disabled(true) {
+	if fc.SSH.Disabled() {
 		cfg.SSH.Enabled = false
 	}
-	if fc.Proxy.Disabled(true) {
+	if fc.Proxy.Disabled() {
 		cfg.Proxy.Enabled = false
 	}
-	if fc.Kube.Enabled(false) {
+	if fc.Kube.Enabled() {
 		cfg.Kube.Enabled = true
 	}
 	applyString(fc.NodeName, &cfg.Hostname)
@@ -323,25 +323,25 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 
 	// Apply configuration for "auth_service", "proxy_service", and
 	// "ssh_service" if it's enabled.
-	if fc.Auth.Enabled(true) {
+	if fc.Auth.Enabled() {
 		err = applyAuthConfig(fc, cfg)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	if fc.Proxy.Enabled(true) {
+	if fc.Proxy.Enabled() {
 		err = applyProxyConfig(fc, cfg)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	if fc.SSH.Enabled(true) {
+	if fc.SSH.Enabled() {
 		err = applySSHConfig(fc, cfg)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
-	if fc.Kube.Enabled(false) {
+	if fc.Kube.Enabled() {
 		if err := applyKubeConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}

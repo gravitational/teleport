@@ -47,7 +47,7 @@ func (process *TeleportProcess) initKubernetes() {
 		case event = <-eventsC:
 			log.Debugf("Received event %q.", event.Name)
 		case <-process.ExitContext().Done():
-			log.Debugf("Process is exiting.")
+			log.Debug("Process is exiting.")
 			return nil
 		}
 
@@ -65,11 +65,11 @@ func (process *TeleportProcess) initKubernetes() {
 	})
 }
 
-func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *Connector) error {
+func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *Connector) (retErr error) {
 	// clean up unused descriptors passed for proxy, but not used by it
 	defer func() {
 		if err := process.closeImportedDescriptors(teleport.ComponentKube); err != nil {
-			log.Warnf("Failed closing imported file descriptors: %v", err)
+			log.WithError(err).Warn("Failed closing imported file descriptors")
 		}
 	}()
 	cfg := process.Config
@@ -99,11 +99,16 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 
 	// Start a local listener and let proxies dial in.
 	case !conn.UseTunnel() && !cfg.Kube.ListenAddr.IsEmpty():
-		log.Debugf("Turning on Kubernetes service listening address.")
+		log.Debug("Turning on Kubernetes service listening address.")
 		listener, err = process.importOrCreateListener(listenerKube, cfg.Kube.ListenAddr.Addr)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer func() {
+			if retErr != nil {
+				warnOnErr(listener.Close())
+			}
+		}()
 
 	// Dialed out to a proxy, start servicing the reverse tunnel as a listener.
 	case conn.UseTunnel() && cfg.Kube.ListenAddr.IsEmpty():
@@ -117,7 +122,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 				HostUUID:    conn.ServerIdentity.ID.HostUUID,
 				ProxyAddr:   conn.TunnelProxy(),
 				Client:      conn.Client,
-				AccessPoint: conn.Client,
+				AccessPoint: accessPoint,
 				HostSigner:  conn.ServerIdentity.KeySigner,
 				Cluster:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
 				Server:      shtl,
@@ -125,11 +130,15 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		err = agentPool.Start()
-		if err != nil {
+		if err = agentPool.Start(); err != nil {
 			return trace.Wrap(err)
 		}
-		log.Infof("Started reverse tunnel client.")
+		defer func() {
+			if retErr != nil {
+				agentPool.Stop()
+			}
+		}()
+		log.Info("Started reverse tunnel client.")
 	}
 
 	// Create the kube server to service listener.
@@ -161,6 +170,11 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer func() {
+		if retErr != nil {
+			warnOnErr(kubeServer.Close())
+		}
+	}()
 	process.RegisterCriticalFunc("kube.serve", func() error {
 		if conn.UseTunnel() {
 			log.Info("Starting Kube service via proxy reverse tunnel.")
@@ -211,21 +225,17 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		if payload != nil {
 			// Graceful shutdown.
 			warnOnErr(kubeServer.Shutdown(payloadContext(payload)))
-			if agentPool != nil {
-				agentPool.Stop()
-				agentPool.Wait()
-			}
+			agentPool.Stop()
+			agentPool.Wait()
 		} else {
 			// Fast shutdown.
 			warnOnErr(kubeServer.Close())
-			if agentPool != nil {
-				agentPool.Stop()
-			}
+			agentPool.Stop()
 		}
 		warnOnErr(listener.Close())
 		warnOnErr(conn.Close())
 
-		log.Infof("Exited.")
+		log.Info("Exited.")
 	})
 	return nil
 }

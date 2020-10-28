@@ -1969,6 +1969,8 @@ func (a *ServerWithRoles) WaitForDelivery(context.Context) error {
 	return nil
 }
 
+// UpsertKubeService creates or updates a Server representing a teleport
+// kubernetes service.
 func (a *ServerWithRoles) UpsertKubeService(s services.Server) error {
 	if err := a.action(defaults.Namespace, services.KindKubeService, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
@@ -1979,6 +1981,8 @@ func (a *ServerWithRoles) UpsertKubeService(s services.Server) error {
 	return a.authServer.UpsertKubeService(s)
 }
 
+// GetKubeServices returns all Servers representing teleport kubernetes
+// services.
 func (a *ServerWithRoles) GetKubeServices() ([]services.Server, error) {
 	if err := a.action(defaults.Namespace, services.KindKubeService, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)

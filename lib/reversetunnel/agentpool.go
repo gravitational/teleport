@@ -170,11 +170,17 @@ func (m *AgentPool) Start() error {
 
 // Stop stops the agent pool
 func (m *AgentPool) Stop() {
+	if m == nil {
+		return
+	}
 	m.cancel()
 }
 
 // Wait returns when agent pool is closed
 func (m *AgentPool) Wait() {
+	if m == nil {
+		return
+	}
 	<-m.ctx.Done()
 }
 

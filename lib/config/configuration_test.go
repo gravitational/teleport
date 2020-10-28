@@ -26,9 +26,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
@@ -210,52 +209,79 @@ func TestConfigReading(t *testing.T) {
 	conf, err = ReadFromFile(testConfigs.configFileNoContent)
 	require.NoError(t, err)
 	require.NotNil(t, conf)
-	require.True(t, conf.Auth.Enabled(true))
-	require.True(t, conf.Proxy.Enabled(true))
-	require.True(t, conf.SSH.Enabled(true))
-	require.False(t, conf.Kube.Enabled(false))
+	require.True(t, conf.Auth.Enabled())
+	require.True(t, conf.Proxy.Enabled())
+	require.True(t, conf.SSH.Enabled())
+	require.False(t, conf.Kube.Enabled())
 
 	// static config
 	conf, err = ReadFromFile(testConfigs.configFile)
 	require.NoError(t, err)
-	require.NotNil(t, conf)
-	require.Equal(t, conf.NodeName, NodeName)
-	require.Empty(t, cmp.Diff(conf.AuthServers, []string{"auth0.server.example.org:3024", "auth1.server.example.org:3024"}))
-	require.Equal(t, conf.Limits.MaxConnections, int64(100))
-	require.Equal(t, conf.Limits.MaxUsers, 5)
-	require.Empty(t, cmp.Diff(conf.Limits.Rates, ConnectionRates))
-	require.Equal(t, conf.Logger.Output, "stderr")
-	require.Equal(t, conf.Logger.Severity, "INFO")
-	require.Equal(t, conf.Storage.Type, "bolt")
-	require.Equal(t, conf.DataDir, "/path/to/data")
-	require.True(t, conf.Auth.Enabled(true))
-	require.Equal(t, conf.Auth.ListenAddress, "tcp://auth")
-	require.Equal(t, conf.Auth.LicenseFile, "lic.pem")
-	require.True(t, conf.Auth.DisconnectExpiredCert.Value())
-	require.Equal(t, conf.Auth.ClientIdleTimeout.Value(), 17*time.Second)
-	require.True(t, conf.SSH.Configured())
-	require.True(t, conf.SSH.Enabled(true))
-	require.Equal(t, conf.SSH.ListenAddress, "tcp://ssh")
-	require.Empty(t, cmp.Diff(conf.SSH.Labels, Labels))
-	require.Empty(t, cmp.Diff(conf.SSH.Commands, CommandLabels))
-	require.True(t, conf.Proxy.Configured())
-	require.True(t, conf.Proxy.Enabled(true))
-	require.Equal(t, conf.Proxy.KeyFile, "/etc/teleport/proxy.key")
-	require.Equal(t, conf.Proxy.CertFile, "/etc/teleport/proxy.crt")
-	require.Equal(t, conf.Proxy.ListenAddress, "tcp://proxy_ssh_addr")
-	require.Equal(t, conf.Proxy.WebAddr, "tcp://web_addr")
-	require.Equal(t, conf.Proxy.TunAddr, "reverse_tunnel_address:3311")
-	require.True(t, conf.Kube.Configured())
-	require.True(t, conf.Kube.Enabled(false))
-	require.True(t, conf.Kube.Enabled(false))
-	require.Empty(t, cmp.Diff(conf.Kube, Kube{
-		Service: Service{
-			EnabledFlag:   "yes",
-			ListenAddress: "tcp://kube",
+	require.Empty(t, cmp.Diff(conf, &FileConfig{
+		Global: Global{
+			NodeName:    NodeName,
+			AuthServers: []string{"auth0.server.example.org:3024", "auth1.server.example.org:3024"},
+			Limits: ConnectionLimits{
+				MaxConnections: 100,
+				MaxUsers:       5,
+				Rates:          ConnectionRates,
+			},
+			Logger: Log{
+				Output:   "stderr",
+				Severity: "INFO",
+			},
+			Storage: backend.Config{
+				Type: "bolt",
+			},
+			DataDir: "/path/to/data",
 		},
-		KubeClusterName: "kube-cluster",
-		PublicAddr:      utils.Strings([]string{"kube-host:1234"}),
-	}))
+		Auth: Auth{
+			Service: Service{
+				defaultEnabled: true,
+				EnabledFlag:    "Yeah",
+				ListenAddress:  "tcp://auth",
+			},
+			LicenseFile:           "lic.pem",
+			DisconnectExpiredCert: services.Bool(true),
+			ClientIdleTimeout:     services.Duration(17 * time.Second),
+		},
+		SSH: SSH{
+			Service: Service{
+				defaultEnabled: true,
+				EnabledFlag:    "true",
+				ListenAddress:  "tcp://ssh",
+			},
+			Labels:   Labels,
+			Commands: CommandLabels,
+		},
+		Proxy: Proxy{
+			Service: Service{
+				defaultEnabled: true,
+				EnabledFlag:    "yes",
+				ListenAddress:  "tcp://proxy_ssh_addr",
+			},
+			KeyFile:  "/etc/teleport/proxy.key",
+			CertFile: "/etc/teleport/proxy.crt",
+			WebAddr:  "tcp://web_addr",
+			TunAddr:  "reverse_tunnel_address:3311",
+		},
+		Kube: Kube{
+			Service: Service{
+				EnabledFlag:   "yes",
+				ListenAddress: "tcp://kube",
+			},
+			KubeClusterName: "kube-cluster",
+			PublicAddr:      utils.Strings([]string{"kube-host:1234"}),
+		},
+	}, cmp.AllowUnexported(Service{})))
+	require.True(t, conf.Auth.Configured())
+	require.True(t, conf.Auth.Enabled())
+	require.True(t, conf.Proxy.Configured())
+	require.True(t, conf.Proxy.Enabled())
+	require.True(t, conf.SSH.Configured())
+	require.True(t, conf.SSH.Enabled())
+	require.True(t, conf.Kube.Configured())
+	require.True(t, conf.Kube.Enabled())
 
 	// good config from file
 	conf, err = ReadFromFile(testConfigs.configFileStatic)
@@ -603,23 +629,28 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 
 	// proxy_service section is missing.
 	require.False(t, conf.Proxy.Configured())
-	require.True(t, conf.Proxy.Enabled(true))
-	require.False(t, conf.Proxy.Disabled(true)) // Missing "proxy_service" does NOT mean it's been disabled
-	require.Empty(t, cmp.Diff(conf.Proxy, Proxy{}))
+	require.True(t, conf.Proxy.Enabled())
+	require.False(t, conf.Proxy.Disabled()) // Missing "proxy_service" does NOT mean it's been disabled
+	require.Empty(t, cmp.Diff(conf.Proxy, Proxy{
+		Service: Service{defaultEnabled: true},
+	}, cmp.AllowUnexported(Service{})))
 
 	// kubernetes_service section is missing.
 	require.False(t, conf.Kube.Configured())
-	require.False(t, conf.Kube.Enabled(false))
-	require.True(t, conf.Kube.Disabled(false))
-	require.Empty(t, cmp.Diff(conf.Kube, Kube{}))
+	require.False(t, conf.Kube.Enabled())
+	require.True(t, conf.Kube.Disabled())
+	require.Empty(t, cmp.Diff(conf.Kube, Kube{
+		Service: Service{defaultEnabled: false},
+	}, cmp.AllowUnexported(Service{})))
 
 	require.True(t, conf.SSH.Configured()) // "ssh_service" has been explicitly set to "no"
-	require.False(t, conf.SSH.Enabled(true))
-	require.True(t, conf.SSH.Disabled(true))
+	require.False(t, conf.SSH.Enabled())
+	require.True(t, conf.SSH.Disabled())
 	require.Empty(t, cmp.Diff(conf.SSH, SSH{
 		Service: Service{
-			EnabledFlag:   "no",
-			ListenAddress: "ssh:3025",
+			defaultEnabled: true,
+			EnabledFlag:    "no",
+			ListenAddress:  "ssh:3025",
 		},
 		Labels: map[string]string{
 			"name": "mongoserver",
@@ -630,15 +661,16 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 			{Name: "date", Command: []string{"/bin/date"}, Period: 20 * time.Millisecond},
 		},
 		PublicAddr: utils.Strings{"luna3:22"},
-	}))
+	}, cmp.AllowUnexported(Service{})))
 
 	require.True(t, conf.Auth.Configured())
-	require.True(t, conf.Auth.Enabled(true))
-	require.False(t, conf.Auth.Disabled(true))
+	require.True(t, conf.Auth.Enabled())
+	require.False(t, conf.Auth.Disabled())
 	require.Empty(t, cmp.Diff(conf.Auth, Auth{
 		Service: Service{
-			EnabledFlag:   "yes",
-			ListenAddress: "auth:3025",
+			defaultEnabled: true,
+			EnabledFlag:    "yes",
+			ListenAddress:  "auth:3025",
 		},
 		Authorities: []Authority{{
 			Type:             services.HostCA,
@@ -667,7 +699,7 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 		},
 		ClientIdleTimeout:     services.Duration(17 * time.Second),
 		DisconnectExpiredCert: true,
-	}))
+	}, cmp.AllowUnexported(Service{})))
 
 	policy, err := conf.CachePolicy.Parse()
 	require.NoError(t, err)
@@ -844,11 +876,10 @@ func (s *ConfigTestSuite) TestLicenseFile(c *check.C) {
 		filepath.Join(defaults.DataDir, defaults.LicenseFile))
 
 	for _, tc := range testCases {
-		err := ApplyFileConfig(&FileConfig{
-			Auth: Auth{
-				LicenseFile: tc.path,
-			},
-		}, cfg)
+		fc := new(FileConfig)
+		c.Assert(fc.CheckAndSetDefaults(), check.IsNil)
+		fc.Auth.LicenseFile = tc.path
+		err := ApplyFileConfig(fc, cfg)
 		c.Assert(err, check.IsNil)
 		c.Assert(cfg.Auth.LicenseFile, check.Equals, tc.result)
 	}

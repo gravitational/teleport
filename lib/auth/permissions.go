@@ -435,7 +435,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 			})
 	}
 
-	return nil, trace.NotFound("%v is not reconginzed", role.String())
+	return nil, trace.NotFound("%v is not recognized", role.String())
 }
 
 func contextForBuiltinRole(clusterName string, clusterConfig services.ClusterConfig, r teleport.Role, username string) (*Context, error) {

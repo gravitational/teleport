@@ -794,7 +794,7 @@ func (process *TeleportProcess) newClient(authServers []utils.NetAddr, identity 
 	if err != nil {
 		// Don't attempt to connect through a tunnel as a proxy or auth server.
 		if identity.ID.Role == teleport.RoleAuth || identity.ID.Role == teleport.RoleProxy {
-			return nil, trace.Unwrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		log.Debugf("Attempting to connect to Auth Server through tunnel.")
