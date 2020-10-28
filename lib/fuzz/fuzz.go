@@ -5,7 +5,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
-func Fuzzutils(data []byte) int {
+func FuzzParseProxyJump(data []byte) int {
 	_, err := utils.ParseProxyJump(string(data))
 	if err != nil {
 		return 0
@@ -13,7 +13,7 @@ func Fuzzutils(data []byte) int {
 	return 1
 }
 
-func Fuzzparse(data []byte) int {
+func FuzzParseRoleVariable(data []byte) int {
 	_, err := parse.RoleVariable(string(data))
 	if err != nil {
 		return 0
