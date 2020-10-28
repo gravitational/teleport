@@ -212,8 +212,12 @@ func HasSession(r *http.Request) bool {
 // HasName checks if the client is attempting to connect to a
 // host that is different than the public address of the proxy. If it is, it
 // redirects back to the application launcher in the Web UI.
-func HasName(r *http.Request, publicAddr string) (string, bool) {
-	addr, err := utils.ParseAddr(r.Host)
+func HasName(r *http.Request, proxyPublicAddr string) (string, bool) {
+	raddr, err := utils.ParseAddr(r.Host)
+	if err != nil {
+		return "", false
+	}
+	paddr, err := utils.ParseAddr(proxyPublicAddr)
 	if err != nil {
 		return "", false
 	}
@@ -223,13 +227,13 @@ func HasName(r *http.Request, publicAddr string) (string, bool) {
 	//  * The request is for localhost or loopback.
 	//  * The request is for an IP address.
 	//  * The request is for the public address of the proxy.
-	if utils.IsLocalhost(addr.Host()) {
+	if utils.IsLocalhost(raddr.Host()) {
 		return "", false
 	}
-	if net.ParseIP(addr.Host()) != nil {
+	if net.ParseIP(raddr.Host()) != nil {
 		return "", false
 	}
-	if r.Host == publicAddr {
+	if raddr.Host() == paddr.Host() {
 		return "", false
 	}
 
@@ -237,8 +241,8 @@ func HasName(r *http.Request, publicAddr string) (string, bool) {
 	// not the proxy, redirect the caller to the application launcher.
 	u := url.URL{
 		Scheme: "https",
-		Host:   publicAddr,
-		Path:   fmt.Sprintf("/web/launch/%v", addr.Host()),
+		Host:   proxyPublicAddr,
+		Path:   fmt.Sprintf("/web/launch/%v", raddr.Host()),
 	}
 	return u.String(), true
 }
