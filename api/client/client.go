@@ -623,3 +623,82 @@ func (c *Client) DeleteAllKubeServices(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllKubeServices(ctx, &proto.DeleteAllKubeServicesRequest{})
 	return trace.Wrap(err)
 }
+
+// GetDatabaseServers returns all registered database proxy servers.
+func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, opts ...types.MarshalOption) ([]types.DatabaseServer, error) {
+	cfg, err := types.CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := c.grpc.GetDatabaseServers(ctx, &proto.GetDatabaseServersRequest{
+		Namespace:      namespace,
+		SkipValidation: cfg.SkipValidation,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	servers := make([]types.DatabaseServer, 0, len(resp.GetServers()))
+	for _, server := range resp.GetServers() {
+		servers = append(servers, server)
+	}
+	return servers, nil
+}
+
+// UpsertDatabaseServer registers a new database proxy server.
+func (c *Client) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
+	s, ok := server.(*types.DatabaseServerV3)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", server)
+	}
+	keepAlive, err := c.grpc.UpsertDatabaseServer(ctx, &proto.UpsertDatabaseServerRequest{
+		Server: s,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return keepAlive, nil
+}
+
+// DeleteDatabaseServer removes the specified database proxy server.
+func (c *Client) DeleteDatabaseServer(ctx context.Context, namespace, hostID, name string) error {
+	_, err := c.grpc.DeleteDatabaseServer(ctx, &proto.DeleteDatabaseServerRequest{
+		Namespace: namespace,
+		HostID:    hostID,
+		Name:      name,
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// DeleteAllDatabaseServers removes all registered database proxy servers.
+func (c *Client) DeleteAllDatabaseServers(ctx context.Context, namespace string) error {
+	_, err := c.grpc.DeleteAllDatabaseServers(ctx, &proto.DeleteAllDatabaseServersRequest{
+		Namespace: namespace,
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// SignDatabaseCSR generates a client certificate used by proxy when talking
+// to a remote database service.
+func (c *Client) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequest) (*proto.DatabaseCSRResponse, error) {
+	resp, err := c.grpc.SignDatabaseCSR(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// GenerateDatabaseCert generates client certificate used by a database
+// service to authenticate with the database instance.
+func (c *Client) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+	resp, err := c.grpc.GenerateDatabaseCert(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}

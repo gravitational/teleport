@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -196,6 +197,7 @@ type mockClient struct {
 
 	clusterName    services.ClusterName
 	userCerts      *proto.Certs
+	dbCerts        *proto.DatabaseCertResponse
 	cas            []services.CertAuthority
 	proxies        []services.Server
 	remoteClusters []services.RemoteCluster
@@ -219,6 +221,9 @@ func (c mockClient) GetRemoteClusters(opts ...services.MarshalOption) ([]service
 }
 func (c mockClient) GetKubeServices(context.Context) ([]services.Server, error) {
 	return c.kubeServices, nil
+}
+func (c mockClient) GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+	return c.dbCerts, nil
 }
 
 func TestCheckKubeCluster(t *testing.T) {
@@ -315,4 +320,35 @@ func TestCheckKubeCluster(t *testing.T) {
 			require.Equal(t, tt.want, a.kubeCluster)
 		})
 	}
+}
+
+func TestGenerateDatabaseKeys(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	client := mockClient{
+		dbCerts: &proto.DatabaseCertResponse{
+			Cert: []byte("TLS cert"),
+			CACerts: [][]byte{
+				[]byte("CA cert"),
+			},
+		},
+	}
+
+	ac := AuthCommand{
+		output:       filepath.Join(tmpDir, "db"),
+		outputFormat: identityfile.FormatDatabase,
+		genHost:      "example.com",
+		genTTL:       time.Hour,
+	}
+
+	err := ac.GenerateAndSignKeys(client)
+	require.NoError(t, err)
+
+	certBytes, err := ioutil.ReadFile(ac.output + ".crt")
+	require.NoError(t, err)
+	require.Equal(t, client.dbCerts.Cert, certBytes, "certificates match")
+
+	caBytes, err := ioutil.ReadFile(ac.output + ".cas")
+	require.NoError(t, err)
+	require.Equal(t, client.dbCerts.CACerts[0], caBytes, "CA certificates match")
 }
