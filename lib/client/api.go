@@ -1918,12 +1918,20 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 			tc.KubeProxyAddr = proxySettings.Kube.PublicAddr
 		// ListenAddr is the second preference.
 		case proxySettings.Kube.ListenAddr != "":
-			if _, err := utils.ParseAddr(proxySettings.Kube.ListenAddr); err != nil {
+			addr, err := utils.ParseAddr(proxySettings.Kube.ListenAddr)
+			if err != nil {
 				return trace.BadParameter(
 					"failed to parse value received from the server: %q, contact your administrator for help",
 					proxySettings.Kube.ListenAddr)
 			}
-			tc.KubeProxyAddr = proxySettings.Kube.ListenAddr
+			// If ListenAddr host is 0.0.0.0 or [::], replace it with something
+			// routable from the web endpoint.
+			if net.ParseIP(addr.Host()).IsUnspecified() {
+				webProxyHost, _ := tc.WebProxyHostPort()
+				tc.KubeProxyAddr = net.JoinHostPort(webProxyHost, strconv.Itoa(addr.Port(defaults.KubeListenPort)))
+			} else {
+				tc.KubeProxyAddr = proxySettings.Kube.ListenAddr
+			}
 		// If neither PublicAddr nor ListenAddr are passed, use the web
 		// interface hostname with default k8s port as a guess.
 		default:

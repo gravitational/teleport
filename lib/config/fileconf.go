@@ -166,6 +166,7 @@ var (
 		"cgroup_path":             false,
 		"kubernetes_service":      true,
 		"kube_cluster_name":       false,
+		"kube_listen_addr":        false,
 	}
 )
 
@@ -811,6 +812,9 @@ type Proxy struct {
 	ProxyProtocol string `yaml:"proxy_protocol,omitempty"`
 	// KubeProxy configures kubernetes protocol support of the proxy
 	Kube KubeProxy `yaml:"kubernetes,omitempty"`
+	// KubeAddr is a shorthand for enabling the Kubernetes endpoint without a
+	// local Kubernetes cluster.
+	KubeAddr string `yaml:"kube_listen_addr,omitempty"`
 
 	// PublicAddr sets the hostport the proxy advertises for the HTTP endpoint.
 	// The hosts in PublicAddr are included in the list of host principals
