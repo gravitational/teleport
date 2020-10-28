@@ -1896,9 +1896,8 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 	}
 }
 
-// TestAppRouting makes sure that requests that are authenticated for
-// applications get directed to application get re-routed to application
-// handlers and requests coming in for the proxy go to the UI handlers.
+// TestAppRouting verifies requests get routed correctly: either to the Web UI
+// or an application.
 func (s *WebSuite) TestRouting(c *C) {
 }
 

@@ -34,6 +34,9 @@ type fragmentRequest struct {
 	CookieValue string `json:"cookie_value"`
 }
 
+// handleFragment handles fragment authentication. Returns a Javascript
+// application that reads in the fragment which submits an POST request to
+// the same handler which can validate and set the cookie.
 func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
 	switch r.Method {
 	case http.MethodGet:
