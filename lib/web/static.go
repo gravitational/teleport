@@ -91,7 +91,7 @@ func isDebugMode() bool {
 	return v
 }
 
-// LoadWebResources returns a filesystem implementation compatible
+// loadZippedExeAssets returns a filesystem implementation compatible
 // with http.Serve.
 //
 // The "filesystem" is served from a zip file attached at the end of

@@ -181,12 +181,14 @@ func UserMessageFromError(err error) string {
 	if err != nil {
 		// If the error is a trace error, check if it has a user message embedded in
 		// it, if it does, print it, otherwise escape and print the original error.
-		if er, ok := err.(*trace.TraceErr); ok {
-			if er.Message != "" {
-				return fmt.Sprintf("error: %v", EscapeControl(er.Message))
-			}
+		if err, ok := err.(*trace.TraceErr); ok && err.Message != "" {
+			// Avoid escaping an error message that terminates with a newline
+			errMsg := strings.TrimSuffix(err.Message, "\n")
+			return fmt.Sprintf("error: %v", EscapeControl(errMsg))
 		}
-		return fmt.Sprintf("error: %v", EscapeControl(err.Error()))
+		// Avoid escaping an error message that terminates with a newline
+		errMsg := strings.TrimSuffix(err.Error(), "\n")
+		return fmt.Sprintf("error: %v", EscapeControl(errMsg))
 	}
 	return ""
 }
