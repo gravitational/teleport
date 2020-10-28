@@ -13,8 +13,8 @@ func FuzzParseProxyJump(data []byte) int {
 	return 1
 }
 
-func FuzzParseRoleVariable(data []byte) int {
-	_, err := parse.RoleVariable(string(data))
+func FuzzNewExpression(data []byte) int {
+	_, err := parse.NewExpression(string(data))
 	if err != nil {
 		return 0
 	}
