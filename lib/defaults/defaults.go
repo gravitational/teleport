@@ -604,6 +604,8 @@ const (
 )
 
 const (
+	// ApplicationTokenKeyType is the type of asymmetric key used to sign tokens.
+	ApplicationTokenKeyType = "rsa"
 	// ApplicationTokenAlgorithm is the default algorithm used to sign
 	// application access tokens.
 	ApplicationTokenAlgorithm = jose.RS256

@@ -260,7 +260,7 @@ func (s *sessionCache) expireSessions() {
 	for {
 		select {
 		case <-ticker.C:
-			s.expiredSession()
+			s.expiredSessions()
 		case <-s.closeContext.Done():
 			return
 		}
@@ -268,7 +268,7 @@ func (s *sessionCache) expireSessions() {
 }
 
 // expiredSession tries to expire sessions in the cache.
-func (s *sessionCache) expiredSession() {
+func (s *sessionCache) expiredSessions() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

@@ -55,8 +55,8 @@ func (h *Handler) newSession(ctx context.Context, ws services.WebSession) (*sess
 		return nil, trace.Wrap(err)
 	}
 
-	// Find the address of the Teleport application proxy server for this public
-	// address and cluster name pair.
+	// Query the cluster this application is running in to find the public
+	// address and cluster name pair which will be encoded into the certificate.
 	clusterClient, err := h.c.ProxyClient.GetSite(identity.RouteToApp.ClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -70,11 +70,6 @@ func (h *Handler) newSession(ctx context.Context, ws services.WebSession) (*sess
 		return nil, trace.Wrap(err)
 	}
 
-	cn, err := h.c.AccessPoint.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(&transportConfig{
 		proxyClient:  h.c.ProxyClient,
@@ -84,7 +79,7 @@ func (h *Handler) newSession(ctx context.Context, ws services.WebSession) (*sess
 		server:       server,
 		app:          application,
 		ws:           ws,
-		clusterName:  cn.GetClusterName(),
+		clusterName:  h.clusterName,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -123,7 +118,7 @@ func newSessionCache(ctx context.Context, log *logrus.Entry) (*sessionCache, err
 
 	// Cache of request forwarders. Set an expire function that can be used to
 	// close any open resources.
-	s.cache, err = ttlmap.New(defaults.ClientCacheSize, ttlmap.CallOnExpire(s.expire))
+	s.cache, err = ttlmap.New(defaults.ClientCacheSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -157,19 +152,6 @@ func (s *sessionCache) set(key string, value *session, ttl time.Duration) error 
 	return nil
 }
 
-// expire will close the stream writer.
-func (s *sessionCache) expire(key string, el interface{}) {
-	session, ok := el.(*session)
-	if !ok {
-		s.log.Debugf("Invalid type stored in cache: %T.", el)
-		return
-	}
-
-	if err := session.accessPoint.Close(); err != nil {
-		s.log.Debugf("Failed to close stream writer: %v.", err)
-	}
-}
-
 // expireSessions ticks every second trying to close expired sessions.
 func (s *sessionCache) expireSessions() {
 	ticker := time.NewTicker(time.Second)
@@ -178,7 +160,7 @@ func (s *sessionCache) expireSessions() {
 	for {
 		select {
 		case <-ticker.C:
-			s.expiredSession()
+			s.expireSession()
 		case <-s.closeContext.Done():
 			return
 		}
@@ -186,7 +168,7 @@ func (s *sessionCache) expireSessions() {
 }
 
 // expiredSession tries to expire sessions in the cache.
-func (s *sessionCache) expiredSession() {
+func (s *sessionCache) expireSession() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

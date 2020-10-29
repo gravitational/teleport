@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -197,7 +198,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.GET("/webapi/find", httplib.MakeHandler(h.find))
 
 	// Unauthenticated access to JWT public keys.
-	h.GET("/.well-known/jwks.json", httplib.MakeHandler(h.jwtPublicKeys))
+	h.GET("/.well-known/jwks.json", httplib.MakeHandler(h.jwks))
 
 	// DELETE IN: 5.1.0
 	//
@@ -376,11 +377,12 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	// Create application specific handler. This handler handles sessions and
 	// forwarding for application access.
 	appHandler, err := app.NewHandler(cfg.Context, &app.HandlerConfig{
-		Clock:        h.clock,
-		AuthClient:   cfg.ProxyClient,
-		AccessPoint:  cfg.AccessPoint,
-		ProxyClient:  cfg.Proxy,
-		CipherSuites: cfg.CipherSuites,
+		Clock:         h.clock,
+		AuthClient:    cfg.ProxyClient,
+		AccessPoint:   cfg.AccessPoint,
+		ProxyClient:   cfg.Proxy,
+		CipherSuites:  cfg.CipherSuites,
+		WebPublicAddr: cfg.ProxySettings.SSH.PublicAddr,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -748,11 +750,13 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	return nil, nil
 }
 
-type jwtPublicKeysResponse struct {
-	JWTKeys []services.JWTKeyPair `json:"keys"`
+type jwksResponse struct {
+	// Keys is a list of public keys in JWK format.
+	Keys []jwt.JWK `json:"keys"`
 }
 
-func (h *Handler) jwtPublicKeys(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+// jwks returns all public keys used to sign JWT tokens for this cluster.
+func (h *Handler) jwks(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	clusterName, err := h.cfg.ProxyClient.GetDomainName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -766,10 +770,21 @@ func (h *Handler) jwtPublicKeys(w http.ResponseWriter, r *http.Request, p httpro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	pairs := ca.GetJWTKeyPairs()
 
-	return &jwtPublicKeysResponse{
-		JWTKeys: ca.GetJWTKeyPairs(),
-	}, nil
+	// Create response and allocate space for the keys.
+	var resp jwksResponse
+	resp.Keys = make([]jwt.JWK, 0, len(pairs))
+
+	// Loop over and all add public keys in JWK format.
+	for _, pair := range pairs {
+		jwk, err := jwt.MarshalJWK(pair.PublicKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resp.Keys = append(resp.Keys, jwk)
+	}
+	return &resp, nil
 }
 
 func (h *Handler) oidcLoginWeb(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {

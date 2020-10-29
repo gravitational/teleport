@@ -51,6 +51,8 @@ type HandlerConfig struct {
 	// CipherSuites is the list of TLS cipher suites that have been configured
 	// for this process.
 	CipherSuites []uint16
+	// WebPublicAddr
+	WebPublicAddr string
 }
 
 // CheckAndSetDefaults validates configuration.
@@ -82,6 +84,8 @@ type Handler struct {
 
 	cache *sessionCache
 
+	clusterName string
+
 	log *logrus.Entry
 }
 
@@ -107,11 +111,18 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	// Get the name of this cluster.
+	cn, err := h.c.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	h.clusterName = cn.GetClusterName()
+
 	// Create the application routes.
 	h.router = httprouter.New()
 	h.router.GET("/x-teleport-auth", makeRouterHandler(h.handleFragment))
 	h.router.POST("/x-teleport-auth", makeRouterHandler(h.handleFragment))
-	h.router.GET("/x-teleport-logout", h.withRouterAuth(h.handleLogout))
+	h.router.GET("/teleport-logout", h.withRouterAuth(h.handleLogout))
 	h.router.NotFound = h.withAuth(h.handleForward)
 
 	return h, nil
@@ -144,7 +155,7 @@ func (h *Handler) authenticate(ctx context.Context, r *http.Request) (*session, 
 		SessionID: cookieValue,
 	})
 	if err != nil {
-		h.log.Warnf("Failed to fetch application session: not found.")
+		h.log.Debugf("Failed to fetch application session: not found.")
 		return nil, trace.AccessDenied("invalid session")
 	}
 

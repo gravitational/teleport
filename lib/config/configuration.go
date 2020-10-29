@@ -769,11 +769,15 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 
-		// If a port was specified, return an error, public address should be a FQDN.
+		// If a port was specified or a IP address was provided for the public
+		// address, return an error.
 		if application.PublicAddr != "" {
 			_, _, err = net.SplitHostPort(application.PublicAddr)
 			if err == nil {
-				return trace.BadParameter("public address %q can not contan a port", application.PublicAddr)
+				return trace.BadParameter("public address %q can not contan a port, applications will be avaiable on the same port as the web proxy", application.PublicAddr)
+			}
+			if net.ParseIP(application.PublicAddr) != nil {
+				return trace.BadParameter("public address %q can not be an IP address, Teleport Application Access uses DNS names for routing", application.PublicAddr)
 			}
 		}
 
@@ -1057,7 +1061,10 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		if clf.AppPublicAddr != "" {
 			_, _, err = net.SplitHostPort(clf.AppPublicAddr)
 			if err == nil {
-				return trace.BadParameter("public address %q can not contan a port", clf.AppPublicAddr)
+				return trace.BadParameter("public address %q can not contan a port, applications will be avaiable on the same port as the web proxy", clf.AppPublicAddr)
+			}
+			if net.ParseIP(clf.AppPublicAddr) != nil {
+				return trace.BadParameter("public address %q can not be an IP address, Teleport Application Access uses DNS names for routing", clf.AppPublicAddr)
 			}
 		}
 
