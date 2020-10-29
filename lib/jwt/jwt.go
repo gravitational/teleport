@@ -21,12 +21,9 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
-	"encoding/base64"
-	"math/big"
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -269,39 +266,6 @@ func (p *GenerateAppTokenRequest) Check() error {
 		return trace.BadParameter("uri missing")
 	}
 	return nil
-}
-
-// JWK is a JSON Web Key.
-type JWK struct {
-	// KeyType is the type of asymmetric key used.
-	KeyType string `json:"kty"`
-	// Algorithm used to sign.
-	Algorithm string `json:"alg"`
-	// N is the modulus of the public key.
-	N string `json:"n"`
-	// E is the exponent of the public key.
-	E string `json:"e"`
-}
-
-// MarshalJWK will marshal a supported public key into JWK format.
-func MarshalJWK(bytes []byte) (JWK, error) {
-	// Parse the public key and validate type.
-	p, err := utils.ParsePublicKey(bytes)
-	if err != nil {
-		return JWK{}, trace.Wrap(err)
-	}
-	publicKey, ok := p.(*rsa.PublicKey)
-	if !ok {
-		return JWK{}, trace.BadParameter("unsupported key format %T", p)
-	}
-
-	// Marshal to JWK.
-	return JWK{
-		KeyType:   string(defaults.ApplicationTokenKeyType),
-		Algorithm: string(defaults.ApplicationTokenAlgorithm),
-		N:         base64.RawURLEncoding.EncodeToString(publicKey.N.Bytes()),
-		E:         base64.RawURLEncoding.EncodeToString(big.NewInt(int64(publicKey.E)).Bytes()),
-	}, nil
 }
 
 // GenerateKeyPair generates and return a PEM encoded private and public
