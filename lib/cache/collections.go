@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"strings"
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -615,6 +616,12 @@ func (c *certAuthority) fetch(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 	if err := c.updateCertAuthorities(services.JWTSigner); err != nil {
+		// DELETE IN: 5.1
+		//
+		// All clusters will support JWT signers in 5.1.
+		if strings.Contains(err.Error(), "authority type is not supported") {
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 	return nil
@@ -623,7 +630,12 @@ func (c *certAuthority) fetch(ctx context.Context) error {
 func (c *certAuthority) updateCertAuthorities(caType services.CertAuthType) error {
 	authorities, err := c.Trust.GetCertAuthorities(caType, c.watch.LoadSecrets, services.SkipValidation())
 	if err != nil {
-		return trace.Wrap(err)
+		// DELETE IN: 5.1
+		//
+		// All clusters will support JWT signers in 5.1.
+		if !strings.Contains(err.Error(), "authority type is not supported") {
+			return trace.Wrap(err)
+		}
 	}
 	if err := c.trustCache.DeleteAllCertAuthorities(caType); err != nil {
 		if !trace.IsNotFound(err) {
@@ -659,6 +671,12 @@ func (c *certAuthority) processEvent(ctx context.Context, event services.Event) 
 		resource, ok := event.Resource.(services.CertAuthority)
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		// DELETE IN: 5.1.
+		//
+		// All clusters will support JWT signers in 5.1.
+		if resource.GetType() == services.JWTSigner {
+			return nil
 		}
 		c.setTTL(resource)
 		if err := c.trustCache.UpsertCertAuthority(resource); err != nil {

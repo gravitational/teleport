@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -187,6 +188,12 @@ type Config struct {
 
 	// Emitter is event emitter
 	Emitter events.StreamEmitter
+
+	// DELETE IN: 5.1.
+	//
+	// Pass in a access point that can be configured with the old access point
+	// policy until all clusters are migrated to 5.0 and above.
+	NewCachingAccessPointOldProxy auth.NewCachingAccessPoint
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -983,9 +990,26 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}
 	remoteSite.remoteClient = clt
 
+	// DELETE IN: 5.1.0.
+	//
+	// Check if the cluster that is connecting is an older cluster. If it is,
+	// don't request access to application servers because older servers policy
+	// will reject that causing the cache to go into a re-sync loop.
+	var accessPointFunc auth.NewCachingAccessPoint
+	ok, err := isOldCluster(closeContext, sconn)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if ok {
+		log.Debugf("Older cluster connecting, loading old cache policy.")
+		accessPointFunc = srv.Config.NewCachingAccessPointOldProxy
+	} else {
+		accessPointFunc = srv.newAccessPoint
+	}
+
 	// Configure access to the cached subset of the Auth Server API of the remote
 	// cluster this remote site provides access to.
-	accessPoint, err := srv.newAccessPoint(clt, []string{"reverse", domainName})
+	accessPoint, err := accessPointFunc(clt, []string{"reverse", domainName})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1004,6 +1028,60 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	go remoteSite.periodicUpdateCertAuthorities()
 
 	return remoteSite, nil
+}
+
+// DELETE IN: 5.1.0.
+//
+// isOldCluster checks if the cluster is older than 5.0.0.
+func isOldCluster(ctx context.Context, conn ssh.Conn) (bool, error) {
+	version, err := sendVersionRequest(ctx, conn)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	remoteClusterVersion, err := semver.NewVersion(version)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	minClusterVersion, err := semver.NewVersion("5.0.0")
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	if remoteClusterVersion.LessThan(*minClusterVersion) {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+// sendVersionRequest sends a request for the version remote Teleport cluster.
+func sendVersionRequest(ctx context.Context, sconn ssh.Conn) (string, error) {
+	errorCh := make(chan error, 1)
+	versionCh := make(chan string, 1)
+
+	go func() {
+		ok, payload, err := sconn.SendRequest(versionRequest, true, nil)
+		if err != nil {
+			errorCh <- err
+			return
+		}
+		if !ok {
+			errorCh <- trace.BadParameter("no response to %v request", versionRequest)
+			return
+		}
+		versionCh <- string(payload)
+	}()
+
+	select {
+	case ver := <-versionCh:
+		return ver, nil
+	case err := <-errorCh:
+		return "", trace.Wrap(err)
+	case <-time.After(defaults.WaitCopyTimeout):
+		return "", trace.BadParameter("timeout waiting for version")
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
 }
 
 const (

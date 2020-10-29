@@ -1476,9 +1476,18 @@ func (process *TeleportProcess) newLocalCacheForProxy(clt auth.ClientI, cacheNam
 	return process.newLocalCache(clt, cache.ForProxy, cacheName)
 }
 
-// newLocalCacheForRemoteProxy returns new instance of access point configured for a remote proxy.
+// newLocalCacheForRemoteProxy returns new instance of access point configured
+// for a remote proxy.
 func (process *TeleportProcess) newLocalCacheForRemoteProxy(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
 	return process.newLocalCache(clt, cache.ForRemoteProxy, cacheName)
+}
+
+// DELETE IN: 5.1.
+//
+// newLocalCacheForOldRemoteProxy returns new instance of access point
+// configured for an old remote proxy.
+func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt auth.ClientI, cacheName []string) (auth.AccessPoint, error) {
+	return process.newLocalCache(clt, cache.ForOldRemoteProxy, cacheName)
 }
 
 // newLocalCache returns new instance of access point
@@ -2267,16 +2276,17 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if !process.Config.Proxy.DisableReverseTunnel {
 		tsrv, err = reversetunnel.NewServer(
 			reversetunnel.Config{
-				Component:             teleport.Component(teleport.ComponentProxy, process.id),
-				ID:                    process.Config.HostUUID,
-				ClusterName:           conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-				ClientTLS:             clientTLSConfig,
-				Listener:              listeners.reverseTunnel,
-				HostSigners:           []ssh.Signer{conn.ServerIdentity.KeySigner},
-				LocalAuthClient:       conn.Client,
-				LocalAccessPoint:      accessPoint,
-				NewCachingAccessPoint: process.newLocalCacheForRemoteProxy,
-				Limiter:               reverseTunnelLimiter,
+				Component:                     teleport.Component(teleport.ComponentProxy, process.id),
+				ID:                            process.Config.HostUUID,
+				ClusterName:                   conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+				ClientTLS:                     clientTLSConfig,
+				Listener:                      listeners.reverseTunnel,
+				HostSigners:                   []ssh.Signer{conn.ServerIdentity.KeySigner},
+				LocalAuthClient:               conn.Client,
+				LocalAccessPoint:              accessPoint,
+				NewCachingAccessPoint:         process.newLocalCacheForRemoteProxy,
+				NewCachingAccessPointOldProxy: process.newLocalCacheForOldRemoteProxy,
+				Limiter:                       reverseTunnelLimiter,
 				DirectClusters: []reversetunnel.DirectCluster{
 					{
 						Name:   conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],

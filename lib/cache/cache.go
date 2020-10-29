@@ -97,6 +97,27 @@ func ForRemoteProxy(cfg Config) Config {
 	return cfg
 }
 
+// DELETE IN: 5.1
+//
+// ForOldRemoteProxy sets up watch configuration for older remote proxies.
+func ForOldRemoteProxy(cfg Config) Config {
+	cfg.Watches = []services.WatchKind{
+		{Kind: services.KindCertAuthority, LoadSecrets: false},
+		{Kind: services.KindClusterName},
+		{Kind: services.KindClusterConfig},
+		{Kind: services.KindUser},
+		{Kind: services.KindRole},
+		{Kind: services.KindNamespace},
+		{Kind: services.KindNode},
+		{Kind: services.KindProxy},
+		{Kind: services.KindAuthServer},
+		{Kind: services.KindReverseTunnel},
+		{Kind: services.KindTunnelConnection},
+	}
+	cfg.QueueSize = defaults.ProxyQueueSize
+	return cfg
+}
+
 // ForNode sets up watch configuration for node
 func ForNode(cfg Config) Config {
 	cfg.Watches = []services.WatchKind{
