@@ -18,6 +18,7 @@ package app
 
 import (
 	"net/http"
+	"net/url"
 
 	"github.com/gravitational/trace"
 
@@ -43,8 +44,21 @@ func (h *Handler) withRouterAuth(handler routerAuthFunc) httprouter.Handle {
 // handler.
 func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 	return makeHandler(func(w http.ResponseWriter, r *http.Request) error {
+		// If the caller fails to authenticate, redirect the caller to Teleport.
 		session, err := h.authenticate(r.Context(), r)
 		if err != nil {
+			// If this cluster has the public address of the proxy set, re-direct to
+			// the login page. If not, the best that can be done is to show "403 Forbidden"
+			// because Teleport does not know where to re-direct to.
+			if h.c.WebPublicAddr != "" {
+				u := url.URL{
+					Scheme: "https",
+					Host:   h.c.WebPublicAddr,
+					Path:   "/web/login",
+				}
+				http.Redirect(w, r, u.String(), http.StatusFound)
+				return nil
+			}
 			return trace.Wrap(err)
 		}
 		if err := handler(w, r, session); err != nil {

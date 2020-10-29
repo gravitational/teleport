@@ -56,10 +56,14 @@ func (h *Handler) siteAppsGet(w http.ResponseWriter, r *http.Request, p httprout
 		return nil, trace.Wrap(err)
 	}
 
-	// Get the public address of the proxy and remove the port.
-	proxyHost, err := utils.Host(h.cfg.ProxySettings.SSH.PublicAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	// Get the public address of the proxy and remove the port. An empty public
+	// address is fine here, it will be used to denote fallback to cluster name.
+	proxyHost := h.cfg.ProxySettings.SSH.PublicAddr
+	if proxyHost != "" {
+		proxyHost, err = utils.Host(proxyHost)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	return makeResponse(ui.MakeApps(h.auth.clusterName, proxyHost, appClusterName, appServers))

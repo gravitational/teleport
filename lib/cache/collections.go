@@ -1167,13 +1167,8 @@ func (a *appSession) fetch(ctx context.Context) error {
 func (a *appSession) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
-		resource, ok := event.Resource.(services.WebSession)
-		if !ok {
-			return trace.BadParameter("unexpected type %T", event.Resource)
-		}
-
 		err := a.appSessionCache.DeleteAppSession(ctx, services.DeleteAppSessionRequest{
-			SessionID: resource.GetName(),
+			SessionID: event.Resource.GetName(),
 		})
 		if err != nil {
 			// Resource could be missing in the cache expired or not created, if the
