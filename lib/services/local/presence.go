@@ -753,7 +753,7 @@ Acquire:
 			// however, to assume that we are under high contention and attempt to
 			// spread out retries via random backoff.
 			select {
-			case <-time.After(s.jitter(baseBackoff * time.Duration(i))):
+			case <-time.After(s.jitter(baseBackoff * time.Duration(acquireAttempts))):
 			case <-ctx.Done():
 				return nil, trace.Wrap(ctx.Err())
 			}

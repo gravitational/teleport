@@ -23,6 +23,8 @@ type SemaphoreLockConfig struct {
 	TickRate time.Duration
 	// Params holds the semaphore lease acquisition parameters.
 	Params AcquireSemaphoreRequest
+	// Jitter optionally specifies the jitter for retries
+	Jitter utils.Jitter
 }
 
 // CheckAndSetDefaults checks and sets default parameters
@@ -44,6 +46,9 @@ func (l *SemaphoreLockConfig) CheckAndSetDefaults() error {
 	}
 	if l.Params.Expires.IsZero() {
 		l.Params.Expires = time.Now().UTC().Add(l.Expiry)
+	}
+	if l.Jitter == nil {
+		l.Jitter = utils.NewJitter()
 	}
 	if err := l.Params.Check(); err != nil {
 		return trace.Wrap(err)
@@ -196,7 +201,7 @@ func AcquireSemaphoreLock(ctx context.Context, cfg SemaphoreLockConfig) (*Semaph
 	retry, err := utils.NewLinear(utils.LinearConfig{
 		Max:    cfg.Expiry / 4,
 		Step:   cfg.Expiry / 16,
-		Jitter: utils.NewJitter(),
+		Jitter: cfg.Jitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 
@@ -1215,25 +1216,26 @@ func (s *ServicesTestSuite) SemaphoreFlakiness(c *check.C) {
 // to start returning "too much contention" errors at around 100 concurrent
 // attempts.
 func (s *ServicesTestSuite) SemaphoreContention(c *check.C) {
-	const locks int64 = 50
+	const locks = 50
 	const iters = 5
+	cfg := services.SemaphoreLockConfig{
+		Service: s.PresenceS,
+		Expiry:  time.Hour,
+		Params: services.AcquireSemaphoreRequest{
+			SemaphoreKind: services.SemaphoreKindConnection,
+			SemaphoreName: "alice",
+			MaxLeases:     locks,
+		},
+		Jitter: utils.NewJitter(),
+	}
 	for i := 0; i < iters; i++ {
-		cfg := services.SemaphoreLockConfig{
-			Service: s.PresenceS,
-			Expiry:  time.Hour,
-			Params: services.AcquireSemaphoreRequest{
-				SemaphoreKind: services.SemaphoreKindConnection,
-				SemaphoreName: "alice",
-				MaxLeases:     locks,
-			},
-		}
 		// we leak lock handles in the spawned goroutines, so
 		// context-based cancellation is needed to cleanup the
 		// background keepalive activity.
 		ctx, cancel := context.WithCancel(context.TODO())
 		var wg sync.WaitGroup
-		for i := int64(0); i < locks; i++ {
-			wg.Add(1)
+		wg.Add(int(locks))
+		for i := 0; i < locks; i++ {
 			go func() {
 				defer wg.Done()
 				lock, err := services.AcquireSemaphoreLock(ctx, cfg)
