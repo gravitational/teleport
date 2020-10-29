@@ -21,7 +21,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -39,8 +38,6 @@ type session struct {
 	fwd *forward.Forwarder
 	// ws represents the services.WebSession this requests belongs to.
 	ws services.WebSession
-	// accessPoint is a cached connection to auth.
-	accessPoint auth.AccessPoint
 }
 
 // newSession creates a new session.
