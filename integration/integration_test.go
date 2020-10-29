@@ -1124,6 +1124,7 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 			case <-ctx.Done():
 				// either we timed out, or a different session
 				// triggered closure.
+				c.Logf("Abort session: %v", timeNow())
 				return
 			default:
 			}
@@ -1132,6 +1133,7 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 			} else if err != nil && !trace.IsEOF(err) {
 				c.Fatalf("%s: expected EOF or nil, got %v instead", tc.comment, err)
 			}
+			c.Logf("Close session: %v", timeNow())
 		}
 
 		go openSession()
