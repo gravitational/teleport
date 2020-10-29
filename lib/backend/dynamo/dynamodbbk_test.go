@@ -34,7 +34,7 @@ import (
 func TestDynamoDB(t *testing.T) { check.TestingT(t) }
 
 type DynamoDBSuite struct {
-	bk        *DynamoDBBackend
+	bk        *Backend
 	suite     test.BackendSuite
 	tableName string
 }
@@ -54,14 +54,16 @@ func (s *DynamoDBSuite) SetUpSuite(c *check.C) {
 	}
 	bk, err := newBackend()
 	c.Assert(err, check.IsNil)
-	s.bk = bk.(*DynamoDBBackend)
+	s.bk = bk.(*Backend)
 	s.suite.B = s.bk
 	s.suite.NewBackend = newBackend
 }
 
+// TearDownSuite stops the backend.
+//
+// TODO: This function should delete all tables created during tests.
 func (s *DynamoDBSuite) TearDownSuite(c *check.C) {
 	if s.bk != nil && s.bk.svc != nil {
-		//		s.bk.deleteTable(context.Background(), s.tableName, false)
 		c.Assert(s.bk.Close(), check.IsNil)
 	}
 }
@@ -100,4 +102,38 @@ func (s *DynamoDBSuite) TestWatchersClose(c *check.C) {
 
 func (s *DynamoDBSuite) TestLocking(c *check.C) {
 	s.suite.Locking(c)
+}
+
+// TestContinuousBackups verifies that the continuous backup state is updated
+// upon start of the DynamoDB backend.
+func (s *DynamoDBSuite) TestContinuousBackups(c *check.C) {
+	var tests = []struct {
+		enabled bool
+		desc    check.CommentInterface
+	}{
+		{
+			enabled: true,
+			desc:    check.Commentf("enable continuous backups"),
+		},
+		{
+			enabled: false,
+			desc:    check.Commentf("disabled continuous backups"),
+		},
+	}
+	for _, tt := range tests {
+		tableName := "teleport.dynamo.continuous.backups"
+		newBackend := func() (backend.Backend, error) {
+			return New(context.Background(), map[string]interface{}{
+				"table_name":         tableName,
+				"continuous_backups": tt.enabled,
+			})
+		}
+		bk, err := newBackend()
+		c.Assert(err, check.IsNil, tt.desc)
+		d := bk.(*Backend)
+
+		ok, err := d.getContinuousBackups(context.Background())
+		c.Assert(err, check.IsNil, tt.desc)
+		c.Assert(ok, check.Equals, tt.enabled, tt.desc)
+	}
 }
