@@ -65,6 +65,8 @@ type Config struct {
 	PollStreamPeriod time.Duration `json:"poll_stream_period,omitempty"`
 	// RetryPeriod is a period between dynamo backend retries on failures
 	RetryPeriod time.Duration `json:"retry_period"`
+	// EnableContinuousBackups enabled PITR (Point-In-Time) Recovery.
+	EnableContinuousBackups bool `json:"continuous_backups"`
 }
 
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
@@ -256,6 +258,10 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 
 	err = b.turnOnStreams(ctx)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := b.setContinuousBackups(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -820,6 +826,52 @@ func (b *Backend) getKey(ctx context.Context, key []byte) (*record, error) {
 		return nil, trace.NotFound("%q is not found", key)
 	}
 	return &r, nil
+}
+
+// getContinuousBackups gets the state of continuous backups.
+func (b *Backend) getContinuousBackups(ctx context.Context) (bool, error) {
+	resp, err := b.svc.DescribeContinuousBackupsWithContext(ctx, &dynamodb.DescribeContinuousBackupsInput{
+		TableName: aws.String(b.Tablename),
+	})
+	if err != nil {
+		return false, convertError(err)
+	}
+
+	switch *resp.ContinuousBackupsDescription.PointInTimeRecoveryDescription.PointInTimeRecoveryStatus {
+	case string(dynamodb.ContinuousBackupsStatusEnabled):
+		return true, nil
+	case string(dynamodb.ContinuousBackupsStatusDisabled):
+		return false, nil
+	default:
+		return false, trace.BadParameter("dynamo return unknown state for continuous backups: %v",
+			*resp.ContinuousBackupsDescription.PointInTimeRecoveryDescription.PointInTimeRecoveryStatus)
+	}
+}
+
+// setContinuousBackups sets the state of continuous backups.
+func (b *Backend) setContinuousBackups(ctx context.Context) error {
+	// Make request to AWS to update continuous backups settings.
+	_, err := b.svc.UpdateContinuousBackupsWithContext(ctx, &dynamodb.UpdateContinuousBackupsInput{
+		PointInTimeRecoverySpecification: &dynamodb.PointInTimeRecoverySpecification{
+			PointInTimeRecoveryEnabled: aws.Bool(b.Config.EnableContinuousBackups),
+		},
+		TableName: aws.String(b.Tablename),
+	})
+	if err != nil {
+		return convertError(err)
+	}
+
+	// Make sure the state Dynamo is now in matches the expected state.
+	status, err := b.getContinuousBackups(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if status != b.Config.EnableContinuousBackups {
+		return trace.BadParameter("failed to set continuous backups to %v",
+			b.Config.EnableContinuousBackups)
+	}
+
+	return nil
 }
 
 func convertError(err error) error {
