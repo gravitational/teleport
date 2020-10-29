@@ -1354,6 +1354,37 @@ is running without problems.
 We'll cover how to use `etcd`, DynamoDB and Firestore storage back-ends to make Teleport
 highly available below.
 
+### Teleport Scalability Tweaks
+
+When running Teleport at scale (for example in the case where there are 10,000+ nodes connected
+to a cluster via [node tunnelling mode](#adding-a-node-located-behind-nat), the following settings
+should be set on Teleport auth and proxies:
+
+#### Proxy Servers
+These settings alter Teleport's [default connection limit](https://github.com/gravitational/teleport/blob/5cd212fecda63ec6790cc5ffe508a626c56e2b2c/lib/defaults/defaults.go#L385) from 15000 to 65000.
+
+```yaml
+# Teleport Proxy
+teleport:
+  cache:
+    # use an in-memory cache to speed up the connection of many teleport nodes
+    # back to proxy
+    type: in-memory
+  # set up connection limits to prevent throttling of many IoT nodes connecting to proxies
+  connection_limits:
+    max_connections: 65000
+    max_users: 1000
+```
+#### Auth Servers
+
+```yaml
+# Teleport Auth
+teleport:
+  connection_limits:
+    max_connections: 65000
+    max_users: 1000
+```
+
 ### Using etcd
 
 Teleport can use [etcd](https://etcd.io/) as a storage backend to
