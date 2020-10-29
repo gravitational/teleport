@@ -13,7 +13,7 @@ if [ ! -f /etc/teleport.d/role.auth ]; then
     exit 0
 fi
 
-IMDS_TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+IMDS_TOKEN=$(curl -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
 IMDS_TOKEN_HEADER="-H \"X-aws-ec2-metadata-token: ${IMDS_TOKEN}\""
 LOCK="/teleport/${TELEPORT_CLUSTER_NAME}"
 NOW=$(date +%s)
