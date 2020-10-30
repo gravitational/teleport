@@ -41,6 +41,10 @@ type Announcer interface {
 	// for the specified duration with second resolution if it's >= 1 second
 	UpsertAuthServer(s services.Server) error
 
+	// UpsertKubeService registers kubernetes presence, permanently if ttl is 0
+	// or for the specified duration with second resolution if it's >= 1 second
+	UpsertKubeService(s services.Server) error
+
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
 }
@@ -96,6 +100,9 @@ type ReadAccessPoint interface {
 
 	// GetTunnelConnections returns tunnel connections for a given cluster
 	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]services.TunnelConnection, error)
+
+	// GetKubeServices returns a list of kubernetes services registered in the cluster
+	GetKubeServices() ([]services.Server, error)
 }
 
 // AccessPoint is an API interface implemented by a certificate authority (CA)
@@ -235,6 +242,11 @@ func (w *Wrapper) GetSemaphores(ctx context.Context, filter services.SemaphoreFi
 // DeleteSemaphore deletes a semaphore matching supplied filter.
 func (w *Wrapper) DeleteSemaphore(ctx context.Context, filter services.SemaphoreFilter) error {
 	return w.NoCache.DeleteSemaphore(ctx, filter)
+}
+
+// UpsertKubeService is part of auth.AccessPoint implementation
+func (w *Wrapper) UpsertKubeService(s services.Server) error {
+	return w.NoCache.UpsertKubeService(s)
 }
 
 // NewCachingAcessPoint returns new caching access point using

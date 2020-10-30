@@ -166,6 +166,7 @@ var (
 		"cgroup_path":             false,
 		"kubernetes_service":      true,
 		"kube_cluster_name":       false,
+		"kube_listen_addr":        false,
 	}
 )
 
@@ -222,7 +223,7 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 		return nil, trace.BadParameter("failed to parse Teleport configuration: %v", err)
 	}
 	// don't start Teleport with invalid ciphers, kex algorithms, or mac algorithms.
-	err = fc.Check()
+	err = fc.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.BadParameter("failed to parse Teleport configuration: %v", err)
 	}
@@ -331,10 +332,15 @@ func (conf *FileConfig) DebugDumpToYAML() string {
 	return string(bytes)
 }
 
-// Check ensures that the ciphers, kex algorithms, and mac algorithms set
-// are supported by golang.org/x/crypto/ssh. This ensures we don't start
-// Teleport with invalid configuration.
-func (conf *FileConfig) Check() error {
+// CheckAndSetDefaults sets defaults and ensures that the ciphers, kex
+// algorithms, and mac algorithms set are supported by golang.org/x/crypto/ssh.
+// This ensures we don't start Teleport with invalid configuration.
+func (conf *FileConfig) CheckAndSetDefaults() error {
+	conf.Auth.defaultEnabled = true
+	conf.Proxy.defaultEnabled = true
+	conf.SSH.defaultEnabled = true
+	conf.Kube.defaultEnabled = false
+
 	var sc ssh.Config
 	sc.SetDefaults()
 
@@ -478,8 +484,9 @@ func (c *CachePolicy) Parse() (*service.CachePolicy, error) {
 
 // Service is a common configuration of a teleport service
 type Service struct {
-	EnabledFlag   string `yaml:"enabled,omitempty"`
-	ListenAddress string `yaml:"listen_addr,omitempty"`
+	defaultEnabled bool
+	EnabledFlag    string `yaml:"enabled,omitempty"`
+	ListenAddress  string `yaml:"listen_addr,omitempty"`
 }
 
 // Configured determines if a given "_service" section has been specified
@@ -489,8 +496,8 @@ func (s *Service) Configured() bool {
 
 // Enabled determines if a given "_service" section has been set to 'true'
 func (s *Service) Enabled() bool {
-	if s.EnabledFlag == "" {
-		return true
+	if !s.Configured() {
+		return s.defaultEnabled
 	}
 	v, err := utils.ParseBool(s.EnabledFlag)
 	if err != nil {
@@ -501,7 +508,10 @@ func (s *Service) Enabled() bool {
 
 // Disabled returns 'true' if the service has been deliberately turned off
 func (s *Service) Disabled() bool {
-	return s.Configured() && !s.Enabled()
+	if !s.Configured() {
+		return !s.defaultEnabled
+	}
+	return !s.Enabled()
 }
 
 // Auth is 'auth_service' section of the config file
@@ -811,6 +821,9 @@ type Proxy struct {
 	ProxyProtocol string `yaml:"proxy_protocol,omitempty"`
 	// KubeProxy configures kubernetes protocol support of the proxy
 	Kube KubeProxy `yaml:"kubernetes,omitempty"`
+	// KubeAddr is a shorthand for enabling the Kubernetes endpoint without a
+	// local Kubernetes cluster.
+	KubeAddr string `yaml:"kube_listen_addr,omitempty"`
 
 	// PublicAddr sets the hostport the proxy advertises for the HTTP endpoint.
 	// The hosts in PublicAddr are included in the list of host principals

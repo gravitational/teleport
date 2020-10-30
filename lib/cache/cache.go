@@ -90,6 +90,20 @@ func ForNode(cfg Config) Config {
 	return cfg
 }
 
+// ForKubernetes sets up watch configuration for a kubernetes service.
+func ForKubernetes(cfg Config) Config {
+	cfg.Watches = []services.WatchKind{
+		{Kind: services.KindCertAuthority, LoadSecrets: false},
+		{Kind: services.KindClusterName},
+		{Kind: services.KindClusterConfig},
+		{Kind: services.KindUser},
+		{Kind: services.KindRole},
+		{Kind: services.KindNamespace, Name: defaults.Namespace},
+	}
+	cfg.QueueSize = defaults.KubernetesQueueSize
+	return cfg
+}
+
 // SetupConfigFn is a function that sets up configuration
 // for cache
 type SetupConfigFn func(c Config) Config
@@ -563,7 +577,11 @@ func (c *Cache) GetTokens(opts ...services.MarshalOption) ([]services.ProvisionT
 
 // GetToken finds and returns token by ID
 func (c *Cache) GetToken(token string) (services.ProvisionToken, error) {
-	return c.provisionerCache.GetToken(token)
+	t, err := c.provisionerCache.GetToken(token)
+	if trace.IsNotFound(err) {
+		return c.Provisioner.GetToken(token)
+	}
+	return t, err
 }
 
 // GetClusterConfig gets services.ClusterConfig from the backend.
@@ -660,4 +678,9 @@ func (c *Cache) GetTunnelConnections(clusterName string, opts ...services.Marsha
 // to be called periodically and always return fresh data
 func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns []services.TunnelConnection, err error) {
 	return c.presenceCache.GetAllTunnelConnections(opts...)
+}
+
+// GetKubeServices is a part of auth.AccessPoint implementation
+func (c *Cache) GetKubeServices() ([]services.Server, error) {
+	return c.presenceCache.GetKubeServices()
 }

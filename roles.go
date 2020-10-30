@@ -52,6 +52,8 @@ const (
 	RoleNop Role = "Nop"
 	// RoleRemoteProxy is a role for remote SSH proxy in the cluster
 	RoleRemoteProxy Role = "RemoteProxy"
+	// RoleKube is a role for a kubernetes service.
+	RoleKube Role = "Kube"
 )
 
 // this constant exists for backwards compatibility reasons, needed to upgrade to 2.3
@@ -168,7 +170,7 @@ func (r *Role) Check() error {
 	case RoleAuth, RoleWeb, RoleNode,
 		RoleAdmin, RoleProvisionToken,
 		RoleTrustedCluster, LegacyClusterTokenType,
-		RoleSignup, RoleProxy, RoleNop:
+		RoleSignup, RoleProxy, RoleNop, RoleKube:
 		return nil
 	}
 	return trace.BadParameter("role %v is not registered", *r)

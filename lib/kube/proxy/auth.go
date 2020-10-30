@@ -53,14 +53,14 @@ func TestOnlySkipSelfPermissionCheck(skip bool) {
 	skipSelfPermissionCheck = skip
 }
 
-func getKubeCreds(ctx context.Context, log logrus.FieldLogger, kubeconfigPath string) (*kubeCreds, error) {
+func getKubeCreds(ctx context.Context, log logrus.FieldLogger, kubeconfigPath string, strictImpersonationCheck bool) (*kubeCreds, error) {
 	var cfg *rest.Config
 	// no kubeconfig is set, assume auth server is running in the cluster
 	if kubeconfigPath == "" {
 		caPEM, err := ioutil.ReadFile(teleport.KubeCAPath)
 		if err != nil {
 			if os.IsNotExist(err) {
-				log.Debugf("kubeconfig_file was not provided in the config and %q doesn't exist; this proxy will still be able to forward requests to trusted leaf Teleport clusters, but not to a Kubernetes cluster directly", teleport.KubeCAPath)
+				log.Debugf("kubeconfig_file was not provided in the config and %q doesn't exist; this proxy will still be able to forward requests to trusted leaf Teleport clusters, but not to a kubernetes cluster directly", teleport.KubeCAPath)
 				return nil, nil
 			}
 			return nil, trace.BadParameter(`auth server assumed that it is
@@ -90,18 +90,24 @@ running in a kubernetes cluster, but could not init in-cluster kubernetes client
 		return nil, trace.Wrap(err, "failed to generate kubernetes client from kubeconfig: %v", err)
 	}
 	if err := checkImpersonationPermissions(ctx, client.AuthorizationV1().SelfSubjectAccessReviews()); err != nil {
-		if kubeconfigPath == "" {
+		if strictImpersonationCheck {
 			return nil, trace.Wrap(err)
 		}
-		// Some users run proxies in root teleport clusters with k8s
-		// integration enabled but no local k8s cluster. They only forward
-		// requests to leaf teleport clusters.
+		// Some Teleport proxies run without direct access to a k8s cluster.
+		// They only forward requests to Teleport kubernetes_service elsewhere
+		// or to leaf teleport clusters.
 		//
-		// Before https://github.com/gravitational/teleport/pull/3811,
-		// users needed to add a dummy kubeconfig_file in the root proxy to
-		// get it to start. To allow those users to upgrade without a
-		// config change, log the error but don't fail startup.
-		log.WithError(err).Errorf("Failed to self-verify the kubernetes permissions using kubeconfig file %q; proceeding with startup but kubernetes integration on this proxy might not work; if this is a root proxy in trusted cluster setup and you only plan to forward kubernetes requests to leaf clusters, you can remove 'kubeconfig_file' from 'proxy_service' in your teleport.yaml to suppress this error", kubeconfigPath)
+		// This can be the case even when kubeconfig_path is set in
+		// teleport.yaml. Before
+		// https://github.com/gravitational/teleport/pull/3811, users needed to
+		// add a dummy kubeconfig_file in the root proxy to get it to start.
+		if kubeconfigPath != "" {
+			log.WithError(err).Warningf("Failed to test the necessary kubernetes permissions from %q. This teleport process will still handle kubernetes requests towards other kubernetes clusters", kubeconfigPath)
+		} else {
+			log.WithError(err).Warning("Failed to test the necessary kubernetes permissions for this teleport pod. This teleport pod will still handle kubernetes requests towards other kubernetes clusters")
+		}
+		// Don't return here, in case this process can impersonate but can't do
+		// a SelfSubjectAccessReview (the k8s permissions self-test API).
 	} else {
 		log.Debugf("Proxy has all necessary kubernetes impersonation permissions.")
 	}

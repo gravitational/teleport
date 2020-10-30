@@ -350,6 +350,8 @@ type ProxyConfig struct {
 	Kube KubeProxyConfig
 }
 
+// KubeAddr returns the address for the Kubernetes endpoint on this proxy that
+// can be reached by clients.
 func (c ProxyConfig) KubeAddr() (string, error) {
 	if !c.Kube.Enabled {
 		return "", trace.NotFound("kubernetes support not enabled on this proxy")
@@ -377,15 +379,9 @@ type KubeProxyConfig struct {
 	// ListenAddr is the address to listen on for incoming kubernetes requests.
 	ListenAddr utils.NetAddr
 
-	// KubeAPIAddr is address of kubernetes API server
-	APIAddr utils.NetAddr
-
 	// ClusterOverride causes all traffic to go to a specific remote
 	// cluster, used only in tests
 	ClusterOverride string
-
-	// CACert is a PEM encoded kubernetes CA certificate
-	CACert []byte
 
 	// PublicAddrs is a list of the public addresses the Teleport Kube proxy can be accessed by,
 	// it also affects the host principals and routing logic
@@ -493,6 +489,9 @@ type KubeConfig struct {
 	// Labels are used for RBAC on clusters.
 	StaticLabels  map[string]string
 	DynamicLabels services.CommandLabels
+
+	// Limiter limits the connection and request rates.
+	Limiter limiter.Config
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults
@@ -569,6 +568,7 @@ func ApplyDefaults(cfg *Config) {
 
 	// Kubernetes service defaults.
 	cfg.Kube.Enabled = false
+	defaults.ConfigureLimiter(&cfg.Kube.Limiter)
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

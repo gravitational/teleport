@@ -580,6 +580,12 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 			return nil, trace.Wrap(err)
 		}
 		return &semaphoreCollection{sems: sems}, nil
+	case services.KindKubeService:
+		servers, err := client.GetKubeServices()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &serverCollection{servers: servers}, nil
 	}
 	return nil, trace.BadParameter("'%v' is not supported", rc.ref.Kind)
 }
