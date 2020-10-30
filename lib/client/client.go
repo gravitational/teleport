@@ -677,6 +677,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 	conn, chans, reqs, err := newClientConn(ctx, pipeNetConn, nodeAddress.ProxyFormat(), sshConfig)
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
+			log.WithError(err).Warn("Failed to connect.")
 			proxySession.Close()
 			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, user, nodeAddress)
 		}
@@ -744,6 +745,7 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 	conn, chans, reqs, err := newClientConn(ctx, proxyConn, nodeAddress.Addr, sshConfig)
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
+			log.WithError(err).Warn("Failed to connect on port forward.")
 			proxyConn.Close()
 			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, user, nodeAddress)
 		}

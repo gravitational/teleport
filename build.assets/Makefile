@@ -158,7 +158,7 @@ test: buildbox
 .PHONY:integration
 integration: buildbox
 	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) -t $(BUILDBOX) \
-		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration"
+		/bin/bash -c "make -C $(SRCDIR) FLAGS='-v -cover' integration"
 
 #
 # Runs linters on new changes inside a build container.
