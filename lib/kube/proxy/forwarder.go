@@ -91,6 +91,9 @@ type ForwarderConfig struct {
 	// PingPeriod is a period for sending ping messages on the incoming
 	// connection.
 	PingPeriod time.Duration
+	// StrictImpersonationCheck specifies whether to fail when impersonation
+	// permissions of this forwarder can't be tested.
+	StrictImpersonationCheck bool
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -144,7 +147,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		trace.Component: teleport.Component(teleport.ComponentKube),
 	})
 
-	creds, err := getKubeCreds(cfg.Context, log, cfg.KubeconfigPath)
+	creds, err := getKubeCreds(cfg.Context, log, cfg.KubeconfigPath, cfg.StrictImpersonationCheck)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
