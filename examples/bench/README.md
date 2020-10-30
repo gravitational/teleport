@@ -4,9 +4,7 @@
 
 ## Using `tsh` bench 
 
-Specify the rps and duration with `--rate` and `--duration`. By default rate is 10 requests per seconds and duration is 1s. You will need to provide `[user@]host` and a command to run. 
-
-Each request will be run concurrently in its own goroutine. 
+Specify the rps and duration with `--rate` and `--duration`. By default rate is 10 requests per seconds and duration is 1 second. You will need to provide `[user@]host` and a command to run. 
 
 ```
 # generate requests at 100 requests per second
@@ -17,19 +15,22 @@ tsh bench --rate=100 --duration=30s localhost ls -l /
 
 ## Exporting Latency Profile 
 
-Run `tsh bench` as usual, but use the `--export` flag to export. Use `--path` to specify a directory to save the file to. If the path is not specified, the file will be saved to your current working directory. 
+Run `tsh bench` as usual and use the `--export` flag to export both the response and service histograms. Use `--path` to specify a directory to save the profiles to. If the path is not specified, the files will be saved to your current working directory. 
 
 Example:  
 
 `tsh bench --export --rate 100 --duration 10s localhost ls -l /` 
 
-The file its saved in the following format: latency_profile_2006-10-27_15:04:05.txt
+The files will be saved in the following format:  
+`response_latency_profile_2006-10-27_15:04:05.txt` and `service_latency_profile_2006-10-27_15:04:05.txt`
 
-### Plot the Profile 
+
+### Plot the Profiles 
 1. Navigate to [HDR Histogram Plotter](http://hdrhistogram.github.io/HdrHistogram/plotFiles.html)
-2. In the upper left corner of the page you will see a button that reads "choose files", click to choose the exported file
+2. In the upper left corner of the page you will see a button that reads "choose files" and select both exported files 
 
-Your histogram should now be plotted! 
+Your histograms should now be plotted! 
+
 
 
 ## Linear Benchmark Generator
@@ -56,4 +57,4 @@ The following defined linear instance has a lower bound of 10 and upper bound of
 
 ```
 
-_To see a full script example, go to `example.go` in `examples/bench`_
+_Full script example, see `examples/bench/example.go`_
