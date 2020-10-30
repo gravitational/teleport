@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib"
@@ -111,6 +112,26 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 // RoundTrip will rewrite the request, forward the request to the target
 // application, emit an event to the audit log, then rewrite the response.
 func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
+	// Check if the request path needs re-writing. This occurs when the URI
+	// contains a path like http://localhost:8080/app/acme, but the request comes
+	// to https://publicAddr. In that case do a 302 to the correct path instead
+	// of doing path re-writing on all requests. This is a workaround to make
+	// sure Teleport does not break SPA.
+	if location, ok := t.needsPathRedirect(r); ok {
+		return &http.Response{
+			Status:     http.StatusText(http.StatusFound),
+			StatusCode: http.StatusFound,
+			Proto:      r.Proto,
+			ProtoMajor: r.ProtoMajor,
+			ProtoMinor: r.ProtoMinor,
+			Body:       http.NoBody,
+			Header: http.Header{
+				"Location": []string{location},
+			},
+			TLS: r.TLS,
+		}, nil
+	}
+
 	// Perform any request rewriting needed before forwarding the request.
 	if err := t.rewriteRequest(r); err != nil {
 		return nil, trace.Wrap(err)
@@ -146,6 +167,37 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	r.Header.Add(teleport.AppCFHeader, t.c.jwt)
 
 	return nil
+}
+
+// needsPathRedirect checks if the request should be redirected to a different path.
+// At the moment, the only time a redirect happens is if URI specified is not
+// "/" and the public address being requested is "/".
+func (t *transport) needsPathRedirect(r *http.Request) (string, bool) {
+	// If the URI for the application has no path specified, nothing to be done.
+	uriPath := path.Clean(t.uri.Path)
+	if uriPath == "." {
+		uriPath = "/"
+	}
+	if uriPath == "/" {
+		return "", false
+	}
+
+	// For simplicity, only support redirecting to the URI path if the root path
+	// is requested.
+	reqPath := path.Clean(r.URL.Path)
+	if reqPath == "." {
+		reqPath = "/"
+	}
+	if reqPath != "/" {
+		return "", false
+	}
+
+	u := url.URL{
+		Scheme: "https",
+		Host:   net.JoinHostPort(t.c.publicAddr, t.c.publicPort),
+		Path:   uriPath,
+	}
+	return u.String(), true
 }
 
 // rewriteResponse applies any rewriting rules to the response before returning it.
