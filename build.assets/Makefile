@@ -145,7 +145,8 @@ clean:
 #
 # Runs tests inside a build container
 #
-.PHONY:test
+.PHONY: test
+test: FLAGS ?= -cover -race -count=10
 test: buildbox
 	docker run \
 		--env TELEPORT_ETCD_TEST="yes" \
@@ -153,12 +154,13 @@ test: buildbox
 		/bin/bash -c \
 		"examples/etcd/start-etcd.sh & sleep 1; \
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
-		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test"
+		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS=\"$(FLAGS)\" clean test"
 
-.PHONY:integration
+.PHONY: integration
+integration: FLAGS ?= -v -cover -count=10 -check.f=RotateSuccess
 integration: buildbox
 	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) -t $(BUILDBOX) \
-		/bin/bash -c "make -C $(SRCDIR) FLAGS='-v -cover' integration"
+		/bin/bash -c "make -C $(SRCDIR) FLAGS=\"$(FLAGS)\" integration"
 
 #
 # Runs linters on new changes inside a build container.

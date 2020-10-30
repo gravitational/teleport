@@ -62,6 +62,7 @@ func (s *EtcdSuite) SetUpSuite(c *check.C) {
 		"tls_cert_file": "../../../examples/etcd/certs/client-cert.pem",
 		"tls_ca_file":   "../../../examples/etcd/certs/ca-cert.pem",
 		"dial_timeout":  500 * time.Millisecond,
+		"key":           legacyDefaultPrefix,
 	}
 
 	newBackend := func() (backend.Backend, error) {
@@ -79,8 +80,6 @@ func (s *EtcdSuite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 	s.bk = b.(*EtcdBackend)
 	s.suite.B = s.bk
-
-	s.bk.cfg.Key = legacyDefaultPrefix
 }
 
 func (s *EtcdSuite) TearDownTest(c *check.C) {
