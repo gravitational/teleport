@@ -1,5 +1,11 @@
 # Changelog
 
+### 4.4.2
+
+This release of Teleport adds support for a new build architecture.
+
+* Added automatic arm64 builds of Teleport to the download portal.
+
 ### 4.4.1
 
 This release of Teleport contains a bug fix.
