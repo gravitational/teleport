@@ -13,7 +13,7 @@ require (
 	github.com/alecthomas/colour v0.1.0 // indirect
 	github.com/alecthomas/repr v0.0.0-20200325044227-4184120f674c // indirect
 	github.com/armon/go-radix v1.0.0
-	github.com/aws/aws-sdk-go v1.32.7
+	github.com/aws/aws-sdk-go v1.35.19
 	github.com/beevik/etree v1.1.0
 	github.com/boombuler/barcode v0.0.0-20161226211916-fe0f26ff6d26 // indirect
 	github.com/cjbassi/drawille-go v0.1.0 // indirect
@@ -26,6 +26,7 @@ require (
 	github.com/fsouza/fake-gcs-server v1.11.6
 	github.com/ghodss/yaml v1.0.0
 	github.com/gizak/termui v0.0.0-20190224181052-63c2a0d70943
+	github.com/go-sql-driver/mysql v1.5.0 // indirect
 	github.com/gogo/protobuf v1.3.1
 	github.com/gokyle/hotp v0.0.0-20160218004637-c180d57d286b
 	github.com/golang/protobuf v1.4.2
