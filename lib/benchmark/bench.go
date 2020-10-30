@@ -81,8 +81,8 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	requestsC := make(chan *benchMeasure)
-	resultC := make(chan *benchMeasure)
+	requestsC := make(chan benchMeasure)
+	resultC := make(chan benchMeasure)
 
 	go func() {
 		interval := time.Duration(float64(1) / float64(c.Rate) * float64(time.Second))
@@ -92,7 +92,9 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 		for {
 			select {
 			case <-ticker.C:
-				delay = delay + interval // ticker makes its first tick after the given duration, not immediately
+				// ticker makes its first tick after the given duration, not immediately
+				// this sets the send measure ResponseStart time accurately
+				delay = delay + interval
 				t := start.Add(delay)
 				measure := benchMeasure{
 					ResponseStart: t,
@@ -101,7 +103,7 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 					ctx:           ctx,
 					interactive:   c.Interactive,
 				}
-				requestsC <- &measure
+				requestsC <- measure
 			case <-ctx.Done():
 				close(requestsC)
 				return
@@ -114,7 +116,6 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 	var result Result
 	result.ResponseHistogram = hdrhistogram.New(MinValue, MaxValue, SignificantFigures)
 	result.ServiceHistogram = hdrhistogram.New(MinValue, MaxValue, SignificantFigures)
-	results := make([]*benchMeasure, 0, c.MinimumMeasurements)
 	statusTicker := time.NewTicker(1 * time.Second)
 	timeElapsed := false
 	start := time.Now()
@@ -124,22 +125,22 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 		}
 		select {
 		case measure := <-resultC:
-			results = append(results, measure)
-			if timeElapsed && len(results) >= c.MinimumMeasurements {
+			result.ResponseHistogram.RecordValue(int64(measure.End.Sub(measure.ResponseStart) / time.Millisecond))
+			result.ServiceHistogram.RecordValue(int64(measure.End.Sub(measure.ServiceStart) / time.Millisecond))
+			result.RequestsOriginated++
+			if timeElapsed && result.RequestsOriginated >= c.MinimumMeasurements {
 				go cancel()
 			}
 			if measure.Error != nil {
 				result.RequestsFailed++
 				result.LastError = measure.Error
 			}
-			result.ResponseHistogram.RecordValue(int64(measure.End.Sub(measure.ResponseStart) / time.Millisecond))
-			result.ServiceHistogram.RecordValue(int64(measure.End.Sub(measure.ServiceStart) / time.Millisecond))
-			result.RequestsOriginated++
+
 		case <-ctx.Done():
 			result.Duration = time.Since(start)
 			return result, nil
 		case <-statusTicker.C:
-			log.Printf("working... current observation count: %d", len(results))
+			log.Printf("working... current observation count: %d", result.RequestsOriginated)
 		}
 
 	}
@@ -156,7 +157,7 @@ type benchMeasure struct {
 	interactive   bool
 }
 
-func run(ctx context.Context, request <-chan *benchMeasure, done chan<- *benchMeasure) {
+func run(ctx context.Context, request <-chan benchMeasure, done chan<- benchMeasure) {
 	defer func() {
 		if r := recover(); r != nil {
 			logrus.Warningf("recover from panic: %v", r)
@@ -175,9 +176,12 @@ func run(ctx context.Context, request <-chan *benchMeasure, done chan<- *benchMe
 	}
 }
 
-func work(ctx context.Context, m *benchMeasure, send chan<- *benchMeasure) {
+func work(ctx context.Context, m benchMeasure, send chan<- benchMeasure) {
 	m.ServiceStart = time.Now()
-	execute(m)
+	err := execute(m)
+	if err != nil {
+		m.Error = err
+	}
 	m.End = time.Now()
 	select {
 	case send <- m:
@@ -186,13 +190,16 @@ func work(ctx context.Context, m *benchMeasure, send chan<- *benchMeasure) {
 	}
 }
 
-func execute(m *benchMeasure) {
+func execute(m benchMeasure) error {
 	if !m.interactive {
 		// do not use parent context that will cancel in flight requests
 		// because we give test some time to gracefully wrap up
 		// the in-flight connections to avoid extra errors
-		m.Error = m.client.SSH(context.TODO(), nil, false)
-		return
+		err := m.client.SSH(context.TODO(), nil, false)
+		if err != nil {
+			return err
+		}
+		return nil
 	}
 	config := m.client.Config
 	client, err := client.NewClient(&config)
@@ -202,14 +209,12 @@ func execute(m *benchMeasure) {
 	client.Stdout = out
 	client.Stderr = out
 	if err != nil {
-		m.Error = err
-		return
+		return err
 	}
-	done := make(chan bool)
-	go func() {
-		m.Error = m.client.SSH(m.ctx, nil, false)
-		close(done)
-	}()
+	err = m.client.SSH(m.ctx, nil, false)
+	if err != nil {
+		return err
+	}
 	writer.Write([]byte(strings.Join(m.command, " ") + "\r\nexit\r\n"))
-	<-done
+	return nil
 }
