@@ -16,7 +16,7 @@ package benchmark
 import (
 	"context"
 	"errors"
-	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -86,7 +86,7 @@ func (lg *Linear) Benchmark(ctx context.Context, cmd string, tc *client.Teleport
 		}
 		results = append(results, result)
 		sleep = true
-		fmt.Printf("The current generation made %v requests in %v.\n", result.RequestsOriginated, result.Duration)
+		log.Printf("The current generation made %v requests in %v.\n", result.RequestsOriginated, result.Duration)
 	}
 	return results, nil
 }

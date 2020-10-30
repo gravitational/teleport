@@ -85,11 +85,16 @@ func makeTeleportClient(host, login, proxy string) (*client.TeleportClient, erro
 	return tc, nil
 }
 
-// ExportLatencyProfile exports the latency profile and returns the path as a string if no errors
-func ExportLatencyProfile(path string, h *hdrhistogram.Histogram, ticks int32, valueScale float64) (string, error) {
+// ExportLatencyProfiles exports the latency profile and returns the path as a string if no errors
+func ExportLatencyProfiles(path string, response, service *hdrhistogram.Histogram, ticks int32, valueScale float64) (string, error) {
 	var fullPath string
+	var fileError error
 	timeStamp := time.Now().Format("2006-01-02_15:04:05")
-	suffix := fmt.Sprintf("latency_profile_%s.txt", timeStamp)
+	responseSuffix := fmt.Sprintf("response_latency_profile_%s.txt", timeStamp)
+	serviceSuffix := fmt.Sprintf("service_latency_profile_%s.txt", timeStamp)
+	titles := []string{responseSuffix, serviceSuffix}
+	histograms := []*hdrhistogram.Histogram{response, service}
+	paths := make(chan string, 2)
 
 	if path != "." {
 		if _, err := os.Stat(path); err != nil {
@@ -102,22 +107,32 @@ func ExportLatencyProfile(path string, h *hdrhistogram.Histogram, ticks int32, v
 			}
 		}
 	}
-	fullPath = filepath.Join(path, suffix)
-	fo, err := os.Create(fullPath)
-	if err != nil {
-		return "", trace.Wrap(err)
+	for i, name := range titles {
+		go func(fileName string, index int) {
+			fullPath = filepath.Join(path, fileName)
+			fo, err := os.Create(fullPath)
+
+			if err != nil {
+				fileError = err
+			}
+			if _, err := histograms[index].PercentilesPrint(fo, ticks, valueScale); err != nil {
+				err := fo.Close()
+				if err != nil {
+					logrus.WithError(err).Warningf("failed to close file")
+				}
+				fileError = err
+			}
+
+			if err := fo.Close(); err != nil {
+				fileError = err
+			}
+			paths <- fo.Name()
+		}(name, i)
+	}
+	if fileError != nil {
+		return "", trace.Wrap(fileError)
 	}
 
-	if _, err := h.PercentilesPrint(fo, ticks, valueScale); err != nil {
-		err := fo.Close()
-		if err != nil {
-			logrus.WithError(err).Warningf("Failed to close file")
-		}
-		return "", trace.Wrap(err)
-	}
-
-	if err := fo.Close(); err != nil {
-		return "", trace.Wrap(err)
-	}
-	return fo.Name(), nil
+	result := <-paths + ", " + <-paths
+	return result, nil
 }

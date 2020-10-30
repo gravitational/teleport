@@ -969,11 +969,11 @@ func onBenchmark(cf *CLIConf) {
 	fmt.Printf("\n")
 
 	if cf.BenchExport {
-		path, err := benchmark.ExportLatencyProfile(cf.BenchExportPath, result.ServiceHistogram, cf.BenchTicks, cf.BenchValueScale)
+		path, err := benchmark.ExportLatencyProfiles(cf.BenchExportPath, result.ResponseHistogram, result.ServiceHistogram, cf.BenchTicks, cf.BenchValueScale)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed exporting latency profile: %s\n", utils.UserMessageFromError(err))
+			fmt.Fprintf(os.Stderr, "failed exporting latency profiles: %s\n", utils.UserMessageFromError(err))
 		} else {
-			fmt.Printf("latency profile saved: %v\n", path)
+			fmt.Printf("latency profiles saved: %v\n", path)
 		}
 	}
 }
