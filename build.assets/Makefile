@@ -146,7 +146,7 @@ clean:
 # Runs tests inside a build container
 #
 .PHONY: test
-test: FLAGS ?= -cover -race -count=10 -timeout=30m
+test: FLAGS ?= -cover -race -count=1 -timeout=30m
 test: buildbox
 	docker run \
 		--env TELEPORT_ETCD_TEST="yes" \
@@ -157,7 +157,7 @@ test: buildbox
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS=\"$(FLAGS)\" clean test"
 
 .PHONY: integration
-integration: FLAGS ?= -v -cover -count=10 -check.f=RotateSuccess -timeout=30m
+integration: FLAGS ?= -v -cover -count=10 -timeout=30m
 integration: buildbox
 	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS=\"$(FLAGS)\" integration"
