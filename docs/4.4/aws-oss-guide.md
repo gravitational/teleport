@@ -147,27 +147,32 @@ An example policy is shown below:
 
 ```json
 {
-   "Version": "2012-10-17",
-   "Statement": [
-     {
-       "Effect": "Allow",
-       "Action": [
-         "s3:ListBucket",
-         "s3:ListBucketVersions"
-        ],
-       "Resource": ["arn:aws:s3:::example.s3.bucket"]
-     },
-     {
-       "Effect": "Allow",
-       "Action": [
-         "s3:PutObject",
-         "s3:GetObject",
-         "s3:GetObjectVersion"
-       ],
-       "Resource": ["arn:aws:s3:::example.s3.bucket/*"]
-     }
-   ]
- }
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "ClusterSessionsStorage",
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutEncryptionConfiguration",
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:GetEncryptionConfiguration",
+                "s3:GetObjectRetention",
+                "s3:ListBucketVersions",
+                "s3:CreateBucket",
+                "s3:ListBucket",
+                "s3:GetBucketVersioning",
+                "s3:PutBucketVersioning",
+                "s3:GetObjectVersion"
+            ],
+            "Resource": [
+                "arn:aws:s3:::<bucket_name>/*",
+                "arn:aws:s3:::<bucket_name>"
+            ]
+        }
+    ]
+}
+
 ```
 
 !!! note "Note"
@@ -185,42 +190,65 @@ An example policy is shown below:
     "Version": "2012-10-17",
     "Statement": [
         {
-            "Sid": "AllAPIActionsOnTeleportClusterState",
+            "Sid": "ClusterStateStorage",
             "Effect": "Allow",
-            "Action": "dynamodb:*",
-            "Resource": "arn:aws:dynamodb:REGION:ACCOUNTID:table/DYNAMODB-RESOURCE-A"
+            "Action": [
+                "dynamodb:BatchWriteItem",
+                "dynamodb:UpdateTimeToLive",
+                "dynamodb:PutItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:Scan",
+                "dynamodb:Query",
+                "dynamodb:DescribeStream",
+                "dynamodb:UpdateItem",
+                "dynamodb:DescribeTimeToLive",
+                "dynamodb:CreateTable",
+                "dynamodb:DescribeTable",
+                "dynamodb:GetShardIterator",
+                "dynamodb:GetItem",
+                "dynamodb:UpdateTable",
+                "dynamodb:GetRecords"
+            ],
+            "Resource": [
+                "arn:aws:dynamodb:<region>:<account_id>:table/<cluster_state_table_name>",
+                "arn:aws:dynamodb:<region>:<account_id>:table/<cluster_state_table_name>/stream/*"
+            ]
         },
         {
-            "Sid": "AllAPIActionsOnTeleportClusterStateStreams",
+            "Sid": "ClusterEventsStorage",
             "Effect": "Allow",
-            "Action": "dynamodb:*",
-            "Resource": "arn:aws:dynamodb:REGION:ACCOUNTID:table/DYNAMODB-RESOURCE-A/stream/*"
+            "Action": [
+                "dynamodb:CreateTable",
+                "dynamodb:BatchWriteItem",
+                "dynamodb:UpdateTimeToLive",
+                "dynamodb:PutItem",
+                "dynamodb:DescribeTable",
+                "dynamodb:DeleteItem",
+                "dynamodb:GetItem",
+                "dynamodb:Scan",
+                "dynamodb:Query",
+                "dynamodb:UpdateItem",
+                "dynamodb:DescribeTimeToLive",
+                "dynamodb:UpdateTable"
+            ],
+            "Resource": [
+                "arn:aws:dynamodb:<region>:<account_id>:table/<events_table_name>",
+                "arn:aws:dynamodb:<region>:<account_id>:table/<events_table_name>/index/*"
+            ]
         },
         {
-            "Sid": "AllAPIActionsOnTeleportClusterEvents",
+            "Sid": "SSLLocks",
             "Effect": "Allow",
-            "Action": "dynamodb:*",
-            "Resource": "arn:aws:dynamodb:REGION:ACCOUNTID:table/DYNAMODB-RESOURCE-B"
-        },
-        {
-            "Sid": "AllAPIActionsOnTeleportClusterEventsStreams",
-            "Effect": "Allow",
-            "Action": "dynamodb:*",
-            "Resource": "arn:aws:dynamodb:REGION:ACCOUNTID:table/DYNAMODB-RESOURCE-B/stream/*"
-        },
-        {
-            "Sid": "AllAPIActionsOnTeleportClusterEventIndex",
-            "Effect": "Allow",
-            "Action": "dynamodb:*",
-            "Resource": "arn:aws:dynamodb:REGION:ACCOUNTID:table/DYNAMODB-RESOURCE-B/index/*"
-        },
+            "Action": "dynamodb:PutItem",
+            "Resource": "arn:aws:dynamodb:<region>:<account_id>:table/<locks_table_name>"
+        }
     ]
 }
 ```
 
 !!! note "Note"
 
-    `arn:aws:dynamodb:REGION:ACCOUNTID:table/DYNAMODB-RESOURCE-A` and `RESOURCE-B` will need to be replaced with your two DynamoDB tables.
+    `arn:aws:dynamodb:<region>:<account_id>:table/<events_table_name>` and `<cluster_state_table_name>` will need to be replaced with your two DynamoDB tables.
 
 ### ACM
 
