@@ -256,7 +256,7 @@ docs-test-links:
 .PHONY: test
 test: ensure-webassets
 test: FLAGS ?= '-race'
-test: PACKAGES := $(shell go list ./... | grep -v integration)
+test: PACKAGES ?= $(shell go list ./... | grep -v integration)
 test: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
 test: $(VERSRC)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
