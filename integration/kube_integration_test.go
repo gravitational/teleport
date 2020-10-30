@@ -133,6 +133,9 @@ func (s *KubeSuite) SetUpSuite(c *check.C) {
 	}
 }
 
+// For this test suite to work, the target Kubernetes cluster must have the
+// following RBAC objects configured:
+// https://github.com/gravitational/teleport/blob/master/fixtures/ci-teleport-rbac/ci-teleport.yaml
 const testImpersonationGroup = "teleport-ci-test-group"
 
 func (s *KubeSuite) TearDownSuite(c *check.C) {

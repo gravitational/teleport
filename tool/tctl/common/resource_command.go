@@ -654,7 +654,7 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 		}
 		return &semaphoreCollection{sems: sems}, nil
 	case services.KindKubeService:
-		servers, err := client.GetKubeServices()
+		servers, err := client.GetKubeServices(context.TODO())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -140,8 +140,11 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.DELETE("/:version/tunnelconnections/:cluster/:conn", srv.withAuth(srv.deleteTunnelConnection))
 	srv.DELETE("/:version/tunnelconnections/:cluster", srv.withAuth(srv.deleteTunnelConnections))
 	srv.DELETE("/:version/tunnelconnections", srv.withAuth(srv.deleteAllTunnelConnections))
+	// TODO(awly): migrate these to the gRPC service.
 	srv.POST("/:version/kube_services", srv.withAuth(srv.upsertKubeService))
 	srv.GET("/:version/kube_services", srv.withAuth(srv.getKubeServices))
+	srv.DELETE("/:version/kube_services/:name", srv.withAuth(srv.deleteKubeService))
+	srv.DELETE("/:version/kube_services", srv.withAuth(srv.deleteAllKubeServices))
 
 	// Server Credentials
 	srv.POST("/:version/server/credentials", srv.withAuth(srv.generateServerKeys))
@@ -324,7 +327,7 @@ type upsertServerRawReq struct {
 }
 
 // upsertServer is a common utility function
-func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) upsertServer(auth services.Presence, role teleport.Role, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req upsertServerRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -337,6 +340,10 @@ func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.Respon
 		kind = services.KindAuthServer
 	case teleport.RoleProxy:
 		kind = services.KindProxy
+	case teleport.RoleKube:
+		kind = services.KindKubeService
+	default:
+		return nil, trace.BadParameter("upsertServer with unknown role: %q", role)
 	}
 	server, err := services.GetServerMarshaler().UnmarshalServer(req.Server, kind)
 	if err != nil {
@@ -369,7 +376,7 @@ func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.Respon
 			return nil, trace.Wrap(err)
 		}
 	case teleport.RoleKube:
-		if err := auth.UpsertKubeService(server); err != nil {
+		if err := auth.UpsertKubeService(r.Context(), server); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	default:
@@ -420,7 +427,7 @@ func (s *APIServer) upsertNodes(auth ClientI, w http.ResponseWriter, r *http.Req
 
 // upsertNode is called by remote SSH nodes when they ping back into the auth service
 func (s *APIServer) upsertNode(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return s.upsertServer(auth, teleport.RoleNode, w, r, p, version)
+	return s.upsertServer(auth, teleport.RoleNode, r, p)
 }
 
 // getNodes returns registered SSH nodes
@@ -477,7 +484,7 @@ func (s *APIServer) deleteNode(auth ClientI, w http.ResponseWriter, r *http.Requ
 
 // upsertProxy is called by remote SSH nodes when they ping back into the auth service
 func (s *APIServer) upsertProxy(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return s.upsertServer(auth, teleport.RoleProxy, w, r, p, version)
+	return s.upsertServer(auth, teleport.RoleProxy, r, p)
 }
 
 // getProxies returns registered proxies
@@ -513,7 +520,7 @@ func (s *APIServer) deleteProxy(auth ClientI, w http.ResponseWriter, r *http.Req
 
 // upsertAuthServer is called by remote Auth servers when they ping back into the auth service
 func (s *APIServer) upsertAuthServer(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return s.upsertServer(auth, teleport.RoleAuth, w, r, p, version)
+	return s.upsertServer(auth, teleport.RoleAuth, r, p)
 }
 
 // getAuthServers returns registered auth servers
@@ -2491,15 +2498,33 @@ func (s *APIServer) getServerID(r *http.Request) (string, error) {
 }
 
 func (s *APIServer) upsertKubeService(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return s.upsertServer(auth, teleport.RoleKube, w, r, p, version)
+	return s.upsertServer(auth, teleport.RoleKube, r, p)
 }
 
 func (s *APIServer) getKubeServices(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	servers, err := auth.GetKubeServices()
+	servers, err := auth.GetKubeServices(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return marshalServers(servers, version)
+}
+
+func (s *APIServer) deleteKubeService(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	name := p.ByName("name")
+	if name == "" {
+		return nil, trace.BadParameter("missing kubernetes service name")
+	}
+	if err := auth.DeleteKubeService(r.Context(), name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
+}
+
+func (s *APIServer) deleteAllKubeServices(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	if err := auth.DeleteAllKubeServices(r.Context()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return message("ok"), nil
 }
 
 func message(msg string) map[string]interface{} {
