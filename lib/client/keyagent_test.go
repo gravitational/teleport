@@ -24,6 +24,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -50,6 +51,7 @@ type KeyAgentTestSuite struct {
 	username string
 	hostname string
 	tlsca    *tlsca.CertAuthority
+	close    func()
 }
 
 var _ = check.Suite(&KeyAgentTestSuite{})
@@ -78,13 +80,16 @@ func (s *KeyAgentTestSuite) SetUpSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// start a debug agent that will be used in tests
-	err = startDebugAgent()
+	s.close, err = startDebugAgent()
 	c.Assert(err, check.IsNil)
 }
 
 func (s *KeyAgentTestSuite) TearDownSuite(c *check.C) {
 	err := os.RemoveAll(s.keyDir)
 	c.Assert(err, check.IsNil)
+	if s.close != nil {
+		s.close()
+	}
 }
 
 func (s *KeyAgentTestSuite) SetUpTest(c *check.C) {
@@ -451,39 +456,48 @@ func (s *KeyAgentTestSuite) makeKey(username string, allowedLogins []string, ttl
 	}, nil
 }
 
-func startDebugAgent() error {
-	errorC := make(chan error)
+func startDebugAgent() (closer func(), err error) {
+	startedC := make(chan struct{})
 	rand.Seed(time.Now().Unix())
 
+	socketpath := filepath.Join(os.TempDir(),
+		fmt.Sprintf("teleport-%d-%d.socket", os.Getpid(), rand.Uint32()))
+
+	listener, err := net.Listen("unix", socketpath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	systemAgent := agent.NewKeyring()
+	os.Setenv(teleport.SSHAuthSock, socketpath)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
 	go func() {
-		socketpath := filepath.Join(os.TempDir(),
-			fmt.Sprintf("teleport-%d-%d.socket", os.Getpid(), rand.Uint32()))
-
-		systemAgent := agent.NewKeyring()
-
-		listener, err := net.Listen("unix", socketpath)
-		if err != nil {
-			errorC <- trace.Wrap(err)
-			return
-		}
-		defer listener.Close()
-
-		os.Setenv(teleport.SSHAuthSock, socketpath)
-
-		// agent is listeninging and environment variable is set unblock now
-		close(errorC)
-
+		defer wg.Done()
+		// agent is listening and environment variable is set, unblock now
+		close(startedC)
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
 				log.Warnf("Unexpected response from listener.Accept: %v", err)
-				continue
+				return
 			}
-
 			go agent.ServeAgent(systemAgent, conn)
 		}
 	}()
 
+	doneC := make(chan struct{})
+	go func() {
+		<-doneC
+		listener.Close()
+		wg.Done()
+	}()
+
 	// block until agent is started
-	return <-errorC
+	<-startedC
+	return func() {
+		close(doneC)
+		wg.Wait()
+	}, nil
 }

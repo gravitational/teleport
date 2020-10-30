@@ -306,7 +306,7 @@ func (s *BackendSuite) Expiration(c *check.C) {
 	ExpectItems(c, items, []backend.Item{itemA})
 }
 
-// addSeconds adds seconds with a seconds precission
+// addSeconds adds seconds with a seconds precision
 // always rounding up to the next second,
 // because TTL engines are usually 1 second precision
 func addSeconds(t time.Time, seconds int64) time.Time {
@@ -334,10 +334,10 @@ func (s *BackendSuite) KeepAlive(c *check.C) {
 	c.Assert(string(out.Value), check.Equals, string(item.Value))
 	c.Assert(string(out.Key), check.Equals, string(item.Key))
 
-	err = s.B.KeepAlive(ctx, *lease, addSeconds(time.Now(), 2))
+	err = s.B.KeepAlive(ctx, *lease, addSeconds(time.Now(), 4))
 	c.Assert(err, check.IsNil)
 
-	// should have expired if not keep alive
+	// should have expired if not kept alive
 	diff := time.Until(addSeconds(time.Now(), 1))
 	time.Sleep(diff + 100*time.Millisecond)
 
