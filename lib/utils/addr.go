@@ -86,7 +86,7 @@ func (a *NetAddr) IsLoopback() bool {
 
 // IsEmpty returns true if address is empty
 func (a *NetAddr) IsEmpty() bool {
-	return a.Addr == "" && a.AddrNetwork == "" && a.Path == ""
+	return a == nil || (a.Addr == "" && a.AddrNetwork == "" && a.Path == "")
 }
 
 // FullAddress returns full address including network and address (tcp://0.0.0.0:1243)

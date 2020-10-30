@@ -181,6 +181,9 @@ const (
 	// KindState is local on disk process state
 	KindState = "state"
 
+	// KindKubeService is a kubernetes service resource
+	KindKubeService = "kube_service"
+
 	// V3 is the third version of resources.
 	V3 = "v3"
 
@@ -763,6 +766,8 @@ func ParseShortcut(in string) (string, error) {
 		return KindRemoteCluster, nil
 	case KindSemaphore, "semaphores", "sem", "sems":
 		return KindSemaphore, nil
+	case KindKubeService, "kube_services":
+		return KindKubeService, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

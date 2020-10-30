@@ -165,6 +165,12 @@ type Presence interface {
 
 	// DeleteAllRemoteClusters deletes all remote clusters
 	DeleteAllRemoteClusters() error
+
+	// UpsertKubeService registers kubernetes service presence.
+	UpsertKubeService(server Server) error
+
+	// GetKubeServices returns a list of registered kubernetes services.
+	GetKubeServices() ([]Server, error)
 }
 
 // NewNamespace returns new namespace

@@ -489,6 +489,9 @@ type KubeConfig struct {
 	// Labels are used for RBAC on clusters.
 	StaticLabels  map[string]string
 	DynamicLabels services.CommandLabels
+
+	// Limiter limits the connection and request rates.
+	Limiter limiter.Config
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults
@@ -565,6 +568,7 @@ func ApplyDefaults(cfg *Config) {
 
 	// Kubernetes service defaults.
 	cfg.Kube.Enabled = false
+	defaults.ConfigureLimiter(&cfg.Kube.Limiter)
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2
