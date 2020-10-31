@@ -78,7 +78,7 @@ func runPortForwarding(req portForwardRequest) error {
 
 	h := &portForwardProxy{
 		Entry: log.WithFields(log.Fields{
-			trace.Component:   teleport.Component(teleport.ComponentKube),
+			trace.Component:   teleport.Component(teleport.ComponentProxyKube),
 			events.RemoteAddr: req.httpRequest.RemoteAddr,
 		}),
 		portForwardRequest:    req,
