@@ -1,0 +1,5 @@
+# Minimally preserve rpmbuild's --sign functionality
+rpmbuild alias --sign \
+	--pipe 'rpm --addsign `grep ".*: .*\.rpm$"|cut -d: -f2`' \
+	--POPTdesc=$"generate GPG signature (deprecated, use command rpmsign instead)"
+
