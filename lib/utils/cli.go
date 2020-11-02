@@ -148,9 +148,44 @@ func GetIterations() int {
 	return iter
 }
 
-// UserMessageFromError returns user friendly error message from error
+// UserMessageFromError returns user-friendly error message from error.
+// The error message will be formatted for output depending on the debug
+// flag
 func UserMessageFromError(err error) string {
-	// untrusted cert?
+	if err == nil {
+		return ""
+	}
+	if certErr := formatCertError(err); certErr != "" {
+		return certErr
+	}
+	if log.GetLevel() == log.DebugLevel {
+		return trace.DebugReport(err)
+	}
+	return FormatError(err)
+}
+
+// FormatError returns user friendly error message from error.
+// The error message is escaped if necessary
+func FormatError(err error) string {
+	if err == nil {
+		return ""
+	}
+	if certErr := formatCertError(err); certErr != "" {
+		return certErr
+	}
+	// If the error is a trace error, check if it has a user message embedded in
+	// it, if it does, print it, otherwise escape and print the original error.
+	if err, ok := err.(*trace.TraceErr); ok && err.Message != "" {
+		// Avoid escaping an error message that terminates with a newline
+		errMsg := strings.TrimSuffix(err.Message, "\n")
+		return fmt.Sprintf("error: %v", EscapeControl(errMsg))
+	}
+	// Avoid escaping an error message that terminates with a newline
+	errMsg := strings.TrimSuffix(err.Error(), "\n")
+	return fmt.Sprintf("error: %v", EscapeControl(errMsg))
+}
+
+func formatCertError(err error) string {
 	switch innerError := trace.Unwrap(err).(type) {
 	case x509.HostnameError:
 		return fmt.Sprintf("Cannot establish https connection to %s:\n%s\n%s\n",
