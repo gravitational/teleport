@@ -966,6 +966,16 @@ func (s *PresenceService) DeleteSemaphore(ctx context.Context, filter services.S
 	return trace.Wrap(s.Delete(ctx, backend.Key(semaphoresPrefix, filter.SemaphoreKind, filter.SemaphoreName)))
 }
 
+// UpsertKubeService registers kubernetes service presence.
+func (s *PresenceService) UpsertKubeService(server services.Server) error {
+	return s.upsertServer(kubeServicesPrefix, server)
+}
+
+// GetKubeServices returns a list of registered kubernetes services.
+func (s *PresenceService) GetKubeServices() ([]services.Server, error) {
+	return s.getServers(services.KindKubeService, kubeServicesPrefix)
+}
+
 const (
 	localClusterPrefix      = "localCluster"
 	reverseTunnelsPrefix    = "reverseTunnels"
@@ -977,4 +987,5 @@ const (
 	authServersPrefix       = "authservers"
 	proxiesPrefix           = "proxies"
 	semaphoresPrefix        = "semaphores"
+	kubeServicesPrefix      = "kubeServices"
 )

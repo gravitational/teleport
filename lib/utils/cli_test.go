@@ -18,19 +18,20 @@ package utils
 
 import (
 	"crypto/x509"
-	"fmt"
+	"io/ioutil"
 	"strings"
+	"testing"
 
 	"gopkg.in/check.v1"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 )
 
 type CLISuite struct {
 }
 
 var _ = check.Suite(&CLISuite{})
-var _ = fmt.Printf
 
 func (s *CLISuite) SetUpSuite(c *check.C) {
 	InitLoggerForTests()
@@ -63,4 +64,13 @@ func (s *CLISuite) TestUserMessageFromError(c *check.C) {
 		message := UserMessageFromError(tt.inError)
 		c.Assert(strings.HasPrefix(message, tt.outString), check.Equals, true, comment)
 	}
+}
+
+// Regressions test - Consolef used to panic when component name was longer
+// than 8 bytes.
+func TestConsolefLongComponent(t *testing.T) {
+	require.NotPanics(t, func() {
+		component := strings.Repeat("na ", 10) + "batman!"
+		Consolef(ioutil.Discard, component, "test message")
+	})
 }

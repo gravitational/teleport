@@ -670,8 +670,8 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) error {
 
 // applyKubeConfig applies file configuration for the "kubernetes_service" section.
 func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
-	if fc.Proxy.ListenAddress != "" {
-		addr, err := utils.ParseHostPortAddr(fc.Proxy.ListenAddress, int(defaults.SSHProxyListenPort))
+	if fc.Kube.ListenAddress != "" {
+		addr, err := utils.ParseHostPortAddr(fc.Kube.ListenAddress, int(defaults.SSHProxyListenPort))
 		if err != nil {
 			return trace.Wrap(err)
 		}

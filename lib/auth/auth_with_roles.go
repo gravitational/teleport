@@ -1969,6 +1969,30 @@ func (a *ServerWithRoles) WaitForDelivery(context.Context) error {
 	return nil
 }
 
+// UpsertKubeService creates or updates a Server representing a teleport
+// kubernetes service.
+func (a *ServerWithRoles) UpsertKubeService(s services.Server) error {
+	if err := a.action(defaults.Namespace, services.KindKubeService, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindKubeService, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.UpsertKubeService(s)
+}
+
+// GetKubeServices returns all Servers representing teleport kubernetes
+// services.
+func (a *ServerWithRoles) GetKubeServices() ([]services.Server, error) {
+	if err := a.action(defaults.Namespace, services.KindKubeService, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindKubeService, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetKubeServices()
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, sessions session.Service, alog events.IAuditLog) (ClientI, error) {

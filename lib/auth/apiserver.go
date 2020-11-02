@@ -140,6 +140,8 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.DELETE("/:version/tunnelconnections/:cluster/:conn", srv.withAuth(srv.deleteTunnelConnection))
 	srv.DELETE("/:version/tunnelconnections/:cluster", srv.withAuth(srv.deleteTunnelConnections))
 	srv.DELETE("/:version/tunnelconnections", srv.withAuth(srv.deleteAllTunnelConnections))
+	srv.POST("/:version/kube_services", srv.withAuth(srv.upsertKubeService))
+	srv.GET("/:version/kube_services", srv.withAuth(srv.getKubeServices))
 
 	// Server Credentials
 	srv.POST("/:version/server/credentials", srv.withAuth(srv.generateServerKeys))
@@ -366,6 +368,12 @@ func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.Respon
 		if err := auth.UpsertProxy(server); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case teleport.RoleKube:
+		if err := auth.UpsertKubeService(server); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	default:
+		return nil, trace.BadParameter("unknown server role %q", role)
 	}
 	return message("ok"), nil
 }
@@ -2479,6 +2487,18 @@ func (s *APIServer) getServerID(r *http.Request) (string, error) {
 	// "192_168_1_1.<cluster-name>" so this code can't rely on it being
 	// uuid4 to account for clusters upgraded from older versions.
 	return strings.TrimSuffix(role.Username, "."+clusterName), nil
+}
+
+func (s *APIServer) upsertKubeService(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	return s.upsertServer(auth, teleport.RoleKube, w, r, p, version)
+}
+
+func (s *APIServer) getKubeServices(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+	servers, err := auth.GetKubeServices()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return marshalServers(servers, version)
 }
 
 func message(msg string) map[string]interface{} {
