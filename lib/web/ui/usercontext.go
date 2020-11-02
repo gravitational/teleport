@@ -30,9 +30,13 @@ type access struct {
 	Delete bool `json:"remove"`
 }
 
-type dynamicAccess struct {
-	RequestStrategy string `json:"requestStrategy"`
-	RequestPrompt   string `json:"requestPrompt"`
+type accessStrategy struct {
+	// Type determines how a user should access teleport resources.
+	// ie: does the user require a request to access resources?
+	Type string `json:"type"`
+	// Prompt is the optional dialogue shown to user,
+	// when a access strategy type requires a reason.
+	Prompt string `json:"prompt"`
 }
 
 type userACL struct {
@@ -52,8 +56,8 @@ type userACL struct {
 	Tokens access `json:"tokens"`
 	// Nodes defines access to nodes.
 	Nodes access `json:"nodes"`
-	// AppServers defines access to application servers.
-	AppServers access `json:"appServers"`
+	// AccessStrategy describes how a user should access teleport resources.
+	AccessStrategy accessStrategy `json:"accessStrategy"`
 	// SSH defines access to servers
 	SSHLogins []string `json:"sshLogins"`
 }
@@ -120,27 +124,27 @@ func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) acc
 	}
 }
 
-func getRequestAccess(roleset services.RoleSet) dynamicAccess {
+func getAccessStrategy(roleset services.RoleSet) accessStrategy {
 	strategy := services.RequestStrategyOptional
 	prompt := ""
 
 	for _, role := range roleset {
-		r := role.GetOptions()
+		options := role.GetOptions()
 
-		if r.RequestAccess == services.RequestStrategyReason {
+		if options.RequestAccess == services.RequestStrategyReason {
 			strategy = services.RequestStrategyReason
-			prompt = r.RequestPrompt
+			prompt = options.RequestPrompt
 			break
 		}
 
-		if r.RequestAccess == services.RequestStrategyAlways {
+		if options.RequestAccess == services.RequestStrategyAlways {
 			strategy = services.RequestStrategyAlways
 		}
 	}
 
-	return dynamicAccess{
-		RequestStrategy: strategy,
-		RequestPrompt:   prompt,
+	return accessStrategy{
+		Type:   strategy,
+		Prompt: prompt,
 	}
 }
 
@@ -157,7 +161,7 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 	nodeAccess := newAccess(userRoles, ctx, services.KindNode)
 	appServerAccess := newAccess(userRoles, ctx, services.KindAppServer)
 	logins := getLogins(userRoles)
-	requestAccess := getRequestAccess(userRoles)
+	requestAccess := getAccessStrategy(userRoles)
 
 	acl := userACL{
 		AppServers:      appServerAccess,
@@ -170,7 +174,7 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 		Users:           userAccess,
 		Tokens:          tokenAccess,
 		Nodes:           nodeAccess,
-		Request:         requestAccess,
+		AccessStrategy:  requestAccess,
 	}
 
 	// local user
