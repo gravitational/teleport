@@ -27,8 +27,8 @@ easily keep your Teleport installation up to date.
 
 | Image name | Teleport version | Automatically Updated | Image base |
 |---|---|---|---|
-| `quay.io/gravitational/teleport:4.3` |  The latest version of Teleport Community 4.3 | Yes | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
-| `quay.io/gravitational/teleport:4.3.0` | 4.3.0 | No | [Ubuntu 18.04](https://hub.docker.com/_/ubuntu) |
+| `quay.io/gravitational/teleport:4.4` |  The latest version of Teleport Community 4.4 | Yes | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
+| `quay.io/gravitational/teleport:4.4.0` | 4.4.0 | No | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
 
 For testing, we always recommend that you use the latest release version of Teleport, which is currently `{{teleport.latest_oss_docker_image}}`.
 
