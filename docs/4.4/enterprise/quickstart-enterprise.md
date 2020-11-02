@@ -347,10 +347,10 @@ They are stable, and we recommend their use to easily keep your Teleport Enterpr
 
 | Image name | Community or Enterprise? | Teleport version | Image automatically updated? | Image base |
 |---|---|---|---|---|
-| `quay.io/gravitational/teleport-ent:4.3` | Enterprise | The latest version of Teleport Enterprise 4.3 | Yes | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
-| `quay.io/gravitational/teleport-ent:4.3-fips` | Enterprise FIPS | The latest version of Teleport Enterprise 4.3 FIPS | Yes | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
-| `quay.io/gravitational/teleport-ent:4.3.0` | Enterprise | 4.3.0 | No | [Ubuntu 18.04](https://hub.docker.com/_/ubuntu) |
-| `quay.io/gravitational/teleport-ent:4.3.0-fips` | Enterprise FIPS | 4.3.0 | No | [Ubuntu 18.04](https://hub.docker.com/_/ubuntu) |
+| `quay.io/gravitational/teleport-ent:{{ version }}` | Enterprise | The latest version of Teleport Enterprise {{ version }} | Yes | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
+| `quay.io/gravitational/teleport-ent:{{ version }}-fips` | Enterprise FIPS | The latest version of Teleport Enterprise {{version }} FIPS | Yes | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
+| `quay.io/gravitational/teleport-ent:{{ teleport.version }}` | Enterprise | {{ teleport.version }} | No | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
+| `quay.io/gravitational/teleport-ent:{{ teleport.version }}-fips` | Enterprise FIPS | {{ teleport.version }} | No | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
 
 For testing, we always recommend that you use the latest release version of Teleport Enterprise, which is currently `{{teleport.latest_ent_docker_image}}`.
 
