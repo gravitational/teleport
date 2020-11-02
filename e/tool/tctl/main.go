@@ -24,5 +24,5 @@ func main() {
 		&ResourceCommandE{},
 		&SAMLCommand{},
 	}
-	common.Run(commands)
+	common.Run(commands, loadConfigFromProfile)
 }
