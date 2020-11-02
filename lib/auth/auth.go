@@ -848,43 +848,16 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 	}
 
 	if accessRequestID != "" {
-		reqFilter := services.AccessRequestFilter{
-			User: user,
-			ID:   accessRequestID,
-		}
-
-		reqs, err := a.GetAccessRequests(context.TODO(), reqFilter)
+		newRoles, requestExpiry, err := a.getRolesAndExpiryFromAccessRequest(user, accessRequestID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		if len(reqs) < 1 {
-			return nil, trace.NotFound("access request %q not found", accessRequestID)
-		}
-
-		req := reqs[0]
-
-		if !req.GetState().IsApproved() {
-			if req.GetState().IsDenied() {
-				return nil, trace.BadParameter("access request %q has been denied", accessRequestID)
-			}
-			return nil, trace.BadParameter("access request %q is awaiting approval", accessRequestID)
-		}
-
-		if err := services.ValidateAccessRequest(a, req, false); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		accessExpiry := req.GetAccessExpiry()
-		if accessExpiry.Before(a.GetClock().Now()) {
-			return nil, trace.BadParameter("access request %q has expired", accessRequestID)
-		}
-
-		roles = append(roles, req.GetRoles()...)
+		roles = append(roles, newRoles...)
 		roles = utils.Deduplicate(roles)
 
 		// Let session expire with access request expiry.
-		expiresAt = accessExpiry
+		expiresAt = requestExpiry
 	}
 
 	sess, err := a.NewWebSession(user, roles, traits)
@@ -902,6 +875,42 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 		return nil, trace.Wrap(err)
 	}
 	return sess, nil
+}
+
+func (a *Server) getRolesAndExpiryFromAccessRequest(user, accessRequestID string) ([]string, time.Time, error) {
+	reqFilter := services.AccessRequestFilter{
+		User: user,
+		ID:   accessRequestID,
+	}
+
+	reqs, err := a.GetAccessRequests(context.TODO(), reqFilter)
+	if err != nil {
+		return nil, time.Time{}, trace.Wrap(err)
+	}
+
+	if len(reqs) < 1 {
+		return nil, time.Time{}, trace.NotFound("access request %q not found", accessRequestID)
+	}
+
+	req := reqs[0]
+
+	if !req.GetState().IsApproved() {
+		if req.GetState().IsDenied() {
+			return nil, time.Time{}, trace.AccessDenied("access request %q has been denied", accessRequestID)
+		}
+		return nil, time.Time{}, trace.BadParameter("access request %q is awaiting approval", accessRequestID)
+	}
+
+	if err := services.ValidateAccessRequest(a, req, false); err != nil {
+		return nil, time.Time{}, trace.Wrap(err)
+	}
+
+	accessExpiry := req.GetAccessExpiry()
+	if accessExpiry.Before(a.GetClock().Now()) {
+		return nil, time.Time{}, trace.BadParameter("access request %q has expired", accessRequestID)
+	}
+
+	return req.GetRoles(), accessExpiry, nil
 }
 
 // CreateWebSession creates a new web session for user without any

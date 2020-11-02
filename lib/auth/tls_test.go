@@ -1419,18 +1419,15 @@ func (s *TLSSuite) TestOTPCRUD(c *check.C) {
 // TestWebSessions tests web sessions flow for web user,
 // that logs in, extends web session and tries to perform administratvie action
 // but fails
-func (s *TLSSuite) TestWebSessions(c *check.C) {
+func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
 
 	user := "user1"
 	pass := []byte("abc123")
 
-	newUser, err := CreateUserRoleAndRequestable(clt, user, "test-request-role")
+	_, _, err = CreateUserAndRole(clt, user, []string{user})
 	c.Assert(err, check.IsNil)
-	c.Assert(newUser.GetRoles(), check.HasLen, 1)
-
-	initialRole := newUser.GetRoles()[0]
 
 	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
 	c.Assert(err, check.IsNil)
@@ -1459,54 +1456,9 @@ func (s *TLSSuite) TestWebSessions(c *check.C) {
 	_, err = web.GetWebSessionInfo(user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
-	// Test without access request.
-	// Cert contains initial role.
 	new, err := web.ExtendWebSession(user, ws.GetName(), "")
 	c.Assert(err, check.IsNil)
 	c.Assert(new, check.NotNil)
-
-	pub, _, _, _, err := ssh.ParseAuthorizedKey(new.GetPub())
-	c.Assert(err, check.IsNil)
-
-	sshcert, ok := pub.(*ssh.Certificate)
-	c.Assert(ok, check.Equals, true)
-
-	roles, _, err := services.ExtractFromCertificate(clt, sshcert)
-	c.Assert(err, check.IsNil)
-	c.Assert(roles, check.DeepEquals, []string{initialRole})
-
-	// Test with approved access request.
-	// Cert should contain the initial role and the role assigned with access request.
-	accessReq, err := services.NewAccessRequest(user, []string{"test-request-role"}...)
-	c.Assert(err, check.IsNil)
-	accessReq.SetState(services.RequestState_APPROVED)
-
-	err = clt.CreateAccessRequest(context.Background(), accessReq)
-	c.Assert(err, check.IsNil)
-
-	sess, err := web.ExtendWebSession(user, ws.GetName(), accessReq.GetMetadata().Name)
-	c.Assert(err, check.IsNil)
-
-	pub, _, _, _, err = ssh.ParseAuthorizedKey(sess.GetPub())
-	c.Assert(err, check.IsNil)
-
-	sshcert, ok = pub.(*ssh.Certificate)
-	c.Assert(ok, check.Equals, true)
-
-	roles, _, err = services.ExtractFromCertificate(clt, sshcert)
-	c.Assert(err, check.IsNil)
-	c.Assert(roles, check.HasLen, 2)
-
-	mappedRole := map[string]string{
-		roles[0]: "",
-		roles[1]: "",
-	}
-
-	_, hasRole := mappedRole[initialRole]
-	c.Assert(hasRole, check.Equals, true)
-
-	_, hasRole = mappedRole["test-request-role"]
-	c.Assert(hasRole, check.Equals, true)
 
 	// Requesting forbidden action for user fails
 	err = web.DeleteUser(context.TODO(), user)
@@ -1520,6 +1472,75 @@ func (s *TLSSuite) TestWebSessions(c *check.C) {
 
 	_, err = web.ExtendWebSession(user, ws.GetName(), "")
 	c.Assert(err, check.NotNil)
+}
+
+func (s *TLSSuite) TestWebSessionWithApprovedAccessRequest(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
+
+	user := "user2"
+	pass := []byte("abc123")
+
+	newUser, err := CreateUserRoleAndRequestable(clt, user, "test-request-role")
+	c.Assert(err, check.IsNil)
+	c.Assert(newUser.GetRoles(), check.HasLen, 1)
+
+	initialRole := newUser.GetRoles()[0]
+	c.Assert(newUser.GetRoles(), check.DeepEquals, []string{"user:user2"})
+
+	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	c.Assert(err, check.IsNil)
+
+	// Create a user to create a web session for.
+	req := AuthenticateUserRequest{
+		Username: user,
+		Pass: &PassCreds{
+			Password: pass,
+		},
+	}
+
+	err = clt.UpsertPassword(user, pass)
+	c.Assert(err, check.IsNil)
+
+	ws, err := proxy.AuthenticateWebUser(req)
+	c.Assert(err, check.IsNil)
+
+	web, err := s.server.NewClientFromWebSession(ws)
+	c.Assert(err, check.IsNil)
+
+	// Create a approved access request.
+	accessReq, err := services.NewAccessRequest(user, []string{"test-request-role"}...)
+	c.Assert(err, check.IsNil)
+
+	accessReq.SetState(services.RequestState_APPROVED)
+
+	err = clt.CreateAccessRequest(context.Background(), accessReq)
+	c.Assert(err, check.IsNil)
+
+	sess, err := web.ExtendWebSession(user, ws.GetName(), accessReq.GetMetadata().Name)
+	c.Assert(err, check.IsNil)
+
+	pub, _, _, _, err := ssh.ParseAuthorizedKey(sess.GetPub())
+	c.Assert(err, check.IsNil)
+
+	sshcert, ok := pub.(*ssh.Certificate)
+	c.Assert(ok, check.Equals, true)
+
+	// Roles extracted from cert should contain the initial role and the role assigned with access request.
+	roles, _, err := services.ExtractFromCertificate(clt, sshcert)
+	c.Assert(err, check.IsNil)
+	c.Assert(roles, check.HasLen, 2)
+
+	mappedRole := map[string]string{
+		roles[0]: "",
+		roles[1]: "",
+	}
+
+	_, hasRole := mappedRole[initialRole]
+	c.Assert(hasRole, check.Equals, true)
+
+	_, hasRole = mappedRole["test-request-role"]
+	c.Assert(hasRole, check.Equals, true)
 }
 
 // TestGetCertAuthority tests certificate authority permissions

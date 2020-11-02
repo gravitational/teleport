@@ -33,7 +33,7 @@ type access struct {
 type accessStrategy struct {
 	// Type determines how a user should access teleport resources.
 	// ie: does the user require a request to access resources?
-	Type string `json:"type"`
+	Type services.RequestStrategy `json:"type"`
 	// Prompt is the optional dialogue shown to user,
 	// when a access strategy type requires a reason.
 	Prompt string `json:"prompt"`

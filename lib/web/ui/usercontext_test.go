@@ -70,9 +70,11 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	c.Assert(userContext.ACL.Users, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.Tokens, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.Nodes, check.DeepEquals, denied)
-	c.Assert(userContext.ACL.AccessStrategy.Type, check.Equals, services.RequestStrategyOptional)
-	c.Assert(userContext.ACL.AccessStrategy.Prompt, check.Equals, "")
 	c.Assert(userContext.ACL.SSHLogins, check.DeepEquals, []string{"a", "b", "d"})
+	c.Assert(userContext.ACL.AccessStrategy, check.DeepEquals, accessStrategy{
+		Type:   services.RequestStrategyOptional,
+		Prompt: "",
+	})
 
 	// test local auth type
 	c.Assert(userContext.AuthType, check.Equals, authLocal)
