@@ -13,6 +13,44 @@ Implementation of [RFC4254 Section 7.1, Reverse Port Forwarding](https://tools.i
 
 Teleport supports Local Port Forwarding but does not support Reverse Port Forwarding. SSH supports the ability to route remote connections to a local listener. Implementing Reverse Port Forwarding will expand the possible use cases for `tsh` and bridge the gap between `ssh` and `tsh` functionality.
 
+### Use Cases
+
+#### Sharing development web server with remote parties
+
+Sharing development servers with remote parties is useful when testing or exploring new features. For example, one could set up a development server on their workstation listening on port 8080. In this example, users are seperated by seperate home networks so attempting to view the web server over the private LAN will not work. By starting the local dev server and then establishing a reverse tunnel, users are able to connect to port 8080 on the remote server. When connections are made to the remote server, they are proxied back to the local workstation, allowing for remote parties to view the development server.
+
+**Local dev server setup**
+```
+$ go run server.go
+[INFO] listening on port 8080
+```
+
+**Reverse Port forward setup**
+```
+$ tsh ssh -R 8080:localhost:8080 user@node
+```
+
+#### XDebug
+
+XDebug is a profiler and debugger for PHP. Using reverse port forwarding, we are able to set up a XDebug daemon on a local workstation on port 9089 and connect the workstation to a remote web server.  This workflow enables faster development and debugging for PHP developers.
+
+On the remote server, we need to configure PHP to connect to XDebug on localhost. Modify the contents of `/etc/php7/php.d/xdebug.ini` to have the following settings:
+
+```
+xdebug.remote_connect_back = 0
+xdebug.remote_enable = 1
+xdebug.remote_host = 127.0.0.1
+xdebug.remote_port = 9089
+```
+
+Once that's done, restart Apache. When Apache is finished restarting, use:
+
+```
+$ tsh ssh -R 9089:127.0.0.1:9089 user@web-server
+```
+
+This command establishes a reverse tunnel from your workstation to the remote server. When a request is made to the remote web server, XDebug will connect to the `remote_host` which in this case is a reverse tunnel. Each request sends stack traces, variable dumps and other useful information back to the IDE to assist the engineer through development.
+
 ## Details
 
 Unlike Local Tunnels, a few things need to be modified on the server side in order to handle incoming ssh forwarding requests.
@@ -31,7 +69,7 @@ These requests are sent when the client requests port forwarding to be canceled.
 
 ### tsh client
 
-Minor modifications are required to the client to support Reverse Tunneling. The syntax for Remote Forwarding with `tsh ssh -R` is similar to local tunneling. Since Reverse and Local Tunnels are so similar, adding support for parsing Reverse Tunnels is trivial. Below is an example of how a party could set up a Reverse Port Forward with `tsh ssh -R`.
+Minor modifications are required to the client to support Reverse Tunneling. The syntax for Remote Forwarding with `tsh ssh -R` is similar to local tunneling. Since Reverse and Local Tunnels are so similar, adding support for parsing the Reverse Tunnel cli syntax is trivial. Below is an example of how a party could set up a Reverse Port Forward with `tsh ssh -R`.
 
 ```
 $ tsh ssh -R 9090:127.0.0.1:9090 user@node
