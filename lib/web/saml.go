@@ -31,8 +31,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-func (m *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	logger := newPackageLogger("saml")
+func (h *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	logger := h.log.WithField("auth", "saml")
 	logger.Debug("SSO start.")
 
 	query := r.URL.Query()
@@ -51,7 +51,7 @@ func (m *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.P
 		return nil, trace.AccessDenied("access denied")
 	}
 
-	response, err := m.cfg.ProxyClient.CreateSAMLAuthRequest(
+	response, err := h.cfg.ProxyClient.CreateSAMLAuthRequest(
 		services.SAMLAuthRequest{
 			ConnectorID:       connectorID,
 			CSRFToken:         csrfToken,
@@ -66,8 +66,8 @@ func (m *Handler) samlSSO(w http.ResponseWriter, r *http.Request, p httprouter.P
 	return nil, nil
 }
 
-func (m *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	newPackageLogger("saml").Debug("SSO console start.")
+func (h *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	h.log.WithField("auth", "saml").Debug("SSO console start.")
 	req := new(client.SSOLoginConsoleReq)
 	if err := httplib.ReadJSON(r, req); err != nil {
 		return nil, trace.Wrap(err)
@@ -75,7 +75,7 @@ func (m *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httpr
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	response, err := m.cfg.ProxyClient.CreateSAMLAuthRequest(
+	response, err := h.cfg.ProxyClient.CreateSAMLAuthRequest(
 		services.SAMLAuthRequest{
 			ConnectorID:       req.ConnectorID,
 			ClientRedirectURL: req.RedirectURL,
@@ -91,16 +91,16 @@ func (m *Handler) samlSSOConsole(w http.ResponseWriter, r *http.Request, p httpr
 	return &client.SSOLoginConsoleResponse{RedirectURL: response.RedirectURL}, nil
 }
 
-func (m *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+func (h *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var samlResponse string
 	err := form.Parse(r, form.String("SAMLResponse", &samlResponse, form.Required()))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	logger := newPackageLogger("saml")
+	logger := h.log.WithField("auth", "saml")
 
-	response, err := m.cfg.ProxyClient.ValidateSAMLResponse(samlResponse)
+	response, err := h.cfg.ProxyClient.ValidateSAMLResponse(samlResponse)
 	if err != nil {
 		logger.WithError(err).Warn("Error while processing callback.")
 

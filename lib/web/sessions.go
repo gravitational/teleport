@@ -329,6 +329,7 @@ func newSessionCache(proxyClient auth.ClientI, servers []utils.NetAddr, cipherSu
 		authServers:  servers,
 		closer:       utils.NewCloseBroadcaster(),
 		cipherSuites: cipherSuites,
+		log:          newPackageLogger(),
 	}
 	// periodically close expired and unused sessions
 	go cache.expireSessions()
@@ -338,6 +339,7 @@ func newSessionCache(proxyClient auth.ClientI, servers []utils.NetAddr, cipherSu
 // sessionCache handles web session authentication,
 // and holds in memory contexts associated with each session
 type sessionCache struct {
+	log logrus.FieldLogger
 	sync.Mutex
 	proxyClient auth.ClientI
 	contexts    *ttlmap.TTLMap
@@ -351,7 +353,7 @@ type sessionCache struct {
 
 // Close closes all allocated resources and stops goroutines
 func (s *sessionCache) Close() error {
-	log.Info("Closing session cache.")
+	s.log.Info("Closing session cache.")
 	return s.closer.Close()
 }
 
