@@ -1744,7 +1744,6 @@ func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
 	logins := make(map[string]bool)
 	var matchedTTL bool
 	for _, role := range set {
-		fmt.Printf("---> ROLE: %s\n", role)
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
 		if ttl <= maxSessionTTL && maxSessionTTL != 0 {
 			matchedTTL = true
