@@ -69,10 +69,41 @@ These requests are sent when the client requests port forwarding to be canceled.
 
 ### tsh client
 
-Minor modifications are required to the client to support Reverse Tunneling. The syntax for Remote Forwarding with `tsh ssh -R` is similar to local tunneling. Since Reverse and Local Tunnels are so similar, adding support for parsing the Reverse Tunnel cli syntax is trivial. Below is an example of how a party could set up a Reverse Port Forward with `tsh ssh -R`.
+Some modifications are required to the client to support Reverse Tunneling. The syntax for Remote Forwarding with `tsh ssh -R` is similar to local tunneling. Since Reverse and Local Tunnels are so similar, the work for adding support for parsing the Reverse Tunnel cli syntax is minimal. Below is an example of how a party could set up a Reverse Port Forward with `tsh ssh -R`.
 
 ```
 $ tsh ssh -R 9090:127.0.0.1:9090 user@node
 ```
 
-This would set up a local listener on port 127.0.0.1:9090 and set up a remote listener on 127.0.0.1:9090. Any connections established on the remote side will be proxied down to the client.
+This command would dial port 9090 on the client side and set up a remote listener on the node bound to 127.0.0.1:9090. Any connections established on the remote side will be proxied down to the client.
+
+### Tunnel Setup
+
+To establish a reverse tunnel, the tsh client issues a Global Request `tcpip-forward` which the server can permit or deny. If the request is permitted, the client listens for new `forwarded-tcpip` channels. The request to open a channel follows the following format:
+
+```
+byte      SSH_MSG_GLOBAL_REQUEST
+string    "tcpip-forward"
+boolean   want reply
+string    address to bind (e.g., "0.0.0.0")
+uint32    port number to bind
+```
+
+In order to proceed with reverse port forwarding set up, the client expects a response from the server in the following format. If the client passes 0 as port number to bind and has 'want reply' as TRUE, the server should allocate the next available unprivileged port number and reply with the following message; otherwise, there should be no response-specific data.
+
+```
+byte     SSH_MSG_REQUEST_SUCCESS
+uint32   port that was bound on the server
+```
+
+If the server permits the tunnel, a channel will be opened from the remote end. Once the channel is established, the client sets up a net.Dial connection to the specified local socket and bidirectionally copies data between the remote end and client.
+
+When the client shuts down or wants to close the reverse tunnel, it should send a `cancel-tcpip-forward` request in the following format:
+
+```
+byte      SSH_MSG_GLOBAL_REQUEST
+string    "cancel-tcpip-forward"
+boolean   want reply
+string    address_to_bind (e.g., "127.0.0.1")
+uint32    port number to bind
+```
