@@ -51,7 +51,7 @@ $ tsh ssh -R 9089:127.0.0.1:9089 user@web-server
 
 This command establishes a reverse tunnel from your workstation to the remote server. When a request is made to the remote web server, XDebug will connect to the `remote_host` which in this case is a reverse tunnel. Each request sends stack traces, variable dumps and other useful information back to the IDE to assist the engineer through development.
 
-## Details
+## Server Details
 
 Unlike Local Tunnels, a few things need to be modified on the server side in order to handle incoming ssh forwarding requests.
 
@@ -67,7 +67,7 @@ These requests are sent by the client when the client asks the remote end to ope
 
 These requests are sent when the client requests port forwarding to be canceled. The server should respond to these messages with TRUE which will close the remote channel. *NOTE:* channel open requests may be received until a reply to this message is received.
 
-### tsh client
+## TSH Client Details
 
 Some modifications are required to the client to support Reverse Tunneling. The syntax for Remote Forwarding with `tsh ssh -R` is similar to local tunneling. Since Reverse and Local Tunnels are so similar, the work for adding support for parsing the Reverse Tunnel cli syntax is minimal. Below is an example of how a party could set up a Reverse Port Forward with `tsh ssh -R`.
 
