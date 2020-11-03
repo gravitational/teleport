@@ -3026,7 +3026,7 @@ steps:
       AWS_SECRET_ACCESS_KEY:
         from_secret: RPMREPO_AWS_SECRET_ACCESS_KEY
     commands:
-    - mkdir -p /go/rpmrepo/teleport
+    - mkdir -p /go/rpmrepo/teleport/cache
     - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ /go/rpmrepo/teleport/
     - mkdir -p /go/rpmrepo/teleport/${DRONE_TAG##v}
     - cp -a /go/artifacts/*.rpm /go/rpmrepo/teleport/${DRONE_TAG##v}/
@@ -3037,7 +3037,7 @@ steps:
     image: centos:7
     commands:
     - yum -y install createrepo
-    - createrepo --cachedir /go/rpmrepo/cache --update /go/rpmrepo/teleport
+    - createrepo --cachedir /go/rpmrepo/teleport/cache --update /go/rpmrepo/teleport
 
   - name: Sync RPM repo changes to S3
     image: amazon/aws-cli
@@ -3227,6 +3227,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 49ad829d4e6131cc2a387319feaf85fefab3767452d6b78c295ab52b36397b90
+hmac: a013751abcd51e795293e136c60cb9172da424ccc71522a1b4f3c5be776bc0b6
 
 ...
