@@ -3029,7 +3029,7 @@ steps:
     - mkdir -p /go/rpmrepo/teleport
     - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ /go/rpmrepo/teleport/
     - mkdir -p /go/rpmrepo/teleport/${DRONE_TAG##v}
-    - cp -a /go/artifacts/*.rpm /go/rpmrepo/${DRONE_TAG##v}/
+    - cp -a /go/artifacts/*.rpm /go/rpmrepo/teleport/${DRONE_TAG##v}/
 
   # we do this using a CentOS 7 container to make sure that the repo files are
   # compatible with older versions, also there's no createrepo package in alpine main
@@ -3039,7 +3039,7 @@ steps:
     - yum -y install createrepo
     - createrepo --cachedir /go/rpmrepo/cache --update /go/rpmrepo/teleport
 
-  - name: Sync RPM repo to S3
+  - name: Sync RPM repo changes to S3
     image: amazon/aws-cli
     environment:
       AWS_S3_BUCKET:
@@ -3227,6 +3227,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 422c665e9c37b311dec2e78e81c0d41e8ccc2e7045c106e0a0419398cc54b4c6
+hmac: 49ad829d4e6131cc2a387319feaf85fefab3767452d6b78c295ab52b36397b90
 
 ...
