@@ -15,7 +15,7 @@ spec:
   # cluster-url is the address the cluster UI is reachable at
   acs: https://<cluster-url>/v1/webapi/saml/acs
   attributes_to_roles:
-    - {name: "groups", value: "okta-admin", roles: ["admins"]}
+    - {name: "groups", value: "okta-admin", roles: ["admin"]}
     - {name: "groups", value: "okta-dev", roles: ["dev"]}
   # Note that the entire XML document is indented by 4 spaces. This is
   # required because the pipe symbol indicates what follows is raw text.
