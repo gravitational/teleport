@@ -1329,7 +1329,7 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 }
 
 // SCP securely copies file(s) from one SSH server to another
-func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recursive bool, quiet bool) (err error) {
+func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flags scp.Flags, quiet bool) (err error) {
 	if len(args) < 2 {
 		return trace.Errorf("Need at least two arguments for scp")
 	}
@@ -1344,7 +1344,7 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 	if !tc.Config.ProxySpecified() {
 		return trace.BadParameter("proxy server is not specified")
 	}
-	log.Infof("Connecting to proxy to copy (recursively=%v)...", recursive)
+	log.Infof("Connecting to proxy to copy (recursively=%v)...", flags.Recursive)
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1407,12 +1407,10 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 				User:           tc.Username,
 				ProgressWriter: progressWriter,
 				RemoteLocation: dest.Path,
-				Flags: scp.Flags{
-					Target:        []string{src},
-					Recursive:     recursive,
-					DirectoryMode: directoryMode,
-				},
+				Flags:          flags,
 			}
+			scpConfig.Flags.Target = []string{src}
+			scpConfig.Flags.DirectoryMode = directoryMode
 
 			cmd, err := scp.CreateUploadCommand(scpConfig)
 			if err != nil {
@@ -1424,8 +1422,8 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 				return onError(err)
 			}
 		}
-		// download:
 	} else {
+		// download:
 		src, err := scp.ParseSCPDestination(first)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1441,14 +1439,12 @@ func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, recu
 		// copy everything except the last arg (that's destination)
 		for _, dest := range args[1:] {
 			scpConfig := scp.Config{
-				User: tc.Username,
-				Flags: scp.Flags{
-					Recursive: recursive,
-					Target:    []string{dest},
-				},
+				User:           tc.Username,
+				Flags:          flags,
 				RemoteLocation: src.Path,
 				ProgressWriter: progressWriter,
 			}
+			scpConfig.Flags.Target = []string{dest}
 
 			cmd, err := scp.CreateDownloadCommand(scpConfig)
 			if err != nil {

@@ -65,7 +65,7 @@ func (r *HTTPTransferRequest) parseRemoteLocation() (string, string, error) {
 	return dir, filename, nil
 }
 
-// CreateHTTPUpload creates HTTP download command
+// CreateHTTPUpload creates an HTTP upload command
 func CreateHTTPUpload(req HTTPTransferRequest) (Command, error) {
 	if req.HTTPRequest == nil {
 		return nil, trace.BadParameter("missing parameter HTTPRequest")
@@ -113,7 +113,7 @@ func CreateHTTPUpload(req HTTPTransferRequest) (Command, error) {
 	return cmd, nil
 }
 
-// CreateHTTPDownload creates HTTP upload command
+// CreateHTTPDownload creates an HTTP download command
 func CreateHTTPDownload(req HTTPTransferRequest) (Command, error) {
 	_, filename, err := req.parseRemoteLocation()
 	if err != nil {

@@ -62,6 +62,9 @@ type Flags struct {
 	LocalAddr string
 	// DirectoryMode indicates that a directory is being sent.
 	DirectoryMode bool
+	// PreserveAttrs preserves modification times, access times,
+	// and modes from the original file
+	PreserveAttrs bool
 }
 
 // Config describes Command configuration settings
@@ -181,6 +184,7 @@ func CreateCommand(cfg Config) (Command, error) {
 			"LocalAddr":      cfg.Flags.LocalAddr,
 			"RemoteAddr":     cfg.Flags.RemoteAddr,
 			"Target":         cfg.Flags.Target,
+			"PreserveAttrs":  cfg.Flags.PreserveAttrs,
 			"User":           cfg.User,
 			"RunOnServer":    cfg.RunOnServer,
 			"RemoteLocation": cfg.RemoteLocation,
@@ -201,23 +205,22 @@ type command struct {
 // and teleport (server) side.
 func (cmd *command) Execute(ch io.ReadWriter) (err error) {
 	if cmd.Flags.Source {
-		err = cmd.serveSource(ch)
-	} else {
-		err = cmd.serveSink(ch)
+		return trace.Wrap(cmd.serveSource(ch))
 	}
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(cmd.serveSink(ch))
 }
 
-func (cmd *command) GetRemoteShellCmd() (string, error) {
+// GetRemoteShellCmd returns a command line to copy
+// file(s) or a directory to a remote location
+func (cmd *command) GetRemoteShellCmd() (shellCmd string, err error) {
 	if cmd.RemoteLocation == "" {
 		return "", trace.BadParameter("missing remote file location")
 	}
 
 	// "impersonate" scp to a server
-	shellCmd := "/usr/bin/scp -f"
+	// See https://docstore.mik.ua/orelly/networking_2ndEd/ssh/ch03_08.htm, section "scp1 Details"
+	// about the hidden to/from switches
+	shellCmd = "/usr/bin/scp -f"
 	if cmd.Flags.Source {
 		shellCmd = "/usr/bin/scp -t"
 	}
@@ -227,6 +230,9 @@ func (cmd *command) GetRemoteShellCmd() (string, error) {
 	}
 	if cmd.Flags.DirectoryMode {
 		shellCmd += " -d"
+	}
+	if cmd.Flags.PreserveAttrs {
+		shellCmd += " -p"
 	}
 	shellCmd += (" " + cmd.RemoteLocation)
 
@@ -276,7 +282,7 @@ func (cmd *command) serveSource(ch io.ReadWriter) (retErr error) {
 		}
 	}
 
-	cmd.log.Debugf("send completed")
+	cmd.log.Debug("Send completed.")
 	return nil
 }
 
@@ -348,8 +354,7 @@ func (cmd *command) sendFile(r *reader, ch io.ReadWriter, fileInfo FileInfo) err
 		return trace.Wrap(err)
 	}
 	if n != fileInfo.GetSize() {
-		err := fmt.Errorf("short write: %v %v", n, fileInfo.GetSize())
-		return trace.Wrap(err)
+		return trace.Errorf("short write: %v %v", n, fileInfo.GetSize())
 	}
 	if err := sendOK(ch); err != nil {
 		return trace.Wrap(err)
@@ -371,7 +376,7 @@ func (cmd *command) serveSink(ch io.ReadWriter) error {
 	// directory.
 	if cmd.Flags.DirectoryMode {
 		if len(cmd.Flags.Target) != 1 {
-			return trace.BadParameter("in directory mode, only single upload target is allowed, %v provided", len(cmd.Flags.Target))
+			return trace.BadParameter("in directory mode, only single upload target is allowed but %v provided", len(cmd.Flags.Target))
 		}
 
 		fi, err := os.Stat(cmd.Flags.Target[0])
