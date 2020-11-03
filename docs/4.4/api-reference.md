@@ -113,21 +113,165 @@ func main() {
 
 ## Roles
 
-[Roles](enterprise/ssh-rbac.md#roles) are used to define what resources and actions a user is allowed/denied access to. It's best to make your role's permissions as stringent as possible.
+Every user in Teleport is assigned a set of [roles](enterprise/ssh-rbac.md#roles). A user's roles defines what actions or resources the user is allowed or denied to access.
 
-**Retrieve role**
+Some of the permissions a role could define include:
+
+* Which SSH nodes a user can or cannot access.
+* Ability to replay recorded sessions.
+* Ability to update cluster configuration.
+* Which UNIX logins a user is allowed to use when logging into servers.
+
+!!! Note
+    The open source edition of Teleport automatically assigns every user to the built-in `admin` role but the Teleport Enterprise allows administrators to define their own roles with far greater control over the user permissions.
+
+You can manage roles with the Teleport CLI tool  [tctl](cli-docs.md#tctl), or programmatically with the RPC calls documented below.
+
+You may want to use the API to manage roles if:
+
+- You want to write a program that can always ensure certain roles exist on your system and do not want to orchestrate tctl to do this.
+- You want to dynamically create short lived roles.
+- You want to dynamically create roles with fields filled that Teleport currently does not support.
+
+### The Role Object
+
+Before we break down the Role object piece by piece, You can look at the `Create Role` section below to see an example of a role.
+
+A Teleport `role` is primarily defined by its `Spec`, which contains its `Allow` rules, `Deny` rules, and OpenSSH `Options`.
 
 ```go
-role, err := client.GetRole("auditor")
+// RoleV3 represents role resource specification
+type RoleV3 struct {
+  // Spec is the role specification
+  Spec RoleSpecV3 struct {
+    // Options is for OpenSSH options like agent forwarding.
+    Options RoleOptions
+    // Allow is the set of conditions evaluated to grant access.
+    Allow RoleConditions
+    // Deny is the set of conditions evaluated to deny access. Deny takes priority over allow.
+    Deny RoleConditions
+  }
+  // MetaData and other descriptors
+  ...
+}
+```
+
+**Role Options**
+
+The `RoleOptions` struct defines what OpenSSH actions a user is allowed to use. Below are a few of the most common fields, but check [here](enterprise/ssh-rbac.md#role-options) for a full list of supported options.
+
+```go
+// RoleOptions is a set of role options
+type RoleOptions struct {
+  // ForwardAgent is SSH agent forwarding. default true.
+  ForwardAgent Bool
+  // MaxSessionTTL defines how long a SSH session can last for.
+  MaxSessionTTL Duration
+  // PortForwarding defines if the certificate will have "permit-port-forwarding" in the
+  // certificate. PortForwarding is "yes" if not set.
+  PortForwarding *BoolOption // struct { Value bool } - Nullable boolean
+}
+```
+
+**Role Conditions**
+
+The `RoleConditions` struct allows for precise permission combinations. You can define what *nix logins a role can use, what resources it can read/write to, what nodes it has access to (via NodeLabels), and more.
+
+Most roles will only need to define a few of these fields.
+
+```go
+// RoleConditions is a set of conditions that must all match to be allowed or denied access.
+type RoleConditions struct {
+  // Logins is a list of *nix system logins,  e.g. "root".
+  Logins []string
+  // Namespaces is a list of namespaces (used to partition a cluster).
+  Namespaces []string
+  // NodeLabels is a map of node labels (used to dynamically grant access to nodes).
+  NodeLabels Labels // essentially map[string][]string
+  // Rules is a list of rules and their access levels. Rules represents allow or deny rule
+  // that is executed to check if user or service have access to resource
+  Rules []Rule struct {
+    // Resources is a list of resources - e.g. "roles", "users"
+    Resources []string
+    // Verbs is a list of verbs - e.g. "read", "create"
+    Verbs []string
+    // Where specifies optional advanced matcher
+    Where string
+    // Actions specifies optional actions taken when this rule matches
+    Actions []string
+  }
+  // KubeGroups is a list of kubernetes groups
+  KubeGroups []string
+  // A list of roles that this role can request access to
+  Request *AccessRequestConditions struct {
+    Roles []string
+  }
+  // KubeUsers is an optional kubernetes users to impersonate
+  KubeUsers []string
+}
+```
+
+A couple of these fields are worth further explanation.
+
+*Rules*: A rule consists of two parts: the resources and verbs. Here's an example of a rule describing "read only" verbs applied to the SSH `sessions` resource. Depending on if it's under `Allow` or `Deny`, it means "allow/deny users of this role the ability to read or list active SSH sessions".
+
+```go
+services.NewRule(
+  services.KindSession, // check services.Kind* to see what other resources there are.
+  services.RO(), // helper function to get 'read only' verbs ("list" and "read")
+)
+```
+
+*NodeLabels*: Node labels are arbitrary key:value pairs that can be used to differentiate nodes by key attributes. For example, one of the most common label would be `environment`, which can be one of `development`, `staging`, or `production`.
+
+```go
+// Putting this label under "Allow" would allow the role to ssh into nodes with the "development" or "staging" labels.
+services.Labels{
+  "environment": utils.Strings{"development", "staging"},
+}
+```
+
+### Retrieve Role
+
+This is the equivalent of `tctl get role/admin`.
+
+```go
+role, err := client.GetRole("admin")
 if err != nil {
   return err
 }
 ```
 
-**Create a new role**
+### Create Role
+
+You can use the UpsertRole RPC to programmatically create a new role. This is the equivalent of `tctl create -f auditor-role.yaml`, where the `-f` flag signals to overwrite the auditor role if it exists already.
+
+For example, suppose you wanted to create a role for an auditor that could view all sessions, but could not access any servers.
+
+Using tctl, you would first create a role that allows reading and listing of the session resource like below. In addition, the user is explicitly denied access to all nodes in the deny block.
+
+```
+$ cat << EOF > /tmp/auditor-role.yaml
+kind: role
+version: v3
+metadata:
+  name: auditor
+spec:
+  options:
+    max_session_ttl: 8h
+  allow:
+    rules:
+    - resources: [session]
+      verbs: [list, read]
+  deny: {}
+    node_labels: '*': '*'
+EOF
+$ tctl create -f /tmp/auditor-role.yaml
+```
+
+To do something similar with the API:
 
 ```go
-// create a new auditor role which has very limited permissions
 role, err := services.NewRole("auditor", services.RoleSpecV3{
   Options: services.RoleOptions{
     MaxSessionTTL: services.Duration(time.Hour),
@@ -135,28 +279,34 @@ role, err := services.NewRole("auditor", services.RoleSpecV3{
   Allow: services.RoleConditions{
     Logins: []string{"auditor"},
     Rules: []services.Rule{
-      // - resources: ['session']
-      //   verbs: ['list', 'read']
       services.NewRule(services.KindSession, services.RO()),
     },
   },
   Deny: services.RoleConditions{
-    // node_labels: '*': '*'
     NodeLabels: services.Labels{"*": []string{"*"}},
   },
 })
 if err != nil {
   return err
 }
-
 if err = client.UpsertRole(ctx, role); err != nil {
   return err
 }
 ```
 
-**Update role**
+### Update Role
+
+The UpsertRole RPC can also be used to update an existing role.
+
+You can update practically any field within the role struct using the role's setter functions.
 
 ```go
+// retrieve role
+role, err := client.GetRole("auditor")
+if err != nil {
+  return err
+}
+
 // update the auditor role's ttl to one day
 role.SetOptions(services.RoleOptions{
   MaxSessionTTL: services.Duration(time.Hour * 24),
@@ -166,7 +316,9 @@ if err := client.UpsertRole(ctx, role); err != nil {
 }
 ```
 
-**Delete role**
+### Delete Role
+
+This is the equivalent of `tctl rm auditor-role.yaml`.
 
 ```go
 if err := client.DeleteRole(ctx, "auditor"); err != nil {
@@ -178,7 +330,7 @@ if err := client.DeleteRole(ctx, "auditor"); err != nil {
 
 [Tokens](admin-guide.md#adding-nodes-to-the-cluster) are used to add nodes to clusters, and add leaf clusters to [trusted clusters](admin-guide.md#trusted-clusters).
 
-**Retrieve token**
+### Retrieve token
 
 ```go
 token, err := client.GetToken(tokenString)
@@ -187,7 +339,7 @@ if err != nil {
 }
 ```
 
-**Create token**
+### Create token
 
 ```go
 tokenString, err := client.GenerateToken(ctx, auth.GenerateTokenRequest{
@@ -199,7 +351,7 @@ if err != nil {
 }
 ```
 
-**Update token**
+### Update token
 
 ```go
 // updates the token to be a proxy token
@@ -209,7 +361,7 @@ if err := client.UpsertToken(token); err != nil {
 }
 ```
 
-**Delete token**
+### Delete token
 
 ```go
 if err := client.DeleteToken(tokenString); err != nil {
@@ -221,7 +373,7 @@ if err := client.DeleteToken(tokenString); err != nil {
 
 The root cluster in a [trusted cluster](admin-guide.md#adding-nodes-to-the-cluster) can add/update cluster labels on leaf clusters.
 
-**Create a leaf cluster token with Labels**
+### Create a leaf cluster token with Labels
 
 Leaf clusters will inherit the labels of the [join token](trustedclusters.md#join-tokens) used to add them to the trusted cluster. This is the preferred method of managing cluster tokens.
 
@@ -238,7 +390,7 @@ tokenString, err := client.GenerateToken(ctx, auth.GenerateTokenRequest{
 })
 ```
 
-**Update leaf cluster's labels**
+### Update leaf cluster's labels
 
 You can also update a leaf cluster's labels from the root cluster using the auth api if necessary.
 
@@ -262,7 +414,7 @@ if err = client.UpdateRemoteCluster(ctx, rc); err != nil {
 
 [Access Workflow](enterprise/workflow/index.md) can be used to dynamically approve and deny a user access to local or remote resources in a trusted cluster.
 
-**Retrieve access requests**
+### Retrieve access requests
 
 ```go
 filter := services.AccessRequestFilter{State: services.RequestState_PENDING}
@@ -272,7 +424,7 @@ if err != nil {
 }
 ```
 
-**Create access request**
+### Create access request
 
 ```go
 // create a new access request for api-admin to use the admin role in the cluster
@@ -286,7 +438,7 @@ if err = client.CreateAccessRequest(ctx, accessReq); err != nil {
 }
 ```
 
-**Approve access request**
+### Approve access request
 
 ```go
 aruApprove := services.AccessRequestUpdate{
@@ -298,7 +450,7 @@ if err := client.SetAccessRequestState(ctx, aruApprove); err != nil {
 }
 ```
 
-**Deny access request**
+### Deny access request
 
 ```go
 aruDeny := services.AccessRequestUpdate{
@@ -310,7 +462,7 @@ if err := client.SetAccessRequestState(ctx, aruDeny); err != nil {
 }
 ```
 
-**Delete access request**
+### Delete access request
 
 ```go
 if err := client.DeleteAccessRequest(ctx, accessReqID); err != nil {
