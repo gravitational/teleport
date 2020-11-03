@@ -1,7 +1,7 @@
 kind: github
 version: v3
 metadata:
-  name: new_github_connector
+  name: github
 spec:
   # Github OAuth app client ID
   client_id: <client-id>
@@ -16,6 +16,6 @@ spec:
   # mapping of Github team memberships to Teleport cluster roles
   teams_to_logins:
     - organization: <github-org>
-      team: admins
+      team: <github-team>
       logins:
         - "admin"
