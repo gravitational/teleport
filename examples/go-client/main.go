@@ -36,4 +36,7 @@ func main() {
 
 	fmt.Println("")
 	tokenCRUD(ctx, client)
+
+	fmt.Println("")
+	accessWorkflow(ctx, client)
 }

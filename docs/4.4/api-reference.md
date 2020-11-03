@@ -5,18 +5,15 @@ description: The detailed guide to Teleport API
 
 # Teleport API Reference
 
-Teleport is currently working on documenting our API.
-
 In most cases, you can interact with Teleport using our CLI tools, [tsh](cli-docs.md#tsh) and [tctl](cli-docs.md#tctl). However, there are some scenarios where you may need to interact with Teleport programmatically. For this purpose, you can directly use the same API that `tctl` and `tsh` use.
 
-!!! warning
-
-        We are currently working on this project. If you have an API suggestion, [please complete our survey](https://docs.google.com/forms/d/1HPQu5Asg3lR0cu5crnLDhlvovGpFVIIbDMRvqclPhQg/edit).
+!!! Note
+    We are currently working on improving our API Documentation. If you have an API suggestion, [please complete our survey](https://docs.google.com/forms/d/1HPQu5Asg3lR0cu5crnLDhlvovGpFVIIbDMRvqclPhQg/viewform).
 
 ## Go Examples
 
 !!! Note
-    The Go examples depend on some code that won't be released until Teleport 5.0. Until then, it would be best to start experimenting with the API with the latest [master branch of Teleport](https://github.com/gravitational/teleport).
+    The Go examples depend on some features and changes that won't be released until Teleport 5.0. Until then, it would be best to start experimenting with the API with the latest [master branch of Teleport](https://github.com/gravitational/teleport).
 
 Below are some code examples that can be used with Teleport to perform a few key tasks.
 
@@ -25,9 +22,9 @@ Before you begin:
 - Install [Go](https://golang.org/doc/install) 1.13+ and Setup Go Dev Environment
 - Have access to a Teleport Auth server ([quickstart](quickstart.md))
 
-The easiest way to get started with the Teleport API is to clone the [Go Client Example](https://github.com/gravitational/teleport/tree/master/examples/go-client) in our github repo. Follow the README there to quickly authenticate the API with your Teleport Auth Server and test the API.
+The easiest way to get started with the Teleport API is to clone the [Go Client Example](https://github.com/gravitational/teleport/tree/master/examples/go-client) in our github repo. Follow the README there to quickly authenticate the API with your Teleport Auth Server.
 
-Or if you prefer, follow the authentication, client, and packages sections below to add the necessary files to a new directory called `/api-examples`. At the end, you should have this file structure:
+Or if you prefer, follow the Authentication, Go Client, and Go Packages sections below to add the necessary files to a new directory called `/api-examples`. At the end, you should have this file structure:
 
 ```
 api-examples
@@ -44,13 +41,11 @@ api-examples
 
 ## Authentication
 
-In order to interact with the API, you will need to provision appropriate
-TLS certificates. In order to provision certificates, you will need to create a
-user with appropriate permissions. You should only give the api user permissions for what it actually needs.
+In order to interact with the API, you will need to provision appropriate TLS certificates. In order to provision certificates, you will need to create a user with appropriate permissions. You should only give the API user permissions for what it actually needs.
 
-To quickly get started with the api, you can use this api-admin user, but in real usage make sure to have stringent permissions in place.
+To quickly get started with the API, you can use this api-admin user. However in production usage, make sure to have stringent permissions in place.
 
-```yaml
+```bash
 # Copy and Paste the below and run on the Teleport Auth server.
 $ cat > api-admin.yaml <<EOF
 {!examples/go-client/api-admin.yaml!}
@@ -72,7 +67,9 @@ Move the `/certs` folder into your `/api-examples` folder.
 
 ## Go Client
 
-Add `client.go` into `/api-examples`.
+The client below interfaces with the Teleport gRPC API, and relies on the `certs` generated above for TLS.
+
+Add `client.go` into your `/api-examples` folder.
 
 **client.go**
 
@@ -111,23 +108,278 @@ func main() {
 }
 ```
 
-## Roles
+## Object Resource
 
-[Roles](enterprise/ssh-rbac.md#roles) are used to define what resources and actions a user is allowed/denied access to. It's best to make your role's permissions as stringent as possible.
-
-**Retrieve role**
+All Teleport resources, such as `Roles` and `Tokens`, share several fields for database management. To keep the documentation below clear, we will refer to these fields as `Resource Fields`.
 
 ```go
-role, err := client.GetRole("auditor")
+// Resource is a group of fields that all Teleport resources have
+type Resource struct {
+  // Kind is a resource kind
+  Kind string
+  // SubKind is an optional resource sub kind, used in some resources
+  SubKind string
+  // Version is version
+  Version string
+  // Metadata is User metadata
+  Metadata struct {
+    // Name is an object name
+    Name string
+    // Namespace is object namespace.
+    Namespace string
+    // Description is object description
+    Description string
+    // Labels is a set of labels
+    Labels map[string]string
+    // Expires is a global expiry time header can be set on any resource in the system.
+    Expires *time.Time
+    // ID is a record ID
+    ID int64
+  }
+}
+```
+
+## Roles
+
+Every user in Teleport is assigned a set of [roles](enterprise/ssh-rbac.md#roles). A user's roles defines what actions or resources the user is allowed or denied to access. We offer a wide array of permissions, allowing you to safely and precisely give developers access to the resources they need.
+
+Some of the permissions a role could define include:
+
+- Which SSH nodes a user can or cannot access.
+- Ability to replay recorded sessions.
+- Ability to update cluster configuration.
+- Which UNIX logins a user is allowed to use when logging into servers.
+
+!!! Note
+    The open source edition of Teleport automatically assigns every user to the built-in `admin` role, but Teleport Enterprise allows administrators to define their own roles with far greater control over the user permissions.
+
+You can manage roles with the Teleport CLI tool [tctl](cli-docs.md#tctl), or programmatically with the RPC calls documented below.
+
+You may want to use the API to manage roles if:
+
+- You want to write a program that can always ensure certain roles exist on your system and do not want to orchestrate `tctl` to do this.
+- You want to dynamically create short lived roles.
+- You want to dynamically create roles with fields filled that Teleport currently does not support.
+
+### The Role Object
+
+A Teleport `role` is defined by its `Allow` rules, `Deny` rules, and OpenSSH `Options`. We'll break these down piece by piece below.
+
+To see a role example in `yaml` form, look at the the admin role in the [RBAC documentation](enterprise/ssh-rbac.md). You'll notice that the role object below has the same exact nested structure as its `yaml` counterpart.
+
+```go
+// RoleV3 represents role resource specification
+type RoleV3 struct {
+  // Resource Fields are fields that all Teleport resources have - see above
+  Resource Fields
+  // Spec is the role specification
+  Spec RoleSpecV3 struct {
+    // Options is for OpenSSH options like agent forwarding.
+    Options RoleOptions
+    // Allow is the set of conditions evaluated to grant access.
+    Allow RoleConditions
+    // Deny is the set of conditions evaluated to deny access. Deny takes priority over allow.
+    Deny RoleConditions
+  }
+}
+```
+
+**Role Options**
+
+The `RoleOptions` struct defines what OpenSSH actions a user is allowed to use.
+
+```go
+// RoleOptions is a set of role options
+type RoleOptions struct {
+  // ForwardAgent is SSH agent forwarding. default true.
+  ForwardAgent Bool
+  // MaxSessionTTL defines how long a SSH session can last for.
+  MaxSessionTTL Duration
+  // PortForwarding defines if the certificate will have "permit-port-forwarding"
+  // in the certificate. PortForwarding is true if not set.
+  PortForwarding *BoolOption // struct { Value bool } - Nullable boolean
+  CertificateFormat string
+  // ClientIdleTimeout sets disconnect clients on idle timeout behavior,
+  // if set to 0 means do not disconnect, otherwise is set to the idle duration.
+  ClientIdleTimeout Duration
+  // DisconnectExpiredCert sets disconnect clients on expired certificates.
+  DisconnectExpiredCert Bool
+  // BPF defines what events to record for the BPF-based session recorder.
+  BPF []string
+  // PermitX11Forwarding authorizes use of X11 forwarding.
+  PermitX11Forwarding Bool
+  // MaxConnections defines the maximum number of
+  // concurrent connections a user may hold.
+  MaxConnections int64
+  // MaxSessions defines the maximum number of
+  // concurrent sessions per connection.
+  MaxSessions int64
+}
+```
+
+**Role Conditions**
+
+The `RoleConditions` struct allows for precise permission combinations between a role's `Allow` and `Deny` fields.
+
+`Deny` conditions take priority over `Allow` conditions. If a user has multiple roles, their role permissions will be evaluated together, which can potentially lead to conflicting conditions. This can result in a user being denied permissions that another role of theirs allows.
+
+However, this also allows you to take a modular approach to defining roles. Splitting roles up into logical parts will allow you to manage roles for many developers more effectively. It may also be effective to keep your deny and allow conditions in separate roles so that conflicting roles are obvious.
+
+```go
+// RoleConditions is a set of conditions that must all match to be allowed or denied access.
+type RoleConditions struct {
+  // Logins is a list of *nix system logins,  e.g. "root".
+  Logins []string
+  // Namespaces is a list of namespaces (used to partition a cluster).
+  Namespaces []string
+  // NodeLabels is a map of node labels (used to dynamically grant access to nodes).
+  NodeLabels Labels
+  // Rules is a list of rules and their access levels. Rules represents allow or deny rule
+  // that is executed to check if user or service have access to resource
+  Rules []Rule
+  // KubeGroups is a list of kubernetes groups that Teleport users with this role will be
+  KubeGroups []string
+  // A list of roles that this role can request access to
+  Request *AccessRequestConditions // type AccessRequestConditions struct { Roles []string }
+  // KubeUsers is an optional list of kubernetes users that Teleport users with this role will be
+  KubeUsers []string
+  // AppLabels is a map of labels used as part of the RBAC system.
+  AppLabels Labels
+  // ClusterLabels is a map of node labels (used to dynamically grant access to clusters).
+  ClusterLabels Labels
+}
+```
+
+**Labels**
+
+```go
+type Label map[string]utils.Strings
+```
+Labels are arbitrary key-value pairs that can be used to differentiate nodes, apps, or leaf clusters by key attributes. For example, `NodeLabels` might have the key `environment`, with its value set to `development`, `staging`, or `production`, according to the node's location.
+
+```go
+services.Labels{"environment": utils.Strings{"development", "staging"}}
+```
+
+Depending on which field you put these labels in, you can allow/deny access to any nodes, apps, or leaf clusters with the given labels. These labels can be very useful in systems where you need to carefully manage access across many clusters, e.g. if you are managing clusters for several outside groups.
+
+**Rules**
+
+The primary building blocks of a rule are its resources and verbs. The optional `Where` and `Actions` fields can be used for more advanced rules.
+
+```go
+type Rule struct {
+  // Resources is a list of resources
+  Resources []string
+  // Verbs is a list of verbs
+  Verbs []string
+  // Where specifies optional advanced matcher
+  Where string
+  // Actions specifies optional actions taken when this rule matches
+  Actions []string
+}
+
+```
+
+Here's an example of a rule describing `read only` verbs applied to the SSH `session` resource. Depending on if it's under `Allow` or `Deny`, it means "allow/deny users of this role the ability to read or list active SSH sessions".
+
+```go
+services.NewRule(
+  services.KindSession,
+  services.RO(), // helper function to get 'read only' verbs ("list" and "read")
+)
+```
+
+**Resources**
+
+These are all of the possible resource values, which can be found in the `services` package.
+
+```go
+KindUser              = "user"
+KindLicense           = "license"
+KindRole              = "role"
+KindAccessRequest     = "access_request"
+KindPluginData        = "plugin_data"
+KindOIDC              = "oidc"
+KindSAML              = "saml"
+KindGithub            = "github"
+KindOIDCRequest       = "oidc_request"
+KindSAMLRequest       = "saml_request"
+KindGithubRequest     = "github_request"
+KindWebSession        = "web_session"
+KindAuthServer        = "auth_server"
+KindProxy             = "proxy"
+KindNode              = "node"
+KindAppServer         = "app_server"
+KindToken             = "token"
+KindCertAuthority     = "cert_authority"
+KindOIDCConnector     = "oidc"
+KindSAMLConnector     = "saml"
+KindGithubConnector   = "github"
+KindClusterConfig     = "cluster_config"
+KindSemaphore         = "semaphore"
+KindClusterName       = "cluster_name"
+KindStaticTokens      = "static_tokens"
+KindTrustedCluster    = "trusted_cluster"
+KindIdentity          = "identity"
+KindKubeService       = "kube_service"
+```
+
+**Verbs**
+
+These are all of the possible resource values, which can be found in the `services` package.
+
+```go
+VerbList          = "list"
+VerbCreate        = "create"
+VerbRead          = "read"
+VerbReadNoSecrets = "readnosecrets"
+VerbUpdate        = "update"
+VerbDelete        = "delete"
+VerbRotate        = "rotate"
+```
+
+There are also helper functions `RW()`, `RO()`, and `ReadNoSecrets()` in the `services` package to quickly get read/write verbs, read only verbs, and read only verbs with `readnosecrets` respectively.
+
+### Retrieve Role
+
+This is the equivalent of `tctl get role/admin`.
+
+```go
+role, err := client.GetRole("admin")
 if err != nil {
   return err
 }
 ```
 
-**Create a new role**
+### Create Role
+
+You can use the `UpsertRole` RPC to programmatically create a new role. This is the equivalent of `tctl create -f auditor-role.yaml`, where the `-f` flag signals to overwrite the auditor role if it exists already.
+
+Suppose you wanted to create a role for an auditor that could view all sessions, but could not access any servers. Using `tctl`, you would first create a role that allows reading and listing of the session resource like below. In addition, the user is explicitly denied access to all nodes in the deny block.
+
+```
+$ cat << EOF > /tmp/auditor-role.yaml
+kind: role
+version: v3
+metadata:
+  name: auditor
+spec:
+  options:
+    max_session_ttl: 8h
+  allow:
+    rules:
+    - resources: [session]
+      verbs: [list, read]
+  deny: {}
+    node_labels: '*': '*'
+EOF
+$ tctl create -f /tmp/auditor-role.yaml
+```
+
+To do something similar with the API:
 
 ```go
-// create a new auditor role which has very limited permissions
 role, err := services.NewRole("auditor", services.RoleSpecV3{
   Options: services.RoleOptions{
     MaxSessionTTL: services.Duration(time.Hour),
@@ -135,38 +387,42 @@ role, err := services.NewRole("auditor", services.RoleSpecV3{
   Allow: services.RoleConditions{
     Logins: []string{"auditor"},
     Rules: []services.Rule{
-      // - resources: ['session']
-      //   verbs: ['list', 'read']
       services.NewRule(services.KindSession, services.RO()),
     },
   },
   Deny: services.RoleConditions{
-    // node_labels: '*': '*'
     NodeLabels: services.Labels{"*": []string{"*"}},
   },
 })
 if err != nil {
   return err
 }
-
 if err = client.UpsertRole(ctx, role); err != nil {
   return err
 }
 ```
 
-**Update role**
+### Update Role
+
+The `UpsertRole` RPC can also be used to update an existing role. You can change a role's field with the setter functions available, or directly.
 
 ```go
-// update the auditor role's ttl to one day
-role.SetOptions(services.RoleOptions{
-  MaxSessionTTL: services.Duration(time.Hour * 24),
-})
+// retrieve role
+role, err := client.GetRole("auditor")
+if err != nil {
+  return err
+}
+
+// update the auditor role to be expired
+role.SetExpiry(time.Now())
 if err := client.UpsertRole(ctx, role); err != nil {
   return err
 }
 ```
 
-**Delete role**
+### Delete Role
+
+This is the equivalent of `tctl rm auditor-role.yaml`.
 
 ```go
 if err := client.DeleteRole(ctx, "auditor"); err != nil {
@@ -176,9 +432,57 @@ if err := client.DeleteRole(ctx, "auditor"); err != nil {
 
 ## Tokens
 
-[Tokens](admin-guide.md#adding-nodes-to-the-cluster) are used to add nodes to clusters, and add leaf clusters to [trusted clusters](admin-guide.md#trusted-clusters).
+Teleport is a "clustered" system, meaning it only allows access to hosts that had been previously granted cluster membership. To achieve this, a cluster has "join tokens" which can be shared to extend trust.
 
-**Retrieve token**
+A remote host can exchange one of these tokens with the cluster's auth server to receive signed certificates and become a trusted Teleport host (auth, node, proxy, app, or kubernetes server). Likewise, a remote Teleport cluster can exchange a token to become a leaf cluster in a [trusted cluster](admin-guide.md#trusted-clusters).
+
+These tokens can be predefined static tokens, or dynamic tokens with a short life time. The latter can be generated by `tctl` or this API, and is more secure.
+
+You may want to use this API to manage tokens if:
+
+- You have a program that dynamically adds new hosts to clusters
+- You want to programmatically add leaf clusters to a trusted cluster
+
+### The Token Object
+
+The Token has a Roles field, which defines what roles this token provides in the root cluster.
+
+```go
+type ProvisionTokenV2 struct {
+  // Resource Fields are fields that all Teleport resources have - see above
+  Resource Fields
+  // Spec is the token specification
+  Spec ProvisionTokenSpecV2 struct {
+    // Roles is a list of roles associated with the token
+    Roles []teleport.Role // teleport.Role is a custom string type
+  }
+}
+```
+
+**Roles**
+
+Not to be confused with [RBAC Roles](api-reference.md#roles), the `Roles` field on a Token determines what server roles a new host can take on in a cluster.
+
+These are all of the possible role values, which can be found in the `teleport` package.
+
+```go
+RoleAuth           Role = "Auth"
+RoleWeb            Role = "Web"
+RoleNode           Role = "Node"
+RoleProxy          Role = "Proxy"
+RoleAdmin          Role = "Admin"
+RoleProvisionToken Role = "ProvisionToken"
+RoleTrustedCluster Role = "Trusted_cluster"
+RoleSignup         Role = "Signup"
+RoleNop            Role = "Nop"
+RoleRemoteProxy    Role = "RemoteProxy"
+RoleKube           Role = "Kube"
+RoleApp            Role = "App"
+```
+
+### Retrieve Token
+
+The closest equivalent to this is `tctl tokens ls`.
 
 ```go
 token, err := client.GetToken(tokenString)
@@ -187,29 +491,56 @@ if err != nil {
 }
 ```
 
-**Create token**
+### Create Token
+
+You can use the `GenerateToken` RPC to programmatically create a new token. This is the equivalent of `tctl tokens add --type=[Roles] --value=[Token] --ttl=[TTL]`.
+
+By default, Teleport will create a random 16 byte string using the `CryptoRandomHex` function in our `utils` package. If you want to customize this yourself, simply provide the `Token` field, though we strongly recommend utilizing best security practices.
+
+You can also set `TTL` to a maximum of 48 hours. The shorter the lifetime, the more secure your cluster will be.
 
 ```go
+// generate a token for adding a new proxy host to a cluster
 tokenString, err := client.GenerateToken(ctx, auth.GenerateTokenRequest{
   Roles: teleport.Roles{teleport.RoleProxy},
-  TTL:   time.Hour,
+  // Token will be a randomly generated 16 byte hex string
+  // TTL will default to 30 minutes
+})
+if err != nil {
+  return err
+}
+
+// generate a token for adding a remote cluster to a trusted cluster
+tokenString, err := client.GenerateToken(ctx, auth.GenerateTokenRequest{
+  Token: "this-is-a-secure-token-string",
+  Roles: teleport.Roles{teleport.RoleTrustedCluster},
+  TTL:   time.Minute,
 })
 if err != nil {
   return err
 }
 ```
 
-**Update token**
+### Update Token
+
+`UpsertToken` is essentially the same as `GenerateToken` but without default values, so it is best used only for updating existing tokens.
 
 ```go
-// updates the token to be a proxy token
-token.SetRoles(teleport.Roles{teleport.RoleProxy})
+token, err := client.GetToken(tokenString)
+if err != nil {
+  return err
+}
+
+// update the token to be expired
+token.SetExpiry(time.Now())
 if err := client.UpsertToken(token); err != nil {
   return err
 }
 ```
 
-**Delete token**
+### Delete Token
+
+This is equivalent to `tctl tokens rm [tokenString]`.
 
 ```go
 if err := client.DeleteToken(tokenString); err != nil {
@@ -219,28 +550,43 @@ if err := client.DeleteToken(tokenString); err != nil {
 
 ## Cluster Labels
 
-The root cluster in a [trusted cluster](admin-guide.md#adding-nodes-to-the-cluster) can add/update cluster labels on leaf clusters.
+!!! Note
+    This feature will be released with Teleport 5.0.
 
-**Create a leaf cluster token with Labels**
+Cluster Labels can be used to differentiate between leaf clusters in a [Trusted Cluster](trustedclusters.md). These can be useful when defining [roles](enterprise/ssh-rbac.md) within a trusted cluster, where each cluster has its own requirements for access.
 
-Leaf clusters will inherit the labels of the [join token](trustedclusters.md#join-tokens) used to add them to the trusted cluster. This is the preferred method of managing cluster tokens.
+For example, if each cluster corresponds to a different product that should only be accessed by its product team, you can give each cluster a label like `product: A`. Then create a role for each product which allows access to clusters with its respective product label.
 
-Follow the trusted cluster join token [docs](trustedclusters.md#join-tokens) to use this token to create a leaf cluster using `tctl`.
+You may want to use the following RPCs to manage your cluster labels if:
+
+- You want to programmatically manage cluster labels from your root cluster
+- You have a complex cluster labeling system that would benefit from automation with the API
+- You have a large distributed trusted cluster where explicit cluster based access control is crucial
+
+### Create a Leaf Cluster Join Token with Labels
+
+To create a leaf cluster with cluster labels, you can create a token with the desired labels, and use that token to add the leaf cluster. Check the [Tokens](api-reference.md#tokens) section of this page for more information on tokens.
 
 ```go
 tokenString, err := client.GenerateToken(ctx, auth.GenerateTokenRequest{
-  // You can provide 'Token' for a static token name
   Roles: teleport.Roles{teleport.RoleTrustedCluster},
-  TTL:   time.Hour,
+  // Leaf clusters added with this token will inherit these labels
   Labels: map[string]string{
     "env": "staging",
   },
 })
 ```
 
-**Update leaf cluster's labels**
+This is the equivalent of `tctl tokens add --type=trusted_cluster --labels=env=staging`.
 
-You can also update a leaf cluster's labels from the root cluster using the auth api if necessary.
+!!! Note
+    Currently, it is not straightforward to add new leaf clusters with the API, but it is possible with the `RegisterUsingToken` RPC. Until we properly document this, follow the trusted cluster [join token docs](trustedclusters.md#join-tokens) to create a leaf cluster with this token using `tctl`.
+
+### Update a Leaf Cluster's labels
+
+You can also update an existing leaf cluster's labels from the root cluster using the `UpdateRemoteCluster` RPC.
+
+This is the equivalent of `tctl update rc/[leafClusterName] --set-labels=env=prod`.
 
 ```go
 rc, err := client.GetRemoteCluster("leafClusterName")
@@ -258,13 +604,128 @@ if err = client.UpdateRemoteCluster(ctx, rc); err != nil {
 
 ```
 
-## Access Workflow
+## Access Workflows
 
-[Access Workflow](enterprise/workflow/index.md) can be used to dynamically approve and deny a user access to local or remote resources in a trusted cluster.
+[Access Workflows](enterprise/workflow/index.md) can be used by Teleport users to request one or more additional roles on the fly. These requests can be partially or fully approved or denied by a Teleport Administrator.
 
-**Retrieve access requests**
+You may want to use manage Access Workflows using the API if:
+
+- You want to automatically administer the scaling up and down of permissions for developers depending on their task
+- You want to utilize our supported [external tools](enterprise/workflow/index.md#integrating-with-an-external-tool) or other third party tools to control the flow of access
+
+For example, you could have a team of contractors which need database access for some tasks, but should not have it permanently. To do this, you can give them the `contractor` role below, which allows them to request the `dba` role.
+
+```yaml
+kind: role
+metadata:
+  name: contractor
+spec:
+  options:
+    # ...
+  allow:
+    request:
+      roles: ['dba']
+    # ...
+  deny:
+    # ...
+```
+
+```yaml
+kind: role
+metadata:
+  name: dba
+spec:
+  options:
+    # ...
+    # Only allows the contractor to use this role for 1 hour from time of request.
+    max_session_ttl: 1h
+  allow:
+    # ...
+  deny:
+    # ...
+```
+
+Now if a contractor has a task requiring `dba` access, they can request `dba` access. To approve the request, you need an administrator with read and write permissions to access requests.
+
+```yaml
+kind: role
+metadata:
+  name: request-admin
+spec:
+  options:
+    # ...
+  allow:
+    rules:
+    - resources: [access_request]
+      verbs: [list, read, update, delete]
+  deny:
+    # ...
+```
+
+A `request-admin` can list all current requests, resolve them, and delete them. Notice that `request-admin` might not be a great job to handle manually.
+
+With the API, you can automatically manage the requesting and or resolution of requests in order to streamline this process. Better yet, this opens up the ability to leverage external identity providers by attaching relevant information as `Annotations` to requests, such as `ticket_id` or `task_id`. You can also use our custom [integrations with external tools](enterprise/workflow/index.md#integrating-with-an-external-tool), such as Slack, to manage requests according to your custom configuration.
+
+### The Access Request Object
+
+An `AccessRequest` is made by a `User` for a set of `Roles`. Once its `State` is resolved to "approved", this user has access to the permissions in those roles until the `Expiry` time, which can be set upon resolution.
+
+There are also optional `Reasons` and `Annotations` which can be used for audit logs, to integrate external identity information into requests, and other custom usages you may have.
 
 ```go
+// AccessRequest represents an access request resource specification
+type AccessRequestV3 struct {
+  // Resource Fields are fields that all Teleport resources have - see above
+  Resource Fields
+  // Spec is an AccessRequest specification
+  Spec AccessRequestSpecV3 struct {
+    // User is the name of the user to whom the roles will be applied.
+    User string
+    // Roles is a list of the roles being requested.
+    Roles []string
+    // State is the current state of this access request. Possible values are pending, approved, and denied.
+    State RequestState
+    // Created encodes the time at which the request was registered with the auth server.
+    Created time.Time
+    // Expires constrains the maximum lifetime of any login session for which this request is active.
+    Expires time.Time
+    // RequestReason is an optional message explaining the reason for the request.
+    RequestReason string
+    // ResolveReason is an optional message explaining the reason for the resolution
+    // of the request (approval, denial, etc...).
+    ResolveReason string
+    // ResolveAnnotations is a set of arbitrary values received from plugins or other resolving parties during approval/denial. Importantly, these annotations are included in the access_request.update event, allowing plugins to propagate arbitrary structured data to the audit log.
+    ResolveAnnotations wrappers.Traits
+    // SystemAnnotations is a set of programmatically generated annotations attached to pending access requests by teleport. These annotations serve as a mechanism for administrators to pass extra information to plugins when they process pending access requests.
+    SystemAnnotations wrappers.Traits
+  }
+}
+```
+
+**State**
+
+These are the RequestState constants, which can be found in the services package.
+
+```go
+// NONE variant exists to allow RequestState to be explicitly omitted
+// in certain circumstances (e.g. in an AccessRequestFilter).
+RequestState_NONE RequestState = 0
+// PENDING variant is the default for newly created requests.
+RequestState_PENDING RequestState = 1
+// APPROVED variant indicates that a request has been accepted by
+// an administrating party.
+RequestState_APPROVED RequestState = 2
+// DENIED variant indicates that a request has been rejected by
+// an administrating party.
+RequestState_DENIED RequestState = 3
+```
+
+### Retrieve Access Requests
+
+The closest equivalent to this is `tctl request ls`, which does not have the filter functionality.
+
+```go
+// retrieve all pending access requests
 filter := services.AccessRequestFilter{State: services.RequestState_PENDING}
 ars, err := client.GetAccessRequests(ctx, filter)
 if err != nil {
@@ -272,45 +733,82 @@ if err != nil {
 }
 ```
 
-**Create access request**
+**AccessRequestFilter**
+
+The `AccessRequestFilter` struct allows you to filter by `ID`, `User`, and `State`.
 
 ```go
-// create a new access request for api-admin to use the admin role in the cluster
-ar, err := services.NewAccessRequest("api-admin", "admin")
+type AccessRequestFilter struct {
+  // ID specifies a request ID if set.
+  ID string
+  // User specifies a username if set.
+  User string
+  // RequestState filters for requests in a specific state.
+  State RequestState
+}
+```
+
+### Create Access Request
+
+This is equivalent to `tctl request create contractor --roles=dba --reason="I need more power"`.
+
+However with the RPC below, you can also set other useful fields. For example, `SystemAnnotations` can be used to store relevant information for external tools, such as a ticket id from a ticket management system.
+
+```go
+// create a new access request for contractor to temporarily use the dba role in the cluster
+ar, err := services.NewAccessRequest("contractor", "dba")
 if err != nil {
   return err
 }
+
+// use AccessRequest setters to set optional fields
+accessReq.SetRequestReason("I need more power.")
+accessReq.SetAccessExpiry(time.Now().Add(time.Hour))
+accessReq.SetSystemAnnotations(map[string][]string{
+  "ticket": []string{"137"},
+})
 
 if err = client.CreateAccessRequest(ctx, accessReq); err != nil {
   return err
 }
 ```
 
-**Approve access request**
+### Approve Access Request
+
+This is equivalent to `tctl request approve [accessReqID] --roles=dba1 --reason="dba2 is not for you"`.
+
+You can approve a subset of the roles in the request with the `Roles` field.
 
 ```go
 aruApprove := services.AccessRequestUpdate{
   RequestID: accessReqID,
   State:     services.RequestState_APPROVED,
+  Reason:    "dba2 is not for you",
+  Roles:     []string{"dba1"},
 }
 if err := client.SetAccessRequestState(ctx, aruApprove); err != nil {
   return err
 }
 ```
 
-**Deny access request**
+### Deny Access Request
+
+This is equivalent to `tctl request deny [accessReqID] --reason="Not today"`.
 
 ```go
 aruDeny := services.AccessRequestUpdate{
   RequestID: accessReqID,
   State:     services.RequestState_DENIED,
+  Reason:    "Not today",
 }
 if err := client.SetAccessRequestState(ctx, aruDeny); err != nil {
   return err
 }
 ```
 
-**Delete access request**
+### Delete Access Request
+
+This is equivalent to `tctl request rm [accessReqID]`.
 
 ```go
 if err := client.DeleteAccessRequest(ctx, accessReqID); err != nil {

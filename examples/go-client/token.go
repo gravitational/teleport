@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"log"
 	"time"
 
@@ -44,21 +42,12 @@ func tokenCRUD(ctx context.Context, client *auth.Client) {
 
 	log.Printf("Retrieved token: %v", token.GetName())
 
-	// update the token to be a trusted cluster join token
-	token.SetRoles(teleport.Roles{teleport.RoleTrustedCluster})
+	// update the token to be expired
+	token.SetExpiry(time.Now())
 	if err = client.UpsertToken(token); err != nil {
 		log.Printf("Failed to update token: %v", err)
 		return
 	}
 
 	log.Println("Updated token")
-}
-
-// Helper function to generate random tokens
-func randomHex(n int) (string, error) {
-	bytes := make([]byte, n)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(bytes), nil
 }
