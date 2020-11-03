@@ -103,9 +103,9 @@ type TeleInstance struct {
 	// UploadEventsC is a channel for upload events
 	UploadEventsC chan events.UploadEvent
 
-	// tempDirs is a list of temporary directories that were created that should
-	// be cleaned up after the test has successfully run.
-	tempDirs []string
+	// DataDir specifies the root directory for all state information
+	// used by the instance during a single test
+	DataDir string
 
 	// log specifies the instance logger
 	log utils.Logger
@@ -166,6 +166,10 @@ type InstanceConfig struct {
 
 	// log specifies the logger
 	log utils.Logger
+
+	// DataDir specifies the root directory for all state information
+	// used by the instance  during a single test
+	DataDir string
 }
 
 // NewInstance creates a new Teleport process instance.
@@ -230,6 +234,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 		Ports:         cfg.Ports,
 		Hostname:      cfg.NodeName,
 		UploadEventsC: make(chan events.UploadEvent, 100),
+		DataDir:       cfg.DataDir,
 		log:           cfg.log,
 	}
 	secrets := InstanceSecrets{
@@ -489,12 +494,11 @@ func GenerateUserCreds(req UserCredsRequest) (*UserCreds, error) {
 
 // GenerateConfig generates instance config
 func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *service.Config) (*service.Config, error) {
-	var err error
-	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
+	dataDir, err := ioutil.TempDir(i.DataDir, "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	i.tempDirs = append(i.tempDirs, dataDir)
+	// i.tempDirs = append(i.tempDirs, dataDir)
 
 	if tconf == nil {
 		tconf = service.MakeDefaultConfig()
@@ -676,11 +680,11 @@ func (i *TeleInstance) StartReverseTunnelNode(tconf *service.Config) (*service.T
 
 // startNode starts a node and connects it to the cluster.
 func (i *TeleInstance) startNode(tconf *service.Config, reverseTunnel bool) (*service.TeleportProcess, error) {
-	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
+	dataDir, err := ioutil.TempDir(i.DataDir, "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	i.tempDirs = append(i.tempDirs, dataDir)
+	// i.tempDirs = append(i.tempDirs, dataDir)
 
 	tconf.DataDir = dataDir
 
@@ -844,11 +848,11 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 // StartNodeAndProxy starts a SSH node and a Proxy Server and connects it to
 // the cluster.
 func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, proxySSHPort int) error {
-	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
+	dataDir, err := ioutil.TempDir(i.DataDir, "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	i.tempDirs = append(i.tempDirs, dataDir)
+	// i.tempDirs = append(i.tempDirs, dataDir)
 
 	tconf := service.MakeDefaultConfig()
 
@@ -927,11 +931,11 @@ type ProxyConfig struct {
 
 // StartProxy starts another Proxy Server and connects it to the cluster.
 func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error) {
-	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName+"-"+cfg.Name)
+	dataDir, err := ioutil.TempDir(i.DataDir, "cluster-"+i.Secrets.SiteName+"-"+cfg.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	i.tempDirs = append(i.tempDirs, dataDir)
+	// i.tempDirs = append(i.tempDirs, dataDir)
 
 	tconf := service.MakeDefaultConfig()
 	tconf.Console = nil
@@ -1287,9 +1291,9 @@ func (i *TeleInstance) StopAll() error {
 	errors = append(errors, i.StopAuth(true))
 
 	// Remove temporary data directories that were created.
-	for _, dir := range i.tempDirs {
-		errors = append(errors, os.RemoveAll(dir))
-	}
+	//for _, dir := range i.tempDirs {
+	//	errors = append(errors, os.RemoveAll(dir))
+	//}
 
 	i.log.Info("Stopped all teleport services.")
 	return trace.NewAggregate(errors...)
@@ -1602,17 +1606,10 @@ func createAgent(me *user.User, privateKeyByte []byte, certificateBytes []byte) 
 }
 
 func closeAgent(teleAgent *teleagent.AgentServer, socketDirPath string) error {
-	err := teleAgent.Close()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = os.RemoveAll(socketDirPath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
+	return trace.NewAggregate(
+		teleAgent.Close(),
+		os.RemoveAll(socketDirPath),
+	)
 }
 
 func fatalIf(err error) {

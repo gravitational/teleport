@@ -1544,7 +1544,7 @@ func (s *IntSuite) TestHA(c *check.C) {
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
 	for len(checkGetClusters(c, a.Tunnel)) < 2 && len(checkGetClusters(c, b.Tunnel)) < 2 {
-		time.Sleep(time.Millisecond * 2000)
+		time.Sleep(2 * time.Second)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two sites do not see each other: tunnels are not working")
 		}
@@ -1905,6 +1905,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 		Priv:           s.priv,
 		Pub:            s.pub,
 		MultiplexProxy: test.multiplex,
+		DataDir:        c.MkDir(),
 		log:            s.log,
 	})
 	aux := s.newNamedTeleportInstance(c, clusterAux)
@@ -3365,16 +3366,13 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	config, err := t.GenerateConfig(nil, tconf)
 	c.Assert(err, check.IsNil)
 
-	serviceC := make(chan *service.TeleportProcess, 20)
-
+	serviceC := make(chan *svcStartResult, 1)
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
-			if err == nil {
-				serviceC <- svc
-			}
-			return svc, err
+			serviceC <- &svcStartResult{svc: svc, err: trace.Wrap(err)}
+			return svc, trace.Wrap(err)
 		})
 	}()
 
@@ -3497,6 +3495,11 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	}
 }
 
+type svcStartResult struct {
+	svc *service.TeleportProcess
+	err error
+}
+
 // TestRotateRollback tests cert authority rollback
 func (s *IntSuite) TestRotateRollback(c *check.C) {
 	s.setUpTest(c)
@@ -3517,16 +3520,14 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	config, err := t.GenerateConfig(nil, tconf)
 	c.Assert(err, check.IsNil)
 
-	serviceC := make(chan *service.TeleportProcess, 20)
+	serviceC := make(chan *svcStartResult, 1)
 
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
-			if err == nil {
-				serviceC <- svc
-			}
-			return svc, err
+			serviceC <- &svcStartResult{svc: svc, err: trace.Wrap(err)}
+			return svc, trace.Wrap(err)
 		})
 	}()
 
@@ -3648,15 +3649,13 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	config, err := main.GenerateConfig(nil, tconf)
 	c.Assert(err, check.IsNil)
 
-	serviceC := make(chan *service.TeleportProcess, 20)
+	serviceC := make(chan *svcStartResult, 1)
 	runErrCh := make(chan error, 1)
 	go func() {
 		runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
-			if err == nil {
-				serviceC <- svc
-			}
-			return svc, err
+			serviceC <- &svcStartResult{svc: svc, err: trace.Wrap(err)}
+			return svc, trace.Wrap(err)
 		})
 	}()
 
@@ -3842,6 +3841,8 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	case <-time.After(20 * time.Second):
 		c.Fatalf("failed to shut down the server")
 	}
+
+	c.Assert(aux.StopAll(), check.IsNil)
 }
 
 // TestRotateChangeSigningAlg tests the change of CA signing algorithm on
@@ -3860,7 +3861,7 @@ func (s *IntSuite) TestRotateChangeSigningAlg(c *check.C) {
 	config, err := t.GenerateConfig(nil, tconf)
 	c.Assert(err, check.IsNil)
 
-	serviceC := make(chan *service.TeleportProcess, 20)
+	serviceC := make(chan *svcStartResult, 1)
 	runErrCh := make(chan error, 1)
 
 	restart := func(svc *service.TeleportProcess, cancel func()) (*service.TeleportProcess, func()) {
@@ -3885,10 +3886,8 @@ func (s *IntSuite) TestRotateChangeSigningAlg(c *check.C) {
 		go func() {
 			runErrCh <- service.Run(ctx, *config, func(cfg *service.Config) (service.Process, error) {
 				svc, err := service.NewTeleport(cfg)
-				if err == nil {
-					serviceC <- svc
-				}
-				return svc, err
+				serviceC <- &svcStartResult{svc: svc, err: trace.Wrap(err)}
+				return svc, trace.Wrap(err)
 			})
 		}()
 
@@ -4019,15 +4018,16 @@ func waitForProcessEvent(svc *service.TeleportProcess, event string, timeout tim
 }
 
 // waitForProcessStart is waiting for the process to start
-func waitForProcessStart(serviceC chan *service.TeleportProcess) (*service.TeleportProcess, error) {
-	var svc *service.TeleportProcess
+func waitForProcessStart(serviceC chan *svcStartResult) (*service.TeleportProcess, error) {
 	select {
-	case svc = <-serviceC:
+	case result := <-serviceC:
+		if result.err != nil {
+			return nil, result.err
+		}
+		return result.svc, nil
 	case <-time.After(1 * time.Minute):
-		dumpGoroutineProfile()
 		return nil, trace.BadParameter("timeout waiting for service to start")
 	}
-	return svc, nil
 }
 
 // waitForReload waits for multiple events to happen:
@@ -4036,12 +4036,15 @@ func waitForProcessStart(serviceC chan *service.TeleportProcess) (*service.Telep
 // 2. old service, if present to shut down
 //
 // this helper function allows to serialize tests for reloads.
-func (s *IntSuite) waitForReload(serviceC chan *service.TeleportProcess, old *service.TeleportProcess) (*service.TeleportProcess, error) {
+func waitForReload(serviceC chan *svcStartResult, old *service.TeleportProcess) (*service.TeleportProcess, error) {
 	var svc *service.TeleportProcess
 	select {
-	case svc = <-serviceC:
+	case result := <-serviceC:
+		if result.err != nil {
+			return nil, result.err
+		}
+		svc = result.svc
 	case <-time.After(1 * time.Minute):
-		dumpGoroutineProfile()
 		return nil, trace.BadParameter("timeout waiting for service to start")
 	}
 
@@ -4049,7 +4052,6 @@ func (s *IntSuite) waitForReload(serviceC chan *service.TeleportProcess, old *se
 	svc.WaitForEvent(context.TODO(), service.TeleportReadyEvent, eventC)
 	select {
 	case <-eventC:
-
 	case <-time.After(20 * time.Second):
 		dumpGoroutineProfile()
 		return nil, trace.BadParameter("timeout waiting for service to broadcast ready status")
@@ -4990,6 +4992,7 @@ func (s *IntSuite) newTeleportInstance(c *check.C) *TeleInstance {
 		Ports:       s.getPorts(5),
 		Priv:        s.priv,
 		Pub:         s.pub,
+		DataDir:     c.MkDir(),
 		log:         s.log,
 	})
 }
@@ -5002,6 +5005,7 @@ func (s *IntSuite) newNamedTeleportInstance(c *check.C, clusterName string) *Tel
 		Ports:       s.getPorts(5),
 		Priv:        s.priv,
 		Pub:         s.pub,
+		DataDir:     c.MkDir(),
 		log:         s.log,
 	})
 }

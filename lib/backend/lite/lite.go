@@ -795,10 +795,6 @@ func (l *Backend) CloseWatchers() {
 	l.buf.Reset()
 }
 
-func (l *Backend) isClosed() bool {
-	return atomic.LoadInt32(&l.closedFlag) == 1
-}
-
 func (l *Backend) setClosed() {
 	atomic.StoreInt32(&l.closedFlag, 1)
 }
@@ -821,51 +817,38 @@ func (l *Backend) inTransaction(ctx context.Context, f func(tx *sql.Tx) error) (
 	if err != nil {
 		return trace.Wrap(convertError(err))
 	}
-	commit := func() error {
-		return tx.Commit()
-	}
-	rollback := func() error {
-		return tx.Rollback()
-	}
 	defer func() {
+		if err == nil {
+			return
+		}
 		if r := recover(); r != nil {
-			l.Errorf("Unexpected panic in inTransaction: %v, trying to rollback.", r)
+			l.Errorf("Panic in inTransaction: %v, trying to rollback: %s\n.", r, string(debug.Stack()))
 			err = trace.BadParameter("panic: %v", r)
-			if e2 := rollback(); e2 != nil {
-				l.Errorf("Failed to rollback: %v.", e2)
+			if err := tx.Rollback(); err != nil {
+				l.Errorf("Failed to rollback: %v.", err)
 			}
 			return
 		}
-		if err != nil && !trace.IsNotFound(err) {
-			if isConstraintError(trace.Unwrap(err)) {
-				err = trace.AlreadyExists(err.Error())
-			}
-			// transaction aborted by interrupt, no action needed
-			if isInterrupt(trace.Unwrap(err)) {
-				return
-			}
-			if isLockedError(trace.Unwrap(err)) {
-				err = trace.ConnectionProblem(err, "database is locked")
-			}
-			if isReadonlyError(trace.Unwrap(err)) {
-				err = trace.ConnectionProblem(err, "database is in readonly mode")
-			}
-			if !l.isClosed() {
-				if !trace.IsCompareFailed(err) && !trace.IsAlreadyExists(err) && !trace.IsConnectionProblem(err) {
-					l.Warningf("Unexpected error in inTransaction: %v, rolling back.", trace.DebugReport(err))
-				}
-				if e2 := rollback(); e2 != nil {
-					l.Errorf("Failed to rollback too: %v.", e2)
-				}
-			}
+		// transaction aborted by interrupt, no action needed
+		if isInterrupt(trace.Unwrap(err)) {
 			return
 		}
-		if err2 := commit(); err2 != nil {
-			err = trace.Wrap(err2)
+		if err := tx.Rollback(); err != nil {
+			l.Errorf("Failed to rollback: %v.", err)
+		}
+		switch {
+		case isUniqueConstraintError(trace.Unwrap(err)):
+			err = trace.AlreadyExists(err.Error())
+		case isLockedError(trace.Unwrap(err)):
+			err = trace.ConnectionProblem(err, "database is locked")
+		case isReadonlyError(trace.Unwrap(err)):
+			err = trace.ConnectionProblem(err, "database is in readonly mode")
 		}
 	}()
-	err = f(tx)
-	return
+	if err := f(tx); err != nil {
+		return trace.Wrap(err)
+	}
+	return tx.Commit()
 }
 
 func expires(t time.Time) interface{} {
@@ -887,12 +870,12 @@ func isClosedError(err error) bool {
 	return err.Error() == "sql: database is closed"
 }
 
-func isConstraintError(err error) bool {
-	e, ok := trace.Unwrap(err).(sqlite3.Error)
-	if !ok {
-		return false
+func isUniqueConstraintError(err error) bool {
+	if err, ok := trace.Unwrap(err).(sqlite3.Error); ok {
+		return err.ExtendedCode == sqlite3.ErrConstraintUnique ||
+			err.ExtendedCode == sqlite3.ErrConstraintPrimaryKey
 	}
-	return e.Code == sqlite3.ErrConstraint
+	return false
 }
 
 func isLockedError(err error) bool {
