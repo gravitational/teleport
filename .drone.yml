@@ -880,7 +880,9 @@ environment:
 
 trigger:
   event:
-    - tag
+    # TODO(gus): testing
+    #- tag
+    - none
   ref:
     include:
       - refs/tags/v*
@@ -984,7 +986,9 @@ environment:
 
 trigger:
   event:
-    - tag
+    # TODO(gus): testing
+    #- tag
+    - none
   ref:
     include:
       - refs/tags/v*
@@ -1337,7 +1341,9 @@ name: build-linux-amd64-deb
 
 trigger:
   event:
-    - tag
+    # TODO(gus): testing
+    #- tag
+    - none
   ref:
     include:
       - refs/tags/v*
@@ -1449,7 +1455,9 @@ name: build-linux-amd64-fips-deb
 
 trigger:
   event:
-    - tag
+    # TODO(gus): testing
+    #- tag
+    - none
   ref:
     include:
       - refs/tags/v*
@@ -1792,7 +1800,9 @@ name: build-linux-i386-deb
 
 trigger:
   event:
-    - tag
+    # TODO(gus): testing
+    #- tag
+    - none
   ref:
     include:
       - refs/tags/v*
@@ -1911,7 +1921,9 @@ platform:
 
 trigger:
   event:
-    - tag
+    # TODO(gus): testing
+    #- tag
+    - none
   ref:
     include:
       - refs/tags/v*
@@ -2002,7 +2014,9 @@ platform:
 
 trigger:
   event:
-    - tag
+    # TODO(gus): testing
+    #- tag
+    - none
   ref:
     include:
       - refs/tags/v*
@@ -2114,7 +2128,9 @@ platform:
 
 trigger:
   event:
-    - tag
+    # TODO(gus): testing
+    #- tag
+    - none
   ref:
     include:
       - refs/tags/v*
@@ -2241,7 +2257,9 @@ environment:
 
 trigger:
   event:
-    - tag
+    # TODO(gus): testing
+    #- tag
+    - none
   ref:
     include:
       - refs/tags/v*
@@ -2335,7 +2353,9 @@ environment:
 
 trigger:
   event:
-    - tag
+    # TODO(gus): testing
+    #- tag
+    - none
   ref:
     include:
       - refs/tags/v*
@@ -2421,7 +2441,9 @@ environment:
 
 trigger:
   event:
-    - tag
+    # TODO(gus): testing
+    #- tag
+    - none
   ref:
     include:
       - refs/tags/v*
@@ -2526,7 +2548,9 @@ environment:
 
 trigger:
   event:
-    - tag
+    # TODO(gus): testing
+    #- tag
+    - none
   ref:
     include:
       - refs/tags/v*
@@ -2633,7 +2657,9 @@ name: build-oss-amis
 
 trigger:
   event:
-    - tag
+    # TODO(gus): testing
+    #- tag
+    - none
   ref:
     include:
       - refs/tags/v*
@@ -2733,7 +2759,9 @@ name: build-ent-amis
 
 trigger:
   event:
-    - tag
+    # TODO(gus): testing
+    #- tag
+    - none
   ref:
     include:
       - refs/tags/v*
@@ -2950,6 +2978,82 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
+name: update-rpm-repo
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+depends_on:
+  - build-linux-amd64-rpm
+  - build-linux-amd64-fips-rpm
+  - build-linux-i386-rpm
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Download artifacts from S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - mkdir -p /go/artifacts
+      - aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/ /go/artifacts/
+
+  - name: Download RPM repo contents
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: RPMREPO_AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: RPMREPO_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: RPMREPO_AWS_SECRET_ACCESS_KEY
+    commands:
+    - mkdir -p /go/rpmrepo/teleport
+    - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ /go/rpmrepo/teleport/
+    - mkdir -p /go/rpmrepo/teleport/${DRONE_TAG##v}
+    - cp -a /go/artifacts/*.rpm /go/rpmrepo/${DRONE_TAG##v}/
+
+  # we do this using a CentOS 7 container to make sure that the repo files are
+  # compatible with older versions, also there's no createrepo package in alpine main
+  - name: Regenerate RPM repo metadata
+    image: centos:7
+    commands:
+    - yum -y install createrepo
+    - createrepo --cachedir /go/rpmrepo/cache --update /go/rpmrepo/teleport
+
+  - name: Sync RPM repo to S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: RPMREPO_AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: RPMREPO_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: RPMREPO_AWS_SECRET_ACCESS_KEY
+    commands:
+    - aws s3 sync /go/rpmrepo/teleport/ s3://$AWS_S3_BUCKET/teleport/
+
+---
+kind: pipeline
+type: kubernetes
 name: promote-build
 
 trigger:
@@ -2981,6 +3085,41 @@ steps:
     commands:
       - mkdir -p /go/artifacts
       - aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/ /go/artifacts/
+
+  # - name: Download RPM repo contents
+  #   image: amazon/aws-cli
+  #   environment:
+  #     AWS_S3_BUCKET:
+  #       from_secret: RPMREPO_AWS_S3_BUCKET
+  #     AWS_ACCESS_KEY_ID:
+  #       from_secret: RPMREPO_AWS_ACCESS_KEY_ID
+  #     AWS_SECRET_ACCESS_KEY:
+  #       from_secret: RPMREPO_AWS_SECRET_ACCESS_KEY
+  #   commands:
+  #   - mkdir -p /go/rpmrepo/teleport
+  #   - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ /go/rpmrepo/teleport/
+  #   - mkdir -p /go/rpmrepo/teleport/${DRONE_TAG##v}
+  #   - cp -a /go/artifacts/*.rpm /go/rpmrepo/${DRONE_TAG##v}/
+
+  # # we do this using a CentOS 7 container to make sure that the repo files are
+  # # compatible with older versions, also there's no createrepo package in alpine main
+  # - name: Regenerate RPM repo metadata
+  #   image: centos:7
+  #   commands:
+  #   - yum -y install createrepo
+  #   - createrepo --cachedir /go/rpmrepo/cache --update /go/rpmrepo/teleport
+
+  # - name: Sync RPM repo to S3
+  #   image: amazon/aws-cli
+  #   environment:
+  #     AWS_S3_BUCKET:
+  #       from_secret: RPMREPO_AWS_S3_BUCKET
+  #     AWS_ACCESS_KEY_ID:
+  #       from_secret: RPMREPO_AWS_ACCESS_KEY_ID
+  #     AWS_SECRET_ACCESS_KEY:
+  #       from_secret: RPMREPO_AWS_SECRET_ACCESS_KEY
+  #   commands:
+  #   - aws s3 sync /go/rpmrepo/teleport/ s3://$AWS_S3_BUCKET/teleport/
 
   - name: Upload artifacts to production S3
     image: plugins/s3
@@ -3088,6 +3227,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 921eeb9b7f68a01bf4a3c690248bc74285345b23e9362ee2593610e2a8355363
+hmac: 422c665e9c37b311dec2e78e81c0d41e8ccc2e7045c106e0a0419398cc54b4c6
 
 ...
