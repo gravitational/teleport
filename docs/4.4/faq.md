@@ -61,11 +61,11 @@ Teleport nodes connected to proxy server (IoT) | 2,000* | 2x 2-4 vCPUs/8GB RAM |
 
 | Release       | Long Term Support | Release Date         | Supported Until      | Min tsh version  |
 | --------------|-----| -------------------- | -------------------- | -------------------- |
-| 4.4           | Yes | October 20th, 2020   | October 20th, 2020   | 3.x                  |
+| 4.4           | Yes | October 20th, 2020   | October 20th, 2021   | 3.x                  |
 | 4.3           | Yes | July 8th, 2020       | July 8th, 2021       | 3.x                  |
 | 4.2           | Yes | December 19th, 2019  | December 19th, 2020  | 3.x                  |
-| 4.1           | Yes | October 1st, 2019    | October 1st, 2020    | 3.x                  |
-| 4.0           | Yes | June 18th, 2019      | June 18th, 2020      | 3.x                  |
+| 4.1 (EOL)     | Yes | October 1st, 2019    | October 1st, 2020    | 3.x                  |
+| 4.0 (EOL)     | Yes | June 18th, 2019      | June 18th, 2020      | 3.x                  |
 
 Teleport uses semantic versioning to release updates of software, with releases taking
 around 3-4 months, for MINOR releases. The team has these informal rules about releasing software:
