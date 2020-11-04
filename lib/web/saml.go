@@ -128,7 +128,6 @@ func (m *Handler) samlACS(w http.ResponseWriter, r *http.Request, p httprouter.P
 			l.Warningf("unable to verify CSRF token: %v", err)
 			return nil, trace.AccessDenied("access denied")
 		}
-
 		if err := SetSession(w, response.Username, response.Session.GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}

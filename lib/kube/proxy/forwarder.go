@@ -1,5 +1,5 @@
 /*
-Copyright 2018-2019 Gravitational, Inc.
+Copyright 2018-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -406,8 +406,9 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 
 		dialFn = func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return targetCluster.DialTCP(reversetunnel.DialParams{
-				From: &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
-				To:   &utils.NetAddr{AddrNetwork: "tcp", Addr: addr},
+				From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
+				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: addr},
+				ConnType: services.NodeTunnel,
 			})
 		}
 		isRemoteClosed = targetCluster.IsClosed

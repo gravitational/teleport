@@ -183,6 +183,15 @@ func MustParseAddr(a string) *NetAddr {
 	return addr
 }
 
+// MustParseAddrList parses the provided list of strings into a NetAddr list or panics on error
+func MustParseAddrList(aList ...string) []NetAddr {
+	addrList := make([]NetAddr, len(aList))
+	for i, a := range aList {
+		addrList[i] = *MustParseAddr(a)
+	}
+	return addrList
+}
+
 // FromAddr returns NetAddr from golang standard net.Addr
 func FromAddr(a net.Addr) NetAddr {
 	return NetAddr{AddrNetwork: a.Network(), Addr: a.String()}
