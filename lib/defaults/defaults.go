@@ -308,6 +308,10 @@ var (
 	// usually is slow, e.g. once in 30 seconds
 	NetworkBackoffDuration = time.Second * 30
 
+	// AuditBackoffTimeout is a time out before audit logger will
+	// start loosing events
+	AuditBackoffTimeout = 5 * time.Second
+
 	// NetworkRetryDuration is a standard retry on network requests
 	// to retry quickly, e.g. once in one second
 	NetworkRetryDuration = time.Second
@@ -387,6 +391,9 @@ var (
 	// connections. These pings are needed to avoid timeouts on load balancers
 	// that don't respect TCP keep-alives.
 	SPDYPingPeriod = 30 * time.Second
+
+	// AsyncBufferSize is a default buffer size for async emitters
+	AsyncBufferSize = 1024
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport
