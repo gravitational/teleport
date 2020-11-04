@@ -3025,19 +3025,25 @@ steps:
         from_secret: RPMREPO_AWS_ACCESS_KEY_ID
       AWS_SECRET_ACCESS_KEY:
         from_secret: RPMREPO_AWS_SECRET_ACCESS_KEY
+    volumes:
+      - name: rpmrepo
+        path: /rpmrepo
     commands:
-    - mkdir -p /go/rpmrepo/teleport/cache
-    - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ /go/rpmrepo/teleport/
-    - mkdir -p /go/rpmrepo/teleport/${DRONE_TAG##v}
-    - cp -a /go/artifacts/*.rpm /go/rpmrepo/teleport/${DRONE_TAG##v}/
+    - mkdir -p /rpmrepo/teleport/cache
+    - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ /rpmrepo/teleport/
+    - mkdir -p /rpmrepo/teleport/${DRONE_TAG##v}
+    - cp -a /go/artifacts/*.rpm /rpmrepo/teleport/${DRONE_TAG##v}/
 
   # we do this using a CentOS 7 container to make sure that the repo files are
   # compatible with older versions, also there's no createrepo package in alpine main
   - name: Regenerate RPM repo metadata
     image: centos:7
+    volumes:
+      - name: rpmrepo
+        path: /rpmrepo
     commands:
     - yum -y install createrepo
-    - createrepo --cachedir /go/rpmrepo/teleport/cache --update /go/rpmrepo/teleport
+    - createrepo --cachedir /rpmrepo/teleport/cache --update /rpmrepo/teleport
 
   - name: Sync RPM repo changes to S3
     image: amazon/aws-cli
@@ -3048,8 +3054,16 @@ steps:
         from_secret: RPMREPO_AWS_ACCESS_KEY_ID
       AWS_SECRET_ACCESS_KEY:
         from_secret: RPMREPO_AWS_SECRET_ACCESS_KEY
+    volumes:
+      - name: rpmrepo
+        path: /rpmrepo
     commands:
-    - aws s3 sync /go/rpmrepo/teleport/ s3://$AWS_S3_BUCKET/teleport/
+    - aws s3 sync /rpmrepo/teleport/ s3://$AWS_S3_BUCKET/teleport/
+
+volumes:
+  - name: rpmrepo
+    claim:
+      name: drone-s3-rpmrepo-pvc
 
 ---
 kind: pipeline
