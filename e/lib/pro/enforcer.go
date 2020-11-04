@@ -188,7 +188,7 @@ func (e *Enforcer) RecordUsage(ctx context.Context, newUsage time.Duration) {
 	for _, namespace := range namespaces {
 		nodes, err := e.Presence.GetNodes(namespace.GetName())
 		if err != nil {
-			log.WithError(err).Errorf("Failed to get nodes for namespace %q.", namespace)
+			log.WithError(err).Errorf("Failed to get nodes for namespace %q.", namespace.GetName())
 			continue
 		}
 

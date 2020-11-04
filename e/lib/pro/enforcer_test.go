@@ -48,7 +48,11 @@ func (s *EnforcerSuite) SetUpSuite(c *check.C) {
 	err = presence.UpsertNamespace(*namespace)
 	c.Assert(err, check.IsNil)
 
-	server := &services.ServerV2{}
+	server := &services.ServerV2{
+		Metadata: services.Metadata{Name: "foo"},
+		Kind:     services.KindNode,
+		Version:  services.V2,
+	}
 	server.SetNamespace(clusterID)
 	_, err = presence.UpsertNode(server)
 	c.Assert(err, check.IsNil)
