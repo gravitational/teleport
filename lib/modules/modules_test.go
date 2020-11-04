@@ -56,6 +56,9 @@ func (s *ModulesSuite) TestDefaultModules(c *check.C) {
 
 	isBoring := GetModules().IsBoringBinary()
 	c.Assert(isBoring, check.Equals, false)
+
+	extendAdminRules := GetModules().ExtendAdminUserRules()
+	c.Assert(extendAdminRules, check.Equals, false)
 }
 
 func (s *ModulesSuite) TestTestModules(c *check.C) {
@@ -75,6 +78,9 @@ func (s *ModulesSuite) TestTestModules(c *check.C) {
 
 	isBoring := GetModules().IsBoringBinary()
 	c.Assert(isBoring, check.Equals, true)
+
+	extendAdminRules := GetModules().ExtendAdminUserRules()
+	c.Assert(extendAdminRules, check.Equals, true)
 }
 
 type testModules struct{}
@@ -110,5 +116,9 @@ func (p *testModules) TraitsFromLogins(user string, logins, kubeGroups, kubeUser
 }
 
 func (p *testModules) IsBoringBinary() bool {
+	return true
+}
+
+func (p *testModules) ExtendAdminUserRules() bool {
 	return true
 }

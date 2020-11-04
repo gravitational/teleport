@@ -45,12 +45,29 @@ import (
 
 // AdminUserRules provides access to the default set of rules assigned to
 // all users.
+//
+// DELETE IN: 5.1.0.
+//
+// Once RBAC is open sourced, remove this and rename "ExtendedAdminUserRules" to
+// "AdminUserRules".
 var AdminUserRules = []Rule{
 	NewRule(KindRole, RW()),
 	NewRule(KindAuthConnector, RW()),
 	NewRule(KindSession, RO()),
 	NewRule(KindTrustedCluster, RW()),
 	NewRule(KindEvent, RO()),
+}
+
+// ExtendedAdminUserRules provides access to the default set of rules assigned to
+// all users.
+var ExtendedAdminUserRules = []Rule{
+	NewRule(KindRole, RW()),
+	NewRule(KindAuthConnector, RW()),
+	NewRule(KindSession, RO()),
+	NewRule(KindTrustedCluster, RW()),
+	NewRule(KindEvent, RO()),
+	NewRule(KindUser, RW()),
+	NewRule(KindToken, RW()),
 }
 
 // DefaultImplicitRules provides access to the default set of implicit rules
@@ -91,6 +108,14 @@ func RoleNameForCertAuthority(name string) string {
 // NewAdminRole is the default admin role for all local users if another role
 // is not explicitly assigned (this role applies to all users in OSS version).
 func NewAdminRole() Role {
+	// DELETE IN: 5.1.0
+	//
+	// Only needed until 5.1 when user and token management will be added to OSS.
+	adminRules := CopyRulesSlice(AdminUserRules)
+	if modules.GetModules().ExtendAdminUserRules() {
+		adminRules = CopyRulesSlice(ExtendedAdminUserRules)
+	}
+
 	role := &RoleV3{
 		Kind:    KindRole,
 		Version: V3,
@@ -110,7 +135,7 @@ func NewAdminRole() Role {
 				Namespaces: []string{defaults.Namespace},
 				NodeLabels: Labels{Wildcard: []string{Wildcard}},
 				AppLabels:  Labels{Wildcard: []string{Wildcard}},
-				Rules:      CopyRulesSlice(AdminUserRules),
+				Rules:      adminRules,
 			},
 		},
 	}

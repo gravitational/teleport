@@ -50,6 +50,12 @@ type Modules interface {
 	SupportsKubernetes() bool
 	// IsBoringBinary checks if the binary was compiled with BoringCrypto.
 	IsBoringBinary() bool
+	// DELETE IN: 5.1.0
+	//
+	// ExtendAdminUserRules returns true if the "AdminUserRules" set should be
+	// extended with additional rules to allow user and token management. Only
+	// needed until 5.1 when user and token management will be added to OSS.
+	ExtendAdminUserRules() bool
 }
 
 // SetModules sets the modules interface
@@ -122,6 +128,15 @@ func (p *defaultModules) SupportsKubernetes() bool {
 
 // IsBoringBinary checks if the binary was compiled with BoringCrypto.
 func (p *defaultModules) IsBoringBinary() bool {
+	return false
+}
+
+// DELETE IN: 5.1.0
+//
+// ExtendAdminUserRules returns true if the "AdminUserRules" set should be
+// extended with additional rules to allow user and token management. Only
+// needed until 5.1 when user and token management will be added to OSS.
+func (p *defaultModules) ExtendAdminUserRules() bool {
 	return false
 }
 
