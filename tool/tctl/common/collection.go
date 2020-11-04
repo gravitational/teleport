@@ -93,6 +93,14 @@ func printActions(rules []services.Rule) string {
 	return strings.Join(pairs, ",")
 }
 
+func printMetadataLabels(labels map[string]string) string {
+	pairs := []string{}
+	for key, value := range labels {
+		pairs = append(pairs, fmt.Sprintf("%v=%v", key, value))
+	}
+	return strings.Join(pairs, ",")
+}
+
 func printNodeLabels(labels services.Labels) string {
 	pairs := []string{}
 	for key, values := range labels {

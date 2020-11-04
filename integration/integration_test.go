@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
@@ -67,7 +68,7 @@ const (
 	HostID = "00000000-0000-0000-0000-000000000000"
 	Site   = "local-site"
 
-	AllocatePortsNum = 400
+	AllocatePortsNum = 600
 )
 
 type IntSuite struct {
@@ -1275,7 +1276,7 @@ func (s *IntSuite) TestTwoClustersTunnel(c *check.C) {
 
 		// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 		abortTime := time.Now().Add(time.Second * 10)
-		for len(a.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
+		for len(checkGetClusters(c, a.Tunnel)) < 2 && len(checkGetClusters(c, b.Tunnel)) < 2 {
 			time.Sleep(time.Millisecond * 200)
 			if time.Now().After(abortTime) {
 				c.Fatalf("Two clusters do not see each other: tunnels are not working.")
@@ -1440,7 +1441,7 @@ func (s *IntSuite) TestTwoClustersProxy(c *check.C) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(a.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
+	for len(checkGetClusters(c, a.Tunnel)) < 2 && len(checkGetClusters(c, b.Tunnel)) < 2 {
 		time.Sleep(time.Millisecond * 200)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two sites do not see each other: tunnels are not working")
@@ -1481,7 +1482,7 @@ func (s *IntSuite) TestHA(c *check.C) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(a.Tunnel.GetSites()) < 2 && len(b.Tunnel.GetSites()) < 2 {
+	for len(checkGetClusters(c, a.Tunnel)) < 2 && len(checkGetClusters(c, b.Tunnel)) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two sites do not see each other: tunnels are not working")
@@ -1611,7 +1612,7 @@ func (s *IntSuite) TestMapRoles(c *check.C) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(main.Tunnel.GetSites()) < 2 && len(aux.Tunnel.GetSites()) < 2 {
+	for len(checkGetClusters(c, main.Tunnel)) < 2 && len(checkGetClusters(c, aux.Tunnel)) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two clusters do not see each other: tunnels are not working")
@@ -1764,6 +1765,9 @@ type trustedClusterTest struct {
 	// useJumpHost turns on jump host mode for the access
 	// to the proxy instead of the proxy command
 	useJumpHost bool
+	// useLabels turns on trusted cluster labels and
+	// verifies RBAC
+	useLabels bool
 }
 
 // TestTrustedClusters tests remote clusters scenarios
@@ -1775,6 +1779,15 @@ func (s *IntSuite) TestTrustedClusters(c *check.C) {
 	s.trustedClusters(c, trustedClusterTest{multiplex: false})
 }
 
+// TestTrustedClustersWithLabels tests remote clusters scenarios
+// using trusted clusters feature and access labels
+func (s *IntSuite) TestTrustedClustersWithLabels(c *check.C) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	s.trustedClusters(c, trustedClusterTest{multiplex: false, useLabels: true})
+}
+
 // TestJumpTrustedClusters tests remote clusters scenarios
 // using trusted clusters feature using jumphost connection
 func (s *IntSuite) TestJumpTrustedClusters(c *check.C) {
@@ -1782,6 +1795,15 @@ func (s *IntSuite) TestJumpTrustedClusters(c *check.C) {
 	defer tr.Stop()
 
 	s.trustedClusters(c, trustedClusterTest{multiplex: false, useJumpHost: true})
+}
+
+// TestJumpTrustedClusters tests remote clusters scenarios
+// using trusted clusters feature using jumphost connection
+func (s *IntSuite) TestJumpTrustedClustersWithLabels(c *check.C) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	s.trustedClusters(c, trustedClusterTest{multiplex: false, useJumpHost: true, useLabels: true})
 }
 
 // TestMultiplexingTrustedClusters tests remote clusters scenarios
@@ -1809,6 +1831,13 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 			Logins: []string{username},
 		},
 	})
+	// If the test is using labels, the cluster will be labeled
+	// and user will be granted access if labels match.
+	// Otherwise, to preserve backwards-compatibility
+	// roles with no labels will grant access to clusters with no labels.
+	if test.useLabels {
+		devsRole.SetClusterLabels(services.Allow, services.Labels{"access": []string{"prod"}})
+	}
 	c.Assert(err, check.IsNil)
 
 	mainAdmins := "main-admins"
@@ -1820,6 +1849,17 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	c.Assert(err, check.IsNil)
 
 	main.AddUserWithRole(username, devsRole, adminsRole)
+
+	// Ops users can only access remote clusters with label 'access': 'ops'
+	mainOps := "main-ops"
+	mainOpsRole, err := services.NewRole(mainOps, services.RoleSpecV3{
+		Allow: services.RoleConditions{
+			Logins:        []string{username},
+			ClusterLabels: services.Labels{"access": []string{"ops"}},
+		},
+	})
+	c.Assert(err, check.IsNil)
+	main.AddUserWithRole(mainOps, mainOpsRole, adminsRole)
 
 	// for role mapping test we turn on Web API on the main cluster
 	// as it's used
@@ -1850,14 +1890,22 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	c.Assert(err, check.IsNil)
 	err = aux.Process.GetAuthServer().UpsertRole(ctx, auxRole)
 	c.Assert(err, check.IsNil)
+
 	trustedClusterToken := "trusted-cluster-token"
-	err = main.Process.GetAuthServer().UpsertToken(
-		services.MustCreateProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{}))
+	tokenResource, err := services.NewProvisionToken(trustedClusterToken, []teleport.Role{teleport.RoleTrustedCluster}, time.Time{})
+	c.Assert(err, check.IsNil)
+	if test.useLabels {
+		meta := tokenResource.GetMetadata()
+		meta.Labels = map[string]string{"access": "prod"}
+		tokenResource.SetMetadata(meta)
+	}
+	err = main.Process.GetAuthServer().UpsertToken(tokenResource)
 	c.Assert(err, check.IsNil)
 	// Note that the mapping omits admins role, this is to cover the scenario
 	// when root cluster and leaf clusters have different role sets
 	trustedCluster := main.Secrets.AsTrustedCluster(trustedClusterToken, services.RoleMap{
 		{Remote: mainDevs, Local: []string{auxDevs}},
+		{Remote: mainOps, Local: []string{auxDevs}},
 	})
 
 	// modify trusted cluster resource name so it would not
@@ -1879,7 +1927,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(main.Tunnel.GetSites()) < 2 && len(aux.Tunnel.GetSites()) < 2 {
+	for len(checkGetClusters(c, main.Tunnel)) < 2 && len(checkGetClusters(c, aux.Tunnel)) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two clusters do not see each other: tunnels are not working")
@@ -1927,6 +1975,37 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	c.Assert(err, check.IsNil)
 	c.Assert(output.String(), check.Equals, "hello world\n")
 
+	// Try and connect to a node in the Aux cluster from the Main cluster using
+	// direct dialing as ops user
+	opsCreds, err := GenerateUserCreds(UserCredsRequest{
+		Process:        main.Process,
+		Username:       mainOps,
+		RouteToCluster: clusterAux,
+	})
+	c.Assert(err, check.IsNil)
+
+	opsClient, err := main.NewClientWithCreds(ClientConfig{
+		Login:    username,
+		Cluster:  clusterAux,
+		Host:     Loopback,
+		Port:     sshPort,
+		JumpHost: test.useJumpHost,
+	}, *opsCreds)
+	c.Assert(err, check.IsNil)
+
+	// tell the client to trust aux cluster CAs (from secrets). this is the
+	// equivalent of 'known hosts' in openssh
+	auxCAS = aux.Secrets.GetCAs()
+	for _, ca := range auxCAS {
+		err = opsClient.AddTrustedCA(ca)
+		c.Assert(err, check.IsNil)
+	}
+
+	opsClient.Stdout = &bytes.Buffer{}
+	err = opsClient.SSH(ctx, cmd, false)
+	// verify that ops user can not access the cluster
+	fixtures.ExpectNotFound(c, err)
+
 	// ListNodes expect labels as a value of host
 	tc.Host = ""
 	servers, err := tc.ListNodes(ctx)
@@ -1967,7 +2046,7 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime = time.Now().Add(time.Second * 10)
-	for len(main.Tunnel.GetSites()) < 2 {
+	for len(checkGetClusters(c, main.Tunnel)) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two clusters do not see each other: tunnels are not working")
@@ -1990,6 +2069,12 @@ func (s *IntSuite) trustedClusters(c *check.C, test trustedClusterTest) {
 	// stop clusters and remaining nodes
 	c.Assert(main.StopAll(), check.IsNil)
 	c.Assert(aux.StopAll(), check.IsNil)
+}
+
+func checkGetClusters(c *check.C, tun reversetunnel.Server) []reversetunnel.RemoteSite {
+	clusters, err := tun.GetSites()
+	c.Assert(err, check.IsNil)
+	return clusters
 }
 
 func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
@@ -2084,7 +2169,7 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(main.Tunnel.GetSites()) < 2 && len(aux.Tunnel.GetSites()) < 2 {
+	for len(checkGetClusters(c, main.Tunnel)) < 2 && len(checkGetClusters(c, aux.Tunnel)) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two clusters do not see each other: tunnels are not working")
@@ -2180,7 +2265,7 @@ func (s *IntSuite) TestDiscoveryRecovers(c *check.C) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(main.Tunnel.GetSites()) < 2 && len(remote.Tunnel.GetSites()) < 2 {
+	for len(checkGetClusters(c, main.Tunnel)) < 2 && len(checkGetClusters(c, remote.Tunnel)) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two clusters do not see each other: tunnels are not working")
@@ -2316,7 +2401,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
-	for len(main.Tunnel.GetSites()) < 2 && len(remote.Tunnel.GetSites()) < 2 {
+	for len(checkGetClusters(c, main.Tunnel)) < 2 && len(checkGetClusters(c, remote.Tunnel)) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
 			c.Fatalf("two clusters do not see each other: tunnels are not working")

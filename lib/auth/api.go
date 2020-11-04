@@ -116,6 +116,12 @@ type ReadAccessPoint interface {
 
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, services.GetAppSessionRequest) (services.WebSession, error)
+
+	// GetRemoteClusters returns a list of remote clusters
+	GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error)
+
+	// GetRemoteCluster returns a remote cluster by name
+	GetRemoteCluster(clusterName string) (services.RemoteCluster, error)
 }
 
 // AccessPoint is an API interface implemented by a certificate authority (CA)

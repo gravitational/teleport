@@ -51,6 +51,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: services.KindAccessRequest},
 		{Kind: services.KindAppServer},
 		{Kind: services.KindWebSession},
+		{Kind: services.KindRemoteCluster},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -72,6 +73,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: services.KindTunnelConnection},
 		{Kind: services.KindAppServer},
 		{Kind: services.KindWebSession},
+		{Kind: services.KindRemoteCluster},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -92,6 +94,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: services.KindReverseTunnel},
 		{Kind: services.KindTunnelConnection},
 		{Kind: services.KindAppServer},
+		{Kind: services.KindRemoteCluster},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -710,6 +713,16 @@ func (c *Cache) GetReverseTunnels(opts ...services.MarshalOption) ([]services.Re
 // GetProxies is a part of auth.AccessPoint implementation
 func (c *Cache) GetProxies() ([]services.Server, error) {
 	return c.presenceCache.GetProxies()
+}
+
+// GetRemoteClusters returns a list of remote clusters
+func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error) {
+	return c.presenceCache.GetRemoteClusters(opts...)
+}
+
+// GetRemoteCluster returns a remote cluster by name
+func (c *Cache) GetRemoteCluster(clusterName string) (services.RemoteCluster, error) {
+	return c.presenceCache.GetRemoteCluster(clusterName)
 }
 
 // GetUser is a part of auth.AccessPoint implementation.

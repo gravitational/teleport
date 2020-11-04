@@ -341,7 +341,7 @@ func (s *server) disconnectClusters() error {
 	for _, cluster := range connectedRemoteClusters {
 		if _, ok := remoteMap[cluster.GetName()]; !ok {
 			s.Infof("Remote cluster %q has been deleted. Disconnecting it from the proxy.", cluster.GetName())
-			s.RemoveSite(cluster.GetName())
+			s.removeSite(cluster.GetName())
 			err := cluster.Close()
 			if err != nil {
 				s.Debugf("Failure closing cluster %q: %v.", cluster.GetName(), err)
@@ -414,7 +414,10 @@ func (s *server) fetchClusterPeers() error {
 }
 
 func (s *server) reportClusterStats() error {
-	clusters := s.GetSites()
+	clusters, err := s.GetSites()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	for _, cluster := range clusters {
 		if _, ok := cluster.(*localSite); ok {
 			// Don't count local cluster tunnels.
@@ -852,7 +855,7 @@ func (s *server) upsertRemoteCluster(conn net.Conn, sshConn *ssh.ServerConn) (*r
 	return site, remoteConn, nil
 }
 
-func (s *server) GetSites() []RemoteSite {
+func (s *server) GetSites() ([]RemoteSite, error) {
 	s.RLock()
 	defer s.RUnlock()
 	out := make([]RemoteSite, 0, len(s.remoteSites)+len(s.localSites)+len(s.clusterPeers))
@@ -871,7 +874,7 @@ func (s *server) GetSites() []RemoteSite {
 			out = append(out, cluster)
 		}
 	}
-	return out
+	return out, nil
 }
 
 func (s *server) getRemoteClusters() []*remoteSite {
@@ -911,7 +914,7 @@ func (s *server) GetSite(name string) (RemoteSite, error) {
 	return nil, trace.NotFound("cluster %q is not found", name)
 }
 
-func (s *server) RemoveSite(domainName string) error {
+func (s *server) removeSite(domainName string) error {
 	s.Lock()
 	defer s.Unlock()
 	for i := range s.remoteSites {

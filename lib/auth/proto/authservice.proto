@@ -63,7 +63,11 @@ message Event {
         // AccessRequest is a resource for access requests
         services.AccessRequestV3 AccessRequest = 14
             [ (gogoproto.jsontag) = "access_request,omitempty" ];
+        // AppSession is an application web session.
         services.WebSessionV2 AppSession = 15 [ (gogoproto.jsontag) = "app_session,omitempty" ];
+        // RemoteCluster is a resource for remote clusters
+        services.RemoteClusterV3 RemoteCluster = 16
+            [ (gogoproto.jsontag) = "remote_cluster,omitempty" ];
     }
 }
 
@@ -433,4 +437,7 @@ service AuthService {
     rpc DeleteAppSession(DeleteAppSessionRequest) returns (google.protobuf.Empty);
     // DeleteAllAppSessions removes all application web sessions.
     rpc DeleteAllAppSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+    // UpdateRemoteCluster updates remote cluster
+    rpc UpdateRemoteCluster(services.RemoteClusterV3) returns (google.protobuf.Empty);
 }

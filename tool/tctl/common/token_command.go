@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -61,6 +62,9 @@ type TokenCommand struct {
 	// ttl is how long the token will live for.
 	ttl time.Duration
 
+	// labels is optional token labels
+	labels string
+
 	// tokenAdd is used to add a token.
 	tokenAdd *kingpin.CmdClause
 
@@ -81,6 +85,7 @@ func (c *TokenCommand) Initialize(app *kingpin.Application, config *service.Conf
 	c.tokenAdd = tokens.Command("add", "Create a invitation token")
 	c.tokenAdd.Flag("type", "Type of token to add").Required().StringVar(&c.tokenType)
 	c.tokenAdd.Flag("value", "Value of token to add").StringVar(&c.value)
+	c.tokenAdd.Flag("labels", "Set token labels, e.g. env=prod,region=us-west").StringVar(&c.labels)
 	c.tokenAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v hour, maximum is %v hours",
 		int(defaults.SignupTokenTTL/time.Hour), int(defaults.MaxSignupTokenTTL/time.Hour))).
 		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).DurationVar(&c.ttl)
@@ -119,11 +124,20 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
+	var labels map[string]string
+	if c.labels != "" {
+		labels, err = libclient.ParseLabelSpec(c.labels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// Generate token.
 	token, err := client.GenerateToken(context.TODO(), auth.GenerateTokenRequest{
-		Roles: roles,
-		TTL:   c.ttl,
-		Token: c.value,
+		Roles:  roles,
+		TTL:    c.ttl,
+		Token:  c.value,
+		Labels: labels,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -220,7 +234,7 @@ func (c *TokenCommand) List(client auth.ClientI) error {
 
 	if c.format == teleport.Text {
 		tokensView := func() string {
-			table := asciitable.MakeTable([]string{"Token", "Type", "Expiry Time (UTC)"})
+			table := asciitable.MakeTable([]string{"Token", "Type", "Labels", "Expiry Time (UTC)"})
 			now := time.Now()
 			for _, t := range tokens {
 				expiry := "never"
@@ -229,7 +243,7 @@ func (c *TokenCommand) List(client auth.ClientI) error {
 					expdur := t.Expiry().Sub(now).Round(time.Second)
 					expiry = fmt.Sprintf("%s (%s)", exptime, expdur.String())
 				}
-				table.AddRow([]string{t.GetName(), t.GetRoles().String(), expiry})
+				table.AddRow([]string{t.GetName(), t.GetRoles().String(), printMetadataLabels(t.GetMetadata().Labels), expiry})
 			}
 			return table.AsBuffer().String()
 		}

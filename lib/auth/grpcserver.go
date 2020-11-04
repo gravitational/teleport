@@ -843,6 +843,18 @@ func (g GRPCServer) GenerateAppToken(ctx context.Context, req *proto.GenerateApp
 	}, nil
 }
 
+// UpdateRemoteCluster updates remote cluster
+func (g *GRPCServer) UpdateRemoteCluster(ctx context.Context, req *services.RemoteClusterV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.UpdateRemoteCluster(ctx, req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
 type grpcContext struct {
 	*Context
 	*ServerWithRoles
@@ -1012,6 +1024,10 @@ func eventToGRPC(in services.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_AppSession{
 			AppSession: r,
 		}
+	case *services.RemoteClusterV3:
+		out.Resource = &proto.Event_RemoteCluster{
+			RemoteCluster: r,
+		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
 	}
@@ -1082,6 +1098,9 @@ func eventFromGRPC(in proto.Event) (*services.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetAppSession(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetRemoteCluster(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else {
