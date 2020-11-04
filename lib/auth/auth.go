@@ -827,7 +827,7 @@ func (a *Server) CheckU2FSignResponse(user string, response *u2f.SignResponse) e
 }
 
 // ExtendWebSession creates a new web session for a user based on a valid previous sessionID.
-// Additional roles are appended to intial roles if there is an approved access request.
+// Additional roles are appended to initial roles if there is an approved access request.
 func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, identity tlsca.Identity) (services.WebSession, error) {
 	prevSession, err := a.GetWebSession(user, prevSessionID)
 	if err != nil {

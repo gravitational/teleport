@@ -35,7 +35,7 @@ type accessStrategy struct {
 	// ie: does the user require a request to access resources?
 	Type services.RequestStrategy `json:"type"`
 	// Prompt is the optional dialogue shown to user,
-	// when a access strategy type requires a reason.
+	// when the access strategy type requires a reason.
 	Prompt string `json:"prompt"`
 }
 
@@ -56,8 +56,6 @@ type userACL struct {
 	Tokens access `json:"tokens"`
 	// Nodes defines access to nodes.
 	Nodes access `json:"nodes"`
-	// AccessStrategy describes how a user should access teleport resources.
-	AccessStrategy accessStrategy `json:"accessStrategy"`
 	// SSH defines access to servers
 	SSHLogins []string `json:"sshLogins"`
 }
@@ -69,15 +67,18 @@ const (
 	authSSO   authType = "sso"
 )
 
+// UserContext describes a users settings to various resources.
 type UserContext struct {
-	// AuthType is auth method of this user
+	// AuthType is auth method of this user.
 	AuthType authType `json:"authType"`
-	// Name is this user name
+	// Name is this user name.
 	Name string `json:"userName"`
-	// ACL contains user access control list
+	// ACL contains user access control list.
 	ACL userACL `json:"userAcl"`
-	// Cluster contains cluster detail for this user's context
+	// Cluster contains cluster detail for this user's context.
 	Cluster *Cluster `json:"cluster"`
+	// AccessStrategy describes how a user should access teleport resources.
+	AccessStrategy accessStrategy `json:"accessStrategy"`
 }
 
 func getLogins(roleSet services.RoleSet) []string {
@@ -174,7 +175,6 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 		Users:           userAccess,
 		Tokens:          tokenAccess,
 		Nodes:           nodeAccess,
-		AccessStrategy:  requestAccess,
 	}
 
 	// local user
@@ -191,8 +191,9 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 	}
 
 	return &UserContext{
-		Name:     user.GetName(),
-		ACL:      acl,
-		AuthType: authType,
+		Name:           user.GetName(),
+		ACL:            acl,
+		AuthType:       authType,
+		AccessStrategy: requestAccess,
 	}, nil
 }
