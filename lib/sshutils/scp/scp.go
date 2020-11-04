@@ -110,9 +110,11 @@ type FileSystem interface {
 	CreateFile(filePath string, length uint64) (io.WriteCloser, error)
 	// SetChmod sets file permissions
 	SetChmod(path string, mode int) error
+	// Chtimes sets file access and modification time
+	Chtimes(path string, atime, mtime time.Time) error
 }
 
-// FileInfo is an API that describes methods that provide file information
+// FileInfo provides access to file metadata
 type FileInfo interface {
 	// IsDir returns true if a file is a directory
 	IsDir() bool
@@ -126,6 +128,10 @@ type FileInfo interface {
 	GetModePerm() os.FileMode
 	// GetSize returns file size
 	GetSize() int64
+	// GetModTime returns file modification time
+	GetModTime() time.Time
+	// GetAccessTime returns file last access time
+	GetAccessTime() time.Time
 }
 
 // CreateDownloadCommand configures and returns a command used
@@ -287,6 +293,7 @@ func (cmd *command) serveSource(ch io.ReadWriter) (retErr error) {
 }
 
 func (cmd *command) sendDir(r *reader, ch io.ReadWriter, fileInfo FileInfo) error {
+	// TODO(dmitri): preserve attributes on directory
 	out := fmt.Sprintf("D%04o 0 %s\n", fileInfo.GetModePerm(), fileInfo.GetName())
 	cmd.log.Debugf("sendDir: %v", out)
 	_, err := io.WriteString(ch, out)
@@ -329,23 +336,15 @@ func (cmd *command) sendFile(r *reader, ch io.ReadWriter, fileInfo FileInfo) err
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	defer reader.Close()
 
-	out := fmt.Sprintf("C%04o %d %s\n", fileInfo.GetModePerm(), fileInfo.GetSize(), fileInfo.GetName())
-
-	// report progress:
-	if cmd.ProgressWriter != nil {
-		statusMessage := fmt.Sprintf("-> %s (%d)", fileInfo.GetPath(), fileInfo.GetSize())
-		defer fmt.Fprintf(cmd.ProgressWriter, utils.EscapeControl(statusMessage)+"\n")
+	if cmd.Config.Flags.PreserveAttrs {
+		if err := sendFileTimes(r, ch, fileInfo); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	_, err = io.WriteString(ch, out)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := r.read(); err != nil {
+	if err := sendFileMode(r, ch, fileInfo); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -356,6 +355,12 @@ func (cmd *command) sendFile(r *reader, ch io.ReadWriter, fileInfo FileInfo) err
 	if n != fileInfo.GetSize() {
 		return trace.Errorf("short write: %v %v", n, fileInfo.GetSize())
 	}
+
+	// report progress:
+	if cmd.ProgressWriter != nil {
+		statusMessage := fmt.Sprintf("-> %s (%d)", fileInfo.GetPath(), fileInfo.GetSize())
+		defer fmt.Fprintf(cmd.ProgressWriter, utils.EscapeControl(statusMessage)+"\n")
+	}
 	if err := sendOK(ch); err != nil {
 		return trace.Wrap(err)
 	}
@@ -365,7 +370,7 @@ func (cmd *command) sendFile(r *reader, ch io.ReadWriter, fileInfo FileInfo) err
 func (cmd *command) sendErr(ch io.Writer, err error) {
 	out := fmt.Sprintf("%c%s\n", byte(ErrByte), err)
 	if _, err := ch.Write([]byte(out)); err != nil {
-		log.Debugf("failed sending SCP error message to the remote side: %v", err)
+		cmd.log.Debugf("failed sending SCP error message to the remote side: %v", err)
 	}
 }
 
@@ -426,7 +431,7 @@ func (cmd *command) serveSink(ch io.ReadWriter) error {
 }
 
 func (cmd *command) processCommand(ch io.ReadWriter, st *state, b byte, line string) error {
-	cmd.log.Debugf("[SCP] <- %v %v", string(b), line)
+	cmd.log.Debugf("<- %v %v", string(b), line)
 	switch b {
 	case WarnByte:
 		return trace.Errorf("error from sender: %q", line)
@@ -454,10 +459,12 @@ func (cmd *command) processCommand(ch io.ReadWriter, st *state, b byte, line str
 	case 'E':
 		return st.pop()
 	case 'T':
-		_, err := parseMtime(line)
+		stat, err := parseMtime(line)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		st.stat = stat
+		return nil
 	}
 	return trace.Errorf("got unrecognized command: %v", string(b))
 }
@@ -477,14 +484,13 @@ func (cmd *command) receiveFile(st *state, fc newFileCmd, ch io.ReadWriter) erro
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer writer.Close()
 
 	// report progress:
 	if cmd.ProgressWriter != nil {
 		statusMessage := fmt.Sprintf("<- %s (%d)", path, fc.Length)
 		defer fmt.Fprintf(cmd.ProgressWriter, utils.EscapeControl(statusMessage)+"\n")
 	}
-
-	defer writer.Close()
 
 	if err = sendOK(ch); err != nil {
 		return trace.Wrap(err)
@@ -503,8 +509,14 @@ func (cmd *command) receiveFile(st *state, fc newFileCmd, ch io.ReadWriter) erro
 	if err := cmd.FileSystem.SetChmod(path, int(fc.Mode)); err != nil {
 		return trace.Wrap(err)
 	}
+	if st.stat != nil {
+		err = cmd.FileSystem.Chtimes(path, st.stat.Atime, st.stat.Mtime)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
-	cmd.log.Debugf("file %v(%v) copied to %v", fc.Name, fc.Length, path)
+	cmd.log.Debugf("File %v(%v) copied to %v.", fc.Name, fc.Length, path)
 	return nil
 }
 
@@ -522,7 +534,40 @@ func (cmd *command) receiveDir(st *state, fc newFileCmd, ch io.ReadWriter) error
 		return trace.Wrap(err)
 	}
 
+	if st.stat != nil {
+		// TODO(dmitri): set times on the directory
+		// err = cmd.FileSystem.Chtimes(path, st.stat.Atime, st.stat.Atime)
+		// if err != nil {
+		// 	return trace.Wrap(err)
+		// }
+	}
+
 	return nil
+}
+
+func sendFileTimes(r *reader, ch io.Writer, fileInfo FileInfo) error {
+	out := fmt.Sprintf("T%d 0 %d 0\n",
+		fileInfo.GetModTime().Unix(),
+		fileInfo.GetAccessTime().Unix(),
+	)
+	_, err := io.WriteString(ch, out)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(r.read())
+}
+
+func sendFileMode(r *reader, ch io.Writer, fileInfo FileInfo) error {
+	out := fmt.Sprintf("C%04o %d %s\n",
+		fileInfo.GetModePerm(),
+		fileInfo.GetSize(),
+		fileInfo.GetName(),
+	)
+	_, err := io.WriteString(ch, out)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(r.read())
 }
 
 type newFileCmd struct {
@@ -592,6 +637,7 @@ func sendOK(ch io.ReadWriter) error {
 type state struct {
 	path     []string
 	finished bool
+	stat     *mtimeCmd
 }
 
 func (st *state) push(dir string) {
@@ -607,6 +653,7 @@ func (st *state) pop() error {
 		return nil
 	}
 	st.path = st.path[:len(st.path)-1]
+	st.stat = nil
 	return nil
 }
 
@@ -669,8 +716,8 @@ var reSCP = regexp.MustCompile(
 		`(?:[^@\[\:\]]+)` +
 		`)` +
 		// after colon, there is a path that could consist technically of
-		// any char
-		`:(?P<path>.+)`,
+		// any char including empty which stands for the implicit home directory
+		`:(?P<path>.*)`,
 )
 
 // Destination is scp destination to copy to or from
@@ -679,7 +726,8 @@ type Destination struct {
 	Login string
 	// Host is a host to copy to/from
 	Host utils.NetAddr
-	// Path is a path to copy to/from
+	// Path is a path to copy to/from.
+	// If empty, the user's home directory is assumed
 	Path string
 }
 
@@ -688,12 +736,16 @@ type Destination struct {
 // 3 components of it
 func ParseSCPDestination(s string) (*Destination, error) {
 	out := reSCP.FindStringSubmatch(s)
-	if len(out) == 0 {
+	if len(out) != 4 {
 		return nil, trace.BadParameter("failed to parse %q, try form user@host:/path", s)
 	}
 	addr, err := utils.ParseAddr(out[2])
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &Destination{Login: out[1], Host: *addr, Path: out[3]}, nil
+	path := out[3]
+	if path == "" {
+		path = "."
+	}
+	return &Destination{Login: out[1], Host: *addr, Path: path}, nil
 }

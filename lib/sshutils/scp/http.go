@@ -24,6 +24,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -156,6 +157,12 @@ func (l *httpFileSystem) SetChmod(path string, mode int) error {
 	return nil
 }
 
+// Chtimes sets file access and modification time.
+// It is a no-op for the HTTP file system implementation
+func (l *httpFileSystem) Chtimes(path string, atime, mtime time.Time) error {
+	return nil
+}
+
 // MkDir creates a directory. This method is not implemented as creating directories
 // is not supported during HTTP downloads.
 func (l *httpFileSystem) MkDir(path string, mode int) error {
@@ -241,6 +248,18 @@ func (l *httpFileInfo) ReadDir() ([]FileInfo, error) {
 // file created on the remote host during HTTP upload.
 func (l *httpFileInfo) GetModePerm() os.FileMode {
 	return httpUploadFileMode
+}
+
+// GetModTime returns file modification time.
+// It is a no-op for HTTP file information
+func (l *httpFileInfo) GetModTime() time.Time {
+	return time.Time{}
+}
+
+// GetAccessTime returns file last access time.
+// It is a no-op for HTTP file information
+func (l *httpFileInfo) GetAccessTime() time.Time {
+	return time.Time{}
 }
 
 type nopWriteCloser struct {

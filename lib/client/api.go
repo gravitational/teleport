@@ -1331,7 +1331,7 @@ func (tc *TeleportClient) ExecuteSCP(ctx context.Context, cmd scp.Command) (err 
 // SCP securely copies file(s) from one SSH server to another
 func (tc *TeleportClient) SCP(ctx context.Context, args []string, port int, flags scp.Flags, quiet bool) (err error) {
 	if len(args) < 2 {
-		return trace.Errorf("Need at least two arguments for scp")
+		return trace.Errorf("need at least two arguments for scp")
 	}
 	first := args[0]
 	last := args[len(args)-1]

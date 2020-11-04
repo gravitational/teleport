@@ -324,38 +324,50 @@ func (s *SCPSuite) TestVerifyDir(c *C) {
 
 func (s *SCPSuite) TestSCPParsing(c *C) {
 	type tc struct {
-		in   string
-		dest Destination
-		err  error
+		comment string
+		in      string
+		dest    Destination
+		err     error
 	}
 	testCases := []tc{
 		{
-			in:   "root@remote.host:/etc/nginx.conf",
-			dest: Destination{Login: "root", Host: utils.NetAddr{Addr: "remote.host", AddrNetwork: "tcp"}, Path: "/etc/nginx.conf"},
+			comment: "full spec of the remote destination",
+			in:      "root@remote.host:/etc/nginx.conf",
+			dest:    Destination{Login: "root", Host: utils.NetAddr{Addr: "remote.host", AddrNetwork: "tcp"}, Path: "/etc/nginx.conf"},
 		},
 		{
-			in:   "remote.host:/etc/nginx.co:nf",
-			dest: Destination{Host: utils.NetAddr{Addr: "remote.host", AddrNetwork: "tcp"}, Path: "/etc/nginx.co:nf"},
+			comment: "spec with just the remote host",
+			in:      "remote.host:/etc/nginx.co:nf",
+			dest:    Destination{Host: utils.NetAddr{Addr: "remote.host", AddrNetwork: "tcp"}, Path: "/etc/nginx.co:nf"},
 		},
 		{
-			in:   "[::1]:/etc/nginx.co:nf",
-			dest: Destination{Host: utils.NetAddr{Addr: "[::1]", AddrNetwork: "tcp"}, Path: "/etc/nginx.co:nf"},
+			comment: "ipv6 remote destination address",
+			in:      "[::1]:/etc/nginx.co:nf",
+			dest:    Destination{Host: utils.NetAddr{Addr: "[::1]", AddrNetwork: "tcp"}, Path: "/etc/nginx.co:nf"},
 		},
 		{
-			in:   "root@123.123.123.123:/var/www/html/",
-			dest: Destination{Login: "root", Host: utils.NetAddr{Addr: "123.123.123.123", AddrNetwork: "tcp"}, Path: "/var/www/html/"},
+			comment: "full spec of the remote destination using ipv4 address",
+			in:      "root@123.123.123.123:/var/www/html/",
+			dest:    Destination{Login: "root", Host: utils.NetAddr{Addr: "123.123.123.123", AddrNetwork: "tcp"}, Path: "/var/www/html/"},
 		},
 		{
-			in:   "myusername@myremotehost.com:/home/hope/*",
-			dest: Destination{Login: "myusername", Host: utils.NetAddr{Addr: "myremotehost.com", AddrNetwork: "tcp"}, Path: "/home/hope/*"},
+			comment: "target location using wildcard",
+			in:      "myusername@myremotehost.com:/home/hope/*",
+			dest:    Destination{Login: "myusername", Host: utils.NetAddr{Addr: "myremotehost.com", AddrNetwork: "tcp"}, Path: "/home/hope/*"},
 		},
 		{
-			in:   "complex@example.com@remote.com:/anything.txt",
-			dest: Destination{Login: "complex@example.com", Host: utils.NetAddr{Addr: "remote.com", AddrNetwork: "tcp"}, Path: "/anything.txt"},
+			comment: "complex login",
+			in:      "complex@example.com@remote.com:/anything.txt",
+			dest:    Destination{Login: "complex@example.com", Host: utils.NetAddr{Addr: "remote.com", AddrNetwork: "tcp"}, Path: "/anything.txt"},
+		},
+		{
+			comment: "implicit user's home directory",
+			in:      "root@remote.host:",
+			dest:    Destination{Login: "root", Host: utils.NetAddr{Addr: "remote.host", AddrNetwork: "tcp"}, Path: "."},
 		},
 	}
 	for i, tc := range testCases {
-		comment := Commentf("Test case %v: %q", i, tc.in)
+		comment := Commentf(tc.comment)
 		re, err := ParseSCPDestination(tc.in)
 		if tc.err == nil {
 			c.Assert(err, IsNil, comment)
