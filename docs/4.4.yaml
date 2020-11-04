@@ -35,7 +35,7 @@ extra:
     teleport:
         version: 4.4.2
         golang: 1.14
-        sha: 77eb69c1ad4a536ecbb02a8c842f53576831ae8c95c1295091b0b5d90fb2643f
+        sha: efa15e9c972eaaf6e36b232c243c18e49fa54809d61f25039883f936ee262143
         plugin:
             version: 0.2.0
         latest_oss_docker_image: quay.io/gravitational/teleport:4.4
