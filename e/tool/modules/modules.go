@@ -90,3 +90,12 @@ func (p *enterpriseModules) IsBoringBinary() bool {
 	hash := sha256.New()
 	return reflect.TypeOf(hash).Elem().PkgPath() == "crypto/internal/boring"
 }
+
+// DELETE IN: 5.1.0
+//
+// ExtendAdminUserRules returns true if the "AdminUserRules" set should be
+// extended with additional rules to allow user and token management. Only
+// needed until 5.1 when user and token management will be added to OSS.
+func (p *enterpriseModules) ExtendAdminUserRules() bool {
+	return true
+}
