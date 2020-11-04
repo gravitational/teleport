@@ -265,6 +265,12 @@ func Run(args []string) {
 	ssh.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cf.Options)
 	ssh.Flag("no-remote-exec", "Don't execute remote command, useful for port forwarding").Short('N').BoolVar(&cf.NoRemoteExec)
 
+	// Applications.
+	apps := app.Command("apps", "View and control proxied applications.")
+	lsApps := apps.Command("ls", "List available applications.")
+	lsApps.Flag("verbose", "Show extra application fields.").Short('v').BoolVar(&cf.Verbose)
+	lsApps.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
+
 	// join
 	join := app.Command("join", "Join the active SSH session")
 	join.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
@@ -399,6 +405,8 @@ func Run(args []string) {
 		onShow(&cf)
 	case status.FullCommand():
 		onStatus(&cf)
+	case lsApps.FullCommand():
+		onApps(&cf)
 	}
 }
 
@@ -840,6 +848,40 @@ func printNodesAsText(nodes []services.Server, verbose bool) {
 	fmt.Println(t.AsBuffer().String())
 }
 
+func showApps(servers []services.Server, verbose bool) {
+	// In verbose mode, print everything on a single line and include host UUID.
+	// In normal mode, chunk the labels, print two per line and allow multiple
+	// lines per node.
+	if verbose {
+		t := asciitable.MakeTable([]string{"Application", "Host", "Public Address", "URI", "Labels"})
+		for _, server := range servers {
+			for _, app := range server.GetApps() {
+				t.AddRow([]string{
+					app.Name, server.GetName(), app.PublicAddr, app.URI, services.LabelsAsString(app.StaticLabels, app.DynamicLabels),
+				})
+			}
+		}
+		fmt.Println(t.AsBuffer().String())
+	} else {
+		t := asciitable.MakeTable([]string{"Application", "Public Address", "Labels"})
+		for _, server := range servers {
+			for _, app := range server.GetApps() {
+				labelChunks := chunkLabels(services.CombineLabels(app.StaticLabels, app.DynamicLabels), 2)
+				for i, v := range labelChunks {
+					var name string
+					var addr string
+					if i == 0 {
+						name = app.Name
+						addr = app.PublicAddr
+					}
+					t.AddRow([]string{name, addr, strings.Join(v, ", ")})
+				}
+			}
+		}
+		fmt.Println(t.AsBuffer().String())
+	}
+}
+
 // chunkLabels breaks labels into sized chunks. Used to improve readability
 // of "tsh ls".
 func chunkLabels(labels map[string]string, chunkSize int) [][]string {
@@ -867,7 +909,7 @@ func onListClusters(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 
-	var sites []services.Site
+	var clusters []services.RemoteCluster
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		proxyClient, err := tc.ConnectToProxy(cf.Context)
 		if err != nil {
@@ -875,7 +917,7 @@ func onListClusters(cf *CLIConf) {
 		}
 		defer proxyClient.Close()
 
-		sites, err = proxyClient.GetSites()
+		clusters, err = proxyClient.GetAllClusters(cf.Context)
 		return err
 	})
 	if err != nil {
@@ -887,11 +929,11 @@ func onListClusters(cf *CLIConf) {
 	} else {
 		t = asciitable.MakeTable([]string{"Cluster Name", "Status"})
 	}
-	if len(sites) == 0 {
+	if len(clusters) == 0 {
 		return
 	}
-	for _, site := range sites {
-		t.AddRow([]string{site.Name, site.Status})
+	for _, cluster := range clusters {
+		t.AddRow([]string{cluster.GetName(), cluster.GetConnectionStatus()})
 	}
 	fmt.Println(t.AsBuffer().String())
 }
@@ -1505,4 +1547,28 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func onApps(cf *CLIConf) {
+	tc, err := makeClient(cf, false)
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	// Get a list of all applications.
+	var servers []services.Server
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		servers, err = tc.ListAppServers(cf.Context)
+		return err
+	})
+	if err != nil {
+		utils.FatalError(err)
+	}
+
+	// Sort by server host name.
+	sort.Slice(servers, func(i, j int) bool {
+		return servers[i].GetName() < servers[j].GetName()
+	})
+
+	showApps(servers, cf.Verbose)
 }

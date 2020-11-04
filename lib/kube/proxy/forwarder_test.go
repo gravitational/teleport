@@ -640,12 +640,12 @@ func (t mockRevTunnel) GetSite(name string) (reversetunnel.RemoteSite, error) {
 	return s, nil
 }
 
-func (t mockRevTunnel) GetSites() []reversetunnel.RemoteSite {
+func (t mockRevTunnel) GetSites() ([]reversetunnel.RemoteSite, error) {
 	var sites []reversetunnel.RemoteSite
 	for _, s := range t.sites {
 		sites = append(sites, s)
 	}
-	return sites
+	return sites, nil
 }
 
 type mockAuthorizer struct {

@@ -478,7 +478,7 @@ func (s *remoteSite) periodicUpdateCertAuthorities() {
 					s.Debugf("Remote cluster %v does not support cert authorities rotation yet.", s.domainName)
 				case trace.IsCompareFailed(err):
 					s.Infof("Remote cluster has updated certificate authorities, going to force reconnect.")
-					s.srv.RemoveSite(s.domainName)
+					s.srv.removeSite(s.domainName)
 					s.Close()
 					return
 				case trace.IsConnectionProblem(err):
@@ -520,6 +520,7 @@ func (s *remoteSite) DialTCP(params DialParams) (net.Conn, error) {
 	conn, err := s.connThroughTunnel(&dialReq{
 		Address:  params.To.String(),
 		ServerID: params.ServerID,
+		ConnType: params.ConnType,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -550,6 +551,7 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	targetConn, err := s.connThroughTunnel(&dialReq{
 		Address:  params.To.String(),
 		ServerID: params.ServerID,
+		ConnType: params.ConnType,
 	})
 	if err != nil {
 		userAgent.Close()

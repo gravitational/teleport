@@ -25,10 +25,10 @@ every night. These nightly images point to the latest version of Teleport from t
 three most recent release branches. They are stable, and we recommend their use to
 easily keep your Teleport installation up to date.
 
-| Image name | Teleport version | Automatically Updated | Image base |
+| Image name | Teleport version | Image automatically updated? | Image base |
 |---|---|---|---|
-| `quay.io/gravitational/teleport:4.3` |  The latest version of Teleport Community 4.3 | Yes | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
-| `quay.io/gravitational/teleport:4.3.0` | 4.3.0 | No | [Ubuntu 18.04](https://hub.docker.com/_/ubuntu) |
+| `quay.io/gravitational/teleport:{{ version }}` |  The latest version of Teleport Community {{ version }} | Yes | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
+| `quay.io/gravitational/teleport:{{ teleport.version }}` | The version specified in the image's tag (i.e. {{ teleport.version }}) | No | [Ubuntu 20.04](https://hub.docker.com/_/ubuntu) |
 
 For testing, we always recommend that you use the latest release version of Teleport, which is currently `{{teleport.latest_oss_docker_image}}`.
 

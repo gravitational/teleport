@@ -331,7 +331,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(len(tokens), Equals, 1)
 	c.Assert(tokens[0].GetName(), Equals, tok)
 
-	roles, err := s.a.ValidateToken(tok)
+	roles, _, err := s.a.ValidateToken(tok)
 	c.Assert(err, IsNil)
 	c.Assert(roles.Include(teleport.RoleNode), Equals, true)
 	c.Assert(roles.Include(teleport.RoleProxy), Equals, false)
@@ -353,7 +353,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(tok, Equals, customToken)
 
-	roles, err = s.a.ValidateToken(tok)
+	roles, _, err = s.a.ValidateToken(tok)
 	c.Assert(err, IsNil)
 	c.Assert(roles.Include(teleport.RoleNode), Equals, true)
 	c.Assert(roles.Include(teleport.RoleProxy), Equals, false)
@@ -364,7 +364,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 	// generate multi-use token with long TTL:
 	multiUseToken, err := s.a.GenerateToken(ctx, GenerateTokenRequest{Roles: teleport.Roles{teleport.RoleProxy}, TTL: time.Hour})
 	c.Assert(err, IsNil)
-	_, err = s.a.ValidateToken(multiUseToken)
+	_, _, err = s.a.ValidateToken(multiUseToken)
 	c.Assert(err, IsNil)
 
 	// use it twice:
@@ -432,7 +432,7 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 		Role:     teleport.RoleAuth,
 	})
 	c.Assert(err, NotNil)
-	r, err := s.a.ValidateToken("static-token-value")
+	r, _, err := s.a.ValidateToken("static-token-value")
 	c.Assert(err, IsNil)
 	c.Assert(r, DeepEquals, roles)
 
@@ -445,11 +445,11 @@ func (s *AuthSuite) TestTokensCRUD(c *C) {
 func (s *AuthSuite) TestBadTokens(c *C) {
 	ctx := context.Background()
 	// empty
-	_, err := s.a.ValidateToken("")
+	_, _, err := s.a.ValidateToken("")
 	c.Assert(err, NotNil)
 
 	// garbage
-	_, err = s.a.ValidateToken("bla bla")
+	_, _, err = s.a.ValidateToken("bla bla")
 	c.Assert(err, NotNil)
 
 	// tampered
@@ -457,7 +457,7 @@ func (s *AuthSuite) TestBadTokens(c *C) {
 	c.Assert(err, IsNil)
 
 	tampered := string(tok[0]+1) + tok[1:]
-	_, err = s.a.ValidateToken(tampered)
+	_, _, err = s.a.ValidateToken(tampered)
 	c.Assert(err, NotNil)
 }
 

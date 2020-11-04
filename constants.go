@@ -125,6 +125,12 @@ const (
 	// ComponentProxy is SSH proxy (SSH server forwarding connections)
 	ComponentProxy = "proxy"
 
+	// ComponentApp is the application proxy service.
+	ComponentApp = "app:service"
+
+	// ComponentAppProxy is the application handler within the web proxy service.
+	ComponentAppProxy = "app:web"
+
 	// ComponentDiagnostic is a diagnostic service
 	ComponentDiagnostic = "diag"
 
@@ -586,6 +592,10 @@ const (
 	// UsageKubeOnly specifies certificate usage metadata
 	// that limits certificate to be only used for kubernetes proxying
 	UsageKubeOnly = "usage:kube"
+
+	// UsageAppOnly specifies a certificate metadata that only allows it to be
+	// used for proxying applications.
+	UsageAppsOnly = "usage:apps"
 )
 
 const (
@@ -673,3 +683,19 @@ const (
 
 // UserSystem defines a user as system.
 const UserSystem = "system"
+
+const (
+	// KeepAliveNode is the keep alive type for SSH servers.
+	KeepAliveNode = "node"
+	// KeepAliveApp is the keep alive type for application server.
+	KeepAliveApp = "app"
+)
+
+const (
+	// AppJWTHeader is the JWT header used to pass identity information to the
+	// internal application being proxied.
+	AppJWTHeader = "teleport-jwt-assertion"
+
+	// AppCFHeader is a compatibility header.
+	AppCFHeader = "cf-access-token"
+)

@@ -88,6 +88,12 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 				return nil, trace.Wrap(err)
 			}
 			parser = p
+		case services.KindAppServer:
+			parser = newAppServerParser()
+		case services.KindWebSession:
+			parser = newAppSessionParser()
+		case services.KindRemoteCluster:
+			parser = newRemoteClusterParser()
 		default:
 			return nil, trace.BadParameter("watcher on object kind %v is not supported", kind)
 		}
@@ -739,6 +745,64 @@ func (p *reverseTunnelParser) parse(event backend.Event) (services.Resource, err
 	}
 }
 
+func newAppServerParser() *appServerParser {
+	return &appServerParser{
+		matchPrefix: backend.Key(appsPrefix, serversPrefix, defaults.Namespace),
+	}
+}
+
+type appServerParser struct {
+	matchPrefix []byte
+}
+
+func (p *appServerParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *appServerParser) match(key []byte) bool {
+	return bytes.HasPrefix(key, p.matchPrefix)
+}
+
+func (p *appServerParser) parse(event backend.Event) (services.Resource, error) {
+	return parseServer(event, services.KindAppServer)
+}
+
+func newAppSessionParser() *webSessionParser {
+	return &webSessionParser{
+		matchPrefix: backend.Key(appsPrefix, sessionsPrefix),
+	}
+}
+
+type webSessionParser struct {
+	matchPrefix []byte
+}
+
+func (p *webSessionParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *webSessionParser) match(key []byte) bool {
+	return bytes.HasPrefix(key, p.matchPrefix)
+}
+
+func (p *webSessionParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		return resourceHeader(event, services.KindWebSession, services.V2, 0)
+	case backend.OpPut:
+		resource, err := services.GetWebSessionMarshaler().UnmarshalWebSession(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func parseServer(event backend.Event, kind string) (services.Resource, error) {
 	switch event.Type {
 	case backend.OpDelete:
@@ -749,6 +813,42 @@ func parseServer(event backend.Event, kind string) (services.Resource, error) {
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 			services.SkipValidation(),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newRemoteClusterParser() *remoteClusterParser {
+	return &remoteClusterParser{
+		matchPrefix: backend.Key(remoteClustersPrefix),
+	}
+}
+
+type remoteClusterParser struct {
+	matchPrefix []byte
+}
+
+func (p *remoteClusterParser) prefix() []byte {
+	return p.matchPrefix
+}
+
+func (p *remoteClusterParser) match(key []byte) bool {
+	return bytes.HasPrefix(key, p.matchPrefix)
+}
+
+func (p *remoteClusterParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		return resourceHeader(event, services.KindRemoteCluster, services.V3, 0)
+	case backend.OpPut:
+		resource, err := services.UnmarshalRemoteCluster(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
