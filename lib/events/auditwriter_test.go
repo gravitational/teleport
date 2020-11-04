@@ -196,7 +196,72 @@ func TestAuditWriter(t *testing.T) {
 		assert.Equal(t, len(inEvents), len(outEvents))
 		assert.Equal(t, inEvents, outEvents)
 		assert.Equal(t, 1, int(streamResumed.Load()), "Stream resumed once.")
-		assert.Equal(t, 1, int(streamResumed.Load()), "Stream created once.")
+		assert.Equal(t, 1, int(streamCreated.Load()), "Stream created once.")
+	})
+
+	// Backoff looses the events on emitter hang, but does not lock
+	t.Run("Backoff", func(t *testing.T) {
+		streamCreated := atomic.NewUint64(0)
+		terminateConnection := atomic.NewUint64(1)
+		streamResumed := atomic.NewUint64(0)
+
+		submitEvents := 600
+		hangCtx, hangCancel := context.WithCancel(context.TODO())
+		defer hangCancel()
+
+		test := newAuditWriterTest(t, func(streamer Streamer) (*CallbackStreamer, error) {
+			return NewCallbackStreamer(CallbackStreamerConfig{
+				Inner: streamer,
+				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event AuditEvent) error {
+					if event.GetIndex() >= int64(submitEvents-1) && terminateConnection.CAS(1, 0) == true {
+						log.Debugf("Locking connection at event %v", event.GetIndex())
+						<-hangCtx.Done()
+						return trace.ConnectionProblem(hangCtx.Err(), "stream hangs")
+					}
+					return nil
+				},
+				OnCreateAuditStream: func(ctx context.Context, sid session.ID, streamer Streamer) (Stream, error) {
+					stream, err := streamer.CreateAuditStream(ctx, sid)
+					assert.NoError(t, err)
+					streamCreated.Inc()
+					return stream, nil
+				},
+				OnResumeAuditStream: func(ctx context.Context, sid session.ID, uploadID string, streamer Streamer) (Stream, error) {
+					stream, err := streamer.ResumeAuditStream(ctx, sid, uploadID)
+					assert.NoError(t, err)
+					streamResumed.Inc()
+					return stream, nil
+				},
+			})
+		})
+
+		defer test.cancel()
+
+		test.writer.cfg.BackoffTimeout = 100 * time.Millisecond
+		test.writer.cfg.BackoffDuration = time.Second
+
+		inEvents := GenerateTestSession(SessionParams{
+			PrintEvents: 1024,
+			SessionID:   string(test.sid),
+		})
+
+		start := time.Now()
+		for _, event := range inEvents {
+			err := test.writer.EmitAuditEvent(test.ctx, event)
+			assert.NoError(t, err)
+		}
+		elapsedTime := time.Since(start)
+		log.Debugf("Emitted all events in %v.", elapsedTime)
+		assert.True(t, elapsedTime < time.Second)
+		hangCancel()
+		err := test.writer.Complete(test.ctx)
+		assert.NoError(t, err)
+		outEvents := test.collectEvents(t)
+
+		submittedEvents := inEvents[:submitEvents]
+		assert.Equal(t, len(submittedEvents), len(outEvents))
+		assert.Equal(t, submittedEvents, outEvents)
+		assert.Equal(t, 1, int(streamResumed.Load()), "Stream resumed.")
 	})
 
 }

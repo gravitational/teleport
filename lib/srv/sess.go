@@ -1041,7 +1041,7 @@ func (s *session) newStreamer(ctx *ServerContext) (events.Streamer, error) {
 	}
 	// TeeStreamer sends non-print and non disk events
 	// to the audit log in async mode, while buffering all
-	// events on disk for further upload at the end of the session
+	// events on disk for further upload at the end of the session.
 	return events.NewTeeStreamer(fileStreamer, ctx.srv), nil
 }
 
