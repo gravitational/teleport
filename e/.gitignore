@@ -20,6 +20,7 @@ tmp
 
 # editors
 .vscode
+*.swp
 
 # test binaries produced by go
 *.test
@@ -29,6 +30,3 @@ start-houston
 build-houston
 
 /tool/modules/fips.go
-
-# vim-specific files
-*.swp
