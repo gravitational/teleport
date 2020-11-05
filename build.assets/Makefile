@@ -151,7 +151,7 @@ test: buildbox
 	docker run \
 		--env TELEPORT_ETCD_TEST="yes" \
 		$(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) -t $(BUILDBOX) \
-		/bin/bash -c \
+		usr/bin/dumb-init /bin/bash -c \
 		"examples/etcd/start-etcd.sh && sleep 1; \
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		make -C $(SRCDIR) TELEPORT_DEBUG=0 FLAGS=\"$(FLAGS)\" clean test"
