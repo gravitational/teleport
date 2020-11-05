@@ -64,6 +64,7 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	c.Assert(userContext.Name, check.Equals, "root")
 	c.Assert(userContext.ACL.AuthConnectors, check.DeepEquals, allowed)
 	c.Assert(userContext.ACL.TrustedClusters, check.DeepEquals, allowed)
+	c.Assert(userContext.ACL.AppServers, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.Events, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.Sessions, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.Roles, check.DeepEquals, denied)
@@ -71,6 +72,10 @@ func (s *UserContextSuite) TestNewUserContext(c *check.C) {
 	c.Assert(userContext.ACL.Tokens, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.Nodes, check.DeepEquals, denied)
 	c.Assert(userContext.ACL.SSHLogins, check.DeepEquals, []string{"a", "b", "d"})
+	c.Assert(userContext.AccessStrategy, check.DeepEquals, accessStrategy{
+		Type:   services.RequestStrategyOptional,
+		Prompt: "",
+	})
 
 	// test local auth type
 	c.Assert(userContext.AuthType, check.Equals, authLocal)
