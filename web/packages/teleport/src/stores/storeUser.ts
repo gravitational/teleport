@@ -32,6 +32,10 @@ export default class StoreUser extends Store<User> {
     return this.state.acl.authConnectors;
   }
 
+  getSessionAccess() {
+    return this.state.acl.sessions;
+  }
+
   getRoleAccess() {
     return this.state.acl.roles;
   }

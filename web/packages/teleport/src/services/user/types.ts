@@ -13,15 +13,21 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-import { Cluster } from '../../services/clusters';
+import { Cluster } from 'teleport/services/clusters';
 
 export type AuthType = 'local' | 'sso';
+
+export interface AccessStrategy {
+  type: 'optional' | 'always' | 'reason';
+  prompt: string;
+}
 
 export interface User {
   authType: AuthType;
   acl: Acl;
   username: string;
   cluster: Cluster;
+  accessStrategy: AccessStrategy;
 }
 
 export interface Access {
@@ -39,4 +45,10 @@ export interface Acl {
   roles: Access;
   sessions: Access;
   events: Access;
+}
+
+export interface AccessRequest {
+  id: string;
+  state: 'NONE' | 'PENDING' | 'APPROVED' | 'DENIED' | 'APPLIED' | '';
+  reason: string;
 }

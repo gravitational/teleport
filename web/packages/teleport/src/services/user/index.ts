@@ -15,6 +15,9 @@ limitations under the License.
 */
 
 import service from './user';
+import makeAccessRequest from './makeAccessRequest';
+import makeUser from './makeUser';
 
+export { makeAccessRequest, makeUser };
 export * from './types';
 export default service;

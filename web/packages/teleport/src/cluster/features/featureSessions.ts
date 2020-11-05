@@ -33,6 +33,11 @@ class FeatureNodes extends FeatureBase {
   }
 
   onload(context: Ctx) {
+    if (!context.isSessionEnabled()) {
+      this.setDisabled();
+      return;
+    }
+
     context.storeNav.addSideItem({
       title: 'Active Sessions',
       Icon: Icons.Cli,

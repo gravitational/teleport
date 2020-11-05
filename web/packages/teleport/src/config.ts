@@ -72,7 +72,7 @@ const cfg = {
     clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?`,
     scp:
       '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename',
-    renewTokenPath: '/v1/webapi/sessions/renew',
+    renewTokenPath: '/v1/webapi/sessions/renew/:requestId?',
     sessionPath: '/v1/webapi/sessions',
     userContextPath: '/v1/webapi/sites/:clusterId/context',
     userStatusPath: '/v1/webapi/user/status',
@@ -91,6 +91,8 @@ const cfg = {
     ttyWsAddr:
       'wss://:fqdm/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params',
     terminalSessionPath: '/v1/webapi/sites/:clusterId/sessions/:sid?',
+
+    requestAccessPath: '/v1/enterprise/accessrequest/:requestId?',
   },
 
   getClusterEventsUrl(params: UrlClusterEventsParams) {
@@ -219,6 +221,14 @@ const cfg = {
     return generatePath(cfg.api.scp, {
       ...params,
     });
+  },
+
+  getRequestAccessUrl(requestId?: string) {
+    return generatePath(cfg.api.requestAccessPath, { requestId });
+  },
+
+  getRenewTokenUrl(requestId?: string) {
+    return generatePath(cfg.api.renewTokenPath, { requestId });
   },
 
   setClusterId(clusterId: string) {

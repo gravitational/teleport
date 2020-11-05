@@ -59,6 +59,10 @@ export default class Context implements teleport.Context {
     return this.storeUser.getEventAccess().list;
   }
 
+  isSessionEnabled() {
+    return this.storeUser.getSessionAccess().list;
+  }
+
   isAuthConnectorEnabled() {
     return this.storeUser.getConnectorAccess().list;
   }

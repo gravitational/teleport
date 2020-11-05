@@ -16,9 +16,12 @@ limitations under the License.
 
 import Logger from 'shared/libs/logger';
 import cfg from 'teleport/config';
-import history from './history';
-import api from './api';
-import localStorage, { KeysEnum, BearerToken } from './localStorage';
+import history from 'teleport/services/history';
+import api from 'teleport/services/api';
+import localStorage, {
+  KeysEnum,
+  BearerToken,
+} from 'teleport/services/localStorage';
 
 const TOKEN_CHECKER_INTERVAL = 15 * 1000; //  every 15 sec
 const logger = Logger.create('services/session');
@@ -37,7 +40,6 @@ const session = {
   clear() {
     this._stopTokenChecker();
     localStorage.unsubscribe(receiveMessage);
-    localStorage.setBearerToken(null);
     localStorage.clear();
   },
 
@@ -63,6 +65,10 @@ const session = {
     }
   },
 
+  renewSession(requestId: string) {
+    return this._renewToken(requestId);
+  },
+
   isValid() {
     return this._timeLeft() > 0;
   },
@@ -84,7 +90,9 @@ const session = {
   },
 
   _extractBearerTokenFromHtml() {
-    const el = document.querySelector('[name=grv_bearer_token]');
+    const el = document.querySelector<HTMLMetaElement>(
+      '[name=grv_bearer_token]'
+    );
     if (!el || !el.content) {
       return null;
     }
@@ -109,10 +117,10 @@ const session = {
     return this._timeLeft() < TOKEN_CHECKER_INTERVAL * 1.5;
   },
 
-  _renewToken() {
+  _renewToken(requestId?: string) {
     this._setAndBroadcastIsRenewing(true);
     return api
-      .post(cfg.api.renewTokenPath)
+      .post(cfg.getRenewTokenUrl(requestId))
       .then(this._receiveBearerToken.bind(this))
       .finally(() => {
         this._setAndBroadcastIsRenewing(false);

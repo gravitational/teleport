@@ -64,5 +64,6 @@ const state = {
   authType: null,
   acl: null,
   username: null,
+  accessStrategy: null,
   cluster,
 };
