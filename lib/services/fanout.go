@@ -35,13 +35,16 @@ type fanoutEntry struct {
 // Fanout is a helper which allows a stream of events to be fanned-out to many
 // watchers.  Used by the cache layer to forward events.
 type Fanout struct {
-	mu       sync.Mutex
-	watchers map[string][]fanoutEntry
+	mu           sync.Mutex
+	init, closed bool
+	watchers     map[string][]fanoutEntry
 	// eventsCh is used in tests
 	eventsCh chan FanoutEvent
 }
 
-// NewFanout creates a new Fanout instance.
+// NewFanout creates a new Fanout instance in an uninitialized
+// state.  Until initialized, watchers will be queued but no
+// events will be sent.
 func NewFanout(eventsCh ...chan FanoutEvent) *Fanout {
 	f := &Fanout{
 		watchers: make(map[string][]fanoutEntry),
@@ -67,16 +70,47 @@ type FanoutEvent struct {
 func (f *Fanout) NewWatcher(ctx context.Context, watch Watch) (Watcher, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.closed {
+		return nil, trace.Errorf("cannot register watcher, fanout system closed")
+	}
+
 	w, err := newFanoutWatcher(ctx, f, watch)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := w.emit(Event{Type: backend.OpInit}); err != nil {
-		w.cancel()
-		return nil, trace.Wrap(err)
+	if f.init {
+		// fanout is already initialized; emit OpInit immediately.
+		if err := w.emit(Event{Type: backend.OpInit}); err != nil {
+			w.cancel()
+			return nil, trace.Wrap(err)
+		}
 	}
 	f.addWatcher(w)
 	return w, nil
+}
+
+// SetInit sets Fanout into an initialized state, sending OpInit events
+// to any watchers which were added prior to initialization.
+func (f *Fanout) SetInit() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.init {
+		return
+	}
+	for _, entries := range f.watchers {
+		var remove []*fanoutWatcher
+		for _, entry := range entries {
+			if err := entry.watcher.emit(Event{Type: backend.OpInit}); err != nil {
+				entry.watcher.setError(err)
+				remove = append(remove, entry.watcher)
+			}
+		}
+		for _, w := range remove {
+			f.removeWatcher(w)
+			w.cancel()
+		}
+	}
+	f.init = true
 }
 
 func filterEventSecrets(event Event) Event {
@@ -114,6 +148,9 @@ func (f *Fanout) trySendEvent(e FanoutEvent) {
 func (f *Fanout) Emit(events ...Event) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if !f.init {
+		panic("Emit called on uninitialized fanout instance")
+	}
 	for _, fullEvent := range events {
 		// by default, we operate on a version of the event which
 		// has had secrets filtered out.
@@ -148,11 +185,26 @@ func (f *Fanout) Emit(events ...Event) {
 	}
 }
 
-// CloseWatchers closes all attached watchers, effectively
-// resetting the Fanout instance.
-func (f *Fanout) CloseWatchers() {
+// Reset closes all attached watchers and places the fanout instance
+// into an uninitialized state.  Reset may be called on an uninitialized
+// fanout instance to remove "queued" watchers.
+func (f *Fanout) Reset() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.closeWatchers()
+	f.init = false
+}
+
+// Close permanently closes the fanout.  Existing watchers will be
+// closed and no new watchers will be added.
+func (f *Fanout) Close() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.closeWatchers()
+	f.closed = true
+}
+
+func (f *Fanout) closeWatchers() {
 	for _, entries := range f.watchers {
 		for _, entry := range entries {
 			entry.watcher.cancel()
@@ -267,5 +319,13 @@ func (w *fanoutWatcher) setError(err error) {
 func (w *fanoutWatcher) Error() error {
 	w.emux.Lock()
 	defer w.emux.Unlock()
-	return w.err
+	if w.err != nil {
+		return w.err
+	}
+	select {
+	case <-w.Done():
+		return trace.Errorf("watcher closed")
+	default:
+		return nil
+	}
 }
