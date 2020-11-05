@@ -173,7 +173,8 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CreateCommand creates and returns a new Command
+// CreateCommand creates and returns a new SCP command with
+// specified configuration.
 func CreateCommand(cfg Config) (Command, error) {
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
@@ -260,12 +261,13 @@ func (cmd *command) serveSource(ch io.ReadWriter) (retErr error) {
 	for i := range cmd.Flags.Target {
 		fileInfo, err := cmd.FileSystem.GetFileInfo(cmd.Flags.Target[i])
 		if err != nil {
-			err := trace.Errorf("could not access local path %q: %v", cmd.Flags.Target[i], err)
-			return trace.Wrap(err)
+			return trace.Errorf("could not access local path %q: %v", cmd.Flags.Target[i], err)
 		}
 		if fileInfo.IsDir() && !cmd.Flags.Recursive {
-			err := trace.Errorf("%v is a directory, perhaps try -r flag?", fileInfo.GetName())
-			return trace.Wrap(err)
+			// TODO(dmitri): using the bad parameter constructor
+			// might lead to relogin attempt and a completely obscure
+			// error message
+			return trace.Errorf("%v is a directory, use -r flag to copy recursively", fileInfo.GetName())
 		}
 		fileInfos[i] = fileInfo
 	}
@@ -293,15 +295,15 @@ func (cmd *command) serveSource(ch io.ReadWriter) (retErr error) {
 }
 
 func (cmd *command) sendDir(r *reader, ch io.ReadWriter, fileInfo FileInfo) error {
-	if err := cmd.sendDirMode(r, ch, fileInfo); err != nil {
-		return trace.Wrap(err)
-	}
-
 	if cmd.Config.Flags.PreserveAttrs {
 		if err := cmd.sendFileTimes(r, ch, fileInfo); err != nil {
 			return trace.Wrap(err)
 		}
 	}
+	if err := cmd.sendDirMode(r, ch, fileInfo); err != nil {
+		return trace.Wrap(err)
+	}
+
 	cmd.log.Debug("sendDir got OK")
 
 	fileInfos, err := fileInfo.ReadDir()
@@ -395,7 +397,7 @@ func (cmd *command) serveSink(ch io.ReadWriter) error {
 		return trace.Wrap(err)
 	}
 	var st state
-	st.path = []string{"."}
+	st.path = localDir
 	var b = make([]byte, 1)
 	scanner := bufio.NewScanner(ch)
 	for {
@@ -431,9 +433,7 @@ func (cmd *command) serveSink(ch io.ReadWriter) error {
 func (cmd *command) processCommand(ch io.ReadWriter, st *state, b byte, line string) error {
 	cmd.log.Debugf("<- %v %v", string(b), line)
 	switch b {
-	case WarnByte:
-		return trace.Errorf("error from sender: %q", line)
-	case ErrByte:
+	case WarnByte, ErrByte:
 		return trace.Errorf("error from sender: %q", line)
 	case 'C':
 		f, err := parseNewFile(line)
@@ -455,7 +455,10 @@ func (cmd *command) processCommand(ch io.ReadWriter, st *state, b byte, line str
 		}
 		return nil
 	case 'E':
-		return st.pop()
+		if len(st.path) == 0 {
+			return trace.Errorf("empty path")
+		}
+		return cmd.updateDirTimes(st.pop())
 	case 'T':
 		stat, err := parseFileTimes(line)
 		if err != nil {
@@ -524,19 +527,12 @@ func (cmd *command) receiveDir(st *state, fc newFileCmd, ch io.ReadWriter) error
 	// copying into an existing directory? append to it:
 	if cmd.FileSystem.IsDir(targetDir) {
 		targetDir = st.makePath(targetDir, fc.Name)
-		st.push(fc.Name)
+		st.push(fc.Name, st.stat)
 	}
 
 	err := cmd.FileSystem.MkDir(targetDir, int(fc.Mode))
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	if st.stat != nil {
-		err = cmd.FileSystem.Chtimes(targetDir, st.stat.Atime, st.stat.Atime)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	return nil
@@ -556,9 +552,9 @@ func (cmd *command) sendDirMode(r *reader, ch io.Writer, fileInfo FileInfo) erro
 }
 
 func (cmd *command) sendFileTimes(r *reader, ch io.Writer, fileInfo FileInfo) error {
-	out := fmt.Sprintf("T%d 0 %d 0\n",
-		fileInfo.GetModTime().Unix(),
-		fileInfo.GetAccessTime().Unix(),
+	out := fmt.Sprintf("T0 %d 0 %d\n",
+		fileInfo.GetModTime().UnixNano(),
+		fileInfo.GetAccessTime().UnixNano(),
 	)
 	cmd.log.WithField("cmd", out).Debug("Send file times.")
 	_, err := io.WriteString(ch, out)
@@ -580,6 +576,16 @@ func (cmd *command) sendFileMode(r *reader, ch io.Writer, fileInfo FileInfo) err
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(r.read())
+}
+
+func (cmd *command) updateDirTimes(path pathSegments) error {
+	if stat := path[len(path)-1].stat; stat != nil {
+		err := cmd.FileSystem.Chtimes(path.join(), stat.Atime, stat.Mtime)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 type newFileCmd struct {
@@ -653,30 +659,47 @@ func sendOK(ch io.ReadWriter) error {
 }
 
 type state struct {
-	path     []string
-	finished bool
-	stat     *mtimeCmd
+	path pathSegments
+	// stat optionally specifies access/modification time for the current file/directory
+	stat *mtimeCmd
 }
 
-func (st *state) push(dir string) {
-	st.path = append(st.path, dir)
-}
-
-func (st *state) pop() error {
-	if st.finished {
-		return trace.Errorf("empty path")
+func (r pathSegments) join() string {
+	path := make([]string, 0, len(r))
+	for _, s := range r {
+		path = append(path, s.dir)
 	}
+	return filepath.Join(path...)
+}
+
+var localDir = pathSegments{{dir: "."}}
+
+type pathSegments []pathSegment
+
+type pathSegment struct {
+	dir string
+	// stat optionally specifies access/modification time for the directory
+	stat *mtimeCmd
+}
+
+func (st *state) push(dir string, stat *mtimeCmd) {
+	st.path = append(st.path, pathSegment{dir: dir, stat: stat})
+}
+
+// pop removes the last segment from the current path.
+// Returns the old path as a result
+func (st *state) pop() pathSegments {
 	if len(st.path) == 0 {
-		st.finished = true // allow extra 'E' command in the end
 		return nil
 	}
+	path := st.path
 	st.path = st.path[:len(st.path)-1]
 	st.stat = nil
-	return nil
+	return path
 }
 
 func (st *state) makePath(target, filename string) string {
-	return filepath.Join(target, filepath.Join(st.path...), filename)
+	return filepath.Join(target, st.path.join(), filename)
 }
 
 func newReader(r io.Reader) *reader {
