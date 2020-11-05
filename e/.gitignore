@@ -20,6 +20,7 @@ tmp
 
 # editors
 .vscode
+*.swp
 
 # test binaries produced by go
 *.test
