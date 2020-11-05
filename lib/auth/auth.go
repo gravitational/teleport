@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/wrappers"
+	"github.com/pborman/uuid"
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
@@ -441,6 +442,12 @@ type certRequest struct {
 	// activeRequests tracks privilege escalation requests applied
 	// during the construction of the certificate.
 	activeRequests services.RequestIDs
+	// appSessionID is the session ID of the application session.
+	appSessionID string
+	// appPublicAddr is the public address of the application.
+	appPublicAddr string
+	// appClusterName is the name of the cluster this application is in.
+	appClusterName string
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -466,6 +473,42 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 		return nil, nil, trace.Wrap(err)
 	}
 	return certs.ssh, certs.tls, nil
+}
+
+// GenerateUserAppTestCert generates an application specific certificate, used
+// internally for tests.
+func (a *Server) GenerateUserAppTestCert(publicKey []byte, username string, ttl time.Duration, publicAddr string, clusterName string) ([]byte, error) {
+	user, err := a.Identity.GetUser(username, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certs, err := a.generateUserCert(certRequest{
+		user:      user,
+		publicKey: publicKey,
+		checker:   checker,
+		ttl:       ttl,
+		// Set the login to be a random string. Application certificates are never
+		// used to log into servers but SSH certificate generation code requires a
+		// principal be in the certificate.
+		traits: wrappers.Traits(map[string][]string{
+			teleport.TraitLogins: []string{uuid.New()},
+		}),
+		// Only allow this certificate to be used for applications.
+		usage: []string{teleport.UsageAppsOnly},
+		// Add in the application routing information.
+		appSessionID:   uuid.New(),
+		appPublicAddr:  publicAddr,
+		appClusterName: clusterName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return certs.tls, nil
 }
 
 // generateUserCert generates user certificates
@@ -583,6 +626,11 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 		Traits:            req.traits,
 		KubernetesGroups:  kubeGroups,
 		KubernetesUsers:   kubeUsers,
+		RouteToApp: tlsca.RouteToApp{
+			SessionID:   req.appSessionID,
+			PublicAddr:  req.appPublicAddr,
+			ClusterName: req.appClusterName,
+		},
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -844,6 +892,10 @@ type GenerateTokenRequest struct {
 	Roles teleport.Roles `json:"roles"`
 	// TTL is a time to live for token
 	TTL time.Duration `json:"ttl"`
+	// Labels sets token labels, e.g. {env: prod, region: us-west}.
+	// Labels are later passed to resources that are joining
+	// e.g. remote clusters and in the future versions, nodes and proxies.
+	Labels map[string]string `json:"labels"`
 }
 
 // CheckAndSetDefaults checks and sets default values of request
@@ -875,6 +927,12 @@ func (a *Server) GenerateToken(ctx context.Context, req GenerateTokenRequest) (s
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+	if len(req.Labels) != 0 {
+		meta := token.GetMetadata()
+		meta.Labels = req.Labels
+		token.SetMetadata(meta)
+	}
+
 	if err := a.Provisioner.UpsertToken(token); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -1100,7 +1158,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	// HTTPS requests need to specify DNS name that should be present in the
 	// certificate as one of the DNS Names. It is not known in advance,
 	// that is why there is a default one for all certificates
-	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) {
+	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) || req.Roles.Include(teleport.RoleApp) {
 		certRequest.DNSNames = append(certRequest.DNSNames, "*."+teleport.APIDomain, teleport.APIDomain)
 	}
 	// Unlike additional principals, DNS Names is x509 specific
@@ -1122,19 +1180,19 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 }
 
 // ValidateToken takes a provisioning token value and finds if it's valid. Returns
-// a list of roles this token allows its owner to assume, or an error if the token
+// a list of roles this token allows its owner to assume and token labels, or an error if the token
 // cannot be found.
-func (a *Server) ValidateToken(token string) (roles teleport.Roles, e error) {
+func (a *Server) ValidateToken(token string) (teleport.Roles, map[string]string, error) {
 	tkns, err := a.GetCache().GetStaticTokens()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	// First check if the token is a static token. If it is, return right away.
 	// Static tokens have no expiration.
 	for _, st := range tkns.GetStaticTokens() {
 		if subtle.ConstantTimeCompare([]byte(st.GetName()), []byte(token)) == 1 {
-			return st.GetRoles(), nil
+			return st.GetRoles(), nil, nil
 		}
 	}
 
@@ -1142,13 +1200,13 @@ func (a *Server) ValidateToken(token string) (roles teleport.Roles, e error) {
 	// If a ephemeral token is found, make sure it's still valid.
 	tok, err := a.GetCache().GetToken(token)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	if !a.checkTokenTTL(tok) {
-		return nil, trace.AccessDenied("token expired")
+		return nil, nil, trace.AccessDenied("token expired")
 	}
 
-	return tok.GetRoles(), nil
+	return tok.GetRoles(), tok.GetMetadata().Labels, nil
 }
 
 // checkTokenTTL checks if the token is still valid. If it is not, the token
@@ -1223,7 +1281,7 @@ func (a *Server) RegisterUsingToken(req RegisterUsingTokenRequest) (*PackedKeys,
 	}
 
 	// make sure the token is valid
-	roles, err := a.ValidateToken(req.Token)
+	roles, _, err := a.ValidateToken(req.Token)
 	if err != nil {
 		log.Warningf("%q [%v] can not join the cluster with role %s, token error: %v", req.NodeName, req.HostID, req.Role, err)
 		return nil, trace.AccessDenied(fmt.Sprintf("%q [%v] can not join the cluster with role %s, the token is not valid", req.NodeName, req.HostID, req.Role))
@@ -1349,16 +1407,16 @@ func (a *Server) NewWebSession(username string, roles []string, traits wrappers.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	token, err := utils.CryptoRandomHex(TokenLenBytes)
+	token, err := utils.CryptoRandomHex(SessionTokenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	bearerToken, err := utils.CryptoRandomHex(TokenLenBytes)
+	bearerToken, err := utils.CryptoRandomHex(SessionTokenBytes)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	bearerTokenTTL := utils.MinTTL(sessionTTL, BearerTokenTTL)
-	return services.NewWebSession(token, services.WebSessionSpecV2{
+	return services.NewWebSession(token, services.KindWebSession, services.KindWebSession, services.WebSessionSpecV2{
 		User:               user.GetName(),
 		Priv:               priv,
 		Pub:                certs.ssh,
@@ -1708,6 +1766,16 @@ func (a *Server) modeStreamer() (events.Streamer, error) {
 	return a.streamer, nil
 }
 
+// GetAppServers is a part of the auth.AccessPoint implementation.
+func (a *Server) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	return a.GetCache().GetAppServers(ctx, namespace, opts...)
+}
+
+// GetAppSession is a part of the auth.AccessPoint implementation.
+func (a *Server) GetAppSession(ctx context.Context, req services.GetAppSessionRequest) (services.WebSession, error) {
+	return a.GetCache().GetAppSession(ctx, req)
+}
+
 // authKeepAliver is a keep aliver using auth server directly
 type authKeepAliver struct {
 	sync.RWMutex
@@ -1732,7 +1800,7 @@ func (k *authKeepAliver) forwardKeepAlives() {
 		case <-k.ctx.Done():
 			return
 		case keepAlive := <-k.keepAlivesC:
-			err := k.a.KeepAliveNode(k.ctx, keepAlive)
+			err := k.a.KeepAliveServer(k.ctx, keepAlive)
 			if err != nil {
 				k.closeWithError(err)
 				return
@@ -1772,8 +1840,12 @@ const (
 	// BearerTokenTTL specifies standard bearer token to exist before
 	// it has to be renewed by the client
 	BearerTokenTTL = 10 * time.Minute
+
 	// TokenLenBytes is len in bytes of the invite token
 	TokenLenBytes = 16
+
+	// SessionTokenBytes is the number of bytes of a web or application session.
+	SessionTokenBytes = 32
 )
 
 // oidcClient is internal structure that stores OIDC client and its config

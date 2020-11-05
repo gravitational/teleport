@@ -86,7 +86,7 @@ func (a *NetAddr) IsLoopback() bool {
 
 // IsEmpty returns true if address is empty
 func (a *NetAddr) IsEmpty() bool {
-	return a.Addr == "" && a.AddrNetwork == "" && a.Path == ""
+	return a == nil || (a.Addr == "" && a.AddrNetwork == "" && a.Path == "")
 }
 
 // FullAddress returns full address including network and address (tcp://0.0.0.0:1243)
@@ -181,6 +181,15 @@ func MustParseAddr(a string) *NetAddr {
 		panic(fmt.Sprintf("failed to parse %v: %v", a, err))
 	}
 	return addr
+}
+
+// MustParseAddrList parses the provided list of strings into a NetAddr list or panics on error
+func MustParseAddrList(aList ...string) []NetAddr {
+	addrList := make([]NetAddr, len(aList))
+	for i, a := range aList {
+		addrList[i] = *MustParseAddr(a)
+	}
+	return addrList
 }
 
 // FromAddr returns NetAddr from golang standard net.Addr

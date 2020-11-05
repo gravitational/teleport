@@ -11,12 +11,15 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRemoteClusterStatus(t *testing.T) {
+	utils.InitLoggerForTests(testing.Verbose())
+
 	a := newTestAuthServer(t)
 
 	rc, err := services.NewRemoteCluster("rc")
@@ -27,11 +30,12 @@ func TestRemoteClusterStatus(t *testing.T) {
 	// Initially, no tunnels exist and status should be "offline".
 	wantRC.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 	gotRC, err := a.GetRemoteCluster(rc.GetName())
+	gotRC.SetResourceID(0)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(rc, gotRC))
 
 	// Create several tunnel connections.
-	lastHeartbeat := a.clock.Now()
+	lastHeartbeat := a.clock.Now().UTC()
 	tc1, err := services.NewTunnelConnection("conn-1", services.TunnelConnectionSpecV2{
 		ClusterName:   rc.GetName(),
 		ProxyName:     "proxy-1",
@@ -57,6 +61,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	wantRC.SetLastHeartbeat(tc2.GetLastHeartbeat())
 	gotRC, err = a.GetRemoteCluster(rc.GetName())
 	require.NoError(t, err)
+	gotRC.SetResourceID(0)
 	require.Empty(t, cmp.Diff(rc, gotRC))
 
 	// Delete the latest connection.
@@ -67,6 +72,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	// heartbeat.
 	wantRC.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
 	gotRC, err = a.GetRemoteCluster(rc.GetName())
+	gotRC.SetResourceID(0)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(rc, gotRC))
 
@@ -77,6 +83,7 @@ func TestRemoteClusterStatus(t *testing.T) {
 	// The last_heartbeat should remain the same.
 	wantRC.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
 	gotRC, err = a.GetRemoteCluster(rc.GetName())
+	gotRC.SetResourceID(0)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(rc, gotRC))
 }

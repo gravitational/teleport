@@ -26,4 +26,5 @@ type Services interface {
 	Access
 	DynamicAccess
 	Presence
+	AppSession
 }

@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
+Copyright 2015-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -700,18 +700,19 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 	listener, reverseTunnelAddress := s.mustListen(c)
 	defer listener.Close()
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ClientTLS:             s.proxyClient.TLSConfig(),
-		ID:                    hostID,
-		ClusterName:           s.server.ClusterName(),
-		Listener:              listener,
-		HostSigners:           []ssh.Signer{proxySigner},
-		LocalAuthClient:       s.proxyClient,
-		LocalAccessPoint:      s.proxyClient,
-		NewCachingAccessPoint: auth.NoCache,
-		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
-		DataDir:               c.MkDir(),
-		Component:             teleport.ComponentProxy,
-		Emitter:               s.proxyClient,
+		ClientTLS:                     s.proxyClient.TLSConfig(),
+		ID:                            hostID,
+		ClusterName:                   s.server.ClusterName(),
+		Listener:                      listener,
+		HostSigners:                   []ssh.Signer{proxySigner},
+		LocalAuthClient:               s.proxyClient,
+		LocalAccessPoint:              s.proxyClient,
+		NewCachingAccessPoint:         auth.NoCache,
+		NewCachingAccessPointOldProxy: auth.NoCache,
+		DirectClusters:                []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
+		DataDir:                       c.MkDir(),
+		Component:                     teleport.ComponentProxy,
+		Emitter:                       s.proxyClient,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(reverseTunnelServer.Start(), IsNil)
@@ -864,17 +865,18 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 
 	listener, reverseTunnelAddress := s.mustListen(c)
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ClusterName:           s.server.ClusterName(),
-		ClientTLS:             s.proxyClient.TLSConfig(),
-		ID:                    hostID,
-		Listener:              listener,
-		HostSigners:           []ssh.Signer{s.signer},
-		LocalAuthClient:       s.proxyClient,
-		LocalAccessPoint:      s.proxyClient,
-		NewCachingAccessPoint: auth.NoCache,
-		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
-		DataDir:               c.MkDir(),
-		Emitter:               s.proxyClient,
+		ClusterName:                   s.server.ClusterName(),
+		ClientTLS:                     s.proxyClient.TLSConfig(),
+		ID:                            hostID,
+		Listener:                      listener,
+		HostSigners:                   []ssh.Signer{s.signer},
+		LocalAuthClient:               s.proxyClient,
+		LocalAccessPoint:              s.proxyClient,
+		NewCachingAccessPoint:         auth.NoCache,
+		NewCachingAccessPointOldProxy: auth.NoCache,
+		DirectClusters:                []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
+		DataDir:                       c.MkDir(),
+		Emitter:                       s.proxyClient,
 	})
 	c.Assert(err, IsNil)
 
@@ -966,17 +968,18 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 	listener, _ := s.mustListen(c)
 	reverseTunnelServer, err := reversetunnel.NewServer(reversetunnel.Config{
-		ClientTLS:             s.proxyClient.TLSConfig(),
-		ID:                    hostID,
-		ClusterName:           s.server.ClusterName(),
-		Listener:              listener,
-		HostSigners:           []ssh.Signer{s.signer},
-		LocalAuthClient:       s.proxyClient,
-		LocalAccessPoint:      s.proxyClient,
-		NewCachingAccessPoint: auth.NoCache,
-		DirectClusters:        []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
-		DataDir:               c.MkDir(),
-		Emitter:               s.proxyClient,
+		ClientTLS:                     s.proxyClient.TLSConfig(),
+		ID:                            hostID,
+		ClusterName:                   s.server.ClusterName(),
+		Listener:                      listener,
+		HostSigners:                   []ssh.Signer{s.signer},
+		LocalAuthClient:               s.proxyClient,
+		LocalAccessPoint:              s.proxyClient,
+		NewCachingAccessPoint:         auth.NoCache,
+		NewCachingAccessPointOldProxy: auth.NoCache,
+		DirectClusters:                []reversetunnel.DirectCluster{{Name: s.server.ClusterName(), Client: s.proxyClient}},
+		DataDir:                       c.MkDir(),
+		Emitter:                       s.proxyClient,
 	})
 	c.Assert(err, IsNil)
 
@@ -1522,7 +1525,7 @@ func (s *SrvSuite) newUpack(username string, allowedLogins []string, allowedLabe
 	}, nil
 }
 
-func waitForSites(s reversetunnel.Server, count int) error {
+func waitForSites(s reversetunnel.Tunnel, count int) error {
 	timeout := time.NewTimer(10 * time.Second)
 	defer timeout.Stop()
 	ticker := time.NewTicker(100 * time.Millisecond)
@@ -1531,7 +1534,11 @@ func waitForSites(s reversetunnel.Server, count int) error {
 	for {
 		select {
 		case <-ticker.C:
-			if len(s.GetSites()) == count {
+			clusters, err := s.GetSites()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if len(clusters) == count {
 				return nil
 			}
 		case <-timeout.C:
