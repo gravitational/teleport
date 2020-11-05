@@ -22,18 +22,21 @@ import Player from 'teleport/player';
 import Teleport from 'teleport/Teleport';
 import cfg from 'teleport/config';
 import { LicenseEnforcer } from './components/License';
+import AccessStrategy from 'teleport/components/AccessStrategy';
 import EnterpriseCluster from './cluster';
 
 export default function TeleportE({ history }) {
   return (
     <Teleport history={history}>
-      <LicenseEnforcer />
-      <Switch>
-        <Route path={cfg.routes.console} component={Console} />
-        <Route path={cfg.routes.player} component={Player} />
-        <Route path={cfg.routes.cluster} component={EnterpriseCluster} />
-        <Route path={cfg.routes.app} component={Dashboard} />
-      </Switch>
+      <AccessStrategy>
+        <LicenseEnforcer />
+        <Switch>
+          <Route path={cfg.routes.console} component={Console} />
+          <Route path={cfg.routes.player} component={Player} />
+          <Route path={cfg.routes.cluster} component={EnterpriseCluster} />
+          <Route path={cfg.routes.app} component={Dashboard} />
+        </Switch>
+      </AccessStrategy>
     </Teleport>
   );
 }
