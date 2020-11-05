@@ -901,7 +901,7 @@ func (a *Server) getRolesAndExpiryFromAccessRequest(user, accessRequestID string
 		return nil, time.Time{}, trace.BadParameter("access request %q is awaiting approval", accessRequestID)
 	}
 
-	if err := services.ValidateAccessRequest(a, req, false); err != nil {
+	if err := services.ValidateAccessRequest(a, req); err != nil {
 		return nil, time.Time{}, trace.Wrap(err)
 	}
 

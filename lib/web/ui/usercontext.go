@@ -56,6 +56,8 @@ type userACL struct {
 	Tokens access `json:"tokens"`
 	// Nodes defines access to nodes.
 	Nodes access `json:"nodes"`
+	// AppServers defines access to application servers.
+	AppServers access `json:"appServers"`
 	// SSH defines access to servers
 	SSHLogins []string `json:"sshLogins"`
 }
