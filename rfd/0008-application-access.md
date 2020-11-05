@@ -21,7 +21,7 @@ The initial implementation of Teleport Application Access is targeted at users t
 
 As described in a previous section, Teleport uses TLS mutual authentication to pass identity information between internal components. However, identity information is passed to proxied applications in the form of a signed JWT in a request header named `teleport-jwt-assertion`.
 
-This identity information can be used to show the identity of the user currently logged in as well as change the state of the internal application. For example, because Teleport roles are forwarded to proxied applications within the JWT header, an control panel application could show an regular or admin view based on the Teleport identity of the user.
+This identity information can be used to show the identity of the user currently logged in, and also change the state of the internal application. For example, because Teleport roles are forwarded to proxied applications within the JWT header, an control panel application could show either a regular or admin view based on the Teleport identity of the user.
 
 #### Issuance
 
@@ -29,22 +29,22 @@ All Teleport clusters have a User and Host CA used to issue user and host SSH an
 
 #### Verification
 
-An unauthenticated endpoint will be added at https://proxy.example.com:3080/.well-known/jwks.json endpoint which returns the public keys that can be used to verify the signed JWT. Multiple keys are supported because JWT signers can be rotated similar to CAs.
+An unauthenticated endpoint will be added at https://proxy.example.com:3080/.well-known/jwks.json which returns the public keys that can be used to verify the signed JWT. Multiple keys are supported because JWT signers can be rotated similar to CAs.
 
 Many sources exist that explain the JWT signature scheme and how to verify a JWT. Introduction to JSON Web Tokens is a good starting point for general JWT information.
 
-However, we strongly recommend you use a well written and supported library in the language of your choice to validate the JWT and you not try to write parsing and validation code yourself. We have provided an example within Teleport on how to validate the JWT token written in Go.
+However, we strongly recommend you use a well written and supported library in the language of your choice to validate the JWT and you not try to write parsing and validation code yourself. We have provided an example written in Go within Teleport showing how to validate the JWT token.
 
 #### Claims
 
-The JWT embeds within it claims about the identity of the subject and issuer of the token.
+The JWT embeds claims within it about the identity of the subject and issuer of the token.
 
 The following public claims are included:
 
 * `aud`: Audience of JWT. This is the URI of the proxied application to which the request is being forwarded.
 * `exp`: Expiration time of the JWT. This value is always in sync with the expiration of the TLS certificate.
 * `iss`: Issuer of the JWT. This value is the name of the Teleport cluster issuing the token.
-* `nbf`: Not before time of the JWT. This is the time at which the JWT becomes valid.
+* `nbf`: "Not before" time of the JWT. This is the time at which the JWT becomes valid.
 * `sub`: Subject of the JWT. This is the Teleport identity of the user to whom the JWT was issued.
 
 The following private claims are included.
@@ -84,9 +84,9 @@ Decoding to the below JSON.
 
 ### Logout
 
-Each application the user launches maintains its own session. Sessions automatically TTL out after the time specified on the role and certificate.
+Each application the user launches maintains its own session. Sessions automatically expire after the TTL specified on the role and certificate.
 
-To explicitly logout a session, an authenticated session can issue a `GET /teleport-logout` or a `DELETE /teleport-logout` request.
+To explicitly log a session out, an authenticated session can issue a `GET /teleport-logout` or a `DELETE /teleport-logout` request.
 
 Internal applications and implementers are encouraged to support `DELETE /teleport-logout` in the form of a logout button within the internal application.
 
@@ -100,7 +100,7 @@ Teleport server configuration has been updated to add file, process, and role co
 
 #### File Configuration
 
-The `auth_service` section has been updated to support `app` type of static token.
+The `auth_service` section has been updated to support static tokens of type `app`.
 
 ```yaml
 auth_service:
@@ -136,8 +136,8 @@ An `app_service` section has been added to configure the application proxy servi
 
 ```yaml
 # An application service establishes a reverse tunnel to the proxy which
-# is used both to heartbeat the presence of the application as well as
-# used to establish connections through.
+# is used both to heartbeat the presence of the application and to
+# establish connections to it.
 app_service:
    # Enabled controls if the application service is enabled.
    enabled: true
@@ -146,7 +146,8 @@ app_service:
    apps:
      # Name of the application.
    - name: jenkins
-     # URI is the address the application being proxied can be reached at.
+     # URI is the address that the application being proxied can be reached at
+     # from the server running the app_service.
      uri: http://localhost:8080
      # Public address is used to override the default address the application
      # is avaiable at.
@@ -157,9 +158,10 @@ app_service:
      insecure_skip_verify: true
      # Rewriting rules that get applied to every request.
      rewrite:
-        # Rewrite the "Location" header on redirect "30{1-8}"   
-        # responses replacing the host with the public address of
-        # this application.   
+        # List of hostnames which should cause the "Location" header
+        # sent on HTTP 30{1-8} responses to be rewritten with the public 
+        # address of this application. Useful for some applications which
+        # redirect clients to their configured internal URL.
         redirect:
            - "localhost"
            - "jenkins.internal.dev"
@@ -199,8 +201,8 @@ $ teleport start \
 An additional field `app_labels` has been added to both the `allow` and `deny` section of a role. `app_labels` behaves similarly to `node_labels`.
 
 ```yaml
-kind: "role"
-version: "v3"
+kind: role
+version: v3
 spec:
   options:
     forward_agent: true
