@@ -46,6 +46,10 @@ func (p *Plugin) AddHandlers(h *web.Handler) {
 	h.GET("/enterprise/users", h.WithAuth(p.getUsersHandle))
 	h.DELETE("/enterprise/users/:username", h.WithAuth(p.deleteUserHandle))
 
+	// Access Request handlers.
+	h.POST("/enterprise/accessrequest", h.WithAuth(p.createAccessRequestHandle))
+	h.GET("/enterprise/accessrequest/:requestId", h.WithAuth(p.getAccessRequestHandle))
+
 	h.POST("/enterprise/nodes/token", h.WithAuth(p.createNodeJoinTokenHandle))
 
 	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(p.getNodeJoinScriptHandle))
