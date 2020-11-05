@@ -759,11 +759,11 @@ func (a *AuthWithRoles) CreateWebSession(user string) (services.WebSession, erro
 	return a.authServer.CreateWebSession(user)
 }
 
-func (a *AuthWithRoles) ExtendWebSession(user, prevSessionID string) (services.WebSession, error) {
+func (a *AuthWithRoles) ExtendWebSession(user, prevSessionID, accessRequestID string) (services.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.ExtendWebSession(user, prevSessionID, a.context.Identity.GetIdentity())
+	return a.authServer.ExtendWebSession(user, prevSessionID, accessRequestID, a.context.Identity.GetIdentity())
 }
 
 func (a *AuthWithRoles) GetWebSessionInfo(user string, sid string) (services.WebSession, error) {
