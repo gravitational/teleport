@@ -293,17 +293,15 @@ func (cmd *command) serveSource(ch io.ReadWriter) (retErr error) {
 }
 
 func (cmd *command) sendDir(r *reader, ch io.ReadWriter, fileInfo FileInfo) error {
-	// TODO(dmitri): preserve attributes on directory
-	out := fmt.Sprintf("D%04o 0 %s\n", fileInfo.GetModePerm(), fileInfo.GetName())
-	cmd.log.Debugf("sendDir: %v", out)
-	_, err := io.WriteString(ch, out)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := r.read(); err != nil {
+	if err := cmd.sendDirMode(r, ch, fileInfo); err != nil {
 		return trace.Wrap(err)
 	}
 
+	if cmd.Config.Flags.PreserveAttrs {
+		if err := cmd.sendFileTimes(r, ch, fileInfo); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	cmd.log.Debug("sendDir got OK")
 
 	fileInfos, err := fileInfo.ReadDir()
@@ -339,12 +337,12 @@ func (cmd *command) sendFile(r *reader, ch io.ReadWriter, fileInfo FileInfo) err
 	defer reader.Close()
 
 	if cmd.Config.Flags.PreserveAttrs {
-		if err := sendFileTimes(r, ch, fileInfo); err != nil {
+		if err := cmd.sendFileTimes(r, ch, fileInfo); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
-	if err := sendFileMode(r, ch, fileInfo); err != nil {
+	if err := cmd.sendFileMode(r, ch, fileInfo); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -459,7 +457,7 @@ func (cmd *command) processCommand(ch io.ReadWriter, st *state, b byte, line str
 	case 'E':
 		return st.pop()
 	case 'T':
-		stat, err := parseMtime(line)
+		stat, err := parseFileTimes(line)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -535,21 +533,34 @@ func (cmd *command) receiveDir(st *state, fc newFileCmd, ch io.ReadWriter) error
 	}
 
 	if st.stat != nil {
-		// TODO(dmitri): set times on the directory
-		// err = cmd.FileSystem.Chtimes(path, st.stat.Atime, st.stat.Atime)
-		// if err != nil {
-		// 	return trace.Wrap(err)
-		// }
+		err = cmd.FileSystem.Chtimes(targetDir, st.stat.Atime, st.stat.Atime)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
 }
 
-func sendFileTimes(r *reader, ch io.Writer, fileInfo FileInfo) error {
+func (cmd *command) sendDirMode(r *reader, ch io.Writer, fileInfo FileInfo) error {
+	out := fmt.Sprintf("D%04o 0 %s\n", fileInfo.GetModePerm(), fileInfo.GetName())
+	cmd.log.WithField("cmd", out).Debug("Send directory mode.")
+	_, err := io.WriteString(ch, out)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := r.read(); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (cmd *command) sendFileTimes(r *reader, ch io.Writer, fileInfo FileInfo) error {
 	out := fmt.Sprintf("T%d 0 %d 0\n",
 		fileInfo.GetModTime().Unix(),
 		fileInfo.GetAccessTime().Unix(),
 	)
+	cmd.log.WithField("cmd", out).Debug("Send file times.")
 	_, err := io.WriteString(ch, out)
 	if err != nil {
 		return trace.Wrap(err)
@@ -557,12 +568,13 @@ func sendFileTimes(r *reader, ch io.Writer, fileInfo FileInfo) error {
 	return trace.Wrap(r.read())
 }
 
-func sendFileMode(r *reader, ch io.Writer, fileInfo FileInfo) error {
+func (cmd *command) sendFileMode(r *reader, ch io.Writer, fileInfo FileInfo) error {
 	out := fmt.Sprintf("C%04o %d %s\n",
 		fileInfo.GetModePerm(),
 		fileInfo.GetSize(),
 		fileInfo.GetName(),
 	)
+	cmd.log.WithField("cmd", out).Debug("Send file mode.")
 	_, err := io.WriteString(ch, out)
 	if err != nil {
 		return trace.Wrap(err)
@@ -608,7 +620,13 @@ type mtimeCmd struct {
 	Atime time.Time
 }
 
-func parseMtime(line string) (*mtimeCmd, error) {
+// parseFileTimes parses the input with access/modification file times:
+//
+// T<mtime.sec> <mtime.usec> <atime.sec> <atime.usec>
+//
+// Note that the leading 'T' will not be part of the input as it has already
+// been seen and removed
+func parseFileTimes(line string) (*mtimeCmd, error) {
 	parts := strings.SplitN(line, " ", 4)
 	if len(parts) != 4 {
 		return nil, trace.Errorf("broken mtime command")
