@@ -33,7 +33,7 @@ This release of Teleport contains a bug fix.
 
 ### 4.4.0
 
-This is a major Teleport release with a focus on new features, functionality, and bug fixes. It’s a substantial release and users can review [4.3 closed issues](https://github.com/gravitational/teleport/milestone/40?closed=1) on Github for details of all items.
+This is a major Teleport release with a focus on new features, functionality, and bug fixes. It’s a substantial release and users can review [4.4 closed issues](https://github.com/gravitational/teleport/milestone/40?closed=1) on Github for details of all items.
 
 #### New Features
 
