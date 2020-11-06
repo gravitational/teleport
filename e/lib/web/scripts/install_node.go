@@ -130,7 +130,7 @@ read_nonblank_input() {
     INPUT=""
     VARIABLE_TO_ASSIGN="$1"
     shift
-    PROMPT="$@"
+    PROMPT="$*"
     until [[ "${INPUT}" != "" ]]; do
         echo -n "${PROMPT}"
         read -r INPUT
