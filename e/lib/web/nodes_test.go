@@ -77,7 +77,6 @@ func TestGetNodeJoinScript(t *testing.T) {
 }
 
 func TestURLEscaping(t *testing.T) {
-	t.Parallel()
 	tests := []struct {
 		desc        string
 		input       string
@@ -146,7 +145,6 @@ func TestURLEscaping(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
-			t.Parallel()
 			output, err := unescapeAndStripParameter(tc.input)
 			if tc.shouldError {
 				require.NotNil(t, err)
@@ -160,7 +158,6 @@ func TestURLEscaping(t *testing.T) {
 }
 
 func TestGetAppJoinScript(t *testing.T) {
-	t.Parallel()
 	m := &mockedNodeAPIGetter{}
 	m.mockGetProxyServers = func() ([]services.Server, error) {
 		var s services.ServerV2
@@ -261,7 +258,6 @@ func TestGetAppJoinScript(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
-			t.Parallel()
 			script, err = getJoinScript(tc.settings, m)
 			require.Nil(t, err)
 			for _, output := range tc.outputs {
