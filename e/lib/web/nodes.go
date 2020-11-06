@@ -6,6 +6,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -21,39 +24,109 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-func (p *Plugin) createNodeJoinTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+// scriptSettings is used to hold values which are passed into the function that
+// generates the join script.
+type scriptSettings struct {
+	token          string
+	appInstallMode bool
+	appName        string
+	appURI         string
+}
+
+func (p *Plugin) createScriptJoinTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return createNodeJoinToken(r.Context(), clt)
+	return createScriptJoinToken(r.Context(), clt)
 }
 
 func (p *Plugin) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	scripts.SetScriptHeaders(w.Header())
-	token := params.ByName("token")
 
-	script, err := getNodeJoinScript(token, p.ProxyClient)
+	settings := scriptSettings{
+		token:          params.ByName("token"),
+		appInstallMode: false,
+	}
+
+	script, err := getJoinScript(settings, p.ProxyClient)
 	if err != nil {
-		log.WithError(err).Info("Failed to return the install node script.")
+		log.WithError(err).Info("Failed to return the node install script.")
 		w.Write(scripts.ErrorBashScript)
 		return nil, nil
 	}
 
 	w.WriteHeader(http.StatusOK)
 	if _, err := fmt.Fprintln(w, script); err != nil {
-		log.WithError(err).Debug("Failed to return the install node script.")
+		log.WithError(err).Info("Failed to return the node install script.")
 		w.Write(scripts.ErrorBashScript)
 	}
 
 	return nil, nil
 }
 
-func createNodeJoinToken(ctx context.Context, m nodeAPIGetter) (*ui.NodeJoinToken, error) {
+// unescapeAndStripParameter returns an URI-unescaped version of the input string,
+// where double quotes (") will be replaced with an escaped version (\")
+func unescapeAndStripParameter(parameter string) (string, error) {
+	unescape, err := url.QueryUnescape(parameter)
+	if err != nil {
+		return "", err
+	}
+	// replace all " characters with \", as the bash script uses double quotes to contain
+	// variables and unescaped " characters will result in weird breakages
+	unescape = strings.ReplaceAll(unescape, "\"", "\\\"")
+	return unescape, nil
+}
+
+func (p *Plugin) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
+	scripts.SetScriptHeaders(w.Header())
+	queryValues := r.URL.Query()
+
+	name, err := unescapeAndStripParameter(queryValues.Get("name"))
+	if err != nil {
+		log.WithError(err).Debug("Failed to return the app install script.")
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
+	}
+
+	uri, err := unescapeAndStripParameter(queryValues.Get("uri"))
+	if err != nil {
+		log.WithError(err).Debug("Failed to return the app install script.")
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
+	}
+
+	settings := scriptSettings{
+		token:          params.ByName("token"),
+		appInstallMode: true,
+		appName:        name,
+		appURI:         uri,
+	}
+
+	script, err := getJoinScript(settings, p.ProxyClient)
+	if err != nil {
+		log.WithError(err).Info("Failed to return the app install script.")
+		w.Write(scripts.ErrorBashScript)
+		return nil, nil
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if _, err := fmt.Fprintln(w, script); err != nil {
+		log.WithError(err).Debug("Failed to return the app install script.")
+		w.Write(scripts.ErrorBashScript)
+	}
+
+	return nil, nil
+}
+
+func createScriptJoinToken(ctx context.Context, m nodeAPIGetter) (*ui.NodeJoinToken, error) {
 	req := auth.GenerateTokenRequest{
-		Roles: teleport.Roles{teleport.RoleNode},
-		TTL:   defaults.NodeJoinTokenTTL,
+		Roles: teleport.Roles{
+			teleport.RoleNode,
+			teleport.RoleApp,
+		},
+		TTL: defaults.NodeJoinTokenTTL,
 	}
 
 	token, err := m.GenerateToken(ctx, req)
@@ -67,12 +140,12 @@ func createNodeJoinToken(ctx context.Context, m nodeAPIGetter) (*ui.NodeJoinToke
 	}, nil
 }
 
-func getNodeJoinScript(token string, m nodeAPIGetter) (string, error) {
+func getJoinScript(settings scriptSettings, m nodeAPIGetter) (string, error) {
 	// This token does not need to be validated against the backend because it's not used to
 	// reveal any sensitive information. However, we still need to perform a simple input
 	// validation check by verifying that the token was auto-generated.
 	// Auto-generated tokens must be encoded and must have an expected length.
-	decodedToken, err := hex.DecodeString(token)
+	decodedToken, err := hex.DecodeString(settings.token)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -111,12 +184,27 @@ func getNodeJoinScript(token string, m nodeAPIGetter) (string, error) {
 	caPin := utils.CalculateSPKI(tlsCA)
 
 	var buf bytes.Buffer
+	// If app install mode is requested but parameters are blank for some reason,
+	// we need to return an error.
+	if settings.appInstallMode == true {
+		if settings.appName == "" {
+			return "", trace.BadParameter("appName is not set")
+		}
+		if settings.appURI == "" {
+			return "", trace.BadParameter("appURI is not set")
+		}
+	}
+	// This section relies on Go's default zero values to make sure that the settings
+	// are correct when not installing an app.
 	err = scripts.InstallNodeBashScript.Execute(&buf, map[string]string{
-		"token":    token,
-		"hostname": hostname,
-		"port":     portStr,
-		"caPin":    caPin,
-		"version":  version,
+		"token":          settings.token,
+		"hostname":       hostname,
+		"port":           portStr,
+		"caPin":          caPin,
+		"version":        version,
+		"appInstallMode": strconv.FormatBool(settings.appInstallMode),
+		"appName":        settings.appName,
+		"appURI":         settings.appURI,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)

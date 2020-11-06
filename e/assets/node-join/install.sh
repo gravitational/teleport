@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-SCRIPT_NAME="teleport-node-installer"
+SCRIPT_NAME="teleport-installer"
 
 # default values
 CONNECTIVITY_TEST_METHOD=""
@@ -28,30 +28,37 @@ NODENAME=$(hostname)
 IGNORE_CHECKS=false
 OVERRIDE_FORMAT=""
 QUIET=false
+APP_INSTALL_DECISION=""
+INTERACTIVE=false
 
 # the default value of each variable is a templatable Go value so that it can
 # optionally be replaced by the server before the script is served up
 TELEPORT_VERSION="{{.version}}"
 TARGET_HOSTNAME="{{.hostname}}"
 TARGET_PORT="{{.port}}"
-NODE_JOIN_TOKEN="{{.token}}"
+JOIN_TOKEN="{{.token}}"
 CA_PIN_HASH="{{.caPin}}"
+APP_INSTALL_MODE="{{.appInstallMode}}"
+APP_NAME="{{.appName}}"
+APP_URI="{{.appURI}}"
 
-# usage mesage
+# usage message
 # shellcheck disable=SC2086
-usage() { echo "Usage: $(basename $0) [-v teleport_version] [-h target_hostname] [-p target_port> [-j node_join_token] [-c ca_pin_hash] [-q] [-l log_filename]" 1>&2; exit 1; }
-while getopts ":v:h:p:j:c:f:ql:ik" o; do
+usage() { echo "Usage: $(basename $0) [-v teleport_version] [-h target_hostname] [-p target_port> [-j join_token ] [-c ca_pin_hash] [-q] [-l log_filename] [-a app_name] [-u app_uri] " 1>&2; exit 1; }
+while getopts ":v:h:p:j:c:f:ql:ika:u:" o; do
     case "${o}" in
         v)  TELEPORT_VERSION=${OPTARG};;
         h)  TARGET_HOSTNAME=${OPTARG};;
         p)  TARGET_PORT=${OPTARG};;
-        j)  NODE_JOIN_TOKEN=${OPTARG};;
+        j)  JOIN_TOKEN=${OPTARG};;
         c)  CA_PIN_HASH=${OPTARG};;
         f)  f=${OPTARG}; if [[ ${f} != "tarball" && ${f} != "deb" && ${f} != "rpm" && ${f} != "rpm-centos6" ]]; then usage; fi;;
         q)  QUIET=true;;
         l)  l=${OPTARG};;
         i)  IGNORE_CHECKS=true; COPY_COMMAND="cp -f";;
         k)  DISABLE_TLS_VERIFICATION=true;;
+        a)  APP_INSTALL_MODE=true && APP_NAME=${OPTARG};;
+        u)  APP_INSTALL_MODE=true && APP_URI=${OPTARG};;
         *)  usage;;
     esac
 done
@@ -82,17 +89,58 @@ check_variable() {
     return 0
 }
 
+# function to check whether a provided value is "truthy" i.e. it looks like you're trying to say "yes"
+is_truthy() {
+    declare -a TRUTHY_VALUES
+    TRUTHY_VALUES=("y" "Y" "yes" "YES" "ye" "YE" "yep" "YEP" "ya" "YA")
+    CHECK_VALUE="$1"
+    for ARRAY_VALUE in "${TRUTHY_VALUES[@]}"; do [[ "${CHECK_VALUE}" == "${ARRAY_VALUE}" ]] && return 0; done
+    return 1
+}
+
+# function to read input until the value you get is non-empty
+read_nonblank_input() {
+    INPUT=""
+    VARIABLE_TO_ASSIGN="$1"
+    shift
+    PROMPT="$@"
+    until [[ "${INPUT}" != "" ]]; do
+        echo -n "${PROMPT}"
+        read -r INPUT
+    done
+    printf -v ${VARIABLE_TO_ASSIGN} '%s' ${INPUT}
+}
+
 # set/read values interactively if not provided
 # users will be prompted to enter their own value if all the following are true:
 # - the current value is blank, or equal to the default Go template value
 # - the value has not been provided by command line argument
-! check_variable TELEPORT_VERSION version && { echo -n "Enter Teleport version to install (without v): "; read -r TELEPORT_VERSION; }
-! check_variable TARGET_HOSTNAME hostname && { echo -n "Enter target hostname to connect node to: "; read -r TARGET_HOSTNAME; }
-! check_variable TARGET_PORT port && { echo -n "Enter target port to connect node to [${TARGET_PORT_DEFAULT}]: "; read -r TARGET_PORT; }
-! check_variable NODE_JOIN_TOKEN token && { echo -n "Enter Teleport node join token as provided: "; read -r NODE_JOIN_TOKEN; }
-! check_variable CA_PIN_HASH caPin && { echo -n "Enter CA pin hash: "; read -r CA_PIN_HASH; }
+! check_variable TELEPORT_VERSION version && INTERACTIVE=true && read_nonblank_input TELEPORT_VERSION "Enter Teleport version to install (without v): "
+! check_variable TARGET_HOSTNAME hostname && INTERACTIVE=true && read_nonblank_input TARGET_HOSTNAME "Enter target hostname to connect to: "
+! check_variable TARGET_PORT port && INTERACTIVE=true && { echo -n "Enter target port to connect to [${TARGET_PORT_DEFAULT}]: "; read -r TARGET_PORT; }
+! check_variable JOIN_TOKEN token && INTERACTIVE=true && read_nonblank_input JOIN_TOKEN "Enter Teleport join token as provided: "
+! check_variable CA_PIN_HASH caPin && INTERACTIVE=true && read_nonblank_input CA_PIN_HASH "Enter CA pin hash: "
 [ -n "${f}" ] && OVERRIDE_FORMAT=${f}
 [ -n "${l}" ] && LOG_FILENAME=${l}
+# if app service mode is not set (or is the default value) and we are running interactively (i.e. the user has provided some input already),
+# prompt the user to choose whether to enable app_service
+if [[ "${INTERACTIVE}" == "true" ]]; then
+    if ! check_variable APP_INSTALL_MODE appInstallMode; then
+        APP_INSTALL_MODE="false"
+        echo -n "Would you like to enable and configure Teleport's app_service, to use Teleport as a reverse proxy for a web application? [y/n, default: n] "
+        read -r APP_INSTALL_DECISION
+        if is_truthy "${APP_INSTALL_DECISION}"; then
+            APP_INSTALL_MODE="true"
+        fi
+    fi
+fi
+# prompt for extra needed values if we're running in app service mode
+if [[ "${APP_INSTALL_MODE}" == "true" ]]; then
+    ! check_variable APP_NAME appName && read_nonblank_input APP_NAME "Enter app name to install (must be DNS-compatible; less than 63 characters, no spaces, only - or _ as punctuation): "
+    ! check_variable APP_URI appURI && read_nonblank_input APP_URI "Enter app URI (the host running the Teleport app service must be able to connect to this): "
+    # generate app public addr by concatenating values
+    APP_PUBLIC_ADDR="${APP_NAME}.${TARGET_HOSTNAME}"
+fi
 
 # set default target port if value not provided
 if [[ "${TARGET_PORT}" == "" ]]; then
@@ -299,13 +347,40 @@ install_systemd_unit() {
     log "Reloading unit files (systemctl daemon-reload)"
     systemctl daemon-reload
 }
-# installs the provided teleport config
-install_teleport_config() {
-    log "Writing Teleport config to ${TELEPORT_CONFIG_PATH}"
+# installs the provided teleport config (for app service)
+install_teleport_app_config() {
+    log "Writing Teleport app service config to ${TELEPORT_CONFIG_PATH}"
     cat << EOF > ${TELEPORT_CONFIG_PATH}
 teleport:
   nodename: ${NODENAME}
-  auth_token: ${NODE_JOIN_TOKEN}
+  auth_token: ${JOIN_TOKEN}
+  ca_pin: ${CA_PIN_HASH}
+  auth_servers:
+  - ${TARGET_HOSTNAME}:${TARGET_PORT}
+  log:
+    output: stderr
+    severity: INFO
+auth_service:
+  enabled: no
+ssh_service:
+  enabled: yes
+proxy_service:
+  enabled: no
+app_service:
+  enabled: yes
+  apps:
+  - name: ${APP_NAME}
+    uri: "${APP_URI}"
+    public_addr: ${APP_PUBLIC_ADDR}
+EOF
+}
+# installs the provided teleport config (for node service)
+install_teleport_node_config() {
+    log "Writing Teleport node service config to ${TELEPORT_CONFIG_PATH}"
+    cat << EOF > ${TELEPORT_CONFIG_PATH}
+teleport:
+  nodename: ${NODENAME}
+  auth_token: ${JOIN_TOKEN}
   ca_pin: ${CA_PIN_HASH}
   auth_servers:
   - ${TARGET_HOSTNAME}:${TARGET_PORT}
@@ -410,8 +485,13 @@ teleport_datadir_exists() { if [ -d ${TELEPORT_DATA_DIR} ]; then return 0; else 
 check_set TELEPORT_VERSION
 check_set TARGET_HOSTNAME
 check_set TARGET_PORT
-check_set NODE_JOIN_TOKEN
+check_set JOIN_TOKEN
 check_set CA_PIN_HASH
+if [[ "${APP_INSTALL_MODE}" == "true" ]]; then
+    check_set APP_NAME
+    check_set APP_URI
+    check_set APP_PUBLIC_ADDR
+fi
 
 ###
 # main script starts here
@@ -675,7 +755,12 @@ if ! check_teleport_binary; then
 fi
 
 # install teleport config
-install_teleport_config
+# check whether we're running in app mode so we can write the appropriate config type
+if [[ "${APP_INSTALL_MODE}" == "true" ]]; then
+    install_teleport_app_config
+else
+    install_teleport_node_config
+fi
 
 # install systemd unit if applicable (linux hosts)
 if is_using_systemd; then
