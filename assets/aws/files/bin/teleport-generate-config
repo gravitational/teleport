@@ -3,10 +3,11 @@ if [[ "${DEBUG}" == "true" ]]; then
     set -x
 fi
 
-# Back up existing config file if it exists
+# If a copy of the Teleport config file already exists, don't change it
+# and just exit this script with success.
 if [ -f /etc/teleport.yaml ]; then
-    rm -f /etc/teleport.yaml.old
-    cp /etc/teleport.yaml /etc/teleport.yaml.old
+    echo "/etc/teleport.yaml already exists. Exiting with success."
+    exit 0
 fi
 
 # Setup Teleport config file
