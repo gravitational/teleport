@@ -20,7 +20,7 @@ TELEPORT_VERSION ?= 4.4.4
 TELEPORT_UID ?= 1007
 
 # Instance type to build the AMI on
-INSTANCE_TYPE ?= t2.micro
+INSTANCE_TYPE ?= t2.medium
 
 # Use comma-separated values without spaces for multiple regions
 # For now, limit AMI to regions with DynamoDB encryption at rest enabled
