@@ -71,10 +71,9 @@ func DetectFormat(r io.ReadSeeker) (*Header, error) {
 	return &Header{Tar: true}, nil
 }
 
-// Export exports session file events to json, text or yaml
+// Export converts session files from binary/protobuf to text/JSON.
 func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat string) error {
 	switch exportFormat {
-	case teleport.Text:
 	case teleport.JSON:
 	default:
 		return trace.BadParameter("unsupported format %q, %q is the only supported format", exportFormat, teleport.JSON)
@@ -113,12 +112,11 @@ func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat str
 				return trace.BadParameter("unsupported format %q, %q is the only supported format", exportFormat, teleport.JSON)
 			}
 		}
-
 	case format.Tar == true:
 		return trace.BadParameter(
 			"to review the events in format of teleport before version 4.4, extract the tarball and look inside")
 	default:
-		return trace.BadParameter("usupported format %v", format)
+		return trace.BadParameter("unsupported format %v", format)
 	}
 }
 
