@@ -144,8 +144,8 @@ should be approved/denied.
 ### Example Setup
 
 **Unprivileged User**<br>
-In this example we've a employee, who isn't able to access any systems. When they
-login they'll always need to provide a reason to access.
+In this example we have an employee who isn't able to access any systems. When they
+log in, they'll always need to provide a reason for access.
 
 ```yaml
 kind: role
@@ -157,14 +157,14 @@ spec:
       # the `roles` list can now be a mixture of literals and wildcard matchers
       roles: ['common', 'dev-*']
       # the `claims_to_roles` mapping works the same as it does in
-      # the oidc connector, with the added benefit that the mapped to roles
-      # can also be matchers.  the below mapping says that users with
+      # the OIDC connector, with the added benefit that the roles being mapped to
+      # can also be matchers. the below mapping says that users with
       # the claims `groups: admins` can request any role in the system.
       claims_to_roles:
         - claim: groups
           value: admins
           roles: ['*']
-      # teleport can attach annotations to pending access requests. these
+      # Teleport can attach annotations to pending access requests. these
       # annotations may be literals, or be variable interpolation expressions,
       # effectively creating a means for propagating selected claims from an
       # external identity provider to the plugin system.
@@ -173,7 +173,7 @@ spec:
         groups: ['{% raw %}{{external.groups}}{% endraw %}']
   options:
     # the `request_access` field can be set to 'always' or 'reason' to tell
-    # tsh of the web UI to always create an access request on login.  If it is
+    # tsh or the web UI to always create an access request on login. If it is
     # set to 'reason', the user will be required to indicate *why* they are
     # generating the access request.
     request_access: reason
@@ -194,7 +194,7 @@ tsh login --request-reason="..."
 
 !!! Note
 
-    Notice that the above role does not specify any logins. If a users's roles specify no logins, teleport will now generate the user's initial SSH certificates with an invalid dummy login of the form `-teleport-nologin-<uuid>` (e.g. `-teleport-nologin-1e02dbfd-8f6e-47a0-a66c-93747b010f88`).
+    Notice that the above role does not specify any logins. If a users's roles specify no logins, Teleport will now generate the user's initial SSH certificates with an invalid dummy login of the form `-teleport-nologin-<uuid>` (e.g. `-teleport-nologin-1e02dbfd-8f6e-47a0-a66c-93747b010f88`).
 
 **Admin Flow: Approval/Deny**<br>
 
