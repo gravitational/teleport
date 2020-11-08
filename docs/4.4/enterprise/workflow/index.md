@@ -132,12 +132,12 @@ deny:
 ## Adding a reason to approval requests
 
 Teleport 4.4.4 introduced the ability for users to request additional roles. `tctl`
-or the Access Workflow API makes it easy to dynamically approve or deny these requests.
+or the Access Workflows API makes it easy to dynamically approve or deny these requests.
 
-In the Supporting users that start in an essentially unprivileged state and must
-always go through the dynamic access API in order to gain meaningful privilege.
+By using notes you can provide users with an unprivileged state and must
+always go through the Access Workflows API  in order to gain meaningful privilege.
 
-Leveraging the claims (traits) provided by external identity providers both when
+Teams can leverage claims (traits) provided by external identity providers both when
 determining which roles a user is allowed to request, and if a specific request
 should be approved/denied.
 
@@ -154,7 +154,7 @@ metadata:
 spec:
   allow:
     request:
-      # the `roles` list can now be a mixture of literals and matchers
+      # the `roles` list can now be a mixture of literals and wildcard matchers
       roles: ['common', 'dev-*']
       # the `claims_to_roles` mapping works the same as it does in
       # the oidc connector, with the added benefit that the mapped to roles
@@ -201,13 +201,13 @@ tsh login --request-reason="..."
 A number of new parameters are now available that allow the plugin or administrator to grant greater insight into approvals/denials:
 
 ```bash
-$ tctl request deny --reason='' --annotations=method=cli,unix-user=${USER} 28a3fb86-0230-439d-ad88-11cfcb213193
+$ tctl request deny --reason='Please be more specific' --annotations=method=cli,unix-user=${USER} 28a3fb86-0230-439d-ad88-11cfcb213193
 ```
 
 Because automatically generated requests always include all roles that the user is allowed to request, approvers can now specify a smaller subset of the requested roles that should actually be applied, allowing for sub-selection in cases where full escalation is not a desirable default:
 
 ```bash
-$ tctl request approve --roles=role-1,role-3 --reason='thats cool, but no role-2 right now' 28a3fb86-0230-439d-ad88-11cfcb213193
+$ tctl request approve --roles=role-1,role-3 --reason='Approved, but not role-2 right now' 28a3fb86-0230-439d-ad88-11cfcb213193
 ```
 
 ### Other features of Approval Workflows.
