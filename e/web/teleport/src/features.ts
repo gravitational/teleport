@@ -14,18 +14,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import TeleportContextProvider, {
-  useTeleport,
-} from 'teleport/teleportContextProvider';
-import CommunityContext from 'teleport/teleportContext';
-import resourceService from './services/resources';
+import * as Features from 'teleport/features';
 
-export default class EnterpriseContext extends CommunityContext {
-  resourceService = resourceService;
+export default function getFeatures() {
+  return [
+    new Features.FeatureNodes(),
+    new Features.FeatureApps(),
+    new Features.FeatureSessions(),
+    new Features.FeatureRecordings(),
+    new Features.FeatureAudit(),
+    new Features.FeatureUsers(),
+    new Features.FeatureRoles(),
+    new Features.FeatureAuthConnectors(),
+    new Features.FeatureClusters(),
+    new Features.FeatureTrust(),
+    new Features.FeatureHelpAndSupport(),
+    new Features.FeatureAccount(),
+  ];
 }
-
-export function useTeleportE() {
-  return useTeleport() as EnterpriseContext;
-}
-
-export { TeleportContextProvider };
