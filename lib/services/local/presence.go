@@ -152,8 +152,8 @@ func (s *PresenceService) DeleteNamespace(namespace string) error {
 	return trace.Wrap(err)
 }
 
-func (s *PresenceService) getServers(kind, prefix string) ([]services.Server, error) {
-	result, err := s.GetRange(context.TODO(), backend.Key(prefix), backend.RangeEnd(backend.Key(prefix)), backend.NoLimit)
+func (s *PresenceService) getServers(ctx context.Context, kind, prefix string) ([]services.Server, error) {
+	result, err := s.GetRange(ctx, backend.Key(prefix), backend.RangeEnd(backend.Key(prefix)), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -175,12 +175,12 @@ func (s *PresenceService) getServers(kind, prefix string) ([]services.Server, er
 	return servers, nil
 }
 
-func (s *PresenceService) upsertServer(prefix string, server services.Server) error {
+func (s *PresenceService) upsertServer(ctx context.Context, prefix string, server services.Server) error {
 	value, err := services.GetServerMarshaler().MarshalServer(server)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = s.Put(context.TODO(), backend.Item{
+	_, err = s.Put(ctx, backend.Item{
 		Key:     backend.Key(prefix, server.GetName()),
 		Value:   value,
 		Expires: server.Expiry(),
@@ -316,13 +316,13 @@ func (s *PresenceService) UpsertNodes(namespace string, servers []services.Serve
 
 // GetAuthServers returns a list of registered servers
 func (s *PresenceService) GetAuthServers() ([]services.Server, error) {
-	return s.getServers(services.KindAuthServer, authServersPrefix)
+	return s.getServers(context.TODO(), services.KindAuthServer, authServersPrefix)
 }
 
 // UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
 func (s *PresenceService) UpsertAuthServer(server services.Server) error {
-	return s.upsertServer(authServersPrefix, server)
+	return s.upsertServer(context.TODO(), authServersPrefix, server)
 }
 
 // DeleteAllAuthServers deletes all auth servers
@@ -340,12 +340,12 @@ func (s *PresenceService) DeleteAuthServer(name string) error {
 // UpsertProxy registers proxy server presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
 func (s *PresenceService) UpsertProxy(server services.Server) error {
-	return s.upsertServer(proxiesPrefix, server)
+	return s.upsertServer(context.TODO(), proxiesPrefix, server)
 }
 
 // GetProxies returns a list of registered proxies
 func (s *PresenceService) GetProxies() ([]services.Server, error) {
-	return s.getServers(services.KindProxy, proxiesPrefix)
+	return s.getServers(context.TODO(), services.KindProxy, proxiesPrefix)
 }
 
 // DeleteAllProxies deletes all proxies
@@ -1005,13 +1005,27 @@ func (s *PresenceService) DeleteSemaphore(ctx context.Context, filter services.S
 }
 
 // UpsertKubeService registers kubernetes service presence.
-func (s *PresenceService) UpsertKubeService(server services.Server) error {
-	return s.upsertServer(kubeServicesPrefix, server)
+func (s *PresenceService) UpsertKubeService(ctx context.Context, server services.Server) error {
+	return s.upsertServer(ctx, kubeServicesPrefix, server)
 }
 
 // GetKubeServices returns a list of registered kubernetes services.
-func (s *PresenceService) GetKubeServices() ([]services.Server, error) {
-	return s.getServers(services.KindKubeService, kubeServicesPrefix)
+func (s *PresenceService) GetKubeServices(ctx context.Context) ([]services.Server, error) {
+	return s.getServers(ctx, services.KindKubeService, kubeServicesPrefix)
+}
+
+// DeleteKubeService deletes a named kubernetes service.
+func (s *PresenceService) DeleteKubeService(ctx context.Context, name string) error {
+	return trace.Wrap(s.Delete(ctx, backend.Key(kubeServicesPrefix, name)))
+}
+
+// DeleteAllKubeServices deletes all registered kubernetes services.
+func (s *PresenceService) DeleteAllKubeServices(ctx context.Context) error {
+	return trace.Wrap(s.DeleteRange(
+		ctx,
+		backend.Key(kubeServicesPrefix),
+		backend.RangeEnd(backend.Key(kubeServicesPrefix)),
+	))
 }
 
 // GetAppServers gets all application servers.

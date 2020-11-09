@@ -173,10 +173,7 @@ type Presence interface {
 	DeleteAllRemoteClusters() error
 
 	// UpsertKubeService registers kubernetes service presence.
-	UpsertKubeService(server Server) error
-
-	// GetKubeServices returns a list of registered kubernetes services.
-	GetKubeServices() ([]Server, error)
+	UpsertKubeService(context.Context, Server) error
 
 	// GetAppServers gets all application servers.
 	GetAppServers(context.Context, string, ...MarshalOption) ([]Server, error)
@@ -192,6 +189,15 @@ type Presence interface {
 
 	// KeepAliveServer updates TTL of the server resource in the backend.
 	KeepAliveServer(ctx context.Context, h KeepAlive) error
+
+	// GetKubeServices returns a list of registered kubernetes services.
+	GetKubeServices(context.Context) ([]Server, error)
+
+	// DeleteKubeService deletes a named kubernetes service.
+	DeleteKubeService(ctx context.Context, name string) error
+
+	// DeleteAllKubeServices deletes all registered kubernetes services.
+	DeleteAllKubeServices(context.Context) error
 }
 
 // NewNamespace returns new namespace

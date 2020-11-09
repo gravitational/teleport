@@ -2951,7 +2951,7 @@ func (c *Client) DeleteSemaphore(ctx context.Context, filter services.SemaphoreF
 
 // UpsertKubeService is used by kubernetes services to report their presence
 // to other auth servers in form of hearbeat expiring after ttl period.
-func (c *Client) UpsertKubeService(s services.Server) error {
+func (c *Client) UpsertKubeService(ctx context.Context, s services.Server) error {
 	data, err := services.GetServerMarshaler().MarshalServer(s)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2965,7 +2965,7 @@ func (c *Client) UpsertKubeService(s services.Server) error {
 
 // GetKubeServices returns the list of kubernetes services registered in the
 // cluster.
-func (c *Client) GetKubeServices() ([]services.Server, error) {
+func (c *Client) GetKubeServices(ctx context.Context) ([]services.Server, error) {
 	out, err := c.Get(c.Endpoint("kube_services"), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3180,6 +3180,18 @@ func (c *Client) GenerateAppToken(ctx context.Context, req jwt.GenerateAppTokenR
 	}
 
 	return resp.GetToken(), nil
+}
+
+// DeleteKubeService deletes a named kubernetes service.
+func (c *Client) DeleteKubeService(ctx context.Context, name string) error {
+	_, err := c.Delete(c.Endpoint("kube_services", name))
+	return trace.Wrap(err)
+}
+
+// DeleteAllKubeServices deletes all registered kubernetes services.
+func (c *Client) DeleteAllKubeServices(ctx context.Context) error {
+	_, err := c.Delete(c.Endpoint("kube_services"))
+	return trace.Wrap(err)
 }
 
 // WebService implements features used by Web UI clients
