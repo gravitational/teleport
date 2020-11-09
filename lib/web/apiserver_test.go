@@ -282,6 +282,9 @@ func (s *WebSuite) SetUpTest(c *C) {
 	addr := utils.MustParseAddr(s.webServer.Listener.Addr().String())
 	handler.handler.cfg.ProxyWebAddr = *addr
 	handler.handler.cfg.ProxySSHAddr = *proxyAddr
+	_, sshPort, err := net.SplitHostPort(proxyAddr.String())
+	c.Assert(err, IsNil)
+	handler.handler.sshPort = sshPort
 }
 
 func (s *WebSuite) TearDownTest(c *C) {
@@ -999,6 +1002,10 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 	c.Assert(err, IsNil)
 
 	ws, err := s.makeTerminal(s.authPack(c, "foo"))
+	c.Assert(err, IsNil)
+
+	// flush out raw event (pty texts)
+	err = s.waitForRawEvent(ws, 5*time.Second)
 	c.Assert(err, IsNil)
 
 	var numPings int

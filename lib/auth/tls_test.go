@@ -1419,7 +1419,7 @@ func (s *TLSSuite) TestOTPCRUD(c *check.C) {
 // TestWebSessions tests web sessions flow for web user,
 // that logs in, extends web session and tries to perform administratvie action
 // but fails
-func (s *TLSSuite) TestWebSessions(c *check.C) {
+func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	clt, err := s.server.NewClient(TestAdmin())
 	c.Assert(err, check.IsNil)
 
@@ -1456,7 +1456,7 @@ func (s *TLSSuite) TestWebSessions(c *check.C) {
 	_, err = web.GetWebSessionInfo(user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
-	new, err := web.ExtendWebSession(user, ws.GetName())
+	new, err := web.ExtendWebSession(user, ws.GetName(), "")
 	c.Assert(err, check.IsNil)
 	c.Assert(new, check.NotNil)
 
@@ -1470,8 +1470,77 @@ func (s *TLSSuite) TestWebSessions(c *check.C) {
 	_, err = web.GetWebSessionInfo(user, ws.GetName())
 	c.Assert(err, check.NotNil)
 
-	_, err = web.ExtendWebSession(user, ws.GetName())
+	_, err = web.ExtendWebSession(user, ws.GetName(), "")
 	c.Assert(err, check.NotNil)
+}
+
+func (s *TLSSuite) TestWebSessionWithApprovedAccessRequest(c *check.C) {
+	clt, err := s.server.NewClient(TestAdmin())
+	c.Assert(err, check.IsNil)
+
+	user := "user2"
+	pass := []byte("abc123")
+
+	newUser, err := CreateUserRoleAndRequestable(clt, user, "test-request-role")
+	c.Assert(err, check.IsNil)
+	c.Assert(newUser.GetRoles(), check.HasLen, 1)
+
+	initialRole := newUser.GetRoles()[0]
+	c.Assert(newUser.GetRoles(), check.DeepEquals, []string{"user:user2"})
+
+	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
+	c.Assert(err, check.IsNil)
+
+	// Create a user to create a web session for.
+	req := AuthenticateUserRequest{
+		Username: user,
+		Pass: &PassCreds{
+			Password: pass,
+		},
+	}
+
+	err = clt.UpsertPassword(user, pass)
+	c.Assert(err, check.IsNil)
+
+	ws, err := proxy.AuthenticateWebUser(req)
+	c.Assert(err, check.IsNil)
+
+	web, err := s.server.NewClientFromWebSession(ws)
+	c.Assert(err, check.IsNil)
+
+	// Create a approved access request.
+	accessReq, err := services.NewAccessRequest(user, []string{"test-request-role"}...)
+	c.Assert(err, check.IsNil)
+
+	accessReq.SetState(services.RequestState_APPROVED)
+
+	err = clt.CreateAccessRequest(context.Background(), accessReq)
+	c.Assert(err, check.IsNil)
+
+	sess, err := web.ExtendWebSession(user, ws.GetName(), accessReq.GetMetadata().Name)
+	c.Assert(err, check.IsNil)
+
+	pub, _, _, _, err := ssh.ParseAuthorizedKey(sess.GetPub())
+	c.Assert(err, check.IsNil)
+
+	sshcert, ok := pub.(*ssh.Certificate)
+	c.Assert(ok, check.Equals, true)
+
+	// Roles extracted from cert should contain the initial role and the role assigned with access request.
+	roles, _, err := services.ExtractFromCertificate(clt, sshcert)
+	c.Assert(err, check.IsNil)
+	c.Assert(roles, check.HasLen, 2)
+
+	mappedRole := map[string]string{
+		roles[0]: "",
+		roles[1]: "",
+	}
+
+	_, hasRole := mappedRole[initialRole]
+	c.Assert(hasRole, check.Equals, true)
+
+	_, hasRole = mappedRole["test-request-role"]
+	c.Assert(hasRole, check.Equals, true)
 }
 
 // TestGetCertAuthority tests certificate authority permissions
@@ -1582,12 +1651,25 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 
 	// certContainsRole checks if a PEM encoded TLS cert contains the
 	// specified role.
-	certContainsRole := func(cert []byte, role string) bool {
-		tlsCert, err := tlsca.ParseCertificatePEM(cert)
+	certContainsRole := func(tlsCert []byte, role string) bool {
+		cert, err := tlsca.ParseCertificatePEM(tlsCert)
 		c.Assert(err, check.IsNil)
-		identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+
+		identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 		c.Assert(err, check.IsNil)
+
 		return utils.SliceContainsStr(identity.Groups, role)
+	}
+
+	// certLogins extracts the logins from an ssh certificate
+	certLogins := func(sshCert []byte) []string {
+		key, _, _, _, err := ssh.ParseAuthorizedKey(sshCert)
+		c.Assert(err, check.IsNil)
+
+		cert, ok := key.(*ssh.Certificate)
+		c.Assert(ok, check.Equals, true)
+
+		return cert.ValidPrincipals
 	}
 
 	// sanity check; ensure that role is not held if no request is applied.
@@ -1597,6 +1679,13 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 		c.Errorf("unexpected role %s", role)
 	}
 
+	// verify that cert for user with no static logins is generated with
+	// exactly one login and that it is an invalid unix login (indicated
+	// by preceding dash (-).
+	logins := certLogins(userCerts.SSH)
+	c.Assert(len(logins), check.Equals, 1)
+	c.Assert(rune(logins[0][0]), check.Equals, '-')
+
 	// attempt to apply request in PENDING state (should fail)
 	_, err = generateCerts(req.GetName())
 	c.Assert(err, check.NotNil)
@@ -1605,10 +1694,10 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 
 	// verify that user does not have the ability to approve their own request (not a special case, this
 	// user just wasn't created with the necessary roles for request management).
-	c.Assert(userClient.SetAccessRequestState(ctx, req.GetName(), services.RequestState_APPROVED), check.NotNil)
+	c.Assert(userClient.SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_APPROVED}), check.NotNil)
 
 	// attempt to apply request in APPROVED state (should succeed)
-	c.Assert(s.server.Auth().SetAccessRequestState(ctx, req.GetName(), services.RequestState_APPROVED), check.IsNil)
+	c.Assert(s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_APPROVED}), check.IsNil)
 	userCerts, err = generateCerts(req.GetName())
 	c.Assert(err, check.IsNil)
 	// ensure that the requested role was actually applied to the cert
@@ -1616,16 +1705,22 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 		c.Errorf("missing requested role %s", role)
 	}
 
+	// verify that dynamically applied role granted a login,
+	// which is is valid and has replaced the dummy login.
+	logins = certLogins(userCerts.SSH)
+	c.Assert(len(logins), check.Equals, 1)
+	c.Assert(rune(logins[0][0]), check.Not(check.Equals), '-')
+
 	// attempt to apply request in DENIED state (should fail)
-	c.Assert(s.server.Auth().SetAccessRequestState(ctx, req.GetName(), services.RequestState_DENIED), check.IsNil)
+	c.Assert(s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_DENIED}), check.IsNil)
 	_, err = generateCerts(req.GetName())
 	c.Assert(err, check.NotNil)
 
 	// ensure that once in the DENIED state, a request cannot be set back to PENDING state.
-	c.Assert(s.server.Auth().SetAccessRequestState(ctx, req.GetName(), services.RequestState_PENDING), check.NotNil)
+	c.Assert(s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_PENDING}), check.NotNil)
 
 	// ensure that once in the DENIED state, a request cannot be set back to APPROVED state.
-	c.Assert(s.server.Auth().SetAccessRequestState(ctx, req.GetName(), services.RequestState_APPROVED), check.NotNil)
+	c.Assert(s.server.Auth().SetAccessRequestState(ctx, services.AccessRequestUpdate{RequestID: req.GetName(), State: services.RequestState_APPROVED}), check.NotNil)
 }
 
 func (s *TLSSuite) TestPluginData(c *check.C) {

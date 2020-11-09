@@ -67,7 +67,7 @@ up-to-date information.
     /usr/local/bin/teleport
     ```
 
-=== "ARMv7"
+=== "ARMv7 (32-bit)"
 
     ```bash
     $ curl https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz.sha256
@@ -76,6 +76,21 @@ up-to-date information.
     $ shasum -a 256 teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
     # Verify that the checksums match
     $ tar -xzf teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
+    $ cd teleport
+    $ ./install
+    $ which teleport
+    /usr/local/bin/teleport
+    ```
+
+=== "ARM64/ARMv8 (64-bit)"
+
+    ```bash
+    $ curl https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz.sha256
+    # <checksum> <filename>
+    $ curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
+    $ shasum -a 256 teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
+    # Verify that the checksums match
+    $ tar -xzf teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
     $ cd teleport
     $ ./install
     $ which teleport

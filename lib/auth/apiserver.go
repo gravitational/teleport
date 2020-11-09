@@ -771,7 +771,8 @@ func (s *APIServer) u2fSignRequest(auth ClientI, w http.ResponseWriter, r *http.
 }
 
 type createWebSessionReq struct {
-	PrevSessionID string `json:"prev_session_id"`
+	PrevSessionID   string `json:"prev_session_id"`
+	AccessRequestID string `json:"access_request_id"`
 }
 
 func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -781,7 +782,7 @@ func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *htt
 	}
 	user := p.ByName("user")
 	if req.PrevSessionID != "" {
-		sess, err := auth.ExtendWebSession(user, req.PrevSessionID)
+		sess, err := auth.ExtendWebSession(user, req.PrevSessionID, req.AccessRequestID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

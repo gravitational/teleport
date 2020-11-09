@@ -133,32 +133,6 @@ func (a *Server) getSAMLProvider(conn services.SAMLConnector) (*saml2.SAMLServic
 	return serviceProvider, nil
 }
 
-// buildSAMLRoles takes a connector and claims and returns a slice of roles.
-func (a *Server) buildSAMLRoles(connector services.SAMLConnector, assertionInfo saml2.AssertionInfo) ([]string, error) {
-	roles := connector.MapAttributes(assertionInfo)
-	if len(roles) == 0 {
-		return nil, trace.AccessDenied("unable to map attributes to role for connector: %v", connector.GetName())
-	}
-
-	return roles, nil
-}
-
-// assertionsToTraitMap extracts all string assertions and creates a map of traits
-// that can be used to populate role variables.
-func assertionsToTraitMap(assertionInfo saml2.AssertionInfo) map[string][]string {
-	traits := make(map[string][]string)
-
-	for _, assr := range assertionInfo.Values {
-		var vals []string
-		for _, value := range assr.Values {
-			vals = append(vals, value.Value)
-		}
-		traits[assr.Name] = vals
-	}
-
-	return traits
-}
-
 func (a *Server) calculateSAMLUser(connector services.SAMLConnector, assertionInfo saml2.AssertionInfo, request *services.SAMLAuthRequest) (*createUserParams, error) {
 	var err error
 
@@ -167,11 +141,12 @@ func (a *Server) calculateSAMLUser(connector services.SAMLConnector, assertionIn
 		username:      assertionInfo.NameID,
 	}
 
-	p.roles, err = a.buildSAMLRoles(connector, assertionInfo)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	p.traits = services.SAMLAssertionsToTraits(assertionInfo)
+
+	p.roles = connector.GetTraitMappings().TraitsToRoles(p.traits)
+	if len(p.roles) == 0 {
+		return nil, trace.AccessDenied("unable to map attributes to role for connector: %v", connector.GetName())
 	}
-	p.traits = assertionsToTraitMap(assertionInfo)
 
 	// Pick smaller for role: session TTL from role or requested TTL.
 	roles, err := services.FetchRoles(p.roles, a.Access, p.traits)
