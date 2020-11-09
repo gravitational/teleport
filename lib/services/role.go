@@ -83,6 +83,7 @@ var DefaultImplicitRules = []Rule{
 	NewRule(KindSSHSession, RO()),
 	NewRule(KindAppServer, RO()),
 	NewRule(KindRemoteCluster, RO()),
+	NewRule(KindKubeService, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources

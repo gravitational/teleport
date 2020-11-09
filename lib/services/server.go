@@ -19,6 +19,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -348,6 +349,11 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 	for key := range s.Spec.CmdLabels {
 		if !IsValidLabelKey(key) {
 			return trace.BadParameter("invalid label key: %q", key)
+		}
+	}
+	for _, kc := range s.Spec.KubernetesClusters {
+		if !validKubeClusterName.MatchString(kc.Name) {
+			return trace.BadParameter("invalid kubernetes cluster name: %q", kc.Name)
 		}
 	}
 
@@ -985,3 +991,9 @@ func GuessProxyHostAndVersion(proxies []Server) (string, string, error) {
 	guessProxyHost := fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
 	return guessProxyHost, proxies[0].GetTeleportVersion(), nil
 }
+
+// validKubeClusterName filters the allowed characters in kubernetes cluster
+// names. We need this because cluster names are used for cert filenames on the
+// client side, in the ~/.tsh directory. Restricting characters helps with
+// sneaky cluster names being used for client directory traversal and exploits.
+var validKubeClusterName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
