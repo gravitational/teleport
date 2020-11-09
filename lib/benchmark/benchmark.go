@@ -42,11 +42,11 @@ func Run(ctx context.Context, lg Linear, cmd, host, login, proxy string) ([]Resu
 	lg.Threads = 1
 	sleep := false
 	if err := validateConfig(lg); err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	tc, err := makeTeleportClient(host, login, proxy)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	for {
 		if sleep {
