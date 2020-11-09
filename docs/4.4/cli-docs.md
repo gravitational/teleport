@@ -353,6 +353,7 @@ interval via `--ttl` flag (capped by the server-side configuration).
 | `--format` | `file` | `file`, `openssh` or `kubernetes` | Identity format: file, openssh (for OpenSSH compatibility) or kubernetes (for kubeconfig)
 | `--browser` | none | `none` | Set to 'none' to suppress opening system default browser for `tsh login` commands
 | `--request-roles`  | none |  | Request one or more extra roles
+| `--request-reason`  | none |  | Reason for requesting additional roles
 
 ### [Global Flags](#tsh-global-flags)
 
@@ -395,6 +396,9 @@ $ tsh --proxy=proxy.example.com --browser=none
 
 # Login to cluster and output a local kubeconfig
 $ tsh login --proxy=proxy.example.com --format=kubernetes -o kubeconfig
+
+# Enterprise Only: Request Access to a cluster.
+$ tsh login --proxy=proxy.example.com --request-reason="I need to run a debug script on production"
 ```
 
 ## tsh logout
