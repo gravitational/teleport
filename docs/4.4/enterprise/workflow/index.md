@@ -129,13 +129,14 @@ deny:
     roles: ['admin']
 ```
 
-## Adding a reason to approval requests
+## Adding a Reason to Access Workflows
 
 Teleport 4.4.4 introduced the ability for users to request additional roles. `tctl`
 or the Access Workflows API makes it easy to dynamically approve or deny these requests.
 
-By using notes you can provide users with an unprivileged state and must
-always go through the Access Workflows API in order to gain meaningful privilege.
+By requiring reason along with an access requesting you can provide users with an
+unprivileged state and must always go through the Access Workflows API  in order to
+gain meaningful privilege.
 
 Teams can leverage claims (traits) provided by external identity providers both when
 determining which roles a user is allowed to request, and if a specific request
@@ -183,6 +184,19 @@ spec:
 version: v3
 ```
 
+!!! Tip "Wildcard and RegEx Tips"
+
+    Teleport RBAC offers powerful wildcard and RegEx helpers. Below are a few examples.
+
+      `dev-*` - Can request all dev clusters. e.g. dev-prod,dev-stg
+
+      `^prod.*$` - Can request all `prod.*` clusters. e.g. prod.us-east
+
+      `dev-{% raw %}{{regexp.match("us-*")}}{% endraw %}` - Can request any dev cluster in the US. e.g. dev-us-east-a, dev-us-west-b
+
+      `dev-{% raw %}{{regexp.not_match("beta")}}{% endraw %}-prod` - Can request any cluster, apart from beta cluster. e.g. Can access dev-alpha-prod, cannot access dev-beta-prod.
+
+
 **Unprivileged User Login**<br>
 
 ```bash
@@ -194,9 +208,9 @@ tsh login --request-reason="..."
 
 !!! Note
 
-    Notice that the above role does not specify any logins. If a users's roles specify no logins, Teleport will now generate the user's initial SSH certificates with an invalid dummy login of the form `-teleport-nologin-<uuid>` (e.g. `-teleport-nologin-1e02dbfd-8f6e-47a0-a66c-93747b010f88`).
+    Notice that the above role does not specify any logins. If a users's roles specify no logins, Teleport will now generate the user's initial SSH certificates with an invalid dummy login of the form `-teleport-nologin-<random-suffix>` (e.g. `-teleport-nologin-1e02dbfd`).
 
-**Admin Flow: Approval/Deny**<br>
+**Admin Flow: Approve/Deny**<br>
 
 A number of new parameters are now available that grant the plugin or administrator greater insight into approvals/denials:
 
