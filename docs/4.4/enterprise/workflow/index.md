@@ -135,7 +135,7 @@ Teleport 4.4.4 introduced the ability for users to request additional roles. `tc
 or the Access Workflows API makes it easy to dynamically approve or deny these requests.
 
 By using notes you can provide users with an unprivileged state and must
-always go through the Access Workflows API  in order to gain meaningful privilege.
+always go through the Access Workflows API in order to gain meaningful privilege.
 
 Teams can leverage claims (traits) provided by external identity providers both when
 determining which roles a user is allowed to request, and if a specific request
@@ -198,7 +198,7 @@ tsh login --request-reason="..."
 
 **Admin Flow: Approval/Deny**<br>
 
-A number of new parameters are now available that allow the plugin or administrator to grant greater insight into approvals/denials:
+A number of new parameters are now available that grant the plugin or administrator greater insight into approvals/denials:
 
 ```bash
 $ tctl request deny --reason='Please be more specific' --annotations=method=cli,unix-user=${USER} 28a3fb86-0230-439d-ad88-11cfcb213193
