@@ -11,6 +11,7 @@ darwin
 
 # editors
 .vscode
+*.swp
 
 # Compiled binaries, Object files, Static and Dynamic libs (Shared Objects)
 out

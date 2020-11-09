@@ -863,6 +863,9 @@ type streamWatcher struct {
 func (w *streamWatcher) Error() error {
 	w.RLock()
 	defer w.RUnlock()
+	if w.err == nil {
+		return trace.Wrap(w.ctx.Err())
+	}
 	return w.err
 }
 
@@ -1430,11 +1433,12 @@ func (c *Client) GetU2FSignRequest(user string, password []byte) (*u2f.SignReque
 
 // ExtendWebSession creates a new web session for a user based on another
 // valid web session
-func (c *Client) ExtendWebSession(user string, prevSessionID string) (services.WebSession, error) {
+func (c *Client) ExtendWebSession(user string, prevSessionID string, accessRequestID string) (services.WebSession, error) {
 	out, err := c.PostJSON(
 		c.Endpoint("users", user, "web", "sessions"),
 		createWebSessionReq{
-			PrevSessionID: prevSessionID,
+			PrevSessionID:   prevSessionID,
+			AccessRequestID: accessRequestID,
 		},
 	)
 	if err != nil {
@@ -2815,14 +2819,17 @@ func (c *Client) DeleteAccessRequest(ctx context.Context, reqID string) error {
 	return nil
 }
 
-func (c *Client) SetAccessRequestState(ctx context.Context, reqID string, state services.RequestState) error {
+func (c *Client) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) error {
 	clt, err := c.grpc()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	setter := proto.RequestStateSetter{
-		ID:    reqID,
-		State: state,
+		ID:          params.RequestID,
+		State:       params.State,
+		Reason:      params.Reason,
+		Annotations: params.Annotations,
+		Roles:       params.Roles,
 	}
 	if d := getDelegator(ctx); d != "" {
 		setter.Delegator = d
@@ -3182,7 +3189,7 @@ type WebService interface {
 	GetWebSessionInfo(user string, sid string) (services.WebSession, error)
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
-	ExtendWebSession(user string, prevSessionID string) (services.WebSession, error)
+	ExtendWebSession(user string, prevSessionID string, accessRequestID string) (services.WebSession, error)
 	// CreateWebSession creates a new web session for a user
 	CreateWebSession(user string) (services.WebSession, error)
 	// DeleteWebSession deletes a web session for this user by id

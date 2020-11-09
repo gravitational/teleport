@@ -41,7 +41,7 @@ import (
 	"github.com/gravitational/ttlmap"
 
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 )
 
@@ -51,7 +51,7 @@ import (
 // to the auth server on every page hit
 type SessionContext struct {
 	sync.Mutex
-	*log.Entry
+	logrus.FieldLogger
 	sess      services.WebSession
 	user      string
 	clt       auth.ClientI
@@ -242,8 +242,8 @@ func (c *SessionContext) GetWebSession() services.WebSession {
 
 // ExtendWebSession creates a new web session for this user
 // based on the previous session
-func (c *SessionContext) ExtendWebSession() (services.WebSession, error) {
-	sess, err := c.clt.ExtendWebSession(c.user, c.sess.GetName())
+func (c *SessionContext) ExtendWebSession(accessRequestID string) (services.WebSession, error) {
+	sess, err := c.clt.ExtendWebSession(c.user, c.sess.GetName(), accessRequestID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -329,6 +329,7 @@ func newSessionCache(proxyClient auth.ClientI, servers []utils.NetAddr, cipherSu
 		authServers:  servers,
 		closer:       utils.NewCloseBroadcaster(),
 		cipherSuites: cipherSuites,
+		log:          newPackageLogger(),
 	}
 	// periodically close expired and unused sessions
 	go cache.expireSessions()
@@ -338,6 +339,7 @@ func newSessionCache(proxyClient auth.ClientI, servers []utils.NetAddr, cipherSu
 // sessionCache handles web session authentication,
 // and holds in memory contexts associated with each session
 type sessionCache struct {
+	log logrus.FieldLogger
 	sync.Mutex
 	proxyClient auth.ClientI
 	contexts    *ttlmap.TTLMap
@@ -351,7 +353,7 @@ type sessionCache struct {
 
 // Close closes all allocated resources and stops goroutines
 func (s *sessionCache) Close() error {
-	log.Infof("[WEB] closing session cache")
+	s.log.Info("Closing session cache.")
 	return s.closer.Close()
 }
 
@@ -359,14 +361,14 @@ func (s *sessionCache) Close() error {
 // cache and will clean up connections
 func closeContext(key string, val interface{}) {
 	go func() {
-		log.Infof("[WEB] closing context %v", key)
+		log.Infof("Closing context %v.", key)
 		ctx, ok := val.(*SessionContext)
 		if !ok {
-			log.Warningf("warning, not valid value type %T", val)
+			log.Warnf("Invalid value type %T.", val)
 			return
 		}
 		if err := ctx.Close(); err != nil {
-			log.Infof("failed to close context: %v", err)
+			log.Warnf("Failed to close context: %v.", err)
 		}
 	}()
 }
@@ -390,7 +392,7 @@ func (s *sessionCache) clearExpiredSessions() {
 	defer s.Unlock()
 	expired := s.contexts.RemoveExpired(10)
 	if expired != 0 {
-		log.Infof("[WEB] removed %v expired sessions", expired)
+		log.Infof("Removed %v expired sessions.", expired)
 	}
 }
 
@@ -588,11 +590,11 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 		user:      user,
 		sess:      sess,
 		parent:    s,
+		FieldLogger: log.WithFields(logrus.Fields{
+			"user": user,
+			"sess": sess.GetShortName(),
+		}),
 	}
-	c.Entry = log.WithFields(log.Fields{
-		"user": user,
-		"sess": sess.GetShortName(),
-	})
 
 	ttl := utils.ToTTL(clockwork.NewRealClock(), sess.GetBearerTokenExpiryTime())
 	out, err := s.insertContext(user, sid, c, ttl)

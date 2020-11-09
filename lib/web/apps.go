@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/julienschmidt/httprouter"
-	log "github.com/sirupsen/logrus"
 )
 
 // siteAppsGet returns a list of applications in a form the UI can present.
@@ -100,7 +99,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err, "Unable to resolve FQDN: %v", req.FQDN)
 	}
 
-	log.Debugf("Creating application web session for %v in %v.", result.PublicAddr, result.ClusterName)
+	h.log.Debugf("Creating application web session for %v in %v.", result.PublicAddr, result.ClusterName)
 
 	// Get an auth client connected with the users identity.
 	authClient, err := ctx.GetClient()

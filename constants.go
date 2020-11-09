@@ -306,6 +306,9 @@ const (
 	// Text means text serialization format
 	Text = "text"
 
+	// PTY is a raw pty session capture format
+	PTY = "pty"
+
 	// Names is for formatting node names in plain text
 	Names = "names"
 

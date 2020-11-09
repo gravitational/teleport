@@ -826,9 +826,9 @@ func (a *Server) CheckU2FSignResponse(user string, response *u2f.SignResponse) e
 	return nil
 }
 
-// ExtendWebSession creates a new web session for a user based on a valid previous sessionID,
-// method is used to renew the web session for a user
-func (a *Server) ExtendWebSession(user string, prevSessionID string, identity tlsca.Identity) (services.WebSession, error) {
+// ExtendWebSession creates a new web session for a user based on a valid previous sessionID.
+// Additional roles are appended to initial roles if there is an approved access request.
+func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, identity tlsca.Identity) (services.WebSession, error) {
 	prevSession, err := a.GetWebSession(user, prevSessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -846,6 +846,20 @@ func (a *Server) ExtendWebSession(user string, prevSessionID string, identity tl
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if accessRequestID != "" {
+		newRoles, requestExpiry, err := a.getRolesAndExpiryFromAccessRequest(user, accessRequestID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		roles = append(roles, newRoles...)
+		roles = utils.Deduplicate(roles)
+
+		// Let session expire with access request expiry.
+		expiresAt = requestExpiry
+	}
+
 	sess, err := a.NewWebSession(user, roles, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -861,6 +875,42 @@ func (a *Server) ExtendWebSession(user string, prevSessionID string, identity tl
 		return nil, trace.Wrap(err)
 	}
 	return sess, nil
+}
+
+func (a *Server) getRolesAndExpiryFromAccessRequest(user, accessRequestID string) ([]string, time.Time, error) {
+	reqFilter := services.AccessRequestFilter{
+		User: user,
+		ID:   accessRequestID,
+	}
+
+	reqs, err := a.GetAccessRequests(context.TODO(), reqFilter)
+	if err != nil {
+		return nil, time.Time{}, trace.Wrap(err)
+	}
+
+	if len(reqs) < 1 {
+		return nil, time.Time{}, trace.NotFound("access request %q not found", accessRequestID)
+	}
+
+	req := reqs[0]
+
+	if !req.GetState().IsApproved() {
+		if req.GetState().IsDenied() {
+			return nil, time.Time{}, trace.AccessDenied("access request %q has been denied", accessRequestID)
+		}
+		return nil, time.Time{}, trace.BadParameter("access request %q is awaiting approval", accessRequestID)
+	}
+
+	if err := services.ValidateAccessRequest(a, req); err != nil {
+		return nil, time.Time{}, trace.Wrap(err)
+	}
+
+	accessExpiry := req.GetAccessExpiry()
+	if accessExpiry.Before(a.GetClock().Now()) {
+		return nil, time.Time{}, trace.BadParameter("access request %q has expired", accessRequestID)
+	}
+
+	return req.GetRoles(), accessExpiry, nil
 }
 
 // CreateWebSession creates a new web session for user without any
@@ -1550,7 +1600,13 @@ func (a *Server) upsertRole(ctx context.Context, role services.Role) error {
 }
 
 func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
-	if err := services.ValidateAccessRequest(a, req); err != nil {
+	err := services.ValidateAccessRequest(a, req,
+		// if request is in state pending, role expansion must be applied
+		services.ExpandRoles(req.GetState().IsPending()),
+		// always apply system annotations before storing new requests
+		services.ApplySystemAnnotations(true),
+	)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 	ttl, err := a.calculateMaxAccessTTL(req)
@@ -1588,12 +1644,13 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessReq
 		Roles:        req.GetRoles(),
 		RequestID:    req.GetName(),
 		RequestState: req.GetState().String(),
+		Reason:       req.GetRequestReason(),
 	})
 	return trace.Wrap(err)
 }
 
-func (a *Server) SetAccessRequestState(ctx context.Context, reqID string, state services.RequestState) error {
-	if err := a.DynamicAccess.SetAccessRequestState(ctx, reqID, state); err != nil {
+func (a *Server) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) error {
+	if err := a.DynamicAccess.SetAccessRequestState(ctx, params); err != nil {
 		return trace.Wrap(err)
 	}
 	event := &events.AccessRequestCreate{
@@ -1604,11 +1661,23 @@ func (a *Server) SetAccessRequestState(ctx context.Context, reqID string, state 
 		ResourceMetadata: events.ResourceMetadata{
 			UpdatedBy: clientUsername(ctx),
 		},
-		RequestID:    reqID,
-		RequestState: state.String(),
+		RequestID:    params.RequestID,
+		RequestState: params.State.String(),
+		Reason:       params.Reason,
+		Roles:        params.Roles,
 	}
+
 	if delegator := getDelegator(ctx); delegator != "" {
 		event.Delegator = delegator
+	}
+
+	if len(params.Annotations) > 0 {
+		annotations, err := events.EncodeMapStrings(params.Annotations)
+		if err != nil {
+			log.WithError(err).Debugf("Failed to encode access request annotations.")
+		} else {
+			event.Annotations = annotations
+		}
 	}
 	err := a.emitter.EmitAuditEvent(a.closeCtx, event)
 	if err != nil {
