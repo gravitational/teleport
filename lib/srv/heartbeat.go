@@ -410,7 +410,7 @@ func (h *Heartbeat) announce() error {
 			h.setState(HeartbeatStateKeepAliveWait)
 			return nil
 		case HeartbeatModeKube:
-			err := h.Announcer.UpsertKubeService(h.current)
+			err := h.Announcer.UpsertKubeService(context.TODO(), h.current)
 			if err != nil {
 				h.nextAnnounce = h.Clock.Now().UTC().Add(h.KeepAlivePeriod)
 				h.setState(HeartbeatStateAnnounceWait)
