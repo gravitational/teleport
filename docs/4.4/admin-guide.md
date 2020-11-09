@@ -857,6 +857,8 @@ format:
 {
     // Event type. See below for the list of all possible event types
     "event": "session.start",
+    // uid: A unique ID for the event log. Useful for  deduplication.
+    "uid": "59cf8d1b-7b36-4894-8e90-9d9713b6b9ef",
     // Teleport user name
     "user": "ekontsevoy",
     // OS login
@@ -865,6 +867,11 @@ format:
     "namespace": "default",
     // Unique server ID.
     "server_id": "f84f7386-5e22-45ff-8f7d-b8079742e63f",
+    // Server Labels.
+    "server_labels": {
+      "datacenter": "us-east-1",
+      "label-b": "x"
+    }
     // Session ID. Can be used to replay the session.
     "sid": "8d3895b6-e9dd-11e6-94de-40167e68e931",
     // Address of the SSH node
