@@ -269,6 +269,7 @@ func (m *AgentPool) addAgent(lease track.Lease) error {
 		Server:              m.cfg.Server,
 		ReverseTunnelServer: m.cfg.ReverseTunnelServer,
 		LocalClusterName:    m.cfg.LocalCluster,
+		Component:           m.cfg.Component,
 		Tracker:             m.proxyTracker,
 		Lease:               lease,
 	})
@@ -329,17 +330,26 @@ var _ = ServerHandler(ServerHandlerToListener{})
 // can be used as a Server field in AgentPoolConfig, while also being passed to
 // http.Server.Serve (or any other func Serve(net.Listener)).
 type ServerHandlerToListener struct {
-	connCh    chan net.Conn
-	closeOnce *sync.Once
+	connCh     chan net.Conn
+	closeOnce  *sync.Once
+	tunnelAddr string
 }
 
 // NewServerHandlerToListener creates a new ServerHandlerToListener adapter.
-func NewServerHandlerToListener() ServerHandlerToListener {
-	return ServerHandlerToListener{connCh: make(chan net.Conn), closeOnce: new(sync.Once)}
+func NewServerHandlerToListener(tunnelAddr string) ServerHandlerToListener {
+	return ServerHandlerToListener{
+		connCh:     make(chan net.Conn),
+		closeOnce:  new(sync.Once),
+		tunnelAddr: tunnelAddr,
+	}
 }
 
 func (l ServerHandlerToListener) HandleConnection(c net.Conn) {
-	l.connCh <- c
+	// HandleConnection must block as long as c is used.
+	// Wrap c to only return after c.Close() has been called.
+	cc := newConnCloser(c)
+	l.connCh <- cc
+	cc.wait()
 }
 
 func (l ServerHandlerToListener) Accept() (net.Conn, error) {
@@ -356,12 +366,29 @@ func (l ServerHandlerToListener) Close() error {
 }
 
 func (l ServerHandlerToListener) Addr() net.Addr {
-	return reverseTunnelAddr{}
+	return reverseTunnelAddr(l.tunnelAddr)
 }
+
+type connCloser struct {
+	net.Conn
+	closeOnce *sync.Once
+	closed    chan struct{}
+}
+
+func newConnCloser(c net.Conn) connCloser {
+	return connCloser{Conn: c, closeOnce: new(sync.Once), closed: make(chan struct{})}
+}
+
+func (c connCloser) Close() error {
+	c.closeOnce.Do(func() { close(c.closed) })
+	return c.Conn.Close()
+}
+
+func (c connCloser) wait() { <-c.closed }
 
 // reverseTunnelAddr is a net.Addr implementation for a listener based on a
 // reverse tunnel.
-type reverseTunnelAddr struct{}
+type reverseTunnelAddr string
 
-func (reverseTunnelAddr) Network() string { return "ssh" }
-func (reverseTunnelAddr) String() string  { return "ssh://kube.reversetunnel.teleport.cluster.local" }
+func (reverseTunnelAddr) Network() string  { return "ssh-reversetunnel" }
+func (a reverseTunnelAddr) String() string { return string(a) }

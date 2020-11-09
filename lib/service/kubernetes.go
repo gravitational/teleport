@@ -95,6 +95,14 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	case conn.UseTunnel() && !cfg.Kube.ListenAddr.IsEmpty():
 		return trace.BadParameter("either set kubernetes_service.listen_addr if this process can be reached from a teleport proxy or point teleport.auth_servers to a proxy to dial out, but don't set both")
 	case !conn.UseTunnel() && cfg.Kube.ListenAddr.IsEmpty():
+		// TODO(awly): if this process runs auth, proxy and kubernetes
+		// services, the proxy should be able to route requests to this
+		// kubernetes service. This means either always connecting over a
+		// reverse tunnel (with a performance penalty), or somehow passing the
+		// connections in-memory between proxy and kubernetes services.
+		//
+		// For now, as a lazy shortcut, kuberentes_service.listen_addr is
+		// always required when running in the same process with a proxy.
 		return trace.BadParameter("set kubernetes_service.listen_addr if this process can be reached from a teleport proxy or point teleport.auth_servers to a proxy to dial out")
 
 	// Start a local listener and let proxies dial in.
@@ -113,7 +121,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	// Dialed out to a proxy, start servicing the reverse tunnel as a listener.
 	case conn.UseTunnel() && cfg.Kube.ListenAddr.IsEmpty():
 		// create an adapter, from reversetunnel.ServerHandler to net.Listener.
-		shtl := reversetunnel.NewServerHandlerToListener()
+		shtl := reversetunnel.NewServerHandlerToListener(reversetunnel.LocalKubernetes)
 		listener = shtl
 		agentPool, err = reversetunnel.NewAgentPool(
 			process.ExitContext(),
@@ -152,19 +160,21 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	}
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
-			Namespace:      defaults.Namespace,
-			Keygen:         cfg.Keygen,
-			ClusterName:    conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-			Auth:           authorizer,
-			Client:         conn.Client,
-			DataDir:        cfg.DataDir,
-			AccessPoint:    accessPoint,
-			ServerID:       cfg.HostUUID,
-			KubeconfigPath: cfg.Kube.KubeconfigPath,
+			Namespace:       defaults.Namespace,
+			Keygen:          cfg.Keygen,
+			ClusterName:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+			Auth:            authorizer,
+			Client:          conn.Client,
+			DataDir:         cfg.DataDir,
+			AccessPoint:     accessPoint,
+			ServerID:        cfg.HostUUID,
+			KubeconfigPath:  cfg.Kube.KubeconfigPath,
+			KubeClusterName: cfg.Kube.KubeClusterName,
+			NewKubeService:  true,
+			Component:       teleport.ComponentKube,
 		},
 		TLS:           tlsConfig,
 		AccessPoint:   accessPoint,
-		Component:     teleport.ComponentKube,
 		LimiterConfig: cfg.Kube.Limiter,
 	})
 	if err != nil {

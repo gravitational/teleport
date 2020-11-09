@@ -310,7 +310,7 @@ func (f *fakeAnnouncer) UpsertAuthServer(s services.Server) error {
 	return f.err
 }
 
-func (f *fakeAnnouncer) UpsertKubeService(s services.Server) error {
+func (f *fakeAnnouncer) UpsertKubeService(ctx context.Context, s services.Server) error {
 	f.upsertCalls[HeartbeatModeKube]++
 	return f.err
 }
