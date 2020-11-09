@@ -62,8 +62,8 @@ type Flags struct {
 	LocalAddr string
 	// DirectoryMode indicates that a directory is being sent.
 	DirectoryMode bool
-	// PreserveAttrs preserves modification times, access times,
-	// and modes from the original file
+	// PreserveAttrs preserves access and modification times
+	// from the original file
 	PreserveAttrs bool
 }
 
@@ -108,8 +108,8 @@ type FileSystem interface {
 	OpenFile(filePath string) (io.ReadCloser, error)
 	// CreateFile creates a new file
 	CreateFile(filePath string, length uint64) (io.WriteCloser, error)
-	// SetChmod sets file permissions
-	SetChmod(path string, mode int) error
+	// Chmod sets file permissions
+	Chmod(path string, mode int) error
 	// Chtimes sets file access and modification time
 	Chtimes(path string, atime, mtime time.Time) error
 }
@@ -264,7 +264,7 @@ func (cmd *command) serveSource(ch io.ReadWriter) (retErr error) {
 			return trace.Errorf("could not access local path %q: %v", cmd.Flags.Target[i], err)
 		}
 		if fileInfo.IsDir() && !cmd.Flags.Recursive {
-			// TODO(dmitri): using the bad parameter constructor
+			// Note: using any other error constructor (e.g. BadParameter)
 			// might lead to relogin attempt and a completely obscure
 			// error message
 			return trace.Errorf("%v is a directory, use -r flag to copy recursively", fileInfo.GetName())
@@ -353,7 +353,7 @@ func (cmd *command) sendFile(r *reader, ch io.ReadWriter, fileInfo FileInfo) err
 		return trace.Wrap(err)
 	}
 	if n != fileInfo.GetSize() {
-		return trace.Errorf("short write: %v %v", n, fileInfo.GetSize())
+		return trace.Errorf("short write: written %v, expected %v", n, fileInfo.GetSize())
 	}
 
 	// report progress:
@@ -471,14 +471,14 @@ func (cmd *command) processCommand(ch io.ReadWriter, st *state, b byte, line str
 }
 
 func (cmd *command) receiveFile(st *state, fc newFileCmd, ch io.ReadWriter) error {
-	cmd.log.Debugf("scp.receiveFile(%v)", cmd.Flags.Target)
+	cmd.log.Debugf("scp.receiveFile(%v): %v", cmd.Flags.Target, fc.Name)
 
 	// if the dest path is a folder, we should save the file to that folder, but
-	// only if is 'recursive' is set
+	// only if 'recursive' is set
 
 	path := cmd.Flags.Target[0]
 	if cmd.Flags.Recursive || cmd.FileSystem.IsDir(path) {
-		path = st.makePath(path, fc.Name)
+		path = st.makePath(fc.Name)
 	}
 
 	writer, err := cmd.FileSystem.CreateFile(path, fc.Length)
@@ -507,7 +507,7 @@ func (cmd *command) receiveFile(st *state, fc newFileCmd, ch io.ReadWriter) erro
 		return trace.Errorf("unexpected file copy length: %v", n)
 	}
 
-	if err := cmd.FileSystem.SetChmod(path, int(fc.Mode)); err != nil {
+	if err := cmd.FileSystem.Chmod(path, int(fc.Mode)); err != nil {
 		return trace.Wrap(err)
 	}
 	if st.stat != nil {
@@ -522,17 +522,18 @@ func (cmd *command) receiveFile(st *state, fc newFileCmd, ch io.ReadWriter) erro
 }
 
 func (cmd *command) receiveDir(st *state, fc newFileCmd, ch io.ReadWriter) error {
+	cmd.log.Debugf("scp.receiveDir(%v): %v", cmd.Flags.Target, fc.Name)
 	targetDir := cmd.Flags.Target[0]
 
 	// copying into an existing directory? append to it:
 	if cmd.FileSystem.IsDir(targetDir) {
-		targetDir = st.makePath(targetDir, fc.Name)
-		st.push(fc.Name, st.stat)
+		targetDir = st.makePath(fc.Name)
 	}
+	st.push(fc.Name, st.stat)
 
 	err := cmd.FileSystem.MkDir(targetDir, int(fc.Mode))
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.ConvertSystemError(err)
 	}
 
 	return nil
@@ -552,9 +553,9 @@ func (cmd *command) sendDirMode(r *reader, ch io.Writer, fileInfo FileInfo) erro
 }
 
 func (cmd *command) sendFileTimes(r *reader, ch io.Writer, fileInfo FileInfo) error {
-	out := fmt.Sprintf("T0 %d 0 %d\n",
-		fileInfo.GetModTime().UnixNano(),
-		fileInfo.GetAccessTime().UnixNano(),
+	out := fmt.Sprintf("T%d 0 %d 0\n",
+		fileInfo.GetModTime().Unix(),
+		fileInfo.GetAccessTime().Unix(),
 	)
 	cmd.log.WithField("cmd", out).Debug("Send file times.")
 	_, err := io.WriteString(ch, out)
@@ -582,7 +583,7 @@ func (cmd *command) updateDirTimes(path pathSegments) error {
 	if stat := path[len(path)-1].stat; stat != nil {
 		err := cmd.FileSystem.Chtimes(path.join(), stat.Atime, stat.Mtime)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.ConvertSystemError(err)
 		}
 	}
 	return nil
@@ -698,8 +699,8 @@ func (st *state) pop() pathSegments {
 	return path
 }
 
-func (st *state) makePath(target, filename string) string {
-	return filepath.Join(target, st.path.join(), filename)
+func (st *state) makePath(filename string) string {
+	return filepath.Join(st.path.join(), filename)
 }
 
 func newReader(r io.Reader) *reader {

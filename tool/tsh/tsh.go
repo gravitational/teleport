@@ -188,7 +188,7 @@ type CLIConf struct {
 	// terminal.
 	EnableEscapeSequences bool
 
-	// PreserveAttrs preserves modification times, access times, and modes from the original file.
+	// PreserveAttrs preserves access/modification times from the original file.
 	PreserveAttrs bool
 
 	// executablePath is the absolute path to the current executable.
@@ -295,7 +295,7 @@ func Run(args []string) {
 	scp.Arg("from, to", "Source and destination to copy").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
 	scp.Flag("port", "Port to connect to on the remote host").Short('P').Int32Var(&cf.NodePort)
-	scp.Flag("preserve", "Preserves modification times, access times, and modes from the original file").Short('p').BoolVar(&cf.PreserveAttrs)
+	scp.Flag("preserve", "Preserves access and modification times from the original file").Short('p').BoolVar(&cf.PreserveAttrs)
 	scp.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 	// ls
 	ls := app.Command("ls", "List remote SSH nodes")

@@ -151,9 +151,9 @@ type httpFileSystem struct {
 	fileSize int64
 }
 
-// SetChmod sets file permissions. It does nothing as there are no permissions
+// Chmod sets file permissions. It does nothing as there are no permissions
 // while processing HTTP downloads
-func (l *httpFileSystem) SetChmod(path string, mode int) error {
+func (l *httpFileSystem) Chmod(path string, mode int) error {
 	return nil
 }
 

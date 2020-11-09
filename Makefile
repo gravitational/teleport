@@ -15,7 +15,6 @@ VERSION=5.0.0-dev
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
-DOCKER_CACHE_OPTS ?= --no-cache
 
 # These are standard autotools variables, don't change them please
 BUILDDIR ?= build
@@ -454,7 +453,7 @@ install: build
 .PHONY: image
 image: clean docker-binaries
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build $(DOCKER_CACHE_OPTS) . -t $(DOCKER_IMAGE):$(VERSION)
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e image; fi
 
 .PHONY: publish
@@ -470,7 +469,7 @@ publish: image
 .PHONY: image-ci
 image-ci: clean docker-binaries
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build $(DOCKER_CACHE_OPTS) . -t $(DOCKER_IMAGE_CI):$(VERSION)
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_CI):$(VERSION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e image-ci; fi
 
 .PHONY: publish-ci

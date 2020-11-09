@@ -31,8 +31,8 @@ import (
 type localFileSystem struct {
 }
 
-// SetChmod sets file permissions
-func (l *localFileSystem) SetChmod(path string, mode int) error {
+// Chmod sets file permissions
+func (l *localFileSystem) Chmod(path string, mode int) error {
 	chmode := os.FileMode(mode & int(os.ModePerm))
 	if err := os.Chmod(path, chmode); err != nil {
 		return trace.Wrap(err)
