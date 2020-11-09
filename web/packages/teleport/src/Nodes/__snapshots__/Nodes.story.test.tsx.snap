@@ -1,0 +1,1081 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`failed 1`] = `
+.c9 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-all;
+  line-height: 1.5;
+  background: #f50057;
+  color: #FFFFFF;
+}
+
+.c9 a {
+  color: #FFFFFF;
+}
+
+.c3 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  width: 240px;
+}
+
+.c3:active {
+  opacity: 0.56;
+}
+
+.c3:hover,
+.c3:focus {
+  background: #651FFF;
+}
+
+.c3:active {
+  background: #354AA4;
+}
+
+.c3:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  border-bottom: 1px solid #1C254D;
+  height: 56px;
+  margin-left: -40px;
+  margin-right: -40px;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  flex-shrink: 0;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  overflow: auto;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c6 {
+  box-sizing: border-box;
+  width: 280px;
+  display: flex;
+  align-items: center;
+  height: 30px;
+  border: 1px solid;
+  border-radius: 4px;
+  border-color: rgba(255,255,255,0.24);
+  background-color: #111b48;
+}
+
+.c7 {
+  opacity: 0.75;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 0 8px;
+  border-bottom-left-radius: 4px;
+  border-top-left-radius: 4px;
+}
+
+.c8 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-sizing: border-box;
+  border-bottom-left-radius: unset;
+  border-top-left-radius: unset;
+  display: block;
+  outline: none;
+  width: 100%;
+  height: 100%;
+  box-shadow: none;
+  padding-left: 8px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.87);
+  background-color: #222C59;
+}
+
+.c8::-ms-clear {
+  display: none;
+}
+
+.c8:read-only {
+  cursor: not-allowed;
+}
+
+.c8::placeholder {
+  opacity: 1;
+  color: rgba(255,255,255,0.24);
+  font-size: 12px;
+}
+
+.c8:hover,
+.c8:focus {
+  background: #2C3A73;
+}
+
+.c5 {
+  box-sizing: border-box;
+  font-size: 12px;
+  min-width: 200px;
+  outline: none;
+  border: none;
+  border-radius: 200px;
+  height: 32px;
+  transition: all .2s;
+  background: #222C59;
+  margin-right: 16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
+  height: 30px;
+}
+
+.c5:hover {
+  background: #2C3A73;
+}
+
+.c5:focus,
+.c5:active {
+  background: #2C3A73;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  color: rgba(255,255,255,0.87);
+}
+
+.c5::placeholder {
+  color: rgba(255,255,255,0.24);
+  font-size: 12px;
+}
+
+<div
+  class="sc-AxirZ c0"
+>
+  <div
+    class="sc-AxirZ c1"
+  >
+    <div
+      class="sc-fznZeY c2"
+    >
+      Servers
+    </div>
+    <button
+      class="c3"
+      kind="primary"
+      width="240px"
+    >
+      Add Server
+    </button>
+  </div>
+  <div
+    class="sc-AxirZ c4"
+  >
+    <input
+      class="c5"
+      color="text.primary"
+      height="30px"
+      placeholder="SEARCH..."
+      value=""
+    />
+    <div
+      class="sc-AxirZ c6"
+      width="280px"
+    >
+      <div
+        class="c7"
+      >
+        SSH:
+      </div>
+      <input
+        class="c8"
+        color="text.primary"
+        placeholder="login@host"
+      />
+    </div>
+  </div>
+  <div
+    class="c9"
+    kind="danger"
+  >
+    server error
+     
+  </div>
+</div>
+`;
+
+exports[`loaded 1`] = `
+.c3 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  width: 240px;
+}
+
+.c3:active {
+  opacity: 0.56;
+}
+
+.c3:hover,
+.c3:focus {
+  background: #651FFF;
+}
+
+.c3:active {
+  background: #354AA4;
+}
+
+.c3:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c18 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  height: 24px;
+}
+
+.c18:active {
+  opacity: 0.56;
+}
+
+.c18:hover,
+.c18:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
+}
+
+.c18:active {
+  opacity: 0.24;
+}
+
+.c18:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c13 {
+  display: inline-block;
+  transition: color .3s;
+  color: #FFFFFF;
+  font-size: 16px;
+}
+
+.c16 {
+  display: inline-block;
+  transition: color .3s;
+  color: #FFFFFF;
+}
+
+.c19 {
+  display: inline-block;
+  transition: color .3s;
+  margin-left: 8px;
+  margin-right: -8px;
+  color: rgba(255,255,255,0.56);
+  font-size: 14px;
+}
+
+.c17 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  background-color: #111B48;
+  color: rgba(255,255,255,0.87);
+  margin-bottom: 4px;
+  margin-right: 4px;
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  color: #FFFFFF;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  border-bottom: 1px solid #1C254D;
+  height: 56px;
+  margin-left: -40px;
+  margin-right: -40px;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  flex-shrink: 0;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  overflow: auto;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c6 {
+  box-sizing: border-box;
+  width: 280px;
+  display: flex;
+  align-items: center;
+  height: 30px;
+  border: 1px solid;
+  border-radius: 4px;
+  border-color: rgba(255,255,255,0.24);
+  background-color: #111b48;
+}
+
+.c7 {
+  opacity: 0.75;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 0 8px;
+  border-bottom-left-radius: 4px;
+  border-top-left-radius: 4px;
+}
+
+.c8 {
+  appearance: none;
+  border: none;
+  border-radius: 4px;
+  box-sizing: border-box;
+  border-bottom-left-radius: unset;
+  border-top-left-radius: unset;
+  display: block;
+  outline: none;
+  width: 100%;
+  height: 100%;
+  box-shadow: none;
+  padding-left: 8px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.87);
+  background-color: #222C59;
+}
+
+.c8::-ms-clear {
+  display: none;
+}
+
+.c8:read-only {
+  cursor: not-allowed;
+}
+
+.c8::placeholder {
+  opacity: 1;
+  color: rgba(255,255,255,0.24);
+  font-size: 12px;
+}
+
+.c8:hover,
+.c8:focus {
+  background: #2C3A73;
+}
+
+.c5 {
+  box-sizing: border-box;
+  font-size: 12px;
+  min-width: 200px;
+  outline: none;
+  border: none;
+  border-radius: 200px;
+  height: 32px;
+  transition: all .2s;
+  background: #222C59;
+  margin-right: 16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
+  height: 30px;
+}
+
+.c5:hover {
+  background: #2C3A73;
+}
+
+.c5:focus,
+.c5:active {
+  background: #2C3A73;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  color: rgba(255,255,255,0.87);
+}
+
+.c5::placeholder {
+  color: rgba(255,255,255,0.24);
+  font-size: 12px;
+}
+
+.c14 {
+  background: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  border-radius: 8px;
+  font-size: 12px;
+  width: 100%;
+}
+
+.c14 > thead > tr > th,
+.c14 > tbody > tr > th,
+.c14 > tfoot > tr > th,
+.c14 > thead > tr > td,
+.c14 > tbody > tr > td,
+.c14 > tfoot > tr > td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+
+.c14 > thead > tr > th:first-child,
+.c14 > tbody > tr > th:first-child,
+.c14 > tfoot > tr > th:first-child,
+.c14 > thead > tr > td:first-child,
+.c14 > tbody > tr > td:first-child,
+.c14 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c14 > thead > tr > th:last-child,
+.c14 > tbody > tr > th:last-child,
+.c14 > tfoot > tr > th:last-child,
+.c14 > thead > tr > td:last-child,
+.c14 > tbody > tr > td:last-child,
+.c14 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c14 > thead > tr > th {
+  background: #111B48;
+  color: #FFFFFF;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
+  text-align: left;
+  opacity: 0.75;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.c14 > thead > tr > th .c12 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
+}
+
+.c14 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
+  line-height: 16px;
+}
+
+.c14 tbody tr {
+  border-bottom: 1px solid #1C254D;
+}
+
+.c14 tbody tr:hover {
+  background-color: rgb(37,49,98);
+}
+
+.c14 tbody tr:hover:last-child td:first-child {
+  border-bottom-left-radius: 8px;
+}
+
+.c14 tbody tr:hover:last-child td:last-child {
+  border-bottom-right-radius: 8px;
+}
+
+.c11 {
+  box-sizing: border-box;
+  display: flex;
+}
+
+.c11 button {
+  background: none;
+  border: none;
+  border-radius: 200px;
+  cursor: pointer;
+  padding: 0;
+  margin: 0 0 0 8px;
+  outline: none;
+  transition: all 0.3s;
+  text-align: center;
+}
+
+.c11 button:hover,
+.c11 button:focus {
+  background: #1C254D;
+}
+
+.c11 button:hover .c12,
+.c11 button:focus .c12 {
+  opacity: 1;
+}
+
+.c11 button .c12 {
+  opacity: 0.4;
+  font-size: 20px;
+  transition: all 0.3s;
+}
+
+.c9 {
+  padding: 8px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c15 > tbody > tr > td {
+  vertical-align: baseline;
+}
+
+<div
+  class="sc-AxirZ c0"
+>
+  <div
+    class="sc-AxirZ c1"
+  >
+    <div
+      class="c2"
+    >
+      Servers
+    </div>
+    <button
+      class="c3"
+      kind="primary"
+      width="240px"
+    >
+      Add Server
+    </button>
+  </div>
+  <div
+    class="sc-AxirZ c4"
+  >
+    <input
+      class="c5"
+      color="text.primary"
+      height="30px"
+      placeholder="SEARCH..."
+      value=""
+    />
+    <div
+      class="sc-AxirZ c6"
+      width="280px"
+    >
+      <div
+        class="c7"
+      >
+        SSH:
+      </div>
+      <input
+        class="c8"
+        color="text.primary"
+        placeholder="login@host"
+      />
+    </div>
+  </div>
+  <div>
+    <div>
+      <nav
+        class="c9"
+      >
+        <div
+          class="c10"
+          color="primary.contrastText"
+        >
+          SHOWING 
+          <strong>
+            1
+          </strong>
+           - 
+          <strong>
+            7
+          </strong>
+           
+          of 
+          <strong>
+            7
+          </strong>
+        </div>
+        <div
+          class="sc-AxirZ c11"
+        >
+          <button
+            disabled=""
+            title="Previous Page"
+          >
+            <span
+              class="c12 c13 icon icon-arrow-left-circle "
+              color="light"
+              font-size="3"
+            />
+          </button>
+          <button
+            disabled=""
+            title="Next Page"
+          >
+            <span
+              class="c12 c13 icon icon-arrow-right-circle "
+              color="light"
+              font-size="3"
+            />
+          </button>
+        </div>
+      </nav>
+      <table
+        class="c14 c15"
+      >
+        <thead>
+          <tr>
+            <th>
+              <a>
+                Hostname
+                <span
+                  class="c12 c16 icon icon-chevron-down "
+                  color="light"
+                />
+              </a>
+            </th>
+            <th>
+              <a>
+                Address
+                <span
+                  class="c12 c16 icon icon-chevrons-expand-vertical "
+                  color="light"
+                />
+              </a>
+            </th>
+            <th>
+              Labels
+            </th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              duzsevkig
+            </td>
+            <td>
+              172.10.1.1:3022
+            </td>
+            <td>
+              <div
+                class="c17"
+                kind="secondary"
+              >
+                cluster: one
+              </div>
+              <div
+                class="c17"
+                kind="secondary"
+              >
+                kernel: 4.15.0-51-generic
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c18"
+                height="24px"
+                kind="border"
+              >
+                CONNECT
+                <span
+                  class="c12 c19 icon icon-caret-down "
+                  color="text.secondary"
+                  font-size="2"
+                />
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              facuzguv
+            </td>
+            <td>
+              172.10.1.1:3022
+            </td>
+            <td>
+              <div
+                class="c17"
+                kind="secondary"
+              >
+                cluster: one
+              </div>
+              <div
+                class="c17"
+                kind="secondary"
+              >
+                kernel: 4.15.0-51-generic
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c18"
+                height="24px"
+                kind="border"
+              >
+                CONNECT
+                <span
+                  class="c12 c19 icon icon-caret-down "
+                  color="text.secondary"
+                  font-size="2"
+                />
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              fujedu
+            </td>
+            <td>
+              172.10.1.20:3022
+            </td>
+            <td>
+              <div
+                class="c17"
+                kind="secondary"
+              >
+                cluster: one
+              </div>
+              <div
+                class="c17"
+                kind="secondary"
+              >
+                kernel: 4.15.0-51-generic
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c18"
+                height="24px"
+                kind="border"
+              >
+                CONNECT
+                <span
+                  class="c12 c19 icon icon-caret-down "
+                  color="text.secondary"
+                  font-size="2"
+                />
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              kuhinur
+            </td>
+            <td>
+              172.10.1.1:3022
+            </td>
+            <td>
+              <div
+                class="c17"
+                kind="secondary"
+              >
+                cluster: one
+              </div>
+              <div
+                class="c17"
+                kind="secondary"
+              >
+                kernel: 4.15.0-51-generic
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c18"
+                height="24px"
+                kind="border"
+              >
+                CONNECT
+                <span
+                  class="c12 c19 icon icon-caret-down "
+                  color="text.secondary"
+                  font-size="2"
+                />
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              zebpecda
+            </td>
+            <td>
+              172.10.1.1:3022
+            </td>
+            <td>
+              <div
+                class="c17"
+                kind="secondary"
+              >
+                cluster: one
+              </div>
+              <div
+                class="c17"
+                kind="secondary"
+              >
+                kernel: 4.15.0-51-generic
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c18"
+                height="24px"
+                kind="border"
+              >
+                CONNECT
+                <span
+                  class="c12 c19 icon icon-caret-down "
+                  color="text.secondary"
+                  font-size="2"
+                />
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              zebpecda
+            </td>
+            <td>
+              <span
+                style="cursor: default;"
+                title="This node is connected to cluster through reverse tunnel"
+              >
+                ⟵ tunnel
+              </span>
+            </td>
+            <td>
+              <div
+                class="c17"
+                kind="secondary"
+              >
+                cluster: one
+              </div>
+              <div
+                class="c17"
+                kind="secondary"
+              >
+                kernel: 4.15.0-51-generic
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c18"
+                height="24px"
+                kind="border"
+              >
+                CONNECT
+                <span
+                  class="c12 c19 icon icon-caret-down "
+                  color="text.secondary"
+                  font-size="2"
+                />
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              zebpecda
+            </td>
+            <td>
+              <span
+                style="cursor: default;"
+                title="This node is connected to cluster through reverse tunnel"
+              >
+                ⟵ tunnel
+              </span>
+            </td>
+            <td>
+              <div
+                class="c17"
+                kind="secondary"
+              >
+                cluster: one
+              </div>
+              <div
+                class="c17"
+                kind="secondary"
+              >
+                kernel: 4.15.0-51-generic
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c18"
+                height="24px"
+                kind="border"
+              >
+                CONNECT
+                <span
+                  class="c12 c19 icon icon-caret-down "
+                  color="text.secondary"
+                  font-size="2"
+                />
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+`;

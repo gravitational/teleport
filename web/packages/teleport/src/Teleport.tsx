@@ -15,18 +15,19 @@ limitations under the License.
 */
 import { hot } from 'react-hot-loader/root';
 import React from 'react';
+import { useFavicon } from 'shared/hooks';
 import ThemeProvider from 'design/ThemeProvider';
 import { Router, Route, Switch } from 'teleport/components/Router';
-import Invite, { ResetPassword } from 'teleport/components/Invite';
 import CatchError from 'teleport/components/CatchError';
-import Login, { LoginSuccess, LoginFailed } from 'teleport/components/Login';
-import Console from 'teleport/console';
 import Authenticated from 'teleport/components/Authenticated';
-import Dashboard from 'teleport/dashboard';
-import Player from 'teleport/player';
-import cfg from 'teleport/config';
-import CommunityCluster from './cluster';
-import { useFavicon } from 'shared/hooks';
+import Main from './Main';
+import Invite, { ResetPassword } from './Invite';
+import Login, { LoginSuccess, LoginFailed } from './Login';
+import AppLauncher from './AppLauncher';
+import Console from './Console';
+import Player from './Player';
+import TeleportContextProvider from './teleportContextProvider';
+import cfg from './config';
 
 const teleportIco = require('./favicon.ico').default;
 
@@ -58,8 +59,18 @@ const Teleport = ({ history, children }) => {
               path={cfg.routes.userReset}
               component={ResetPassword}
             />
-            <Route path={cfg.routes.app}>
-              <Authenticated>{renderAuthenticated(children)}</Authenticated>
+            <Route path={cfg.routes.root}>
+              <Authenticated>
+                <TeleportContextProvider>
+                  <Switch>
+                    <Route
+                      path={cfg.routes.appLauncher}
+                      component={AppLauncher}
+                    />
+                    <Route>{renderAuthenticated(children)}</Route>
+                  </Switch>
+                </TeleportContextProvider>
+              </Authenticated>
             </Route>
           </Switch>
         </Router>
@@ -70,6 +81,7 @@ const Teleport = ({ history, children }) => {
 
 // TODO: make it lazy loadable
 function renderAuthenticated(children) {
+  // this is how enterprise version renders it's own routes
   if (children) {
     return children;
   }
@@ -78,8 +90,7 @@ function renderAuthenticated(children) {
     <Switch>
       <Route path={cfg.routes.console} component={Console} />
       <Route path={cfg.routes.player} component={Player} />
-      <Route path={cfg.routes.cluster} component={CommunityCluster} />
-      <Route path={cfg.routes.app} component={Dashboard} />
+      <Route path={cfg.routes.root} component={Main} />
     </Switch>
   );
 }

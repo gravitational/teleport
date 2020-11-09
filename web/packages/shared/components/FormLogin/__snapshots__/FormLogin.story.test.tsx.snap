@@ -95,6 +95,10 @@ exports[`auth2faType: otp rendering 1`] = `
   opacity: 0.4;
 }
 
+.c5:read-only {
+  cursor: not-allowed;
+}
+
 .c4 {
   color: #FFFFFF;
   display: block;
@@ -304,6 +308,10 @@ exports[`auth2faType: u2f rendering 1`] = `
 
 .c5::placeholder {
   opacity: 0.4;
+}
+
+.c5:read-only {
+  cursor: not-allowed;
 }
 
 .c4 {
@@ -801,6 +809,10 @@ exports[`server error rendering 1`] = `
 
 .c6::placeholder {
   opacity: 0.4;
+}
+
+.c6:read-only {
+  cursor: not-allowed;
 }
 
 .c5 {

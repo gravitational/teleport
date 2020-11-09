@@ -3,5 +3,4 @@ node_modules
 coverage
 dist
 **/dist
-packages/force/dist
 !packages/gravity/dist

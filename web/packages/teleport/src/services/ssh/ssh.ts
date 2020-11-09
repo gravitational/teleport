@@ -52,7 +52,7 @@ const service = {
       .then(makeSession);
   },
 
-  fetchSessions(clusterId = cfg.clusterName) {
+  fetchSessions(clusterId) {
     return api.get(cfg.getTerminalSessionUrl({ clusterId })).then(response => {
       if (response && response.sessions) {
         return map(response.sessions, makeSession);

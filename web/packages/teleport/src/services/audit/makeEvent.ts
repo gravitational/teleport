@@ -426,6 +426,15 @@ export const formatters: Formatters = {
     desc: 'Session Uploaded',
     format: () => `Recorded session has been uploaded`,
   },
+  [CodeEnum.APP_SESSION_START]: {
+    desc: 'App Session Started',
+    format: ({ user, sid }) =>
+      `User [${user}] has started an app session [${sid}]`,
+  },
+  [CodeEnum.APP_SESSION_CHUNK]: {
+    desc: 'App Session Data',
+    format: ({ sid }) => `New app session data created [${sid}]`,
+  },
   [CodeEnum.G_SMTPCONFIG_CREATED]: {
     desc: 'SMTP Config Created',
     format: ({ user }) => `User [${user}] updated cluster SMTP configuration`,

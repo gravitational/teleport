@@ -53,6 +53,7 @@ export const ArrowsVertical = makeFontIcon(
   'icon-chevrons-expand-vertical'
 );
 export const ArrowUp = makeFontIcon('ArrowUp', 'icon-chevron-up');
+export const AlarmRing = makeFontIcon('AlarmRing', 'icon-alarm-ringing');
 export const BitBucket = makeFontIcon('Bitbucket', 'icon-bitbucket');
 export const Bubble = makeFontIcon('Bubble', 'icon-bubble');
 export const Camera = makeFontIcon('Camera', 'icon-camera');
@@ -104,6 +105,7 @@ export const ClipboardUser = makeFontIcon(
 export const Close = makeFontIcon('Close', 'icon-close');
 export const Cloud = makeFontIcon('Cloud', 'icon-cloud');
 export const Cluster = makeFontIcon('Cluster', 'icon-site-map');
+export const Clusters = makeFontIcon('Clusters', 'icon-icons2');
 export const ClusterAdded = makeFontIcon('ClusterAdded', 'icon-cluster-added');
 export const ClusterAuth = makeFontIcon('ClusterAuth', 'icon-cluster-auth');
 export const Code = makeFontIcon('Code', 'icon-code');
@@ -128,6 +130,7 @@ export const Edit = makeFontIcon('Edit', 'icon-pencil4');
 export const Ellipsis = makeFontIcon('Ellipsis', 'icon-ellipsis');
 export const EmailSolid = makeFontIcon('EmailSolid', 'icon-email-solid');
 export const Equalizer = makeFontIcon('Equalizer', 'icon-equalizer');
+export const EqualizerVertical = makeFontIcon('EqualizerVertical', 'icon-equalizer1');
 export const Expand = makeFontIcon('Expand', 'icon-frame-expand');
 export const Facebook = makeFontIcon('Facebook', 'icon-facebook');
 export const FacebookSquare = makeFontIcon('FacebookSquare', 'icon-facebook2');
@@ -153,6 +156,7 @@ export const Link = makeFontIcon('Link', 'icon-link');
 export const Linkedin = makeFontIcon('Linkedin', 'icon-linkedin');
 export const Linux = makeFontIcon('Linux', 'icon-linux');
 export const List = makeFontIcon('List', 'icon-list');
+export const ListThin = makeFontIcon('ListThin', 'icon-list1');
 export const ListAddCheck = makeFontIcon(
   'ListAddCheck',
   'icon-playlist_add_check'
@@ -168,6 +172,7 @@ export const Memory = makeFontIcon('Memory', 'icon-memory');
 export const MoreHoriz = makeFontIcon('MoreHoriz', 'icon-more_horiz');
 export const MoreVert = makeFontIcon('MoreVert', 'icon-more_vert');
 export const Mute = makeFontIcon('Mute', 'icon-mute');
+export const NewTab = makeFontIcon('NewTab', 'icon-new-tab');
 export const NoteAdded = makeFontIcon('NoteAdded', 'icon-note_add');
 export const NotificationsActive = makeFontIcon(
   'NotificationsActive',
@@ -219,6 +224,7 @@ export const Spinner = makeFontIcon('Spinner', 'icon-spinner8');
 export const Stars = makeFontIcon('Stars', 'icon-stars');
 export const Stripe = makeFontIcon('Stripe', 'icon-cc-stripe');
 export const Tablet = makeFontIcon('Tablet', 'icon-tablet2');
+export const Terminal = makeFontIcon('Terminal', 'icon-cli');
 export const Trash = makeFontIcon('Trash', 'icon-trash2');
 export const Twitter = makeFontIcon('Twitter', 'icon-twitter');
 export const Unarchive = makeFontIcon('Unarchive', 'icon-unarchive');
@@ -231,6 +237,7 @@ export const VideoGame = makeFontIcon('VideoGame', 'icon-videogame_asset');
 export const Visa = makeFontIcon('Visa', 'icon-cc-visa');
 export const VolumeUp = makeFontIcon('VolumeUp', 'icon-volume-high');
 export const VpnKey = makeFontIcon('VpnKey', 'icon-vpn_key');
+export const Wand = makeFontIcon('Wand', 'icon-magic-wand');
 export const Warning = makeFontIcon('Warning', 'icon-warning');
 export const Wifi = makeFontIcon('Wifi', 'icon-wifi');
 export const Windows = makeFontIcon('Windows', 'icon-windows');

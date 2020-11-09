@@ -1,0 +1,1222 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`render clusters 1`] = `
+.c14 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+  height: 24px;
+}
+
+.c14:active {
+  opacity: 0.56;
+}
+
+.c14:hover,
+.c14:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
+}
+
+.c14:active {
+  opacity: 0.24;
+}
+
+.c14:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c9 {
+  display: inline-block;
+  transition: color .3s;
+  color: #FFFFFF;
+  font-size: 16px;
+}
+
+.c12 {
+  display: inline-block;
+  transition: color .3s;
+  color: #FFFFFF;
+}
+
+.c15 {
+  display: inline-block;
+  transition: color .3s;
+  margin-left: 8px;
+  margin-right: -8px;
+  color: rgba(255,255,255,0.56);
+  font-size: 14px;
+}
+
+.c13 {
+  box-sizing: border-box;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 0 8px;
+  background-color: #512FC9;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  color: #FFFFFF;
+}
+
+.c3 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-bottom: 1px solid #1C254D;
+  height: 56px;
+  margin-left: -40px;
+  margin-right: -40px;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  flex-shrink: 0;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  overflow: auto;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c10 {
+  background: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  border-radius: 8px;
+  font-size: 12px;
+  width: 100%;
+}
+
+.c10 > thead > tr > th,
+.c10 > tbody > tr > th,
+.c10 > tfoot > tr > th,
+.c10 > thead > tr > td,
+.c10 > tbody > tr > td,
+.c10 > tfoot > tr > td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+
+.c10 > thead > tr > th:first-child,
+.c10 > tbody > tr > th:first-child,
+.c10 > tfoot > tr > th:first-child,
+.c10 > thead > tr > td:first-child,
+.c10 > tbody > tr > td:first-child,
+.c10 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c10 > thead > tr > th:last-child,
+.c10 > tbody > tr > th:last-child,
+.c10 > tfoot > tr > th:last-child,
+.c10 > thead > tr > td:last-child,
+.c10 > tbody > tr > td:last-child,
+.c10 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c10 > thead > tr > th {
+  background: #111B48;
+  color: #FFFFFF;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
+  text-align: left;
+  opacity: 0.75;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.c10 > thead > tr > th .c8 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
+}
+
+.c10 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
+  line-height: 16px;
+}
+
+.c10 tbody tr {
+  border-bottom: 1px solid #1C254D;
+}
+
+.c10 tbody tr:hover {
+  background-color: rgb(37,49,98);
+}
+
+.c10 tbody tr:hover:last-child td:first-child {
+  border-bottom-left-radius: 8px;
+}
+
+.c10 tbody tr:hover:last-child td:last-child {
+  border-bottom-right-radius: 8px;
+}
+
+.c7 {
+  box-sizing: border-box;
+  display: flex;
+}
+
+.c7 button {
+  background: none;
+  border: none;
+  border-radius: 200px;
+  cursor: pointer;
+  padding: 0;
+  margin: 0 0 0 8px;
+  outline: none;
+  transition: all 0.3s;
+  text-align: center;
+}
+
+.c7 button:hover,
+.c7 button:focus {
+  background: #1C254D;
+}
+
+.c7 button:hover .c8,
+.c7 button:focus .c8 {
+  opacity: 1;
+}
+
+.c7 button .c8 {
+  opacity: 0.4;
+  font-size: 20px;
+  transition: all 0.3s;
+}
+
+.c5 {
+  padding: 8px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  font-size: 12px;
+  min-width: 200px;
+  outline: none;
+  border: none;
+  border-radius: 200px;
+  height: 32px;
+  transition: all .2s;
+  background: #222C59;
+  margin-right: 16px;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
+  height: 30px;
+}
+
+.c4:hover {
+  background: #2C3A73;
+}
+
+.c4:focus,
+.c4:active {
+  background: #2C3A73;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  color: rgba(255,255,255,0.87);
+}
+
+.c4::placeholder {
+  color: rgba(255,255,255,0.24);
+  font-size: 12px;
+}
+
+.c11 td {
+  height: 22px;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+    >
+      Manage Clusters
+    </div>
+  </div>
+  <div
+    class="c3"
+  >
+    <input
+      class="c4"
+      color="text.primary"
+      height="30px"
+      placeholder="SEARCH..."
+      value=""
+    />
+  </div>
+  <nav
+    class="c5"
+  >
+    <div
+      class="c6"
+      color="primary.contrastText"
+    >
+      SHOWING 
+      <strong>
+        1
+      </strong>
+       - 
+      <strong>
+        37
+      </strong>
+       
+      of 
+      <strong>
+        37
+      </strong>
+    </div>
+    <div
+      class="c7"
+    >
+      <button
+        disabled=""
+        title="Previous Page"
+      >
+        <span
+          class="c8 c9 icon icon-arrow-left-circle "
+          color="light"
+          font-size="3"
+        />
+      </button>
+      <button
+        disabled=""
+        title="Next Page"
+      >
+        <span
+          class="c8 c9 icon icon-arrow-right-circle "
+          color="light"
+          font-size="3"
+        />
+      </button>
+    </div>
+  </nav>
+  <table
+    class="c10 c11"
+  >
+    <thead>
+      <tr>
+        <th
+          style="width: 40px;"
+        />
+        <th>
+          <a>
+            Name
+            <span
+              class="c8 c12 icon icon-chevron-down "
+              color="light"
+            />
+          </a>
+        </th>
+        <th />
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <div
+            class="c13"
+            kind="primary"
+          >
+            ROOT
+          </div>
+        </td>
+        <td>
+          localhost
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          williepayne223
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          wetjolune
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          wetjolune
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          wetjolune
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          tommybrooks146
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          theodorefrazier78
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          teresastone14
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          samlewis176
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          rozpaari
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          rozpaari
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          rozpaari
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          ricardosingleton242
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          philipjohnson10
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          nidvojik
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          nellwheeler72
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          lidtabih
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          leonamann249
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          josephinewolfe55
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          jordansimpson35
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          jesushenry58
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          jaysandoval137
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          isabellekim81
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          henriettarios78
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          hattiestanley34
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          hannahsutton232
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          francismoran134
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          farovluv
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          dashawic
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          dashawic
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          dashawic
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          connorsharp137
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          bessiecohen207
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          besscarroll152
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          beatricecarson171
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          barrynelson110
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td />
+        <td>
+          albertowens200
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            height="24px"
+            kind="border"
+          >
+            OPTIONS
+            <span
+              class="c8 c15 icon icon-caret-down "
+              color="text.secondary"
+              font-size="2"
+            />
+          </button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+`;

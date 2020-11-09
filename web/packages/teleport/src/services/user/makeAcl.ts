@@ -15,16 +15,19 @@ limitations under the License.
 */
 
 import makeLogins from './makeLogins';
-import { Access, Acl } from './types';
+import { Acl } from './types';
 
 export default function makeAcl(json): Acl {
   json = json || {};
   const logins = makeLogins(json.sshLogins);
-  const authConnectors = makeAccess(json.authConnectors);
-  const trustedClusters = makeAccess(json.trustedClusters);
-  const roles = makeAccess(json.roles);
-  const sessions = makeAccess(json.sessions);
-  const events = makeAccess(json.events);
+  const authConnectors = json.authConnectors || defaultAccess;
+  const trustedClusters = json.trustedClusters || defaultAccess;
+  const roles = json.roles || defaultAccess;
+  const sessions = json.sessions || defaultAccess;
+  const events = json.events || defaultAccess;
+  const users = json.users || defaultAccess;
+  const appServers = json.appServers || defaultAccess;
+  const tokens = json.tokens || defaultAccess;
 
   return {
     logins,
@@ -33,24 +36,16 @@ export default function makeAcl(json): Acl {
     roles,
     sessions,
     events,
+    users,
+    appServers,
+    tokens,
   };
 }
 
-function makeAccess(json): Access {
-  json = json || {};
-  const {
-    list = false,
-    read = false,
-    edit = false,
-    create = false,
-    remove = false,
-  } = json;
-
-  return {
-    list,
-    read,
-    edit,
-    create,
-    remove,
-  };
-}
+const defaultAccess = {
+  list: false,
+  read: false,
+  edit: false,
+  create: false,
+  remove: false,
+};

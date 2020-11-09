@@ -16,6 +16,7 @@ limitations under the License.
 
 import { generatePath } from 'react-router';
 import { merge } from 'lodash';
+import { Resource } from 'teleport/services/resources';
 
 const cfg = {
   isEnterprise: false,
@@ -28,10 +29,6 @@ const cfg = {
     second_factor: 'off',
   },
 
-  canJoinSessions: true,
-
-  clusterName: 'localhost',
-
   proxyCluster: 'localhost',
 
   loc: {
@@ -40,14 +37,22 @@ const cfg = {
   },
 
   routes: {
-    app: '/web',
+    root: '/web',
+    apps: '/web/cluster/:clusterId/apps',
+    appLauncher: '/web/launch/:fqdn/:clusterId?/:publicAddr?',
+    support: '/web/support',
+    settings: '/web/settings',
     account: '/web/account',
-    cluster: '/web/cluster/:clusterId',
-    clusterAccount: '/web/cluster/:clusterId/account',
-    clusterAudit: '/web/cluster/:clusterId/audit',
-    clusterNodes: '/web/cluster/:clusterId/nodes',
-    clusterSupport: '/web/cluster/:clusterId/support',
-    clusterSessions: '/web/cluster/:clusterId/sessions',
+    roles: '/web/roles',
+    sso: '/web/sso',
+    cluster: '/web/cluster/:clusterId/',
+    clusters: '/web/clusters',
+    trustedClusters: '/web/trust',
+    audit: '/web/cluster/:clusterId/audit',
+    nodes: '/web/cluster/:clusterId/nodes',
+    sessions: '/web/cluster/:clusterId/sessions',
+    recordings: '/web/cluster/:clusterId/recordings',
+    users: '/web/users',
     console: '/web/cluster/:clusterId/console',
     consoleNodes: '/web/cluster/:clusterId/console/nodes',
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
@@ -68,11 +73,15 @@ const cfg = {
   },
 
   api: {
+    aapSession: '/v1/webapi/sessions/app',
+    // TODO backend: define this endpoint
+    applicationsPath: '/v1/webapi/sites/:clusterId/apps',
     clustersPath: '/v1/webapi/sites',
     clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?`,
     scp:
       '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename',
-    renewTokenPath: '/v1/webapi/sessions/renew/:requestId?',
+    renewTokenPath: '/v1/webapi/sessions/renew',
+    resetPasswordTokenPath: '/v1/webapi/users/password/token',
     sessionPath: '/v1/webapi/sessions',
     userContextPath: '/v1/webapi/sites/:clusterId/context',
     userStatusPath: '/v1/webapi/user/status',
@@ -92,11 +101,17 @@ const cfg = {
       'wss://:fqdm/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params',
     terminalSessionPath: '/v1/webapi/sites/:clusterId/sessions/:sid?',
 
+    usersPath: '/v1/enterprise/users',
+    usersDelete: '/v1/enterprise/users/:username',
+    resourcePath: '/v1/enterprise/sites/:clusterId/resources/:kind?',
+    removeResourcePath: '/v1/enterprise/sites/:clusterId/resources/:kind/:id',
+    nodeTokenPath: '/v1/enterprise/nodes/token',
+    nodeScriptPath: '/scripts/:token/install-node.sh',
+    appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
     requestAccessPath: '/v1/enterprise/accessrequest/:requestId?',
   },
 
-  getClusterEventsUrl(params: UrlClusterEventsParams) {
-    const clusterId = cfg.clusterName;
+  getClusterEventsUrl(clusterId: string, params: UrlClusterEventsParams) {
     return generatePath(cfg.api.clusterEventsPath, {
       clusterId,
       ...params,
@@ -119,44 +134,53 @@ const cfg = {
     return cfg.baseUrl + generatePath(providerUrl, { redirect, providerName });
   },
 
-  getDefaultRoute() {
+  getAuditRoute(clusterId: string) {
+    return generatePath(cfg.routes.audit, { clusterId });
+  },
+
+  getNodesRoute(clusterId: string) {
+    return generatePath(cfg.routes.nodes, { clusterId });
+  },
+
+  getNodeJoinTokenUrl() {
+    return cfg.api.nodeTokenPath;
+  },
+
+  getNodeScriptUrl(token: string) {
+    return cfg.baseUrl + generatePath(cfg.api.nodeScriptPath, { token });
+  },
+
+  getAppNodeScriptUrl(token: string, name: string, uri: string) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.appNodeScriptPath, { token, name, uri })
+    );
+  },
+
+  getUsersRoute() {
     const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.routes.cluster, { clusterId });
+    return generatePath(cfg.routes.users, { clusterId });
   },
 
-  getAuditRoute() {
-    const clusterId = cfg.clusterName;
-    return generatePath(cfg.routes.clusterAudit, { clusterId });
+  getAppsRoute(clusterId: string) {
+    return generatePath(cfg.routes.apps, { clusterId });
   },
 
-  getDashboardRoute() {
-    return cfg.routes.app;
+  getSessionsRoute(clusterId: string) {
+    return generatePath(cfg.routes.sessions, { clusterId });
   },
 
-  getNodesRoute() {
-    const clusterId = cfg.clusterName;
-    return generatePath(cfg.routes.clusterNodes, { clusterId });
-  },
-
-  getSupportRoute() {
-    const clusterId = cfg.clusterName;
-    return generatePath(cfg.routes.clusterSupport, { clusterId });
-  },
-
-  getSessionsRoute() {
-    const clusterId = cfg.clusterName;
-    return generatePath(cfg.routes.clusterSessions, { clusterId });
+  getRecordingsRoute(clusterId: string) {
+    return generatePath(cfg.routes.recordings, { clusterId });
   },
 
   getConsoleNodesRoute(clusterId: string) {
-    clusterId = clusterId || cfg.clusterName;
     return generatePath(cfg.routes.consoleNodes, {
       clusterId,
     });
   },
 
   getSshConnectRoute({ clusterId, login, serverId }: UrlParams) {
-    clusterId = clusterId || cfg.clusterName;
     return generatePath(cfg.routes.consoleConnect, {
       clusterId,
       serverId,
@@ -165,7 +189,6 @@ const cfg = {
   },
 
   getSshSessionRoute({ clusterId, sid }: UrlParams) {
-    clusterId = clusterId || cfg.clusterName;
     return generatePath(cfg.routes.consoleSession, { clusterId, sid });
   },
 
@@ -174,43 +197,57 @@ const cfg = {
   },
 
   getClusterRoute(clusterId: string) {
-    clusterId = clusterId || cfg.clusterName;
     return generatePath(cfg.routes.cluster, { clusterId });
   },
 
   getConsoleRoute(clusterId: string) {
-    clusterId = clusterId || cfg.clusterName;
     return generatePath(cfg.routes.console, { clusterId });
   },
 
-  getPlayerRoute({ clusterId, sid }: UrlParams) {
-    clusterId = clusterId || cfg.clusterName;
-    return generatePath(cfg.routes.player, { clusterId, sid });
+  getAppLauncherRoute(params: UrlLauncherParams) {
+    return generatePath(cfg.routes.appLauncher, { ...params });
   },
 
-  getSessionAuditPlayerRoute({ clusterId, sid }: UrlParams) {
-    clusterId = clusterId || cfg.clusterName;
-    return generatePath(cfg.routes.sessionAuditPlayer, { clusterId, sid });
+  getPlayerRoute(params: UrlPlayerParams) {
+    return generatePath(cfg.routes.player, { ...params });
   },
 
-  getSessionAuditCmdsRoute({ clusterId, sid }: UrlParams) {
-    clusterId = clusterId || cfg.clusterName;
-    return generatePath(cfg.routes.sessionAuditCmds, { clusterId, sid });
+  getSessionAuditPlayerRoute(params: UrlPlayerParams) {
+    return generatePath(cfg.routes.sessionAuditPlayer, { ...params });
   },
 
-  getUserUrl(clusterId?: string) {
-    clusterId = clusterId || cfg.clusterName;
+  getSessionAuditCmdsRoute(params: UrlPlayerParams) {
+    return generatePath(cfg.routes.sessionAuditCmds, { ...params });
+  },
+
+  getUserContextUrl() {
+    const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.userContextPath, { clusterId });
   },
 
+  getUserResetTokenRoute(tokenId = '', invite = true) {
+    const route = invite ? cfg.routes.userInvite : cfg.routes.userReset;
+    return cfg.baseUrl + generatePath(route, { tokenId });
+  },
+
+  getUsersUrl() {
+    return cfg.api.usersPath;
+  },
+
+  getUsersDeleteUrl(username = '') {
+    return generatePath(cfg.api.usersDelete, { username });
+  },
+
   getTerminalSessionUrl({ clusterId, sid }: UrlParams) {
-    clusterId = clusterId || cfg.clusterName;
     return generatePath(cfg.api.terminalSessionPath, { clusterId, sid });
   },
 
   getClusterNodesUrl(clusterId: string) {
-    clusterId = clusterId || cfg.clusterName;
     return generatePath(cfg.api.nodesPath, { clusterId });
+  },
+
+  getApplicationsUrl(clusterId: string) {
+    return generatePath(cfg.api.applicationsPath, { clusterId });
   },
 
   getU2fCreateUserChallengeUrl(tokenId: string) {
@@ -223,26 +260,32 @@ const cfg = {
     });
   },
 
-  getRequestAccessUrl(requestId?: string) {
-    return generatePath(cfg.api.requestAccessPath, { requestId });
-  },
-
   getRenewTokenUrl(requestId?: string) {
     return generatePath(cfg.api.renewTokenPath, { requestId });
   },
 
-  setClusterId(clusterId: string) {
-    cfg.clusterName = clusterId || cfg.proxyCluster;
+  getRequestAccessUrl(requestId?: string) {
+    return generatePath(cfg.api.requestAccessPath, { requestId });
   },
 
-  init(newConfig = {}) {
-    merge(this, newConfig);
+  getResourcesUrl(kind?: Resource['kind']) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.resourcePath, { clusterId, kind });
+  },
+
+  getRemoveResourceUrl(kind: Resource['kind'], id: string) {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.removeResourcePath, { clusterId, kind, id });
+  },
+
+  init(backendConfig = {}) {
+    merge(this, backendConfig);
   },
 };
 
 export interface UrlParams {
+  clusterId: string;
   sid?: string;
-  clusterId?: string;
   login?: string;
   serverId?: string;
 }
@@ -259,13 +302,24 @@ export interface UrlSshParams {
   login?: string;
   serverId?: string;
   sid?: string;
-  clusterId?: string;
+  clusterId: string;
 }
 
 export interface UrlClusterEventsParams {
   start: string;
   end: string;
   limit?: number;
+}
+
+export interface UrlLauncherParams {
+  fqdn: string;
+  clusterId?: string;
+  publicAddr?: string;
+}
+
+export interface UrlPlayerParams {
+  clusterId: string;
+  sid: string;
 }
 
 export default cfg;

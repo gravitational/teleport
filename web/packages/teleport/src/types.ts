@@ -14,7 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import FeatureBase from 'shared/libs/featureBase';
+import React from 'react';
+
+export type NavGroup = 'team' | 'activity' | 'clusters';
 
 export interface Context {
   isAccountEnabled(): boolean;
@@ -24,15 +26,15 @@ export interface Context {
   isTrustedClustersEnabled(): boolean;
 }
 
-export interface Feature extends FeatureBase {
-  Component: (props: any) => JSX.Element;
-  getRoute(): FeatureRouteParams;
-  onload(context: Context): void;
+export interface Feature {
+  route: FeatureRoute;
+  getTopNavTitle(): string;
+  register(ctx: Context): void;
 }
 
-type FeatureRouteParams = {
+type FeatureRoute = {
   title: string;
   path: string;
   exact?: boolean;
-  component(props: any): JSX.Element;
+  component: React.FunctionComponent;
 };

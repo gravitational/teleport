@@ -19,10 +19,12 @@ import withState from './withState';
 import useAttempt from './useAttempt';
 import useFavicon from './useFavicon';
 import useDocTitle from './useDocTitle';
+import useAttemptNext from './useAttemptNext';
 
 export {
   useRef,
   useAttempt,
+  useAttemptNext,
   useState,
   withState,
   useEffect,

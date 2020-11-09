@@ -21,7 +21,6 @@ import { TermEventEnum } from './enums';
 
 const logger = Logger.create('lib/term/terminal');
 const DISCONNECT_TXT = 'disconnected';
-const GRV_CLASS = 'grv-terminal';
 const WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
 
 /**
@@ -44,8 +43,6 @@ class TtyTerminal {
   }
 
   open() {
-    this._el.classList.add(GRV_CLASS);
-
     // render xtermjs with default values
     this.term = new XTerm({
       cols: 15,
@@ -91,7 +88,6 @@ class TtyTerminal {
     }
 
     this._el.innerHTML = null;
-    this._el.classList.remove(GRV_CLASS);
   }
 
   reset() {

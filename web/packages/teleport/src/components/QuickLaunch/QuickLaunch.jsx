@@ -16,13 +16,19 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { Box, Input, LabelInput } from 'design';
+import { Flex } from 'design';
+import { space, width, color, height } from 'styled-system';
+
+// Checks for spaces between chars, and
+// captures two named groups: username and host.
+const SSH_STR_REGEX = /^(?:(?<username>[^\s]+)@)(?<host>[^\s]+)$/;
+const check = value => {
+  return SSH_STR_REGEX.exec(value.trim());
+};
 
 export default function FieldInputSsh({
   onPress,
-  autoFocus = true,
-  width = '200px',
-  labelProps = {},
+  autoFocus = false,
   inputProps = {},
   ...boxProps
 }) {
@@ -42,53 +48,85 @@ export default function FieldInputSsh({
     }
   }
 
-  const labelText = hasError ? 'Invalid' : 'Quick Launch';
-
   return (
-    <Box {...boxProps}>
-      <LabelInput {...labelProps} hasError={hasError}>
-        {labelText}
-      </LabelInput>
+    <StyledBox {...boxProps} hasError={hasError}>
+      <StyledLabel>SSH:</StyledLabel>
       <StyledInput
-        height="34px"
         bg="primary.light"
         color="text.primary"
         placeholder="login@host"
         autoFocus={autoFocus}
-        width={width}
         onKeyPress={onKeyPress}
         {...inputProps}
       />
-    </Box>
+    </StyledBox>
   );
 }
 
-// Checks for spaces between chars, and
-// captures two named groups: username and host.
-const SSH_STR_REGEX = /^(?:(?<username>[^\s]+)@)(?<host>[^\s]+)$/;
-const check = value => {
-  return SSH_STR_REGEX.exec(value.trim());
-};
+function error({ hasError, theme }) {
+  if (!hasError) {
+    return;
+  }
 
-const StyledInput = styled(Input)(
-  ({ theme }) => `
-  background: ${theme.colors.primary.light};
-  border: 1px solid ${theme.colors.primary.dark};
+  return {
+    border: `1px solid ${theme.colors.error.main}`,
+    paddifngLeft: '7px',
+    paddifngRight: '1px',
+  };
+}
+
+const StyledBox = styled(Flex)`
+  align-items: center;
+  height: 30px;
+  border: 1px solid;
   border-radius: 4px;
   border-color: rgba(255, 255, 255, 0.24);
+  background-color: #111b48;
+  ${error}
+`;
 
-  &:hover, &:focus, &:active {
-    color: ${theme.colors.text.primary};
-    background: ${theme.colors.primary.lighter};
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, .24);
+const StyledLabel = styled.div`
+  opacity: 0.75;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 0 8px;
+  border-bottom-left-radius: 4px;
+  border-top-left-radius: 4px;
+  background: ${props => props.theme.colors.primary.darker};
+`;
+
+const StyledInput = styled.input`
+  appearance: none;
+  border:none;
+  border-radius: 4px;
+  box-sizing: border-box;
+  border-bottom-left-radius: unset;
+  border-top-left-radius: unset;
+  display: block;
+  outline: none;
+  width: 100%;
+  height: 100%;
+  box-shadow: none;
+  padding-left: 8px;
+  font-size: 12px;
+
+  ::-ms-clear {
+    display: none;
   }
 
-  font-size: ${theme.fontSizes[2]}px;
-  font-family: ${theme.font};
-
-  &::placeholder {
-    color: ${theme.colors.text.placeholder};
-    font-size: ${theme.fontSizes[2]}px;
+  :read-only {
+    cursor: not-allowed
   }
-`
-);
+
+  ::placeholder {
+    opacity: 1;
+    color: ${props => props.theme.colors.text.placeholder};
+    font-size: ${props => props.theme.fontSizes[1]}px;
+  }
+
+  &:hover, &:focus {
+    background: ${props => props.theme.colors.primary.lighter};
+  }
+
+  ${color} ${space} ${width} ${height} ;
+`;

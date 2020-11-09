@@ -27,3 +27,13 @@ export interface Node {
   addr: string;
   tunnel: boolean;
 }
+
+export interface NodeToken {
+  id: string;
+  expiry: Date;
+}
+
+export interface BashCommand {
+  text: string;
+  expires: string;
+}

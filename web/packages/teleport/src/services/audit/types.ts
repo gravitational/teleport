@@ -36,6 +36,8 @@ export const CodeEnum = {
   SESSION_COMMAND: 'T4000I',
   SESSION_DISK: 'T4001I',
   SESSION_NETWORK: 'T4002I',
+  APP_SESSION_START: 'T2007I',
+  APP_SESSION_CHUNK: 'T2008I',
   SUBSYSTEM_FAILURE: 'T3001E',
   SUBSYSTEM: 'T3001I',
   TERMINAL_RESIZE: 'T2002I',
@@ -431,6 +433,14 @@ export type RawEvents = {
     {
       sid: string;
     }
+  >;
+  [CodeEnum.APP_SESSION_START]: RawEvent<
+    typeof CodeEnum.APP_SESSION_START,
+    { sid: string }
+  >;
+  [CodeEnum.APP_SESSION_CHUNK]: RawEvent<
+    typeof CodeEnum.APP_SESSION_CHUNK,
+    { sid: string }
   >;
   [CodeEnum.G_SMTPCONFIG_CREATED]: RawEvent<
     typeof CodeEnum.G_SMTPCONFIG_CREATED

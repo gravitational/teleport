@@ -19,10 +19,6 @@ build:
 test:
 	$(MAKE) docker-build NPM_CMD=test
 
-.PHONY: build-force
-build-force:
-	$(MAKE) docker-build NPM_CMD=build-force FROM=dist/force/ TO=dist/force
-
 .PHONY: build-gravity-oss
 build-gravity-oss:
 	$(MAKE) docker-build NPM_CMD=build-gravity-oss FROM=dist/gravity/ TO=dist/gravity

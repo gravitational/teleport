@@ -31,6 +31,8 @@ export default function FieldSelect({
   rule = defaultRule,
   isSearchable = false,
   isSimpleValue = false,
+  autoFocus = false,
+  isDisabled = false,
   ...styles
 }: Props) {
   const { valid, message } = useRule(rule(value));
@@ -50,6 +52,8 @@ export default function FieldSelect({
         maxMenuHeight={maxMenuHeight}
         placeholder={placeholder}
         isMulti={isMulti}
+        autoFocus={autoFocus}
+        isDisabled={isDisabled}
       />
     </Box>
   );

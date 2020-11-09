@@ -1,0 +1,61 @@
+/**
+ * Copyright 2020 Gravitational, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import React from 'react';
+import { AddNode } from './AddNode';
+
+export default {
+  title: 'Teleport/Nodes/Add',
+};
+
+export const Loaded = () => <AddNode {...sample.props} />;
+
+export const Processing = () => (
+  <AddNode {...sample.props} attempt={{ status: 'processing' }} />
+);
+
+export const Failed = () => (
+  <AddNode
+    {...sample.props}
+    attempt={{ status: 'failed', statusText: 'some error message' }}
+  />
+);
+
+export const Manually = () => (
+  <AddNode {...sample.props} automatic={false} canCreateToken={false} />
+);
+
+const sample = {
+  props: {
+    onClose() {
+      return null;
+    },
+    createJoinToken() {
+      return Promise.resolve(null);
+    },
+    automatic: true,
+    setAutomatic: () => null,
+    version: '5.0.0-dev',
+    isEnterprise: true,
+    canCreateToken: true,
+    script: 'some bash script',
+    expiry: new Date('3000-10-14'),
+    attempt: {
+      status: 'success',
+      statusText: '',
+    } as any,
+  },
+};

@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,34 +15,21 @@ limitations under the License.
 */
 
 import React from 'react';
-import { useStore } from 'shared/libs/stores';
-import Context from './teleportContext';
+import TeleportContext from './teleportContext';
 
-const TeleportReactContext = React.createContext<Context>(null);
+// ReactContext is an instance of React context that is used to
+// access TeleportContext instance from within the virtual DOM
+const ReactContext = React.createContext<TeleportContext>(null);
 
-export default TeleportReactContext.Provider;
+const TeleportContextProvider: React.FC<Props> = props => {
+  const [ctx] = React.useState(() => props.ctx || new TeleportContext());
+  return <ReactContext.Provider value={ctx} children={props.children} />;
+};
 
-export function useTeleport() {
-  const value = React.useContext(TeleportReactContext);
+export default TeleportContextProvider;
 
-  if (!value) {
-    throw new Error('TeleportReactContext is missing a value');
-  }
+export { ReactContext };
 
-  return (window['teleContext'] = value);
-}
-
-export function useStoreNav() {
-  const context = React.useContext(TeleportReactContext);
-  return useStore(context.storeNav);
-}
-
-export function useStoreUser() {
-  const context = React.useContext(TeleportReactContext);
-  return useStore(context.storeUser);
-}
-
-export function useStoreClusters() {
-  const context = React.useContext(TeleportReactContext);
-  return useStore(context.storeClusters);
-}
+type Props = {
+  ctx?: TeleportContext;
+};

@@ -3,7 +3,6 @@
 This mono-repository contains the source code for the web UIs of the following projects:
 [Teleport](https://github.com/gravitational/teleport)
 [Gravity](https://github.com/gravitational/gravity)
-[Force](https://github.com/gravitational/force)
 
 The code is organized in terms of independent yarn packages which reside in
 the [packages directory](https://github.com/gravitational/webapps/tree/master/packages).
@@ -35,12 +34,6 @@ To build the Gravity web UI
 $ yarn build-gravity
 ```
 
-To build the Force web UI
-
-```
-$ yarn build-force
-```
-
 The resulting output will be in the `/packages/{package-name}/dist/` folders respectively.
 
 ### Docker Build
@@ -61,12 +54,6 @@ To build the Gravity web UI
 
 ```
 $ make packages/gravity/dist
-```
-
-To build the Force web UI
-
-```
-$ make packages/force/dist
 ```
 
 ## Development

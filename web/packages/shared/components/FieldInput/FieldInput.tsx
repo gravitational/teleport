@@ -28,6 +28,7 @@ export default function FieldInput({
   type = 'text',
   autoFocus = false,
   autoComplete = 'off',
+  readonly = false,
   ...styles
 }: Props) {
   const { valid, message } = useRule(rule(value));
@@ -45,6 +46,7 @@ export default function FieldInput({
         autoComplete={autoComplete}
         onChange={onChange}
         onKeyPress={onKeyPress}
+        readOnly={readonly}
       />
     </Box>
   );
@@ -62,6 +64,7 @@ type Props = {
   rule?: Function;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onKeyPress?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  readonly?: boolean;
   // TS: temporary handles ...styles
   [key: string]: any;
 };

@@ -17,6 +17,7 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import defaultTheme from 'design/theme';
+import { space } from 'design/system';
 
 function Link({ ...props }) {
   return <StyledButtonLink {...props} />;
@@ -39,6 +40,8 @@ const StyledButtonLink = styled.a`
   &:focus {
     background: ${({ theme }) => theme.colors.primary.light};
   }
+
+  ${space}
 `;
 
 export default Link;

@@ -14,10 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/**
+ * requiredField checks for empty strings and arrays.
+ *
+ * @param message The custom error message to display to users.
+ * @param value The value user entered.
+ */
 const requiredField = message => value => () => {
+  const valid = !(!value || value.length === 0);
   return {
-    valid: !!value,
-    message: !value ? message : '',
+    valid,
+    message: !valid ? message : '',
   };
 };
 

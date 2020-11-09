@@ -1,9 +1,12 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2019-2020 Gravitational, Inc.
+
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
+
     http://www.apache.org/licenses/LICENSE-2.0
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -14,13 +17,39 @@ limitations under the License.
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 import session from 'teleport/services/session';
-import makeUser from './makeUser';
+import makeUserContext from './makeUserContext';
+import makeResetToken from './makeResetToken';
+import makeUser, { makeUsers } from './makeUser';
+import { User, UserContext, ResetPasswordType } from './types';
 import makeAccessRequest from './makeAccessRequest';
-import { User } from './types';
 
-let cached: User = null;
+const cache = {
+  userContext: null as UserContext,
+};
 
 const service = {
+  fetchAccessRequest(requestId?: string) {
+    return api.get(cfg.getRequestAccessUrl(requestId)).then(makeAccessRequest);
+  },
+
+  fetchUserContext(fromCache = true) {
+    if (fromCache && cache['userContext']) {
+      return Promise.resolve(cache['userContext']);
+    }
+
+    return api
+      .get(cfg.getUserContextUrl())
+      .then(makeUserContext)
+      .then(userContext => {
+        cache['userContext'] = userContext;
+        return cache['userContext'];
+      });
+  },
+
+  fetchUsers() {
+    return api.get(cfg.getUsersUrl()).then(makeUsers);
+  },
+
   createAccessRequest(reason?: string) {
     return api
       .post(cfg.getRequestAccessUrl(), { reason })
@@ -31,22 +60,22 @@ const service = {
     return session.renewSession(requestId);
   },
 
-  fetchAccessRequest(requestId?: string) {
-    return api.get(cfg.getRequestAccessUrl(requestId)).then(makeAccessRequest);
+  updateUser(user: User) {
+    return api.put(cfg.getUsersUrl(), user).then(makeUser);
   },
 
-  fetchUser(clusterId?: string, fromCache = true) {
-    if (fromCache && cached) {
-      return Promise.resolve(cached);
-    }
+  createUser(user: User) {
+    return api.post(cfg.getUsersUrl(), user).then(makeUser);
+  },
 
+  createResetPasswordToken(name: string, type: ResetPasswordType) {
     return api
-      .get(cfg.getUserUrl(clusterId))
-      .then(makeUser)
-      .then(userContext => {
-        cached = userContext;
-        return cached;
-      });
+      .post(cfg.api.resetPasswordTokenPath, { name, type })
+      .then(makeResetToken);
+  },
+
+  deleteUser(name: string) {
+    return api.delete(cfg.getUsersDeleteUrl(name));
   },
 };
 

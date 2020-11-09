@@ -24,7 +24,7 @@ export const EVENT_MAX_LIMIT = 9999;
 const service = {
   maxLimit: EVENT_MAX_LIMIT,
 
-  fetchLatest() {
+  fetchLatest(clusterId: string) {
     const start = moment(new Date())
       .startOf('day')
       .toDate();
@@ -32,13 +32,13 @@ const service = {
       .endOf('day')
       .toDate();
 
-    return service.fetchEvents({ start, end });
+    return service.fetchEvents(clusterId, { start, end });
   },
 
-  fetchEvents(params: { end: Date; start: Date }) {
+  fetchEvents(clusterId: string, params: { end: Date; start: Date }) {
     const start = params.start.toISOString();
     const end = params.end.toISOString();
-    const url = cfg.getClusterEventsUrl({
+    const url = cfg.getClusterEventsUrl(clusterId, {
       start,
       end,
       limit: EVENT_MAX_LIMIT + 1,
@@ -46,7 +46,7 @@ const service = {
     return api
       .get(url)
       .then(json => {
-        const events: any[] = json.events ? json.events : [];
+        const events: any[] = json.events || [];
         return events.map(makeEvent);
       })
       .then(events => {

@@ -25,12 +25,12 @@ export default function Select(props: Props) {
   return (
     <StyledSelect hasError={hasError}>
       <ReactSelect
+        menuPlacement="auto"
         className="react-select-container"
         classNamePrefix="react-select"
         clearable={false}
         isMulti={false}
         isSearchable={true}
-        maxMenuHeight={300}
         placeholder="Select..."
         {...restOfProps}
       />
@@ -47,7 +47,6 @@ export function SelectAsync(props: AsyncProps) {
         classNamePrefix="react-select"
         clearable={false}
         isSearchable={true}
-        maxMenuHeight={300}
         defaultOptions={false}
         cacheOptions={false}
         defaultMenuIsOpen={false}

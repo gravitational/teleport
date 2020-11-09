@@ -19,15 +19,19 @@ export type Props = {
   clearable?: boolean;
   isSimpleValue?: boolean;
   isSearchable?: boolean;
+  isDisabled?: boolean;
   maxMenuHeight?: number;
-  onChange(e: Option): void;
-  value: null | Option;
+  onChange(e: Option | Option[]): void;
+  value: null | Option | Option[];
   isMulti?: boolean;
   autoFocus?: boolean;
   label?: string;
   placeholder?: string;
   options: Option[];
   width?: string | number;
+  menuPlacement?: string;
+  components?: any;
+  menuPosition?: 'fixed' | 'absolute';
 };
 
 export type AsyncProps = Omit<Props, 'options'> & {

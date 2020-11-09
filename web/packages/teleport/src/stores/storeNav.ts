@@ -15,13 +15,7 @@ limitations under the License.
 */
 
 import { Store } from 'shared/libs/stores';
-
-type NavItem = {
-  title: string;
-  Icon: any;
-  to: string;
-  exact?: boolean;
-};
+import { NavGroup } from 'teleport/types';
 
 const defaultState = {
   sideNav: [] as NavItem[],
@@ -67,3 +61,11 @@ export default class StoreNav extends Store<typeof defaultState> {
     return this.state.topNav;
   }
 }
+
+export type NavItem = {
+  title: string;
+  Icon: any;
+  exact?: boolean;
+  getLink(clusterId: string): string;
+  group?: NavGroup;
+};

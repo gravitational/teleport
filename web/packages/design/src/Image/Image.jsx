@@ -33,6 +33,12 @@ const Image = props => {
 Image.propTypes = {
   /** Image Src */
   src: PropTypes.string,
+  ...space.propTypes,
+  ...color.propTypes,
+  ...width.propTypes,
+  ...height.propTypes,
+  ...maxWidth.propTypes,
+  ...maxHeight.propTypes,
 };
 
 Image.displayName = 'Logo';

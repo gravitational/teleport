@@ -22,7 +22,7 @@ test('fetch latest events', async () => {
   // Test null response gives empty array.
   jest.spyOn(api, 'get').mockResolvedValue({ events: null });
 
-  let response = await audit.fetchLatest();
+  let response = await audit.fetchLatest('clusterId');
 
   expect(api.get).toHaveBeenCalledTimes(1);
   expect(response.events).toHaveLength(0);
@@ -34,7 +34,7 @@ test('fetch latest events', async () => {
     .mockResolvedValue({ events: Array(audit.maxLimit + 1) });
   jest.spyOn(makeEventObject, 'default').mockReturnValue(null as any);
 
-  response = await audit.fetchLatest();
+  response = await audit.fetchLatest('clusterId');
 
   expect(response.events).toHaveLength(audit.maxLimit - 1);
   expect(response.overflow).toEqual(true);

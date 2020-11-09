@@ -72,8 +72,8 @@ const StyledSpinner = styled(SpinnerIcon)`
     width: ${fontSize};
   `}
 
-  animation: anim-rotate 1s infinite linear;
-  color: #FFF;
+  animation: anim-rotate 2s infinite linear;
+  color: #fff;
   display: inline-block;
   margin: 16px;
   opacity: 0.24;

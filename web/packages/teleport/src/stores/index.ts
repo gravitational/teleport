@@ -1,5 +1,3 @@
 import StoreNav from './storeNav';
-import StoreUser from './storeUser';
-import StoreClusters from './storeClusters';
-
-export { StoreNav, StoreClusters, StoreUser };
+import StoreUserContext from './storeUserContext';
+export { StoreNav, StoreUserContext };

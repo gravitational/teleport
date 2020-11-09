@@ -1,0 +1,569 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`empty state 1`] = `
+.c6 {
+  box-sizing: border-box;
+  margin-left: 24px;
+  margin-right: 24px;
+}
+
+.c8 {
+  box-sizing: border-box;
+}
+
+.c9 {
+  box-sizing: border-box;
+  margin-bottom: 40px;
+  padding-right: 24px;
+}
+
+.c3 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  width: 240px;
+}
+
+.c3:active {
+  opacity: 0.56;
+}
+
+.c3:hover,
+.c3:focus {
+  background: #651FFF;
+}
+
+.c3:active {
+  background: #354AA4;
+}
+
+.c3:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c12 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-bottom: 8px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 240px;
+}
+
+.c12:active {
+  opacity: 0.56;
+}
+
+.c12:hover,
+.c12:focus {
+  background: #651FFF;
+}
+
+.c12:active {
+  background: #354AA4;
+}
+
+.c12:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c5 {
+  box-sizing: border-box;
+  max-width: 700px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  background-color: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c7 {
+  display: block;
+  outline: none;
+  width: 180px;
+}
+
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  max-width: 700px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  background-color: #222C59;
+  display: flex;
+  align-items: center;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  border-bottom: 1px solid #1C254D;
+  height: 56px;
+  margin-left: -40px;
+  margin-right: -40px;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  flex-shrink: 0;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  overflow: auto;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <div
+      class="c1"
+    >
+      <div
+        class="c2"
+      >
+        Applications
+      </div>
+      <button
+        class="c3"
+        kind="primary"
+        width="240px"
+      >
+        Add Application
+      </button>
+    </div>
+    <div
+      class="c4 sc-AxirZ c5"
+    >
+      <div
+        class="c6"
+      >
+        <img
+          class="c7"
+          src="file_stub"
+          width="180px"
+        />
+      </div>
+      <div
+        class="c8"
+      >
+        <div
+          class="c9"
+        >
+          <div
+            class="c10"
+          >
+            SECURE YOUR FIRST APPLICATION
+          </div>
+          <div
+            class="c11"
+          >
+            Teleport Application Access provides secure access to internal applications without the need for a VPN and with the auditability and control of Teleport.
+          </div>
+        </div>
+        <button
+          class="c12"
+          kind="primary"
+          width="240px"
+        >
+          Add Application
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`loaded state 1`] = `
+.c3 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  width: 240px;
+}
+
+.c3:active {
+  opacity: 0.56;
+}
+
+.c3:hover,
+.c3:focus {
+  background: #651FFF;
+}
+
+.c3:active {
+  background: #354AA4;
+}
+
+.c3:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c9 {
+  display: inline-block;
+  transition: color .3s;
+  color: #FFFFFF;
+}
+
+.c11 {
+  display: inline-block;
+  transition: color .3s;
+  margin-bottom: 16px;
+  color: #FFFFFF;
+  font-size: 62px;
+}
+
+.c7 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all .3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+}
+
+.c7 .c8 {
+  color: inherit;
+}
+
+.c7:disabled {
+  color: rgba(255,255,255,0.3);
+}
+
+.c7:disabled {
+  color: rgba(255,255,255,0.3);
+}
+
+.c7:hover,
+.c7:focus {
+  background: rgba(255,255,255,0.1);
+}
+
+.c12 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+  margin-bottom: 8px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.c6 {
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.c10 {
+  box-sizing: border-box;
+  padding-left: 8px;
+  padding-right: 8px;
+  width: 220px;
+  color: rgba(255,255,255,0.87);
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  border-bottom: 1px solid #1C254D;
+  height: 56px;
+  margin-left: -40px;
+  margin-right: -40px;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  flex-shrink: 0;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  overflow: auto;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c5 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  margin-right: 32px;
+  height: 240px;
+  width: 240px;
+  background-color: #222C59;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  position: relative;
+  box-shadow: 0 4px 32px rgba(0,0,0,0.24);
+  cursor: pointer;
+  transition: 0.3s;
+  border: 2px solid transparent;
+}
+
+.c5:hover {
+  border: 2px solid #512FC9;
+  background: #2C3A73;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <div
+      class="c1"
+    >
+      <div
+        class="c2"
+      >
+        Applications
+      </div>
+      <button
+        class="c3"
+        kind="primary"
+        width="240px"
+      >
+        Add Application
+      </button>
+    </div>
+    <div
+      class="c4"
+    >
+      <div
+        class="c5"
+        height="240px"
+        width="240px"
+      >
+        <div
+          class="c6"
+          width="100%"
+        >
+          <button
+            class="c7"
+            data-testid="button"
+            style="right: 10px; position: absolute; top: 10px;"
+          >
+            <span
+              class="c8 c9 icon icon-ellipsis "
+              color="light"
+            />
+          </button>
+        </div>
+        <a
+          class="c10"
+          color="text.primary"
+          href="/web/launch/jenkins.one/one/jenkins"
+          style="text-decoration: none;"
+          tabindex="-1"
+          target="_blank"
+          width="220px"
+        >
+          <span
+            class="c8 c11 icon icon-new-tab "
+            color="light"
+            font-size="62px"
+          />
+          <div
+            class="c12"
+            style="text-align: center; width: 100%;"
+          >
+            jenkins
+          </div>
+        </a>
+      </div>
+      <div
+        class="c5"
+        height="240px"
+        width="240px"
+      >
+        <div
+          class="c6"
+          width="100%"
+        >
+          <button
+            class="c7"
+            data-testid="button"
+            style="right: 10px; position: absolute; top: 10px;"
+          >
+            <span
+              class="c8 c9 icon icon-ellipsis "
+              color="light"
+            />
+          </button>
+        </div>
+        <a
+          class="c10"
+          color="text.primary"
+          href="/web/launch/jenkins.two/two/jenkins"
+          style="text-decoration: none;"
+          tabindex="-1"
+          target="_blank"
+          width="220px"
+        >
+          <span
+            class="c8 c11 icon icon-new-tab "
+            color="light"
+            font-size="62px"
+          />
+          <div
+            class="c12"
+            style="text-align: center; width: 100%;"
+          >
+            jenkins
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+`;

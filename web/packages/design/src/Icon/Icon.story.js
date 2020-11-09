@@ -37,6 +37,7 @@ export const ListOfIcons = () => (
     <IconBox IconCmpt={Icon.ArrowRight} text="ArrowRight" />
     <IconBox IconCmpt={Icon.ArrowsVertical} text="ArrowsVertical" />
     <IconBox IconCmpt={Icon.ArrowUp} text="ArrowUp" />
+    <IconBox IconCmpt={Icon.AlarmRing} text="AlarmRing" />
     <IconBox IconCmpt={Icon.Bubble} text="Bubble" />
     <IconBox IconCmpt={Icon.Camera} text="Camera" />
     <IconBox IconCmpt={Icon.CardView} text="CardView" />
@@ -68,6 +69,7 @@ export const ListOfIcons = () => (
     <IconBox IconCmpt={Icon.Close} text="Close" />
     <IconBox IconCmpt={Icon.Cloud} text="Cloud" />
     <IconBox IconCmpt={Icon.Cluster} text="Cluster" />
+    <IconBox IconCmpt={Icon.Clusters} text="Clusters" />
     <IconBox IconCmpt={Icon.ClusterAdded} text="ClusterAdded" />
     <IconBox IconCmpt={Icon.ClusterAuth} text="ClusterAuth" />
     <IconBox IconCmpt={Icon.Code} text="Code" />
@@ -86,6 +88,7 @@ export const ListOfIcons = () => (
     <IconBox IconCmpt={Icon.Ellipsis} text="Ellipsis" />
     <IconBox IconCmpt={Icon.EmailSolid} text="EmailSolid" />
     <IconBox IconCmpt={Icon.Equalizer} text="Equalizer" />
+    <IconBox IconCmpt={Icon.EqualizerVertical} text="EqualizerVertical" />
     <IconBox IconCmpt={Icon.Expand} text="Expand" />
     <IconBox IconCmpt={Icon.Facebook} text="Facebook" />
     <IconBox IconCmpt={Icon.FacebookSquare} text="FacebookSquare" />
@@ -109,6 +112,7 @@ export const ListOfIcons = () => (
     <IconBox IconCmpt={Icon.ListAddCheck} text="ListAddCheck" />
     <IconBox IconCmpt={Icon.ListBullet} text="ListBullet" />
     <IconBox IconCmpt={Icon.ListCheck} text="ListCheck" />
+    <IconBox IconCmpt={Icon.ListThin} text="ListThin" />
     <IconBox IconCmpt={Icon.ListView} text="ListView" />
     <IconBox IconCmpt={Icon.LocalPlay} text="LocalPlay" />
     <IconBox IconCmpt={Icon.Lock} text="Lock" />
@@ -118,6 +122,7 @@ export const ListOfIcons = () => (
     <IconBox IconCmpt={Icon.MoreHoriz} text="MoreHoriz" />
     <IconBox IconCmpt={Icon.MoreVert} text="MoreVert" />
     <IconBox IconCmpt={Icon.Mute} text="Mute" />
+    <IconBox IconCmpt={Icon.NewTab} text="NewTab" />
     <IconBox IconCmpt={Icon.NoteAdded} text="NoteAdded" />
     <IconBox IconCmpt={Icon.NotificationsActive} text="NotificationsActive" />
     <IconBox IconCmpt={Icon.Paypal} text="Paypal" />
@@ -150,6 +155,7 @@ export const ListOfIcons = () => (
     <IconBox IconCmpt={Icon.Stars} text="Stars" />
     <IconBox IconCmpt={Icon.Stripe} text="Stripe" />
     <IconBox IconCmpt={Icon.Tablet} text="Tablet" />
+    <IconBox IconCmpt={Icon.Terminal} text="Terminal" />
     <IconBox IconCmpt={Icon.Trash} text="Trash" />
     <IconBox IconCmpt={Icon.Twitter} text="Twitter" />
     <IconBox IconCmpt={Icon.Unarchive} text="Unarchive" />
@@ -163,6 +169,7 @@ export const ListOfIcons = () => (
     <IconBox IconCmpt={Icon.VolumeUp} text="VolumeUp" />
     <IconBox IconCmpt={Icon.VpnKey} text="VpnKey" />
     <IconBox IconCmpt={Icon.Warning} text="Warning" />
+    <IconBox IconCmpt={Icon.Wand} text="Wand" />
     <IconBox IconCmpt={Icon.Wifi} text="Wifi" />
     <IconBox IconCmpt={Icon.Windows} text="Windows" />
     <IconBox IconCmpt={Icon.Youtube} text="Youtube" />

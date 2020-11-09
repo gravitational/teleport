@@ -1,0 +1,41 @@
+/*
+Copyright 2020 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+export const sessions = [
+  {
+    id: 'BZ',
+    namespace: 'AG',
+    login: 'root',
+    active: 'AZ',
+    created: new Date('2019-04-22T00:00:51.543Z'),
+    durationText: '12 min',
+    serverId: '10_128_0_6.demo.gravitational.io',
+    clusterId: 'one',
+    hostname: 'localhost',
+    sid: 'sid0',
+    addr: '1.1.1.1',
+    parties: [
+      {
+        user: 'hehwawe@aw.sg',
+        remoteAddr: '129.232.123.132',
+      },
+      {
+        user: 'ma@pewu.tz',
+        remoteAddr: '129.232.123.132',
+      },
+    ],
+  },
+];

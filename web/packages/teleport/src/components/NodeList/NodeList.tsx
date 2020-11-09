@@ -18,7 +18,7 @@ import React from 'react';
 import styled from 'styled-components';
 import { sortBy } from 'lodash';
 import isMatch from 'design/utils/match';
-import { Flex, Label } from 'design';
+import { Label } from 'design';
 import {
   Column,
   SortHeaderCell,
@@ -29,11 +29,15 @@ import {
 import Table from 'design/DataTable/Paged';
 import MenuSshLogin, { LoginItem } from 'shared/components/MenuSshLogin';
 import { Node } from 'teleport/services/nodes';
-import InputSearch from 'teleport/components/InputSearch';
 
 function NodeList(props: Props) {
-  const { nodes = [], onLoginMenuOpen, onLoginSelect, pageSize = 100 } = props;
-  const [searchValue, setSearchValue] = React.useState('');
+  const {
+    nodes = [],
+    searchValue,
+    onLoginMenuOpen,
+    onLoginSelect,
+    pageSize = 100,
+  } = props;
   const [sortDir, setSortDir] = React.useState<Record<string, string>>({
     hostname: SortTypes.DESC,
   });
@@ -59,17 +63,10 @@ function NodeList(props: Props) {
     setSortDir({ [columnKey]: sortDir });
   }
 
-  function onSearchChange(value: string) {
-    setSearchValue(value);
-  }
-
   const data = sortAndFilter(searchValue);
 
   return (
     <div>
-      <Flex mb={4} alignItems="center" justifyContent="flex-start">
-        <InputSearch height="30px" mr="3" onChange={onSearchChange} />
-      </Flex>
       <StyledTable pageSize={pageSize} data={data}>
         <Column
           columnKey="hostname"
@@ -203,6 +200,7 @@ type Props = {
     serverId: string
   ) => void;
   pageSize?: number;
+  searchValue: string;
 };
 
 export default NodeList;

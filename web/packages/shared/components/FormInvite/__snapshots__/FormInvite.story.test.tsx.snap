@@ -164,6 +164,10 @@ exports[`shared/components/Invite.story story.Otp 1`] = `
   opacity: 0.4;
 }
 
+.c7:read-only {
+  cursor: not-allowed;
+}
+
 .c6 {
   color: #FFFFFF;
   display: block;
@@ -519,6 +523,10 @@ exports[`shared/components/Invite.story story.OtpError 1`] = `
   opacity: 0.4;
 }
 
+.c8:read-only {
+  cursor: not-allowed;
+}
+
 .c7 {
   color: #FFFFFF;
   display: block;
@@ -805,6 +813,10 @@ exports[`shared/components/Invite.story story.U2f 1`] = `
   opacity: 0.4;
 }
 
+.c7:read-only {
+  cursor: not-allowed;
+}
+
 .c6 {
   color: #FFFFFF;
   display: block;
@@ -1078,6 +1090,10 @@ exports[`shared/components/Invite.story story.off 1`] = `
 
 .c7::placeholder {
   opacity: 0.4;
+}
+
+.c7:read-only {
+  cursor: not-allowed;
 }
 
 .c6 {
