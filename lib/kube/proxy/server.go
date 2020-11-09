@@ -42,8 +42,6 @@ type TLSServerConfig struct {
 	LimiterConfig limiter.Config
 	// AccessPoint is caching access point
 	AccessPoint auth.AccessPoint
-	// Component is used for debugging purposes
-	Component string
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -75,6 +73,7 @@ type TLSServer struct {
 	*http.Server
 	// TLSServerConfig is TLS server configuration used for auth server
 	TLSServerConfig
+	fwd      *Forwarder
 	mu       sync.Mutex
 	listener net.Listener
 }
@@ -108,6 +107,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	cfg.TLS.ClientAuth = tls.VerifyClientCertIfGiven
 
 	server := &TLSServer{
+		fwd:             fwd,
 		TLSServerConfig: cfg,
 		Server: &http.Server{
 			Handler:           limiter,
@@ -172,8 +172,9 @@ func (t *TLSServer) GetServerInfo() (services.Server, error) {
 			Namespace: t.Namespace,
 		},
 		Spec: services.ServerSpecV2{
-			Addr:    addr,
-			Version: teleport.Version,
+			Addr:               addr,
+			Version:            teleport.Version,
+			KubernetesClusters: t.fwd.kubeClusters(),
 		},
 	}, nil
 }

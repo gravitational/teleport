@@ -148,7 +148,6 @@ message ServerV2 {
 // ServerSpecV2 is a specification for V2 Server
 message ServerSpecV2 {
     reserved 8;
-    reserved "KubernetesClusters";
 
     // Addr is server host:port address
     string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
@@ -169,6 +168,10 @@ message ServerSpecV2 {
     string Version = 7 [ (gogoproto.jsontag) = "version" ];
     // Apps is a list of applications this server is proxying.
     repeated App Apps = 9 [ (gogoproto.jsontag) = "apps,omitempty" ];
+    // KubernetesClusters is a list of kubernetes clusters provided by this
+    // Proxy or KubeService server.
+    repeated KubernetesCluster KubernetesClusters = 10
+        [ (gogoproto.jsontag) = "kubernetes_clusters,omitempty" ];
 }
 
 // App is a specific application that a server proxies.
@@ -1286,4 +1289,18 @@ message RemoteClusterStatusV3 {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "last_heartbeat"
     ];
+}
+
+// KubernetesCluster is a named kubernetes API endpoint handled by a Server.
+message KubernetesCluster {
+    // Name is the name of this kubernetes cluster.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+
+    // StaticLabels is map of static labels associated with this cluster.
+    // Used for RBAC.
+    map<string, string> StaticLabels = 2 [ (gogoproto.jsontag) = "labels,omitempty" ];
+    // DynamicLabels is map of dynamic labels associated with this cluster.
+    // Used for RBAC.
+    map<string, CommandLabelV2> DynamicLabels = 3
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "commands,omitempty" ];
 }
