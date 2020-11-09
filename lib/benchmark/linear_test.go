@@ -8,15 +8,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGenerate(t *testing.T) {
-	d, _ := time.ParseDuration("30s")
+var (
+	duration, _ = time.ParseDuration("30s")
+)
 
+func TestGenerate(t *testing.T) {
 	initial := Config{
 		Threads:             10,
 		Rate:                0,
 		Command:             []string{"ls"},
 		Interactive:         false,
-		MinimumWindow:       d,
+		MinimumWindow:       duration,
 		MinimumMeasurements: 1000,
 	}
 
@@ -25,15 +27,11 @@ func TestGenerate(t *testing.T) {
 		UpperBound:          50,
 		Step:                10,
 		MinimumMeasurements: 1000,
-		MinimumWindow:       d,
+		MinimumWindow:       duration,
 		Threads:             10,
 		config:              initial,
 	}
 	// First generation
-	res := linearConfig.Generate()
-	if res != true {
-		t.Errorf("failed to generate first generation")
-	}
 	bm, err := linearConfig.GetBenchmark()
 	if err != nil {
 		t.Errorf("failed to get current benchmark")
@@ -44,11 +42,6 @@ func TestGenerate(t *testing.T) {
 	assert.Empty(t, cmp.Diff(expected, bm))
 
 	// Second generation
-	res = linearConfig.Generate()
-	if res != true {
-		t.Errorf("failed to generate #2 generation")
-	}
-
 	bm, err = linearConfig.GetBenchmark()
 	if err != nil {
 		t.Errorf("failed to get current benchmark")
@@ -58,11 +51,6 @@ func TestGenerate(t *testing.T) {
 	assert.Empty(t, cmp.Diff(expected, bm))
 
 	// Third generation
-	res = linearConfig.Generate()
-	if res != true {
-		t.Errorf("failed to generate #3 generation")
-	}
-
 	bm, err = linearConfig.GetBenchmark()
 	if err != nil {
 		t.Errorf("failed to get current benchmark")
@@ -71,11 +59,6 @@ func TestGenerate(t *testing.T) {
 	assert.Empty(t, cmp.Diff(expected, bm))
 
 	// Fourth generation
-	res = linearConfig.Generate()
-	if res != true {
-		t.Errorf("failed to generate #4 generation")
-	}
-
 	bm, err = linearConfig.GetBenchmark()
 	if err != nil {
 		t.Errorf("failed to get current benchmark")
@@ -84,11 +67,6 @@ func TestGenerate(t *testing.T) {
 	assert.Empty(t, cmp.Diff(expected, bm))
 
 	// Fifth generation
-	res = linearConfig.Generate()
-	if res != true {
-		t.Errorf("failed to generate #5 generation")
-	}
-
 	bm, err = linearConfig.GetBenchmark()
 	if err != nil {
 		t.Errorf("failed to get current benchmark")
@@ -97,11 +75,6 @@ func TestGenerate(t *testing.T) {
 	assert.Empty(t, cmp.Diff(expected, bm))
 
 	// Sixth generation, should return false
-	res = linearConfig.Generate()
-	if res != false {
-		t.Errorf("expected false, got true")
-	}
-
 	_, err = linearConfig.GetBenchmark()
 	if err == nil {
 		t.Errorf("generating more benchmarks than expected")
@@ -110,14 +83,12 @@ func TestGenerate(t *testing.T) {
 
 func TestGenerateNotEvenMultiple(t *testing.T) {
 
-	d, _ := time.ParseDuration("30s")
-
 	initial := Config{
 		Threads:             10,
 		Rate:                0,
 		Command:             []string{"ls"},
 		Interactive:         false,
-		MinimumWindow:       d,
+		MinimumWindow:       duration,
 		MinimumMeasurements: 1000,
 	}
 
@@ -126,18 +97,11 @@ func TestGenerateNotEvenMultiple(t *testing.T) {
 		UpperBound:          20,
 		Step:                7,
 		MinimumMeasurements: 1000,
-		MinimumWindow:       d,
+		MinimumWindow:       duration,
 		Threads:             10,
 		config:              initial,
 	}
 	expected := initial
-
-	res := linearConfig.Generate()
-
-	if res != true {
-		t.Errorf("failed to generate first generation")
-	}
-
 	bm, err := linearConfig.GetBenchmark()
 	if err != nil {
 		t.Errorf("failed to get current benchmark")
@@ -145,24 +109,12 @@ func TestGenerateNotEvenMultiple(t *testing.T) {
 	expected.Rate = 10
 	assert.Empty(t, cmp.Diff(expected, bm))
 
-	// Second generation, rate = 17
-	res = linearConfig.Generate()
-	if res != true {
-		t.Errorf("failed to generate first generation")
-	}
-
 	bm, err = linearConfig.GetBenchmark()
 	if err != nil {
 		t.Errorf("failed to get current benchmark")
 	}
 	expected.Rate = 17
 	assert.Empty(t, cmp.Diff(expected, bm))
-
-	// Third generation, rate > upper bound
-	res = linearConfig.Generate()
-	if res != false {
-		t.Errorf("expected false, exceeded upper bound")
-	}
 
 	_, err = linearConfig.GetBenchmark()
 	if err == nil {
@@ -173,13 +125,12 @@ func TestGenerateNotEvenMultiple(t *testing.T) {
 }
 
 func TestGetBenchmark(t *testing.T) {
-	d, _ := time.ParseDuration("30s")
 	initial := Config{
 		Threads:             10,
 		Rate:                0,
 		Command:             []string{"ls"},
 		Interactive:         false,
-		MinimumWindow:       d,
+		MinimumWindow:       duration,
 		MinimumMeasurements: 1000,
 	}
 	linearConfig := Linear{
@@ -187,27 +138,22 @@ func TestGetBenchmark(t *testing.T) {
 		UpperBound:          20,
 		Step:                10,
 		MinimumMeasurements: 1000,
-		MinimumWindow:       d,
+		MinimumWindow:       duration,
 		config:              initial,
 	}
 
 	// GetBenchmark with current generation
-	res := linearConfig.Generate()
+
 	initial.MinimumMeasurements = linearConfig.MinimumMeasurements
-	assert.Equal(t, res, true)
+
 	conf, err := linearConfig.GetBenchmark()
 	if err != nil {
 		t.Errorf("expected benchmark, got error: %v", err)
 	}
 	assert.Equal(t, conf.Rate, linearConfig.currentRPS)
-
-	res = linearConfig.Generate()
-	assert.Equal(t, res, true)
-
+	linearConfig.GetBenchmark()
 	// GetBenchmark when Generate returns false
-	res = linearConfig.Generate()
-	assert.Equal(t, res, false)
-
+	linearConfig.GetBenchmark()
 	_, err = linearConfig.GetBenchmark()
 	if err == nil {
 		t.Errorf("There should be no current generations, expected error")

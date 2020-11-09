@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -8,7 +9,7 @@ import (
 )
 
 func main() {
-	linear := &benchmark.Linear{
+	linear := benchmark.Linear{
 		LowerBound:          10,
 		UpperBound:          50,
 		Step:                10,
@@ -17,7 +18,7 @@ func main() {
 		Threads:             10,
 	}
 
-	results, err := benchmark.Run(linear, "ls -l /", "ec2-3-15-147-120.us-east-2.compute.amazonaws.com", "ec2-user", "ec2-3-15-147-120.us-east-2.compute.amazonaws.com")
+	results, err := benchmark.Run(context.TODO(), linear, "ls -l /", "ec2-3-15-147-120.us-east-2.compute.amazonaws.com", "ec2-user", "ec2-3-15-147-120.us-east-2.compute.amazonaws.com")
 	if err != nil {
 		fmt.Println(err)
 	}

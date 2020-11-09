@@ -74,7 +74,7 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 	tc.Stdout = ioutil.Discard
 	tc.Stderr = ioutil.Discard
 	tc.Stdin = &bytes.Buffer{}
-	workerCtx, cancelWorkers := context.WithCancel(context.Background())
+	workerCtx, cancelWorkers := context.WithCancel(ctx)
 	defer cancelWorkers()
 
 	requestC := make(chan benchMeasure)
@@ -180,17 +180,19 @@ func (b *benchmarkThread) execute(measure benchMeasure) {
 	}
 	config := b.client.Config
 	client, err := client.NewClient(&config)
-	reader, writer := io.Pipe()
-	client.Stdin = reader
-	out := &bytes.Buffer{}
-	client.Stdout = out
-	client.Stderr = out
 	if err != nil {
 		measure.Error = err
 		measure.End = time.Now()
 		b.sendMeasure(measure)
 		return
 	}
+	reader, writer := io.Pipe()
+	defer reader.Close()
+	defer writer.Close()
+	client.Stdin = reader
+	out := &bytes.Buffer{}
+	client.Stdout = out
+	client.Stderr = out
 	done := make(chan bool)
 	go func() {
 		measure.Error = b.client.SSH(b.ctx, nil, false)
