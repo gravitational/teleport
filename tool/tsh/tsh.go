@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -281,7 +282,9 @@ func Run(args []string) {
 	// play
 	play := app.Command("play", "Replay the recorded SSH session")
 	play.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
+	play.Flag("format", "Format output (json, pty)").Short('f').Default(teleport.PTY).StringVar(&cf.Format)
 	play.Arg("session-id", "ID of the session to play").Required().StringVar(&cf.SessionID)
+
 	// scp
 	scp := app.Command("scp", "Secure file copy")
 	scp.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
@@ -416,13 +419,34 @@ func Run(args []string) {
 
 // onPlay replays a session with a given ID
 func onPlay(cf *CLIConf) {
-	tc, err := makeClient(cf, true)
+	switch cf.Format {
+	case teleport.PTY:
+		tc, err := makeClient(cf, true)
+		if err != nil {
+			utils.FatalError(err)
+		}
+		if err := tc.Play(context.TODO(), cf.Namespace, cf.SessionID); err != nil {
+			utils.FatalError(err)
+		}
+	default:
+		err := exportFile(cf.SessionID, cf.Format)
+		if err != nil {
+			utils.FatalError(err)
+		}
+	}
+}
+
+func exportFile(path string, format string) error {
+	f, err := os.Open(path)
 	if err != nil {
-		utils.FatalError(err)
+		return trace.ConvertSystemError(err)
 	}
-	if err := tc.Play(context.TODO(), cf.Namespace, cf.SessionID); err != nil {
-		utils.FatalError(err)
+	defer f.Close()
+	err = events.Export(context.TODO(), f, os.Stdout, format)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+	return nil
 }
 
 // onLogin logs in with remote proxy and gets signed certificates
