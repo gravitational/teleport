@@ -200,10 +200,12 @@ if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
     TARBALL_FILENAME="teleport-ent-v${TELEPORT_VERSION}-${PLATFORM}-${FILENAME_ARCH}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
     URL="${DOWNLOAD_ROOT}/${TARBALL_FILENAME}"
     TAR_PATH="teleport-ent"
+    RPM_NAME="teleport-ent"
     if [[ "${RUNTIME}" == "go1.9.7" ]]; then
         TYPE_DESCRIPTION="[${TEXT_ARCH} Enterprise edition, built with Go 1.9.7]"
     elif [[ "${RUNTIME}" == "fips" ]]; then
         TYPE_DESCRIPTION="[${TEXT_ARCH} Enterprise edition, built with FIPS support]"
+        RPM_NAME="teleport-ent-fips"
     else
         TYPE_DESCRIPTION="[${TEXT_ARCH} Enterprise edition]"
     fi
@@ -211,10 +213,12 @@ else
     TARBALL_FILENAME="teleport-v${TELEPORT_VERSION}-${PLATFORM}-${FILENAME_ARCH}${OPTIONAL_RUNTIME_SECTION}-bin.tar.gz"
     URL="${DOWNLOAD_ROOT}/${TARBALL_FILENAME}"
     TAR_PATH="teleport"
+    RPM_NAME="teleport"
     if [[ "${RUNTIME}" == "go1.9.7" ]]; then
         TYPE_DESCRIPTION="[${TEXT_ARCH} Open source edition, built with Go 1.9.7]"
     elif [[ "${RUNTIME}" == "fips" ]]; then
         TYPE_DESCRIPTION="[${TEXT_ARCH} Open source edition, built with FIPS support]"
+        RPM_NAME="teleport-fips"
     else
         TYPE_DESCRIPTION="[${TEXT_ARCH} Open source edition]"
     fi
@@ -384,7 +388,7 @@ else
         fpm \
         --input-type dir \
         --output-type ${PACKAGE_TYPE} \
-        --name ${TAR_PATH} \
+        --name ${RPM_NAME} \
         --version "${TELEPORT_VERSION}" \
         --maintainer "${MAINTAINER}" \
         --url "${DOCS_URL}" \
