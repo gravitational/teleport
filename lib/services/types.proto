@@ -1316,9 +1316,9 @@ message KubernetesCluster {
 
     // StaticLabels is map of static labels associated with this cluster.
     // Used for RBAC.
-    map<string, string> StaticLabels = 2 [ (gogoproto.jsontag) = "labels,omitempty" ];
+    map<string, string> StaticLabels = 2 [ (gogoproto.jsontag) = "static_labels,omitempty" ];
     // DynamicLabels is map of dynamic labels associated with this cluster.
     // Used for RBAC.
     map<string, CommandLabelV2> DynamicLabels = 3
-        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "commands,omitempty" ];
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
 }

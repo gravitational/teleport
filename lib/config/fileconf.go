@@ -179,6 +179,8 @@ var (
 		"rewrite":                 false,
 		"redirect":                false,
 		"debug_app":               false,
+		"static_labels":           false,
+		"dynamic_labels":          true,
 	}
 )
 

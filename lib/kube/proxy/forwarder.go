@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/httplib"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -101,6 +102,12 @@ type ForwarderConfig struct {
 	PingPeriod time.Duration
 	// Component name to include in log output.
 	Component string
+	// StaticLabels is map of static labels associated with this cluster.
+	// Used for RBAC.
+	StaticLabels map[string]string
+	// DynamicLabels is map of dynamic labels associated with this cluster.
+	// Used for RBAC.
+	DynamicLabels *labels.Dynamic
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -1467,11 +1474,17 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 }
 
 func (f *Forwarder) kubeClusters() []*services.KubernetesCluster {
+	var dynLabels map[string]services.CommandLabelV2
+	if f.DynamicLabels != nil {
+		dynLabels = services.LabelsToV2(f.DynamicLabels.Get())
+	}
+
 	res := make([]*services.KubernetesCluster, 0, len(f.creds))
 	for n := range f.creds {
 		res = append(res, &services.KubernetesCluster{
-			Name: n,
-			// TODO(awly): add labels
+			Name:          n,
+			StaticLabels:  f.StaticLabels,
+			DynamicLabels: dynLabels,
 		})
 	}
 	return res
