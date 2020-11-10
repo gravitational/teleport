@@ -3,14 +3,14 @@ authors: Roman Tkachenko (roman@gravitational.com)
 state: draft
 ---
 
-# RFD 000? - Teleport Database Access (Preview)
+# RFD 0011 - Teleport Database Access (Preview)
 
 ## What
 
 This document discusses high-level design points, user experience and some
 implementation details of the Teleport Database Access feature.
 
-_Note: This document refers to an early preview of the Database Access feature 
+_Note: This document refers to an early preview of the Database Access feature
 and covers functionality that will be available in the initial release._
 
 With Teleport Database Access users can:
@@ -19,7 +19,7 @@ With Teleport Database Access users can:
   network through Teleport's reverse tunnel subsystem.
 - Control access to specific database instances as well as individual
   databases and database users through Teleport's RBAC model.
-- Track individual users access to databases as well as query activity
+- Track individual users' access to databases as well as query activity
   through Teleport's audit log.
 
 ## Use cases
@@ -48,10 +48,10 @@ actions on a database such as migrations or backups and be able to audit it.
 
 ### Programmatic access
 
-Programmatic access, as in configuring an application to talk to a database
-through Teleport proxy, should work automatically as long as it uses a driver
-that properly implements a particular database protocol and supports mutual
-TLS authentication.
+Programmatic access - as in configuring an application to talk to a database
+server through Teleport proxy - should work automatically as long as it uses
+a driver that properly implements a particular database protocol and supports
+mutual TLS authentication.
 
 However, it is not the primary use-case, at least for the initial release,
 since it comes with a number of additional concerns and considerations such
@@ -60,21 +60,25 @@ and so on.
 
 ## Scope
 
-For the initial release we're focusing on supporting a single type of the
-database, PostgreSQL, with full protocol parsing.
+For the initial release we're focusing on supporting a single type of database,
+PostgreSQL, with protocol parsing.
 
-The following PostgreSQL deployment models are supported:
+Supported procotols:
 
-* PostgreSQL instances deployed on-premises.
-* AWS RDS for PostgreSQL.
-* PostgreSQL-compatible AWS Aurora.
+* PostgreSQL [wire procotol version 3.0](https://www.postgresql.org/docs/13/protocol.html),
+  implemented in PostgreSQL 7.4 and later.
 
-The following features are provided:
+Supported authentication models:
+
+* Client certificate with PostgreSQL instances deployed on premise.
+* AWS RDS auth token with AWS RDS and PostgreSQL-compatible Aurora.
+
+Supported features:
 
 * Connecting to the database through the Teleport proxy, incl. trusted
   clusters support.
-* Limiting access to database instances by labels with Teleport roles.
-* Limiting access to individual databases (within a particular database
+* Limiting access to database server instances by labels with Teleport roles.
+* Limiting access to individual databases (within a particular database server
   instance) and database users.
 * Auditing of database connections and executed queries.
 
@@ -86,7 +90,7 @@ service", "application service" or a "kube service".
 
 Database service runs inside the customer private network and proxies database
 client connections received from the Teleport proxy to the target database. It
-is also responsible for protocol parsing of supported databases and authorizing
+is also responsible for parsing of supported database protocols and authorizing
 requests coming from the proxy (i.e. granting/denying access to particular
 databases/database users).
 
@@ -96,7 +100,7 @@ psql -------> | proxy | <-------- | db service | -------> | postgres |
               |_______|   tunnel  |____________|          |__________|
 ```
 
-The database client (such as psql) will talk to Teleport web proxy port (`3080`
+The database client (such as `psql`) will talk to Teleport web proxy port (`3080`
 by default) which will use multiplexing to detect the database protocol and
 dispatch to an appropriate service.
 
@@ -106,7 +110,7 @@ In this model, there are 3 points where authentication needs to happen.
 
 ### Database client <---> proxy
 
-**Mutual TLS.** Database clients, such as psql, will use short-lived x509
+**Mutual TLS.** Database clients, such as `psql`, will use short-lived x509
 certificates issued by Teleport in order to authenticate with the proxy.
 
 The certificate metadata includes (via extensions) routing information about
@@ -115,9 +119,9 @@ below for UX).
 
 ### Proxy <---> database service
 
-**Mutual TLS.** The connection that is passed from proxy to a database service
-is upgraded to TLS as well in order to be able to pass identity information
-over the reverse tunnel.
+**Mutual TLS over SSH reverse tunnel.** The connection that is passed from
+proxy to a Teleport database service is upgraded to TLS as well in order to
+be able to pass identity information over the reverse tunnel.
 
 In order to do that, proxy will generate an ephemeral certificate signed
 by the user authority and re-encode all identity and routing information
@@ -131,9 +135,12 @@ will generate on the fly according to the database requirements (for example,
 PostgreSQL requires the database user name to be encoded in the certificate
 as common name).
 
-This also means that the database needs to be configured with Teleport's
+This also means that the database server needs to be configured with Teleport's
 certificate authority and (in general case) use server certificate issued by
 Teleport which can be done using `tctl auth sign` command (see below for UX).
+
+Teleport database service can also be optionally configured with a custom CA
+certificate in case the database server uses cert/key pair signed by user's CA.
 
 **Password auth (RDS/Aurora).** Amazon RDS/Aurora don't support client cert
 authentication. Instead, they support IAM authentication so Teleport database
@@ -150,7 +157,7 @@ https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html
 
 ## Configuration
 
-### Teleleport database service
+### Teleport database service
 
 The following new configuration section is added to the Teleport file config:
 
@@ -165,27 +172,23 @@ db_service:
   - name: "postgres-prod"
     # Optional free-form verbose description of a database instance.
     description: "Production instance of PostgreSQL 13.0"
-    # Database procotol, only "postgres" is supported initially.
+    # Database protocol, only "postgres" is supported initially.
     protocol: "postgres"
-    # Database connection endpoint, should be reachable from the service.
-    endpoint: "postgres.internal.example.com:5432"
-    # Optional CA certificate path, e.g. for AWS RDS/Aurora.
-    ca_path: "/path/to/root.pem"
+    # Database connection URI, the address should be reachable from the service.
+    uri: "postgres.internal.example.com:5432"
+    # Optional CA cert path, e.g. RDS/Aurora root cert or custom onprem CA.
+    ca_cert_file: "/path/to/root.pem"
     # AWS specific configuration for RDS/Aurora databases.
     aws:
       # Use IAM authentication with RDS/Aurora database.
       auth: "iam"
       # Optional AWS region RDS/Aurora database is running in.
       region: "us-east-1"
-      # Optional AWS access key, will be taken from environment if unspecified.
-      access_key: "XXX"
-      # Optional AWS secret key, will be taken from environment if unspecified.
-      secret_key: "YYY"
     # Static labels assigned to the database instance, used in RBAC.
-    labels:
+    static_labels:
       env: "stage"
     # Dynamic labels assigned to the database instance, used in RBAC.
-    commands:
+    dynamic_labels:
     - name: "time"
       command: ["date", "+%H:%M:%S"]
       period: "1m"
@@ -204,23 +207,23 @@ db_service:
   databases:
   - name: "postgres-rds"
     protocol: "postgres"
-    endpoint: "postgres-rds.xxx.us-east-1.rds.amazonaws.com:5432"
-    ca_path: "/opt/rds/rds-ca-2019-root.pem"
+    uri: "postgres-rds.xxx.us-east-1.rds.amazonaws.com:5432"
+    ca_cert_file: "/opt/rds/rds-ca-2019-root.pem"
     aws:
       auth: "iam"
       region: "us-east-1"
 ```
 
-* `endpoint` is the endpoint for a particular database from RDS control panel.
+* `uri` is the endpoint for a particular database from RDS control panel.
 For Aurora, it can be any of the exposed database endpoints, reader or writer.
-* `ca_path` is a path to the [RDS root certificate](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html).
+* `ca_cert_file` is a path to the [RDS root certificate](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html).
 * `aws.auth` is the authentication method, only "iam" is supported.
 * `aws.region` is the region the database is deployed in.
 
-AWS credentials, if left unspecified, will be retrieved from the environment
-in the same way as `aws` CLI tool does, i.e. from the credentials file or
-supported environment variables. Credentials can also be provided in the 
-service configuration via `aws.access_key` and `aws.secret_key` fields.
+AWS credentials will be initialized using default credential provider chain
+used by Go SDK which looks in the environment variables, then shared
+credentials file and then falls back to IAM role. Refer to [AWS documentation](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials)
+for more info.
 
 ### Database instance
 
@@ -240,12 +243,8 @@ server.cas server.crt server.key
 Note that the `--host` parameter should match the hostname of the endpoint
 the database will be connected at.
 
-The certificate is signed by Teleport host authority which is intended for 
+The certificate is signed by Teleport host authority which is intended for
 machine-to-machine communication.
-
-*TODO(r0mant): Instead of using host authority, introduce another authority
-specifically for db access? Would also help decouple authority rotation for
-databases from the rest of the cluster.*
 
 The generated secrets are then used to configure the database. For example,
 for PostgreSQL:
@@ -258,7 +257,29 @@ ssl_cert_file = '/path/to/server.crt'
 ssl_key_file = '/path/to/server.key'
 ```
 
-In addition, PostgreSQL access configuration file should be configured to 
+Database server may be configured with cert/key pair signed by a user's custom
+CA (for example, their organization's) in which case they would still need to
+supply Teleport's host CA so the server can authenticate Teleport client:
+
+```sh
+ssl_ca_file = '/path/to/server.cas'
+ssl_cert_file = '/user/custom/server.pem'
+ssl_key_file = '/user/custom/server.key'
+```
+
+In this case, Teleport database service must be configured with the appropriate
+CA certificate:
+
+```yaml
+db_service:
+  enabled: "yes"
+  databases:
+  - name: "postgres"
+    ...
+    ca_cert_file: "/user/custom/ca.pem"
+```
+
+In addition, PostgreSQL access configuration file should be configured to
 require client certificate authentication:
 
 ```sh
@@ -276,11 +297,16 @@ database to support IAM authentication.
 1. Enable IAM authentication when provisioning a new database, or on an
 existing one. By default, only password authentication is enabled.
 
+More info:
+
 https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.Enabling.html
 
 2. Configure IAM policy in order to allow the user Teleport database service
-will use to connect to the database instance with the auth token. An example
-policy is shown below.
+will use to connect to the database instance with the auth token.
+
+For example, to allow Teleport database service IAM user to connect to a
+particular RDS/Aurora instance as users `alice` or `bob`, the following policy
+may be defined:
 
 ```json
 {
@@ -290,30 +316,44 @@ policy is shown below.
             "Effect": "Allow",
             "Action": "rds-db:connect",
             "Resource": [
-                "arn:aws:rds-db:us-west-1:1234567890:dbuser:db-ABCDEFGHIJKLMNOP/developer",
+                "arn:aws:rds-db:us-west-1:1234567890:dbuser:db-ABCDEFGHIJKLMNOP/alice",
+                "arn:aws:rds-db:us-west-1:1234567890:dbuser:db-ABCDEFGHIJKLMNOP/bob"
             ]
         }
     ]
 }
 ```
 
-Note that the above rule allows IAM authentication to a single database user,
-it also supports wildcards.
+The resource definition also supports wildcards, so the policy can allow
+Teleport to use any database username, in which case the access will be
+enforced solely by Teleport's RBAC engine:
+
+```json
+"Resource": [
+  "arn:aws:rds-db:us-west-1:1234567890:dbuser:db-ABCDEFGHIJKLMNOP/*"
+]
+```
+
+More info:
 
 https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.IAMPolicy.html
 
-3. Grant `rds_iam` role to the database users. For example, for PostgreSQL:
+3. Grant `rds_iam` role to each database user Teleport users will log in as.
+
+For example, for PostgreSQL:
 
 ```sql
-CREATE USER developer; 
-GRANT rds_iam TO developer;
+CREATE USER alice;
+GRANT rds_iam TO alice;
 ```
+
+More info:
 
 https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html
 
 ## RBAC
 
-Teleport role resource gets 3 new fields that allow to control access to 
+Teleport role resource gets 3 new fields that allow to control access to
 database instances as well as individual databases and database users.
 
 ```yaml
@@ -338,29 +378,28 @@ To connect to a database instance, a user first must login using regular
 `tsh login` command:
 
 ```sh
-$ tsh login --proxy=localhost:3080 --user=admin
+$ tsh login
 ```
 
-Once logged in, they can see all available database using the following
+Once logged in, they can see all available databases using the following
 command:
 
 ```sh
 $ tsh db ls
-Name            Description     Endpoint                                Labels
+Name            Description     URI                                     Labels
 --------------- --------------- --------------------------------------- ---------
 postgres        PostgreSQL 13.0 localhost:5432                          env=dev
 postgres-rds    PostgreSQL 12.4 postgres-rds.xxx.rds.amazonaws.com:5432 env=stage
 postgres-aurora PostgreSQL 11.6 postgres-rds.yyy.rds.amazonaws.com:5432 env=prod
 ```
 
-The list will only show databases the logged in user has access to (as per 
-the database labels). For example, developer role shown above won't be able 
+The list will only show databases the logged in user has access to (as per
+the database labels). For example, developer role shown above won't be able
 to see the Aurora database instance:
 
 ```sh
-$ tsh login --proxy=localhost:3080 --user=dev
 $ tsh db ls
-Name            Description     Endpoint                                Labels
+Name            Description     URI                                     Labels
 --------------- --------------- --------------------------------------- ---------
 postgres        PostgreSQL 13.0 localhost:5432                          env=dev
 postgres-rds    PostgreSQL 12.4 postgres-rds.xxx.rds.amazonaws.com:5432 env=stage
@@ -379,7 +418,7 @@ The `tsh status` command shows the name of the database a user is logged into:
 ```sh
 $ tsh status
 > Profile URL:        https://127.0.0.1:3080
-  Logged in as:       dev
+  Logged in as:       alice
   Roles:              db-developer*
   ...
   Database:           postgres
@@ -389,7 +428,7 @@ $ tsh status
 The `tsh db login` command also prints a footer explaining how to connect
 to the database:
 
-```sh
+```
 Connection information for "postgres" has been saved to ~/.pg_service.conf.
 You can connect to the database using the following command:
 
@@ -401,29 +440,52 @@ Or configure environment variables and use regular CLI flags:
   $ psql -U <user> <database>
 ```
 
-Upon successful login to a PostgreSQL instance, `tsh` configures a [connection
-service file](https://www.postgresql.org/docs/9.1/libpq-pgservice.html) which
-resides in `~/.pg_service.conf`.
+### Selecting database users
 
-The service file contains connection information so PostgreSQL clients can
-refer to it using `service` connection string parameter which all libpq-based
-clients should recognize (e.g. `psql` and `pgAdmin` do). The service file
-has ini format and has the following information:
-
-```ini
-[postgres]
-host=127.0.0.1
-port=3080
-sslmode=verify-full
-sslrootcert=/home/user/.tsh/keys/127.0.0.1/certs.pem
-sslcert=/home/user/.tsh/keys/127.0.0.1/dev-x509.pem
-sslkey=/home/user/.tsh/keys/127.0.0.1/dev
-```
-
-Users can connect to the database using the following command:
+After successful login, users can use any database user to connect to the
+database, as long as it is allowed by the RBAC rules. For example:
 
 ```sh
-$ psql "service=postgres user=developer dbname=metrics"
+$ tsh db login postgres-prod && eval $(tsh db env)
+$ psql -U alice mydb     # allowed by role so will connect
+$ psql -U bob mydb       # allowed by role so will connect
+$ psql -U charlie mydb   # not allowed by role so will deny access
+```
+
+### Connecting to PostgreSQL / service file
+
+After logging into a PostgreSQL database, `tsh` configures an appropriate
+section in the [connection service file](https://www.postgresql.org/docs/9.1/libpq-pgservice.html)
+which is located at `~/.pg_service.conf`.
+
+The service file has ini format and can contain multiple sections where each
+section defines connection parameters for a particular "service". PostgreSQL
+clients can refer to a particular service using `service` connection string
+parameter which all libpq-based clients should recognize (e.g. `psql` and
+`pgAdmin` do).
+
+The section is named after the name of the Teleport database service instance
+a user has logged into with `tsh db login <name>` command. If service file is
+already present on the user's machine, its contents will be preserved as just
+a new section will be configured in it. If the file already happens to have
+a section with the same name, it will get overwritten.
+
+An added section may look like this:
+
+```ini
+[postgres-prod]
+host=proxy.teleport.example.com
+port=3080
+sslmode=verify-full
+sslrootcert=/home/user/.tsh/keys/proxy.teleport.example.com/certs.pem
+sslcert=/home/user/.tsh/keys/proxy.teleport.example.com/alice-x509.pem
+sslkey=/home/user/.tsh/keys/proxy.teleport.example.com/alice
+```
+
+Users can then connect to the database using the following command:
+
+```sh
+$ psql "service=postgres-prod user=alice dbname=metrics"
 ```
 
 Alternatively, `tsh` can output a set of environment variables supported by
@@ -431,14 +493,14 @@ PostgreSQL clients for users to set in their session:
 
 ```sh
 $ tsh db env
-export PGHOST=127.0.0.1
+export PGHOST=proxy.teleport.example.com
 export PGPORT=3080
 export PGSSLMODE=verify-full
-export PGSSLROOTCERT=/home/user/.tsh/keys/127.0.0.1/certs.pem
-export PGSSLCERT=/home/user/.tsh/keys/127.0.0.1/dev-x509.pem
-export PGSSLKEY=/home/user/.tsh/keys/127.0.0.1/dev
+export PGSSLROOTCERT=/home/user/.tsh/keys/proxy.teleport.example.com/certs.pem
+export PGSSLCERT=/home/user/.tsh/keys/proxy.teleport.example.com/alice-x509.pem
+export PGSSLKEY=/home/user/.tsh/keys/proxy.teleport.example.com/alice
 $ eval $(tsh db env)
-$ psql -U developer metrics
+$ psql -U alice metrics
 ```
 
 ## Audit events
@@ -506,7 +568,28 @@ sessions.
 }
 ```
 
+## CA rotation
+
+As explained above, a database server is configured with Teleport's host
+certificate authority and certificate/key pair signed by the host CA as well,
+produced by `tctl auth sign --type=db` command.
+
+This means that the database servers should be taken into consideration when
+performing Teleport's host CA rotation using `tctl auth rotate` command. See
+[Teleport documentation](https://gravitational.com/teleport/docs/admin-guide/#certificate-rotation)
+for more information about certificate rotation.
+
+Unlike Teleport nodes that automatically get reissued certificates signed by
+a new authority, we do not have control over database servers so a user must
+replace CA and keypair within the rotation grace period.
+
+**Future work**
+
+In future, instead of using host authority for signing certificates used by a
+database server, we can introduce another authority specifically for database
+access which would help decouple authority rotation for databases from the
+rest of the cluster.
+
 ## TODOs
 
 * Trusted clusters.
-* CA rotation.
