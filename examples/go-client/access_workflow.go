@@ -60,8 +60,9 @@ func accessWorkflow(ctx context.Context, client *auth.Client) {
 	if err = client.SetAccessRequestState(ctx, services.AccessRequestUpdate{
 		RequestID: accessReq.GetName(),
 		State:     services.RequestState_APPROVED,
-		Reason:    "dba2 is not for you",
-		Roles:     []string{"dba1"},
+		Reason:    "seems legit",
+		// Roles: If you don't want to grant all the roles requested,
+		// you can provide a subset of role with the Roles field.
 	}); err != nil {
 		log.Printf("Failed to accept request: %v", err)
 		return
