@@ -617,6 +617,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		f.Errorf("Failed to create cluster session: %v.", err)
 		return nil, trace.Wrap(err)
 	}
+	sessionStart := f.Clock.Now().UTC()
 
 	if request.tty {
 		// Emit "new session created" event. There are no initial terminal
@@ -714,7 +715,8 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			Interactive: true,
 			// There can only be 1 participant, k8s sessions are not join-able.
 			Participants: []string{ctx.User.GetName()},
-			EndTime:      time.Now().UTC(),
+			StartTime:    sessionStart,
+			EndTime:      f.Clock.Now().UTC(),
 		}
 		if err := emitter.EmitAuditEvent(f.Context, sessionEndEvent); err != nil {
 			f.WithError(err).Warn("Failed to emit session end event.")
