@@ -872,6 +872,14 @@ message RoleConditions {
         (gogoproto.jsontag) = "cluster_labels,omitempty",
         (gogoproto.customtype) = "Labels"
     ];
+
+    // KubernetesClusterLabels is a map of kubernetes cluster labels used for
+    // RBAC.
+    wrappers.LabelValues KubernetesLabels = 10 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "kubernetes_labels,omitempty",
+        (gogoproto.customtype) = "Labels"
+    ];
 }
 
 // AccessRequestConditions is a matcher for allow/deny restrictions on

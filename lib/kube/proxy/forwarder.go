@@ -353,6 +353,10 @@ func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if err := f.authorize(req.Context(), authContext); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		return handler(authContext, w, req)
 	})
 }
@@ -361,6 +365,9 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
 		authContext, err := f.authenticate(req)
 		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := f.authorize(req.Context(), authContext); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return handler(authContext, w, req, p)
@@ -498,6 +505,42 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	}
 
 	return authCtx, nil
+}
+
+func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
+	if actx.teleportCluster.isRemote {
+		return nil
+	}
+	if actx.kubeCluster == "" {
+		// This should only happen for remote clusters (filtered above), but
+		// check and report anyway.
+		f.WithField("auth_context", actx.String()).Debug("skipping authorization due to unknown kubernetes cluster name")
+		return nil
+	}
+	servers, err := f.AccessPoint.GetKubeServices(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Check authz against the first match.
+	//
+	// We assume that users won't register two identically-named clusters with
+	// mis-matched labels. If they do, expect weirdness.
+	for _, s := range servers {
+		for _, ks := range s.GetKubernetesClusters() {
+			if ks.Name != actx.kubeCluster {
+				continue
+			}
+			if err := actx.Checker.CheckAccessToKubernetes(defaults.Namespace, ks); err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		}
+	}
+	if actx.kubeCluster == f.ClusterName {
+		f.WithField("auth_context", actx.String()).Debug("skipping authorization for proxy-based kubernetes cluster")
+		return nil
+	}
+	return trace.NotFound("kubernetes cluster %q not found", actx.kubeCluster)
 }
 
 // newStreamer returns sync or async streamer based on the configuration

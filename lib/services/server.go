@@ -78,6 +78,8 @@ type Server interface {
 	// GetKubeClusters returns the kubernetes clusters directly handled by this
 	// server.
 	GetKubernetesClusters() []*KubernetesCluster
+	// SetKubeClusters sets the kubernetes clusters handled by this server.
+	SetKubernetesClusters([]*KubernetesCluster)
 	// V1 returns V1 version for backwards compatibility
 	V1() *ServerV1
 	// MatchAgainst takes a map of labels and returns True if this server
@@ -300,6 +302,11 @@ func CombineLabels(static map[string]string, dynamic map[string]CommandLabelV2) 
 // GetKubeClusters returns the kubernetes clusters directly handled by this
 // server.
 func (s *ServerV2) GetKubernetesClusters() []*KubernetesCluster { return s.Spec.KubernetesClusters }
+
+// SetKubeClusters sets the kubernetes clusters handled by this server.
+func (s *ServerV2) SetKubernetesClusters(clusters []*KubernetesCluster) {
+	s.Spec.KubernetesClusters = clusters
+}
 
 // MatchAgainst takes a map of labels and returns True if this server
 // has ALL of them
