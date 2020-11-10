@@ -362,3 +362,24 @@ func (k *Key) HostKeyCallback() (ssh.HostKeyCallback, error) {
 		return trace.AccessDenied("host %v is untrusted or Teleport CA has been rotated; try getting new credentials by logging in again ('tsh login') or re-exporting the identity file ('tctl auth sign' or 'tsh login -o'), depending on how you got them initially", host)
 	}, nil
 }
+
+// ProxyClientSSHConfig returns an ssh.ClientConfig with SSH credentials from this
+// Key and HostKeyCallback matching SSH CAs in the Key.
+//
+// The config is set up to authenticate to proxy with the first
+// available principal and trust local SSH CAs without asking
+// for public keys.
+//
+func ProxyClientSSHConfig(k *Key, keyStore LocalKeyStore) (*ssh.ClientConfig, error) {
+	sshConfig, err := k.ClientSSHConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	principals, err := k.CertPrincipals()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshConfig.User = principals[0]
+	sshConfig.HostKeyCallback = NewKeyStoreCertChecker(keyStore)
+	return sshConfig, nil
+}
