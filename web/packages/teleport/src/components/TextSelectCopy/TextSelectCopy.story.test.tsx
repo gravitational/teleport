@@ -15,10 +15,15 @@
  */
 
 import React from 'react';
-import { TextSelectCopy } from './TextSelectCopy.story';
+import { BashCommand, NonBash } from './TextSelectCopy.story';
 import { render } from 'design/utils/testing';
 
-test('success state', () => {
-  const { container } = render(<TextSelectCopy />);
+test('bash set to false does not render $ sign', () => {
+  const { container } = render(<NonBash />);
+  expect(container).toMatchSnapshot();
+});
+
+test('default, renders $ sign', () => {
+  const { container } = render(<BashCommand />);
   expect(container).toMatchSnapshot();
 });

@@ -47,7 +47,7 @@ export default function Manually({ version, ...styles }: Props) {
         {' - Login to Teleport'}
         <TextSelectCopy
           mt="2"
-          text={`$ tsh login --proxy=${cfg.proxyCluster} --auth=local`}
+          text={`tsh login --proxy=${cfg.proxyCluster} --auth=local`}
         />
       </Box>
       <Box mb={4}>
@@ -55,7 +55,7 @@ export default function Manually({ version, ...styles }: Props) {
           Step 3
         </Text>
         {' - Generate a join token'}
-        <TextSelectCopy mt="2" text="$ tctl tokens add --type=node" />
+        <TextSelectCopy mt="2" text="tctl tokens add --type=node" />
       </Box>
       <Box>
         <Text bold as="span">
@@ -64,7 +64,7 @@ export default function Manually({ version, ...styles }: Props) {
         {` - Install Teleport on target server, and start it with the following parameters`}
         <TextSelectCopy
           mt="2"
-          text={`$ teleport start --roles=node --token=<generated-node-join-token> --auth-server=${cfg.proxyCluster} `}
+          text={`teleport start --roles=node --token=<generated-node-join-token> --auth-server=${cfg.proxyCluster} `}
         />
       </Box>
     </Box>

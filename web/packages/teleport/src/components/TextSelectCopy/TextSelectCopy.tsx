@@ -20,10 +20,17 @@ import selectElementContent from 'design/utils/selectElementContent';
 import { ButtonPrimary, Text, Flex } from 'design';
 import { useTheme } from 'styled-components';
 
-export default function TextSelectCopy({ text, fontFamily, ...styles }: Props) {
+export default function TextSelectCopy({
+  text,
+  fontFamily,
+  bash = true,
+  ...styles
+}: Props) {
   const font = fontFamily || useTheme().fonts.mono;
   const ref = React.useRef();
   const [copyCmd, setCopyCmd] = React.useState(() => 'Copy');
+
+  const displayText = bash ? `$ ${text}` : text;
 
   function onCopyClick() {
     copyToClipboard(text).then(() => setCopyCmd('Copied'));
@@ -48,7 +55,7 @@ export default function TextSelectCopy({ text, fontFamily, ...styles }: Props) {
         }}
         mr="3"
       >
-        {text}
+        {displayText}
       </Text>
       <ButtonPrimary
         onClick={onCopyClick}
@@ -62,6 +69,7 @@ export default function TextSelectCopy({ text, fontFamily, ...styles }: Props) {
 
 type Props = {
   text: string;
+  bash?: boolean;
   // handles styles
   [key: string]: any;
 };

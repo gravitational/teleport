@@ -67,7 +67,7 @@ export default function UserTokenLink({
             password, link is valid for {expiresText}.
           </Text>
         )}
-        <TextSelectCopy text={tokenUrl} />
+        <TextSelectCopy text={tokenUrl} bash={false} />
       </DialogContent>
       <DialogFooter>
         <ButtonSecondary onClick={onClose}>Close</ButtonSecondary>

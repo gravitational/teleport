@@ -18,9 +18,13 @@ import React from 'react';
 import Component from './TextSelectCopy';
 
 export default {
-  title: 'Shared/TextSelectCopy',
+  title: 'Teleport/TextSelectCopy',
 };
 
-export const TextSelectCopy = () => {
-  return <Component text="some text to be copied" />;
+export const BashCommand = () => {
+  return <Component text="some bash command" />;
+};
+
+export const NonBash = () => {
+  return <Component text="some text to be copied" bash={false} />;
 };

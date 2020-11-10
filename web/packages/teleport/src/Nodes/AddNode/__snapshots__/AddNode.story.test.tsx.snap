@@ -335,7 +335,7 @@ exports[`success state 1`] = `
               class="c14"
               style="word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
             >
-              some bash script
+              $ some bash script
             </div>
             <button
               class="c15"
