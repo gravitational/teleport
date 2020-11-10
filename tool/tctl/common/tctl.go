@@ -38,7 +38,7 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
 
 // GlobalCLIFlags keeps the CLI flags that apply to all tctl commands
@@ -74,12 +74,12 @@ type CLICommand interface {
 	TryRun(selectedCommand string, c auth.ClientI) (match bool, err error)
 }
 
-// Run() is the same as 'make'. It helps to share the code between different
+// Run is the same as 'make'. It helps to share the code between different
 // "distributions" like OSS or Enterprise
 //
 // distribution: name of the Teleport distribution
-func Run(commands []CLICommand) {
-	utils.InitLogger(utils.LoggingForCLI, logrus.WarnLevel)
+func Run(commands []CLICommand, loadConfigExt LoadConfigFn) {
+	utils.InitLogger(utils.LoggingForCLI, log.WarnLevel)
 
 	// app is the command line parser
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
@@ -129,13 +129,13 @@ func Run(commands []CLICommand) {
 	}
 
 	// configure all commands with Teleport configuration (they share 'cfg')
-	clientConfig, err := applyConfig(&ccf, cfg)
+	clientConfig, err := applyConfig(&ccf, cfg, loadConfigExt)
 	if err != nil {
 		utils.FatalError(err)
 	}
 
 	ctx := context.Background()
-	// connect to the auth sever:
+
 	client, err := connectToAuthService(ctx, cfg, clientConfig)
 	if err != nil {
 		utils.Consolef(os.Stderr, teleport.ComponentClient,
@@ -157,14 +157,19 @@ func Run(commands []CLICommand) {
 	}
 }
 
-type authServiceClientConfig struct {
-	tlsConfig *tls.Config
-	sshConfig *ssh.ClientConfig
+// LoadConfigFn is optional config loading function
+type LoadConfigFn func(ccf *GlobalCLIFlags, cfg *service.Config) (*AuthServiceClientConfig, error)
+
+// AuthServiceClientConfig is a client config for auth service
+type AuthServiceClientConfig struct {
+	// TLS holds credentials for mTLS
+	TLS *tls.Config
+	// SSH is client SSH config
+	SSH *ssh.ClientConfig
 }
 
 // connectToAuthService creates a valid client connection to the auth service
-//
-func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig *authServiceClientConfig) (auth.ClientI, error) {
+func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig *AuthServiceClientConfig) (auth.ClientI, error) {
 	// connect to the local auth server by default:
 	cfg.Auth.Enabled = true
 	if len(cfg.AuthServers) == 0 {
@@ -173,10 +178,10 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 		}
 	}
 
-	logrus.Debugf("Connecting to auth servers: %v.", cfg.AuthServers)
+	log.Debugf("Connecting to auth servers: %v.", cfg.AuthServers)
 
 	// Try connecting to the auth server directly over TLS.
-	client, err := auth.NewTLSClient(auth.ClientConfig{Addrs: cfg.AuthServers, TLS: clientConfig.tlsConfig})
+	client, err := auth.NewTLSClient(auth.ClientConfig{Addrs: cfg.AuthServers, TLS: clientConfig.TLS})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed direct dial to auth server: %v", err)
 	}
@@ -185,7 +190,7 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 	_, err = client.GetClusterName()
 	if err != nil {
 		err = trace.Wrap(err, "failed direct dial to auth server: %v", err)
-		if clientConfig.sshConfig == nil {
+		if clientConfig.SSH == nil {
 			// No identity file was provided, don't try dialing via a reverse
 			// tunnel on the proxy.
 			return nil, trace.Wrap(err)
@@ -201,19 +206,20 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 		errs := []error{err}
 
 		// Figure out the reverse tunnel address on the proxy first.
-		tunAddr, err := findReverseTunnel(ctx, cfg.AuthServers, clientConfig.tlsConfig.InsecureSkipVerify)
+		tunAddr, err := findReverseTunnel(ctx, cfg.AuthServers, clientConfig.TLS.InsecureSkipVerify)
 		if err != nil {
 			errs = append(errs, trace.Wrap(err, "failed lookup of proxy reverse tunnel address: %v", err))
 			return nil, trace.NewAggregate(errs...)
 		}
+		log.Debugf("Attempting to connect using reverse tunnel address %v.", tunAddr)
 		// reversetunnel.TunnelAuthDialer will take care of creating a net.Conn
 		// within an SSH tunnel.
 		client, err = auth.NewTLSClient(auth.ClientConfig{
 			Dialer: &reversetunnel.TunnelAuthDialer{
 				ProxyAddr:    tunAddr,
-				ClientConfig: clientConfig.sshConfig,
+				ClientConfig: clientConfig.SSH,
 			},
-			TLS: clientConfig.tlsConfig,
+			TLS: clientConfig.TLS,
 		})
 		if err != nil {
 			errs = append(errs, trace.Wrap(err, "failed dial to auth server through reverse tunnel: %v", err))
@@ -289,8 +295,26 @@ func tunnelAddr(webAddr utils.NetAddr, settings client.ProxySettings) (string, e
 //
 // The returned authServiceClientConfig has the credentials needed to dial the
 // auth server.
-func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authServiceClientConfig, error) {
-	// load /etc/teleport.yaml and apply it's values:
+func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config, loadConfigExt LoadConfigFn) (*AuthServiceClientConfig, error) {
+	// --debug flag
+	if ccf.Debug {
+		cfg.Debug = ccf.Debug
+		utils.InitLogger(utils.LoggingForCLI, log.DebugLevel)
+		log.Debugf("Debug logging has been enabled.")
+	}
+
+	// Try the extension if the identity file has not been supplied.
+	if loadConfigExt != nil && ccf.IdentityFilePath == "" {
+		authConfig, err := loadConfigExt(ccf, cfg)
+		if err == nil {
+			return authConfig, nil
+		}
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// load /etc/teleport.yaml and apply its values:
 	fileConf, err := config.ReadConfigFile(ccf.ConfigFile)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -306,12 +330,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authServiceClientCo
 	if err = config.ApplyFileConfig(fileConf, cfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// --debug flag
-	if ccf.Debug {
-		cfg.Debug = ccf.Debug
-		utils.InitLogger(utils.LoggingForCLI, logrus.DebugLevel)
-		logrus.Debugf("DEBUG logging enabled")
-	}
+
 	// --auth-server flag(-s)
 	if len(ccf.AuthServerAddr) != 0 {
 		cfg.AuthServers, err = utils.ParseAddrs(ccf.AuthServerAddr)
@@ -327,7 +346,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authServiceClientCo
 			return nil, trace.Wrap(err)
 		}
 	}
-	authConfig := new(authServiceClientConfig)
+	authConfig := new(AuthServiceClientConfig)
 	// --identity flag
 	if ccf.IdentityFilePath != "" {
 		key, err := common.LoadIdentity(ccf.IdentityFilePath)
@@ -335,11 +354,11 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authServiceClientCo
 			return nil, trace.Wrap(err)
 		}
 
-		authConfig.tlsConfig, err = key.ClientTLSConfig(cfg.CipherSuites)
+		authConfig.TLS, err = key.ClientTLSConfig(cfg.CipherSuites)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		authConfig.sshConfig, err = key.ClientSSHConfig()
+		authConfig.SSH, err = key.ClientSSHConfig()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -359,12 +378,12 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config) (*authServiceClientCo
 			}
 			return nil, trace.Wrap(err)
 		}
-		authConfig.tlsConfig, err = identity.TLSConfig(cfg.CipherSuites)
+		authConfig.TLS, err = identity.TLSConfig(cfg.CipherSuites)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-	authConfig.tlsConfig.InsecureSkipVerify = ccf.Insecure
+	authConfig.TLS.InsecureSkipVerify = ccf.Insecure
 
 	return authConfig, nil
 }
