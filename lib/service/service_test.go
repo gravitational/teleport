@@ -16,6 +16,7 @@ limitations under the License.
 package service
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -255,7 +256,7 @@ func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
 
 		cmt := check.Commentf("tt[%v]: %+v", i, tt)
 
-		loggers, err := initExternalLog(services.AuditConfig{
+		loggers, err := initExternalLog(context.Background(), services.AuditConfig{
 			AuditEventsURI: tt.events,
 		})
 

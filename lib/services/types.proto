@@ -477,6 +477,24 @@ message AuditConfig {
     // Deprecated in favor of AuditEventsURI
     // DELETE IN (3.1.0)
     string AuditTableName = 5 [ (gogoproto.jsontag) = "audit_table_name,omitempty" ];
+
+    // EnableContinuousBackups is used to enable (or disable) PITR (Point-In-Time Recovery).
+    bool EnableContinuousBackups = 6 [ (gogoproto.jsontag) = "continuous_backups,omitempty" ];
+
+    // EnableAutoScaling is used to enable (or disable) auto scaling policy.
+    bool EnableAutoScaling = 7 [ (gogoproto.jsontag) = "auto_scaling,omitempty" ];
+    // ReadMaxCapacity is the maximum provisioned read capacity.
+    int64 ReadMaxCapacity = 8 [ (gogoproto.jsontag) = "read_max_capacity,omitempty" ];
+    // ReadMinCapacity is the minimum provisioned read capacity.
+    int64 ReadMinCapacity = 9 [ (gogoproto.jsontag) = "read_min_capacity,omitempty" ];
+    // ReadTargetValue is the ratio of consumed read to provisioned capacity.
+    double ReadTargetValue = 10 [ (gogoproto.jsontag) = "read_target_value,omitempty" ];
+    // WriteMaxCapacity is the maximum provisioned write capacity.
+    int64 WriteMaxCapacity = 11 [ (gogoproto.jsontag) = "write_max_capacity,omitempty" ];
+    // WriteMinCapacity is the minimum provisioned write capacity.
+    int64 WriteMinCapacity = 12 [ (gogoproto.jsontag) = "write_min_capacity,omitempty" ];
+    // WriteTargetValue is the ratio of consumed write to provisioned capacity.
+    double WriteTargetValue = 13 [ (gogoproto.jsontag) = "write_target_value,omitempty" ];
 }
 
 // Namespace represents namespace resource specification

@@ -66,26 +66,26 @@ type Config struct {
 	// RetryPeriod is a period between dynamo backend retries on failures
 	RetryPeriod time.Duration `json:"retry_period"`
 
-	// EnableContinuousBackups is used to enable (or disable) PITR (Point-In-Time Recovery).
+	// EnableContinuousBackups is used to enables PITR (Point-In-Time Recovery).
 	EnableContinuousBackups bool `json:"continuous_backups,omitempty"`
 
-	// EnableAutoScaling is used to enable (or disable) auto scaling policy.
+	// EnableAutoScaling is used to enable auto scaling policy.
 	EnableAutoScaling bool `json:"auto_scaling,omitempty"`
 	// ReadMaxCapacity is the maximum provisioned read capacity. Required to be
 	// set if auto scaling is enabled.
-	ReadMaxCapacity int `json:"read_max_capacity,omitempty"`
+	ReadMaxCapacity int64 `json:"read_max_capacity,omitempty"`
 	// ReadMinCapacity is the minimum provisioned read capacity. Required to be
 	// set if auto scaling is enabled.
-	ReadMinCapacity int `json:"read_min_capacity,omitempty"`
+	ReadMinCapacity int64 `json:"read_min_capacity,omitempty"`
 	// ReadTargetValue is the ratio of consumed read capacity to provisioned
 	// capacity. Required to be set if auto scaling is enabled.
 	ReadTargetValue float64 `json:"read_target_value,omitempty"`
 	// WriteMaxCapacity is the maximum provisioned write capacity. Required to
 	// be set if auto scaling is enabled.
-	WriteMaxCapacity int `json:"write_max_capacity,omitempty"`
+	WriteMaxCapacity int64 `json:"write_max_capacity,omitempty"`
 	// WriteMinCapacity is the minimum provisioned write capacity. Required to
 	// be set if auto scaling is enabled.
-	WriteMinCapacity int `json:"write_min_capacity,omitempty"`
+	WriteMinCapacity int64 `json:"write_min_capacity,omitempty"`
 	// WriteTargetValue is the ratio of consumed write capacity to provisioned
 	// capacity. Required to be set if auto scaling is enabled.
 	WriteTargetValue float64 `json:"write_target_value,omitempty"`
@@ -94,6 +94,11 @@ type Config struct {
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
 // is not enough to connect to DynamoDB
 func (cfg *Config) CheckAndSetDefaults() error {
+	// Table name is required.
+	if cfg.TableName == "" {
+		return trace.BadParameter("DynamoDB: table_name is not specified")
+	}
+
 	if cfg.ReadCapacityUnits == 0 {
 		cfg.ReadCapacityUnits = DefaultReadCapacityUnits
 	}
@@ -108,19 +113,6 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.RetryPeriod == 0 {
 		cfg.RetryPeriod = defaults.HighResPollingPeriod
-	}
-
-	// Table is required.
-	if cfg.TableName == "" {
-		return trace.BadParameter("DynamoDB: table_name is not specified")
-	}
-
-	// If auto scaling is enabled, check all values are provided.
-	if cfg.EnableAutoScaling {
-		if cfg.ReadMaxCapacity == 0 || cfg.ReadMinCapacity == 0 || cfg.ReadTargetValue < 0.0 ||
-			cfg.WriteMaxCapacity == 0 || cfg.WriteMinCapacity == 0 || cfg.WriteTargetValue < 0.0 {
-			return trace.BadParameter("auto scaling policy incorrectly configured: all values for auto scaling configuration must be specified")
-		}
 	}
 
 	return nil
@@ -299,14 +291,25 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Enable (or disable) continuous backups.
-	if err := b.setContinuousBackups(ctx); err != nil {
-		return nil, trace.Wrap(err)
+	// Enable continuous backups if requested.
+	if b.Config.EnableContinuousBackups {
+		if err := SetContinuousBackups(ctx, b.svc, b.TableName); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	// Enable (or disable) auto scaling.
-	if err := b.setAutoScaling(ctx); err != nil {
-		return nil, trace.Wrap(err)
+	// Enable auto scaling if requested.
+	if b.Config.EnableAutoScaling {
+		if err := SetAutoScaling(ctx, applicationautoscaling.New(b.session), b.TableName, AutoScalingParams{
+			ReadMinCapacity:  b.Config.ReadMinCapacity,
+			ReadMaxCapacity:  b.Config.ReadMaxCapacity,
+			ReadTargetValue:  b.Config.ReadTargetValue,
+			WriteMinCapacity: b.Config.WriteMinCapacity,
+			WriteMaxCapacity: b.Config.WriteMaxCapacity,
+			WriteTargetValue: b.Config.WriteTargetValue,
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	go func() {
