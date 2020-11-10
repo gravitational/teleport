@@ -52,16 +52,6 @@ When declaring access rules, keep in mind the following:
 * Everything is denied by default.
 * Deny rules get evaluated first and take priority.
 
-A rule consists of two parts: the resources and verbs. Here's an example of an
-`allow` rule describing a `list` verb applied to the SSH `sessions` resource.  It means "allow
-users of this role to see a list of active SSH sessions".
-
-```yaml
-allow:
-    - resources: [session]
-      verbs: [list]
-```
-
 If this rule was declared in `deny` section of a role definition, it effectively
 prohibits users from getting a list of trusted clusters and sessions. You can see
 all of the available resources and verbs under the `allow` section in the `admin` role configuration
@@ -271,24 +261,57 @@ spec:
 ```
 
 
-## RBAC for Sessions
+## Teleport Resources
 
-As shown in the role example above, a Teleport administrator can restrict
-access to user sessions using the following rule:
+RBACs lets teams limit what resources are available to teleport users. This can be
+helpful if you don't want regular users editing SSO `auth_connector` or creating and
+editing new roles `role`.
+
+As list of all options is below.
 
 ```yaml
-rules:
-  - resources: [session]
-    verbs: [list, read]
+  allow:
+    rules:
+    # Can create and list Teleport Roles.
+    - resources:
+      - role
+      verbs:
+      - list
+      - create
+      - read
+      - update
+      - delete
+    # Can create and edit SSO connectors.
+    - resources:
+      - auth_connector
+      verbs:
+      - list
+      - create
+      - read
+      - update
+      - delete
+    # Can view active sessions.
+    - resources:
+      - session
+      verbs:
+      - list
+      - read
+    # Can view trusted clusters. If update / create is set the users can create.
+    - resources:
+      - trusted_cluster
+      verbs:
+      - list
+      - create
+      - read
+      - update
+      - delete
+    # Can view the audit log and session recordings.
+    - resources:
+      - event
+      verbs:
+      - list
+      - read
 ```
-
-* "list" determines if a user is allowed to see the list of past sessions.
-* "read" determines if a user is allowed to replay a session.
-
-It is possible to restrict "list" but to allow "read" (in this case a user will
-be able to replay a session using `tsh play` if they know the session ID)
-
-
 
 ## FAQ
 
