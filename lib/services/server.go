@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -47,8 +48,10 @@ type Server interface {
 	GetAllLabels() map[string]string
 	// GetLabels returns server's static label key pairs
 	GetLabels() map[string]string
-	// GetCmdLabels returns command labels
+	// GetCmdLabels gets command labels
 	GetCmdLabels() map[string]CommandLabel
+	// SetCmdLabels sets command labels.
+	SetCmdLabels(cmdLabels map[string]CommandLabel)
 	// GetPublicAddr is an optional field that returns the public address this cluster can be reached at.
 	GetPublicAddr() string
 	// GetRotation gets the state of certificate authority rotation.
@@ -67,6 +70,13 @@ type Server interface {
 	SetPublicAddr(string)
 	// SetNamespace sets server namespace
 	SetNamespace(namespace string)
+	// GetApps gets the list of applications this server is proxying.
+	GetApps() []*App
+	// GetApps gets the list of applications this server is proxying.
+	SetApps([]*App)
+	// GetKubeClusters returns the kubernetes clusters directly handled by this
+	// server.
+	GetKubernetesClusters() []*KubernetesCluster
 	// V1 returns V1 version for backwards compatibility
 	V1() *ServerV1
 	// MatchAgainst takes a map of labels and returns True if this server
@@ -241,12 +251,22 @@ func (s *ServerV2) GetCmdLabels() map[string]CommandLabel {
 	if s.Spec.CmdLabels == nil {
 		return nil
 	}
-	out := make(map[string]CommandLabel, len(s.Spec.CmdLabels))
-	for key := range s.Spec.CmdLabels {
-		val := s.Spec.CmdLabels[key]
-		out[key] = &val
-	}
-	return out
+	return V2ToLabels(s.Spec.CmdLabels)
+}
+
+// SetCmdLabels sets dynamic labels.
+func (s *ServerV2) SetCmdLabels(cmdLabels map[string]CommandLabel) {
+	s.Spec.CmdLabels = LabelsToV2(cmdLabels)
+}
+
+// GetApps gets the list of applications this server is proxying.
+func (s *ServerV2) GetApps() []*App {
+	return s.Spec.Apps
+}
+
+// GetApps gets the list of applications this server is proxying.
+func (s *ServerV2) SetApps(apps []*App) {
+	s.Spec.Apps = apps
 }
 
 func (s *ServerV2) String() string {
@@ -261,15 +281,24 @@ func (s *ServerV2) GetNamespace() string {
 // GetAllLabels returns the full key:value map of both static labels and
 // "command labels"
 func (s *ServerV2) GetAllLabels() map[string]string {
+	return CombineLabels(s.Metadata.Labels, s.Spec.CmdLabels)
+}
+
+// CombineLabels combines the passed in static and dynamic labels.
+func CombineLabels(static map[string]string, dynamic map[string]CommandLabelV2) map[string]string {
 	lmap := make(map[string]string)
-	for key, value := range s.Metadata.Labels {
+	for key, value := range static {
 		lmap[key] = value
 	}
-	for key, cmd := range s.Spec.CmdLabels {
+	for key, cmd := range dynamic {
 		lmap[key] = cmd.Result
 	}
 	return lmap
 }
+
+// GetKubeClusters returns the kubernetes clusters directly handled by this
+// server.
+func (s *ServerV2) GetKubernetesClusters() []*KubernetesCluster { return s.Spec.KubernetesClusters }
 
 // MatchAgainst takes a map of labels and returns True if this server
 // has ALL of them
@@ -287,13 +316,19 @@ func (s *ServerV2) MatchAgainst(labels map[string]string) bool {
 	return true
 }
 
-// LabelsString returns a comma separated string with all node's labels
+// LabelsString returns a comma separated string of all labels.
 func (s *ServerV2) LabelsString() string {
+	return LabelsAsString(s.Metadata.Labels, s.Spec.CmdLabels)
+}
+
+// LabelsAsString combines static and dynamic labels and returns a comma
+// separated string.
+func LabelsAsString(static map[string]string, dynamic map[string]CommandLabelV2) string {
 	labels := []string{}
-	for key, val := range s.Metadata.Labels {
+	for key, val := range static {
 		labels = append(labels, fmt.Sprintf("%s=%s", key, val))
 	}
-	for key, val := range s.Spec.CmdLabels {
+	for key, val := range dynamic {
 		labels = append(labels, fmt.Sprintf("%s=%s", key, val.Result))
 	}
 	sort.Strings(labels)
@@ -305,6 +340,9 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 	err := s.Metadata.CheckAndSetDefaults()
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if s.Kind == "" {
+		return trace.BadParameter("server Kind is empty")
 	}
 
 	for key := range s.Spec.CmdLabels {
@@ -328,6 +366,9 @@ const (
 // CompareServers returns difference between two server
 // objects, Equal (0) if identical, OnlyTimestampsDifferent(1) if only timestamps differ, Different(2) otherwise
 func CompareServers(a, b Server) int {
+	if a.GetKind() != b.GetKind() {
+		return Different
+	}
 	if a.GetName() != b.GetName() {
 		return Different
 	}
@@ -362,6 +403,53 @@ func CompareServers(a, b Server) int {
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
 		return Different
 	}
+	// If this server is proxying applications, compare the applications to
+	// make sure they match.
+	if a.GetKind() == KindAppServer {
+		return CompareApps(a.GetApps(), b.GetApps())
+	}
+
+	if !cmp.Equal(a.GetKubernetesClusters(), b.GetKubernetesClusters()) {
+		return Different
+	}
+
+	return Equal
+}
+
+// CompareApps compares two slices of apps and returns if they are equal or
+// different.
+func CompareApps(a []*App, b []*App) int {
+	if len(a) != len(b) {
+		return Different
+	}
+	for i := range a {
+		if a[i].Name != b[i].Name {
+			return Different
+		}
+		if a[i].URI != b[i].URI {
+			return Different
+		}
+		if a[i].PublicAddr != b[i].PublicAddr {
+			return Different
+		}
+		if !utils.StringMapsEqual(a[i].StaticLabels, b[i].StaticLabels) {
+			return Different
+		}
+		if !CmdLabelMapsEqual(
+			V2ToLabels(a[i].DynamicLabels),
+			V2ToLabels(b[i].DynamicLabels)) {
+			return Different
+		}
+		if (a[i].Rewrite == nil && b[i].Rewrite != nil) ||
+			(a[i].Rewrite != nil && b[i].Rewrite == nil) {
+			return Different
+		}
+		if a[i].Rewrite != nil && b[i].Rewrite != nil {
+			if !utils.StringSlicesEqual(a[i].Rewrite.Redirect, b[i].Rewrite.Redirect) {
+				return Different
+			}
+		}
+	}
 	return Equal
 }
 
@@ -390,7 +478,51 @@ const ServerSpecV2Schema = `{
   "properties": {
 	"version": {"type": "string"},
     "addr": {"type": "string"},
+    "protocol": {"type": "integer"},
     "public_addr": {"type": "string"},
+    "apps":  {
+      "type": ["array"],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {"type": "string"},
+          "uri": {"type": "string"},
+          "public_addr": {"type": "string"},
+          "insecure_skip_verify": {"type": "boolean"},
+          "rewrite": {
+             "type": "object",
+             "additionalProperties": false,
+             "properties": {
+                "redirect": {"type": ["array"], "items": {"type": "string"}}
+             }
+          },
+          "labels": {
+             "type": "object",
+             "additionalProperties": false,
+             "patternProperties": {
+               "^.*$":  { "type": "string" }
+             }
+          },
+          "commands": {
+            "type": "object",
+            "additionalProperties": false,
+            "patternProperties": {
+              "^.*$": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["command"],
+                "properties": {
+                  "command": {"type": "array", "items": {"type": "string"}},
+                  "period": {"type": "string"},
+                  "result": {"type": "string"}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "hostname": {"type": "string"},
     "use_tunnel": {"type": "boolean"},
     "labels": {
@@ -415,6 +547,39 @@ const ServerSpecV2Schema = `{
           }
         }
       }
+    },
+    "kubernetes_clusters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+         "required": ["name"],
+         "properties": {
+           "name": {"type": "string"},
+           "static_labels": {
+             "type": "object",
+             "additionalProperties": false,
+             "patternProperties": {
+               "^.*$":  { "type": "string" }
+             }
+           },
+           "dynamic_labels": {
+             "type": "object",
+             "additionalProperties": false,
+             "patternProperties": {
+               "^.*$": {
+                 "type": "object",
+                 "additionalProperties": false,
+                 "required": ["command"],
+                 "properties": {
+                   "command": {"type": "array", "items": {"type": "string"}},
+                   "period": {"type": "string"},
+                   "result": {"type": "string"}
+                 }
+               }
+             }
+           }
+         }
+       }
     },
     "rotation": %v
   }
@@ -461,6 +626,16 @@ func (s *ServerV1) V2() *ServerV2 {
 			CmdLabels: labels,
 		},
 	}
+}
+
+// V2ToLabels converts concrete type to command label interface.
+func V2ToLabels(l map[string]CommandLabelV2) map[string]CommandLabel {
+	out := make(map[string]CommandLabel, len(l))
+	for key := range l {
+		val := l[key]
+		out[key] = &val
+	}
+	return out
 }
 
 // LabelsToV2 converts labels from interface to V2 spec
@@ -611,6 +786,9 @@ func UnmarshalServerResource(data []byte, kind string, cfg *MarshalConfig) (Serv
 		if !cfg.Expires.IsZero() {
 			v2.SetExpiry(cfg.Expires)
 		}
+		if err := v2.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		return v2, nil
 	case V2:
 		var s ServerV2
@@ -685,6 +863,9 @@ func (*TeleportServerMarshaler) UnmarshalServer(bytes []byte, kind string, opts 
 
 // MarshalServer marshals server into JSON.
 func (*TeleportServerMarshaler) MarshalServer(s Server, opts ...MarshalOption) ([]byte, error) {
+	if err := s.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	cfg, err := collectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)

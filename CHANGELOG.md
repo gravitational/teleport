@@ -1,5 +1,30 @@
 # Changelog
 
+### 4.4.3
+
+This release of Teleport adds enhancements to the Access Workflows API.
+
+* Support for creating limited roles that trigger access requests
+on login, allowing users to be configured such that no nodes can
+be accessed without externally granted roles.
+
+* Teleport UI support for automatically generating access requests and
+assuming new roles upon approval (access requests were previously
+only available in `tsh`).
+
+* New `claims_to_roles` mapping that can use claims from external
+identity providers to determine which roles a user can request.
+
+* Various minor API improvements to help make requests easier to
+manage and audit, including support for human-readable
+request/approve/deny reasons and structured annotations.
+
+### 4.4.2
+
+This release of Teleport adds support for a new build architecture.
+
+* Added automatic arm64 builds of Teleport to the download portal.
+
 ### 4.4.1
 
 This release of Teleport contains a bug fix.
@@ -8,7 +33,7 @@ This release of Teleport contains a bug fix.
 
 ### 4.4.0
 
-This is a major Teleport release with a focus on new features, functionality, and bug fixes. It’s a substantial release and users can review [4.3 closed issues](https://github.com/gravitational/teleport/milestone/40?closed=1) on Github for details of all items.
+This is a major Teleport release with a focus on new features, functionality, and bug fixes. It’s a substantial release and users can review [4.4 closed issues](https://github.com/gravitational/teleport/milestone/40?closed=1) on Github for details of all items.
 
 #### New Features
 

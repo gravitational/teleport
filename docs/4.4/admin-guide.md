@@ -857,6 +857,8 @@ format:
 {
     // Event type. See below for the list of all possible event types
     "event": "session.start",
+    // uid: A unique ID for the event log. Useful for  deduplication.
+    "uid": "59cf8d1b-7b36-4894-8e90-9d9713b6b9ef",
     // Teleport user name
     "user": "ekontsevoy",
     // OS login
@@ -865,6 +867,11 @@ format:
     "namespace": "default",
     // Unique server ID.
     "server_id": "f84f7386-5e22-45ff-8f7d-b8079742e63f",
+    // Server Labels.
+    "server_labels": {
+      "datacenter": "us-east-1",
+      "label-b": "x"
+    }
     // Session ID. Can be used to replay the session.
     "sid": "8d3895b6-e9dd-11e6-94de-40167e68e931",
     // Address of the SSH node
@@ -1353,6 +1360,37 @@ is running without problems.
 
 We'll cover how to use `etcd`, DynamoDB and Firestore storage back-ends to make Teleport
 highly available below.
+
+### Teleport Scalability Tweaks
+
+When running Teleport at scale (for example in the case where there are 10,000+ nodes connected
+to a cluster via [node tunnelling mode](#adding-a-node-located-behind-nat), the following settings
+should be set on Teleport auth and proxies:
+
+#### Proxy Servers
+These settings alter Teleport's [default connection limit](https://github.com/gravitational/teleport/blob/5cd212fecda63ec6790cc5ffe508a626c56e2b2c/lib/defaults/defaults.go#L385) from 15000 to 65000.
+
+```yaml
+# Teleport Proxy
+teleport:
+  cache:
+    # use an in-memory cache to speed up the connection of many teleport nodes
+    # back to proxy
+    type: in-memory
+  # set up connection limits to prevent throttling of many IoT nodes connecting to proxies
+  connection_limits:
+    max_connections: 65000
+    max_users: 1000
+```
+#### Auth Servers
+
+```yaml
+# Teleport Auth
+teleport:
+  connection_limits:
+    max_connections: 65000
+    max_users: 1000
+```
 
 ### Using etcd
 

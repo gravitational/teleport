@@ -27,8 +27,6 @@ import (
 	"strconv"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 
@@ -78,7 +76,7 @@ func NewStaticFileSystem(debugMode bool) (http.FileSystem, error) {
 				return nil, trace.Wrap(err)
 			}
 		}
-		log.Infof("[Web] Using filesystem for serving web assets: %s", debugAssetsPath)
+		log.Infof("Using filesystem for serving web assets: %s.", debugAssetsPath)
 		return http.Dir(debugAssetsPath), nil
 	}
 
@@ -198,14 +196,14 @@ func (rsc *resource) Stat() (os.FileInfo, error) {
 }
 
 func (rsc *resource) Close() (err error) {
-	log.Debugf("[web] zip::Close(%s)", rsc.file.FileInfo().Name())
+	log.Debugf("zip::Close(%s).", rsc.file.FileInfo().Name())
 	return rsc.reader.Close()
 }
 
 type ResourceMap map[string]*zip.File
 
 func (rm ResourceMap) Open(name string) (http.File, error) {
-	log.Debugf("[web] GET zip:%s", name)
+	log.Debugf("GET zip:%s.", name)
 	f, ok := rm[strings.Trim(name, "/")]
 	if !ok {
 		return nil, trace.Wrap(os.ErrNotExist)
@@ -214,5 +212,8 @@ func (rm ResourceMap) Open(name string) (http.File, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &resource{reader, f, 0}, nil
+	return &resource{
+		reader: reader,
+		file:   f,
+	}, nil
 }

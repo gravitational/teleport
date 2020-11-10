@@ -314,6 +314,13 @@ proxy_service:
     # Use a TCP load balancer because this port uses SSH protocol.
     ssh_public_addr: proxy.example.com:3023
 
+    # The DNS name of the tunnel SSH endpoint as accessible by trusted clusters and
+    # nodes joining the cluster via Teleport IoT/node tunneling.
+    # Defaults to the proxy's hostname if not specified. If running multiple proxies
+    # behind a load balancer, this name must point to the load balancer.
+    # Use a TCP load balancer because this port uses SSH protocol.
+    tunnel_public_addr: proxy.example.com:3024
+
     # TLS certificate for the HTTPS connection. Configuring these properly is
     # critical for Teleport security.
     https_key_file: /var/lib/teleport/webproxy_key.pem

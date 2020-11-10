@@ -49,6 +49,10 @@ func ForAuth(cfg Config) Config {
 		{Kind: services.KindReverseTunnel},
 		{Kind: services.KindTunnelConnection},
 		{Kind: services.KindAccessRequest},
+		{Kind: services.KindAppServer},
+		{Kind: services.KindWebSession},
+		{Kind: services.KindRemoteCluster},
+		{Kind: services.KindKubeService},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -68,6 +72,54 @@ func ForProxy(cfg Config) Config {
 		{Kind: services.KindAuthServer},
 		{Kind: services.KindReverseTunnel},
 		{Kind: services.KindTunnelConnection},
+		{Kind: services.KindAppServer},
+		{Kind: services.KindWebSession},
+		{Kind: services.KindRemoteCluster},
+		{Kind: services.KindKubeService},
+	}
+	cfg.QueueSize = defaults.ProxyQueueSize
+	return cfg
+}
+
+// ForRemoteProxy sets up watch configuration for remote proxies.
+func ForRemoteProxy(cfg Config) Config {
+	cfg.Watches = []services.WatchKind{
+		{Kind: services.KindCertAuthority, LoadSecrets: false},
+		{Kind: services.KindClusterName},
+		{Kind: services.KindClusterConfig},
+		{Kind: services.KindUser},
+		{Kind: services.KindRole},
+		{Kind: services.KindNamespace},
+		{Kind: services.KindNode},
+		{Kind: services.KindProxy},
+		{Kind: services.KindAuthServer},
+		{Kind: services.KindReverseTunnel},
+		{Kind: services.KindTunnelConnection},
+		{Kind: services.KindAppServer},
+		{Kind: services.KindRemoteCluster},
+		{Kind: services.KindKubeService},
+	}
+	cfg.QueueSize = defaults.ProxyQueueSize
+	return cfg
+}
+
+// DELETE IN: 5.1
+//
+// ForOldRemoteProxy sets up watch configuration for older remote proxies.
+func ForOldRemoteProxy(cfg Config) Config {
+	cfg.Watches = []services.WatchKind{
+		{Kind: services.KindCertAuthority, LoadSecrets: false},
+		{Kind: services.KindClusterName},
+		{Kind: services.KindClusterConfig},
+		{Kind: services.KindUser},
+		{Kind: services.KindRole},
+		{Kind: services.KindNamespace},
+		{Kind: services.KindNode},
+		{Kind: services.KindProxy},
+		{Kind: services.KindAuthServer},
+		{Kind: services.KindReverseTunnel},
+		{Kind: services.KindTunnelConnection},
+		{Kind: services.KindKubeService},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -87,6 +139,38 @@ func ForNode(cfg Config) Config {
 		{Kind: services.KindNamespace, Name: defaults.Namespace},
 	}
 	cfg.QueueSize = defaults.NodeQueueSize
+	return cfg
+}
+
+// ForKubernetes sets up watch configuration for a kubernetes service.
+func ForKubernetes(cfg Config) Config {
+	cfg.Watches = []services.WatchKind{
+		{Kind: services.KindCertAuthority, LoadSecrets: false},
+		{Kind: services.KindClusterName},
+		{Kind: services.KindClusterConfig},
+		{Kind: services.KindUser},
+		{Kind: services.KindRole},
+		{Kind: services.KindNamespace, Name: defaults.Namespace},
+		{Kind: services.KindKubeService},
+	}
+	cfg.QueueSize = defaults.KubernetesQueueSize
+	return cfg
+}
+
+// ForApps sets up watch configuration for apps.
+func ForApps(cfg Config) Config {
+	cfg.Watches = []services.WatchKind{
+		{Kind: services.KindCertAuthority, LoadSecrets: false},
+		{Kind: services.KindClusterName},
+		{Kind: services.KindClusterConfig},
+		{Kind: services.KindUser},
+		{Kind: services.KindRole},
+		{Kind: services.KindProxy},
+		// Applications only need to "know" about default namespace events to avoid
+		// matching too much data about other namespaces or events.
+		{Kind: services.KindNamespace, Name: defaults.Namespace},
+	}
+	cfg.QueueSize = defaults.AppsQueueSize
 	return cfg
 }
 
@@ -121,6 +205,7 @@ type Cache struct {
 	accessCache        services.Access
 	dynamicAccessCache services.DynamicAccessExt
 	presenceCache      services.Presence
+	appSessionCache    services.AppSession
 	eventsFanout       *services.Fanout
 
 	// closedFlag is set to indicate that the services are closed
@@ -151,6 +236,8 @@ type Config struct {
 	DynamicAccess services.DynamicAccess
 	// Presence is a presence service
 	Presence services.Presence
+	// AppSession holds application sessions.
+	AppSession services.AppSession
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// RetryPeriod is a period between cache retries on failures
@@ -275,6 +362,7 @@ func New(config Config) (*Cache, error) {
 		accessCache:        local.NewAccessService(wrapper),
 		dynamicAccessCache: local.NewDynamicAccessService(wrapper),
 		presenceCache:      local.NewPresenceService(wrapper),
+		appSessionCache:    local.NewIdentityService(wrapper),
 		eventsFanout:       services.NewFanout(),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
@@ -328,7 +416,7 @@ func (c *Cache) update(ctx context.Context) {
 	for {
 		err := c.fetchAndWatch(ctx, retry)
 		if err != nil {
-			c.setCacheState(err)
+			c.setCacheState(ctx, err)
 			if !c.isClosed() {
 				c.Warningf("Re-init the cache on error: %v.", trace.Unwrap(err))
 			}
@@ -353,11 +441,11 @@ func (c *Cache) update(ctx context.Context) {
 // setCacheState for "only recent" cache behavior will erase
 // the cache and set error mode to refuse to serve stale data,
 // otherwise does nothing
-func (c *Cache) setCacheState(err error) {
+func (c *Cache) setCacheState(ctx context.Context, err error) {
 	if !c.OnlyRecent.Enabled {
 		return
 	}
-	if err := c.eraseAll(); err != nil {
+	if err := c.eraseAll(ctx); err != nil {
 		if !c.isClosed() {
 			c.Warningf("Failed to erase the data: %v.", err)
 		}
@@ -489,10 +577,10 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry) error {
 }
 
 // eraseAll erases all the data from cache collections
-func (c *Cache) eraseAll() error {
+func (c *Cache) eraseAll(ctx context.Context) error {
 	var errors []error
 	for _, collection := range c.collections {
-		errors = append(errors, collection.erase())
+		errors = append(errors, collection.erase(ctx))
 	}
 	return trace.NewAggregate(errors...)
 }
@@ -632,6 +720,16 @@ func (c *Cache) GetProxies() ([]services.Server, error) {
 	return c.presenceCache.GetProxies()
 }
 
+// GetRemoteClusters returns a list of remote clusters
+func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error) {
+	return c.presenceCache.GetRemoteClusters(opts...)
+}
+
+// GetRemoteCluster returns a remote cluster by name
+func (c *Cache) GetRemoteCluster(clusterName string) (services.RemoteCluster, error) {
+	return c.presenceCache.GetRemoteCluster(clusterName)
+}
+
 // GetUser is a part of auth.AccessPoint implementation.
 func (c *Cache) GetUser(name string, withSecrets bool) (user services.User, err error) {
 	if withSecrets { // cache never tracks user secrets
@@ -664,4 +762,19 @@ func (c *Cache) GetTunnelConnections(clusterName string, opts ...services.Marsha
 // to be called periodically and always return fresh data
 func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns []services.TunnelConnection, err error) {
 	return c.presenceCache.GetAllTunnelConnections(opts...)
+}
+
+// GetKubeServices is a part of auth.AccessPoint implementation
+func (c *Cache) GetKubeServices(ctx context.Context) ([]services.Server, error) {
+	return c.presenceCache.GetKubeServices(ctx)
+}
+
+// GetAppServers gets all application servers.
+func (c *Cache) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	return c.presenceCache.GetAppServers(ctx, namespace, opts...)
+}
+
+// GetAppSession gets an application web session.
+func (c *Cache) GetAppSession(ctx context.Context, req services.GetAppSessionRequest) (services.WebSession, error) {
+	return c.appSessionCache.GetAppSession(ctx, req)
 }

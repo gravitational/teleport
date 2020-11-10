@@ -77,18 +77,21 @@ type Config struct {
 	// in case if they loose connection to auth servers
 	CachePolicy CachePolicy
 
-	// SSH role an SSH endpoint server
+	// Auth service configuration. Manages cluster state and configuration.
+	Auth AuthConfig
+
+	// Proxy service configuration. Manages incoming and outbound
+	// connections to the cluster.
+	Proxy ProxyConfig
+
+	// SSH service configuration. Manages SSH servers running within the cluster.
 	SSH SSHConfig
 
-	// Auth server authentication and authorization server config
-	Auth AuthConfig
+	// App service configuration. Manages applications running within the cluster.
+	Apps AppsConfig
 
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
-
-	// Proxy is SSH proxy that manages incoming and outbound connections
-	// via multiple reverse tunnels
-	Proxy ProxyConfig
 
 	// HostUUID is a unique UUID of this host (it will be known via this UUID within
 	// a teleport cluster). It's automatically generated on 1st start
@@ -323,12 +326,6 @@ type ProxyConfig struct {
 	// SSHAddr is address of ssh proxy
 	SSHAddr utils.NetAddr
 
-	// TLSKey is a base64 encoded private key used by web portal
-	TLSKey string
-
-	// TLSCert is a base64 encoded certificate used by web portal
-	TLSCert string
-
 	Limiter limiter.Config
 
 	// PublicAddrs is a list of the public addresses the proxy advertises
@@ -348,8 +345,21 @@ type ProxyConfig struct {
 
 	// Kube specifies kubernetes proxy configuration
 	Kube KubeProxyConfig
+
+	// KeyPairs are the key and certificate pairs that the proxy will load.
+	KeyPairs []KeyPairPath
 }
 
+// KeyPairPath are paths to a key and certificate file.
+type KeyPairPath struct {
+	// PrivateKey is the path to a PEM encoded private key.
+	PrivateKey string
+	// Certificate is the path to a PEM encoded certificate.
+	Certificate string
+}
+
+// KubeAddr returns the address for the Kubernetes endpoint on this proxy that
+// can be reached by clients.
 func (c ProxyConfig) KubeAddr() (string, error) {
 	if !c.Kube.Enabled {
 		return "", trace.NotFound("kubernetes support not enabled on this proxy")
@@ -377,15 +387,9 @@ type KubeProxyConfig struct {
 	// ListenAddr is the address to listen on for incoming kubernetes requests.
 	ListenAddr utils.NetAddr
 
-	// KubeAPIAddr is address of kubernetes API server
-	APIAddr utils.NetAddr
-
 	// ClusterOverride causes all traffic to go to a specific remote
 	// cluster, used only in tests
 	ClusterOverride string
-
-	// CACert is a PEM encoded kubernetes CA certificate
-	CACert []byte
 
 	// PublicAddrs is a list of the public addresses the Teleport Kube proxy can be accessed by,
 	// it also affects the host principals and routing logic
@@ -493,6 +497,54 @@ type KubeConfig struct {
 	// Labels are used for RBAC on clusters.
 	StaticLabels  map[string]string
 	DynamicLabels services.CommandLabels
+
+	// Limiter limits the connection and request rates.
+	Limiter limiter.Config
+}
+
+// AppsConfig configures application proxy service.
+type AppsConfig struct {
+	// Enabled enables application proxying service.
+	Enabled bool
+
+	// DebugApp enabled a header dumping debugging application.
+	DebugApp bool
+
+	// Apps is the list of applications that are being proxied.
+	Apps []App
+}
+
+// App is the specific application that will be proxied by the application
+// service. This needs to exist because if the "config" package tries to
+// directly create a services.App it will get into circular imports.
+type App struct {
+	// Name of the application.
+	Name string
+
+	// URI is the internal address of the application.
+	URI string
+
+	// Public address of the application. This is the address users will access
+	// the application at.
+	PublicAddr string
+
+	// StaticLabels is a map of static labels to apply to this application.
+	StaticLabels map[string]string
+
+	// DynamicLabels is a list of dynamic labels to apply to this application.
+	DynamicLabels services.CommandLabels
+
+	// InsecureSkipVerify is used to skip validating the server's certificate.
+	InsecureSkipVerify bool
+
+	// Rewrite defines a block that is used to rewrite requests and responses.
+	Rewrite *Rewrite
+}
+
+// Rewrite is a list of rewriting rules to apply to requests and responses.
+type Rewrite struct {
+	// Redirect is a list of hosts that should be rewritten to the public address.
+	Redirect []string
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults
@@ -569,6 +621,10 @@ func ApplyDefaults(cfg *Config) {
 
 	// Kubernetes service defaults.
 	cfg.Kube.Enabled = false
+	defaults.ConfigureLimiter(&cfg.Kube.Limiter)
+
+	// Apps service defaults. It's disabled by default.
+	cfg.Apps.Enabled = false
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2
