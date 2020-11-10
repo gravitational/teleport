@@ -235,12 +235,6 @@ An example policy is shown below:
                 "arn:aws:dynamodb:<region>:<account_id>:table/<events_table_name>",
                 "arn:aws:dynamodb:<region>:<account_id>:table/<events_table_name>/index/*"
             ]
-        },
-        {
-            "Sid": "SSLLocks",
-            "Effect": "Allow",
-            "Action": "dynamodb:PutItem",
-            "Resource": "arn:aws:dynamodb:<region>:<account_id>:table/<locks_table_name>"
         }
     ]
 }
