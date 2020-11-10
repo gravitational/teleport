@@ -21,9 +21,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -128,4 +132,61 @@ func TestWriterEmitter(t *testing.T) {
 	for i := 0; scanner.Scan(); i++ {
 		require.Contains(t, scanner.Text(), events[i].GetCode())
 	}
+}
+
+// TestExport tests export to JSON format.
+func TestExport(t *testing.T) {
+	sid := session.NewID()
+	events := GenerateTestSession(SessionParams{PrintEvents: 1, SessionID: sid.String()})
+	uploader := NewMemoryUploader()
+	streamer, err := NewProtoStreamer(ProtoStreamerConfig{
+		Uploader: uploader,
+	})
+	require.NoError(t, err)
+
+	ctx := context.TODO()
+	stream, err := streamer.CreateAuditStream(ctx, sid)
+	require.NoError(t, err)
+
+	for _, event := range events {
+		err := stream.EmitAuditEvent(ctx, event)
+		require.NoError(t, err)
+	}
+	err = stream.Complete(ctx)
+	require.NoError(t, err)
+
+	uploads, err := uploader.ListUploads(ctx)
+	require.NoError(t, err)
+	parts, err := uploader.GetParts(uploads[0].ID)
+	require.NoError(t, err)
+
+	f, err := ioutil.TempFile("", "")
+	require.NoError(t, err)
+	defer os.Remove(f.Name())
+
+	var readers []io.Reader
+	for _, part := range parts {
+		readers = append(readers, bytes.NewReader(part))
+		_, err := f.Write(part)
+		require.NoError(t, err)
+	}
+	reader := NewProtoReader(io.MultiReader(readers...))
+	outEvents, err := reader.ReadAll(ctx)
+	require.NoError(t, err)
+
+	_, err = f.Seek(0, 0)
+	require.NoError(t, err)
+
+	buf := &bytes.Buffer{}
+	err = Export(ctx, f, buf, teleport.JSON)
+	require.NoError(t, err)
+
+	count := 0
+	snl := bufio.NewScanner(buf)
+	for snl.Scan() {
+		require.Contains(t, snl.Text(), outEvents[count].GetCode())
+		count++
+	}
+	require.NoError(t, snl.Err())
+	require.Equal(t, len(outEvents), count)
 }

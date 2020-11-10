@@ -94,6 +94,10 @@ type Identity struct {
 	// allows Teleport web proxy to route HTTP requests to the appropriate
 	// cluster and Teleport application proxy within the cluster.
 	RouteToApp RouteToApp
+	// TeleportCluster is the name of the teleport cluster that this identity
+	// originated from. For TLS certs this may not be the same as cert issuer,
+	// in case of multi-hop requests that originate from a remote cluster.
+	TeleportCluster string
 }
 
 // RouteToApp holds routing information for applications.
@@ -143,30 +147,35 @@ func (id *Identity) CheckAndSetDefaults() error {
 //
 // http://oid-info.com/get/1.3.9999
 //
+var (
+	// KubeUsersASN1ExtensionOID is an extension ID used when encoding/decoding
+	// license payload into certificates
+	KubeUsersASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 1}
 
-// KubeUsersASN1ExtensionOID is an extension ID used when encoding/decoding
-// license payload into certificates
-var KubeUsersASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 1}
+	// KubeGroupsASN1ExtensionOID is an extension ID used when encoding/decoding
+	// license payload into certificates
+	KubeGroupsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 2}
 
-// KubeGroupsASN1ExtensionOID is an extension ID used when encoding/decoding
-// license payload into certificates
-var KubeGroupsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 2}
+	// KubeClusterASN1ExtensionOID is an extension ID used when encoding/decoding
+	// target kubernetes cluster name into certificates.
+	KubeClusterASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 3}
 
-// KubeClusterASN1ExtensionOID is an extension ID used when encoding/decoding
-// target kubernetes cluster name into certificates.
-var KubeClusterASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 3}
+	// AppSessionIDASN1ExtensionOID is an extension ID used to encode the application
+	// session ID into a certificate.
+	AppSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 4}
 
-// AppSessionIDASN1ExtensionOID is an extension ID used to encode the application
-// session ID into a certificate.
-var AppSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 4}
+	// AppClusterNameASN1ExtensionOID is an extension ID used to encode the application
+	// cluster name into a certificate.
+	AppClusterNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 5}
 
-// AppPublicAddrASN1ExtensionOID is an extension ID used to encode the application
-// public address into a certificate.
-var AppPublicAddrASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 6}
+	// AppPublicAddrASN1ExtensionOID is an extension ID used to encode the application
+	// public address into a certificate.
+	AppPublicAddrASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 6}
 
-// AppClusterNameASN1ExtensionOID is an extension ID used to encode the application
-// cluster name into a certificate.
-var AppClusterNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 5}
+	// TeleportClusterASN1ExtensionOID is an extension ID used when encoding/decoding
+	// origin teleport cluster name into certificates.
+	TeleportClusterASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 7}
+)
 
 // Subject converts identity to X.509 subject name
 func (id *Identity) Subject() (pkix.Name, error) {
@@ -239,6 +248,13 @@ func (id *Identity) Subject() (pkix.Name, error) {
 				Value: id.RouteToApp.ClusterName,
 			})
 	}
+	if id.TeleportCluster != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  TeleportClusterASN1ExtensionOID,
+				Value: id.TeleportCluster,
+			})
+	}
 
 	return subject, nil
 }
@@ -293,6 +309,11 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.RouteToApp.ClusterName = val
+			}
+		case attr.Type.Equal(TeleportClusterASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.TeleportCluster = val
 			}
 		}
 	}

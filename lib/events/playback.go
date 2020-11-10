@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -68,6 +69,55 @@ func DetectFormat(r io.ReadSeeker) (*Header, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 	return &Header{Tar: true}, nil
+}
+
+// Export converts session files from binary/protobuf to text/JSON.
+func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat string) error {
+	switch exportFormat {
+	case teleport.JSON:
+	default:
+		return trace.BadParameter("unsupported format %q, %q is the only supported format", exportFormat, teleport.JSON)
+	}
+
+	format, err := DetectFormat(rs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = rs.Seek(0, 0)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	switch {
+	case format.Proto == true:
+		protoReader := NewProtoReader(rs)
+		for {
+			event, err := protoReader.Read(ctx)
+			if err != nil {
+				if err == io.EOF {
+					return nil
+				}
+				return trace.Wrap(err)
+			}
+			switch exportFormat {
+			case teleport.JSON:
+				data, err := utils.FastMarshal(event)
+				if err != nil {
+					return trace.ConvertSystemError(err)
+				}
+				_, err = fmt.Fprintln(w, string(data))
+				if err != nil {
+					return trace.ConvertSystemError(err)
+				}
+			default:
+				return trace.BadParameter("unsupported format %q, %q is the only supported format", exportFormat, teleport.JSON)
+			}
+		}
+	case format.Tar == true:
+		return trace.BadParameter(
+			"to review the events in format of teleport before version 4.4, extract the tarball and look inside")
+	default:
+		return trace.BadParameter("unsupported format %v", format)
+	}
 }
 
 // WriteForPlayback reads events from audit reader
