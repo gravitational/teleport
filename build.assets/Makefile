@@ -149,10 +149,10 @@ clean:
 test: FLAGS ?= -cover -race
 test: buildbox
 	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) -t $(BUILDBOX) \
-		/bin/bash -c \
+		/usr/bin/dumb-init /bin/bash -c \
 		"examples/etcd/start-etcd.sh & sleep 1; \
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
-		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS=\"$(FLAGS)\" clean test"
+		make -C $(SRCDIR) TELEPORT_DEBUG=0 FLAGS=\"$(FLAGS)\" clean test"
 
 .PHONY: integration
 integration: FLAGS ?= -cover

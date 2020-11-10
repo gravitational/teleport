@@ -1856,7 +1856,7 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 	paths := [][]string{
 		// DELETE IN (5.1.0)
 		// this directory will no longer be used after migration to 5.1.0
-		[]string{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.SessionLogsDir, defaults.Namespace},
+		{process.Config.DataDir, teleport.LogsDir, teleport.ComponentUpload, events.SessionLogsDir, defaults.Namespace},
 		// This directory will remain to be used after migration to 5.1.0
 		streamingDir,
 	}

@@ -17,9 +17,9 @@ ENV LANGUAGE="en_US.UTF-8" \
     LC_CTYPE="en_US.UTF-8" \
     DEBIAN_FRONTEND="noninteractive"
 
-RUN apt-get update -y --fix-missing && \
+RUN set -ex && apt-get update -y --fix-missing && \
     apt-get -q -y upgrade && \
-    apt-get install -q -y apt-utils curl gcc gcc-multilib git gzip libbpfcc-dev libc6-dev libpam-dev libsqlite3-0 locales make net-tools tar tree zip shellcheck && \
+    apt-get install -q -y apt-utils curl gcc gcc-multilib git gzip libbpfcc-dev libc6-dev libpam-dev libsqlite3-0 locales make net-tools tar tree zip shellcheck dumb-init && \
     dpkg-reconfigure locales && \
     apt-get -y autoclean && apt-get -y clean
 

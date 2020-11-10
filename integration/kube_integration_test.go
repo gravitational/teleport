@@ -152,14 +152,7 @@ func (s *KubeSuite) TearDownSuite(c *check.C) {
 func (s *KubeSuite) TestKubeExec(c *check.C) {
 	tconf := s.teleKubeConfig(Host)
 
-	t := NewInstance(InstanceConfig{
-		ClusterName: Site,
-		HostID:      HostID,
-		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
-		Priv:        s.priv,
-		Pub:         s.pub,
-	})
+	t := s.newTeleportInstance(c)
 
 	username := s.me.Username
 	kubeGroups := []string{testImpersonationGroup}
@@ -322,14 +315,7 @@ loop:
 func (s *KubeSuite) TestKubeDeny(c *check.C) {
 	tconf := s.teleKubeConfig(Host)
 
-	t := NewInstance(InstanceConfig{
-		ClusterName: Site,
-		HostID:      HostID,
-		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
-		Priv:        s.priv,
-		Pub:         s.pub,
-	})
+	t := s.newTeleportInstance(c)
 
 	username := s.me.Username
 	kubeGroups := []string{testImpersonationGroup}
@@ -374,14 +360,7 @@ func (s *KubeSuite) TestKubeDeny(c *check.C) {
 func (s *KubeSuite) TestKubePortForward(c *check.C) {
 	tconf := s.teleKubeConfig(Host)
 
-	t := NewInstance(InstanceConfig{
-		ClusterName: Site,
-		HostID:      HostID,
-		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
-		Priv:        s.priv,
-		Pub:         s.pub,
-	})
+	t := s.newTeleportInstance(c)
 
 	username := s.me.Username
 	kubeGroups := []string{testImpersonationGroup}
@@ -469,14 +448,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 	// Main cluster doesn't need a kubeconfig to forward requests to auxiliary
 	// cluster.
 	mainConf.Proxy.Kube.KubeconfigPath = ""
-	main := NewInstance(InstanceConfig{
-		ClusterName: clusterMain,
-		HostID:      HostID,
-		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
-		Priv:        s.priv,
-		Pub:         s.pub,
-	})
+	main := s.newNamedTeleportInstance(c, clusterMain)
 
 	// main cluster has a role and user called main-kube
 	username := s.me.Username
@@ -492,14 +464,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 
 	clusterAux := "cluster-aux"
 	auxConf := s.teleKubeConfig(Host)
-	aux := NewInstance(InstanceConfig{
-		ClusterName: clusterAux,
-		HostID:      HostID,
-		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
-		Priv:        s.priv,
-		Pub:         s.pub,
-	})
+	aux := s.newNamedTeleportInstance(c, clusterAux)
 
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
@@ -725,14 +690,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 
 	clusterMain := "cluster-main"
 	mainConf := s.teleKubeConfig(Host)
-	main := NewInstance(InstanceConfig{
-		ClusterName: clusterMain,
-		HostID:      HostID,
-		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
-		Priv:        s.priv,
-		Pub:         s.pub,
-	})
+	main := s.newNamedTeleportInstance(c, clusterMain)
 
 	// main cluster has a role and user called main-kube
 	username := s.me.Username
@@ -748,14 +706,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 
 	clusterAux := "cluster-aux"
 	auxConf := s.teleKubeConfig(Host)
-	aux := NewInstance(InstanceConfig{
-		ClusterName: clusterAux,
-		HostID:      HostID,
-		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
-		Priv:        s.priv,
-		Pub:         s.pub,
-	})
+	aux := s.newNamedTeleportInstance(c, clusterAux)
 
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
@@ -1003,14 +954,7 @@ func (s *KubeSuite) TestKubeDisconnect(c *check.C) {
 func (s *KubeSuite) runKubeDisconnectTest(c *check.C, tc disconnectTestCase) {
 	tconf := s.teleKubeConfig(Host)
 
-	t := NewInstance(InstanceConfig{
-		ClusterName: Site,
-		HostID:      HostID,
-		NodeName:    Host,
-		Ports:       s.ports.PopIntSlice(5),
-		Priv:        s.priv,
-		Pub:         s.pub,
-	})
+	t := s.newTeleportInstance(c)
 
 	username := s.me.Username
 	kubeGroups := []string{testImpersonationGroup}
@@ -1100,6 +1044,30 @@ func (s *KubeSuite) teleKubeConfig(hostname string) *service.Config {
 	tconf.Proxy.Kube.KubeconfigPath = s.kubeConfigPath
 
 	return tconf
+}
+
+func (s *KubeSuite) newTeleportInstance(c *check.C) *TeleInstance {
+	return NewInstance(InstanceConfig{
+		ClusterName: Site,
+		HostID:      HostID,
+		NodeName:    Host,
+		Ports:       s.ports.PopIntSlice(5),
+		Priv:        s.priv,
+		Pub:         s.pub,
+		DataDir:     c.MkDir(),
+	})
+}
+
+func (s *KubeSuite) newNamedTeleportInstance(c *check.C, clusterName string) *TeleInstance {
+	return NewInstance(InstanceConfig{
+		ClusterName: clusterName,
+		HostID:      HostID,
+		NodeName:    Host,
+		Ports:       s.ports.PopIntSlice(5),
+		Priv:        s.priv,
+		Pub:         s.pub,
+		DataDir:     c.MkDir(),
+	})
 }
 
 // tlsClientConfig returns TLS configuration for client

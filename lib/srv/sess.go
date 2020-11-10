@@ -65,7 +65,7 @@ func init() {
 // SessionRegistry holds a map of all active sessions on a given
 // SSH server
 type SessionRegistry struct {
-	sync.Mutex
+	mu sync.Mutex
 
 	// log holds the structured logger
 	log *logrus.Entry
@@ -94,31 +94,31 @@ func NewSessionRegistry(srv Server) (*SessionRegistry, error) {
 }
 
 func (s *SessionRegistry) addSession(sess *session) {
-	s.Lock()
-	defer s.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.sessions[sess.id] = sess
 }
 
 func (s *SessionRegistry) removeSession(sess *session) {
-	s.Lock()
-	defer s.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	delete(s.sessions, sess.id)
 }
 
-func (s *SessionRegistry) findSession(id rsession.ID) (*session, bool) {
+func (s *SessionRegistry) findSessionWithLock(id rsession.ID) (*session, bool) {
 	sess, found := s.sessions[id]
 	return sess, found
 }
 
 func (s *SessionRegistry) Close() {
-	s.Lock()
-	defer s.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	for _, se := range s.sessions {
 		se.Close()
 	}
 
-	s.log.Debugf("Closing Session Registry.")
+	s.log.Debug("Closing Session Registry.")
 }
 
 // emitSessionJoinEvent emits a session join event to both the Audit Log as
@@ -134,7 +134,7 @@ func (s *SessionRegistry) emitSessionJoinEvent(ctx *ServerContext) {
 			ServerNamespace: s.srv.GetNamespace(),
 		},
 		SessionMetadata: events.SessionMetadata{
-			SessionID: string(ctx.session.id),
+			SessionID: string(ctx.SessionID()),
 		},
 		UserMetadata: events.UserMetadata{
 			User:  ctx.Identity.TeleportUser,
@@ -150,13 +150,14 @@ func (s *SessionRegistry) emitSessionJoinEvent(ctx *ServerContext) {
 	}
 
 	// Emit session join event to Audit Log.
-	if err := ctx.session.recorder.EmitAuditEvent(ctx.srv.Context(), sessionJoinEvent); err != nil {
+	session := ctx.getSession()
+	if err := session.recorder.EmitAuditEvent(ctx.srv.Context(), sessionJoinEvent); err != nil {
 		s.log.WithError(err).Warn("Failed to emit session join event.")
 	}
 
 	// Notify all members of the party that a new member has joined over the
 	// "x-teleport-event" channel.
-	for _, p := range s.getParties(ctx.session) {
+	for _, p := range session.getParties() {
 		eventPayload, err := json.Marshal(sessionJoinEvent)
 		if err != nil {
 			s.log.Warnf("Unable to marshal %v for %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
@@ -173,11 +174,12 @@ func (s *SessionRegistry) emitSessionJoinEvent(ctx *ServerContext) {
 
 // OpenSession either joins an existing session or starts a new session.
 func (s *SessionRegistry) OpenSession(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) error {
-	if ctx.session != nil {
-		ctx.Infof("Joining existing session %v.", ctx.session.id)
+	session := ctx.getSession()
+	if session != nil {
+		ctx.Infof("Joining existing session %v.", session.id)
 
 		// Update the in-memory data structure that a party member has joined.
-		_, err := ctx.session.join(ch, req, ctx)
+		_, err := session.join(ch, req, ctx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -200,7 +202,7 @@ func (s *SessionRegistry) OpenSession(ch ssh.Channel, req *ssh.Request, ctx *Ser
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ctx.session = sess
+	ctx.setSession(sess)
 	s.addSession(sess)
 	ctx.Infof("Creating (interactive) session %v.", sid)
 
@@ -229,7 +231,7 @@ func (s *SessionRegistry) OpenExecSession(channel ssh.Channel, req *ssh.Request,
 
 	// Start a non-interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
-	ctx.session = sess
+	ctx.setSession(sess)
 	err = sess.startExec(channel, ctx)
 	defer sess.Close()
 	if err != nil {
@@ -266,7 +268,7 @@ func (s *SessionRegistry) emitSessionLeaveEvent(party *party) {
 
 	// Notify all members of the party that a new member has left over the
 	// "x-teleport-event" channel.
-	for _, p := range s.getParties(party.s) {
+	for _, p := range party.s.getParties() {
 		eventPayload, err := utils.FastMarshal(sessionLeaveEvent)
 		if err != nil {
 			s.log.Warnf("Unable to marshal %v for %v: %v.", events.SessionJoinEvent, p.sconn.RemoteAddr(), err)
@@ -284,8 +286,8 @@ func (s *SessionRegistry) emitSessionLeaveEvent(party *party) {
 // leaveSession removes the given party from this session.
 func (s *SessionRegistry) leaveSession(party *party) error {
 	sess := party.s
-	s.Lock()
-	defer s.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	// Emit session leave event to both the Audit Log as well as over the
 	// "x-teleport-event" channel in the SSH connection.
@@ -368,34 +370,16 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 	return nil
 }
 
-// getParties allows to safely return a list of parties connected to this
-// session (as determined by ctx)
-func (s *SessionRegistry) getParties(sess *session) []*party {
-	var parties []*party
-
-	if sess == nil {
-		return parties
-	}
-
-	sess.Lock()
-	defer sess.Unlock()
-
-	for _, p := range sess.parties {
-		parties = append(parties, p)
-	}
-
-	return parties
-}
-
 // NotifyWinChange is called to notify all members in the party that the PTY
 // size has changed. The notification is sent as a global SSH request and it
 // is the responsibility of the client to update it's window size upon receipt.
 func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *ServerContext) error {
-	if ctx.session == nil {
+	session := ctx.getSession()
+	if session == nil {
 		s.log.Debugf("Unable to update window size, no session found in context.")
 		return nil
 	}
-	sid := ctx.session.id
+	sid := session.id
 
 	// Build the resize event.
 	resizeEvent := &events.Resize{
@@ -419,12 +403,12 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 
 	// Report the updated window size to the event log (this is so the sessions
 	// can be replayed correctly).
-	if err := ctx.session.recorder.EmitAuditEvent(s.srv.Context(), resizeEvent); err != nil {
+	if err := session.recorder.EmitAuditEvent(s.srv.Context(), resizeEvent); err != nil {
 		s.log.WithError(err).Warn("Failed to emit resize audit event.")
 	}
 
 	// Update the size of the server side PTY.
-	err := ctx.session.term.SetWinSize(params)
+	err := session.term.SetWinSize(params)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -439,7 +423,7 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 	// Notify all members of the party (except originator) that the size of the
 	// window has changed so the client can update it's own local PTY. Note that
 	// OpenSSH clients will ignore this and not update their own local PTY.
-	for _, p := range s.getParties(ctx.session) {
+	for _, p := range session.getParties() {
 		// Don't send the window change notification back to the originator.
 		if p.ctx.ID() == ctx.ID() {
 			continue
@@ -464,10 +448,10 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 }
 
 func (s *SessionRegistry) broadcastResult(sid rsession.ID, r ExecResult) error {
-	s.Lock()
-	defer s.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	sess, found := s.findSession(sid)
+	sess, found := s.findSessionWithLock(sid)
 	if !found {
 		return trace.NotFound("session %v not found", sid)
 	}
@@ -478,7 +462,7 @@ func (s *SessionRegistry) broadcastResult(sid rsession.ID, r ExecResult) error {
 // session struct describes an active (in progress) SSH session. These sessions
 // are managed by 'SessionRegistry' containers which are attached to SSH servers.
 type session struct {
-	sync.Mutex
+	mu sync.RWMutex
 
 	// log holds the structured logger
 	log *logrus.Entry
@@ -603,17 +587,23 @@ func newSession(id rsession.ID, r *SessionRegistry, ctx *ServerContext) (*sessio
 
 // ID returns a string representation of the session ID.
 func (s *session) ID() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.id.String()
 }
 
 // PID returns the PID of the Teleport process under which the shell is running.
 func (s *session) PID() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.term.PID()
 }
 
 // Recorder returns a events.SessionRecorder which can be used to emit events
 // to a session as well as the audit log.
 func (s *session) Recorder() events.StreamWriter {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.recorder
 }
 
@@ -632,15 +622,7 @@ func (s *session) Close() error {
 			close(s.closeC)
 
 			// close all writers in our multi-writer
-			s.writer.Lock()
-			defer s.writer.Unlock()
-			for writerName, writer := range s.writer.writers {
-				s.log.Debugf("Closing session writer: %v.", writerName)
-				closer, ok := io.Writer(writer).(io.WriteCloser)
-				if ok {
-					closer.Close()
-				}
-			}
+			s.writer.Close()
 		}()
 	})
 	return nil
@@ -649,8 +631,8 @@ func (s *session) Close() error {
 // isLingering returns true if every party has left this session. Occurs
 // under a lock.
 func (s *session) isLingering() bool {
-	s.Lock()
-	defer s.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	return len(s.parties) == 0
 }
@@ -1065,8 +1047,8 @@ func (s *session) String() string {
 // removePartyMember removes participant from in-memory representation of
 // party members. Occurs under a lock.
 func (s *session) removePartyMember(party *party) {
-	s.Lock()
-	defer s.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	delete(s.parties, party.id)
 }
@@ -1085,14 +1067,14 @@ func (s *session) removeParty(p *party) error {
 }
 
 func (s *session) GetLingerTTL() time.Duration {
-	s.Lock()
-	defer s.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.lingerTTL
 }
 
 func (s *session) SetLingerTTL(ttl time.Duration) {
-	s.Lock()
-	defer s.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.lingerTTL = ttl
 }
 
@@ -1103,8 +1085,8 @@ func (s *session) getNamespace() string {
 // exportPartyMembers exports participants in the in-memory map of party
 // members. Occurs under a lock.
 func (s *session) exportPartyMembers() []rsession.Party {
-	s.Lock()
-	defer s.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	var partyList []rsession.Party
 	for _, p := range s.parties {
@@ -1122,8 +1104,8 @@ func (s *session) exportPartyMembers() []rsession.Party {
 
 // exportParticipants returns a list of all members that joined the party.
 func (s *session) exportParticipants() []string {
-	s.Lock()
-	defer s.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	var participants []string
 	for _, p := range s.participants {
@@ -1181,8 +1163,8 @@ func (s *session) heartbeat(ctx *ServerContext) {
 // addPartyMember adds participant to in-memory map of party members. Occurs
 // under a lock.
 func (s *session) addPartyMember(p *party) {
-	s.Lock()
-	defer s.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	s.parties[p.id] = p
 	s.participants[p.id] = p
@@ -1201,16 +1183,7 @@ func (s *session) addParty(p *party) error {
 
 	// Write last chunk (so the newly joined parties won't stare at a blank
 	// screen).
-	getRecentWrite := func() []byte {
-		s.writer.Lock()
-		defer s.writer.Unlock()
-		data := make([]byte, 0, 1024)
-		for i := range s.writer.recentWrites {
-			data = append(data, s.writer.recentWrites[i]...)
-		}
-		return data
-	}
-	if _, err := p.Write(getRecentWrite()); err != nil {
+	if _, err := p.Write(s.writer.getRecentWrites()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1241,12 +1214,21 @@ func (s *session) join(ch ssh.Channel, req *ssh.Request, ctx *ServerContext) (*p
 	return p, nil
 }
 
+func (s *session) getParties() (parties []*party) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, p := range s.parties {
+		parties = append(parties, p)
+	}
+	return parties
+}
+
 func newMultiWriter() *multiWriter {
 	return &multiWriter{writers: make(map[string]writerWrapper)}
 }
 
 type multiWriter struct {
-	sync.RWMutex
+	mu           sync.RWMutex
 	writers      map[string]writerWrapper
 	recentWrites [][]byte
 }
@@ -1257,14 +1239,14 @@ type writerWrapper struct {
 }
 
 func (m *multiWriter) addWriter(id string, w io.WriteCloser, closeOnError bool) {
-	m.Lock()
-	defer m.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.writers[id] = writerWrapper{WriteCloser: w, closeOnError: closeOnError}
 }
 
 func (m *multiWriter) deleteWriter(id string) {
-	m.Lock()
-	defer m.Unlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	delete(m.writers, id)
 }
 
@@ -1284,8 +1266,8 @@ func (m *multiWriter) lockedAddRecentWrite(p []byte) {
 func (m *multiWriter) Write(p []byte) (n int, err error) {
 	// lock and make a local copy of available writers:
 	getWriters := func() (writers []writerWrapper) {
-		m.RLock()
-		defer m.RUnlock()
+		m.mu.RLock()
+		defer m.mu.RUnlock()
 		writers = make([]writerWrapper, 0, len(m.writers))
 		for _, w := range m.writers {
 			writers = append(writers, w)
@@ -1312,6 +1294,28 @@ func (m *multiWriter) Write(p []byte) (n int, err error) {
 		}
 	}
 	return len(p), nil
+}
+
+func (m *multiWriter) Close() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for writerName, writer := range m.writers {
+		logrus.Debugf("Closing session writer: %v.", writerName)
+		if closer, ok := writer.WriteCloser.(io.Closer); ok {
+			closer.Close()
+		}
+	}
+	return nil
+}
+
+func (m *multiWriter) getRecentWrites() []byte {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	data := make([]byte, 0, 1024)
+	for i := range m.recentWrites {
+		data = append(data, m.recentWrites[i]...)
+	}
+	return data
 }
 
 type party struct {

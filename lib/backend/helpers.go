@@ -34,7 +34,7 @@ func AcquireLock(ctx context.Context, backend Backend, lockName string, ttl time
 	key := []byte(filepath.Join(locksPrefix, lockName))
 	for {
 		// Get will clear TTL on a lock
-		backend.Get(ctx, key)
+		backend.Get(ctx, key) //nolint:errcheck
 
 		// CreateVal is atomic:
 		_, err = backend.Create(ctx, Item{Key: key, Value: []byte{1}, Expires: backend.Clock().Now().UTC().Add(ttl)})
