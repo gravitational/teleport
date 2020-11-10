@@ -134,8 +134,8 @@ deny:
 Teleport 4.4.4 introduced the ability for users to request additional roles. `tctl`
 or the Access Workflows API makes it easy to dynamically approve or deny these requests.
 
-By requiring reason along with an access requesting you can provide users with an
-unprivileged state and must always go through the Access Workflows API  in order to
+By requiring a reason along with an access request, you can provide users with a default
+unprivileged state where they must always go through the Access Workflows API in order to
 gain meaningful privilege.
 
 Teams can leverage claims (traits) provided by external identity providers both when

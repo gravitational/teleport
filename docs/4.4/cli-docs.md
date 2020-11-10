@@ -397,7 +397,7 @@ $ tsh --proxy=proxy.example.com --browser=none
 # Login to cluster and output a local kubeconfig
 $ tsh login --proxy=proxy.example.com --format=kubernetes -o kubeconfig
 
-# Enterprise Only: Request Access to a cluster.
+# Enterprise only: Request access to a cluster.
 $ tsh login --proxy=proxy.example.com --request-reason="I need to run a debug script on production"
 ```
 
