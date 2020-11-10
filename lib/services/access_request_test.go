@@ -17,50 +17,38 @@ limitations under the License.
 package services
 
 import (
-	"fmt"
+	"testing"
 
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 
-	. "gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
 
-type AccessRequestSuite struct {
-}
-
-var _ = Suite(&AccessRequestSuite{})
-var _ = fmt.Printf
-
-func (s *AccessRequestSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests()
-}
-
-// TestRequestMarshaling verifies that marshaling/unmarshaling access requests
+// TestAccessRequestMarshaling verifies that marshaling/unmarshaling access requests
 // works as expected (failures likely indicate a problem with json schema).
-func (s *AccessRequestSuite) TestRequestMarshaling(c *C) {
+func TestAccessRequestMarshaling(t *testing.T) {
 	req1, err := NewAccessRequest("some-user", "role-1", "role-2")
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	marshaled, err := GetAccessRequestMarshaler().MarshalAccessRequest(req1)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	req2, err := GetAccessRequestMarshaler().UnmarshalAccessRequest(marshaled)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
-	if !req1.Equals(req2) {
-		c.Errorf("unexpected inequality %+v <---> %+v", req1, req2)
-	}
+	require.True(t, req1.Equals(req2))
 }
 
 // TestPluginDataExpectations verifies the correct behavior of the `Expect` mapping.
 // Update operations which include an `Expect` mapping should not succeed unless
 // all expectations match (e.g. `{"foo":"bar","spam":""}` matches the state where
 // key `foo` has value `bar` and key `spam` does not exist).
-func (s *AccessRequestSuite) TestPluginDataExpectations(c *C) {
+func TestPluginDataExpectations(t *testing.T) {
 	const rname = "my-resource"
 	const pname = "my-plugin"
 	data, err := NewPluginData(rname, KindAccessRequest)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	// Set two keys, expecting them to be unset.
 	err = data.Update(PluginDataUpdateParams{
@@ -76,7 +64,7 @@ func (s *AccessRequestSuite) TestPluginDataExpectations(c *C) {
 			"spam":  "",
 		},
 	})
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	// Expect a value which does not exist.
 	err = data.Update(PluginDataUpdateParams{
@@ -90,7 +78,7 @@ func (s *AccessRequestSuite) TestPluginDataExpectations(c *C) {
 			"missing": "key",
 		},
 	})
-	fixtures.ExpectCompareFailed(c, err)
+	fixtures.AssertCompareFailed(t, err)
 
 	// Expect a value to not exist when it does exist.
 	err = data.Update(PluginDataUpdateParams{
@@ -105,7 +93,7 @@ func (s *AccessRequestSuite) TestPluginDataExpectations(c *C) {
 			"spam":  "",
 		},
 	})
-	fixtures.ExpectCompareFailed(c, err)
+	fixtures.AssertCompareFailed(t, err)
 
 	// Expect the correct state, updating one key and removing another.
 	err = data.Update(PluginDataUpdateParams{
@@ -121,7 +109,7 @@ func (s *AccessRequestSuite) TestPluginDataExpectations(c *C) {
 			"spam":  "eggs",
 		},
 	})
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	// Expect the new updated state.
 	err = data.Update(PluginDataUpdateParams{
@@ -136,29 +124,29 @@ func (s *AccessRequestSuite) TestPluginDataExpectations(c *C) {
 			"spam":  "",
 		},
 	})
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 }
 
 // TestPluginDataFilterMatching verifies the expected matching behavior for PluginDataFilter
-func (s *AccessRequestSuite) TestPluginDataFilterMatching(c *C) {
+func TestPluginDataFilterMatching(t *testing.T) {
 	const rname = "my-resource"
 	const pname = "my-plugin"
 	data, err := NewPluginData(rname, KindAccessRequest)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	var f PluginDataFilter
 
 	// Filter for a different resource
 	f.Resource = "other-resource"
-	c.Assert(f.Match(data), Equals, false)
+	require.False(t, f.Match(data))
 
 	// Filter for the same resource
 	f.Resource = rname
-	c.Assert(f.Match(data), Equals, true)
+	require.True(t, f.Match(data))
 
 	// Filter for a plugin which does not have data yet
 	f.Plugin = pname
-	c.Assert(f.Match(data), Equals, false)
+	require.False(t, f.Match(data))
 
 	// Add some data
 	err = data.Update(PluginDataUpdateParams{
@@ -170,17 +158,17 @@ func (s *AccessRequestSuite) TestPluginDataFilterMatching(c *C) {
 		},
 	})
 	// Filter again now that data exists
-	c.Assert(err, IsNil)
-	c.Assert(f.Match(data), Equals, true)
+	require.NoError(t, err)
+	require.True(t, f.Match(data))
 }
 
 // TestRequestFilterMatching verifies expected matching behavior for AccessRequestFilter.
-func (s *AccessRequestSuite) TestRequestFilterMatching(c *C) {
+func TestRequestFilterMatching(t *testing.T) {
 	reqA, err := NewAccessRequest("alice", "role-a")
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	reqB, err := NewAccessRequest("bob", "role-b")
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	testCases := []struct {
 		user   string
@@ -200,17 +188,17 @@ func (s *AccessRequestSuite) TestRequestFilterMatching(c *C) {
 			ID:   tc.id,
 		}
 		if m.Match(reqA) != tc.matchA {
-			c.Errorf("bad filter behavior (a) %+v", tc)
+			t.Errorf("bad filter behavior (a) %+v", tc)
 		}
 		if m.Match(reqB) != tc.matchB {
-			c.Errorf("bad filter behavior (b) %+v", tc)
+			t.Errorf("bad filter behavior (b) %+v", tc)
 		}
 	}
 }
 
 // TestRequestFilterConversion verifies that filters convert to and from
 // maps correctly.
-func (s *AccessRequestSuite) TestRequestFilterConversion(c *C) {
+func TestRequestFilterConversion(t *testing.T) {
 	testCases := []struct {
 		f AccessRequestFilter
 		m map[string]string
@@ -231,14 +219,14 @@ func (s *AccessRequestSuite) TestRequestFilterConversion(c *C) {
 	for _, tc := range testCases {
 
 		if m := tc.f.IntoMap(); !utils.StringMapsEqual(m, tc.m) {
-			c.Errorf("bad map encoding: expected %+v, got %+v", tc.m, m)
+			t.Errorf("bad map encoding: expected %+v, got %+v", tc.m, m)
 		}
 		var f AccessRequestFilter
 		if err := f.FromMap(tc.m); err != nil {
-			c.Errorf("failed to parse %+v: %s", tc.m, err)
+			t.Errorf("failed to parse %+v: %s", tc.m, err)
 		}
 		if !f.Equals(tc.f) {
-			c.Errorf("bad map decoding: expected %+v, got %+v", tc.f, f)
+			t.Errorf("bad map decoding: expected %+v, got %+v", tc.f, f)
 		}
 	}
 	badMaps := []map[string]string{
@@ -247,6 +235,6 @@ func (s *AccessRequestSuite) TestRequestFilterConversion(c *C) {
 	}
 	for _, m := range badMaps {
 		var f AccessRequestFilter
-		c.Assert(f.FromMap(m), NotNil)
+		require.Error(t, f.FromMap(m))
 	}
 }

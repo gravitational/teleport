@@ -48,7 +48,7 @@ type Cluster struct {
 
 // NewClusters creates a slice of Cluster's, containing data about each cluster.
 func NewClusters(remoteClusters []reversetunnel.RemoteSite) ([]Cluster, error) {
-	clusters := []Cluster{}
+	clusters := make([]Cluster, 0, len(remoteClusters))
 	for _, site := range remoteClusters {
 		// Other fields such as node count, url, and proxy/auth versions are not set
 		// because each cluster will need to make network calls to retrieve information
@@ -66,6 +66,20 @@ func NewClusters(remoteClusters []reversetunnel.RemoteSite) ([]Cluster, error) {
 		return clusters[i].Name < clusters[j].Name
 	})
 
+	return clusters, nil
+}
+
+// NewClustersFromRemote creates a slice of Cluster's, containing data about each cluster.
+func NewClustersFromRemote(remoteClusters []services.RemoteCluster) ([]Cluster, error) {
+	clusters := make([]Cluster, 0, len(remoteClusters))
+	for _, rc := range remoteClusters {
+		cluster := Cluster{
+			Name:          rc.GetName(),
+			LastConnected: rc.GetLastHeartbeat(),
+			Status:        rc.GetConnectionStatus(),
+		}
+		clusters = append(clusters, cluster)
+	}
 	return clusters, nil
 }
 

@@ -20,11 +20,13 @@ import (
 	"crypto/tls"
 	"net"
 	"net/http"
+	"sync"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -40,8 +42,6 @@ type TLSServerConfig struct {
 	LimiterConfig limiter.Config
 	// AccessPoint is caching access point
 	AccessPoint auth.AccessPoint
-	// Component is used for debugging purposes
-	Component string
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -73,6 +73,9 @@ type TLSServer struct {
 	*http.Server
 	// TLSServerConfig is TLS server configuration used for auth server
 	TLSServerConfig
+	fwd      *Forwarder
+	mu       sync.Mutex
+	listener net.Listener
 }
 
 // NewTLSServer returns new unstarted TLS server
@@ -104,6 +107,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	cfg.TLS.ClientAuth = tls.VerifyClientCertIfGiven
 
 	server := &TLSServer{
+		fwd:             fwd,
 		TLSServerConfig: cfg,
 		Server: &http.Server{
 			Handler:           limiter,
@@ -116,6 +120,10 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 
 // Serve takes TCP listener, upgrades to TLS using config and starts serving
 func (t *TLSServer) Serve(listener net.Listener) error {
+	t.mu.Lock()
+	t.listener = listener
+	t.mu.Unlock()
+
 	return t.Server.Serve(tls.NewListener(listener, t.TLS))
 }
 
@@ -143,4 +151,30 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 	tlsCopy := t.TLS.Clone()
 	tlsCopy.ClientCAs = pool
 	return tlsCopy, nil
+}
+
+// GetServerInfo returns a services.Server object for heartbeats (aka
+// presence).
+func (t *TLSServer) GetServerInfo() (services.Server, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	var addr string
+	if t.listener != nil {
+		addr = t.listener.Addr().String()
+	}
+
+	return &services.ServerV2{
+		Kind:    services.KindKubeService,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      t.ServerID,
+			Namespace: t.Namespace,
+		},
+		Spec: services.ServerSpecV2{
+			Addr:               addr,
+			Version:            teleport.Version,
+			KubernetesClusters: t.fwd.kubeClusters(),
+		},
+	}, nil
 }

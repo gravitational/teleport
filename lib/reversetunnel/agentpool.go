@@ -18,6 +18,7 @@ package reversetunnel
 
 import (
 	"context"
+	"io"
 	"net"
 	"sync"
 	"time"
@@ -77,8 +78,8 @@ type AgentPoolConfig struct {
 	Clock clockwork.Clock
 	// KubeDialAddr is an address of a kubernetes proxy
 	KubeDialAddr utils.NetAddr
-	// Server is a SSH server that can handle a connection (perform a handshake
-	// then process). Only set with the agent is running within a node.
+	// Server is either an SSH or application server. It can handle a connection
+	// (perform handshake and handle request).
 	Server ServerHandler
 	// Component is the Teleport component this agent pool is running in. It can
 	// either be proxy (trusted clusters) or node (dial back).
@@ -169,11 +170,17 @@ func (m *AgentPool) Start() error {
 
 // Stop stops the agent pool
 func (m *AgentPool) Stop() {
+	if m == nil {
+		return
+	}
 	m.cancel()
 }
 
 // Wait returns when agent pool is closed
 func (m *AgentPool) Wait() {
+	if m == nil {
+		return
+	}
 	<-m.ctx.Done()
 }
 
@@ -262,6 +269,7 @@ func (m *AgentPool) addAgent(lease track.Lease) error {
 		Server:              m.cfg.Server,
 		ReverseTunnelServer: m.cfg.ReverseTunnelServer,
 		LocalClusterName:    m.cfg.LocalCluster,
+		Component:           m.cfg.Component,
 		Tracker:             m.proxyTracker,
 		Lease:               lease,
 	})
@@ -313,3 +321,74 @@ func (m *AgentPool) removeDisconnected() {
 		}
 	}
 }
+
+// Make sure ServerHandlerToListener implements both interfaces.
+var _ = net.Listener(ServerHandlerToListener{})
+var _ = ServerHandler(ServerHandlerToListener{})
+
+// ServerHandlerToListener is an adapter from ServerHandler to net.Listener. It
+// can be used as a Server field in AgentPoolConfig, while also being passed to
+// http.Server.Serve (or any other func Serve(net.Listener)).
+type ServerHandlerToListener struct {
+	connCh     chan net.Conn
+	closeOnce  *sync.Once
+	tunnelAddr string
+}
+
+// NewServerHandlerToListener creates a new ServerHandlerToListener adapter.
+func NewServerHandlerToListener(tunnelAddr string) ServerHandlerToListener {
+	return ServerHandlerToListener{
+		connCh:     make(chan net.Conn),
+		closeOnce:  new(sync.Once),
+		tunnelAddr: tunnelAddr,
+	}
+}
+
+func (l ServerHandlerToListener) HandleConnection(c net.Conn) {
+	// HandleConnection must block as long as c is used.
+	// Wrap c to only return after c.Close() has been called.
+	cc := newConnCloser(c)
+	l.connCh <- cc
+	cc.wait()
+}
+
+func (l ServerHandlerToListener) Accept() (net.Conn, error) {
+	c, ok := <-l.connCh
+	if !ok {
+		return nil, io.EOF
+	}
+	return c, nil
+}
+
+func (l ServerHandlerToListener) Close() error {
+	l.closeOnce.Do(func() { close(l.connCh) })
+	return nil
+}
+
+func (l ServerHandlerToListener) Addr() net.Addr {
+	return reverseTunnelAddr(l.tunnelAddr)
+}
+
+type connCloser struct {
+	net.Conn
+	closeOnce *sync.Once
+	closed    chan struct{}
+}
+
+func newConnCloser(c net.Conn) connCloser {
+	return connCloser{Conn: c, closeOnce: new(sync.Once), closed: make(chan struct{})}
+}
+
+func (c connCloser) Close() error {
+	c.closeOnce.Do(func() { close(c.closed) })
+	return c.Conn.Close()
+}
+
+func (c connCloser) wait() { <-c.closed }
+
+// reverseTunnelAddr is a net.Addr implementation for a listener based on a
+// reverse tunnel.
+type reverseTunnelAddr string
+
+func (reverseTunnelAddr) Network() string  { return "ssh-reversetunnel" }
+func (a reverseTunnelAddr) String() string { return string(a) }

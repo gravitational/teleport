@@ -104,8 +104,8 @@ const (
 	// ComponentLabel is a component label name used in reporting
 	ComponentLabel = "component"
 
-	// ComponentKube is a kubernetes proxy
-	ComponentKube = "proxy:kube"
+	// ComponentProxyKube is a kubernetes proxy
+	ComponentProxyKube = "proxy:kube"
 
 	// ComponentAuth is the cluster CA node (auth server API)
 	ComponentAuth = "auth"
@@ -124,6 +124,12 @@ const (
 
 	// ComponentProxy is SSH proxy (SSH server forwarding connections)
 	ComponentProxy = "proxy"
+
+	// ComponentApp is the application proxy service.
+	ComponentApp = "app:service"
+
+	// ComponentAppProxy is the application handler within the web proxy service.
+	ComponentAppProxy = "app:web"
 
 	// ComponentDiagnostic is a diagnostic service
 	ComponentDiagnostic = "diag"
@@ -219,6 +225,9 @@ const (
 	// ComponentCgroup is the cgroup package.
 	ComponentCgroup = "cgroups"
 
+	// ComponentKube is an Kubernetes API gateway.
+	ComponentKube = "kubernetes"
+
 	// DebugEnvVar tells tests to use verbose debug output
 	DebugEnvVar = "DEBUG"
 
@@ -296,6 +305,9 @@ const (
 
 	// Text means text serialization format
 	Text = "text"
+
+	// PTY is a raw pty session capture format
+	PTY = "pty"
 
 	// Names is for formatting node names in plain text
 	Names = "names"
@@ -583,6 +595,10 @@ const (
 	// UsageKubeOnly specifies certificate usage metadata
 	// that limits certificate to be only used for kubernetes proxying
 	UsageKubeOnly = "usage:kube"
+
+	// UsageAppOnly specifies a certificate metadata that only allows it to be
+	// used for proxying applications.
+	UsageAppsOnly = "usage:apps"
 )
 
 const (
@@ -670,3 +686,19 @@ const (
 
 // UserSystem defines a user as system.
 const UserSystem = "system"
+
+const (
+	// KeepAliveNode is the keep alive type for SSH servers.
+	KeepAliveNode = "node"
+	// KeepAliveApp is the keep alive type for application server.
+	KeepAliveApp = "app"
+)
+
+const (
+	// AppJWTHeader is the JWT header used to pass identity information to the
+	// internal application being proxied.
+	AppJWTHeader = "teleport-jwt-assertion"
+
+	// AppCFHeader is a compatibility header.
+	AppCFHeader = "cf-access-token"
+)

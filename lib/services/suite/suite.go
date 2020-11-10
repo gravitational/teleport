@@ -29,19 +29,22 @@ import (
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/tstranex/u2f"
-	"golang.org/x/crypto/ssh"
 
+	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
+	"github.com/tstranex/u2f"
 	"gopkg.in/check.v1"
 )
 
@@ -73,6 +76,11 @@ func NewTestCA(caType services.CertAuthType, clusterName string, privateKeys ...
 		panic(err)
 	}
 
+	publicKey, privateKey, err := jwt.GenerateKeyPair()
+	if err != nil {
+		panic(err)
+	}
+
 	return &services.CertAuthorityV2{
 		Kind:    services.KindCertAuthority,
 		SubKind: string(caType),
@@ -87,6 +95,12 @@ func NewTestCA(caType services.CertAuthType, clusterName string, privateKeys ...
 			CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(signer.PublicKey())},
 			SigningKeys:  [][]byte{keyBytes},
 			TLSKeyPairs:  []services.TLSKeyPair{{Cert: cert, Key: key}},
+			JWTKeyPairs: []services.JWTKeyPair{
+				{
+					PublicKey:  publicKey,
+					PrivateKey: privateKey,
+				},
+			},
 		},
 	}
 }
@@ -250,6 +264,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(c *check.C) {
 	ca2 := *ca
 	ca2.Spec.SigningKeys = nil
 	ca2.Spec.TLSKeyPairs = []services.TLSKeyPair{{Cert: ca2.Spec.TLSKeyPairs[0].Cert}}
+	ca2.Spec.JWTKeyPairs = []services.JWTKeyPair{{PublicKey: ca2.Spec.JWTKeyPairs[0].PublicKey}}
 	fixtures.DeepCompare(c, cas[0], &ca2)
 
 	cas, err = s.CAS.GetCertAuthorities(services.UserCA, true)
@@ -303,6 +318,8 @@ func NewServer(kind, name, addr, namespace string) *services.ServerV2 {
 }
 
 func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
+	ctx := context.TODO()
+	// SSH service.
 	out, err := s.PresenceS.GetNodes(defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
@@ -324,6 +341,7 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 0)
 
+	// Proxy service.
 	out, err = s.PresenceS.GetProxies()
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
@@ -344,6 +362,7 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 0)
 
+	// Auth service.
 	out, err = s.PresenceS.GetAuthServers()
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
@@ -356,6 +375,88 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	c.Assert(out, check.HasLen, 1)
 	auth.SetResourceID(out[0].GetResourceID())
 	c.Assert(out, check.DeepEquals, []services.Server{auth})
+
+	// Kubernetes service.
+	out, err = s.PresenceS.GetKubeServices(ctx)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(out), check.Equals, 0)
+
+	kube1 := NewServer(services.KindKubeService, "kube1", "10.0.0.1:3026", defaults.Namespace)
+	c.Assert(s.PresenceS.UpsertKubeService(ctx, kube1), check.IsNil)
+	kube2 := NewServer(services.KindKubeService, "kube2", "10.0.0.2:3026", defaults.Namespace)
+	c.Assert(s.PresenceS.UpsertKubeService(ctx, kube2), check.IsNil)
+
+	out, err = s.PresenceS.GetKubeServices(ctx)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 2)
+	kube1.SetResourceID(out[0].GetResourceID())
+	kube2.SetResourceID(out[1].GetResourceID())
+	c.Assert(out, check.DeepEquals, []services.Server{kube1, kube2})
+
+	c.Assert(s.PresenceS.DeleteKubeService(ctx, kube1.GetName()), check.IsNil)
+	out, err = s.PresenceS.GetKubeServices(ctx)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+	c.Assert(out, check.DeepEquals, []services.Server{kube2})
+
+	c.Assert(s.PresenceS.DeleteAllKubeServices(ctx), check.IsNil)
+	out, err = s.PresenceS.GetKubeServices(ctx)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 0)
+}
+
+// NewAppServer creates a new application server resource.
+func NewAppServer(name string, internalAddr string, publicAddr string) *services.ServerV2 {
+	return &services.ServerV2{
+		Kind:    services.KindAppServer,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Name:      uuid.New(),
+			Namespace: defaults.Namespace,
+		},
+		Spec: services.ServerSpecV2{
+			Apps: []*services.App{
+				&services.App{
+					Name:       name,
+					URI:        internalAddr,
+					PublicAddr: publicAddr,
+				},
+			},
+		},
+	}
+}
+
+// AppServerCRUD tests CRUD functionality for services.Server.
+func (s *ServicesTestSuite) AppServerCRUD(c *check.C) {
+	ctx := context.Background()
+
+	// Create application.
+	server := NewAppServer("foo", "http://127.0.0.1:8080", "foo.example.com")
+
+	// Expect not to be returned any applications and trace.NotFound.
+	out, err := s.PresenceS.GetAppServers(ctx, defaults.Namespace)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(out), check.Equals, 0)
+
+	// Upsert application.
+	_, err = s.PresenceS.UpsertAppServer(ctx, server)
+	c.Assert(err, check.IsNil)
+
+	// Check again, expect a single application to be found.
+	out, err = s.PresenceS.GetAppServers(ctx, server.GetNamespace())
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+	server.SetResourceID(out[0].GetResourceID())
+	fixtures.DeepCompare(c, out, []services.Server{server})
+
+	// Remove the application.
+	err = s.PresenceS.DeleteAppServer(ctx, server.Metadata.Namespace, server.GetName())
+	c.Assert(err, check.IsNil)
+
+	// Now expect no applications to be returned.
+	out, err = s.PresenceS.GetAppServers(ctx, server.Metadata.Namespace)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 0)
 }
 
 func newReverseTunnel(clusterName string, dialAddrs []string) *services.ReverseTunnelV2 {
@@ -428,11 +529,12 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *check.C) {
 	c.Assert(trace.IsNotFound(err), check.Equals, true, check.Commentf("%#v", err))
 
 	dt := time.Date(2015, 6, 5, 4, 3, 2, 1, time.UTC).UTC()
-	ws := services.NewWebSession("sid1", services.WebSessionSpecV2{
-		Pub:     []byte("pub123"),
-		Priv:    []byte("priv123"),
-		Expires: dt,
-	})
+	ws := services.NewWebSession("sid1", services.KindWebSession, services.KindWebSession,
+		services.WebSessionSpecV2{
+			Pub:     []byte("pub123"),
+			Priv:    []byte("priv123"),
+			Expires: dt,
+		})
 	err = s.WebS.UpsertWebSession("user1", "sid1", ws)
 	c.Assert(err, check.IsNil)
 
@@ -440,8 +542,12 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.DeepEquals, ws)
 
-	ws1 := services.NewWebSession(
-		"sid1", services.WebSessionSpecV2{Pub: []byte("pub321"), Priv: []byte("priv321"), Expires: dt})
+	ws1 := services.NewWebSession("sid1", services.KindWebSession, services.KindWebSession,
+		services.WebSessionSpecV2{
+			Pub:     []byte("pub321"),
+			Priv:    []byte("priv321"),
+			Expires: dt,
+		})
 	err = s.WebS.UpsertWebSession("user1", "sid1", ws1)
 	c.Assert(err, check.IsNil)
 
@@ -545,6 +651,7 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 			Allow: services.RoleConditions{
 				Logins:     []string{"root", "bob"},
 				NodeLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+				AppLabels:  services.Labels{services.Wildcard: []string{services.Wildcard}},
 				Namespaces: []string{defaults.Namespace},
 				Rules: []services.Rule{
 					services.NewRule(services.KindRole, services.RO()),
@@ -852,6 +959,7 @@ func (s *ServicesTestSuite) RemoteClustersCRUD(c *check.C) {
 	out, err = s.PresenceS.GetRemoteClusters()
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 1)
+	rc.SetResourceID(out[0].GetResourceID())
 	fixtures.DeepCompare(c, out[0], rc)
 
 	err = s.PresenceS.DeleteAllRemoteClusters()
@@ -1461,6 +1569,26 @@ func (s *ServicesTestSuite) Events(c *check.C) {
 				c.Assert(err, check.IsNil)
 
 				err = s.PresenceS.DeleteReverseTunnel(tunnel.Spec.ClusterName)
+				c.Assert(err, check.IsNil)
+
+				return out[0]
+			},
+		},
+		{
+			name: "Remote cluster",
+			kind: services.WatchKind{
+				Kind: services.KindRemoteCluster,
+			},
+			crud: func() services.Resource {
+				rc, err := services.NewRemoteCluster("example.com")
+				rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
+				c.Assert(err, check.IsNil)
+				c.Assert(s.PresenceS.CreateRemoteCluster(rc), check.IsNil)
+
+				out, err := s.PresenceS.GetRemoteClusters()
+				c.Assert(err, check.IsNil)
+
+				err = s.PresenceS.DeleteRemoteCluster(rc.GetName())
 				c.Assert(err, check.IsNil)
 
 				return out[0]

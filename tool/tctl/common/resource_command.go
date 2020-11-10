@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
+Copyright 2015-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,9 +21,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
@@ -50,6 +52,8 @@ type ResourceCommand struct {
 	namespace   string
 	withSecrets bool
 	force       bool
+	ttl         string
+	labels      string
 
 	// filename is the name of the resource, used for 'create'
 	filename string
@@ -58,6 +62,7 @@ type ResourceCommand struct {
 	deleteCmd *kingpin.CmdClause
 	getCmd    *kingpin.CmdClause
 	createCmd *kingpin.CmdClause
+	updateCmd *kingpin.CmdClause
 
 	CreateHandlers map[ResourceKind]ResourceCreateHandler
 }
@@ -87,6 +92,16 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 	rc.createCmd.Arg("filename", "resource definition file").Required().StringVar(&rc.filename)
 	rc.createCmd.Flag("force", "Overwrite the resource if already exists").Short('f').BoolVar(&rc.force)
 
+	rc.updateCmd = app.Command("update", "Update resource fields")
+	rc.updateCmd.Arg("resource type/resource name", `Resource to update
+	<resource type>  Type of a resource [for example: rc]
+	<resource name>  Resource name to update
+
+	Examples:
+	$ tctl update rc/remote`).SetValue(&rc.ref)
+	rc.updateCmd.Flag("set-labels", "Set labels").StringVar(&rc.labels)
+	rc.updateCmd.Flag("set-ttl", "Set TTL").StringVar(&rc.ttl)
+
 	rc.deleteCmd = app.Command("rm", "Delete a resource").Alias("del")
 	rc.deleteCmd.Arg("resource type/resource name", `Resource to delete
 	<resource type>  Type of a resource [for example: connector,user,cluster,token]
@@ -103,6 +118,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 	rc.getCmd.Flag("with-secrets", "Include secrets in resources like certificate authorities or OIDC connectors").Default("false").BoolVar(&rc.withSecrets)
 
 	rc.getCmd.Alias(getHelp)
+
 }
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
@@ -118,6 +134,9 @@ func (rc *ResourceCommand) TryRun(cmd string, client auth.ClientI) (match bool, 
 		// tctl rm
 	case rc.deleteCmd.FullCommand():
 		err = rc.Delete(client)
+		// tctl update
+	case rc.updateCmd.FullCommand():
+		err = rc.Update(client)
 	default:
 		return false, nil
 	}
@@ -419,6 +438,60 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 	return nil
 }
 
+// Update updates select resource fields: expiry and labels
+func (rc *ResourceCommand) Update(clt auth.ClientI) error {
+	if rc.ref.Kind == "" || rc.ref.Name == "" {
+		return trace.BadParameter("provide a full resource name to update, for example:\n$ tctl update rc/remote --set-labels=env=prod\n")
+	}
+
+	var err error
+	var labels map[string]string
+	if rc.labels != "" {
+		labels, err = client.ParseLabelSpec(rc.labels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	var expiry time.Time
+	if rc.ttl != "" {
+		duration, err := time.ParseDuration(rc.ttl)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		expiry = time.Now().UTC().Add(duration)
+	}
+
+	if expiry.IsZero() && labels == nil {
+		return trace.BadParameter("use at least one of --set-labels or --set-ttl")
+	}
+
+	// TODO: pass the context from CLI to terminate requests on Ctrl-C
+	ctx := context.TODO()
+	switch rc.ref.Kind {
+	case services.KindRemoteCluster:
+		cluster, err := clt.GetRemoteCluster(rc.ref.Name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if labels != nil {
+			meta := cluster.GetMetadata()
+			meta.Labels = labels
+			cluster.SetMetadata(meta)
+		}
+		if !expiry.IsZero() {
+			cluster.SetExpiry(expiry)
+		}
+		if err = clt.UpdateRemoteCluster(ctx, cluster); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("cluster %v has been updated\n", rc.ref.Name)
+	default:
+		return trace.BadParameter("updating resources of type %q is not supported, supported are: %q", rc.ref.Kind, services.KindRemoteCluster)
+	}
+	return nil
+}
+
 // IsForced returns true if -f flag was passed
 func (rc *ResourceCommand) IsForced() bool {
 	return rc.force
@@ -580,6 +653,12 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 			return nil, trace.Wrap(err)
 		}
 		return &semaphoreCollection{sems: sems}, nil
+	case services.KindKubeService:
+		servers, err := client.GetKubeServices(context.TODO())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &serverCollection{servers: servers}, nil
 	}
 	return nil, trace.BadParameter("'%v' is not supported", rc.ref.Kind)
 }
