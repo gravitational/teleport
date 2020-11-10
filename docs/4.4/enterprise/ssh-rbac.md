@@ -290,7 +290,6 @@ As list of all options is below.
       - read
       - update
       - delete
-    # Can view active sessions.
     - resources:
       - session
       verbs:
