@@ -59,7 +59,7 @@ func loadConfigFromProfile(ccf *common.GlobalCLIFlags, cfg *service.Config) (*co
 	}
 
 	authConfig := &common.AuthServiceClientConfig{}
-	authConfig.TLS, err = key.ClientTLSConfig(cfg.CipherSuites)
+	authConfig.TLS, err = key.TeleportClientTLSConfig(cfg.CipherSuites)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
