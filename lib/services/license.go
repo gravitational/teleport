@@ -252,7 +252,7 @@ func (c *LicenseV3) String() string {
 		features = append(features, "supports kubernetes")
 	}
 	if c.Spec.Cloud.Value() {
-		features = append(features, "hosted by Gravitational")
+		features = append(features, "is hosted by Gravitational")
 	}
 	if c.Spec.AWSProductID != "" {
 		features = append(features, fmt.Sprintf("is limited to AWS product ID %q", c.Spec.AWSProductID))
