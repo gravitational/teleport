@@ -56,7 +56,7 @@ oss:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	mkdir -p files/build
-	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) -only teleport-aws-linux single-ami.json
+	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) -only teleport-aws-linux -var destination_regions=$(AWS_REGION) single-ami.json
 	@echo "$(BUILD_TIMESTAMP)" > files/build/oss_build_timestamp.txt
 
 # Build named 'production' AMI and marketplace version
@@ -83,7 +83,7 @@ ent: check-vars
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	mkdir -p files/build
-	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) -only teleport-aws-linux single-ami.json
+	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) -only teleport-aws-linux -var destination_regions=$(AWS_REGION) single-ami.json
 	@echo "$(BUILD_TIMESTAMP)" > files/build/ent_build_timestamp.txt
 
 # Build named 'production' AMI and marketplace version
