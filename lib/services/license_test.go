@@ -52,6 +52,7 @@ func (s *LicenseSuite) TestUnmarshal(c *check.C) {
 			expected: MustNew("Teleport Commercial", LicenseSpecV3{
 				ReportsUsage:       NewBool(true),
 				SupportsKubernetes: NewBool(true),
+				Cloud:              NewBool(false),
 				AWSAccountID:       "123",
 				AWSProductID:       "4",
 				AccountID:          "accountID",
@@ -63,6 +64,19 @@ func (s *LicenseSuite) TestUnmarshal(c *check.C) {
 			expected: MustNew("license", LicenseSpecV3{
 				ReportsUsage:       NewBool(true),
 				SupportsKubernetes: NewBool(true),
+				Cloud:              NewBool(false),
+				AWSAccountID:       "123",
+				AWSProductID:       "4",
+				AccountID:          "accountID",
+			}),
+		},
+		{
+			description: "with cloud flag",
+			input:       `{"kind": "license", "version": "v3", "metadata": {"name": "license"}, "spec": {"cloud": "yes", "account_id": "accountID", "usage": "yes", "k8s": "yes", "aws_account": "123", "aws_pid": "4"}}`,
+			expected: MustNew("license", LicenseSpecV3{
+				ReportsUsage:       NewBool(true),
+				SupportsKubernetes: NewBool(true),
+				Cloud:              NewBool(true),
 				AWSAccountID:       "123",
 				AWSProductID:       "4",
 				AccountID:          "accountID",
