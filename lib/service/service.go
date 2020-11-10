@@ -2057,6 +2057,12 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 			addrs = append(addrs, process.Config.SSH.Addr)
 		}
 	case teleport.RoleKube:
+		addrs = append(addrs,
+			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
+			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
+			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
+			utils.NetAddr{Addr: reversetunnel.LocalKubernetes},
+		)
 		addrs = append(addrs, process.Config.Kube.PublicAddrs...)
 	case teleport.RoleApp:
 		principals = append(principals, process.Config.HostUUID)
@@ -2518,11 +2524,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ServerID:        cfg.HostUUID,
 				ClusterOverride: cfg.Proxy.Kube.ClusterOverride,
 				KubeconfigPath:  cfg.Proxy.Kube.KubeconfigPath,
+				Component:       teleport.Component(teleport.ComponentProxy, teleport.ComponentProxyKube),
 			},
 			TLS:           tlsConfig,
 			LimiterConfig: cfg.Proxy.Limiter,
 			AccessPoint:   accessPoint,
-			Component:     teleport.Component(teleport.ComponentProxy, teleport.ComponentProxyKube),
 		})
 		if err != nil {
 			return trace.Wrap(err)

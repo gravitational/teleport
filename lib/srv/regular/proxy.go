@@ -407,6 +407,8 @@ func (t *proxySubsys) proxyToHost(
 				return trace.Wrap(err)
 			}
 			principals = append(principals, host)
+		} else if server.GetUseTunnel() {
+			serverAddr = reversetunnel.LocalNode
 		}
 	} else {
 		if !specifiedPort {

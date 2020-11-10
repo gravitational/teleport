@@ -52,6 +52,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: services.KindAppServer},
 		{Kind: services.KindWebSession},
 		{Kind: services.KindRemoteCluster},
+		{Kind: services.KindKubeService},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -74,6 +75,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: services.KindAppServer},
 		{Kind: services.KindWebSession},
 		{Kind: services.KindRemoteCluster},
+		{Kind: services.KindKubeService},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -95,6 +97,7 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: services.KindTunnelConnection},
 		{Kind: services.KindAppServer},
 		{Kind: services.KindRemoteCluster},
+		{Kind: services.KindKubeService},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -116,6 +119,7 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: services.KindAuthServer},
 		{Kind: services.KindReverseTunnel},
 		{Kind: services.KindTunnelConnection},
+		{Kind: services.KindKubeService},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -147,6 +151,7 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: services.KindUser},
 		{Kind: services.KindRole},
 		{Kind: services.KindNamespace, Name: defaults.Namespace},
+		{Kind: services.KindKubeService},
 	}
 	cfg.QueueSize = defaults.KubernetesQueueSize
 	return cfg
@@ -411,7 +416,7 @@ func (c *Cache) update(ctx context.Context) {
 	for {
 		err := c.fetchAndWatch(ctx, retry)
 		if err != nil {
-			c.setCacheState(err)
+			c.setCacheState(ctx, err)
 			if !c.isClosed() {
 				c.Warningf("Re-init the cache on error: %v.", trace.Unwrap(err))
 			}
@@ -436,11 +441,11 @@ func (c *Cache) update(ctx context.Context) {
 // setCacheState for "only recent" cache behavior will erase
 // the cache and set error mode to refuse to serve stale data,
 // otherwise does nothing
-func (c *Cache) setCacheState(err error) {
+func (c *Cache) setCacheState(ctx context.Context, err error) {
 	if !c.OnlyRecent.Enabled {
 		return
 	}
-	if err := c.eraseAll(); err != nil {
+	if err := c.eraseAll(ctx); err != nil {
 		if !c.isClosed() {
 			c.Warningf("Failed to erase the data: %v.", err)
 		}
@@ -572,10 +577,10 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry) error {
 }
 
 // eraseAll erases all the data from cache collections
-func (c *Cache) eraseAll() error {
+func (c *Cache) eraseAll(ctx context.Context) error {
 	var errors []error
 	for _, collection := range c.collections {
-		errors = append(errors, collection.erase())
+		errors = append(errors, collection.erase(ctx))
 	}
 	return trace.NewAggregate(errors...)
 }
@@ -760,8 +765,8 @@ func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns [
 }
 
 // GetKubeServices is a part of auth.AccessPoint implementation
-func (c *Cache) GetKubeServices() ([]services.Server, error) {
-	return c.presenceCache.GetKubeServices()
+func (c *Cache) GetKubeServices(ctx context.Context) ([]services.Server, error) {
+	return c.presenceCache.GetKubeServices(ctx)
 }
 
 // GetAppServers gets all application servers.
