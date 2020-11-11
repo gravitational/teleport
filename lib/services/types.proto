@@ -873,8 +873,7 @@ message RoleConditions {
         (gogoproto.customtype) = "Labels"
     ];
 
-    // KubernetesClusterLabels is a map of kubernetes cluster labels used for
-    // RBAC.
+    // KubernetesLabels is a map of kubernetes cluster labels used for RBAC.
     wrappers.LabelValues KubernetesLabels = 10 [
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "kubernetes_labels,omitempty",

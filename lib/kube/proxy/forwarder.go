@@ -509,12 +509,15 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 
 func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	if actx.teleportCluster.isRemote {
+		// Authorization for a remote kube cluster will happen on the remote
+		// end (by their proxy), after that cluster has remapped used roles.
+		f.WithField("auth_context", actx.String()).Debug("Skipping authorization for a remote kubernetes cluster name")
 		return nil
 	}
 	if actx.kubeCluster == "" {
 		// This should only happen for remote clusters (filtered above), but
 		// check and report anyway.
-		f.WithField("auth_context", actx.String()).Debug("skipping authorization due to unknown kubernetes cluster name")
+		f.WithField("auth_context", actx.String()).Debug("Skipping authorization due to unknown kubernetes cluster name")
 		return nil
 	}
 	servers, err := f.AccessPoint.GetKubeServices(ctx)
@@ -530,17 +533,17 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 			if ks.Name != actx.kubeCluster {
 				continue
 			}
-			if err := actx.Checker.CheckAccessToKubernetes(defaults.Namespace, ks); err != nil {
+			if err := actx.Checker.CheckAccessToKubernetes(s.GetNamespace(), ks); err != nil {
 				return trace.Wrap(err)
 			}
 			return nil
 		}
 	}
 	if actx.kubeCluster == f.ClusterName {
-		f.WithField("auth_context", actx.String()).Debug("skipping authorization for proxy-based kubernetes cluster")
+		f.WithField("auth_context", actx.String()).Debug("Skipping authorization for proxy-based kubernetes cluster")
 		return nil
 	}
-	return trace.NotFound("kubernetes cluster %q not found", actx.kubeCluster)
+	return trace.AccessDenied("kubernetes cluster %q not found", actx.kubeCluster)
 }
 
 // newStreamer returns sync or async streamer based on the configuration
