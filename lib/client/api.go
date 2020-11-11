@@ -402,7 +402,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	key, err := store.GetKey(profile.Name(), profile.Username)
+	key, err := store.GetKey(profile.Name(), profile.Username, WithKubeCerts(profile.SiteName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -474,7 +474,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		clusterName = profile.Name()
 	}
 
-	tlsCert, err := key.TLSCertificate()
+	tlsCert, err := key.TeleportTLSCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -906,6 +906,8 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	return proxyClient.ReissueUserCerts(ctx, params)
 }
 
@@ -915,6 +917,8 @@ func (tc *TeleportClient) CreateAccessRequest(ctx context.Context, req services.
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	return proxyClient.CreateAccessRequest(ctx, req)
 }
 
@@ -924,6 +928,8 @@ func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter services
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	return proxyClient.GetAccessRequests(ctx, filter)
 }
 
@@ -933,6 +939,8 @@ func (tc *TeleportClient) GetRole(ctx context.Context, name string) (services.Ro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	return proxyClient.GetRole(ctx, name)
 }
 
@@ -942,6 +950,8 @@ func (tc *TeleportClient) NewWatcher(ctx context.Context, watch services.Watch) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	return proxyClient.NewWatcher(ctx, watch)
 }
 
@@ -1148,6 +1158,8 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	site, err := proxyClient.ConnectToCurrentCluster(ctx, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1662,7 +1674,7 @@ func (tc *TeleportClient) Logout() error {
 	if tc.localAgent == nil {
 		return nil
 	}
-	if err := tc.localAgent.DeleteKey(); err != nil {
+	if err := tc.localAgent.DeleteKey(WithKubeCerts(tc.SiteName)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1750,6 +1762,9 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	// extract the new certificate out of the response
 	key.Cert = response.Cert
 	key.TLSCert = response.TLSCert
+	if tc.KubernetesCluster != "" {
+		key.KubeTLSCerts[tc.KubernetesCluster] = response.TLSCert
+	}
 	key.ProxyHost = webProxyHost
 	key.TrustedCA = response.HostSigners
 
