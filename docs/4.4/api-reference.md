@@ -198,6 +198,8 @@ type RoleOptions struct {
   // PortForwarding defines if the certificate will have "permit-port-forwarding"
   // in the certificate. PortForwarding is true if not set.
   PortForwarding *BoolOption // struct { Value bool } - Nullable boolean
+  // CertificateFormat defines the format of the user certificate to allow
+  // compatibility with older versions of OpenSSH.
   CertificateFormat string
   // ClientIdleTimeout sets disconnect clients on idle timeout behavior,
   // if set to 0 means do not disconnect, otherwise is set to the idle duration.
@@ -221,7 +223,7 @@ type RoleOptions struct {
 
 The `RoleConditions` struct allows for precise permission combinations between a role's `Allow` and `Deny` fields.
 
-`Deny` conditions take priority over `Allow` conditions. If a user has multiple roles, their role permissions will be evaluated together, which can potentially lead to conflicting conditions. This can result in a user being denied permissions that another role of theirs allows.
+`Deny` conditions are evaluated first and logically OR'ed. That means that when a user attempts an action, if any of their roles has a deny section matching that action, the user will be denied access. If the user is not denied access, then the `Allow` conditions are evaluated and logically AND'ed. So if a user has any roles with an allow section matching the action, the action will be permitted.
 
 However, this also allows you to take a modular approach to defining roles. Splitting roles up into logical parts will allow you to manage roles for many developers more effectively. It may also be effective to keep your deny and allow conditions in separate roles so that conflicting roles are obvious.
 
@@ -292,37 +294,13 @@ services.NewRule(
 
 **Resources**
 
-These are all of the possible resource values, which can be found in the `services` package.
+Resources include values like the ones below, and much more. The rest of the Teleport resources can be found in the `services` package.
 
 ```go
-KindUser              = "user"
-KindLicense           = "license"
-KindRole              = "role"
-KindAccessRequest     = "access_request"
-KindPluginData        = "plugin_data"
-KindOIDC              = "oidc"
-KindSAML              = "saml"
-KindGithub            = "github"
-KindOIDCRequest       = "oidc_request"
-KindSAMLRequest       = "saml_request"
-KindGithubRequest     = "github_request"
-KindWebSession        = "web_session"
-KindAuthServer        = "auth_server"
-KindProxy             = "proxy"
-KindNode              = "node"
-KindAppServer         = "app_server"
-KindToken             = "token"
-KindCertAuthority     = "cert_authority"
-KindOIDCConnector     = "oidc"
-KindSAMLConnector     = "saml"
-KindGithubConnector   = "github"
-KindClusterConfig     = "cluster_config"
-KindSemaphore         = "semaphore"
-KindClusterName       = "cluster_name"
-KindStaticTokens      = "static_tokens"
-KindTrustedCluster    = "trusted_cluster"
-KindIdentity          = "identity"
-KindKubeService       = "kube_service"
+KindRole          = "role"
+KindAccessRequest = "access_request"
+KindToken         = "token"
+KindCertAuthority = "cert_authority"
 ```
 
 **Verbs**
