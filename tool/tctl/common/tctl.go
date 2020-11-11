@@ -303,17 +303,6 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config, loadConfigExt LoadCon
 		log.Debugf("Debug logging has been enabled.")
 	}
 
-	// Try the extension if the identity file has not been supplied.
-	if loadConfigExt != nil && ccf.IdentityFilePath == "" {
-		authConfig, err := loadConfigExt(ccf, cfg)
-		if err == nil {
-			return authConfig, nil
-		}
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	// load /etc/teleport.yaml and apply its values:
 	fileConf, err := config.ReadConfigFile(ccf.ConfigFile)
 	if err != nil {
@@ -324,6 +313,20 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config, loadConfigExt LoadCon
 	if ccf.ConfigString != "" {
 		fileConf, err = config.ReadFromString(ccf.ConfigString)
 		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// Config file should take precedence, if available.
+	if fileConf == nil && ccf.IdentityFilePath == "" && loadConfigExt != nil {
+		// No config file or identity file.
+		// Try the extension loader.
+		log.Debug("No config file or identity file, loading auth config via extension.")
+		authConfig, err := loadConfigExt(ccf, cfg)
+		if err == nil {
+			return authConfig, nil
+		}
+		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
 	}
