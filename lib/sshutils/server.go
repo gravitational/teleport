@@ -44,7 +44,7 @@ import (
 // Server is a generic implementation of an SSH server. All Teleport
 // services (auth, proxy, ssh) use this as a base to accept SSH connections.
 type Server struct {
-	*log.Entry
+	log.FieldLogger
 	sync.RWMutex
 
 	// component is a name of the facility which uses this server,
@@ -107,6 +107,14 @@ const (
 // ServerOption is a functional argument for server
 type ServerOption func(cfg *Server) error
 
+// SetLogger sets the logger for the server
+func SetLogger(logger log.FieldLogger) ServerOption {
+	return func(s *Server) error {
+		s.FieldLogger = logger.WithField(trace.Component, "ssh:"+s.component)
+		return nil
+	}
+}
+
 func SetLimiter(limiter *limiter.Limiter) ServerOption {
 	return func(s *Server) error {
 		s.limiter = limiter
@@ -142,7 +150,7 @@ func NewServer(
 
 	closeContext, cancel := context.WithCancel(context.TODO())
 	s := &Server{
-		Entry: log.WithFields(log.Fields{
+		FieldLogger: log.WithFields(log.Fields{
 			trace.Component: "ssh:" + component,
 		}),
 		addr:           a,
@@ -269,6 +277,7 @@ func (s *Server) Start() error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
+	s.WithField("addr", listener.Addr().String()).Debug("Server start.")
 	if err := s.setListener(listener); err != nil {
 		return trace.Wrap(err)
 	}

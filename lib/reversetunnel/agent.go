@@ -94,6 +94,8 @@ type AgentConfig struct {
 	// Lease manages gossip and exclusive claims.  Lease may be nil
 	// when used in the context of tests.
 	Lease track.Lease
+
+	Log log.FieldLogger
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -134,7 +136,7 @@ func (a *AgentConfig) CheckAndSetDefaults() error {
 // Discovering agent transitions between "discovering" -> "discovered" states.
 type Agent struct {
 	sync.RWMutex
-	*log.Entry
+	log.FieldLogger
 	AgentConfig
 	ctx         context.Context
 	cancel      context.CancelFunc
@@ -161,7 +163,11 @@ func NewAgent(cfg AgentConfig) (*Agent, error) {
 		authMethods: []ssh.AuthMethod{ssh.PublicKeys(cfg.Signer)},
 		state:       agentStateConnecting,
 	}
-	a.Entry = log.WithFields(log.Fields{
+	logger := cfg.Log
+	if cfg.Log == nil {
+		logger = log.StandardLogger()
+	}
+	a.FieldLogger = logger.WithFields(log.Fields{
 		trace.Component: teleport.Component(cfg.Component, teleport.ComponentReverseTunnelAgent),
 		trace.ComponentFields: log.Fields{
 			"target":  cfg.Addr.String(),
@@ -334,7 +340,7 @@ func (a *Agent) run() {
 	defer conn.Close()
 
 	// Successfully connected to remote cluster.
-	a.Infof("Connected to %s", conn.RemoteAddr())
+	a.WithField("addr", conn.LocalAddr().String()).WithField("remote-addr", conn.RemoteAddr().String()).Info("Connected.")
 
 	// wrap up remaining business logic in closure for easy
 	// conditional execution.
@@ -432,7 +438,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 			}
 
 			t := &transport{
-				log:                 a.Entry,
+				log:                 a.FieldLogger,
 				closeContext:        a.ctx,
 				authClient:          a.Client,
 				kubeDialAddr:        a.KubeDialAddr,

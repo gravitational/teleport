@@ -61,6 +61,7 @@ func marshalDiscoveryRequest(req discoveryRequest) ([]byte, error) {
 	var out discoveryRequestRaw
 	m := services.GetServerMarshaler()
 	for _, p := range req.Proxies {
+		p = p.DeepCopy()
 		data, err := m.MarshalServer(p)
 		if err != nil {
 			return nil, trace.Wrap(err)

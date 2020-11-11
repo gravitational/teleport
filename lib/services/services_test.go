@@ -99,3 +99,14 @@ func (s *ServicesSuite) TestLabelKeyValidation(c *check.C) {
 		c.Assert(IsValidLabelKey(tt.label), check.Equals, tt.ok, check.Commentf("tt=%+v", tt))
 	}
 }
+
+func (s *ServicesSuite) TestServerDeepCopy(c *check.C) {
+	expires := time.Now()
+	srv := &ServerV2{
+		Metadata: Metadata{
+			Expires: &expires,
+		},
+	}
+	srv2 := srv.DeepCopy()
+	c.Assert(srv, check.DeepEquals, srv2)
+}
