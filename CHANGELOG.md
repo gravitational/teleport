@@ -1,5 +1,268 @@
 # Changelog
 
+## 5.0.0
+
+Teleport 5.0 is a major release with new features, functionality, and
+bug fixes. Users can review [5.0 closed issues](https://github.com/gravitational/teleport/milestone/39?closed=1)
+on Github for details of all items.
+
+#### New Features
+Teleport 5.0 is a major version release and introduces two distinct features: Teleport
+Application Access and significant Kubernetes Access improvements - multi-cluster
+support.
+
+##### Teleport Application Access
+Teleport provides secure access to web applications. This new feature was built
+with the express intention of securing those internal apps which might have once
+lived on a VPN or had a simple OAuth mechanism with little to no audit trail. We've
+tested everything from various dashboards to single page Javascript apps.
+
+Adding an application follows the same UX as adding SSH servers or Kubernetes clusters,
+starting with creating a static or dynamic invite token.
+
+```bash
+$ tctl tokens add --type=app
+```
+
+A Teleport node can now be used to route connections to an application from the
+unified access plane. The application access service can be deployed alongside applications,
+enabling teams to set up access on a loopback address so only application access
+can provide ingress to the app.
+
+Adding an application is as simple as starting Teleport with a few new flags.
+
+```sh
+$ teleport start --roles=app --token=xyz --auth-server=proxy.example.com:3080 \
+    --app-name="example-app" \
+    --app-uri="http://localhost:8080"
+```
+
+This start script will create an app server that proxies the application "example-app"
+running at http://localhost:8080.
+
+Applications can can configured using the new `app_service`.
+
+```yaml
+app_service:
+   # Teleport Application Access is enabled.
+   enabled: yes
+   # We've added a default sample app that will check
+   # that Teleport Application Access is working
+   # and output JWT tokens.
+   # https://dumper.teleport.example.com:3080/
+   debug_app: true
+   apps:
+   # Application Access can be used to proxy any HTTP endpoint.
+   # Note: Name can't include any spaces and should be DNS-compatible A-Za-z0-9-._
+   - name: "internal-dashboard"
+     uri: "http://10.0.1.27:8000"
+     # By default Teleport will make this application
+     # available on a sub-domain of your Teleport proxy's hostname
+     # internal-dashboard.teleport.example.com
+     # - thus the importance of setting up wilcard DNS.
+     # If you want, it's possible to set up a custom public url.
+     # DNS records should point to the proxy server.
+     # internal-dashboard.teleport.example.com
+     # Example Public URL for the internal-dashboard app.
+     # public_addr: "internal-dashboard.acme.com"
+     # Optional labels
+     # Labels can be combined with RBAC rules to provide access.
+     labels:
+       customer: "acme",
+       env: "production"
+     # Optional dynamic labels
+     commands:
+     - name: "os"
+       command: ["/usr/bin/uname"]
+       period: "5s"
+     # A proxy can support multiple applications. Application Access
+     # can also be deployed with a Teleport node.
+     - name: "arris"
+       uri: "http://localhost:3001"
+       public_addr: "arris.example.com"
+ # ...
+ # When adding the app_service certificates are required to provide a TLS
+ # connection. The certificates are managed by the proxy_service
+proxy_service:
+  # We've extended support for https certs. Teleport can now load multiple
+  # TLS certificates. In the below example we've obtained a wildcard cert
+  # that'll be used for proxying the applications.
+  # The correct certificate is selected based on the hostname in the HTTPS
+  # request using SNI.
+  https_keypairs:
+  - key_file: /etc/letsencrypt/live/teleport.example.com/privkey.pem
+    cert_file: /etc/letsencrypt/live/teleport.example.com/fullchain.pem
+  - key_file: /etc/letsencrypt/live/*.teleport.example.com/privkey.pem
+    cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
+# ...
+```
+
+You can learn more at [https://goteleport.com/teleport/docs/application-access/](https://goteleport.com/teleport/docs/application-access/)
+
+##### Teleport Kubernetes Access
+
+Teleport 5.0 introduces two highly requested features:
+- The ability to connect multiple Kubernetes Clusters to the Teleport Access Plane,
+  greatly reducing operational complexity.
+- Complete Kubernetes audit log capture [#4526](https://github.com/gravitational/teleport/pull/4526),
+  going beyond our current `kubectl exec`.
+
+For a full overview please review the [Kubernetes RFD](https://github.com/gravitational/teleport/blob/master/rfd/0005-kubernetes-service.md)
+
+To support these changes, we've introduced a new service. This moves Teleport
+Kubernetes support from the `proxy_service` into its own dedicated `kubernetes_service`.
+
+When adding the new Kubernetes service, a new type of join token is required.
+
+```bash
+tctl tokens add --type=kube
+```
+
+Example configuration for the new `kubernetes_service`:
+
+```yaml
+# ...
+kubernetes_service:
+   enabled: yes
+   listen_addr: 0.0.0.0:3027
+   kubeconfig_file: /secrets/kubeconfig
+```
+
+Note: a Kubernetes port still needs to be configured in the `proxy_service` via `kube_listen_addr`.
+
+#### New "tsh kube" commands
+
+`tsh kube` commands are used to query registered clusters and switch
+`kubeconfig` context:
+
+```sh
+$ tsh login --proxy=proxy.example.com --user=awly
+
+# list all registered clusters
+$ tsh kube ls
+Cluster Name       Status
+-------------      ------
+a.k8s.example.com  online
+b.k8s.example.com  online
+c.k8s.example.com  online
+
+# on login, kubeconfig is pointed at the first cluster (alphabetically)
+$ kubectl config current-context
+proxy.example.com-a.k8s.example.com
+
+# but all clusters are populated as contexts
+$ kubectl config get-contexts
+CURRENT   NAME                     CLUSTER             AUTHINFO
+*         proxy.example.com-a.k8s.example.com   proxy.example.com   proxy.example.com-a.k8s.example.com
+          proxy.example.com-b.k8s.example.com   proxy.example.com   proxy.example.com-b.k8s.example.com
+          proxy.example.com-c.k8s.example.com   proxy.example.com   proxy.example.com-c.k8s.example.com
+
+# switch between different clusters:
+$ tsh kube login c.k8s.example.com
+
+# the traditional way is also supported:
+$ kubectl config use-context proxy.example.com-c.k8s.example.com
+
+# check current cluster
+$ kubectl config current-context
+proxy.example.com-c.k8s.example.com
+```
+
+Other Kubernetes changes:
+
+* Support k8s clusters behind firewall/NAT using a single Teleport cluster [#3667](https://github.com/gravitational/teleport/issues/3667)
+* Support multiple k8s clusters with a single Teleport proxy instance [#3952](https://github.com/gravitational/teleport/issues/3952)
+
+##### Additional User and Token Resource
+We've added two new RBAC resources; these provide the ability to limit token creation
+and to list and modify Teleport users:
+
+```yaml
+- resources: [user]
+  verbs: [list,create,read,update,delete]
+- resources: [token]
+  verbs: [list,create,read,update,delete]
+```
+
+Learn more about [Teleport's RBAC Resources](https://goteleport.com/teleport/docs/enterprise/ssh-rbac/)
+
+##### Cluster Labels
+
+Teleport 5.0 adds the ability to set labels on Trusted Clusters. The labels
+are set when creating a trusted cluster invite token. This lets teams use the same
+RBAC controls to approve or deny access. This can be especially useful for MSPs that
+connect hundreds of customers' clusters - when combined with Access Workflows, cluster
+access can easily be delegated. Learn more by reviewing our [Truster Cluster Setup & RBAC Docs](https://goteleport.com/teleport/docs/trustedclusters/#dynamic-join-tokens)
+
+Creating a trusted cluster join token for a production environment:
+
+```bash
+$ tctl tokens add --type=trusted_cluster --labels=env=prod
+```
+
+```yaml
+kind: role
+#...
+  deny:
+    # cluster labels control what clusters user can connect to. The wildcard ('*')
+    # means any cluster. By default, deny rules are empty to preserve backwards
+    # compatibility
+    cluster_labels:
+      'env': 'prod'
+```
+
+##### Teleport UI Updates
+
+Teleport 5.0 iterates on the UI Refresh from 4.3. We've moved the cluster list into our
+sidebar and have added an Application launcher. For customers moving from 4.4 to 5.0,
+you'll notice that we moved session recordings back to their own dedicated section.
+
+Other updates:
+ * We now provide local user management via `https://[cluster-url]/web/users`, providing
+  the ability to easily edit, reset and delete local users.
+ * Teleport Node & App Install scripts. This is currently an Enterprise-only feature,
+ but customers can get easy access to 'auto-magic' installer scripts. Enterprise
+ customers can enable this feature by modifying the 'token' resource. See note above.
+ * We've added a Waiting Room for customers using Access Workflows. [Docs](https://goteleport.com/teleport/docs/enterprise/workflow/#adding-a-reason-to-access-workflows)
+
+##### Signed RPM and Releases
+Starting with Teleport 5.0, we now provide an RPM repo for stable releases of Teleport.
+We've also started signing our RPMs to provide assurance that you're always using an
+official build of Teleport.
+
+See https://rpm.releases.teleport.dev/ for more details.
+
+#### Improvements
+* A `--format=json` playback option for `tsh`. e.g. `$ tsh play --format=json ~/play/0c0b81ed-91a9-4a2a-8d7c-7495891a6ca0.tar | jq '.event` [#4578](https://github.com/gravitational/teleport/issues/4578)
+* Teleport can set up continuous backups and auto scaling for DynamoDB [#4780](https://github.com/gravitational/teleport/issues/4780)
+* Linux ARM64/ARMv8 (64-bit) Release [#3383](https://github.com/gravitational/teleport/issues/3383)
+* `https_keypairs` replaces `https_key_file` and `https_cert_file`, letting customers
+  load multiple HTTPS certs to support Teleport Application Access. Teleport 5.0 is
+  backwards compatible with the old format, but we recommend updating your config.
+
+Enterprise Only:
+* `tctl` can load credentials from `~/.tsh` [#4678](https://github.com/gravitational/teleport/pull/4678)
+* Teams can require a user submitted reason when using Access Workflows [#4573](https://github.com/gravitational/teleport/pull/4573#issuecomment-720777443)
+
+#### Fixes
+
+* `tctl`: always format resources as lists in JSON/YAML [#4281](https://github.com/gravitational/teleport/pull/4281)
+* `tsh`: print kubernetes info in profile status [#4348](https://github.com/gravitational/teleport/pull/4348)
+* Intermittent issues with loginuid.so in Teleport 4.2.0 [#3245](https://github.com/gravitational/teleport/issues/3245)
+* Reducing log spam  `access denied to Proxy` [#2920](https://github.com/gravitational/teleport/issues/2920)
+* Various AMI fixes (paths are now consistent with other Teleport packages, config
+  files will not be overwritten on reboot)
+
+#### Documentation
+- [API Reference](https://goteleport.com/teleport/docs/api-reference/)
+
+#### Upgrade Notes
+Please follow our [standard upgrade procedure](https://goteleport.com/teleport/docs/admin-guide/#upgrading-teleport).
+
+* Optional: Consider updating `https_key_file` & `https_cert_file` to our new `https_keypairs:` format.
+* Optional: Consider migrating Kubernetes Access from `proxy_service` to `kubernetes_service` after the upgrade.
+
+
 ### 4.4.5
 
 This release of Teleport contains a bug fix.
