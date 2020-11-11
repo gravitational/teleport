@@ -77,7 +77,6 @@ nav:
         #    - Teleport Slack Plugin Setup: enterprise/workflow/ssh-approval-slack.md
         - FedRAMP for SSH & K8s: enterprise/ssh-kubernetes-fedramp.md
         - RBAC: enterprise/ssh-rbac.md
-
     - Architecture:
         - Architecture Overview: architecture/overview.md
         - Teleport Users: architecture/users.md
