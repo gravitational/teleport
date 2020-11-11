@@ -139,7 +139,7 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	cookies := r.Cookies()
 	r.Header.Del("Cookie")
 	for _, cookie := range cookies {
-		if cookie.Name == cookieName {
+		if cookie.Name == CookieName {
 			continue
 		}
 		r.AddCookie(cookie)
