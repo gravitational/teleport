@@ -380,17 +380,23 @@ func (s *ServerV2) DeepCopy() Server {
 }
 
 // Implements proto.Merger
+func (r *Rotation) Merge(src proto.Message) {
+	s, ok := src.(*Rotation)
+	if !ok {
+		return
+	}
+	*r = *s
+}
+
+// Implements proto.Merger
 func (r *Metadata) Merge(src proto.Message) {
 	m, ok := src.(*Metadata)
 	if !ok {
 		return
 	}
-	r.Name = m.Name
-	r.Namespace = m.Namespace
-	r.Description = m.Description
-	r.Labels = utils.CopyStringsMap(m.Labels)
+	*r = *m
 	if m.Expires != nil {
-		expires := m.Expires.Add(0)
+		expires := *m.Expires
 		r.Expires = &expires
 	}
 }

@@ -20,9 +20,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/go-cmp/cmp"
 	"gopkg.in/check.v1"
 )
 
@@ -101,12 +103,74 @@ func (s *ServicesSuite) TestLabelKeyValidation(c *check.C) {
 }
 
 func (s *ServicesSuite) TestServerDeepCopy(c *check.C) {
-	expires := time.Now()
+	now := time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC)
+	expires := now.Add(1 * time.Hour)
 	srv := &ServerV2{
+		Kind:    KindNode,
+		Version: V2,
 		Metadata: Metadata{
-			Expires: &expires,
+			Name:      "a",
+			Namespace: defaults.Namespace,
+			Labels:    map[string]string{"label": "value"},
+			Expires:   &expires,
+		},
+		Spec: ServerSpecV2{
+			Addr:     "127.0.0.1:0",
+			Hostname: "hostname",
+			CmdLabels: map[string]CommandLabelV2{
+				"srv-cmd": {
+					Period:  Duration(2 * time.Second),
+					Command: []string{"srv-cmd", "--switch"},
+				},
+			},
+			Rotation: Rotation{
+				Started:     now,
+				GracePeriod: Duration(1 * time.Minute),
+				LastRotated: now.Add(-1 * time.Minute),
+			},
+			Apps: []*App{
+				{
+					Name:         "app",
+					StaticLabels: map[string]string{"label": "value"},
+					DynamicLabels: map[string]CommandLabelV2{
+						"app-cmd": {
+							Period:  Duration(1 * time.Second),
+							Command: []string{"app-cmd", "--app-flag"},
+						},
+					},
+					Rewrite: &Rewrite{
+						Redirect: []string{"host1", "host2"},
+					},
+				},
+			},
+			KubernetesClusters: []*KubernetesCluster{
+				{
+					Name:         "cluster",
+					StaticLabels: map[string]string{"label": "value"},
+					DynamicLabels: map[string]CommandLabelV2{
+						"cmd": {
+							Period:  Duration(1 * time.Second),
+							Command: []string{"cmd", "--flag"},
+						},
+					},
+				},
+			},
 		},
 	}
 	srv2 := srv.DeepCopy()
-	c.Assert(srv, check.DeepEquals, srv2)
+	c.Assert(cmp.Diff(srv, srv2), check.Equals, "")
+
+	c.Assert(srv2, check.FitsTypeOf, &ServerV2{})
+	// Mutate the second value but expect the original to be unaffected
+	srv2.(*ServerV2).Spec.CmdLabels = map[string]CommandLabelV2{
+		"srv-cmd": {
+			Period:  Duration(3 * time.Second),
+			Command: []string{"cmd", "--flag=value"},
+		},
+	}
+	expires2 := now.Add(10 * time.Minute)
+	srv2.(*ServerV2).Metadata.Expires = &expires2
+	srv3 := srv.DeepCopy()
+	c.Assert(cmp.Diff(srv, srv3), check.Equals, "")
+	c.Assert(cmp.Diff(srv2, srv3), check.Not(check.Equals), "")
 }

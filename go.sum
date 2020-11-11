@@ -195,10 +195,6 @@ github.com/go-xmlfmt/xmlfmt v0.0.0-20191208150333-d5b6f63a941b/go.mod h1:aUCEOzz
 github.com/gobwas/glob v0.2.3/go.mod h1:d3Ez4x06l9bZtSvzIay5+Yzi0fmZzPgnTbPcKjJAkT8=
 github.com/godbus/dbus/v5 v5.0.3/go.mod h1:xhWf0FNVPg57R7Z0UbKHbJfkEywrmjJnf7w5xrFpKfA=
 github.com/gofrs/flock v0.8.0/go.mod h1:F1TvTiK9OcQqauNUHlbJvyl9Qa1QvF/gOUDKA14jxHU=
-github.com/gogo/protobuf v1.1.1/go.mod h1:r8qH/GZQm5c6nD/R0oafs1akxWv10x8SbQlK7atdtwQ=
-github.com/gogo/protobuf v1.2.1/go.mod h1:hp+jE20tsWTFYpLwKvXlhS1hjn+gTNwPg2I6zVXpSg4=
-github.com/gogo/protobuf v1.3.1 h1:DqDEcV5aeaTmdFBePNpYsp3FlcVH/2ISVVM9Qf8PSls=
-github.com/gogo/protobuf v1.3.1/go.mod h1:SlYgWuQ5SjCEi6WLHjHCa1yvBfUnHcTbrrZtXPKa29o=
 github.com/gokyle/hotp v0.0.0-20160218004637-c180d57d286b h1:AD8yGmRk1t0OJ8B4oi0xCwogshBwDR92xKlNu6y+WPY=
 github.com/gokyle/hotp v0.0.0-20160218004637-c180d57d286b/go.mod h1:2vneIL/8eaCHMyWLVLanvIunX/xqc63a0E8LhTDTCRU=
 github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b h1:VKtxabqXZkF25pY9ekfRL6a582T4P37/31XEstQ5p58=
@@ -298,6 +294,8 @@ github.com/gravitational/license v0.0.0-20180912170534-4f189e3bd6e3 h1:vy9WwUq3H
 github.com/gravitational/license v0.0.0-20180912170534-4f189e3bd6e3/go.mod h1:jaxS7X2ouXfNd2Pxpybd01qNQK15UmkixKj4vtpp7f8=
 github.com/gravitational/oxy v0.0.0-20200916204440-3eb06d921a1d h1:IsbTjCQ4u5mr30ceWZ4GNcrQkp/Y/J9G+s9prmJm1ac=
 github.com/gravitational/oxy v0.0.0-20200916204440-3eb06d921a1d/go.mod h1:ESOxlf8BB2yG3zJ0SfZe9U6wpYu3YF3znxIICg73FYA=
+github.com/gravitational/protobuf v1.3.2-0.20201111195440-def42e0f694b h1:eb6H7DvHptlvZOOxxNX6JfXsylKuimIFRGv+EqB3wtQ=
+github.com/gravitational/protobuf v1.3.2-0.20201111195440-def42e0f694b/go.mod h1:nvYIs0zpwkaOfMJVk19T1RNuB29ZB6NrweRnDqTwYEc=
 github.com/gravitational/reporting v0.0.0-20180907002058-ac7b85c75c4c h1:UwN3jo2EfZSGDchLVqH/EJ2A5GWvKROx3NJNUI6/plg=
 github.com/gravitational/reporting v0.0.0-20180907002058-ac7b85c75c4c/go.mod h1:rBJeI3JYVzbL7Yw2hYrp4QdKIkncb1pUHo95DyoEGns=
 github.com/gravitational/roundtrip v1.0.0 h1:eb+0EABfSKC8607CQ4oOyWCm9zVIfio/wW78TjQqLSc=
@@ -371,7 +369,6 @@ github.com/julienschmidt/httprouter v1.2.0 h1:TDTW5Yz1mjftljbcKqRcrYhd4XeOoI98t+
 github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7VTCxuUUipMqKk8s4w=
 github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 h1:iQTw/8FWTuc7uiaSepXwyf3o52HaUYcV+Tu66S3F5GA=
 github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0/go.mod h1:1NbS8ALrpOvjt0rHPNLyCIeMtbizbir8U//inJ+zuB8=
-github.com/kisielk/errcheck v1.1.0/go.mod h1:EZBBE59ingxPouuu3KfxchcWSUPOHkagtvWXihfKN4Q=
 github.com/kisielk/errcheck v1.2.0/go.mod h1:/BMXB+zMLi60iA8Vv6Ksmxu/1UDYcXs4uQLJ+jE2L00=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
 github.com/klauspost/compress v1.10.7/go.mod h1:aoV0uJVorq1K+umq18yTdKaF57EivdYsUV+/s2qKfXs=

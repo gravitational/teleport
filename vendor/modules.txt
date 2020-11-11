@@ -167,7 +167,7 @@ github.com/gizak/termui
 github.com/gizak/termui/widgets
 # github.com/go-logr/logr v0.2.0
 github.com/go-logr/logr
-# github.com/gogo/protobuf v1.3.1
+# github.com/gogo/protobuf v1.3.1 => github.com/gravitational/protobuf v1.3.2-0.20201111195440-def42e0f694b
 ## explicit
 github.com/gogo/protobuf/gogoproto
 github.com/gogo/protobuf/jsonpb
@@ -918,4 +918,5 @@ sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.2.0
 sigs.k8s.io/yaml
 # github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.3
+# github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201111195440-def42e0f694b
 # github.com/iovisor/gobpf => github.com/gravitational/gobpf v0.0.1
