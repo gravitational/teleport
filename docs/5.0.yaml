@@ -6,8 +6,8 @@ site_author: Gravitational Inc
 copyright: Gravitational Inc, 2016-20
 
 # output directory:
-site_dir: ../build/docs/4.4
-docs_dir: "4.4"
+site_dir: ../build/docs/5.0
+docs_dir: "5.0"
 
 theme:
     name: null

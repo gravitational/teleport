@@ -6,7 +6,7 @@ description: The quick start guide for how to set up modern SSH access to cloud 
 # Teleport Quick Start
 
 This tutorial will guide you through the steps needed to install and run
-Teleport on a single node, which could be your local machine but we recommend a
+Teleport Unified Access Plane, which could be your local machine but we recommend a
 VM.
 
 ### Prerequisites
@@ -23,55 +23,79 @@ VM.
 This guide is only meant to demonstrate how to run Teleport in a sandbox or demo
 environment, and showcase a few basic tasks you can do with Teleport.
 
-## Step 1: Install Teleport
+## Step 1: Install Teleport on a Remote VM
 
 There are several ways to install Teleport. Take a look at the [Teleport Installation](installation.md)
 page to pick the method convenient for you.
 
-## Step 2: Start Teleport
+## Step 1b: Configure Teleport
 
-First, create a directory for Teleport to keep its data (by default it's
-`/var/lib/teleport`):
-
-``` bash
-$ mkdir -p /var/lib/teleport
-```
-
-Now we are ready to start Teleport. Start the `teleport` daemon:
-
-``` bash
-$ teleport start # if you are not `root` you may need `sudo`
-```
-
-!!! tip "Background Process"
-    Avoid suspending your current shell session by
-    running the process in the background like so:
-    `teleport start > teleport.log 2>&1 &`.
-    Access the process logs with `less teleport.log`.
-
-!!! tip "Debugging/Verbose Output"
-    If you encounter errors with any `teleport`, `tsh` or `tctl`
-    command you can enable verbose logging with the `-d, --debug`
-    flag.
-
-By default, Teleport services bind to 0.0.0.0. If you ran Teleport without any
-configuration or flags you should see this output in your console or logfile:
+When setting up Teleport, we recommend running it with Teleports YAML configuration file.
 
 ```
-[AUTH]  Auth service is starting on 0.0.0.0:3025
-[PROXY] Reverse tunnel service is starting on 0.0.0.0:3024
-[PROXY] Web proxy service is starting on 0.0.0.0:3080
-[PROXY] SSH proxy service is starting on 0.0.0.0:3023
-[SSH]   Service is starting on 0.0.0.0:3022
+$ teleport configure > teleport.yaml
 ```
 
-Congratulations - you are now running Teleport!
+??? example "Example teleport.yaml" We'll pre-populate your configuration with a nodename and a strong randomly generated static token. yaml --8<-- "snippets/install/teleport-config.yaml"
 
-## Step 3: Create a User Signup Token
+** THINGS TO CHANGE **
 
-We've got Teleport running but there are no users recognized by Teleport Auth
-yet. Let's create one for your OS user. In this example the OS user is
-`teleport` and the hostname of the node is `grav-00` .
+Move `teleport.yaml` to /etc.
+```
+$  mv teleport.yaml /etc
+```
+
+## Step 1c: Setup Domain name & TLS using Let's Encrypt
+
+Teleport requires a secure public endpoint for end users to connect to.
+A domain name, DNS, and TLS is required for Teleport. We'll use Let's Encrypt to obtain a free TLS certificate.
+
+DNS Setup:<br>
+For this setup, we'll simply use a `A` or `CNAME` record pointing to the IP of the machine.
+
+TLS Setup:<br>
+It's important to provide a secure connection for Teleport. Setting up TLS will secure connections to Teleport.
+
+If you already have TLS certs you can use those certificates, or if using a new domain
+we recommend using Certbot; which is free and simple to setup. Follow [certbot instructions](https://certbot.eff.org/) for how to obtain a certificate for your distro.
+
+**Update `teleport.yaml`<br>**
+The below command will add the public address of Teleport and will use the TLS
+certificate from LetsEncrypt.
+
+Replace `teleport.example.com` with the location of your proxy.
+
+```bash
+# Replace `teleport.example.com` with your domain name.
+export TELEPORT_PUBLIC_DNS_NAME="teleport.example.com"
+cat >> /etc/teleport.yaml <<EOL
+  public_addr: $TELEPORT_PUBLIC_DNS_NAME:3080
+  https_key_file: /etc/letsencrypt/live/$TELEPORT_PUBLIC_DNS_NAME/privkey.pem
+  https_cert_file: /etc/letsencrypt/live/$TELEPORT_PUBLIC_DNS_NAME/fullchain.pem
+EOL
+```
+
+Visit: `https://teleport.example.com:3080/`
+
+!!! done
+    Teleport is now up and running
+
+
+## Step 2: Create User & Setup 2FA
+
+Create a new user `graviton`, with the Principles `root, ubuntu`
+
+```
+tctl users add gaviton root,ubuntu
+```
+
+Teleport will always enforces Two-Factor Authentication and support OTP and Hardware Tokens (U2F).The quickstart has been setup with OTP. For setup you'll need an OTP app.
+
+A selection of Two-Factor Authentication apps are.
+
+ - [Authy](https://authy.com/download/)
+ - [Google Authenticator](https://www.google.com/landing/2step/)
+ - [Microsoft Authenticator](https://www.microsoft.com/en-us/account/authenticator)
 
 !!! info "OS User Mappings"
 
@@ -81,25 +105,6 @@ yet. Let's create one for your OS user. In this example the OS user is
     <your-username> ` to explicitly map ` teleport` to an existing OS user. If you
     do not map to a real OS user you will get authentication errors later on in
     this tutorial!
-
-```bash
-# A new Teleport user will be assigned a
-# mapping to an OS user of the same name
-# This is the same as running `tctl users add teleport teleport`
-[teleport@grav-00 ~]$ tctl users add teleport
-User teleport has been created but requires a password.
-Share this URL with the user to complete user setup, link is valid for 1h0m0s:
-https://grav-00:3080/web/invite/3a8e9fb6a5093a47b547c0f32e3a98d4
-
-NOTE: Make sure grav-00:3080 points at a Teleport proxy which users can access.
-```
-
-If you want to map to a different OS user, `electric` for instance, you can
-specify like so: `tctl users add teleport electric`. You can also assign
-multiple mappings like this `tctl users add teleport electric,joe,root`.
-
-You now have a signup token for the Teleport User `teleport` and will need to
-open this URL in a web browser to complete the registration process.
 
 ## Step 4: Register a User
 
@@ -249,6 +254,68 @@ Session URL : https://grav-00:3080/web/cluster/grav-00/node/a3f67090-99cc-45cf-8
 $ echo "Awesome!"
 # check out your shared ssh session between two CLI windows
 ```
+
+### Add a Node to the Cluster
+
+When you ran Teleport earlier with `teleport configure` it generated a secure
+static token for joining nodes to a cluster, this is `auth_token` and the auth
+server will be the IP of that box. You can find this via `ifconfig -a`
+
+```bash
+$ cat /etc/teleport.yaml
+# example output
+# teleport:
+#   nodename: testnode
+#   data_dir: /var/lib/teleport
+#   auth_token: 2370c3f1554c8469be14aa40599ee05778d47918e4ea6ce8
+#   auth_servers:
+#     - 127.0.0.1:3025
+```
+Armed with these details, we'll bootstrap a new host using
+
+=== "DEB"
+
+    ```bash
+    $ curl https://get.gravitational.com/teleport_5.0.0-beta.4_amd64.deb.sha256
+    # <checksum> <filename>
+    $ curl -O https://get.gravitational.com/teleport_5.0.0-beta.4_amd64.deb
+    $ sha256sum teleport_5.0.0-beta.4_amd64.deb
+    # Verify that the checksums match
+    $ dpkg -i teleport_5.0.0-beta.4_amd64.deb
+    $ which teleport
+    /usr/local/bin/teleport
+    ```
+
+=== "cloud-config"
+
+    ```ini
+    #cloud-config
+
+    package_upgrade: true
+
+    write_files:
+    - path: /etc/teleport.yaml
+        content: |
+            teleport:
+                auth_token: "f2e75-REPLACE-WITH-YOUR-TOKEN"
+                auth_servers:
+                    - "46.101-REPLACE-WITH-YOUR_IP:3025"
+            auth_service:
+                enabled: "false"
+            ssh_service:
+                enabled: "true"
+                labels:
+                    host: test-machine
+            proxy_service:
+                enabled: "false"
+
+    runcmd:
+    - 'mkdir -p /run/teleport'
+    - 'cd /run/teleport && curl -O https://get.gravitational.com/teleport_5.0.0-beta.4_amd64.deb'
+    - 'dpkg -i /run/teleport/teleport_5.0.0-beta.4_amd64.deb'
+    - 'systemctl enable teleport.service'
+    - 'systemctl start teleport.service'
+    ```
 
 ## Next Steps
 
