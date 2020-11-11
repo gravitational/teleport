@@ -35,6 +35,12 @@ type License interface {
 	// to control plane
 	GetReportsUsage() Bool
 
+	// GetCloud returns true if teleport cluster is hosted by Gravitational
+	GetCloud() Bool
+
+	// SetCloud sets cloud flag
+	SetCloud(Bool)
+
 	// SetReportsUsage sets usage report
 	SetReportsUsage(Bool)
 
@@ -176,6 +182,16 @@ func (c *LicenseV3) GetReportsUsage() Bool {
 	return c.Spec.ReportsUsage
 }
 
+// GetCloud returns true if teleport cluster is hosted by Gravitational
+func (c *LicenseV3) GetCloud() Bool {
+	return c.Spec.Cloud
+}
+
+// SetCloud sets cloud flag
+func (c *LicenseV3) SetCloud(cloud Bool) {
+	c.Spec.Cloud = cloud
+}
+
 // SetReportsUsage sets usage report
 func (c *LicenseV3) SetReportsUsage(reports Bool) {
 	c.Spec.ReportsUsage = reports
@@ -235,6 +251,9 @@ func (c *LicenseV3) String() string {
 	if c.Spec.SupportsKubernetes.Value() {
 		features = append(features, "supports kubernetes")
 	}
+	if c.Spec.Cloud.Value() {
+		features = append(features, "is hosted by Gravitational")
+	}
 	if c.Spec.AWSProductID != "" {
 		features = append(features, fmt.Sprintf("is limited to AWS product ID %q", c.Spec.AWSProductID))
 	}
@@ -257,8 +276,10 @@ type LicenseSpecV3 struct {
 	AWSAccountID string `json:"aws_account,omitempty"`
 	// SupportsKubernetes turns kubernetes support on or off
 	SupportsKubernetes Bool `json:"k8s"`
-	// ReportsUsage is turned on when system reports usage
+	// ReportsUsage turns usage reporting on or off
 	ReportsUsage Bool `json:"usage,omitempty"`
+	// Cloud is turned on when teleport is hosted by Gravitational
+	Cloud Bool `json:"cloud,omitempty"`
 }
 
 // LicenseSpecV3Template is a template for V3 License JSON schema
@@ -266,24 +287,27 @@ const LicenseSpecV3Template = `{
   "type": "object",
   "additionalProperties": false,
   "properties": {
-	"account_id": {
-		"type": ["string"]
-	},
-	"plan_id": {
-		"type": ["string"]
-	},
-	"usage": {
-		"type": ["string", "boolean"]
-	},
-	"aws_pid": {
-		"type": ["string"]
-	},
-	"aws_account": {
-		"type": ["string"]
-	},
-	"k8s": {
-		"type": ["string", "boolean"]
-	}
+		"account_id": {
+			"type": ["string"]
+		},
+		"plan_id": {
+			"type": ["string"]
+		},
+		"usage": {
+			"type": ["string", "boolean"]
+		},
+		"aws_pid": {
+			"type": ["string"]
+		},
+		"aws_account": {
+			"type": ["string"]
+		},
+		"k8s": {
+			"type": ["string", "boolean"]
+		},
+		"cloud": {
+			"type": ["string", "boolean"]
+		}
   }
 }`
 
