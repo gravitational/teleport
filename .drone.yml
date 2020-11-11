@@ -2982,6 +2982,50 @@ steps:
       - mkdir -p /go/artifacts
       - aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/ /go/artifacts/
 
+  - name: Download RPM repo contents
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: RPMREPO_AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: RPMREPO_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: RPMREPO_AWS_SECRET_ACCESS_KEY
+    volumes:
+      - name: rpmrepo
+        path: /rpmrepo
+    commands:
+    - mkdir -p /rpmrepo/teleport/cache
+    - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ /rpmrepo/teleport/
+    - mkdir -p /rpmrepo/teleport/${DRONE_TAG##v}
+    - cp -a /go/artifacts/*.rpm /rpmrepo/teleport/${DRONE_TAG##v}/
+
+  # we do this using a CentOS 7 container to make sure that the repo files are
+  # compatible with older versions, also there's no createrepo package in alpine main
+  - name: Regenerate RPM repo metadata
+    image: centos:7
+    volumes:
+      - name: rpmrepo
+        path: /rpmrepo
+    commands:
+    - yum -y install createrepo
+    - createrepo --cachedir /rpmrepo/teleport/cache --update /rpmrepo/teleport
+
+  - name: Sync RPM repo changes to S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: RPMREPO_AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: RPMREPO_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: RPMREPO_AWS_SECRET_ACCESS_KEY
+    volumes:
+      - name: rpmrepo
+        path: /rpmrepo
+    commands:
+    - aws s3 sync /rpmrepo/teleport/ s3://$AWS_S3_BUCKET/teleport/
+
   - name: Upload artifacts to production S3
     image: plugins/s3
     settings:
@@ -3085,9 +3129,14 @@ services:
 volumes:
   - name: dockersock
     temp: {}
+  # this persistent volume caches RPMs near Drone so that we don't need to download the
+  # entire repo contents from S3 every time to build the repo, we just sync any differences
+  - name: rpmrepo
+    claim:
+      name: drone-s3-rpmrepo-pvc
 
 ---
 kind: signature
-hmac: 921eeb9b7f68a01bf4a3c690248bc74285345b23e9362ee2593610e2a8355363
+hmac: 7aa687587df7625ca84f67db39e8deb37716d04f92312965a63356196ffcb05f
 
 ...

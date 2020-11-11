@@ -1,6 +1,6 @@
 # Changelog
 
-### 4.4.3
+### 4.4.4
 
 This release of Teleport adds enhancements to the Access Workflows API.
 
