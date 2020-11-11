@@ -8,16 +8,15 @@ description: How to set up and configure Teleport for Application access with SS
 ## Introduction
 Application Access has been designed to provide secure access to internal dashboards and applications. Building on Teleports strong foundations of security and identity. You can now put applications onto the internet safely and securely.
 
-Our team has put extra effort into support older and newer applications.
+Here are a few things you might want to secure with Teleport Application Access
 
-**Example Legacy App**</br>
-A device such as a load balancer might come with a control panel, but it doesn't have any auth and can only be access via a privileged network. These applications are supported and can extend access beyond your network.
-
-**Example Modern App**</br>
-Teleport Application Access supports all modern applications, these could be built in-house or off-the-shelf software such as jenkins, Kubernetes Dashboard and Jupyter workbooks.
+* Internal Control Panels
+* Wikis / Tooling that's only available on the VPN.
+* Access to the Kubernetes Dashboard
+* Developer tools. Such as Jenkins, or the Atlassian stack.
 
 #### Hardware Requirements
-We recommend reviewing our [How it works](#) page to get a good overview of how Teleport works. You'll need a small VM or even a Raspberry Pi to run Teleport (Auth and Proxy).  This will be the brains and gateway to your applications.
+We recommend reviewing our [How it works](https://gravitational.com/teleport/how-it-works/) page to get a good overview of how Teleport works. You'll need a small VM or even a Raspberry Pi to run Teleport (Auth and Proxy).  This will be the brains and gateway to your applications.
 
 #### Networking Requirements
 
@@ -55,9 +54,58 @@ Teleport Application Access supports all modern applications, these could be bui
 + In-house Single Page Apps (SPA)
 + SPA with custom Json Web Token support (JWT)
 
-Teleport Application Service Setup
+## Teleport Application Service Setup
 
 Teleport
+**Define `/etc/teleport.yaml`**
+
+| Variable to replace | Description  |
+|-|-|
+| `nodename` | Name of node Teleport is running on |
+| `auth_token` | Static Join Token |
+| `public_addr` | Public URL and Port for Teleport |
+| `https_key_file` | LetsEncrypt Key File ( Wildcard Cert )  |
+| `https_cert_file` | LetsEncrypt Key File ( Wildcard Cert ) |
+
+
+```
+teleport:
+  nodename: i-083e63d0daecd1315
+  data_dir: /var/lib/teleport
+  auth_token: 4c7e15
+  auth_servers:
+  - 127.0.0.1:3025
+auth_service:
+  enabled: "yes"
+  listen_addr: 0.0.0.0:3025
+  tokens:
+  - proxy,node,app:4c7e15
+ssh_service:
+  enabled: "false"
+proxy_service:
+  enabled: "yes"
+  listen_addr: 0.0.0.0:3023
+  web_listen_addr: 0.0.0.0:3080
+  tunnel_listen_addr: 0.0.0.0:3024
+  public_addr: teleport.asteroid.earth:3080
+  ## Example using a wildcard cert.
+  https_keypairs:
+  https_keypairs:
+  - key_file: /etc/letsencrypt/live/teleport.example.com/privkey.pem
+  - cert_file: /etc/letsencrypt/live/teleport.example.com/fullchain.pem
+  - key_file: /etc/letsencrypt/live/*.teleport.example.com/privkey.pem
+  - cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
+```
+#### [ Optional ] Obtain a new App Token
+In the above example we've hard coded a join token 4c7e15. You can use this to join apps or create a dynamic token using the tctl command below.
+```bash
+$ tctl tokens add --type=app
+```
+
+| Variable to replace | Description  |
+|-|-|
+| `auth_servers` | Address of Auth or Proxy Service setup above |
+| `auth_token` | Token used to connect to other Teleport processes  |
 
 ```yaml
 teleport:
@@ -67,7 +115,7 @@ teleport:
   auth_token: "4c7e15"
   # This is the location of the Teleport Auth Server or Public Proxy
   auth_servers:
-    - teleport.asteroid.earth:3080
+    - teleport.example.com:3080
 auth_service:
   enabled: no
 proxy_service:
@@ -77,13 +125,14 @@ ssh_service:
 # The app_service is new
 app_service:
    enabled: yes
+    debug_app: true
    apps:
-   - name: "jwt"
-     # URI and Port of Application. If Teleport is installed
+   - name: "internal-app"
      uri: "http://10.0.1.27:8000"
+   - name: "kubernetes-dashboard"
      # This version requires a public_addr for all Apps, these
      #  applications should have a certificate and DNS setup
-     public_addr: "jwt.asteroid.earth"
+     public_addr: "example.com"
      # Optional Labels
      labels:
         name: "jwt"
@@ -94,12 +143,45 @@ app_service:
        period: "5s"
    - name: "arris"
      uri: "http://localhost:3001"
-     public_addr: "arris.asteroid.earth"
+     public_addr: "arris.example.com"
    # Teleport Application Access can be used to proxy any HTTP Endpoint
    # Note: Name can't include any spaces
    - name: "hackernews"
      uri: "https://news.ycombinator.com"
-     public_addr: "hn.asteroid.earth
+     public_addr: "hn.example.com"
+```
+
+## Advanced Options
+
+### Customize Public Address
+
+```yaml
+   - name: "jira"
+     uri: "https://localhost:8001"
+     public_addr: "jira.example.com"
+```
+
+### Deeplink to Subdirectory
+Some Applications are available on a Subdirectory, examples include Kubernetes Dashboard.
+
+```yaml
+   - name: "k8s"
+     uri: "http://10.0.1.60:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/#/overview?namespace=default"
+     public_addr: "k8s.example.com"
+```
+### Rewrite
+We provide simple rewrites. This is helpful for applications
+
+```yaml
+   - name: "jira"
+     uri: "https://localhost:8001"
+     public_addr: "jira.example.com"
+     rewrite:
+        # Rewrite the "Location" header on redirect responses replacing the
+        # host with the public address of this application.
+        redirect:
+           - "localhost"
+           - "jenkins.internal.dev"
 ```
 
 ## View Applications in Teleport
