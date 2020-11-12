@@ -23,43 +23,26 @@ export const formatters: Formatters = {
     format: ({ id, state }) =>
       `Access request [${id}] has been created and is ${state}`,
   },
-
   [CodeEnum.ACCESS_REQUEST_UPDATED]: {
     desc: 'Access Request Updated',
     format: ({ id, state }) =>
       `Access request [${id}] has been updated to ${state}`,
   },
-
-  [CodeEnum.G_SAML_CONNECTOR_CREATED]: {
-    desc: 'SAML Connector Created',
-    format: ({ user, name }) =>
-      `User [${user}] created SAML connector [${name}]`,
-  },
-
-  [CodeEnum.G_SAML_CONNECTOR_DELETED]: {
-    desc: 'SAML Connector Deleted',
-    format: ({ user, name }) =>
-      `User [${user}] deleted SAML connector [${name}]`,
-  },
-
   [CodeEnum.SESSION_COMMAND]: {
     desc: 'Session Command',
     format: ({ program, sid }) =>
       `Program [${program}] has been executed within a session [${sid}]`,
   },
-
   [CodeEnum.SESSION_DISK]: {
     desc: 'Session File Access',
     format: ({ path, sid, program }) =>
       `Program [${program}] accessed a file [${path}] within a session [${sid}]`,
   },
-
   [CodeEnum.SESSION_NETWORK]: {
     desc: 'Session Network Connection',
     format: ({ sid, program, src_addr, dst_addr, dst_port }) =>
       `Program [${program}] opened a connection [${src_addr} <-> ${dst_addr}:${dst_port}] within a session [${sid}]`,
   },
-
   [CodeEnum.SESSION_DATA]: {
     desc: 'Session Data',
     format: ({ sid }) =>
@@ -75,64 +58,14 @@ export const formatters: Formatters = {
     desc: 'User Updated',
     format: ({ name }) => `User [${name}] has been updated`,
   },
-
   [CodeEnum.RESET_PASSWORD_TOKEN_CREATED]: {
     desc: 'Reset Password Token Created',
     format: ({ name, user }) =>
       `User [${user}] created a password reset token for user [${name}]`,
   },
-
-  [CodeEnum.G_ALERT_CREATED]: {
-    desc: 'Alert Created',
-    format: ({ user, name }) =>
-      `User [${user}] created Monitoring Alert [${name}]`,
-  },
-  [CodeEnum.G_ALERT_DELETED]: {
-    desc: 'Alert Deleted',
-    format: ({ user, name }) =>
-      `User [${user}] deleted monitoring alert [${name}]`,
-  },
-  [CodeEnum.G_ALERT_TARGET_CREATED]: {
-    desc: 'Alert Target Created',
-    format: ({ user }) => `User [${user}] updated monitoring alert target`,
-  },
-  [CodeEnum.G_ALERT_TARGET_DELETED]: {
-    desc: 'Alert Target Deleted',
-    format: ({ user }) => `User [${user}] deleted monitoring alert target`,
-  },
-  [CodeEnum.G_APPLICATION_INSTALL]: {
-    desc: 'Application Installed',
-    format: ({ releaseName, name, version }) =>
-      `Application release ${releaseName} ([${name}]:${version}) has been installed`,
-  },
-  [CodeEnum.G_APPLICATION_UPGRADE]: {
-    desc: 'Application Upgraded',
-    format: ({ releaseName, name, version }) =>
-      `Application release ${releaseName} has been upgraded to [${name}]:${version}`,
-  },
-  [CodeEnum.G_APPLICATION_ROLLBACK]: {
-    desc: 'Application Rolledbacked',
-    format: ({ releaseName, name, version }) =>
-      `Application release ${releaseName} has been rolled back to [${name}]:${version}`,
-  },
-  [CodeEnum.G_APPLICATION_UNINSTALL]: {
-    desc: 'Application Uninstalled',
-    format: ({ releaseName, name, version }) =>
-      `Applicaiton release ${releaseName} ([${name}]:${version}) has been uninstalled`,
-  },
   [CodeEnum.AUTH_ATTEMPT_FAILURE]: {
     desc: 'Auth Attempt Failed',
     format: ({ user, error }) => `User [${user}] failed auth attempt: ${error}`,
-  },
-  [CodeEnum.G_AUTHGATEWAY_UPDATED]: {
-    desc: 'Auth Gateway Updated',
-    format: ({ user }) =>
-      `User [${user}] updated cluster authentication gateway settings`,
-  },
-  [CodeEnum.G_AUTHPREFERENCE_UPDATED]: {
-    desc: 'Auth Preferences Updated',
-    format: ({ user }) =>
-      `User [${user}] updated cluster authentication preference`,
   },
 
   [CodeEnum.CLIENT_DISCONNECT]: {
@@ -140,22 +73,19 @@ export const formatters: Formatters = {
     format: ({ user, reason }) =>
       `User [${user}] has been disconnected: ${reason}`,
   },
-  [CodeEnum.G_CLUSTER_HEALTHY]: {
-    desc: 'Cluster Healthy',
-    format: () => `Cluster has become healthy`,
-  },
-  [CodeEnum.G_CLUSTER_UNHEALTHY]: {
-    desc: 'Cluster Unhealthy',
-    format: ({ reason }) => `Cluster is degraded: ${reason}`,
-  },
-  [CodeEnum.G_ENDPOINTS_UPDATED]: {
-    desc: 'Endpoints Updated',
-    format: ({ user }) => `User [${user}] updated Ops Center endpoints`,
-  },
   [CodeEnum.EXEC]: {
     desc: 'Command Execution',
-    format: ({ user, ...rest }) =>
-      `User [${user}] executed a command on node ${rest['addr.local']}`,
+    format: event => {
+      const { proto, kubernetes_cluster, user = '' } = event;
+      if (proto === 'kube') {
+        if (!kubernetes_cluster) {
+          return `User [${user}] executed a kubernetes command`;
+        }
+        return `User [${user}] executed a command on kubernetes cluster [${kubernetes_cluster}]`;
+      }
+
+      return `User [${user}] executed a command on node ${event['addr.local']}`;
+    },
   },
   [CodeEnum.EXEC_FAILURE]: {
     desc: 'Command Execution Failed',
@@ -172,39 +102,6 @@ export const formatters: Formatters = {
     format: ({ user, name }) =>
       `User [${user}] deleted Github connector [${name}]`,
   },
-  [CodeEnum.G_GITHUB_CONNECTOR_CREATED]: {
-    desc: 'GITHUB Auth Connector Created',
-    format: ({ user, name }) =>
-      `User [${user}] created Github connector [${name}]`,
-  },
-  [CodeEnum.G_GITHUB_CONNECTOR_DELETED]: {
-    desc: 'GITHUB Auth Connector Deleted',
-    format: ({ user, name }) =>
-      `User [${user}] deleted Github connector [${name}]`,
-  },
-  [CodeEnum.G_LICENSE_GENERATED]: {
-    desc: 'Cluster License Generated',
-    format: ({ maxNodes }) =>
-      `License for max nodes ${maxNodes} has been generated`,
-  },
-  [CodeEnum.G_LICENSE_EXPIRED]: {
-    desc: 'Cluster License Expired',
-    format: () => `Cluster license has expired`,
-  },
-  [CodeEnum.G_LICENSE_UPDATED]: {
-    desc: 'Cluster License Updated',
-    format: () => `Cluster license has been updated`,
-  },
-  [CodeEnum.G_LOGFORWARDER_CREATED]: {
-    desc: 'Log Forwarder Created',
-    format: ({ user, name }) =>
-      `User [${user}] created log forwarder [${name}]`,
-  },
-  [CodeEnum.G_LOGFORWARDER_DELETED]: {
-    desc: 'Log Forwarder Deleted',
-    format: ({ user, name }) =>
-      `User [${user}] deleted log forwarder [${name}]`,
-  },
   [CodeEnum.OIDC_CONNECTOR_CREATED]: {
     desc: 'OIDC Auth Connector Created',
     format: ({ user, name }) =>
@@ -215,119 +112,6 @@ export const formatters: Formatters = {
     format: ({ user, name }) =>
       `User [${user}] deleted OIDC connector [${name}]`,
   },
-  [CodeEnum.G_OIDC_CONNECTOR_CREATED]: {
-    desc: 'OIDC Auth Connector Created',
-    format: ({ user, name }) =>
-      `User [${user}] created OIDC connector [${name}]`,
-  },
-  [CodeEnum.G_OIDC_CONNECTOR_DELETED]: {
-    desc: 'OIDC Auth Connector Deleted',
-    format: ({ user, name }) =>
-      `User [${user}] deleted OIDC connector [${name}]`,
-  },
-  [CodeEnum.G_OPERATION_CONFIG_COMPLETE]: {
-    desc: 'Cluster Configuration Completed',
-    format: () => `Cluster configuration has been updated`,
-  },
-  [CodeEnum.G_OPERATION_CONFIG_FAILURE]: {
-    desc: 'Cluster Configuration Failed',
-    format: () => `Failed to update the cluster configuration`,
-  },
-  [CodeEnum.G_OPERATION_CONFIG_START]: {
-    desc: 'Cluster Configuration Started',
-    format: () => `Updating the cluster configuration`,
-  },
-  [CodeEnum.G_OPERATION_ENV_COMPLETE]: {
-    desc: 'Environment Update Completed',
-    format: () => `Cluster runtime environment has been updated`,
-  },
-  [CodeEnum.G_OPERATION_ENV_FAILURE]: {
-    desc: 'Environment Update Failed',
-    format: () => `Failed to update the cluster runtime environment`,
-  },
-  [CodeEnum.G_OPERATION_ENV_START]: {
-    desc: 'Environment Update Started',
-    format: () => `Updating the cluster runtime environment`,
-  },
-  [CodeEnum.G_OPERATION_EXPAND_START]: {
-    desc: 'Cluster Expand Started',
-    format: ({ hostname, ip, role }) =>
-      `Node ${hostname} (${ip}) with role ${role} is joining the cluster`,
-  },
-  [CodeEnum.G_OPERATION_EXPAND_COMPLETE]: {
-    desc: 'Cluster Expand Completed',
-    format: ({ hostname, ip, role }) =>
-      `Node ${hostname} (${ip}) with role ${role} has joined the cluster`,
-  },
-  [CodeEnum.G_OPERATION_EXPAND_FAILURE]: {
-    desc: 'Cluster Expand Failed',
-    format: ({ hostname, ip, role }) =>
-      `Node ${hostname} (${ip}) with role ${role} has failed to join the cluster`,
-  },
-  [CodeEnum.G_OPERATION_GC_START]: {
-    desc: 'GC Started',
-    format: () => 'Running garbage collection on the cluster',
-  },
-  [CodeEnum.G_OPERATION_GC_COMPLETE]: {
-    desc: 'GC Completed',
-    format: () => 'Garbage collection on the cluster has finished',
-  },
-  [CodeEnum.G_OPERATION_GC_FAILURE]: {
-    desc: 'GC Failed',
-    format: () => 'Garbage collection on the cluster has failed',
-  },
-  [CodeEnum.G_OPERATION_INSTALL_START]: {
-    desc: 'Cluster Install Started',
-    format: ({ cluster }) => `Cluster ${cluster} is being installed`,
-  },
-  [CodeEnum.G_OPERATION_INSTALL_COMPLETE]: {
-    desc: 'Cluster Install Completed',
-    format: ({ cluster }) => `Cluster ${cluster} has been installed`,
-  },
-  [CodeEnum.G_OPERATION_INSTALL_FAILURE]: {
-    desc: 'Cluster Install Failed',
-    format: ({ cluster }) => `Cluster ${cluster} install has failed`,
-  },
-  [CodeEnum.G_OPERATION_SHRINK_START]: {
-    desc: 'Cluster Shrink Started',
-    format: ({ hostname, ip, role }) =>
-      `Node ${hostname} (${ip}) with role ${role} is leaving the cluster`,
-  },
-  [CodeEnum.G_OPERATION_SHRINK_COMPLETE]: {
-    desc: 'Cluster Shrink Completed',
-    format: ({ hostname, ip, role }) =>
-      `Node ${hostname} (${ip}) with role ${role} has left the cluster`,
-  },
-  [CodeEnum.G_OPERATION_SHRINK_FAILURE]: {
-    desc: 'Cluster Shrink Failed',
-    format: ({ hostname, ip, role }) =>
-      `Node ${hostname} (${ip}) with role ${role} has failed to leave the cluster`,
-  },
-  [CodeEnum.G_OPERATION_UNINSTALL_START]: {
-    desc: 'Cluster Uninstall Started',
-    format: () => `Cluster is being uninstalled`,
-  },
-  [CodeEnum.G_OPERATION_UNINSTALL_COMPLETE]: {
-    desc: 'Cluster Uninstall Completed',
-    format: () => `Cluster has been uninstalled`,
-  },
-  [CodeEnum.G_OPERATION_UNINSTALL_FAILURE]: {
-    desc: 'Cluster Uninstall Failed',
-    format: () => `Cluster uninstall has failed`,
-  },
-  [CodeEnum.G_OPERATION_UPDATE_COMPLETE]: {
-    desc: 'Cluster Update Completed',
-    format: ({ version }) => `Cluster has been updated to version ${version}`,
-  },
-  [CodeEnum.G_OPERATION_UPDATE_FAILURE]: {
-    desc: 'Cluster Update Failed',
-    format: ({ version }) =>
-      `Cluster has failed to update to version ${version}`,
-  },
-  [CodeEnum.G_OPERATION_UPDATE_START]: {
-    desc: 'Cluster Update Started',
-    format: ({ version }) => `Cluster update to version ${version} has started`,
-  },
   [CodeEnum.PORTFORWARD]: {
     desc: 'Port Forwarding Started',
     format: ({ user }) => `User [${user}] started port forwarding`,
@@ -336,24 +120,6 @@ export const formatters: Formatters = {
     desc: 'Port Forwarding Failed',
     format: ({ user, error }) =>
       `User [${user}] port forwarding request failed: ${error}`,
-  },
-  [CodeEnum.G_REMOTE_SUPPORT_ENABLED]: {
-    desc: 'Remote Support Enabled',
-    format: ({ user, hub }) =>
-      `User [${user}] enabled remote support with Gravity Hub ${hub}`,
-  },
-  [CodeEnum.G_REMOTE_SUPPORT_DISABLED]: {
-    desc: 'Remote Support Disabled',
-    format: ({ user, hub }) =>
-      `User [${user}] disabled remote support with Gravity Hub ${hub}`,
-  },
-  [CodeEnum.G_ROLE_CREATED]: {
-    desc: 'Role Created',
-    format: ({ user, name }) => `User [${user}] created role [${name}]`,
-  },
-  [CodeEnum.G_ROLE_DELETED]: {
-    desc: 'Role Deleted',
-    format: ({ user, name }) => `User [${user}] deleted role [${name}]`,
   },
   [CodeEnum.SAML_CONNECTOR_CREATED]: {
     desc: 'SAML Connector Created',
@@ -396,6 +162,13 @@ export const formatters: Formatters = {
       const node =
         event.server_hostname || event.server_addr || event.server_id;
 
+      if (event.proto === 'kube') {
+        if (!event.kubernetes_cluster) {
+          return `User [${user}] has ended a kubernetes session [${event.sid}]`;
+        }
+        return `User [${user}] has ended a session [${event.sid}] on kubernetes cluster [${event.kubernetes_cluster}]`;
+      }
+
       if (!event.interactive) {
         return `User [${user}] has ended a non-interactive session [${event.sid}] on node [${node}] `;
       }
@@ -435,14 +208,6 @@ export const formatters: Formatters = {
     desc: 'App Session Data',
     format: ({ sid }) => `New app session data created [${sid}]`,
   },
-  [CodeEnum.G_SMTPCONFIG_CREATED]: {
-    desc: 'SMTP Config Created',
-    format: ({ user }) => `User [${user}] updated cluster SMTP configuration`,
-  },
-  [CodeEnum.G_SMTPCONFIG_DELETED]: {
-    desc: 'SMTP Config Deleted',
-    format: ({ user }) => `User [${user}] deleted cluster SMTP configuration`,
-  },
   [CodeEnum.SUBSYSTEM]: {
     desc: 'Subsystem Requested',
     format: ({ user, name }) => `User [${user}] requested subsystem [${name}]`,
@@ -457,39 +222,6 @@ export const formatters: Formatters = {
     format: ({ user, sid }) =>
       `User [${user}] resized the session [${sid}] terminal`,
   },
-  [CodeEnum.G_TLSKEYPAIR_CREATED]: {
-    desc: 'TLS Keypair Created',
-    format: ({ user }) => `User [${user}] installed cluster web certificate`,
-  },
-  [CodeEnum.G_TLSKEYPAIR_DELETED]: {
-    desc: 'TLS Keypair Deleted',
-    format: ({ user }) => `User [${user}] deleted cluster web certificate`,
-  },
-  [CodeEnum.G_TOKEN_CREATED]: {
-    desc: 'User Token Created',
-    format: ({ user, owner }) =>
-      `User [${user}] created token for user ${owner}`,
-  },
-  [CodeEnum.G_TOKEN_DELETED]: {
-    desc: 'User Token Deleted',
-    format: ({ user, owner }) =>
-      `User [${user}] deleted token for user ${owner}`,
-  },
-  [CodeEnum.G_UPDATES_ENABLED]: {
-    desc: 'Periodic Updates Enabled',
-    format: ({ user, hub }) =>
-      `User [${user}] enabled periodic updates with Gravity Hub ${hub}`,
-  },
-  [CodeEnum.G_UPDATES_DISABLED]: {
-    desc: 'Periodic Updates Disabled',
-    format: ({ user, hub }) =>
-      `User [${user}] disabled periodic updates with Gravity Hub ${hub}`,
-  },
-  [CodeEnum.G_UPDATES_DOWNLOADED]: {
-    desc: 'Update Downloaded',
-    format: ({ hub, name, version }) =>
-      `Downloaded new version [${name}]:${version} from Gravity Hub ${hub}`,
-  },
   [CodeEnum.USER_CREATED]: {
     desc: 'User Created',
     format: ({ name }) => `User [${name}] has been created`,
@@ -497,19 +229,6 @@ export const formatters: Formatters = {
   [CodeEnum.USER_DELETED]: {
     desc: 'User Deleted',
     format: ({ name }) => `User [${name}] has been deleted`,
-  },
-  [CodeEnum.G_USER_CREATED]: {
-    desc: 'User Created',
-    format: ({ user, name }) => `User [${user}] created user [${name}]`,
-  },
-  [CodeEnum.G_USER_DELETED]: {
-    desc: 'User Deleted',
-    format: ({ user, name }) => `User [${user}] deleted user [${name}]`,
-  },
-  [CodeEnum.G_USER_INVITE_CREATED]: {
-    desc: 'Invite Created',
-    format: ({ user, name, roles }) =>
-      `User [${user}] invited user [${name}] with roles ${roles}`,
   },
   [CodeEnum.USER_LOCAL_LOGIN]: {
     desc: 'Local Login',
@@ -548,6 +267,11 @@ export const formatters: Formatters = {
     desc: 'Trusted Cluster Deleted',
     format: ({ user, name }) =>
       `User [${user}] has deleted a trusted relationship with cluster [${name}]`,
+  },
+  [CodeEnum.KUBE_REQUEST]: {
+    desc: 'Kubernetes Request',
+    format: ({ user, kubernetes_cluster }) =>
+      `User [${user}] made a request to kubernetes cluster [${kubernetes_cluster}]`,
   },
 };
 

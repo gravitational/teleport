@@ -447,12 +447,12 @@ exports[`loaded 1`] = `
         </strong>
          - 
         <strong>
-          34
+          36
         </strong>
          
         of 
         <strong>
-          34
+          36
         </strong>
       </div>
       <div
@@ -510,6 +510,76 @@ exports[`loaded 1`] = `
         </tr>
       </thead>
       <tbody>
+        <tr>
+          <td>
+            <div
+              class="c14"
+            >
+              <span
+                class="c4 c15 icon icon-kubernetes c4 c15"
+                color="light"
+                font-size="3"
+              />
+              Kubernetes Request
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [alex] made a request to kubernetes cluster [clusterOne]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2020-10-30 17:28:14
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c16"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <div
+              class="c14"
+            >
+              <span
+                class="c4 c15 icon icon-terminal c4 c15"
+                color="light"
+                font-size="3"
+              />
+              Command Execution
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [alex] executed a command on kubernetes cluster [clusterOne]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2020-10-30 17:28:14
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c16"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
         <tr>
           <td>
             <div
