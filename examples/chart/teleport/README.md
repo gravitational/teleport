@@ -33,7 +33,7 @@ See the [High Availability](./HIGHAVAILABILITY.md)(HA) instructions for configur
 ## Prerequisites
 
 - Helm v3
-- Kubernetes 1.13+
+- Kubernetes 1.14+
 - Teleport license for Enterprise deployments
 - TLS Certificates or optionally use self-signed certificates
 
@@ -87,15 +87,15 @@ $ helm install teleport ./
 ```
 
 
-## Downloading the chart from the Gravitational repo
+## Downloading the chart from the Teleport Helm repo
 
-Gravitational hosts this Helm chart at https://charts.gravitational.io - it is updated from `master` every night.
+Gravitational hosts this Helm chart at https://charts.releases.teleport.dev - it is updated from `master` every night.
 
 To add the chart and use it, you can run these commands:
 
 ```console
-$ helm repo add gravitational https://charts.gravitational.io
-$ helm install teleport gravitational/teleport
+$ helm repo add teleport https://charts.releases.teleport.dev
+$ helm install teleport teleport/teleport
 ```
 
 You will still need a correctly configured `values.yaml` file for this to work.
