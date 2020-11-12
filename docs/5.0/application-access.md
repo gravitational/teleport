@@ -6,36 +6,53 @@ description: How to set up and configure Teleport for Application access with SS
 # Teleport Application Access
 
 ## Introduction
-Application Access has been designed to provide secure access to internal dashboards and applications. Building on Teleports strong foundations of security and identity. You can now put applications onto the internet safely and securely.
+Teleport Application Access has been designed to provide secure access to internal dashboards and applications. Building on Teleports strong foundations of security and identity. You can now put applications onto the internet safely and securely.
 
-Here are a few things you might want to secure with Teleport Application Access
+You can secure any web application using application access:
 
-* Internal Control Panels
+* Internal control panels
 * Wikis / Tooling that's only available on the VPN.
-* Access to the Kubernetes Dashboard
-* Developer tools. Such as Jenkins, or the Atlassian stack.
+* Infra dashboards - Kubernetes, Grafana
+* Developer tools, such as Jenkins, Gitlab or Ops genie
+
 
 #### Hardware Requirements
-We recommend reviewing our [How it works](https://gravitational.com/teleport/how-it-works/) page to get a good overview of how Teleport works. You'll need a small VM or even a Raspberry Pi to run Teleport (Auth and Proxy).  This will be the brains and gateway to your applications.
+[How it works](https://gravitational.com/teleport/how-it-works/) page will give you a good overview of the setup.
 
 #### Networking Requirements
 
-!!! note "Why do I see SSH Ports for Teleport Application Access?"
+!!! note "Why do I see SSH Ports for Application Access?"
 
-    Below is a list of ports required for Teleport Application Access to work but why SSH ports? The reason for this is Teleport uses reverse tunnels to obtain access to these applications.
+    Teleport uses SSH reverse tunnels to connect applications to the proxy. This is why configuration below mentions SSH ports.
 
 |Port      | Service    | Description
 |----------|------------|-------------------------------------------
-|3023      | Proxy      | SSH port clients connect to used for the reverse tunnel.
-|3024      | Proxy      | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server.
-|3025      | Auth       | SSH port used by the Auth Service to serve its API to other nodes in a cluster.
-|3080      | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Web UI.
+|3023      | Proxy      | SSH port for clients who need tsh login
+|3024      | Proxy      | SSH port used to create reverse SSH tunnels from behind-firewall environments into a trusted proxy server.
+|3025      | Auth       | TLS port used by the Auth Service to serve its API to other nodes in a cluster.
+|443       | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Teleport UI.
 
 #### TLS Requirements
 
+TLS is required to secure Teleports Unified Access Plane and any connected applications. When setting up Teleport the minium requiremtn is a certificate for the proxy and a wild card certifcate for it's sub-domain. This is where everyone will login to Teleport.
+
+Example: `teleport.example.com` will host the Access Plane. `*.teleport.example.com` will host all of the applications. e.g. `jenkins.teleport.example.com`. Teleport supports accessing these applications on other domains if required. Both DNS and the correct certificates need to be obtained for this to work.
+
+!!! tip "Using Certbot to obtain Wildcard Certs"
+
+    ```sh
+    certbot certonly --manual \
+      --preferred-challenges=dns \
+      --email [EMAIL] \
+      --server https://acme-v02.api.letsencrypt.org/directory \
+      --agree-tos \
+      --manual-public-ip-logging-ok \
+      -d "teleport.example.com, *.teleport.example.com"
+    ```
+
 ## Example Applications
 
-As outlined in our introduction Teleport Application Access has been designed to support two types of applications.
+As outlined in our introduction Application Access has been designed to support two types of applications.
 
 **Example Legacy App**</br>
 A device such as an load balancer might come with a control panel, but it doesn't' have any auth and can only be access via a privileged network. These applications are supported and can extend access beyond your network.
@@ -188,11 +205,15 @@ We provide simple rewrites. This is helpful for applications
 
 `https://[cluster-url]:3080/web/cluster/[cluster-name]/apps`
 
+## Logging out of Applications
+
+
+
 
 ## Integrating with JWTs
 
 ### Introduction to JWTs
-JSON Web Token (JWT) is an open standard that defines a secure way to transfer information bewteen parties as a JSON Object.
+JSON Web Token (JWT) is an open standard that defines a secure way to transfer information between parties as a JSON Object.
 
 For a in-depth explanation please visit [https://jwt.io/introduction/](https://jwt.io/introduction/)
 
