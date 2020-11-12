@@ -14,7 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package scp handles file uploads and downloads via scp command
+// Package scp handles file uploads and downloads via SCP command.
+// See https://web.archive.org/web/20170215184048/https://blogs.oracle.com/janp/entry/how_the_scp_protocol_works
+// for the high-level protocol overview.
+//
+// Authoritative source for the protocol is the source code for OpenSSH scp:
+// https://github.com/openssh/openssh-portable/blob/add926dd1bbe3c4db06e27cab8ab0f9a3d00a0c2/scp.c
 package scp
 
 import (
@@ -36,7 +41,7 @@ import (
 )
 
 const (
-	// OKByte is scp OK message bytes
+	// OKByte is SCP OK message bytes
 	OKByte = 0x0
 	// WarnByte tells that next goes a warning string
 	WarnByte = 0x1
@@ -202,7 +207,7 @@ func CreateCommand(cfg Config) (Command, error) {
 }
 
 // Command mimics behavior of SCP command line tool
-// to teleport can pretend it launches real scp behind the scenes
+// to teleport can pretend it launches real SCP behind the scenes
 type command struct {
 	Config
 	log *log.Entry
@@ -224,7 +229,7 @@ func (cmd *command) GetRemoteShellCmd() (shellCmd string, err error) {
 		return "", trace.BadParameter("missing remote file location")
 	}
 
-	// "impersonate" scp to a server
+	// "impersonate" SCP to a server
 	// See https://docstore.mik.ua/orelly/networking_2ndEd/ssh/ch03_08.htm, section "scp1 Details"
 	// about the hidden to/from switches
 	shellCmd = "/usr/bin/scp -f"
@@ -375,7 +380,7 @@ func (cmd *command) sendErr(ch io.Writer, err error) {
 }
 
 // serveSink executes file uploading, when a remote server sends file(s)
-// via scp
+// via SCP
 func (cmd *command) serveSink(ch io.ReadWriter) error {
 	// Validate that if directory mode flag was sent, the target is an actual
 	// directory.
@@ -473,7 +478,7 @@ func (cmd *command) processCommand(ch io.ReadWriter, st *state, b byte, line str
 func (cmd *command) receiveFile(st *state, fc newFileCmd, ch io.ReadWriter) error {
 	cmd.log.Debugf("scp.receiveFile(%v): %v", cmd.Flags.Target, fc.Name)
 
-	// if the dest path is a folder, we should save the file to that folder, but
+	// if the destination path is a folder, we should save the file to that folder, but
 	// only if 'recursive' is set
 
 	path := cmd.Flags.Target[0]
@@ -546,10 +551,7 @@ func (cmd *command) sendDirMode(r *reader, ch io.Writer, fileInfo FileInfo) erro
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := r.read(); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(r.read())
 }
 
 func (cmd *command) sendFileTimes(r *reader, ch io.Writer, fileInfo FileInfo) error {
@@ -762,23 +764,28 @@ var reSCP = regexp.MustCompile(
 		`:(?P<path>.*)`,
 )
 
-// Destination is scp destination to copy to or from
+// Destination is SCP destination to copy to or from
 type Destination struct {
 	// Login is an optional login username
 	Login string
 	// Host is a host to copy to/from
 	Host utils.NetAddr
 	// Path is a path to copy to/from.
-	// If empty, the user's home directory is assumed
+	// An empty path name is valid, and it refers to the user's default directory (usually
+	// the user's home directory).
+	// See https://tools.ietf.org/html/draft-ietf-secsh-filexfer-09#page-14, 'File Names'
 	Path string
 }
 
 // ParseSCPDestination takes a string representing a remote resource for SCP
-// to download/upload, like "user@host:/path/to/resource.txt" and returns
-// 3 components of it
+// to download/upload, like "user@host:/path/to/resource.txt" and parses it into
+// a structured form.
+//
+// See https://tools.ietf.org/html/draft-ietf-secsh-filexfer-09#page-14, 'File Names'
+// section about details on file names.
 func ParseSCPDestination(s string) (*Destination, error) {
 	out := reSCP.FindStringSubmatch(s)
-	if len(out) != 4 {
+	if len(out) < 4 {
 		return nil, trace.BadParameter("failed to parse %q, try form user@host:/path", s)
 	}
 	addr, err := utils.ParseAddr(out[2])
