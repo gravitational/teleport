@@ -124,7 +124,7 @@ steps:
         git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master}
         git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -Ev '^docs/' | grep -Ev '.md$' | grep -v ^$ | wc -l > /tmp/.change_count.txt
         export CHANGE_COUNT=$(cat /tmp/.change_count.txt | tr -d '\n')
-        echo -e "\n---> Changes to Teleport code detected: $$CHANGE_COUNT"
+        echo -e "\n---> Non-docs changes detected: $$CHANGE_COUNT"
         if [ $$CHANGE_COUNT -gt 0 ]; then
           echo "---> Teleport tests will run normally"
         else
@@ -2982,50 +2982,6 @@ steps:
       - mkdir -p /go/artifacts
       - aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/ /go/artifacts/
 
-  - name: Download RPM repo contents
-    image: amazon/aws-cli
-    environment:
-      AWS_S3_BUCKET:
-        from_secret: RPMREPO_AWS_S3_BUCKET
-      AWS_ACCESS_KEY_ID:
-        from_secret: RPMREPO_AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: RPMREPO_AWS_SECRET_ACCESS_KEY
-    volumes:
-      - name: rpmrepo
-        path: /rpmrepo
-    commands:
-    - mkdir -p /rpmrepo/teleport/cache
-    - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ /rpmrepo/teleport/
-    - mkdir -p /rpmrepo/teleport/${DRONE_TAG##v}
-    - cp -a /go/artifacts/*.rpm /rpmrepo/teleport/${DRONE_TAG##v}/
-
-  # we do this using a CentOS 7 container to make sure that the repo files are
-  # compatible with older versions, also there's no createrepo package in alpine main
-  - name: Regenerate RPM repo metadata
-    image: centos:7
-    volumes:
-      - name: rpmrepo
-        path: /rpmrepo
-    commands:
-    - yum -y install createrepo
-    - createrepo --cachedir /rpmrepo/teleport/cache --update /rpmrepo/teleport
-
-  - name: Sync RPM repo changes to S3
-    image: amazon/aws-cli
-    environment:
-      AWS_S3_BUCKET:
-        from_secret: RPMREPO_AWS_S3_BUCKET
-      AWS_ACCESS_KEY_ID:
-        from_secret: RPMREPO_AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY:
-        from_secret: RPMREPO_AWS_SECRET_ACCESS_KEY
-    volumes:
-      - name: rpmrepo
-        path: /rpmrepo
-    commands:
-    - aws s3 sync /rpmrepo/teleport/ s3://$AWS_S3_BUCKET/teleport/
-
   - name: Upload artifacts to production S3
     image: plugins/s3
     settings:
@@ -3119,6 +3075,68 @@ steps:
         make change-amis-to-public-ent
         make change-amis-to-public-ent-fips
 
+  # all mandatory steps for a release promotion need to go BEFORE this step,
+  # as there is a chance that everything afterwards will be skipped
+  - name: Skip RPM/DEB publishing for alpha/beta/dev/rc builds
+    image: docker
+    commands:
+      - |
+        # length will be 0 after filtering if this is a 'dev' release, >0 otherwise
+        FILTERED_TAG_LENGTH=$(echo ${DRONE_TAG} | egrep -v '(alpha|beta|dev|rc)' | wc -c)
+        if [ $$FILTERED_TAG_LENGTH -eq 0 ]; then
+          echo "---> ${DRONE_TAG} looks like a dev release, not publishing RPMs"
+          # exit pipeline early with success status
+          exit 78
+        else
+          echo "---> Publishing RPMs for ${DRONE_TAG}"
+        fi
+
+  - name: Download RPM repo contents
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: RPMREPO_AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: RPMREPO_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: RPMREPO_AWS_SECRET_ACCESS_KEY
+    volumes:
+      - name: rpmrepo
+        path: /rpmrepo
+    commands:
+    - mkdir -p /rpmrepo/teleport/cache
+    # we explicitly want to delete anything present locally which has been deleted
+    # from the upstream S3 bucket
+    - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ /rpmrepo/teleport/ --delete
+    - mkdir -p /rpmrepo/teleport/${DRONE_TAG##v}
+    - cp -a /go/artifacts/*.rpm /rpmrepo/teleport/${DRONE_TAG##v}/
+
+  # we do this using a CentOS 7 container to make sure that the repo files are
+  # compatible with older versions, also there's no createrepo package in alpine main
+  - name: Regenerate RPM repo metadata
+    image: centos:7
+    volumes:
+      - name: rpmrepo
+        path: /rpmrepo
+    commands:
+    - yum -y install createrepo
+    - createrepo --cachedir /rpmrepo/teleport/cache --update /rpmrepo/teleport
+
+  - name: Sync RPM repo changes to S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: RPMREPO_AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: RPMREPO_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: RPMREPO_AWS_SECRET_ACCESS_KEY
+    volumes:
+      - name: rpmrepo
+        path: /rpmrepo
+    commands:
+    - aws s3 sync /rpmrepo/teleport/ s3://$AWS_S3_BUCKET/teleport/
+
 services:
   - name: Start Docker
     image: docker:dind
@@ -3137,6 +3155,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 7aa687587df7625ca84f67db39e8deb37716d04f92312965a63356196ffcb05f
+hmac: 910738ecf96a23b35c23e091b063c206697b24faa6189a855297283e83be0aa8
 
 ...
