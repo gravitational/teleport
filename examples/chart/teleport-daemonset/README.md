@@ -37,6 +37,8 @@ Each node connects back to the auth server of the Teleport leaf cluster running 
 This setup may not survive failures of the `kubelet` or other underlying node services, so it should **not** be relied on for
 emergency 'break-glass' access in the event of a failure.
 
+Note: this chart does **not** work as-is on CoreOS-based distributions (e.g. GKE's Container-Optimized OS) which mount `/usr/local/bin` read-only.
+
 ## Prerequisites
 
 - Helm v3
