@@ -354,10 +354,10 @@ exports[`success state 1`] = `
 
 <div>
   <div
-    class="c0"
+    class="sc-AxirZ c0"
   >
     <div
-      class="c1"
+      class="sc-AxirZ c1"
     >
       <div
         class="c2"
@@ -373,7 +373,7 @@ exports[`success state 1`] = `
       </button>
     </div>
     <div
-      class="c4"
+      class="sc-AxirZ c4"
     >
       <input
         class="c5"
@@ -406,7 +406,7 @@ exports[`success state 1`] = `
           </strong>
         </div>
         <div
-          class="c8"
+          class="sc-AxirZ c8"
         >
           <button
             disabled=""

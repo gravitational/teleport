@@ -22,7 +22,6 @@ import { Resource } from 'teleport/services/resources';
 export default function useRoles(ctx: TeleportContext) {
   const [items, setItems] = useState<Resource[]>([]);
   const [attempt, attemptActions] = useAttempt({ isProcessing: true });
-  const canCreate = ctx.storeUser.getRoleAccess().create;
 
   function fetchData() {
     return ctx.resourceService.fetchRoles().then(received => {
@@ -55,10 +54,11 @@ export default function useRoles(ctx: TeleportContext) {
   }, []);
 
   return {
-    canCreate,
     items,
     attempt,
     save,
     remove,
   };
 }
+
+export type State = ReturnType<typeof useRoles>;

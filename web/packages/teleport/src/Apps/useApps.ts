@@ -47,6 +47,7 @@ export default function useApps() {
   }, [clusterId]);
 
   return {
+    clusterId,
     isEnterprise,
     isAddAppVisible,
     hideAddApp,

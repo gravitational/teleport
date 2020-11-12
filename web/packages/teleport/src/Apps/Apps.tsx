@@ -35,6 +35,7 @@ export default function Container() {
 
 export function Apps(props: State) {
   const {
+    clusterId,
     isEnterprise,
     isAddAppVisible,
     showAddApp,
@@ -66,6 +67,7 @@ export function Apps(props: State) {
       {hasApps && <AppList apps={apps} />}
       {isEmpty && (
         <Empty
+          clusterId={clusterId}
           isEnterprise={isEnterprise}
           canCreate={canCreate}
           onCreate={showAddApp}

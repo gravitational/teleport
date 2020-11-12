@@ -63,7 +63,7 @@ export class FeatureAuthConnectors {
   }
 
   route = {
-    title: 'Auth. Connectors',
+    title: 'Auth Connectors',
     path: cfg.routes.sso,
     exact: false,
     component: AuthConnectors,
@@ -76,7 +76,7 @@ export class FeatureAuthConnectors {
 
     ctx.storeNav.addSideItem({
       group: 'team',
-      title: 'Auth. Connectors',
+      title: 'Auth Connectors',
       Icon: Icons.Lock,
       exact: false,
       getLink() {

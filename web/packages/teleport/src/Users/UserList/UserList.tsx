@@ -37,8 +37,6 @@ export default function UserList({
   onEdit,
   onDelete,
   onReset,
-  canDelete,
-  canUpdate,
 }: Props) {
   const [searchValue, setSearchValue] = useState('');
   const [sort, setSort] = useState<Record<string, string>>({
@@ -55,7 +53,7 @@ export default function UserList({
   }
 
   function sortAndFilter(searchValue: string) {
-    const searchableProps = ['name', 'roles'];
+    const searchableProps = ['name', 'roles', 'authType'];
     const filtered = users.filter(user =>
       isMatch(user, searchValue, { searchableProps, cb: null })
     );
@@ -115,8 +113,6 @@ export default function UserList({
           header={<Cell />}
           cell={
             <ActionCell
-              canUpdate={canUpdate}
-              canDelete={canDelete}
               onEdit={onEdit}
               onDelete={onDelete}
               onResetPassword={onReset}
@@ -129,34 +125,22 @@ export default function UserList({
 }
 
 const ActionCell = props => {
-  const {
-    rowIndex,
-    data,
-    onEdit,
-    onResetPassword,
-    canDelete,
-    canUpdate,
-    onDelete,
-  } = props;
+  const { rowIndex, data, onEdit, onResetPassword, onDelete } = props;
 
   const user: User = data[rowIndex];
 
-  if ((!canDelete && !canUpdate) || !user.isLocal) {
+  if (!user.isLocal) {
     return <Cell align="right" />;
   }
 
   return (
     <Cell align="right">
       <MenuButton>
-        {canUpdate && <MenuItem onClick={() => onEdit(user)}>Edit...</MenuItem>}
-        {canUpdate && (
-          <MenuItem onClick={() => onResetPassword(user)}>
-            Reset Password...
-          </MenuItem>
-        )}
-        {canDelete && (
-          <MenuItem onClick={() => onDelete(user)}>Delete...</MenuItem>
-        )}
+        <MenuItem onClick={() => onEdit(user)}>Edit...</MenuItem>
+        <MenuItem onClick={() => onResetPassword(user)}>
+          Reset Password...
+        </MenuItem>
+        <MenuItem onClick={() => onDelete(user)}>Delete...</MenuItem>
       </MenuButton>
     </Cell>
   );
@@ -177,8 +161,6 @@ const RolesCell = props => {
 type Props = {
   users: User[];
   pageSize: number;
-  canDelete: boolean;
-  canUpdate: boolean;
   onEdit(user: User): void;
   onDelete(user: User): void;
   onReset(user: User): void;

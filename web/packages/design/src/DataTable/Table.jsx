@@ -69,7 +69,7 @@ class Table extends React.Component {
     }
 
     return (
-      <tbody>
+      <tfoot>
         <tr>
           <td colSpan={children ? children.length : 0}>
             <Text
@@ -87,7 +87,7 @@ class Table extends React.Component {
             </Text>
           </td>
         </tr>
-      </tbody>
+      </tfoot>
     );
   }
 

@@ -23,6 +23,7 @@ import { Event } from 'teleport/services/audit';
 import { ActionCell, TimeCell, DescCell } from './EventListCells';
 import TypeCell from './EventTypeCell';
 import EventDialog from '../EventDialog';
+import { displayDateTime } from 'shared/services/loc';
 
 export default function EventList(props: Props) {
   const { clusterId, events = [], search = '' } = props;
@@ -63,7 +64,11 @@ export default function EventList(props: Props) {
     const filtered = events.filter(obj =>
       isMatch(obj, search, {
         searchableProps: searchableProps,
-        cb: null,
+        cb: (target, search, prop) => {
+          if (prop === 'time') {
+            return displayDateTime(target).includes(search);
+          }
+        },
       })
     );
 

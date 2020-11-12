@@ -15,115 +15,97 @@
  */
 
 import React from 'react';
-import Users from './Users';
-import * as teleport from 'teleport';
-import makeAcl from 'teleport/services/user/makeAcl';
+import { Users } from './Users';
 
 export default {
   title: 'Teleport/Users',
 };
 
-export const Loaded = () => {
-  const ctx = new teleport.Context();
-  const acl = makeAcl(sample.acl);
-
-  ctx.storeUser.setState({ acl });
-  ctx.resourceService.fetchRoles = () => Promise.resolve(sample.roles);
-  ctx.userService.fetchUsers = () => Promise.resolve(sample.users);
-  return render(ctx, <Users />);
+export const Processing = () => {
+  const attempt = {
+    isProcessing: true,
+    isFailed: false,
+    isSuccess: false,
+    message: '',
+  };
+  return <Users {...sample} attempt={attempt} />;
 };
 
-export const Processing = () => {
-  const ctx = new teleport.Context();
-  const acl = makeAcl(sample.acl);
-
-  ctx.storeUser.setState({ acl });
-  ctx.resourceService.fetchRoles = () => new Promise(() => null);
-  ctx.userService.fetchUsers = () => new Promise(() => null);
-  return render(ctx, <Users />);
+export const Loaded = () => {
+  return <Users {...sample} />;
 };
 
 export const Failed = () => {
-  const ctx = new teleport.Context();
-  const acl = makeAcl(sample.acl);
-
-  ctx.storeUser.setState({ acl });
-  ctx.resourceService.fetchRoles = () =>
-    Promise.reject(new Error('some error message'));
-  return render(ctx, <Users />);
+  const attempt = {
+    isProcessing: false,
+    isFailed: true,
+    isSuccess: false,
+    message: 'some error message',
+  };
+  return <Users {...sample} attempt={attempt} />;
 };
 
-function render(ctx: teleport.Context, children: JSX.Element) {
-  return (
-    <teleport.ContextProvider ctx={ctx}>{children}</teleport.ContextProvider>
-  );
-}
+const users = [
+  {
+    name: 'cikar@egaposci.me',
+    roles: ['admin'],
+    authType: 'teleport local user',
+    isLocal: true,
+  },
+  {
+    name: 'hi@nen.pa',
+    roles: ['ruhh', 'admin'],
+    authType: 'teleport local user',
+    isLocal: true,
+  },
+  {
+    name: 'ziat@uthatebo.sl',
+    roles: ['kaco', 'ziuzzow', 'admin'],
+    authType: 'github',
+    isLocal: false,
+  },
+  {
+    name: 'pamkad@ukgir.ki',
+    roles: ['vuit', 'vedkonm', 'valvapel'],
+    authType: 'saml',
+    isLocal: false,
+  },
+  {
+    name: 'jap@kosusfaw.mp',
+    roles: ['ubip', 'duzjadj', 'dupiwuzocafe', 'abc', 'anavebikilonim'],
+    authType: 'oidc',
+    isLocal: false,
+  },
+  {
+    name: 'azesotil@jevig.org',
+    roles: ['tugu'],
+    authType: 'teleport local user',
+    isLocal: true,
+  },
+];
+
+const roles = ['admin', 'testrole'];
 
 const sample = {
-  acl: {
-    users: {
-      list: true,
-      create: true,
-      remove: true,
-      edit: true,
-    },
-    roles: {
-      list: true,
-      read: true,
-    },
+  attempt: {
+    isProcessing: false,
+    isFailed: false,
+    isSuccess: true,
+    message: '',
   },
-  roles: [
-    {
-      content: '',
-      displayName: '',
-      id: '',
-      kind: 'role',
-      name: 'admin',
-    } as const,
-    {
-      content: '',
-      displayName: '',
-      id: '',
-      kind: 'role',
-      name: 'testrole',
-    } as const,
-  ],
-  users: [
-    {
-      name: 'cikar@egaposci.me',
-      roles: ['admin'],
-      authType: 'teleport local user',
-      isLocal: true,
-    },
-    {
-      name: 'hi@nen.pa',
-      roles: ['ruhh', 'admin'],
-      authType: 'teleport local user',
-      isLocal: true,
-    },
-    {
-      name: 'ziat@uthatebo.sl',
-      roles: ['kaco', 'ziuzzow', 'admin'],
-      authType: 'github',
-      isLocal: false,
-    },
-    {
-      name: 'pamkad@ukgir.ki',
-      roles: ['vuit', 'vedkonm', 'valvapel'],
-      authType: 'saml',
-      isLocal: false,
-    },
-    {
-      name: 'jap@kosusfaw.mp',
-      roles: ['ubip', 'duzjadj', 'dupiwuzocafe', 'abc', 'anavebikilonim'],
-      authType: 'oidc',
-      isLocal: false,
-    },
-    {
-      name: 'azesotil@jevig.org',
-      roles: ['tugu'],
-      authType: 'teleport local user',
-      isLocal: true,
-    },
-  ],
+  users: users,
+  roles: roles,
+  operation: {
+    type: 'none',
+    user: null,
+  } as any,
+  onStartCreate: () => null,
+  onStartDelete: () => null,
+  onStartEdit: () => null,
+  onStartReset: () => null,
+  onClose: () => null,
+  onCreate: () => null,
+  onDelete: () => null,
+  onUpdate: () => null,
+  onReset: () => null,
 };

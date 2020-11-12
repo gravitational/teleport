@@ -22,6 +22,34 @@ import ButtonAdd from './../ButtonAdd';
 import { emptyPng } from './assets';
 
 export default function Empty(props: Props) {
+  // always show the welcome for enterprise users who have access to create an app
+  if (!props.canCreate) {
+    return (
+      <Box
+        p="8"
+        m="0 auto"
+        width="100%"
+        maxWidth="600px"
+        textAlign="center"
+        color="text.primary"
+        bg="primary.light"
+        borderRadius="12px"
+        {...props}
+      >
+        <Text typography="h2" mb="3">
+          No Applications Found
+        </Text>
+        <Text>
+          There are no applications for the "
+          <Text as="span" bold>
+            {props.clusterId}
+          </Text>
+          " cluster
+        </Text>
+      </Box>
+    );
+  }
+
   return (
     <Card maxWidth="700px" mx="auto" py={4} as={Flex} alignItems="center">
       <Box mx="4">
@@ -52,8 +80,9 @@ export default function Empty(props: Props) {
   );
 }
 
-type Props = {
+export type Props = {
   isEnterprise: boolean;
   canCreate: boolean;
   onCreate(): void;
+  clusterId: string;
 };

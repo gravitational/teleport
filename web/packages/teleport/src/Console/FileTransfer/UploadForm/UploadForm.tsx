@@ -158,8 +158,9 @@ export default class UploadForm extends React.Component<PropType> {
           ref={this.refDropzone}
           onDragOver={e => e.preventDefault()}
           onDrop={this.onDrop}
+          onClick={this.onOpenFilePicker}
         >
-          <a onClick={this.onOpenFilePicker}>{dropZoneText}</a>
+          {dropZoneText}
         </Dropzone>
         <Elements.Button disabled={isDldBtnDisabled} onClick={this.onUpload}>
           Upload
@@ -179,4 +180,5 @@ const Dropzone = styled.div`
   line-height: 72px;
   text-align: center;
   text-transform: uppercase;
+  cursor: pointer;
 `;

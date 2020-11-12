@@ -42,6 +42,18 @@ export const Empty = () => {
 
   ctx.isEnterprise = true;
   ctx.storeUser.setState({ acl });
+  ctx.storeUser.state.acl.tokens.create = true;
+  ctx.appService.fetchApps = () => Promise.resolve([]);
+  return render(ctx);
+};
+
+export const EmptyReadOnly = () => {
+  const ctx = new Context();
+  const acl = makeAcl(sample.acl);
+
+  ctx.isEnterprise = true;
+  ctx.storeUser.setState({ acl });
+  ctx.storeUser.state.acl.tokens.create = false;
   ctx.appService.fetchApps = () => Promise.resolve([]);
   return render(ctx);
 };

@@ -1,12 +1,9 @@
 /*
 Copyright 2020 Gravitational, Inc.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
     http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,30 +12,38 @@ limitations under the License.
 */
 
 import React from 'react';
-import { Context, ContextProvider } from 'teleport';
-import AuthConnectors from './AuthConnectors';
+import { AuthConnectors } from './AuthConnectors';
 
 export default {
   title: 'Teleport/AuthConnectors',
 };
 
+export function Processing() {
+  const attempt = {
+    isProcessing: true,
+    isFailed: false,
+    isSuccess: false,
+    message: '',
+  };
+  return <AuthConnectors {...sample} attempt={attempt} />;
+}
+
 export function Loaded() {
-  const ctx = new Context();
-  ctx.resourceService.fetchAuthConnectors = () => Promise.resolve(connectors);
-  return render(ctx);
+  return <AuthConnectors {...sample} />;
 }
 
 export function Empty() {
-  const ctx = new Context();
-  ctx.resourceService.fetchAuthConnectors = () => Promise.resolve([]);
-  return render(ctx);
+  return <AuthConnectors {...sample} items={[]} />;
 }
 
 export function Failed() {
-  const ctx = new Context();
-  ctx.resourceService.fetchAuthConnectors = () =>
-    Promise.reject(new Error('failed to load'));
-  return render(ctx);
+  const attempt = {
+    isProcessing: false,
+    isFailed: true,
+    isSuccess: false,
+    message: 'some error message',
+  };
+  return <AuthConnectors {...sample} attempt={attempt} />;
 }
 
 const connectors = [
@@ -68,10 +73,14 @@ const connectors = [
   },
 ];
 
-function render(ctx: Context) {
-  return (
-    <ContextProvider ctx={ctx}>
-      <AuthConnectors />
-    </ContextProvider>
-  );
-}
+const sample = {
+  attempt: {
+    isProcessing: false,
+    isFailed: false,
+    isSuccess: true,
+    message: '',
+  },
+  items: connectors,
+  remove: () => null,
+  save: () => null,
+};

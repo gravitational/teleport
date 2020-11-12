@@ -100,6 +100,7 @@ const StyledSelect = styled.div`
   .react-select__control {
     &:hover {
       border-color: transparent;
+      cursor: pointer;
     }
   }
 

@@ -49,3 +49,5 @@ export default function useAuthConnectors() {
     remove,
   };
 }
+
+export type State = ReturnType<typeof useAuthConnectors>;

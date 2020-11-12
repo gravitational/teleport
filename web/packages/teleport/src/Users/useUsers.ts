@@ -116,3 +116,5 @@ type Operation = {
   type: 'create' | 'edit' | 'delete' | 'reset' | 'none';
   user?: User;
 };
+
+export type State = ReturnType<typeof useUsers>;

@@ -1,12 +1,9 @@
 /*
 Copyright 2019-2020 Gravitational, Inc.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
     http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -15,56 +12,39 @@ limitations under the License.
 */
 
 import React from 'react';
-import * as teleport from 'teleport';
-import Roles from './Roles';
+import { Roles } from './Roles';
 
 export default {
   title: 'Teleport/Roles',
 };
 
+export function Processing() {
+  const attempt = {
+    isProcessing: true,
+    isFailed: false,
+    isSuccess: false,
+    message: '',
+  };
+  return <Roles {...sample} attempt={attempt} />;
+}
+
 export function Loaded() {
-  const ctx = new teleport.Context();
-  ctx.resourceService.fetchRoles = () => Promise.resolve(roles);
-  ctx.storeUser.getRoleAccess = () => acl;
-  return render(ctx);
+  return <Roles {...sample} />;
 }
 
 export function Empty() {
-  const ctx = new teleport.Context();
-  ctx.resourceService.fetchRoles = () => Promise.resolve([]);
-  ctx.storeUser.getRoleAccess = () => acl;
-  return render(ctx);
+  return <Roles {...sample} items={[]} />;
 }
 
 export function Failed() {
-  const ctx = new teleport.Context();
-  ctx.storeUser.getRoleAccess = () => acl;
-  ctx.resourceService.fetchRoles = () =>
-    Promise.reject(new Error('failed to load'));
-  return render(ctx);
+  const attempt = {
+    isProcessing: false,
+    isFailed: true,
+    isSuccess: false,
+    message: 'some error message',
+  };
+  return <Roles {...sample} attempt={attempt} />;
 }
-
-export function Loading() {
-  const ctx = new teleport.Context();
-  ctx.storeUser.getRoleAccess = () => acl;
-  ctx.resourceService.fetchRoles = () => new Promise(() => null);
-  return render(ctx);
-}
-
-export function CannotCreate() {
-  const ctx = new teleport.Context();
-  ctx.storeUser.getRoleAccess = () => ({ ...acl, create: false });
-  ctx.resourceService.fetchRoles = () => Promise.resolve([]);
-  return render(ctx);
-}
-
-const acl = {
-  list: true,
-  read: true,
-  edit: true,
-  create: true,
-  remove: true,
-};
 
 const roles = [
   {
@@ -85,10 +65,14 @@ const roles = [
   },
 ];
 
-function render(ctx: teleport.Context) {
-  return (
-    <teleport.ContextProvider ctx={ctx}>
-      <Roles />
-    </teleport.ContextProvider>
-  );
-}
+const sample = {
+  attempt: {
+    isProcessing: false,
+    isFailed: false,
+    isSuccess: true,
+    message: '',
+  },
+  items: roles,
+  remove: () => null,
+  save: () => null,
+};

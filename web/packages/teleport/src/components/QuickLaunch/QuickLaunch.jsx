@@ -81,7 +81,6 @@ const StyledBox = styled(Flex)`
   border: 1px solid;
   border-radius: 4px;
   border-color: rgba(255, 255, 255, 0.24);
-  background-color: #111b48;
   ${error}
 `;
 
@@ -92,7 +91,6 @@ const StyledLabel = styled.div`
   padding: 0 8px;
   border-bottom-left-radius: 4px;
   border-top-left-radius: 4px;
-  background: ${props => props.theme.colors.primary.darker};
 `;
 
 const StyledInput = styled.input`

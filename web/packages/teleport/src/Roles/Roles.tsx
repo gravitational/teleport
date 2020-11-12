@@ -27,7 +27,7 @@ import useResources from 'teleport/components/useResources';
 import useTeleport from 'teleport/useTeleport';
 import RoleList from './RoleList';
 import DeleteRole from './DeleteRole';
-import useRoles from './useRoles';
+import useRoles, { State } from './useRoles';
 import templates from './templates';
 
 export default function Container() {
@@ -36,8 +36,8 @@ export default function Container() {
   return <Roles {...state} />;
 }
 
-export function Roles(props: ReturnType<typeof useRoles>) {
-  const { items, canCreate, remove, save, attempt } = props;
+export function Roles(props: State) {
+  const { items, remove, save, attempt } = props;
   const resources = useResources(items, templates);
   const { message, isProcessing, isFailed, isSuccess } = attempt;
   const title =
@@ -56,7 +56,7 @@ export function Roles(props: ReturnType<typeof useRoles>) {
     <FeatureBox>
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle>Roles</FeatureHeaderTitle>
-        {isSuccess && canCreate && (
+        {isSuccess && (
           <ButtonPrimary
             ml="auto"
             width="240px"

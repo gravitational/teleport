@@ -282,7 +282,6 @@ exports[`render DocumentNodes 1`] = `
   border: 1px solid;
   border-radius: 4px;
   border-color: rgba(255,255,255,0.24);
-  background-color: #111b48;
 }
 
 .c11 {
@@ -393,6 +392,7 @@ exports[`render DocumentNodes 1`] = `
 
 .c7 .react-select__control:hover {
   border-color: transparent;
+  cursor: pointer;
 }
 
 .c7 .react-select__control--is-focused {
