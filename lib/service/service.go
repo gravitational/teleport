@@ -2028,7 +2028,12 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 	var addrs []utils.NetAddr
 	switch role {
 	case teleport.RoleProxy:
-		addrs = append(process.Config.Proxy.PublicAddrs, utils.NetAddr{Addr: reversetunnel.LocalKubernetes})
+		addrs = append(process.Config.Proxy.PublicAddrs,
+			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
+			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
+			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
+			utils.NetAddr{Addr: reversetunnel.LocalKubernetes},
+		)
 		addrs = append(addrs, process.Config.Proxy.SSHPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.TunnelPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.Kube.PublicAddrs...)
@@ -2519,6 +2524,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		component := teleport.Component(teleport.ComponentProxy, teleport.ComponentProxyKube)
 		kubeServer, err = kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 			ForwarderConfig: kubeproxy.ForwarderConfig{
 				Namespace:       defaults.Namespace,
@@ -2532,18 +2538,25 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ServerID:        cfg.HostUUID,
 				ClusterOverride: cfg.Proxy.Kube.ClusterOverride,
 				KubeconfigPath:  cfg.Proxy.Kube.KubeconfigPath,
-				Component:       teleport.Component(teleport.ComponentProxy, teleport.ComponentProxyKube),
+				Component:       component,
 			},
 			TLS:           tlsConfig,
 			LimiterConfig: cfg.Proxy.Limiter,
 			AccessPoint:   accessPoint,
+			OnHeartbeat: func(err error) {
+				if err != nil {
+					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: component})
+				} else {
+					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: component})
+				}
+			},
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		process.RegisterCriticalFunc("proxy.kube", func() error {
 			log := logrus.WithFields(logrus.Fields{
-				trace.Component: teleport.Component(teleport.ComponentProxyKube),
+				trace.Component: component,
 			})
 			log.Infof("Starting Kube proxy on %v.", cfg.Proxy.Kube.ListenAddr.Addr)
 			err := kubeServer.Serve(listeners.kube)
