@@ -651,6 +651,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 					Login: ctx.User.GetName(),
 				},
 				TerminalSize: params.Serialize(),
+				KubernetesClusterMetadata: events.KubernetesClusterMetadata{
+					KubernetesCluster: ctx.kubeCluster,
+				},
 			}
 
 			// Report the updated window size to the event log (this is so the sessions
@@ -703,6 +706,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				Protocol:   events.EventProtocolKube,
 			},
 			TerminalSize: termParams.Serialize(),
+			KubernetesClusterMetadata: events.KubernetesClusterMetadata{
+				KubernetesCluster: ctx.kubeCluster,
+			},
 		}
 		if err := emitter.EmitAuditEvent(f.Context, sessionStartEvent); err != nil {
 			f.WithError(err).Warn("Failed to emit event.")
@@ -770,6 +776,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			Participants: []string{ctx.User.GetName()},
 			StartTime:    sessionStart,
 			EndTime:      f.Clock.Now().UTC(),
+			KubernetesClusterMetadata: events.KubernetesClusterMetadata{
+				KubernetesCluster: ctx.kubeCluster,
+			},
 		}
 		if err := emitter.EmitAuditEvent(f.Context, sessionEndEvent); err != nil {
 			f.WithError(err).Warn("Failed to emit session end event.")
@@ -798,6 +807,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			},
 			CommandMetadata: events.CommandMetadata{
 				Command: strings.Join(request.cmd, " "),
+			},
+			KubernetesClusterMetadata: events.KubernetesClusterMetadata{
+				KubernetesCluster: ctx.kubeCluster,
 			},
 		}
 		if err != nil {
@@ -1057,6 +1069,9 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 		RequestPath:  req.URL.Path,
 		Verb:         req.Method,
 		ResponseCode: int32(w.(*responseStatusRecorder).getStatus()),
+		KubernetesClusterMetadata: events.KubernetesClusterMetadata{
+			KubernetesCluster: ctx.kubeCluster,
+		},
 	}
 	r := parseResourcePath(req.URL.Path)
 	if r.skipEvent {
