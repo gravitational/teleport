@@ -27,7 +27,7 @@ There are comments in the file describing what the values need to be set to.
 
 ## Prerequisites
 
-- Helm v2.16+
+- Helm v3
 - Kubernetes 1.10+
 - A Teleport license file stored as a Kubernetes Secret object - see below
 
@@ -53,7 +53,7 @@ installing the chart.
 To install the chart with the release name `teleport`, run:
 
 ```console
-helm install --name teleport ./
+helm install teleport ./
 ```
 
 You can view debug logs for the cluster with this command:
@@ -74,5 +74,5 @@ kubectl logs deploy/teleport -c teleport-sidecar
 If you need to delete the chart, you can use:
 
 ```console
-helm delete --purge teleport
+helm uninstall teleport
 ```

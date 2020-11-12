@@ -39,20 +39,10 @@ emergency 'break-glass' access in the event of a failure.
 
 ## Prerequisites
 
-- Helm v2.16 (Helm v3 is not currently supported)
-  - You must have Tiller working and configured properly inside your cluster
+- Helm v3
 - Kubernetes 1.14+
 - A Teleport license file stored as a Kubernetes Secret object - see below
   - This means that by definition, the chart will use an Enterprise version of Teleport
-
-On many cloud providers, the `default` service account doesn't have sufficient privileges to deploy charts when used to run
-Tiller. In this situation, you will need to deploy Tiller with `cluster-admin` privileges like this:
-
-```console
-kubectl create serviceaccount --namespace kube-system tiller
-kubectl create clusterrolebinding tiller --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
-helm init --service-account tiller --upgrade --wait
-```
 
 ### Prepare the license file
 
@@ -82,7 +72,7 @@ then providing this file to Helm using the `-f` parameter on the command line. H
 To install the chart with the release name `teleport` and extra values from `teleport-values.yaml`, run:
 
 ```console
-helm install --name teleport -f teleport-values.yaml ./
+helm install teleport -f teleport-values.yaml ./
 ```
 
 You can view debug logs for the cluster with this command:
@@ -112,5 +102,5 @@ use `kubectl logs pod/teleport-node-xxxxxx` to view logs from each node separate
 If you need to delete the chart, you can use:
 
 ```console
-helm delete --purge teleport
+helm uninstall teleport
 ```
