@@ -887,7 +887,7 @@ func initUploadHandler(auditConfig services.AuditConfig, dataDir string) (events
 
 // initExternalLog initializes external storage, if the storage is not
 // setup, returns (nil, nil).
-func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error) {
+func initExternalLog(ctx context.Context, auditConfig services.AuditConfig) (events.IAuditLog, error) {
 	//
 	// DELETE IN: 5.0
 	// We could probably just remove AuditTableName now (its been deprecated for a while), but
@@ -923,15 +923,23 @@ func initExternalLog(auditConfig services.AuditConfig) (events.IAuditLog, error)
 		case dynamo.GetName():
 			hasNonFileLog = true
 			cfg := dynamoevents.Config{
-				Tablename: uri.Host,
-				Region:    auditConfig.Region,
+				Tablename:               uri.Host,
+				Region:                  auditConfig.Region,
+				EnableContinuousBackups: auditConfig.EnableContinuousBackups,
+				EnableAutoScaling:       auditConfig.EnableAutoScaling,
+				ReadMinCapacity:         auditConfig.ReadMinCapacity,
+				ReadMaxCapacity:         auditConfig.ReadMaxCapacity,
+				ReadTargetValue:         auditConfig.ReadTargetValue,
+				WriteMinCapacity:        auditConfig.WriteMinCapacity,
+				WriteMaxCapacity:        auditConfig.WriteMaxCapacity,
+				WriteTargetValue:        auditConfig.WriteTargetValue,
 			}
 			err = cfg.SetFromURL(uri)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
-			logger, err := dynamoevents.New(cfg)
+			logger, err := dynamoevents.New(ctx, cfg)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1037,7 +1045,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 		// initialize external loggers.  may return (nil, nil) if no
 		// external loggers have been defined.
-		externalLog, err := initExternalLog(auditConfig)
+		externalLog, err := initExternalLog(process.ExitContext(), auditConfig)
 		if err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)

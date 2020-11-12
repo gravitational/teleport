@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/defaults"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
+	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
@@ -149,6 +150,24 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		log.Info("Started reverse tunnel client.")
 	}
 
+	var dynLabels *labels.Dynamic
+	if len(cfg.Kube.DynamicLabels) != 0 {
+		dynLabels, err = labels.NewDynamic(process.ExitContext(), &labels.DynamicConfig{
+			Labels: cfg.Kube.DynamicLabels,
+			Log:    log,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		dynLabels.Sync()
+		go dynLabels.Start()
+		defer func() {
+			if retErr != nil {
+				dynLabels.Close()
+			}
+		}()
+	}
+
 	// Create the kube server to service listener.
 	authorizer, err := auth.NewAuthorizer(conn.Client, conn.Client, conn.Client)
 	if err != nil {
@@ -172,6 +191,8 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			KubeClusterName: cfg.Kube.KubeClusterName,
 			NewKubeService:  true,
 			Component:       teleport.ComponentKube,
+			StaticLabels:    cfg.Kube.StaticLabels,
+			DynamicLabels:   dynLabels,
 		},
 		TLS:           tlsConfig,
 		AccessPoint:   accessPoint,
@@ -244,6 +265,10 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		}
 		warnOnErr(listener.Close())
 		warnOnErr(conn.Close())
+
+		if dynLabels != nil {
+			dynLabels.Close()
+		}
 
 		log.Info("Exited.")
 	})

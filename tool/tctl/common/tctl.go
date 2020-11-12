@@ -354,7 +354,7 @@ func applyConfig(ccf *GlobalCLIFlags, cfg *service.Config, loadConfigExt LoadCon
 			return nil, trace.Wrap(err)
 		}
 
-		authConfig.TLS, err = key.ClientTLSConfig(cfg.CipherSuites)
+		authConfig.TLS, err = key.TeleportClientTLSConfig(cfg.CipherSuites)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
