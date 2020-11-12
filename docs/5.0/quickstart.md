@@ -36,7 +36,57 @@ When setting up Teleport, we recommend running it with Teleports YAML configurat
 $ teleport configure > teleport.yaml
 ```
 
-??? example "Example teleport.yaml" We'll pre-populate your configuration with a nodename and a strong randomly generated static token. yaml --8<-- "snippets/install/teleport-config.yaml"
+!!! note
+
+    Example `teleport.yaml`
+
+    ```yaml
+    #
+    # Sample Teleport configuration file
+    # Creates a single proxy, auth and node server.
+    #
+    # Things to update:
+    #  1. ca_pin: Obtain the CA pin hash for joining more nodes
+    #     by running 'tctl status' on the auth server
+    #      once Teleport is running.
+    #  2. license-if-using-teleport-enterprise.pem: If you are an
+    #     Enterprise customer, Obtain this from
+    #     https://dashboard.gravitational.com/web/
+    #
+    teleport:
+    nodename: wellington
+    data_dir: /var/lib/teleport
+    auth_token: 764e87eb2e264d0028a4fe119cfcb6bb1b695aa68c69d420
+    auth_servers:
+    - 127.0.0.1:3025
+    log:
+        output: stderr
+        severity: INFO
+    ca_pin: sha256:ca-pin-hash-goes-here
+    auth_service:
+    enabled: "yes"
+    listen_addr: 0.0.0.0:3025
+    tokens:
+    - proxy,node:764e87eb2e264d0028a4fe119cfcb6bb1b695aa68c69d420
+    license_file: /path/to/license-if-using-teleport-enterprise.pem
+    ssh_service:
+    enabled: "yes"
+    labels:
+        env: staging
+    commands:
+    - name: hostname
+        command: [hostname]
+        period: 1m0s
+    - name: arch
+        command: [uname, -p]
+        period: 1h0m0s
+    proxy_service:
+    enabled: "yes"
+    listen_addr: 0.0.0.0:3023
+    web_listen_addr: 0.0.0.0:3080
+    tunnel_listen_addr: 0.0.0.0:3024
+    https_keypairs: []
+    ```
 
 ** THINGS TO CHANGE **
 
