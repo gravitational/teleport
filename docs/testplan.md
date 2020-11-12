@@ -200,170 +200,228 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 
 ## WEB UI
 
-### Dashboard
+## Main
+For main, test with admin role that has access to all resources.
 
 #### Top Nav
-- [ ] Verify that user name is displayed.
-- [ ] Verify that user menu shows a logout button.
-
-#### Cluster List
-- [ ] Verify that root cluster is displayed with the proper label.
-- [ ] Verify that "Name", "Version", "Nodes" and "Public URL" shows the correct information.
-- [ ] Verify that column sorting works.
-- [ ] Verify that cluster "View" button works as a hyperlink by opening a new browser tab.
-- [ ] Verify that search works.
-
-### Cluster
-
-#### Top Nav
-- [ ] Verify that user name is displayed.
-- [ ] Verify that Breadcrumb Navigation has a link to dashboard.
-- [ ] Verify that cluster name is displayed.
-- [ ] Verify that clicking on Teleport logo navigates to the Dashboard.
+- [ ] Verify that cluster selector displays all (root + leaf) clusters    
+- [ ] Verify that user name is displayed
+- [ ] Verify that user menu shows logout, help&support, and account settings
 
 #### Side Nav
-- [ ] Verify that "Nodes" item is highlighted.
-- [ ] Verify that each item has an icon.
+- [ ] Verify that each item has an icon
+- [ ] Verify that Collapse/Expand works and collapsed has icon `>`, and expand has icon `v`
+- [ ] Verify that it automatically expands and highlights the item on page refresh
 
-#### Nodes
-- [ ] Verify that "Nodes" table shows all joined nodes.
-- [ ] Verify that "Connect" button shows a list of available logins.
-- [ ] Verify that "Hostname", "Address" and "Labels" columns show the current values.
-- [ ] Verify that "Search" works.
-- [ ] Verify that terminal opens when clicking on one of the available logins.
+#### Servers aka Nodes
+- [ ] Verify that "Servers" table shows all joined nodes
+- [ ] Verify that "Connect" button shows a list of available logins
+- [ ] Verify that "Hostname", "Address" and "Labels" columns show the current values
+- [ ] Verify that "Search" by hostname, address, labels works
+- [ ] Verify that terminal opens when clicking on one of the available logins
+- [ ] Verify that clicking on `Add Server` button renders dialogue set to `Automatically` view
+  - [ ] Verify clicking on `Regenerate Script` regenerates token value in the bash command
+  - [ ] Verify using the bash command successfully adds the server (refresh server list)
+  - [ ] Verify that clicking on `Manually` tab renders manual steps
+  - [ ] Verify that clicking back to `Automatically` tab renders bash command
+
+#### Applications
+- [ ] Verify that all apps registered is shown
+- [ ] Verify that clicking on the app icon takes you to another tab
+- [ ] Verify that clicking on `Add Application` button renders dialogue
+  - [ ] Verify input validation (prevent empty value and invalid url)
+  - [ ] Verify after input and clicking on `Generate Script`, bash command is rendered
+  - [ ] Verify clicking on `Regenerate` button regenerates token value in bash command
+  - [ ] Verify using the bash command successfully adds the application (refresh app list)
 
 #### Active Sessions
-- [ ] Verify that "empty" state is handled.
-- [ ] Verify that it displays the session when session is active.
-- [ ] Verify that "Description", "Session ID", "Users", "Nodes" and "Duration" columns show correct values.
-- [ ] Verify that "OPTIONS" button allows to join a session.
+- [ ] Verify that "empty" state is handled
+- [ ] Verify that it displays the session when session is active
+- [ ] Verify that "Description", "Session ID", "Users", "Nodes" and "Duration" columns show correct values
+- [ ] Verify that "OPTIONS" button allows to join a session
 
 #### Audit log
-- [ ] Verify that Audit log has "Sessions" and "Events" tabs where "Sessions" is active by default.
-- [ ] Verify that time range button is shown and works.
+- [ ] Verify that time range button is shown and works
+- [ ] Verify clicking on `Session Ended` event icon, takes user to session player
+- [ ] Verify event detail dialogue renders when clicking on events `details` button
+- [ ] Verify searching by type, description, created works
 
-#### Audit log (Sessions)
-- [ ] Verify that Sessions table shows the correct session values.
-- [ ] Verify that Play button opens a session player.
-- [ ] Verify that search works (it should do a search on all table cells).
+#### Users
+- [ ] Verify that users are shown
+- [ ] Verify that creating a new user works
+- [ ] Verify that editing user roles works
+- [ ] Verify that removing a user works
+- [ ] Verify resetting a users password works
+- [ ] Verify search by username, roles, and type works
 
-#### Auth Connectors.
-- [ ] Verify that creating OIDC/SAML/GITHUB connectors works.
-- [ ] Verify that editing  OIDC/SAML/GITHUB connectors works.
-- [ ] Verify that error is shown when saving an invalid YAML.
-- [ ] Verify that correct hint text is shown on the right side.
+#### Auth Connectors
+- [ ] Verify that creating OIDC/SAML/GITHUB connectors works
+- [ ] Verify that editing  OIDC/SAML/GITHUB connectors works
+- [ ] Verify that error is shown when saving an invalid YAML
+- [ ] Verify that correct hint text is shown on the right side
 
-  Card Icons
-  - [ ] Verify that GITHUB card has github icon
-  - [ ] Verify that SAML card has SAML icon
-  - [ ] Verify that OIDC card has OIDC icon
+#### Auth Connectors Card Icons
+- [ ] Verify that GITHUB card has github icon
+- [ ] Verify that SAML card has SAML icon
+- [ ] Verify that OIDC card has OIDC icon
+- [ ] Verify when there are no connectors, empty state renders
+
 
 #### Roles
-- [ ] Verify that roles are shown.
-- [ ] Verify that "Create New Role" dialog works.
-- [ ] Verify that deleting and editing works.
-- [ ] Verify that error is shown when saving an invalid YAML.
-- [ ] Verify that correct hint text is shown on the right side.
+- [ ] Verify that roles are shown
+- [ ] Verify that "Create New Role" dialog works
+- [ ] Verify that deleting and editing works
+- [ ] Verify that error is shown when saving an invalid YAML
+- [ ] Verify that correct hint text is shown on the right side
 
-#### Trusted Clusters
-- [ ] Verify that adding/removing a trusted cluster works.
-- [ ] Verify that correct hint text is shown on the right side.
+#### Managed Clusters
+- [ ] Verify that it displays a list of clusters (root + leaf)
+- [ ] Verify that every menu item works: nodes, apps, audit events, session recordings.
 
 #### Help&Support
 - [ ] Verify that all URLs work and correct (no 404)
 
-### Account
+## Access Request Waiting Room
+
+#### Strategy Reason
+Create the following role:
+```
+kind: role
+metadata:
+  name: restrict
+spec:
+  allow:
+    request:
+      roles:
+      - <some other role to assign user after approval>
+  deny: {}
+  options:
+    cert_format: standard
+    enhanced_recording:
+    - command
+    - network
+    forward_agent: false
+    max_session_ttl: 8h0m0s
+    port_forwarding: true
+    request_access: reason
+    request_prompt: <some custom prompt to show in reason dialogue>
+version: v3
+```
+- [ ] Verify after login, reason dialogue is rendered with prompt set to `request_prompt` setting
+- [ ] Verify after clicking `send request`, pending dialogue renders
+- [ ] Verify after `tctl requests approve <request-id>`, dashboard is rendered
+- [ ] Verify the correct role was assigned
+
+#### Strategy Always
+With the previous role you created from `Strategy Reason`, change `request_access` to `always`:
+- [ ] Verify after login, pending dialogue is rendered
+- [ ] Verify after `tctl requests approve <request-id>`, dashboard is rendered
+- [ ] Verify after login, `tctl requests deny <request-id>`, access denied dialogue is rendered
+
+#### Strategy Optional
+With the previous role you created from `Strategy Reason`, change `request_access` to `optional`:
+- [ ] Verify after login, dashboard is rendered
+
+## Account
 - [ ] Verify that Account screen is accessibly from the user menu for local users.
 - [ ] Verify that changing a local password works (OTP, U2F)
 
-### Terminal
-- [ ] Verify that top nav has a user menu (Dashboard and Logout).
-- [ ] Verify that switching between tabs works on alt+[1...9].
+## Terminal
+- [ ] Verify that top nav has a user menu (Main and Logout)
+- [ ] Verify that switching between tabs works on alt+[1...9]
 
 #### Node List Tab
 - [ ] Verify that Cluster selector works (URL should change too)
-- [ ] Verify that Quick access input works. It
-- [ ] Verify that Quick access input handles input errors.
-- [ ] Verify that "Connect" button shows a list of available logins.
-- [ ] Verify that "Hostname", "Address" and "Labels" columns show the current values.
-- [ ] Verify that "Search" works.
-- [ ] Verify that new tab is created when starting a session.
+- [ ] Verify that Quick launcher input works
+- [ ] Verify that Quick launcher input handles input errors
+- [ ] Verify that "Connect" button shows a list of available logins
+- [ ] Verify that "Hostname", "Address" and "Labels" columns show the current values
+- [ ] Verify that "Search" by hostname, address, labels work
+- [ ] Verify that new tab is created when starting a session
 
 #### Session Tab
-- [ ] Verify that session and browser tabs both show the title with login and node name.
-- [ ] Verify that terminal resize works (use midnight commander (sudo apt-get install mc))
-- [ ] Verify that session tab shows a list of participants when a new user joins the session.
-- [ ] Verify that tab automatically closes on "$ exit" command.
-- [ ] Verify that SCP Upload works.
-- [ ] Verify that SCP Upload handles invalid paths and network errors.
-- [ ] Verify that SCP Download works.
-- [ ] Verify that SCP Download handles invalid paths and network errors.
+- [ ] Verify that session and browser tabs both show the title with login and node name
+- [ ] Verify that terminal resize works
+    - Install midnight commander on the node you ssh into: `$ sudo apt-get install mc`
+    - Run the program: `$ mc`
+    - Resize the terminal to see if panels resize with it
+- [ ] Verify that session tab shows/updates number of participants when a new user joins the session
+- [ ] Verify that tab automatically closes on "$ exit" command
+- [ ] Verify that SCP Upload works
+- [ ] Verify that SCP Upload handles invalid paths and network errors
+- [ ] Verify that SCP Download works
+- [ ] Verify that SCP Download handles invalid paths and network errors
 
-### Session Player
-- [ ] Verify that it can replay a session.
-- [ ] Verify that scrolling behavior.
-- [ ] Verify that error message is displayed (use invalid SID)
+## Session Player
+- [ ] Verify that it can replay a session
+- [ ] Verify that when playing, scroller auto scrolls to bottom most content
+- [ ] Verify when resizing player to a small screen, scroller appears and is working
+- [ ] Verify that error message is displayed (enter a invalid SID in the URL)
 
-### Invite Form
-- [ ] Verify that input validation.
-- [ ] Verify that invite works with 2FA disabled.
-- [ ] Verify that invite works with OTP enabled.
-- [ ] Verify that invite works with U2F enabled.
-- [ ] Verify that error message is shown if an invite is expired/invalid.
+## Invite Form
+- [ ] Verify that input validates
+- [ ] Verify that invite works with 2FA disabled
+- [ ] Verify that invite works with OTP enabled
+- [ ] Verify that invite works with U2F enabled
+- [ ] Verify that error message is shown if an invite is expired/invalid
 
-### Login Form
-- [ ] Verify that input validation.
-- [ ] Verify that login works with 2FA disabled.
-- [ ] Verify that login works with OTP enabled.
-- [ ] Verify that login works with U2F enabled.
-- [ ] Verify that login works for Github/SAML/OIDC.
-- [ ] Verify that account is locked after several unsuccessful attempts.
-- [ ] Verify that redirect to original URL works after successful login.
+## Login Form
+- [ ] Verify that input validates
+- [ ] Verify that login works with 2FA disabled
+- [ ] Verify that login works with OTP enabled
+- [ ] Verify that login works with U2F enabled
+- [ ] Verify that login works for Github/SAML/OIDC
+- [ ] Verify that account is locked after several unsuccessful attempts
+- [ ] Verify that redirect to original URL works after successful login
 
-### RBAC
- Create the following role
+## RBAC
+Create a role, with no `allow.rules` defined:
 ```
-  spec:
+kind: role
+metadata:
+  name: test
+spec:
   allow:
+    app_labels:
+      '*': '*'
     logins:
     - root
-    - '{{internal.logins}}'
     node_labels:
       '*': '*'
-  deny:
-    logins: null
+  deny: {}
   options:
     cert_format: standard
-    forward_agent: true
-    max_session_ttl: 30h0m0s
+    enhanced_recording:
+    - command
+    - network
+    forward_agent: false
+    max_session_ttl: 8h0m0s
     port_forwarding: true
+version: v3
 ```
-  - [ ] Verify that a user has access only to: "Cluster List", "Nodes", and "Active Sessions".
-  - [ ] Verify that a user is redirected to the login page.
-  - [ ] Verify that after successful login, a user is redirected to the Node List.
+- [ ] Verify that a user has access only to: "Servers", "Applications", "Active Sessions" and "Manage Clusters"
+- [ ] Verify there is no `Add Server` button in Server view
+- [ ] Verify there is no `Add Application` button in Applications view
+- [ ] Verify only `Nodes` and `Apps` are listed under `options` button in `Manage Clusters`
 
-
-Add the following resource to enable read access to the audit log
+Add the following resource under `spec.allow.rules` to enable read access to the audit log:
 ```
-  rules:
   - resources:
       - event
       verbs:
       - list
 ```
-- [ ] Verify that the audit log is accessible via UI.
-- [ ] Verify that access to recorded sessions is denied (by opening a session player).
-
+- [ ] Verify that the `Audit Log` and `Session Recordings` is accessible
+- [ ] Verify that playing a recorded sessions is denied
 
 Add the following resource to enable read access to recorded sessions
 ```
-  rules:
   - resources:
       - session
       verbs:
       - read
 ```
-- [ ] Verify that a user can re-play a session (session.end).
+- [ ] Verify that a user can re-play a session (session.end)
 
 Add the following resource to enable read access to the roles
 
@@ -387,7 +445,18 @@ Add the following resource to enable read access to the auth connectors
       - read
 ```
 - [ ] Verify that a user can see the list of auth connectors.
-- [ ] Verify that a user cannot create/delete/update the connectors.
+- [ ] Verify that a user cannot create/delete/update the connectors
+
+Add the following resource to enable read access to users
+```
+  - resources:
+      - user
+      verbs:
+      - list
+      - read
+```
+- [ ] Verify that a user can access the "Users" screen
+- [ ] Verify that a user cannot create/delete/update a user
 
 Add the following resource to enable read access to trusted clusters
 ```
@@ -395,10 +464,11 @@ Add the following resource to enable read access to trusted clusters
       - trusted_cluster
       verbs:
       - list
-      - create
+      - read
 ```
-- [ ] Verify that a user can see the list of trusted clusters.
+- [ ] Verify that a user can access the "Trust" screen
 - [ ] Verify that a user cannot create/delete/update a trusted cluster.
+
 
 
 ## Performance/Soak Test
