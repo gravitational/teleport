@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jonboulle/clockwork"
@@ -54,13 +55,12 @@ func (s *EtcdSuite) SetUpSuite(c *check.C) {
 
 	// this config must match examples/etcd/teleport.yaml
 	s.config = backend.Params{
-		"peers":                     []string{"https://127.0.0.1:2379"},
-		"prefix":                    "/teleport",
-		"tls_key_file":              "../../../examples/etcd/certs/client-key.pem",
-		"tls_cert_file":             "../../../examples/etcd/certs/client-cert.pem",
-		"tls_ca_file":               "../../../examples/etcd/certs/ca-cert.pem",
-		"dial_timeout":              500 * time.Millisecond,
-		"max_client_msg_size_bytes": test.EtcdMaxClientMsgSize,
+		"peers":         []string{"https://127.0.0.1:2379"},
+		"prefix":        "/teleport",
+		"tls_key_file":  "../../../examples/etcd/certs/client-key.pem",
+		"tls_cert_file": "../../../examples/etcd/certs/client-cert.pem",
+		"tls_ca_file":   "../../../examples/etcd/certs/ca-cert.pem",
+		"dial_timeout":  500 * time.Millisecond,
 	}
 
 	newBackend := func() (backend.Backend, error) {
@@ -119,11 +119,6 @@ func (s *EtcdSuite) TestDeleteRange(c *check.C) {
 
 func (s *EtcdSuite) TestCompareAndSwap(c *check.C) {
 	s.suite.CompareAndSwap(c)
-}
-
-// Issue: https://github.com/gravitational/teleport/issues/4786
-func (s *EtcdSuite) TestCompareAndSwapIssue4786(c *check.C) {
-	s.suite.CompareAndSwapIssue4786(c)
 }
 
 func (s *EtcdSuite) TestExpiration(c *check.C) {
@@ -371,4 +366,32 @@ func (s *EtcdSuite) TestSyncLegacyPrefix(c *check.C) {
 		backupPrefix + "/2":       "c2",
 	})
 	s.reset(c)
+}
+
+// CompareAndSwapIssue4786 ensures that the backend reacts with a proper
+// error message if client sends a message exceeding the configured size maximum
+// See https://github.com/gravitational/teleport/issues/4786
+func (s *EtcdSuite) TestCompareAndSwapOversizedValue(c *check.C) {
+	// setup
+	const maxClientMsgSize = 128
+	bk, err := New(context.Background(), backend.Params{
+		"peers":                     []string{"https://127.0.0.1:2379"},
+		"prefix":                    "/teleport",
+		"tls_key_file":              "../../../examples/etcd/certs/client-key.pem",
+		"tls_cert_file":             "../../../examples/etcd/certs/client-cert.pem",
+		"tls_ca_file":               "../../../examples/etcd/certs/ca-cert.pem",
+		"dial_timeout":              500 * time.Millisecond,
+		"max_client_msg_size_bytes": maxClientMsgSize,
+	})
+	c.Assert(err, check.IsNil)
+	prefix := test.MakePrefix()
+	// Explicitly exceed the message size
+	value := make([]byte, maxClientMsgSize+1)
+
+	// verify
+	_, err = bk.CompareAndSwap(context.TODO(),
+		backend.Item{Key: prefix("one"), Value: []byte("1")},
+		backend.Item{Key: prefix("one"), Value: value},
+	)
+	fixtures.ExpectLimitExceeded(c, err)
 }
