@@ -18,7 +18,6 @@ package auth
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -35,7 +34,6 @@ import (
 
 func TestUpsertServer(t *testing.T) {
 	t.Parallel()
-	ctx := context.TODO()
 	const remoteAddr = "request-remote-addr"
 
 	tests := []struct {
@@ -91,21 +89,6 @@ func TestUpsertServer(t *testing.T) {
 			assertErr: require.NoError,
 		},
 		{
-			desc: "kubernetes",
-			reqServer: &services.ServerV2{
-				Metadata: services.Metadata{Name: "test-server", Namespace: defaults.Namespace},
-				Version:  services.V2,
-				Kind:     services.KindKubeService,
-			},
-			role: teleport.RoleKube,
-			wantServer: &services.ServerV2{
-				Metadata: services.Metadata{Name: "test-server", Namespace: defaults.Namespace},
-				Version:  services.V2,
-				Kind:     services.KindKubeService,
-			},
-			assertErr: require.NoError,
-		},
-		{
 			desc: "unknown",
 			reqServer: &services.ServerV2{
 				Metadata: services.Metadata{Name: "test-server", Namespace: defaults.Namespace},
@@ -146,7 +129,6 @@ func TestUpsertServer(t *testing.T) {
 			addServers(s.GetAuthServers())
 			addServers(s.GetNodes(defaults.Namespace))
 			addServers(s.GetProxies())
-			addServers(s.GetKubeServices(ctx))
 			require.Empty(t, cmp.Diff(allServers, []services.Server{tt.wantServer}))
 		})
 	}

@@ -1018,6 +1018,9 @@ func (s *PresenceService) GetKubeServices(ctx context.Context) ([]services.Serve
 
 // DeleteKubeService deletes a named kubernetes service.
 func (s *PresenceService) DeleteKubeService(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("no name specified for kubernetes service deletion")
+	}
 	return trace.Wrap(s.Delete(ctx, backend.Key(kubeServicesPrefix, name)))
 }
 
