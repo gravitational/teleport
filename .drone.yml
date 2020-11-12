@@ -9,14 +9,12 @@ environment:
   GID: 1000
 
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    include:
+      - pull_request
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go
@@ -27,33 +25,54 @@ clone:
 steps:
   - name: Check out code
     image: docker:git
-    commands:
-      - mkdir -p /go/src/github.com/gravitational/teleport
-      - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $DRONE_COMMIT
-      - echo $DRONE_SOURCE_BRANCH > /go/.drone_source_branch.txt
-      # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init webassets || true
-      - mkdir -p /go/cache
-
-  - name: Check out Enterprise code
-    image: docker:git
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
     commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport /go/cache
       - cd /go/src/github.com/gravitational/teleport
-      # fetch enterprise submodules
-      - mkdir -m 0700 /root/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
-      - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-      - git submodule update --init e
+      - git init && git remote add origin ${DRONE_REMOTE_URL}
+      - |
+        # handle pull requests
+        if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
+          git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+          git checkout ${DRONE_COMMIT_BRANCH}
+          git fetch origin ${DRONE_COMMIT_REF}:
+          git merge ${DRONE_COMMIT}
+        # handle tags
+        elif [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
+          git fetch origin +refs/tags/${DRONE_TAG}:
+          git checkout -qf FETCH_HEAD
+        # handle pushes/other events
+        else
+          if [ "${DRONE_COMMIT_BRANCH}" = "" ]; then
+            git fetch origin
+            git checkout -qf ${DRONE_COMMIT_SHA}
+          else
+            git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+            git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
+          fi
+        fi
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init --recursive webassets || true
-      - rm -f /root/.ssh/id_rsa
-    when:
-      repo:
-        include: ["gravitational/*"]
+      - git submodule update --init webassets || true
+      # use the Github API to check whether this PR comes from a forked repo or not
+      # if it does, don't check out the Enterprise code
+      - |
+        if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
+          apk add --no-cache curl jq
+          export PR_REPO=$(curl -Ls https://api.github.com/repos/gravitational/teleport/pulls/${DRONE_PULL_REQUEST} | jq -r '.head.repo.full_name')
+          echo "---> Source repo for PR ${DRONE_PULL_REQUEST}: $${PR_REPO}"
+          # if the source repo for the PR matches DRONE_REPO, then this is not a PR raised from a fork
+          if [ "$${PR_REPO}" = "${DRONE_REPO}" ]; then
+            mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa
+            ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+            git submodule update --init e
+            # do a recursive submodule checkout to get both webassets and webassets/e
+            # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
+            git submodule update --init --recursive webassets || true
+            rm -f /root/.ssh/id_rsa
+          fi
+        fi
 
   - name: Build buildbox
     image: docker
@@ -100,58 +119,43 @@ steps:
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmp-integration
+        path: /tmp
     commands:
       - apk add --no-cache make
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - make -C build.assets integration
 
-  - name: Send Slack notification for build failures
-    image: plugins/slack
-    settings:
-      webhook:
-        from_secret: SLACK_WEBHOOK
-      channel: teleport-builds
-      template: |
-        {{#if build.pull }}
-          *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}*: <https://github.com/{{ repo.owner }}/{{ repo.name }}/pull/{{ build.pull }}|Pull Request #{{ build.pull }}>
-        {{else}}
-          *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        {{/if}}
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
-        Author: {{ build.author }}
-        <{{ build.link }}|Visit build page ↗>
-    when:
-      event: [push]
-      status: [failure]
-
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmp-dind
+        path: /tmp
 
 volumes:
   - name: dockersock
+    temp: {}
+  - name: tmp-dind
+    temp: {}
+  - name: tmp-integration
     temp: {}
 
 ---
 kind: pipeline
 type: kubernetes
-name: test-docs
+name: test-docs-internal
 
 trigger:
-  branch:
-    - master
-    - branch/*
   event:
-    exclude:
-      - cron
-      - promote
-      - rollback
+    include:
+      - pull_request
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go
@@ -165,33 +169,128 @@ steps:
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
-      - git clone https://github.com/gravitational/teleport.git .
-      - git checkout $DRONE_COMMIT
+      - git init && git remote add origin ${DRONE_REMOTE_URL}
+      - |
+        # handle pull requests
+        if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
+          git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+          git checkout ${DRONE_COMMIT_BRANCH}
+          git fetch origin ${DRONE_COMMIT_REF}:
+          git merge ${DRONE_COMMIT}
+        # handle tags
+        elif [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
+          git fetch origin +refs/tags/${DRONE_TAG}:
+          git checkout -qf FETCH_HEAD
+        # handle pushes/other events
+        else
+          if [ "${DRONE_COMMIT_BRANCH}" = "" ]; then
+            git fetch origin
+            git checkout -qf ${DRONE_COMMIT_SHA}
+          else
+            git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+            git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
+          fi
+        fi
 
-  - name: Run docs tests
+  - name: Run docs tests (internal links only)
     image: golang:1.13.2
     commands:
       - |
         cd /go/src/github.com/gravitational/teleport
-        git diff --raw ${DRONE_COMMIT}..${DRONE_TARGET_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
+        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
         if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
-          echo "Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
+          echo "---> Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
           # Check trailing whitespace
           make docs-test-whitespace
           # Check links
           for VERSION in $(cat /tmp/docs-versions-changed.txt); do
             if [ -f docs/$VERSION/milv.config.yaml ]; then
+              go get github.com/magicmatatjahu/milv
               cd docs/$VERSION
-              echo "Running milv on docs/$VERSION:"
-              go get -u github.com/magicmatatjahu/milv
-              milv
-              echo "------------------------------"
+              echo "---> Running milv on docs/$VERSION:"
+              milv -ignore-external
+              echo "------------------------------\n"
               cd -
             else
-              echo "No milv config found, skipping docs/$VERSION"
+              echo "---> No milv config found, skipping docs/$VERSION"
             fi
           done
-          else echo "No changes to docs detected, not running tests"
+          else echo "---> No changes to docs detected, not running tests"
+        fi
+
+---
+kind: pipeline
+type: kubernetes
+name: test-docs-external
+
+trigger:
+  event:
+    include:
+      - pull_request
+  repo:
+    include:
+      - gravitational/*
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Check out code
+    image: golang:1.13.2
+    commands:
+      - mkdir -p /go/src/github.com/gravitational/teleport
+      - cd /go/src/github.com/gravitational/teleport
+      - git init && git remote add origin ${DRONE_REMOTE_URL}
+      - |
+        # handle pull requests
+        if [ "${DRONE_BUILD_EVENT}" = "pull_request" ]; then
+          git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+          git checkout ${DRONE_COMMIT_BRANCH}
+          git fetch origin ${DRONE_COMMIT_REF}:
+          git merge ${DRONE_COMMIT}
+        # handle tags
+        elif [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
+          git fetch origin +refs/tags/${DRONE_TAG}:
+          git checkout -qf FETCH_HEAD
+        # handle pushes/other events
+        else
+          if [ "${DRONE_COMMIT_BRANCH}" = "" ]; then
+            git fetch origin
+            git checkout -qf ${DRONE_COMMIT_SHA}
+          else
+            git fetch origin +refs/heads/${DRONE_COMMIT_BRANCH}:
+            git checkout ${DRONE_COMMIT} -b ${DRONE_COMMIT_BRANCH}
+          fi
+        fi
+
+  - name: Run docs tests (external links only)
+    image: golang:1.13.2
+    failure: ignore
+    commands:
+      - |
+        cd /go/src/github.com/gravitational/teleport
+        git diff --raw ${DRONE_COMMIT}..origin/${DRONE_COMMIT_BRANCH:-master} | awk '{print $6}' | grep -E '^docs' | grep -v ^$ | cut -d/ -f2 | sort | uniq > /tmp/docs-versions-changed.txt
+        if [ $(stat --printf="%s" /tmp/docs-versions-changed.txt) -gt 0 ]; then
+          echo "---> Changes to docs detected, versions $(cat /tmp/docs-versions-changed.txt | tr '\n' ' ')"
+          # Check trailing whitespace
+          make docs-test-whitespace
+          # Check links
+          for VERSION in $(cat /tmp/docs-versions-changed.txt); do
+            if [ -f docs/$VERSION/milv.config.yaml ]; then
+              go get github.com/magicmatatjahu/milv
+              cd docs/$VERSION
+              echo "---> Running milv on docs/$VERSION:"
+              milv -ignore-internal
+              echo "------------------------------\n"
+              cd -
+            else
+              echo "---> No milv config found, skipping docs/$VERSION"
+            fi
+          done
+          else echo "---> No changes to docs detected, not running tests"
         fi
 
 ---
@@ -326,7 +425,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -402,9 +500,6 @@ trigger:
   repo:
     include:
       - gravitational/*
-
-depends_on:
-  - test
 
 workspace:
   path: /go
@@ -483,7 +578,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -509,9 +603,6 @@ trigger:
   repo:
     include:
       - gravitational/*
-
-depends_on:
-  - test
 
 workspace:
   path: /go
@@ -591,7 +682,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -617,9 +707,6 @@ trigger:
   repo:
     include:
       - gravitational/*
-
-depends_on:
-  - test
 
 workspace:
   path: /go
@@ -699,7 +786,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -725,9 +811,6 @@ trigger:
   repo:
     include:
       - gravitational/*
-
-depends_on:
-  - test
 
 workspace:
   path: /go
@@ -806,7 +889,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -919,7 +1001,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1033,7 +1114,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1146,7 +1226,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1261,7 +1340,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1287,9 +1365,6 @@ trigger:
   repo:
     include:
       - gravitational/*
-
-depends_on:
-  - test
 
 workspace:
   path: /go
@@ -1368,7 +1443,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1481,7 +1555,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1594,7 +1667,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -1624,9 +1696,6 @@ trigger:
   repo:
     include:
       - gravitational/*
-
-depends_on:
-  - test
 
 workspace:
   path: /tmp/build-darwin-amd64
@@ -1958,9 +2027,6 @@ trigger:
     include:
       - gravitational/*
 
-depends_on:
-  - test
-
 workspace:
   path: /dev/shm/tmp
 
@@ -2141,9 +2207,6 @@ trigger:
     include:
       - gravitational/*
 
-depends_on:
-  - test
-
 workspace:
   path: /go
 
@@ -2223,7 +2286,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -2249,9 +2311,6 @@ trigger:
   repo:
     include:
       - gravitational/*
-
-depends_on:
-  - test
 
 workspace:
   path: /go
@@ -2282,7 +2341,7 @@ steps:
       # set version
       - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
 
-  - name: Build OSS/Enterprise Docker images
+  - name: Build/push OSS/Enterprise Docker images
     image: docker
     environment:
       UID: 1000
@@ -2292,9 +2351,9 @@ steps:
       ARCH: amd64
     settings:
       username:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+        from_secret: QUAYIO_DOCKER_USERNAME
       password:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+        from_secret: QUAYIO_DOCKER_PASSWORD
     volumes:
       - name: dockersock
         path: /var/run
@@ -2304,12 +2363,9 @@ steps:
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       - docker pull quay.io/gravitational/teleport-buildbox:$RUNTIME || true
       - cd /go/src/github.com/gravitational/teleport
-      # TODO
-      # this should be changed to "make image publish" when we want to actually cut over
-      # to building public-facing Docker images using Drone
-      - make image
+      - make image-ci publish-ci
 
-  - name: Build FIPS Docker image
+  - name: Build/push FIPS Docker image
     image: docker
     environment:
       UID: 1000
@@ -2319,9 +2375,9 @@ steps:
       ARCH: amd64
     settings:
       username:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+        from_secret: QUAYIO_DOCKER_USERNAME
       password:
-        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+        from_secret: QUAYIO_DOCKER_PASSWORD
     volumes:
       - name: dockersock
         path: /var/run
@@ -2335,15 +2391,11 @@ steps:
       # Normally, the version is set and exported by the root Makefile and then inherited,
       # but this is not the case for FIPS builds (which only run in e/Makefile)
       - export VERSION=$(cat /go/.version.txt)
-      # TODO
-      # this should be changed to "make -C e image-fips publish-fips" when we want to
-      # actually cut over to building public-facing Docker images using Drone
-      - make -C e image-fips
+      - make -C e image-fips-ci publish-fips-ci
 
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -2368,7 +2420,6 @@ trigger:
       - gravitational/*
 
 depends_on:
-  - test
   - build-linux-amd64
 
 workspace:
@@ -2421,19 +2472,31 @@ steps:
       - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-oss-$TELEPORT_VERSION
       - |
         if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
-          echo "Building production OSS AMIs"
+          echo "---> Building production OSS AMIs"
+          echo "---> Note: these AMIs will not be made public until the 'promote' step is run"
           make oss-ci-build
-          echo "Making OSS AMIs public"
-          make change-amis-to-public-oss
         else
-          echo "Building debug OSS AMIs"
+          echo "---> Building debug OSS AMIs"
           make oss
         fi
+
+  - name: Sync OSS build timestamp to S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - aws s3 cp /go/src/github.com/gravitational/teleport/assets/aws/files/build/oss_build_timestamp.txt s3://$AWS_S3_BUCKET/teleport/ami/$${VERSION}/
 
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -2458,7 +2521,6 @@ trigger:
       - gravitational/*
 
 depends_on:
-  - test
   - build-linux-amd64
   - build-linux-amd64-fips
 
@@ -2510,25 +2572,35 @@ steps:
       - cd /go/src/github.com/gravitational/teleport/assets/aws
       - export TELEPORT_VERSION=$(cat /go/.version.txt)
       - export PUBLIC_AMI_NAME=gravitational-teleport-ami-ent-$TELEPORT_VERSION
-      - export FIPS_AMI_NAME=gravitational-teleport-ami-ent-$TELEPORT_VERSION-fips
       - export MARKETPLACE_AMI_NAME=gravitational-teleport-marketplace-ami-ent-$TELEPORT_VERSION
+      - export FIPS_AMI_NAME=gravitational-teleport-ami-ent-$TELEPORT_VERSION-fips
       - |
         if [ "${DRONE_BUILD_EVENT}" = "tag" ]; then
-          echo "Building production Enterprise AMIs"
+          echo "---> Building production Enterprise AMIs"
+          echo "---> Note: these AMIs will not be made public until the 'promote' step is run"
           make ent-ci-build
-          echo "Making Enterprise AMIs public"
-          make change-amis-to-public-ent
-          echo "Making Enterprise FIPS AMIs public"
-          make change-amis-to-public-ent-fips
         else
-          echo "Building debug Enterprise AMIs"
+          echo "---> Building debug Enterprise AMIs"
           make ent
         fi
+
+  - name: Sync Enterprise build timestamp to S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - aws s3 cp /go/src/github.com/gravitational/teleport/assets/aws/files/build/ent_build_timestamp.txt s3://$AWS_S3_BUCKET/teleport/ami/$${VERSION}/
 
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -2647,7 +2719,6 @@ steps:
 services:
   - name: Start Docker
     image: docker:dind
-    privileged: true
     volumes:
       - name: dockersock
         path: /var/run
@@ -2659,7 +2730,7 @@ volumes:
 ---
 kind: pipeline
 type: kubernetes
-name: promote-artifacts
+name: promote-build
 
 trigger:
   event:
@@ -2671,13 +2742,13 @@ trigger:
       - gravitational/*
 
 workspace:
-  path: /go/src/github.com/gravitational/teleport
+  path: /go
 
 clone:
   disable: true
 
 steps:
-  - name: Download artifacts from S3 artifact publishing bucket
+  - name: Download artifacts from S3
     image: amazon/aws-cli
     environment:
       AWS_S3_BUCKET:
@@ -2688,9 +2759,10 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       AWS_REGION: us-west-2
     commands:
-      - aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/ .
+      - mkdir -p /go/artifacts
+      - aws s3 sync s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/ /go/artifacts/
 
-  - name: Upload artifacts to production S3 bucket with public read access
+  - name: Upload artifacts to production S3
     image: plugins/s3
     settings:
       bucket:
@@ -2701,12 +2773,101 @@ steps:
         from_secret: PRODUCTION_AWS_SECRET_ACCESS_KEY
       region: us-east-1
       acl: public-read
-      source: /go/src/github.com/gravitational/teleport/*
+      source: /go/artifacts/*
       target: teleport/${DRONE_TAG##v}/
-      strip_prefix: /go/src/github.com/gravitational/teleport/
+      strip_prefix: /go/artifacts/
+
+  - name: Pull/retag Docker images
+    image: docker
+    settings:
+      docker_staging_username:
+        from_secret: QUAYIO_DOCKER_USERNAME
+      docker_staging_password:
+        from_secret: QUAYIO_DOCKER_PASSWORD
+      docker_production_username:
+        from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      docker_production_password:
+        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      # wait for docker to start
+      - sleep 3
+      - export VERSION=${DRONE_TAG##v}
+      # authenticate with staging credentials
+      - docker login -u="$PLUGIN_DOCKER_STAGING_USERNAME" -p="$PLUGIN_DOCKER_STAGING_PASSWORD" quay.io
+      # pull 'temporary' CI-built images
+      - echo "---> Pulling images for $${VERSION}"
+      - docker pull quay.io/gravitational/teleport-ci:$${VERSION}
+      - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}
+      - docker pull quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips
+      # retag images to production naming
+      - echo "---> Tagging images for $${VERSION}"
+      - docker tag quay.io/gravitational/teleport-ci:$${VERSION} quay.io/gravitational/teleport:$${VERSION}
+      - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION} quay.io/gravitational/teleport-ent:$${VERSION}
+      - docker tag quay.io/gravitational/teleport-ent-ci:$${VERSION}-fips quay.io/gravitational/teleport-ent:$${VERSION}-fips
+      # reauthenticate with production credentials
+      - docker logout quay.io
+      - docker login -u="$PLUGIN_DOCKER_PRODUCTION_USERNAME" -p="$PLUGIN_DOCKER_PRODUCTION_PASSWORD" quay.io
+      # push production images
+      - echo "---> Pushing images for $${VERSION}"
+      - docker push quay.io/gravitational/teleport:$${VERSION}
+      - docker push quay.io/gravitational/teleport-ent:$${VERSION}
+      - docker push quay.io/gravitational/teleport-ent:$${VERSION}-fips
+
+  - name: Check out code
+    image: docker:git
+    commands:
+      - |
+        mkdir -p /go/src/github.com/gravitational/teleport
+        cd /go/src/github.com/gravitational/teleport
+        git init && git remote add origin ${DRONE_REMOTE_URL}
+        git fetch origin +refs/tags/${DRONE_TAG}:
+        git checkout -qf FETCH_HEAD
+
+  - name: Download AMI timestamps
+    image: docker
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+    commands:
+      - apk add --no-cache aws-cli
+      - mkdir -p /go/src/github.com/gravitational/teleport/assets/aws/files/build
+      - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ami/${DRONE_TAG##v}/ /go/src/github.com/gravitational/teleport/assets/aws/files/build
+
+  - name: Make AMIs public
+    image: docker
+    environment:
+      AWS_ACCESS_KEY_ID:
+        from_secret: PRODUCTION_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: PRODUCTION_AWS_SECRET_ACCESS_KEY
+    commands:
+      - apk add --no-cache aws-cli bash jq make
+      - cd /go/src/github.com/gravitational/teleport/assets/aws
+      - |
+        make change-amis-to-public-oss
+        make change-amis-to-public-ent
+        make change-amis-to-public-ent-fips
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+
+volumes:
+  - name: dockersock
+    temp: {}
 
 ---
 kind: signature
-hmac: e26e19d60a2df7a633ef7d5a2fb0def5624d38017bb7daf52db666e816533088
+hmac: e0d8123f63994cbed8f92008fd84661c3fd643975189c8289a537e7ad73650fb
 
 ...
