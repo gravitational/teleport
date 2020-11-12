@@ -33,7 +33,7 @@ See the [High Availability](./HIGHAVAILABILITY.md)(HA) instructions for configur
 ## Prerequisites
 
 - Helm v3
-- Kubernetes 1.10+
+- Kubernetes 1.13+
 - Teleport license for Enterprise deployments
 - TLS Certificates or optionally use self-signed certificates
 

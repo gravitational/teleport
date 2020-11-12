@@ -28,7 +28,7 @@ There are comments in the file describing what the values need to be set to.
 ## Prerequisites
 
 - Helm v3
-- Kubernetes 1.10+
+- Kubernetes 1.13+
 - A Teleport license file stored as a Kubernetes Secret object - see below
 
 ### Prepare the license file
