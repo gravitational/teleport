@@ -72,8 +72,8 @@ export default function UserList({
 
   return (
     <>
-      <Flex mb={4}>
-        <InputSearch height="30px" mr="3" onChange={onSearchChange} />
+      <Flex flex="0 0 auto" mb={4}>
+        <InputSearch onChange={onSearchChange} />
       </Flex>
       <StyledTable {...tableProps}>
         <Column

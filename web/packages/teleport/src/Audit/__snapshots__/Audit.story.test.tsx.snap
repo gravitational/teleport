@@ -156,6 +156,7 @@ exports[`loaded 1`] = `
 .c6 {
   box-sizing: border-box;
   margin-bottom: 24px;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -377,7 +378,6 @@ exports[`loaded 1`] = `
   padding-left: 16px;
   padding-right: 16px;
   color: rgba(255,255,255,0.87);
-  height: 30px;
 }
 
 .c7:hover {
@@ -413,7 +413,7 @@ exports[`loaded 1`] = `
       width="auto"
     >
       <span>
-        Today
+        7 days
         <span
           class="c4 c5 icon icon-caret-down "
           color="text.primary"
@@ -428,7 +428,6 @@ exports[`loaded 1`] = `
     <input
       class="c7"
       color="text.primary"
-      height="30px"
       placeholder="SEARCH..."
       value=""
     />
@@ -526,12 +525,12 @@ exports[`loaded 1`] = `
           <td
             style="word-break: break-word;"
           >
-            User [alex] made a request to kubernetes cluster [clusterOne]
+            User [alex] made a request to kubernetes cluster [gke_teleport-a]
           </td>
           <td
             style="min-width: 120px;"
           >
-            2020-10-30 17:28:14
+            2020-11-12 20:35:44
           </td>
           <td
             align="right"
@@ -1919,6 +1918,7 @@ exports[`overflow 1`] = `
 .c6 {
   box-sizing: border-box;
   margin-bottom: 24px;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -2103,7 +2103,6 @@ exports[`overflow 1`] = `
   padding-left: 16px;
   padding-right: 16px;
   color: rgba(255,255,255,0.87);
-  height: 30px;
 }
 
 .c7:hover {
@@ -2139,7 +2138,7 @@ exports[`overflow 1`] = `
       width="auto"
     >
       <span>
-        Today
+        7 days
         <span
           class="c4 c5 icon icon-caret-down "
           color="text.primary"
@@ -2154,7 +2153,6 @@ exports[`overflow 1`] = `
     <input
       class="c7"
       color="text.primary"
-      height="30px"
       placeholder="SEARCH..."
       value=""
     />

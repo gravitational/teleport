@@ -22,7 +22,7 @@ import Ctx from 'teleport/teleportContext';
 export default function useEvents(ctx: Ctx, clusterId: string) {
   const rangeOptions = useMemo(() => getRangeOptions(), []);
   const [searchValue, setSearchValue] = React.useState('');
-  const [range, setRange] = useState(rangeOptions[0]);
+  const [range, setRange] = useState(rangeOptions[1]);
   const [attempt, attemptActions] = useAttempt({ isProcessing: true });
   const [results, setResults] = useState({
     events: [],

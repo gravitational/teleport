@@ -70,6 +70,7 @@ exports[`failed 1`] = `
 .c4 {
   box-sizing: border-box;
   margin-bottom: 24px;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -187,7 +188,6 @@ exports[`failed 1`] = `
   padding-left: 16px;
   padding-right: 16px;
   color: rgba(255,255,255,0.87);
-  height: 30px;
 }
 
 .c5:hover {
@@ -231,7 +231,6 @@ exports[`failed 1`] = `
     <input
       class="c5"
       color="text.primary"
-      height="30px"
       placeholder="SEARCH..."
       value=""
     />
@@ -408,6 +407,7 @@ exports[`loaded 1`] = `
 .c4 {
   box-sizing: border-box;
   margin-bottom: 24px;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -525,7 +525,6 @@ exports[`loaded 1`] = `
   padding-left: 16px;
   padding-right: 16px;
   color: rgba(255,255,255,0.87);
-  height: 30px;
 }
 
 .c5:hover {
@@ -697,7 +696,6 @@ exports[`loaded 1`] = `
     <input
       class="c5"
       color="text.primary"
-      height="30px"
       placeholder="SEARCH..."
       value=""
     />

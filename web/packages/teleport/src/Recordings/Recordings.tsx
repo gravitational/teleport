@@ -63,8 +63,8 @@ export function Recordings(props: ReturnType<typeof useAuditEvents>) {
           onChange={setRange}
         />
       </FeatureHeader>
-      <Flex mb={4} alignItems="center" justifyContent="flex-start">
-        <InputSearch height="30px" mr="3" onChange={setSearchValue} />
+      <Flex mb={4} alignItems="center" flex="0 0 auto" justifyContent="flex-start">
+        <InputSearch  mr="3" onChange={setSearchValue} />
       </Flex>
       {overflow && (
         <Danger>

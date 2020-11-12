@@ -72,8 +72,8 @@ export function Nodes(props: State) {
           onClick={showAddNode}
         />
       </FeatureHeader>
-      <Flex mb={4} alignItems="center" justifyContent="space-between">
-        <InputSearch height="30px" mr="3" onChange={setSearchValue} />
+      <Flex mb={4} alignItems="center" flex="0 0 auto" justifyContent="space-between">
+        <InputSearch mr="3" onChange={setSearchValue} />
         <QuickLaunch width="280px" onPress={onSshEnter} />
       </Flex>
       {attempt.isFailed && <Danger>{attempt.message} </Danger>}

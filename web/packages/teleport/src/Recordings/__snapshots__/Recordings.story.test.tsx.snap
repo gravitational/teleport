@@ -143,6 +143,7 @@ exports[`rendering of Session Recordings 1`] = `
 .c6 {
   box-sizing: border-box;
   margin-bottom: 24px;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -327,7 +328,6 @@ exports[`rendering of Session Recordings 1`] = `
   padding-left: 16px;
   padding-right: 16px;
   color: rgba(255,255,255,0.87);
-  height: 30px;
 }
 
 .c7:hover {
@@ -363,7 +363,7 @@ exports[`rendering of Session Recordings 1`] = `
       width="auto"
     >
       <span>
-        Today
+        7 days
         <span
           class="c4 c5 icon icon-caret-down "
           color="text.primary"
@@ -378,7 +378,6 @@ exports[`rendering of Session Recordings 1`] = `
     <input
       class="c7"
       color="text.primary"
-      height="30px"
       placeholder="SEARCH..."
       value=""
     />
@@ -705,6 +704,7 @@ exports[`rendering of Session Recordings 2`] = `
 .c6 {
   box-sizing: border-box;
   margin-bottom: 24px;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -889,7 +889,6 @@ exports[`rendering of Session Recordings 2`] = `
   padding-left: 16px;
   padding-right: 16px;
   color: rgba(255,255,255,0.87);
-  height: 30px;
 }
 
 .c7:hover {
@@ -926,7 +925,7 @@ exports[`rendering of Session Recordings 2`] = `
         width="auto"
       >
         <span>
-          Today
+          7 days
           <span
             class="c4 c5 icon icon-caret-down "
             color="text.primary"
@@ -941,7 +940,6 @@ exports[`rendering of Session Recordings 2`] = `
       <input
         class="c7"
         color="text.primary"
-        height="30px"
         placeholder="SEARCH..."
         value=""
       />

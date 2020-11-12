@@ -54,8 +54,8 @@ export default function ResourceEditor(props) {
 
   return (
     <Dialog open={true} dialogCss={dialogCss} onClose={onClose}>
-      <Flex flex="1" m={-5}>
-        <Flex flex="1" height="100%" p="5" flexDirection="column">
+      <Flex flex="1">
+        <Flex flex="1" m={5} flexDirection="column">
           <DialogHeader>
             <DialogTitle typography="body1" bold>
               {title}
@@ -90,7 +90,7 @@ export default function ResourceEditor(props) {
             justifyContent="space-between"
             height="100%"
             width="300px"
-            p="5"
+            p={5}
             bg="primary.light"
           >
             <Box>
@@ -134,6 +134,7 @@ const dialogCss = () => `
   height: 80%;
   width: calc(100% - 20%);
   max-width: 1400px;
+  padding: 0;
 `;
 
 function useEditor(initial) {

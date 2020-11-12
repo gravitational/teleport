@@ -148,6 +148,7 @@ exports[`success state 1`] = `
 .c4 {
   box-sizing: border-box;
   margin-bottom: 24px;
+  flex: 0 0 auto;
   display: flex;
 }
 
@@ -325,11 +326,9 @@ exports[`success state 1`] = `
   height: 32px;
   transition: all .2s;
   background: #222C59;
-  margin-right: 16px;
   padding-left: 16px;
   padding-right: 16px;
   color: rgba(255,255,255,0.87);
-  height: 30px;
 }
 
 .c5:hover {
@@ -378,7 +377,6 @@ exports[`success state 1`] = `
       <input
         class="c5"
         color="text.primary"
-        height="30px"
         placeholder="SEARCH..."
         value=""
       />
