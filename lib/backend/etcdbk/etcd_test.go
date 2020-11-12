@@ -27,9 +27,9 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/jonboulle/clockwork"
 	"go.etcd.io/etcd/clientv3"
-
 	"gopkg.in/check.v1"
 )
 
@@ -54,12 +54,13 @@ func (s *EtcdSuite) SetUpSuite(c *check.C) {
 
 	// this config must match examples/etcd/teleport.yaml
 	s.config = backend.Params{
-		"peers":         []string{"https://127.0.0.1:2379"},
-		"prefix":        "/teleport",
-		"tls_key_file":  "../../../examples/etcd/certs/client-key.pem",
-		"tls_cert_file": "../../../examples/etcd/certs/client-cert.pem",
-		"tls_ca_file":   "../../../examples/etcd/certs/ca-cert.pem",
-		"dial_timeout":  500 * time.Millisecond,
+		"peers":                     []string{"https://127.0.0.1:2379"},
+		"prefix":                    "/teleport",
+		"tls_key_file":              "../../../examples/etcd/certs/client-key.pem",
+		"tls_cert_file":             "../../../examples/etcd/certs/client-cert.pem",
+		"tls_ca_file":               "../../../examples/etcd/certs/ca-cert.pem",
+		"dial_timeout":              500 * time.Millisecond,
+		"max_client_msg_size_bytes": test.EtcdMaxClientMsgSize,
 	}
 
 	newBackend := func() (backend.Backend, error) {
@@ -118,6 +119,11 @@ func (s *EtcdSuite) TestDeleteRange(c *check.C) {
 
 func (s *EtcdSuite) TestCompareAndSwap(c *check.C) {
 	s.suite.CompareAndSwap(c)
+}
+
+// Issue: https://github.com/gravitational/teleport/issues/4786
+func (s *EtcdSuite) TestCompareAndSwapIssue4786(c *check.C) {
+	s.suite.CompareAndSwapIssue4786(c)
 }
 
 func (s *EtcdSuite) TestExpiration(c *check.C) {

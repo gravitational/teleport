@@ -165,6 +165,9 @@ type Config struct {
 	// PasswordFile is an optional password file for HTTPS basic authentication,
 	// expects path to a file
 	PasswordFile string `json:"password_file,omitempty"`
+	// MaxClientMsgSizeBytes optionally specifies the size limit on client send message size.
+	// See https://github.com/etcd-io/etcd/blob/221f0cc107cb3497eeb20fb241e1bcafca2e9115/clientv3/config.go#L49
+	MaxClientMsgSizeBytes int `json:"max_client_msg_size_bytes,omitempty"`
 }
 
 // legacyDefaultPrefix was used instead of Config.Key prior to 4.3. It's used
@@ -335,12 +338,13 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 	tlsConfig.ClientCAs = certPool
 
 	clt, err := clientv3.New(clientv3.Config{
-		Endpoints:   b.nodes,
-		TLS:         tlsConfig,
-		DialTimeout: b.cfg.DialTimeout,
-		DialOptions: []grpc.DialOption{grpc.WithBlock()},
-		Username:    b.cfg.Username,
-		Password:    b.cfg.Password,
+		Endpoints:          b.nodes,
+		TLS:                tlsConfig,
+		DialTimeout:        b.cfg.DialTimeout,
+		DialOptions:        []grpc.DialOption{grpc.WithBlock()},
+		Username:           b.cfg.Username,
+		Password:           b.cfg.Password,
+		MaxCallSendMsgSize: b.cfg.MaxClientMsgSizeBytes,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -513,6 +517,7 @@ func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 		if trace.IsNotFound(err) {
 			return nil, trace.CompareFailed(err.Error())
 		}
+		return nil, trace.Wrap(err)
 	}
 	if !re.Succeeded {
 		return nil, trace.CompareFailed("key %q did not match expected value", string(expected.Key))
@@ -826,6 +831,8 @@ func convertErr(err error) error {
 			return trace.AlreadyExists(err.Error())
 		case codes.FailedPrecondition:
 			return trace.CompareFailed(err.Error())
+		case codes.ResourceExhausted:
+			return trace.LimitExceeded(err.Error())
 		default:
 			return trace.BadParameter(err.Error())
 		}

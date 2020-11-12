@@ -101,9 +101,9 @@ func (s *BackendSuite) CRUD(c *check.C) {
 	c.Assert(string(out.Value), check.Equals, string(item.Value))
 
 	// put with binary key and value succeeds
-	key := make([]byte, 1024)
+	key := make([]byte, keySize)
 	rand.Read(key)
-	data := make([]byte, 1024)
+	data := make([]byte, valueSize)
 	rand.Read(data)
 	item = backend.Item{Key: prefix(string(key)), Value: data}
 	_, err = s.B.Put(ctx, item)
@@ -249,6 +249,21 @@ func (s *BackendSuite) PutRange(c *check.C) {
 		{Key: prefix("/prefix/b"), Value: []byte("val b")},
 	}
 	ExpectItems(c, result.Items, expected)
+}
+
+// CompareAndSwapIssue4786 ensures that the backend reacts with a proper
+// error message if client sends a message exceeding the configured size maximum
+func (s *BackendSuite) CompareAndSwapIssue4786(c *check.C) {
+	// setup
+	prefix := MakePrefix()
+	// Explicitly exceed the message size
+	var value [EtcdMaxClientMsgSize + 1]byte
+	// verify
+	_, err := s.B.CompareAndSwap(context.TODO(),
+		backend.Item{Key: prefix("one"), Value: []byte("1")},
+		backend.Item{Key: prefix("one"), Value: value[:]},
+	)
+	fixtures.ExpectLimitExceeded(c, err)
 }
 
 // CompareAndSwap tests compare and swap functionality
@@ -749,3 +764,13 @@ func ExpectItems(c *check.C, items, expected []backend.Item) {
 		c.Assert(string(items[i].Value), check.Equals, string(expected[i].Value))
 	}
 }
+
+const (
+	// Keep these values combined below the maximum client message size (EtcdMaxClientMsgSize)
+	keySize   = 1024
+	valueSize = 1024
+
+	// EtcdMaxClientMsgSize specifies the limit for the etcd client's
+	// message size.
+	EtcdMaxClientMsgSize = 4096
+)

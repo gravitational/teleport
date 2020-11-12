@@ -1458,6 +1458,16 @@ teleport:
      # NOT RECOMMENDED: enables insecure etcd mode in which self-signed
      # certificate will be accepted
      insecure: false
+
+     # Optionally sets the limit on the client message size.
+     # This is usually used to increase the default which is 2MiB
+     # (1.5MiB server's default + gRPC overhead bytes).
+     # Make sure this does not exceed the value for the etcd
+     # server specified with `--max-request-bytes` (1.5MiB by default).
+     # Keep the two values in sync.
+     #
+     # See https://etcd.io/docs/v3.4.0/dev-guide/limit/ for details
+     max_client_msg_size_bytes: 15728640 # 15MiB
 ```
 
 ### Using Amazon S3
