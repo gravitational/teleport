@@ -1,7 +1,7 @@
 image:
   repository: quay.io/gravitational/teleport-ent
   # This tag reflects the version of Teleport to deploy
-  tag: 4.4.0
+  tag: 4.4
   pullPolicy: IfNotPresent
   # Optionally specify an array of imagePullSecrets.
   # Secrets must be manually created in the namespace.
@@ -24,8 +24,8 @@ config:
     enabled: yes
     license_file: /var/lib/license/license-enterprise.pem
     # This will be the name that appears in the root cluster for management, so
-    # it should be descriptive and contain the name of the customer.
-    cluster_name: add-customer-name-here
+    # it should be descriptive.
+    cluster_name: add-leaf-cluster-name-here
 
   ssh_service:
     enabled: yes
