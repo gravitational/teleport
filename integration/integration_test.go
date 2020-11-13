@@ -137,6 +137,7 @@ func (s *IntSuite) TearDownSuite(c *check.C) {
 }
 
 func (s *IntSuite) SetUpTest(c *check.C) {
+	// TODO(dmitri): remove this making sure that profile data is in temporary directory
 	os.RemoveAll(client.FullProfilePath(""))
 }
 

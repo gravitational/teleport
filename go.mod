@@ -16,6 +16,7 @@ require (
 	github.com/aws/aws-sdk-go v1.35.19
 	github.com/beevik/etree v1.1.0
 	github.com/boombuler/barcode v0.0.0-20161226211916-fe0f26ff6d26 // indirect
+	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cjbassi/drawille-go v0.1.0 // indirect
 	github.com/coreos/go-oidc v0.0.3
 	github.com/coreos/go-semver v0.3.0

@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/cenkalti/backoff"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
@@ -926,8 +927,8 @@ func migrateRemoteClusters(asrv *Server) error {
 			log.Debugf("Migrations: skipping local cluster cert authority %q.", certAuthority.GetName())
 			continue
 		}
+		err = checkRemoteClusterExists(asrv, certAuthority.GetName())
 		// remote cluster already exists
-		_, err = asrv.GetRemoteCluster(certAuthority.GetName())
 		if err == nil {
 			log.Debugf("Migrations: remote cluster already exists for cert authority %q.", certAuthority.GetName())
 			continue
@@ -958,6 +959,23 @@ func migrateRemoteClusters(asrv *Server) error {
 	}
 
 	return nil
+}
+
+func checkRemoteClusterExists(asrv *Server, certAuthority string) error {
+	b := backoff.NewExponentialBackOff()
+	b.MaxInterval = 5 * time.Second
+	b.MaxElapsedTime = 1 * time.Minute
+	err := backoff.Retry(func() error {
+		_, err := asrv.GetRemoteCluster(certAuthority)
+		if err != nil {
+			if trace.IsConnectionProblem(err) || trace.IsCompareFailed(err) {
+				return trace.Wrap(err)
+			}
+			return &backoff.PermanentError{Err: err}
+		}
+		return nil
+	}, b)
+	return trace.Wrap(err)
 }
 
 // DELETE IN: 4.3.0.

@@ -120,6 +120,9 @@ github.com/beorn7/perks/quantile
 github.com/boombuler/barcode
 github.com/boombuler/barcode/qr
 github.com/boombuler/barcode/utils
+# github.com/cenkalti/backoff v2.2.1+incompatible
+## explicit
+github.com/cenkalti/backoff
 # github.com/cjbassi/drawille-go v0.1.0
 ## explicit
 github.com/cjbassi/drawille-go

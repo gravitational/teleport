@@ -146,7 +146,7 @@ clean:
 # Runs tests inside a build container
 #
 .PHONY: test
-test: FLAGS ?= -v -cover -race -count=25 -timeout=1h
+test: FLAGS ?= -cover -race -count=5 -timeout=1h
 test: buildbox
 	docker run \
 		--env TELEPORT_ETCD_TEST="yes" \

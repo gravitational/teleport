@@ -498,7 +498,6 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// i.tempDirs = append(i.tempDirs, dataDir)
 
 	if tconf == nil {
 		tconf = service.MakeDefaultConfig()
@@ -684,7 +683,6 @@ func (i *TeleInstance) startNode(tconf *service.Config, reverseTunnel bool) (*se
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// i.tempDirs = append(i.tempDirs, dataDir)
 
 	tconf.DataDir = dataDir
 
@@ -741,11 +739,10 @@ func (i *TeleInstance) startNode(tconf *service.Config, reverseTunnel bool) (*se
 }
 
 func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess, error) {
-	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
+	dataDir, err := ioutil.TempDir(i.DataDir, "cluster-"+i.Secrets.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	i.tempDirs = append(i.tempDirs, dataDir)
 
 	conf.DataDir = dataDir
 	conf.AuthServers = []utils.NetAddr{
@@ -852,7 +849,6 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// i.tempDirs = append(i.tempDirs, dataDir)
 
 	tconf := service.MakeDefaultConfig()
 
@@ -935,7 +931,6 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// i.tempDirs = append(i.tempDirs, dataDir)
 
 	tconf := service.MakeDefaultConfig()
 	tconf.Console = nil
@@ -1289,11 +1284,6 @@ func (i *TeleInstance) StopAll() error {
 	errors = append(errors, i.StopNodes())
 	errors = append(errors, i.StopProxy())
 	errors = append(errors, i.StopAuth(true))
-
-	// Remove temporary data directories that were created.
-	//for _, dir := range i.tempDirs {
-	//	errors = append(errors, os.RemoveAll(dir))
-	//}
 
 	i.log.Info("Stopped all teleport services.")
 	return trace.NewAggregate(errors...)
