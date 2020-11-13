@@ -2,7 +2,7 @@
 
 Teleport is currently beta testing an application access proxy. Teleport Application Access has been designed to secure internal web applications, letting you provide secure access while improving both visibility and control for access.
 
-Here are a few things you might want to secure with Teleport Application Access
+Here are a few things you might want to secure with Teleport Application Access:
 
 - Internal Control Panels
 - Wikis / Tooling that's only available on the VPN.
@@ -11,19 +11,19 @@ Here are a few things you might want to secure with Teleport Application Access
 
 **Example Teleport Application Usage**
 
-This diagram shows Teleport Deployed into the AWS, Teleport Application Access is now providing access Jenkins and an internal dashboard. Another Teleport Application Service is running in another Data Center and dials back to the Teleport Cluster. This enables users to access that other dashboard.
+This diagram shows Teleport deployed into an AWS VPC. Teleport Application Access is now providing access to Jenkins and an internal dashboard. Another Teleport Application Service is running in another datacenter and dials back to the Teleport cluster. This enables users to access that other dashboard.
 ![Example App Access Usage](/img/aap.svg)
 
-_Want to see a demo of AAP in action. [Click here](#view-applications-in-teleport)_
+_Want to see a demo of AAP in action? [Click here](#view-applications-in-teleport)_
 ## Teleport Setup
 
-Teleport Application Access requires two processes to be ran. One is the dedicated Teleport Bastion host and the other App Service will proxy the applications. The App service can be ran on the host of the app or it can be put in front of it.
+Teleport Application Access requires two processes to be run. One is the dedicated Teleport bastion host (auth/proxy service) and the other App service will proxy the applications. The App service can be run on the host of the app, or it can be put in front of it.
 
 ### Install Teleport
 
 !!! danger
 
-    This is currently a very early alpha build of Teleport 5.0. s**DO NOT USE FOR PRODUCTION**
+    This is currently a very early alpha build of Teleport 5.0. **DO NOT USE FOR PRODUCTION**
 
 Download Teleport Community Version
 
@@ -65,9 +65,9 @@ Follow our standard [installation procedure](https://gravitational.com/teleport/
 | `auth_token` | Static Join Token |
 | `public_addr` | Public URL and Port for Teleport |
 | `https_key_file` | LetsEncrypt Key File ( Wildcard Cert )  |
-| `https_cert_file` | LetsEncrypt Key File ( Wildcard Cert ) |
+| `https_cert_file` | LetsEncrypt Cert File ( Wildcard Cert ) |
 
-`teleport.yaml` is a configuration file used by Teleport. For this first example Teleport has been setup using local storage. After this service is running we'll connect back the Teleport Application Access Service.
+`teleport.yaml` is a configuration file used by Teleport. For this first example, Teleport has been set up using local storage. After this service is running, we'll connect back the Teleport Application Access service.
 
 ```yaml
 teleport:
@@ -159,7 +159,7 @@ app_service:
    # Note: Name can't include any spaces
    - name: "hackernews"
      uri: "https://news.ycombinator.com"
-     public_addr: "hn.asteroid.earth
+     public_addr: "hn.asteroid.earth"
 ```
 
 #### Start Teleport
@@ -170,8 +170,8 @@ $ teleport start -d --config=/etc/teleport.yaml
 
 #### Update DNS
 
-In the above config example, I've a range of Applications with `public_addr`, these need to be
-setup with DNS using an `A, CNAME or AAAA` record point to the IP of the Teleport Proxy Server.
+In the above config example, I've configured a range of applications with `public_addr`. Each of these needs
+to be set up in DNS using an `A`, `CNAME` or `AAAA` record pointing to the IP of the Teleport Proxy server.
 
 For the beta, we would recommend using a wildcard cert for TLS. You can also use an individual certificate on the Teleport Main process using the new `https_keypairs` option.
 
