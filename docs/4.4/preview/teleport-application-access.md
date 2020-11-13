@@ -67,13 +67,13 @@ Follow our standard [installation procedure](https://gravitational.com/teleport/
 | `https_key_file` | LetsEncrypt Key File ( Wildcard Cert )  |
 | `https_cert_file` | LetsEncrypt Cert File ( Wildcard Cert ) |
 
-`teleport.yaml` is a configuration file used by Teleport. For this first example, Teleport has been set up using local storage. After this service is running, we'll connect back the Teleport Application Access service.
+`teleport.yaml` is a configuration file used by Teleport. For this first example, Teleport has been set up using local storage. After this proxy service is running, we'll connect the Teleport Application Access service back to it.
 
 ```yaml
 teleport:
   nodename: i-083e63d0daecd1315
   data_dir: /var/lib/teleport
-  auth_token: 4c7e15
+  auth_token: Jl1u0rwar6bqzlg79ou0kYaWHErUqPsr
   auth_servers:
   - 127.0.0.1:3025
 auth_service:
@@ -103,7 +103,7 @@ $ teleport start -d --config=/etc/teleport.yaml
 
 #### [ Optional ] Obtain a new App Token
 
-In the above example we've hard coded a join token `4c7e15`. You can use this to join apps or create a dynamic token using the tctl command below.
+In the above example we've hard coded a join token `Jl1u0rwar6bqzlg79ou0kYaWHErUqPsr`. You can use this to join apps or create a dynamic token using the tctl command below.
 
 ```
 $ tctl tokens add --type=app
@@ -123,8 +123,8 @@ Teleport
 teleport:
   # nodename of machine running process.
   nodename: wellington
-  # The Auth token `tctl tokens add --type=app` or the static token. 4c7e15
-  auth_token: "4c7e15"
+  # The Auth token `tctl tokens add --type=app` or the static token configured above (Jl1u0rwar6bqzlg79ou0kYaWHErUqPsr)
+  auth_token: "Jl1u0rwar6bqzlg79ou0kYaWHErUqPsr"
   # This is the location of the Teleport Auth Server or Public Proxy
   auth_servers:
     - teleport.example.com:3080
@@ -134,7 +134,7 @@ proxy_service:
   enabled: no
 ssh_service:
    enabled: no
-# The app_service is new service. Used to access web applications.
+# The app_service is a new Teleport service used to access web applications.
 app_service:
    enabled: yes
    apps:
@@ -143,7 +143,7 @@ app_service:
      # this could be a loopback address
      uri: "http://10.0.1.27:8000"
      # This version requires a public_addr for all Apps, these
-     #  applications should have a certificate and DNS setup
+     # applications should have a certificate and DNS setup
      public_addr: "internal-dashboard.acme.com"
      # Optional Labels
      labels:
@@ -200,7 +200,7 @@ Your browser does not support the video tag.
 
 ## Product Feedback
 
-We really value early feedback for our products. [You can easily pick a time here to have a chat on your feedback.](https://calendly.com/c/AEBVTDEDCQ2Z2YSB?month=2020-10)
+We really value early feedback for our products. [You can easily pick a time here to have a chat on your feedback.](https://calendly.com/c/AEBVTDEDCQ2Z2YSB?month=2020-11)
 
 ### Found a bug?
 
