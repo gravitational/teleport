@@ -142,6 +142,7 @@ export const ListOfIcons = () => (
       text="SettingsInputComposite"
     />
     <IconBox IconCmpt={Icon.SettingsOverscan} text="SettingsOverscan" />
+    <IconBox IconCmpt={Icon.Share} text="Share" />
     <IconBox IconCmpt={Icon.Shart} text="Shart" />
     <IconBox IconCmpt={Icon.ShieldCheck} text="ShieldCheck" />
     <IconBox IconCmpt={Icon.Shrink} text="Shrink" />

@@ -24,8 +24,10 @@ export default function ActionBar({
   isUploadOpen,
   onOpenDownload,
   onOpenUpload,
-}) {
+  onOpenShareSession,
+}: Props) {
   const isScpDisabled = isDownloadOpen || isUploadOpen || !isConnected;
+
   return (
     <Flex flex="none" alignItems="center" height="24px">
       <ButtonIcon
@@ -44,6 +46,23 @@ export default function ActionBar({
       >
         <Icons.Upload fontSize="16px" />
       </ButtonIcon>
+      <ButtonIcon
+        disabled={!isConnected}
+        size={0}
+        title="Share Session"
+        onClick={onOpenShareSession}
+      >
+        <Icons.Share fontSize="13px" ml={1} />
+      </ButtonIcon>
     </Flex>
   );
 }
+
+type Props = {
+  isConnected: boolean;
+  isDownloadOpen: boolean;
+  isUploadOpen: boolean;
+  onOpenDownload: () => void;
+  onOpenUpload: () => void;
+  onOpenShareSession: () => void;
+};

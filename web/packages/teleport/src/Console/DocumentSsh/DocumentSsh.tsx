@@ -17,7 +17,7 @@ limitations under the License.
 import React, { useRef, useEffect } from 'react';
 import cfg from 'teleport/config';
 import * as Icons from 'design/Icon';
-import { Indicator, Text, Box, ButtonPrimary } from 'design';
+import { Indicator, Text, Box, ButtonPrimary, ButtonSecondary } from 'design';
 import * as Alerts from 'design/Alert';
 import * as stores from 'teleport/Console/stores';
 import FileTransfer, { useFileTransferDialogs } from './../FileTransfer';
@@ -25,11 +25,18 @@ import Terminal from './Terminal';
 import Document from '../Document';
 import useSshSession from './useSshSession';
 import ActionBar from './ActionBar';
+import ShareSession from './ShareSession';
 
 export default function DocumentSsh({ doc, visible }: PropTypes) {
   const refTerminal = useRef<Terminal>();
   const scpDialogs = useFileTransferDialogs();
-  const { tty, status, statusText } = useSshSession(doc);
+  const {
+    tty,
+    status,
+    statusText,
+    isShareSessionOpen,
+    toggleShareSession,
+  } = useSshSession(doc);
 
   function onCloseScpDialogs() {
     scpDialogs.close();
@@ -51,6 +58,7 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
         isUploadOpen={scpDialogs.isUploadOpen}
         onOpenDownload={scpDialogs.openDownload}
         onOpenUpload={scpDialogs.openUpload}
+        onOpenShareSession={toggleShareSession}
       />
       {status === 'loading' && (
         <Box textAlign="center" m={10}>
@@ -74,6 +82,9 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
         isUploadOpen={scpDialogs.isUploadOpen}
         onClose={onCloseScpDialogs}
       />
+      {isShareSessionOpen && (
+        <ShareSession closeShareSession={toggleShareSession} />
+      )}
     </Document>
   );
 }

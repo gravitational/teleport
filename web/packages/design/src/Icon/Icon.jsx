@@ -130,7 +130,10 @@ export const Edit = makeFontIcon('Edit', 'icon-pencil4');
 export const Ellipsis = makeFontIcon('Ellipsis', 'icon-ellipsis');
 export const EmailSolid = makeFontIcon('EmailSolid', 'icon-email-solid');
 export const Equalizer = makeFontIcon('Equalizer', 'icon-equalizer');
-export const EqualizerVertical = makeFontIcon('EqualizerVertical', 'icon-equalizer1');
+export const EqualizerVertical = makeFontIcon(
+  'EqualizerVertical',
+  'icon-equalizer1'
+);
 export const Expand = makeFontIcon('Expand', 'icon-frame-expand');
 export const Facebook = makeFontIcon('Facebook', 'icon-facebook');
 export const FacebookSquare = makeFontIcon('FacebookSquare', 'icon-facebook2');
@@ -205,6 +208,7 @@ export const SettingsOverscan = makeFontIcon(
   'SettingsOverscan',
   'icon-settings_overscan'
 );
+export const Share = makeFontIcon('Share', 'icon-share');
 export const Shart = makeFontIcon('Shart', 'icon-chart-bars');
 export const ShieldCheck = makeFontIcon('ShieldCheck', 'icon-shield-check');
 export const Shrink = makeFontIcon('Shrink', 'icon-shrink');
