@@ -74,3 +74,8 @@ func ClearSession(w http.ResponseWriter) {
 		Secure:   true,
 	})
 }
+
+const (
+	// CookieName is the name of the session cookie.
+	CookieName = "session"
+)

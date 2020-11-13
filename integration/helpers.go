@@ -101,6 +101,10 @@ type TeleInstance struct {
 
 	// UploadEventsC is a channel for upload events
 	UploadEventsC chan events.UploadEvent
+
+	// tempDirs is a list of temporary directories that were created that should
+	// be cleaned up after the test has successfully run.
+	tempDirs []string
 }
 
 type User struct {
@@ -481,6 +485,8 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	i.tempDirs = append(i.tempDirs, dataDir)
+
 	if tconf == nil {
 		tconf = service.MakeDefaultConfig()
 	}
@@ -496,7 +502,7 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 	tconf.Auth.StaticTokens, err = services.NewStaticTokens(services.StaticTokensSpecV2{
 		StaticTokens: []services.ProvisionTokenV1{
 			{
-				Roles: []teleport.Role{teleport.RoleNode, teleport.RoleProxy, teleport.RoleTrustedCluster},
+				Roles: []teleport.Role{teleport.RoleNode, teleport.RoleProxy, teleport.RoleTrustedCluster, teleport.RoleApp},
 				Token: "token",
 			},
 		},
@@ -658,6 +664,8 @@ func (i *TeleInstance) startNode(tconf *service.Config, reverseTunnel bool) (*se
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	i.tempDirs = append(i.tempDirs, dataDir)
+
 	tconf.DataDir = dataDir
 
 	authPort := i.GetPortAuth()
@@ -712,6 +720,50 @@ func (i *TeleInstance) startNode(tconf *service.Config, reverseTunnel bool) (*se
 	return process, nil
 }
 
+func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess, error) {
+	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	i.tempDirs = append(i.tempDirs, dataDir)
+
+	conf.DataDir = dataDir
+	conf.AuthServers = []utils.NetAddr{
+		{
+			AddrNetwork: "tcp",
+			Addr:        net.JoinHostPort(Loopback, i.GetPortWeb()),
+		},
+	}
+	conf.Token = "token"
+	conf.UploadEventsC = i.UploadEventsC
+	conf.Auth.Enabled = false
+	conf.Proxy.Enabled = false
+
+	// Create a new Teleport process and add it to the list of nodes that
+	// compose this "cluster".
+	process, err := service.NewTeleport(conf)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	i.Nodes = append(i.Nodes, process)
+
+	// Build a list of expected events to wait for before unblocking based off
+	// the configuration passed in.
+	expectedEvents := []string{
+		service.AppsReady,
+	}
+
+	// Start the process and block until the expected events have arrived.
+	receivedEvents, err := startAndWait(process, expectedEvents)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log.Debugf("Teleport Application Server (in instance %v) started: %v/%v events received.",
+		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+	return process, nil
+}
+
 // StartNodeAndProxy starts a SSH node and a Proxy Server and connects it to
 // the cluster.
 func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, proxySSHPort int) error {
@@ -719,6 +771,7 @@ func (i *TeleInstance) StartNodeAndProxy(name string, sshPort, proxyWebPort, pro
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	i.tempDirs = append(i.tempDirs, dataDir)
 
 	tconf := service.MakeDefaultConfig()
 
@@ -800,6 +853,7 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig) (reversetunnel.Server, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	i.tempDirs = append(i.tempDirs, dataDir)
 
 	tconf := service.MakeDefaultConfig()
 
@@ -933,6 +987,9 @@ func (i *TeleInstance) Start() error {
 	}
 	if i.Config.SSH.Enabled {
 		expectedEvents = append(expectedEvents, service.NodeSSHReady)
+	}
+	if i.Config.Apps.Enabled {
+		expectedEvents = append(expectedEvents, service.AppsReady)
 	}
 
 	// Start the process and block until the expected events have arrived.
@@ -1142,9 +1199,17 @@ func (i *TeleInstance) StopAuth(removeData bool) error {
 // should always be called at the end of TeleInstance's usage.
 func (i *TeleInstance) StopAll() error {
 	var errors []error
+
+	// Stop all processes within this instance.
 	errors = append(errors, i.StopNodes())
 	errors = append(errors, i.StopProxy())
 	errors = append(errors, i.StopAuth(true))
+
+	// Remove temporary data directories that were created.
+	for _, dir := range i.tempDirs {
+		errors = append(errors, os.RemoveAll(dir))
+	}
+
 	return trace.NewAggregate(errors...)
 }
 
