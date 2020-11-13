@@ -186,6 +186,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			DataDir:         cfg.DataDir,
 			AccessPoint:     accessPoint,
 			ServerID:        cfg.HostUUID,
+			Context:         process.ExitContext(),
 			KubeconfigPath:  cfg.Kube.KubeconfigPath,
 			KubeClusterName: cfg.Kube.KubeClusterName,
 			NewKubeService:  true,

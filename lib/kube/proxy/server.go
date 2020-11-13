@@ -214,7 +214,7 @@ func (t *TLSServer) GetServerInfo() (services.Server, error) {
 	// This breaks reverse tunnel routing, which uses server.Name.
 	name := t.ServerID
 	if !t.NewKubeService {
-		name += "/proxy_service"
+		name += "-proxy_service"
 	}
 
 	return &services.ServerV2{
