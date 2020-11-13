@@ -651,7 +651,8 @@ steps:
   - name: Upload to S3
     image: plugins/s3
     settings:
-      bucket: PRODUCTION_CHARTS_AWS_S3_BUCKET
+      bucket:
+        from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
       access_key:
         from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
       secret_key:
@@ -3157,6 +3158,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 91cc9b08c0507201616798c8b9a04669fa6538f3a413572eec76955f30431634
+hmac: 8bafd989fee244790b719f5d2143f2a11f852cd3900a694f1e0ba7d532b88c30
 
 ...
