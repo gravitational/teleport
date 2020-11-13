@@ -25,19 +25,19 @@ export default {
 };
 
 export function Loaded() {
-  return render({ isSuccess: true });
+  return render({ status: 'success' });
 }
 
 export function Loading() {
-  return render({ isProcessing: true });
+  return render({ status: 'processing' });
 }
 
 export function Failed() {
-  return render({ isFailed: true, message: 'server error' });
+  return render({ status: 'failed', statusText: 'server error' });
 }
 
 export function Empty() {
-  return render({ isSuccess: true }, []);
+  return render({ status: 'success' }, []);
 }
 
 function render(
@@ -50,10 +50,8 @@ function render(
     searchValue: '',
     setSearchValue: () => null,
     attempt: {
-      message: '',
-      isFailed: false,
-      isSuccess: false,
-      isProcessing: false,
+      status: '' as any,
+      statusText: '',
       ...attemptOptions,
     },
     nodes: nodeList,

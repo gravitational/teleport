@@ -29,7 +29,7 @@ export default function ShareSession({ closeShareSession }: Props) {
     <Dialog
       dialogCss={() => ({ maxWidth: '500px', width: '100%' })}
       disableEscapeKeyDown={false}
-      onClose={close}
+      onClose={closeShareSession}
       open={true}
     >
       <DialogHeader>

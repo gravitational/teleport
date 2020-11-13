@@ -16,10 +16,10 @@
 
 import React from 'react';
 import { Flex } from 'design';
-//import * as Icons from 'design/Icon';
+import * as Icons from 'design/Icon';
 import Dialog, { DialogTitle } from 'design/Dialog';
 import useTeleport from 'teleport/useTeleport';
-//import { TabIcon } from 'teleport/components/Tabs';
+import { TabIcon } from 'teleport/components/Tabs';
 import Manually from './Manually';
 import Automatically from './Automatically';
 import useAddApp, { State } from './useAddApp';
@@ -38,8 +38,8 @@ export function AddApp({
   version,
   attempt,
   automatic,
-}: //setAutomatic,
-State & Props) {
+  setAutomatic,
+}: State & Props) {
   return (
     <Dialog
       dialogCss={() => ({
@@ -54,18 +54,18 @@ State & Props) {
       <Flex flex="1" flexDirection="column">
         <Flex alignItems="center" justifyContent="space-between" mb="4">
           <DialogTitle mr="auto">Add Application</DialogTitle>
-          {/* <TabIcon
-          Icon={Icons.Wand}
-          title="Automatically"
-          active={automatic}
-          onClick={() => setAutomatic(true)}
-        />
-        <TabIcon
-          Icon={Icons.Cog}
-          title="Manually"
-          active={!automatic}
-          onClick={() => setAutomatic(false)}
-        /> */}
+          <TabIcon
+            Icon={Icons.Wand}
+            title="Automatically"
+            active={automatic}
+            onClick={() => setAutomatic(true)}
+          />
+          <TabIcon
+            Icon={Icons.Cog}
+            title="Manually"
+            active={!automatic}
+            onClick={() => setAutomatic(false)}
+          />
         </Flex>
         {automatic && (
           <Automatically

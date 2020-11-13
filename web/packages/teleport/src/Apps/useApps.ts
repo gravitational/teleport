@@ -25,12 +25,15 @@ export default function useApps() {
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const [isAddAppVisible, setAppAddVisible] = useState(false);
   const { clusterId } = useStickyClusterId();
-  const { attempt, run } = useAttempt('processing');
+  const { attempt, setAttempt } = useAttempt('processing');
   const [apps, setApps] = useState([] as App[]);
   const isEnterprise = ctx.isEnterprise;
 
   function refresh() {
-    return run(() => ctx.appService.fetchApps(clusterId).then(setApps));
+    return ctx.appService
+      .fetchApps(clusterId)
+      .then(setApps)
+      .catch(err => setAttempt({ status: 'failed', statusText: err }));
   }
 
   const hideAddApp = () => {
@@ -43,7 +46,8 @@ export default function useApps() {
   };
 
   useEffect(() => {
-    refresh();
+    setAttempt({ status: 'processing' });
+    refresh().then(() => setAttempt({ status: 'success' }));
   }, [clusterId]);
 
   return {

@@ -1,20 +1,20 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`created 1`] = `
-.c9 {
+.c12 {
   box-sizing: border-box;
   margin-bottom: 24px;
   margin-right: 16px;
   width: 320px;
 }
 
-.c12 {
+.c15 {
   box-sizing: border-box;
   margin-bottom: 24px;
   width: 100%;
 }
 
-.c17 {
+.c20 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -40,25 +40,25 @@ exports[`created 1`] = `
   padding: 0px 24px;
 }
 
-.c17:active {
+.c20:active {
   opacity: 0.56;
 }
 
-.c17:hover,
-.c17:focus {
+.c20:hover,
+.c20:focus {
   background: #651FFF;
 }
 
-.c17:active {
+.c20:active {
   background: #354AA4;
 }
 
-.c17:disabled {
+.c20:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c19 {
+.c22 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -85,25 +85,25 @@ exports[`created 1`] = `
   margin-right: 16px;
 }
 
-.c19:active {
+.c22:active {
   opacity: 0.56;
 }
 
-.c19:hover,
-.c19:focus {
+.c22:hover,
+.c22:focus {
   background: #651FFF;
 }
 
-.c19:active {
+.c22:active {
   background: #354AA4;
 }
 
-.c19:disabled {
+.c22:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c20 {
+.c23 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -129,21 +129,28 @@ exports[`created 1`] = `
   padding: 0px 24px;
 }
 
-.c20:active {
+.c23:active {
   opacity: 0.56;
 }
 
-.c20:hover,
-.c20:focus {
+.c23:hover,
+.c23:focus {
   background: #2C3A73;
 }
 
-.c20:disabled {
+.c23:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c11 {
+.c8 {
+  display: inline-block;
+  transition: color .3s;
+  margin-right: 8px;
+  color: #FFFFFF;
+}
+
+.c14 {
   appearance: none;
   border: none;
   border-radius: 4px;
@@ -159,19 +166,19 @@ exports[`created 1`] = `
   background-color: #FFFFFF;
 }
 
-.c11::-ms-clear {
+.c14::-ms-clear {
   display: none;
 }
 
-.c11::placeholder {
+.c14::placeholder {
   opacity: 0.4;
 }
 
-.c11:read-only {
+.c14:read-only {
   cursor: not-allowed;
 }
 
-.c10 {
+.c13 {
   color: #FFFFFF;
   display: block;
   font-size: 11px;
@@ -193,21 +200,21 @@ exports[`created 1`] = `
   color: rgba(255,255,255,0.87);
 }
 
-.c13 {
+.c16 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
 }
 
-.c14 {
+.c17 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
 }
 
-.c16 {
+.c19 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -229,14 +236,14 @@ exports[`created 1`] = `
   justify-content: space-between;
 }
 
-.c8 {
+.c11 {
   box-sizing: border-box;
   display: flex;
   align-items: center;
   flex-direction: row;
 }
 
-.c15 {
+.c18 {
   box-sizing: border-box;
   margin-bottom: 8px;
   padding: 8px;
@@ -297,7 +304,7 @@ exports[`created 1`] = `
   min-height: 330px;
 }
 
-.c7 {
+.c10 {
   box-sizing: border-box;
   margin-bottom: 32px;
   min-height: 254px;
@@ -306,8 +313,40 @@ exports[`created 1`] = `
   flex-direction: column;
 }
 
-.c18 {
+.c21 {
   box-sizing: border-box;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-left: 24px;
+  align-items: center;
+  display: flex;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
+  font-weight: 500;
+  border-bottom: 4px solid #651FFF;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-left: 24px;
+  align-items: center;
+  display: flex;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
 }
 
 <div
@@ -338,26 +377,44 @@ exports[`created 1`] = `
           >
             Add Application
           </div>
+          <div
+            class="c7"
+          >
+            <span
+              class="c8 icon icon-magic-wand sc-AxhCb c8"
+              color="light"
+            />
+            Automatically
+          </div>
+          <div
+            class="c9"
+          >
+            <span
+              class="c8 icon icon-cog sc-AxhCb c8"
+              color="light"
+            />
+            Manually
+          </div>
         </div>
         <div
-          class="c7"
+          class="c10"
         >
           <div
-            class="c8"
+            class="c11"
           >
             <div
-              class="c9"
+              class="c12"
               width="320px"
             >
               <label
-                class="c10"
+                class="c13"
                 font-size="0"
               >
                 App Name
               </label>
               <input
                 autocomplete="off"
-                class="c11"
+                class="c14"
                 color="text.onLight"
                 placeholder="jenkins"
                 type="text"
@@ -365,18 +422,18 @@ exports[`created 1`] = `
               />
             </div>
             <div
-              class="c12"
+              class="c15"
               width="100%"
             >
               <label
-                class="c10"
+                class="c13"
                 font-size="0"
               >
                 INTERNAL APPLICATION URL
               </label>
               <input
                 autocomplete="off"
-                class="c11"
+                class="c14"
                 color="text.onLight"
                 placeholder="https://localhost:4000"
                 type="text"
@@ -385,30 +442,30 @@ exports[`created 1`] = `
             </div>
           </div>
           <div
-            class="c13"
+            class="c16"
           >
             Use the script below to add an application to your cluster.
              
             <br />
             The script will be valid for
             <span
-              class="c14"
+              class="c17"
             >
                1 hour
               .
             </span>
           </div>
           <div
-            class="c15"
+            class="c18"
           >
             <div
-              class="c16"
+              class="c19"
               style="word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
             >
               $ sudo bash -c "$(curl -fsSL 'http://localhost/scripts/86/install-app.sh?name=test&uri=http://myapp/')"
             </div>
             <button
-              class="c17"
+              class="c20"
               kind="primary"
               style="padding: 4px 8px; min-height: 10px; font-size: 10px;"
             >
@@ -417,16 +474,16 @@ exports[`created 1`] = `
           </div>
         </div>
         <div
-          class="c18"
+          class="c21"
         >
           <button
-            class="c19"
+            class="c22"
             kind="primary"
           >
             Regenerate
           </button>
           <button
-            class="c20"
+            class="c23"
             kind="secondary"
           >
             Close
@@ -439,20 +496,20 @@ exports[`created 1`] = `
 `;
 
 exports[`loaded 1`] = `
-.c9 {
+.c12 {
   box-sizing: border-box;
   margin-bottom: 24px;
   margin-right: 16px;
   width: 320px;
 }
 
-.c12 {
+.c15 {
   box-sizing: border-box;
   margin-bottom: 24px;
   width: 100%;
 }
 
-.c15 {
+.c18 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -479,25 +536,25 @@ exports[`loaded 1`] = `
   margin-right: 16px;
 }
 
-.c15:active {
+.c18:active {
   opacity: 0.56;
 }
 
-.c15:hover,
-.c15:focus {
+.c18:hover,
+.c18:focus {
   background: #651FFF;
 }
 
-.c15:active {
+.c18:active {
   background: #354AA4;
 }
 
-.c15:disabled {
+.c18:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c16 {
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -523,21 +580,28 @@ exports[`loaded 1`] = `
   padding: 0px 24px;
 }
 
-.c16:active {
+.c19:active {
   opacity: 0.56;
 }
 
-.c16:hover,
-.c16:focus {
+.c19:hover,
+.c19:focus {
   background: #2C3A73;
 }
 
-.c16:disabled {
+.c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c11 {
+.c8 {
+  display: inline-block;
+  transition: color .3s;
+  margin-right: 8px;
+  color: #FFFFFF;
+}
+
+.c14 {
   appearance: none;
   border: none;
   border-radius: 4px;
@@ -553,19 +617,19 @@ exports[`loaded 1`] = `
   background-color: #FFFFFF;
 }
 
-.c11::-ms-clear {
+.c14::-ms-clear {
   display: none;
 }
 
-.c11::placeholder {
+.c14::placeholder {
   opacity: 0.4;
 }
 
-.c11:read-only {
+.c14:read-only {
   cursor: not-allowed;
 }
 
-.c10 {
+.c13 {
   color: #FFFFFF;
   display: block;
   font-size: 11px;
@@ -587,7 +651,7 @@ exports[`loaded 1`] = `
   color: rgba(255,255,255,0.87);
 }
 
-.c13 {
+.c16 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -609,7 +673,7 @@ exports[`loaded 1`] = `
   justify-content: space-between;
 }
 
-.c8 {
+.c11 {
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -666,7 +730,7 @@ exports[`loaded 1`] = `
   min-height: 330px;
 }
 
-.c7 {
+.c10 {
   box-sizing: border-box;
   margin-bottom: 32px;
   min-height: 254px;
@@ -675,8 +739,40 @@ exports[`loaded 1`] = `
   flex-direction: column;
 }
 
-.c14 {
+.c17 {
   box-sizing: border-box;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-left: 24px;
+  align-items: center;
+  display: flex;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
+  font-weight: 500;
+  border-bottom: 4px solid #651FFF;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0px;
+  margin-left: 24px;
+  align-items: center;
+  display: flex;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-bottom: 4px solid transparent;
 }
 
 <div
@@ -707,26 +803,44 @@ exports[`loaded 1`] = `
           >
             Add Application
           </div>
+          <div
+            class="c7"
+          >
+            <span
+              class="c8 icon icon-magic-wand sc-AxhCb c8"
+              color="light"
+            />
+            Automatically
+          </div>
+          <div
+            class="c9"
+          >
+            <span
+              class="c8 icon icon-cog sc-AxhCb c8"
+              color="light"
+            />
+            Manually
+          </div>
         </div>
         <div
-          class="c7"
+          class="c10"
         >
           <div
-            class="c8"
+            class="c11"
           >
             <div
-              class="c9"
+              class="c12"
               width="320px"
             >
               <label
-                class="c10"
+                class="c13"
                 font-size="0"
               >
                 App Name
               </label>
               <input
                 autocomplete="off"
-                class="c11"
+                class="c14"
                 color="text.onLight"
                 placeholder="jenkins"
                 type="text"
@@ -734,18 +848,18 @@ exports[`loaded 1`] = `
               />
             </div>
             <div
-              class="c12"
+              class="c15"
               width="100%"
             >
               <label
-                class="c10"
+                class="c13"
                 font-size="0"
               >
                 INTERNAL APPLICATION URL
               </label>
               <input
                 autocomplete="off"
-                class="c11"
+                class="c14"
                 color="text.onLight"
                 placeholder="https://localhost:4000"
                 type="text"
@@ -754,24 +868,24 @@ exports[`loaded 1`] = `
             </div>
           </div>
           <div
-            class="c13"
+            class="c16"
           >
             Provide the name and URL of your application to generate a script that will automatically install and configure the App service on the server that can access your application.
           </div>
           
         </div>
         <div
-          class="c14"
+          class="c17"
         >
           <button
-            class="c15"
+            class="c18"
             kind="primary"
           >
             Generate Script
           </button>
           
           <button
-            class="c16"
+            class="c19"
             kind="secondary"
           >
             Close

@@ -67,7 +67,7 @@ export default function Manually({ version, onClose }: Props) {
             {` - Install Teleport on target server, and start it with the following parameters`}
             <TextSelectCopy
               mt="2"
-              text={`teleport start --roles=node --token=<generated-node-join-token> --auth-server=${cfg.proxyCluster} `}
+              text={`teleport start --roles=app --token=<generated-app-join-token> --auth-server=${cfg.proxyCluster} `}
             />
           </Box>
         </Box>

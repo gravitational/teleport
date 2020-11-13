@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { useState, useEffect, useCallback } from 'react';
-import { useAttempt } from 'shared/hooks';
+import useAttempt from 'shared/hooks/useAttemptNext';
 import TeleportContext from 'teleport/teleportContext';
 import cfg from 'teleport/config';
 import { Node } from 'teleport/services/nodes';
@@ -24,13 +24,14 @@ export default function useNodes(ctx: TeleportContext, clusterId: string) {
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const [nodes, setNodes] = useState<Node[]>([]);
   const [searchValue, setSearchValue] = useState('');
-  const [attempt, attemptActions] = useAttempt({ isProcessing: true });
+  const { attempt, setAttempt } = useAttempt('processing');
   const [isAddNodeVisible, setIsAddNodeVisible] = useState(false);
   const logins = ctx.storeUser.getLogins();
   const isEnterprise = ctx.isEnterprise;
 
   useEffect(() => {
-    fetchNodes();
+    setAttempt({ status: 'processing' });
+    fetchNodes().then(() => setAttempt({ status: 'success' }));
   }, [clusterId]);
 
   const getNodeLoginOptions = useCallback(
@@ -60,9 +61,10 @@ export default function useNodes(ctx: TeleportContext, clusterId: string) {
   };
 
   const fetchNodes = () => {
-    attemptActions.do(() =>
-      ctx.nodeService.fetchNodes(clusterId).then(setNodes)
-    );
+    return ctx.nodeService
+      .fetchNodes(clusterId)
+      .then(setNodes)
+      .catch(err => setAttempt({ status: 'failed', statusText: err }));
   };
 
   const hideAddNode = () => {

@@ -72,17 +72,22 @@ export function Nodes(props: State) {
           onClick={showAddNode}
         />
       </FeatureHeader>
-      <Flex mb={4} alignItems="center" flex="0 0 auto" justifyContent="space-between">
+      <Flex
+        mb={4}
+        alignItems="center"
+        flex="0 0 auto"
+        justifyContent="space-between"
+      >
         <InputSearch mr="3" onChange={setSearchValue} />
         <QuickLaunch width="280px" onPress={onSshEnter} />
       </Flex>
-      {attempt.isFailed && <Danger>{attempt.message} </Danger>}
-      {attempt.isProcessing && (
+      {attempt.status === 'failed' && <Danger>{attempt.statusText} </Danger>}
+      {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
       )}
-      {attempt.isSuccess && (
+      {attempt.status === 'success' && (
         <NodeList
           nodes={nodes}
           searchValue={searchValue}
