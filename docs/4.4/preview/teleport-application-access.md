@@ -12,7 +12,7 @@ Here are a few things you might want to secure with Teleport Application Access:
 **Example Teleport Application Usage**
 
 This diagram shows Teleport deployed into an AWS VPC. Teleport Application Access is now providing access to Jenkins and an internal dashboard. Another Teleport Application Service is running in another datacenter and dials back to the Teleport cluster. This enables users to access that other dashboard.
-![Example App Access Usage](/img/aap.svg)
+![Example App Access Usage](../img/aap.svg)
 
 _Want to see a demo of AAP in action? [Click here](#view-applications-in-teleport)_
 ## Teleport Setup
