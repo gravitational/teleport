@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -66,7 +68,7 @@ func TestListKeys(t *testing.T) {
 		host := fmt.Sprintf("host-%v", i)
 		keys2, err := s.store.GetKey(host, "bob")
 		require.NoError(t, err)
-		require.Equal(t, *keys2, keys[i])
+		require.Empty(t, cmp.Diff(*keys2, keys[i], cmpopts.EquateEmpty()))
 	}
 
 	// read sam's key and make sure it's the same:
@@ -89,7 +91,8 @@ func TestKeyCRUD(t *testing.T) {
 	// load back and compare:
 	keyCopy, err := s.store.GetKey("host.a", "bob")
 	require.NoError(t, err)
-	require.True(t, key.EqualsTo(keyCopy))
+	key.ProxyHost = keyCopy.ProxyHost
+	require.Empty(t, cmp.Diff(key, keyCopy, cmpopts.EquateEmpty()))
 
 	// Delete & verify that it's gone
 	err = s.store.DeleteKey("host.a", "bob")

@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/httplib"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -101,6 +102,12 @@ type ForwarderConfig struct {
 	PingPeriod time.Duration
 	// Component name to include in log output.
 	Component string
+	// StaticLabels is map of static labels associated with this cluster.
+	// Used for RBAC.
+	StaticLabels map[string]string
+	// DynamicLabels is map of dynamic labels associated with this cluster.
+	// Used for RBAC.
+	DynamicLabels *labels.Dynamic
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -346,6 +353,10 @@ func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if err := f.authorize(req.Context(), authContext); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		return handler(authContext, w, req)
 	})
 }
@@ -354,6 +365,9 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
 		authContext, err := f.authenticate(req)
 		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := f.authorize(req.Context(), authContext); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		return handler(authContext, w, req, p)
@@ -493,6 +507,45 @@ func (f *Forwarder) setupContext(ctx auth.Context, req *http.Request, isRemoteUs
 	return authCtx, nil
 }
 
+func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
+	if actx.teleportCluster.isRemote {
+		// Authorization for a remote kube cluster will happen on the remote
+		// end (by their proxy), after that cluster has remapped used roles.
+		f.WithField("auth_context", actx.String()).Debug("Skipping authorization for a remote kubernetes cluster name")
+		return nil
+	}
+	if actx.kubeCluster == "" {
+		// This should only happen for remote clusters (filtered above), but
+		// check and report anyway.
+		f.WithField("auth_context", actx.String()).Debug("Skipping authorization due to unknown kubernetes cluster name")
+		return nil
+	}
+	servers, err := f.AccessPoint.GetKubeServices(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Check authz against the first match.
+	//
+	// We assume that users won't register two identically-named clusters with
+	// mis-matched labels. If they do, expect weirdness.
+	for _, s := range servers {
+		for _, ks := range s.GetKubernetesClusters() {
+			if ks.Name != actx.kubeCluster {
+				continue
+			}
+			if err := actx.Checker.CheckAccessToKubernetes(s.GetNamespace(), ks); err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
+		}
+	}
+	if actx.kubeCluster == f.ClusterName {
+		f.WithField("auth_context", actx.String()).Debug("Skipping authorization for proxy-based kubernetes cluster")
+		return nil
+	}
+	return trace.AccessDenied("kubernetes cluster %q not found", actx.kubeCluster)
+}
+
 // newStreamer returns sync or async streamer based on the configuration
 // of the server and the session, sync streamer sends the events
 // directly to the auth server and blocks if the events can not be received,
@@ -598,6 +651,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 					Login: ctx.User.GetName(),
 				},
 				TerminalSize: params.Serialize(),
+				KubernetesClusterMetadata: events.KubernetesClusterMetadata{
+					KubernetesCluster: ctx.kubeCluster,
+				},
 			}
 
 			// Report the updated window size to the event log (this is so the sessions
@@ -650,6 +706,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				Protocol:   events.EventProtocolKube,
 			},
 			TerminalSize: termParams.Serialize(),
+			KubernetesClusterMetadata: events.KubernetesClusterMetadata{
+				KubernetesCluster: ctx.kubeCluster,
+			},
 		}
 		if err := emitter.EmitAuditEvent(f.Context, sessionStartEvent); err != nil {
 			f.WithError(err).Warn("Failed to emit event.")
@@ -717,6 +776,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			Participants: []string{ctx.User.GetName()},
 			StartTime:    sessionStart,
 			EndTime:      f.Clock.Now().UTC(),
+			KubernetesClusterMetadata: events.KubernetesClusterMetadata{
+				KubernetesCluster: ctx.kubeCluster,
+			},
 		}
 		if err := emitter.EmitAuditEvent(f.Context, sessionEndEvent); err != nil {
 			f.WithError(err).Warn("Failed to emit session end event.")
@@ -745,6 +807,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			},
 			CommandMetadata: events.CommandMetadata{
 				Command: strings.Join(request.cmd, " "),
+			},
+			KubernetesClusterMetadata: events.KubernetesClusterMetadata{
+				KubernetesCluster: ctx.kubeCluster,
 			},
 		}
 		if err != nil {
@@ -1004,6 +1069,9 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 		RequestPath:  req.URL.Path,
 		Verb:         req.Method,
 		ResponseCode: int32(w.(*responseStatusRecorder).getStatus()),
+		KubernetesClusterMetadata: events.KubernetesClusterMetadata{
+			KubernetesCluster: ctx.kubeCluster,
+		},
 	}
 	r := parseResourcePath(req.URL.Path)
 	if r.skipEvent {
@@ -1467,11 +1535,17 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 }
 
 func (f *Forwarder) kubeClusters() []*services.KubernetesCluster {
+	var dynLabels map[string]services.CommandLabelV2
+	if f.DynamicLabels != nil {
+		dynLabels = services.LabelsToV2(f.DynamicLabels.Get())
+	}
+
 	res := make([]*services.KubernetesCluster, 0, len(f.creds))
 	for n := range f.creds {
 		res = append(res, &services.KubernetesCluster{
-			Name: n,
-			// TODO(awly): add labels
+			Name:          n,
+			StaticLabels:  f.StaticLabels,
+			DynamicLabels: dynLabels,
 		})
 	}
 	return res

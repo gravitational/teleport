@@ -38,7 +38,7 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request, p httprou
 
 	// Set Max-Age to 0 to tell the browser to delete this cookie.
 	http.SetCookie(w, &http.Cookie{
-		Name:     cookieName,
+		Name:     CookieName,
 		HttpOnly: true,
 		Secure:   true,
 		Expires:  time.Unix(0, 0),

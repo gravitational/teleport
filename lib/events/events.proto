@@ -75,6 +75,13 @@ message ConnectionMetadata {
     string Protocol = 3 [ (gogoproto.jsontag) = "proto,omitempty" ];
 }
 
+// KubernetesClusterMetadata contains common metadata for kubernetes-related
+// events.
+message KubernetesClusterMetadata {
+    // KubernetesCluster is a kubernetes cluster name.
+    string KubernetesCluster = 1 [ (gogoproto.jsontag) = "kubernetes_cluster,omitempty" ];
+}
+
 // SessionStart is a session start event
 message SessionStart {
     // Metadata is a common event metadata
@@ -99,6 +106,10 @@ message SessionStart {
 
     // TerminalSize is expressed as 'W:H'
     string TerminalSize = 6 [ (gogoproto.jsontag) = "size,omitempty" ];
+
+    // Kubernetes has information about a kubernetes cluster, if applicable.
+    KubernetesClusterMetadata Kubernetes = 7
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
 // SessionJoin emitted when another user joins a session
@@ -121,6 +132,10 @@ message SessionJoin {
 
     // ConnectionMetadata holds information about the connection
     ConnectionMetadata Connection = 5
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // Kubernetes has information about a kubernetes cluster, if applicable.
+    KubernetesClusterMetadata Kubernetes = 6
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
@@ -200,6 +215,10 @@ message Resize {
 
     // TerminalSize is expressed as 'W:H'
     string TerminalSize = 6 [ (gogoproto.jsontag) = "size,omitempty" ];
+
+    // Kubernetes has information about a kubernetes cluster, if applicable.
+    KubernetesClusterMetadata Kubernetes = 7
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
 // SessionEnd is a session end event
@@ -248,6 +267,10 @@ message SessionEnd {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "session_stop,omitempty"
     ];
+
+    // Kubernetes has information about a kubernetes cluster, if applicable.
+    KubernetesClusterMetadata Kubernetes = 11
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
 // BPFMetadata is a common BPF process metadata
@@ -632,6 +655,10 @@ message Exec {
     // CommandMetadata is a common command metadata
     CommandMetadata Command = 6
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+
+    // Kubernetes has information about a kubernetes cluster, if applicable.
+    KubernetesClusterMetadata Kubernetes = 7
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
 // SCP is emitted when data transfer has occurred between server and client
@@ -944,6 +971,10 @@ message KubeRequest {
     string ResourceName = 10 [ (gogoproto.jsontag) = "resource_name,omitempty" ];
     // ResponseCode is the HTTP response code for this request.
     int32 ResponseCode = 11 [ (gogoproto.jsontag) = "response_code" ];
+
+    // Kubernetes has information about a kubernetes cluster, if applicable.
+    KubernetesClusterMetadata Kubernetes = 12
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 }
 
 // AppSessionStart is emitted when a user is issued an application certificate.
