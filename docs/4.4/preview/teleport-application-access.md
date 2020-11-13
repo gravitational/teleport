@@ -14,7 +14,6 @@ Here are a few things you might want to secure with Teleport Application Access:
 This diagram shows Teleport deployed into an AWS VPC. Teleport Application Access is now providing access to Jenkins and an internal dashboard. Another Teleport Application Service is running in another datacenter and dials back to the Teleport cluster. This enables users to access that other dashboard.
 ![Example App Access Usage](../img/aap.svg)
 
-_Want to see a demo of AAP in action? [Click here](#view-applications-in-teleport)_
 ## Teleport Setup
 
 Teleport Application Access requires two processes to be run. One is the dedicated Teleport bastion host (auth/proxy service) and the other App service will proxy the applications. The App service can be run on the host of the app, or it can be put in front of it.
