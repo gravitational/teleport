@@ -84,10 +84,8 @@ Teleport
 | `https_key_file` | LetsEncrypt Key File ( Wildcard Cert )  |
 | `https_cert_file` | LetsEncrypt Key File ( Wildcard Cert ) |
 
-
-```
+```yaml
 teleport:
-  nodename: i-083e63d0daecd1315
   data_dir: /var/lib/teleport
   auth_token: 4c7e15
   auth_servers:
@@ -99,50 +97,9 @@ auth_service:
   - proxy,node,app:4c7e15
 ssh_service:
   enabled: "false"
-proxy_service:
-  enabled: "yes"
-  listen_addr: 0.0.0.0:3023
-  web_listen_addr: 0.0.0.0:3080
-  tunnel_listen_addr: 0.0.0.0:3024
-  public_addr: teleport.asteroid.earth:3080
-  ## Example using a wildcard cert.
-  https_keypairs:
-  https_keypairs:
-  - key_file: /etc/letsencrypt/live/teleport.example.com/privkey.pem
-  - cert_file: /etc/letsencrypt/live/teleport.example.com/fullchain.pem
-  - key_file: /etc/letsencrypt/live/*.teleport.example.com/privkey.pem
-  - cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
-```
-#### [ Optional ] Obtain a new App Token
-In the above example we've hard coded a join token 4c7e15. You can use this to join apps or create a dynamic token using the tctl command below.
-```bash
-$ tctl tokens add --type=app
-```
-
-| Variable to replace | Description  |
-|-|-|
-| `auth_servers` | Address of Auth or Proxy Service setup above |
-| `auth_token` | Token used to connect to other Teleport processes  |
-
-```yaml
-teleport:
-  # nodename of machine running process.
-  nodename: wellington
-  # The Auth token `tctl tokens add --type=app` or the static token. 4c7e15
-  auth_token: "4c7e15"
-  # This is the location of the Teleport Auth Server or Public Proxy
-  auth_servers:
-    - teleport.example.com:3080
-auth_service:
-  enabled: no
-proxy_service:
-  enabled: no
-ssh_service:
-   enabled: no
-# The app_service is new
 app_service:
    enabled: yes
-    debug_app: true
+   debug_app: true
    apps:
    - name: "internal-app"
      uri: "http://10.0.1.27:8000"
@@ -165,8 +122,30 @@ app_service:
    # Note: Name can't include any spaces
    - name: "hackernews"
      uri: "https://news.ycombinator.com"
-     public_addr: "hn.example.com"
+proxy_service:
+  enabled: "yes"
+  listen_addr: 0.0.0.0:3023
+  web_listen_addr: 0.0.0.0:3080
+  tunnel_listen_addr: 0.0.0.0:3024
+  public_addr: teleport.asteroid.earth:3080
+  ## Example using a wildcard cert.
+  https_keypairs:
+  - key_file: /etc/letsencrypt/live/teleport.example.com/privkey.pem
+  - cert_file: /etc/letsencrypt/live/teleport.example.com/fullchain.pem
+  - key_file: /etc/letsencrypt/live/*.teleport.example.com/privkey.pem
+  - cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 ```
+#### [ Optional ] Obtain a new App Token
+In the above example we've hard coded a join token 4c7e15. You can use this to join apps or create a dynamic token using the tctl command below.
+```bash
+$ tctl tokens add --type=app
+```
+
+| Variable to replace | Description  |
+|-|-|
+| `auth_servers` | Address of Auth or Proxy Service setup above |
+| `auth_token` | Token used to connect to other Teleport processes  |
+
 
 ## Advanced Options
 
