@@ -640,19 +640,18 @@ steps:
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout ${DRONE_COMMIT}
 
-  - name: Package helm chart
-    image: alpine/helm:2.16.9
+  - name: Package helm charts
+    image: alpine/helm:latest
     commands:
       - mkdir -p /go/chart
       - cd /go/chart
-      - helm init --client-only
-      - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport
+      - helm package /go/src/github.com/gravitational/teleport/examples/chart/*
       - helm repo index /go/chart
 
   - name: Upload to S3
     image: plugins/s3
     settings:
-      bucket: charts.gravitational.io
+      bucket: PRODUCTION_CHARTS_AWS_S3_BUCKET
       access_key:
         from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
       secret_key:
@@ -3158,6 +3157,6 @@ volumes:
 
 ---
 kind: signature
-hmac: a85a99a9decf13e8ce9de7545269267f97f1a3a8a4a6934f83e213fda87b330d
+hmac: 91cc9b08c0507201616798c8b9a04669fa6538f3a413572eec76955f30431634
 
 ...
