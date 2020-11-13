@@ -157,7 +157,7 @@ test: buildbox
 		make -C $(SRCDIR) TELEPORT_DEBUG=0 FLAGS=\"$(FLAGS)\" clean test"
 
 .PHONY: integration
-integration: FLAGS ?= -v -cover -count=5 -timeout=1h
+integration: FLAGS ?= -cover -count=5 -timeout=2h
 integration: buildbox
 	docker run $(DOCKERFLAGS) $(BCCFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS=\"$(FLAGS)\" integration"
