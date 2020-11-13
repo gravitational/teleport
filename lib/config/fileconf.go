@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"gopkg.in/yaml.v2"
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 const (
@@ -875,11 +876,11 @@ func (a *App) CheckAndSetDefaults() error {
 	if a.URI == "" {
 		return trace.BadParameter("missing URI")
 	}
-	// Check if the application name contains spaces. Don't allow spaces because
-	// for trusted clusters the name is used to construct the vanity domain that
-	// the application will be running under.
-	if ok := strings.Contains(a.Name, " "); ok {
-		return trace.BadParameter("application name %q can not contain spaces as it may be used as part of the application domain", a.Name)
+	// Check if the application name is a valid subdomain. Don't allow names that
+	// are invalid subdomains because for trusted clusters the name is used to
+	// construct the domain that the application will be available at.
+	if errs := validation.IsDNS1035Label(a.Name); len(errs) > 0 {
+		return trace.BadParameter("application name %q must be a valid DNS subdomain: https://gravitational.com/teleport/docs/application-access/#application-name", a.Name)
 	}
 	// Parse and validate URL.
 	if _, err := url.Parse(a.URI); err != nil {
