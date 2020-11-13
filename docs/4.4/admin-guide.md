@@ -1467,7 +1467,9 @@ teleport:
      # Keep the two values in sync.
      #
      # See https://etcd.io/docs/v3.4.0/dev-guide/limit/ for details
-     max_client_msg_size_bytes: 15728640 # 15MiB
+     #
+     # This bumps the size to 15MiB as an example:
+     etcd_max_client_msg_size_bytes: 15728640
 ```
 
 ### Using Amazon S3

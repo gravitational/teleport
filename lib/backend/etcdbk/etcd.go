@@ -167,7 +167,7 @@ type Config struct {
 	PasswordFile string `json:"password_file,omitempty"`
 	// MaxClientMsgSizeBytes optionally specifies the size limit on client send message size.
 	// See https://github.com/etcd-io/etcd/blob/221f0cc107cb3497eeb20fb241e1bcafca2e9115/clientv3/config.go#L49
-	MaxClientMsgSizeBytes int `json:"max_client_msg_size_bytes,omitempty"`
+	MaxClientMsgSizeBytes int `json:"etcd_max_client_msg_size_bytes,omitempty"`
 }
 
 // legacyDefaultPrefix was used instead of Config.Key prior to 4.3. It's used
