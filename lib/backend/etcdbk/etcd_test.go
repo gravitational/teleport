@@ -368,7 +368,7 @@ func (s *EtcdSuite) TestSyncLegacyPrefix(c *check.C) {
 	s.reset(c)
 }
 
-// CompareAndSwapIssue4786 ensures that the backend reacts with a proper
+// TestCompareAndSwapOversizedValue ensures that the backend reacts with a proper
 // error message if client sends a message exceeding the configured size maximum
 // See https://github.com/gravitational/teleport/issues/4786
 func (s *EtcdSuite) TestCompareAndSwapOversizedValue(c *check.C) {
