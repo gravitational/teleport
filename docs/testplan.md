@@ -204,7 +204,7 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 For main, test with admin role that has access to all resources.
 
 #### Top Nav
-- [ ] Verify that cluster selector displays all (root + leaf) clusters    
+- [ ] Verify that cluster selector displays all (root + leaf) clusters
 - [ ] Verify that user name is displayed
 - [ ] Verify that user menu shows logout, help&support, and account settings
 
@@ -226,7 +226,7 @@ For main, test with admin role that has access to all resources.
   - [ ] Verify that clicking back to `Automatically` tab renders bash command
 
 #### Applications
-- [ ] Verify that all apps registered is shown
+- [ ] Verify that all apps registered are shown
 - [ ] Verify that clicking on the app icon takes you to another tab
 - [ ] Verify that clicking on `Add Application` button renders dialogue
   - [ ] Verify input validation (prevent empty value and invalid url)
@@ -242,7 +242,7 @@ For main, test with admin role that has access to all resources.
 
 #### Audit log
 - [ ] Verify that time range button is shown and works
-- [ ] Verify clicking on `Session Ended` event icon, takes user to session player
+- [ ] Verify that clicking on `Session Ended` event icon, takes user to session player
 - [ ] Verify event detail dialogue renders when clicking on events `details` button
 - [ ] Verify searching by type, description, created works
 
@@ -251,7 +251,7 @@ For main, test with admin role that has access to all resources.
 - [ ] Verify that creating a new user works
 - [ ] Verify that editing user roles works
 - [ ] Verify that removing a user works
-- [ ] Verify resetting a users password works
+- [ ] Verify resetting a user's password works
 - [ ] Verify search by username, roles, and type works
 
 #### Auth Connectors
@@ -412,7 +412,7 @@ Add the following resource under `spec.allow.rules` to enable read access to the
       - list
 ```
 - [ ] Verify that the `Audit Log` and `Session Recordings` is accessible
-- [ ] Verify that playing a recorded sessions is denied
+- [ ] Verify that playing a recorded session is denied
 
 Add the following resource to enable read access to recorded sessions
 ```
