@@ -66,10 +66,10 @@ A high availability deployment of Teleport will typically have at least 2 proxy 
 ```
 ### Confirming
 
-After configuring both of these options run the install.  In the example below you will see two teleport pods that are the Proxy instances  (teleport-) and two teleport pods that that are the Auth instances (teleportauth-).
+After configuring both of these options run the install.  In the example below you will see two teleport pods that are the Proxy instances (`teleport-`) and two teleport pods that that are the Auth instances (`teleportauth-`).
 
 ``` bash
-$ helm install --name teleport ./
+$ helm install teleport ./
 
 $ kubectl get pods
 NAME                            READY   STATUS    RESTARTS   AGE
