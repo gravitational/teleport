@@ -1,12 +1,12 @@
-# Teleport Application Access Beta
+# Teleport Application Access Preview
 
 Teleport is currently beta testing an application access proxy. Teleport Application Access has been designed to secure internal web applications, letting you provide secure access while improving both visibility and control for access.
 
 Here are a few things you might want to secure with Teleport Application Access
 
-- Internal Control Panels
+- Internal Control Panels.
 - Wikis / Tooling that's only available on the VPN.
-- Access to the Kubernetes Dashboard
+- Access to the Kubernetes Dashboard.
 - Developer tools. Such as Jenkins, or the Atlassian stack.
 
 **Example Teleport Application Usage**
@@ -88,11 +88,11 @@ proxy_service:
   listen_addr: 0.0.0.0:3023
   web_listen_addr: 0.0.0.0:3080
   tunnel_listen_addr: 0.0.0.0:3024
-  public_addr: teleport.asteroid.earth:3080
+  public_addr: teleport.example.com:3080
   ## Example using a wildcard cert.
   https_keypairs:
-  - key_file: /etc/letsencrypt/live/asteroid.earth/privkey.pem
-  - cert_file: /etc/letsencrypt/live/asteroid.earth/fullchain.pem
+  - key_file: /etc/letsencrypt/live/example.com/privkey.pem
+  - cert_file: /etc/letsencrypt/live/example.com/fullchain.pem
 ```
 
 #### Start Teleport
@@ -127,26 +127,27 @@ teleport:
   auth_token: "4c7e15"
   # This is the location of the Teleport Auth Server or Public Proxy
   auth_servers:
-    - teleport.asteroid.earth:3080
+    - teleport.example.com:3080
 auth_service:
   enabled: no
 proxy_service:
   enabled: no
 ssh_service:
    enabled: no
-# The app_service is new
+# The app_service is new service. Used to access web applications.
 app_service:
    enabled: yes
    apps:
-   - name: "jwt"
-     # URI and Port of Application. If Teleport is installed
+   - name: "internal-dashboard"
+     # URI and Port of Application. If Teleport is installed on the host
+     # this could be a loopback address
      uri: "http://10.0.1.27:8000"
      # This version requires a public_addr for all Apps, these
      #  applications should have a certificate and DNS setup
-     public_addr: "jwt.asteroid.earth"
+     public_addr: "internal-dashboard.acme.com"
      # Optional Labels
      labels:
-        name: "jwt"
+        name: "acme-dashboard"
      # Optional Dynamic Labels
      commands:
      - name: "os"
@@ -154,12 +155,12 @@ app_service:
        period: "5s"
    - name: "arris"
      uri: "http://localhost:3001"
-     public_addr: "arris.asteroid.earth"
-   # Teleport Application Access can be used to proxy any HTTP Endpoint
+     public_addr: "arris.example.com"
+   # Teleport Application Access can be used to proxy any HTTP endpoint
    # Note: Name can't include any spaces
    - name: "hackernews"
      uri: "https://news.ycombinator.com"
-     public_addr: "hn.asteroid.earth
+     public_addr: "hn.example.com
 ```
 
 #### Start Teleport
@@ -179,10 +180,10 @@ For the beta, we would recommend using a wildcard cert for TLS. You can also use
 proxy_service:
   #... Example Snippet for new https_keypairs.
   https_keypairs:
-  - key_file: /etc/letsencrypt/live/jwt.asteroid.earth/privkey.pem
-  - cert_file: /etc/letsencrypt/live/jwt.asteroid.earth/fullchain.pem
-  - key_file: /etc/letsencrypt/live/hn.asteroid.earth/privkey.pem
-  - cert_file: /etc/letsencrypt/live/hn.asteroid.earth/fullchain.pem
+  - key_file: /etc/letsencrypt/live/jwt.example.com/privkey.pem
+  - cert_file: /etc/letsencrypt/live/jwt.example.com/fullchain.pem
+  - key_file: /etc/letsencrypt/live/hn.example.com/privkey.pem
+  - cert_file: /etc/letsencrypt/live/hn.example.com/fullchain.pem
   - key_file: /etc/certs/privkey.pem
   - cert_file: /etc/certs/fullchain.pem
 ```
@@ -191,11 +192,11 @@ proxy_service:
 
 `https://[cluster-url]:3080/web/cluster/[cluster-name]/apps`
 
-<video autoplay loop muted playsinline style="width:100%">
+<!--<video autoplay loop muted playsinline style="width:100%">
   <source src="/video/app.mp4" type="video/mp4">
   <source src="/video/app.webm" type="video/webm">
 Your browser does not support the video tag.
-</video>
+</video>-->
 
 ## Product Feedback
 
@@ -203,4 +204,4 @@ We really value early feedback for our products. [You can easily pick a time her
 
 ### Found a bug?
 
-Please create a [Github Issue](https://github.com/gravitational/teleport/issues/new/choose)
+Please create a [Github Issue](https://github.com/gravitational/teleport/issues/new/choose).
