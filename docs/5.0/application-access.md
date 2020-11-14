@@ -34,11 +34,28 @@ You can secure any web application using application access:
 
 #### TLS Requirements
 
-TLS is required to secure Teleports Unified Access Plane and any connected applications. When setting up Teleport the minium requiremtn is a certificate for the proxy and a wild card certifcate for it's sub-domain. This is where everyone will login to Teleport.
+TLS is required to secure Teleports Unified Access Plane and any connected applications. When setting up Teleport the minium requirement is a certificate for the proxy and a wild card certificate for it's sub-domain. This is where everyone will login to Teleport.
 
 Example: `teleport.example.com` will host the Access Plane. `*.teleport.example.com` will host all of the applications. e.g. `jenkins.teleport.example.com`. Teleport supports accessing these applications on other domains if required. Both DNS and the correct certificates need to be obtained for this to work.
 
+```yaml
+proxy_service:
+  enabled: "yes"
+  listen_addr: 0.0.0.0:3023
+  tunnel_listen_addr: 0.0.0.0:3024
+  public_addr: teleport.example.com:443
+  ## Example of two https keypairs.
+  https_keypairs:
+  - key_file: /etc/letsencrypt/live/teleport.example.com/privkey.pem
+  - cert_file: /etc/letsencrypt/live/teleport.example.com/fullchain.pem
+  - key_file: /etc/letsencrypt/live/*.teleport.example.com/privkey.pem
+  - cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
+```
+
 !!! tip "Using Certbot to obtain Wildcard Certs"
+
+  Let's Encrypt provides free wildcard certificates. If using [certbot](https://certbot.eff.org/)
+  with DNS challenge the below script will make setup easy.
 
     ```sh
     certbot certonly --manual \
@@ -50,84 +67,78 @@ Example: `teleport.example.com` will host the Access Plane. `*.teleport.example.
       -d "teleport.example.com, *.teleport.example.com"
     ```
 
-## Example Applications
-
-As outlined in our introduction Application Access has been designed to support two types of applications.
-
-**Example Legacy App**</br>
-A device such as an load balancer might come with a control panel, but it doesn't' have any auth and can only be access via a privileged network. These applications are supported and can extend access beyond your network.
-
-Other example legacy apps.
-
-+ An internal admin tool
-+ Control panel for networking devices
-
-**Example Modern App**</br>
-Teleport Application Access supports all modern applications, these could be built in-house or off-the-shelf software such as jenkins, Kubernetes Dashboard and Jupyter workbooks.
-
-+ Kubernetes Internal Dashboard
-+ Grafana
-+ Jupyter notebooks
-+ In-house Single Page Apps (SPA)
-+ SPA with custom Json Web Token support (JWT)
 
 ## Teleport Application Service Setup
 
-Teleport
-**Define `/etc/teleport.yaml`**
+There are two options for running Teleport, once installed it can be set up with
+inline options using `teleport start` or using a `teleport.yaml` config file.
+
+### Starting Teleport
 
 | Variable to replace | Description  |
 |-|-|
+| `--roles=app` | This role will only setup the reverse proxy for applications |
+| `--token=` | A dynamic or static `app` token obtained from the root cluster |
+| `--auth-server` | URL of the root cluster auth server or public proxy address |
+| `--app-name` | Application name |
+| `--app-uri` |  URI and Port of Application  |
+
+```sh
+teleport start --roles=app --token=xyz --auth-server=proxy.example.com:3080 \
+    --app-name="example-app" \
+    --app-uri="http://localhost:8080"
+```
+
+### Application Name
+When picking an application name it's important to make sure the name will make a valid sub-domain. After Teleport is running the application will be accissble at `app-name.proxy_pubic_addr.com` e.g. jenkins.teleport.example.com.  Teleport provides the ability to override public_addr. e.g jenkins.acme.com
+
+### Starting Teleport with config file
+
+**Define `/etc/teleport.yaml`**
+
+
+###
+| Variable to replace | Description  |
+|-|-|
 | `nodename` | Name of node Teleport is running on |
-| `auth_token` | Static Join Token |
 | `public_addr` | Public URL and Port for Teleport |
 | `https_key_file` | LetsEncrypt Key File ( Wildcard Cert )  |
 | `https_cert_file` | LetsEncrypt Key File ( Wildcard Cert ) |
 
 ```yaml
 teleport:
+  nodename: ip-172-31-13-139
   data_dir: /var/lib/teleport
-  auth_token: 4c7e15
-  auth_servers:
-  - 127.0.0.1:3025
+  auth_token: a3aff444e182cf4ee5c2f78ad2a4cc47d8a30c95747a08f8
 auth_service:
   enabled: "yes"
   listen_addr: 0.0.0.0:3025
   tokens:
-  - proxy,node,app:4c7e15
+  - proxy,node,app:a3aff444e182cf4ee5c2f78ad2a4cc47d8a30c95747a08f8
 ssh_service:
   enabled: "false"
 app_service:
    enabled: yes
+   ## T
    debug_app: true
    apps:
-   - name: "internal-app"
-     uri: "http://10.0.1.27:8000"
    - name: "kubernetes-dashboard"
      # This version requires a public_addr for all Apps, these
      #  applications should have a certificate and DNS setup
      public_addr: "example.com"
      # Optional Labels
      labels:
-        name: "jwt"
+        env: "prod"
      # Optional Dynamic Labels
      commands:
      - name: "os"
        command: ["/usr/bin/uname"]
        period: "5s"
-   - name: "arris"
-     uri: "http://localhost:3001"
-     public_addr: "arris.example.com"
-   # Teleport Application Access can be used to proxy any HTTP Endpoint
-   # Note: Name can't include any spaces
-   - name: "hackernews"
-     uri: "https://news.ycombinator.com"
 proxy_service:
   enabled: "yes"
   listen_addr: 0.0.0.0:3023
-  web_listen_addr: 0.0.0.0:3080
   tunnel_listen_addr: 0.0.0.0:3024
-  public_addr: teleport.asteroid.earth:3080
+  public_addr: teleport.example.com:443
   ## Example using a wildcard cert.
   https_keypairs:
   - key_file: /etc/letsencrypt/live/teleport.example.com/privkey.pem
@@ -136,19 +147,22 @@ proxy_service:
   - cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 ```
 #### [ Optional ] Obtain a new App Token
-In the above example we've hard coded a join token 4c7e15. You can use this to join apps or create a dynamic token using the tctl command below.
+In the above example we've hard coded a join token a3aff444e182cf4ee5c2f78ad2a4cc47d8a30c95747a08f8. You can use this to join apps or create a dynamic token using the tctl command below.
+
 ```bash
 $ tctl tokens add --type=app
 ```
-
-| Variable to replace | Description  |
-|-|-|
-| `auth_servers` | Address of Auth or Proxy Service setup above |
-| `auth_token` | Token used to connect to other Teleport processes  |
-
-
 ## Advanced Options
 
+### Running Debug Application
+
+For testing and debuging purposes we provide an inbuilt debugging app. This can be turned on use `debug_app: true`.
+
+```yaml
+app_service:
+   enabled: yes
+   debug_app: true
+```
 ### Customize Public Address
 
 ```yaml
@@ -158,6 +172,7 @@ $ tctl tokens add --type=app
 ```
 
 ### Deeplink to Subdirectory
+
 Some Applications are available on a Subdirectory, examples include Kubernetes Dashboard.
 
 ```yaml
@@ -184,9 +199,13 @@ We provide simple rewrites. This is helpful for applications
 
 `https://[cluster-url]:3080/web/cluster/[cluster-name]/apps`
 
+If you always
+
 ## Logging out of Applications
 
+When you log into an application you'll get a certificate and login session per your defined RBAC. If you want to force logout before this period you can force a log out by hitting `/teleport-logout`
 
+https://internal-app.teleport.example.com/teleport-logout
 
 
 ## Integrating with JWTs
@@ -262,3 +281,25 @@ This will output
 ### How to validate the signature.
 
 TODO
+
+
+## Example Applications
+
+As outlined in our introduction Application Access has been designed to support two types of applications.
+
+**Example Legacy App**</br>
+A device such as an load balancer might come with a control panel, but it doesn't' have any auth and can only be access via a privileged network. These applications are supported and can extend access beyond your network.
+
+Other example legacy apps.
+
++ An internal admin tool
++ Control panel for networking devices
+
+**Example Modern App**</br>
+Teleport Application Access supports all modern applications, these could be built in-house or off-the-shelf software such as jenkins, Kubernetes Dashboard and Jupyter workbooks.
+
++ Kubernetes Internal Dashboard
++ Grafana
++ Jupyter notebooks
++ In-house Single Page Apps (SPA)
++ SPA with custom Json Web Token support (JWT)
