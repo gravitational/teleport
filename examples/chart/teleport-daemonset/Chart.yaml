@@ -1,6 +1,7 @@
-name: teleport
-version: 0.0.4
-description: Teleport Enterprise
+name: teleport-daemonset
+apiVersion: v2
+version: 0.0.6
+description: Teleport daemonset installation which provides some access to underlying Kubernetes nodes.
+icon: https://gravitational.com/gravitational/images/logos/company-logos/teleport-symbol-400x400.png
 keywords:
   - Teleport Enterprise
-tillerVersion: ">=2.8.0"

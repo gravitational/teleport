@@ -64,7 +64,7 @@ func (h *Handler) handleFragment(w http.ResponseWriter, r *http.Request, p httpr
 
 		// Set the "Set-Cookie" header on the response.
 		http.SetCookie(w, &http.Cookie{
-			Name:     cookieName,
+			Name:     CookieName,
 			Value:    req.CookieValue,
 			HttpOnly: true,
 			Secure:   true,

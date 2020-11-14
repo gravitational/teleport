@@ -1548,6 +1548,24 @@ func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
 	return process.Config.Proxy.PublicAddrs[0]
 }
 
+// newAsyncEmitter wraps client and returns emitter that never blocks, logs some events and checks values.
+// It is caller's responsibility to call Close on the emitter once done.
+func (process *TeleportProcess) newAsyncEmitter(clt events.Emitter) (*events.AsyncEmitter, error) {
+	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
+		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(), clt),
+		Clock: process.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// asyncEmitter makes sure that sessions do not block
+	// in case if connections are slow
+	return events.NewAsyncEmitter(events.AsyncEmitterConfig{
+		Inner: emitter,
+	})
+}
+
 // initSSH initializes the "node" role, i.e. a simple SSH server connected to the auth server.
 func (process *TeleportProcess) initSSH() error {
 
@@ -1563,6 +1581,7 @@ func (process *TeleportProcess) initSSH() error {
 	var conn *Connector
 	var ebpf bpf.BPF
 	var s *regular.Server
+	var asyncEmitter *events.AsyncEmitter
 
 	process.RegisterCriticalFunc("ssh.node", func() error {
 		var ok bool
@@ -1651,10 +1670,9 @@ func (process *TeleportProcess) initSSH() error {
 			cfg.SSH.Addr = *defaults.SSHServerListenAddr()
 		}
 
-		emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
-			Inner: events.NewMultiEmitter(events.NewLoggingEmitter(), conn.Client),
-			Clock: process.Clock,
-		})
+		// asyncEmitter makes sure that sessions do not block
+		// in case if connections are slow
+		asyncEmitter, err = process.newAsyncEmitter(conn.Client)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1676,7 +1694,7 @@ func (process *TeleportProcess) initSSH() error {
 			process.proxyPublicAddr(),
 			regular.SetLimiter(limiter),
 			regular.SetShell(cfg.SSH.Shell),
-			regular.SetEmitter(&events.StreamerAndEmitter{Emitter: emitter, Streamer: streamer}),
+			regular.SetEmitter(&events.StreamerAndEmitter{Emitter: asyncEmitter, Streamer: streamer}),
 			regular.SetSessionServer(conn.Client),
 			regular.SetLabels(cfg.SSH.Labels, cfg.SSH.CmdLabels),
 			regular.SetNamespace(namespace),
@@ -1790,6 +1808,10 @@ func (process *TeleportProcess) initSSH() error {
 		if ebpf != nil {
 			// Close BPF service.
 			warnOnErr(ebpf.Close())
+		}
+
+		if asyncEmitter != nil {
+			warnOnErr(asyncEmitter.Close())
 		}
 
 		log.Infof("Exited.")
@@ -2028,7 +2050,12 @@ func (process *TeleportProcess) getAdditionalPrincipals(role teleport.Role) ([]s
 	var addrs []utils.NetAddr
 	switch role {
 	case teleport.RoleProxy:
-		addrs = append(process.Config.Proxy.PublicAddrs, utils.NetAddr{Addr: reversetunnel.LocalKubernetes})
+		addrs = append(process.Config.Proxy.PublicAddrs,
+			utils.NetAddr{Addr: string(teleport.PrincipalLocalhost)},
+			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV4)},
+			utils.NetAddr{Addr: string(teleport.PrincipalLoopbackV6)},
+			utils.NetAddr{Addr: reversetunnel.LocalKubernetes},
+		)
 		addrs = append(addrs, process.Config.Proxy.SSHPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.TunnelPublicAddrs...)
 		addrs = append(addrs, process.Config.Proxy.Kube.PublicAddrs...)
@@ -2284,10 +2311,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		trace.Component: teleport.Component(teleport.ComponentReverseTunnelServer, process.id),
 	})
 
-	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
-		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(), conn.Client),
-		Clock: process.Clock,
-	})
+	// asyncEmitter makes sure that sessions do not block
+	// in case if connections are slow
+	asyncEmitter, err := process.newAsyncEmitter(conn.Client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2299,7 +2325,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 	streamEmitter := &events.StreamerAndEmitter{
-		Emitter:  emitter,
+		Emitter:  asyncEmitter,
 		Streamer: streamer,
 	}
 
@@ -2464,7 +2490,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentProxy})
 			}
 		}),
-		regular.SetEmitter(&events.StreamerAndEmitter{Emitter: emitter, Streamer: streamer}),
+		regular.SetEmitter(streamEmitter),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2519,6 +2545,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		component := teleport.Component(teleport.ComponentProxy, teleport.ComponentProxyKube)
 		kubeServer, err = kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 			ForwarderConfig: kubeproxy.ForwarderConfig{
 				Namespace:       defaults.Namespace,
@@ -2527,23 +2554,31 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Tunnel:          tsrv,
 				Auth:            authorizer,
 				Client:          conn.Client,
+				StreamEmitter:   streamEmitter,
 				DataDir:         cfg.DataDir,
 				AccessPoint:     accessPoint,
 				ServerID:        cfg.HostUUID,
 				ClusterOverride: cfg.Proxy.Kube.ClusterOverride,
 				KubeconfigPath:  cfg.Proxy.Kube.KubeconfigPath,
-				Component:       teleport.Component(teleport.ComponentProxy, teleport.ComponentProxyKube),
+				Component:       component,
 			},
 			TLS:           tlsConfig,
 			LimiterConfig: cfg.Proxy.Limiter,
 			AccessPoint:   accessPoint,
+			OnHeartbeat: func(err error) {
+				if err != nil {
+					process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: component})
+				} else {
+					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: component})
+				}
+			},
 		})
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		process.RegisterCriticalFunc("proxy.kube", func() error {
 			log := logrus.WithFields(logrus.Fields{
-				trace.Component: teleport.Component(teleport.ComponentProxyKube),
+				trace.Component: component,
 			})
 			log.Infof("Starting Kube proxy on %v.", cfg.Proxy.Kube.ListenAddr.Addr)
 			err := kubeServer.Serve(listeners.kube)
@@ -2565,6 +2600,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		// several times.
 		if listeners.kube != nil {
 			listeners.kube.Close()
+		}
+		if asyncEmitter != nil {
+			warnOnErr(asyncEmitter.Close())
 		}
 		if payload == nil {
 			log.Infof("Shutting down immediately.")
