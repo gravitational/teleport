@@ -27,7 +27,6 @@ import (
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -187,6 +186,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			DataDir:         cfg.DataDir,
 			AccessPoint:     accessPoint,
 			ServerID:        cfg.HostUUID,
+			Context:         process.ExitContext(),
 			KubeconfigPath:  cfg.Kube.KubeconfigPath,
 			KubeClusterName: cfg.Kube.KubeClusterName,
 			NewKubeService:  true,
@@ -197,6 +197,13 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		TLS:           tlsConfig,
 		AccessPoint:   accessPoint,
 		LimiterConfig: cfg.Kube.Limiter,
+		OnHeartbeat: func(err error) {
+			if err != nil {
+				process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentKube})
+			} else {
+				process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentKube})
+			}
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -224,35 +231,9 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		return nil
 	})
 
-	// Start the heartbeat to announce kubernetes_service presence.
-	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
-		Mode:            srv.HeartbeatModeKube,
-		Context:         process.ExitContext(),
-		Component:       teleport.ComponentKube,
-		Announcer:       conn.Client,
-		GetServerInfo:   kubeServer.GetServerInfo,
-		KeepAlivePeriod: defaults.ServerKeepAliveTTL,
-		AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/10),
-		ServerTTL:       defaults.ServerAnnounceTTL,
-		CheckPeriod:     defaults.HeartbeatCheckPeriod,
-		Clock:           cfg.Clock,
-		OnHeartbeat: func(err error) {
-			if err != nil {
-				process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: teleport.ComponentKube})
-			} else {
-				process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentKube})
-			}
-		},
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	process.RegisterCriticalFunc("kube.heartbeat", heartbeat.Run)
-
 	// Cleanup, when process is exiting.
 	process.onExit("kube.shutdown", func(payload interface{}) {
 		// Clean up items in reverse order from their initialization.
-		warnOnErr(heartbeat.Close())
 		if payload != nil {
 			// Graceful shutdown.
 			warnOnErr(kubeServer.Shutdown(payloadContext(payload)))
