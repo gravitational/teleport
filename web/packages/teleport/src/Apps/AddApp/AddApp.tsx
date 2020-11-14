@@ -16,11 +16,11 @@
 
 import React from 'react';
 import { Flex } from 'design';
-import * as Icons from 'design/Icon';
 import Dialog, { DialogTitle } from 'design/Dialog';
 import useTeleport from 'teleport/useTeleport';
-import { TabIcon } from 'teleport/components/Tabs';
 import Manually from './Manually';
+import * as Icons from 'design/Icon';
+import { TabIcon } from 'teleport/components/Tabs';
 import Automatically from './Automatically';
 import useAddApp, { State } from './useAddApp';
 

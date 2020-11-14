@@ -24,7 +24,7 @@ export default function useAddNode(ctx: TeleportContext) {
   const version = ctx.storeUser.state.cluster.authVersion;
   const [automatic, setAutomatic] = useState(true);
   const [script, setScript] = useState('');
-  const [expiry, setExpiry] = useState<Date>(null);
+  const [expiry, setExpiry] = useState('');
 
   useEffect(() => {
     createJoinToken();
@@ -33,7 +33,7 @@ export default function useAddNode(ctx: TeleportContext) {
   function createJoinToken() {
     return run(() =>
       ctx.nodeService.createNodeBashCommand().then(cmd => {
-        setExpiry(cmd.expiry);
+        setExpiry(cmd.expires);
         setScript(cmd.text);
       })
     );

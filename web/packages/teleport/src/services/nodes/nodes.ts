@@ -29,12 +29,8 @@ const service = {
       .then(json => map(json.items, makeNode));
   },
 
-  createNodeJoinToken() {
-    return api.post(cfg.getNodeJoinTokenUrl()).then(makeNodeToken);
-  },
-
   createNodeBashCommand() {
-    return this.createNodeJoinToken().then(makeNodeBashCmd);
+    return api.post(cfg.getNodeJoinTokenUrl()).then(makeNodeBashCmd);
   },
 
   createAppBashCommand(appName: string, appUri: string) {

@@ -1,11 +1,11 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`success state 1`] = `
-.c16 {
+.c17 {
   box-sizing: border-box;
 }
 
-.c15 {
+.c16 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -31,25 +31,25 @@ exports[`success state 1`] = `
   padding: 0px 24px;
 }
 
-.c15:active {
+.c16:active {
   opacity: 0.56;
 }
 
-.c15:hover,
-.c15:focus {
+.c16:hover,
+.c16:focus {
   background: #651FFF;
 }
 
-.c15:active {
+.c16:active {
   background: #354AA4;
 }
 
-.c15:disabled {
+.c16:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c19 {
+.c20 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -75,16 +75,16 @@ exports[`success state 1`] = `
   padding: 0px 24px;
 }
 
-.c19:active {
+.c20:active {
   opacity: 0.56;
 }
 
-.c19:hover,
-.c19:focus {
+.c20:hover,
+.c20:focus {
   background: #2C3A73;
 }
 
-.c19:disabled {
+.c20:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -96,7 +96,7 @@ exports[`success state 1`] = `
   color: #FFFFFF;
 }
 
-.c17 {
+.c18 {
   color: #03a9f4;
   font-weight: normal;
   background: none;
@@ -105,8 +105,8 @@ exports[`success state 1`] = `
   padding: 0 8px;
 }
 
-.c17:hover,
-.c17:focus {
+.c18:hover,
+.c18:focus {
   background: #222C59;
 }
 
@@ -132,11 +132,18 @@ exports[`success state 1`] = `
 .c12 {
   overflow: hidden;
   text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 16px;
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
 }
 
-.c14 {
+.c15 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -158,7 +165,7 @@ exports[`success state 1`] = `
   justify-content: space-between;
 }
 
-.c13 {
+.c14 {
   box-sizing: border-box;
   margin-bottom: 8px;
   padding: 8px;
@@ -260,7 +267,7 @@ exports[`success state 1`] = `
   flex-direction: column;
 }
 
-.c18 {
+.c19 {
   box-sizing: border-box;
 }
 
@@ -317,28 +324,31 @@ exports[`success state 1`] = `
           <div
             class="c11"
           >
-            Use below script to add a server to your cluster.
-            <br />
-            The script will be valid for
-             
-            <span
+            Use below script to add a server to your cluster. This script will install the Teleport agent to provide secure access to your server.
+            <div
               class="c12"
             >
-              980 years
-              .
-            </span>
+              The script will be valid for
+               
+              <span
+                class="c13"
+              >
+                4 hours
+                .
+              </span>
+            </div>
           </div>
           <div
-            class="c13"
+            class="c14"
           >
             <div
-              class="c14"
+              class="c15"
               style="word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
             >
               $ some bash script
             </div>
             <button
-              class="c15"
+              class="c16"
               kind="primary"
               style="padding: 4px 8px; min-height: 10px; font-size: 10px;"
             >
@@ -346,10 +356,10 @@ exports[`success state 1`] = `
             </button>
           </div>
           <div
-            class="c16"
+            class="c17"
           >
             <a
-              class="c17 c15"
+              class="c18 c16"
               kind="primary"
             >
               Regenerate Script
@@ -357,10 +367,10 @@ exports[`success state 1`] = `
           </div>
         </div>
         <div
-          class="c18"
+          class="c19"
         >
           <button
-            class="c19"
+            class="c20"
             kind="secondary"
           >
             Close

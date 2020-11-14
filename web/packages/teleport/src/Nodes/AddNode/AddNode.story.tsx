@@ -52,7 +52,7 @@ const sample = {
     isEnterprise: true,
     canCreateToken: true,
     script: 'some bash script',
-    expiry: new Date('3000-10-14'),
+    expiry: '4 hours',
     attempt: {
       status: 'success',
       statusText: '',

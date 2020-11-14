@@ -14,7 +14,7 @@ exports[`created 1`] = `
   width: 100%;
 }
 
-.c20 {
+.c22 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -40,25 +40,25 @@ exports[`created 1`] = `
   padding: 0px 24px;
 }
 
-.c20:active {
+.c22:active {
   opacity: 0.56;
 }
 
-.c20:hover,
-.c20:focus {
+.c22:hover,
+.c22:focus {
   background: #651FFF;
 }
 
-.c20:active {
+.c22:active {
   background: #354AA4;
 }
 
-.c20:disabled {
+.c22:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c22 {
+.c24 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -85,25 +85,25 @@ exports[`created 1`] = `
   margin-right: 16px;
 }
 
-.c22:active {
+.c24:active {
   opacity: 0.56;
 }
 
-.c22:hover,
-.c22:focus {
+.c24:hover,
+.c24:focus {
   background: #651FFF;
 }
 
-.c22:active {
+.c24:active {
   background: #354AA4;
 }
 
-.c22:disabled {
+.c24:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c23 {
+.c25 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -129,16 +129,16 @@ exports[`created 1`] = `
   padding: 0px 24px;
 }
 
-.c23:active {
+.c25:active {
   opacity: 0.56;
 }
 
-.c23:hover,
-.c23:focus {
+.c25:hover,
+.c25:focus {
   background: #2C3A73;
 }
 
-.c23:disabled {
+.c25:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -188,6 +188,19 @@ exports[`created 1`] = `
   margin-bottom: 4px;
 }
 
+.c19 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c19:hover,
+.c19:focus {
+  background: #222C59;
+}
+
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -214,7 +227,13 @@ exports[`created 1`] = `
   margin: 0px;
 }
 
-.c19 {
+.c18 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
+.c21 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -243,7 +262,7 @@ exports[`created 1`] = `
   flex-direction: row;
 }
 
-.c18 {
+.c20 {
   box-sizing: border-box;
   margin-bottom: 8px;
   padding: 8px;
@@ -313,7 +332,7 @@ exports[`created 1`] = `
   flex-direction: column;
 }
 
-.c21 {
+.c23 {
   box-sizing: border-box;
 }
 
@@ -446,7 +465,6 @@ exports[`created 1`] = `
           >
             Use the script below to add an application to your cluster.
              
-            <br />
             The script will be valid for
             <span
               class="c17"
@@ -454,18 +472,31 @@ exports[`created 1`] = `
                1 hour
               .
             </span>
+            <div
+              class="c18"
+            >
+              This app will be available on 
+                
+              <a
+                class="c19"
+                href="https://.localhost"
+                target="_blank"
+              >
+                https://.localhost
+              </a>
+            </div>
           </div>
           <div
-            class="c18"
+            class="c20"
           >
             <div
-              class="c19"
+              class="c21"
               style="word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
             >
               $ sudo bash -c "$(curl -fsSL 'http://localhost/scripts/86/install-app.sh?name=test&uri=http://myapp/')"
             </div>
             <button
-              class="c20"
+              class="c22"
               kind="primary"
               style="padding: 4px 8px; min-height: 10px; font-size: 10px;"
             >
@@ -474,16 +505,16 @@ exports[`created 1`] = `
           </div>
         </div>
         <div
-          class="c21"
+          class="c23"
         >
           <button
-            class="c22"
+            class="c24"
             kind="primary"
           >
             Regenerate
           </button>
           <button
-            class="c23"
+            class="c25"
             kind="secondary"
           >
             Close
@@ -509,7 +540,7 @@ exports[`loaded 1`] = `
   width: 100%;
 }
 
-.c18 {
+.c19 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -536,25 +567,25 @@ exports[`loaded 1`] = `
   margin-right: 16px;
 }
 
-.c18:active {
+.c19:active {
   opacity: 0.56;
 }
 
-.c18:hover,
-.c18:focus {
+.c19:hover,
+.c19:focus {
   background: #651FFF;
 }
 
-.c18:active {
+.c19:active {
   background: #354AA4;
 }
 
-.c18:disabled {
+.c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c19 {
+.c20 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -580,16 +611,16 @@ exports[`loaded 1`] = `
   padding: 0px 24px;
 }
 
-.c19:active {
+.c20:active {
   opacity: 0.56;
 }
 
-.c19:hover,
-.c19:focus {
+.c20:hover,
+.c20:focus {
   background: #2C3A73;
 }
 
-.c19:disabled {
+.c20:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -656,6 +687,13 @@ exports[`loaded 1`] = `
   text-overflow: ellipsis;
   margin: 0px;
   margin-bottom: 16px;
+}
+
+.c17 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 4px;
 }
 
 .c4 {
@@ -739,7 +777,7 @@ exports[`loaded 1`] = `
   flex-direction: column;
 }
 
-.c17 {
+.c18 {
   box-sizing: border-box;
 }
 
@@ -870,22 +908,27 @@ exports[`loaded 1`] = `
           <div
             class="c16"
           >
-            Provide the name and URL of your application to generate a script that will automatically install and configure the App service on the server that can access your application.
+            Teleport can automatically set up application access. Provide the name and URL of your application to generate our auto-installer script.
+            <div
+              class="c17"
+            >
+              This script will install the Teleport agent to provide secure access to your application.
+            </div>
           </div>
           
         </div>
         <div
-          class="c17"
+          class="c18"
         >
           <button
-            class="c18"
+            class="c19"
             kind="primary"
           >
             Generate Script
           </button>
           
           <button
-            class="c19"
+            class="c20"
             kind="secondary"
           >
             Close

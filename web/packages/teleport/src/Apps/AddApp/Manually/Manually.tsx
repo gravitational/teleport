@@ -18,10 +18,10 @@ import React from 'react';
 import { Text, Box, ButtonSecondary, Link } from 'design';
 import { DialogContent, DialogFooter } from 'design/Dialog';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
-import cfg from 'teleport/config';
 import * as links from 'teleport/services/links';
 
 export default function Manually({ version, onClose }: Props) {
+  const host = window.document.location.host;
   return (
     <>
       <DialogContent minHeight="240px" flex="0 0 auto">
@@ -50,7 +50,7 @@ export default function Manually({ version, onClose }: Props) {
             {' - Login to Teleport'}
             <TextSelectCopy
               mt="2"
-              text={`tsh login --proxy=${cfg.proxyCluster} --auth=local`}
+              text={`tsh login --proxy=${host} --auth=local`}
             />
           </Box>
           <Box mb={4}>
@@ -60,15 +60,29 @@ export default function Manually({ version, onClose }: Props) {
             {' - Generate a join token'}
             <TextSelectCopy mt="2" text="tctl tokens add --type=app" />
           </Box>
-          <Box>
+          <Box mb="4">
             <Text bold as="span">
               Step 4
             </Text>
-            {` - Install Teleport on target server, and start it with the following parameters`}
+            {` - Start the Teleport agent with the following parameters`}
             <TextSelectCopy
               mt="2"
-              text={`teleport start --roles=app --token=<generated-app-join-token> --auth-server=${cfg.proxyCluster} `}
+              text={`teleport start --roles=app --app-name=[example-app] --app-uri=http://localhost:8080 --token=[generated-join-token] --auth-server=${host} `}
             />
+          </Box>
+          <Box>
+            <Text bold as="span"></Text>
+            {`* Note: For a self-hosted Teleport version, you may need to update DNS and obtain a TLS certificate for this application.
+            Learn more about application access `}
+            <Link
+              href={
+                'https://gravitational.com/teleport/docs/application-access/'
+              }
+              target="_blank"
+              mr="2"
+            >
+              here
+            </Link>
           </Box>
         </Box>
       </DialogContent>

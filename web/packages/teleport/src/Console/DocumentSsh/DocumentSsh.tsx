@@ -17,7 +17,7 @@ limitations under the License.
 import React, { useRef, useEffect } from 'react';
 import cfg from 'teleport/config';
 import * as Icons from 'design/Icon';
-import { Indicator, Text, Box, ButtonPrimary, ButtonSecondary } from 'design';
+import { Indicator, Text, Box, ButtonPrimary } from 'design';
 import * as Alerts from 'design/Alert';
 import * as stores from 'teleport/Console/stores';
 import FileTransfer, { useFileTransferDialogs } from './../FileTransfer';

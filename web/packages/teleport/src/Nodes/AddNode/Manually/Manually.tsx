@@ -18,9 +18,9 @@ import React from 'react';
 import { Text, Box, Link } from 'design';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import * as links from 'teleport/services/links';
-import cfg from 'teleport/config';
 
 export default function Manually({ version, ...styles }: Props) {
+  const host = window.document.location.host;
   return (
     <Box {...styles}>
       <Box mb={4}>
@@ -47,7 +47,7 @@ export default function Manually({ version, ...styles }: Props) {
         {' - Login to Teleport'}
         <TextSelectCopy
           mt="2"
-          text={`tsh login --proxy=${cfg.proxyCluster} --auth=local`}
+          text={`tsh login --proxy=${host} --auth=local`}
         />
       </Box>
       <Box mb={4}>
@@ -55,16 +55,16 @@ export default function Manually({ version, ...styles }: Props) {
           Step 3
         </Text>
         {' - Generate a join token'}
-        <TextSelectCopy mt="2" text="tctl tokens add --type=node" />
+        <TextSelectCopy mt="2" text="tctl tokens add --type=node --ttl=1h" />
       </Box>
       <Box>
         <Text bold as="span">
           Step 4
         </Text>
-        {` - Install Teleport on target server, and start it with the following parameters`}
+        {` - Start the Teleport agent with the following parameters`}
         <TextSelectCopy
           mt="2"
-          text={`teleport start --roles=node --token=<generated-node-join-token> --auth-server=${cfg.proxyCluster} `}
+          text={`teleport start --roles=node --token=[generated-join-token] --auth-server=${host} `}
         />
       </Box>
     </Box>

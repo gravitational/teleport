@@ -64,7 +64,6 @@ function useMainStory() {
       Promise.resolve({ overflow: false, events });
     ctx.clusterService.fetchClusters = () => Promise.resolve(clusters);
     ctx.nodeService.fetchNodes = () => Promise.resolve(nodes);
-    ctx.nodeService.createNodeJoinToken = () => Promise.resolve(joinToken);
     ctx.sshService.fetchSessions = () => Promise.resolve(sessions);
     ctx.appService.fetchApps = () => Promise.resolve(apps);
     ctx.storeUser.setState(userContext);
