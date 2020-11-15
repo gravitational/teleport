@@ -136,7 +136,6 @@ This role declares:
 
 Next, create a SAML connector [resource](../../admin-guide.md#resources):
 
-TODO
 ```yaml
 {!examples/resources/adfs-connector.yaml!}
 ```
