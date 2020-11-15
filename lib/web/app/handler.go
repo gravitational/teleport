@@ -197,7 +197,7 @@ func (h *Handler) getSession(ctx context.Context, ws services.WebSession) (*sess
 
 // extractCookie extracts the cookie from the *http.Request.
 func extractCookie(r *http.Request) (string, error) {
-	rawCookie, err := r.Cookie(cookieName)
+	rawCookie, err := r.Cookie(CookieName)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -216,7 +216,7 @@ func HasFragment(r *http.Request) bool {
 
 // HasSession checks if an application specific cookie exists.
 func HasSession(r *http.Request) bool {
-	_, err := r.Cookie(cookieName)
+	_, err := r.Cookie(CookieName)
 	return err == nil
 }
 
@@ -259,6 +259,6 @@ func HasName(r *http.Request, proxyPublicAddr string) (string, bool) {
 }
 
 const (
-	// cookieName is the name of the application session cookie.
-	cookieName = "grv_app_session"
+	// CookieName is the name of the application session cookie.
+	CookieName = "grv_app_session"
 )

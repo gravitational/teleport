@@ -229,9 +229,10 @@ func TestRoleParse(t *testing.T) {
 						BPF:               defaults.EnhancedEvents(),
 					},
 					Allow: RoleConditions{
-						NodeLabels: Labels{},
-						AppLabels:  Labels{Wildcard: []string{Wildcard}},
-						Namespaces: []string{defaults.Namespace},
+						NodeLabels:       Labels{},
+						AppLabels:        Labels{Wildcard: []string{Wildcard}},
+						KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
+						Namespaces:       []string{defaults.Namespace},
 					},
 					Deny: RoleConditions{
 						Namespaces: []string{defaults.Namespace},
@@ -258,6 +259,7 @@ func TestRoleParse(t *testing.T) {
 					                    "allow": {
 					                      "node_labels": {"a": "b", "c-d": "e"},
 					                      "app_labels": {"a": "b", "c-d": "e"},
+					                      "kubernetes_labels": {"a": "b", "c-d": "e"},
 					                      "namespaces": ["default"],
 					                      "rules": [
 					                        {
@@ -293,9 +295,10 @@ func TestRoleParse(t *testing.T) {
 						BPF:                   defaults.EnhancedEvents(),
 					},
 					Allow: RoleConditions{
-						NodeLabels: Labels{"a": []string{"b"}, "c-d": []string{"e"}},
-						AppLabels:  Labels{"a": []string{"b"}, "c-d": []string{"e"}},
-						Namespaces: []string{"default"},
+						NodeLabels:       Labels{"a": []string{"b"}, "c-d": []string{"e"}},
+						AppLabels:        Labels{"a": []string{"b"}, "c-d": []string{"e"}},
+						KubernetesLabels: Labels{"a": []string{"b"}, "c-d": []string{"e"}},
+						Namespaces:       []string{"default"},
 						Rules: []Rule{
 							Rule{
 								Resources: []string{KindRole},
@@ -334,6 +337,7 @@ func TestRoleParse(t *testing.T) {
 		                    "allow": {
 		                      "node_labels": {"a": "b"},
 		                      "app_labels": {"a": "b"},
+		                      "kubernetes_labels": {"c": "d"},
 		                      "namespaces": ["default"],
 		                      "rules": [
 		                        {
@@ -369,9 +373,10 @@ func TestRoleParse(t *testing.T) {
 						BPF:                   defaults.EnhancedEvents(),
 					},
 					Allow: RoleConditions{
-						NodeLabels: Labels{"a": []string{"b"}},
-						AppLabels:  Labels{"a": []string{"b"}},
-						Namespaces: []string{"default"},
+						NodeLabels:       Labels{"a": []string{"b"}},
+						AppLabels:        Labels{"a": []string{"b"}},
+						KubernetesLabels: Labels{"c": []string{"d"}},
+						Namespaces:       []string{"default"},
 						Rules: []Rule{
 							Rule{
 								Resources: []string{KindRole},
@@ -409,7 +414,8 @@ func TestRoleParse(t *testing.T) {
 		                    },
 		                    "allow": {
 		                      "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
-		                      "app_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]}
+		                      "app_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
+		                      "kubernetes_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]}
 		                    },
 		                    "deny": {
 		                      "logins": ["c"]
@@ -444,6 +450,11 @@ func TestRoleParse(t *testing.T) {
 							"key":  []string{"val"},
 							"key2": []string{"val2", "val3"},
 						},
+						KubernetesLabels: Labels{
+							"a":    []string{"b"},
+							"key":  []string{"val"},
+							"key2": []string{"val2", "val3"},
+						},
 						Namespaces: []string{"default"},
 					},
 					Deny: RoleConditions{
@@ -455,26 +466,26 @@ func TestRoleParse(t *testing.T) {
 			error: nil,
 		},
 	}
-	for i, tc := range testCases {
-		comment := fmt.Sprintf("test case %v %q", i, tc.name)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			role, err := UnmarshalRole([]byte(tc.in))
+			if tc.error != nil {
+				require.Error(t, err)
+				if tc.matchMessage != "" {
+					require.Contains(t, err.Error(), tc.matchMessage)
+				}
+			} else {
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(*role, tc.role))
 
-		role, err := UnmarshalRole([]byte(tc.in))
-		if tc.error != nil {
-			require.Error(t, err, comment)
-			if tc.matchMessage != "" {
-				require.Contains(t, err.Error(), tc.matchMessage, comment)
+				out, err := json.Marshal(role)
+				require.NoError(t, err)
+
+				role2, err := UnmarshalRole(out)
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(*role2, tc.role))
 			}
-		} else {
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(*role, tc.role), comment)
-
-			out, err := json.Marshal(role)
-			require.NoError(t, err, comment)
-
-			role2, err := UnmarshalRole(out)
-			require.NoError(t, err, comment)
-			require.Empty(t, cmp.Diff(*role2, tc.role), comment)
-		}
+		})
 	}
 }
 
@@ -494,7 +505,7 @@ func TestLabelCompatibility(t *testing.T) {
 	require.Equal(t, map[string]string{"key": "val"}, out)
 }
 
-func TestCheckAccess(t *testing.T) {
+func TestCheckAccessToServer(t *testing.T) {
 	type check struct {
 		server    Server
 		hasAccess bool
@@ -1943,6 +1954,140 @@ func TestBoolOptions(t *testing.T) {
 		})
 		require.Equal(t, tt.outCanPortForward, set.CanPortForward())
 		require.Equal(t, tt.outCanForwardAgents, set.CanForwardAgents())
+	}
+}
+
+func TestCheckAccessToKubernetes(t *testing.T) {
+	clusterNoLabels := &KubernetesCluster{
+		Name: "no-labels",
+	}
+	clusterWithLabels := &KubernetesCluster{
+		Name:          "no-labels",
+		StaticLabels:  map[string]string{"foo": "bar"},
+		DynamicLabels: map[string]CommandLabelV2{"baz": {Result: "qux"}},
+	}
+	wildcardRole := &RoleV3{
+		Metadata: Metadata{
+			Name:      "wildcard-labels",
+			Namespace: defaults.Namespace,
+		},
+		Spec: RoleSpecV3{
+			Allow: RoleConditions{
+				Namespaces:       []string{defaults.Namespace},
+				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
+			},
+		},
+	}
+	matchingLabelsRole := &RoleV3{
+		Metadata: Metadata{
+			Name:      "matching-labels",
+			Namespace: defaults.Namespace,
+		},
+		Spec: RoleSpecV3{
+			Allow: RoleConditions{
+				Namespaces: []string{defaults.Namespace},
+				KubernetesLabels: Labels{
+					"foo": utils.Strings{"bar"},
+					"baz": utils.Strings{"qux"},
+				},
+			},
+		},
+	}
+	noLabelsRole := &RoleV3{
+		Metadata: Metadata{
+			Name:      "no-labels",
+			Namespace: defaults.Namespace,
+		},
+		Spec: RoleSpecV3{
+			Allow: RoleConditions{
+				Namespaces: []string{defaults.Namespace},
+			},
+		},
+	}
+	mismatchingLabelsRole := &RoleV3{
+		Metadata: Metadata{
+			Name:      "mismatching-labels",
+			Namespace: defaults.Namespace,
+		},
+		Spec: RoleSpecV3{
+			Allow: RoleConditions{
+				Namespaces: []string{defaults.Namespace},
+				KubernetesLabels: Labels{
+					"qux": utils.Strings{"baz"},
+					"bar": utils.Strings{"foo"},
+				},
+			},
+		},
+	}
+	testCases := []struct {
+		name      string
+		roles     []*RoleV3
+		cluster   *KubernetesCluster
+		hasAccess bool
+	}{
+		{
+			name:      "empty role set has access to nothing",
+			roles:     nil,
+			cluster:   clusterNoLabels,
+			hasAccess: false,
+		},
+		{
+			name:      "role with no labels has access to nothing",
+			roles:     []*RoleV3{noLabelsRole},
+			cluster:   clusterNoLabels,
+			hasAccess: false,
+		},
+		{
+			name:      "role with wildcard labels matches cluster without labels",
+			roles:     []*RoleV3{wildcardRole},
+			cluster:   clusterNoLabels,
+			hasAccess: true,
+		},
+		{
+			name:      "role with wildcard labels matches cluster with labels",
+			roles:     []*RoleV3{wildcardRole},
+			cluster:   clusterWithLabels,
+			hasAccess: true,
+		},
+		{
+			name:      "role with labels does not match cluster with no labels",
+			roles:     []*RoleV3{matchingLabelsRole},
+			cluster:   clusterNoLabels,
+			hasAccess: false,
+		},
+		{
+			name:      "role with labels matches cluster with labels",
+			roles:     []*RoleV3{matchingLabelsRole},
+			cluster:   clusterWithLabels,
+			hasAccess: true,
+		},
+		{
+			name:      "role with mismatched labels does not match cluster with labels",
+			roles:     []*RoleV3{mismatchingLabelsRole},
+			cluster:   clusterWithLabels,
+			hasAccess: false,
+		},
+		{
+			name:      "one role in the roleset matches",
+			roles:     []*RoleV3{mismatchingLabelsRole, noLabelsRole, matchingLabelsRole},
+			cluster:   clusterWithLabels,
+			hasAccess: true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var set RoleSet
+			for _, r := range tc.roles {
+				set = append(set, r)
+			}
+			err := set.CheckAccessToKubernetes(defaults.Namespace, tc.cluster)
+			if tc.hasAccess {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+			}
+		})
 	}
 }
 

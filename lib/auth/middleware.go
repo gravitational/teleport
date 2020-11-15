@@ -330,6 +330,7 @@ func (a *Middleware) UnaryInterceptor(ctx context.Context, req interface{}, info
 		return nil, trail.ToGRPC(trace.LimitExceeded("connection limit exceeded"))
 	}
 	defer a.Limiter.ConnLimiter.Release(clientIP, 1)
+	ctx = context.WithValue(ctx, ContextClientAddr, peerInfo.Addr)
 
 	tlsInfo, ok := peerInfo.AuthInfo.(credentials.TLSInfo)
 	if !ok {

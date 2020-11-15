@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -318,7 +319,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 							services.NewRule(services.KindSemaphore, services.RW()),
 							services.NewRule(services.KindAppServer, services.RO()),
 							services.NewRule(services.KindWebSession, services.RW()),
-							services.NewRule(services.KindKubeService, services.RO()),
+							services.NewRule(services.KindKubeService, services.RW()),
 							// this rule allows local proxy to update the remote cluster's host certificate authorities
 							// during certificates renewal
 							{
@@ -373,7 +374,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 						services.NewRule(services.KindSemaphore, services.RW()),
 						services.NewRule(services.KindAppServer, services.RO()),
 						services.NewRule(services.KindWebSession, services.RW()),
-						services.NewRule(services.KindKubeService, services.RO()),
+						services.NewRule(services.KindKubeService, services.RW()),
 						// this rule allows local proxy to update the remote cluster's host certificate authorities
 						// during certificates renewal
 						{
@@ -517,10 +518,17 @@ func contextForLocalUser(u LocalUser, identity services.UserGetter, access servi
 	}, nil
 }
 
-type contextUserKey string
+type contextKey string
 
-// ContextUser is a user set in the context of the request
-const ContextUser contextUserKey = "teleport-user"
+const (
+	// ContextUser is a user set in the context of the request
+	ContextUser contextKey = "teleport-user"
+	// ContextClientAddr is a client address set in the context of the request
+	ContextClientAddr contextKey = "client-addr"
+	// ContextDelegator is a delegator for access requests set in the context
+	// of the request
+	ContextDelegator contextKey = events.AccessRequestDelegator
+)
 
 // clientUsername returns the username of a remote HTTP client making the call.
 // If ctx didn't pass through auth middleware or did not come from an HTTP

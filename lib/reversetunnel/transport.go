@@ -396,6 +396,11 @@ func (p *transport) getConn(servers []string, r *dialReq) (net.Conn, bool, error
 			return nil, false, trace.Wrap(err)
 		}
 
+		// Connections to applications should never occur over a direct dial, return right away.
+		if r.ConnType == services.AppTunnel {
+			return nil, false, trace.ConnectionProblem(err, "failed to connect to application")
+		}
+
 		errTun := err
 		p.log.Debugf("Attempting to dial directly %v.", servers)
 		conn, err = directDial(servers)

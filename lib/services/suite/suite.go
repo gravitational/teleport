@@ -649,10 +649,11 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 				BPF:               defaults.EnhancedEvents(),
 			},
 			Allow: services.RoleConditions{
-				Logins:     []string{"root", "bob"},
-				NodeLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
-				AppLabels:  services.Labels{services.Wildcard: []string{services.Wildcard}},
-				Namespaces: []string{defaults.Namespace},
+				Logins:           []string{"root", "bob"},
+				NodeLabels:       services.Labels{services.Wildcard: []string{services.Wildcard}},
+				AppLabels:        services.Labels{services.Wildcard: []string{services.Wildcard}},
+				KubernetesLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+				Namespaces:       []string{defaults.Namespace},
 				Rules: []services.Rule{
 					services.NewRule(services.KindRole, services.RO()),
 				},
