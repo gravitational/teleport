@@ -54,18 +54,18 @@ proxy_service:
 
 !!! tip "Using Certbot to obtain Wildcard Certs"
 
-  Let's Encrypt provides free wildcard certificates. If using [certbot](https://certbot.eff.org/)
-  with DNS challenge the below script will make setup easy.
+    Let's Encrypt provides free wildcard certificates. If using [certbot](https://certbot.eff.org/)
+    with DNS challenge the below script will make setup easy.
 
-    ```sh
-    certbot certonly --manual \
-      --preferred-challenges=dns \
-      --email [EMAIL] \
-      --server https://acme-v02.api.letsencrypt.org/directory \
-      --agree-tos \
-      --manual-public-ip-logging-ok \
-      -d "teleport.example.com, *.teleport.example.com"
-    ```
+      ```sh
+      certbot certonly --manual \
+        --preferred-challenges=dns \
+        --email [EMAIL] \
+        --server https://acme-v02.api.letsencrypt.org/directory \
+        --agree-tos \
+        --manual-public-ip-logging-ok \
+        -d "teleport.example.com, *.teleport.example.com"
+      ```
 
 
 ## Teleport Application Service Setup
@@ -78,7 +78,7 @@ inline options using `teleport start` or using a `teleport.yaml` config file.
 | Variable to replace | Description  |
 |-|-|
 | `--roles=app` | This role will only setup the reverse proxy for applications |
-| `--token=` | A dynamic or static `app` token obtained from the root cluster |
+| `--token` | A dynamic or static `app` token obtained from the root cluster |
 | `--auth-server` | URL of the root cluster auth server or public proxy address |
 | `--app-name` | Application name |
 | `--app-uri` |  URI and Port of Application  |
@@ -126,6 +126,8 @@ app_service:
    debug_app: true
    apps:
    - name: "kubernetes-dashboard"
+     # URI and port of application. 
+     uri: "https://localhost:3040"
      # Optional Public Addr
      public_addr: "example.com"
      # Optional Label: These can be used in combination with RBAC rules

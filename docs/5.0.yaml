@@ -34,7 +34,7 @@ extra:
     version: 5.0
     teleport:
         version: 5.0.0-beta.10
-        golang: 1.14
+        golang: 1.15
         sha: a719ef4ad8265a946c682541641b6ceb434c9487575d80b03c3a624df700904b
         plugin:
             version: 0.2.0

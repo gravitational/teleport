@@ -22,6 +22,7 @@ the following services.
 | [Node](architecture/nodes.md) | `node` | Runs a daemon on a node which allows SSH connections from authenticated clients.
 | [Auth](architecture/authentication.md) | `auth` | Authenticates nodes and users who want access to Teleport Nodes or information about the cluster
 | [Proxy](architecture/proxy.md) | `proxy` | The gateway that clients use to connect to the Auth or Node Services
+| [App](application-access.md) | `app` |  Runs a daemon on a node which provides allows to Applications using a SSH reverse tunnel.
 
 ## teleport start
 
@@ -46,10 +47,32 @@ the following services.
 | `--fips` | none | none | start Teleport in FedRAMP/FIPS 140-2 mode.
 | `--diag-addr` | none | none | Enable diagnostic endpoints
 | `--permit-user-env` | none | none | flag reads in environment variables from `~/.tsh/environment` when creating a session.
+| `--app-name` | none | none | Name of the application to start
+| `--app-uri` | none } none | Internal address of the application to proxy
+| `--app-public-addr` | none | none | Public address fo the application to proxy
 
-!!! warning "Token Generation"
 
-    We recommend the use of tools like `pwgen` to generate sufficiently random tokens of 32+ byte length.
+### Examples
+
+```
+# By default without any configuration, teleport starts running as a single-node
+# cluster. It's the equivalent of running with --roles=node,proxy,auth
+$ teleport start
+
+# Starts a node named 'db' running in strictly SSH mode role, joining the cluster
+# serviced by the auth server running on 10.1.0.1
+$ teleport start --roles=node --auth-server=10.1.0.1 --token=xyz --nodename=db
+
+# Same as the above, but the node runs with db=master label and can be connected
+# to using that label in addition to its name.
+$ teleport start --roles=node --auth-server=10.1.0.1 --labels=db=master
+ 
+# Starts an app server that proxies the application "example-app" running at http://localhost:8080.
+$ teleport start --roles=app --token=xyz --auth-server=proxy.example.com:3080 \
+    --app-name="example-app" \
+    --app-uri="http://localhost:8080" \
+    --labels=group:dev
+```
 
 ## teleport status
 
@@ -156,6 +179,12 @@ $ tsh ssh --proxy proxy.example.com --user teleport -d root@grav-00
 $ tsh ssh -o ForwardAgent=yes root@grav-00
 $ tsh ssh -o AddKeysToAgent=yes root@grav-00
 ```
+
+## tsh apps ls
+
+List all available applications 
+
+**Usage**: `tsh apps ls`
 
 ## tsh join
 
