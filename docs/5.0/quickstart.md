@@ -6,8 +6,7 @@ description: The quick start guide for how to set up modern SSH access to cloud 
 # Teleport Quick Start
 
 This tutorial will guide you through the steps needed to install and run
-Teleport Unified Access Plane, which could be your local machine but we recommend a
-VM.
+Teleport on Linux machine(s).
 
 ### Prerequisites
 
@@ -23,10 +22,50 @@ VM.
 This guide is only meant to demonstrate how to run Teleport in a sandbox or demo
 environment, and showcase a few basic tasks you can do with Teleport.
 
-## Step 1: Install Teleport on a Remote VM
+## Step 1: Install Teleport on a Linux Host
 
-There are several ways to install Teleport. Take a look at the [Teleport Installation](installation.md)
-page to pick the method convenient for you.
+There are several ways to install Teleport. 
+Take a look at the [Teleport Installation](installation.md) page to pick the method convenient for you.
+
+
+=== "yum repo / Amazon Linux 2"
+
+    ```bash
+    yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+    yum install teleport
+    ```
+    _Optional: Using Dandified YUM_
+    ```bash
+    dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+    dnf install teleport
+    ```
+
+=== "ARMv7 (32-bit)"
+
+    ```bash
+    curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
+    tar -xzf teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
+    cd teleport
+    ./install
+    ```
+
+=== "ARM64/ARMv8 (64-bit)"
+
+    ```bash
+    curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
+    tar -xzf teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
+    cd teleport
+    ./install
+    ```
+
+=== "Tarball"
+
+    ```bash
+    curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+    tar -xzf teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+    cd teleport
+    ./install
+    ```
 
 ## Step 1b: Configure Teleport
 
@@ -36,7 +75,32 @@ When setting up Teleport, we recommend running it with Teleports YAML configurat
 $ teleport configure > teleport.yaml
 ```
 
-??? example "Example teleport.yaml" We'll pre-populate your configuration with a nodename and a strong randomly generated static token. yaml --8<-- "snippets/install/teleport-config.yaml"
+!!! tip "Example teleport.yaml"
+
+    ```
+    teleport:
+        nodename: ip-172-31-13-139
+        data_dir: /var/lib/teleport
+        auth_token: f7adb7ccdf04037bcd2b52ec6010fd6f0caec94ba190b765
+    auth_service:
+        enabled: "yes"
+        cluster_name: "teleport-quickstart"
+        listen_addr: 0.0.0.0:3025
+        tokens:
+        - proxy,node,app:f7adb7ccdf04037bcd2b52ec6010fd6f0caec94ba190b765
+    ssh_service:
+        enabled: "yes"
+        labels:
+            env: staging
+    proxy_service:
+        enabled: "yes"
+        listen_addr: 0.0.0.0:3023
+        web_listen_addr: 0.0.0.0:3080
+        tunnel_listen_addr: 0.0.0.0:3024
+        https_keypairs: []
+    app_service:
+        enabled: "yes"
+    ```
 
 ** THINGS TO CHANGE **
 
@@ -45,7 +109,7 @@ Move `teleport.yaml` to /etc.
 $  mv teleport.yaml /etc
 ```
 
-## Step 1c: Setup Domain name & TLS using Let's Encrypt
+## Step 1c: Setup Domain Name & TLS using Let's Encrypt
 
 Teleport requires a secure public endpoint for end users to connect to.
 A domain name, DNS, and TLS is required for Teleport. We'll use Let's Encrypt to obtain a free TLS certificate.
@@ -70,8 +134,9 @@ Replace `teleport.example.com` with the location of your proxy.
 export TELEPORT_PUBLIC_DNS_NAME="teleport.example.com"
 cat >> /etc/teleport.yaml <<EOL
   public_addr: $TELEPORT_PUBLIC_DNS_NAME:3080
-  https_key_file: /etc/letsencrypt/live/$TELEPORT_PUBLIC_DNS_NAME/privkey.pem
-  https_cert_file: /etc/letsencrypt/live/$TELEPORT_PUBLIC_DNS_NAME/fullchain.pem
+  https_keypairs: 
+    - key_file: /etc/letsencrypt/live/$TELEPORT_PUBLIC_DNS_NAME/privkey.pem
+    - cert_file: /etc/letsencrypt/live/$TELEPORT_PUBLIC_DNS_NAME/fullchain.pem
 EOL
 ```
 
