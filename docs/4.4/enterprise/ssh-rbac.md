@@ -267,7 +267,7 @@ RBACs lets teams limit what resources are available to teleport users. This can 
 helpful if you don't want regular users editing SSO `auth_connector` or creating and
 editing new roles `role`.
 
-As list of all options is below.
+A list of all options is below:
 
 ```yaml
   allow:
