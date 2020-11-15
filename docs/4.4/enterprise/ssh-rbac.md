@@ -261,57 +261,33 @@ spec:
 ```
 
 
-## Teleport Resources
-
-RBACs lets teams limit what resources are available to teleport users. This can be
-helpful if you don't want regular users editing SSO `auth_connector` or creating and
-editing new roles `role`.
-
-A list of all options is below:
-
 ```yaml
   allow:
     rules:
-    # Can create and list Teleport Roles.
+    # Role: CRUD options for managing Teleport Roles
     - resources:
       - role
-      verbs:
-      - list
-      - create
-      - read
-      - update
-      - delete
-    # Can create and edit SSO connectors.
+      verbs: [list, create, read, update, delete]
+    # Auth Connectors: CRUD options for managing SSO connectors
     - resources:
       - auth_connector
-      verbs:
-      - list
-      - create
-      - read
-      - update
-      - delete
+      verbs:  [list, create, read, update, delete]
+    # Session: Provides access to Session Recordings.
+    # e.g If session read is false, users can't play the recordings 
+    # It is possible to restrict "list" but to allow "read" (in this case a user will
+    # be able to replay a session using `tsh play` if they know the session ID) 
     - resources:
       - session
-      verbs:
-      - list
-      - read
-    # Can view trusted clusters. If update / create is set the users can create.
+      verbs:  [list,read]
+    # Trusted Clusters:  CRUD options for managing Trusted Clusters
     - resources:
       - trusted_cluster
-      verbs:
-      - list
-      - create
-      - read
-      - update
-      - delete
-    # Can view the audit log and session recordings.
+      verbs: [list, create, read, update, delete]
+    # Events: Can view the audit log and session recordings.
     - resources:
       - event
-      verbs:
-      - list
-      - read
+      verbs:  [list, read]
 ```
-
 ## FAQ
 
 **Q:** What if a node has multiple labels?

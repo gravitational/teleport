@@ -150,9 +150,12 @@ spec:
       verbs: [list, read]
     - resources: [trusted_cluster]
       verbs: [list, create, read, update, delete]
-    # list and read audit log, including audit events and recorded sessions
     - resources: [event]
       verbs: [list, read]
+    - resources: [user]
+      verbs: [list,create,read,update,delete]
+    - resources: [token]
+      verbs: [list,create,read,update,delete]
 
   # the deny section uses the identical format as the 'allow' section.
   # the deny rules always override allow rules.
@@ -271,24 +274,49 @@ spec:
 ```
 
 
-## RBAC for Sessions
+## Teleport Resources
 
-As shown in the role example above, a Teleport administrator can restrict
-access to user sessions using the following rule:
+RBAC lets teams limit what resources are available to teleport users. This can be helpful if for example, 
+you don't want regular users editing SSO (`auth_connector`), for example, or creating and editing new roles 
+(`role`).
+
+
+List of all rule options defined below.
 
 ```yaml
-rules:
-  - resources: [session]
-    verbs: [list, read]
+  allow:
+    rules:
+    # Role: CRUD options for managing Teleport Roles
+    - resources:
+      - role
+      verbs: [list, create, read, update, delete]
+    # Auth Connectors: CRUD options for managing SSO connectors
+    - resources:
+      - auth_connector
+      verbs:  [list, create, read, update, delete]
+    # Session: Provides access to Session Recordings.
+    # e.g If session read is false, users can't play the recordings 
+    # It is possible to restrict "list" but to allow "read" (in this case a user will
+    # be able to replay a session using `tsh play` if they know the session ID) 
+    - resources:
+      - session
+      verbs:  [list,read]
+    # Trusted Clusters:  CRUD options for managing Trusted Clusters
+    - resources:
+      - trusted_cluster
+      verbs: [list, create, read, update, delete]
+    # Events: Can view the audit log and session recordings.
+    - resources:
+      - event
+      verbs:  [list, read]
+    # User: CRUD options for managing Teleport local users
+    - resources: [user]
+      verbs: [list,create,read,update,delete]
+    # Tokens: CRUD options for managing tokens
+    # Enterprise customer can enable app and node wizard enabling this resource 
+    - resources: [token]
+      verbs: [list,create,read,update,delete]
 ```
-
-* "list" determines if a user is allowed to see the list of past sessions.
-* "read" determines if a user is allowed to replay a session.
-
-It is possible to restrict "list" but to allow "read" (in this case a user will
-be able to replay a session using `tsh play` if they know the session ID)
-
-
 
 ## FAQ
 
