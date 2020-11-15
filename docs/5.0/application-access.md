@@ -96,14 +96,15 @@ When picking an application name it's important to make sure the name will make 
 
 **Define `/etc/teleport.yaml`**
 
-
-###
 | Variable to replace | Description  |
 |-|-|
 | `nodename` | Name of node Teleport is running on |
-| `public_addr` | Public URL and Port for Teleport |
-| `https_key_file` | LetsEncrypt Key File ( Wildcard Cert )  |
-| `https_cert_file` | LetsEncrypt Key File ( Wildcard Cert ) |
+| `proxy_service: public_addr` | Public URL and Port for Teleport |
+| `https_keypairs` | LetsEncrypt Key File ( Wildcard Cert )  |
+| `-key_file` | LetsEncrypt Key File ( Wildcard Cert ) |
+| `-cert_file` | LetsEncrypt Key File ( Wildcard Cert ) |
+| `app_service: enabled: yes` | LetsEncrypt Key File ( Wildcard Cert ) |
+| `apps: name` | LetsEncrypt Key File ( Wildcard Cert ) |
 
 ```yaml
 teleport:
@@ -119,14 +120,16 @@ ssh_service:
   enabled: "false"
 app_service:
    enabled: yes
-   ## T
+   # We've a small debug app that can be used to make sure application
+   # Access is working correctly. It'll output JWTs so it can be useful
+   # for when extending your application.
    debug_app: true
    apps:
    - name: "kubernetes-dashboard"
-     # This version requires a public_addr for all Apps, these
-     #  applications should have a certificate and DNS setup
+     # Optional Public Addr
      public_addr: "example.com"
-     # Optional Labels
+     # Optional Label: These can be used in combination with RBAC rules
+     # to limit access to applications
      labels:
         env: "prod"
      # Optional Dynamic Labels
@@ -139,7 +142,7 @@ proxy_service:
   listen_addr: 0.0.0.0:3023
   tunnel_listen_addr: 0.0.0.0:3024
   public_addr: teleport.example.com:443
-  ## Example using a wildcard cert.
+  # Example using a wildcard cert
   https_keypairs:
   - key_file: /etc/letsencrypt/live/teleport.example.com/privkey.pem
   - cert_file: /etc/letsencrypt/live/teleport.example.com/fullchain.pem
@@ -147,7 +150,7 @@ proxy_service:
   - cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 ```
 #### [ Optional ] Obtain a new App Token
-In the above example we've hard coded a join token a3aff444e182cf4ee5c2f78ad2a4cc47d8a30c95747a08f8. You can use this to join apps or create a dynamic token using the tctl command below.
+In the above example we've hard coded a join token `a3aff444e182cf4ee5c2f78ad2a4cc47d8a30c95747a08f8`. You can use this to join apps or create a dynamic token using the tctl command below.
 
 ```bash
 $ tctl tokens add --type=app
@@ -197,9 +200,7 @@ We provide simple rewrites. This is helpful for applications
 
 ## View Applications in Teleport
 
-`https://[cluster-url]:3080/web/cluster/[cluster-name]/apps`
-
-If you always
+`https://[cluster-url:cluster-port]/web/cluster/[cluster-name]/apps`
 
 ## Logging out of Applications
 
@@ -250,11 +251,7 @@ Teleports JSON Web Token (JWT) includes three sections:
   "username": "benarent"
 }
 ```
-**TODO Add info about claims etc.
-
-Teleport will
-
-`Teleport-Jwt-Assertion`
+The JWT will be sent with the header: `Teleport-Jwt-Assertion`
 
 **Example Teleport JWT Assertion**
 ```json
@@ -264,7 +261,8 @@ eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOlsiaHR0cDovLzEyNy4wLjAuMTozNDY3OSJ
 
 Teleport provides a jwks endpoint to verify that the JWT can be trusted. This endpoint is `https://[cluster-name]:3080/.well-known/jwks.json`
 
-This will output
+_Example jwks.json_
+
 ```json
 {
   "keys": [
@@ -277,11 +275,6 @@ This will output
   ]
 }
 ```
-
-### How to validate the signature.
-
-TODO
-
 
 ## Example Applications
 
