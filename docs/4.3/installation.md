@@ -92,8 +92,9 @@ $ docker pull quay.io/gravitational/teleport:{{ teleport.version }}
 
 ## Helm
 Please follow our [Helm Chart Readme](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport) for install and setup instructions.
+
 ```bash
-$ helm repo add gravitational https://charts.gravitational.io
+$ helm repo add gravitational https://charts.releases.teleport.dev
 $ helm install teleport gravitational/teleport
 ```
 
