@@ -139,18 +139,18 @@ to look like this:
 auth_service:
   enabled: true
   tokens:
-  # If using static tokens we recommend to use tools like `pwgen -s 32`  
+  # If using static tokens we recommend using tools like `pwgen -s 32`  
   # to generate sufficiently random tokens of 32+ byte length
   - trusted_cluster:mk9JgEVqsgz6pSsHf4kJPAHdVDVtpuE0
 ```
 
-This token can be used unlimited number of times. 
+This token can be used an unlimited number of times. 
 
 ### Security Implications
 
 Consider the security implications when deciding which token method to use.
-Short lived tokens decrease the window for attack but make automation a bit
-more complicated.
+Short lived tokens decrease the window for attack, but will require any automation
+which uses these tokens to refresh them on a regular basis.
 
 ### Dynamic Join Tokens
 
@@ -162,7 +162,7 @@ To create a token using the CLI tool, execute this command on the _auth server_
 of cluster "root":
 
 ```bsh
-# generates a trusted cluster token to allow an inbound from a trusting cluster:
+# generates a trusted cluster token to allow an inbound connect from a leaf cluster:
 $ tctl tokens add --type=trusted_cluster --ttl=5m
 # Example output
 # The cluster invite token: ba4825847f0378bcdfe18113c4998498
@@ -274,7 +274,7 @@ spec:
     node_labels:
       '*': '*'
     # Cluster labels control what clusters user can connect to. The wildcard ('*') means
-    # any cluster. If no role in the role set is using labels and cluster is not labeled,
+    # any cluster. If no role in the role set is using labels and the cluster is not labeled,
     # the cluster labels check is not applied. Otherwise, cluster labels are always enforced.
     # This makes the feature backwards-compatible.
     cluster_labels:
@@ -340,9 +340,8 @@ role name and use reference it to name the local role:
 **NOTE:** The regexp matching is activated only when the expression starts
 with `^` and ends with `$`
 
-
-
 ### Trusted Cluster UI
+
 For customers using Teleport Enterprise, they can easily configure _leaf_ nodes using the
 Teleport Proxy UI.
 
@@ -364,12 +363,13 @@ $ tctl create root-user-updated-role.yaml
 ```
 
 ### Updating Cluster Labels
-Teleport lets administrator of root clusters the ability to control cluster 
-labels. Letting leaf clusters propagate their labels creates a problem of 
+
+Teleport gives administrators of root clusters the ability to control cluster labels.
+Allowing leaf clusters to propagate their own labels could create a problem with
 rogue clusters updating their labels to bad values.
 
-An, administrator of root cluster control the labels
-using remote clusters API without fear of override:
+An administrator of a root cluster can control a remote/leaf cluster's
+labels using the remote cluster API without any fear of override:
 
 ```bash
 $ tctl get rc
@@ -383,7 +383,7 @@ status:
 version: v3
 ```
 
-Using `tctl` to update the labels on the remote / leaf cluster. 
+Using `tctl` to update the labels on the remote/leaf cluster:
 
 ```
 $ tctl update rc/two --set-labels=env=prod
@@ -391,7 +391,7 @@ $ tctl update rc/two --set-labels=env=prod
 cluster two has been updated
 ```
 
-Using `tctl` to confirm that the updated labels have been set. 
+Using `tctl` to confirm that the updated labels have been set:
 
 ```bash
 $ tctl get rc
