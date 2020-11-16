@@ -54,7 +54,13 @@ func (s *IntSuite) init(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	server := &services.ServerV2{}
+	server := &services.ServerV2{
+		Metadata: services.Metadata{
+			Name: "server",
+		},
+		Kind:    services.KindNode,
+		Version: services.V2,
+	}
 	server.SetNamespace(ClusterID)
 
 	namespace := &services.Namespace{}
