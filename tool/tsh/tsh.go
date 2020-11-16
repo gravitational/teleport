@@ -417,8 +417,8 @@ func Run(args []string) {
 		onApps(&cf)
 	case kube.credentials.FullCommand():
 		err = kube.credentials.run(&cf)
-	case kube.clusters.FullCommand():
-		err = kube.clusters.run(&cf)
+	case kube.ls.FullCommand():
+		err = kube.ls.run(&cf)
 	case kube.login.FullCommand():
 		err = kube.login.run(&cf)
 	default:
