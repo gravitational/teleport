@@ -82,6 +82,17 @@ Supported features:
   instance) and database users.
 * Auditing of database connections and executed queries.
 
+## Deployment modes
+
+Example configurations Teleport database service can be used in:
+
+* Single-process mode where auth, proxy and database services all run within
+  the same Teleport process. Useful for development and testing.
+* Database service is started separately and connects back to the cluster
+  control plane over SSH reverse tunnel, same as application proxy service.
+* Trusted clusters, database service in a leaf cluster can be used in a same
+  way after trusted cluster relationship with root has been established.
+
 ## Architecture
 
 Architecturally Database Access is very similar to [Application Access](0008-application-access.md).
@@ -180,8 +191,6 @@ db_service:
     ca_cert_file: "/path/to/root.pem"
     # AWS specific configuration for RDS/Aurora databases.
     aws:
-      # Use IAM authentication with RDS/Aurora database.
-      auth: "iam"
       # Optional AWS region RDS/Aurora database is running in.
       region: "us-east-1"
     # Static labels assigned to the database instance, used in RBAC.
@@ -194,7 +203,13 @@ db_service:
       period: "1m"
 ```
 
-*TODO(r0mant): Add information about starting db service using tsh join.*
+When connecting Teleport database service to the cluster, users can either use
+a static join token (of type `db`) from auth server config, or generate a new
+join token for the service:
+
+```sh
+$ tctl tokens add --type=db
+```
 
 #### RDS/Aurora
 
@@ -210,15 +225,16 @@ db_service:
     uri: "postgres-rds.xxx.us-east-1.rds.amazonaws.com:5432"
     ca_cert_file: "/opt/rds/rds-ca-2019-root.pem"
     aws:
-      auth: "iam"
       region: "us-east-1"
 ```
 
 * `uri` is the endpoint for a particular database from RDS control panel.
-For Aurora, it can be any of the exposed database endpoints, reader or writer.
-* `ca_cert_file` is a path to the [RDS root certificate](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html).
-* `aws.auth` is the authentication method, only "iam" is supported.
+* `ca_cert_file` is an optional path to the [RDS root certificate](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.SSL.html).
 * `aws.region` is the region the database is deployed in.
+
+If RDS root certificate is not provided explicitly, Teleport database service
+will attempt to download the correct version (based on the specified region
+the database is running in) automatically from AWS.
 
 AWS credentials will be initialized using default credential provider chain
 used by Go SDK which looks in the environment variables, then shared
@@ -372,6 +388,41 @@ spec:
     db_users: ["alice", "bob"]
 ```
 
+Restricting access to specific database names and users may not be supported
+for all databases we will eventually support, only for those we will be doing
+protocol parsing for.
+
+The new `db_names` and `db_users` rule properties support templating variables,
+similar to the existing fields, that allow to propagate them from the identity
+provider and between trusted clusters:
+
+```yaml
+spec:
+  allow:
+    db_names: ["{{internal.db_names}}", "{{external.xxx}}"]
+    db_users: ["{{internal.db_users}}", "{{external.yyy}}"]
+```
+
+For enterprise connectors, OIDC and SAML, the role mapping is sufficient to
+make use of these template variables. For the open-source Github connector
+we will extend `teams_to_logins` mapping:
+
+```yaml
+spec:
+  teams_to_logins:
+  - organization: octocats
+    team: admins 
+    db_names: ["test"]
+    db_users: ["alice"]
+```
+
+The open-source `tctl users add` command will also be extended with additional
+flags that set allowed database names and users in the user traits:
+
+```sh
+$ tctl users add --db-names=main,metrics --db-users=postgres,alice alice
+```
+
 ## CLI
 
 To connect to a database instance, a user first must login using regular
@@ -386,11 +437,11 @@ command:
 
 ```sh
 $ tsh db ls
-Name            Description     URI                                     Labels
---------------- --------------- --------------------------------------- ---------
-postgres        PostgreSQL 13.0 localhost:5432                          env=dev
-postgres-rds    PostgreSQL 12.4 postgres-rds.xxx.rds.amazonaws.com:5432 env=stage
-postgres-aurora PostgreSQL 11.6 postgres-rds.yyy.rds.amazonaws.com:5432 env=prod
+Name            Description     Labels
+--------------- --------------- ---------
+postgres        PostgreSQL 13.0 env=dev
+postgres-rds    PostgreSQL 12.4 env=stage
+postgres-aurora PostgreSQL 11.6 env=prod
 ```
 
 The list will only show databases the logged in user has access to (as per
@@ -399,10 +450,10 @@ to see the Aurora database instance:
 
 ```sh
 $ tsh db ls
-Name            Description     URI                                     Labels
---------------- --------------- --------------------------------------- ---------
-postgres        PostgreSQL 13.0 localhost:5432                          env=dev
-postgres-rds    PostgreSQL 12.4 postgres-rds.xxx.rds.amazonaws.com:5432 env=stage
+Name         Description     Labels
+------------ --------------- ---------
+postgres     PostgreSQL 13.0 env=dev
+postgres-rds PostgreSQL 12.4 env=stage
 ```
 
 To log into a specific database instance, a user executes `tsh db login`
@@ -421,9 +472,30 @@ $ tsh status
   Logged in as:       alice
   Roles:              db-developer*
   ...
-  Database:           postgres
+  Databases:          postgres
   ...
 ```
+
+User can be logged into multiple databases simultaneously:
+
+```sh
+$ tsh db login db1
+$ tsh db login db3
+$ tsh db ls
+Name  Description Labels
+----- ----------- ---------
+> db1 Database 1  env=dev
+db2   Database 2  env=stage
+> db3 Database 3  env=prod
+```
+
+To log out of a particular database (i.e. remove certificate from key store):
+
+```sh
+$ tsh db logout db1
+```
+
+### Selecting database users
 
 The `tsh db login` command also prints a footer explaining how to connect
 to the database:
@@ -439,8 +511,6 @@ Or configure environment variables and use regular CLI flags:
   $ eval $(tsh db env)
   $ psql -U <user> <database>
 ```
-
-### Selecting database users
 
 After successful login, users can use any database user to connect to the
 database, as long as it is allowed by the RBAC rules. For example:
@@ -589,7 +659,3 @@ In future, instead of using host authority for signing certificates used by a
 database server, we can introduce another authority specifically for database
 access which would help decouple authority rotation for databases from the
 rest of the cluster.
-
-## TODOs
-
-* Trusted clusters.
