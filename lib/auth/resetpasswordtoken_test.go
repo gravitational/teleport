@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -43,7 +42,7 @@ type ResetPasswordTokenTest struct {
 var _ = check.Suite(&ResetPasswordTokenTest{})
 
 func (s *ResetPasswordTokenTest) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 func (s *ResetPasswordTokenTest) SetUpTest(c *check.C) {

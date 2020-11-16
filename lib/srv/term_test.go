@@ -37,7 +37,7 @@ var _ = testing.Verbose
 var _ = fmt.Printf
 
 func (s *TermSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 func (s *TermSuite) TestGetOwner(c *check.C) {

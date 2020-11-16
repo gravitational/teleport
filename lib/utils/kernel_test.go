@@ -19,7 +19,6 @@ package utils
 import (
 	"fmt"
 	"strings"
-	"testing"
 
 	"github.com/coreos/go-semver/semver"
 	"gopkg.in/check.v1"
@@ -31,7 +30,7 @@ var _ = fmt.Printf
 var _ = check.Suite(&KernelSuite{})
 
 func (s *KernelSuite) SetUpSuite(c *check.C) {
-	InitLoggerForTests(c, testing.Verbose())
+	InitLoggerForTests()
 }
 
 // TestKernelVersion checks that version strings for various distributions

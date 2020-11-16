@@ -52,7 +52,7 @@ type EtcdSuite struct {
 var _ = check.Suite(&EtcdSuite{})
 
 func (s *EtcdSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 
 	// this config must match examples/etcd/teleport.yaml
 	s.config = backend.Params{

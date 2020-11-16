@@ -34,7 +34,7 @@ import (
 
 // TestStreams tests various streaming upload scenarios
 func TestStreams(t *testing.T) {
-	utils.InitLoggerForTests(t, testing.Verbose())
+	utils.InitLoggerForTests()
 
 	dir, err := ioutil.TempDir("", "teleport-streams")
 	require.Nil(t, err)

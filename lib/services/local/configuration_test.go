@@ -42,10 +42,7 @@ var _ = testing.Verbose
 var _ = fmt.Printf
 
 func (s *ClusterConfigurationSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
-}
-
-func (s *ClusterConfigurationSuite) TearDownSuite(c *check.C) {
+	utils.InitLoggerForTests()
 }
 
 func (s *ClusterConfigurationSuite) SetUpTest(c *check.C) {

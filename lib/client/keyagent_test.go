@@ -24,7 +24,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"testing"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -57,7 +56,7 @@ var _ = check.Suite(&KeyAgentTestSuite{})
 var _ = fmt.Printf
 
 func (s *KeyAgentTestSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 
 	var err error
 	// path to temporary  ~/.tsh directory to use during tests

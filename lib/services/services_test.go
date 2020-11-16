@@ -34,7 +34,7 @@ func TestServices(t *testing.T) { check.TestingT(t) }
 var _ = check.Suite(&ServicesSuite{})
 
 func (s *ServicesSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 // TestOptions tests command options operations

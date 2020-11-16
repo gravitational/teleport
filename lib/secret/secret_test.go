@@ -34,7 +34,7 @@ var _ = check.Suite(&SecretSuite{})
 var _ = fmt.Printf
 
 func (s *SecretSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 // TestKey checks a various key operations like new key generation and parsing.

@@ -34,7 +34,7 @@ var _ = check.Suite(&ProxySuite{})
 var _ = fmt.Printf
 
 func (s *ProxySuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 func (s *ProxySuite) TestGetProxyAddress(c *check.C) {

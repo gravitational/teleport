@@ -101,7 +101,7 @@ func TestMain(m *testing.M) {
 }
 
 func (s *IntSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 	SetTestTimeouts(time.Millisecond * time.Duration(100))
 
 	var err error

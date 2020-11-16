@@ -37,7 +37,7 @@ func TestClientAPI(t *testing.T) { check.TestingT(t) }
 var _ = check.Suite(&APITestSuite{})
 
 func (s *APITestSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 func (s *APITestSuite) TestConfig(c *check.C) {

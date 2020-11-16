@@ -27,7 +27,7 @@ import (
 
 // TestOIDCUnmarshal tests unmarshal of OIDC connector
 func TestOIDCUnmarshal(t *testing.T) {
-	utils.InitLoggerForTests(t, testing.Verbose())
+	utils.InitLoggerForTests()
 	input := `
       {
         "kind": "oidc",

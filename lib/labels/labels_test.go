@@ -37,12 +37,8 @@ var _ = check.Suite(&LabelSuite{})
 func TestLabels(t *testing.T) { check.TestingT(t) }
 
 func (s *LabelSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 }
-
-func (s *LabelSuite) TearDownSuite(c *check.C) {}
-func (s *LabelSuite) SetUpTest(c *check.C)     {}
-func (s *LabelSuite) TearDownTest(c *check.C)  {}
 
 func (s *LabelSuite) TestSync(c *check.C) {
 	// Create dynamic labels and sync right away.

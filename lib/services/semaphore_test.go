@@ -17,7 +17,6 @@ limitations under the License.
 package services
 
 import (
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -31,7 +30,7 @@ type SemaphoreSuite struct {
 var _ = check.Suite(&SemaphoreSuite{})
 
 func (s *SemaphoreSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 func (s *SemaphoreSuite) TestAcquireSemaphoreRequest(c *check.C) {

@@ -18,7 +18,6 @@ package services
 
 import (
 	"fmt"
-	"testing"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
@@ -33,7 +32,7 @@ var _ = check.Suite(&RoleMapSuite{})
 var _ = fmt.Printf
 
 func (s *RoleMapSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 func (s *RoleMapSuite) TestRoleParsing(c *check.C) {

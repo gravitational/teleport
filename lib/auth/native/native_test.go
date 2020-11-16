@@ -44,7 +44,7 @@ var _ = check.Suite(&NativeSuite{})
 var _ = fmt.Printf
 
 func (s *NativeSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 
 	fakeClock := clockwork.NewFakeClockAt(time.Date(2016, 9, 8, 7, 6, 5, 0, time.UTC))
 

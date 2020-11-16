@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"testing"
 
 	"gopkg.in/check.v1"
 )
@@ -30,7 +29,7 @@ var _ = check.Suite(&EnvironmentSuite{})
 var _ = fmt.Printf
 
 func (s *EnvironmentSuite) SetUpSuite(c *check.C) {
-	InitLoggerForTests(c, testing.Verbose())
+	InitLoggerForTests()
 }
 
 func (s *EnvironmentSuite) TestReadEnvironmentFile(c *check.C) {

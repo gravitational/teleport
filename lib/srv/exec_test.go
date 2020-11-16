@@ -78,7 +78,7 @@ func TestMain(m *testing.M) {
 }
 
 func (s *ExecSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 
 	bk, err := lite.NewWithConfig(context.TODO(), lite.Config{Path: c.MkDir()})
 	c.Assert(err, check.IsNil)

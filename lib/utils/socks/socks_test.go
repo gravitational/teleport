@@ -39,7 +39,7 @@ var _ = check.Suite(&SOCKSSuite{})
 var _ = fmt.Printf
 
 func (s *SOCKSSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 func (s *SOCKSSuite) TestHandshake(c *check.C) {

@@ -20,7 +20,6 @@ import (
 	"context"
 	"io/ioutil"
 	"os"
-	"testing"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -44,7 +43,7 @@ type AuthInitSuite struct {
 var _ = Suite(&AuthInitSuite{})
 
 func (s *AuthInitSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 func (s *AuthInitSuite) SetUpTest(c *C) {

@@ -81,7 +81,7 @@ func (a *AuditTestSuite) makeLogWithClock(c *check.C, dataDir string, recordSess
 }
 
 func (a *AuditTestSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 func (a *AuditTestSuite) SetUpTest(c *check.C) {
@@ -395,7 +395,7 @@ func (a *AuditTestSuite) TestForwardAndUpload(c *check.C) {
 // TestLegacyHandler tests playback for legacy sessions
 // that are stored on disk in unpacked format
 func (a *AuditTestSuite) TestLegacyHandler(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 	memory := NewMemoryUploader()
 	wrapper, err := NewLegacyHandler(LegacyHandlerConfig{
 		Handler: memory,

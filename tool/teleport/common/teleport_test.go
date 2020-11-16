@@ -41,7 +41,7 @@ type MainTestSuite struct {
 var _ = check.Suite(&MainTestSuite{})
 
 func (s *MainTestSuite) SetUpTest(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 func (s *MainTestSuite) SetUpSuite(c *check.C) {

@@ -39,7 +39,7 @@ var _ = testing.Verbose
 var _ = fmt.Printf
 
 func (s *LiteMemSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 	newBackend := func() (backend.Backend, error) {
 		return New(context.Background(), map[string]interface{}{
 			"memory":             true,

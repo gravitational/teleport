@@ -19,7 +19,6 @@ package services
 import (
 	"encoding/json"
 	"fmt"
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -36,7 +35,7 @@ type MigrationsSuite struct {
 var _ = Suite(&MigrationsSuite{})
 
 func (s *MigrationsSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 func (s *MigrationsSuite) TestMigrateServers(c *C) {

@@ -44,7 +44,7 @@ import (
 // roles with different individual values.  These are tested together since
 // both values use the same resolution rules.
 func TestConnAndSessLimits(t *testing.T) {
-	utils.InitLoggerForTests(t, testing.Verbose())
+	utils.InitLoggerForTests()
 	tts := []struct {
 		desc string
 		vals []int64
@@ -93,7 +93,7 @@ func TestConnAndSessLimits(t *testing.T) {
 }
 
 func TestRoleParse(t *testing.T) {
-	utils.InitLoggerForTests(t, testing.Verbose())
+	utils.InitLoggerForTests()
 	testCases := []struct {
 		name         string
 		in           string

@@ -51,12 +51,8 @@ type MainTestSuite struct{}
 var _ = check.Suite(&MainTestSuite{})
 
 func (s *MainTestSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 	os.RemoveAll(client.FullProfilePath(""))
-}
-
-func (s *MainTestSuite) TearDownSuite(c *check.C) {
-	utils.InitLoggerForTests(utils.DiscardingTestLogger, testing.Verbose())
 }
 
 func (s *MainTestSuite) TestMakeClient(c *check.C) {

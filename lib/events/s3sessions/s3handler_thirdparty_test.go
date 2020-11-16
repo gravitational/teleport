@@ -36,7 +36,7 @@ import (
 // TestThirdpartyStreams tests various streaming upload scenarios
 // implemented by third party backends using fake backend
 func TestThirdpartyStreams(t *testing.T) {
-	utils.InitLoggerForTests(t, testing.Verbose())
+	utils.InitLoggerForTests()
 
 	var timeSource gofakes3.TimeSource
 	backend := s3mem.New(s3mem.WithTimeSource(timeSource))

@@ -47,7 +47,7 @@ var _ = check.Suite(&Suite{})
 func TestBPF(t *testing.T) { check.TestingT(t) }
 
 func (s *Suite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 }
 
 func (s *Suite) TestWatch(c *check.C) {
