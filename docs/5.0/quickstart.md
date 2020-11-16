@@ -10,23 +10,18 @@ Teleport on Linux machine(s).
 
 ### Prerequisites
 
+* A Linux Machine
+* A Domain Name, DNS and TLS Certs. We'll provide examples using Let'sEncrypt
+* 25 min of time
 * In this tutorial you will start a UI which must be accessible via a
   browser. If you run this tutorial on a remote machine without a GUI, first
   make sure that this machine's IP can be reached over your network and that
-  it accepts incoming traffic on port `3080` .
-
-* We recommend that you read the [Architecture Guide](architecture/overview.md)
-  before working through this tutorial. If you'd like to dive right in though this is
-  the best place to start!
-
-This guide is only meant to demonstrate how to run Teleport in a sandbox or demo
-environment, and showcase a few basic tasks you can do with Teleport.
+  it accepts incoming traffic on ports `3023-3025` and `3080` .
 
 ## Step 1: Install Teleport on a Linux Host
 
 There are several ways to install Teleport.
-Take a look at the [Teleport Installation](installation.md) page to pick the method convenient for you.
-
+Take a look at the [Teleport Installation](installation.md) page to pick the most convenient for you.
 
 === "yum repo / Amazon Linux 2"
 
@@ -34,7 +29,7 @@ Take a look at the [Teleport Installation](installation.md) page to pick the met
     yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
     yum install teleport
 
-    # Optional: Using Dandified YUM_
+    # Optional:  Using DNF on newer distributions
     # dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
     # dnf install teleport
     ```
@@ -102,7 +97,7 @@ $  mv teleport.yaml /etc
 ```
 
 
-## Step 1c: Setup Domain Name & TLS using Let's Encrypt
+## Step 1c: Configure Domain Name & Obtain TLS Certs using Let's Encrypt
 
 Teleport requires a secure public endpoint for the Teleport UI and for end users to connect to. A domain name and TLS are required for Teleport. We'll use Let's Encrypt to obtain a free TLS certificate.
 
@@ -178,11 +173,10 @@ A selection of Two-Factor Authentication apps are.
 
     The OS user `root, ubuntu, ec2-user` must exist! On Linux, if it
     does not already exist, create it with `adduser teleport`. If you do not have
-    the permission to create new users on the VM, run `tctl users add teleport
+    the permission to create new users on the Linux Host, run `tctl users add teleport
     <your-username> ` to explicitly map ` teleport` to an existing OS user. If you
     do not map to a real OS user you will get authentication errors later on in
     this tutorial!
-
 
 ![Teleport UI Dashboard](img/quickstart/teleport-nodes.png)
 
@@ -191,13 +185,13 @@ A selection of Two-Factor Authentication apps are.
 === "Mac - Homebrew"
 
     ```bash
-    $ brew install teleport
+    brew install teleport
     ```
 
 === "Windows - Powershell"
 
     ```bash
-    > curl -O teleport-v{{ teleport.version }}-windows-amd64-bin.zip https://get.gravitational.com/teleport-v{{ teleport.version }}-windows-amd64-bin.zip
+    curl -O teleport-v{{ teleport.version }}-windows-amd64-bin.zip https://get.gravitational.com/teleport-v{{ teleport.version }}-windows-amd64-bin.zip
     # Move `tsh` to your %PATH%
     ```
 
@@ -252,11 +246,8 @@ and the auth server will be the IP of that box. You can find this via `ifconfig 
 $ cat /etc/teleport.yaml
 # example output
 # teleport:
-#   nodename: testnode
 #   data_dir: /var/lib/teleport
-#   auth_token: 2370c3f1554c8469be14aa40599ee05778d47918e4ea6ce8
-#   auth_servers:
-#     - 127.0.0.1:3025
+#   auth_token: f7adb7ccdf04037bcd2b52ec6010fd6f0caec94ba190b765
 ```
 Armed with these details, we'll bootstrap a new host using
 
@@ -280,7 +271,7 @@ Armed with these details, we'll bootstrap a new host using
     - path: /etc/teleport.yaml
         content: |
             teleport:
-                auth_token: "f2e75-REPLACE-WITH-YOUR-TOKEN"
+                auth_token: "f7adb7ccdf04037bcd2b52ec6010fd6f0caec94ba190b765"
                 auth_servers:
                     - "46.101-REPLACE-WITH-YOUR_IP:3025"
             auth_service:
