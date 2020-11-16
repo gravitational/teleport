@@ -34,11 +34,8 @@ var _ = check.Suite(&ProxySuite{})
 var _ = fmt.Printf
 
 func (s *ProxySuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(c, testing.Verbose())
 }
-func (s *ProxySuite) TearDownSuite(c *check.C) {}
-func (s *ProxySuite) SetUpTest(c *check.C)     {}
-func (s *ProxySuite) TearDownTest(c *check.C)  {}
 
 func (s *ProxySuite) TestGetProxyAddress(c *check.C) {
 	type env struct {

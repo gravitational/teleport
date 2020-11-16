@@ -43,7 +43,7 @@ var _ = fmt.Printf
 var _ = Suite(&SCPSuite{})
 
 func (s *SCPSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests(c, testing.Verbose())
 }
 
 func (s *SCPSuite) TestHTTPSendFile(c *C) {

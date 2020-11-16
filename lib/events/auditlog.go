@@ -109,7 +109,7 @@ func init() {
 // sessions. It implements IAuditLog
 type AuditLog struct {
 	sync.Mutex
-	*log.Entry
+	log.FieldLogger
 	AuditLogConfig
 
 	// playbackDir is a directory used for unpacked session recordings
@@ -242,7 +242,7 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 	al := &AuditLog{
 		playbackDir:    filepath.Join(cfg.DataDir, PlaybackDir, SessionLogsDir, defaults.Namespace),
 		AuditLogConfig: cfg,
-		Entry: log.WithFields(log.Fields{
+		FieldLogger: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentAuditLog,
 		}),
 		activeDownloads: make(map[string]context.Context),

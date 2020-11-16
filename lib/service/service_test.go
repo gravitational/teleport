@@ -46,7 +46,7 @@ type ServiceTestSuite struct {
 var _ = check.Suite(&ServiceTestSuite{})
 
 func (s *ServiceTestSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests(c, testing.Verbose())
 }
 
 func (s *ServiceTestSuite) TestSelfSignedHTTPS(c *check.C) {

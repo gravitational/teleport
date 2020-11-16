@@ -42,7 +42,6 @@ import (
 
 // bootstrap check
 func TestTshMain(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
 	check.TestingT(t)
 }
 
@@ -52,8 +51,12 @@ type MainTestSuite struct{}
 var _ = check.Suite(&MainTestSuite{})
 
 func (s *MainTestSuite) SetUpSuite(c *check.C) {
-	dir := client.FullProfilePath("")
-	os.RemoveAll(dir)
+	utils.InitLoggerForTests(c, testing.Verbose())
+	os.RemoveAll(client.FullProfilePath(""))
+}
+
+func (s *MainTestSuite) TearDownSuite(c *check.C) {
+	utils.InitLoggerForTests(utils.DiscardingTestLogger, testing.Verbose())
 }
 
 func (s *MainTestSuite) TestMakeClient(c *check.C) {

@@ -37,7 +37,7 @@ var _ = check.Suite(&LabelSuite{})
 func TestLabels(t *testing.T) { check.TestingT(t) }
 
 func (s *LabelSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests(c, testing.Verbose())
 }
 
 func (s *LabelSuite) TearDownSuite(c *check.C) {}

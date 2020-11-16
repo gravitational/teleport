@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"testing"
 	"time"
 
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -45,12 +46,11 @@ var _ = fmt.Printf
 var _ = check.Suite(&GithubSuite{})
 
 func (s *GithubSuite) SetUpSuite(c *check.C) {
-	var err error
-
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(c, testing.Verbose())
 
 	s.c = clockwork.NewFakeClockAt(time.Now())
 
+	var err error
 	s.b, err = lite.NewWithConfig(context.Background(), lite.Config{
 		Path:             c.MkDir(),
 		PollStreamPeriod: 200 * time.Millisecond,

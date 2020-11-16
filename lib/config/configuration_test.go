@@ -113,11 +113,8 @@ type ConfigTestSuite struct {
 var _ = check.Suite(&ConfigTestSuite{})
 
 func (s *ConfigTestSuite) SetUpSuite(c *check.C) {
+	utils.InitLoggerForTests(c, testing.Verbose())
 	s.testConfigFiles = testConfigs
-}
-
-func (s *ConfigTestSuite) SetUpTest(c *check.C) {
-	utils.InitLoggerForTests()
 }
 
 func (s *ConfigTestSuite) TestSampleConfig(c *check.C) {

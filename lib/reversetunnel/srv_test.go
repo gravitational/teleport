@@ -38,7 +38,7 @@ func TestServerKeyAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	s := &server{
-		Entry: testlog.FailureOnly(t),
+		FieldLogger: testlog.FailureOnly(t),
 		localAccessPoint: mockAccessPoint{ca: services.NewCertAuthority(
 			services.HostCA,
 			"cluster-name",

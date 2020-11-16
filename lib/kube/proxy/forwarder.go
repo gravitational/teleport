@@ -185,7 +185,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	closeCtx, close := context.WithCancel(cfg.Context)
 	fwd := &Forwarder{
 		creds:           creds,
-		Entry:           log,
+		FieldLogger:     log,
 		Router:          *httprouter.New(),
 		ForwarderConfig: cfg,
 		clusterSessions: clusterSessions,
@@ -216,7 +216,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 // however some requests like exec sessions it intercepts and records.
 type Forwarder struct {
 	sync.Mutex
-	*log.Entry
+	log.FieldLogger
 	httprouter.Router
 	ForwarderConfig
 	// clusterSessions is an expiring cache associated with authenticated
@@ -973,7 +973,7 @@ const (
 )
 
 func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Request) error {
-	if err := setupImpersonationHeaders(f.Entry, sess.authContext, req.Header); err != nil {
+	if err := setupImpersonationHeaders(f.FieldLogger, sess.authContext, req.Header); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1218,7 +1218,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		Context:               ctx,
 		TeleportUser:          s.User.GetName(),
 		ServerID:              s.parent.ServerID,
-		Entry:                 s.parent.Entry,
+		Entry:                 s.parent.FieldLogger,
 		Emitter:               s.parent.Client,
 	})
 	if err != nil {
@@ -1352,7 +1352,7 @@ func (f *Forwarder) newClusterSessionRemoteCluster(ctx authContext) (*clusterSes
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
 		forward.WebsocketDial(sess.Dial),
-		forward.Logger(f.Entry),
+		forward.Logger(f.FieldLogger),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1428,7 +1428,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
 		forward.WebsocketDial(sess.Dial),
-		forward.Logger(f.Entry),
+		forward.Logger(f.FieldLogger),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1467,7 +1467,7 @@ func (f *Forwarder) newClusterSessionDirect(ctx authContext, kubeService service
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
 		forward.WebsocketDial(sess.Dial),
-		forward.Logger(f.Entry),
+		forward.Logger(f.FieldLogger),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

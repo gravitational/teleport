@@ -17,6 +17,8 @@ limitations under the License.
 package services
 
 import (
+	"testing"
+
 	"github.com/gravitational/teleport/lib/utils"
 
 	check "gopkg.in/check.v1"
@@ -27,7 +29,7 @@ type GithubSuite struct{}
 var _ = check.Suite(&GithubSuite{})
 
 func (s *GithubSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(c, testing.Verbose())
 }
 
 func (s *GithubSuite) TestUnmarshal(c *check.C) {

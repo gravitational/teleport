@@ -34,11 +34,8 @@ var _ = check.Suite(&WrappersSuite{})
 func TestWrappers(t *testing.T) { check.TestingT(t) }
 
 func (s *WrappersSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(c, testing.Verbose())
 }
-func (s *WrappersSuite) TearDownSuite(c *check.C) {}
-func (s *WrappersSuite) SetUpTest(c *check.C)     {}
-func (s *WrappersSuite) TearDownTest(c *check.C)  {}
 
 func (s *WrappersSuite) TestUnmarshalBackwards(c *check.C) {
 	var traits Traits

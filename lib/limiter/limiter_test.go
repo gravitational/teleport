@@ -33,13 +33,7 @@ type LimiterSuite struct {
 var _ = Suite(&LimiterSuite{})
 
 func (s *LimiterSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests()
-}
-
-func (s *LimiterSuite) SetUpTest(c *C) {
-}
-
-func (s *LimiterSuite) TearDownTest(c *C) {
+	utils.InitLoggerForTests(c, testing.Verbose())
 }
 
 func (s *LimiterSuite) TestConnectionsLimiter(c *C) {

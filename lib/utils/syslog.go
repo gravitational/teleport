@@ -31,7 +31,7 @@ import (
 // SwitchLoggingtoSyslog tells the logger to send the output to syslog. This
 // code is behind a build flag because Windows does not support syslog.
 func SwitchLoggingtoSyslog() error {
-	log.StandardLogger().SetHooks(make(log.LevelHooks))
+	log.StandardLogger().ReplaceHooks(make(log.LevelHooks))
 	hook, err := logrusSyslog.NewSyslogHook("", "", syslog.LOG_WARNING, "")
 	if err != nil {
 		// syslog is not available

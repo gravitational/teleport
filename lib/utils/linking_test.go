@@ -19,6 +19,7 @@ package utils
 import (
 	"fmt"
 	"net/http"
+	"testing"
 
 	"gopkg.in/check.v1"
 )
@@ -31,7 +32,7 @@ type WebLinksSuite struct {
 var _ = check.Suite(&WebLinksSuite{})
 
 func (s *WebLinksSuite) SetUpSuite(c *check.C) {
-	InitLoggerForTests()
+	InitLoggerForTests(c, testing.Verbose())
 }
 
 func (s *WebLinksSuite) TestWebLinks(c *check.C) {

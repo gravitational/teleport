@@ -39,11 +39,8 @@ var _ = check.Suite(&SOCKSSuite{})
 var _ = fmt.Printf
 
 func (s *SOCKSSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(c, testing.Verbose())
 }
-func (s *SOCKSSuite) TearDownSuite(c *check.C) {}
-func (s *SOCKSSuite) SetUpTest(c *check.C)     {}
-func (s *SOCKSSuite) TearDownTest(c *check.C)  {}
 
 func (s *SOCKSSuite) TestHandshake(c *check.C) {
 	remoteAddrs := []string{

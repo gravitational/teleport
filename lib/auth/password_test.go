@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -51,10 +52,7 @@ var _ = fmt.Printf
 var _ = Suite(&PasswordSuite{})
 
 func (s *PasswordSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests()
-}
-
-func (s *PasswordSuite) TearDownSuite(c *C) {
+	utils.InitLoggerForTests(c, testing.Verbose())
 }
 
 func (s *PasswordSuite) SetUpTest(c *C) {

@@ -17,6 +17,7 @@ package services
 
 import (
 	"fmt"
+	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -31,7 +32,7 @@ var _ = check.Suite(&ResetPasswordTokenSuite{})
 var _ = fmt.Printf
 
 func (s *ResetPasswordTokenSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(c, testing.Verbose())
 }
 
 func (s *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {

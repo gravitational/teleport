@@ -38,11 +38,8 @@ var _ = check.Suite(&KeepAliveSuite{})
 func TestSrv(t *testing.T) { check.TestingT(t) }
 
 func (s *KeepAliveSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(c, testing.Verbose())
 }
-func (s *KeepAliveSuite) TearDownSuite(c *check.C) {}
-func (s *KeepAliveSuite) SetUpTest(c *check.C)     {}
-func (s *KeepAliveSuite) TearDownTest(c *check.C)  {}
 
 func (s *KeepAliveSuite) TestServerClose(c *check.C) {
 	doneCh := make(chan bool, 1)

@@ -40,7 +40,7 @@ var _ = testing.Verbose
 var _ = fmt.Printf
 
 func (s *PresenceSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests(c, testing.Verbose())
 }
 
 func (s *PresenceSuite) TearDownSuite(c *check.C) {

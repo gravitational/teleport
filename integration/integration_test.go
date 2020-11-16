@@ -101,12 +101,10 @@ func TestMain(m *testing.M) {
 }
 
 func (s *IntSuite) SetUpSuite(c *check.C) {
-	var err error
-
-	utils.InitLoggerForTests(testing.Verbose())
-
+	utils.InitLoggerForTests(c, testing.Verbose())
 	SetTestTimeouts(time.Millisecond * time.Duration(100))
 
+	var err error
 	s.priv, s.pub, err = testauthority.New().GenerateKeyPair("")
 	c.Assert(err, check.IsNil)
 

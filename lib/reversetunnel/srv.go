@@ -104,7 +104,7 @@ type server struct {
 	// ctx is a context used for signalling and broadcast
 	ctx context.Context
 
-	*log.Entry
+	log.FieldLogger
 
 	// proxyWatcher monitors changes to the proxies
 	// and broadcasts updates
@@ -280,7 +280,7 @@ func NewServer(cfg Config) (Server, error) {
 		cancel:           cancel,
 		proxyWatcher:     proxyWatcher,
 		clusterPeers:     make(map[string]*clusterPeers),
-		Entry:            entry,
+		FieldLogger:      entry,
 		offlineThreshold: offlineThreshold,
 	}
 
@@ -585,7 +585,7 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	}
 
 	t := &transport{
-		log:              s.Entry,
+		log:              s.FieldLogger,
 		closeContext:     s.ctx,
 		authClient:       s.LocalAccessPoint,
 		channel:          channel,

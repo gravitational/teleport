@@ -35,7 +35,7 @@ type ConfigSuite struct {
 var _ = check.Suite(&ConfigSuite{})
 
 func (s *ConfigSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(c, testing.Verbose())
 }
 
 func (s *ConfigSuite) TestDefaultConfig(c *check.C) {

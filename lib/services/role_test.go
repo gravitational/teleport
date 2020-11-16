@@ -44,7 +44,7 @@ import (
 // roles with different individual values.  These are tested together since
 // both values use the same resolution rules.
 func TestConnAndSessLimits(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests(t, testing.Verbose())
 	tts := []struct {
 		desc string
 		vals []int64
@@ -93,7 +93,7 @@ func TestConnAndSessLimits(t *testing.T) {
 }
 
 func TestRoleParse(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests(t, testing.Verbose())
 	testCases := []struct {
 		name         string
 		in           string
@@ -831,7 +831,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 		{
 			name: "role matches any label out of multiple labels",
 			roles: []RoleV3{
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
@@ -857,7 +857,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 		{
 			name: "wildcard matches anything",
 			roles: []RoleV3{
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
@@ -883,7 +883,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 		{
 			name: "role with no labels will match clusters with no labels, but no others",
 			roles: []RoleV3{
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
@@ -907,7 +907,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 		{
 			name: "any role in the set with labels in the set makes the set to match labels",
 			roles: []RoleV3{
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
@@ -922,7 +922,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 						},
 					},
 				},
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name2",
 						Namespace: defaults.Namespace,
@@ -946,7 +946,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 		{
 			name: "cluster_labels with empty list value matches nothing",
 			roles: []RoleV3{
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
@@ -972,7 +972,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 		{
 			name: "one role is more permissive than another",
 			roles: []RoleV3{
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
@@ -988,7 +988,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 						},
 					},
 				},
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name2",
 						Namespace: defaults.Namespace,
@@ -1014,7 +1014,7 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 		{
 			name: "regexp label match",
 			roles: []RoleV3{
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
@@ -1039,7 +1039,6 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 		},
 	}
 	for i, tc := range testCases {
-
 		var set RoleSet
 		for i := range tc.roles {
 			set = append(set, &tc.roles[i])

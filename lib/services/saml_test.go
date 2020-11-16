@@ -19,6 +19,7 @@ package services
 import (
 	"fmt"
 	"strings"
+	"testing"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -34,7 +35,7 @@ var _ = check.Suite(&SAMLSuite{})
 var _ = fmt.Printf
 
 func (s *SAMLSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(c, testing.Verbose())
 }
 
 func (s *SAMLSuite) TestParseFromMetadata(c *check.C) {

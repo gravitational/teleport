@@ -35,7 +35,7 @@ var _ = testing.Verbose
 var _ = fmt.Printf
 
 func (s *LicenseSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests(c, testing.Verbose())
 }
 
 func (s *LicenseSuite) TestUnmarshal(c *check.C) {

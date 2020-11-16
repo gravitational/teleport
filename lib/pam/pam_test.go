@@ -18,6 +18,7 @@ package pam
 
 import (
 	"bytes"
+	"flag"
 	"fmt"
 	"os"
 	"os/user"
@@ -31,7 +32,8 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
+	flag.Parse()
+	utils.InitLoggerForTests(utils.DiscardingTestLogger, testing.Verbose())
 
 	// Skip this test if the binary was not built with PAM support.
 	if !BuildHasPAM() || !SystemHasPAM() {

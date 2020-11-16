@@ -84,7 +84,7 @@ func (s *KubeSuite) SetUpSuite(c *check.C) {
 	kubeproxy.TestOnlySkipSelfPermissionCheck(true)
 
 	var err error
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests(c, testing.Verbose())
 	SetTestTimeouts(time.Millisecond * time.Duration(100))
 
 	s.priv, s.pub, err = testauthority.New().GenerateKeyPair("")

@@ -39,7 +39,7 @@ var _ = check.Suite(&Suite{})
 func TestControlGroups(t *testing.T) { check.TestingT(t) }
 
 func (s *Suite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(c, testing.Verbose())
 }
 func (s *Suite) TearDownSuite(c *check.C) {}
 func (s *Suite) SetUpTest(c *check.C)     {}

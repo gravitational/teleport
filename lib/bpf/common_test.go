@@ -18,6 +18,7 @@ package bpf
 
 import (
 	"fmt"
+	"testing"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -31,7 +32,7 @@ var _ = fmt.Printf
 var _ = check.Suite(&CommonSuite{})
 
 func (s *CommonSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(c, testing.Verbose())
 }
 func (s *CommonSuite) TearDownSuite(c *check.C) {}
 func (s *CommonSuite) SetUpTest(c *check.C)     {}

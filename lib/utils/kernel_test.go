@@ -19,6 +19,7 @@ package utils
 import (
 	"fmt"
 	"strings"
+	"testing"
 
 	"github.com/coreos/go-semver/semver"
 	"gopkg.in/check.v1"
@@ -30,11 +31,8 @@ var _ = fmt.Printf
 var _ = check.Suite(&KernelSuite{})
 
 func (s *KernelSuite) SetUpSuite(c *check.C) {
-	InitLoggerForTests()
+	InitLoggerForTests(c, testing.Verbose())
 }
-func (s *KernelSuite) TearDownSuite(c *check.C) {}
-func (s *KernelSuite) SetUpTest(c *check.C)     {}
-func (s *KernelSuite) TearDownTest(c *check.C)  {}
 
 // TestKernelVersion checks that version strings for various distributions
 // can be parsed correctly.

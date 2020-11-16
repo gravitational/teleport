@@ -71,13 +71,12 @@ var _ = check.Suite(&Suite{})
 func TestApp(t *testing.T) { check.TestingT(t) }
 
 func (s *Suite) SetUpSuite(c *check.C) {
-	var err error
-
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests(c, testing.Verbose())
 
 	s.clock = clockwork.NewFakeClockAt(time.Now())
 	s.dataDir = c.MkDir()
 
+	var err error
 	// Create Auth Server.
 	s.authServer, err = auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		ClusterName: "root.example.com",
