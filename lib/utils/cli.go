@@ -17,6 +17,7 @@ limitations under the License.
 package utils
 
 import (
+	"bytes"
 	"crypto/x509"
 	"fmt"
 	"io"
@@ -26,6 +27,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gravitational/teleport"
 
@@ -277,6 +279,16 @@ func needsQuoting(text string) bool {
 		if !strconv.IsPrint(r) {
 			return true
 		}
+	}
+	return false
+}
+
+func verboseLogsConfigured() bool {
+	if ok, _ := strconv.ParseBool(os.Getenv(teleport.VerboseLogsEnvVar)); ok {
+		return true
+	}
+	if ok, _ := strconv.ParseBool(os.Getenv(teleport.DebugEnvVar)); ok {
+		return true
 	}
 	return false
 }

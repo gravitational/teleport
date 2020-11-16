@@ -32,7 +32,7 @@ import (
 // TestFakeStreams tests various streaming upload scenarios
 // using fake GCS background
 func TestFakeStreams(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests(t, testing.Verbose())
 
 	server := *fakestorage.NewServer([]fakestorage.Object{})
 	defer server.Stop()

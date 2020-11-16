@@ -43,7 +43,7 @@ type SessionSuite struct {
 var _ = Suite(&SessionSuite{})
 
 func (s *SessionSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests(c, testing.Verbose())
 }
 
 func (s *SessionSuite) SetUpTest(c *C) {

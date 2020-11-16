@@ -122,7 +122,7 @@ func TestMain(m *testing.M) {
 
 func (s *WebSuite) SetUpSuite(c *C) {
 	os.Unsetenv(teleport.DebugEnvVar)
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests(c, testing.Verbose())
 
 	// configure tests to use static assets from webassets/teleport:
 	debugAssetsPath = "../../webassets/teleport"

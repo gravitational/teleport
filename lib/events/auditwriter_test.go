@@ -36,7 +36,7 @@ import (
 // TestAuditWriter tests audit writer - a component used for
 // session recording
 func TestAuditWriter(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests(t, testing.Verbose())
 
 	// SessionTests multiple session
 	t.Run("Session", func(t *testing.T) {

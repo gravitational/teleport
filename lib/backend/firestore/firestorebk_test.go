@@ -57,7 +57,7 @@ type FirestoreSuite struct {
 var _ = check.Suite(&FirestoreSuite{})
 
 func (s *FirestoreSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests(c, testing.Verbose())
 
 	if !emulatorRunning() {
 		c.Skip("Firestore emulator is not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")

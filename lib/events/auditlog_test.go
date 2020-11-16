@@ -395,7 +395,7 @@ func (a *AuditTestSuite) TestForwardAndUpload(c *check.C) {
 // TestLegacyHandler tests playback for legacy sessions
 // that are stored on disk in unpacked format
 func (a *AuditTestSuite) TestLegacyHandler(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests(c, testing.Verbose())
 	memory := NewMemoryUploader()
 	wrapper, err := NewLegacyHandler(LegacyHandlerConfig{
 		Handler: memory,

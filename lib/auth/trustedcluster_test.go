@@ -18,7 +18,7 @@ import (
 )
 
 func TestRemoteClusterStatus(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
+	utils.InitLoggerForTests(t, testing.Verbose())
 
 	a := newTestAuthServer(t)
 
