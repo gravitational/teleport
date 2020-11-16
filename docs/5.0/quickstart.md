@@ -104,9 +104,7 @@ $  mv teleport.yaml /etc
 
 ## Step 1c: Setup Domain Name & TLS using Let's Encrypt
 
-Teleport requires a secure public endpoint for the Teleport UI and for end users to connect to.
-
-A domain name, DNS, and TLS are required for Teleport. We'll use Let's Encrypt to obtain a free TLS certificate.
+Teleport requires a secure public endpoint for the Teleport UI and for end users to connect to. A domain name and TLS are required for Teleport. We'll use Let's Encrypt to obtain a free TLS certificate.
 
 DNS Setup:<br>
 For this setup, we'll simply use a `A` or `CNAME` record pointing to the IP/FQDN of the machine with Teleport installed.
@@ -117,9 +115,26 @@ It's important to provide a secure connection for Teleport. Setting up TLS will 
 If you already have TLS certs you can use those certificates, or if using a new domain
 we recommend using Certbot; which is free and simple to setup. Follow [certbot instructions](https://certbot.eff.org/) for how to obtain a certificate for your distro.
 
+!!! tip "Using Certbot to obtain Wildcard Certs"
+
+    Let's Encrypt provides free wildcard certificates. If using [certbot](https://certbot.eff.org/)
+    with DNS challenge the below script will make setup easy. Replace with your email
+    _foo@example.com_ and URL for Teleport _teleport.example.com_
+
+
+      ```sh
+      certbot certonly --manual \
+        --preferred-challenges=dns \
+        --email foo@example.com \
+        --server https://acme-v02.api.letsencrypt.org/directory \
+        --agree-tos \
+        --manual-public-ip-logging-ok \
+        -d "teleport.example.com, *.teleport.example.com"
+      ```
+
 **Update `teleport.yaml`<br>**
-The below command will add the public address of Teleport and will use the TLS
-certificate from LetsEncrypt.
+Once you've obtain the certificates from LetEncrypt.  The below command will add
+update Teleport `public_addr` and update the location of the LetsEncrypt key pairs.
 
 Replace `teleport.example.com` with the location of your proxy.
 
@@ -136,16 +151,17 @@ EOL
 
 Visit: `https://teleport.example.com:3080/`
 
-!!! done
+!!! success
+
     Teleport is now up and running
 
 
 ## Step 2: Create User & Setup 2FA
 
-Create a new user `graviton`, with the Principles `root, ubuntu`
+Create a new user `teleport-admin`, with the Principles `root, ubuntu, ec2-user`
 
 ```
-tctl users add gaviton root,ubuntu
+tctl users add teleport-admin root,ubuntu, ec2-user
 ```
 
 Teleport will always enforces Two-Factor Authentication and support OTP and Hardware Tokens (U2F).The quickstart has been setup with OTP. For setup you'll need an OTP app.
@@ -158,7 +174,7 @@ A selection of Two-Factor Authentication apps are.
 
 !!! info "OS User Mappings"
 
-    The OS user `teleport` must exist! On Linux, if it
+    The OS user `root, ubuntu, ec2-user` must exist! On Linux, if it
     does not already exist, create it with `adduser teleport`. If you do not have
     the permission to create new users on the VM, run `tctl users add teleport
     <your-username> ` to explicitly map ` teleport` to an existing OS user. If you
@@ -174,13 +190,6 @@ should be able to open the URL and connect to Teleport Proxy right away.
 Proxy via the host machine and port `3080` in a web browser. One simple way to
 do this is to temporarily append `[HOST_IP] grav-00` to `/etc/hosts`.
 
-!!! warning "Warning"
-
-    We haven't provisioned any SSL certs for Teleport yet.
-    Your browser will throw a warning: **Your connection is not private**. Click
-    **Advanced**, and **Proceed to [HOST_IP] (unsafe)** to preview the Teleport UI.
-
-<!-- Link to networking/production guide -->
 
 ![Teleport User Registration](img/quickstart/login.png)
 
@@ -374,6 +383,72 @@ Armed with these details, we'll bootstrap a new host using
     - 'dpkg -i /run/teleport/teleport_5.0.0-beta.4_amd64.deb'
     - 'systemctl enable teleport.service'
     - 'systemctl start teleport.service'
+    ```
+
+
+## Step x: Install Teleport Locally
+
+=== "Mac - Homebrew"
+
+    ```bash
+    $ brew install teleport
+    ```
+
+=== "Windows - Powershell"
+
+    ```bash
+    > curl -O teleport-v{{ teleport.version }}-windows-amd64-bin.zip https://get.gravitational.com/teleport-v{{ teleport.version }}-windows-amd64-bin.zip
+    # Move `tsh` to your %PATH%
+    ```
+
+## Step 3: Login Using `tsh`
+
+`tsh` is equivalent to `ssh`, and after a while you'll be wonder where it's been all of your DevOps days.
+
+Prior to launch you must authenticate.
+
+=== "Local Cluster - tsh"
+
+    ```
+    tsh login --proxy=localhost:3080 --user=testuser
+    ```
+
+=== "Teleport Preview - asteroid.earth"
+
+    ```
+    tsh login --proxy=teleport.example.com:3080 --auth=github
+    ```
+
+## Step 4: Have Fun with Teleport!
+
+### SSH into a node
+
+=== "Local Cluster - tsh"
+
+    ```
+    tsh ssh root@localhost
+    ```
+
+=== "Teleport Preview - asteroid.earth"
+
+    ```
+    tsh ssh root@ip-172-31-14-137.us-west-2.compute.internal
+    ```
+
+=== "Teleport UI"
+
+    <video style="width:100%" controls>
+        <source src="/img/access-node.mp4" type="video/mp4">
+        <source src="/img/access-node.webm" type="video/webm">
+        Your browser does not support the video tag.
+    </video>
+
+### View Status
+
+=== "Local Cluster & Teleport Preview - tsh"
+
+    ```bash
+    tsh status
     ```
 
 ## Next Steps
