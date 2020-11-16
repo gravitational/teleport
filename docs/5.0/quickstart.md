@@ -88,7 +88,7 @@ proxy_service:
         - cert_file:
 app_service:
     enabled: "yes"
-
+    debug_app: true
 EOF
 
 # Move teleport.yaml to /etc/teleport.yaml
