@@ -10,20 +10,16 @@ Teleport on Linux machine(s).
 
 ### Prerequisites
 
-* A Linux Machine
+* A Linux Machine. With Ports `3023-3025` and `3080` open.
 * A Domain Name, DNS and TLS Certs. We'll provide examples using Let'sEncrypt
-* 25 min of time
-* In this tutorial you will start a UI which must be accessible via a
-  browser. If you run this tutorial on a remote machine without a GUI, first
-  make sure that this machine's IP can be reached over your network and that
-  it accepts incoming traffic on ports `3023-3025` and `3080` .
+* 25 minutes to complete. 15min is waiting for DNS propagation and TLS certificates.
 
 ## Step 1: Install Teleport on a Linux Host
 
 There are several ways to install Teleport.
 Take a look at the [Teleport Installation](installation.md) page to pick the most convenient for you.
 
-=== "yum repo / Amazon Linux 2"
+=== "yum repo / AWS Linux 2"
 
     ```bash
     yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
@@ -34,25 +30,27 @@ Take a look at the [Teleport Installation](installation.md) page to pick the mos
     # dnf install teleport
     ```
 
-=== "ARMv7 (32-bit)"
+=== "ARM"
 
-    ```bash
-    curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
-    tar -xzf teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
-    cd teleport
-    ./install
-    ```
+    === "ARMv7 (32-bit)"
 
-=== "ARM64/ARMv8 (64-bit)"
+        ```bash
+        curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
+        tar -xzf teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
+        cd teleport
+        ./install
+        ```
 
-    ```bash
-    curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
-    tar -xzf teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
-    cd teleport
-    ./install
-    ```
+    === "ARM64/ARMv8 (64-bit)"
 
-=== "Tarball"
+        ```bash
+        curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
+        tar -xzf teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
+        cd teleport
+        ./install
+        ```
+
+=== "Linux Tarball"
 
     ```bash
     curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
@@ -90,6 +88,7 @@ proxy_service:
         - cert_file:
 app_service:
     enabled: "yes"
+
 EOF
 
 # Move teleport.yaml to /etc/teleport.yaml
@@ -105,8 +104,6 @@ DNS Setup:<br>
 For this setup, we'll simply use a `A` or `CNAME` record pointing to the IP/FQDN of the machine with Teleport installed.
 
 TLS Setup:<br>
-It's important to provide a secure connection for Teleport. Setting up TLS will secure connections to Teleport.
-
 If you already have TLS certs you can use those certificates, or if using a new domain
 we recommend using Certbot; which is free and simple to setup. Follow [certbot instructions](https://certbot.eff.org/) for how to obtain a certificate for your distro.
 
@@ -128,7 +125,7 @@ we recommend using Certbot; which is free and simple to setup. Follow [certbot i
       ```
 
 **Update `teleport.yaml`<br>**
-Once you've obtain the certificates from LetEncrypt.  The below command will add
+Once you've obtain the certificates from LetsEncrypt.  The below command will add
 update Teleport `public_addr` and update the location of the LetsEncrypt key pairs.
 
 Replace `teleport.example.com` with the location of your proxy.
@@ -215,26 +212,25 @@ Prior to launch you must authenticate.
 === "Local Cluster - tsh"
 
     ```
-    tsh login --proxy=teleport.example.com:3080 --user=testuser
+    tsh login --proxy=teleport.example.com:3080 --user=teleport-admin
     ```
 
 ## Step 4: Have Fun with Teleport!
 
-### SSH into a node
-
-=== "Local Cluster - tsh"
-
-    ```
-    tsh ssh root@localhost
-    ```
-
-
 ### View Status
 
-=== "Local Cluster & Teleport Preview - tsh"
+=== "tsh status"
 
     ```bash
     tsh status
+    ```
+
+### SSH into a node
+
+=== "tsh ssh"
+
+    ```
+    tsh ssh root@node-name
     ```
 
 ### Add a Node to the Cluster
