@@ -24,7 +24,7 @@ export default function useApps() {
   const ctx = useTeleport();
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const [isAddAppVisible, setAppAddVisible] = useState(false);
-  const { clusterId } = useStickyClusterId();
+  const { clusterId, isLeafCluster } = useStickyClusterId();
   const { attempt, setAttempt, run } = useAttempt('processing');
   const [apps, setApps] = useState([] as App[]);
   const isEnterprise = ctx.isEnterprise;
@@ -53,6 +53,7 @@ export default function useApps() {
 
   return {
     clusterId,
+    isLeafCluster,
     isEnterprise,
     isAddAppVisible,
     hideAddApp,

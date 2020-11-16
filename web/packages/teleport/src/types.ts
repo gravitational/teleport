@@ -32,6 +32,12 @@ export interface Feature {
   register(ctx: Context): void;
 }
 
+export type StickyCluster = {
+  clusterId: string;
+  hasClusterUrl: boolean;
+  isLeafCluster: boolean;
+};
+
 type FeatureRoute = {
   title: string;
   path: string;

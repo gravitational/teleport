@@ -45,6 +45,7 @@ function render(
   nodeList = nodes
 ) {
   const props = {
+    isLeafCluster: false,
     isEnterprise: true,
     canCreate: true,
     searchValue: '',

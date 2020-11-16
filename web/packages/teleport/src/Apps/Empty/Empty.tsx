@@ -22,8 +22,10 @@ import ButtonAdd from './../ButtonAdd';
 import { emptyPng } from './assets';
 
 export default function Empty(props: Props) {
+  const { isLeafCluster, isEnterprise, canCreate, onCreate, ...rest } = props;
+
   // always show the welcome for enterprise users who have access to create an app
-  if (!props.canCreate) {
+  if (isLeafCluster || !canCreate) {
     return (
       <Box
         p="8"
@@ -34,7 +36,7 @@ export default function Empty(props: Props) {
         color="text.primary"
         bg="primary.light"
         borderRadius="12px"
-        {...props}
+        {...rest}
       >
         <Text typography="h2" mb="3">
           No Applications Found
@@ -67,9 +69,10 @@ export default function Empty(props: Props) {
           </Text>
         </Box>
         <ButtonAdd
-          isEnterprise={props.isEnterprise}
-          canCreate={props.canCreate}
-          onClick={props.onCreate}
+          isLeafCluster={isLeafCluster}
+          isEnterprise={isEnterprise}
+          canCreate={canCreate}
+          onClick={onCreate}
           mb="2"
           mx="auto"
           width="240px"
@@ -81,6 +84,7 @@ export default function Empty(props: Props) {
 }
 
 export type Props = {
+  isLeafCluster: boolean;
   isEnterprise: boolean;
   canCreate: boolean;
   onCreate(): void;

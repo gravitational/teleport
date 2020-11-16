@@ -16,16 +16,18 @@ limitations under the License.
 
 import { useState, useEffect, useCallback } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
-import TeleportContext from 'teleport/teleportContext';
+import Ctx from 'teleport/teleportContext';
+import { StickyCluster } from 'teleport/types';
 import cfg from 'teleport/config';
 import { Node } from 'teleport/services/nodes';
 
-export default function useNodes(ctx: TeleportContext, clusterId: string) {
-  const canCreate = ctx.storeUser.getTokenAccess().create;
+export default function useNodes(ctx: Ctx, stickyCluster: StickyCluster) {
+  const { isLeafCluster, clusterId } = stickyCluster;
   const [nodes, setNodes] = useState<Node[]>([]);
   const [searchValue, setSearchValue] = useState('');
   const { attempt, run, setAttempt } = useAttempt('processing');
   const [isAddNodeVisible, setIsAddNodeVisible] = useState(false);
+  const canCreate = ctx.storeUser.getTokenAccess().create;
   const logins = ctx.storeUser.getLogins();
   const isEnterprise = ctx.isEnterprise;
 
@@ -87,6 +89,7 @@ export default function useNodes(ctx: TeleportContext, clusterId: string) {
     startSshSession,
     isAddNodeVisible,
     isEnterprise,
+    isLeafCluster,
     hideAddNode,
     showAddNode,
   };

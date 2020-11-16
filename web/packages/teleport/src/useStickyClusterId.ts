@@ -16,6 +16,7 @@ limitations under the License.
 
 import { useRouteMatch } from 'react-router';
 import { useRef } from 'react';
+import { StickyCluster } from 'teleport/types';
 import cfg from 'teleport/config';
 
 export default function useStickyClusterId(): StickyCluster {
@@ -23,20 +24,17 @@ export default function useStickyClusterId(): StickyCluster {
   const stickyCluster = useRef({
     clusterId: cfg.proxyCluster,
     hasClusterUrl: false,
+    isLeafCluster: false,
   });
 
   const match = useRouteMatch<{ clusterId: string }>(cfg.routes.cluster);
   const clusterId = match?.params?.clusterId;
   if (clusterId) {
     stickyCluster.current.clusterId = clusterId;
+    stickyCluster.current.isLeafCluster = clusterId !== cfg.proxyCluster;
   }
 
   stickyCluster.current.hasClusterUrl = !!clusterId;
 
   return stickyCluster.current;
 }
-
-export type StickyCluster = {
-  clusterId: string;
-  hasClusterUrl: boolean;
-};

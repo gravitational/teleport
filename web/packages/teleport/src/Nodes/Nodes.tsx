@@ -33,8 +33,8 @@ import ButtonAdd from './ButtonAdd';
 
 export default function Container() {
   const teleCtx = useTeleport();
-  const { clusterId } = useStickyClusterId();
-  const state = useNodes(teleCtx, clusterId);
+  const stickyCluster = useStickyClusterId();
+  const state = useNodes(teleCtx, stickyCluster);
   return <Nodes {...state} />;
 }
 
@@ -49,6 +49,7 @@ export function Nodes(props: State) {
     showAddNode,
     canCreate,
     hideAddNode,
+    isLeafCluster,
     isAddNodeVisible,
     isEnterprise,
   } = props;
@@ -67,6 +68,7 @@ export function Nodes(props: State) {
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Servers</FeatureHeaderTitle>
         <ButtonAdd
+          isLeafCluster={isLeafCluster}
           isEnterprise={isEnterprise}
           canCreate={canCreate}
           onClick={showAddNode}

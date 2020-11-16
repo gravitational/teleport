@@ -20,10 +20,12 @@ import { ButtonPrimary } from 'design';
 const docUrl = 'https://gravitational.com/teleport/docs/';
 
 export default function ButtonAdd(props: Props) {
-  if (!props.isEnterprise) {
+  const { isEnterprise, isLeafCluster, ...rest } = props;
+
+  if (!isEnterprise) {
     return (
       <ButtonPrimary
-        {...props}
+        {...rest}
         width="240px"
         onClick={() => null}
         as="a"
@@ -36,8 +38,17 @@ export default function ButtonAdd(props: Props) {
   }
 
   if (props.canCreate) {
+    const title = isLeafCluster
+      ? 'Adding an application to a leaf cluster is not supported'
+      : 'Add an application to the root cluster';
+
     return (
-      <ButtonPrimary width="240px" {...props}>
+      <ButtonPrimary
+        title={title}
+        disabled={isLeafCluster}
+        width="240px"
+        {...rest}
+      >
         Add Application
       </ButtonPrimary>
     );
@@ -47,6 +58,7 @@ export default function ButtonAdd(props: Props) {
 }
 
 type Props = {
+  isLeafCluster: boolean;
   isEnterprise: boolean;
   canCreate: boolean;
   onClick?: () => void;

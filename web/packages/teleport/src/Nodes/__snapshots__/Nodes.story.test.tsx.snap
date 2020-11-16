@@ -220,6 +220,7 @@ exports[`failed 1`] = `
     <button
       class="c3"
       kind="primary"
+      title="Add a server to the root cluster"
       width="240px"
     >
       Add Server
@@ -685,6 +686,7 @@ exports[`loaded 1`] = `
     <button
       class="c3"
       kind="primary"
+      title="Add a server to the root cluster"
       width="240px"
     >
       Add Server

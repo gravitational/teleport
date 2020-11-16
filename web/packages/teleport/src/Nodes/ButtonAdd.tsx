@@ -21,10 +21,12 @@ const docUrl =
   'https://gravitational.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster';
 
 export default function ButtonAdd(props: Props) {
-  if (!props.isEnterprise) {
+  const { isEnterprise, canCreate, isLeafCluster, ...rest } = props;
+
+  if (!isEnterprise) {
     return (
       <ButtonPrimary
-        {...props}
+        {...rest}
         width="240px"
         onClick={() => null}
         as="a"
@@ -36,9 +38,18 @@ export default function ButtonAdd(props: Props) {
     );
   }
 
-  if (props.canCreate) {
+  if (canCreate) {
+    const title = isLeafCluster
+      ? 'Adding a server to a leaf cluster is not supported'
+      : 'Add a server to the root cluster';
+
     return (
-      <ButtonPrimary width="240px" {...props}>
+      <ButtonPrimary
+        title={title}
+        disabled={isLeafCluster}
+        width="240px"
+        {...props}
+      >
         Add Server
       </ButtonPrimary>
     );
@@ -48,6 +59,7 @@ export default function ButtonAdd(props: Props) {
 }
 
 type Props = {
+  isLeafCluster: boolean;
   isEnterprise: boolean;
   canCreate: boolean;
   onClick?: () => void;

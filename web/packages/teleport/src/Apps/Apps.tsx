@@ -36,6 +36,7 @@ export default function Container() {
 export function Apps(props: State) {
   const {
     clusterId,
+    isLeafCluster,
     isEnterprise,
     isAddAppVisible,
     showAddApp,
@@ -53,6 +54,7 @@ export function Apps(props: State) {
       <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Applications</FeatureHeaderTitle>
         <ButtonAdd
+          isLeafCluster={isLeafCluster}
           isEnterprise={isEnterprise}
           canCreate={canCreate}
           onClick={showAddApp}
@@ -67,8 +69,9 @@ export function Apps(props: State) {
       {hasApps && <AppList apps={apps} />}
       {isEmpty && (
         <Empty
-          clusterId={clusterId}
+          isLeafCluster={isLeafCluster}
           isEnterprise={isEnterprise}
+          clusterId={clusterId}
           canCreate={canCreate}
           onCreate={showAddApp}
         />

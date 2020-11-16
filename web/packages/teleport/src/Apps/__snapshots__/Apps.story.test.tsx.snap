@@ -213,6 +213,7 @@ exports[`empty state 1`] = `
       <button
         class="c3"
         kind="primary"
+        title="Add an application to the root cluster"
         width="240px"
       >
         Add Application
@@ -250,6 +251,7 @@ exports[`empty state 1`] = `
         <button
           class="c12"
           kind="primary"
+          title="Add an application to the root cluster"
           width="240px"
         >
           Add Application
@@ -471,6 +473,7 @@ exports[`loaded state 1`] = `
       <button
         class="c3"
         kind="primary"
+        title="Add an application to the root cluster"
         width="240px"
       >
         Add Application
