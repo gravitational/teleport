@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.14
+go 1.15
 
 require (
 	cloud.google.com/go/firestore v1.1.1
