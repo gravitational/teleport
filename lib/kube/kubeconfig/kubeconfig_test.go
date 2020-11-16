@@ -153,7 +153,7 @@ func (s *KubeconfigSuite) TestSave(c *check.C) {
 		Extensions: map[string]runtime.Object{},
 	}
 
-	err := save(s.kubeconfigPath, cfg)
+	err := Save(s.kubeconfigPath, cfg)
 	c.Assert(err, check.IsNil)
 
 	config, err := Load(s.kubeconfigPath)
@@ -169,9 +169,9 @@ func (s *KubeconfigSuite) TestUpdate(c *check.C) {
 	creds, caCertPEM, err := s.genUserKey()
 	c.Assert(err, check.IsNil)
 	err = Update(s.kubeconfigPath, Values{
-		Name:        clusterName,
-		ClusterAddr: clusterAddr,
-		Credentials: creds,
+		TeleportClusterName: clusterName,
+		ClusterAddr:         clusterAddr,
+		Credentials:         creds,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -211,9 +211,9 @@ func (s *KubeconfigSuite) TestRemove(c *check.C) {
 
 	// Add teleport-generated entries to kubeconfig.
 	err = Update(s.kubeconfigPath, Values{
-		Name:        clusterName,
-		ClusterAddr: clusterAddr,
-		Credentials: creds,
+		TeleportClusterName: clusterName,
+		ClusterAddr:         clusterAddr,
+		Credentials:         creds,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -233,9 +233,9 @@ func (s *KubeconfigSuite) TestRemove(c *check.C) {
 
 	// Add teleport-generated entries to kubeconfig again.
 	err = Update(s.kubeconfigPath, Values{
-		Name:        clusterName,
-		ClusterAddr: clusterAddr,
-		Credentials: creds,
+		TeleportClusterName: clusterName,
+		ClusterAddr:         clusterAddr,
+		Credentials:         creds,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -244,7 +244,7 @@ func (s *KubeconfigSuite) TestRemove(c *check.C) {
 	config, err = Load(s.kubeconfigPath)
 	c.Assert(err, check.IsNil)
 	config.CurrentContext = "prod"
-	err = save(s.kubeconfigPath, *config)
+	err = Save(s.kubeconfigPath, *config)
 	c.Assert(err, check.IsNil)
 
 	// Remove teleport-generated entries from kubeconfig.

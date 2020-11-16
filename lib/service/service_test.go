@@ -16,6 +16,7 @@ limitations under the License.
 package service
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -255,7 +256,7 @@ func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
 
 		cmt := check.Commentf("tt[%v]: %+v", i, tt)
 
-		loggers, err := initExternalLog(services.AuditConfig{
+		loggers, err := initExternalLog(context.Background(), services.AuditConfig{
 			AuditEventsURI: tt.events,
 		})
 
@@ -310,6 +311,9 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 				"global-hostname",
 				"proxy-public-1",
 				"proxy-public-2",
+				string(teleport.PrincipalLocalhost),
+				string(teleport.PrincipalLoopbackV4),
+				string(teleport.PrincipalLoopbackV6),
 				reversetunnel.LocalKubernetes,
 				"proxy-ssh-public-1",
 				"proxy-ssh-public-2",

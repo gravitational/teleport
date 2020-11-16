@@ -152,7 +152,7 @@ type ReissueParams struct {
 // that have a metadata instructing server to route the requests to the cluster
 func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissueParams) error {
 	localAgent := proxy.teleportClient.LocalAgent()
-	key, err := localAgent.GetKey()
+	key, err := localAgent.GetKey(WithKubeCerts(params.RouteToCluster))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -160,7 +160,7 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsCert, err := key.TLSCertificate()
+	tlsCert, err := key.TeleportTLSCertificate()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -202,6 +202,9 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 	}
 	key.Cert = certs.SSH
 	key.TLSCert = certs.TLS
+	if params.KubernetesCluster != "" {
+		key.KubeTLSCerts[params.KubernetesCluster] = certs.TLS
+	}
 
 	// save the cert to the local storage (~/.tsh usually):
 	_, err = localAgent.AddKey(key)
@@ -215,7 +218,7 @@ func (proxy *ProxyClient) RootClusterName() (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	tlsCert, err := key.TLSCertificate()
+	tlsCert, err := key.TeleportTLSCertificate()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -378,7 +381,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", proxy.teleportClient.Username)
 	}
-	tlsConfig, err := key.ClientTLSConfig(nil)
+	tlsConfig, err := key.TeleportClientTLSConfig(nil)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate client TLS config")
 	}
