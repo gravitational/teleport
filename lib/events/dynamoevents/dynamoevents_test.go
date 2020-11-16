@@ -45,7 +45,7 @@ type DynamoeventsSuite struct {
 var _ = check.Suite(&DynamoeventsSuite{})
 
 func (s *DynamoeventsSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(c, testing.Verbose())
+	utils.InitLoggerForTests()
 
 	testEnabled := os.Getenv(teleport.AWSRunTests)
 	if ok, _ := strconv.ParseBool(testEnabled); !ok {

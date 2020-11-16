@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"testing"
 	"time"
 
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"

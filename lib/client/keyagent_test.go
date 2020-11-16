@@ -24,7 +24,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"testing"
 	"time"
 
 	"golang.org/x/crypto/ssh"

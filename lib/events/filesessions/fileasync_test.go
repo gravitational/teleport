@@ -39,7 +39,7 @@ import (
 
 // TestUploadOK tests async file uploads scenarios
 func TestUploadOK(t *testing.T) {
-	utils.InitLoggerForTests(t, testing.Verbose())
+	utils.InitLoggerForTests()
 
 	p := newUploaderPack(t, nil)
 	defer p.Close(t)
@@ -76,7 +76,7 @@ func TestUploadOK(t *testing.T) {
 // TestUploadParallel verifies several parallel uploads that have to wait
 // for semaphore
 func TestUploadParallel(t *testing.T) {
-	utils.InitLoggerForTests(t, testing.Verbose())
+	utils.InitLoggerForTests()
 
 	p := newUploaderPack(t, nil)
 	defer p.Close(t)
@@ -141,7 +141,7 @@ type resumeTestTuple struct {
 
 // TestUploadResume verifies successful upload run after the stream has been interrupted
 func TestUploadResume(t *testing.T) {
-	utils.InitLoggerForTests(t, testing.Verbose())
+	utils.InitLoggerForTests()
 	testCases := []resumeTestCase{
 		{
 			name:    "stream terminates in the middle of submission",
@@ -311,7 +311,7 @@ func TestUploadResume(t *testing.T) {
 // TestUploadBackoff introduces upload failure
 // and makes sure that the uploader starts backing off.
 func TestUploadBackoff(t *testing.T) {
-	utils.InitLoggerForTests(t, testing.Verbose())
+	utils.InitLoggerForTests()
 
 	terminateConnectionAt := atomic.NewInt64(700)
 
@@ -402,7 +402,7 @@ func TestUploadBackoff(t *testing.T) {
 // TestUploadBadSession creates a corrupted session file
 // and makes sure the uploader marks it as faulty
 func TestUploadBadSession(t *testing.T) {
-	utils.InitLoggerForTests(t, testing.Verbose())
+	utils.InitLoggerForTests()
 
 	p := newUploaderPack(t, nil)
 	defer p.Close(t)

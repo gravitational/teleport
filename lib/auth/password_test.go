@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"math"
 	"sync"
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"

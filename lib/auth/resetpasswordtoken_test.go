@@ -18,7 +18,6 @@ package auth
 
 import (
 	"context"
-	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"

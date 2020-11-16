@@ -48,7 +48,7 @@ import (
 // TestMux tests multiplexing protocols
 // using the same listener.
 func TestMux(t *testing.T) {
-	utils.InitLoggerForTests(t, testing.Verbose())
+	utils.InitLoggerForTests()
 
 	_, signer, err := utils.CreateCertificate("foo", ssh.HostCert)
 	require.Nil(t, err)

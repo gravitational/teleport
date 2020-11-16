@@ -36,7 +36,7 @@ import (
 
 // TestStreams tests various streaming upload scenarios
 func TestStreams(t *testing.T) {
-	utils.InitLoggerForTests(t, testing.Verbose())
+	utils.InitLoggerForTests()
 
 	uri := os.Getenv(teleport.GCSTestURI)
 	if uri == "" {
