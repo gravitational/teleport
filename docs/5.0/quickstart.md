@@ -33,11 +33,10 @@ Take a look at the [Teleport Installation](installation.md) page to pick the met
     ```bash
     yum-config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
     yum install teleport
-    ```
-    _Optional: Using Dandified YUM_
-    ```bash
-    dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
-    dnf install teleport
+
+    # Optional: Using Dandified YUM_
+    # dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
+    # dnf install teleport 
     ```
 
 === "ARMv7 (32-bit)"
@@ -71,51 +70,46 @@ Take a look at the [Teleport Installation](installation.md) page to pick the met
 
 When setting up Teleport, we recommend running it with Teleports YAML configuration file.
 
-```
-$ teleport configure > teleport.yaml
-```
+```bash
+# Concatenate teleport.yaml using a basic demo config.
+$ cat > teleport.yaml <<EOF
+teleport:
+    data_dir: /var/lib/teleport
+auth_service:
+    enabled: "yes"
+    cluster_name: "teleport-quickstart"
+    listen_addr: 0.0.0.0:3025
+    tokens:
+    - proxy,node,app:f7adb7ccdf04037bcd2b52ec6010fd6f0caec94ba190b765
+ssh_service:
+    enabled: "yes"
+    labels:
+        env: staging
+proxy_service:
+    enabled: "yes"
+    listen_addr: 0.0.0.0:3023
+    web_listen_addr: 0.0.0.0:3080
+    tunnel_listen_addr: 0.0.0.0:3024
+    https_keypairs: 
+        - key_file:
+        - cert_file: 
+app_service:
+    enabled: "yes"
+EOF
 
-!!! tip "Example teleport.yaml"
-
-    ```
-    teleport:
-        nodename: ip-172-31-13-139
-        data_dir: /var/lib/teleport
-        auth_token: f7adb7ccdf04037bcd2b52ec6010fd6f0caec94ba190b765
-    auth_service:
-        enabled: "yes"
-        cluster_name: "teleport-quickstart"
-        listen_addr: 0.0.0.0:3025
-        tokens:
-        - proxy,node,app:f7adb7ccdf04037bcd2b52ec6010fd6f0caec94ba190b765
-    ssh_service:
-        enabled: "yes"
-        labels:
-            env: staging
-    proxy_service:
-        enabled: "yes"
-        listen_addr: 0.0.0.0:3023
-        web_listen_addr: 0.0.0.0:3080
-        tunnel_listen_addr: 0.0.0.0:3024
-        https_keypairs: []
-    app_service:
-        enabled: "yes"
-    ```
-
-** THINGS TO CHANGE **
-
-Move `teleport.yaml` to /etc.
-```
+# Move teleport.yaml to /etc/teleport.yaml
 $  mv teleport.yaml /etc
 ```
 
+
 ## Step 1c: Setup Domain Name & TLS using Let's Encrypt
 
-Teleport requires a secure public endpoint for end users to connect to.
-A domain name, DNS, and TLS is required for Teleport. We'll use Let's Encrypt to obtain a free TLS certificate.
+Teleport requires a secure public endpoint for the Teleport UI and for end users to connect to.
+
+A domain name, DNS, and TLS are required for Teleport. We'll use Let's Encrypt to obtain a free TLS certificate.
 
 DNS Setup:<br>
-For this setup, we'll simply use a `A` or `CNAME` record pointing to the IP of the machine.
+For this setup, we'll simply use a `A` or `CNAME` record pointing to the IP/FQDN of the machine with Teleport installed.
 
 TLS Setup:<br>
 It's important to provide a secure connection for Teleport. Setting up TLS will secure connections to Teleport.
