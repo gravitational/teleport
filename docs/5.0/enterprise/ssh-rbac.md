@@ -276,8 +276,8 @@ spec:
 
 ## Teleport Resources
 
-RBAC lets teams limit what resources are available to teleport users. This can be helpful if for example, 
-you don't want regular users editing SSO (`auth_connector`), for example, or creating and editing new roles 
+RBAC lets teams limit what resources are available to Teleport users. This can be helpful if, for example, 
+you don't want regular users editing SSO (`auth_connector`) or creating and editing new roles 
 (`role`).
 
 
