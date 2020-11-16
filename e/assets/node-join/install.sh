@@ -3,6 +3,7 @@ set -euo pipefail
 SCRIPT_NAME="teleport-installer"
 
 # default values
+ALIVE_CHECK_DELAY=3
 CONNECTIVITY_TEST_METHOD=""
 COPY_COMMAND="cp"
 DISTRO_TYPE=""
@@ -108,7 +109,7 @@ read_nonblank_input() {
         echo -n "${PROMPT}"
         read -r INPUT
     done
-    printf -v ${VARIABLE_TO_ASSIGN} '%s' ${INPUT}
+    printf -v "${VARIABLE_TO_ASSIGN}" '%s' "${INPUT}"
 }
 
 # set/read values interactively if not provided
@@ -239,6 +240,26 @@ check_connectivity() {
         if (head -1 < "/dev/tcp/${HOST}/${PORT}") >/dev/null 2>&1; then return 0; else return 1; fi
     else
         return 255
+    fi
+}
+# check whether a teleport DEB is already installed and exit with error if so
+check_deb_not_already_installed() {
+    check_exists_fatal dpkg awk
+    DEB_INSTALLED=$(dpkg -l | awk '{print $2}' | grep -E ^teleport || true)
+    if [[ ${DEB_INSTALLED} != "" ]]; then
+        log_important "It looks like there is already a Teleport DEB package installed (name: ${DEB_INSTALLED})."
+        log_important "You will need to remove that package before using this script."
+        exit 1
+    fi
+}
+# check whether a teleport RPM is already installed and exit with error if so
+check_rpm_not_already_installed() {
+    check_exists_fatal rpm
+    RPM_INSTALLED=$(rpm -qa | grep -E ^teleport || true)
+    if [[ ${RPM_INSTALLED} != "" ]]; then
+        log_important "It looks like there is already a Teleport RPM package installed (name: ${RPM_INSTALLED})."
+        log_important "You will need to remove that package before using this script."
+        exit 1
     fi
 }
 # function to check if given variable is set
@@ -410,7 +431,7 @@ no_systemd_warning() {
     log_important "This host is not running systemd, so Teleport cannot be started automatically when it exits."
     log_important "Please investigate an alternative way to keep Teleport running."
     log_important "You can find information in our documentation: ${TELEPORT_DOCS_URL}"
-    log_important "For now, Teleport will be started in the foregound - you can press Ctrl+C to exit."
+    log_important "For now, Teleport will be started in the foreground - you can press Ctrl+C to exit."
     log_only
     log_only "Run this command to start Teleport in future:"
     log_only "$(get_teleport_start_command)"
@@ -463,14 +484,16 @@ start_teleport_foreground() {
 start_teleport_launchd() {
     log "Starting Teleport via launchctl. It will automatically be started whenever the system reboots."
     launchctl load ${LAUNCHD_CONFIG_PATH}/teleport.plist
+    sleep ${ALIVE_CHECK_DELAY}
 }
 # start teleport via systemd (after installing unit)
 start_teleport_systemd() {
     log "Starting Teleport via systemd. It will automatically be started whenever the system reboots."
     systemctl enable teleport.service
     systemctl start teleport.service
+    sleep ${ALIVE_CHECK_DELAY}
 }
-# checks whether teleport binaries eist on the host
+# checks whether teleport binaries exist on the host
 teleport_binaries_exist() {
     for BINARY_NAME in teleport tctl tsh; do
         if [ -f ${TELEPORT_BINARY_DIR}/${BINARY_NAME} ]; then return 0; else return 1; fi
@@ -555,7 +578,7 @@ if [[ "${OSTYPE}" == "linux-gnu"* ]]; then
                 fi
             fi
         # use ID_LIKE value from /etc/os-release (if set)
-        # this is 'debian' on ubuntu/raspian, 'centos rhel fedora' on amazon linux etc
+        # this is 'debian' on ubuntu/raspbian, 'centos rhel fedora' on amazon linux etc
         else
             check_exists_fatal cut
             DISTRO_TYPE=$(grep ID_LIKE /etc/os-release | cut -d= -f2) || true
@@ -603,7 +626,6 @@ pushd "${TEMP_DIR}" >/dev/null 2>&1
 
 finish() {
     popd >/dev/null 2>&1
-    log "Cleaning up temp dir ${TEMP_DIR}"
     rm -rf "${TEMP_DIR}"
 }
 trap finish EXIT
@@ -615,7 +637,7 @@ if [[ ${OVERRIDE_FORMAT} != "" ]]; then
 fi
 
 # check whether teleport is running already
-# if it is, we exit gracefully with an eror
+# if it is, we exit gracefully with an error
 if is_running_teleport; then
     if [[ ${IGNORE_CHECKS} != "true" ]]; then
         TELEPORT_PID=$(get_teleport_pid)
@@ -697,7 +719,7 @@ elif [[ ${TELEPORT_FORMAT} == "deb" ]]; then
         DEB_ARCH="i386"
     fi
     URL="https://get.gravitational.com/teleport_${TELEPORT_VERSION}_${DEB_ARCH}.deb"
-    check_exists_fatal dpkg
+    check_deb_not_already_installed
     # download deb and register cleanup operation
     log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
     DOWNLOAD_FILENAME=$(get_download_filename "${URL}")
@@ -713,6 +735,7 @@ elif [[ ${TELEPORT_FORMAT} == "rpm" ]]; then
         RPM_ARCH="i386"
     fi
     URL="https://get.gravitational.com/teleport-${TELEPORT_VERSION}-1.${RPM_ARCH}.rpm"
+    check_rpm_not_already_installed
     # check for package managers
     if check_exists dnf; then
         log "Found 'dnf' package manager, using it"
@@ -723,8 +746,6 @@ elif [[ ${TELEPORT_FORMAT} == "rpm" ]]; then
     else
         PACKAGE_MANAGER_COMMAND=""
         log "Cannot find 'yum' or 'dnf' package manager commands, will try installing the rpm manually instead"
-        # check that needed tools are installed
-        check_exists_fatal rpm
     fi
     log "Downloading Teleport ${TELEPORT_FORMAT} release ${TELEPORT_VERSION}"
     DOWNLOAD_FILENAME=$(get_download_filename "${URL}")
