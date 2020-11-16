@@ -4032,10 +4032,10 @@ func waitForProcessStart(c *check.C, serviceC chan *svcStartResult) *service.Tel
 		if result.err != nil {
 			c.Fatal(result.err)
 		}
-		return result.svc, nil
+		return result.svc
 	case <-time.After(1 * time.Minute):
 		dumpGoroutineProfile()
-		c.Fatal("timeout waiting for service to start")
+		c.Fatal("Timeout waiting for service to start.")
 	}
 	panic("unreachable")
 }
