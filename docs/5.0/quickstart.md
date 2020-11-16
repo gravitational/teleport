@@ -172,6 +172,8 @@ A selection of Two-Factor Authentication apps are.
  - [Google Authenticator](https://www.google.com/landing/2step/)
  - [Microsoft Authenticator](https://www.microsoft.com/en-us/account/authenticator)
 
+![Teleport User Registration](img/quickstart/login.png)
+
 !!! info "OS User Mappings"
 
     The OS user `root, ubuntu, ec2-user` must exist! On Linux, if it
@@ -181,153 +183,70 @@ A selection of Two-Factor Authentication apps are.
     do not map to a real OS user you will get authentication errors later on in
     this tutorial!
 
-## Step 4: Register a User
-
-* If the machine where you ran these commands has a web browser installed, you
-should be able to open the URL and connect to Teleport Proxy right away.
-
-* If you are working on a remote machine, you may need to access the Teleport
-Proxy via the host machine and port `3080` in a web browser. One simple way to
-do this is to temporarily append `[HOST_IP] grav-00` to `/etc/hosts`.
-
-
-![Teleport User Registration](img/quickstart/login.png)
-
-Teleport enforces two-factor authentication by default <!-- Link to
-Configuration -->. If you do not already have [Google
-Authenticator](https://en.wikipedia.org/wiki/Google_Authenticator),
-[Authy](https://www.authy.com/) or another 2FA client installed, you will need
-to install it on your smart phone. Then you can scan the QR code on the
-Teleport login web page, pick a password and enter the two-factor token.
-
-After completing registration you will be logged in automatically
 
 ![Teleport UI Dashboard](img/quickstart/teleport-nodes.png)
 
-## Step 5: Log in through the CLI
+## Step 2a: Install Teleport Locally
 
-Let's login using the `tsh` command line tool. Just as in the previous step, you
-will need to be able to resolve the **hostname** of the cluster to a network
-accessible IP.
+=== "Mac - Homebrew"
 
-!!! warning "Warning"
+    ```bash
+    $ brew install teleport
+    ```
 
-    For the purposes of this quickstart we are using the
-    `--insecure` flag which allows us to skip configuring the HTTP/TLS
-    certificate for Teleport proxy.
+=== "Windows - Powershell"
 
-    **Caution**: the `--insecure` flag does **not** skip TLS validation for the Auth Server. The self-signed Auth Server certificate expects to be accessed via one of a set of hostnames (ex. `grav-00` ). If you attempt to access via `localhost` you will probably get this error: `principal "localhost" not in the set of valid principals for given certificate` .
+    ```bash
+    > curl -O teleport-v{{ teleport.version }}-windows-amd64-bin.zip https://get.gravitational.com/teleport-v{{ teleport.version }}-windows-amd64-bin.zip
+    # Move `tsh` to your %PATH%
+    ```
 
-    To resolve this error find your hostname with the `hostname` command and use that instead of `localhost` .
+=== "Linux"
 
-    Never use `--insecure` in production unless you terminate SSL at a load balancer. You must configure a HTTP/TLS certificate for the Proxy. [Learn more in our SSL/TLS for Teleport Proxy - Production Guide](production.md#ssltls-for-teleport-proxy)
+    For more options please see our [installation page](installation.md).
+
+    ```bash
+     $ curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+    $ tar -xzf teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+    $ cd teleport
+    $ ./install
+    ```
+
+## Step 3: Login Using `tsh`
+
+`tsh` is equivalent to `ssh`, and after a while you'll be wonder where it's been all of your DevOps days.
+
+Prior to launch you must authenticate.
+
+=== "Local Cluster - tsh"
+
+    ```
+    tsh login --proxy=teleport.example.com:3080 --user=testuser
+    ```
+
+## Step 4: Have Fun with Teleport!
+
+### SSH into a node
+
+=== "Local Cluster - tsh"
+
+    ```
+    tsh ssh root@localhost
+    ```
 
 
-``` bash
-# here grav-00 is a resolvable hostname on the same network
-# --proxy can be an IP, hostname, or URL
-[teleport@grav-00 ~]$ tsh --proxy=grav-00 --insecure login
-WARNING: You are using insecure connection to SSH proxy https://grav-00:3080
-Enter password for Teleport user teleport:
-Enter your OTP token:
-XXXXXX
-WARNING: You are using insecure connection to SSH proxy https://grav-00:3080
-> Profile URL:  https://grav-00:3080
-  Logged in as: teleport
-  Cluster:      grav-00
-  Roles:        admin*
-  Logins:       teleport
-  Valid until:  2019-10-05 02:01:36 +0000 UTC [valid for 12h0m0s]
-  Extensions:   permit-agent-forwarding, permit-port-forwarding, permit-pty
+### View Status
 
-* RBAC is only available in Teleport Enterprise
+=== "Local Cluster & Teleport Preview - tsh"
 
-  https://gravitational.com/teleport/docs/enterprise
-```
-
-## Step 6: Start A Recorded Session
-
-At this point you have authenticated with Teleport Auth and can now start a
-recorded SSH session. You logged in as the `teleport` user in the last step so
-the `--user` is defaulted to `teleport`.
-
-``` bash
-$ tsh ssh --proxy=grav-00 grav-00
-$ echo 'howdy'
-howdy
-# run whatever you want here, this is a regular SSH session.
-```
-
-_Note: The `tsh` client always requires the `--proxy` flag_
-
-Your command prompt may not look different, but you are now in a new SSH session
-which has been authenticated by Teleport!
-
-Try a few things to get familiar with recorded sessions:
-
-![Sessions View](img/quickstart/teleport-join-session.png)
-
-1. Navigate to `https://[HOST]:3080/web/sessions` in your web browser to see the
-list of current and past sessions on the cluster. The session you just created
-should be listed.
-
-2. After you end a session (type `$ exit` in session), replay it in your browser.
-3. Join the session in your web browser.
-
-<!-- TODO ![Two Recorded Sessions](img/recorded-session.png)e -->
-
-Here we've started two recorded sessions on the node `grav-00` : one via the web
-browser and one in the command line. Notice that there are distinct SSH sessions
-even though we logged in with the `root` user. In the next step you'll learn how
-to join a shared session.
-
-## Step 7: Join a Session on the CLI
-
-One of the most important features of Teleport is the ability to share a session
-between users. If you joined your active session in your browser in the previous
-step you will see the complete session history of the recorded session in the
-web terminal.
-
-Joining a session via a browser is often the easiest way to see what another
-user is up to, but if you have access to the proxy server from your local
-machine (or any machine) you can also join a session on the CLI.
-
-``` bash
-# This is the recorded session you started in Step 6
-$ tsh ssh --proxy=grav-00 grav-00
-$ echo 'howdy'
-howdy
-# you might have run more stuff here...
-$ teleport status
-Cluster Name: grav-00
-Host UUID   : a3f67090-99cc-45cf-8f70-478d176b970e
-Session ID  : cd908432-950a-4493-a561-9c272b0e0ea6
-Session URL : https://grav-00:3080/web/cluster/grav-00/node/a3f67090-99cc-45cf-8f70-478d176b970e/teleport/cd908432-950a-4493-a561-9c272b0e0ea6
-```
-
-Copy the Session ID and open a new SSH session.
-
-``` bash
-%~$ tsh join -d --proxy grav-00 --insecure
-cd908432-950a-4493-a561-9c272b0e0ea6
-# you will be asked to re-authenticate your user
-$ echo 'howdy'
-howdy
-# you might have run more stuff here...
-$ teleport status
-Cluster Name: grav-00
-Host UUID   : a3f67090-99cc-45cf-8f70-478d176b970e
-Session ID  : cd908432-950a-4493-a561-9c272b0e0ea6
-Session URL : https://grav-00:3080/web/cluster/grav-00/node/a3f67090-99cc-45cf-8f70-478d176b970e/teleport/cd908432-950a-4493-a561-9c272b0e0ea6
-$ echo "Awesome!"
-# check out your shared ssh session between two CLI windows
-```
+    ```bash
+    tsh status
+    ```
 
 ### Add a Node to the Cluster
 
-When you ran Teleport earlier with `teleport configure` it generated a secure
-static token for joining nodes to a cluster, this is `auth_token` and the auth
-server will be the IP of that box. You can find this via `ifconfig -a`
+When you setup Teleport earlier we setup a strong static token this is `auth_token`
+and the auth server will be the IP of that box. You can find this via `ifconfig -a`.
 
 ```bash
 $ cat /etc/teleport.yaml
@@ -344,11 +263,7 @@ Armed with these details, we'll bootstrap a new host using
 === "DEB"
 
     ```bash
-    $ curl https://get.gravitational.com/teleport_5.0.0-beta.4_amd64.deb.sha256
-    # <checksum> <filename>
     $ curl -O https://get.gravitational.com/teleport_5.0.0-beta.4_amd64.deb
-    $ sha256sum teleport_5.0.0-beta.4_amd64.deb
-    # Verify that the checksums match
     $ dpkg -i teleport_5.0.0-beta.4_amd64.deb
     $ which teleport
     /usr/local/bin/teleport
@@ -383,72 +298,6 @@ Armed with these details, we'll bootstrap a new host using
     - 'dpkg -i /run/teleport/teleport_5.0.0-beta.4_amd64.deb'
     - 'systemctl enable teleport.service'
     - 'systemctl start teleport.service'
-    ```
-
-
-## Step x: Install Teleport Locally
-
-=== "Mac - Homebrew"
-
-    ```bash
-    $ brew install teleport
-    ```
-
-=== "Windows - Powershell"
-
-    ```bash
-    > curl -O teleport-v{{ teleport.version }}-windows-amd64-bin.zip https://get.gravitational.com/teleport-v{{ teleport.version }}-windows-amd64-bin.zip
-    # Move `tsh` to your %PATH%
-    ```
-
-## Step 3: Login Using `tsh`
-
-`tsh` is equivalent to `ssh`, and after a while you'll be wonder where it's been all of your DevOps days.
-
-Prior to launch you must authenticate.
-
-=== "Local Cluster - tsh"
-
-    ```
-    tsh login --proxy=localhost:3080 --user=testuser
-    ```
-
-=== "Teleport Preview - asteroid.earth"
-
-    ```
-    tsh login --proxy=teleport.example.com:3080 --auth=github
-    ```
-
-## Step 4: Have Fun with Teleport!
-
-### SSH into a node
-
-=== "Local Cluster - tsh"
-
-    ```
-    tsh ssh root@localhost
-    ```
-
-=== "Teleport Preview - asteroid.earth"
-
-    ```
-    tsh ssh root@ip-172-31-14-137.us-west-2.compute.internal
-    ```
-
-=== "Teleport UI"
-
-    <video style="width:100%" controls>
-        <source src="/img/access-node.mp4" type="video/mp4">
-        <source src="/img/access-node.webm" type="video/webm">
-        Your browser does not support the video tag.
-    </video>
-
-### View Status
-
-=== "Local Cluster & Teleport Preview - tsh"
-
-    ```bash
-    tsh status
     ```
 
 ## Next Steps
