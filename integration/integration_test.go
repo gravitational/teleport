@@ -748,7 +748,7 @@ func (s *IntSuite) TestUUIDBasedProxy(c *check.C) {
 	_, err = runCommand(t, []string{"echo", "Hello there!"}, ClientConfig{Login: s.me.Username, Cluster: Site, Host: Host}, 1)
 	c.Assert(err, check.NotNil)
 	if !strings.Contains(err.Error(), teleport.NodeIsAmbiguous) {
-		c.Errorf("Expected %s, got %s", teleport.NodeIsAmbiguous, err.Error())
+		c.Fatalf("Expected %s, got %s", teleport.NodeIsAmbiguous, err.Error())
 	}
 
 	// attempting to run a command by uuid should succeed.
@@ -2498,7 +2498,7 @@ func (s *IntSuite) TestDiscovery(c *check.C) {
 	for len(checkGetClusters(c, main.Tunnel)) < 2 && len(checkGetClusters(c, remote.Tunnel)) < 2 {
 		time.Sleep(time.Millisecond * 2000)
 		if time.Now().After(abortTime) {
-			c.Fatalf("two clusters do not see each other: tunnels are not working")
+			c.Fatalf("Two clusters do not see each other: tunnels are not working")
 		}
 	}
 
@@ -2805,7 +2805,7 @@ func waitForTunnelConnections(c *check.C, authServer *auth.Server, clusterName s
 		}
 		time.Sleep(1 * time.Second)
 	}
-	c.Fatalf("proxy count on %v: %v, expected %v", clusterName, len(conns), expectedCount)
+	c.Fatalf("Proxy count on %v: %v, expected %v", clusterName, len(conns), expectedCount)
 }
 
 // TestExternalClient tests if we can connect to a node in a Teleport
