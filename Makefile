@@ -267,9 +267,10 @@ test: $(VERSRC)
 #
 .PHONY: integration
 integration: FLAGS ?= -v -race
+integration: PACKAGES := $(shell go list ./... | grep integration)
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" ./integration/... $(FLAGS)
+	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS)
 
 #
 # Lint the Go code.

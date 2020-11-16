@@ -66,9 +66,7 @@ func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
 	}
 }
 
-// InitLoggerForTests initializes the standard logger for tests.
-// logger specifies the logger to collect logs messages that will be output
-// in case a test fails.
+// InitLoggerForTests initializes the standard logger for tests
 func InitLoggerForTests() {
 	log.StandardLogger().ReplaceHooks(make(log.LevelHooks))
 	log.SetFormatter(&trace.TextFormatter{})
