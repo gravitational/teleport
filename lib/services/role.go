@@ -1502,12 +1502,12 @@ func MatchLabels(selector Labels, target map[string]string) (bool, string, error
 // RoleNames returns a slice with role names. Removes runtime roles like
 // the default implicit role.
 func (set RoleSet) RoleNames() []string {
-	out := make([]string, len(set))
-	for i, r := range set {
+	out := make([]string, 0, len(set))
+	for _, r := range set {
 		if r.GetName() == teleport.DefaultImplicitRole {
 			continue
 		}
-		out[i] = r.GetName()
+		out = append(out, r.GetName())
 	}
 	return out
 }
