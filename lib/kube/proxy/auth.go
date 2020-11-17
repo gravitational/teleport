@@ -40,6 +40,7 @@ type kubeCreds struct {
 	transportConfig *transport.Config
 	// targetAddr is a kubernetes API address.
 	targetAddr string
+	kubeClient *kubernetes.Clientset
 }
 
 var skipSelfPermissionCheck bool
@@ -151,6 +152,7 @@ func getKubeCreds(ctx context.Context, log logrus.FieldLogger, tpClusterName, ku
 			tlsConfig:       tlsConfig,
 			transportConfig: transportConfig,
 			targetAddr:      targetAddr,
+			kubeClient:      client,
 		}
 	}
 	return res, nil

@@ -591,12 +591,13 @@ type BuiltinRole struct {
 	Identity tlsca.Identity
 }
 
-// IsServer returns true if the role is one of auth, proxy, node or app
+// IsServer returns true if the role is one of the builtin server roles.
 func (r BuiltinRole) IsServer() bool {
 	return r.Role == teleport.RoleProxy ||
 		r.Role == teleport.RoleNode ||
 		r.Role == teleport.RoleAuth ||
-		r.Role == teleport.RoleApp
+		r.Role == teleport.RoleApp ||
+		r.Role == teleport.RoleKube
 }
 
 // GetServerID extracts the identity from the full name. The username
