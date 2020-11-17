@@ -29,6 +29,7 @@ import (
 	"gopkg.in/check.v1"
 	authzapi "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/client-go/transport"
 )
@@ -173,10 +174,12 @@ current-context: foo
 				"foo": {
 					targetAddr:      "example.com:3026",
 					transportConfig: &transport.Config{},
+					kubeClient:      &kubernetes.Clientset{},
 				},
 				"bar": {
 					targetAddr:      "example.com:3026",
 					transportConfig: &transport.Config{},
+					kubeClient:      &kubernetes.Clientset{},
 				},
 			},
 			assertErr: require.NoError,
@@ -188,6 +191,7 @@ current-context: foo
 				teleClusterName: {
 					targetAddr:      "example.com:3026",
 					transportConfig: &transport.Config{},
+					kubeClient:      &kubernetes.Clientset{},
 				},
 			},
 			assertErr: require.NoError,
@@ -203,6 +207,7 @@ current-context: foo
 			require.Empty(t, cmp.Diff(got, tt.want,
 				cmp.AllowUnexported(kubeCreds{}),
 				cmp.Comparer(func(a, b *transport.Config) bool { return (a == nil) == (b == nil) }),
+				cmp.Comparer(func(a, b *kubernetes.Clientset) bool { return (a == nil) == (b == nil) }),
 			))
 		})
 	}
