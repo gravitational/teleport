@@ -916,7 +916,7 @@ The possible event types are:
 | resize        | Terminal has been resized.|
 | user.login    | A user logged into web UI or via tsh. The following fields will be logged: `{"user": "alice@example.com", "method": "local"}` .|
 | app.session.start | A user had accessed an application |
-| app.session.chunk | A record of activity during an app session | 
+| app.session.chunk | A record of activity during an app session |
 
 ### Recorded Sessions
 

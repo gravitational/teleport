@@ -159,7 +159,7 @@ The files that are needed for Teleport are these:
 # proxy service
 # ...
 https_keypairs
-  - key_file: /var/lib/teleport/webproxy_key.pem 
+  - key_file: /var/lib/teleport/webproxy_key.pem
   - cert_file: /var/lib/teleport/webproxy_cert.pem
 ```
 
@@ -182,7 +182,7 @@ proxy_service:
 
     # TLS certificate for the HTTPS connection. Configuring these properly is
     # critical for Teleport security.
-    
+
     https_keypairs:
         - key_file: /var/lib/teleport/webproxy_key.pem
         - cert_file: /var/lib/teleport/webproxy_cert.pem

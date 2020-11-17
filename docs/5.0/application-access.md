@@ -77,7 +77,7 @@ inline options using `teleport start` or using a `teleport.yaml` config file.
 
 | Variable to replace | Description  |
 |-|-|
-| `--roles=app` | This role will only setup the reverse proxy for applications |
+| `--roles=app` | The 'app' role will  setup the reverse proxy for applications |
 | `--token` | A dynamic or static `app` token obtained from the root cluster |
 | `--auth-server` | URL of the root cluster auth server or public proxy address |
 | `--app-name` | Application name |
@@ -126,7 +126,7 @@ app_service:
    debug_app: true
    apps:
    - name: "kubernetes-dashboard"
-     # URI and port of application. 
+     # URI and port of application.
      uri: "https://localhost:3040"
      # Optional Public Addr
      public_addr: "example.com"
@@ -142,7 +142,8 @@ app_service:
 proxy_service:
   enabled: "yes"
   listen_addr: 0.0.0.0:3023
-  tunnel_listen_addr: 0.0.0.0:3024
+  # Public Address default to port 3080 which doesn't
+  # require Teleport starting as root
   public_addr: teleport.example.com:443
   # Example using a wildcard cert
   https_keypairs:

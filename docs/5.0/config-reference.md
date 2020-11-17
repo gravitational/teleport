@@ -357,7 +357,7 @@ app_service:
    debug_app: true
    apps:
    - name: "kubernetes-dashboard"
-     # URI and Port of Application. 
+     # URI and Port of Application.
      uri: "http://10.0.1.27:8000"
      # Optional Public Addr
      public_addr: "example.com"

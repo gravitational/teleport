@@ -66,7 +66,7 @@ $ teleport start --roles=node --auth-server=10.1.0.1 --token=xyz --nodename=db
 # Same as the above, but the node runs with db=master label and can be connected
 # to using that label in addition to its name.
 $ teleport start --roles=node --auth-server=10.1.0.1 --labels=db=master
- 
+
 # Starts an app server that proxies the application "example-app" running at http://localhost:8080.
 $ teleport start --roles=app --token=xyz --auth-server=proxy.example.com:3080 \
     --app-name="example-app" \
@@ -182,7 +182,7 @@ $ tsh ssh -o AddKeysToAgent=yes root@grav-00
 
 ## tsh apps ls
 
-List all available applications 
+List all available applications
 
 **Usage**: `tsh apps ls`
 
