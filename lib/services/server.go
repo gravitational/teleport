@@ -561,7 +561,7 @@ const ServerSpecV2Schema = `{
         }
       }
     },
-    "kubernetes_clusters": {
+    "kube_clusters": {
       "type": "array",
       "items": {
         "type": "object",

@@ -170,8 +170,12 @@ message ServerSpecV2 {
     repeated App Apps = 9 [ (gogoproto.jsontag) = "apps,omitempty" ];
     // KubernetesClusters is a list of kubernetes clusters provided by this
     // Proxy or KubeService server.
+    //
+    // Important: jsontag must not be "kubernetes_clusters", because a
+    // different field with that jsontag existed in 4.4:
+    // https://github.com/gravitational/teleport/issues/4862
     repeated KubernetesCluster KubernetesClusters = 10
-        [ (gogoproto.jsontag) = "kubernetes_clusters,omitempty" ];
+        [ (gogoproto.jsontag) = "kube_clusters,omitempty" ];
 }
 
 // App is a specific application that a server proxies.
