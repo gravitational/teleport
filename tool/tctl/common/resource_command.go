@@ -564,16 +564,27 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 		}
 		return &reverseTunnelCollection{tunnels: tunnels}, nil
 	case services.KindCertAuthority:
+		var authorities []services.CertAuthority
+
 		userAuthorities, err := client.GetCertAuthorities(services.UserCA, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		authorities = append(authorities, userAuthorities...)
+
 		hostAuthorities, err := client.GetCertAuthorities(services.HostCA, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		userAuthorities = append(userAuthorities, hostAuthorities...)
-		return &authorityCollection{cas: userAuthorities}, nil
+		authorities = append(authorities, hostAuthorities...)
+
+		jwtSigners, err := client.GetCertAuthorities(services.JWTSigner, rc.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		authorities = append(authorities, jwtSigners...)
+
+		return &authorityCollection{cas: authorities}, nil
 	case services.KindNode:
 		nodes, err := client.GetNodes(rc.namespace)
 		if err != nil {
