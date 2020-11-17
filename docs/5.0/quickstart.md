@@ -268,7 +268,8 @@ Armed with these details, we'll bootstrap a new host using
     ```bash
     teleport start \
     --roles=node \
-    --auth-server=https://teleport.example.com:3080 \ --token=f7adb7ccdf04037bcd2b52ec6010fd6f0caec94ba190b765 \
+    --auth-server=https://teleport.example.com:3080 \
+    --token=f7adb7ccdf04037bcd2b52ec6010fd6f0caec94ba190b765 \
     --labels=env=quickstart
     ```
 
