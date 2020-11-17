@@ -23,6 +23,7 @@ func main() {
 		&common.AccessRequestCommand{},
 		&ResourceCommandE{},
 		&SAMLCommand{},
+		&common.AppsCommand{},
 	}
 	common.Run(commands, loadConfigFromProfile)
 }
