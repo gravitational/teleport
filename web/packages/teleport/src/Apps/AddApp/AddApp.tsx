@@ -32,6 +32,7 @@ export default function Container(props: Props) {
 
 export function AddApp({
   cmd,
+  user,
   expires,
   onClose,
   createToken,
@@ -76,7 +77,9 @@ export function AddApp({
             attempt={attempt}
           />
         )}
-        {!automatic && <Manually onClose={onClose} version={version} />}
+        {!automatic && (
+          <Manually user={user} onClose={onClose} version={version} />
+        )}
       </Flex>
     </Dialog>
   );

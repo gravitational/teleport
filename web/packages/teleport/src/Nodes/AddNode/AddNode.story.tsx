@@ -46,6 +46,7 @@ const sample = {
     createJoinToken() {
       return Promise.resolve(null);
     },
+    user: 'sam',
     automatic: true,
     setAutomatic: () => null,
     version: '5.0.0-dev',

@@ -625,13 +625,6 @@ exports[`success state 1`] = `
   margin: 0px;
 }
 
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-right: 16px;
-}
-
 .c9 {
   box-sizing: border-box;
   padding: 8px;
@@ -640,6 +633,12 @@ exports[`success state 1`] = `
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.c10 {
+  box-sizing: border-box;
+  margin-right: 8px;
+  display: flex;
 }
 
 .c1 {
@@ -757,15 +756,17 @@ exports[`success state 1`] = `
           class="sc-AxirZ c9"
         >
           <div
-            class="c10"
+            class="sc-AxirZ c10"
             style="word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
           >
-            http://localhost/web/reset/0c536179038b386728dfee6602ca297f
+            <div>
+              http://localhost/web/reset/0c536179038b386728dfee6602ca297f
+            </div>
           </div>
           <button
             class="c11"
             kind="primary"
-            style="padding: 4px 8px; min-height: 10px; font-size: 10px;"
+            style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
           >
             Copy
           </button>

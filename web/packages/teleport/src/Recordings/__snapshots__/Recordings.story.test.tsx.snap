@@ -363,7 +363,7 @@ exports[`rendering of Session Recordings 1`] = `
       width="auto"
     >
       <span>
-        7 days
+        Today
         <span
           class="c4 c5 icon icon-caret-down "
           color="text.primary"
@@ -925,7 +925,7 @@ exports[`rendering of Session Recordings 2`] = `
         width="auto"
       >
         <span>
-          7 days
+          Today
           <span
             class="c4 c5 icon icon-caret-down "
             color="text.primary"

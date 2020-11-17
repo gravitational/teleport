@@ -19,8 +19,10 @@ import { Text, Box, Link } from 'design';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import * as links from 'teleport/services/links';
 
-export default function Manually({ version, ...styles }: Props) {
-  const host = window.document.location.host;
+export default function Manually({ user, version, ...styles }: Props) {
+  const { hostname, port } = window.document.location;
+  const host = `${hostname}:${port || '443'}`;
+
   return (
     <Box {...styles}>
       <Box mb={4}>
@@ -47,7 +49,7 @@ export default function Manually({ version, ...styles }: Props) {
         {' - Login to Teleport'}
         <TextSelectCopy
           mt="2"
-          text={`tsh login --proxy=${host} --auth=local`}
+          text={`tsh login --proxy=${host} --auth=local --user=${user}`}
         />
       </Box>
       <Box mb={4}>
@@ -72,6 +74,7 @@ export default function Manually({ version, ...styles }: Props) {
 }
 
 type Props = {
+  user: string;
   version: string;
   // handles styles
   [key: string]: any;

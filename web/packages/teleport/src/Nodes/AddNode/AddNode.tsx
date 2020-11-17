@@ -35,6 +35,7 @@ export default function Container(props: Props) {
 }
 
 export function AddNode({
+  user,
   onClose,
   script,
   expiry,
@@ -81,7 +82,7 @@ export function AddNode({
               mb={3}
             />
           )}
-          {!automatic && <Manually version={version} />}
+          {!automatic && <Manually user={user} version={version} />}
         </DialogContent>
         <DialogFooter>
           <ButtonSecondary onClick={onClose}>Close</ButtonSecondary>

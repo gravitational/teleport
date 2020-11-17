@@ -1,11 +1,16 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`success state 1`] = `
-.c17 {
+.c16 {
+  box-sizing: border-box;
+  margin-right: 4px;
+}
+
+.c18 {
   box-sizing: border-box;
 }
 
-.c16 {
+.c17 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -31,25 +36,25 @@ exports[`success state 1`] = `
   padding: 0px 24px;
 }
 
-.c16:active {
+.c17:active {
   opacity: 0.56;
 }
 
-.c16:hover,
-.c16:focus {
+.c17:hover,
+.c17:focus {
   background: #651FFF;
 }
 
-.c16:active {
+.c17:active {
   background: #354AA4;
 }
 
-.c16:disabled {
+.c17:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c20 {
+.c21 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -75,16 +80,16 @@ exports[`success state 1`] = `
   padding: 0px 24px;
 }
 
-.c20:active {
+.c21:active {
   opacity: 0.56;
 }
 
-.c20:hover,
-.c20:focus {
+.c21:hover,
+.c21:focus {
   background: #2C3A73;
 }
 
-.c20:disabled {
+.c21:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -96,7 +101,7 @@ exports[`success state 1`] = `
   color: #FFFFFF;
 }
 
-.c18 {
+.c19 {
   color: #03a9f4;
   font-weight: normal;
   background: none;
@@ -105,8 +110,8 @@ exports[`success state 1`] = `
   padding: 0 8px;
 }
 
-.c18:hover,
-.c18:focus {
+.c19:hover,
+.c19:focus {
   background: #222C59;
 }
 
@@ -143,13 +148,6 @@ exports[`success state 1`] = `
   margin: 0px;
 }
 
-.c15 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-right: 16px;
-}
-
 .c4 {
   box-sizing: border-box;
   flex: 1;
@@ -174,6 +172,12 @@ exports[`success state 1`] = `
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.c15 {
+  box-sizing: border-box;
+  margin-right: 8px;
+  display: flex;
 }
 
 .c1 {
@@ -267,7 +271,7 @@ exports[`success state 1`] = `
   flex-direction: column;
 }
 
-.c19 {
+.c20 {
   box-sizing: border-box;
 }
 
@@ -343,23 +347,30 @@ exports[`success state 1`] = `
           >
             <div
               class="c15"
-              style="word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+              style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
             >
-              $ some bash script
+              <div
+                class="c16"
+              >
+                $
+              </div>
+              <div>
+                some bash script
+              </div>
             </div>
             <button
-              class="c16"
+              class="c17"
               kind="primary"
-              style="padding: 4px 8px; min-height: 10px; font-size: 10px;"
+              style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
             >
               Copy
             </button>
           </div>
           <div
-            class="c17"
+            class="c18"
           >
             <a
-              class="c18 c16"
+              class="c19 c17"
               kind="primary"
             >
               Regenerate Script
@@ -367,10 +378,10 @@ exports[`success state 1`] = `
           </div>
         </div>
         <div
-          class="c19"
+          class="c20"
         >
           <button
-            class="c20"
+            class="c21"
             kind="secondary"
           >
             Close

@@ -50,6 +50,7 @@ export const Manually = () => (
 
 const sample = {
   props: {
+    user: 'sam',
     automatic: true,
     setAutomatic: () => null,
     createToken: () => Promise.resolve(),

@@ -45,13 +45,6 @@ exports[`bash set to false does not render $ sign 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-right: 16px;
-}
-
 .c0 {
   box-sizing: border-box;
   padding: 8px;
@@ -62,20 +55,28 @@ exports[`bash set to false does not render $ sign 1`] = `
   justify-content: space-between;
 }
 
+.c1 {
+  box-sizing: border-box;
+  margin-right: 8px;
+  display: flex;
+}
+
 <div>
   <div
     class="sc-AxirZ c0"
   >
     <div
-      class="c1"
+      class="sc-AxirZ c1"
       style="word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
     >
-      some text to be copied
+      <div>
+        some text to be copied
+      </div>
     </div>
     <button
       class="c2"
       kind="primary"
-      style="padding: 4px 8px; min-height: 10px; font-size: 10px;"
+      style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
     >
       Copy
     </button>
@@ -85,6 +86,11 @@ exports[`bash set to false does not render $ sign 1`] = `
 
 exports[`default, renders $ sign 1`] = `
 .c2 {
+  box-sizing: border-box;
+  margin-right: 4px;
+}
+
+.c3 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -110,29 +116,22 @@ exports[`default, renders $ sign 1`] = `
   padding: 0px 24px;
 }
 
-.c2:active {
+.c3:active {
   opacity: 0.56;
 }
 
-.c2:hover,
-.c2:focus {
+.c3:hover,
+.c3:focus {
   background: #651FFF;
 }
 
-.c2:active {
+.c3:active {
   background: #354AA4;
 }
 
-.c2:disabled {
+.c3:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-right: 16px;
 }
 
 .c0 {
@@ -145,20 +144,33 @@ exports[`default, renders $ sign 1`] = `
   justify-content: space-between;
 }
 
+.c1 {
+  box-sizing: border-box;
+  margin-right: 8px;
+  display: flex;
+}
+
 <div>
   <div
-    class="sc-AxirZ c0"
+    class="c0"
   >
     <div
       class="c1"
-      style="word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+      style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
     >
-      $ some bash command
+      <div
+        class="c2"
+      >
+        $
+      </div>
+      <div>
+        some bash command
+      </div>
     </div>
     <button
-      class="c2"
+      class="c3"
       kind="primary"
-      style="padding: 4px 8px; min-height: 10px; font-size: 10px;"
+      style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
     >
       Copy
     </button>

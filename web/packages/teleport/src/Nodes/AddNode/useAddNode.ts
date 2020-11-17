@@ -22,6 +22,7 @@ export default function useAddNode(ctx: TeleportContext) {
   const { attempt, run } = useAttempt('processing');
   const canCreateToken = ctx.storeUser.getTokenAccess().create;
   const version = ctx.storeUser.state.cluster.authVersion;
+  const user = ctx.storeUser.state.username;
   const [automatic, setAutomatic] = useState(true);
   const [script, setScript] = useState('');
   const [expiry, setExpiry] = useState('');
@@ -48,6 +49,7 @@ export default function useAddNode(ctx: TeleportContext) {
     expiry,
     attempt,
     version,
+    user,
   };
 }
 

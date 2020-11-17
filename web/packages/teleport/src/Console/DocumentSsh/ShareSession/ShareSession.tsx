@@ -36,8 +36,10 @@ export default function ShareSession({ closeShareSession }: Props) {
         <DialogTitle>Share Session</DialogTitle>
       </DialogHeader>
       <DialogContent>
-        <Text mb={4} mt={1}>
-          Share the URL below with the user you want to share this session with.
+        <Text mb={2} mt={1}>
+          Share this URL with the person you want to share your session with.
+          This person must have access to this server to be able to join your
+          session.
         </Text>
         <TextSelectCopy text={window.location.href} bash={false} />
       </DialogContent>

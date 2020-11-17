@@ -15,6 +15,11 @@ exports[`created 1`] = `
 }
 
 .c22 {
+  box-sizing: border-box;
+  margin-right: 4px;
+}
+
+.c23 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -40,25 +45,25 @@ exports[`created 1`] = `
   padding: 0px 24px;
 }
 
-.c22:active {
+.c23:active {
   opacity: 0.56;
 }
 
-.c22:hover,
-.c22:focus {
+.c23:hover,
+.c23:focus {
   background: #651FFF;
 }
 
-.c22:active {
+.c23:active {
   background: #354AA4;
 }
 
-.c22:disabled {
+.c23:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c24 {
+.c25 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -85,25 +90,25 @@ exports[`created 1`] = `
   margin-right: 16px;
 }
 
-.c24:active {
+.c25:active {
   opacity: 0.56;
 }
 
-.c24:hover,
-.c24:focus {
+.c25:hover,
+.c25:focus {
   background: #651FFF;
 }
 
-.c24:active {
+.c25:active {
   background: #354AA4;
 }
 
-.c24:disabled {
+.c25:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c25 {
+.c26 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -129,16 +134,16 @@ exports[`created 1`] = `
   padding: 0px 24px;
 }
 
-.c25:active {
+.c26:active {
   opacity: 0.56;
 }
 
-.c25:hover,
-.c25:focus {
+.c26:hover,
+.c26:focus {
   background: #2C3A73;
 }
 
-.c25:disabled {
+.c26:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -233,13 +238,6 @@ exports[`created 1`] = `
   margin: 0px;
 }
 
-.c21 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-  margin-right: 16px;
-}
-
 .c4 {
   box-sizing: border-box;
   flex: 1;
@@ -271,6 +269,12 @@ exports[`created 1`] = `
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.c21 {
+  box-sizing: border-box;
+  margin-right: 8px;
+  display: flex;
 }
 
 .c1 {
@@ -332,7 +336,7 @@ exports[`created 1`] = `
   flex-direction: column;
 }
 
-.c23 {
+.c24 {
   box-sizing: border-box;
 }
 
@@ -491,30 +495,37 @@ exports[`created 1`] = `
           >
             <div
               class="c21"
-              style="word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
+              style="overflow: auto; white-space: pre; word-break: break-all; font-size: 12px; font-family: \\"Droid Sans Mono\\", \\"monospace\\", monospace, \\"Droid Sans Fallback\\";"
             >
-              $ sudo bash -c "$(curl -fsSL 'http://localhost/scripts/86/install-app.sh?name=test&uri=http://myapp/')"
+              <div
+                class="c22"
+              >
+                $
+              </div>
+              <div>
+                sudo bash -c "$(curl -fsSL 'http://localhost/scripts/86/install-app.sh?name=test&uri=http://myapp/')"
+              </div>
             </div>
             <button
-              class="c22"
+              class="c23"
               kind="primary"
-              style="padding: 4px 8px; min-height: 10px; font-size: 10px;"
+              style="max-width: 48px; width: 100%; padding: 4px 8px; min-height: 10px; font-size: 10px;"
             >
               Copy
             </button>
           </div>
         </div>
         <div
-          class="c23"
+          class="c24"
         >
           <button
-            class="c24"
+            class="c25"
             kind="primary"
           >
             Regenerate
           </button>
           <button
-            class="c25"
+            class="c26"
             kind="secondary"
           >
             Close
@@ -693,7 +704,7 @@ exports[`loaded 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  margin-top: 4px;
+  margin-top: 8px;
 }
 
 .c4 {
@@ -912,7 +923,7 @@ exports[`loaded 1`] = `
             <div
               class="c17"
             >
-              This script will install the Teleport agent to provide secure access to your application.
+              The script will install the Teleport agent to provide secure access to your application.
             </div>
           </div>
           

@@ -20,8 +20,10 @@ import { DialogContent, DialogFooter } from 'design/Dialog';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import * as links from 'teleport/services/links';
 
-export default function Manually({ version, onClose }: Props) {
-  const host = window.document.location.host;
+export default function Manually({ user, version, onClose }: Props) {
+  const { hostname, port } = window.document.location;
+  const host = `${hostname}:${port || '443'}`;
+
   return (
     <>
       <DialogContent minHeight="240px" flex="0 0 auto">
@@ -50,7 +52,7 @@ export default function Manually({ version, onClose }: Props) {
             {' - Login to Teleport'}
             <TextSelectCopy
               mt="2"
-              text={`tsh login --proxy=${host} --auth=local`}
+              text={`tsh login --proxy=${host} --auth=local --user=${user}`}
             />
           </Box>
           <Box mb={4}>
@@ -67,7 +69,7 @@ export default function Manually({ version, onClose }: Props) {
             {` - Start the Teleport agent with the following parameters`}
             <TextSelectCopy
               mt="2"
-              text={`teleport start --roles=app --app-name=[example-app] --app-uri=http://localhost:8080 --token=[generated-join-token] --auth-server=${host} `}
+              text={`teleport start --roles=app --app-name=[example-app] --app-uri=http://localhost/ --token=[generated-join-token] --auth-server=${host}`}
             />
           </Box>
           <Box>
@@ -96,4 +98,5 @@ export default function Manually({ version, onClose }: Props) {
 type Props = {
   onClose(): void;
   version: string;
+  user: string;
 };

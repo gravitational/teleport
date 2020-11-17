@@ -413,7 +413,7 @@ exports[`loaded 1`] = `
       width="auto"
     >
       <span>
-        7 days
+        Today
         <span
           class="c4 c5 icon icon-caret-down "
           color="text.primary"
@@ -2138,7 +2138,7 @@ exports[`overflow 1`] = `
       width="auto"
     >
       <span>
-        7 days
+        Today
         <span
           class="c4 c5 icon icon-caret-down "
           color="text.primary"

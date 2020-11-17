@@ -30,7 +30,6 @@ export default function useSshSession(doc: DocumentSsh) {
   const [session, setSession] = React.useState<Session>(null);
   const [statusText, setStatusText] = React.useState('');
   const [status, setStatus] = React.useState<Status>('loading');
-  const [isShareSessionOpen, setShareSessionOpen] = React.useState(false);
 
   React.useEffect(() => {
     // initializes tty instances
@@ -79,17 +78,11 @@ export default function useSshSession(doc: DocumentSsh) {
     return cleanup;
   }, []);
 
-  function toggleShareSession() {
-    setShareSessionOpen(!isShareSessionOpen);
-  }
-
   return {
     tty: ttyRef.current as ReturnType<typeof ctx.createTty>,
     status,
     statusText,
     session,
-    isShareSessionOpen,
-    toggleShareSession,
   };
 }
 

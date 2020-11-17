@@ -17,7 +17,7 @@
 import React from 'react';
 import copyToClipboard from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
-import { ButtonPrimary, Text, Flex } from 'design';
+import { ButtonPrimary, Box, Flex } from 'design';
 import { useTheme } from 'styled-components';
 
 export default function TextSelectCopy({
@@ -30,12 +30,24 @@ export default function TextSelectCopy({
   const ref = React.useRef();
   const [copyCmd, setCopyCmd] = React.useState(() => 'Copy');
 
-  const displayText = bash ? `$ ${text}` : text;
-
   function onCopyClick() {
     copyToClipboard(text).then(() => setCopyCmd('Copied'));
     selectElementContent(ref.current);
   }
+
+  const boxStyles = bash
+    ? {
+        overflow: 'auto',
+        whiteSpace: 'pre',
+        wordBreak: 'break-all',
+        fontSize: '12px',
+        fontFamily: font,
+      }
+    : {
+        wordBreak: 'break-all',
+        fontSize: '12px',
+        fontFamily: font,
+      };
 
   return (
     <Flex
@@ -46,20 +58,19 @@ export default function TextSelectCopy({
       borderRadius={2}
       {...styles}
     >
-      <Text
-        ref={ref}
-        style={{
-          wordBreak: 'break-all',
-          fontSize: '12px',
-          fontFamily: font,
-        }}
-        mr="3"
-      >
-        {displayText}
-      </Text>
+      <Flex mr="2" style={boxStyles}>
+        {bash && <Box mr="1">{`$`}</Box>}
+        <div ref={ref}>{text}</div>
+      </Flex>
       <ButtonPrimary
         onClick={onCopyClick}
-        style={{ padding: '4px 8px', minHeight: '10px', fontSize: '10px' }}
+        style={{
+          maxWidth: '48px',
+          width: '100%',
+          padding: '4px 8px',
+          minHeight: '10px',
+          fontSize: '10px',
+        }}
       >
         {copyCmd}
       </ButtonPrimary>

@@ -21,6 +21,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 export default function useAddApp(ctx: TeleportContext) {
   const { attempt, run } = useAttempt('');
   const canCreateToken = ctx.storeUser.getTokenAccess().create;
+  const user = ctx.storeUser.state.username;
   const version = ctx.storeUser.state.cluster.authVersion;
   const [automatic, setAutomatic] = useState(true);
   const [cmd, setCmd] = useState('');
@@ -36,6 +37,7 @@ export default function useAddApp(ctx: TeleportContext) {
   }
 
   return {
+    user,
     canCreateToken,
     version,
     createToken,
