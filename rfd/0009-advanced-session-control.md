@@ -20,12 +20,12 @@ a system. This RFD will focus on how to disconnect and disable a user:
 
 ## Why
 
-We've several request for advanced session control. These requests can be grouped
+We've had several requests for advanced session control. These requests can be grouped
 into these categories.
 
 + Keep a closer eye on contractor activity: Customers
 + Locking out the team during maintenance windows.
-+ Terminating access for an employee before the TTL of Teleports cert.
++ Terminating access for an employee before the TTL of Teleport's cert.
 + Obtaining FedRAMP NIST Control
 
 ### AC-17 Access Control
@@ -99,7 +99,7 @@ The `tctl users lock` and `tctl users unlock` commands will update `services.Use
 for the given user setting the Status fields to mark the user is locked or unlocked
 respectively.
 
-In `srv.ServerContext`, there exists periodic checks for disconnecting idle clients
+In `srv.ServerContext`, there are periodic checks for disconnecting idle clients
 and expired certificates. This method will also watch `services.UserSpecV2` for
 changes. Upon a change in the status field, the active session will be terminated.
 
