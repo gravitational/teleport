@@ -132,7 +132,8 @@ func (l *LoadBalancer) nextBackend() (*NetAddr, error) {
 		return nil, trace.ConnectionProblem(nil, "no backends")
 	}
 	l.currentIndex = ((l.currentIndex + 1) % len(l.backends))
-	return &l.backends[l.currentIndex], nil
+	addr := l.backends[l.currentIndex]
+	return &addr, nil
 }
 
 func (l *LoadBalancer) closeListener() {
