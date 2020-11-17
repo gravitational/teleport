@@ -38,7 +38,7 @@ import (
 
 type kubeCommands struct {
 	credentials *kubeCredentialsCommand
-	clusters    *kubeClustersCommand
+	ls          *kubeLSCommand
 	login       *kubeLoginCommand
 }
 
@@ -46,7 +46,7 @@ func newKubeCommand(app *kingpin.Application) kubeCommands {
 	kube := app.Command("kube", "Manage available kubernetes clusters")
 	cmds := kubeCommands{
 		credentials: newKubeCredentialsCommand(kube),
-		clusters:    newKubeClustersCommand(kube),
+		ls:          newKubeLSCommand(kube),
 		login:       newKubeLoginCommand(kube),
 	}
 	return cmds
@@ -137,18 +137,18 @@ func (c *kubeCredentialsCommand) writeResponse(key *client.Key, kubeClusterName 
 	return nil
 }
 
-type kubeClustersCommand struct {
+type kubeLSCommand struct {
 	*kingpin.CmdClause
 }
 
-func newKubeClustersCommand(parent *kingpin.CmdClause) *kubeClustersCommand {
-	c := &kubeClustersCommand{
-		CmdClause: parent.Command("clusters", "Get credentials for kubectl access"),
+func newKubeLSCommand(parent *kingpin.CmdClause) *kubeLSCommand {
+	c := &kubeLSCommand{
+		CmdClause: parent.Command("ls", "Get a list of kubernetes clusters"),
 	}
 	return c
 }
 
-func (c *kubeClustersCommand) run(cf *CLIConf) error {
+func (c *kubeLSCommand) run(cf *CLIConf) error {
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
@@ -218,7 +218,7 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	c := &kubeLoginCommand{
 		CmdClause: parent.Command("login", "Login to a kubernetes cluster"),
 	}
-	c.Arg("kube-cluster", "Name of the kubernetes cluster to login to. Check 'tsh kube clusters' for a list of available clusters.").Required().StringVar(&c.kubeCluster)
+	c.Arg("kube-cluster", "Name of the kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").Required().StringVar(&c.kubeCluster)
 	return c
 }
 
@@ -238,7 +238,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 
 	kubeContext := kubeconfig.ContextName(profile.Cluster, c.kubeCluster)
 	if _, ok := kc.Contexts[kubeContext]; !ok {
-		fmt.Println(`check 'tsh kube clusters' for known clusters
+		fmt.Println(`check 'tsh kube ls' for known clusters
 if this is a new cluster, you may need to 'tsh login' again to access it`)
 		return trace.BadParameter("kubernetes cluster %q not found", c.kubeCluster)
 	}

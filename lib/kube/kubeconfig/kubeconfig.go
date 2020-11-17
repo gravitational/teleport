@@ -67,11 +67,7 @@ type ExecValues struct {
 // If `path` is empty, UpdateWithClient will try to guess it based on the
 // environment or known defaults.
 func UpdateWithClient(ctx context.Context, path string, tc *client.TeleportClient, tshBinary string) error {
-	v := Values{
-		Exec: &ExecValues{
-			TshBinaryPath: tshBinary,
-		},
-	}
+	var v Values
 
 	v.ClusterAddr = tc.KubeClusterAddr()
 	v.TeleportClusterName, _ = tc.KubeProxyHostPort()
@@ -86,7 +82,10 @@ func UpdateWithClient(ctx context.Context, path string, tc *client.TeleportClien
 
 	// TODO(awly): unit test this.
 	if tshBinary != "" {
-		v.Exec.TshBinaryInsecure = tc.InsecureSkipVerify
+		v.Exec = &ExecValues{
+			TshBinaryPath:     tshBinary,
+			TshBinaryInsecure: tc.InsecureSkipVerify,
+		}
 
 		// Fetch the list of known kubernetes clusters.
 		pc, err := tc.ConnectToProxy(ctx)
@@ -107,6 +106,14 @@ func UpdateWithClient(ctx context.Context, path string, tc *client.TeleportClien
 		v.Exec.SelectCluster, err = kubeutils.CheckOrSetKubeCluster(ctx, ac, tc.KubernetesCluster, v.TeleportClusterName)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
+		}
+
+		// If there are no registered k8s clusters, we may have an older
+		// teleport cluster. Fall back to the old kubeconfig, with static
+		// credentials from v.Credentials.
+		if len(v.Exec.KubeClusters) == 0 {
+			log.Debug("Disabling exec plugin mode for kubeconfig because this Teleport cluster has no Kubernetes clusters.")
+			v.Exec = nil
 		}
 	}
 
@@ -158,7 +165,7 @@ func Update(path string, v Values) error {
 		if v.Exec.SelectCluster != "" {
 			contextName := ContextName(v.TeleportClusterName, v.Exec.SelectCluster)
 			if _, ok := config.Contexts[contextName]; !ok {
-				return trace.BadParameter("can't switch kubeconfig context to cluster %q, run 'tsh kube clusters' to see available clusters", v.Exec.SelectCluster)
+				return trace.BadParameter("can't switch kubeconfig context to cluster %q, run 'tsh kube ls' to see available clusters", v.Exec.SelectCluster)
 			}
 			config.CurrentContext = contextName
 		}

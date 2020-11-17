@@ -71,6 +71,9 @@ type ForwarderConfig struct {
 	Auth auth.Authorizer
 	// Client is a proxy client
 	Client auth.ClientI
+	// StreamEmitter is used to create audit streams
+	// and emit audit events
+	StreamEmitter events.StreamEmitter
 	// DataDir is a data dir to store logs
 	DataDir string
 	// Namespace is a namespace of the proxy server (not a K8s namespace)
@@ -120,6 +123,9 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	}
 	if f.Auth == nil {
 		return trace.BadParameter("missing parameter Auth")
+	}
+	if f.StreamEmitter == nil {
+		return trace.BadParameter("missing parameter StreamEmitter")
 	}
 	if f.ClusterName == "" {
 		return trace.BadParameter("missing parameter LocalCluster")
@@ -568,7 +574,7 @@ func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
 	// TeeStreamer sends non-print and non disk events
 	// to the audit log in async mode, while buffering all
 	// events on disk for further upload at the end of the session
-	return events.NewTeeStreamer(fileStreamer, f.Client), nil
+	return events.NewTeeStreamer(fileStreamer, f.StreamEmitter), nil
 }
 
 // exec forwards all exec requests to the target server, captures
@@ -651,6 +657,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 					Login: ctx.User.GetName(),
 				},
 				TerminalSize: params.Serialize(),
+				KubernetesClusterMetadata: events.KubernetesClusterMetadata{
+					KubernetesCluster: ctx.kubeCluster,
+				},
 			}
 
 			// Report the updated window size to the event log (this is so the sessions
@@ -660,7 +669,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			}
 		}
 	} else {
-		emitter = f.Client
+		emitter = f.StreamEmitter
 	}
 
 	sess, err := f.getOrCreateClusterSession(*ctx)
@@ -703,6 +712,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				Protocol:   events.EventProtocolKube,
 			},
 			TerminalSize: termParams.Serialize(),
+			KubernetesClusterMetadata: events.KubernetesClusterMetadata{
+				KubernetesCluster: ctx.kubeCluster,
+			},
 		}
 		if err := emitter.EmitAuditEvent(f.Context, sessionStartEvent); err != nil {
 			f.WithError(err).Warn("Failed to emit event.")
@@ -770,6 +782,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			Participants: []string{ctx.User.GetName()},
 			StartTime:    sessionStart,
 			EndTime:      f.Clock.Now().UTC(),
+			KubernetesClusterMetadata: events.KubernetesClusterMetadata{
+				KubernetesCluster: ctx.kubeCluster,
+			},
 		}
 		if err := emitter.EmitAuditEvent(f.Context, sessionEndEvent); err != nil {
 			f.WithError(err).Warn("Failed to emit session end event.")
@@ -798,6 +813,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			},
 			CommandMetadata: events.CommandMetadata{
 				Command: strings.Join(request.cmd, " "),
+			},
+			KubernetesClusterMetadata: events.KubernetesClusterMetadata{
+				KubernetesCluster: ctx.kubeCluster,
 			},
 		}
 		if err != nil {
@@ -866,7 +884,7 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 		if !success {
 			portForward.Code = events.PortForwardFailureCode
 		}
-		if err := f.Client.EmitAuditEvent(f.Context, portForward); err != nil {
+		if err := f.StreamEmitter.EmitAuditEvent(f.Context, portForward); err != nil {
 			f.WithError(err).Warn("Failed to emit event.")
 		}
 	}
@@ -1057,6 +1075,9 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 		RequestPath:  req.URL.Path,
 		Verb:         req.Method,
 		ResponseCode: int32(w.(*responseStatusRecorder).getStatus()),
+		KubernetesClusterMetadata: events.KubernetesClusterMetadata{
+			KubernetesCluster: ctx.kubeCluster,
+		},
 	}
 	r := parseResourcePath(req.URL.Path)
 	if r.skipEvent {

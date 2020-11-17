@@ -380,7 +380,7 @@ func (s *ProtoStream) EmitAuditEvent(ctx context.Context, event AuditEvent) erro
 		}
 		return nil
 	case <-s.cancelCtx.Done():
-		return trace.ConnectionProblem(nil, "emitter is closed")
+		return trace.ConnectionProblem(s.cancelCtx.Err(), "emitter has been closed")
 	case <-s.completeCtx.Done():
 		return trace.ConnectionProblem(nil, "emitter is completed")
 	case <-ctx.Done():
@@ -396,6 +396,8 @@ func (s *ProtoStream) Complete(ctx context.Context) error {
 	case <-s.uploadsCtx.Done():
 		s.cancel()
 		return s.getCompleteResult()
+	case <-s.cancelCtx.Done():
+		return trace.ConnectionProblem(s.cancelCtx.Err(), "emitter has been closed")
 	case <-ctx.Done():
 		return trace.ConnectionProblem(ctx.Err(), "context has cancelled before complete could succeed")
 	}
@@ -416,6 +418,8 @@ func (s *ProtoStream) Close(ctx context.Context) error {
 	// wait for all in-flight uploads to complete and stream to be completed
 	case <-s.uploadsCtx.Done():
 		return nil
+	case <-s.cancelCtx.Done():
+		return trace.ConnectionProblem(s.cancelCtx.Err(), "emitter has been closed")
 	case <-ctx.Done():
 		return trace.ConnectionProblem(ctx.Err(), "context has cancelled before complete could succeed")
 	}
@@ -484,6 +488,8 @@ func (w *sliceWriter) receiveAndUpload() {
 					w.current.isLast = true
 				}
 				if err := w.startUploadCurrentSlice(); err != nil {
+					w.proto.cancel()
+					log.WithError(err).Debug("Could not start uploading current slice, aborting.")
 					return
 				}
 			}
@@ -512,6 +518,8 @@ func (w *sliceWriter) receiveAndUpload() {
 				if w.current != nil {
 					log.Debugf("Inactivity timer ticked at %v, inactivity period: %v exceeded threshold and have data. Flushing.", now, inactivityPeriod)
 					if err := w.startUploadCurrentSlice(); err != nil {
+						w.proto.cancel()
+						log.WithError(err).Debug("Could not start uploading current slice, aborting.")
 						return
 					}
 				} else {
@@ -536,6 +544,8 @@ func (w *sliceWriter) receiveAndUpload() {
 				// this logic blocks the EmitAuditEvent in case if the
 				// upload has not completed and the current slice is out of capacity
 				if err := w.startUploadCurrentSlice(); err != nil {
+					w.proto.cancel()
+					log.WithError(err).Debug("Could not start uploading current slice, aborting.")
 					return
 				}
 			}
