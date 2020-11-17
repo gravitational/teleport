@@ -273,9 +273,9 @@ spec:
       - auth_connector
       verbs:  [list, create, read, update, delete]
     # Session: Provides access to Session Recordings.
-    # e.g If session read is false, users can't play the recordings 
+    # e.g If session read is false, users can't play the recordings
     # It is possible to restrict "list" but to allow "read" (in this case a user will
-    # be able to replay a session using `tsh play` if they know the session ID) 
+    # be able to replay a session using `tsh play` if they know the session ID)
     - resources:
       - session
       verbs:  [list,read]

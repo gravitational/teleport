@@ -276,8 +276,8 @@ spec:
 
 ## Teleport Resources
 
-RBAC lets teams limit what resources are available to Teleport users. This can be helpful if, for example, 
-you don't want regular users editing SSO (`auth_connector`) or creating and editing new roles 
+RBAC lets teams limit what resources are available to Teleport users. This can be helpful if, for example,
+you don't want regular users editing SSO (`auth_connector`) or creating and editing new roles
 (`role`).
 
 
@@ -295,9 +295,9 @@ List of all rule options defined below.
       - auth_connector
       verbs:  [list, create, read, update, delete]
     # Session: Provides access to Session Recordings.
-    # e.g If session read is false, users can't play the recordings 
+    # e.g If session read is false, users can't play the recordings
     # It is possible to restrict "list" but to allow "read" (in this case a user will
-    # be able to replay a session using `tsh play` if they know the session ID) 
+    # be able to replay a session using `tsh play` if they know the session ID)
     - resources:
       - session
       verbs:  [list,read]
@@ -313,7 +313,7 @@ List of all rule options defined below.
     - resources: [user]
       verbs: [list,create,read,update,delete]
     # Tokens: CRUD options for managing tokens
-    # Enterprise customer can enable app and node wizard enabling this resource 
+    # Enterprise customer can enable app and node wizard enabling this resource
     - resources: [token]
       verbs: [list,create,read,update,delete]
 ```
