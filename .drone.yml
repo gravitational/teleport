@@ -4,7 +4,7 @@ type: kubernetes
 name: test
 
 environment:
-  RUNTIME: go1.14.4
+  RUNTIME: go1.15.5
   UID: 1000
   GID: 1000
 
@@ -202,7 +202,7 @@ type: kubernetes
 name: build-on-push
 
 environment:
-  RUNTIME: go1.14.4
+  RUNTIME: go1.15.5
   UID: 1000
   GID: 1000
 
@@ -669,7 +669,7 @@ type: kubernetes
 name: build-linux-amd64
 
 environment:
-  RUNTIME: go1.14.4
+  RUNTIME: go1.15.5
 
 trigger:
   event:
@@ -772,7 +772,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 
 environment:
-  RUNTIME: go1.14.4
+  RUNTIME: go1.15.5
 
 trigger:
   event:
@@ -876,7 +876,7 @@ type: kubernetes
 name: build-linux-amd64-centos6
 
 environment:
-  RUNTIME: go1.14.4
+  RUNTIME: go1.15.5
 
 trigger:
   event:
@@ -980,7 +980,7 @@ type: kubernetes
 name: build-linux-amd64-centos6-fips
 
 environment:
-  RUNTIME: go1.14.4
+  RUNTIME: go1.15.5
 
 trigger:
   event:
@@ -1562,7 +1562,7 @@ type: kubernetes
 name: build-linux-i386
 
 environment:
-  RUNTIME: go1.14.4
+  RUNTIME: go1.15.5
 
 trigger:
   event:
@@ -2417,7 +2417,7 @@ type: kubernetes
 name: build-windows
 
 environment:
-  RUNTIME: go1.14.4
+  RUNTIME: go1.15.5
 
 trigger:
   event:
@@ -2522,7 +2522,7 @@ type: kubernetes
 name: build-docker-images
 
 environment:
-  RUNTIME: go1.14.4
+  RUNTIME: go1.15.5
 
 trigger:
   event:
@@ -2835,7 +2835,7 @@ type: kubernetes
 name: build-buildboxes
 
 environment:
-  RUNTIME: go1.14.4
+  RUNTIME: go1.15.5
   UID: 1000
   GID: 1000
 
@@ -3158,6 +3158,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 8bafd989fee244790b719f5d2143f2a11f852cd3900a694f1e0ba7d532b88c30
+hmac: 8f17b3edc11f7c493d4465bccf1e349646b3ce8234919f9af3fec974ba634800
 
 ...

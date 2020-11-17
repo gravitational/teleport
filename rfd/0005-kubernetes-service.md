@@ -253,7 +253,7 @@ $ tsh login --proxy=proxy.example.com --user=awly
 ...
 
 # list all registered clusters
-$ tsh kube clusters
+$ tsh kube ls
 Cluster Name       Status
 -------------      ------
 a.k8s.example.com  online
@@ -365,7 +365,7 @@ kubernetes_service:
 ```
 
 ```sh
-$ tsh kube clusters
+$ tsh kube ls
 Cluster Name       Status
 -------------      ------
 example.com        online
@@ -391,7 +391,7 @@ kubernetes_service:
 ```
 
 ```sh
-$ tsh kube clusters
+$ tsh kube ls
 Cluster Name       Status
 -------------      ------
 example.com        online
@@ -414,7 +414,7 @@ kubernetes_service:
 ```
 
 ```sh
-$ tsh kube clusters
+$ tsh kube ls
 Cluster Name       Status
 -------------      ------
 example.com        online
@@ -466,7 +466,7 @@ users:
 ```
 
 ```sh
-$ tsh kube clusters
+$ tsh kube ls
 Cluster Name       Status
 -------------      ------
 a                  online
@@ -506,7 +506,7 @@ kubernetes_service:
 ```
 
 ```sh
-$ tsh kube clusters
+$ tsh kube ls
 Cluster Name       Status
 -------------      ------
 a.example.com      online

@@ -165,7 +165,7 @@ func Update(path string, v Values) error {
 		if v.Exec.SelectCluster != "" {
 			contextName := ContextName(v.TeleportClusterName, v.Exec.SelectCluster)
 			if _, ok := config.Contexts[contextName]; !ok {
-				return trace.BadParameter("can't switch kubeconfig context to cluster %q, run 'tsh kube clusters' to see available clusters", v.Exec.SelectCluster)
+				return trace.BadParameter("can't switch kubeconfig context to cluster %q, run 'tsh kube ls' to see available clusters", v.Exec.SelectCluster)
 			}
 			config.CurrentContext = contextName
 		}
