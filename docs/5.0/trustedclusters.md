@@ -139,12 +139,12 @@ to look like this:
 auth_service:
   enabled: true
   tokens:
-  # If using static tokens we recommend using tools like `pwgen -s 32`  
+  # If using static tokens we recommend using tools like `pwgen -s 32`
   # to generate sufficiently random tokens of 32+ byte length
   - trusted_cluster:mk9JgEVqsgz6pSsHf4kJPAHdVDVtpuE0
 ```
 
-This token can be used an unlimited number of times. 
+This token can be used an unlimited number of times.
 
 ### Security Implications
 
@@ -257,7 +257,7 @@ Lets make a few assumptions for this example:
   local administrators.
 
 * We want administrators from "root" (but not regular users!) to have
-  restricted access to "leaf". We want to deny them access to machines 
+  restricted access to "leaf". We want to deny them access to machines
   with "environment=production" and any Government cluster labeled "customer=gov"
 
 First, we need to create a special role for root users on "leaf":
