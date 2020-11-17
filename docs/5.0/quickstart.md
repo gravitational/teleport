@@ -95,7 +95,6 @@ EOF
 $  mv teleport.yaml /etc
 ```
 
-
 ## Step 1c: Configure Domain Name & Obtain TLS Certs using Let's Encrypt
 
 Teleport requires a secure public endpoint for the Teleport UI and for end users to connect to. A domain name and TLS are required for Teleport. We'll use Let's Encrypt to obtain a free TLS certificate.
@@ -152,11 +151,12 @@ Visit: `https://teleport.example.com:3080/`
 
 Create a new user `teleport-admin`, with the Principles `root, ubuntu, ec2-user`
 
-```
+```bash
+# tctl is an administrative tool that can configure Teleport auth service.
 tctl users add teleport-admin root,ubuntu, ec2-user
 ```
 
-Teleport will always enforces Two-Factor Authentication and support OTP and Hardware Tokens (U2F).The quickstart has been setup with OTP. For setup you'll need an OTP app.
+Teleport will always enforces Two-Factor Authentication and support OTP and Hardware Tokens (U2F).The quick start has been setup with OTP. For setup you'll need an OTP app.
 
 A selection of Two-Factor Authentication apps are.
 
@@ -197,21 +197,22 @@ A selection of Two-Factor Authentication apps are.
     For more options please see our [installation page](installation.md).
 
     ```bash
-     $ curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
-    $ tar -xzf teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
-    $ cd teleport
-    $ ./install
+    curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+    tar -xzf teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
+    cd teleport
+    ./install
     ```
 
 ## Step 3: Login Using `tsh`
 
-`tsh` is equivalent to `ssh`, and after a while you'll be wonder where it's been all of your DevOps days.
+`tsh` is our client tool. It helps you login, obtains credentials and list servers,applications and Kubernetes clusters.
 
 Prior to launch you must authenticate.
 
 === "Local Cluster - tsh"
 
     ```
+    # Replace teleport.example.com:3080 with your cluster  address.
     tsh login --proxy=teleport.example.com:3080 --user=teleport-admin
     ```
 
@@ -227,36 +228,53 @@ Prior to launch you must authenticate.
 
 ### SSH into a node
 
-=== "tsh ssh"
+=== "tsh ls & ssh"
 
     ```
+    # list all servers connected to Teleport
+    tsh ls
+
+    # ssh as 'root' into node named `node-name`. replace with values from
     tsh ssh root@node-name
     ```
 
 ### Add a Node to the Cluster
 
-When you setup Teleport earlier we setup a strong static token this is `auth_token`
-and the auth server will be the IP of that box. You can find this via `ifconfig -a`.
+When you setup Teleport earlier we setup a strong static token for nodes, apps
+and `tokens`. We've used a static token to make setup easier but you can also
+obtain dyanmic short lived tokens using `tctl`
 
-```bash
-$ cat /etc/teleport.yaml
-# example output
-# teleport:
-#   data_dir: /var/lib/teleport
-#   auth_token: f7adb7ccdf04037bcd2b52ec6010fd6f0caec94ba190b765
-```
-Armed with these details, we'll bootstrap a new host using
+=== "Example Static Token"
 
-=== "DEB"
+    ```yaml
+    #...
+    #    tokens:
+    #    - proxy,node,app:f7adb7ccdf04037bcd2b52ec6010fd6f0caec94ba190b765
+    #...
+    ```
+
+=== "Example Dynamic Token"
 
     ```bash
-    $ curl -O https://get.gravitational.com/teleport_5.0.0-beta.4_amd64.deb
-    $ dpkg -i teleport_5.0.0-beta.4_amd64.deb
-    $ which teleport
-    /usr/local/bin/teleport
+    tctl tokens add --type=node
+    ```
+
+Armed with these details, we'll bootstrap a new host using
+
+=== "teleport start"
+
+    Install Teleport on the target node, then start using.
+
+    ```bash
+    teleport start \
+    --roles=node \
+    --auth-server=https://teleport.example.com:3080 \ --token=f7adb7ccdf04037bcd2b52ec6010fd6f0caec94ba190b765 \
+    --labels=env=quickstart
     ```
 
 === "cloud-config"
+
+    Replace `auth_servers` with the IP and port of your Teleport Cluster
 
     ```ini
     #cloud-config
@@ -269,7 +287,7 @@ Armed with these details, we'll bootstrap a new host using
             teleport:
                 auth_token: "f7adb7ccdf04037bcd2b52ec6010fd6f0caec94ba190b765"
                 auth_servers:
-                    - "46.101-REPLACE-WITH-YOUR_IP:3025"
+                    - "https://teleport.example.com:3080"
             auth_service:
                 enabled: "false"
             ssh_service:
@@ -281,10 +299,46 @@ Armed with these details, we'll bootstrap a new host using
 
     runcmd:
     - 'mkdir -p /run/teleport'
-    - 'cd /run/teleport && curl -O https://get.gravitational.com/teleport_5.0.0-beta.4_amd64.deb'
-    - 'dpkg -i /run/teleport/teleport_5.0.0-beta.4_amd64.deb'
+    - 'cd /run/teleport && curl -O https://get.gravitational.com/teleport_{{ teleport.version }}_amd64.deb'
+    - 'dpkg -i /run/teleport/teleport_5.0.0-{{ teleport.version }}_amd64.deb'
     - 'systemctl enable teleport.service'
     - 'systemctl start teleport.service'
+    ```
+
+### Add an Application to the Cluster
+
+When you setup Teleport earlier we setup a strong static token for nodes, **apps**
+and `tokens`. We've used a static token to make setup easier but you can also
+obtain dyanmic short lived tokens using `tctl`
+
+=== "Example Static Token"
+
+    ```yaml
+    #...
+    #    tokens:
+    #    - proxy,node,app:f7adb7ccdf04037bcd2b52ec6010fd6f0caec94ba190b765
+    #...
+    ```
+
+=== "Example Dynamic Token"
+
+    ```bash
+    tctl tokens add --type=app
+    ```
+
+Armed with these details, we'll bootstrap a new host using
+
+=== "teleport start"
+
+    Install Teleport on a target node, then start using. Review an update `auth-server, app-name, app-uri` before running this comment.
+
+    ```bash
+    teleport start \
+    --roles=app \
+    --token=f7adb7ccdf04037bcd2b52ec6010fd6f0caec94ba190b765 \
+    --auth-server=teleport.example.com:3080 \
+    --app-name=example-app  \ # Change "example-app" to the name of your application.
+    --app-uri=http://localhost:8080  # Change "http://localhost:8080" to the address of your application.
     ```
 
 ## Next Steps
