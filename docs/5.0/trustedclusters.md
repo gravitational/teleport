@@ -162,7 +162,7 @@ To create a token using the CLI tool, execute this command on the _auth server_
 of cluster "root":
 
 ```bsh
-# generates a trusted cluster token to allow an inbound connect from a leaf cluster:
+# generates a trusted cluster token to allow an inbound connection from a leaf cluster:
 $ tctl tokens add --type=trusted_cluster --ttl=5m
 # Example output
 # The cluster invite token: ba4825847f0378bcdfe18113c4998498
