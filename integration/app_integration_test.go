@@ -91,6 +91,53 @@ func TestForward(t *testing.T) {
 	}
 }
 
+// TestForwardModes ensures that requests are forwarded to applications even
+// when the cluster is in proxy recording mode.
+func TestForwardModes(t *testing.T) {
+	// Create cluster, user, sessions, and credentials package.
+	pack := setup(t)
+
+	// Update root and leaf clusters to record sessions at the proxy.
+	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
+		SessionRecording: services.RecordAtProxy,
+	})
+	require.NoError(t, err)
+	err = pack.rootCluster.Process.GetAuthServer().SetClusterConfig(clusterConfig)
+	require.NoError(t, err)
+	err = pack.leafCluster.Process.GetAuthServer().SetClusterConfig(clusterConfig)
+	require.NoError(t, err)
+
+	// Requests to root and leaf cluster are successful.
+	tests := []struct {
+		desc          string
+		inCookie      string
+		outStatusCode int
+		outMessage    string
+	}{
+		{
+			desc:          "root cluster, valid application session cookie, success",
+			inCookie:      pack.createAppSession(t, pack.rootAppPublicAddr, pack.rootAppClusterName),
+			outStatusCode: http.StatusOK,
+			outMessage:    pack.rootMessage,
+		},
+		{
+			desc:          "leaf cluster, valid application session cookie, success",
+			inCookie:      pack.createAppSession(t, pack.leafAppPublicAddr, pack.leafAppClusterName),
+			outStatusCode: http.StatusOK,
+			outMessage:    pack.leafMessage,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			tt := tt
+			status, body, err := pack.makeRequest(tt.inCookie, http.MethodGet, "/")
+			require.NoError(t, err)
+			require.Equal(t, tt.outStatusCode, status)
+			require.Contains(t, body, tt.outMessage)
+		})
+	}
+}
+
 // TestLogout verifies the session is removed from the backend when the user logs out.
 func TestLogout(t *testing.T) {
 	// Create cluster, user, and credentials package.
