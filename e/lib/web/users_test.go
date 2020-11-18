@@ -14,23 +14,40 @@ import (
 )
 
 func TestRequestParameters(t *testing.T) {
-	r := saveUserRequest{"", nil}
+	r := saveUserRequest{
+		Name:   "",
+		Roles:  nil,
+		Logins: nil,
+	}
 	assert.True(t, trace.IsBadParameter(r.checkAndSetDefaults()))
 
-	r = saveUserRequest{"", []string{"testrole"}}
+	r = saveUserRequest{
+		Name:   "",
+		Roles:  []string{"testrole"},
+		Logins: nil,
+	}
 	assert.True(t, trace.IsBadParameter(r.checkAndSetDefaults()))
 
-	r = saveUserRequest{"username", nil}
+	r = saveUserRequest{
+		Name:   "username",
+		Roles:  nil,
+		Logins: nil,
+	}
 	assert.True(t, trace.IsBadParameter(r.checkAndSetDefaults()))
 
-	r = saveUserRequest{"username", []string{"testrole"}}
+	r = saveUserRequest{
+		Name:   "username",
+		Roles:  []string{"testrole"},
+		Logins: nil,
+	}
 	assert.Nil(t, r.checkAndSetDefaults())
 }
 
 func TestCRUDs(t *testing.T) {
 	u := saveUserRequest{
-		Name:  "testname",
-		Roles: []string{"testrole"},
+		Name:   "testname",
+		Roles:  []string{"testrole"},
+		Logins: nil,
 	}
 
 	m := &mockedUserAPIGetter{}
@@ -106,8 +123,9 @@ func TestCRUDErrors(t *testing.T) {
 	}
 
 	u := saveUserRequest{
-		Name:  "testname",
-		Roles: []string{"testrole"},
+		Name:   "testname",
+		Roles:  []string{"testrole"},
+		Logins: nil,
 	}
 
 	// update errors
