@@ -955,6 +955,24 @@ func (tc *TeleportClient) NewWatcher(ctx context.Context, watch services.Watch) 
 	return proxyClient.NewWatcher(ctx, watch)
 }
 
+// WithRootClusterClient provides a functional interface for making calls against the root cluster's
+// auth server.
+func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt auth.ClientI) error) error {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	clt, err := proxyClient.ConnectToRootCluster(ctx, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	return trace.Wrap(do(clt))
+}
+
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
 // otherwise runs interactive shell
 //
