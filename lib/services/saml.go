@@ -55,8 +55,9 @@ type SAMLConnector interface {
 	SetAttributesToRoles(mapping []AttributeMapping)
 	// GetAttributes returns list of attributes expected by mappings
 	GetAttributes() []string
-	// MapAttributes maps attributes to roles
-	MapAttributes(assertionInfo saml2.AssertionInfo) []string
+	// GetTraitMappings converts gets all attribute mappings in the
+	// generic trait mapping format.
+	GetTraitMappings() TraitMappingSet
 	// Check checks SAML connector for errors
 	CheckAndSetDefaults() error
 	// SetIssuer sets issuer
@@ -478,36 +479,16 @@ func (o *SAMLConnectorV2) GetAttributes() []string {
 	return utils.Deduplicate(out)
 }
 
-// MapClaims maps SAML attributes to roles
-func (o *SAMLConnectorV2) MapAttributes(assertionInfo saml2.AssertionInfo) []string {
-	var roles []string
+func (o *SAMLConnectorV2) GetTraitMappings() TraitMappingSet {
+	tms := make([]TraitMapping, 0, len(o.Spec.AttributesToRoles))
 	for _, mapping := range o.Spec.AttributesToRoles {
-		for _, attr := range assertionInfo.Values {
-			if attr.Name != mapping.Name {
-				continue
-			}
-		mappingLoop:
-			for _, value := range attr.Values {
-				for _, role := range mapping.Roles {
-					outRole, err := utils.ReplaceRegexp(mapping.Value, role, value.Value)
-					switch {
-					case err != nil:
-						if !trace.IsNotFound(err) {
-							log.Debugf("Failed to match expression %v, replace with: %v input: %v, err: %v", mapping.Value, role, value.Value, err)
-						}
-						// if value input did not match, no need to apply
-						// to all roles
-						continue mappingLoop
-					case outRole == "":
-						// skip empty role matches
-					case outRole != "":
-						roles = append(roles, outRole)
-					}
-				}
-			}
-		}
+		tms = append(tms, TraitMapping{
+			Trait: mapping.Name,
+			Value: mapping.Value,
+			Roles: mapping.Roles,
+		})
 	}
-	return utils.Deduplicate(roles)
+	return TraitMappingSet(tms)
 }
 
 // GetServiceProvider initialises service provider spec from settings
@@ -756,6 +737,20 @@ type AttributeMapping struct {
 	Value string `json:"value"`
 	// Roles is a list of teleport roles to map to
 	Roles []string `json:"roles,omitempty"`
+}
+
+func SAMLAssertionsToTraits(assertions saml2.AssertionInfo) map[string][]string {
+	traits := make(map[string][]string, len(assertions.Values))
+
+	for _, assr := range assertions.Values {
+		vals := make([]string, 0, len(assr.Values))
+		for _, value := range assr.Values {
+			vals = append(vals, value.Value)
+		}
+		traits[assr.Name] = vals
+	}
+
+	return traits
 }
 
 // AttributeMappingSchema is JSON schema for claim mapping

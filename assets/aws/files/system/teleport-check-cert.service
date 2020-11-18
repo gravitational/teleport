@@ -6,4 +6,4 @@ ConditionPathExists=/etc/teleport.d/use-letsencrypt
 Type=oneshot
 User=root
 Group=adm
-ExecStart=/usr/bin/teleport-check-cert
+ExecStart=/usr/local/bin/teleport-check-cert

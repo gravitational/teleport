@@ -139,7 +139,7 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	cookies := r.Cookies()
 	r.Header.Del("Cookie")
 	for _, cookie := range cookies {
-		if cookie.Name == cookieName {
+		if cookie.Name == CookieName {
 			continue
 		}
 		r.AddCookie(cookie)
@@ -158,11 +158,8 @@ func dialFunc(c *transportConfig) func(ctx context.Context, network string, addr
 		}
 
 		conn, err := clusterClient.Dial(reversetunnel.DialParams{
-			// The "From" and "To" addresses are not actually used for tunnel dialing,
-			// they're filled out with "dummy values" that make logs easier to read and
-			// debug within the reverse tunnel subsystem.
 			From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"},
-			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: fmt.Sprintf("@app-%v", c.app.Name)},
+			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
 			ServerID: fmt.Sprintf("%v.%v", c.server.GetName(), c.identity.RouteToApp.ClusterName),
 			ConnType: services.AppTunnel,
 		})

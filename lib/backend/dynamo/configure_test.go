@@ -21,28 +21,75 @@ package dynamo
 import (
 	"context"
 	"fmt"
+	"testing"
 
 	"github.com/gravitational/trace"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/applicationautoscaling"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/pborman/uuid"
+	"github.com/stretchr/testify/require"
 )
 
-// TODO(russjones): All functions within this file are only called by tests.
-// Since CI does not run with the +dynamodb build tag and therefore does not
-// build the test files, the linter complains about unused code.
-//
-// To fix this, and to make tests easier to run, add support for local
-// DynamoDB [1]. Once that's done the +dynamodb build flag can be run as it will
-// allow OSS users to run tests without incurring any costs.
-//
-// [1] https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBLocal.html
+// TestContinuousBackups verifies that the continuous backup state is set upon
+// startup of DynamoDB.
+func TestContinuousBackups(t *testing.T) {
+	// Create new backend with continuous backups enabled.
+	b, err := New(context.Background(), map[string]interface{}{
+		"table_name":         uuid.New() + "-test",
+		"continuous_backups": true,
+	})
+	require.NoError(t, err)
+
+	// Remove table after tests are done.
+	t.Cleanup(func() {
+		deleteTable(context.Background(), b.svc, b.Config.TableName)
+	})
+
+	// Check status of continuous backups.
+	ok, err := getContinuousBackups(context.Background(), b.svc, b.Config.TableName)
+	require.NoError(t, err)
+	require.True(t, ok)
+}
+
+// TestAutoScaling verifies that auto scaling is enabled upon startup of DynamoDB.
+func TestAutoScaling(t *testing.T) {
+	// Create new backend with auto scaling enabled.
+	b, err := New(context.Background(), map[string]interface{}{
+		"table_name":         uuid.New() + "-test",
+		"auto_scaling":       true,
+		"read_min_capacity":  10,
+		"read_max_capacity":  20,
+		"read_target_value":  50.0,
+		"write_min_capacity": 10,
+		"write_max_capacity": 20,
+		"write_target_value": 50.0,
+	})
+	require.NoError(t, err)
+
+	// Remove table after tests are done.
+	t.Cleanup(func() {
+		deleteTable(context.Background(), b.svc, b.Config.TableName)
+	})
+
+	// Check auto scaling values match.
+	resp, err := getAutoScaling(context.Background(), applicationautoscaling.New(b.session), b.Config.TableName)
+	require.NoError(t, err)
+	require.Equal(t, resp, &AutoScalingParams{
+		ReadMinCapacity:  10,
+		ReadMaxCapacity:  20,
+		ReadTargetValue:  50.0,
+		WriteMinCapacity: 10,
+		WriteMaxCapacity: 20,
+		WriteTargetValue: 50.0,
+	})
+}
 
 // getContinuousBackups gets the state of continuous backups.
-func (b *Backend) getContinuousBackups(ctx context.Context) (bool, error) {
-	resp, err := b.svc.DescribeContinuousBackupsWithContext(ctx, &dynamodb.DescribeContinuousBackupsInput{
-		TableName: aws.String(b.TableName),
+func getContinuousBackups(ctx context.Context, svc *dynamodb.DynamoDB, tableName string) (bool, error) {
+	resp, err := svc.DescribeContinuousBackupsWithContext(ctx, &dynamodb.DescribeContinuousBackupsInput{
+		TableName: aws.String(tableName),
 	})
 	if err != nil {
 		return false, convertError(err)
@@ -59,24 +106,13 @@ func (b *Backend) getContinuousBackups(ctx context.Context) (bool, error) {
 	}
 }
 
-type autoScalingResponse struct {
-	readMaxCapacity  int
-	readMinCapacity  int
-	readTargetValue  float64
-	writeMaxCapacity int
-	writeMinCapacity int
-	writeTargetValue float64
-}
-
 // getAutoScaling gets the state of auto scaling.
-func (b *Backend) getAutoScaling(ctx context.Context) (*autoScalingResponse, error) {
-	svc := applicationautoscaling.New(b.session)
-
-	var resp autoScalingResponse
+func getAutoScaling(ctx context.Context, svc *applicationautoscaling.ApplicationAutoScaling, tableName string) (*AutoScalingParams, error) {
+	var resp AutoScalingParams
 
 	// Get scaling targets.
 	targetResponse, err := svc.DescribeScalableTargets(&applicationautoscaling.DescribeScalableTargetsInput{
-		ServiceNamespace: aws.String("ecs"),
+		ServiceNamespace: aws.String(applicationautoscaling.ServiceNamespaceDynamodb),
 	})
 	if err != nil {
 		return nil, convertError(err)
@@ -84,11 +120,11 @@ func (b *Backend) getAutoScaling(ctx context.Context) (*autoScalingResponse, err
 	for _, target := range targetResponse.ScalableTargets {
 		switch *target.ScalableDimension {
 		case applicationautoscaling.ScalableDimensionDynamodbTableReadCapacityUnits:
-			resp.readMinCapacity = int(*target.MinCapacity)
-			resp.readMaxCapacity = int(*target.MinCapacity)
+			resp.ReadMinCapacity = *target.MinCapacity
+			resp.ReadMaxCapacity = *target.MaxCapacity
 		case applicationautoscaling.ScalableDimensionDynamodbTableWriteCapacityUnits:
-			resp.writeMinCapacity = int(*target.MinCapacity)
-			resp.writeMaxCapacity = int(*target.MinCapacity)
+			resp.WriteMinCapacity = *target.MinCapacity
+			resp.WriteMaxCapacity = *target.MaxCapacity
 		}
 	}
 
@@ -101,12 +137,29 @@ func (b *Backend) getAutoScaling(ctx context.Context) (*autoScalingResponse, err
 	}
 	for _, policy := range policyResponse.ScalingPolicies {
 		switch *policy.PolicyName {
-		case fmt.Sprintf("%v-%v", b.TableName, readScalingPolicySuffix):
-			resp.readTargetValue = *policy.TargetTrackingScalingPolicyConfiguration.TargetValue
-		case fmt.Sprintf("%v-%v", b.TableName, writeScalingPolicySuffix):
-			resp.writeTargetValue = *policy.TargetTrackingScalingPolicyConfiguration.TargetValue
+		case fmt.Sprintf("%v-%v", tableName, readScalingPolicySuffix):
+			resp.ReadTargetValue = *policy.TargetTrackingScalingPolicyConfiguration.TargetValue
+		case fmt.Sprintf("%v-%v", tableName, writeScalingPolicySuffix):
+			resp.WriteTargetValue = *policy.TargetTrackingScalingPolicyConfiguration.TargetValue
 		}
 	}
 
 	return &resp, nil
+}
+
+// deleteTable will remove a table.
+func deleteTable(ctx context.Context, svc *dynamodb.DynamoDB, tableName string) error {
+	_, err := svc.DeleteTableWithContext(ctx, &dynamodb.DeleteTableInput{
+		TableName: aws.String(tableName),
+	})
+	if err != nil {
+		return convertError(err)
+	}
+	err = svc.WaitUntilTableNotExistsWithContext(ctx, &dynamodb.DescribeTableInput{
+		TableName: aws.String(tableName),
+	})
+	if err != nil {
+		return convertError(err)
+	}
+	return nil
 }

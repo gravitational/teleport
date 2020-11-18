@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -599,16 +600,16 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	if req.kubernetesCluster != "" {
-		if err := CheckKubeCluster(req.kubernetesCluster, a.Presence); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		kc, err := defaultKubeCluster(a.Presence, clusterName)
+	// Only validate/default kubernetes cluster name for the current teleport
+	// cluster. If this cert is targeting a trusted teleport cluster, leave all
+	// the kubernetes cluster validation up to them.
+	if req.routeToCluster == "" || req.routeToCluster == clusterName {
+		req.kubernetesCluster, err = kubeutils.CheckOrSetKubeCluster(a.closeCtx, a.Presence, req.kubernetesCluster, clusterName)
 		if err != nil {
-			log.Warningf("Failed setting default kubernetes cluster for user login (user did not provide a cluster): %v; leaving KubernetesCluster extension in the TLS certificate empty", err)
-		} else {
-			req.kubernetesCluster = kc
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+			log.WithError(err).Warning("Failed setting default kubernetes cluster for user login (user did not provide a cluster); leaving KubernetesCluster extension in the TLS certificate empty")
 		}
 	}
 	// generate TLS certificate
@@ -631,6 +632,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 			PublicAddr:  req.appPublicAddr,
 			ClusterName: req.appClusterName,
 		},
+		TeleportCluster: clusterName,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -647,25 +649,6 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &certs{ssh: sshCert, tls: tlsCert}, nil
-}
-
-// CheckKubeCluster validates kubernetes cluster name against known kubernetes
-// clusters.
-func CheckKubeCluster(kc string, p services.Presence) error {
-	// TODO(awly): implement this after `kubernetes_service` registration is
-	// ready.
-	return trace.BadParameter("kubernetes cluster %q is not registered in this teleport cluster; you can list registered kubernetes clusters using 'tsh kube clusters'", kc)
-}
-
-// defaultKubeCluster returns the default kubernetes cluster for user logins.
-//
-// This is the cluster with a name matching the Teleport cluster name (for
-// backwards-compatibility with pre-5.0 behavior) or the first name
-// alphabetically. If no clusters are registered, a NotFound error is returned.
-func defaultKubeCluster(pg services.ProxyGetter, teleportClusterName string) (string, error) {
-	// TODO(awly): implement this after `kubernetes_service` registration is
-	// ready.
-	return "", trace.NotFound("no kubernetes clusters registered in this Teleport cluster")
 }
 
 // WithUserLock executes function authenticateFn that performs user authentication
@@ -826,9 +809,9 @@ func (a *Server) CheckU2FSignResponse(user string, response *u2f.SignResponse) e
 	return nil
 }
 
-// ExtendWebSession creates a new web session for a user based on a valid previous sessionID,
-// method is used to renew the web session for a user
-func (a *Server) ExtendWebSession(user string, prevSessionID string, identity tlsca.Identity) (services.WebSession, error) {
+// ExtendWebSession creates a new web session for a user based on a valid previous sessionID.
+// Additional roles are appended to initial roles if there is an approved access request.
+func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, identity tlsca.Identity) (services.WebSession, error) {
 	prevSession, err := a.GetWebSession(user, prevSessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -846,6 +829,20 @@ func (a *Server) ExtendWebSession(user string, prevSessionID string, identity tl
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if accessRequestID != "" {
+		newRoles, requestExpiry, err := a.getRolesAndExpiryFromAccessRequest(user, accessRequestID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		roles = append(roles, newRoles...)
+		roles = utils.Deduplicate(roles)
+
+		// Let session expire with access request expiry.
+		expiresAt = requestExpiry
+	}
+
 	sess, err := a.NewWebSession(user, roles, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -861,6 +858,42 @@ func (a *Server) ExtendWebSession(user string, prevSessionID string, identity tl
 		return nil, trace.Wrap(err)
 	}
 	return sess, nil
+}
+
+func (a *Server) getRolesAndExpiryFromAccessRequest(user, accessRequestID string) ([]string, time.Time, error) {
+	reqFilter := services.AccessRequestFilter{
+		User: user,
+		ID:   accessRequestID,
+	}
+
+	reqs, err := a.GetAccessRequests(context.TODO(), reqFilter)
+	if err != nil {
+		return nil, time.Time{}, trace.Wrap(err)
+	}
+
+	if len(reqs) < 1 {
+		return nil, time.Time{}, trace.NotFound("access request %q not found", accessRequestID)
+	}
+
+	req := reqs[0]
+
+	if !req.GetState().IsApproved() {
+		if req.GetState().IsDenied() {
+			return nil, time.Time{}, trace.AccessDenied("access request %q has been denied", accessRequestID)
+		}
+		return nil, time.Time{}, trace.BadParameter("access request %q is awaiting approval", accessRequestID)
+	}
+
+	if err := services.ValidateAccessRequest(a, req); err != nil {
+		return nil, time.Time{}, trace.Wrap(err)
+	}
+
+	accessExpiry := req.GetAccessExpiry()
+	if accessExpiry.Before(a.GetClock().Now()) {
+		return nil, time.Time{}, trace.BadParameter("access request %q has expired", accessRequestID)
+	}
+
+	return req.GetRoles(), accessExpiry, nil
 }
 
 // CreateWebSession creates a new web session for user without any
@@ -1141,8 +1174,9 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	}
 	// generate host TLS certificate
 	identity := tlsca.Identity{
-		Username: HostFQDN(req.HostID, clusterName.GetClusterName()),
-		Groups:   req.Roles.StringSlice(),
+		Username:        HostFQDN(req.HostID, clusterName.GetClusterName()),
+		Groups:          req.Roles.StringSlice(),
+		TeleportCluster: clusterName.GetClusterName(),
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -1161,9 +1195,9 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) || req.Roles.Include(teleport.RoleApp) {
 		certRequest.DNSNames = append(certRequest.DNSNames, "*."+teleport.APIDomain, teleport.APIDomain)
 	}
-	// Unlike additional principals, DNS Names is x509 specific
-	// and is limited to auth servers and proxies
-	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) || req.Roles.Include(teleport.RoleProxy) {
+	// Unlike additional principals, DNS Names is x509 specific and is limited
+	// to services with TLS endpoints (e.g. auth, proxies, kubernetes)
+	if req.Roles.Include(teleport.RoleAuth) || req.Roles.Include(teleport.RoleAdmin) || req.Roles.Include(teleport.RoleProxy) || req.Roles.Include(teleport.RoleKube) {
 		certRequest.DNSNames = append(certRequest.DNSNames, req.DNSNames...)
 	}
 	hostTLSCert, err := tlsAuthority.GenerateCertificate(certRequest)
@@ -1550,7 +1584,13 @@ func (a *Server) upsertRole(ctx context.Context, role services.Role) error {
 }
 
 func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
-	if err := services.ValidateAccessRequest(a, req); err != nil {
+	err := services.ValidateAccessRequest(a, req,
+		// if request is in state pending, role expansion must be applied
+		services.ExpandRoles(req.GetState().IsPending()),
+		// always apply system annotations before storing new requests
+		services.ApplySystemAnnotations(true),
+	)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 	ttl, err := a.calculateMaxAccessTTL(req)
@@ -1588,12 +1628,13 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req services.AccessReq
 		Roles:        req.GetRoles(),
 		RequestID:    req.GetName(),
 		RequestState: req.GetState().String(),
+		Reason:       req.GetRequestReason(),
 	})
 	return trace.Wrap(err)
 }
 
-func (a *Server) SetAccessRequestState(ctx context.Context, reqID string, state services.RequestState) error {
-	if err := a.DynamicAccess.SetAccessRequestState(ctx, reqID, state); err != nil {
+func (a *Server) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) error {
+	if err := a.DynamicAccess.SetAccessRequestState(ctx, params); err != nil {
 		return trace.Wrap(err)
 	}
 	event := &events.AccessRequestCreate{
@@ -1604,11 +1645,23 @@ func (a *Server) SetAccessRequestState(ctx context.Context, reqID string, state 
 		ResourceMetadata: events.ResourceMetadata{
 			UpdatedBy: clientUsername(ctx),
 		},
-		RequestID:    reqID,
-		RequestState: state.String(),
+		RequestID:    params.RequestID,
+		RequestState: params.State.String(),
+		Reason:       params.Reason,
+		Roles:        params.Roles,
 	}
+
 	if delegator := getDelegator(ctx); delegator != "" {
 		event.Delegator = delegator
+	}
+
+	if len(params.Annotations) > 0 {
+		annotations, err := events.EncodeMapStrings(params.Annotations)
+		if err != nil {
+			log.WithError(err).Debugf("Failed to encode access request annotations.")
+		} else {
+			event.Annotations = annotations
+		}
 	}
 	err := a.emitter.EmitAuditEvent(a.closeCtx, event)
 	if err != nil {

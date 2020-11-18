@@ -39,18 +39,36 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 )
 
 // AdminUserRules provides access to the default set of rules assigned to
 // all users.
+//
+// DELETE IN: 5.1.0.
+//
+// Once RBAC is open sourced, remove this and rename "ExtendedAdminUserRules" to
+// "AdminUserRules".
 var AdminUserRules = []Rule{
 	NewRule(KindRole, RW()),
 	NewRule(KindAuthConnector, RW()),
 	NewRule(KindSession, RO()),
 	NewRule(KindTrustedCluster, RW()),
 	NewRule(KindEvent, RO()),
+}
+
+// ExtendedAdminUserRules provides access to the default set of rules assigned to
+// all users.
+var ExtendedAdminUserRules = []Rule{
+	NewRule(KindRole, RW()),
+	NewRule(KindAuthConnector, RW()),
+	NewRule(KindSession, RO()),
+	NewRule(KindTrustedCluster, RW()),
+	NewRule(KindEvent, RO()),
+	NewRule(KindUser, RW()),
+	NewRule(KindToken, RW()),
 }
 
 // DefaultImplicitRules provides access to the default set of implicit rules
@@ -65,6 +83,7 @@ var DefaultImplicitRules = []Rule{
 	NewRule(KindSSHSession, RO()),
 	NewRule(KindAppServer, RO()),
 	NewRule(KindRemoteCluster, RO()),
+	NewRule(KindKubeService, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
@@ -91,6 +110,14 @@ func RoleNameForCertAuthority(name string) string {
 // NewAdminRole is the default admin role for all local users if another role
 // is not explicitly assigned (this role applies to all users in OSS version).
 func NewAdminRole() Role {
+	// DELETE IN: 5.1.0
+	//
+	// Only needed until 5.1 when user and token management will be added to OSS.
+	adminRules := CopyRulesSlice(AdminUserRules)
+	if modules.GetModules().ExtendAdminUserRules() {
+		adminRules = CopyRulesSlice(ExtendedAdminUserRules)
+	}
+
 	role := &RoleV3{
 		Kind:    KindRole,
 		Version: V3,
@@ -107,10 +134,11 @@ func NewAdminRole() Role {
 				BPF:               defaults.EnhancedEvents(),
 			},
 			Allow: RoleConditions{
-				Namespaces: []string{defaults.Namespace},
-				NodeLabels: Labels{Wildcard: []string{Wildcard}},
-				AppLabels:  Labels{Wildcard: []string{Wildcard}},
-				Rules:      CopyRulesSlice(AdminUserRules),
+				Namespaces:       []string{defaults.Namespace},
+				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
+				AppLabels:        Labels{Wildcard: []string{Wildcard}},
+				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
+				Rules:            adminRules,
 			},
 		},
 	}
@@ -164,10 +192,11 @@ func RoleForUser(u User) Role {
 				BPF:               defaults.EnhancedEvents(),
 			},
 			Allow: RoleConditions{
-				Namespaces: []string{defaults.Namespace},
-				NodeLabels: Labels{Wildcard: []string{Wildcard}},
-				AppLabels:  Labels{Wildcard: []string{Wildcard}},
-				Rules:      CopyRulesSlice(AdminUserRules),
+				Namespaces:       []string{defaults.Namespace},
+				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
+				AppLabels:        Labels{Wildcard: []string{Wildcard}},
+				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
+				Rules:            CopyRulesSlice(AdminUserRules),
 			},
 		},
 	}
@@ -187,10 +216,11 @@ func RoleForCertAuthority(ca CertAuthority) Role {
 				MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
 			},
 			Allow: RoleConditions{
-				Namespaces: []string{defaults.Namespace},
-				NodeLabels: Labels{Wildcard: []string{Wildcard}},
-				AppLabels:  Labels{Wildcard: []string{Wildcard}},
-				Rules:      CopyRulesSlice(DefaultCertAuthorityRules),
+				Namespaces:       []string{defaults.Namespace},
+				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
+				AppLabels:        Labels{Wildcard: []string{Wildcard}},
+				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
+				Rules:            CopyRulesSlice(DefaultCertAuthorityRules),
 			},
 		},
 	}
@@ -278,6 +308,13 @@ type Role interface {
 	GetClusterLabels(RoleConditionType) Labels
 	// SetClusterLabels sets the map of cluster labels this role is allowed or denied access to.
 	SetClusterLabels(RoleConditionType, Labels)
+
+	// GetKubernetesLabels gets the map of kubernetes labels this role is
+	// allowed or denied access to.
+	GetKubernetesLabels(RoleConditionType) Labels
+	// SetKubernetesLabels sets the map of kubernetes labels this role is
+	// allowed or denied access to.
+	SetKubernetesLabels(RoleConditionType, Labels)
 
 	// GetRules gets all allow or deny rules.
 	GetRules(rct RoleConditionType) []Rule
@@ -502,6 +539,9 @@ func (r *RoleV3) Equals(other Role) bool {
 		if !r.GetClusterLabels(condition).Equals(other.GetClusterLabels(condition)) {
 			return false
 		}
+		if !r.GetKubernetesLabels(condition).Equals(other.GetKubernetesLabels(condition)) {
+			return false
+		}
 	}
 
 	return true
@@ -701,6 +741,23 @@ func (r *RoleV3) SetClusterLabels(rct RoleConditionType, labels Labels) {
 	}
 }
 
+// GetKubernetesLabels gets the map of app labels this role is allowed or denied access to.
+func (r *RoleV3) GetKubernetesLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return r.Spec.Allow.KubernetesLabels
+	}
+	return r.Spec.Deny.KubernetesLabels
+}
+
+// SetKubernetesLabels sets the map of node labels this role is allowed or denied access to.
+func (r *RoleV3) SetKubernetesLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.KubernetesLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.KubernetesLabels = labels.Clone()
+	}
+}
+
 // GetRules gets all allow or deny rules.
 func (r *RoleV3) GetRules(rct RoleConditionType) []Rule {
 	if rct == Allow {
@@ -744,11 +801,22 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		r.Spec.Allow.Namespaces = []string{defaults.Namespace}
 	}
 	if r.Spec.Allow.NodeLabels == nil {
-		r.Spec.Allow.NodeLabels = Labels{Wildcard: []string{Wildcard}}
+		if len(r.Spec.Allow.Logins) == 0 {
+			// no logins implies no node access
+			r.Spec.Allow.NodeLabels = Labels{}
+		} else {
+			r.Spec.Allow.NodeLabels = Labels{Wildcard: []string{Wildcard}}
+		}
 	}
+
 	if r.Spec.Allow.AppLabels == nil {
 		r.Spec.Allow.AppLabels = Labels{Wildcard: []string{Wildcard}}
 	}
+
+	if r.Spec.Allow.KubernetesLabels == nil {
+		r.Spec.Allow.KubernetesLabels = Labels{Wildcard: []string{Wildcard}}
+	}
+
 	if r.Spec.Deny.Namespaces == nil {
 		r.Spec.Deny.Namespaces = []string{defaults.Namespace}
 	}
@@ -796,6 +864,11 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 			return trace.BadParameter("selector *:<val> is not supported")
 		}
 	}
+	for key, val := range r.Spec.Allow.KubernetesLabels {
+		if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {
+			return trace.BadParameter("selector *:<val> is not supported")
+		}
+	}
 	for i := range r.Spec.Allow.Rules {
 		err := r.Spec.Allow.Rules[i].CheckAndSetDefaults()
 		if err != nil {
@@ -808,6 +881,7 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 			return trace.BadParameter("failed to process 'deny' rule %v: %v", i, err)
 		}
 	}
+
 	return nil
 }
 
@@ -841,6 +915,9 @@ func (r *RoleConditions) Equals(o RoleConditions) bool {
 		return false
 	}
 	if !r.AppLabels.Equals(o.AppLabels) {
+		return false
+	}
+	if !r.KubernetesLabels.Equals(o.KubernetesLabels) {
 		return false
 	}
 	if len(r.Rules) != len(o.Rules) {
@@ -1184,6 +1261,9 @@ type AccessChecker interface {
 
 	// CheckAccessToApp checks access to an application.
 	CheckAccessToApp(string, *App) error
+
+	// CheckAccessToKubernetes checks access to a kubernetes cluster.
+	CheckAccessToKubernetes(string, *KubernetesCluster) error
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -1569,6 +1649,14 @@ func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
 	if !matchedTTL {
 		return nil, trace.AccessDenied("this user cannot request a certificate for %v", ttl)
 	}
+	if len(logins) == 0 && !set.hasPossibleLogins() {
+		// user was deliberately configured to have no login capability,
+		// but ssh certificates must contain at least one valid principal.
+		// we add a single distinctive value which should be unique, and
+		// will never be a valid unix login (due to leading '-').
+		logins["-teleport-nologin-"+uuid.New()] = true
+	}
+
 	if len(logins) == 0 {
 		return nil, trace.AccessDenied("this user cannot create SSH sessions, has no allowed logins")
 	}
@@ -1660,6 +1748,18 @@ func (set RoleSet) CheckAccessToRemoteCluster(rc RemoteCluster) error {
 		}).Debugf("Access to cluster %v denied, no allow rule matched; %v", rc.GetName(), errs)
 	}
 	return trace.AccessDenied("access to cluster denied")
+}
+
+func (set RoleSet) hasPossibleLogins() bool {
+	for _, role := range set {
+		if role.GetName() == teleport.DefaultImplicitRole {
+			continue
+		}
+		if len(role.GetLogins(Allow)) != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // CheckAccessToServer checks if a role has access to a node. Deny rules are
@@ -1767,6 +1867,56 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *App) error {
 		}).Debugf("Access to app %v denied, no allow rule matched; %v", app.Name, errs)
 	}
 	return trace.AccessDenied("access to app denied")
+}
+
+// CheckAccessToKubernetes checks if a role has access to a kubernetes cluster.
+// Deny rules are checked first, then allow rules. Access to a kubernetes
+// cluster is determined by namespaces and labels.
+func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesCluster) error {
+	var errs []error
+
+	// Check deny rules: a matching namespace and label in the deny section
+	// prohibits access.
+	for _, role := range set {
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), namespace)
+		matchLabels, labelsMessage, err := MatchLabels(role.GetKubernetesLabels(Deny), CombineLabels(kube.StaticLabels, kube.DynamicLabels))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matchNamespace && matchLabels {
+			if log.GetLevel() == log.DebugLevel {
+				log.WithFields(log.Fields{
+					trace.Component: teleport.ComponentRBAC,
+				}).Debugf("Access to kubernetes cluster %v denied, deny rule in %v matched; match(namespace=%v, label=%v)",
+					kube.Name, role.GetName(), namespaceMessage, labelsMessage)
+			}
+			return trace.AccessDenied("access to kubernetes cluster denied")
+		}
+	}
+
+	// Check allow rules: namespace and label both have to match to be granted access.
+	for _, role := range set {
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), namespace)
+		matchLabels, labelsMessage, err := MatchLabels(role.GetKubernetesLabels(Allow), CombineLabels(kube.StaticLabels, kube.DynamicLabels))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matchNamespace && matchLabels {
+			return nil
+		}
+		if log.GetLevel() == log.DebugLevel {
+			deniedError := trace.AccessDenied("role=%v, match(namespace=%v, label=%v)",
+				role.GetName(), namespaceMessage, labelsMessage)
+			errs = append(errs, deniedError)
+		}
+	}
+
+	if log.GetLevel() == log.DebugLevel {
+		log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentRBAC,
+		}).Debugf("Access to kubernetes cluster %v denied, no allow rule matched; %v", kube.Name, errs)
+	}
+	return trace.AccessDenied("access to kubernetes cluster denied")
 }
 
 // CanForwardAgents returns true if role set allows forwarding agents.
@@ -2268,7 +2418,9 @@ const RoleSpecV3SchemaTemplate = `{
           "items": { "type": "string" }
         },
         "max_connections": { "type": "number" },
-        "max_sessions": {"type": "number"}
+        "max_sessions": {"type": "number"},
+        "request_access": { "type": "string" },
+        "request_prompt": { "type": "string" }
       }
     },
     "allow": { "$ref": "#/definitions/role_condition" },
@@ -2313,7 +2465,21 @@ const RoleSpecV3SchemaDefinitions = `
 		  "roles": {
 		    "type": "array",
 			"items": { "type": "string" }
-		  }
+		  },
+          "claims_to_roles": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "claim": {"type": "string"},
+              "value": {"type": "string"},
+              "roles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
 		}
 	  },
       "rules": {
@@ -2363,7 +2529,7 @@ func UnmarshalRole(data []byte, opts ...MarshalOption) (*RoleV3, error) {
 	var h ResourceHeader
 	err := json.Unmarshal(data, &h)
 	if err != nil {
-		h.Version = V2
+		return nil, trace.Wrap(err)
 	}
 
 	cfg, err := collectOptions(opts)

@@ -163,13 +163,14 @@ func (s *localSite) DialAuthServer() (conn net.Conn, err error) {
 }
 
 func (s *localSite) Dial(params DialParams) (net.Conn, error) {
-	// If the proxy is in recording mode use the agent to dial and build a
-	// in-memory forwarding server.
+	// If the proxy is in recording mode and a SSH connection is being requested,
+	// use the agent to dial and build an in-memory forwarding server.
 	clusterConfig, err := s.accessPoint.GetClusterConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if services.IsRecordAtProxy(clusterConfig.GetSessionRecording()) {
+	if params.ConnType == services.NodeTunnel &&
+		services.IsRecordAtProxy(clusterConfig.GetSessionRecording()) {
 		return s.dialWithAgent(params)
 	}
 
@@ -177,6 +178,7 @@ func (s *localSite) Dial(params DialParams) (net.Conn, error) {
 	return s.DialTCP(params)
 }
 
+// TODO(awly): unit test this
 func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
 	s.log.Debugf("Dialing %v.", params)
 
@@ -184,6 +186,7 @@ func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	s.log.Debugf("Succeeded dialing %v.", params)
 
 	return conn, nil
 }
@@ -254,15 +257,15 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 }
 
 // dialTunnel connects to the target host through a tunnel.
-func (s *localSite) dialTunnel(params DialParams) (net.Conn, error) {
-	rconn, err := s.getRemoteConn(params)
+func (s *localSite) dialTunnel(dreq *dialReq) (net.Conn, error) {
+	rconn, err := s.getRemoteConn(dreq)
 	if err != nil {
 		return nil, trace.NotFound("no tunnel connection found: %v", err)
 	}
 
-	s.log.Debugf("Tunnel dialing to %v.", params.ServerID)
+	s.log.Debugf("Tunnel dialing to %v.", dreq.ServerID)
 
-	conn, err := s.chanTransportConn(rconn, params)
+	conn, err := s.chanTransportConn(rconn, dreq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -271,9 +274,16 @@ func (s *localSite) dialTunnel(params DialParams) (net.Conn, error) {
 }
 
 func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, err error) {
+	dreq := &dialReq{
+		ServerID: params.ServerID,
+		ConnType: params.ConnType,
+	}
+	if params.To != nil {
+		dreq.Address = params.To.String()
+	}
 	// If server ID matches a node that has self registered itself over the tunnel,
 	// return a connection to that node. Otherwise net.Dial to the target host.
-	conn, err = s.dialTunnel(params)
+	conn, err = s.dialTunnel(dreq)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, false, trace.Wrap(err)
@@ -289,11 +299,12 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 		if params.To.String() == "" {
 			return nil, false, trace.ConnectionProblem(err, "node is offline, please try again later")
 		}
+		tunnelErr := trace.Errorf("dialing through a tunnel: %v", err)
 		// If no tunnel connection was found, dial to the target host.
 		dialer := proxy.DialerFromEnvironment(params.To.String())
 		conn, err = dialer.DialTimeout(params.To.Network(), params.To.String(), defaults.DefaultDialTimeout)
 		if err != nil {
-			return nil, false, trace.Wrap(err)
+			return nil, false, trace.NewAggregate(tunnelErr, trace.Errorf("dialing directly: %v", err))
 		}
 
 		// Return a direct dialed connection.
@@ -400,7 +411,7 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 	}
 }
 
-func (s *localSite) getRemoteConn(params DialParams) (*remoteConn, error) {
+func (s *localSite) getRemoteConn(dreq *dialReq) (*remoteConn, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -413,27 +424,24 @@ func (s *localSite) getRemoteConn(params DialParams) (*remoteConn, error) {
 	}
 
 	key := connKey{
-		uuid:     params.ServerID,
-		connType: params.ConnType,
+		uuid:     dreq.ServerID,
+		connType: dreq.ConnType,
 	}
 	rconn, ok := s.remoteConns[key]
 	if !ok {
-		return nil, trace.NotFound("no %v reverse tunnel for %v found", params.ConnType, params.ServerID)
+		return nil, trace.NotFound("no %v reverse tunnel for %v found", dreq.ConnType, dreq.ServerID)
 	}
 	if !rconn.isReady() {
-		return nil, trace.NotFound("%v is offline: no active %v tunnels found", params.ConnType, params.ServerID)
+		return nil, trace.NotFound("%v is offline: no active %v tunnels found", dreq.ConnType, dreq.ServerID)
 	}
 
 	return rconn, nil
 }
 
-func (s *localSite) chanTransportConn(rconn *remoteConn, params DialParams) (net.Conn, error) {
+func (s *localSite) chanTransportConn(rconn *remoteConn, dreq *dialReq) (net.Conn, error) {
 	s.log.Debugf("Connecting to %v through tunnel.", rconn.conn.RemoteAddr())
 
-	conn, markInvalid, err := connectProxyTransport(rconn.sconn, &dialReq{
-		Address:  LocalNode,
-		ConnType: params.ConnType,
-	}, false)
+	conn, markInvalid, err := connectProxyTransport(rconn.sconn, dreq, false)
 	if err != nil {
 		if markInvalid {
 			rconn.markInvalid(err)

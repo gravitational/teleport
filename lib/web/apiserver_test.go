@@ -282,6 +282,9 @@ func (s *WebSuite) SetUpTest(c *C) {
 	addr := utils.MustParseAddr(s.webServer.Listener.Addr().String())
 	handler.handler.cfg.ProxyWebAddr = *addr
 	handler.handler.cfg.ProxySSHAddr = *proxyAddr
+	_, sshPort, err := net.SplitHostPort(proxyAddr.String())
+	c.Assert(err, IsNil)
+	handler.handler.sshPort = sshPort
 }
 
 func (s *WebSuite) TearDownTest(c *C) {
@@ -348,7 +351,7 @@ func (s *WebSuite) authPack(c *C, user string) *authPack {
 	c.Assert(err, IsNil)
 
 	clt := s.client()
-	req := createSessionReq{
+	req := CreateSessionReq{
 		User:              user,
 		Pass:              pass,
 		SecondFactorToken: validToken,
@@ -557,7 +560,7 @@ func (s *WebSuite) TestCSRF(c *C) {
 	// create a valid login form request
 	validToken, err := totp.GenerateCode(otpSecret, time.Now())
 	c.Assert(err, IsNil)
-	loginForm := createSessionReq{
+	loginForm := CreateSessionReq{
 		User:              user,
 		Pass:              pass,
 		SecondFactorToken: validToken,
@@ -659,7 +662,7 @@ func (s *WebSuite) TestWebSessionsBadInput(c *C) {
 
 	clt := s.client()
 
-	reqs := []createSessionReq{
+	reqs := []CreateSessionReq{
 		// empty request
 		{},
 		// missing user
@@ -1001,6 +1004,10 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 	ws, err := s.makeTerminal(s.authPack(c, "foo"))
 	c.Assert(err, IsNil)
 
+	// flush out raw event (pty texts)
+	err = s.waitForRawEvent(ws, 5*time.Second)
+	c.Assert(err, IsNil)
+
 	var numPings int
 	start := time.Now()
 	for {
@@ -1254,7 +1261,7 @@ func (s *WebSuite) TestLogin(c *C) {
 	// create user
 	s.createUser(c, "user1", "root", "password", "")
 
-	loginReq, err := json.Marshal(createSessionReq{
+	loginReq, err := json.Marshal(CreateSessionReq{
 		User: "user1",
 		Pass: "password",
 	})
@@ -1830,14 +1837,14 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 
 	var tests = []struct {
 		inComment       CommentInterface
-		inCreateRequest *createAppSessionRequest
+		inCreateRequest *CreateAppSessionRequest
 		outError        bool
 		outUsername     string
 		outParentHash   string
 	}{
 		{
 			inComment: Commentf("Valid request."),
-			inCreateRequest: &createAppSessionRequest{
+			inCreateRequest: &CreateAppSessionRequest{
 				FQDN:        "panel.example.com",
 				PublicAddr:  "panel.example.com",
 				ClusterName: "localhost",
@@ -1847,7 +1854,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		},
 		{
 			inComment: Commentf("Invalid application."),
-			inCreateRequest: &createAppSessionRequest{
+			inCreateRequest: &CreateAppSessionRequest{
 				FQDN:        "panel.example.com",
 				PublicAddr:  "invalid.example.com",
 				ClusterName: "localhost",
@@ -1856,7 +1863,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		},
 		{
 			inComment: Commentf("Invalid cluster name."),
-			inCreateRequest: &createAppSessionRequest{
+			inCreateRequest: &CreateAppSessionRequest{
 				FQDN:        "panel.example.com",
 				PublicAddr:  "panel.example.com",
 				ClusterName: "example.com",
@@ -1865,7 +1872,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		},
 		{
 			inComment: Commentf("Missing FQDN."),
-			inCreateRequest: &createAppSessionRequest{
+			inCreateRequest: &CreateAppSessionRequest{
 				PublicAddr:  "panel.example.com",
 				ClusterName: "localhost",
 			},
@@ -1883,7 +1890,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		}
 
 		// Unmarshal the response.
-		var response *createAppSessionResponse
+		var response *CreateAppSessionResponse
 		c.Assert(json.Unmarshal(resp.Bytes(), &response), IsNil, tt.inComment)
 
 		// Verify that the application session was created.

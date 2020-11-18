@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/julienschmidt/httprouter"
-	log "github.com/sirupsen/logrus"
 )
 
 // siteAppsGet returns a list of applications in a form the UI can present.
@@ -69,7 +68,7 @@ func (h *Handler) siteAppsGet(w http.ResponseWriter, r *http.Request, p httprout
 	return makeResponse(ui.MakeApps(h.auth.clusterName, proxyHost, appClusterName, appServers))
 }
 
-type createAppSessionRequest struct {
+type CreateAppSessionRequest struct {
 	// FQDN is the fully qualified domain name of the application.
 	FQDN string `json:"fqdn"`
 
@@ -80,7 +79,7 @@ type createAppSessionRequest struct {
 	ClusterName string `json:"cluster_name"`
 }
 
-type createAppSessionResponse struct {
+type CreateAppSessionResponse struct {
 	// CookieValue is the application session cookie value.
 	CookieValue string `json:"value"`
 	// FQDN is application FQDN.
@@ -88,7 +87,7 @@ type createAppSessionResponse struct {
 }
 
 func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	var req *createAppSessionRequest
+	var req *CreateAppSessionRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -100,7 +99,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err, "Unable to resolve FQDN: %v", req.FQDN)
 	}
 
-	log.Debugf("Creating application web session for %v in %v.", result.PublicAddr, result.ClusterName)
+	h.log.Debugf("Creating application web session for %v in %v.", result.PublicAddr, result.ClusterName)
 
 	// Get an auth client connected with the users identity.
 	authClient, err := ctx.GetClient()
@@ -169,7 +168,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	return &createAppSessionResponse{
+	return &CreateAppSessionResponse{
 		CookieValue: ws.GetName(),
 		FQDN:        result.FQDN,
 	}, nil
@@ -239,7 +238,7 @@ func (h *Handler) waitForSession(ctx context.Context, sessionID string) error {
 	}
 }
 
-func (h *Handler) validateAppSessionRequest(ctx context.Context, req *createAppSessionRequest) (*validateAppSessionResult, error) {
+func (h *Handler) validateAppSessionRequest(ctx context.Context, req *CreateAppSessionRequest) (*validateAppSessionResult, error) {
 	// To safely redirect a user to the app URL, the FQDN should be always
 	// resolved. This is to prevent open redirects.
 	app, server, clusterName, err := h.resolveFQDN(ctx, req.FQDN)

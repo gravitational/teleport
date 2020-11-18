@@ -1,8 +1,28 @@
+/*
+Copyright 2020 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package utils
 
 import (
+	"context"
 	"encoding/hex"
+	"sort"
 
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	"k8s.io/client-go/kubernetes"
@@ -35,14 +55,66 @@ func GetKubeClient(configPath string) (client *kubernetes.Clientset, config *res
 	return client, config, nil
 }
 
-// GetKubeConfig returns kubernetes configuration
-// from configPath file or, by default reads in-cluster configuration
-func GetKubeConfig(configPath string) (*rest.Config, error) {
-	// if path to kubeconfig was provided, init config from it
-	if configPath != "" {
-		return clientcmd.BuildConfigFromFlags("", configPath)
+// Kubeconfig is a parsed kubeconfig file representation.
+type Kubeconfig struct {
+	CurrentContext string
+	Contexts       map[string]*rest.Config
+}
+
+// GetKubeConfig returns kubernetes configuration from configPath file or, by
+// default reads in-cluster configuration. If allConfigEntries is set, the
+// returned Kubeconfig will contain all contexts from the kubeconfig file;
+// otherwise it only contains the current context.
+//
+// TODO(awly): unit test this
+func GetKubeConfig(configPath string, allConfigEntries bool, clusterName string) (*Kubeconfig, error) {
+	switch {
+	case configPath != "" && clusterName == "":
+		loader := &clientcmd.ClientConfigLoadingRules{ExplicitPath: configPath}
+		cfg, err := loader.Load()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		res := &Kubeconfig{
+			CurrentContext: cfg.CurrentContext,
+			Contexts:       make(map[string]*rest.Config, len(cfg.Contexts)),
+		}
+		if !allConfigEntries {
+			// Only current-context is requested.
+			clientCfg, err := clientcmd.NewNonInteractiveClientConfig(*cfg, cfg.CurrentContext, &clientcmd.ConfigOverrides{}, nil).ClientConfig()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			res.Contexts[cfg.CurrentContext] = clientCfg
+			return res, nil
+		}
+		// All contexts are requested.
+		for n := range cfg.Contexts {
+			clientCfg, err := clientcmd.NewNonInteractiveClientConfig(*cfg, n, &clientcmd.ConfigOverrides{}, nil).ClientConfig()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			res.Contexts[n] = clientCfg
+		}
+		return res, nil
+	case configPath == "" && clusterName != "":
+		cfg, err := rest.InClusterConfig()
+		if err != nil {
+			if err == rest.ErrNotInCluster {
+				return nil, trace.NotFound("not running inside of a Kubernetes pod")
+			}
+			return nil, trace.Wrap(err)
+		}
+		return &Kubeconfig{
+			CurrentContext: clusterName,
+			Contexts:       map[string]*rest.Config{clusterName: cfg},
+		}, nil
+	case configPath == "" && clusterName == "":
+		return nil, trace.NotFound("neither kubeconfig nor cluster name provided")
+	case configPath != "" && clusterName != "":
+		return nil, trace.BadParameter("only one of configPath or clusterName can be specified")
 	}
-	return rest.InClusterConfig()
+	panic("unreachable")
 }
 
 // EncodeClusterName encodes cluster name for SNI matching
@@ -68,4 +140,59 @@ func GetKubeConfig(configPath string) (*rest.Config, error) {
 func EncodeClusterName(clusterName string) string {
 	// k is to avoid first letter to be a number
 	return "k" + hex.EncodeToString([]byte(clusterName))
+}
+
+// KubeServicesPresence fetches a list of registered kubernetes services.
+// It's a subset of services.Presence.
+type KubeServicesPresence interface {
+	// GetKubeServices returns a list of registered kubernetes services.
+	GetKubeServices(context.Context) ([]services.Server, error)
+}
+
+// KubeClusterNames returns a sorted list of unique kubernetes clusters
+// registered in p.
+func KubeClusterNames(ctx context.Context, p KubeServicesPresence) ([]string, error) {
+	kss, err := p.GetKubeServices(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	kubeClusters := make(map[string]struct{})
+	for _, ks := range kss {
+		for _, kc := range ks.GetKubernetesClusters() {
+			kubeClusters[kc.Name] = struct{}{}
+		}
+	}
+	kubeClusterNames := make([]string, 0, len(kubeClusters))
+	for n := range kubeClusters {
+		kubeClusterNames = append(kubeClusterNames, n)
+	}
+	sort.Strings(kubeClusterNames)
+	return kubeClusterNames, nil
+}
+
+// CheckOrSetKubeCluster validates kubeClusterName if it's set, or a sane
+// default based on registered clusters.
+//
+// If no clusters are registered, a NotFound error is returned.
+func CheckOrSetKubeCluster(ctx context.Context, p KubeServicesPresence, kubeClusterName, teleportClusterName string) (string, error) {
+	kubeClusterNames, err := KubeClusterNames(ctx, p)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if kubeClusterName != "" {
+		if !utils.SliceContainsStr(kubeClusterNames, kubeClusterName) {
+			return "", trace.BadParameter("kubernetes cluster %q is not registered in this teleport cluster; you can list registered kubernetes clusters using 'tsh kube ls'", kubeClusterName)
+		}
+		return kubeClusterName, nil
+	}
+	// Default is the cluster with a name matching the Teleport cluster
+	// name (for backwards-compatibility with pre-5.0 behavior) or the
+	// first name alphabetically.
+	if len(kubeClusterNames) == 0 {
+		return "", trace.NotFound("no kubernetes clusters registered")
+	}
+	if utils.SliceContainsStr(kubeClusterNames, teleportClusterName) {
+		return teleportClusterName, nil
+	}
+	return kubeClusterNames[0], nil
 }

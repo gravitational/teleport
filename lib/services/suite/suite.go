@@ -318,6 +318,7 @@ func NewServer(kind, name, addr, namespace string) *services.ServerV2 {
 }
 
 func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
+	ctx := context.TODO()
 	// SSH service.
 	out, err := s.PresenceS.GetNodes(defaults.Namespace)
 	c.Assert(err, check.IsNil)
@@ -376,18 +377,32 @@ func (s *ServicesTestSuite) ServerCRUD(c *check.C) {
 	c.Assert(out, check.DeepEquals, []services.Server{auth})
 
 	// Kubernetes service.
-	out, err = s.PresenceS.GetKubeServices()
+	out, err = s.PresenceS.GetKubeServices(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(out), check.Equals, 0)
 
-	kube := NewServer(services.KindKubeService, "kube1", "127.0.0.1:3026", defaults.Namespace)
-	c.Assert(s.PresenceS.UpsertKubeService(kube), check.IsNil)
+	kube1 := NewServer(services.KindKubeService, "kube1", "10.0.0.1:3026", defaults.Namespace)
+	c.Assert(s.PresenceS.UpsertKubeService(ctx, kube1), check.IsNil)
+	kube2 := NewServer(services.KindKubeService, "kube2", "10.0.0.2:3026", defaults.Namespace)
+	c.Assert(s.PresenceS.UpsertKubeService(ctx, kube2), check.IsNil)
 
-	out, err = s.PresenceS.GetKubeServices()
+	out, err = s.PresenceS.GetKubeServices(ctx)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 2)
+	kube1.SetResourceID(out[0].GetResourceID())
+	kube2.SetResourceID(out[1].GetResourceID())
+	c.Assert(out, check.DeepEquals, []services.Server{kube1, kube2})
+
+	c.Assert(s.PresenceS.DeleteKubeService(ctx, kube1.GetName()), check.IsNil)
+	out, err = s.PresenceS.GetKubeServices(ctx)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 1)
-	kube.SetResourceID(out[0].GetResourceID())
-	c.Assert(out, check.DeepEquals, []services.Server{kube})
+	c.Assert(out, check.DeepEquals, []services.Server{kube2})
+
+	c.Assert(s.PresenceS.DeleteAllKubeServices(ctx), check.IsNil)
+	out, err = s.PresenceS.GetKubeServices(ctx)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 0)
 }
 
 // NewAppServer creates a new application server resource.
@@ -634,10 +649,11 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 				BPF:               defaults.EnhancedEvents(),
 			},
 			Allow: services.RoleConditions{
-				Logins:     []string{"root", "bob"},
-				NodeLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
-				AppLabels:  services.Labels{services.Wildcard: []string{services.Wildcard}},
-				Namespaces: []string{defaults.Namespace},
+				Logins:           []string{"root", "bob"},
+				NodeLabels:       services.Labels{services.Wildcard: []string{services.Wildcard}},
+				AppLabels:        services.Labels{services.Wildcard: []string{services.Wildcard}},
+				KubernetesLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+				Namespaces:       []string{defaults.Namespace},
 				Rules: []services.Rule{
 					services.NewRule(services.KindRole, services.RO()),
 				},

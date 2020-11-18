@@ -396,8 +396,8 @@ func (s *server) fetchClusterPeers() error {
 	newConns := make(map[string]services.TunnelConnection)
 	for i := range conns {
 		newConn := conns[i]
-		// Filter out node tunnels.
-		if newConn.GetType() == services.NodeTunnel {
+		// Filter out non-proxy tunnels.
+		if newConn.GetType() != services.ProxyTunnel {
 			continue
 		}
 		// Filter out peer records for own proxy.
@@ -596,6 +596,7 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	go t.start()
 }
 
+// TODO(awly): unit test this
 func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	s.Debugf("New tunnel from %v.", sconn.RemoteAddr())
 	if sconn.Permissions.Extensions[extCertType] != extCertTypeHost {
@@ -607,31 +608,36 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 	// nodes it's a node dialing back.
 	val, ok := sconn.Permissions.Extensions[extCertRole]
 	if !ok {
-		log.Errorf("Failed to accept connection, unknown role: %v.", val)
+		log.Errorf("Failed to accept connection, missing %q extension", extCertRole)
 		s.rejectRequest(nch, ssh.ConnectionFailed, "unknown role")
+		return
 	}
 
-	switch val {
+	role := teleport.Role(val)
+	switch role {
 	// Node is dialing back.
-	case string(teleport.RoleNode):
-		s.handleNewNode(conn, sconn, nch, services.NodeTunnel)
+	case teleport.RoleNode:
+		s.handleNewService(role, conn, sconn, nch, services.NodeTunnel)
 	// App is dialing back.
-	case string(teleport.RoleApp):
-		s.handleNewNode(conn, sconn, nch, services.AppTunnel)
+	case teleport.RoleApp:
+		s.handleNewService(role, conn, sconn, nch, services.AppTunnel)
+	// Kubernetes service is dialing back.
+	case teleport.RoleKube:
+		s.handleNewService(role, conn, sconn, nch, services.KubeTunnel)
 	// Proxy is dialing back.
-	case string(teleport.RoleProxy):
+	case teleport.RoleProxy:
 		s.handleNewCluster(conn, sconn, nch)
 	// Unknown role.
 	default:
 		log.Errorf("Unsupported role attempting to connect: %v", val)
-		nch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unsupported role %v", val))
+		s.rejectRequest(nch, ssh.ConnectionFailed, fmt.Sprintf("unsupported role %v", val))
 	}
 }
 
-func (s *server) handleNewNode(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel, connType services.TunnelType) {
-	cluster, rconn, err := s.upsertNode(conn, sconn, connType)
+func (s *server) handleNewService(role teleport.Role, conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel, connType services.TunnelType) {
+	cluster, rconn, err := s.upsertServiceConn(conn, sconn, connType)
 	if err != nil {
-		log.Errorf("Failed to upsert node: %v.", err)
+		log.Errorf("Failed to upsert %s: %v.", role, err)
 		sconn.Close()
 		return
 	}
@@ -793,7 +799,7 @@ func (s *server) checkClientCert(logger *log.Entry, user string, clusterName str
 	return nil
 }
 
-func (s *server) upsertNode(conn net.Conn, sconn *ssh.ServerConn, connType services.TunnelType) (*localSite, *remoteConn, error) {
+func (s *server) upsertServiceConn(conn net.Conn, sconn *ssh.ServerConn, connType services.TunnelType) (*localSite, *remoteConn, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -1042,11 +1048,13 @@ func isOldCluster(ctx context.Context, conn ssh.Conn) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 
+	// Return true if the version is older than 5.0.0, the check is actually for
+	// 4.5.0, a non-existent version, to allow this check to work during development.
 	remoteClusterVersion, err := semver.NewVersion(version)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	minClusterVersion, err := semver.NewVersion("5.0.0")
+	minClusterVersion, err := semver.NewVersion("4.5.0")
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

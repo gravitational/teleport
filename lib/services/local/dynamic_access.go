@@ -55,7 +55,10 @@ func (s *DynamicAccessService) CreateAccessRequest(ctx context.Context, req serv
 }
 
 // SetAccessRequestState updates the state of an existing access request.
-func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, name string, state services.RequestState) error {
+func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) error {
+	if err := params.Check(); err != nil {
+		return trace.Wrap(err)
+	}
 	retryPeriod := retryPeriodMs * time.Millisecond
 	retry, err := utils.NewLinear(utils.LinearConfig{
 		Step: retryPeriod / 7,
@@ -69,10 +72,10 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, name s
 	// to be "first come first serve".  Denials should overwrite approvals, but
 	// approvals should not overwrite denials.
 	for i := 0; i < maxCmpAttempts; i++ {
-		item, err := s.Get(ctx, accessRequestKey(name))
+		item, err := s.Get(ctx, accessRequestKey(params.RequestID))
 		if err != nil {
 			if trace.IsNotFound(err) {
-				return trace.NotFound("cannot set state of access request %q (not found)", name)
+				return trace.NotFound("cannot set state of access request %q (not found)", params.RequestID)
 			}
 			return trace.Wrap(err)
 		}
@@ -80,12 +83,23 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, name s
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := req.SetState(state); err != nil {
+		if err := req.SetState(params.State); err != nil {
 			return trace.Wrap(err)
 		}
+		req.SetResolveReason(params.Reason)
+		req.SetResolveAnnotations(params.Annotations)
+		if len(params.Roles) > 0 {
+			for _, role := range params.Roles {
+				if !utils.SliceContainsStr(req.GetRoles(), role) {
+					return trace.BadParameter("role %q not in original request, overrides must be a subset of original role list", role)
+				}
+			}
+			req.SetRoles(params.Roles)
+		}
+
 		// approved requests should have a resource expiry which matches
 		// the underlying access expiry.
-		if state.IsApproved() {
+		if params.State.IsApproved() {
 			req.SetExpiry(req.GetAccessExpiry())
 		}
 		newItem, err := itemFromAccessRequest(req)
@@ -106,7 +120,7 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, name s
 		}
 		return nil
 	}
-	return trace.CompareFailed("too many concurrent writes to access request %s", name)
+	return trace.CompareFailed("too many concurrent writes to access request %s, try again later", params.RequestID)
 }
 
 func (s *DynamicAccessService) GetAccessRequest(ctx context.Context, name string) (services.AccessRequest, error) {

@@ -17,13 +17,13 @@ limitations under the License.
 package reversetunnel
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
-	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -146,10 +146,11 @@ func connectProxyTransport(sconn ssh.Conn, req *dialReq, exclusive bool) (*utils
 		// Pull the error message from the tunnel client (remote cluster)
 		// passed to us via stderr.
 		errMessage, _ := ioutil.ReadAll(channel.Stderr())
-		if errMessage == nil {
+		errMessage = bytes.TrimSpace(errMessage)
+		if len(errMessage) == 0 {
 			errMessage = []byte(fmt.Sprintf("failed connecting to %v [%v]", req.Address, req.ServerID))
 		}
-		return nil, false, trace.Errorf(strings.TrimSpace(string(errMessage)))
+		return nil, false, trace.Errorf(string(errMessage))
 	}
 
 	if exclusive {
@@ -189,6 +190,8 @@ type transport struct {
 // typically run in the agent or reverse tunnel server. It's used to establish
 // connections from remote clusters into the main cluster or for remote nodes
 // that have no direct network access to the cluster.
+//
+// TODO(awly): unit test this
 func (p *transport) start() {
 	defer p.channel.Close()
 
@@ -228,12 +231,10 @@ func (p *transport) start() {
 	case RemoteAuthServer:
 		authServers, err := p.authClient.GetAuthServers()
 		if err != nil {
-			p.log.Errorf("Transport request failed: unable to get list of Auth Servers: %v.", err)
 			p.reply(req, false, []byte("connection rejected: failed to connect to auth server"))
 			return
 		}
 		if len(authServers) == 0 {
-			p.log.Errorf("Transport request failed: no auth servers found.")
 			p.reply(req, false, []byte("connection rejected: failed to connect to auth server"))
 			return
 		}
@@ -242,17 +243,39 @@ func (p *transport) start() {
 		}
 	// Connect to the Kubernetes proxy.
 	case LocalKubernetes:
-		if p.component == teleport.ComponentReverseTunnelServer {
+		switch p.component {
+		case teleport.ComponentReverseTunnelServer:
 			p.reply(req, false, []byte("connection rejected: no remote kubernetes proxy"))
 			return
-		}
+		case teleport.ComponentKube:
+			// kubernetes_service can directly handle the connection, via
+			// p.server.
+			if p.server == nil {
+				p.reply(req, false, []byte("connection rejected: server missing"))
+				return
+			}
+			if p.sconn == nil {
+				p.reply(req, false, []byte("connection rejected: server connection missing"))
+				return
+			}
+			if err := req.Reply(true, []byte("Connected.")); err != nil {
+				p.log.Errorf("Failed responding OK to %q request: %v", req.Type, err)
+				return
+			}
 
-		// If Kubernetes is not configured, reject the connection.
-		if p.kubeDialAddr.IsEmpty() {
-			p.reply(req, false, []byte("connection rejected: configure kubernetes proxy for this cluster."))
+			p.log.Debug("Handing off connection to a local kubernetes service")
+			p.server.HandleConnection(utils.NewChConn(p.sconn, p.channel))
 			return
+		default:
+			// This must be a proxy.
+			// If Kubernetes endpoint is not configured, reject the connection.
+			if p.kubeDialAddr.IsEmpty() {
+				p.reply(req, false, []byte("connection rejected: configure kubernetes proxy for this cluster."))
+				return
+			}
+			p.log.Debugf("Forwarding connection to %q", p.kubeDialAddr.Addr)
+			servers = append(servers, p.kubeDialAddr.Addr)
 		}
-		servers = append(servers, p.kubeDialAddr.Addr)
 	// LocalNode requests are for the single server running in the agent pool.
 	case LocalNode:
 		// Transport is allocated with both teleport.ComponentReverseTunnelAgent
@@ -262,23 +285,26 @@ func (p *transport) start() {
 			p.reply(req, false, []byte("connection rejected: no local node"))
 			return
 		}
-		if p.server == nil {
-			p.reply(req, false, []byte("connection rejected: server missing"))
-			return
-		}
-		if p.sconn == nil {
-			p.reply(req, false, []byte("connection rejected: server connection missing"))
-			return
-		}
+		if p.server != nil {
+			if p.sconn == nil {
+				p.log.Debug("Connection rejected: server connection missing")
+				p.reply(req, false, []byte("connection rejected: server connection missing"))
+				return
+			}
 
-		if err := req.Reply(true, []byte("Connected.")); err != nil {
-			p.log.Errorf("Failed responding OK to %q request: %v", req.Type, err)
+			if err := req.Reply(true, []byte("Connected.")); err != nil {
+				p.log.Errorf("Failed responding OK to %q request: %v", req.Type, err)
+				return
+			}
+
+			p.log.Debug("Handing off connection to a local SSH service")
+			p.server.HandleConnection(utils.NewChConn(p.sconn, p.channel))
 			return
 		}
-
-		// Hand connection off to the SSH server.
-		p.server.HandleConnection(utils.NewChConn(p.sconn, p.channel))
-		return
+		// If this is a proxy and not an SSH node, try finding an inbound
+		// tunnel from the SSH node by dreq.ServerID. We'll need to forward
+		// dreq.Address as well.
+		fallthrough
 	default:
 		servers = append(servers, dreq.Address)
 	}
@@ -370,6 +396,11 @@ func (p *transport) getConn(servers []string, r *dialReq) (net.Conn, bool, error
 			return nil, false, trace.Wrap(err)
 		}
 
+		// Connections to applications should never occur over a direct dial, return right away.
+		if r.ConnType == services.AppTunnel {
+			return nil, false, trace.ConnectionProblem(err, "failed to connect to application")
+		}
+
 		errTun := err
 		p.log.Debugf("Attempting to dial directly %v.", servers)
 		conn, err = directDial(servers)
@@ -403,10 +434,7 @@ func (p *transport) tunnelDial(r *dialReq) (net.Conn, error) {
 		return nil, trace.BadParameter("did not find local cluster, found %T", cluster)
 	}
 
-	conn, err := localCluster.dialTunnel(DialParams{
-		ServerID: r.ServerID,
-		ConnType: r.ConnType,
-	})
+	conn, err := localCluster.dialTunnel(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -415,6 +443,9 @@ func (p *transport) tunnelDial(r *dialReq) (net.Conn, error) {
 }
 
 func (p *transport) reply(req *ssh.Request, ok bool, msg []byte) {
+	if !ok {
+		p.log.Debugf("Non-ok reply to %q request: %s", req.Type, msg)
+	}
 	if err := req.Reply(ok, msg); err != nil {
 		p.log.Warnf("Failed sending reply to %q request on SSH channel: %v", req.Type, err)
 	}
