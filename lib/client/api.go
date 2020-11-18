@@ -504,6 +504,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 }
 
 // Status returns the active profile as well as a list of available profiles.
+// If not profile is active, Status returns a nil error and nil profile.
 func Status(profileDir string, proxyHost string) (*ProfileStatus, []*ProfileStatus, error) {
 	var err error
 	var profile *ProfileStatus
