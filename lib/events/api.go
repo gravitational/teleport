@@ -333,6 +333,17 @@ const (
 	// session has been rejected due to exceeding a session control limit.
 	SessionRejectedEvent = "session.rejected"
 
+	// AppSessionStartEvent is emitted when a user is issued an application certificate.
+	AppSessionStartEvent = "app.session.start"
+
+	// AppSessionChunkEvent is emitted at the start of a 5 minute chunk on each
+	// proxy. This chunk is used to buffer 5 minutes of audit events at a time
+	// for applications.
+	AppSessionChunkEvent = "app.session.chunk"
+
+	// AppSessionRequestEvent is an HTTP request and response.
+	AppSessionRequestEvent = "app.session.request"
+
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.
 	SessionRejectedReasonMaxConnections = "max_connections limit reached"
@@ -343,6 +354,10 @@ const (
 	// Maximum is an event field specifying a maximal value (e.g. the value
 	// of `max_connections` for a `session.rejected` event).
 	Maximum = "max"
+
+	// KubeRequestEvent fires when a proxy handles a generic kubernetes
+	// request.
+	KubeRequestEvent = "kube.request"
 )
 
 const (

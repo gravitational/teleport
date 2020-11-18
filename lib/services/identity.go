@@ -115,15 +115,6 @@ type Identity interface {
 	// be used during tests.
 	DeleteUsedTOTPToken(user string) error
 
-	// UpsertWebSession updates or inserts a web session for a user and session
-	UpsertWebSession(user, sid string, session WebSession) error
-
-	// GetWebSession returns a web session state for a given user and session id
-	GetWebSession(user, sid string) (WebSession, error)
-
-	// DeleteWebSession deletes web session from the storage
-	DeleteWebSession(user, sid string) error
-
 	// UpsertPassword upserts new password and OTP token
 	UpsertPassword(user string, password []byte) error
 
@@ -228,6 +219,32 @@ type Identity interface {
 
 	// GetResetPasswordTokenSecrets returns token secrets
 	GetResetPasswordTokenSecrets(ctx context.Context, tokenID string) (ResetPasswordTokenSecrets, error)
+
+	// GetWebSession returns a web session state for a given user and session id
+	GetWebSession(user, sid string) (WebSession, error)
+
+	// UpsertWebSession updates or inserts a web session for a user and session
+	UpsertWebSession(user, sid string, session WebSession) error
+
+	// DeleteWebSession deletes web session from the storage
+	DeleteWebSession(user, sid string) error
+
+	// AppSession defines session features.
+	AppSession
+}
+
+// AppSession defines application session features.
+type AppSession interface {
+	// GetAppSession gets an application web session.
+	GetAppSession(context.Context, GetAppSessionRequest) (WebSession, error)
+	// GetAppSessions gets all application web sessions.
+	GetAppSessions(context.Context) ([]WebSession, error)
+	// UpsertAppSession upserts and application web session.
+	UpsertAppSession(context.Context, WebSession) error
+	// DeleteAppSession removes an application web session.
+	DeleteAppSession(context.Context, DeleteAppSessionRequest) error
+	// DeleteAllAppSessions removes all application web sessions.
+	DeleteAllAppSessions(context.Context) error
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),
@@ -302,6 +319,8 @@ type GithubAuthRequest struct {
 	Expires *time.Time `json:"expires,omitempty"`
 	// RouteToCluster is the name of Teleport cluster to issue credentials for.
 	RouteToCluster string `json:"route_to_cluster,omitempty"`
+	// KubernetesCluster is the name of Kubernetes cluster to issue credentials for.
+	KubernetesCluster string `json:"kubernetes_cluster,omitempty"`
 }
 
 // SetTTL sets Expires header using realtime clock
@@ -386,6 +405,9 @@ type OIDCAuthRequest struct {
 
 	// RouteToCluster is the name of Teleport cluster to issue credentials for.
 	RouteToCluster string `json:"route_to_cluster,omitempty"`
+
+	// KubernetesCluster is the name of Kubernetes cluster to issue credentials for.
+	KubernetesCluster string `json:"kubernetes_cluster,omitempty"`
 }
 
 // Check returns nil if all parameters are great, err otherwise
@@ -451,6 +473,9 @@ type SAMLAuthRequest struct {
 
 	// RouteToCluster is the name of Teleport cluster to issue credentials for.
 	RouteToCluster string `json:"route_to_cluster,omitempty"`
+
+	// KubernetesCluster is the name of Kubernetes cluster to issue credentials for.
+	KubernetesCluster string `json:"kubernetes_cluster,omitempty"`
 }
 
 // Check returns nil if all parameters are great, err otherwise

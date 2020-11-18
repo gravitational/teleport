@@ -91,7 +91,7 @@ information about the cluster.
 | `--cert-format` | `file` | `file` or `openssh` | SSH certificate format
 | `--insecure` | none | none | Do not verify server's certificate and host name. Use only in test environments
 | `--auth` | `local` | any defined [authentication connector](admin-guide.md#authentication) |  Specify the type of authentication connector to use.
-| `--skip-version` | none | none | Skip version checking between server and client.
+| `--skip-version-check` | none | none | Skip version checking between server and client.
 | `-d, --debug` | none | none | Verbose logging to stdout
 | `-J, --jumphost` | none | A jump host | SSH jumphost
 
@@ -143,7 +143,7 @@ Run shell or execute a command on a remote SSH node
 ### [Global Flags](#tsh-global-flags)
 
 These flags are available for all commands `--login, --proxy, --user, --ttl,
---identity, --cert-format, --insecure, --auth, --skip-version, --debug,
+--identity, --cert-format, --insecure, --auth, --skip-version-check, --debug,
 --jumphost `. Run ` tsh help <subcommand>` or see the [Global Flags
 Section](#tsh-global-flags)
 
@@ -179,7 +179,7 @@ Joins an active session
 ### [Global Flags](#tsh-global-flags)
 
 These flags are available for all commands `--login, --proxy, --user, --ttl,
---identity, --cert-format, --insecure, --auth, --skip-version, --debug,
+--identity, --cert-format, --insecure, --auth, --skip-version-check, --debug,
 --jumphost `. Run ` tsh help <subcommand>` or see the [Global Flags
 Section](#tsh-global-flags)
 
@@ -211,7 +211,7 @@ Plays back a prior session
 ### [Global Flags](#tsh-global-flags)
 
 These flags are available for all commands `--login, --proxy, --user, --ttl,
---identity, --cert-format, --insecure, --auth, --skip-version, --debug,
+--identity, --cert-format, --insecure, --auth, --skip-version-check, --debug,
 --jumphost `. Run ` tsh help <subcommand>` or see the [Global Flags
 Section](#tsh-global-flags)
 
@@ -353,11 +353,12 @@ interval via `--ttl` flag (capped by the server-side configuration).
 | `--format` | `file` | `file`, `openssh` or `kubernetes` | Identity format: file, openssh (for OpenSSH compatibility) or kubernetes (for kubeconfig)
 | `--browser` | none | `none` | Set to 'none' to suppress opening system default browser for `tsh login` commands
 | `--request-roles`  | none |  | Request one or more extra roles
+| `--request-reason`  | none |  | Reason for requesting additional roles
 
 ### [Global Flags](#tsh-global-flags)
 
 These flags are available for all commands `--login, --proxy, --user, --ttl,
---identity, --cert-format, --insecure, --auth, --skip-version, --debug,
+--identity, --cert-format, --insecure, --auth, --skip-version-check, --debug,
 --jumphost `. Run ` tsh help <subcommand>` or see the [Global Flags
 Section](#tsh-global-flags)
 
@@ -395,6 +396,9 @@ $ tsh --proxy=proxy.example.com --browser=none
 
 # Login to cluster and output a local kubeconfig
 $ tsh login --proxy=proxy.example.com --format=kubernetes -o kubeconfig
+
+# Enterprise only: Request access to a cluster.
+$ tsh login --proxy=proxy.example.com --request-reason="I need to run a debug script on production"
 ```
 
 ## tsh logout

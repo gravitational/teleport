@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"crypto"
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -237,6 +239,12 @@ type CertAuthority interface {
 	SetTLSKeyPairs(keyPairs []TLSKeyPair)
 	// GetTLSKeyPairs returns first PEM encoded TLS cert
 	GetTLSKeyPairs() []TLSKeyPair
+	// JWTSigner returns the active JWT key used to sign tokens.
+	JWTSigner() (*jwt.Key, error)
+	// GetJWTKeyPairs gets all JWT key pairs.
+	GetJWTKeyPairs() []JWTKeyPair
+	// SetJWTKeyPairs sets all JWT key pairs.
+	SetJWTKeyPairs(keyPairs []JWTKeyPair)
 	// GetRotation returns rotation state.
 	GetRotation() Rotation
 	// SetRotation sets rotation state.
@@ -326,6 +334,33 @@ func NewCertAuthority(
 	}
 }
 
+// NewJWTAuthority creates and returns a services.CertAuthority with a new
+// key pair.
+func NewJWTAuthority(clusterName string) (CertAuthority, error) {
+	publicKey, privateKey, err := jwt.GenerateKeyPair()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &CertAuthorityV2{
+		Kind:    KindCertAuthority,
+		Version: V2,
+		Metadata: Metadata{
+			Name:      clusterName,
+			Namespace: defaults.Namespace,
+		},
+		Spec: CertAuthoritySpecV2{
+			ClusterName: clusterName,
+			Type:        JWTSigner,
+			JWTKeyPairs: []JWTKeyPair{
+				{
+					PublicKey:  publicKey,
+					PrivateKey: privateKey,
+				},
+			},
+		},
+	}, nil
+}
+
 // CertAuthoritiesToV1 converts list of cert authorities to V1 slice
 func CertAuthoritiesToV1(in []CertAuthority) ([]CertAuthorityV1, error) {
 	out := make([]CertAuthorityV1, len(in))
@@ -343,125 +378,162 @@ func CertAuthoritiesToV1(in []CertAuthority) ([]CertAuthorityV1, error) {
 }
 
 // GetVersion returns resource version
-func (c *CertAuthorityV2) GetVersion() string {
-	return c.Version
+func (ca *CertAuthorityV2) GetVersion() string {
+	return ca.Version
 }
 
 // GetKind returns resource kind
-func (c *CertAuthorityV2) GetKind() string {
-	return c.Kind
+func (ca *CertAuthorityV2) GetKind() string {
+	return ca.Kind
 }
 
 // GetSubKind returns resource sub kind
-func (c *CertAuthorityV2) GetSubKind() string {
-	return c.SubKind
+func (ca *CertAuthorityV2) GetSubKind() string {
+	return ca.SubKind
 }
 
 // SetSubKind sets resource subkind
-func (c *CertAuthorityV2) SetSubKind(s string) {
-	c.SubKind = s
+func (ca *CertAuthorityV2) SetSubKind(s string) {
+	ca.SubKind = s
 }
 
 // Clone returns a copy of the cert authority object.
-func (c *CertAuthorityV2) Clone() CertAuthority {
-	out := *c
-	out.Spec.CheckingKeys = utils.CopyByteSlices(c.Spec.CheckingKeys)
-	out.Spec.SigningKeys = utils.CopyByteSlices(c.Spec.SigningKeys)
-	for i, kp := range c.Spec.TLSKeyPairs {
+func (ca *CertAuthorityV2) Clone() CertAuthority {
+	out := *ca
+	out.Spec.CheckingKeys = utils.CopyByteSlices(ca.Spec.CheckingKeys)
+	out.Spec.SigningKeys = utils.CopyByteSlices(ca.Spec.SigningKeys)
+	for i, kp := range ca.Spec.TLSKeyPairs {
 		out.Spec.TLSKeyPairs[i] = TLSKeyPair{
 			Key:  utils.CopyByteSlice(kp.Key),
 			Cert: utils.CopyByteSlice(kp.Cert),
 		}
 	}
-	out.Spec.Roles = utils.CopyStrings(c.Spec.Roles)
+	for i, kp := range ca.Spec.JWTKeyPairs {
+		out.Spec.JWTKeyPairs[i] = JWTKeyPair{
+			PublicKey:  utils.CopyByteSlice(kp.PublicKey),
+			PrivateKey: utils.CopyByteSlice(kp.PrivateKey),
+		}
+	}
+	out.Spec.Roles = utils.CopyStrings(ca.Spec.Roles)
 	return &out
 }
 
 // GetRotation returns rotation state.
-func (c *CertAuthorityV2) GetRotation() Rotation {
-	if c.Spec.Rotation == nil {
+func (ca *CertAuthorityV2) GetRotation() Rotation {
+	if ca.Spec.Rotation == nil {
 		return Rotation{}
 	}
-	return *c.Spec.Rotation
+	return *ca.Spec.Rotation
 }
 
 // SetRotation sets rotation state.
-func (c *CertAuthorityV2) SetRotation(r Rotation) {
-	c.Spec.Rotation = &r
+func (ca *CertAuthorityV2) SetRotation(r Rotation) {
+	ca.Spec.Rotation = &r
 }
 
 // TLSCA returns TLS certificate authority
-func (c *CertAuthorityV2) TLSCA() (*tlsca.CertAuthority, error) {
-	if len(c.Spec.TLSKeyPairs) == 0 {
+func (ca *CertAuthorityV2) TLSCA() (*tlsca.CertAuthority, error) {
+	if len(ca.Spec.TLSKeyPairs) == 0 {
 		return nil, trace.BadParameter("no TLS key pairs found for certificate authority")
 	}
-	return tlsca.New(c.Spec.TLSKeyPairs[0].Cert, c.Spec.TLSKeyPairs[0].Key)
+	return tlsca.New(ca.Spec.TLSKeyPairs[0].Cert, ca.Spec.TLSKeyPairs[0].Key)
 }
 
 // SetTLSPrivateKey sets TLS key pairs
-func (c *CertAuthorityV2) SetTLSKeyPairs(pairs []TLSKeyPair) {
-	c.Spec.TLSKeyPairs = pairs
+func (ca *CertAuthorityV2) SetTLSKeyPairs(pairs []TLSKeyPair) {
+	ca.Spec.TLSKeyPairs = pairs
 }
 
 // GetTLSPrivateKey returns TLS key pairs
-func (c *CertAuthorityV2) GetTLSKeyPairs() []TLSKeyPair {
-	return c.Spec.TLSKeyPairs
+func (ca *CertAuthorityV2) GetTLSKeyPairs() []TLSKeyPair {
+	return ca.Spec.TLSKeyPairs
+}
+
+// JWTSigner returns the active JWT key used to sign tokens.
+func (ca *CertAuthorityV2) JWTSigner() (*jwt.Key, error) {
+	if len(ca.Spec.JWTKeyPairs) == 0 {
+		return nil, trace.BadParameter("no JWT keypairs found")
+	}
+	privateKey, err := utils.ParsePrivateKey(ca.Spec.JWTKeyPairs[0].PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	key, err := jwt.New(&jwt.Config{
+		Algorithm:   defaults.ApplicationTokenAlgorithm,
+		ClusterName: ca.Spec.ClusterName,
+		PrivateKey:  privateKey,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return key, nil
+}
+
+// GetJWTKeyPairs gets all JWT keypairs used to sign a JWT.
+func (ca *CertAuthorityV2) GetJWTKeyPairs() []JWTKeyPair {
+	return ca.Spec.JWTKeyPairs
+}
+
+// SetJWTKeyPairs sets all JWT keypairs used to sign a JWT.
+func (ca *CertAuthorityV2) SetJWTKeyPairs(keyPairs []JWTKeyPair) {
+	ca.Spec.JWTKeyPairs = keyPairs
 }
 
 // GetMetadata returns object metadata
-func (c *CertAuthorityV2) GetMetadata() Metadata {
-	return c.Metadata
+func (ca *CertAuthorityV2) GetMetadata() Metadata {
+	return ca.Metadata
 }
 
 // SetExpiry sets expiry time for the object
-func (c *CertAuthorityV2) SetExpiry(expires time.Time) {
-	c.Metadata.SetExpiry(expires)
+func (ca *CertAuthorityV2) SetExpiry(expires time.Time) {
+	ca.Metadata.SetExpiry(expires)
 }
 
 // Expires returns object expiry setting
-func (c *CertAuthorityV2) Expiry() time.Time {
-	return c.Metadata.Expiry()
+func (ca *CertAuthorityV2) Expiry() time.Time {
+	return ca.Metadata.Expiry()
 }
 
 // SetTTL sets Expires header using realtime clock
-func (c *CertAuthorityV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
-	c.Metadata.SetTTL(clock, ttl)
+func (ca *CertAuthorityV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+	ca.Metadata.SetTTL(clock, ttl)
 }
 
 // GetResourceID returns resource ID
-func (c *CertAuthorityV2) GetResourceID() int64 {
-	return c.Metadata.ID
+func (ca *CertAuthorityV2) GetResourceID() int64 {
+	return ca.Metadata.ID
 }
 
 // SetResourceID sets resource ID
-func (c *CertAuthorityV2) SetResourceID(id int64) {
-	c.Metadata.ID = id
+func (ca *CertAuthorityV2) SetResourceID(id int64) {
+	ca.Metadata.ID = id
 }
 
 // WithoutSecrets returns an instance of resource without secrets.
-func (c *CertAuthorityV2) WithoutSecrets() Resource {
-	c2 := c.Clone()
-	RemoveCASecrets(c2)
-	return c2
+func (ca *CertAuthorityV2) WithoutSecrets() Resource {
+	ca2 := ca.Clone()
+	RemoveCASecrets(ca2)
+	return ca2
 }
 
 // V2 returns V2 version of the resouirce - itself
-func (c *CertAuthorityV2) V2() *CertAuthorityV2 {
-	return c
+func (ca *CertAuthorityV2) V2() *CertAuthorityV2 {
+	return ca
 }
 
 // String returns human readable version of the CertAuthorityV2.
-func (c *CertAuthorityV2) String() string {
-	return fmt.Sprintf("CA(name=%v, type=%v)", c.GetClusterName(), c.GetType())
+func (ca *CertAuthorityV2) String() string {
+	return fmt.Sprintf("CA(name=%v, type=%v)", ca.GetClusterName(), ca.GetType())
 }
 
 // V1 returns V1 version of the object
-func (c *CertAuthorityV2) V1() *CertAuthorityV1 {
+func (ca *CertAuthorityV2) V1() *CertAuthorityV1 {
 	return &CertAuthorityV1{
-		Type:         c.Spec.Type,
-		DomainName:   c.Spec.ClusterName,
-		CheckingKeys: c.Spec.CheckingKeys,
-		SigningKeys:  c.Spec.SigningKeys,
+		Type:         ca.Spec.Type,
+		DomainName:   ca.Spec.ClusterName,
+		CheckingKeys: ca.Spec.CheckingKeys,
+		SigningKeys:  ca.Spec.SigningKeys,
 	}
 }
 
@@ -549,8 +621,8 @@ func (ca *CertAuthorityV2) GetRoleMap() RoleMap {
 }
 
 // SetRoleMap sets role map
-func (c *CertAuthorityV2) SetRoleMap(m RoleMap) {
-	c.Spec.RoleMap = []RoleMapping(m)
+func (ca *CertAuthorityV2) SetRoleMap(m RoleMap) {
+	ca.Spec.RoleMap = []RoleMapping(m)
 }
 
 // FirstSigningKey returns first signing key or returns error if it's not here
@@ -620,7 +692,30 @@ func (ca *CertAuthorityV2) Check() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = ca.Checkers()
+
+	switch ca.GetType() {
+	case UserCA, HostCA:
+		err = ca.checkUserOrHostCA()
+	case JWTSigner:
+		err = ca.checkJWTKeys()
+	default:
+		err = trace.BadParameter("invalid CA type %q", ca.GetType())
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (ca *CertAuthorityV2) checkUserOrHostCA() error {
+	if len(ca.Spec.CheckingKeys) == 0 {
+		return trace.BadParameter("certificate authority missing SSH public keys")
+	}
+	if len(ca.Spec.TLSKeyPairs) == 0 {
+		return trace.BadParameter("certificate authority missing TLS key pairs")
+	}
+
+	_, err := ca.Checkers()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -628,6 +723,7 @@ func (ca *CertAuthorityV2) Check() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	// This is to force users to migrate
 	if len(ca.Spec.Roles) != 0 && len(ca.Spec.RoleMap) != 0 {
 		return trace.BadParameter("should set either 'roles' or 'role_map', not both")
@@ -635,6 +731,41 @@ func (ca *CertAuthorityV2) Check() error {
 	if err := RoleMap(ca.Spec.RoleMap).Check(); err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+func (ca *CertAuthorityV2) checkJWTKeys() error {
+	// Check that some JWT keys have been set on the CA.
+	if len(ca.Spec.JWTKeyPairs) == 0 {
+		return trace.BadParameter("missing JWT CA")
+	}
+
+	var err error
+	var privateKey crypto.Signer
+
+	// Check that the JWT keys set are valid.
+	for _, pair := range ca.Spec.JWTKeyPairs {
+		if len(pair.PrivateKey) > 0 {
+			privateKey, err = utils.ParsePrivateKey(pair.PrivateKey)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		publicKey, err := utils.ParsePublicKey(pair.PublicKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		_, err = jwt.New(&jwt.Config{
+			Algorithm:   defaults.ApplicationTokenAlgorithm,
+			ClusterName: ca.Spec.ClusterName,
+			PrivateKey:  privateKey,
+			PublicKey:   publicKey,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 
@@ -671,15 +802,22 @@ func ParseSigningAlg(alg string) CertAuthoritySpecV2_SigningAlgType {
 	}
 }
 
-// RemoveCASecrets removes secret values and keys
-// from the certificate authority
+// RemoveCASecrets removes private (SSH, TLS, and JWT) keys from certificate
+// authority.
 func RemoveCASecrets(ca CertAuthority) {
 	ca.SetSigningKeys(nil)
-	keyPairs := ca.GetTLSKeyPairs()
-	for i := range keyPairs {
-		keyPairs[i].Key = nil
+
+	tlsKeyPairs := ca.GetTLSKeyPairs()
+	for i := range tlsKeyPairs {
+		tlsKeyPairs[i].Key = nil
 	}
-	ca.SetTLSKeyPairs(keyPairs)
+	ca.SetTLSKeyPairs(tlsKeyPairs)
+
+	jwtKeyPairs := ca.GetJWTKeyPairs()
+	for i := range jwtKeyPairs {
+		jwtKeyPairs[i].PrivateKey = nil
+	}
+	ca.SetJWTKeyPairs(jwtKeyPairs)
 }
 
 const (
@@ -729,8 +867,8 @@ var RotatePhases = []string{
 // external rotation state, phase and rotation ID should match,
 // notice that matches does not behave like Equals because it does not require
 // all fields to be the same.
-func (s *Rotation) Matches(rotation Rotation) bool {
-	return s.CurrentID == rotation.CurrentID && s.State == rotation.State && s.Phase == rotation.Phase
+func (r *Rotation) Matches(rotation Rotation) bool {
+	return r.CurrentID == rotation.CurrentID && r.State == rotation.State && r.Phase == rotation.Phase
 }
 
 // LastRotatedDescription returns human friendly description.
@@ -847,7 +985,7 @@ func (s *RotationSchedule) CheckAndSetDefaults(clock clockwork.Clock) error {
 const CertAuthoritySpecV2Schema = `{
   "type": "object",
   "additionalProperties": false,
-  "required": ["type", "cluster_name", "checking_keys"],
+  "required": ["type", "cluster_name"],
   "properties": {
     "type": {"type": "string"},
     "cluster_name": {"type": "string"},
@@ -877,6 +1015,17 @@ const CertAuthoritySpecV2Schema = `{
         "properties": {
            "cert": {"type": "string"},
            "key": {"type": "string"}
+        }
+      }
+    },
+    "jwt_key_pairs":  {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+           "public_key": {"type": "string"},
+           "private_key": {"type": "string"}
         }
       }
     },
@@ -940,35 +1089,35 @@ func (ca *CertAuthorityV1) GetRoleMap() RoleMap {
 }
 
 // SetRoleMap sets role map
-func (c *CertAuthorityV1) SetRoleMap(m RoleMap) {
+func (ca *CertAuthorityV1) SetRoleMap(m RoleMap) {
 }
 
 // V1 returns V1 version of the resource
-func (c *CertAuthorityV1) V1() *CertAuthorityV1 {
-	return c
+func (ca *CertAuthorityV1) V1() *CertAuthorityV1 {
+	return ca
 }
 
 // V2 returns V2 version of the resource
-func (c *CertAuthorityV1) V2() *CertAuthorityV2 {
+func (ca *CertAuthorityV1) V2() *CertAuthorityV2 {
 	return &CertAuthorityV2{
 		Kind:    KindCertAuthority,
 		Version: V2,
 		Metadata: Metadata{
-			Name:      c.DomainName,
+			Name:      ca.DomainName,
 			Namespace: defaults.Namespace,
 		},
 		Spec: CertAuthoritySpecV2{
-			Type:         c.Type,
-			ClusterName:  c.DomainName,
-			CheckingKeys: c.CheckingKeys,
-			SigningKeys:  c.SigningKeys,
+			Type:         ca.Type,
+			ClusterName:  ca.DomainName,
+			CheckingKeys: ca.CheckingKeys,
+			SigningKeys:  ca.SigningKeys,
 		},
 	}
 }
 
 // String returns human readable version of the CertAuthorityV1.
-func (c *CertAuthorityV1) String() string {
-	return fmt.Sprintf("CA(name=%v, type=%v)", c.DomainName, c.Type)
+func (ca *CertAuthorityV1) String() string {
+	return fmt.Sprintf("CA(name=%v, type=%v)", ca.DomainName, ca.Type)
 }
 
 var certAuthorityMarshaler CertAuthorityMarshaler = &TeleportCertAuthorityMarshaler{}

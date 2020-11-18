@@ -42,9 +42,9 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// execCommand contains the payload to "teleport exec" which will be used to
+// ExecCommand contains the payload to "teleport exec" which will be used to
 // construct and execute a shell.
-type execCommand struct {
+type ExecCommand struct {
 	// Command is the command to execute. If an interactive session is being
 	// requested, will be empty.
 	Command string `json:"command"`
@@ -79,6 +79,10 @@ type execCommand struct {
 
 	// ServiceName is the name of the PAM service requested if PAM is enabled.
 	ServiceName string `json:"service_name"`
+
+	// UsePAMAuth specifies whether to trigger the "auth" PAM modules from the
+	// policy.
+	UsePAMAuth bool `json:"use_pam_auth"`
 
 	// Environment is a list of environment variables to add to the defaults.
 	Environment []string `json:"environment"`
@@ -115,7 +119,7 @@ func RunCommand() (io.Writer, int, error) {
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
-	var c execCommand
+	var c ExecCommand
 	err = json.Unmarshal(b.Bytes(), &c)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
@@ -160,6 +164,7 @@ func RunCommand() (io.Writer, int, error) {
 		// Open the PAM context.
 		pamContext, err := pam.Open(&pam.Config{
 			ServiceName: c.ServiceName,
+			UsePAMAuth:  c.UsePAMAuth,
 			Login:       c.Login,
 			// Set Teleport specific environment variables that PAM modules
 			// like pam_script.so can pick up to potentially customize the
@@ -229,7 +234,7 @@ func RunForward() (io.Writer, int, error) {
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
-	var c execCommand
+	var c ExecCommand
 	err = json.Unmarshal(b.Bytes(), &c)
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
@@ -322,7 +327,7 @@ func RunAndExit(commandType string) {
 
 // buildCommand constructs a command that will execute the users shell. This
 // function is run by Teleport while it's re-executing.
-func buildCommand(c *execCommand, tty *os.File, pty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
+func buildCommand(c *ExecCommand, tty *os.File, pty *os.File, pamEnvironment []string) (*exec.Cmd, error) {
 	var cmd exec.Cmd
 
 	// Lookup the UID and GID for the user.

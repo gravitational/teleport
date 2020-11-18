@@ -16,7 +16,7 @@ TEST_KUBE ?=
 
 OS ?= linux
 ARCH ?= amd64
-RUNTIME ?= go1.14.4
+RUNTIME ?= go1.15.5
 
 UID ?= $$(id -u)
 GID ?= $$(id -g)
@@ -35,6 +35,8 @@ ifeq ("$(DRONE)","true")
 UID := 1000
 GID := 1000
 NOROOT := -u 1000:1000
+# pass external gocache path through to docker containers
+DOCKERFLAGS := $(DOCKERFLAGS) -v $(GOCACHE):/go/cache -e GOCACHE=/go/cache
 endif
 export
 

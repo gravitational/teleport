@@ -85,18 +85,59 @@ type Identity struct {
 	// RouteToCluster specifies the target cluster
 	// if present in the session
 	RouteToCluster string
+	// KubernetesCluster specifies the target kubernetes cluster for TLS
+	// identities. This can be empty on older Teleport clients.
+	KubernetesCluster string
 	// Traits hold claim data used to populate a role at runtime.
 	Traits wrappers.Traits
+	// RouteToApp holds routing information for applications. Routing metadata
+	// allows Teleport web proxy to route HTTP requests to the appropriate
+	// cluster and Teleport application proxy within the cluster.
+	RouteToApp RouteToApp
+	// TeleportCluster is the name of the teleport cluster that this identity
+	// originated from. For TLS certs this may not be the same as cert issuer,
+	// in case of multi-hop requests that originate from a remote cluster.
+	TeleportCluster string
+}
+
+// RouteToApp holds routing information for applications.
+type RouteToApp struct {
+	// SessionID is a UUIDv4 used to identify application sessions created by
+	// this certificate. The reason a UUID was used instead of a hash of the
+	// SubjectPublicKeyInfo like the CA pin is for UX consistency. For example,
+	// the SessionID is emitted in the audit log, using a UUID matches how SSH
+	// sessions are identified.
+	SessionID string
+
+	// PublicAddr (and ClusterName) are used to route requests issued with this
+	// certificate to the appropriate application proxy/cluster.
+	PublicAddr string
+
+	// ClusterName (and PublicAddr) are used to route requests issued with this
+	// certificate to the appropriate application proxy/cluster.
+	ClusterName string
+}
+
+// GetRouteToApp returns application routing data. If missing, returns an error.
+func (id *Identity) GetRouteToApp() (RouteToApp, error) {
+	if id.RouteToApp.SessionID == "" ||
+		id.RouteToApp.PublicAddr == "" ||
+		id.RouteToApp.ClusterName == "" {
+		return RouteToApp{}, trace.BadParameter("identity is missing application routing metadata")
+	}
+
+	return id.RouteToApp, nil
 }
 
 // CheckAndSetDefaults checks and sets default values
-func (i *Identity) CheckAndSetDefaults() error {
-	if i.Username == "" {
+func (id *Identity) CheckAndSetDefaults() error {
+	if id.Username == "" {
 		return trace.BadParameter("missing identity username")
 	}
-	if len(i.Groups) == 0 {
+	if len(id.Groups) == 0 {
 		return trace.BadParameter("missing identity groups")
 	}
+
 	return nil
 }
 
@@ -106,14 +147,35 @@ func (i *Identity) CheckAndSetDefaults() error {
 //
 // http://oid-info.com/get/1.3.9999
 //
+var (
+	// KubeUsersASN1ExtensionOID is an extension ID used when encoding/decoding
+	// license payload into certificates
+	KubeUsersASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 1}
 
-// KubeUsersASN1ExtensionOID is an extension ID used when encoding/decoding
-// license payload into certificates
-var KubeUsersASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 1}
+	// KubeGroupsASN1ExtensionOID is an extension ID used when encoding/decoding
+	// license payload into certificates
+	KubeGroupsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 2}
 
-// KubeGroupsASN1ExtensionOID is an extension ID used when encoding/decoding
-// license payload into certificates
-var KubeGroupsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 2}
+	// KubeClusterASN1ExtensionOID is an extension ID used when encoding/decoding
+	// target kubernetes cluster name into certificates.
+	KubeClusterASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 3}
+
+	// AppSessionIDASN1ExtensionOID is an extension ID used to encode the application
+	// session ID into a certificate.
+	AppSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 4}
+
+	// AppClusterNameASN1ExtensionOID is an extension ID used to encode the application
+	// cluster name into a certificate.
+	AppClusterNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 5}
+
+	// AppPublicAddrASN1ExtensionOID is an extension ID used to encode the application
+	// public address into a certificate.
+	AppPublicAddrASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 6}
+
+	// TeleportClusterASN1ExtensionOID is an extension ID used when encoding/decoding
+	// origin teleport cluster name into certificates.
+	TeleportClusterASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 7}
+)
 
 // Subject converts identity to X.509 subject name
 func (id *Identity) Subject() (pkix.Name, error) {
@@ -156,6 +218,44 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.KubernetesCluster != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  KubeClusterASN1ExtensionOID,
+				Value: id.KubernetesCluster,
+			})
+	}
+
+	// Encode application routing metadata if provided.
+	if id.RouteToApp.SessionID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AppSessionIDASN1ExtensionOID,
+				Value: id.RouteToApp.SessionID,
+			})
+	}
+	if id.RouteToApp.PublicAddr != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AppPublicAddrASN1ExtensionOID,
+				Value: id.RouteToApp.PublicAddr,
+			})
+	}
+	if id.RouteToApp.ClusterName != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AppClusterNameASN1ExtensionOID,
+				Value: id.RouteToApp.ClusterName,
+			})
+	}
+	if id.TeleportCluster != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  TeleportClusterASN1ExtensionOID,
+				Value: id.TeleportCluster,
+			})
+	}
+
 	return subject, nil
 }
 
@@ -189,6 +289,31 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.KubernetesGroups = append(id.KubernetesGroups, val)
+			}
+		case attr.Type.Equal(KubeClusterASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.KubernetesCluster = val
+			}
+		case attr.Type.Equal(AppSessionIDASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToApp.SessionID = val
+			}
+		case attr.Type.Equal(AppPublicAddrASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToApp.PublicAddr = val
+			}
+		case attr.Type.Equal(AppClusterNameASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToApp.ClusterName = val
+			}
+		case attr.Type.Equal(TeleportClusterASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.TeleportCluster = val
 			}
 		}
 	}

@@ -291,7 +291,10 @@ func Host(hostname string) (string, error) {
 		return hostname, nil
 	}
 	host, _, err := SplitHostPort(hostname)
-	return host, err
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return host, nil
 }
 
 // SplitHostPort splits host and port and checks that host is not empty
@@ -340,7 +343,7 @@ func (mc *multiCloser) Close() error {
 }
 
 // MultiCloser implements io.Close, it sequentially calls Close() on each object
-func MultiCloser(closers ...io.Closer) *multiCloser {
+func MultiCloser(closers ...io.Closer) io.Closer {
 	return &multiCloser{
 		closers: closers,
 	}

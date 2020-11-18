@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -111,74 +111,48 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	return sites, nil
 }
 
-// GenerateCertsForCluster generates certificates for the user
-// that have a metadata instructing server to route the requests to the cluster
-func (proxy *ProxyClient) GenerateCertsForCluster(ctx context.Context, routeToCluster string) error {
-	localAgent := proxy.teleportClient.LocalAgent()
-	key, err := localAgent.GetKey()
+// GetAllClusters returns local and remote clusters
+func (proxy *ProxyClient) GetAllClusters(ctx context.Context) ([]services.RemoteCluster, error) {
+	rootClusterName, err := proxy.RootClusterName()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	cert, err := key.SSHCert()
+	clt, err := proxy.ConnectToCluster(ctx, rootClusterName, false)
 	if err != nil {
-		return trace.Wrap(err)
-	}
-	tlsCert, err := key.TLSCertificate()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	clusterName, err := tlsca.ClusterName(tlsCert.Issuer)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	clt, err := proxy.ConnectToCluster(ctx, clusterName, true)
-	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	// Before requesting a certificate, check if the requested cluster is valid.
-	_, err = clt.GetCertAuthority(services.CertAuthID{
-		Type:       services.HostCA,
-		DomainName: routeToCluster,
-	}, false)
+	remoteClusters, err := clt.GetRemoteClusters(services.SkipValidation())
 	if err != nil {
-		return trace.NotFound("cluster %v not found", routeToCluster)
+		return nil, trace.Wrap(err)
 	}
 
-	req := proto.UserCertsRequest{
-		Username:       cert.KeyId,
-		PublicKey:      key.Pub,
-		Expires:        time.Unix(int64(cert.ValidBefore), 0),
-		RouteToCluster: routeToCluster,
-	}
-	if _, ok := cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles]; !ok {
-		req.Format = teleport.CertificateFormatOldSSH
-	}
-
-	certs, err := clt.GenerateUserCerts(ctx, req)
+	rc, err := services.NewRemoteCluster(rootClusterName)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	key.Cert = certs.SSH
-	key.TLSCert = certs.TLS
+	rc.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
+	rc.SetLastHeartbeat(time.Now().UTC())
 
-	// save the cert to the local storage (~/.tsh usually):
-	_, err = localAgent.AddKey(key)
-	return trace.Wrap(err)
+	// Local cluster should always be first in the list.
+	out := []services.RemoteCluster{rc}
+	out = append(out, remoteClusters...)
+	return out, nil
 }
 
 // ReissueParams encodes optional parameters for
 // user certificate reissue.
 type ReissueParams struct {
-	RouteToCluster string
-	AccessRequests []string
+	RouteToCluster    string
+	KubernetesCluster string
+	AccessRequests    []string
 }
 
 // ReissueUserCerts generates certificates for the user
 // that have a metadata instructing server to route the requests to the cluster
 func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissueParams) error {
 	localAgent := proxy.teleportClient.LocalAgent()
-	key, err := localAgent.GetKey()
+	key, err := localAgent.GetKey(WithKubeCerts(params.RouteToCluster))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -186,15 +160,16 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsCert, err := key.TLSCertificate()
+	tlsCert, err := key.TeleportTLSCertificate()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	clusterName, err := tlsca.ClusterName(tlsCert.Issuer)
+	rootClusterName, err := tlsca.ClusterName(tlsCert.Issuer)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	clt, err := proxy.ConnectToCluster(ctx, clusterName, true)
+
+	clt, err := proxy.ConnectToCluster(ctx, rootClusterName, true)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -210,11 +185,12 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 		}
 	}
 	req := proto.UserCertsRequest{
-		Username:       cert.KeyId,
-		PublicKey:      key.Pub,
-		Expires:        time.Unix(int64(cert.ValidBefore), 0),
-		RouteToCluster: params.RouteToCluster,
-		AccessRequests: params.AccessRequests,
+		Username:          cert.KeyId,
+		PublicKey:         key.Pub,
+		Expires:           time.Unix(int64(cert.ValidBefore), 0),
+		RouteToCluster:    params.RouteToCluster,
+		KubernetesCluster: params.KubernetesCluster,
+		AccessRequests:    params.AccessRequests,
 	}
 	if _, ok := cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles]; !ok {
 		req.Format = teleport.CertificateFormatOldSSH
@@ -226,10 +202,31 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 	}
 	key.Cert = certs.SSH
 	key.TLSCert = certs.TLS
+	if params.KubernetesCluster != "" {
+		key.KubeTLSCerts[params.KubernetesCluster] = certs.TLS
+	}
 
 	// save the cert to the local storage (~/.tsh usually):
 	_, err = localAgent.AddKey(key)
 	return trace.Wrap(err)
+}
+
+// RootClusterName returns name of the current cluster
+func (proxy *ProxyClient) RootClusterName() (string, error) {
+	localAgent := proxy.teleportClient.LocalAgent()
+	key, err := localAgent.GetKey()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	tlsCert, err := key.TeleportTLSCertificate()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	clusterName, err := tlsca.ClusterName(tlsCert.Issuer)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return clusterName, nil
 }
 
 // CreateAccessRequest registers a new access request with the auth server.
@@ -252,6 +249,19 @@ func (proxy *ProxyClient) GetAccessRequests(ctx context.Context, filter services
 		return nil, trace.Wrap(err)
 	}
 	return reqs, nil
+}
+
+// GetRole loads a role resource by name.
+func (proxy *ProxyClient) GetRole(ctx context.Context, name string) (services.Role, error) {
+	site, err := proxy.ConnectToCurrentCluster(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	role, err := site.GetRole(name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return role, nil
 }
 
 // NewWatcher sets up a new event watcher.
@@ -294,6 +304,21 @@ func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace str
 		}
 	}
 	return nodes, nil
+}
+
+// GetAppServers returns a list of application servers.
+func (proxy *ProxyClient) GetAppServers(ctx context.Context, namespace string) ([]services.Server, error) {
+	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := authClient.GetAppServers(ctx, namespace, services.SkipValidation())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return servers, nil
 }
 
 // CurrentClusterAccessPoint returns cluster access point to the currently
@@ -356,7 +381,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", proxy.teleportClient.Username)
 	}
-	tlsConfig, err := key.ClientTLSConfig(nil)
+	tlsConfig, err := key.TeleportClientTLSConfig(nil)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate client TLS config")
 	}
@@ -807,13 +832,13 @@ func (proxy *ProxyClient) Close() error {
 
 // ExecuteSCP runs remote scp command(shellCmd) on the remote server and
 // runs local scp handler using SCP Command
-func (client *NodeClient) ExecuteSCP(cmd scp.Command) error {
+func (c *NodeClient) ExecuteSCP(cmd scp.Command) error {
 	shellCmd, err := cmd.GetRemoteShellCmd()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	s, err := client.Client.NewSession()
+	s, err := c.Client.NewSession()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -989,8 +1014,8 @@ func (c *NodeClient) dynamicListenAndForward(ctx context.Context, ln net.Listene
 }
 
 // Close closes client and it's operations
-func (client *NodeClient) Close() error {
-	return client.Client.Close()
+func (c *NodeClient) Close() error {
+	return c.Client.Close()
 }
 
 // currentCluster returns the connection to the API of the current cluster

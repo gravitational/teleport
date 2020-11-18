@@ -34,6 +34,8 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -41,6 +43,7 @@ import (
 	"go.etcd.io/etcd/clientv3"
 	"go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes"
 	"go.etcd.io/etcd/mvcc/mvccpb"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -217,9 +220,28 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 		watchDone:        make(chan struct{}),
 		buf:              buf,
 	}
-	if err = b.reconnect(); err != nil {
+
+	if err = b.reconnect(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Check that the etcd nodes are at least the minimum version supported
+	timeout, cancel := context.WithTimeout(ctx, time.Second*3*time.Duration(len(cfg.Nodes)))
+	defer cancel()
+	for _, n := range cfg.Nodes {
+		status, err := b.client.Status(timeout, n)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		ver := semver.New(status.Version)
+		min := semver.New(teleport.MinimumEtcdVersion)
+		if ver.LessThan(*min) {
+			return nil, trace.BadParameter("unsupported version of etcd %v for node %v, must be %v or greater",
+				status.Version, n, teleport.MinimumEtcdVersion)
+		}
+	}
+
 	// Wrap backend in a input sanitizer and return it.
 	return b, nil
 }
@@ -274,7 +296,7 @@ func (b *EtcdBackend) CloseWatchers() {
 	b.buf.Reset()
 }
 
-func (b *EtcdBackend) reconnect() error {
+func (b *EtcdBackend) reconnect(ctx context.Context) error {
 	tlsConfig := utils.TLSConfig(nil)
 
 	if b.cfg.TLSCertFile != "" {
@@ -316,6 +338,7 @@ func (b *EtcdBackend) reconnect() error {
 		Endpoints:   b.nodes,
 		TLS:         tlsConfig,
 		DialTimeout: b.cfg.DialTimeout,
+		DialOptions: []grpc.DialOption{grpc.WithBlock()},
 		Username:    b.cfg.Username,
 		Password:    b.cfg.Password,
 	})

@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -59,7 +60,7 @@ type testPack struct {
 	dataDir      string
 	backend      *backend.Wrapper
 	clock        clockwork.Clock
-	eventsC      chan CacheEvent
+	eventsC      chan Event
 	cache        *Cache
 	cacheBackend backend.Backend
 
@@ -72,6 +73,7 @@ type testPack struct {
 	accessS        services.Access
 	dynamicAccessS services.DynamicAccess
 	presenceS      services.Presence
+	appSessionS    services.AppSession
 }
 
 func (t *testPack) Close() {
@@ -119,7 +121,7 @@ func (s *CacheSuite) newPackWithoutCache(c *check.C, setupConfig SetupConfigFn) 
 		})
 	c.Assert(err, check.IsNil)
 
-	p.eventsC = make(chan CacheEvent, 100)
+	p.eventsC = make(chan Event, 100)
 
 	p.trustS = local.NewCAService(p.backend)
 	p.clusterConfigS = local.NewClusterConfigurationService(p.backend)
@@ -129,6 +131,8 @@ func (s *CacheSuite) newPackWithoutCache(c *check.C, setupConfig SetupConfigFn) 
 	p.usersS = local.NewIdentityService(p.backend)
 	p.accessS = local.NewAccessService(p.backend)
 	p.dynamicAccessS = local.NewDynamicAccessService(p.backend)
+	p.appSessionS = local.NewIdentityService(p.backend)
+
 	return p
 }
 
@@ -147,6 +151,7 @@ func (s *CacheSuite) newPack(c *check.C, setupConfig func(c Config) Config) *tes
 		Access:        p.accessS,
 		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
+		AppSession:    p.appSessionS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 	}))
@@ -211,6 +216,7 @@ func (s *CacheSuite) TestOnlyRecentInit(c *check.C) {
 		Access:        p.accessS,
 		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
+		AppSession:    p.appSessionS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 	}))
@@ -363,11 +369,11 @@ func (s *CacheSuite) TestWatchers(c *check.C) {
 	}
 }
 
-func waitForRestart(c *check.C, eventsC <-chan CacheEvent) {
+func waitForRestart(c *check.C, eventsC <-chan Event) {
 	waitForEvent(c, eventsC, WatcherStarted, WatcherFailed)
 }
 
-func waitForEvent(c *check.C, eventsC <-chan CacheEvent, expectedEvent string, skipEvents ...string) {
+func waitForEvent(c *check.C, eventsC <-chan Event, expectedEvent string, skipEvents ...string) {
 	timeC := time.After(5 * time.Second)
 	for {
 		// wait for watcher to restart
@@ -379,9 +385,209 @@ func waitForEvent(c *check.C, eventsC <-chan CacheEvent, expectedEvent string, s
 			c.Assert(event.Type, check.Equals, expectedEvent)
 			return
 		case <-timeC:
-			c.Fatalf("Timeout waiting for watcher restart")
+			c.Fatalf("Timeout waiting for expected event: %s", expectedEvent)
 		}
 	}
+}
+
+// TestCompletenessInit verifies that flaky backends don't cause
+// the cache to return partial results during init.
+func (s *CacheSuite) TestCompletenessInit(c *check.C) {
+	const caCount = 100
+	const inits = 20
+	p := s.newPackWithoutCache(c, ForAuth)
+	defer p.Close()
+
+	// put lots of CAs in the backend
+	for i := 0; i < caCount; i++ {
+		ca := suite.NewTestCA(services.UserCA, fmt.Sprintf("%d.example.com", i))
+		c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
+	}
+
+	for i := 0; i < inits; i++ {
+		var err error
+
+		p.cacheBackend, err = memory.New(
+			memory.Config{
+				Context: context.TODO(),
+				Mirror:  true,
+			})
+		c.Assert(err, check.IsNil)
+
+		// simulate bad connection to auth server
+		p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
+		p.eventsS.closeWatchers()
+
+		p.cache, err = New(ForAuth(Config{
+			Context:       context.TODO(),
+			Backend:       p.cacheBackend,
+			Events:        p.eventsS,
+			ClusterConfig: p.clusterConfigS,
+			Provisioner:   p.provisionerS,
+			Trust:         p.trustS,
+			Users:         p.usersS,
+			Access:        p.accessS,
+			DynamicAccess: p.dynamicAccessS,
+			Presence:      p.presenceS,
+			AppSession:    p.appSessionS,
+			RetryPeriod:   200 * time.Millisecond,
+			EventsC:       p.eventsC,
+			PreferRecent: PreferRecent{
+				Enabled: true,
+			},
+		}))
+		c.Assert(err, check.IsNil)
+
+		p.backend.SetReadError(nil)
+
+		cas, err := p.cache.GetCertAuthorities(services.UserCA, false)
+		// we don't actually care whether the cache ever fully constructed
+		// the CA list.  for the purposes of this test, we just care that it
+		// doesn't return the CA list *unless* it was successfully constructed.
+		if err == nil {
+			c.Assert(len(cas), check.Equals, caCount)
+		} else {
+			fixtures.ExpectConnectionProblem(c, err)
+		}
+
+		c.Assert(p.cache.Close(), check.IsNil)
+		p.cache = nil
+		c.Assert(p.cacheBackend.Close(), check.IsNil)
+		p.cacheBackend = nil
+	}
+}
+
+// TestCompletenessReset verifies that flaky backends don't cause
+// the cache to return partial results during reset.
+func (s *CacheSuite) TestCompletenessReset(c *check.C) {
+	const caCount = 100
+	const resets = 20
+	p := s.newPackWithoutCache(c, ForAuth)
+	defer p.Close()
+
+	// put lots of CAs in the backend
+	for i := 0; i < caCount; i++ {
+		ca := suite.NewTestCA(services.UserCA, fmt.Sprintf("%d.example.com", i))
+		c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
+	}
+
+	var err error
+	p.cache, err = New(ForAuth(Config{
+		Context:       context.TODO(),
+		Backend:       p.cacheBackend,
+		Events:        p.eventsS,
+		ClusterConfig: p.clusterConfigS,
+		Provisioner:   p.provisionerS,
+		Trust:         p.trustS,
+		Users:         p.usersS,
+		Access:        p.accessS,
+		DynamicAccess: p.dynamicAccessS,
+		Presence:      p.presenceS,
+		AppSession:    p.appSessionS,
+		RetryPeriod:   200 * time.Millisecond,
+		EventsC:       p.eventsC,
+		PreferRecent: PreferRecent{
+			Enabled: true,
+		},
+	}))
+	c.Assert(err, check.IsNil)
+
+	// verify that CAs are immediately available
+	cas, err := p.cache.GetCertAuthorities(services.UserCA, false)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(cas), check.Equals, caCount)
+
+	for i := 0; i < resets; i++ {
+		// simulate bad connection to auth server
+		p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
+		p.eventsS.closeWatchers()
+		p.backend.SetReadError(nil)
+
+		// load CAs while connection is bad
+		cas, err := p.cache.GetCertAuthorities(services.UserCA, false)
+		// we don't actually care whether the cache ever fully constructed
+		// the CA list.  for the purposes of this test, we just care that it
+		// doesn't return the CA list *unless* it was successfully constructed.
+		if err == nil {
+			c.Assert(len(cas), check.Equals, caCount)
+		} else {
+			fixtures.ExpectConnectionProblem(c, err)
+		}
+	}
+}
+
+// TestTombstones verifies that healthy caches leave tombstones
+// on closure, giving new caches the ability to start from a known
+// good state if the origin state is unavailable.
+func (s *CacheSuite) TestTombstones(c *check.C) {
+	const caCount = 10
+	p := s.newPackWithoutCache(c, ForAuth)
+	defer p.Close()
+
+	// put lots of CAs in the backend
+	for i := 0; i < caCount; i++ {
+		ca := suite.NewTestCA(services.UserCA, fmt.Sprintf("%d.example.com", i))
+		c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
+	}
+
+	var err error
+	p.cache, err = New(ForAuth(Config{
+		Context:       context.TODO(),
+		Backend:       p.cacheBackend,
+		Events:        p.eventsS,
+		ClusterConfig: p.clusterConfigS,
+		Provisioner:   p.provisionerS,
+		Trust:         p.trustS,
+		Users:         p.usersS,
+		Access:        p.accessS,
+		DynamicAccess: p.dynamicAccessS,
+		Presence:      p.presenceS,
+		AppSession:    p.appSessionS,
+		RetryPeriod:   200 * time.Millisecond,
+		EventsC:       p.eventsC,
+		PreferRecent: PreferRecent{
+			Enabled: true,
+		},
+	}))
+	c.Assert(err, check.IsNil)
+
+	// verify that CAs are immediately available
+	cas, err := p.cache.GetCertAuthorities(services.UserCA, false)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(cas), check.Equals, caCount)
+
+	c.Assert(p.cache.Close(), check.IsNil)
+	// wait for TombstoneWritten, ignoring all other event types
+	waitForEvent(c, p.eventsC, TombstoneWritten, WatcherStarted, EventProcessed, WatcherFailed)
+	// simulate bad connection to auth server
+	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
+	p.eventsS.closeWatchers()
+
+	p.cache, err = New(ForAuth(Config{
+		Context:       context.TODO(),
+		Backend:       p.cacheBackend,
+		Events:        p.eventsS,
+		ClusterConfig: p.clusterConfigS,
+		Provisioner:   p.provisionerS,
+		Trust:         p.trustS,
+		Users:         p.usersS,
+		Access:        p.accessS,
+		DynamicAccess: p.dynamicAccessS,
+		Presence:      p.presenceS,
+		AppSession:    p.appSessionS,
+		RetryPeriod:   200 * time.Millisecond,
+		EventsC:       p.eventsC,
+		PreferRecent: PreferRecent{
+			Enabled: true,
+		},
+	}))
+	c.Assert(err, check.IsNil)
+
+	// verify that CAs are immediately available despite the fact
+	// that the origin state was never available.
+	cas, err = p.cache.GetCertAuthorities(services.UserCA, false)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(cas), check.Equals, caCount)
 }
 
 // TestPreferRecent makes sure init proceeds
@@ -411,6 +617,7 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 		Access:        p.accessS,
 		DynamicAccess: p.dynamicAccessS,
 		Presence:      p.presenceS,
+		AppSession:    p.appSessionS,
 		RetryPeriod:   200 * time.Millisecond,
 		EventsC:       p.eventsC,
 		PreferRecent: PreferRecent{
@@ -419,9 +626,8 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 	}))
 	c.Assert(err, check.IsNil)
 
-	cas, err := p.cache.GetCertAuthorities(services.UserCA, false)
-	c.Assert(err, check.IsNil)
-	c.Assert(cas, check.HasLen, 0)
+	_, err = p.cache.GetCertAuthorities(services.UserCA, false)
+	fixtures.ExpectConnectionProblem(c, err)
 
 	ca := suite.NewTestCA(services.UserCA, "example.com")
 	// NOTE 1: this could produce event processed
@@ -1188,6 +1394,163 @@ func (s *CacheSuite) TestAuthServers(c *check.C) {
 	}
 
 	out, err = p.cache.GetAuthServers()
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 0)
+}
+
+// TestRemoteClusters tests remote clusters caching
+func (s *CacheSuite) TestRemoteClusters(c *check.C) {
+	p := s.newPackForProxy(c)
+	defer p.Close()
+
+	clusterName := "example.com"
+	rc, err := services.NewRemoteCluster(clusterName)
+	c.Assert(err, check.IsNil)
+	c.Assert(p.presenceS.CreateRemoteCluster(rc), check.IsNil)
+
+	out, err := p.presenceS.GetRemoteClusters()
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+	rc = out[0]
+
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	out, err = p.cache.GetRemoteClusters()
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+
+	rc.SetResourceID(out[0].GetResourceID())
+	fixtures.DeepCompare(c, rc, out[0])
+
+	// update conn's parameters
+	meta := rc.GetMetadata()
+	meta.Labels = map[string]string{"env": "prod"}
+	rc.SetMetadata(meta)
+
+	ctx := context.TODO()
+	err = p.presenceS.UpdateRemoteCluster(ctx, rc)
+	c.Assert(err, check.IsNil)
+
+	out, err = p.presenceS.GetRemoteClusters()
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+	fixtures.DeepCompare(c, meta.Labels, out[0].GetMetadata().Labels)
+	rc = out[0]
+
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	out, err = p.cache.GetRemoteClusters()
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+
+	rc.SetResourceID(out[0].GetResourceID())
+	fixtures.DeepCompare(c, rc, out[0])
+
+	err = p.presenceS.DeleteAllRemoteClusters()
+	c.Assert(err, check.IsNil)
+
+	select {
+	case <-p.eventsC:
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	out, err = p.cache.GetRemoteClusters()
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 0)
+}
+
+// TestAppServers tests that CRUD operations are replicated from the backend to
+// the cache.
+func (s *CacheSuite) TestAppServers(c *check.C) {
+	p := s.newPackForProxy(c)
+	defer p.Close()
+
+	// Upsert application into backend.
+	server := suite.NewAppServer("foo", "http://127.0.0.1:8080", "foo.example.com")
+	_, err := p.presenceS.UpsertAppServer(context.Background(), server)
+	c.Assert(err, check.IsNil)
+
+	// Check that the application is now in the backend.
+	out, err := p.presenceS.GetAppServers(context.Background(), defaults.Namespace)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+	srv := out[0]
+
+	// Wait until the information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single application in it.
+	out, err = p.cache.GetAppServers(context.Background(), defaults.Namespace)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+
+	// Check that the value in the cache, value in the backend, and original
+	// services.App all exactly match.
+	srv.SetResourceID(out[0].GetResourceID())
+	server.SetResourceID(out[0].GetResourceID())
+	fixtures.DeepCompare(c, srv, out[0])
+	fixtures.DeepCompare(c, server, out[0])
+
+	// Update the application and upsert it into the backend again.
+	srv.SetExpiry(time.Now().Add(30 * time.Minute).UTC())
+	_, err = p.presenceS.UpsertAppServer(context.Background(), srv)
+	c.Assert(err, check.IsNil)
+
+	// Check that the application is in the backend and only one exists (so an
+	// update occurred).
+	out, err = p.presenceS.GetAppServers(context.Background(), defaults.Namespace)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+	srv = out[0]
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	// Make sure the cache has a single application in it.
+	out, err = p.cache.GetAppServers(context.Background(), defaults.Namespace)
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.HasLen, 1)
+
+	// Check that the value in the cache, value in the backend, and original
+	// services.App all exactly match.
+	srv.SetResourceID(out[0].GetResourceID())
+	fixtures.DeepCompare(c, srv, out[0])
+
+	// Remove all applications from the backend.
+	err = p.presenceS.DeleteAllAppServers(context.Background(), defaults.Namespace)
+	c.Assert(err, check.IsNil)
+
+	// Check that information has been replicated to the cache.
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	// Check that the cache is now empty.
+	out, err = p.cache.GetAppServers(context.Background(), defaults.Namespace)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.HasLen, 0)
 }

@@ -171,7 +171,7 @@ func newProxySubsys(ctx *srv.ServerContext, srv *Server, req proxySubsysRequest)
 		req.clusterName = ctx.Identity.RouteToCluster
 	}
 	if req.clusterName != "" && srv.proxyTun != nil {
-		_, err := srv.proxyTun.GetSite(req.clusterName)
+		_, err := srv.tunnelWithRoles(ctx).GetSite(req.clusterName)
 		if err != nil {
 			return nil, trace.BadParameter("invalid format for proxy request: unknown cluster %q", req.clusterName)
 		}
@@ -210,7 +210,7 @@ func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 	var (
 		site       reversetunnel.RemoteSite
 		err        error
-		tunnel     = t.srv.proxyTun
+		tunnel     = t.srv.tunnelWithRoles(ctx)
 		clientAddr = sconn.RemoteAddr()
 	)
 	// did the client pass us a true client IP ahead of time via an environment variable?
@@ -236,7 +236,10 @@ func (t *proxySubsys) Start(sconn *ssh.ServerConn, ch ssh.Channel, req *ssh.Requ
 	if t.host != "" {
 		// no site given? use the 1st one:
 		if site == nil {
-			sites := tunnel.GetSites()
+			sites, err := tunnel.GetSites()
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			if len(sites) == 0 {
 				t.log.Error("Not connected to any remote clusters")
 				return trace.NotFound("no connected sites")
@@ -404,6 +407,8 @@ func (t *proxySubsys) proxyToHost(
 				return trace.Wrap(err)
 			}
 			principals = append(principals, host)
+		} else if server.GetUseTunnel() {
+			serverAddr = reversetunnel.LocalNode
 		}
 	} else {
 		if !specifiedPort {
@@ -428,6 +433,7 @@ func (t *proxySubsys) proxyToHost(
 		Address:      t.host,
 		ServerID:     serverID,
 		Principals:   principals,
+		ConnType:     services.NodeTunnel,
 	})
 	if err != nil {
 		return trace.Wrap(err)

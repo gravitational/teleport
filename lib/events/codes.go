@@ -310,6 +310,13 @@ const (
 	// SessionDataCode is the session data event code.
 	SessionDataCode = "T2006I"
 
+	// AppSessionStartCode is the application session start code.
+	AppSessionStartCode = "T2007I"
+	// AppSessionChunkCode is the application session chunk create code.
+	AppSessionChunkCode = "T2008I"
+	// AppSessionRequestCode is the application request/response code.
+	AppSessionRequestCode = "T2009I"
+
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"
 	// SubsystemFailureCode is the subsystem failure event code.
@@ -338,6 +345,11 @@ const (
 	X11ForwardCode = "T3008I"
 	// X11ForwardFailureCode is the x11 forward failure event code.
 	X11ForwardFailureCode = "T3008W"
+	// KubeRequestCode is an event code for a generic kubernetes request.
+	//
+	// Note: some requests (like exec into a pod) use other codes (like
+	// ExecCode).
+	KubeRequestCode = "T3009I"
 
 	// SessionCommandCode is a session command code.
 	SessionCommandCode = "T4000I"

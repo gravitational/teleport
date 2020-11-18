@@ -25,6 +25,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -187,6 +188,12 @@ type Config struct {
 
 	// Emitter is event emitter
 	Emitter events.StreamEmitter
+
+	// DELETE IN: 5.1.
+	//
+	// Pass in a access point that can be configured with the old access point
+	// policy until all clusters are migrated to 5.0 and above.
+	NewCachingAccessPointOldProxy auth.NewCachingAccessPoint
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -217,7 +224,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.Limiter == nil {
 		var err error
-		cfg.Limiter, err = limiter.NewLimiter(limiter.LimiterConfig{})
+		cfg.Limiter, err = limiter.NewLimiter(limiter.Config{})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -334,7 +341,7 @@ func (s *server) disconnectClusters() error {
 	for _, cluster := range connectedRemoteClusters {
 		if _, ok := remoteMap[cluster.GetName()]; !ok {
 			s.Infof("Remote cluster %q has been deleted. Disconnecting it from the proxy.", cluster.GetName())
-			s.RemoveSite(cluster.GetName())
+			s.removeSite(cluster.GetName())
 			err := cluster.Close()
 			if err != nil {
 				s.Debugf("Failure closing cluster %q: %v.", cluster.GetName(), err)
@@ -389,8 +396,8 @@ func (s *server) fetchClusterPeers() error {
 	newConns := make(map[string]services.TunnelConnection)
 	for i := range conns {
 		newConn := conns[i]
-		// Filter out node tunnels.
-		if newConn.GetType() == services.NodeTunnel {
+		// Filter out non-proxy tunnels.
+		if newConn.GetType() != services.ProxyTunnel {
 			continue
 		}
 		// Filter out peer records for own proxy.
@@ -407,7 +414,10 @@ func (s *server) fetchClusterPeers() error {
 }
 
 func (s *server) reportClusterStats() error {
-	clusters := s.GetSites()
+	clusters, err := s.GetSites()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	for _, cluster := range clusters {
 		if _, ok := cluster.(*localSite); ok {
 			// Don't count local cluster tunnels.
@@ -586,6 +596,7 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	go t.start()
 }
 
+// TODO(awly): unit test this
 func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
 	s.Debugf("New tunnel from %v.", sconn.RemoteAddr())
 	if sconn.Permissions.Extensions[extCertType] != extCertTypeHost {
@@ -597,23 +608,36 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 	// nodes it's a node dialing back.
 	val, ok := sconn.Permissions.Extensions[extCertRole]
 	if !ok {
-		log.Errorf("Failed to accept connection, unknown role: %v.", val)
+		log.Errorf("Failed to accept connection, missing %q extension", extCertRole)
 		s.rejectRequest(nch, ssh.ConnectionFailed, "unknown role")
+		return
 	}
-	switch {
+
+	role := teleport.Role(val)
+	switch role {
 	// Node is dialing back.
-	case val == string(teleport.RoleNode):
-		s.handleNewNode(conn, sconn, nch)
+	case teleport.RoleNode:
+		s.handleNewService(role, conn, sconn, nch, services.NodeTunnel)
+	// App is dialing back.
+	case teleport.RoleApp:
+		s.handleNewService(role, conn, sconn, nch, services.AppTunnel)
+	// Kubernetes service is dialing back.
+	case teleport.RoleKube:
+		s.handleNewService(role, conn, sconn, nch, services.KubeTunnel)
 	// Proxy is dialing back.
-	case val == string(teleport.RoleProxy):
+	case teleport.RoleProxy:
 		s.handleNewCluster(conn, sconn, nch)
+	// Unknown role.
+	default:
+		log.Errorf("Unsupported role attempting to connect: %v", val)
+		s.rejectRequest(nch, ssh.ConnectionFailed, fmt.Sprintf("unsupported role %v", val))
 	}
 }
 
-func (s *server) handleNewNode(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
-	cluster, rconn, err := s.upsertNode(conn, sconn)
+func (s *server) handleNewService(role teleport.Role, conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel, connType services.TunnelType) {
+	cluster, rconn, err := s.upsertServiceConn(conn, sconn, connType)
 	if err != nil {
-		log.Errorf("Failed to upsert node: %v.", err)
+		log.Errorf("Failed to upsert %s: %v.", role, err)
 		sconn.Close()
 		return
 	}
@@ -775,7 +799,7 @@ func (s *server) checkClientCert(logger *log.Entry, user string, clusterName str
 	return nil
 }
 
-func (s *server) upsertNode(conn net.Conn, sconn *ssh.ServerConn) (*localSite, *remoteConn, error) {
+func (s *server) upsertServiceConn(conn net.Conn, sconn *ssh.ServerConn, connType services.TunnelType) (*localSite, *remoteConn, error) {
 	s.Lock()
 	defer s.Unlock()
 
@@ -789,7 +813,7 @@ func (s *server) upsertNode(conn net.Conn, sconn *ssh.ServerConn) (*localSite, *
 		return nil, nil, trace.BadParameter("host id not found")
 	}
 
-	rconn, err := cluster.addConn(nodeID, conn, sconn)
+	rconn, err := cluster.addConn(nodeID, connType, conn, sconn)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -837,7 +861,7 @@ func (s *server) upsertRemoteCluster(conn net.Conn, sshConn *ssh.ServerConn) (*r
 	return site, remoteConn, nil
 }
 
-func (s *server) GetSites() []RemoteSite {
+func (s *server) GetSites() ([]RemoteSite, error) {
 	s.RLock()
 	defer s.RUnlock()
 	out := make([]RemoteSite, 0, len(s.remoteSites)+len(s.localSites)+len(s.clusterPeers))
@@ -856,7 +880,7 @@ func (s *server) GetSites() []RemoteSite {
 			out = append(out, cluster)
 		}
 	}
-	return out
+	return out, nil
 }
 
 func (s *server) getRemoteClusters() []*remoteSite {
@@ -896,7 +920,7 @@ func (s *server) GetSite(name string) (RemoteSite, error) {
 	return nil, trace.NotFound("cluster %q is not found", name)
 }
 
-func (s *server) RemoveSite(domainName string) error {
+func (s *server) removeSite(domainName string) error {
 	s.Lock()
 	defer s.Unlock()
 	for i := range s.remoteSites {
@@ -975,9 +999,26 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}
 	remoteSite.remoteClient = clt
 
+	// DELETE IN: 5.1.0.
+	//
+	// Check if the cluster that is connecting is an older cluster. If it is,
+	// don't request access to application servers because older servers policy
+	// will reject that causing the cache to go into a re-sync loop.
+	var accessPointFunc auth.NewCachingAccessPoint
+	ok, err := isOldCluster(closeContext, sconn)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if ok {
+		log.Debugf("Older cluster connecting, loading old cache policy.")
+		accessPointFunc = srv.Config.NewCachingAccessPointOldProxy
+	} else {
+		accessPointFunc = srv.newAccessPoint
+	}
+
 	// Configure access to the cached subset of the Auth Server API of the remote
 	// cluster this remote site provides access to.
-	accessPoint, err := srv.newAccessPoint(clt, []string{"reverse", domainName})
+	accessPoint, err := accessPointFunc(clt, []string{"reverse", domainName})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -996,6 +1037,62 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	go remoteSite.periodicUpdateCertAuthorities()
 
 	return remoteSite, nil
+}
+
+// DELETE IN: 5.1.0.
+//
+// isOldCluster checks if the cluster is older than 5.0.0.
+func isOldCluster(ctx context.Context, conn ssh.Conn) (bool, error) {
+	version, err := sendVersionRequest(ctx, conn)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	// Return true if the version is older than 5.0.0, the check is actually for
+	// 4.5.0, a non-existent version, to allow this check to work during development.
+	remoteClusterVersion, err := semver.NewVersion(version)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	minClusterVersion, err := semver.NewVersion("4.5.0")
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	if remoteClusterVersion.LessThan(*minClusterVersion) {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+// sendVersionRequest sends a request for the version remote Teleport cluster.
+func sendVersionRequest(ctx context.Context, sconn ssh.Conn) (string, error) {
+	errorCh := make(chan error, 1)
+	versionCh := make(chan string, 1)
+
+	go func() {
+		ok, payload, err := sconn.SendRequest(versionRequest, true, nil)
+		if err != nil {
+			errorCh <- err
+			return
+		}
+		if !ok {
+			errorCh <- trace.BadParameter("no response to %v request", versionRequest)
+			return
+		}
+		versionCh <- string(payload)
+	}()
+
+	select {
+	case ver := <-versionCh:
+		return ver, nil
+	case err := <-errorCh:
+		return "", trace.Wrap(err)
+	case <-time.After(defaults.WaitCopyTimeout):
+		return "", trace.BadParameter("timeout waiting for version")
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
 }
 
 const (

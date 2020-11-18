@@ -27,7 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMain(m *testing.M) {
@@ -70,11 +70,12 @@ func TestEcho(t *testing.T) {
 			"TELEPORT_LOGIN":    username,
 			"TELEPORT_ROLES":    "bar baz qux",
 		},
-		Stdin:  &discardReader{},
-		Stdout: &buf,
-		Stderr: &buf,
+		Stdin:      &discardReader{},
+		Stdout:     &buf,
+		Stderr:     &buf,
+		UsePAMAuth: true,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer pamContext.Close()
 
 	assertOutput(t, buf.String(), []string{
@@ -109,10 +110,10 @@ func TestEnvironment(t *testing.T) {
 		Stdout:      &buf,
 		Stderr:      &buf,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer pamContext.Close()
 
-	assert.ElementsMatch(t, pamContext.Environment(), []string{"foo=bar"})
+	require.ElementsMatch(t, pamContext.Environment(), []string{"foo=bar"})
 }
 
 func TestSuccess(t *testing.T) {
@@ -128,8 +129,9 @@ func TestSuccess(t *testing.T) {
 		Stdin:       &discardReader{},
 		Stdout:      &buf,
 		Stderr:      &buf,
+		UsePAMAuth:  true,
 	})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	defer pamContext.Close()
 
 	assertOutput(t, buf.String(), []string{
@@ -153,7 +155,7 @@ func TestAccountFailure(t *testing.T) {
 		Stdout:      &buf,
 		Stderr:      &buf,
 	})
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func TestAuthFailure(t *testing.T) {
@@ -169,8 +171,33 @@ func TestAuthFailure(t *testing.T) {
 		Stdin:       &discardReader{},
 		Stdout:      &buf,
 		Stderr:      &buf,
+		UsePAMAuth:  true,
 	})
-	assert.Error(t, err)
+	require.Error(t, err)
+}
+
+func TestAuthDisabled(t *testing.T) {
+	t.Parallel()
+	checkTestModule(t, "teleport-auth-failure")
+	username := currentUser(t)
+
+	var buf bytes.Buffer
+	pamContext, err := Open(&Config{
+		Enabled:     true,
+		ServiceName: "teleport-auth-failure",
+		Login:       username,
+		Stdin:       &discardReader{},
+		Stdout:      &buf,
+		Stderr:      &buf,
+		UsePAMAuth:  false,
+	})
+	require.NoError(t, err)
+	defer pamContext.Close()
+
+	assertOutput(t, buf.String(), []string{
+		"pam_sm_acct_mgmt OK",
+		"pam_sm_open_session OK",
+	})
 }
 
 func TestSessionFailure(t *testing.T) {
@@ -187,7 +214,7 @@ func TestSessionFailure(t *testing.T) {
 		Stdout:      &buf,
 		Stderr:      &buf,
 	})
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 func assertOutput(t *testing.T, got string, want []string) {
@@ -196,7 +223,7 @@ func assertOutput(t *testing.T, got string, want []string) {
 	for i, l := range lines {
 		lines[i] = strings.TrimSpace(l)
 	}
-	assert.ElementsMatch(t, lines, want)
+	require.ElementsMatch(t, lines, want)
 }
 
 type discardReader struct {
@@ -215,6 +242,6 @@ func checkTestModule(t *testing.T, name string) {
 
 func currentUser(t *testing.T) string {
 	usr, err := user.Current()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	return usr.Username
 }

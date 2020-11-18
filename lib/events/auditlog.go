@@ -618,6 +618,18 @@ func (l *AuditLog) createOrGetDownload(path string) (context.Context, context.Ca
 }
 
 func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
+	checker, ok := l.UploadHandler.(UnpackChecker)
+	if ok {
+		unpacked, err := checker.IsUnpacked(l.ctx, sid)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if unpacked {
+			l.Debugf("Recording %v is stored in legacy unpacked format.", sid)
+			return nil
+		}
+	}
+
 	tarballPath := filepath.Join(l.playbackDir, string(sid)+".tar")
 
 	ctx, cancel := l.createOrGetDownload(tarballPath)
@@ -1121,18 +1133,33 @@ type LegacyHandler struct {
 	cfg LegacyHandlerConfig
 }
 
-// Download downloads session tarball and writes it to writer
-func (l *LegacyHandler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+// UnpackChecker is a workaround for 4.4 directory cases
+// when the session is unpacked
+type UnpackChecker interface {
+	// IsUnpacked returns true if session is already unpacked
+	IsUnpacked(ctx context.Context, sessionID session.ID) (bool, error)
+}
+
+// IsUnpacked returns true if session is already unpacked
+func (l *LegacyHandler) IsUnpacked(ctx context.Context, sessionID session.ID) (bool, error) {
 	// legacy format stores unpacked records in the directory
 	// in one of the sub-folders set up for the auth server ID
 	// if the file is present there, there no need to unpack and convert it
 	authServers, err := getAuthServers(l.cfg.Dir)
 	if err != nil {
-		return trace.Wrap(err)
+		return false, trace.Wrap(err)
 	}
 	_, err = readSessionIndex(l.cfg.Dir, authServers, defaults.Namespace, sessionID)
 	if err == nil {
-		return nil
+		return true, nil
 	}
+	if trace.IsNotFound(err) {
+		return false, nil
+	}
+	return false, trace.Wrap(err)
+}
+
+// Download downloads session tarball and writes it to writer
+func (l *LegacyHandler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
 	return l.cfg.Handler.Download(ctx, sessionID, writer)
 }

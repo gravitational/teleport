@@ -55,8 +55,9 @@ type SAMLConnector interface {
 	SetAttributesToRoles(mapping []AttributeMapping)
 	// GetAttributes returns list of attributes expected by mappings
 	GetAttributes() []string
-	// MapAttributes maps attributes to roles
-	MapAttributes(assertionInfo saml2.AssertionInfo) []string
+	// GetTraitMappings converts gets all attribute mappings in the
+	// generic trait mapping format.
+	GetTraitMappings() TraitMappingSet
 	// Check checks SAML connector for errors
 	CheckAndSetDefaults() error
 	// SetIssuer sets issuer
@@ -387,12 +388,6 @@ func (o *SAMLConnectorV2) Equals(other SAMLConnector) bool {
 		if a.Name != b.Name || a.Value != b.Value || !utils.StringSlicesEqual(a.Roles, b.Roles) {
 			return false
 		}
-		if (a.RoleTemplate != nil && b.RoleTemplate == nil) || (a.RoleTemplate == nil && b.RoleTemplate != nil) {
-			return false
-		}
-		if a.RoleTemplate != nil && !a.RoleTemplate.Equals(b.RoleTemplate.V3()) {
-			return false
-		}
 	}
 	return o.GetSSO() == other.GetSSO()
 }
@@ -484,36 +479,16 @@ func (o *SAMLConnectorV2) GetAttributes() []string {
 	return utils.Deduplicate(out)
 }
 
-// MapClaims maps SAML attributes to roles
-func (o *SAMLConnectorV2) MapAttributes(assertionInfo saml2.AssertionInfo) []string {
-	var roles []string
+func (o *SAMLConnectorV2) GetTraitMappings() TraitMappingSet {
+	tms := make([]TraitMapping, 0, len(o.Spec.AttributesToRoles))
 	for _, mapping := range o.Spec.AttributesToRoles {
-		for _, attr := range assertionInfo.Values {
-			if attr.Name != mapping.Name {
-				continue
-			}
-		mappingLoop:
-			for _, value := range attr.Values {
-				for _, role := range mapping.Roles {
-					outRole, err := utils.ReplaceRegexp(mapping.Value, role, value.Value)
-					switch {
-					case err != nil:
-						if !trace.IsNotFound(err) {
-							log.Debugf("Failed to match expression %v, replace with: %v input: %v, err: %v", mapping.Value, role, value.Value, err)
-						}
-						// if value input did not match, no need to apply
-						// to all roles
-						continue mappingLoop
-					case outRole == "":
-						// skip empty role matches
-					case outRole != "":
-						roles = append(roles, outRole)
-					}
-				}
-			}
-		}
+		tms = append(tms, TraitMapping{
+			Trait: mapping.Name,
+			Value: mapping.Value,
+			Roles: mapping.Roles,
+		})
 	}
-	return utils.Deduplicate(roles)
+	return TraitMappingSet(tms)
 }
 
 // GetServiceProvider initialises service provider spec from settings
@@ -612,19 +587,8 @@ func (o *SAMLConnectorV2) GetServiceProvider(clock clockwork.Clock) (*saml2.SAML
 	}
 	// make sure claim mappings have either roles or a role template
 	for _, v := range o.Spec.AttributesToRoles {
-		hasRoles := false
-		if len(v.Roles) > 0 {
-			hasRoles = true
-		}
-		hasRoleTemplate := false
-		if v.RoleTemplate != nil {
-			hasRoleTemplate = true
-		}
-
-		// we either need to have roles or role templates not both or neither
-		// ! ( hasRoles XOR hasRoleTemplate )
-		if hasRoles == hasRoleTemplate {
-			return nil, trace.BadParameter("need roles or role template (not both or none)")
+		if len(v.Roles) == 0 {
+			return nil, trace.BadParameter("need roles field in attributes_to_roles")
 		}
 	}
 	log.Debugf("[SAML] SSO: %v", o.Spec.SSO)
@@ -773,13 +737,24 @@ type AttributeMapping struct {
 	Value string `json:"value"`
 	// Roles is a list of teleport roles to map to
 	Roles []string `json:"roles,omitempty"`
-	// RoleTemplate is a template for a role that will be filled
-	// with data from claims.
-	RoleTemplate *RoleV2 `json:"role_template,omitempty"`
 }
 
-// AttribueMappingSchema is JSON schema for claim mapping
-var AttributeMappingSchema = fmt.Sprintf(`{
+func SAMLAssertionsToTraits(assertions saml2.AssertionInfo) map[string][]string {
+	traits := make(map[string][]string, len(assertions.Values))
+
+	for _, assr := range assertions.Values {
+		vals := make([]string, 0, len(assr.Values))
+		for _, value := range assr.Values {
+			vals = append(vals, value.Value)
+		}
+		traits[assr.Name] = vals
+	}
+
+	return traits
+}
+
+// AttributeMappingSchema is JSON schema for claim mapping
+var AttributeMappingSchema = `{
   "type": "object",
   "additionalProperties": false,
   "required": ["name", "value" ],
@@ -791,12 +766,11 @@ var AttributeMappingSchema = fmt.Sprintf(`{
       "items": {
         "type": "string"
       }
-    },
-    "role_template": %v
+    }
   }
-}`, GetRoleSchema(V2, ""))
+}`
 
-// SigningKeyPairSchema
+// SigningKeyPairSchema is the JSON schema for signing key pair.
 var SigningKeyPairSchema = `{
   "type": "object",
   "additionalProperties": false,

@@ -19,11 +19,19 @@ package proxy
 import (
 	"context"
 	"errors"
+	"io/ioutil"
+	"os"
+	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/teleport/lib/utils/testlog"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 	authzapi "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
+	"k8s.io/client-go/transport"
 )
 
 type AuthSuite struct{}
@@ -103,4 +111,104 @@ func (c *mockSARClient) Create(_ context.Context, sar *authzapi.SelfSubjectAcces
 
 	sar.Status.Allowed = verbAllowed && resourceAllowed
 	return sar, nil
+}
+
+func TestGetKubeCreds(t *testing.T) {
+	ctx := context.TODO()
+	const teleClusterName = "teleport-cluster"
+
+	// Permission check is tested separately above.
+	TestOnlySkipSelfPermissionCheck(true)
+	defer TestOnlySkipSelfPermissionCheck(false)
+
+	tmpFile, err := ioutil.TempFile("", "teleport")
+	require.NoError(t, err)
+	defer os.Remove(tmpFile.Name())
+	kubeconfigPath := tmpFile.Name()
+	_, err = tmpFile.Write([]byte(`
+apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    server: https://example.com:3026
+  name: example
+contexts:
+- context:
+    cluster: example
+    user: creds
+  name: foo
+- context:
+    cluster: example
+    user: creds
+  name: bar
+users:
+- name: creds
+current-context: foo
+`))
+	require.NoError(t, err)
+	require.NoError(t, tmpFile.Close())
+
+	tests := []struct {
+		desc           string
+		kubeconfigPath string
+		kubeCluster    string
+		newService     bool
+		want           map[string]*kubeCreds
+		assertErr      require.ErrorAssertionFunc
+	}{
+		{
+			desc:       "kubernetes_service, no kube creds",
+			newService: true,
+			assertErr:  require.Error,
+		},
+		{
+			desc:      "proxy_service, no kube creds",
+			assertErr: require.NoError,
+			want:      map[string]*kubeCreds{},
+		},
+		{
+			desc:           "kubernetes_service, with kube creds",
+			newService:     true,
+			kubeconfigPath: kubeconfigPath,
+			want: map[string]*kubeCreds{
+				"foo": {
+					targetAddr:      "example.com:3026",
+					transportConfig: &transport.Config{},
+					kubeClient:      &kubernetes.Clientset{},
+				},
+				"bar": {
+					targetAddr:      "example.com:3026",
+					transportConfig: &transport.Config{},
+					kubeClient:      &kubernetes.Clientset{},
+				},
+			},
+			assertErr: require.NoError,
+		},
+		{
+			desc:           "proxy_service, with kube creds",
+			kubeconfigPath: kubeconfigPath,
+			want: map[string]*kubeCreds{
+				teleClusterName: {
+					targetAddr:      "example.com:3026",
+					transportConfig: &transport.Config{},
+					kubeClient:      &kubernetes.Clientset{},
+				},
+			},
+			assertErr: require.NoError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			got, err := getKubeCreds(ctx, testlog.FailureOnly(t), teleClusterName, "", tt.kubeconfigPath, tt.newService)
+			tt.assertErr(t, err)
+			if err != nil {
+				return
+			}
+			require.Empty(t, cmp.Diff(got, tt.want,
+				cmp.AllowUnexported(kubeCreds{}),
+				cmp.Comparer(func(a, b *transport.Config) bool { return (a == nil) == (b == nil) }),
+				cmp.Comparer(func(a, b *kubernetes.Clientset) bool { return (a == nil) == (b == nil) }),
+			))
+		})
+	}
 }

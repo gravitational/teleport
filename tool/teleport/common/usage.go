@@ -2,15 +2,17 @@ package common
 
 const (
 	usageNotes = `Notes:
-  --roles=node,proxy,auth
+  --roles=node,proxy,auth,app
 
-  This flag tells Teleport which services to run. By default it runs all three. 
-  In a production environment you may want to separate them.
+  This flag tells Teleport which services to run. By default it runs auth,
+  proxy, and node. In a production environment you may want to separate them.
 
   --token=xyz
 
-  This token is needed to connect a node to an auth server. Obtain it by running 
-  "tctl nodes add" on the auth server. It's used once and ignored afterwards.
+  This token is needed to connect a node or web app to an auth server. Get it
+  by running "tctl tokens add --type=node" or "tctl tokens add --type=app" to
+  join an SSH server or web app to your cluster respectively. It's used once
+  and ignored afterwards.
 `
 
 	usageExamples = `
@@ -26,7 +28,20 @@ Examples:
 
 > teleport start --roles=node --auth-server=10.1.0.1 --labels=db=master
   Same as the above, but the node runs with db=master label and can be connected
-  to using that label in addition to its name.`
+  to using that label in addition to its name.
+
+> teleport start --roles=app --token=xyz --auth-server=proxy.example.com:3080 \
+    --app-name="example-app" \
+    --app-uri="http://localhost:8080"
+  Starts an app server that proxies the application "example-app" running at
+  http://localhost:8080.
+
+> teleport start --roles=app --token=xyz --auth-server=proxy.example.com:3080 \
+    --app-name="example-app" \
+    --app-uri="http://localhost:8080" \
+    --labels=group:dev
+  Same as the above, but the app server runs with "group=dev" label which only
+  allows access to users with the role "group=dev".`
 
 	sampleConfComment = `#
 # Sample Teleport configuration file

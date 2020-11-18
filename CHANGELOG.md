@@ -1,6 +1,154 @@
 # Changelog
 
-### 4.3.6
+### 4.4.5
+
+This release of Teleport contains a bug fix.
+
+* Fixed an issue where a slow or unresponsive Teleport auth service could hang client connections in async recording mode. [#4696](https://github.com/gravitational/teleport/pull/4696)
+
+### 4.4.4
+
+This release of Teleport adds enhancements to the Access Workflows API.
+
+* Support for creating limited roles that trigger access requests
+on login, allowing users to be configured such that no nodes can
+be accessed without externally granted roles.
+
+* Teleport UI support for automatically generating access requests and
+assuming new roles upon approval (access requests were previously
+only available in `tsh`).
+
+* New `claims_to_roles` mapping that can use claims from external
+identity providers to determine which roles a user can request.
+
+* Various minor API improvements to help make requests easier to
+manage and audit, including support for human-readable
+request/approve/deny reasons and structured annotations.
+
+### 4.4.2
+
+This release of Teleport adds support for a new build architecture.
+
+* Added automatic arm64 builds of Teleport to the download portal.
+
+### 4.4.1
+
+This release of Teleport contains a bug fix.
+
+* Fixed an issue where defining multiple logging configurations would cause Teleport to crash. [#4598](https://github.com/gravitational/teleport/issues/4598)
+
+### 4.4.0
+
+This is a major Teleport release with a focus on new features, functionality, and bug fixes. It’s a substantial release and users can review [4.4 closed issues](https://github.com/gravitational/teleport/milestone/40?closed=1) on Github for details of all items.
+
+#### New Features
+
+##### Concurrent Session Control
+
+This addition to Teleport helps customers obtain AC-10 control. We now provide two new optional configuration values: `max_connections` and `max_sessions`.
+
+###### `max_connections`
+
+This value is the total number of concurrent sessions within a cluster to nodes running Teleport. This value is applied at a per user level. If you set `max_connections` to 1, a `tsh` user would only be able to `tsh ssh` into one node at a time.
+
+###### `max_sessions` per connection
+
+This value limits the total number of session channels which can be established across a single SSH connection (typically used for interactive terminals or remote exec operations). This is for cases where nodes have Teleport set up, but a user is using OpenSSH to connect to them. It is essentially equivalent to the `MaxSessions` configuration value accepted by `sshd`.
+
+```yaml
+spec:
+  options:
+    # Optional: Required to be set for AC-10 Compliance
+    max_connections: 2
+    # Optional: To match OpenSSH behavior set to 10
+    max_sessions: 10
+```
+
+###### `session_control_timeout`
+
+A new `session_control_timeout` configuration value has been added to the `auth_service` configuration block of the Teleport config file. It's unlikely that you'll need to modify this.
+
+```yaml
+auth_service:
+  session_control_timeout: 2m # default
+# ...
+```
+
+#### Session Streaming Improvements
+
+Teleport 4.4 includes a complete refactoring of our event system. This resolved a few customer bug reports such as [#3800: Events overwritten in DynamoDB](https://github.com/gravitational/teleport/issues/3800) and [#3182: Teleport consuming all disk space with multipart uploads](https://github.com/gravitational/teleport/issues/3182).
+
+Along with foundational improvements, 4.4 includes two new experimental `session_recording` options: `node-sync` and `proxy-sync`.
+NOTE: These experimental modes require all Teleport auth servers, proxy servers and nodes to be running Teleport 4.4.
+
+```yaml
+# This section configures the 'auth service':
+auth_service:
+    # Optional setting for configuring session recording. Possible values are:
+    #     "node"  : sessions will be recorded on the node level (the default)
+    #     "proxy" : recording on the proxy level, see "recording proxy mode" section.
+    #     "off"   : session recording is turned off
+    #
+    #     EXPERIMENTAL *-sync modes: proxy and node send logs directly to S3 or other
+    #     storage without storing the records on disk at all. This mode will kill a
+    #     connection if network connectivity is lost.
+    #     NOTE: These experimental modes require all Teleport auth servers, proxy servers and
+    #     nodes to be running Teleport 4.4.
+    #
+    #     "node-sync" : sessions recording will be streamed from node -> auth -> storage
+    #     "proxy-sync : sessions recording will be streamed from proxy -> auth -> storage
+    #
+    session_recording: "node-sync"
+```
+
+#### Improvements
+
+* Added session streaming. [#4045](https://github.com/gravitational/teleport/pull/4045)
+* Added concurrent session control. [#4138](https://github.com/gravitational/teleport/pull/4138)
+* Added ability to specify leaf cluster when generating `kubeconfig` via `tctl auth sign`. [#4446](https://github.com/gravitational/teleport/pull/4446)
+* Added output options (like JSON) for `tsh ls`. [#4390](https://github.com/gravitational/teleport/pull/4390)
+* Added node ID to heartbeat debug log [#4291](https://github.com/gravitational/teleport/pull/4291)
+* Added the option to trigger `pam_authenticate` on login [#3966](https://github.com/gravitational/teleport/pull/3966)
+
+#### Fixes
+
+* Fixed issue that caused some idle `kubectl exec` sessions to terminate. [#4377](https://github.com/gravitational/teleport/pull/4377)
+* Fixed symlink issued when using `tsh` on Windows. [#4347](https://github.com/gravitational/teleport/pull/4347)
+* Fixed `tctl top` so it runs without the debug flag and on dark terminals. [#4282](https://github.com/gravitational/teleport/pull/4282) [#4231](https://github.com/gravitational/teleport/pull/4231)
+* Fixed issue that caused DynamoDB not to respect HTTP CONNECT proxies. [#4271](https://github.com/gravitational/teleport/pull/4271)
+* Fixed `/readyz` endpoint to recover much quicker. [#4223](https://github.com/gravitational/teleport/pull/4223)
+
+#### Documentation
+
+* Updated Google Workspace documentation to add clarification on supported account types. [#4394](https://github.com/gravitational/teleport/pull/4394)
+* Updated IoT instructions on necessary ports. [#4398](https://github.com/gravitational/teleport/pull/4398)
+* Updated Trusted Cluster documentation on how to remove trust from root and leaf clusters. [#4358](https://github.com/gravitational/teleport/pull/4358)
+* Updated the PAM documentation with PAM authentication usage information. [#4352](https://github.com/gravitational/teleport/pull/4352)
+
+#### Upgrade Notes
+
+Please follow our [standard upgrade procedure](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport).
+
+## 4.3.7
+
+This release of Teleport contains a security fix and a bug fix.
+
+* Mitigated [CVE-2020-15216](https://nvd.nist.gov/vuln/detail/CVE-2020-15216) by updating github.com/russellhaering/goxmldsig.
+
+### Details
+A vulnerability was discovered in the `github.com/russellhaering/goxmldsig` library which is used by Teleport to validate the
+signatures of XML files used to configure SAML 2.0 connectors. With a carefully crafted XML file, an attacker can completely
+bypass XML signature validation and pass off an altered file as a signed one.
+
+### Actions
+The `goxmldsig` library has been updated upstream and Teleport 4.3.7 includes the fix. Any Enterprise SSO users using Okta,
+Active Directory, OneLogin or custom SAML connectors should upgrade their auth servers to version 4.3.7 and restart Teleport.
+
+If you are unable to upgrade immediately, we suggest deleting SAML connectors for all clusters until the updates can be applied.
+
+* Fixed an issue where DynamoDB connections made by Teleport would not respect the `HTTP_PROXY` or `HTTPS_PROXY` environment variables. [#4271](https://github.com/gravitational/teleport/pull/4271)
+
+## 4.3.6
 
 This release of Teleport contains multiple bug fixes.
 
@@ -9,13 +157,13 @@ This release of Teleport contains multiple bug fixes.
 * Updated `/readyz` endpoint to recover faster after node goes into degraded state. [#4223](https://github.com/gravitational/teleport/pull/4223)
 * Added node UUID to debug logs to allow correlation between TCP connections and nodes. [#4291](https://github.com/gravitational/teleport/pull/4291)
 
-### 4.3.5
+## 4.3.5
 
 This release of Teleport contains a bug fix.
 
 * Fixed issue that caused Teleport Docker images to be built incorrectly. [#4201](https://github.com/gravitational/teleport/pull/4201)
 
-### 4.3.4
+## 4.3.4
 
 This release of Teleport contains multiple bug fixes.
 
@@ -24,7 +172,7 @@ This release of Teleport contains multiple bug fixes.
 * Fixed issue that prevented local user creation using Firestore. [#4160](https://github.com/gravitational/teleport/pull/4160)
 * Fixed issue that could cause `tsh` to panic when using a PEM file. [#4189](https://github.com/gravitational/teleport/pull/4189)
 
-### 4.3.2
+## 4.3.2
 
 This release of Teleport contains multiple bug fixes.
 
@@ -36,7 +184,7 @@ This release of Teleport contains multiple bug fixes.
 * Fixed an issue that would prevent playback of Kubernetes session [#4055](https://github.com/gravitational/teleport/issues/4055)
 * Fixed regressions in the UI. [#4013](https://github.com/gravitational/teleport/issues/4013) [#4012](https://github.com/gravitational/teleport/issues/4012)  [#4035](https://github.com/gravitational/teleport/issues/4035)  [#4051](https://github.com/gravitational/teleport/issues/4051)  [#4044](https://github.com/gravitational/teleport/issues/4044)
 
-### 4.3.0
+## 4.3.0
 
 This is a major Teleport release with a focus on new features, functionality, and bug fixes. It’s a substantial release and users can review [4.3 closed issues](https://github.com/gravitational/teleport/milestone/37?closed=1) on Github for details of all items. We would love your feedback - please pick a [time slot for a remote UX feedback session](https://calendly.com/benarent-gravitational/teleport-4-3-feedback-session?month=2020-06) if you’re interested.
 
@@ -128,6 +276,23 @@ The minimum set of Kubernetes permissions that need to be granted to Teleport pr
 The [etcd backend](https://gravitational.com/teleport/docs/admin-guide/#using-etcd) now correctly uses the “prefix” config value when storing data. Upgrading from 4.2 to 4.3 will migrate the data as needed at startup. Make sure you follow our Teleport [upgrade guidance](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport).
 
 **Note: If you use an etcd backend with a non-default prefix and need to downgrade from 4.3 to 4.2, you should [backup Teleport data and restore it](https://gravitational.com/teleport/docs/admin-guide/#backing-up-teleport) into the downgraded cluster.**
+
+## 4.2.12
+
+This release of Teleport contains a security fix.
+
+* Mitigated [CVE-2020-15216](https://nvd.nist.gov/vuln/detail/CVE-2020-15216) by updating github.com/russellhaering/goxmldsig.
+
+### Details
+A vulnerability was discovered in the `github.com/russellhaering/goxmldsig` library which is used by Teleport to validate the
+signatures of XML files used to configure SAML 2.0 connectors. With a carefully crafted XML file, an attacker can completely
+bypass XML signature validation and pass off an altered file as a signed one.
+
+### Actions
+The `goxmldsig` library has been updated upstream and Teleport 4.2.12 includes the fix. Any Enterprise SSO users using Okta,
+Active Directory, OneLogin or custom SAML connectors should upgrade their auth servers to version 4.2.12 and restart Teleport.
+
+If you are unable to upgrade immediately, we suggest deleting SAML connectors for all clusters until the updates can be applied.
 
 ## 4.2.11
 
@@ -243,6 +408,23 @@ This is a minor Teleport release with a focus on new features and bug fixes.
 
 * Adopting root/leaf terminology for trusted clusters. [Trusted cluster documentation](https://gravitational.com/teleport/docs/ver/4.2/trustedclusters/).
 * Documented Teleport FedRAMP & FIPS Support. [FedRAMP & FIPS documentation](https://gravitational.com/teleport/docs/ver/4.2/enterprise/ssh_fips/).
+
+## 4.1.11
+
+This release of Teleport contains a security fix.
+
+* Mitigated [CVE-2020-15216](https://nvd.nist.gov/vuln/detail/CVE-2020-15216) by updating github.com/russellhaering/goxmldsig.
+
+### Details
+A vulnerability was discovered in the `github.com/russellhaering/goxmldsig` library which is used by Teleport to validate the
+signatures of XML files used to configure SAML 2.0 connectors. With a carefully crafted XML file, an attacker can completely
+bypass XML signature validation and pass off an altered file as a signed one.
+
+### Actions
+The `goxmldsig` library has been updated upstream and Teleport 4.1.11 includes the fix. Any Enterprise SSO users using Okta,
+Active Directory, OneLogin or custom SAML connectors should upgrade their auth servers to version 4.1.11 and restart Teleport.
+
+If you are unable to upgrade immediately, we suggest deleting SAML connectors for all clusters until the updates can be applied.
 
 ## 4.1.10
 

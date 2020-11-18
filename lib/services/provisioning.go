@@ -79,6 +79,8 @@ type Provisioner interface {
 // ProvisionToken is a provisioning token
 type ProvisionToken interface {
 	Resource
+	// SetMetadata sets resource metatada
+	SetMetadata(meta Metadata)
 	// GetRoles returns a list of teleport roles
 	// that will be granted to the user of the token
 	// in the crendentials
@@ -180,6 +182,11 @@ func (p *ProvisionTokenV2) GetMetadata() Metadata {
 	return p.Metadata
 }
 
+// SetMetadata sets resource metatada
+func (p *ProvisionTokenV2) SetMetadata(meta Metadata) {
+	p.Metadata = meta
+}
+
 // V1 returns V1 version of the resource
 func (p *ProvisionTokenV2) V1() *ProvisionTokenV1 {
 	return &ProvisionTokenV1{
@@ -200,8 +207,8 @@ func (p *ProvisionTokenV2) SetExpiry(expires time.Time) {
 }
 
 // Expires returns object expiry setting
-func (s *ProvisionTokenV2) Expiry() time.Time {
-	return s.Metadata.Expiry()
+func (p *ProvisionTokenV2) Expiry() time.Time {
+	return p.Metadata.Expiry()
 }
 
 // SetTTL sets Expires header using realtime clock

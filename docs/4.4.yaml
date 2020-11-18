@@ -33,9 +33,9 @@ extra_javascript: []
 extra:
     version: 4.4
     teleport:
-        version: 4.4.0
+        version: 4.4.4
         golang: 1.14
-        sha: 58a7e800038098aba13ec876bced46c8ce43f3a7b505559db55d82dc72c26860
+        sha: a719ef4ad8265a946c682541641b6ceb434c9487575d80b03c3a624df700904b
         plugin:
             version: 0.2.0
         latest_oss_docker_image: quay.io/gravitational/teleport:4.4
@@ -77,7 +77,6 @@ nav:
         #    - Teleport Slack Plugin Setup: enterprise/workflow/ssh-approval-slack.md
         - FedRAMP for SSH & K8s: enterprise/ssh-kubernetes-fedramp.md
         - RBAC: enterprise/ssh-rbac.md
-
     - Architecture:
         - Architecture Overview: architecture/overview.md
         - Teleport Users: architecture/users.md

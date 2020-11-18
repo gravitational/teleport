@@ -17,14 +17,12 @@ limitations under the License.
 package service
 
 import (
-	"io/ioutil"
 	"path/filepath"
 	"testing"
 
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/assert"
 
 	"gopkg.in/check.v1"
 )
@@ -101,106 +99,47 @@ func (s *ConfigSuite) TestDefaultConfig(c *check.C) {
 	c.Assert(proxy.Limiter.MaxNumberOfUsers, check.Equals, defaults.LimiterMaxConcurrentUsers)
 }
 
-func TestKubeClusterNames(t *testing.T) {
-	t.Parallel()
-
-	kubeconfigFile, err := ioutil.TempFile("", "teleport")
-	assert.NoError(t, err)
-	kubeconfigPath := kubeconfigFile.Name()
-	_, err = kubeconfigFile.Write([]byte(`
-apiVersion: v1
-kind: Config
-preferences: {}
-clusters:
-- cluster:
-    server: https://localhost:1
-  name: kubeconfig-cluster-1
-- cluster:
-    server: https://localhost:2
-  name: kubeconfig-cluster-2
-contexts:
-- context:
-    cluster: kubeconfig-cluster-1
-    user: user
-  name: kubeconfig-cluster-1
-- context:
-    cluster: kubeconfig-cluster-2
-    user: user
-  name: kubeconfig-cluster-2
-current-context: "kubeconfig-cluster-1"
-users:
-- name: user
-  user:
-`))
-	assert.NoError(t, err)
-	assert.NoError(t, kubeconfigFile.Close())
-
+// TestAppName makes sure application names are valid subdomains.
+func (s *ConfigSuite) TestAppName(c *check.C) {
 	tests := []struct {
-		desc string
-		cfg  KubeProxyConfig
-		want []string
+		desc     check.CommentInterface
+		inName   string
+		outValid bool
 	}{
 		{
-			desc: "no ClusterName, Kubeconfig, not running in a pod",
-			cfg: KubeProxyConfig{
-				Enabled:      true,
-				runningInPod: func() bool { return false },
-			},
-			want: nil,
+			desc:     check.Commentf("valid subdomain"),
+			inName:   "foo",
+			outValid: true,
 		},
 		{
-			desc: "only ClusterName set",
-			cfg: KubeProxyConfig{
-				Enabled:      true,
-				ClusterName:  "foo",
-				runningInPod: func() bool { return false },
-			},
-			want: []string{"foo"},
+			desc:     check.Commentf("subdomain cannot start with a dash"),
+			inName:   "-foo",
+			outValid: false,
 		},
 		{
-			desc: "only Kubeconfig set",
-			cfg: KubeProxyConfig{
-				Enabled:        true,
-				KubeconfigPath: kubeconfigPath,
-				runningInPod:   func() bool { return false },
-			},
-			want: []string{"kubeconfig-cluster-1", "kubeconfig-cluster-2", "teleport-cluster-name"},
+			desc:     check.Commentf(`subdomain cannot contain the exclamation mark character "!"`),
+			inName:   "foo!bar",
+			outValid: false,
 		},
 		{
-			desc: "no ClusterName and Kubeconfig, running in a pod",
-			cfg: KubeProxyConfig{
-				Enabled:      true,
-				runningInPod: func() bool { return true },
-			},
-			want: []string{"teleport-cluster-name"},
+			desc:     check.Commentf("subdomain of length 63 characters is valid (maximum length)"),
+			inName:   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			outValid: true,
 		},
 		{
-			desc: "ClusterName, Kubeconfig set and running in a pod",
-			cfg: KubeProxyConfig{
-				Enabled:        true,
-				ClusterName:    "foo",
-				KubeconfigPath: kubeconfigPath,
-				runningInPod:   func() bool { return true },
-			},
-			want: []string{"foo", "kubeconfig-cluster-1", "kubeconfig-cluster-2", "teleport-cluster-name"},
-		},
-		{
-			desc: "Kubernetes support not enabled",
-			cfg: KubeProxyConfig{
-				Enabled:        false,
-				ClusterName:    "foo",
-				KubeconfigPath: kubeconfigPath,
-				runningInPod:   func() bool { return true },
-			},
-			want: nil,
+			desc:     check.Commentf("subdomain of length 64 characters is invalid"),
+			inName:   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			outValid: false,
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			got, err := tt.cfg.ClusterNames("teleport-cluster-name")
-			assert.NoError(t, err)
-			assert.EqualValues(t, tt.want, got)
-		})
+		a := App{
+			Name:       tt.inName,
+			URI:        "http://localhost:8080",
+			PublicAddr: "foo.example.com",
+		}
+		err := a.Check()
+		c.Assert(err == nil, check.Equals, tt.outValid, tt.desc)
 	}
 }

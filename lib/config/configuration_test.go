@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -36,16 +37,14 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/check.v1"
 )
 
-// bootstrap check
-func TestConfig(t *testing.T) { check.TestingT(t) }
-
-// register test suite
-type ConfigTestSuite struct {
+type testConfigFiles struct {
 	tempDir              string
 	configFile           string // good
 	configFileNoContent  string // empty file
@@ -53,45 +52,68 @@ type ConfigTestSuite struct {
 	configFileStatic     string // file from a static YAML fixture
 }
 
-var _ = check.Suite(&ConfigTestSuite{})
-var _ = fmt.Printf
+var testConfigs testConfigFiles
 
-func (s *ConfigTestSuite) SetUpSuite(c *check.C) {
+func writeTestConfigs() error {
 	var err error
 
-	s.tempDir, err = ioutil.TempDir("", "teleport-config")
+	testConfigs.tempDir, err = ioutil.TempDir("", "teleport-config")
 	if err != nil {
-		c.FailNow()
+		return err
 	}
 	// create a good config file fixture
-	s.configFile = filepath.Join(s.tempDir, "good-config.yaml")
-	if err = ioutil.WriteFile(s.configFile, []byte(makeConfigFixture()), 0660); err != nil {
-		c.FailNow()
+	testConfigs.configFile = filepath.Join(testConfigs.tempDir, "good-config.yaml")
+	if err = ioutil.WriteFile(testConfigs.configFile, []byte(makeConfigFixture()), 0660); err != nil {
+		return err
 	}
 	// create a static config file fixture
-	s.configFileStatic = filepath.Join(s.tempDir, "static-config.yaml")
-	if err = ioutil.WriteFile(s.configFileStatic, []byte(StaticConfigString), 0660); err != nil {
-		c.FailNow()
+	testConfigs.configFileStatic = filepath.Join(testConfigs.tempDir, "static-config.yaml")
+	if err = ioutil.WriteFile(testConfigs.configFileStatic, []byte(StaticConfigString), 0660); err != nil {
+		return err
 	}
 	// create an empty config file
-	s.configFileNoContent = filepath.Join(s.tempDir, "empty-config.yaml")
-	if err = ioutil.WriteFile(s.configFileNoContent, []byte(""), 0660); err != nil {
-		c.FailNow()
+	testConfigs.configFileNoContent = filepath.Join(testConfigs.tempDir, "empty-config.yaml")
+	if err = ioutil.WriteFile(testConfigs.configFileNoContent, []byte(""), 0660); err != nil {
+		return err
 	}
 	// create a bad config file fixture
-	s.configFileBadContent = filepath.Join(s.tempDir, "bad-config.yaml")
-	if err = ioutil.WriteFile(s.configFileBadContent, []byte("bad-data!"), 0660); err != nil {
-		c.FailNow()
+	testConfigs.configFileBadContent = filepath.Join(testConfigs.tempDir, "bad-config.yaml")
+	if err = ioutil.WriteFile(testConfigs.configFileBadContent, []byte("bad-data!"), 0660); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (tc testConfigFiles) cleanup() {
+	if tc.tempDir != "" {
+		os.RemoveAll(tc.tempDir)
 	}
 }
 
-func (s *ConfigTestSuite) TearDownSuite(c *check.C) {
-	os.RemoveAll(s.tempDir)
+func TestMain(m *testing.M) {
+	if err := writeTestConfigs(); err != nil {
+		testConfigs.cleanup()
+		fmt.Println("failed writing test configs:", err)
+		os.Exit(1)
+	}
+	res := m.Run()
+	testConfigs.cleanup()
+	os.Exit(res)
 }
 
-func (s *ConfigTestSuite) TearDownTest(c *check.C) {
-	utils.InitLoggerForTests()
+// bootstrap check
+func TestConfig(t *testing.T) { check.TestingT(t) }
 
+// register test suite
+type ConfigTestSuite struct {
+	testConfigFiles
+}
+
+var _ = check.Suite(&ConfigTestSuite{})
+
+func (s *ConfigTestSuite) SetUpSuite(c *check.C) {
+	s.testConfigFiles = testConfigs
 }
 
 func (s *ConfigTestSuite) SetUpTest(c *check.C) {
@@ -174,75 +196,139 @@ auth_service:
 	}
 }
 
-func (s *ConfigTestSuite) TestConfigReading(c *check.C) {
+func TestConfigReading(t *testing.T) {
 	// non-existing file:
 	conf, err := ReadFromFile("/heaven/trees/apple.ymL")
-	c.Assert(conf, check.IsNil)
-	c.Assert(err, check.NotNil)
-	c.Assert(err, check.ErrorMatches, ".*failed to open file.*")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "failed to open file")
+	require.Nil(t, conf)
 	// bad content:
-	_, err = ReadFromFile(s.configFileBadContent)
-	c.Assert(err, check.NotNil)
-	// mpty config (must not fail)
-	conf, err = ReadFromFile(s.configFileNoContent)
-	c.Assert(err, check.IsNil)
-	c.Assert(conf, check.NotNil)
+	_, err = ReadFromFile(testConfigs.configFileBadContent)
+	require.Error(t, err)
+	// empty config (must not fail)
+	conf, err = ReadFromFile(testConfigs.configFileNoContent)
+	require.NoError(t, err)
+	require.NotNil(t, conf)
+	require.True(t, conf.Auth.Enabled())
+	require.True(t, conf.Proxy.Enabled())
+	require.True(t, conf.SSH.Enabled())
+	require.False(t, conf.Kube.Enabled())
 
 	// static config
-	conf, err = ReadFromFile(s.configFile)
-	c.Assert(err, check.IsNil)
-	c.Assert(conf, check.NotNil)
-	c.Assert(conf.NodeName, check.Equals, NodeName)
-	c.Assert(conf.AuthServers, check.DeepEquals, []string{"auth0.server.example.org:3024", "auth1.server.example.org:3024"})
-	c.Assert(conf.Limits.MaxConnections, check.Equals, int64(100))
-	c.Assert(conf.Limits.MaxUsers, check.Equals, 5)
-	c.Assert(conf.Limits.Rates, check.DeepEquals, ConnectionRates)
-	c.Assert(conf.Logger.Output, check.Equals, "stderr")
-	c.Assert(conf.Logger.Severity, check.Equals, "INFO")
-	c.Assert(conf.Storage.Type, check.Equals, "bolt")
-	c.Assert(conf.DataDir, check.Equals, "/path/to/data")
-	c.Assert(conf.Auth.Enabled(), check.Equals, true)
-	c.Assert(conf.Auth.ListenAddress, check.Equals, "tcp://auth")
-	c.Assert(conf.Auth.LicenseFile, check.Equals, "lic.pem")
-	c.Assert(conf.Auth.DisconnectExpiredCert.Value(), check.Equals, true)
-	c.Assert(conf.Auth.ClientIdleTimeout.Value(), check.Equals, 17*time.Second)
-	c.Assert(conf.SSH.Configured(), check.Equals, true)
-	c.Assert(conf.SSH.Enabled(), check.Equals, true)
-	c.Assert(conf.SSH.ListenAddress, check.Equals, "tcp://ssh")
-	c.Assert(conf.SSH.Labels, check.DeepEquals, Labels)
-	c.Assert(conf.SSH.Commands, check.DeepEquals, CommandLabels)
-	c.Assert(conf.Proxy.Configured(), check.Equals, true)
-	c.Assert(conf.Proxy.Enabled(), check.Equals, true)
-	c.Assert(conf.Proxy.KeyFile, check.Equals, "/etc/teleport/proxy.key")
-	c.Assert(conf.Proxy.CertFile, check.Equals, "/etc/teleport/proxy.crt")
-	c.Assert(conf.Proxy.ListenAddress, check.Equals, "tcp://proxy_ssh_addr")
-	c.Assert(conf.Proxy.WebAddr, check.Equals, "tcp://web_addr")
-	c.Assert(conf.Proxy.TunAddr, check.Equals, "reverse_tunnel_address:3311")
+	conf, err = ReadFromFile(testConfigs.configFile)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(conf, &FileConfig{
+		Global: Global{
+			NodeName:    NodeName,
+			AuthServers: []string{"auth0.server.example.org:3024", "auth1.server.example.org:3024"},
+			Limits: ConnectionLimits{
+				MaxConnections: 100,
+				MaxUsers:       5,
+				Rates:          ConnectionRates,
+			},
+			Logger: Log{
+				Output:   "stderr",
+				Severity: "INFO",
+			},
+			Storage: backend.Config{
+				Type: "bolt",
+			},
+			DataDir: "/path/to/data",
+		},
+		Auth: Auth{
+			Service: Service{
+				defaultEnabled: true,
+				EnabledFlag:    "Yeah",
+				ListenAddress:  "tcp://auth",
+			},
+			LicenseFile:           "lic.pem",
+			DisconnectExpiredCert: services.Bool(true),
+			ClientIdleTimeout:     services.Duration(17 * time.Second),
+		},
+		SSH: SSH{
+			Service: Service{
+				defaultEnabled: true,
+				EnabledFlag:    "true",
+				ListenAddress:  "tcp://ssh",
+			},
+			Labels:   Labels,
+			Commands: CommandLabels,
+		},
+		Proxy: Proxy{
+			Service: Service{
+				defaultEnabled: true,
+				EnabledFlag:    "yes",
+				ListenAddress:  "tcp://proxy_ssh_addr",
+			},
+			KeyFile:  "/etc/teleport/proxy.key",
+			CertFile: "/etc/teleport/proxy.crt",
+			KeyPairs: []KeyPair{
+				KeyPair{
+					PrivateKey:  "/etc/teleport/proxy.key",
+					Certificate: "/etc/teleport/proxy.crt",
+				},
+			},
+			WebAddr: "tcp://web_addr",
+			TunAddr: "reverse_tunnel_address:3311",
+		},
+		Kube: Kube{
+			Service: Service{
+				EnabledFlag:   "yes",
+				ListenAddress: "tcp://kube",
+			},
+			KubeClusterName: "kube-cluster",
+			PublicAddr:      utils.Strings([]string{"kube-host:1234"}),
+		},
+		Apps: Apps{
+			Service: Service{
+				EnabledFlag: "yes",
+			},
+			Apps: []*App{
+				&App{
+					Name:          "foo",
+					URI:           "http://127.0.0.1:8080",
+					PublicAddr:    "foo.example.com",
+					StaticLabels:  Labels,
+					DynamicLabels: CommandLabels,
+				},
+			},
+		},
+	}, cmp.AllowUnexported(Service{})))
+	require.True(t, conf.Auth.Configured())
+	require.True(t, conf.Auth.Enabled())
+	require.True(t, conf.Proxy.Configured())
+	require.True(t, conf.Proxy.Enabled())
+	require.True(t, conf.SSH.Configured())
+	require.True(t, conf.SSH.Enabled())
+	require.True(t, conf.Kube.Configured())
+	require.True(t, conf.Kube.Enabled())
+	require.True(t, conf.Apps.Configured())
+	require.True(t, conf.Apps.Enabled())
 
 	// good config from file
-	conf, err = ReadFromFile(s.configFileStatic)
-	c.Assert(err, check.IsNil)
-	c.Assert(conf, check.NotNil)
-	checkStaticConfig(c, conf)
+	conf, err = ReadFromFile(testConfigs.configFileStatic)
+	require.NoError(t, err)
+	require.NotNil(t, conf)
+	checkStaticConfig(t, conf)
 
 	// good config from base64 encoded string
 	conf, err = ReadFromString(base64.StdEncoding.EncodeToString([]byte(StaticConfigString)))
-	c.Assert(err, check.IsNil)
-	c.Assert(conf, check.NotNil)
-	checkStaticConfig(c, conf)
+	require.NoError(t, err)
+	require.NotNil(t, conf)
+	checkStaticConfig(t, conf)
 }
 
 func (s *ConfigTestSuite) TestLabelParsing(c *check.C) {
 	var conf service.SSHConfig
 	var err error
 	// empty spec. no errors, no labels
-	err = parseLabels("", &conf)
+	err = parseLabelsApply("", &conf)
 	c.Assert(err, check.IsNil)
 	c.Assert(conf.CmdLabels, check.IsNil)
 	c.Assert(conf.Labels, check.IsNil)
 
 	// simple static labels
-	err = parseLabels(`key=value,more="much better"`, &conf)
+	err = parseLabelsApply(`key=value,more="much better"`, &conf)
 	c.Assert(err, check.IsNil)
 	c.Assert(conf.CmdLabels, check.NotNil)
 	c.Assert(conf.CmdLabels, check.HasLen, 0)
@@ -252,7 +338,7 @@ func (s *ConfigTestSuite) TestLabelParsing(c *check.C) {
 	})
 
 	// static labels + command labels
-	err = parseLabels(`key=value,more="much better",arch=[5m2s:/bin/uname -m "p1 p2"]`, &conf)
+	err = parseLabelsApply(`key=value,more="much better",arch=[5m2s:/bin/uname -m "p1 p2"]`, &conf)
 	c.Assert(err, check.IsNil)
 	c.Assert(conf.Labels, check.DeepEquals, map[string]string{
 		"key":  "value",
@@ -435,6 +521,7 @@ func (s *ConfigTestSuite) TestApplyConfigNoneEnabled(c *check.C) {
 	c.Assert(cfg.Proxy.PublicAddrs, check.HasLen, 0)
 	c.Assert(cfg.SSH.Enabled, check.Equals, false)
 	c.Assert(cfg.SSH.PublicAddrs, check.HasLen, 0)
+	c.Assert(cfg.Apps.Enabled, check.Equals, false)
 }
 
 func (s *ConfigTestSuite) TestBackendDefaults(c *check.C) {
@@ -549,65 +636,99 @@ func (s *ConfigTestSuite) TestParseCachePolicy(c *check.C) {
 	}
 }
 
-func checkStaticConfig(c *check.C, conf *FileConfig) {
-	c.Assert(conf.AuthToken, check.Equals, "xxxyyy")
-	c.Assert(conf.SSH.Enabled(), check.Equals, false)      // YAML treats 'no' as False
-	c.Assert(conf.Proxy.Configured(), check.Equals, false) // Missing "proxy_service" section must lead to 'not configured'
-	c.Assert(conf.Proxy.Enabled(), check.Equals, true)     // Missing "proxy_service" section must lead to 'true'
-	c.Assert(conf.Proxy.Disabled(), check.Equals, false)   // Missing "proxy_service" does NOT mean it's been disabled
-	c.Assert(conf.AdvertiseIP, check.Equals, "10.10.10.1:3022")
-	c.Assert(conf.PIDFile, check.Equals, "/var/run/teleport.pid")
+func checkStaticConfig(t *testing.T, conf *FileConfig) {
+	require.Equal(t, conf.AuthToken, "xxxyyy")
+	require.Equal(t, conf.AdvertiseIP, "10.10.10.1:3022")
+	require.Equal(t, conf.PIDFile, "/var/run/teleport.pid")
 
-	c.Assert(conf.Limits.MaxConnections, check.Equals, int64(90))
-	c.Assert(conf.Limits.MaxUsers, check.Equals, 91)
-	c.Assert(conf.Limits.Rates, check.HasLen, 2)
-	c.Assert(conf.Limits.Rates[0].Average, check.Equals, int64(70))
-	c.Assert(conf.Limits.Rates[0].Burst, check.Equals, int64(71))
-	c.Assert(conf.Limits.Rates[0].Period.String(), check.Equals, "1m1s")
-	c.Assert(conf.Limits.Rates[1].Average, check.Equals, int64(170))
-	c.Assert(conf.Limits.Rates[1].Burst, check.Equals, int64(171))
-	c.Assert(conf.Limits.Rates[1].Period.String(), check.Equals, "10m10s")
-
-	c.Assert(conf.SSH.Disabled(), check.Equals, true) // "ssh_service" has been explicitly set to "no"
-	c.Assert(conf.SSH.Commands, check.HasLen, 2)
-	c.Assert(conf.SSH.Commands[0].Name, check.Equals, "hostname")
-	c.Assert(conf.SSH.Commands[0].Command, check.DeepEquals, []string{"/bin/hostname"})
-	c.Assert(conf.SSH.Commands[0].Period.Nanoseconds(), check.Equals, int64(10000000))
-	c.Assert(conf.SSH.Commands[1].Name, check.Equals, "date")
-	c.Assert(conf.SSH.Commands[1].Command, check.DeepEquals, []string{"/bin/date"})
-	c.Assert(conf.SSH.Commands[1].Period.Nanoseconds(), check.Equals, int64(20000000))
-	c.Assert(conf.SSH.PublicAddr, check.DeepEquals, utils.Strings{
-		"luna3:22",
-	})
-
-	c.Assert(conf.Auth.Authorities[0].Type, check.Equals, services.HostCA)
-	c.Assert(conf.Auth.Authorities[0].DomainName, check.Equals, "example.com")
-	c.Assert(conf.Auth.Authorities[0].CheckingKeys[0], check.Equals, "checking key 1")
-	c.Assert(conf.Auth.Authorities[0].CheckingKeyFiles[0], check.Equals, "/ca.checking.key")
-	c.Assert(conf.Auth.Authorities[0].SigningKeys[0], check.Equals, "signing key 1")
-	c.Assert(conf.Auth.Authorities[0].SigningKeyFiles[0], check.Equals, "/ca.signing.key")
-	c.Assert(conf.Auth.ReverseTunnels, check.DeepEquals, []ReverseTunnel{
-		{
-			DomainName: "tunnel.example.com",
-			Addresses:  []string{"com-1", "com-2"},
+	require.Empty(t, cmp.Diff(conf.Limits, ConnectionLimits{
+		MaxConnections: 90,
+		MaxUsers:       91,
+		Rates: []ConnectionRate{
+			{Average: 70, Burst: 71, Period: time.Minute + time.Second},
+			{Average: 170, Burst: 171, Period: 10*time.Minute + 10*time.Second},
 		},
-		{
-			DomainName: "tunnel.example.org",
-			Addresses:  []string{"org-1"},
-		},
-	})
-	c.Assert(conf.Auth.StaticTokens, check.DeepEquals,
-		StaticTokens{"proxy,node:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx", "auth:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
+	}))
 
-	c.Assert(conf.Auth.PublicAddr, check.DeepEquals, utils.Strings{
-		"auth.default.svc.cluster.local:3080",
-	})
+	// proxy_service section is missing.
+	require.False(t, conf.Proxy.Configured())
+	require.True(t, conf.Proxy.Enabled())
+	require.False(t, conf.Proxy.Disabled()) // Missing "proxy_service" does NOT mean it's been disabled
+	require.Empty(t, cmp.Diff(conf.Proxy, Proxy{
+		Service: Service{defaultEnabled: true},
+	}, cmp.AllowUnexported(Service{})))
+
+	// kubernetes_service section is missing.
+	require.False(t, conf.Kube.Configured())
+	require.False(t, conf.Kube.Enabled())
+	require.True(t, conf.Kube.Disabled())
+	require.Empty(t, cmp.Diff(conf.Kube, Kube{
+		Service: Service{defaultEnabled: false},
+	}, cmp.AllowUnexported(Service{})))
+
+	require.True(t, conf.SSH.Configured()) // "ssh_service" has been explicitly set to "no"
+	require.False(t, conf.SSH.Enabled())
+	require.True(t, conf.SSH.Disabled())
+	require.Empty(t, cmp.Diff(conf.SSH, SSH{
+		Service: Service{
+			defaultEnabled: true,
+			EnabledFlag:    "no",
+			ListenAddress:  "ssh:3025",
+		},
+		Labels: map[string]string{
+			"name": "mongoserver",
+			"role": "follower",
+		},
+		Commands: []CommandLabel{
+			{Name: "hostname", Command: []string{"/bin/hostname"}, Period: 10 * time.Millisecond},
+			{Name: "date", Command: []string{"/bin/date"}, Period: 20 * time.Millisecond},
+		},
+		PublicAddr: utils.Strings{"luna3:22"},
+	}, cmp.AllowUnexported(Service{})))
+
+	require.True(t, conf.Auth.Configured())
+	require.True(t, conf.Auth.Enabled())
+	require.False(t, conf.Auth.Disabled())
+	require.Empty(t, cmp.Diff(conf.Auth, Auth{
+		Service: Service{
+			defaultEnabled: true,
+			EnabledFlag:    "yes",
+			ListenAddress:  "auth:3025",
+		},
+		Authorities: []Authority{{
+			Type:             services.HostCA,
+			DomainName:       "example.com",
+			CheckingKeys:     []string{"checking key 1"},
+			CheckingKeyFiles: []string{"/ca.checking.key"},
+			SigningKeys:      []string{"signing key 1"},
+			SigningKeyFiles:  []string{"/ca.signing.key"},
+		}},
+		ReverseTunnels: []ReverseTunnel{
+			{
+				DomainName: "tunnel.example.com",
+				Addresses:  []string{"com-1", "com-2"},
+			},
+			{
+				DomainName: "tunnel.example.org",
+				Addresses:  []string{"org-1"},
+			},
+		},
+		StaticTokens: StaticTokens{
+			"proxy,node:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+			"auth:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		},
+		PublicAddr: utils.Strings{
+			"auth.default.svc.cluster.local:3080",
+		},
+		ClientIdleTimeout:     services.Duration(17 * time.Second),
+		DisconnectExpiredCert: true,
+	}, cmp.AllowUnexported(Service{})))
 
 	policy, err := conf.CachePolicy.Parse()
-	c.Assert(err, check.IsNil)
-	c.Assert(policy.Enabled, check.Equals, true)
-	c.Assert(policy.NeverExpires, check.Equals, false)
-	c.Assert(policy.TTL, check.Equals, 20*time.Hour)
+	require.NoError(t, err)
+	require.True(t, policy.Enabled)
+	require.False(t, policy.NeverExpires)
+	require.Equal(t, policy.TTL, 20*time.Hour)
 }
 
 var (
@@ -676,9 +797,37 @@ func makeConfigFixture() string {
 	conf.Proxy.ListenAddress = "tcp://proxy"
 	conf.Proxy.KeyFile = "/etc/teleport/proxy.key"
 	conf.Proxy.CertFile = "/etc/teleport/proxy.crt"
+	conf.Proxy.KeyPairs = []KeyPair{
+		KeyPair{
+			PrivateKey:  "/etc/teleport/proxy.key",
+			Certificate: "/etc/teleport/proxy.crt",
+		},
+	}
 	conf.Proxy.ListenAddress = "tcp://proxy_ssh_addr"
 	conf.Proxy.WebAddr = "tcp://web_addr"
 	conf.Proxy.TunAddr = "reverse_tunnel_address:3311"
+
+	// kubernetes service:
+	conf.Kube = Kube{
+		Service: Service{
+			EnabledFlag:   "yes",
+			ListenAddress: "tcp://kube",
+		},
+		KubeClusterName: "kube-cluster",
+		PublicAddr:      utils.Strings([]string{"kube-host:1234"}),
+	}
+
+	// Application service.
+	conf.Apps.EnabledFlag = "yes"
+	conf.Apps.Apps = []*App{
+		&App{
+			Name:          "foo",
+			URI:           "http://127.0.0.1:8080",
+			PublicAddr:    "foo.example.com",
+			StaticLabels:  Labels,
+			DynamicLabels: CommandLabels,
+		},
+	}
 
 	return conf.DebugDumpToYAML()
 }
@@ -768,11 +917,10 @@ func (s *ConfigTestSuite) TestLicenseFile(c *check.C) {
 		filepath.Join(defaults.DataDir, defaults.LicenseFile))
 
 	for _, tc := range testCases {
-		err := ApplyFileConfig(&FileConfig{
-			Auth: Auth{
-				LicenseFile: tc.path,
-			},
-		}, cfg)
+		fc := new(FileConfig)
+		c.Assert(fc.CheckAndSetDefaults(), check.IsNil)
+		fc.Auth.LicenseFile = tc.path
+		err := ApplyFileConfig(fc, cfg)
 		c.Assert(err, check.IsNil)
 		c.Assert(cfg.Auth.LicenseFile, check.Equals, tc.result)
 	}
@@ -826,5 +974,207 @@ func (s *ConfigTestSuite) TestFIPS(c *check.C) {
 		} else {
 			c.Assert(err, check.IsNil, comment)
 		}
+	}
+}
+
+func TestProxyKube(t *testing.T) {
+	tests := []struct {
+		desc     string
+		cfg      Proxy
+		want     service.KubeProxyConfig
+		checkErr require.ErrorAssertionFunc
+	}{
+		{
+			desc:     "not configured",
+			cfg:      Proxy{},
+			want:     service.KubeProxyConfig{},
+			checkErr: require.NoError,
+		},
+		{
+			desc: "legacy format, no local cluster",
+			cfg: Proxy{Kube: KubeProxy{
+				Service: Service{EnabledFlag: "yes", ListenAddress: "0.0.0.0:8080"},
+			}},
+			want: service.KubeProxyConfig{
+				Enabled:    true,
+				ListenAddr: *utils.MustParseAddr("0.0.0.0:8080"),
+			},
+			checkErr: require.NoError,
+		},
+		{
+			desc: "legacy format, with local cluster",
+			cfg: Proxy{Kube: KubeProxy{
+				Service:        Service{EnabledFlag: "yes", ListenAddress: "0.0.0.0:8080"},
+				KubeconfigFile: "/tmp/kubeconfig",
+				PublicAddr:     utils.Strings([]string{"kube.example.com:443"}),
+			}},
+			want: service.KubeProxyConfig{
+				Enabled:        true,
+				ListenAddr:     *utils.MustParseAddr("0.0.0.0:8080"),
+				KubeconfigPath: "/tmp/kubeconfig",
+				PublicAddrs:    []utils.NetAddr{*utils.MustParseAddr("kube.example.com:443")},
+			},
+			checkErr: require.NoError,
+		},
+		{
+			desc: "new format",
+			cfg:  Proxy{KubeAddr: "0.0.0.0:8080"},
+			want: service.KubeProxyConfig{
+				Enabled:    true,
+				ListenAddr: *utils.MustParseAddr("0.0.0.0:8080"),
+			},
+			checkErr: require.NoError,
+		},
+		{
+			desc: "new and old formats",
+			cfg: Proxy{
+				KubeAddr: "0.0.0.0:8080",
+				Kube: KubeProxy{
+					Service: Service{EnabledFlag: "yes", ListenAddress: "0.0.0.0:8080"},
+				},
+			},
+			checkErr: require.Error,
+		},
+		{
+			desc: "new format and old explicitly disabled",
+			cfg: Proxy{
+				KubeAddr: "0.0.0.0:8080",
+				Kube: KubeProxy{
+					Service:        Service{EnabledFlag: "no", ListenAddress: "0.0.0.0:8080"},
+					KubeconfigFile: "/tmp/kubeconfig",
+					PublicAddr:     utils.Strings([]string{"kube.example.com:443"}),
+				},
+			},
+			want: service.KubeProxyConfig{
+				Enabled:    true,
+				ListenAddr: *utils.MustParseAddr("0.0.0.0:8080"),
+			},
+			checkErr: require.NoError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			fc := &FileConfig{Proxy: tt.cfg}
+			cfg := &service.Config{}
+			err := applyProxyConfig(fc, cfg)
+			tt.checkErr(t, err)
+			require.Empty(t, cmp.Diff(cfg.Proxy.Kube, tt.want))
+		})
+	}
+}
+
+func (s *ConfigTestSuite) TestApps(c *check.C) {
+	tests := []struct {
+		inConfigString string
+		inComment      check.CommentInterface
+		outError       bool
+	}{
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    -
+      name: foo
+      public_addr: "foo.example.com"
+      uri: "http://127.0.0.1:8080"
+`,
+			inComment: check.Commentf("config is valid"),
+			outError:  false,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    -
+      public_addr: "foo.example.com"
+      uri: "http://127.0.0.1:8080"
+`,
+			inComment: check.Commentf("config is missing name"),
+			outError:  true,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    -
+      name: foo
+      uri: "http://127.0.0.1:8080"
+`,
+			inComment: check.Commentf("config is valid"),
+			outError:  false,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    -
+      name: foo
+      public_addr: "foo.example.com"
+`,
+			inComment: check.Commentf("config is missing internal address"),
+			outError:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		clf := CommandLineFlags{
+			ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
+		}
+		cfg := service.MakeDefaultConfig()
+
+		err := Configure(&clf, cfg)
+		c.Assert(err != nil, check.Equals, tt.outError, tt.inComment)
+	}
+}
+
+// TestAppsCLF checks that validation runs on application configuration passed
+// in on the command line.
+func (s *ConfigTestSuite) TestAppsCLF(c *check.C) {
+	tests := []struct {
+		desc      check.CommentInterface
+		inAppName string
+		inAppURI  string
+		outError  error
+	}{
+		{
+			desc:      check.Commentf("valid name and uri"),
+			inAppName: "foo",
+			inAppURI:  "http://localhost:8080",
+			outError:  nil,
+		},
+		{
+			desc:      check.Commentf("invalid name"),
+			inAppName: "-foo",
+			inAppURI:  "http://localhost:8080",
+			outError:  trace.BadParameter(""),
+		},
+		{
+			desc:      check.Commentf("missing uri"),
+			inAppName: "foo",
+			outError:  trace.BadParameter(""),
+		},
+	}
+
+	for _, tt := range tests {
+		clf := CommandLineFlags{
+			AppName: tt.inAppName,
+			AppURI:  tt.inAppURI,
+		}
+		cfg := service.MakeDefaultConfig()
+		err := Configure(&clf, cfg)
+		if err != nil {
+			c.Assert(err, check.FitsTypeOf, tt.outError)
+		} else {
+			c.Assert(err, check.IsNil)
+		}
+		if tt.outError != nil {
+			continue
+		}
+		c.Assert(cfg.Apps.Enabled, check.Equals, true)
+		c.Assert(cfg.Apps.Apps, check.HasLen, 1)
 	}
 }

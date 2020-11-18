@@ -52,16 +52,6 @@ When declaring access rules, keep in mind the following:
 * Everything is denied by default.
 * Deny rules get evaluated first and take priority.
 
-A rule consists of two parts: the resources and verbs. Here's an example of an
-`allow` rule describing a `list` verb applied to the SSH `sessions` resource.  It means "allow
-users of this role to see a list of active SSH sessions".
-
-```yaml
-allow:
-    - resources: [session]
-      verbs: [list]
-```
-
 If this rule was declared in `deny` section of a role definition, it effectively
 prohibits users from getting a list of trusted clusters and sessions. You can see
 all of the available resources and verbs under the `allow` section in the `admin` role configuration
@@ -92,14 +82,22 @@ spec:
     forward_agent: true
     # port_forwarding controls whether TCP port forwarding is allowed
     port_forwarding: true
-    # determines if SSH sessions to cluster nodes are forcefully terminated
-    # after no activity from a client (idle client). it overrides the global
-    # cluster setting. examples: "30m", "1h" or "1h30m"
+    # client_idle_timeout determines if SSH sessions to cluster nodes are forcefully
+    # terminated after no activity from a client (idle client). it overrides the
+    # global cluster setting. examples: "30m", "1h" or "1h30m"
     client_idle_timeout: never
     # determines if the clients will be forcefully disconnected when their
     # certificates expire in the middle of an active SSH session.
     # it overrides the global cluster setting.
     disconnect_expired_cert: no
+    # Optional: max_connections Per user limit of concurrent sessions within a
+    # cluster.
+    max_connections: 2
+    # Optional: max_sessions total number of session channels which can be established
+    # across a single connection. 10 will match OpenSSH default behavior.
+    max_sessions: 10
+    # permit_x11_forwarding allows users to use X11 forwarding with openssh clients and servers through the proxy
+    permit_x11_forwarding: true
 
   # allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. by default nothing is allowed.
@@ -123,11 +121,7 @@ spec:
       'environment': ['test', 'staging']
       # regular expressions are also supported, for example the equivalent
       # of the list example above can be expressed as:
-      'environment': '{{regexp.match("^test|staging$")}}'
-      # or using the simpler legacy syntax:
       'environment': '^test|staging$'
-      # negative regular expressions can be used to avoid strict deny rules:
-      'environment': '{{regexp.not_match("prod")}}'
 
     # defines roles that this user can can request.
     # needed for teleport's request workflow
@@ -195,6 +189,8 @@ Option                    | Description                          | Multi-role be
 `port_forwarding`         | Allow TCP port forwarding          | Logical "OR" i.e. if any role allows port forwarding, it's allowed
 `client_idle_timeout`     | Forcefully terminate active SSH sessions after an idle interval | The shortest timeout value wins, i.e. the most restrictive value is selected
 `disconnect_expired_cert` | Forcefully terminate active SSH sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination
+`max_connections`         | Limit on how many active SSH sessions can be started via Teleport
+`max_sessions`            | Total number of session channels which can be established across a single SSH connection via Teleport
 
 
 ## RBAC for Hosts
@@ -261,33 +257,37 @@ spec:
       'environment': ['test', 'staging']
       # regular expressions are also supported, for example the equivalent
       # of the list example above can be expressed as:
-      'environment': '{{regexp.match("^test|staging$")}}'
-      # or using the simpler legacy syntax:
       'environment': '^test|staging$'
-      # negative regular expressions can be used to avoid strict deny rules:
-      'environment': '{{regexp.not_match("prod")}}'
 ```
 
-
-## RBAC for Sessions
-
-As shown in the role example above, a Teleport administrator can restrict
-access to user sessions using the following rule:
 
 ```yaml
-rules:
-  - resources: [session]
-    verbs: [list, read]
+  allow:
+    rules:
+    # Role: CRUD options for managing Teleport Roles
+    - resources:
+      - role
+      verbs: [list, create, read, update, delete]
+    # Auth Connectors: CRUD options for managing SSO connectors
+    - resources:
+      - auth_connector
+      verbs:  [list, create, read, update, delete]
+    # Session: Provides access to Session Recordings.
+    # e.g If session read is false, users can't play the recordings
+    # It is possible to restrict "list" but to allow "read" (in this case a user will
+    # be able to replay a session using `tsh play` if they know the session ID)
+    - resources:
+      - session
+      verbs:  [list,read]
+    # Trusted Clusters:  CRUD options for managing Trusted Clusters
+    - resources:
+      - trusted_cluster
+      verbs: [list, create, read, update, delete]
+    # Events: Can view the audit log and session recordings.
+    - resources:
+      - event
+      verbs:  [list, read]
 ```
-
-* "list" determines if a user is allowed to see the list of past sessions.
-* "read" determines if a user is allowed to replay a session.
-
-It is possible to restrict "list" but to allow "read" (in this case a user will
-be able to replay a session using `tsh play` if they know the session ID)
-
-
-
 ## FAQ
 
 **Q:** What if a node has multiple labels?

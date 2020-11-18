@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// TODO(awly): combine Expression and Matcher. It should be possible to write:
+// `{{regexp.match(email.local(external.trait_name))}}`
 package parse
 
 import (
@@ -138,7 +140,7 @@ func NewExpression(variable string) (*Expression, error) {
 	}
 
 	// walk the ast tree and gather the variable parts
-	result, err := walk(expr)
+	result, err := walk(expr, 0)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -200,7 +202,7 @@ func NewMatcher(value string) (m Matcher, err error) {
 	}
 
 	// walk the ast tree and gather the variable parts
-	result, err := walk(expr)
+	result, err := walk(expr, 0)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -287,6 +289,10 @@ type transformer interface {
 	transform(in string) (string, error)
 }
 
+// maxASTDepth is the maximum depth of the AST that func walk will traverse.
+// The limit exists to protect against DoS via malicious inputs.
+const maxASTDepth = 1000
+
 type walkResult struct {
 	parts     []string
 	transform transformer
@@ -294,7 +300,11 @@ type walkResult struct {
 }
 
 // walk will walk the ast tree and gather all the variable parts into a slice and return it.
-func walk(node ast.Node) (*walkResult, error) {
+func walk(node ast.Node, depth int) (*walkResult, error) {
+	if depth > maxASTDepth {
+		return nil, trace.LimitExceeded("expression exceeds the maximum allowed depth")
+	}
+
 	var result walkResult
 
 	switch n := node.(type) {
@@ -322,7 +332,7 @@ func walk(node ast.Node) (*walkResult, error) {
 					return nil, trace.BadParameter("expected 1 argument for %v.%v got %v", namespace, fn, len(n.Args))
 				}
 				result.transform = emailLocalTransformer{}
-				ret, err := walk(n.Args[0])
+				ret, err := walk(n.Args[0], depth+1)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
@@ -365,25 +375,25 @@ func walk(node ast.Node) (*walkResult, error) {
 			return nil, trace.BadParameter("unsupported function %T", n.Fun)
 		}
 	case *ast.IndexExpr:
-		ret, err := walk(n.X)
+		ret, err := walk(n.X, depth+1)
 		if err != nil {
 			return nil, err
 		}
 		result.parts = append(result.parts, ret.parts...)
-		ret, err = walk(n.Index)
+		ret, err = walk(n.Index, depth+1)
 		if err != nil {
 			return nil, err
 		}
 		result.parts = append(result.parts, ret.parts...)
 		return &result, nil
 	case *ast.SelectorExpr:
-		ret, err := walk(n.X)
+		ret, err := walk(n.X, depth+1)
 		if err != nil {
 			return nil, err
 		}
 		result.parts = append(result.parts, ret.parts...)
 
-		ret, err = walk(n.Sel)
+		ret, err = walk(n.Sel, depth+1)
 		if err != nil {
 			return nil, err
 		}

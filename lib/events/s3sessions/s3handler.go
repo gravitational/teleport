@@ -159,47 +159,47 @@ type Handler struct {
 }
 
 // Close releases connection and resources associated with log if any
-func (l *Handler) Close() error {
+func (h *Handler) Close() error {
 	return nil
 }
 
 // Upload uploads object to S3 bucket, reads the contents of the object from reader
 // and returns the target S3 bucket path in case of successful upload.
-func (l *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
+func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
 	var err error
-	path := l.path(sessionID)
+	path := h.path(sessionID)
 
 	uploadInput := &s3manager.UploadInput{
-		Bucket: aws.String(l.Bucket),
+		Bucket: aws.String(h.Bucket),
 		Key:    aws.String(path),
 		Body:   reader,
 	}
-	if !l.Config.DisableServerSideEncryption {
+	if !h.Config.DisableServerSideEncryption {
 		uploadInput.ServerSideEncryption = aws.String(s3.ServerSideEncryptionAwsKms)
 	}
-	_, err = l.uploader.UploadWithContext(ctx, uploadInput)
+	_, err = h.uploader.UploadWithContext(ctx, uploadInput)
 	if err != nil {
 		return "", ConvertS3Error(err)
 	}
-	return fmt.Sprintf("%v://%v/%v", teleport.SchemeS3, l.Bucket, path), nil
+	return fmt.Sprintf("%v://%v/%v", teleport.SchemeS3, h.Bucket, path), nil
 }
 
 // Download downloads recorded session from S3 bucket and writes the results
 // into writer return trace.NotFound error is object is not found.
-func (l *Handler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
+func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
 	// Get the oldest version of this object. This has to be done because S3
 	// allows overwriting objects in a bucket. To prevent corruption of recording
 	// data, get all versions and always return the first.
-	versionID, err := l.getOldestVersion(l.Bucket, l.path(sessionID))
+	versionID, err := h.getOldestVersion(h.Bucket, h.path(sessionID))
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	l.Debugf("Downloading %v/%v [%v].", l.Bucket, l.path(sessionID), versionID)
+	h.Debugf("Downloading %v/%v [%v].", h.Bucket, h.path(sessionID), versionID)
 
-	written, err := l.downloader.DownloadWithContext(ctx, writer, &s3.GetObjectInput{
-		Bucket:    aws.String(l.Bucket),
-		Key:       aws.String(l.path(sessionID)),
+	written, err := h.downloader.DownloadWithContext(ctx, writer, &s3.GetObjectInput{
+		Bucket:    aws.String(h.Bucket),
+		Key:       aws.String(h.path(sessionID)),
 		VersionId: aws.String(versionID),
 	})
 	if err != nil {
@@ -221,11 +221,11 @@ type versionID struct {
 }
 
 // getOldestVersion returns the oldest version of the object.
-func (l *Handler) getOldestVersion(bucket string, prefix string) (string, error) {
+func (h *Handler) getOldestVersion(bucket string, prefix string) (string, error) {
 	var versions []versionID
 
 	// Get all versions of this object.
-	err := l.client.ListObjectVersionsPages(&s3.ListObjectVersionsInput{
+	err := h.client.ListObjectVersionsPages(&s3.ListObjectVersionsInput{
 		Bucket: aws.String(bucket),
 		Prefix: aws.String(prefix),
 	}, func(page *s3.ListObjectVersionsOutput, lastPage bool) bool {
@@ -278,14 +278,14 @@ func (h *Handler) deleteBucket() error {
 	return ConvertS3Error(err)
 }
 
-func (l *Handler) path(sessionID session.ID) string {
-	if l.Path == "" {
+func (h *Handler) path(sessionID session.ID) string {
+	if h.Path == "" {
 		return string(sessionID) + ".tar"
 	}
-	return strings.TrimPrefix(filepath.Join(l.Path, string(sessionID)+".tar"), "/")
+	return strings.TrimPrefix(filepath.Join(h.Path, string(sessionID)+".tar"), "/")
 }
 
-func (l *Handler) fromPath(path string) session.ID {
+func (h *Handler) fromPath(path string) session.ID {
 	return session.ID(strings.TrimSuffix(filepath.Base(path), ".tar"))
 }
 

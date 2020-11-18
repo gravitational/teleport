@@ -45,7 +45,7 @@ import (
 )
 
 type APIConfig struct {
-	AuthServer     *AuthServer
+	AuthServer     *Server
 	SessionService session.Service
 	AuditLog       events.IAuditLog
 	Authorizer     Authorizer
@@ -275,7 +275,7 @@ func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 
 			return nil, trace.AccessDenied(accessDeniedMsg + "[00]")
 		}
-		auth := &AuthWithRoles{
+		auth := &ServerWithRoles{
 			authServer: s.AuthServer,
 			context:    *authContext,
 			sessions:   s.SessionService,
@@ -322,7 +322,7 @@ type upsertServerRawReq struct {
 }
 
 // upsertServer is a common utility function
-func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) upsertServer(auth services.Presence, role teleport.Role, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req upsertServerRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -335,6 +335,8 @@ func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.Respon
 		kind = services.KindAuthServer
 	case teleport.RoleProxy:
 		kind = services.KindProxy
+	default:
+		return nil, trace.BadParameter("upsertServer with unknown role: %q", role)
 	}
 	server, err := services.GetServerMarshaler().UnmarshalServer(req.Server, kind)
 	if err != nil {
@@ -366,6 +368,8 @@ func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.Respon
 		if err := auth.UpsertProxy(server); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	default:
+		return nil, trace.BadParameter("unknown server role %q", role)
 	}
 	return message("ok"), nil
 }
@@ -376,7 +380,7 @@ func (s *APIServer) keepAliveNode(auth ClientI, w http.ResponseWriter, r *http.R
 	if err := httplib.ReadJSON(r, &handle); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.KeepAliveNode(r.Context(), handle); err != nil {
+	if err := auth.KeepAliveServer(r.Context(), handle); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -412,7 +416,7 @@ func (s *APIServer) upsertNodes(auth ClientI, w http.ResponseWriter, r *http.Req
 
 // upsertNode is called by remote SSH nodes when they ping back into the auth service
 func (s *APIServer) upsertNode(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return s.upsertServer(auth, teleport.RoleNode, w, r, p, version)
+	return s.upsertServer(auth, teleport.RoleNode, r, p)
 }
 
 // getNodes returns registered SSH nodes
@@ -469,7 +473,7 @@ func (s *APIServer) deleteNode(auth ClientI, w http.ResponseWriter, r *http.Requ
 
 // upsertProxy is called by remote SSH nodes when they ping back into the auth service
 func (s *APIServer) upsertProxy(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return s.upsertServer(auth, teleport.RoleProxy, w, r, p, version)
+	return s.upsertServer(auth, teleport.RoleProxy, r, p)
 }
 
 // getProxies returns registered proxies
@@ -505,7 +509,7 @@ func (s *APIServer) deleteProxy(auth ClientI, w http.ResponseWriter, r *http.Req
 
 // upsertAuthServer is called by remote Auth servers when they ping back into the auth service
 func (s *APIServer) upsertAuthServer(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return s.upsertServer(auth, teleport.RoleAuth, w, r, p, version)
+	return s.upsertServer(auth, teleport.RoleAuth, r, p)
 }
 
 // getAuthServers returns registered auth servers
@@ -763,7 +767,8 @@ func (s *APIServer) u2fSignRequest(auth ClientI, w http.ResponseWriter, r *http.
 }
 
 type createWebSessionReq struct {
-	PrevSessionID string `json:"prev_session_id"`
+	PrevSessionID   string `json:"prev_session_id"`
+	AccessRequestID string `json:"access_request_id"`
 }
 
 func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -773,7 +778,7 @@ func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *htt
 	}
 	user := p.ByName("user")
 	if req.PrevSessionID != "" {
-		sess, err := auth.ExtendWebSession(user, req.PrevSessionID)
+		sess, err := auth.ExtendWebSession(user, req.PrevSessionID, req.AccessRequestID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

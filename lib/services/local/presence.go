@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -151,8 +152,8 @@ func (s *PresenceService) DeleteNamespace(namespace string) error {
 	return trace.Wrap(err)
 }
 
-func (s *PresenceService) getServers(kind, prefix string) ([]services.Server, error) {
-	result, err := s.GetRange(context.TODO(), backend.Key(prefix), backend.RangeEnd(backend.Key(prefix)), backend.NoLimit)
+func (s *PresenceService) getServers(ctx context.Context, kind, prefix string) ([]services.Server, error) {
+	result, err := s.GetRange(ctx, backend.Key(prefix), backend.RangeEnd(backend.Key(prefix)), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -174,12 +175,12 @@ func (s *PresenceService) getServers(kind, prefix string) ([]services.Server, er
 	return servers, nil
 }
 
-func (s *PresenceService) upsertServer(prefix string, server services.Server) error {
+func (s *PresenceService) upsertServer(ctx context.Context, prefix string, server services.Server) error {
 	value, err := services.GetServerMarshaler().MarshalServer(server)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	_, err = s.Put(context.TODO(), backend.Item{
+	_, err = s.Put(ctx, backend.Item{
 		Key:     backend.Key(prefix, server.GetName()),
 		Value:   value,
 		Expires: server.Expiry(),
@@ -252,9 +253,17 @@ func (s *PresenceService) UpsertNode(server services.Server) (*services.KeepAliv
 	if server.Expiry().IsZero() {
 		return &services.KeepAlive{}, nil
 	}
-	return &services.KeepAlive{LeaseID: lease.ID, ServerName: server.GetName()}, nil
+	return &services.KeepAlive{
+		Type:    services.KeepAlive_NODE,
+		LeaseID: lease.ID,
+		Name:    server.GetName(),
+	}, nil
 }
 
+// DELETE IN: 5.1.0.
+//
+// This logic has been moved to KeepAliveServer.
+//
 // KeepAliveNode updates node expiry
 func (s *PresenceService) KeepAliveNode(ctx context.Context, h services.KeepAlive) error {
 	if err := h.CheckAndSetDefaults(); err != nil {
@@ -262,7 +271,7 @@ func (s *PresenceService) KeepAliveNode(ctx context.Context, h services.KeepAliv
 	}
 	err := s.KeepAlive(ctx, backend.Lease{
 		ID:  h.LeaseID,
-		Key: backend.Key(nodesPrefix, h.Namespace, h.ServerName),
+		Key: backend.Key(nodesPrefix, h.Namespace, h.Name),
 	}, h.Expires)
 	return trace.Wrap(err)
 }
@@ -307,13 +316,13 @@ func (s *PresenceService) UpsertNodes(namespace string, servers []services.Serve
 
 // GetAuthServers returns a list of registered servers
 func (s *PresenceService) GetAuthServers() ([]services.Server, error) {
-	return s.getServers(services.KindAuthServer, authServersPrefix)
+	return s.getServers(context.TODO(), services.KindAuthServer, authServersPrefix)
 }
 
 // UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
 func (s *PresenceService) UpsertAuthServer(server services.Server) error {
-	return s.upsertServer(authServersPrefix, server)
+	return s.upsertServer(context.TODO(), authServersPrefix, server)
 }
 
 // DeleteAllAuthServers deletes all auth servers
@@ -331,12 +340,12 @@ func (s *PresenceService) DeleteAuthServer(name string) error {
 // UpsertProxy registers proxy server presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
 func (s *PresenceService) UpsertProxy(server services.Server) error {
-	return s.upsertServer(proxiesPrefix, server)
+	return s.upsertServer(context.TODO(), proxiesPrefix, server)
 }
 
 // GetProxies returns a list of registered proxies
 func (s *PresenceService) GetProxies() ([]services.Server, error) {
-	return s.getServers(services.KindProxy, proxiesPrefix)
+	return s.getServers(context.TODO(), services.KindProxy, proxiesPrefix)
 }
 
 // DeleteAllProxies deletes all proxies
@@ -610,18 +619,37 @@ func (s *PresenceService) CreateRemoteCluster(rc services.RemoteCluster) error {
 	return nil
 }
 
-// UpdateRemoteCluster updates remote cluster
+// UpdateRemoteCluster updates selected remote cluster fields: expiry and labels
+// other changed fields will be ignored by the method
 func (s *PresenceService) UpdateRemoteCluster(ctx context.Context, rc services.RemoteCluster) error {
-	value, err := json.Marshal(rc)
+	if err := rc.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	existingItem, update, err := s.getRemoteCluster(rc.GetName())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	item := backend.Item{
-		Key:     backend.Key(remoteClustersPrefix, rc.GetName()),
-		Value:   value,
-		Expires: rc.Expiry(),
+	update.SetExpiry(rc.Expiry())
+	update.SetLastHeartbeat(rc.GetLastHeartbeat())
+	meta := rc.GetMetadata()
+	meta.Labels = rc.GetMetadata().Labels
+	update.SetMetadata(meta)
+
+	updateValue, err := services.MarshalRemoteCluster(update)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	if _, err := s.Update(ctx, item); err != nil {
+	updateItem := backend.Item{
+		Key:     backend.Key(remoteClustersPrefix, update.GetName()),
+		Value:   updateValue,
+		Expires: update.Expiry(),
+	}
+
+	_, err = s.CompareAndSwap(ctx, *existingItem, updateItem)
+	if err != nil {
+		if trace.IsCompareFailed(err) {
+			return trace.CompareFailed("remote cluster %v has been updated by another client, try again", rc.GetName())
+		}
 		return trace.Wrap(err)
 	}
 	return nil
@@ -647,20 +675,30 @@ func (s *PresenceService) GetRemoteClusters(opts ...services.MarshalOption) ([]s
 	return clusters, nil
 }
 
-// GetRemoteCluster returns a remote cluster by name
-func (s *PresenceService) GetRemoteCluster(clusterName string) (services.RemoteCluster, error) {
+// getRemoteCluster returns a remote cluster in raw form and unmarshaled
+func (s *PresenceService) getRemoteCluster(clusterName string) (*backend.Item, services.RemoteCluster, error) {
 	if clusterName == "" {
-		return nil, trace.BadParameter("missing parameter cluster name")
+		return nil, nil, trace.BadParameter("missing parameter cluster name")
 	}
 	item, err := s.Get(context.TODO(), backend.Key(remoteClustersPrefix, clusterName))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("remote cluster %q is not found", clusterName)
+			return nil, nil, trace.NotFound("remote cluster %q is not found", clusterName)
 		}
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
-	return services.UnmarshalRemoteCluster(item.Value,
+	rc, err := services.UnmarshalRemoteCluster(item.Value,
 		services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return item, rc, nil
+}
+
+// GetRemoteCluster returns a remote cluster by name
+func (s *PresenceService) GetRemoteCluster(clusterName string) (services.RemoteCluster, error) {
+	_, rc, err := s.getRemoteCluster(clusterName)
+	return rc, trace.Wrap(err)
 }
 
 // DeleteRemoteCluster deletes remote cluster by name
@@ -966,6 +1004,131 @@ func (s *PresenceService) DeleteSemaphore(ctx context.Context, filter services.S
 	return trace.Wrap(s.Delete(ctx, backend.Key(semaphoresPrefix, filter.SemaphoreKind, filter.SemaphoreName)))
 }
 
+// UpsertKubeService registers kubernetes service presence.
+func (s *PresenceService) UpsertKubeService(ctx context.Context, server services.Server) error {
+	// TODO(awly): verify that no other KubeService has the same kubernetes
+	// cluster names with different labels to avoid RBAC check confusion.
+	return s.upsertServer(ctx, kubeServicesPrefix, server)
+}
+
+// GetKubeServices returns a list of registered kubernetes services.
+func (s *PresenceService) GetKubeServices(ctx context.Context) ([]services.Server, error) {
+	return s.getServers(ctx, services.KindKubeService, kubeServicesPrefix)
+}
+
+// DeleteKubeService deletes a named kubernetes service.
+func (s *PresenceService) DeleteKubeService(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("no name specified for kubernetes service deletion")
+	}
+	return trace.Wrap(s.Delete(ctx, backend.Key(kubeServicesPrefix, name)))
+}
+
+// DeleteAllKubeServices deletes all registered kubernetes services.
+func (s *PresenceService) DeleteAllKubeServices(ctx context.Context) error {
+	return trace.Wrap(s.DeleteRange(
+		ctx,
+		backend.Key(kubeServicesPrefix),
+		backend.RangeEnd(backend.Key(kubeServicesPrefix)),
+	))
+}
+
+// GetAppServers gets all application servers.
+func (s *PresenceService) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	if namespace == "" {
+		return nil, trace.BadParameter("missing namespace")
+	}
+
+	// Get all items in the bucket.
+	startKey := backend.Key(appsPrefix, serversPrefix, namespace)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Marshal values into a []services.Server slice.
+	servers := make([]services.Server, len(result.Items))
+	for i, item := range result.Items {
+		server, err := services.GetServerMarshaler().UnmarshalServer(
+			item.Value,
+			services.KindAppServer,
+			services.AddOptions(opts,
+				services.WithResourceID(item.ID),
+				services.WithExpires(item.Expires))...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		servers[i] = server
+	}
+
+	return servers, nil
+}
+
+// UpsertAppServer adds an application server.
+func (s *PresenceService) UpsertAppServer(ctx context.Context, server services.Server) (*services.KeepAlive, error) {
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	value, err := services.GetServerMarshaler().MarshalServer(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	lease, err := s.Put(ctx, backend.Item{
+		Key:     backend.Key(appsPrefix, serversPrefix, server.GetNamespace(), server.GetName()),
+		Value:   value,
+		Expires: server.Expiry(),
+		ID:      server.GetResourceID(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if server.Expiry().IsZero() {
+		return &services.KeepAlive{}, nil
+	}
+	return &services.KeepAlive{
+		Type:    services.KeepAlive_APP,
+		LeaseID: lease.ID,
+		Name:    server.GetName(),
+	}, nil
+}
+
+// DeleteAppServer removes an application server.
+func (s *PresenceService) DeleteAppServer(ctx context.Context, namespace string, name string) error {
+	key := backend.Key(appsPrefix, serversPrefix, namespace, name)
+	return s.Delete(ctx, key)
+}
+
+// DeleteAllAppServers removes all application servers.
+func (s *PresenceService) DeleteAllAppServers(ctx context.Context, namespace string) error {
+	startKey := backend.Key(appsPrefix, serversPrefix, namespace)
+	return s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
+}
+
+// KeepAliveServer updates expiry time of a server resource.
+func (s *PresenceService) KeepAliveServer(ctx context.Context, h services.KeepAlive) error {
+	if err := h.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Update the prefix off the type information in the keep alive.
+	var key []byte
+	switch h.GetType() {
+	case teleport.KeepAliveNode:
+		key = backend.Key(nodesPrefix, h.Namespace, h.Name)
+	case teleport.KeepAliveApp:
+		key = backend.Key(appsPrefix, serversPrefix, h.Namespace, h.Name)
+	default:
+		return trace.BadParameter("unknown keep-alive type %q", h.GetType())
+	}
+
+	err := s.KeepAlive(ctx, backend.Lease{
+		ID:  h.LeaseID,
+		Key: key,
+	}, h.Expires)
+	return trace.Wrap(err)
+}
+
 const (
 	localClusterPrefix      = "localCluster"
 	reverseTunnelsPrefix    = "reverseTunnels"
@@ -973,8 +1136,11 @@ const (
 	trustedClustersPrefix   = "trustedclusters"
 	remoteClustersPrefix    = "remoteClusters"
 	nodesPrefix             = "nodes"
+	appsPrefix              = "apps"
+	serversPrefix           = "servers"
 	namespacesPrefix        = "namespaces"
 	authServersPrefix       = "authservers"
 	proxiesPrefix           = "proxies"
 	semaphoresPrefix        = "semaphores"
+	kubeServicesPrefix      = "kubeServices"
 )

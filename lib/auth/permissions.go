@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -30,7 +31,7 @@ import (
 )
 
 // NewAdminContext returns new admin auth context
-func NewAdminContext() (*AuthContext, error) {
+func NewAdminContext() (*Context, error) {
 	authContext, err := contextForBuiltinRole("", nil, teleport.RoleAdmin, fmt.Sprintf("%v", teleport.RoleAdmin))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -55,7 +56,7 @@ func NewAuthorizer(access services.Access, identity services.UserGetter, trust s
 // Authorizer authorizes identity and returns auth context
 type Authorizer interface {
 	// Authorize authorizes user based on identity supplied via context
-	Authorize(ctx context.Context) (*AuthContext, error)
+	Authorize(ctx context.Context) (*Context, error)
 }
 
 // authorizer creates new local authorizer
@@ -66,7 +67,7 @@ type authorizer struct {
 }
 
 // AuthContext is authorization context
-type AuthContext struct {
+type Context struct {
 	// User is the user name
 	User services.User
 	// Checker is access checker
@@ -77,7 +78,7 @@ type AuthContext struct {
 }
 
 // Authorize authorizes user based on identity supplied via context
-func (a *authorizer) Authorize(ctx context.Context) (*AuthContext, error) {
+func (a *authorizer) Authorize(ctx context.Context) (*Context, error) {
 	if ctx == nil {
 		return nil, trace.AccessDenied("missing authentication context")
 	}
@@ -94,7 +95,7 @@ func (a *authorizer) Authorize(ctx context.Context) (*AuthContext, error) {
 	return authContext, nil
 }
 
-func (a *authorizer) fromUser(userI interface{}) (*AuthContext, error) {
+func (a *authorizer) fromUser(userI interface{}) (*Context, error) {
 	switch user := userI.(type) {
 	case LocalUser:
 		return a.authorizeLocalUser(user)
@@ -110,12 +111,12 @@ func (a *authorizer) fromUser(userI interface{}) (*AuthContext, error) {
 }
 
 // authorizeLocalUser returns authz context based on the username
-func (a *authorizer) authorizeLocalUser(u LocalUser) (*AuthContext, error) {
+func (a *authorizer) authorizeLocalUser(u LocalUser) (*Context, error) {
 	return contextForLocalUser(u, a.identity, a.access)
 }
 
 // authorizeRemoteUser returns checker based on cert authority roles
-func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*AuthContext, error) {
+func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*Context, error) {
 	ca, err := a.trust.GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: u.ClusterName}, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -154,14 +155,14 @@ func (a *authorizer) authorizeRemoteUser(u RemoteUser) (*AuthContext, error) {
 	// Set the list of roles this user has in the remote cluster.
 	user.SetRoles(roleNames)
 
-	return &AuthContext{
+	return &Context{
 		User:    user,
 		Checker: RemoteUserRoleSet{checker},
 	}, nil
 }
 
 // authorizeBuiltinRole authorizes builtin role
-func (a *authorizer) authorizeBuiltinRole(r BuiltinRole) (*AuthContext, error) {
+func (a *authorizer) authorizeBuiltinRole(r BuiltinRole) (*Context, error) {
 	config, err := r.GetClusterConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -169,7 +170,7 @@ func (a *authorizer) authorizeBuiltinRole(r BuiltinRole) (*AuthContext, error) {
 	return contextForBuiltinRole(r.ClusterName, config, r.Role, r.Username)
 }
 
-func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*AuthContext, error) {
+func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, error) {
 	if r.Role != teleport.RoleProxy {
 		return nil, trace.AccessDenied("access denied for remote %v connecting to cluster", r.Role)
 	}
@@ -189,6 +190,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*AuthConte
 					services.NewRule(services.KindReverseTunnel, services.RO()),
 					services.NewRule(services.KindTunnelConnection, services.RO()),
 					services.NewRule(services.KindClusterConfig, services.RO()),
+					services.NewRule(services.KindKubeService, services.RO()),
 					// this rule allows remote proxy to update the cluster's certificate authorities
 					// during certificates renewal
 					{
@@ -211,7 +213,7 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*AuthConte
 		return nil, trace.Wrap(err)
 	}
 	user.SetRoles([]string{string(teleport.RoleRemoteProxy)})
-	return &AuthContext{
+	return &Context{
 		User:    user,
 		Checker: RemoteBuiltinRoleSet{roles},
 	}, nil
@@ -256,6 +258,29 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 					},
 				},
 			})
+	case teleport.RoleApp:
+		return services.FromSpec(
+			role.String(),
+			services.RoleSpecV3{
+				Allow: services.RoleConditions{
+					Namespaces: []string{services.Wildcard},
+					Rules: []services.Rule{
+						services.NewRule(services.KindEvent, services.RW()),
+						services.NewRule(services.KindProxy, services.RO()),
+						services.NewRule(services.KindCertAuthority, services.ReadNoSecrets()),
+						services.NewRule(services.KindUser, services.RO()),
+						services.NewRule(services.KindNamespace, services.RO()),
+						services.NewRule(services.KindRole, services.RO()),
+						services.NewRule(services.KindAuthServer, services.RO()),
+						services.NewRule(services.KindReverseTunnel, services.RW()),
+						services.NewRule(services.KindTunnelConnection, services.RO()),
+						services.NewRule(services.KindClusterConfig, services.RO()),
+						services.NewRule(services.KindAppServer, services.RW()),
+						services.NewRule(services.KindWebSession, services.RO()),
+						services.NewRule(services.KindJWT, services.RW()),
+					},
+				},
+			})
 	case teleport.RoleProxy:
 		// if in recording mode, return a different set of permissions than regular
 		// mode. recording proxy needs to be able to generate host certificates.
@@ -264,7 +289,8 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 				role.String(),
 				services.RoleSpecV3{
 					Allow: services.RoleConditions{
-						Namespaces: []string{services.Wildcard},
+						Namespaces:    []string{services.Wildcard},
+						ClusterLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
 						Rules: []services.Rule{
 							services.NewRule(services.KindProxy, services.RW()),
 							services.NewRule(services.KindOIDCRequest, services.RW()),
@@ -291,6 +317,9 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 							services.NewRule(services.KindHostCert, services.RW()),
 							services.NewRule(services.KindRemoteCluster, services.RO()),
 							services.NewRule(services.KindSemaphore, services.RW()),
+							services.NewRule(services.KindAppServer, services.RO()),
+							services.NewRule(services.KindWebSession, services.RW()),
+							services.NewRule(services.KindKubeService, services.RW()),
 							// this rule allows local proxy to update the remote cluster's host certificate authorities
 							// during certificates renewal
 							{
@@ -316,7 +345,8 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 			role.String(),
 			services.RoleSpecV3{
 				Allow: services.RoleConditions{
-					Namespaces: []string{services.Wildcard},
+					Namespaces:    []string{services.Wildcard},
+					ClusterLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
 					Rules: []services.Rule{
 						services.NewRule(services.KindProxy, services.RW()),
 						services.NewRule(services.KindOIDCRequest, services.RW()),
@@ -342,6 +372,9 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 						services.NewRule(services.KindTunnelConnection, services.RW()),
 						services.NewRule(services.KindRemoteCluster, services.RO()),
 						services.NewRule(services.KindSemaphore, services.RW()),
+						services.NewRule(services.KindAppServer, services.RO()),
+						services.NewRule(services.KindWebSession, services.RW()),
+						services.NewRule(services.KindKubeService, services.RW()),
 						// this rule allows local proxy to update the remote cluster's host certificate authorities
 						// during certificates renewal
 						{
@@ -399,9 +432,10 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 					MaxSessionTTL: services.MaxDuration(),
 				},
 				Allow: services.RoleConditions{
-					Namespaces: []string{services.Wildcard},
-					Logins:     []string{},
-					NodeLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
+					Namespaces:    []string{services.Wildcard},
+					Logins:        []string{},
+					NodeLabels:    services.Labels{services.Wildcard: []string{services.Wildcard}},
+					ClusterLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
 					Rules: []services.Rule{
 						services.NewRule(services.Wildcard, services.RW()),
 					},
@@ -416,12 +450,29 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 					Rules:      []services.Rule{},
 				},
 			})
+	case teleport.RoleKube:
+		return services.FromSpec(
+			role.String(),
+			services.RoleSpecV3{
+				Allow: services.RoleConditions{
+					Namespaces: []string{services.Wildcard},
+					Rules: []services.Rule{
+						services.NewRule(services.KindKubeService, services.RW()),
+						services.NewRule(services.KindEvent, services.RW()),
+						services.NewRule(services.KindCertAuthority, services.ReadNoSecrets()),
+						services.NewRule(services.KindClusterConfig, services.RO()),
+						services.NewRule(services.KindUser, services.RO()),
+						services.NewRule(services.KindRole, services.RO()),
+						services.NewRule(services.KindNamespace, services.RO()),
+					},
+				},
+			})
 	}
 
-	return nil, trace.NotFound("%v is not reconginzed", role.String())
+	return nil, trace.NotFound("%q is not recognized", role.String())
 }
 
-func contextForBuiltinRole(clusterName string, clusterConfig services.ClusterConfig, r teleport.Role, username string) (*AuthContext, error) {
+func contextForBuiltinRole(clusterName string, clusterConfig services.ClusterConfig, r teleport.Role, username string) (*Context, error) {
 	checker, err := GetCheckerForBuiltinRole(clusterName, clusterConfig, r)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -431,13 +482,13 @@ func contextForBuiltinRole(clusterName string, clusterConfig services.ClusterCon
 		return nil, trace.Wrap(err)
 	}
 	user.SetRoles([]string{string(r)})
-	return &AuthContext{
+	return &Context{
 		User:    user,
 		Checker: BuiltinRoleSet{checker},
 	}, nil
 }
 
-func contextForLocalUser(u LocalUser, identity services.UserGetter, access services.Access) (*AuthContext, error) {
+func contextForLocalUser(u LocalUser, identity services.UserGetter, access services.Access) (*Context, error) {
 	// User has to be fetched to check if it's a blocked username
 	user, err := identity.GetUser(u.Username, false)
 	if err != nil {
@@ -461,16 +512,23 @@ func contextForLocalUser(u LocalUser, identity services.UserGetter, access servi
 	user.SetRoles(roles)
 	user.SetTraits(traits)
 
-	return &AuthContext{
+	return &Context{
 		User:    user,
 		Checker: LocalUserRoleSet{checker},
 	}, nil
 }
 
-type contextUserKey string
+type contextKey string
 
-// ContextUser is a user set in the context of the request
-const ContextUser contextUserKey = "teleport-user"
+const (
+	// ContextUser is a user set in the context of the request
+	ContextUser contextKey = "teleport-user"
+	// ContextClientAddr is a client address set in the context of the request
+	ContextClientAddr contextKey = "client-addr"
+	// ContextDelegator is a delegator for access requests set in the context
+	// of the request
+	ContextDelegator contextKey = events.AccessRequestDelegator
+)
 
 // clientUsername returns the username of a remote HTTP client making the call.
 // If ctx didn't pass through auth middleware or did not come from an HTTP
@@ -533,9 +591,13 @@ type BuiltinRole struct {
 	Identity tlsca.Identity
 }
 
-// IsServer returns true if the role is one of auth, proxy or node
+// IsServer returns true if the role is one of the builtin server roles.
 func (r BuiltinRole) IsServer() bool {
-	return r.Role == teleport.RoleProxy || r.Role == teleport.RoleNode || r.Role == teleport.RoleAuth
+	return r.Role == teleport.RoleProxy ||
+		r.Role == teleport.RoleNode ||
+		r.Role == teleport.RoleAuth ||
+		r.Role == teleport.RoleApp ||
+		r.Role == teleport.RoleKube
 }
 
 // GetServerID extracts the identity from the full name. The username

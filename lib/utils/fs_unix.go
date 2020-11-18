@@ -35,7 +35,7 @@ func FSWriteLock(f *os.File) error {
 }
 
 // FSTryWriteLock tries to grab write lock, returns CompareFailed
-// if lock is already grabbed
+// if lock is already acquired
 func FSTryWriteLock(f *os.File) error {
 	err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
 	if err != nil {

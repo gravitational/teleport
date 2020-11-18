@@ -365,6 +365,22 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_SAMLConnectorDelete{
 			SAMLConnectorDelete: e,
 		}
+	case *KubeRequest:
+		out.Event = &OneOf_KubeRequest{
+			KubeRequest: e,
+		}
+	case *AppSessionStart:
+		out.Event = &OneOf_AppSessionStart{
+			AppSessionStart: e,
+		}
+	case *AppSessionChunk:
+		out.Event = &OneOf_AppSessionChunk{
+			AppSessionChunk: e,
+		}
+	case *AppSessionRequest:
+		out.Event = &OneOf_AppSessionRequest{
+			AppSessionRequest: e,
+		}
 	default:
 		return nil, trace.BadParameter("event type %T is not supported", in)
 	}
@@ -443,7 +459,18 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 		return e, nil
 	} else if e := in.GetSAMLConnectorDelete(); e != nil {
 		return e, nil
+	} else if e := in.GetKubeRequest(); e != nil {
+		return e, nil
+	} else if e := in.GetAppSessionStart(); e != nil {
+		return e, nil
+	} else if e := in.GetAppSessionChunk(); e != nil {
+		return e, nil
+	} else if e := in.GetAppSessionRequest(); e != nil {
+		return e, nil
 	} else {
+		if in.Event == nil {
+			return nil, trace.BadParameter("failed to parse event, session record is corrupted")
+		}
 		return nil, trace.BadParameter("received unsupported event %T", in.Event)
 	}
 }

@@ -100,7 +100,7 @@ type TestAuthServer struct {
 	// TestAuthServer config is configuration used for auth server setup
 	TestAuthServerConfig
 	// AuthServer is an auth server
-	AuthServer *AuthServer
+	AuthServer *Server
 	// AuditLog is an event audit log
 	AuditLog events.IAuditLog
 	// SessionLogger is a session logger
@@ -119,7 +119,6 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	srv := &TestAuthServer{
 		TestAuthServerConfig: cfg,
 	}
-	var err error
 	b, err := memory.New(memory.Config{
 		Context:   context.Background(),
 		Clock:     cfg.Clock,
@@ -158,7 +157,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	srv.AuthServer, err = NewAuthServer(&InitConfig{
+	srv.AuthServer, err = NewServer(&InitConfig{
 		Backend:                srv.Backend,
 		Authority:              authority.New(),
 		Access:                 access,
@@ -212,15 +211,18 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// set up host private key and certificate
-	err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCA(services.HostCA, srv.ClusterName))
-	if err != nil {
+
+	// Setup certificate and signing authorities.
+	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCA(services.HostCA, srv.ClusterName)); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCA(services.UserCA, srv.ClusterName))
-	if err != nil {
+	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCA(services.UserCA, srv.ClusterName)); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCA(services.JWTSigner, srv.ClusterName)); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	srv.Authorizer, err = NewAuthorizer(srv.AuthServer.Access, srv.AuthServer.Identity, srv.AuthServer.Trust)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -256,7 +258,7 @@ func (a *TestAuthServer) GenerateUserCert(key []byte, username string, ttl time.
 
 // generateCertificate generates certificate for identity,
 // returns private public key pair
-func generateCertificate(authServer *AuthServer, identity TestIdentity) ([]byte, []byte, error) {
+func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []byte, error) {
 	switch id := identity.I.(type) {
 	case LocalUser:
 		user, err := authServer.GetUser(id.Username, false)
@@ -391,7 +393,7 @@ type TestTLSServerConfig struct {
 	// AuthServer is a test auth server used to serve requests
 	AuthServer *TestAuthServer
 	// Limiter is a connection and request limiter
-	Limiter *limiter.LimiterConfig
+	Limiter *limiter.Config
 	// Listener is a listener to serve requests on
 	Listener net.Listener
 	// AcceptedUsage is a list of accepted usage restrictions
@@ -399,7 +401,7 @@ type TestTLSServerConfig struct {
 }
 
 // Auth returns auth server used by this TLS server
-func (t *TestTLSServer) Auth() *AuthServer {
+func (t *TestTLSServer) Auth() *Server {
 	return t.AuthServer.AuthServer
 }
 
@@ -433,7 +435,7 @@ func (cfg *TestTLSServerConfig) CheckAndSetDefaults() error {
 	}
 	// use very permissive limiter configuration by default
 	if cfg.Limiter == nil {
-		cfg.Limiter = &limiter.LimiterConfig{
+		cfg.Limiter = &limiter.Config{
 			MaxConnections:   1000,
 			MaxNumberOfUsers: 1000,
 		}
@@ -528,10 +530,10 @@ func TestBuiltin(role teleport.Role) TestIdentity {
 }
 
 // TestServerID returns a TestIdentity for a node with the passed in serverID.
-func TestServerID(serverID string) TestIdentity {
+func TestServerID(role teleport.Role, serverID string) TestIdentity {
 	return TestIdentity{
 		I: BuiltinRole{
-			Role:     teleport.RoleNode,
+			Role:     role,
 			Username: serverID,
 		},
 	}
@@ -635,7 +637,7 @@ func (t *TestTLSServer) Stop() error {
 }
 
 // NewServerIdentity generates new server identity, used in tests
-func NewServerIdentity(clt *AuthServer, hostID string, role teleport.Role) (*Identity, error) {
+func NewServerIdentity(clt *Server, hostID string, role teleport.Role) (*Identity, error) {
 	keys, err := clt.GenerateServerKeys(GenerateServerKeysRequest{
 		HostID:   hostID,
 		NodeName: hostID,
@@ -663,10 +665,10 @@ func CreateUserRoleAndRequestable(clt clt, username string, rolename string) (se
 		return nil, trace.Wrap(err)
 	}
 	baseRole := services.RoleForUser(user)
-	baseRole.SetLogins(services.Allow, []string{username})
 	baseRole.SetAccessRequestConditions(services.Allow, services.AccessRequestConditions{
 		Roles: []string{rolename},
 	})
+	baseRole.SetLogins(services.Allow, nil)
 	err = clt.UpsertRole(ctx, baseRole)
 	if err != nil {
 		return nil, trace.Wrap(err)

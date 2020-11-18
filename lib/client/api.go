@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
 	"github.com/gravitational/teleport/lib/wrappers"
@@ -202,6 +203,11 @@ type Config struct {
 	// if omitted, first available site will be selected
 	SiteName string
 
+	// KubernetesCluster specifies the kubernetes cluster for any relevant
+	// operations. If empty, the auth server will choose one using stable (same
+	// cluster every time) but unspecified logic.
+	KubernetesCluster string
+
 	// LocalForwardPorts are the local ports tsh listens on for port forwarding
 	// (parameters to -L ssh flag).
 	LocalForwardPorts ForwardedPorts
@@ -300,6 +306,19 @@ type ProfileStatus struct {
 	// Logins are the Linux accounts, also known as principals in OpenSSH terminology.
 	Logins []string
 
+	// KubeEnabled is true when this profile is configured to connect to a
+	// kubernetes cluster.
+	KubeEnabled bool
+
+	// KubeCluster is the name of the kubernetes cluster used by this profile.
+	KubeCluster string
+
+	// KubeUsers are the kubernetes users used by this profile.
+	KubeUsers []string
+
+	// KubeGroups are the kubernetes groups used by this profile.
+	KubeGroups []string
+
 	// ValidUntil is the time at which this SSH certificate will expire.
 	ValidUntil time.Time
 
@@ -339,11 +358,14 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		return trace.Wrap(err)
 	}
 	log.Debugf("Activating relogin on %v.", err)
-	key, err := tc.Login(ctx, true)
+	key, err := tc.Login(ctx)
 	if err != nil {
 		if trace.IsTrustError(err) {
 			return trace.Wrap(err, "refusing to connect to untrusted proxy %v without --insecure flag\n", tc.Config.SSHProxyAddr)
 		}
+		return trace.Wrap(err)
+	}
+	if err := tc.ActivateKey(ctx, key); err != nil {
 		return trace.Wrap(err)
 	}
 	// Save profile to record proxy credentials
@@ -380,26 +402,26 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	keys, err := store.GetKey(profile.Name(), profile.Username)
+	key, err := store.GetKey(profile.Name(), profile.Username, WithKubeCerts(profile.SiteName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(keys.Cert)
+	publicKey, _, _, _, err := ssh.ParseAuthorizedKey(key.Cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cert, ok := publicKey.(*ssh.Certificate)
+	sshCert, ok := publicKey.(*ssh.Certificate)
 	if !ok {
 		return nil, trace.BadParameter("no certificate found")
 	}
 
 	// Extract from the certificate how much longer it will be valid for.
-	validUntil := time.Unix(int64(cert.ValidBefore), 0)
+	validUntil := time.Unix(int64(sshCert.ValidBefore), 0)
 
 	// Extract roles from certificate. Note, if the certificate is in old format,
 	// this will be empty.
 	var roles []string
-	rawRoles, ok := cert.Extensions[teleport.CertExtensionTeleportRoles]
+	rawRoles, ok := sshCert.Extensions[teleport.CertExtensionTeleportRoles]
 	if ok {
 		roles, err = services.UnmarshalCertRoles(rawRoles)
 		if err != nil {
@@ -411,7 +433,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	// Extract traits from the certificate. Note if the certificate is in the
 	// old format, this will be empty.
 	var traits wrappers.Traits
-	rawTraits, ok := cert.Extensions[teleport.CertExtensionTeleportTraits]
+	rawTraits, ok := sshCert.Extensions[teleport.CertExtensionTeleportTraits]
 	if ok {
 		err = wrappers.UnmarshalTraits([]byte(rawTraits), &traits)
 		if err != nil {
@@ -420,7 +442,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	}
 
 	var activeRequests services.RequestIDs
-	rawRequests, ok := cert.Extensions[teleport.CertExtensionTeleportActiveRequests]
+	rawRequests, ok := sshCert.Extensions[teleport.CertExtensionTeleportActiveRequests]
 	if ok {
 		if err := activeRequests.Unmarshal([]byte(rawRequests)); err != nil {
 			return nil, trace.Wrap(err)
@@ -430,7 +452,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	// Extract extensions from certificate. This lists the abilities of the
 	// certificate (like can the user request a PTY, port forwarding, etc.)
 	var extensions []string
-	for ext := range cert.Extensions {
+	for ext := range sshCert.Extensions {
 		if ext == teleport.CertExtensionTeleportRoles ||
 			ext == teleport.CertExtensionTeleportTraits ||
 			ext == teleport.CertExtensionTeleportRouteToCluster ||
@@ -452,23 +474,37 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		clusterName = profile.Name()
 	}
 
+	tlsCert, err := key.TeleportTLSCertificate()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsID, err := tlsca.FromSubject(tlsCert.Subject, time.Time{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &ProfileStatus{
 		ProxyURL: url.URL{
 			Scheme: "https",
 			Host:   profile.WebProxyAddr,
 		},
 		Username:       profile.Username,
-		Logins:         cert.ValidPrincipals,
+		Logins:         sshCert.ValidPrincipals,
 		ValidUntil:     validUntil,
 		Extensions:     extensions,
 		Roles:          roles,
 		Cluster:        clusterName,
 		Traits:         traits,
 		ActiveRequests: activeRequests,
+		KubeEnabled:    tlsID.KubernetesCluster != "" && (len(tlsID.KubernetesUsers) > 0 || len(tlsID.KubernetesGroups) > 0),
+		KubeCluster:    tlsID.KubernetesCluster,
+		KubeUsers:      tlsID.KubernetesUsers,
+		KubeGroups:     tlsID.KubernetesGroups,
 	}, nil
 }
 
 // Status returns the active profile as well as a list of available profiles.
+// If not profile is active, Status returns a nil error and nil profile.
 func Status(profileDir string, proxyHost string) (*ProfileStatus, []*ProfileStatus, error) {
 	var err error
 	var profile *ProfileStatus
@@ -593,7 +629,7 @@ func (c *Config) SaveProfile(dir string, makeCurrent bool) error {
 
 	dir = FullProfilePath(dir)
 
-	var cp ClientProfile
+	var cp Profile
 	cp.Username = c.Username
 	cp.WebProxyAddr = c.WebProxyAddr
 	cp.SSHProxyAddr = c.SSHProxyAddr
@@ -658,12 +694,12 @@ func (c *Config) KubeProxyHostPort() (string, int) {
 	if c.KubeProxyAddr != "" {
 		addr, err := utils.ParseAddr(c.KubeProxyAddr)
 		if err == nil {
-			return addr.Host(), addr.Port(defaults.KubeProxyListenPort)
+			return addr.Host(), addr.Port(defaults.KubeListenPort)
 		}
 	}
 
 	webProxyHost, _ := c.WebProxyHostPort()
-	return webProxyHost, defaults.KubeProxyListenPort
+	return webProxyHost, defaults.KubeListenPort
 }
 
 // KubeClusterAddr returns a public HTTPS address of the proxy for use by
@@ -866,21 +902,13 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, proxy *ProxyClient
 	return retval, nil
 }
 
-// GenerateCertsForCluster generates certificates for the user
-// that have a metadata instructing server to route the requests to the cluster
-func (tc *TeleportClient) GenerateCertsForCluster(ctx context.Context, routeToCluster string) error {
-	proxyClient, err := tc.ConnectToProxy(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return proxyClient.GenerateCertsForCluster(ctx, routeToCluster)
-}
-
 func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, params ReissueParams) error {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	return proxyClient.ReissueUserCerts(ctx, params)
 }
 
@@ -890,6 +918,8 @@ func (tc *TeleportClient) CreateAccessRequest(ctx context.Context, req services.
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	return proxyClient.CreateAccessRequest(ctx, req)
 }
 
@@ -899,7 +929,20 @@ func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter services
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	return proxyClient.GetAccessRequests(ctx, filter)
+}
+
+// GetRole loads a role resource by name.
+func (tc *TeleportClient) GetRole(ctx context.Context, name string) (services.Role, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	return proxyClient.GetRole(ctx, name)
 }
 
 // NewWatcher sets up a new event watcher.
@@ -908,6 +951,8 @@ func (tc *TeleportClient) NewWatcher(ctx context.Context, watch services.Watch) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	return proxyClient.NewWatcher(ctx, watch)
 }
 
@@ -1114,6 +1159,8 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	site, err := proxyClient.ConnectToCurrentCluster(ctx, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1404,6 +1451,17 @@ func (tc *TeleportClient) ListNodes(ctx context.Context) ([]services.Server, err
 	return proxyClient.FindServersByLabels(ctx, tc.Namespace, tc.Labels)
 }
 
+// ListAppServers returns a list of application servers.
+func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]services.Server, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	return proxyClient.GetAppServers(ctx, tc.Namespace)
+}
+
 // ListAllNodes is the same as ListNodes except that it ignores labels.
 func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]services.Server, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
@@ -1617,7 +1675,7 @@ func (tc *TeleportClient) Logout() error {
 	if tc.localAgent == nil {
 		return nil
 	}
-	if err := tc.localAgent.DeleteKey(); err != nil {
+	if err := tc.localAgent.DeleteKey(WithKubeCerts(tc.SiteName)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1638,10 +1696,10 @@ func (tc *TeleportClient) LogoutAll() error {
 
 // Login logs the user into a Teleport cluster by talking to a Teleport proxy.
 //
-// If 'activateKey' is true, saves the received session cert into the local
-// keystore (and into the ssh-agent) for future use.
+// The returned Key should typically be passed to ActivateKey in order to
+// update local agent state.
 //
-func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, error) {
+func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	// preserve original web proxy host that could have
 	webProxyHost, _ := tc.WebProxyHostPort()
 
@@ -1705,6 +1763,9 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 	// extract the new certificate out of the response
 	key.Cert = response.Cert
 	key.TLSCert = response.TLSCert
+	if tc.KubernetesCluster != "" {
+		key.KubeTLSCerts[tc.KubernetesCluster] = response.TLSCert
+	}
 	key.ProxyHost = webProxyHost
 	key.TrustedCA = response.HostSigners
 
@@ -1717,39 +1778,48 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 	// Add the cluster name into the key from the host certificate.
 	key.ClusterName = response.HostSigners[0].ClusterName
 
-	if activateKey && tc.localAgent != nil {
-		// save the list of CAs client trusts to ~/.tsh/known_hosts
-		err = tc.localAgent.AddHostSignersToCache(response.HostSigners)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// save the list of TLS CAs client trusts
-		err = tc.localAgent.SaveCerts(response.HostSigners)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// save the cert to the local storage (~/.tsh usually):
-		_, err = tc.localAgent.AddKey(key)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Connect to the Auth Server of the main cluster and fetch the known hosts
-		// for this cluster.
-		if err := tc.UpdateTrustedCA(ctx, key.ClusterName); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Update the cluster name (which will be saved in the profile) with the
-		// name of the cluster the caller requested to connect to.
-		tc.SiteName, err = updateClusterName(ctx, tc, tc.SiteName, response.HostSigners)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
 	return key, nil
+}
+
+// ActivateKey saves the target session cert into the local
+// keystore (and into the ssh-agent) for future use.
+func (tc *TeleportClient) ActivateKey(ctx context.Context, key *Key) error {
+	if tc.localAgent == nil {
+		// skip activation if no local agent is present
+		return nil
+	}
+	// save the list of CAs client trusts to ~/.tsh/known_hosts
+	err := tc.localAgent.AddHostSignersToCache(key.TrustedCA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// save the list of TLS CAs client trusts
+	err = tc.localAgent.SaveCerts(key.TrustedCA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// save the cert to the local storage (~/.tsh usually):
+	_, err = tc.localAgent.AddKey(key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Connect to the Auth Server of the main cluster and fetch the known hosts
+	// for this cluster.
+	if err := tc.UpdateTrustedCA(ctx, key.ClusterName); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Update the cluster name (which will be saved in the profile) with the
+	// name of the cluster the caller requested to connect to.
+	tc.SiteName, err = updateClusterName(ctx, tc, tc.SiteName, key.TrustedCA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // Ping makes a ping request to the proxy, and updates tc based on the
@@ -1896,17 +1966,25 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 			tc.KubeProxyAddr = proxySettings.Kube.PublicAddr
 		// ListenAddr is the second preference.
 		case proxySettings.Kube.ListenAddr != "":
-			if _, err := utils.ParseAddr(proxySettings.Kube.ListenAddr); err != nil {
+			addr, err := utils.ParseAddr(proxySettings.Kube.ListenAddr)
+			if err != nil {
 				return trace.BadParameter(
 					"failed to parse value received from the server: %q, contact your administrator for help",
 					proxySettings.Kube.ListenAddr)
 			}
-			tc.KubeProxyAddr = proxySettings.Kube.ListenAddr
+			// If ListenAddr host is 0.0.0.0 or [::], replace it with something
+			// routable from the web endpoint.
+			if net.ParseIP(addr.Host()).IsUnspecified() {
+				webProxyHost, _ := tc.WebProxyHostPort()
+				tc.KubeProxyAddr = net.JoinHostPort(webProxyHost, strconv.Itoa(addr.Port(defaults.KubeListenPort)))
+			} else {
+				tc.KubeProxyAddr = proxySettings.Kube.ListenAddr
+			}
 		// If neither PublicAddr nor ListenAddr are passed, use the web
 		// interface hostname with default k8s port as a guess.
 		default:
 			webProxyHost, _ := tc.WebProxyHostPort()
-			tc.KubeProxyAddr = fmt.Sprintf("%s:%d", webProxyHost, defaults.KubeProxyListenPort)
+			tc.KubeProxyAddr = net.JoinHostPort(webProxyHost, strconv.Itoa(defaults.KubeListenPort))
 		}
 	}
 
@@ -2031,13 +2109,14 @@ func (tc *TeleportClient) directLogin(ctx context.Context, secondFactorType stri
 	// ask the CA (via proxy) to sign our public key:
 	response, err := SSHAgentLogin(ctx, SSHLoginDirect{
 		SSHLogin: SSHLogin{
-			ProxyAddr:      tc.WebProxyAddr,
-			PubKey:         pub,
-			TTL:            tc.KeyTTL,
-			Insecure:       tc.InsecureSkipVerify,
-			Pool:           loopbackPool(tc.WebProxyAddr),
-			Compatibility:  tc.CertificateFormat,
-			RouteToCluster: tc.SiteName,
+			ProxyAddr:         tc.WebProxyAddr,
+			PubKey:            pub,
+			TTL:               tc.KeyTTL,
+			Insecure:          tc.InsecureSkipVerify,
+			Pool:              loopbackPool(tc.WebProxyAddr),
+			Compatibility:     tc.CertificateFormat,
+			RouteToCluster:    tc.SiteName,
+			KubernetesCluster: tc.KubernetesCluster,
 		},
 		User:     tc.Config.Username,
 		Password: password,
@@ -2053,13 +2132,14 @@ func (tc *TeleportClient) ssoLogin(ctx context.Context, connectorID string, pub 
 	// ask the CA (via proxy) to sign our public key:
 	response, err := SSHAgentSSOLogin(ctx, SSHLoginSSO{
 		SSHLogin: SSHLogin{
-			ProxyAddr:      tc.WebProxyAddr,
-			PubKey:         pub,
-			TTL:            tc.KeyTTL,
-			Insecure:       tc.InsecureSkipVerify,
-			Pool:           loopbackPool(tc.WebProxyAddr),
-			Compatibility:  tc.CertificateFormat,
-			RouteToCluster: tc.SiteName,
+			ProxyAddr:         tc.WebProxyAddr,
+			PubKey:            pub,
+			TTL:               tc.KeyTTL,
+			Insecure:          tc.InsecureSkipVerify,
+			Pool:              loopbackPool(tc.WebProxyAddr),
+			Compatibility:     tc.CertificateFormat,
+			RouteToCluster:    tc.SiteName,
+			KubernetesCluster: tc.KubernetesCluster,
 		},
 		ConnectorID: connectorID,
 		Protocol:    protocol,
@@ -2084,13 +2164,14 @@ func (tc *TeleportClient) u2fLogin(ctx context.Context, pub []byte) (*auth.SSHLo
 
 	response, err := SSHAgentU2FLogin(ctx, SSHLoginU2F{
 		SSHLogin: SSHLogin{
-			ProxyAddr:      tc.WebProxyAddr,
-			PubKey:         pub,
-			TTL:            tc.KeyTTL,
-			Insecure:       tc.InsecureSkipVerify,
-			Pool:           loopbackPool(tc.WebProxyAddr),
-			Compatibility:  tc.CertificateFormat,
-			RouteToCluster: tc.SiteName,
+			ProxyAddr:         tc.WebProxyAddr,
+			PubKey:            pub,
+			TTL:               tc.KeyTTL,
+			Insecure:          tc.InsecureSkipVerify,
+			Pool:              loopbackPool(tc.WebProxyAddr),
+			Compatibility:     tc.CertificateFormat,
+			RouteToCluster:    tc.SiteName,
+			KubernetesCluster: tc.KubernetesCluster,
 		},
 		User:     tc.Config.Username,
 		Password: password,

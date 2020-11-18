@@ -14,13 +14,13 @@ if [ ! -f /etc/teleport.d/role.proxy ] && [ ! -f /etc/teleport.d/role.all ]; the
 fi
 
 TMPDIR=$(mktemp -d)
+# shellcheck disable=SC2064
 trap "{ rm -rf $TMPDIR; }" EXIT
 
 aws s3 sync s3://${TELEPORT_S3_BUCKET}/live/${TELEPORT_DOMAIN_NAME} $TMPDIR
 
 # Check if the file has been updated in S3 compared to the copy in use
-cmp --silent /var/lib/teleport/fullchain.pem $TMPDIR/fullchain.pem > /dev/null
-if [ $? -eq 0 ]; then
+if cmp --silent /var/lib/teleport/fullchain.pem $TMPDIR/fullchain.pem > /dev/null; then
     echo "Certificates are equal, nothing to do"
 else
     echo "Certificates are different, going to update and restart proxy"

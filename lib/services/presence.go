@@ -20,7 +20,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
+
 	"github.com/gravitational/trace"
 )
 
@@ -59,6 +61,10 @@ type Presence interface {
 	// UpsertNodes bulk inserts nodes.
 	UpsertNodes(namespace string, servers []Server) error
 
+	// DELETE IN: 5.1.0
+	//
+	// This logic has been moved to KeepAliveServer.
+	//
 	// KeepAliveNode updates node TTL in the storage
 	KeepAliveNode(ctx context.Context, h KeepAlive) error
 
@@ -152,7 +158,7 @@ type Presence interface {
 	CreateRemoteCluster(RemoteCluster) error
 
 	// UpdateRemoteCluster updates a remote cluster
-	UpdateRemoteCluster(context.Context, RemoteCluster) error
+	UpdateRemoteCluster(ctx context.Context, rc RemoteCluster) error
 
 	// GetRemoteClusters returns a list of remote clusters
 	GetRemoteClusters(opts ...MarshalOption) ([]RemoteCluster, error)
@@ -165,6 +171,33 @@ type Presence interface {
 
 	// DeleteAllRemoteClusters deletes all remote clusters
 	DeleteAllRemoteClusters() error
+
+	// UpsertKubeService registers kubernetes service presence.
+	UpsertKubeService(context.Context, Server) error
+
+	// GetAppServers gets all application servers.
+	GetAppServers(context.Context, string, ...MarshalOption) ([]Server, error)
+
+	// UpsertAppServer adds an application server.
+	UpsertAppServer(context.Context, Server) (*KeepAlive, error)
+
+	// DeleteAppServer removes an application server.
+	DeleteAppServer(context.Context, string, string) error
+
+	// DeleteAllAppServers removes all application servers.
+	DeleteAllAppServers(context.Context, string) error
+
+	// KeepAliveServer updates TTL of the server resource in the backend.
+	KeepAliveServer(ctx context.Context, h KeepAlive) error
+
+	// GetKubeServices returns a list of registered kubernetes services.
+	GetKubeServices(context.Context) ([]Server, error)
+
+	// DeleteKubeService deletes a named kubernetes service.
+	DeleteKubeService(ctx context.Context, name string) error
+
+	// DeleteAllKubeServices deletes all registered kubernetes services.
+	DeleteAllKubeServices(context.Context) error
 }
 
 // NewNamespace returns new namespace
@@ -192,12 +225,24 @@ type Site struct {
 // IsEmpty returns true if keepalive is empty,
 // used to indicate that keepalive is not supported
 func (s *KeepAlive) IsEmpty() bool {
-	return s.LeaseID == 0 && s.ServerName == ""
+	return s.LeaseID == 0 && s.Name == ""
+}
+
+// GetType return the type of keep alive: either application or server.
+func (s *KeepAlive) GetType() string {
+	switch s.Type {
+	case KeepAlive_NODE:
+		return teleport.KeepAliveNode
+	case KeepAlive_APP:
+		return teleport.KeepAliveApp
+	default:
+		return teleport.KeepAliveNode
+	}
 }
 
 func (s *KeepAlive) CheckAndSetDefaults() error {
 	if s.IsEmpty() {
-		return trace.BadParameter("no lease ID or server name is specified")
+		return trace.BadParameter("invalid keep alive, missing lease ID and resource name")
 	}
 	if s.Namespace == "" {
 		s.Namespace = defaults.Namespace

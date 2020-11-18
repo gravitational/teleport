@@ -4,5 +4,5 @@ ConditionPathExists=/etc/teleport.d/use-letsencrypt
 
 [Service]
 Type=oneshot
-ExecStartPre=/usr/bin/teleport-lock
-ExecStart=/usr/bin/teleport-renew-cert
+ExecStartPre=/usr/local/bin/teleport-lock
+ExecStart=/usr/local/bin/teleport-renew-cert

@@ -30,6 +30,15 @@ type access struct {
 	Delete bool `json:"remove"`
 }
 
+type accessStrategy struct {
+	// Type determines how a user should access teleport resources.
+	// ie: does the user require a request to access resources?
+	Type services.RequestStrategy `json:"type"`
+	// Prompt is the optional dialogue shown to user,
+	// when the access strategy type requires a reason.
+	Prompt string `json:"prompt"`
+}
+
 type userACL struct {
 	// Sessions defines access to recorded sessions
 	Sessions access `json:"sessions"`
@@ -43,6 +52,12 @@ type userACL struct {
 	TrustedClusters access `json:"trustedClusters"`
 	// Events defines access to audit logs
 	Events access `json:"events"`
+	// Tokens defines access to tokens.
+	Tokens access `json:"tokens"`
+	// Nodes defines access to nodes.
+	Nodes access `json:"nodes"`
+	// AppServers defines access to application servers.
+	AppServers access `json:"appServers"`
 	// SSH defines access to servers
 	SSHLogins []string `json:"sshLogins"`
 }
@@ -54,15 +69,18 @@ const (
 	authSSO   authType = "sso"
 )
 
-type userContext struct {
-	// AuthType is auth method of this user
+// UserContext describes a users settings to various resources.
+type UserContext struct {
+	// AuthType is auth method of this user.
 	AuthType authType `json:"authType"`
-	// Name is this user name
+	// Name is this user name.
 	Name string `json:"userName"`
-	// ACL contains user access control list
+	// ACL contains user access control list.
 	ACL userACL `json:"userAcl"`
-	// Cluster contains cluster detail for this user's context
+	// Cluster contains cluster detail for this user's context.
 	Cluster *Cluster `json:"cluster"`
+	// AccessStrategy describes how a user should access teleport resources.
+	AccessStrategy accessStrategy `json:"accessStrategy"`
 }
 
 func getLogins(roleSet services.RoleSet) []string {
@@ -109,8 +127,32 @@ func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) acc
 	}
 }
 
+func getAccessStrategy(roleset services.RoleSet) accessStrategy {
+	strategy := services.RequestStrategyOptional
+	prompt := ""
+
+	for _, role := range roleset {
+		options := role.GetOptions()
+
+		if options.RequestAccess == services.RequestStrategyReason {
+			strategy = services.RequestStrategyReason
+			prompt = options.RequestPrompt
+			break
+		}
+
+		if options.RequestAccess == services.RequestStrategyAlways {
+			strategy = services.RequestStrategyAlways
+		}
+	}
+
+	return accessStrategy{
+		Type:   strategy,
+		Prompt: prompt,
+	}
+}
+
 // NewUserContext returns user context
-func NewUserContext(user services.User, userRoles services.RoleSet) (*userContext, error) {
+func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContext, error) {
 	ctx := &services.Context{User: user}
 	sessionAccess := newAccess(userRoles, ctx, services.KindSession)
 	roleAccess := newAccess(userRoles, ctx, services.KindRole)
@@ -118,9 +160,14 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*userContex
 	trustedClusterAccess := newAccess(userRoles, ctx, services.KindTrustedCluster)
 	eventAccess := newAccess(userRoles, ctx, services.KindEvent)
 	userAccess := newAccess(userRoles, ctx, services.KindUser)
+	tokenAccess := newAccess(userRoles, ctx, services.KindToken)
+	nodeAccess := newAccess(userRoles, ctx, services.KindNode)
+	appServerAccess := newAccess(userRoles, ctx, services.KindAppServer)
 	logins := getLogins(userRoles)
+	requestAccess := getAccessStrategy(userRoles)
 
 	acl := userACL{
+		AppServers:      appServerAccess,
 		AuthConnectors:  authConnectors,
 		TrustedClusters: trustedClusterAccess,
 		Sessions:        sessionAccess,
@@ -128,6 +175,8 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*userContex
 		Events:          eventAccess,
 		SSHLogins:       logins,
 		Users:           userAccess,
+		Tokens:          tokenAccess,
+		Nodes:           nodeAccess,
 	}
 
 	// local user
@@ -143,9 +192,10 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*userContex
 		authType = authSSO
 	}
 
-	return &userContext{
-		Name:     user.GetName(),
-		ACL:      acl,
-		AuthType: authType,
+	return &UserContext{
+		Name:           user.GetName(),
+		ACL:            acl,
+		AuthType:       authType,
+		AccessStrategy: requestAccess,
 	}, nil
 }

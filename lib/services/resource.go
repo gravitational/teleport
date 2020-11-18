@@ -57,6 +57,9 @@ const (
 	// KindHostCert is a host certificate
 	KindHostCert = "host_cert"
 
+	// KindJWT is a JWT token signer.
+	KindJWT = "jwt"
+
 	// KindLicense is a license resource
 	KindLicense = "license"
 
@@ -96,6 +99,9 @@ const (
 	// KindWebSession is a web session resource
 	KindWebSession = "web_session"
 
+	// KindAppSession represents an application specific web session.
+	KindAppSession = "app_session"
+
 	// KindEvent is structured audit logging event
 	KindEvent = "event"
 
@@ -107,6 +113,9 @@ const (
 
 	// KindNode is node resource
 	KindNode = "node"
+
+	// KindAppServer is an application server resource.
+	KindAppServer = "app_server"
 
 	// KindToken is a provisioning token resource
 	KindToken = "token"
@@ -180,6 +189,9 @@ const (
 
 	// KindState is local on disk process state
 	KindState = "state"
+
+	// KindKubeService is a kubernetes service resource
+	KindKubeService = "kube_service"
 
 	// V3 is the third version of resources.
 	V3 = "v3"
@@ -620,7 +632,7 @@ func (u *UnknownResource) UnmarshalJSON(raw []byte) error {
 	return nil
 }
 
-// Resource represents common properties for resources
+// Resource represents common properties for all resources.
 type Resource interface {
 	// GetKind returns resource kind
 	GetKind() string
@@ -763,6 +775,8 @@ func ParseShortcut(in string) (string, error) {
 		return KindRemoteCluster, nil
 	case KindSemaphore, "semaphores", "sem", "sems":
 		return KindSemaphore, nil
+	case KindKubeService, "kube_services":
+		return KindKubeService, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -831,9 +845,8 @@ func (r *Ref) Set(v string) error {
 func (r *Ref) String() string {
 	if r.SubKind == "" {
 		return fmt.Sprintf("%s/%s", r.Kind, r.Name)
-	} else {
-		return fmt.Sprintf("%s/%s/%s", r.Kind, r.SubKind, r.Name)
 	}
+	return fmt.Sprintf("%s/%s/%s", r.Kind, r.SubKind, r.Name)
 }
 
 // Refs is a set of resource references

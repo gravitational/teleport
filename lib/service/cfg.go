@@ -19,14 +19,16 @@ package service
 import (
 	"fmt"
 	"io"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
+	"strconv"
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"k8s.io/apimachinery/pkg/util/validation"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -34,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/services"
@@ -77,18 +78,21 @@ type Config struct {
 	// in case if they loose connection to auth servers
 	CachePolicy CachePolicy
 
-	// SSH role an SSH endpoint server
+	// Auth service configuration. Manages cluster state and configuration.
+	Auth AuthConfig
+
+	// Proxy service configuration. Manages incoming and outbound
+	// connections to the cluster.
+	Proxy ProxyConfig
+
+	// SSH service configuration. Manages SSH servers running within the cluster.
 	SSH SSHConfig
 
-	// Auth server authentication and authorization server config
-	Auth AuthConfig
+	// App service configuration. Manages applications running within the cluster.
+	Apps AppsConfig
 
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
-
-	// Proxy is SSH proxy that manages incoming and outbound connections
-	// via multiple reverse tunnels
-	Proxy ProxyConfig
 
 	// HostUUID is a unique UUID of this host (it will be known via this UUID within
 	// a teleport cluster). It's automatically generated on 1st start
@@ -186,6 +190,9 @@ type Config struct {
 
 	// BPFConfig holds configuration for the BPF service.
 	BPFConfig *bpf.Config
+
+	// Kube is a Kubernetes API gateway using Teleport client identities.
+	Kube KubeConfig
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -320,13 +327,7 @@ type ProxyConfig struct {
 	// SSHAddr is address of ssh proxy
 	SSHAddr utils.NetAddr
 
-	// TLSKey is a base64 encoded private key used by web portal
-	TLSKey string
-
-	// TLSCert is a base64 encoded certificate used by web portal
-	TLSCert string
-
-	Limiter limiter.LimiterConfig
+	Limiter limiter.Config
 
 	// PublicAddrs is a list of the public addresses the proxy advertises
 	// for the HTTP endpoint. The hosts in in PublicAddr are included in the
@@ -345,8 +346,21 @@ type ProxyConfig struct {
 
 	// Kube specifies kubernetes proxy configuration
 	Kube KubeProxyConfig
+
+	// KeyPairs are the key and certificate pairs that the proxy will load.
+	KeyPairs []KeyPairPath
 }
 
+// KeyPairPath are paths to a key and certificate file.
+type KeyPairPath struct {
+	// PrivateKey is the path to a PEM encoded private key.
+	PrivateKey string
+	// Certificate is the path to a PEM encoded certificate.
+	Certificate string
+}
+
+// KubeAddr returns the address for the Kubernetes endpoint on this proxy that
+// can be reached by clients.
 func (c ProxyConfig) KubeAddr() (string, error) {
 	if !c.Kube.Enabled {
 		return "", trace.NotFound("kubernetes support not enabled on this proxy")
@@ -359,7 +373,11 @@ func (c ProxyConfig) KubeAddr() (string, error) {
 	if len(c.PublicAddrs) > 0 {
 		host = c.PublicAddrs[0].Host()
 	}
-	return fmt.Sprintf("https://%s:%d", host, c.Kube.ListenAddr.Port(defaults.KubeProxyListenPort)), nil
+	u := url.URL{
+		Scheme: "https",
+		Host:   net.JoinHostPort(host, strconv.Itoa(c.Kube.ListenAddr.Port(defaults.KubeListenPort))),
+	}
+	return u.String(), nil
 }
 
 // KubeProxyConfig specifies configuration for proxy service
@@ -370,15 +388,9 @@ type KubeProxyConfig struct {
 	// ListenAddr is the address to listen on for incoming kubernetes requests.
 	ListenAddr utils.NetAddr
 
-	// KubeAPIAddr is address of kubernetes API server
-	APIAddr utils.NetAddr
-
 	// ClusterOverride causes all traffic to go to a specific remote
 	// cluster, used only in tests
 	ClusterOverride string
-
-	// CACert is a PEM encoded kubernetes CA certificate
-	CACert []byte
 
 	// PublicAddrs is a list of the public addresses the Teleport Kube proxy can be accessed by,
 	// it also affects the host principals and routing logic
@@ -386,71 +398,6 @@ type KubeProxyConfig struct {
 
 	// KubeconfigPath is a path to kubeconfig
 	KubeconfigPath string
-
-	// ClusterName is the name of a kubernetes cluster this proxy is running
-	// in. If set, this proxy will handle kubernetes requests for the cluster.
-	ClusterName string
-
-	// runningInPod reports whether the current process is running inside of a
-	// Kubernetes Pod. If nil, checks for the presence of on-disk service
-	// account credentials in standard paths.
-	//
-	// Used for test mocking.
-	runningInPod func() bool
-}
-
-// ClusterNames returns the complete list of kubernetes clusters from
-// ClusterName and kubeconfig.
-func (c KubeProxyConfig) ClusterNames(teleportClusterName string) ([]string, error) {
-	if !c.Enabled {
-		return nil, nil
-	}
-
-	clusters := make(map[string]struct{})
-	if c.ClusterName != "" {
-		clusters[c.ClusterName] = struct{}{}
-	} else {
-		// If a service account CA bundle exists at the standard path, we must
-		// be running inside of a Kubernetes pod. Since we don't have a
-		// ClusterName specified, use teleport cluster name as a fallback.
-		if c.runningInPod == nil {
-			c.runningInPod = func() bool {
-				_, err := os.Stat(teleport.KubeCAPath)
-				return err == nil
-			}
-		}
-		if c.runningInPod() {
-			clusters[teleportClusterName] = struct{}{}
-		}
-	}
-	if c.KubeconfigPath != "" {
-		cfg, err := kubeconfig.Load(c.KubeconfigPath)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed parsing kubeconfig file %q", c.KubeconfigPath)
-		}
-		for n := range cfg.Contexts {
-			if n != "" {
-				clusters[n] = struct{}{}
-			}
-		}
-		if cfg.CurrentContext != "" {
-			// DELETE IN 5.2
-			// Use teleport cluster name as an alias for the k8s cluster in
-			// current-context.
-			//
-			// This enables backwards-compatibility: when an older client
-			// requests a k8s cert without specifying a k8s cluster, we want to
-			// preserve pre-5.0 behavior. That is, when no specific cluster is
-			// requested, use current-context.
-			clusters[teleportClusterName] = struct{}{}
-		}
-	}
-	var uniqClusters []string
-	for n := range clusters {
-		uniqClusters = append(uniqClusters, n)
-	}
-	sort.Strings(uniqClusters)
-	return uniqClusters, nil
 }
 
 // AuthConfig is a configuration of the auth server
@@ -488,7 +435,7 @@ type AuthConfig struct {
 	// StorageConfig contains configuration settings for the storage backend.
 	StorageConfig backend.Config
 
-	Limiter limiter.LimiterConfig
+	Limiter limiter.Config
 
 	// NoAudit, when set to true, disables session recording and event audit
 	NoAudit bool
@@ -513,7 +460,7 @@ type SSHConfig struct {
 	Addr                  utils.NetAddr
 	Namespace             string
 	Shell                 string
-	Limiter               limiter.LimiterConfig
+	Limiter               limiter.Config
 	Labels                map[string]string
 	CmdLabels             services.CommandLabels
 	PermitUserEnvironment bool
@@ -526,6 +473,111 @@ type SSHConfig struct {
 
 	// BPF holds BPF configuration for Teleport.
 	BPF *bpf.Config
+}
+
+// KubeConfig specifies configuration for kubernetes service
+type KubeConfig struct {
+	// Enabled turns kubernetes service role on or off for this process
+	Enabled bool
+
+	// ListenAddr is the address to listen on for incoming kubernetes requests.
+	// Optional.
+	ListenAddr *utils.NetAddr
+
+	// PublicAddrs is a list of the public addresses the Teleport kubernetes
+	// service can be reached by the proxy service.
+	PublicAddrs []utils.NetAddr
+
+	// KubeClusterName is the name of a kubernetes cluster this proxy is running
+	// in. If empty, defaults to the Teleport cluster name.
+	KubeClusterName string
+
+	// KubeconfigPath is a path to kubeconfig
+	KubeconfigPath string
+
+	// Labels are used for RBAC on clusters.
+	StaticLabels  map[string]string
+	DynamicLabels services.CommandLabels
+
+	// Limiter limits the connection and request rates.
+	Limiter limiter.Config
+}
+
+// AppsConfig configures application proxy service.
+type AppsConfig struct {
+	// Enabled enables application proxying service.
+	Enabled bool
+
+	// DebugApp enabled a header dumping debugging application.
+	DebugApp bool
+
+	// Apps is the list of applications that are being proxied.
+	Apps []App
+}
+
+// App is the specific application that will be proxied by the application
+// service. This needs to exist because if the "config" package tries to
+// directly create a services.App it will get into circular imports.
+type App struct {
+	// Name of the application.
+	Name string
+
+	// URI is the internal address of the application.
+	URI string
+
+	// Public address of the application. This is the address users will access
+	// the application at.
+	PublicAddr string
+
+	// StaticLabels is a map of static labels to apply to this application.
+	StaticLabels map[string]string
+
+	// DynamicLabels is a list of dynamic labels to apply to this application.
+	DynamicLabels services.CommandLabels
+
+	// InsecureSkipVerify is used to skip validating the server's certificate.
+	InsecureSkipVerify bool
+
+	// Rewrite defines a block that is used to rewrite requests and responses.
+	Rewrite *Rewrite
+}
+
+// Check validates an application.
+func (a App) Check() error {
+	if a.Name == "" {
+		return trace.BadParameter("missing application name")
+	}
+	if a.URI == "" {
+		return trace.BadParameter("missing application URI")
+	}
+	// Check if the application name is a valid subdomain. Don't allow names that
+	// are invalid subdomains because for trusted clusters the name is used to
+	// construct the domain that the application will be available at.
+	if errs := validation.IsDNS1035Label(a.Name); len(errs) > 0 {
+		return trace.BadParameter("application name %q must be a valid DNS subdomain: https://gravitational.com/teleport/docs/application-access/#application-name", a.Name)
+	}
+	// Parse and validate URL.
+	if _, err := url.Parse(a.URI); err != nil {
+		return trace.BadParameter("application URI invalid: %v", err)
+	}
+	// If a port was specified or an IP address was provided for the public
+	// address, return an error.
+	if a.PublicAddr != "" {
+		if _, _, err := net.SplitHostPort(a.PublicAddr); err == nil {
+			return trace.BadParameter("public_addr %q can not contain a port, applications will be available on the same port as the web proxy", a.PublicAddr)
+		}
+		if net.ParseIP(a.PublicAddr) != nil {
+			return trace.BadParameter("public_addr %q can not be an IP address, Teleport Application Access uses DNS names for routing", a.PublicAddr)
+		}
+	}
+
+	return nil
+}
+
+// Rewrite is a list of rewriting rules to apply to requests and responses.
+type Rewrite struct {
+	// Redirect is a list of hosts that should be rewritten to the public address.
+	Redirect []string
 }
 
 // MakeDefaultConfig creates a new Config structure and populates it with defaults
@@ -599,6 +651,13 @@ func ApplyDefaults(cfg *Config) {
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
 	cfg.SSH.PAM = &pam.Config{Enabled: false}
 	cfg.SSH.BPF = &bpf.Config{Enabled: false}
+
+	// Kubernetes service defaults.
+	cfg.Kube.Enabled = false
+	defaults.ConfigureLimiter(&cfg.Kube.Limiter)
+
+	// Apps service defaults. It's disabled by default.
+	cfg.Apps.Enabled = false
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

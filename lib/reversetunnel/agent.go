@@ -78,13 +78,17 @@ type AgentConfig struct {
 	EventsC chan string
 	// KubeDialAddr is a dial address for kubernetes proxy
 	KubeDialAddr utils.NetAddr
-	// Server is a SSH server that can handle a connection (perform a handshake
-	// then process). Only set with the agent is running within a node.
+	// Server is either an SSH or application server. It can handle a connection
+	// (perform handshake and handle request).
 	Server ServerHandler
 	// ReverseTunnelServer holds all reverse tunnel connections.
 	ReverseTunnelServer Server
 	// LocalClusterName is the name of the cluster this agent is running in.
 	LocalClusterName string
+	// Component is the teleport component that this agent runs in.
+	// It's important for routing incoming requests for local services (like an
+	// IoT node or kubernetes service).
+	Component string
 	// Tracker tracks proxy
 	Tracker *track.Tracker
 	// Lease manages gossip and exclusive claims.  Lease may be nil
@@ -158,7 +162,7 @@ func NewAgent(cfg AgentConfig) (*Agent, error) {
 		state:       agentStateConnecting,
 	}
 	a.Entry = log.WithFields(log.Fields{
-		trace.Component: teleport.ComponentReverseTunnelAgent,
+		trace.Component: teleport.Component(cfg.Component, teleport.ComponentReverseTunnelAgent),
 		trace.ComponentFields: log.Fields{
 			"target":  cfg.Addr.String(),
 			"leaseID": a.Lease.ID(),
@@ -436,7 +440,7 @@ func (a *Agent) processRequests(conn *ssh.Client) error {
 				requestCh:           req,
 				sconn:               conn.Conn,
 				server:              a.Server,
-				component:           teleport.ComponentReverseTunnelAgent,
+				component:           a.Component,
 				reverseTunnelServer: a.ReverseTunnelServer,
 				localClusterName:    a.LocalClusterName,
 			}

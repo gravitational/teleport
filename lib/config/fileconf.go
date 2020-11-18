@@ -149,6 +149,7 @@ var (
 		"audit_sessions_uri":      false,
 		"audit_events_uri":        false,
 		"pam":                     true,
+		"use_pam_auth":            false,
 		"service_name":            false,
 		"client_idle_timeout":     false,
 		"session_control_timeout": false,
@@ -163,6 +164,21 @@ var (
 		"disk_buffer_size":        false,
 		"network_buffer_size":     false,
 		"cgroup_path":             false,
+		"kubernetes_service":      true,
+		"kube_cluster_name":       false,
+		"kube_listen_addr":        false,
+		"app_service":             true,
+		"protocol":                false,
+		"uri":                     false,
+		"apps":                    false,
+		"https_keypairs":          true,
+		"key_file":                false,
+		"insecure_skip_verify":    false,
+		"rewrite":                 false,
+		"redirect":                false,
+		"debug_app":               false,
+		"static_labels":           false,
+		"dynamic_labels":          true,
 	}
 )
 
@@ -181,6 +197,11 @@ type FileConfig struct {
 	Auth   Auth  `yaml:"auth_service,omitempty"`
 	SSH    SSH   `yaml:"ssh_service,omitempty"`
 	Proxy  Proxy `yaml:"proxy_service,omitempty"`
+	Kube   Kube  `yaml:"kubernetes_service,omitempty"`
+
+	// Apps is the "app_service" section in Teleport file configuration which
+	// defines application access configuration.
+	Apps Apps `yaml:"app_service,omitempty"`
 }
 
 type YAMLMap map[interface{}]interface{}
@@ -218,7 +239,7 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 		return nil, trace.BadParameter("failed to parse Teleport configuration: %v", err)
 	}
 	// don't start Teleport with invalid ciphers, kex algorithms, or mac algorithms.
-	err = fc.Check()
+	err = fc.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.BadParameter("failed to parse Teleport configuration: %v", err)
 	}
@@ -327,10 +348,15 @@ func (conf *FileConfig) DebugDumpToYAML() string {
 	return string(bytes)
 }
 
-// Check ensures that the ciphers, kex algorithms, and mac algorithms set
-// are supported by golang.org/x/crypto/ssh. This ensures we don't start
-// Teleport with invalid configuration.
-func (conf *FileConfig) Check() error {
+// CheckAndSetDefaults sets defaults and ensures that the ciphers, kex
+// algorithms, and mac algorithms set are supported by golang.org/x/crypto/ssh.
+// This ensures we don't start Teleport with invalid configuration.
+func (conf *FileConfig) CheckAndSetDefaults() error {
+	conf.Auth.defaultEnabled = true
+	conf.Proxy.defaultEnabled = true
+	conf.SSH.defaultEnabled = true
+	conf.Kube.defaultEnabled = false
+
 	var sc ssh.Config
 	sc.SetDefaults()
 
@@ -474,8 +500,9 @@ func (c *CachePolicy) Parse() (*service.CachePolicy, error) {
 
 // Service is a common configuration of a teleport service
 type Service struct {
-	EnabledFlag   string `yaml:"enabled,omitempty"`
-	ListenAddress string `yaml:"listen_addr,omitempty"`
+	defaultEnabled bool
+	EnabledFlag    string `yaml:"enabled,omitempty"`
+	ListenAddress  string `yaml:"listen_addr,omitempty"`
 }
 
 // Configured determines if a given "_service" section has been specified
@@ -485,8 +512,8 @@ func (s *Service) Configured() bool {
 
 // Enabled determines if a given "_service" section has been set to 'true'
 func (s *Service) Enabled() bool {
-	if s.EnabledFlag == "" {
-		return true
+	if !s.Configured() {
+		return s.defaultEnabled
 	}
 	v, err := utils.ParseBool(s.EnabledFlag)
 	if err != nil {
@@ -497,7 +524,10 @@ func (s *Service) Enabled() bool {
 
 // Disabled returns 'true' if the service has been deliberately turned off
 func (s *Service) Disabled() bool {
-	return s.Configured() && !s.Enabled()
+	if !s.Configured() {
+		return !s.defaultEnabled
+	}
+	return !s.Enabled()
 }
 
 // Auth is 'auth_service' section of the config file
@@ -738,6 +768,10 @@ type PAM struct {
 
 	// ServiceName is the name of the PAM policy to apply.
 	ServiceName string `yaml:"service_name"`
+
+	// UsePAMAuth specifies whether to trigger the "auth" PAM modules from the
+	// policy.
+	UsePAMAuth bool `yaml:"use_pam_auth"`
 }
 
 // Parse returns a parsed pam.Config.
@@ -750,6 +784,7 @@ func (p *PAM) Parse() *pam.Config {
 	return &pam.Config{
 		Enabled:     enabled,
 		ServiceName: serviceName,
+		UsePAMAuth:  p.UsePAMAuth,
 	}
 }
 
@@ -783,6 +818,53 @@ func (b *BPF) Parse() *bpf.Config {
 	}
 }
 
+// Apps represents the configuration for the collection of applications this
+// service will start. In file configuration this would be the "app_service"
+// section.
+type Apps struct {
+	// Service contains fields common to all services like "enabled" and
+	// "listen_addr".
+	Service `yaml:",inline"`
+
+	// DebugApp turns on a header debugging application.
+	DebugApp bool `yaml:"debug_app"`
+
+	// Apps is a list of applications that will be run by this service.
+	Apps []*App `yaml:"apps"`
+}
+
+// App is the specific application that will be proxied by the application
+// service.
+type App struct {
+	// Name of the application.
+	Name string `yaml:"name"`
+
+	// URI is the internal address of the application.
+	URI string `yaml:"uri"`
+
+	// Public address of the application. This is the address users will access
+	// the application at.
+	PublicAddr string `yaml:"public_addr"`
+
+	// Labels is a map of static labels to apply to this application.
+	StaticLabels map[string]string `yaml:"labels,omitempty"`
+
+	// Commands is a list of dynamic labels to apply to this application.
+	DynamicLabels []CommandLabel `yaml:"commands,omitempty"`
+
+	// InsecureSkipVerify is used to skip validating the servers certificate.
+	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
+
+	// Rewrite defines a block that is used to rewrite requests and responses.
+	Rewrite *Rewrite `yaml:"rewrite,omitempty"`
+}
+
+// Rewrite is a list of rewriting rules to apply to requests and responses.
+type Rewrite struct {
+	// Redirect is a list of hosts that should be rewritten to the public address.
+	Redirect []string `yaml:"redirect"`
+}
+
 // Proxy is a `proxy_service` section of the config file:
 type Proxy struct {
 	// Service is a generic service configuration section
@@ -800,8 +882,11 @@ type Proxy struct {
 	// as only admin knows whether service is in front of trusted load balancer
 	// or not.
 	ProxyProtocol string `yaml:"proxy_protocol,omitempty"`
-	// Kube configures kubernetes protocol support of the proxy
-	Kube Kube `yaml:"kubernetes,omitempty"`
+	// KubeProxy configures kubernetes protocol support of the proxy
+	Kube KubeProxy `yaml:"kubernetes,omitempty"`
+	// KubeAddr is a shorthand for enabling the Kubernetes endpoint without a
+	// local Kubernetes cluster.
+	KubeAddr string `yaml:"kube_listen_addr,omitempty"`
 
 	// PublicAddr sets the hostport the proxy advertises for the HTTP endpoint.
 	// The hosts in PublicAddr are included in the list of host principals
@@ -817,10 +902,21 @@ type Proxy struct {
 	// endpoint. The hosts in PublicAddr are included in the list of host
 	// principals on the SSH certificate.
 	TunnelPublicAddr utils.Strings `yaml:"tunnel_public_addr,omitempty"`
+
+	// KeyPairs is a list of x509 key pairs the proxy will load.
+	KeyPairs []KeyPair `yaml:"https_keypairs"`
 }
 
-// Kube is a `kubernetes_service`
-type Kube struct {
+// KeyPair represents a path on disk to a private key and certificate.
+type KeyPair struct {
+	// PrivateKey is the path on disk to a PEM encoded private key,
+	PrivateKey string `yaml:"key_file"`
+	// Certificate is the path on disk to a PEM encoded x509 certificate.
+	Certificate string `yaml:"cert_file"`
+}
+
+// KubeProxy is a `kubernetes` section in `proxy_service`.
+type KubeProxy struct {
 	// Service is a generic service configuration section
 	Service `yaml:",inline"`
 	// PublicAddr is a publicly advertised address of the kubernetes proxy
@@ -832,6 +928,25 @@ type Kube struct {
 	// ClusterName is the name of a kubernetes cluster this proxy is running
 	// in. If set, this proxy will handle kubernetes requests for the cluster.
 	ClusterName string `yaml:"cluster_name,omitempty"`
+}
+
+// Kube is a `kubernetes_service`
+type Kube struct {
+	// Service is a generic service configuration section
+	Service `yaml:",inline"`
+	// PublicAddr is a publicly advertised address of the kubernetes service
+	PublicAddr utils.Strings `yaml:"public_addr,omitempty"`
+	// KubeconfigFile is an optional path to kubeconfig file,
+	// if specified, teleport will use API server address and
+	// trusted certificate authority information from it
+	KubeconfigFile string `yaml:"kubeconfig_file,omitempty"`
+	// KubeClusterName is the name of a kubernetes cluster this service is
+	// running in. If set, this proxy will handle kubernetes requests for the
+	// cluster.
+	KubeClusterName string `yaml:"kube_cluster_name,omitempty"`
+	// Static and dynamic labels for RBAC on kubernetes clusters.
+	StaticLabels  map[string]string `yaml:"static_labels,omitempty"`
+	DynamicLabels []CommandLabel    `yaml:"dynamic_labels,omitempty"`
 }
 
 // ReverseTunnel is a SSH reverse tunnel maintained by one cluster's
@@ -926,9 +1041,6 @@ type ClaimMapping struct {
 	Value string `yaml:"value"`
 	// Roles is a list of teleport roles to match
 	Roles []string `yaml:"roles,omitempty"`
-	// RoleTemplate is a template for a role that will be filled
-	// with data from claims.
-	RoleTemplate *services.RoleV2 `yaml:"role_template,omitempty"`
 }
 
 // OIDCConnector specifies configuration fo Open ID Connect compatible external
@@ -975,10 +1087,9 @@ func (o *OIDCConnector) Parse() (services.OIDCConnector, error) {
 		}
 
 		mappings = append(mappings, services.ClaimMapping{
-			Claim:        c.Claim,
-			Value:        c.Value,
-			Roles:        roles,
-			RoleTemplate: c.RoleTemplate,
+			Claim: c.Claim,
+			Value: c.Value,
+			Roles: roles,
 		})
 	}
 

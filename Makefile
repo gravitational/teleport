@@ -8,9 +8,10 @@
 
 # To update the Teleport version, update VERSION variable:
 # Naming convention:
-#	for stable releases we use "1.0.0" format
-#   for pre-releases, we use   "1.0.0-beta.2" format
-VERSION=4.4.0-alpha.1
+#   Stable releases:   "1.0.0"
+#   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
+#   Master/dev branch: "1.0.0-dev"
+VERSION=5.0.0-dev
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -26,7 +27,7 @@ TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
 CGOFLAG ?= CGO_ENABLED=1
-GO_LINTERS ?= "unused,govet,typecheck,deadcode,goimports,varcheck,structcheck,bodyclose,staticcheck,ineffassign,unconvert,misspell,gosimple"
+GO_LINTERS ?= "unused,govet,typecheck,deadcode,goimports,varcheck,structcheck,bodyclose,staticcheck,ineffassign,unconvert,misspell,gosimple,golint"
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
@@ -248,14 +249,18 @@ docs-test-links:
 	done
 
 #
-# tests everything: called by Jenkins
+# Runs all tests except integration, called by CI/CD.
+#
+# Chaos tests have high concurrency, run without race detector and have TestChaos prefix.
 #
 .PHONY: test
 test: ensure-webassets
 test: FLAGS ?= '-race'
 test: PACKAGES := $(shell go list ./... | grep -v integration)
+test: CHAOS_FOLDERS := $(shell find . -type f -name '*chaos*.go' -not -path '*/vendor/*' | xargs dirname | uniq)
 test: $(VERSRC)
 	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS)
+	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) -cover
 
 #
 # Integration tests. Need a TTY to work.
@@ -296,6 +301,14 @@ lint-sh:
 	find . -type f -name '*.sh' | grep -v vendor | xargs \
 		shellcheck \
 		--exclude=SC2086 \
+		$(SH_LINT_FLAGS)
+
+	# lint AWS AMI scripts
+	# SC1091 prints errors when "source" directives are not followed
+	find assets/aws/files/bin -type f | xargs \
+		shellcheck \
+		--exclude=SC2086 \
+		--exclude=SC1091 \
 		$(SH_LINT_FLAGS)
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
@@ -506,8 +519,14 @@ rpm:
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
+	cp -a ./build.assets/rpm-sign $(BUILDDIR)/
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p rpm -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e rpm; fi
+
+# build unsigned .rpm (for testing)
+.PHONY: rpm-unsigned
+rpm-unsigned:
+	$(MAKE) UNSIGNED_RPM=true rpm
 
 # build .deb
 .PHONY: deb

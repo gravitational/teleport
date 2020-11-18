@@ -65,9 +65,10 @@ proxy_service:
 If you're using Helm, we've a chart that you can use. Run these commands:
 
 ```bash
-$ helm repo add gravitational https://charts.gravitational.io
-$ helm install teleport gravitational/teleport
+$ helm repo add teleport https://charts.releases.teleport.dev
+$ helm install teleport teleport/teleport
 ```
+
 You will still need a correctly configured `values.yaml` file for this to work. See
 our [Helm Docs](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport#introduction) for more information.
 
@@ -108,7 +109,7 @@ To generate the `kubeconfig_file` for the Teleport proxy service:
 
 ```bash
 # Download the script.
-$ curl -o get-kubeconfig.sh https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh
+$ curl -o get-kubeconfig.sh https://raw.githubusercontent.com/gravitational/teleport/master/examples/k8s-auth/get-kubeconfig.sh
 
 # Make it executable.
 $ chmod +x get-kubeconfig.sh
