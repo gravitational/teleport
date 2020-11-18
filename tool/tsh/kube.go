@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -226,10 +225,12 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	profile, _, err := client.Status("", cf.Proxy)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			fmt.Println("Not logged in.")
-			return nil
+			return trace.AccessDenied("not logged in")
 		}
-		utils.FatalError(err)
+		return trace.Wrap(err)
+	}
+	if profile == nil {
+		return trace.AccessDenied("not logged in")
 	}
 	kc, err := kubeconfig.Load("")
 	if err != nil {
