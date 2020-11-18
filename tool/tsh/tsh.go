@@ -505,12 +505,20 @@ func onLogin(cf *CLIConf) {
 	// client is already logged in and profile is not expired
 	if profile != nil && !profile.IsExpired(clockwork.NewRealClock()) {
 		switch {
-		// in case if nothing is specified, print current status
+		// in case if nothing is specified, re-fetch kube clusters and print
+		// current status
 		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.IdentityFileOut == "":
+			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
+				utils.FatalError(err)
+			}
 			printProfiles(cf.Debug, profile, profiles)
 			return
-		// in case if parameters match, print current status
+		// in case if parameters match, re-fetch kube clusters and print
+		// current status
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "":
+			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
+				utils.FatalError(err)
+			}
 			printProfiles(cf.Debug, profile, profiles)
 			return
 		// proxy is unspecified or the same as the currently provided proxy,
@@ -538,6 +546,9 @@ func onLogin(cf *CLIConf) {
 		// request for the same login session.
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.DesiredRoles != "" && cf.IdentityFileOut == "":
 			if err := executeAccessRequest(cf); err != nil {
+				utils.FatalError(err)
+			}
+			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
 				utils.FatalError(err)
 			}
 			onStatus(cf)
