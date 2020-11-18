@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -50,6 +51,44 @@ type remoteCommandRequest struct {
 	onResize           resizeCallback
 	context            context.Context
 	pingPeriod         time.Duration
+}
+
+func (req remoteCommandRequest) eventPodMeta(ctx context.Context, creds *kubeCreds) events.KubernetesPodMetadata {
+	meta := events.KubernetesPodMetadata{
+		KubernetesPodName:       req.podName,
+		KubernetesPodNamespace:  req.podNamespace,
+		KubernetesContainerName: req.containerName,
+	}
+	if creds == nil || creds.kubeClient == nil {
+		return meta
+	}
+
+	// Optionally, try to get more info about the pod.
+	//
+	// This can fail if a user has set tight RBAC rules for teleport. Failure
+	// here shouldn't prevent a session from starting.
+	pod, err := creds.kubeClient.CoreV1().Pods(req.podNamespace).Get(ctx, req.podName, metav1.GetOptions{})
+	if err != nil {
+		log.WithError(err).Debugf("Failed fetching pod from kubernetes API; skipping additional metadata on the audit event")
+		return meta
+	}
+	meta.KubernetesNodeName = pod.Spec.NodeName
+
+	// If a container name was provided, find its image name.
+	if req.containerName != "" {
+		for _, c := range pod.Spec.Containers {
+			if c.Name == req.containerName {
+				meta.KubernetesContainerImage = c.Image
+				break
+			}
+		}
+	}
+	// If no container name was provided, use the default one.
+	if req.containerName == "" && len(pod.Spec.Containers) > 0 {
+		meta.KubernetesContainerName = pod.Spec.Containers[0].Name
+		meta.KubernetesContainerImage = pod.Spec.Containers[0].Image
+	}
+	return meta
 }
 
 func createRemoteCommandProxy(req remoteCommandRequest) (*remoteCommandProxy, error) {

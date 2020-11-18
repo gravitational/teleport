@@ -254,8 +254,11 @@ func (a *LocalKeyAgent) UnloadKeys() error {
 
 // GetKey returns the key for this user in a proxy from the filesystem keystore
 // at ~/.tsh.
-func (a *LocalKeyAgent) GetKey() (*Key, error) {
-	return a.keyStore.GetKey(a.proxyHost, a.username)
+//
+// clusterName is an optional teleport cluster name to load kubernetes
+// certificates for.
+func (a *LocalKeyAgent) GetKey(opts ...KeyOption) (*Key, error) {
+	return a.keyStore.GetKey(a.proxyHost, a.username, opts...)
 }
 
 // AddHostSignersToCache takes a list of CAs whom we trust. This list is added to a database
@@ -417,9 +420,12 @@ func (a *LocalKeyAgent) AddKey(key *Key) (*agent.AddedKey, error) {
 
 // DeleteKey removes the key from the key store as well as unloading the key
 // from the agent.
-func (a *LocalKeyAgent) DeleteKey() error {
+//
+// clusterName is an optional teleport cluster name to delete kubernetes
+// certificates for.
+func (a *LocalKeyAgent) DeleteKey(opts ...KeyOption) error {
 	// remove key from key store
-	err := a.keyStore.DeleteKey(a.proxyHost, a.username)
+	err := a.keyStore.DeleteKey(a.proxyHost, a.username, opts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
