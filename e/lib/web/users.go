@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 
 	"github.com/gravitational/teleport/lib/httplib"
@@ -71,6 +72,10 @@ func createUser(r *http.Request, m userAPIGetter, createdBy string) (*ui.User, e
 	}
 
 	user.SetRoles(req.Roles)
+	user.SetTraits(map[string][]string{
+		teleport.TraitLogins: req.Logins,
+	})
+
 	user.SetCreatedBy(services.CreatedBy{
 		User: services.UserRef{Name: createdBy},
 		Time: time.Now().UTC(),
@@ -155,8 +160,9 @@ type userAPIGetter interface {
 }
 
 type saveUserRequest struct {
-	Name  string   `json:"name"`
-	Roles []string `json:"roles"`
+	Name   string   `json:"name"`
+	Roles  []string `json:"roles"`
+	Logins []string `json:"logins,omitempty"`
 }
 
 func (r *saveUserRequest) checkAndSetDefaults() error {
