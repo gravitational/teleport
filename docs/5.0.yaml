@@ -71,7 +71,7 @@ nav:
         - Teleport Proxy: architecture/proxy.md
         - Trusted Clusters: trustedclusters.md
     - Advanced Features:
-        - BPF Session Recoding: features/enhanced-session-recording.md
+        - BPF Session Recording: features/enhanced-session-recording.md
         - Using Teleport with PAM: features/ssh-pam.md
     - Reference:
         - YAML: config-reference.md

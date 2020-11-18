@@ -22,7 +22,7 @@ the following services.
 | [Node](architecture/nodes.md) | `node` | Runs a daemon on a node which allows SSH connections from authenticated clients.
 | [Auth](architecture/authentication.md) | `auth` | Authenticates nodes and users who want access to Teleport Nodes or information about the cluster
 | [Proxy](architecture/proxy.md) | `proxy` | The gateway that clients use to connect to the Auth or Node Services
-| [App](application-access.md) | `app` |  Runs a daemon on a node which provides allows to Applications using a SSH reverse tunnel.
+| [App](application-access.md) | `app` |  Runs a daemon on a node which provides access to applications using an SSH reverse tunnel.
 
 ## teleport start
 
@@ -48,7 +48,7 @@ the following services.
 | `--diag-addr` | none | none | Enable diagnostic endpoints
 | `--permit-user-env` | none | none | flag reads in environment variables from `~/.tsh/environment` when creating a session.
 | `--app-name` | none | none | Name of the application to start
-| `--app-uri` | none } none | Internal address of the application to proxy
+| `--app-uri` | none | none | Internal address of the application to proxy
 | `--app-public-addr` | none | none | Public address fo the application to proxy
 
 

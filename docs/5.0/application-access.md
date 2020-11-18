@@ -6,16 +6,14 @@ description: How to set up and configure Teleport for Application access with SS
 # Teleport Application Access
 
 ## Introduction
-Teleport Application Access has been designed to provide secure access to internal dashboards and applications. Building on Teleports strong foundations of security and identity. You can now put applications onto the internet safely and securely.
+Teleport Application Access has been designed to provide secure access to internal dashboards and applications, building on Teleport's strong foundations of security and identity. You can now put applications onto the internet safely and securely.
 
 You can secure any web application using application access:
 
 * Internal control panels
 * Wikis / Tooling that's only available on the VPN.
 * Infra dashboards - Kubernetes, Grafana
-* Developer tools, such as Jenkins, Gitlab or Ops genie
-
-
+* Developer tools, such as Jenkins, Gitlab or Opsgenie
 #### Hardware Requirements
 [How it works](https://gravitational.com/teleport/how-it-works/) page will give you a good overview of the setup.
 
@@ -23,20 +21,22 @@ You can secure any web application using application access:
 
 !!! note "Why do I see SSH Ports for Application Access?"
 
-    Teleport uses SSH reverse tunnels to connect applications to the proxy. This is why configuration below mentions SSH ports.
+Teleport uses SSH reverse tunnels to connect applications to the proxy. This is why the configuration below mentions SSH ports.
 
 |Port      | Service    | Description
 |----------|------------|-------------------------------------------
-|3023      | Proxy      | SSH port for clients who need tsh login
-|3024      | Proxy      | SSH port used to create reverse SSH tunnels from behind-firewall environments into a trusted proxy server.
-|3025      | Auth       | TLS port used by the Auth Service to serve its API to other nodes in a cluster.
-|443       | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Teleport UI.
+| 3023      | Proxy      | SSH port for clients who need tsh login
+| 3024      | Proxy      | SSH port used to create reverse SSH tunnels from behind-firewall environments into a trusted proxy server.
+| 3025      | Auth       | TLS port used by the Auth Service to serve its API to other nodes in a cluster.
+| 3080      | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Teleport UI.
 
 #### TLS Requirements
 
-TLS is required to secure Teleports Unified Access Plane and any connected applications. When setting up Teleport the minium requirement is a certificate for the proxy and a wild card certificate for it's sub-domain. This is where everyone will login to Teleport.
+TLS is required to secure Teleport's Unified Access Plane and any connected applications. When setting up Teleport, the minimum requirement is a certificate for the proxy and a wildcard certificate for its sub-domain. This is where everyone will log into Teleport.
 
-Example: `teleport.example.com` will host the Access Plane. `*.teleport.example.com` will host all of the applications. e.g. `jenkins.teleport.example.com`. Teleport supports accessing these applications on other domains if required. Both DNS and the correct certificates need to be obtained for this to work.
+Example: `teleport.example.com` will host the Access Plane. `*.teleport.example.com` will host all of the applications e.g. `jenkins.teleport.example.com`.
+
+Teleport supports accessing these applications on other domains if required. DNS entries must be configured and the correct certificates need to be obtained for this to work.
 
 ```yaml
 proxy_service:
@@ -55,7 +55,7 @@ proxy_service:
 !!! tip "Using Certbot to obtain Wildcard Certs"
 
     Let's Encrypt provides free wildcard certificates. If using [certbot](https://certbot.eff.org/)
-    with DNS challenge the below script will make setup easy.
+    with DNS challenge, the below script will make setup easy.
 
       ```sh
       certbot certonly --manual \
@@ -77,7 +77,7 @@ inline options using `teleport start` or using a `teleport.yaml` config file.
 
 | Variable to replace | Description  |
 |-|-|
-| `--roles=app` | The 'app' role will  setup the reverse proxy for applications |
+| `--roles=app` | The 'app' role will set up the reverse proxy for applications |
 | `--token` | A dynamic or static `app` token obtained from the root cluster |
 | `--auth-server` | URL of the root cluster auth server or public proxy address |
 | `--app-name` | Application name |
@@ -90,7 +90,9 @@ teleport start --roles=app --token=xyz --auth-server=proxy.example.com:3080 \
 ```
 
 ### Application Name
-When picking an application name it's important to make sure the name will make a valid sub-domain. After Teleport is running the application will be accissble at `app-name.proxy_pubic_addr.com` e.g. jenkins.teleport.example.com.  Teleport provides the ability to override public_addr. e.g jenkins.acme.com
+When picking an application name, it's important to make sure the name will make a valid sub-domain (<=63 characters, no spaces, only `A-Z a-z 0-9 _ -` allowed). 
+
+After Teleport is running, the application will be accessible at `app-name.proxy_public_addr.com` e.g. `jenkins.teleport.example.com`.  Teleport also provides the ability to override `public_addr`. e.g `jenkins.acme.com` if you configure the appropriate DNS entry to point to the Teleport proxy server.
 
 ### Starting Teleport with config file
 
@@ -98,7 +100,6 @@ When picking an application name it's important to make sure the name will make 
 
 | Variable to replace | Description  |
 |-|-|
-| `nodename` | Name of node Teleport is running on |
 | `proxy_service: public_addr` | Public URL and Port for Teleport |
 | `https_keypairs` | LetsEncrypt Key File ( Wildcard Cert )  |
 | `-key_file` | LetsEncrypt Key File ( Wildcard Cert ) |
@@ -108,7 +109,6 @@ When picking an application name it's important to make sure the name will make 
 
 ```yaml
 teleport:
-  nodename: ip-172-31-13-139
   data_dir: /var/lib/teleport
   auth_token: a3aff444e182cf4ee5c2f78ad2a4cc47d8a30c95747a08f8
 auth_service:
@@ -142,7 +142,7 @@ app_service:
 proxy_service:
   enabled: "yes"
   listen_addr: 0.0.0.0:3023
-  # Public Address default to port 3080 which doesn't
+  # Public address defaults to port 3080 which doesn't
   # require Teleport starting as root
   public_addr: teleport.example.com:443
   # Example using a wildcard cert
@@ -207,7 +207,7 @@ We provide simple rewrites. This is helpful for applications
 
 ## Logging out of Applications
 
-When you log into an application you'll get a certificate and login session per your defined RBAC. If you want to force logout before this period you can force a log out by hitting `/teleport-logout`
+When you log into an application, you'll get a certificate and login session per your defined RBAC. If you want to force logout before this period you can force a log out by hitting the `/teleport-logout` endpoint:
 
 https://internal-app.teleport.example.com/teleport-logout
 
@@ -219,7 +219,7 @@ JSON Web Token (JWT) is an open standard that defines a secure way to transfer i
 
 For a in-depth explanation please visit [https://jwt.io/introduction/](https://jwt.io/introduction/)
 
-Teleports JSON Web Token (JWT) includes three sections:
+Teleport JSON Web Tokens (JWT) include three sections:
 
 + Header
 + Payload
@@ -281,18 +281,18 @@ _Example jwks.json_
 
 ## Example Applications
 
-As outlined in our introduction Application Access has been designed to support two types of applications.
+As outlined in our introduction, Application Access has been designed to support two types of applications.
 
 **Example Legacy App**</br>
-A device such as an load balancer might come with a control panel, but it doesn't' have any auth and can only be access via a privileged network. These applications are supported and can extend access beyond your network.
+A device such as a load balancer might come with a control panel, but it doesn't have any authentication and can only be access via a privileged network. These applications are supported and can extend access beyond your network.
 
-Other example legacy apps.
+Other example legacy apps:
 
 + An internal admin tool
 + Control panel for networking devices
 
 **Example Modern App**</br>
-Teleport Application Access supports all modern applications, these could be built in-house or off-the-shelf software such as jenkins, Kubernetes Dashboard and Jupyter workbooks.
+Teleport Application Access supports all modern applications, these could be built in-house or off-the-shelf software such as Jenkins, Kubernetes Dashboard and Jupyter workbooks.
 
 + Kubernetes Internal Dashboard
 + Grafana

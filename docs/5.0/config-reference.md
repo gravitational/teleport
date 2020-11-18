@@ -353,7 +353,7 @@ app_service:
    enabled: yes
    # We've a small debug app that can be used to make sure application
    # Access is working correctly. It'll output JWTs so it can be useful
-   # for when extending your application.
+   # when extending your application.
    debug_app: true
    apps:
    - name: "kubernetes-dashboard"

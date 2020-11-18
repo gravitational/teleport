@@ -246,7 +246,7 @@ proxy_service:
   # critical for Teleport security.
   https_keypairs:
     - key_file: /var/lib/teleport/webproxy_key.pem
-    - cert_file: /var/lib/teleport/webproxy_cert.pem
+      cert_file: /var/lib/teleport/webproxy_cert.pem
 ```
 
 #### Public Addr
@@ -794,7 +794,7 @@ ssh_service:
 app_service:
   enabled: "yes"
   # ...
-  # Dynamic labels AKA "commands":
+  # Dynamic labels (historically called "commands"):
   commands:
   - name: hostname
     command: [hostname]
@@ -915,7 +915,7 @@ The possible event types are:
 | scp           | Remote file copy has been executed. The following fields will be logged: `{"path": "/path/to/file.txt", "len": 32344, "action": "read" }` |
 | resize        | Terminal has been resized.|
 | user.login    | A user logged into web UI or via tsh. The following fields will be logged: `{"user": "alice@example.com", "method": "local"}` .|
-| app.session.start | A user had accessed an application |
+| app.session.start | A user accessed an application |
 | app.session.chunk | A record of activity during an app session |
 
 ### Recorded Sessions
