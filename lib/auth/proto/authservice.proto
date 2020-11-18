@@ -368,8 +368,7 @@ message CreateAppSessionResponse {
 message DeleteAppSessionRequest { string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ]; }
 
 // GetKubeServicesRequest are the parameters used to request kubernetes services.
-message GetKubeServicesRequest {
-}
+message GetKubeServicesRequest {}
 
 // GetKubeServicesResponse contains all requested kubernetes services.
 message GetKubeServicesResponse {
