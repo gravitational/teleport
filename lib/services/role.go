@@ -75,6 +75,7 @@ var ExtendedAdminUserRules = []Rule{
 // assigned to all roles.
 var DefaultImplicitRules = []Rule{
 	NewRule(KindNode, RO()),
+	NewRule(KindProxy, RO()),
 	NewRule(KindAuthServer, RO()),
 	NewRule(KindReverseTunnel, RO()),
 	NewRule(KindCertAuthority, ReadNoSecrets()),
