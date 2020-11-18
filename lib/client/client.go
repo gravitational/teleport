@@ -232,6 +232,24 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 	return trace.Wrap(err)
 }
 
+// RootClusterName returns name of the current cluster
+func (proxy *ProxyClient) RootClusterName() (string, error) {
+	localAgent := proxy.teleportClient.LocalAgent()
+	key, err := localAgent.GetKey()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	tlsCert, err := key.TLSCertificate()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	clusterName, err := tlsca.ClusterName(tlsCert.Issuer)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return clusterName, nil
+}
+
 // CreateAccessRequest registers a new access request with the auth server.
 func (proxy *ProxyClient) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
 	site, err := proxy.ConnectToCurrentCluster(ctx, false)
@@ -345,6 +363,19 @@ func (proxy *ProxyClient) ConnectToCurrentCluster(ctx context.Context, quiet boo
 		return nil, trace.Wrap(err)
 	}
 	return proxy.ConnectToCluster(ctx, cluster.Name, quiet)
+}
+
+// ConnectToRootCluster connects to the auth server of the root cluster
+// cluster via proxy. It returns connected and authenticated auth server client
+//
+// if 'quiet' is set to true, no errors will be printed to stdout, otherwise
+// any connection errors are visible to a user.
+func (proxy *ProxyClient) ConnectToRootCluster(ctx context.Context, quiet bool) (auth.ClientI, error) {
+	clusterName, err := proxy.RootClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return proxy.ConnectToCluster(ctx, clusterName, quiet)
 }
 
 // ConnectToCluster connects to the auth server of the given cluster via proxy.

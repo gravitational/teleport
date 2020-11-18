@@ -541,14 +541,26 @@ func onLogin(cf *CLIConf) {
 			tc.Logout()
 			utils.FatalError(err)
 		}
-		for _, roleName := range roleNames {
-			role, err := tc.GetRole(cf.Context, roleName)
-			if err != nil {
-				tc.Logout()
-				utils.FatalError(err)
+		// load all roles from root cluster and collect relevant options.
+		// the normal one-off TeleportClient methods don't re-use the auth server
+		// connection, so we use WithRootClusterClient to speed things up.
+		err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+			for _, roleName := range roleNames {
+				role, err := clt.GetRole(roleName)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				reason = reason || role.GetOptions().RequestAccess.RequireReason()
+				auto = auto || role.GetOptions().RequestAccess.ShouldAutoRequest()
+				if prompt == "" {
+					prompt = role.GetOptions().RequestPrompt
+				}
 			}
-			reason = reason || role.GetOptions().RequestAccess.RequireReason()
-			auto = auto || role.GetOptions().RequestAccess.ShouldAutoRequest()
+			return nil
+		})
+		if err != nil {
+			tc.Logout()
+			utils.FatalError(err)
 		}
 		if reason && cf.RequestReason == "" {
 			tc.Logout()
