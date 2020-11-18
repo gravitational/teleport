@@ -26,8 +26,9 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
-	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jonboulle/clockwork"
 	"go.etcd.io/etcd/clientv3"
@@ -371,27 +372,28 @@ func (s *EtcdSuite) TestSyncLegacyPrefix(c *check.C) {
 // TestCompareAndSwapOversizedValue ensures that the backend reacts with a proper
 // error message if client sends a message exceeding the configured size maximum
 // See https://github.com/gravitational/teleport/issues/4786
-func (s *EtcdSuite) TestCompareAndSwapOversizedValue(c *check.C) {
+func TestCompareAndSwapOversizedValue(t *testing.T) {
 	// setup
 	const maxClientMsgSize = 128
 	bk, err := New(context.Background(), backend.Params{
-		"peers":                     []string{"https://127.0.0.1:2379"},
-		"prefix":                    "/teleport",
-		"tls_key_file":              "../../../examples/etcd/certs/client-key.pem",
-		"tls_cert_file":             "../../../examples/etcd/certs/client-cert.pem",
-		"tls_ca_file":               "../../../examples/etcd/certs/ca-cert.pem",
-		"dial_timeout":              500 * time.Millisecond,
-		"max_client_msg_size_bytes": maxClientMsgSize,
+		"peers":                          []string{"https://127.0.0.1:2379"},
+		"prefix":                         "/teleport",
+		"tls_key_file":                   "../../../examples/etcd/certs/client-key.pem",
+		"tls_cert_file":                  "../../../examples/etcd/certs/client-cert.pem",
+		"tls_ca_file":                    "../../../examples/etcd/certs/ca-cert.pem",
+		"dial_timeout":                   500 * time.Millisecond,
+		"etcd_max_client_msg_size_bytes": maxClientMsgSize,
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	prefix := test.MakePrefix()
 	// Explicitly exceed the message size
 	value := make([]byte, maxClientMsgSize+1)
 
 	// verify
-	_, err = bk.CompareAndSwap(context.TODO(),
+	_, err = bk.CompareAndSwap(context.Background(),
 		backend.Item{Key: prefix("one"), Value: []byte("1")},
 		backend.Item{Key: prefix("one"), Value: value},
 	)
-	fixtures.ExpectLimitExceeded(c, err)
+	require.True(t, trace.IsLimitExceeded(err))
+	require.Regexp(t, ".*ResourceExhausted.*", err)
 }
