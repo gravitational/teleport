@@ -505,12 +505,20 @@ func onLogin(cf *CLIConf) {
 	// client is already logged in and profile is not expired
 	if profile != nil && !profile.IsExpired(clockwork.NewRealClock()) {
 		switch {
-		// in case if nothing is specified, print current status
+		// in case if nothing is specified, re-fetch kube clusters and print
+		// current status
 		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.IdentityFileOut == "":
+			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
+				utils.FatalError(err)
+			}
 			printProfiles(cf.Debug, profile, profiles)
 			return
-		// in case if parameters match, print current status
+		// in case if parameters match, re-fetch kube clusters and print
+		// current status
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "":
+			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
+				utils.FatalError(err)
+			}
 			printProfiles(cf.Debug, profile, profiles)
 			return
 		// proxy is unspecified or the same as the currently provided proxy,
@@ -538,6 +546,9 @@ func onLogin(cf *CLIConf) {
 		// request for the same login session.
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.DesiredRoles != "" && cf.IdentityFileOut == "":
 			if err := executeAccessRequest(cf); err != nil {
+				utils.FatalError(err)
+			}
+			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
 				utils.FatalError(err)
 			}
 			onStatus(cf)
@@ -605,14 +616,26 @@ func onLogin(cf *CLIConf) {
 			tc.Logout()
 			utils.FatalError(err)
 		}
-		for _, roleName := range roleNames {
-			role, err := tc.GetRole(cf.Context, roleName)
-			if err != nil {
-				tc.Logout()
-				utils.FatalError(err)
+		// load all roles from root cluster and collect relevant options.
+		// the normal one-off TeleportClient methods don't re-use the auth server
+		// connection, so we use WithRootClusterClient to speed things up.
+		err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+			for _, roleName := range roleNames {
+				role, err := clt.GetRole(roleName)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				reason = reason || role.GetOptions().RequestAccess.RequireReason()
+				auto = auto || role.GetOptions().RequestAccess.ShouldAutoRequest()
+				if prompt == "" {
+					prompt = role.GetOptions().RequestPrompt
+				}
 			}
-			reason = reason || role.GetOptions().RequestAccess.RequireReason()
-			auto = auto || role.GetOptions().RequestAccess.ShouldAutoRequest()
+			return nil
+		})
+		if err != nil {
+			tc.Logout()
+			utils.FatalError(err)
 		}
 		if reason && cf.RequestReason == "" {
 			tc.Logout()
