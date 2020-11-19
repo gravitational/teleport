@@ -47,9 +47,9 @@ proxy_service:
   ## Example of two https keypairs.
   https_keypairs:
   - key_file: /etc/letsencrypt/live/teleport.example.com/privkey.pem
-  - cert_file: /etc/letsencrypt/live/teleport.example.com/fullchain.pem
+    cert_file: /etc/letsencrypt/live/teleport.example.com/fullchain.pem
   - key_file: /etc/letsencrypt/live/*.teleport.example.com/privkey.pem
-  - cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
+    cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 ```
 
 !!! tip "Using Certbot to obtain Wildcard Certs"
@@ -61,7 +61,6 @@ proxy_service:
       certbot certonly --manual \
         --preferred-challenges=dns \
         --email [EMAIL] \
-        --server https://acme-v02.api.letsencrypt.org/directory \
         --agree-tos \
         --manual-public-ip-logging-ok \
         -d "teleport.example.com, *.teleport.example.com"
@@ -148,9 +147,9 @@ proxy_service:
   # Example using a wildcard cert
   https_keypairs:
   - key_file: /etc/letsencrypt/live/teleport.example.com/privkey.pem
-  - cert_file: /etc/letsencrypt/live/teleport.example.com/fullchain.pem
+    cert_file: /etc/letsencrypt/live/teleport.example.com/fullchain.pem
   - key_file: /etc/letsencrypt/live/*.teleport.example.com/privkey.pem
-  - cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
+    cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 ```
 #### [ Optional ] Obtain a new App Token
 In the above example we've hard coded a join token `a3aff444e182cf4ee5c2f78ad2a4cc47d8a30c95747a08f8`. You can use this to join apps or create a dynamic token using the tctl command below.

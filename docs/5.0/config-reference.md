@@ -325,9 +325,9 @@ proxy_service:
     # critical for Teleport security.
     https_keypairs:
     - key_file: /var/lib/teleport/webproxy_key.pem
-    - cert_file: /var/lib/teleport/webproxy_cert.pem
+      cert_file: /var/lib/teleport/webproxy_cert.pem
     - key_file: /etc/letsencrypt/live/*.teleport.example.com/privkey.pem
-    - cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
+      cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 
     # This section configures the Kubernetes proxy service
     kubernetes:

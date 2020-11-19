@@ -158,9 +158,9 @@ The files that are needed for Teleport are these:
 ```yaml
 # proxy service
 # ...
-https_keypairs
-  - key_file: /var/lib/teleport/webproxy_key.pem
-  - cert_file: /var/lib/teleport/webproxy_cert.pem
+https_keypairs:
+- key_file: /var/lib/teleport/webproxy_key.pem
+  cert_file: /var/lib/teleport/webproxy_cert.pem
 ```
 
 If you already have a certificate these should be uploaded to the Teleport Proxy and
@@ -182,10 +182,9 @@ proxy_service:
 
     # TLS certificate for the HTTPS connection. Configuring these properly is
     # critical for Teleport security.
-
     https_keypairs:
-        - key_file: /var/lib/teleport/webproxy_key.pem
-        - cert_file: /var/lib/teleport/webproxy_cert.pem
+    - key_file: /var/lib/teleport/webproxy_key.pem
+      cert_file: /var/lib/teleport/webproxy_cert.pem
 ```
 
 When setting up on Teleport on AWS or GCP, we recommend leveraging their certificate
