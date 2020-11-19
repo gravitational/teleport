@@ -432,6 +432,11 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("semaphore '%s/%s' has been deleted\n", rc.ref.SubKind, rc.ref.Name)
+	case services.KindKubeService:
+		if err = client.DeleteKubeService(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("kubernetes service %v has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -564,16 +569,27 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 		}
 		return &reverseTunnelCollection{tunnels: tunnels}, nil
 	case services.KindCertAuthority:
+		var authorities []services.CertAuthority
+
 		userAuthorities, err := client.GetCertAuthorities(services.UserCA, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		authorities = append(authorities, userAuthorities...)
+
 		hostAuthorities, err := client.GetCertAuthorities(services.HostCA, rc.withSecrets)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		userAuthorities = append(userAuthorities, hostAuthorities...)
-		return &authorityCollection{cas: userAuthorities}, nil
+		authorities = append(authorities, hostAuthorities...)
+
+		jwtSigners, err := client.GetCertAuthorities(services.JWTSigner, rc.withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		authorities = append(authorities, jwtSigners...)
+
+		return &authorityCollection{cas: authorities}, nil
 	case services.KindNode:
 		nodes, err := client.GetNodes(rc.namespace)
 		if err != nil {

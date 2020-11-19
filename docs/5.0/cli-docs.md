@@ -661,6 +661,8 @@ These flags are available for all commands `--debug, --config` . Run `tctl help
 ``` bash
 # Generate an invite token for a trusted_cluster
 $ tctl tokens add --type=trusted_cluster --ttl=5m
+# Generate an invite token for a trusted_cluster with labels
+$ tctl tokens add --type=trusted_cluster --labels=env=prod
 # Generate an invite token for a node
 # This is equivalent to `tctl nodes add`
 $ tctl tokens add --type node

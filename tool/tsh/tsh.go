@@ -315,9 +315,7 @@ func Run(args []string) {
 	login.Flag("request-reason", "Reason for requesting additional roles").StringVar(&cf.RequestReason)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
-	// TODO(awly): unhide this flag in 5.0, after 'tsh kube ...' commands are
-	// implemented.
-	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to").Hidden().StringVar(&cf.KubernetesCluster)
+	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to").StringVar(&cf.KubernetesCluster)
 	login.Alias(loginUsageFooter)
 
 	// logout deletes obtained session certificates in ~/.tsh
@@ -345,6 +343,9 @@ func Run(args []string) {
 	// The status command shows which proxy the user is logged into and metadata
 	// about the certificate.
 	status := app.Command("status", "Display the list of proxy servers and retrieved certificates")
+
+	// Kubernetes subcommands.
+	kube := newKubeCommand(app)
 
 	// On Windows, hide the "ssh", "join", "play", "scp", and "bench" commands
 	// because they all use a terminal.
@@ -414,6 +415,18 @@ func Run(args []string) {
 		onStatus(&cf)
 	case lsApps.FullCommand():
 		onApps(&cf)
+	case kube.credentials.FullCommand():
+		err = kube.credentials.run(&cf)
+	case kube.ls.FullCommand():
+		err = kube.ls.run(&cf)
+	case kube.login.FullCommand():
+		err = kube.login.run(&cf)
+	default:
+		// This should only happen when there's a missing switch case above.
+		err = trace.BadParameter("command %q not configured", command)
+	}
+	if err != nil {
+		utils.FatalError(err)
 	}
 }
 
@@ -492,12 +505,20 @@ func onLogin(cf *CLIConf) {
 	// client is already logged in and profile is not expired
 	if profile != nil && !profile.IsExpired(clockwork.NewRealClock()) {
 		switch {
-		// in case if nothing is specified, print current status
+		// in case if nothing is specified, re-fetch kube clusters and print
+		// current status
 		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.IdentityFileOut == "":
+			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
+				utils.FatalError(err)
+			}
 			printProfiles(cf.Debug, profile, profiles)
 			return
-		// in case if parameters match, print current status
+		// in case if parameters match, re-fetch kube clusters and print
+		// current status
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "":
+			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
+				utils.FatalError(err)
+			}
 			printProfiles(cf.Debug, profile, profiles)
 			return
 		// proxy is unspecified or the same as the currently provided proxy,
@@ -515,7 +536,7 @@ func onLogin(cf *CLIConf) {
 			if err := tc.SaveProfile("", true); err != nil {
 				utils.FatalError(err)
 			}
-			if err := kubeconfig.UpdateWithClient("", tc); err != nil {
+			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
 				utils.FatalError(err)
 			}
 			onStatus(cf)
@@ -525,6 +546,9 @@ func onLogin(cf *CLIConf) {
 		// request for the same login session.
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.DesiredRoles != "" && cf.IdentityFileOut == "":
 			if err := executeAccessRequest(cf); err != nil {
+				utils.FatalError(err)
+			}
+			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
 				utils.FatalError(err)
 			}
 			onStatus(cf)
@@ -574,7 +598,7 @@ func onLogin(cf *CLIConf) {
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
-		if err := kubeconfig.UpdateWithClient("", tc); err != nil {
+		if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
 			utils.FatalError(err)
 		}
 	}
@@ -592,14 +616,26 @@ func onLogin(cf *CLIConf) {
 			tc.Logout()
 			utils.FatalError(err)
 		}
-		for _, roleName := range roleNames {
-			role, err := tc.GetRole(cf.Context, roleName)
-			if err != nil {
-				tc.Logout()
-				utils.FatalError(err)
+		// load all roles from root cluster and collect relevant options.
+		// the normal one-off TeleportClient methods don't re-use the auth server
+		// connection, so we use WithRootClusterClient to speed things up.
+		err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+			for _, roleName := range roleNames {
+				role, err := clt.GetRole(roleName)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				reason = reason || role.GetOptions().RequestAccess.RequireReason()
+				auto = auto || role.GetOptions().RequestAccess.ShouldAutoRequest()
+				if prompt == "" {
+					prompt = role.GetOptions().RequestPrompt
+				}
 			}
-			reason = reason || role.GetOptions().RequestAccess.RequireReason()
-			auto = auto || role.GetOptions().RequestAccess.ShouldAutoRequest()
+			return nil
+		})
+		if err != nil {
+			tc.Logout()
+			utils.FatalError(err)
 		}
 		if reason && cf.RequestReason == "" {
 			tc.Logout()
@@ -655,7 +691,7 @@ func setupNoninteractiveClient(tc *client.TeleportClient, key *client.Key) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tc.TLS, err = key.ClientTLSConfig(nil)
+	tc.TLS, err = key.TeleportClientTLSConfig(nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1253,7 +1289,7 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		}
 
 		if len(key.TLSCert) > 0 {
-			c.TLS, err = key.ClientTLSConfig(nil)
+			c.TLS, err = key.TeleportClientTLSConfig(nil)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1626,7 +1662,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 	if err := tc.SaveProfile("", true); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := kubeconfig.UpdateWithClient("", tc); err != nil {
+	if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

@@ -402,7 +402,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	key, err := store.GetKey(profile.Name(), profile.Username)
+	key, err := store.GetKey(profile.Name(), profile.Username, WithKubeCerts(profile.SiteName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -474,7 +474,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		clusterName = profile.Name()
 	}
 
-	tlsCert, err := key.TLSCertificate()
+	tlsCert, err := key.TeleportTLSCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -504,6 +504,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 }
 
 // Status returns the active profile as well as a list of available profiles.
+// If not profile is active, Status returns a nil error and nil profile.
 func Status(profileDir string, proxyHost string) (*ProfileStatus, []*ProfileStatus, error) {
 	var err error
 	var profile *ProfileStatus
@@ -906,6 +907,8 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	return proxyClient.ReissueUserCerts(ctx, params)
 }
 
@@ -915,6 +918,8 @@ func (tc *TeleportClient) CreateAccessRequest(ctx context.Context, req services.
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	return proxyClient.CreateAccessRequest(ctx, req)
 }
 
@@ -924,6 +929,8 @@ func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter services
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	return proxyClient.GetAccessRequests(ctx, filter)
 }
 
@@ -933,7 +940,21 @@ func (tc *TeleportClient) GetRole(ctx context.Context, name string) (services.Ro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	return proxyClient.GetRole(ctx, name)
+}
+
+// watchCloser is a wrapper around a services.Watcher
+// which holds a closer that must be called after the watcher
+// is closed.
+type watchCloser struct {
+	services.Watcher
+	io.Closer
+}
+
+func (w watchCloser) Close() error {
+	return trace.NewAggregate(w.Watcher.Close(), w.Closer.Close())
 }
 
 // NewWatcher sets up a new event watcher.
@@ -942,7 +963,35 @@ func (tc *TeleportClient) NewWatcher(ctx context.Context, watch services.Watch) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return proxyClient.NewWatcher(ctx, watch)
+
+	watcher, err := proxyClient.NewWatcher(ctx, watch)
+	if err != nil {
+		proxyClient.Close()
+		return nil, trace.Wrap(err)
+	}
+
+	return watchCloser{
+		Watcher: watcher,
+		Closer:  proxyClient,
+	}, nil
+}
+
+// WithRootClusterClient provides a functional interface for making calls against the root cluster's
+// auth server.
+func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt auth.ClientI) error) error {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	clt, err := proxyClient.ConnectToRootCluster(ctx, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	return trace.Wrap(do(clt))
 }
 
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
@@ -1148,6 +1197,8 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	site, err := proxyClient.ConnectToCurrentCluster(ctx, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1662,7 +1713,7 @@ func (tc *TeleportClient) Logout() error {
 	if tc.localAgent == nil {
 		return nil
 	}
-	if err := tc.localAgent.DeleteKey(); err != nil {
+	if err := tc.localAgent.DeleteKey(WithKubeCerts(tc.SiteName)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1750,6 +1801,9 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	// extract the new certificate out of the response
 	key.Cert = response.Cert
 	key.TLSCert = response.TLSCert
+	if tc.KubernetesCluster != "" {
+		key.KubeTLSCerts[tc.KubernetesCluster] = response.TLSCert
+	}
 	key.ProxyHost = webProxyHost
 	key.TrustedCA = response.HostSigners
 

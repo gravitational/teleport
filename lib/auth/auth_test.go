@@ -339,6 +339,81 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(*gotID, DeepEquals, wantID)
 
+	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
+	// generation.
+	err = s.a.UpsertKubeService(ctx, &services.ServerV2{
+		Metadata: services.Metadata{Name: "kube-service"},
+		Kind:     services.KindKubeService,
+		Version:  services.V2,
+		Spec: services.ServerSpecV2{
+			KubernetesClusters: []*services.KubernetesCluster{{Name: "root-kube-cluster"}},
+		},
+	})
+	c.Assert(err, IsNil)
+
+	// Login specifying a valid kube cluster. It should appear in the TLS cert.
+	resp, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+		AuthenticateUserRequest: AuthenticateUserRequest{
+			Username: user,
+			Pass:     &PassCreds{Password: pass},
+		},
+		PublicKey:         pub,
+		TTL:               time.Hour,
+		RouteToCluster:    "me.localhost",
+		KubernetesCluster: "root-kube-cluster",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(resp.Username, Equals, user)
+	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
+	c.Assert(err, IsNil)
+	wantID = tlsca.Identity{
+		Username:          user,
+		Groups:            []string{role.GetName()},
+		Principals:        []string{user},
+		KubernetesUsers:   []string{user},
+		KubernetesGroups:  []string{"system:masters"},
+		KubernetesCluster: "root-kube-cluster",
+		Expires:           gotTLSCert.NotAfter,
+		RouteToCluster:    "me.localhost",
+		TeleportCluster:   "me.localhost",
+	}
+	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
+	c.Assert(err, IsNil)
+	c.Assert(*gotID, DeepEquals, wantID)
+
+	// Login without specifying kube cluster. A registered one should be picked
+	// automatically.
+	resp, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+		AuthenticateUserRequest: AuthenticateUserRequest{
+			Username: user,
+			Pass:     &PassCreds{Password: pass},
+		},
+		PublicKey:      pub,
+		TTL:            time.Hour,
+		RouteToCluster: "me.localhost",
+		// Intentionally empty, auth server should default to a registered
+		// kubernetes cluster.
+		KubernetesCluster: "",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(resp.Username, Equals, user)
+	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
+	c.Assert(err, IsNil)
+	wantID = tlsca.Identity{
+		Username:          user,
+		Groups:            []string{role.GetName()},
+		Principals:        []string{user},
+		KubernetesUsers:   []string{user},
+		KubernetesGroups:  []string{"system:masters"},
+		KubernetesCluster: "root-kube-cluster",
+		Expires:           gotTLSCert.NotAfter,
+		RouteToCluster:    "me.localhost",
+		TeleportCluster:   "me.localhost",
+	}
+	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
+	c.Assert(err, IsNil)
+	c.Assert(*gotID, DeepEquals, wantID)
+
 	// Login specifying an invalid kube cluster. This should fail.
 	_, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
