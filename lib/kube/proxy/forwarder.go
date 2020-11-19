@@ -71,6 +71,9 @@ type ForwarderConfig struct {
 	Auth auth.Authorizer
 	// Client is a proxy client
 	Client auth.ClientI
+	// StreamEmitter is used to create audit streams
+	// and emit audit events
+	StreamEmitter events.StreamEmitter
 	// DataDir is a data dir to store logs
 	DataDir string
 	// Namespace is a namespace of the proxy server (not a K8s namespace)
@@ -120,6 +123,9 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	}
 	if f.Auth == nil {
 		return trace.BadParameter("missing parameter Auth")
+	}
+	if f.StreamEmitter == nil {
+		return trace.BadParameter("missing parameter StreamEmitter")
 	}
 	if f.ClusterName == "" {
 		return trace.BadParameter("missing parameter LocalCluster")
@@ -262,6 +268,14 @@ func (c *authContext) key() string {
 	// it is important that the context key contains user, kubernetes groups and certificate expiry,
 	// so that new logins with different parameters will not reuse this context
 	return fmt.Sprintf("%v:%v:%v:%v:%v:%v", c.teleportCluster.name, c.User.GetName(), c.kubeUsers, c.kubeGroups, c.kubeCluster, c.disconnectExpiredCert.UTC().Unix())
+}
+
+func (c *authContext) eventClusterMeta() events.KubernetesClusterMetadata {
+	return events.KubernetesClusterMetadata{
+		KubernetesCluster: c.kubeCluster,
+		KubernetesUsers:   utils.StringsSliceFromSet(c.kubeUsers),
+		KubernetesGroups:  utils.StringsSliceFromSet(c.kubeGroups),
+	}
 }
 
 type dialFunc func(ctx context.Context, network, addr, serverID string) (net.Conn, error)
@@ -568,13 +582,23 @@ func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
 	// TeeStreamer sends non-print and non disk events
 	// to the audit log in async mode, while buffering all
 	// events on disk for further upload at the end of the session
-	return events.NewTeeStreamer(fileStreamer, f.Client), nil
+	return events.NewTeeStreamer(fileStreamer, f.StreamEmitter), nil
 }
 
 // exec forwards all exec requests to the target server, captures
 // all output from the session
 func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
 	f.Debugf("Exec %v.", req.URL.String())
+
+	sess, err := f.getOrCreateClusterSession(*ctx)
+	if err != nil {
+		// This error goes to kubernetes client and is not visible in the logs
+		// of the teleport server if not logged here.
+		f.Errorf("Failed to create cluster session: %v.", err)
+		return nil, trace.Wrap(err)
+	}
+	sessionStart := f.Clock.Now().UTC()
+
 	q := req.URL.Query()
 	request := remoteCommandRequest{
 		podNamespace:       p.ByName("podNamespace"),
@@ -590,13 +614,13 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		context:            req.Context(),
 		pingPeriod:         f.PingPeriod,
 	}
+	eventPodMeta := request.eventPodMeta(request.context, sess.creds)
 
 	var recorder events.SessionRecorder
 	var emitter events.Emitter
 	sessionID := session.NewID()
-	var err error
-	if f.NewKubeService {
-		// Proxy should be recording all the events, so we don't have to.
+	if sess.noAuditEvents {
+		// All events should be recorded by kubernetes_service and not proxy_service
 		emitter = events.NewDiscardEmitter()
 		request.onResize = func(resize remotecommand.TerminalSize) {}
 	} else if request.tty {
@@ -611,7 +635,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		recorder, err = events.NewAuditWriter(events.AuditWriterConfig{
 			// Audit stream is using server context, not session context,
 			// to make sure that session is uploaded even after it is closed
-			Context:      f.Context,
+			Context:      request.context,
 			Streamer:     streamer,
 			Clock:        f.Clock,
 			SessionID:    sessionID,
@@ -624,7 +648,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			return nil, trace.Wrap(err)
 		}
 		emitter = recorder
-		defer recorder.Close(f.Context)
+		defer recorder.Close(request.context)
 		request.onResize = func(resize remotecommand.TerminalSize) {
 			params := session.TerminalParams{
 				W: int(resize.Width),
@@ -650,27 +674,20 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 					User:  ctx.User.GetName(),
 					Login: ctx.User.GetName(),
 				},
-				TerminalSize: params.Serialize(),
+				TerminalSize:              params.Serialize(),
+				KubernetesClusterMetadata: ctx.eventClusterMeta(),
+				KubernetesPodMetadata:     eventPodMeta,
 			}
 
 			// Report the updated window size to the event log (this is so the sessions
 			// can be replayed correctly).
-			if err := recorder.EmitAuditEvent(f.Context, resizeEvent); err != nil {
+			if err := recorder.EmitAuditEvent(request.context, resizeEvent); err != nil {
 				f.WithError(err).Warn("Failed to emit terminal resize event.")
 			}
 		}
 	} else {
-		emitter = f.Client
+		emitter = f.StreamEmitter
 	}
-
-	sess, err := f.getOrCreateClusterSession(*ctx)
-	if err != nil {
-		// This error goes to kubernetes client and is not visible in the logs
-		// of the teleport server if not logged here.
-		f.Errorf("Failed to create cluster session: %v.", err)
-		return nil, trace.Wrap(err)
-	}
-	sessionStart := f.Clock.Now().UTC()
 
 	if request.tty {
 		// Emit "new session created" event. There are no initial terminal
@@ -702,9 +719,12 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				LocalAddr:  sess.teleportCluster.targetAddr,
 				Protocol:   events.EventProtocolKube,
 			},
-			TerminalSize: termParams.Serialize(),
+			TerminalSize:              termParams.Serialize(),
+			KubernetesClusterMetadata: ctx.eventClusterMeta(),
+			KubernetesPodMetadata:     eventPodMeta,
+			InitialCommand:            request.cmd,
 		}
-		if err := emitter.EmitAuditEvent(f.Context, sessionStartEvent); err != nil {
+		if err := emitter.EmitAuditEvent(request.context, sessionStartEvent); err != nil {
 			f.WithError(err).Warn("Failed to emit event.")
 		}
 	}
@@ -728,6 +748,21 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	}
 	streamOptions := proxy.options()
 
+	// Wrap stdin/out/err with data trackers, but keep them as nil if they were
+	// nil. Otherwise, executor will try to use these tracking read/writers
+	// when the underlying stream is nil.
+	trackIn := utils.NewTrackingReader(streamOptions.Stdin)
+	if streamOptions.Stdin != nil {
+		streamOptions.Stdin = trackIn
+	}
+	trackOut := utils.NewTrackingWriter(streamOptions.Stdout)
+	if streamOptions.Stdout != nil {
+		streamOptions.Stdout = trackOut
+	}
+	trackErr := utils.NewTrackingWriter(streamOptions.Stderr)
+	if streamOptions.Stderr != nil {
+		streamOptions.Stderr = trackErr
+	}
 	if recorder != nil {
 		// capture stderr and stdout writes to session recorder
 		streamOptions.Stdout = utils.NewBroadcastWriter(streamOptions.Stdout, recorder)
@@ -744,6 +779,35 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	}
 
 	if request.tty {
+		sessionDataEvent := &events.SessionData{
+			Metadata: events.Metadata{
+				Type: events.SessionDataEvent,
+				Code: events.SessionDataCode,
+			},
+			ServerMetadata: events.ServerMetadata{
+				ServerID:        f.ServerID,
+				ServerNamespace: f.Namespace,
+			},
+			SessionMetadata: events.SessionMetadata{
+				SessionID: string(sessionID),
+			},
+			UserMetadata: events.UserMetadata{
+				User:  ctx.User.GetName(),
+				Login: ctx.User.GetName(),
+			},
+			ConnectionMetadata: events.ConnectionMetadata{
+				RemoteAddr: req.RemoteAddr,
+				LocalAddr:  sess.teleportCluster.targetAddr,
+				Protocol:   events.EventProtocolKube,
+			},
+			// Bytes transmitted from user to pod.
+			BytesTransmitted: trackIn.Count(),
+			// Bytes received from pod by user.
+			BytesReceived: trackOut.Count() + trackErr.Count(),
+		}
+		if err := emitter.EmitAuditEvent(request.context, sessionDataEvent); err != nil {
+			f.WithError(err).Warn("Failed to emit session data event.")
+		}
 		sessionEndEvent := &events.SessionEnd{
 			Metadata: events.Metadata{
 				Type: events.SessionEndEvent,
@@ -767,11 +831,14 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			},
 			Interactive: true,
 			// There can only be 1 participant, k8s sessions are not join-able.
-			Participants: []string{ctx.User.GetName()},
-			StartTime:    sessionStart,
-			EndTime:      f.Clock.Now().UTC(),
+			Participants:              []string{ctx.User.GetName()},
+			StartTime:                 sessionStart,
+			EndTime:                   f.Clock.Now().UTC(),
+			KubernetesClusterMetadata: ctx.eventClusterMeta(),
+			KubernetesPodMetadata:     eventPodMeta,
+			InitialCommand:            request.cmd,
 		}
-		if err := emitter.EmitAuditEvent(f.Context, sessionEndEvent); err != nil {
+		if err := emitter.EmitAuditEvent(request.context, sessionEndEvent); err != nil {
 			f.WithError(err).Warn("Failed to emit session end event.")
 		}
 	} else {
@@ -799,6 +866,8 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			CommandMetadata: events.CommandMetadata{
 				Command: strings.Join(request.cmd, " "),
 			},
+			KubernetesClusterMetadata: ctx.eventClusterMeta(),
+			KubernetesPodMetadata:     eventPodMeta,
 		}
 		if err != nil {
 			execEvent.Code = events.ExecFailureCode
@@ -809,7 +878,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		} else {
 			execEvent.Code = events.ExecCode
 		}
-		if err := emitter.EmitAuditEvent(f.Context, execEvent); err != nil {
+		if err := emitter.EmitAuditEvent(request.context, execEvent); err != nil {
 			f.WithError(err).Warn("Failed to emit event.")
 		}
 	}
@@ -840,8 +909,7 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 	}
 
 	onPortForward := func(addr string, success bool) {
-		if f.NewKubeService {
-			// Proxy should be recording all the events, so we don't have to.
+		if sess.noAuditEvents {
 			return
 		}
 		portForward := &events.PortForward{
@@ -866,7 +934,7 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 		if !success {
 			portForward.Code = events.PortForwardFailureCode
 		}
-		if err := f.Client.EmitAuditEvent(f.Context, portForward); err != nil {
+		if err := f.StreamEmitter.EmitAuditEvent(req.Context(), portForward); err != nil {
 			f.WithError(err).Warn("Failed to emit event.")
 		}
 	}
@@ -1026,12 +1094,10 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 		f.Errorf("Failed to set up forwarding headers: %v.", err)
 		return nil, trace.Wrap(err)
 	}
-
 	w = &responseStatusRecorder{ResponseWriter: w}
 	sess.forwarder.ServeHTTP(w, req)
 
-	if f.NewKubeService {
-		// Proxy should be recording all the events, so we don't have to.
+	if sess.noAuditEvents {
 		return nil, nil
 	}
 
@@ -1054,16 +1120,17 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 			ServerID:        f.ServerID,
 			ServerNamespace: f.Namespace,
 		},
-		RequestPath:  req.URL.Path,
-		Verb:         req.Method,
-		ResponseCode: int32(w.(*responseStatusRecorder).getStatus()),
+		RequestPath:               req.URL.Path,
+		Verb:                      req.Method,
+		ResponseCode:              int32(w.(*responseStatusRecorder).getStatus()),
+		KubernetesClusterMetadata: ctx.eventClusterMeta(),
 	}
 	r := parseResourcePath(req.URL.Path)
 	if r.skipEvent {
 		return nil, nil
 	}
 	r.populateEvent(event)
-	if err := f.Client.EmitAuditEvent(f.Context, event); err != nil {
+	if err := f.Client.EmitAuditEvent(req.Context(), event); err != nil {
 		f.WithError(err).Warn("Failed to emit event.")
 	}
 
@@ -1122,6 +1189,9 @@ type clusterSession struct {
 	creds     *kubeCreds
 	tlsConfig *tls.Config
 	forwarder *forward.Forwarder
+	// noAuditEvents is true if this teleport service should leave audit event
+	// logging to another service.
+	noAuditEvents bool
 }
 
 func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error) {
@@ -1375,6 +1445,9 @@ func (f *Forwarder) newClusterSessionDirect(ctx authContext, kubeService service
 	sess := &clusterSession{
 		parent:      f,
 		authContext: ctx,
+		// This session talks to a kubernetes_service, which should handle
+		// audit logging. Avoid duplicate logging.
+		noAuditEvents: true,
 	}
 	// Set both addr and serverID, in case this is a kubernetes_service
 	// connected over a tunnel.
@@ -1449,7 +1522,7 @@ func (f *Forwarder) getOrCreateRequestContext(key string) (context.Context, cont
 	if ok {
 		return ctx, nil
 	}
-	ctx, cancel := context.WithCancel(context.TODO())
+	ctx, cancel := context.WithCancel(f.ctx)
 	f.activeRequests[key] = ctx
 	return ctx, func() {
 		cancel()

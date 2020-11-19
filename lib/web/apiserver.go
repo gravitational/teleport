@@ -765,7 +765,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	return nil, nil
 }
 
-type jwksResponse struct {
+type JWKSResponse struct {
 	// Keys is a list of public keys in JWK format.
 	Keys []jwt.JWK `json:"keys"`
 }
@@ -788,7 +788,7 @@ func (h *Handler) jwks(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	pairs := ca.GetJWTKeyPairs()
 
 	// Create response and allocate space for the keys.
-	var resp jwksResponse
+	var resp JWKSResponse
 	resp.Keys = make([]jwt.JWK, 0, len(pairs))
 
 	// Loop over and all add public keys in JWK format.
@@ -1133,11 +1133,14 @@ func ConstructSSHResponse(response AuthParams) (*url.URL, error) {
 	return u, nil
 }
 
-// createSessionReq is a request to create session from username, password and second
-// factor token
-type createSessionReq struct {
-	User              string `json:"user"`
-	Pass              string `json:"pass"`
+// CreateSessionReq is a request to create session from username, password and
+// second factor token.
+type CreateSessionReq struct {
+	// User is the Teleport username.
+	User string `json:"user"`
+	// Pass is the password.
+	Pass string `json:"pass"`
+	// SecondFactorToken is the OTP.
 	SecondFactorToken string `json:"second_factor_token"`
 }
 
@@ -1193,7 +1196,7 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 // {"type": "bearer", "token": "bearer token", "user": {"name": "alex", "allowed_logins": ["admin", "bob"]}, "expires_in": 20}
 //
 func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-	var req *createSessionReq
+	var req *CreateSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2202,7 +2205,7 @@ func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, checkBearerToken bool) (*SessionContext, error) {
 	const missingCookieMsg = "missing session cookie"
 	logger := h.log.WithField("request", fmt.Sprintf("%v %v", r.Method, r.URL.Path))
-	cookie, err := r.Cookie("session")
+	cookie, err := r.Cookie(CookieName)
 	if err != nil || (cookie != nil && cookie.Value == "") {
 		if err != nil {
 			logger.Warn(err)

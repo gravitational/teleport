@@ -18,6 +18,7 @@ package cache
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -384,9 +385,209 @@ func waitForEvent(c *check.C, eventsC <-chan Event, expectedEvent string, skipEv
 			c.Assert(event.Type, check.Equals, expectedEvent)
 			return
 		case <-timeC:
-			c.Fatalf("Timeout waiting for watcher restart")
+			c.Fatalf("Timeout waiting for expected event: %s", expectedEvent)
 		}
 	}
+}
+
+// TestCompletenessInit verifies that flaky backends don't cause
+// the cache to return partial results during init.
+func (s *CacheSuite) TestCompletenessInit(c *check.C) {
+	const caCount = 100
+	const inits = 20
+	p := s.newPackWithoutCache(c, ForAuth)
+	defer p.Close()
+
+	// put lots of CAs in the backend
+	for i := 0; i < caCount; i++ {
+		ca := suite.NewTestCA(services.UserCA, fmt.Sprintf("%d.example.com", i))
+		c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
+	}
+
+	for i := 0; i < inits; i++ {
+		var err error
+
+		p.cacheBackend, err = memory.New(
+			memory.Config{
+				Context: context.TODO(),
+				Mirror:  true,
+			})
+		c.Assert(err, check.IsNil)
+
+		// simulate bad connection to auth server
+		p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
+		p.eventsS.closeWatchers()
+
+		p.cache, err = New(ForAuth(Config{
+			Context:       context.TODO(),
+			Backend:       p.cacheBackend,
+			Events:        p.eventsS,
+			ClusterConfig: p.clusterConfigS,
+			Provisioner:   p.provisionerS,
+			Trust:         p.trustS,
+			Users:         p.usersS,
+			Access:        p.accessS,
+			DynamicAccess: p.dynamicAccessS,
+			Presence:      p.presenceS,
+			AppSession:    p.appSessionS,
+			RetryPeriod:   200 * time.Millisecond,
+			EventsC:       p.eventsC,
+			PreferRecent: PreferRecent{
+				Enabled: true,
+			},
+		}))
+		c.Assert(err, check.IsNil)
+
+		p.backend.SetReadError(nil)
+
+		cas, err := p.cache.GetCertAuthorities(services.UserCA, false)
+		// we don't actually care whether the cache ever fully constructed
+		// the CA list.  for the purposes of this test, we just care that it
+		// doesn't return the CA list *unless* it was successfully constructed.
+		if err == nil {
+			c.Assert(len(cas), check.Equals, caCount)
+		} else {
+			fixtures.ExpectConnectionProblem(c, err)
+		}
+
+		c.Assert(p.cache.Close(), check.IsNil)
+		p.cache = nil
+		c.Assert(p.cacheBackend.Close(), check.IsNil)
+		p.cacheBackend = nil
+	}
+}
+
+// TestCompletenessReset verifies that flaky backends don't cause
+// the cache to return partial results during reset.
+func (s *CacheSuite) TestCompletenessReset(c *check.C) {
+	const caCount = 100
+	const resets = 20
+	p := s.newPackWithoutCache(c, ForAuth)
+	defer p.Close()
+
+	// put lots of CAs in the backend
+	for i := 0; i < caCount; i++ {
+		ca := suite.NewTestCA(services.UserCA, fmt.Sprintf("%d.example.com", i))
+		c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
+	}
+
+	var err error
+	p.cache, err = New(ForAuth(Config{
+		Context:       context.TODO(),
+		Backend:       p.cacheBackend,
+		Events:        p.eventsS,
+		ClusterConfig: p.clusterConfigS,
+		Provisioner:   p.provisionerS,
+		Trust:         p.trustS,
+		Users:         p.usersS,
+		Access:        p.accessS,
+		DynamicAccess: p.dynamicAccessS,
+		Presence:      p.presenceS,
+		AppSession:    p.appSessionS,
+		RetryPeriod:   200 * time.Millisecond,
+		EventsC:       p.eventsC,
+		PreferRecent: PreferRecent{
+			Enabled: true,
+		},
+	}))
+	c.Assert(err, check.IsNil)
+
+	// verify that CAs are immediately available
+	cas, err := p.cache.GetCertAuthorities(services.UserCA, false)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(cas), check.Equals, caCount)
+
+	for i := 0; i < resets; i++ {
+		// simulate bad connection to auth server
+		p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
+		p.eventsS.closeWatchers()
+		p.backend.SetReadError(nil)
+
+		// load CAs while connection is bad
+		cas, err := p.cache.GetCertAuthorities(services.UserCA, false)
+		// we don't actually care whether the cache ever fully constructed
+		// the CA list.  for the purposes of this test, we just care that it
+		// doesn't return the CA list *unless* it was successfully constructed.
+		if err == nil {
+			c.Assert(len(cas), check.Equals, caCount)
+		} else {
+			fixtures.ExpectConnectionProblem(c, err)
+		}
+	}
+}
+
+// TestTombstones verifies that healthy caches leave tombstones
+// on closure, giving new caches the ability to start from a known
+// good state if the origin state is unavailable.
+func (s *CacheSuite) TestTombstones(c *check.C) {
+	const caCount = 10
+	p := s.newPackWithoutCache(c, ForAuth)
+	defer p.Close()
+
+	// put lots of CAs in the backend
+	for i := 0; i < caCount; i++ {
+		ca := suite.NewTestCA(services.UserCA, fmt.Sprintf("%d.example.com", i))
+		c.Assert(p.trustS.UpsertCertAuthority(ca), check.IsNil)
+	}
+
+	var err error
+	p.cache, err = New(ForAuth(Config{
+		Context:       context.TODO(),
+		Backend:       p.cacheBackend,
+		Events:        p.eventsS,
+		ClusterConfig: p.clusterConfigS,
+		Provisioner:   p.provisionerS,
+		Trust:         p.trustS,
+		Users:         p.usersS,
+		Access:        p.accessS,
+		DynamicAccess: p.dynamicAccessS,
+		Presence:      p.presenceS,
+		AppSession:    p.appSessionS,
+		RetryPeriod:   200 * time.Millisecond,
+		EventsC:       p.eventsC,
+		PreferRecent: PreferRecent{
+			Enabled: true,
+		},
+	}))
+	c.Assert(err, check.IsNil)
+
+	// verify that CAs are immediately available
+	cas, err := p.cache.GetCertAuthorities(services.UserCA, false)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(cas), check.Equals, caCount)
+
+	c.Assert(p.cache.Close(), check.IsNil)
+	// wait for TombstoneWritten, ignoring all other event types
+	waitForEvent(c, p.eventsC, TombstoneWritten, WatcherStarted, EventProcessed, WatcherFailed)
+	// simulate bad connection to auth server
+	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
+	p.eventsS.closeWatchers()
+
+	p.cache, err = New(ForAuth(Config{
+		Context:       context.TODO(),
+		Backend:       p.cacheBackend,
+		Events:        p.eventsS,
+		ClusterConfig: p.clusterConfigS,
+		Provisioner:   p.provisionerS,
+		Trust:         p.trustS,
+		Users:         p.usersS,
+		Access:        p.accessS,
+		DynamicAccess: p.dynamicAccessS,
+		Presence:      p.presenceS,
+		AppSession:    p.appSessionS,
+		RetryPeriod:   200 * time.Millisecond,
+		EventsC:       p.eventsC,
+		PreferRecent: PreferRecent{
+			Enabled: true,
+		},
+	}))
+	c.Assert(err, check.IsNil)
+
+	// verify that CAs are immediately available despite the fact
+	// that the origin state was never available.
+	cas, err = p.cache.GetCertAuthorities(services.UserCA, false)
+	c.Assert(err, check.IsNil)
+	c.Assert(len(cas), check.Equals, caCount)
 }
 
 // TestPreferRecent makes sure init proceeds
@@ -425,9 +626,8 @@ func (s *CacheSuite) preferRecent(c *check.C) {
 	}))
 	c.Assert(err, check.IsNil)
 
-	cas, err := p.cache.GetCertAuthorities(services.UserCA, false)
-	c.Assert(err, check.IsNil)
-	c.Assert(cas, check.HasLen, 0)
+	_, err = p.cache.GetCertAuthorities(services.UserCA, false)
+	fixtures.ExpectConnectionProblem(c, err)
 
 	ca := suite.NewTestCA(services.UserCA, "example.com")
 	// NOTE 1: this could produce event processed

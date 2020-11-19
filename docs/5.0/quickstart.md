@@ -361,5 +361,5 @@ common Teleport tasks.
 * [Install Teleport](installation.md)
 * [Share Sessions](user-manual.md#sharing-sessions)
 * [Manage Users](admin-guide.md#adding-and-deleting-users)
-* [Label Nodes](admin-guide.md#labeling-nodes)
+* [Label Nodes](admin-guide.md#labeling-nodes-and-applications)
 * [Teleport with OpenSSH](admin-guide.md#using-teleport-with-openssh)

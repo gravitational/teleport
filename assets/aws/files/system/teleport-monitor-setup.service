@@ -8,7 +8,7 @@ User=root
 Group=adm
 Type=oneshot
 RuntimeDirectory=teleport
-ExecStart=/usr/bin/teleport-monitor-setup
+ExecStart=/usr/local/bin/teleport-monitor-setup
 
 [Install]
 WantedBy=multi-user.target

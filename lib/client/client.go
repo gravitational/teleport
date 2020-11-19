@@ -359,6 +359,19 @@ func (proxy *ProxyClient) ConnectToCurrentCluster(ctx context.Context, quiet boo
 	return proxy.ConnectToCluster(ctx, cluster.Name, quiet)
 }
 
+// ConnectToRootCluster connects to the auth server of the root cluster
+// cluster via proxy. It returns connected and authenticated auth server client
+//
+// if 'quiet' is set to true, no errors will be printed to stdout, otherwise
+// any connection errors are visible to a user.
+func (proxy *ProxyClient) ConnectToRootCluster(ctx context.Context, quiet bool) (auth.ClientI, error) {
+	clusterName, err := proxy.RootClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return proxy.ConnectToCluster(ctx, clusterName, quiet)
+}
+
 // ConnectToCluster connects to the auth server of the given cluster via proxy.
 // It returns connected and authenticated auth server client
 //

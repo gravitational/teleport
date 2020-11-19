@@ -33,9 +33,9 @@ extra_javascript: []
 extra:
     version: 5.0
     teleport:
-        version: 5.0.0-beta.10
-        golang: 1.14
-        sha: a719ef4ad8265a946c682541641b6ceb434c9487575d80b03c3a624df700904b
+        version: 5.0.0-rc.2
+        golang: 1.15
+        sha: 6b8ce3746c3a6e430e45b608f0bda41bf3d79a44b2677e31a40000a2857e857b
         plugin:
             version: 0.2.0
         latest_oss_docker_image: quay.io/gravitational/teleport:5.0
@@ -46,38 +46,23 @@ nav:
         - Installation: installation.md
         - Quick Start Guide: quickstart.md
         - User Manual: user-manual.md
+        - Application Guide: application-access.md
+        - Kubernetes Guide: kubernetes-ssh.md
         - Admin Manual: admin-guide.md
         - Production Guide: production.md
         - FAQ: faq.md
     - Infrastructure Guides:
         - AWS: aws-oss-guide.md
-        # - AWS Terraform:
-        #    - Azure Active Directory (AD): aws-terraform-guide.md
         - GCP: gcp-guide.md
         - IBM: ibm-cloud-guide.md
-        - Kubernetes Guide: kubernetes-ssh.md
         - OpenSSH Guide: openssh-teleport.md
     - Teleport Enterprise :
         - Introduction: enterprise/introduction.md
         - Quick Start Guide: enterprise/quickstart-enterprise.md
         - Single sign-on (SSO): enterprise/sso/ssh-sso.md
-         #- SSO Guides:
-        #    - Azure Active Directory (AD): enterprise/sso/ssh-azuread.md
-        #    - Active Directory (ADFS):  enterprise/sso/ssh-adfs.md
-        #    - G Suite:  enterprise/sso/ssh-gsuite.md
-        #    - OneLogin:  enterprise/sso/ssh-one-login.md
-        #    - OIDC:  enterprise/sso/oidc.md
-        #    - Okta:  enterprise/sso/ssh-okta.md
         - Approval Workflow: enterprise/workflow/index.md
-        #- Teleport Plugins:
-        #    - Teleport  Plugin Setup: enterprise/workflow/ssh-approval-jira-cloud.md
-        #    - Teleport Jira Server Plugin Setup: enterprise/workflow/ssh-approval-jira-server.md
-        #    - Teleport Mattermost Plugin Setup: enterprise/workflow/ssh-approval-mattermost.md
-        #    - Teleport Pagerduty Plugin Setup: enterprise/workflow/ssh-approval-pagerduty.md
-        #    - Teleport Slack Plugin Setup: enterprise/workflow/ssh-approval-slack.md
         - FedRAMP for SSH & K8s: enterprise/ssh-kubernetes-fedramp.md
         - RBAC: enterprise/ssh-rbac.md
-
     - Architecture:
         - Architecture Overview: architecture/overview.md
         - Teleport Users: architecture/users.md
@@ -86,7 +71,7 @@ nav:
         - Teleport Proxy: architecture/proxy.md
         - Trusted Clusters: trustedclusters.md
     - Advanced Features:
-        - Enhanced Session Rec.: features/enhanced-session-recording.md
+        - BPF Session Recording: features/enhanced-session-recording.md
         - Using Teleport with PAM: features/ssh-pam.md
     - Reference:
         - YAML: config-reference.md

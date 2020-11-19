@@ -22,8 +22,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -179,8 +177,6 @@ var (
 		"rewrite":                 false,
 		"redirect":                false,
 		"debug_app":               false,
-		"static_labels":           false,
-		"dynamic_labels":          true,
 	}
 )
 
@@ -867,38 +863,6 @@ type Rewrite struct {
 	Redirect []string `yaml:"redirect"`
 }
 
-// CheckAndSetDefaults validates an application.
-func (a *App) CheckAndSetDefaults() error {
-	if a.Name == "" {
-		return trace.BadParameter("missing name")
-	}
-	if a.URI == "" {
-		return trace.BadParameter("missing URI")
-	}
-	// Check if the application name contains spaces. Don't allow spaces because
-	// for trusted clusters the name is used to construct the vanity domain that
-	// the application will be running under.
-	if ok := strings.Contains(a.Name, " "); ok {
-		return trace.BadParameter("application name %q can not contain spaces as it may be used as part of the application domain", a.Name)
-	}
-	// Parse and validate URL.
-	if _, err := url.Parse(a.URI); err != nil {
-		return trace.Wrap(err)
-	}
-	// If a port was specified or a IP address was provided for the public
-	// address, return an error.
-	if a.PublicAddr != "" {
-		if _, _, err := net.SplitHostPort(a.PublicAddr); err == nil {
-			return trace.BadParameter("public address %q can not contan a port, applications will be available on the same port as the web proxy", a.PublicAddr)
-		}
-		if net.ParseIP(a.PublicAddr) != nil {
-			return trace.BadParameter("public address %q can not be an IP address, Teleport Application Access uses DNS names for routing", a.PublicAddr)
-		}
-	}
-
-	return nil
-}
-
 // Proxy is a `proxy_service` section of the config file:
 type Proxy struct {
 	// Service is a generic service configuration section
@@ -979,8 +943,8 @@ type Kube struct {
 	// cluster.
 	KubeClusterName string `yaml:"kube_cluster_name,omitempty"`
 	// Static and dynamic labels for RBAC on kubernetes clusters.
-	StaticLabels  map[string]string `yaml:"static_labels,omitempty"`
-	DynamicLabels []CommandLabel    `yaml:"dynamic_labels,omitempty"`
+	StaticLabels  map[string]string `yaml:"labels,omitempty"`
+	DynamicLabels []CommandLabel    `yaml:"commands,omitempty"`
 }
 
 // ReverseTunnel is a SSH reverse tunnel maintained by one cluster's
