@@ -32,7 +32,6 @@ environments, not servers. Below is the list of most popular Teleport features:
 Teleport is available through the free, open source edition ("Teleport Community Edition")
 or a commercial edition ("Teleport Enterprise Edition").
 
-![teleport diagram](https://gravitational.com/images/diagram-teleport.png)
 
 ## Operating System Support
 

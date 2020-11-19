@@ -34,6 +34,8 @@ white-list-external:
   - "https://kubernetes.io/docs/reference/access-authn-authz/rbac/"
   - "https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation"
   - "https://cloud.ibm.com/docs/cloud-object-storage?topic=cloud-object-storage-uhc-hmac-credentials-main"
+  - "https://[cluster-url]:3080/web/cluster/[cluster-name]/apps"
+  - "https://[cluster-url]:3080/web/cluster/[cluster-name]/apps:"
 black-list:
   - "./architecture/teleport-architecture.md"
   - "./quickstart__archive.md"
