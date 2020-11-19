@@ -179,10 +179,15 @@ A selection of Two-Factor Authentication apps are.
 
 ## Step 2a: Install Teleport Locally
 
-=== "Mac - Homebrew"
+=== "Mac"
 
-    ```bash
-    brew install teleport
+    Please note that due to a [technical limitation](https://github.com/gravitational/teleport/issues/3158), our MacOS Teleport packages are not currently signed.
+
+    ```
+    curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
+    tar -xzf teleport-v{{ teleport.version }}-darwin-amd64-bin.tar.gz
+    cd teleport
+    ./install
     ```
 
 === "Windows - Powershell"
@@ -212,7 +217,7 @@ Prior to launch you must authenticate.
 === "Local Cluster - tsh"
 
     ```
-    # Replace teleport.example.com:3080 with your cluster  address.
+    # Replace teleport.example.com:3080 with your cluster address.
     tsh login --proxy=teleport.example.com:3080 --user=teleport-admin
     ```
 

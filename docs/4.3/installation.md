@@ -100,12 +100,6 @@ $ helm install teleport teleport/teleport
 
 ## MacOS
 
-=== "Homebrew"
-
-    ```bash
-    $ brew install teleport
-    ```
-
 === "Download"
 
       [Download MacOS .pkg installer](https://gravitational.com/teleport/download) (tsh client only, signed) file, double-click to run the Installer.
