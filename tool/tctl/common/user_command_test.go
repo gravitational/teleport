@@ -36,7 +36,6 @@ func TestTrimDurationSuffix(t *testing.T) {
 		},
 	}
 	for _, tt := range testCases {
-		tt := tt
 		t.Run(tt.comment, func(t *testing.T) {
 			fmt := trimDurationZeroSuffix(tt.ts)
 			require.Equal(t, fmt, tt.wantFmt)
