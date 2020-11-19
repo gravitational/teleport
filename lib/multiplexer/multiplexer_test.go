@@ -67,7 +67,7 @@ func TestMux(t *testing.T) {
 		defer mux.Close()
 
 		backend1 := &httptest.Server{
-			Listener: mux.TLS(),
+			Listener: mux.Web(),
 			Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "backend 1")
 			}),
@@ -128,7 +128,7 @@ func TestMux(t *testing.T) {
 		require.NotNil(t, err)
 	})
 
-	// ProxyLine tests proxy line protocol
+	// ProxyLine tests proxy protocol line protocol
 	t.Run("ProxyLine", func(t *testing.T) {
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
 		require.Nil(t, err)
@@ -142,7 +142,7 @@ func TestMux(t *testing.T) {
 		defer mux.Close()
 
 		backend1 := &httptest.Server{
-			Listener: mux.TLS(),
+			Listener: mux.Web(),
 			Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, r.RemoteAddr)
 			}),
@@ -176,7 +176,7 @@ func TestMux(t *testing.T) {
 		// correctly
 		out, err := utils.RoundtripWithConn(tlsConn)
 		require.Nil(t, err)
-		require.Equal(t, out, remoteAddr.String())
+		require.Equal(t, remoteAddr.String(), out)
 	})
 
 	// TestDisabledProxy makes sure the connection gets dropped
@@ -194,7 +194,7 @@ func TestMux(t *testing.T) {
 		defer mux.Close()
 
 		backend1 := &httptest.Server{
-			Listener: mux.TLS(),
+			Listener: mux.Web(),
 			Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, r.RemoteAddr)
 			}),
@@ -246,7 +246,7 @@ func TestMux(t *testing.T) {
 		defer mux.Close()
 
 		backend1 := &httptest.Server{
-			Listener: mux.TLS(),
+			Listener: mux.Web(),
 			Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, r.RemoteAddr)
 			}),
@@ -314,7 +314,7 @@ func TestMux(t *testing.T) {
 		defer mux.Close()
 
 		backend1 := &httptest.Server{
-			Listener: mux.TLS(),
+			Listener: mux.Web(),
 			Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "backend 1")
 			}),
@@ -367,7 +367,7 @@ func TestMux(t *testing.T) {
 		defer mux.Close()
 
 		backend1 := &httptest.Server{
-			Listener: mux.TLS(),
+			Listener: mux.Web(),
 			Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				fmt.Fprintf(w, "backend 1")
 			}),
@@ -419,6 +419,94 @@ func TestMux(t *testing.T) {
 		mux.Wait()
 	})
 
+	// DisableTLSwithProxyProtocol tests scenario with disabled TLS and proxy protocol headers
+	t.Run("DisableTLSwithProxyProtocol", func(t *testing.T) {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.Nil(t, err)
+
+		mux, err := New(Config{
+			Listener:            listener,
+			EnableProxyProtocol: true,
+			DisableTLS:          true,
+		})
+		require.Nil(t, err)
+		go mux.Serve()
+		defer mux.Close()
+
+		backend1 := &httptest.Server{
+			Listener: mux.Web(),
+			Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprintf(w, r.RemoteAddr)
+			}),
+			},
+		}
+		backend1.Start()
+		defer backend1.Close()
+
+		remoteAddr := net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 8000}
+		proxyLine := ProxyLine{
+			Protocol:    TCP4,
+			Source:      remoteAddr,
+			Destination: net.TCPAddr{IP: net.ParseIP("127.0.0.1"), Port: 9000},
+		}
+
+		parsedURL, err := url.Parse(backend1.URL)
+		require.Nil(t, err)
+
+		conn, err := net.Dial("tcp", parsedURL.Host)
+		require.Nil(t, err)
+		defer conn.Close()
+
+		// send proxy line first
+		_, err = fmt.Fprint(conn, proxyLine.String())
+		require.Nil(t, err)
+
+		// make sure the HTTP call succeeded and we got remote address
+		// correctly
+		out, err := utils.RoundtripWithConn(conn)
+		require.Nil(t, err)
+		require.Equal(t, remoteAddr.String(), out)
+
+		called := false
+		sshHandler := sshutils.NewChanHandlerFunc(func(_ context.Context, _ *sshutils.ConnectionContext, nch ssh.NewChannel) {
+			called = true
+			err := nch.Reject(ssh.Prohibited, "nothing to see here")
+			require.Nil(t, err)
+		})
+
+		srv, err := sshutils.NewServer(
+			"test",
+			utils.NetAddr{AddrNetwork: "tcp", Addr: "localhost:0"},
+			sshHandler,
+			[]ssh.Signer{signer},
+			sshutils.AuthMethods{Password: pass("abc123")},
+		)
+		require.Nil(t, err)
+		go srv.Serve(mux.SSH())
+		defer srv.Close()
+		clt, err := ssh.Dial("tcp", listener.Addr().String(), &ssh.ClientConfig{
+			Auth:            []ssh.AuthMethod{ssh.Password("abc123")},
+			Timeout:         time.Second,
+			HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
+		})
+		require.Nil(t, err)
+		defer clt.Close()
+
+		// call new session to initiate opening new channel
+		_, err = clt.NewSession()
+		require.NotNil(t, err)
+		// make sure the channel handler was called OK
+		require.Equal(t, called, true)
+
+		// test regular HTTP request
+		_, err = fmt.Fprintf(conn, "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+		require.Nil(t, err)
+
+		// Close mux, new requests should fail
+		mux.Close()
+		mux.Wait()
+	})
+
 	// NextProto tests multiplexing using NextProto selector
 	t.Run("NextProto", func(t *testing.T) {
 		listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -436,7 +524,7 @@ func TestMux(t *testing.T) {
 		require.Nil(t, err)
 
 		tlsLis, err := NewTLSListener(TLSListenerConfig{
-			Listener: tls.NewListener(mux.TLS(), cfg.TLS),
+			Listener: tls.NewListener(mux.Web(), cfg.TLS),
 		})
 		require.Nil(t, err)
 		go tlsLis.Serve()

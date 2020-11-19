@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ limitations under the License.
 //
 // mux, _ := multiplexer.New(Config{Listener: listener})
 // mux.SSH() // returns listener getting SSH connections
-// mux.TLS() // returns listener getting TLS connections
+// mux.Web() // returns listener getting web connections (will be either TLS or HTTP)
 //
 package multiplexer
 
@@ -95,20 +95,20 @@ func New(cfg Config) (*Mux, error) {
 		context:     ctx,
 		cancel:      cancel,
 		sshListener: newListener(ctx, cfg.Listener.Addr()),
-		tlsListener: newListener(ctx, cfg.Listener.Addr()),
+		webListener: newListener(ctx, cfg.Listener.Addr()),
 		waitContext: waitContext,
 		waitCancel:  waitCancel,
 	}, nil
 }
 
-// Mux supports having both SSH and TLS on the same listener socket
+// Mux supports having both SSH and TLS/HTTP on the same listener socket
 type Mux struct {
 	sync.RWMutex
 	*log.Entry
 	Config
 	listenerClosed bool
 	sshListener    *Listener
-	tlsListener    *Listener
+	webListener    *Listener
 	context        context.Context
 	cancel         context.CancelFunc
 	waitContext    context.Context
@@ -120,9 +120,9 @@ func (m *Mux) SSH() net.Listener {
 	return m.sshListener
 }
 
-// TLS returns listener that receives TLS connections
-func (m *Mux) TLS() net.Listener {
-	return m.tlsListener
+// Web returns listener that receives web connections
+func (m *Mux) Web() net.Listener {
+	return m.webListener
 }
 
 func (m *Mux) isClosed() bool {
@@ -211,14 +211,19 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 	}
 
 	switch connWrapper.protocol {
-	case ProtoTLS:
-		if m.DisableTLS {
+	case ProtoTLS, ProtoHTTP:
+		if connWrapper.protocol == ProtoTLS && m.DisableTLS {
 			m.Debug("Closing TLS connection: TLS listener is disabled.")
 			conn.Close()
 			return
 		}
+		if connWrapper.protocol == ProtoHTTP && !m.DisableTLS {
+			m.Debug("Detected an HTTP request. If this is for a health check, use an HTTPS request instead.")
+			conn.Close()
+			return
+		}
 		select {
-		case m.tlsListener.connC <- connWrapper:
+		case m.webListener.connC <- connWrapper:
 		case <-m.context.Done():
 			connWrapper.Close()
 			return
@@ -235,9 +240,6 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 			connWrapper.Close()
 			return
 		}
-	case ProtoHTTP:
-		m.Debug("Detected an HTTP request. If this is for a health check, use an HTTPS request instead.")
-		conn.Close()
 	default:
 		// should not get here, handle this just in case
 		connWrapper.Close()
@@ -277,7 +279,7 @@ func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			// repeat the cycle to detect the protocol
+		// repeat the cycle to detect the protocol
 		case ProtoTLS, ProtoSSH, ProtoHTTP:
 			return &Conn{
 				protocol:  proto,

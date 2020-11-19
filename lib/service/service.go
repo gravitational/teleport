@@ -1224,7 +1224,7 @@ func (process *TeleportProcess) initAuthService() error {
 		AccessPoint:   authCache,
 		Component:     teleport.Component(teleport.ComponentAuth, process.id),
 		ID:            process.id,
-		Listener:      mux.TLS(),
+		Listener:      mux.Web(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2221,7 +2221,28 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			listener.Close()
 			return nil, trace.Wrap(err)
 		}
-		listeners.web = listeners.mux.TLS()
+		listeners.web = listeners.mux.Web()
+		listeners.reverseTunnel = listeners.mux.SSH()
+		go listeners.mux.Serve()
+		return &listeners, nil
+	case cfg.Proxy.ReverseTunnelListenAddr.Equals(cfg.Proxy.WebAddr) && cfg.Proxy.DisableTLS:
+		process.Debugf("Setup Proxy: Reverse tunnel proxy and web proxy listen on the same port, TLS is disabled, multiplexing is on.")
+		listener, err := process.importOrCreateListener(listenerProxyTunnelAndWeb, cfg.Proxy.WebAddr.Addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		listeners.mux, err = multiplexer.New(multiplexer.Config{
+			EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
+			Listener:            listener,
+			DisableTLS:          true,
+			DisableSSH:          cfg.Proxy.DisableReverseTunnel,
+			ID:                  teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
+		})
+		if err != nil {
+			listener.Close()
+			return nil, trace.Wrap(err)
+		}
+		listeners.web = listeners.mux.Web()
 		listeners.reverseTunnel = listeners.mux.SSH()
 		go listeners.mux.Serve()
 		return &listeners, nil
@@ -2242,7 +2263,33 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			listener.Close()
 			return nil, trace.Wrap(err)
 		}
-		listeners.web = listeners.mux.TLS()
+		listeners.web = listeners.mux.Web()
+		listeners.reverseTunnel, err = process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
+		if err != nil {
+			listener.Close()
+			listeners.Close()
+			return nil, trace.Wrap(err)
+		}
+		go listeners.mux.Serve()
+		return &listeners, nil
+	case cfg.Proxy.EnableProxyProtocol && !cfg.Proxy.DisableWebService && cfg.Proxy.DisableTLS:
+		process.Debugf("Setup Proxy: Proxy protocol is enabled for web service, TLS is disabled, multiplexing is on.")
+		listener, err := process.importOrCreateListener(listenerProxyWeb, cfg.Proxy.WebAddr.Addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		listeners.mux, err = multiplexer.New(multiplexer.Config{
+			EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
+			Listener:            listener,
+			DisableTLS:          true,
+			DisableSSH:          true,
+			ID:                  teleport.Component(teleport.ComponentProxy, "web", process.id),
+		})
+		if err != nil {
+			listener.Close()
+			return nil, trace.Wrap(err)
+		}
+		listeners.web = listeners.mux.Web()
 		listeners.reverseTunnel, err = process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 		if err != nil {
 			listener.Close()
