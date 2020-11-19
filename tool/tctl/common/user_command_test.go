@@ -16,22 +16,22 @@ func TestTrimDurationSuffix(t *testing.T) {
 	}{
 		{
 			comment: "trim minutes/seconds",
-			ts:      time.Duration(1 * time.Hour),
+			ts:      1 * time.Hour,
 			wantFmt: "1h",
 		},
 		{
 			comment: "trim seconds",
-			ts:      time.Duration(1 * time.Minute),
+			ts:      1 * time.Minute,
 			wantFmt: "1m",
 		},
 		{
 			comment: "does not trim non-zero suffix",
-			ts:      time.Duration(90 * time.Second),
+			ts:      90 * time.Second,
 			wantFmt: "1m30s",
 		},
 		{
 			comment: "does not trim zero in the middle",
-			ts:      time.Duration(3630 * time.Second),
+			ts:      3630 * time.Second,
 			wantFmt: "1h0m30s",
 		},
 	}
