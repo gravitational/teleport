@@ -144,7 +144,6 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		go server.heartbeat.Run()
 	} else {
 		log.Debug("No local kube credentials on proxy, will not start kubernetes_service heartbeats")
 	}
@@ -157,6 +156,10 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 	t.mu.Lock()
 	t.listener = listener
 	t.mu.Unlock()
+
+	if t.heartbeat != nil {
+		go t.heartbeat.Run()
+	}
 
 	return t.Server.Serve(tls.NewListener(listener, t.TLS))
 }

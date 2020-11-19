@@ -22,8 +22,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -42,7 +40,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"gopkg.in/yaml.v2"
-	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 const (
@@ -180,8 +177,6 @@ var (
 		"rewrite":                 false,
 		"redirect":                false,
 		"debug_app":               false,
-		"static_labels":           false,
-		"dynamic_labels":          true,
 	}
 )
 
@@ -868,38 +863,6 @@ type Rewrite struct {
 	Redirect []string `yaml:"redirect"`
 }
 
-// CheckAndSetDefaults validates an application.
-func (a *App) CheckAndSetDefaults() error {
-	if a.Name == "" {
-		return trace.BadParameter("missing name")
-	}
-	if a.URI == "" {
-		return trace.BadParameter("missing URI")
-	}
-	// Check if the application name is a valid subdomain. Don't allow names that
-	// are invalid subdomains because for trusted clusters the name is used to
-	// construct the domain that the application will be available at.
-	if errs := validation.IsDNS1035Label(a.Name); len(errs) > 0 {
-		return trace.BadParameter("application name %q must be a valid DNS subdomain: https://gravitational.com/teleport/docs/application-access/#application-name", a.Name)
-	}
-	// Parse and validate URL.
-	if _, err := url.Parse(a.URI); err != nil {
-		return trace.Wrap(err)
-	}
-	// If a port was specified or a IP address was provided for the public
-	// address, return an error.
-	if a.PublicAddr != "" {
-		if _, _, err := net.SplitHostPort(a.PublicAddr); err == nil {
-			return trace.BadParameter("public address %q can not contan a port, applications will be available on the same port as the web proxy", a.PublicAddr)
-		}
-		if net.ParseIP(a.PublicAddr) != nil {
-			return trace.BadParameter("public address %q can not be an IP address, Teleport Application Access uses DNS names for routing", a.PublicAddr)
-		}
-	}
-
-	return nil
-}
-
 // Proxy is a `proxy_service` section of the config file:
 type Proxy struct {
 	// Service is a generic service configuration section
@@ -980,8 +943,8 @@ type Kube struct {
 	// cluster.
 	KubeClusterName string `yaml:"kube_cluster_name,omitempty"`
 	// Static and dynamic labels for RBAC on kubernetes clusters.
-	StaticLabels  map[string]string `yaml:"static_labels,omitempty"`
-	DynamicLabels []CommandLabel    `yaml:"dynamic_labels,omitempty"`
+	StaticLabels  map[string]string `yaml:"labels,omitempty"`
+	DynamicLabels []CommandLabel    `yaml:"commands,omitempty"`
 }
 
 // ReverseTunnel is a SSH reverse tunnel maintained by one cluster's

@@ -504,6 +504,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 }
 
 // Status returns the active profile as well as a list of available profiles.
+// If not profile is active, Status returns a nil error and nil profile.
 func Status(profileDir string, proxyHost string) (*ProfileStatus, []*ProfileStatus, error) {
 	var err error
 	var profile *ProfileStatus
@@ -944,15 +945,53 @@ func (tc *TeleportClient) GetRole(ctx context.Context, name string) (services.Ro
 	return proxyClient.GetRole(ctx, name)
 }
 
+// watchCloser is a wrapper around a services.Watcher
+// which holds a closer that must be called after the watcher
+// is closed.
+type watchCloser struct {
+	services.Watcher
+	io.Closer
+}
+
+func (w watchCloser) Close() error {
+	return trace.NewAggregate(w.Watcher.Close(), w.Closer.Close())
+}
+
 // NewWatcher sets up a new event watcher.
 func (tc *TeleportClient) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	watcher, err := proxyClient.NewWatcher(ctx, watch)
+	if err != nil {
+		proxyClient.Close()
+		return nil, trace.Wrap(err)
+	}
+
+	return watchCloser{
+		Watcher: watcher,
+		Closer:  proxyClient,
+	}, nil
+}
+
+// WithRootClusterClient provides a functional interface for making calls against the root cluster's
+// auth server.
+func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt auth.ClientI) error) error {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	defer proxyClient.Close()
 
-	return proxyClient.NewWatcher(ctx, watch)
+	clt, err := proxyClient.ConnectToRootCluster(ctx, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	return trace.Wrap(do(clt))
 }
 
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
