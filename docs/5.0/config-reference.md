@@ -323,8 +323,11 @@ proxy_service:
 
     # TLS certificate for the HTTPS connection. Configuring these properly is
     # critical for Teleport security.
-    https_key_file: /var/lib/teleport/webproxy_key.pem
-    https_cert_file: /var/lib/teleport/webproxy_cert.pem
+    https_keypairs:
+    - key_file: /var/lib/teleport/webproxy_key.pem
+      cert_file: /var/lib/teleport/webproxy_cert.pem
+    - key_file: /etc/letsencrypt/live/*.teleport.example.com/privkey.pem
+      cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 
     # This section configures the Kubernetes proxy service
     kubernetes:
@@ -343,4 +346,28 @@ proxy_service:
         # deployed inside a Kubernetes cluster. Otherwise, Teleport proxy
         # will use the credentials from this file:
         kubeconfig_file: /path/to/kube/config
+
+# This section configures the 'application service'
+app_service:
+    # Turns 'app' role on. Default is 'no'
+   enabled: yes
+   # We've a small debug app that can be used to make sure application
+   # Access is working correctly. It'll output JWTs so it can be useful
+   # when extending your application.
+   debug_app: true
+   apps:
+   - name: "kubernetes-dashboard"
+     # URI and Port of Application.
+     uri: "http://10.0.1.27:8000"
+     # Optional Public Addr
+     public_addr: "example.com"
+     # Optional Label: These can be used in combination with RBAC rules
+     # to limit access to applications
+     labels:
+        env: "prod"
+     # Optional Dynamic Labels
+     commands:
+     - name: "os"
+       command: ["/usr/bin/uname"]
+       period: "5s"
 ```

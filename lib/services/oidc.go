@@ -53,7 +53,7 @@ type OIDCConnector interface {
 	GetProvider() string
 	// Display - Friendly name for this provider.
 	GetDisplay() string
-	// Scope is additional scopes set by provder
+	// Scope is additional scopes set by provider
 	GetScope() []string
 	// ClaimsToRoles specifies dynamic mapping from claims to roles
 	GetClaimsToRoles() []ClaimMapping
@@ -141,7 +141,7 @@ func GetOIDCConnectorSchema() string {
 
 type TeleportOIDCConnectorMarshaler struct{}
 
-// UnmarshalOIDCConnector unmarshals connector from
+// UnmarshalOIDCConnector unmarshals connector from the specified byte payload
 func (*TeleportOIDCConnectorMarshaler) UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (OIDCConnector, error) {
 	cfg, err := collectOptions(opts)
 	if err != nil {
@@ -187,7 +187,7 @@ func (*TeleportOIDCConnectorMarshaler) UnmarshalOIDCConnector(bytes []byte, opts
 	return nil, trace.BadParameter("OIDC connector resource version %v is not supported", h.Version)
 }
 
-// MarshalUser marshals OIDC connector into JSON
+// MarshalOIDCConnector marshals OIDC connector into JSON
 func (*TeleportOIDCConnectorMarshaler) MarshalOIDCConnector(c OIDCConnector, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := collectOptions(opts)
 	if err != nil {
@@ -442,7 +442,7 @@ func (o *OIDCConnectorV2) GetDisplay() string {
 	return o.GetName()
 }
 
-// Scope is additional scopes set by provder
+// Scope is additional scopes set by provider
 func (o *OIDCConnectorV2) GetScope() []string {
 	return o.Spec.Scope
 }
@@ -566,7 +566,7 @@ type OIDCConnectorSpecV2 struct {
 	Provider string `json:"provider,omitempty"`
 	// Display - Friendly name for this provider.
 	Display string `json:"display,omitempty"`
-	// Scope is additional scopes set by provder
+	// Scope is additional scopes set by provider
 	Scope []string `json:"scope,omitempty"`
 	// Prompt is optional OIDC prompt, empty string omits prompt
 	// if not specified, defaults to select_account for backwards compatibility
@@ -629,7 +629,7 @@ type ClaimMapping struct {
 	Roles []string `json:"roles,omitempty"`
 }
 
-// OIDCClaimsToTraits converts OICD-style claims into the standardized
+// OIDCClaimsToTraits converts OIDC-style claims into the standardized
 // teleport trait format.
 func OIDCClaimsToTraits(claims jose.Claims) map[string][]string {
 	traits := make(map[string][]string)
@@ -683,7 +683,7 @@ type OIDCConnectorV1 struct {
 	RedirectURL string `json:"redirect_url"`
 	// Display - Friendly name for this provider.
 	Display string `json:"display"`
-	// Scope is additional scopes set by provder
+	// Scope is additional scopes set by provider
 	Scope []string `json:"scope"`
 	// ClaimsToRoles specifies dynamic mapping from claims to roles
 	ClaimsToRoles []ClaimMapping `json:"claims_to_roles"`

@@ -244,8 +244,9 @@ proxy_service:
 
   # TLS certificate for the HTTPS connection. Configuring these properly is
   # critical for Teleport security.
-  https_key_file: /etc/letsencrypt/live/TELEPORT_PUBLIC_DNS_NAME/privkey.pem
-  https_cert_file: /etc/letsencrypt/live/TELEPORT_PUBLIC_DNS_NAME/fullchain.pem
+  https_keypairs:
+    - key_file: /var/lib/teleport/webproxy_key.pem
+      cert_file: /var/lib/teleport/webproxy_cert.pem
 ```
 
 #### Public Addr
@@ -732,10 +733,10 @@ DEBU [PROC:1]    Setup Proxy: Reverse tunnel proxy and web proxy listen on the s
     uses round-robin or a similar balancing algorithm. Do not use sticky load
     balancing algorithms (a.k.a. "session affinity") with Teleport proxies.
 
-## Labeling Nodes
+## Labeling Nodes and Applications
 
 In addition to specifying a custom nodename, Teleport also allows for the
-application of arbitrary key:value pairs to each node, called labels. There are
+application of arbitrary key:value pairs to each node or app, called labels. There are
 two kinds of labels:
 
 1. `static labels` do not change over time, while [ `teleport` ](cli-docs.md#teleport)
@@ -764,7 +765,12 @@ Alternatively, you can update `labels` via a configuration file:
 ``` yaml
 ssh_service:
   enabled: "yes"
+  # ...
   # Static labels are simple key/value pairs:
+  labels:
+    environment: test
+app_service:
+  # ..
   labels:
     environment: test
 ```
@@ -785,6 +791,14 @@ ssh_service:
     # this setting tells teleport to execute the command above
     # once an hour. this value cannot be less than one minute.
     period: 1h0m0s
+app_service:
+  enabled: "yes"
+  # ...
+  # Dynamic labels (historically called "commands"):
+  commands:
+  - name: hostname
+    command: [hostname]
+    period: 1m0s
 ```
 
 `/path/to/executable` must be a valid executable command (i.e. executable bit
@@ -824,10 +838,10 @@ Refer to the ["Audit Log" chapter in the Teleport
 Architecture](architecture/authentication.md#audit-log) to learn more about how the audit log and
 session recording are designed.
 
-### SSH Events
+### Events
 
-Teleport supports multiple storage back-ends for storing the SSH events. The
-section below uses the `dir` backend as an example. `dir` backend uses the local
+Teleport supports multiple storage back-ends for storing the SSH, Application and Kubernetes events.
+The section below uses the `dir` backend as an example. `dir` backend uses the local
 filesystem of an auth server using the configurable `data_dir` directory.
 
 For highly available (HA) configurations, users can refer to our
@@ -901,7 +915,8 @@ The possible event types are:
 | scp           | Remote file copy has been executed. The following fields will be logged: `{"path": "/path/to/file.txt", "len": 32344, "action": "read" }` |
 | resize        | Terminal has been resized.|
 | user.login    | A user logged into web UI or via tsh. The following fields will be logged: `{"user": "alice@example.com", "method": "local"}` .|
-
+| app.session.start | A user accessed an application |
+| app.session.chunk | A record of activity during an app session |
 
 ### Recorded Sessions
 
@@ -1188,31 +1203,7 @@ Environment="NO_PROXY=localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,10.0.0.0/
 
 ## PAM Integration
 
-Teleport node service can be configured to integrate with
-[PAM](https://en.wikipedia.org/wiki/Linux_PAM). This allows Teleport to create
-user sessions using PAM session profiles.
-
-To enable PAM on a given Linux machine, update `/etc/teleport.yaml` with:
-
-```yaml
-teleport:
-   ssh_service:
-      pam:
-         # "no" by default
-         enabled: yes
-         # use /etc/pam.d/sshd configuration (the default)
-         service_name: "sshd"
-```
-
-Please note that most Linux distributions come with a number of PAM services in
-`/etc/pam.d` and Teleport will try to use `sshd` by default, which will be
-removed if you uninstall `openssh-server` package. We recommend creating your
-own PAM service file like `/etc/pam.d/teleport` and specifying it as
-`service_name` above.
-
-!!! tip "Note"
-
-    Teleport only supports the `account` and `session` stack. The `auth` PAM module is currently not supported with Teleport.
+Review our dedicated [Using Teleport with PAM](features/ssh-pam.md) guide.
 
 ## Using Teleport with OpenSSH
 
@@ -1227,7 +1218,7 @@ will show you how to implement certificate rotation in practice.
 The easiest way to start the rotation is to execute this command on a cluster's
 _auth server_:
 
-``` bash
+```bash
 $ tctl auth rotate
 ```
 
@@ -1236,7 +1227,7 @@ period_ of 48 hours.
 
 This can be customized, i.e.
 
-``` bash
+```bash
 # rotate only user certificates with a grace period of 200 hours:
 $ tctl auth rotate --type=user --grace-period=200h
 
@@ -1259,7 +1250,7 @@ certificate for itself before the grace period ends.
 
 To check the status of certificate rotation:
 
-``` bash
+```bash
 $ tctl status
 ```
 
@@ -1458,6 +1449,18 @@ teleport:
      # NOT RECOMMENDED: enables insecure etcd mode in which self-signed
      # certificate will be accepted
      insecure: false
+
+     # Optionally sets the limit on the client message size.
+     # This is usually used to increase the default which is 2MiB
+     # (1.5MiB server's default + gRPC overhead bytes).
+     # Make sure this does not exceed the value for the etcd
+     # server specified with `--max-request-bytes` (1.5MiB by default).
+     # Keep the two values in sync.
+     #
+     # See https://etcd.io/docs/v3.4.0/dev-guide/limit/ for details
+     #
+     # This bumps the size to 15MiB as an example:
+     etcd_max_client_msg_size_bytes: 15728640
 ```
 
 ### Using Amazon S3
