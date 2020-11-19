@@ -546,3 +546,10 @@ and non interactive tsh bench loads.
 - [ ] Deploy Teleport to IBM Cloud. Using IBM Database for etcd & IBM Object Store
 - [ ] Deploy Teleport to IBM Cloud Kubernetes.
 - [ ] Deploy Teleport Enterprise to IBM Cloud.
+
+## Application Access
+
+- [ ] Run an application within local cluster.
+- [ ] Run an application within a trusted cluster.
+- [ ] Verify session tarball is created and contains request/response pairs.
+- [ ] Verify JWT header is added to requests and is valid.
