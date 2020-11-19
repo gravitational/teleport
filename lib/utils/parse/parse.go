@@ -180,7 +180,7 @@ type Matcher interface {
 func NewMatcher(value string) (m Matcher, err error) {
 	defer func() {
 		if err != nil {
-			err = trace.WrapWithMessage(err, "see supported syntax at https://gravitational.com/teleport/docs/enterprise/ssh-rbac/#rbac-for-hosts")
+			err = trace.WrapWithMessage(err, "see supported syntax at https://goteleport.com/teleport/docs/enterprise/ssh-rbac/#rbac-for-hosts")
 		}
 	}()
 	match := reVariable.FindStringSubmatch(value)
