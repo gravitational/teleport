@@ -8,7 +8,7 @@ User=root
 Group=adm
 Type=oneshot
 RuntimeDirectory=teleport
-ExecStart=/usr/bin/teleport-generate-config
+ExecStart=/usr/local/bin/teleport-generate-config
 
 [Install]
 WantedBy=multi-user.target

@@ -105,12 +105,8 @@ type Stater interface {
 type TrackingConn struct {
 	// net.Conn is the underlying net.Conn.
 	net.Conn
-
-	// txBytes keeps track of how many bytes were transmitted.
-	txBytes uint64
-
-	// rxBytes keeps track of how many bytes were received.
-	rxBytes uint64
+	r *TrackingReader
+	w *TrackingWriter
 }
 
 // NewTrackingConn returns a net.Conn that can keep track of how much data was
@@ -118,22 +114,67 @@ type TrackingConn struct {
 func NewTrackingConn(conn net.Conn) *TrackingConn {
 	return &TrackingConn{
 		Conn: conn,
+		r:    NewTrackingReader(conn),
+		w:    NewTrackingWriter(conn),
 	}
 }
 
 // Stat returns the transmitted (TX) and received (RX) bytes over the net.Conn.
 func (s *TrackingConn) Stat() (uint64, uint64) {
-	return atomic.LoadUint64(&s.txBytes), atomic.LoadUint64(&s.rxBytes)
+	return s.w.Count(), s.r.Count()
 }
 
 func (s *TrackingConn) Read(b []byte) (n int, err error) {
-	n, err = s.Conn.Read(b)
-	atomic.AddUint64(&s.rxBytes, uint64(n))
-	return n, trace.Wrap(err)
+	return s.r.Read(b)
 }
 
 func (s *TrackingConn) Write(b []byte) (n int, err error) {
-	n, err = s.Conn.Write(b)
-	atomic.AddUint64(&s.txBytes, uint64(n))
+	return s.w.Write(b)
+}
+
+// TrackingReader is an io.Reader that counts the total number of bytes read.
+// It's thread-safe if the underlying io.Reader is thread-safe.
+type TrackingReader struct {
+	r     io.Reader
+	count uint64
+}
+
+// NewTrackingReader creates a TrackingReader around r.
+func NewTrackingReader(r io.Reader) *TrackingReader {
+	return &TrackingReader{r: r}
+}
+
+// Count returns the total number of bytes read so far.
+func (r *TrackingReader) Count() uint64 {
+	return atomic.LoadUint64(&r.count)
+}
+
+func (r *TrackingReader) Read(b []byte) (int, error) {
+	n, err := r.r.Read(b)
+	atomic.AddUint64(&r.count, uint64(n))
+	return n, trace.Wrap(err)
+}
+
+// TrackingWriter is an io.Writer that counts the total number of bytes
+// written.
+// It's thread-safe if the underlying io.Writer is thread-safe.
+type TrackingWriter struct {
+	w     io.Writer
+	count uint64
+}
+
+// NewTrackingWriter creates a TrackingWriter around w.
+func NewTrackingWriter(w io.Writer) *TrackingWriter {
+	return &TrackingWriter{w: w}
+}
+
+// Count returns the total number of bytes written so far.
+func (w *TrackingWriter) Count() uint64 {
+	return atomic.LoadUint64(&w.count)
+}
+
+func (w *TrackingWriter) Write(b []byte) (int, error) {
+	n, err := w.w.Write(b)
+	atomic.AddUint64(&w.count, uint64(n))
 	return n, trace.Wrap(err)
 }

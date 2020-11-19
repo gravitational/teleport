@@ -303,6 +303,14 @@ lint-sh:
 		--exclude=SC2086 \
 		$(SH_LINT_FLAGS)
 
+	# lint AWS AMI scripts
+	# SC1091 prints errors when "source" directives are not followed
+	find assets/aws/files/bin -type f | xargs \
+		shellcheck \
+		--exclude=SC2086 \
+		--exclude=SC1091 \
+		$(SH_LINT_FLAGS)
+
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
 $(VERSRC): Makefile
 	VERSION=$(VERSION) $(MAKE) -f version.mk setver

@@ -130,6 +130,31 @@ interactive sessions the 12 combinations are below.
 * [ ] Deploy Teleport on two EKS clusters and connect them via trusted cluster feature
 * [ ] Deploy Teleport Proxy outside of GKE cluster fronting connections to it (this feature is not yet supported for EKS)
 
+### Teleport with multiple Kubernetes clusters
+
+Note: you can use GKE or EKS or minikube to run Kubernetes clusters.
+Minikube is the only caveat - it's not reachable publicly so don't run a proxy there.
+
+* [ ] Deploy combo auth/proxy/kubernetes_service outside of a Kubernetes cluster, using a kubeconfig
+  * [ ] Login with `tsh login`, check that `tsh kube ls` has your cluster
+  * [ ] Run `kubectl get nodes`, `kubectl exec -it $SOME_POD -- sh`
+  * [ ] Verify that the audit log recorded the above request and session
+* [ ] Deploy combo auth/proxy/kubernetes_service inside of a Kubernetes cluster
+  * [ ] Login with `tsh login`, check that `tsh kube ls` has your cluster
+  * [ ] Run `kubectl get nodes`, `kubectl exec -it $SOME_POD -- sh`
+  * [ ] Verify that the audit log recorded the above request and session
+* [ ] Deploy combo auth/proxy_service outside of the Kubernetes cluster and kubernetes_service inside of a Kubernetes cluster, connected over a reverse tunnel
+  * [ ] Login with `tsh login`, check that `tsh kube ls` has your cluster
+  * [ ] Run `kubectl get nodes`, `kubectl exec -it $SOME_POD -- sh`
+  * [ ] Verify that the audit log recorded the above request and session
+* [ ] Deploy a second kubernetes_service inside of another Kubernetes cluster, connected over a reverse tunnel
+  * [ ] Login with `tsh login`, check that `tsh kube ls` has both clusters
+  * [ ] Switch to a second cluster using `tsh kube login`
+  * [ ] Run `kubectl get nodes`, `kubectl exec -it $SOME_POD -- sh` on the new cluster
+  * [ ] Verify that the audit log recorded the above request and session
+* [ ] Deploy combo auth/proxy/kubernetes_service outside of a Kubernetes cluster, using a kubeconfig with multiple clusters in it
+  * [ ] Login with `tsh login`, check that `tsh kube ls` has all clusters
+
 ### Teleport with FIPS mode
 
 * [ ] Perform trusted clusters, Web and SSH sanity check with all teleport components deployed in FIPS mode.

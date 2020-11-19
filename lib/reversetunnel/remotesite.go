@@ -506,9 +506,10 @@ func (s *remoteSite) Dial(params DialParams) (net.Conn, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// If the proxy is in recording mode use the agent to dial and build a
-	// in-memory forwarding server.
-	if services.IsRecordAtProxy(clusterConfig.GetSessionRecording()) {
+	// If the proxy is in recording mode and a SSH connection is being requested,
+	// use the agent to dial and build an in-memory forwarding server.
+	if params.ConnType == services.NodeTunnel &&
+		services.IsRecordAtProxy(clusterConfig.GetSessionRecording()) {
 		return s.dialWithAgent(params)
 	}
 	return s.DialTCP(params)
