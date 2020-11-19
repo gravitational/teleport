@@ -17,7 +17,6 @@ limitations under the License.
 package common
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io"
@@ -219,7 +218,7 @@ func (rc *ResourceCommand) GetAll(client auth.ClientI) error {
 func (rc *ResourceCommand) Create(client auth.ClientI) (err error) {
 	var reader io.Reader
 	if rc.filename == "" {
-		reader = bufio.NewReader(os.Stdin)
+		reader = os.Stdin
 	} else {
 		reader, err = utils.OpenFile(rc.filename)
 		if err != nil {
