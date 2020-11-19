@@ -26,10 +26,10 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 	"github.com/jonboulle/clockwork"
 	"go.etcd.io/etcd/clientv3"
 	"gopkg.in/check.v1"
@@ -385,7 +385,7 @@ func (s *EtcdSuite) TestSyncLegacyPrefix(c *check.C) {
 // TestCompareAndSwapOversizedValue ensures that the backend reacts with a proper
 // error message if client sends a message exceeding the configured size maximum
 // See https://github.com/gravitational/teleport/issues/4786
-func TestCompareAndSwapOversizedValue(t *testing.T) {
+func (s *EtcdSuite) TestCompareAndSwapOversizedValue(c *check.C) {
 	// setup
 	const maxClientMsgSize = 128
 	bk, err := New(context.Background(), backend.Params{
@@ -397,7 +397,7 @@ func TestCompareAndSwapOversizedValue(t *testing.T) {
 		"dial_timeout":                   500 * time.Millisecond,
 		"etcd_max_client_msg_size_bytes": maxClientMsgSize,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	prefix := test.MakePrefix()
 	// Explicitly exceed the message size
 	value := make([]byte, maxClientMsgSize+1)
@@ -407,6 +407,5 @@ func TestCompareAndSwapOversizedValue(t *testing.T) {
 		backend.Item{Key: prefix("one"), Value: []byte("1")},
 		backend.Item{Key: prefix("one"), Value: value},
 	)
-	require.True(t, trace.IsLimitExceeded(err))
-	require.Regexp(t, ".*ResourceExhausted.*", err)
+	fixtures.ExpectLimitExceeded(c, err)
 }
