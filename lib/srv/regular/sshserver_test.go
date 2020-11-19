@@ -410,6 +410,7 @@ func (s *SrvSuite) TestAgentForward(c *C) {
 		time.Sleep(10 * time.Millisecond)
 		output, _ = ioutil.ReadFile(tmpFile.Name())
 	}
+	c.Assert(output, Not(Equals), "")
 	socketPath := strings.TrimSpace(string(output))
 
 	// try dialing the ssh agent socket:

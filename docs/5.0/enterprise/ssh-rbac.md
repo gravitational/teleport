@@ -40,7 +40,7 @@ user permissions.
 Some of the permissions a role could define include:
 
 * Which SSH nodes a user can or cannot access. Teleport uses [node
-  labels](../admin-guide/#labeling-nodes) to do this, i.e. some nodes can be
+  labels](../admin-guide/#labeling-nodes-and-applications) to do this, i.e. some nodes can be
   labeled "production" while others can be labeled "staging".
 * Ability to replay recorded sessions.
 * Ability to update cluster configuration.
@@ -209,7 +209,7 @@ Option                    | Description                          | Multi-role be
 ## RBAC for Hosts
 
 A Teleport role can also define which hosts (nodes) a user can have access to.
-This works by [labeling nodes](../admin-guide.md#labeling-nodes) and listing
+This works by [labeling nodes](../admin-guide.md#labeling-nodes-and-applications) and listing
 allow/deny labels in a role definition.
 
 Consider the following use case:

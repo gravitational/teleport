@@ -41,7 +41,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// SAMLConnector specifies configuration for SAML 2.0 dentity providers
+// SAMLConnector specifies configuration for SAML 2.0 identity providers
 type SAMLConnector interface {
 	// ResourceWithSecrets provides common methods for objects
 	ResourceWithSecrets
@@ -76,7 +76,7 @@ type SAMLConnector interface {
 	SetSSO(string)
 	// GetEntityDescriptor returns XML entity descriptor of the service
 	GetEntityDescriptor() string
-	// SetEntityDescriptor sets entity descritor of the service
+	// SetEntityDescriptor sets entity descriptor of the service
 	SetEntityDescriptor(v string)
 	// GetEntityDescriptorURL returns the URL to obtain the entity descriptor.
 	GetEntityDescriptorURL() string
@@ -324,7 +324,7 @@ func (o *SAMLConnectorV2) GetEntityDescriptor() string {
 	return o.Spec.EntityDescriptor
 }
 
-// SetEntityDescriptor sets entity descritor of the service
+// SetEntityDescriptor sets entity descriptor of the service
 func (o *SAMLConnectorV2) SetEntityDescriptor(v string) {
 	o.Spec.EntityDescriptor = v
 }
@@ -683,7 +683,7 @@ type SAMLConnectorSpecV2 struct {
 	// SertviceProviderIssuer is the issuer of the service provider (Teleport)
 	ServiceProviderIssuer string `json:"service_provider_issuer"`
 	// EntityDescriptor is XML with descriptor, can be used to supply configuration
-	// parameters in one XML files vs supplying them in the individual elelemtns
+	// parameters in one XML files vs supplying them in the individual elements
 	EntityDescriptor string `json:"entity_descriptor"`
 	// EntityDescriptor points to a URL that supplies a configuration XML.
 	EntityDescriptorURL string `json:"entity_descriptor_url"`
