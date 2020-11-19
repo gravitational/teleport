@@ -55,7 +55,7 @@ proxy_service:
 !!! tip "Using Certbot to obtain Wildcard Certs"
 
     Let's Encrypt provides free wildcard certificates. If using [certbot](https://certbot.eff.org/)
-    with DNS challenge, the below script will make setup easy.
+    with DNS challenge, the below script will make setup easy. Update [EMAIL] and [DOMAIN]
 
       ```sh
       certbot certonly --manual \
@@ -89,7 +89,7 @@ teleport start --roles=app --token=xyz --auth-server=proxy.example.com:3080 \
 ```
 
 ### Application Name
-When picking an application name, it's important to make sure the name will make a valid sub-domain (<=63 characters, no spaces, only `A-Z a-z 0-9 _ -` allowed). 
+When picking an application name, it's important to make sure the name will make a valid sub-domain (<=63 characters, no spaces, only `A-Z a-z 0-9 _ -` allowed).
 
 After Teleport is running, the application will be accessible at `app-name.proxy_public_addr.com` e.g. `jenkins.teleport.example.com`.  Teleport also provides the ability to override `public_addr`. e.g `jenkins.acme.com` if you configure the appropriate DNS entry to point to the Teleport proxy server.
 
