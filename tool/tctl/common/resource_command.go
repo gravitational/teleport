@@ -220,10 +220,12 @@ func (rc *ResourceCommand) Create(client auth.ClientI) (err error) {
 	if rc.filename == "" {
 		reader = os.Stdin
 	} else {
-		reader, err = utils.OpenFile(rc.filename)
+		f, err := utils.OpenFile(rc.filename)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		defer f.Close()
+		reader = f
 	}
 	decoder := kyaml.NewYAMLOrJSONDecoder(reader, defaults.LookaheadBufSize)
 	count := 0
