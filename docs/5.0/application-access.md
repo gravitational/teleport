@@ -14,6 +14,16 @@ You can secure any web application using application access:
 * Wikis / Tooling that's only available on the VPN.
 * Infra dashboards - Kubernetes, Grafana
 * Developer tools, such as Jenkins, Gitlab or Opsgenie
+
+## Demo
+
+<video autoplay loop muted playsinline controls style="width:100%">
+  <source src="https://goteleport.com/teleport/videos/k8s-application-access/k8s-taa.mp4" type="video/mp4">
+  <source src="https://goteleport.com/teleport/videos/k8s-application-access/k8s-taa.webm" type="video/webm">
+Your browser does not support the video tag.
+</video>
+
+
 #### Hardware Requirements
 [How it works](https://gravitational.com/teleport/how-it-works/) page will give you a good overview of the setup.
 
@@ -21,14 +31,14 @@ You can secure any web application using application access:
 
 !!! note "Why do I see SSH Ports for Application Access?"
 
-  Teleport uses SSH reverse tunnels to connect applications to the proxy. This is why the configuration below mentions SSH ports.
+    Teleport uses SSH reverse tunnels to connect applications to the proxy. This is why the configuration below mentions SSH ports.
 
-|Port      | Service    | Description
+|Port      .| Service    | Description
 |----------|------------|-------------------------------------------
 | 3023      | Proxy      | SSH port for clients who need tsh login
 | 3024      | Proxy      | SSH port used to create reverse SSH tunnels from behind-firewall environments into a trusted proxy server.
 | 3025      | Auth       | TLS port used by the Auth Service to serve its API to other nodes in a cluster.
-| 3080    .    | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Teleport UI.
+| 3080      | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Teleport UI.
 
 #### TLS Requirements
 
@@ -277,6 +287,7 @@ _Example jwks.json_
   ]
 }
 ```
+
 
 ## Example Applications
 
