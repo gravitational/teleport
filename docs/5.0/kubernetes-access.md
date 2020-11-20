@@ -20,19 +20,19 @@ access to Kubernetes clusters. This enables the following capabilities:
   commands are recorded as regular sessions that can be stored and replayed in the
   future.
 
-## Teleport Proxy Service
+## Teleport Kubernetes Service
+
 By default, the Kubernetes integration is turned off in Teleport. The configuration
 setting to enable the integration in the proxy service section in the `/etc/teleport.yaml`
 config file, as shown below:
 
 ```yaml
 # snippet from /etc/teleport.yaml on the Teleport proxy service:
-proxy_service:
-    # create the 'kubernetes' section and set 'enabled' to 'yes':
-    kubernetes:
-        enabled: yes
-        public_addr: [teleport.example.com:3026]
-        listen_addr: 0.0.0.0:3026
+kubernetes_service:
+    enabled: yes
+    public_addr: [k8s.example.com:3026]
+    listen_addr: 0.0.0.0:3026
+    kubeconfig_file: /secrets/kubeconfig
 ```
 Let's take a closer look at the available Kubernetes settings:
 
