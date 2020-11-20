@@ -2423,7 +2423,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Emitter:       streamEmitter,
 				HostUUID:      process.Config.HostUUID,
 				Context:       process.ExitContext(),
-				AuthType:      cfg.Auth.Preference.GetType(),
 			})
 		if err != nil {
 			return trace.Wrap(err)

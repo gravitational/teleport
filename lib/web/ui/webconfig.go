@@ -63,6 +63,4 @@ type WebConfigAuthSettings struct {
 	Providers []WebConfigAuthProvider `json:"providers,omitempty"`
 	// LocalAuthEnabled is a flag that enables local authentication
 	LocalAuthEnabled bool `json:"localAuthEnabled"`
-	// AuthType is the authentication type for auth service.
-	AuthType string `json:"authType"`
 }
