@@ -112,7 +112,7 @@ class TableSample extends React.Component {
       return (
         <EmptyIndicator title='No Results Found for "X458AAZ"'>
           For tips on getting better search results, please read{' '}
-          <a href="https://gravitational.com/teleport/docs">
+          <a href="https://goteleport.com/teleport/docs">
             our documentation
           </a>
         </EmptyIndicator>

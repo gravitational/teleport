@@ -18,7 +18,7 @@ import React from 'react';
 import { ButtonPrimary } from 'design';
 
 const docUrl =
-  'https://gravitational.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster';
+  'https://goteleport.com/teleport/docs/admin-guide/#adding-nodes-to-the-cluster';
 
 export default function ButtonAdd(props: Props) {
   const { isEnterprise, canCreate, isLeafCluster, ...rest } = props;

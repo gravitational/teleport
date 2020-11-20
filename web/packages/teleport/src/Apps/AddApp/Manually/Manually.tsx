@@ -78,7 +78,7 @@ export default function Manually({ user, version, onClose }: Props) {
             Learn more about application access `}
             <Link
               href={
-                'https://gravitational.com/teleport/docs/application-access/'
+                'https://goteleport.com/teleport/docs/application-access/'
               }
               target="_blank"
               mr="2"

@@ -101,7 +101,7 @@ export function Roles(props: State) {
                 as="a"
                 color="light"
                 target="_blank"
-                href="https://gravitational.com/teleport/docs/enterprise/ssh_rbac/"
+                href="https://goteleport.com/teleport/docs/enterprise/ssh-rbac/"
               >
                 cluster management (RBAC)
               </Text>{' '}
@@ -112,7 +112,7 @@ export function Roles(props: State) {
       )}
       {(resources.status === 'creating' || resources.status === 'editing') && (
         <ResourceEditor
-          docsURL="https://gravitational.com/teleport/docs/enterprise/ssh_rbac/"
+          docsURL="https://goteleport.com/teleport/docs/enterprise/ssh-rbac/"
           title={title}
           text={resources.item.content}
           name={resources.item.name}

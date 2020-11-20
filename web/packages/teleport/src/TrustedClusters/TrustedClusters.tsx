@@ -133,7 +133,7 @@ const Info = props => (
       <Text
         as="a"
         color="light"
-        href="https://gravitational.com/teleport/docs/trustedclusters/"
+        href="https://goteleport.com/teleport/docs/trustedclusters/"
         target="_blank"
       >
         view our documentation

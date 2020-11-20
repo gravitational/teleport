@@ -62,7 +62,7 @@ const Support = () => {
               url={
                 cfg.isEnterprise
                   ? 'https://dashboard.gravitational.com/web/downloads '
-                  : 'https://gravitational.com/teleport/download'
+                  : 'https://goteleport.com/teleport/download'
               }
             />
             <SupportLink title="FAQ" url={docs.faq} />
@@ -90,7 +90,7 @@ const Support = () => {
             />
             <SupportLink
               title="Gravitational Blog"
-              url="https://gravitational.com/blog/"
+              url="https://goteleport.com/blog/"
             />
           </Box>
         </Flex>
@@ -136,14 +136,14 @@ const getDocUrls = (version = '') => {
     `${url}?product=teleport&version=${verPrefix}_${version}${anchorHash}`;
 
   return {
-    quickstart: withUTM('https://gravitational.com/teleport/docs/quickstart'),
-    userManual: withUTM('https://gravitational.com/teleport/docs/user-manual'),
-    adminGuide: withUTM('https://gravitational.com/teleport/docs/admin-guide'),
+    quickstart: withUTM('https://goteleport.com/teleport/docs/quickstart'),
+    userManual: withUTM('https://goteleport.com/teleport/docs/user-manual'),
+    adminGuide: withUTM('https://goteleport.com/teleport/docs/admin-guide'),
     troubleshooting: withUTM(
-      'https://gravitational.com/teleport/docs/admin-guide',
+      'https://goteleport.com/teleport/docs/admin-guide',
       '#troubleshooting'
     ),
-    faq: withUTM('https://gravitational.com/teleport/docs/faq'),
+    faq: withUTM('https://goteleport.com/teleport/docs/faq'),
   };
 };
 
