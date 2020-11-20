@@ -1093,6 +1093,8 @@ message AppSessionRequest {
     string Path = 3 [ (gogoproto.jsontag) = "path" ];
     // RawQuery are the encoded query values.
     string RawQuery = 4 [ (gogoproto.jsontag) = "raw_query" ];
+    // Method is the request HTTP method, like GET/POST/DELETE/etc.
+    string Method = 5 [ (gogoproto.jsontag) = "method" ];
 }
 
 // OneOf is a union of one of audit events submitted to the auth service
