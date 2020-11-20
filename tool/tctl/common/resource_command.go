@@ -89,7 +89,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 	rc.config = config
 
 	rc.createCmd = app.Command("create", "Create or update a Teleport resource from a YAML file")
-	rc.createCmd.Arg("filename", "resource definition file").Required().StringVar(&rc.filename)
+	rc.createCmd.Arg("filename", "resource definition file, empty for stdin").StringVar(&rc.filename)
 	rc.createCmd.Flag("force", "Overwrite the resource if already exists").Short('f').BoolVar(&rc.force)
 
 	rc.updateCmd = app.Command("update", "Update resource fields")
@@ -215,10 +215,17 @@ func (rc *ResourceCommand) GetAll(client auth.ClientI) error {
 }
 
 // Create updates or inserts one or many resources
-func (rc *ResourceCommand) Create(client auth.ClientI) error {
-	reader, err := utils.OpenFile(rc.filename)
-	if err != nil {
-		return trace.Wrap(err)
+func (rc *ResourceCommand) Create(client auth.ClientI) (err error) {
+	var reader io.Reader
+	if rc.filename == "" {
+		reader = os.Stdin
+	} else {
+		f, err := utils.OpenFile(rc.filename)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer f.Close()
+		reader = f
 	}
 	decoder := kyaml.NewYAMLOrJSONDecoder(reader, defaults.LookaheadBufSize)
 	count := 0
