@@ -550,6 +550,15 @@ and non interactive tsh bench loads.
 ## Application Access
 
 - [ ] Run an application within local cluster.
+  - [ ] Verify the debug application `debug_app: true` works.
+  - [ ] Verify an application can be configured with command line flags.
+  - [ ] Verify an application can be configured from file configuration.
+  - [ ] Verify that applications are available at auto-generated addresses `name.rootProxyPublicAddr` and well as `publicAddr`.
 - [ ] Run an application within a trusted cluster.
-- [ ] Verify session tarball is created and contains request/response pairs.
-- [ ] Verify JWT header is added to requests and is valid.
+  - [ ] Verify that applications are available at auto-generated addresses `name.rootProxyPublicAddr`.
+- [ ] Verify Audit Records.
+  - [ ] `app.session.start` and `app.session.chunk` events are created in the Audit Log.
+  - [ ] `app.session.chunk` points to a 5 minute session archive with multiple `app.session.request` events inside.
+  - [ ] `tsh play <chunk-id>` can fetch and print a session chunk archive.
+- [ ] Verify JWT using [verify-jwt.go](https://github.com/gravitational/teleport/blob/master/examples/jwt/verify-jwt.go).
+- [ ] Verify RBAC.
