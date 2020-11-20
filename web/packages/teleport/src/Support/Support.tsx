@@ -89,7 +89,7 @@ const Support = () => {
               url="https://github.com/gravitational/teleport/blob/master/CHANGELOG.md"
             />
             <SupportLink
-              title="Gravitational Blog"
+              title="Teleport Blog"
               url="https://goteleport.com/blog/"
             />
           </Box>

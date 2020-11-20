@@ -319,7 +319,7 @@ exports[`support Enterprise 1`] = `
           class="c8"
           href="https://goteleport.com/blog/"
         >
-          Gravitational Blog
+          Teleport Blog
         </a>
       </div>
     </div>
@@ -714,7 +714,7 @@ exports[`support OSS 1`] = `
           class="c8"
           href="https://goteleport.com/blog/"
         >
-          Gravitational Blog
+          Teleport Blog
         </a>
       </div>
     </div>
