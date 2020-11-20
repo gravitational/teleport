@@ -21,7 +21,7 @@ services:
     image: grafana/grafana:latest
     container_name: grafana
     ports:
-      - "3001:3000"
+      - "3434:3434"
     links:
       - influxdb
 

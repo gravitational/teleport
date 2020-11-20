@@ -66,7 +66,7 @@ Instance groups for the proxy and auth server.
 GCP relies heavily on [Health Checks](https://cloud.google.com/load-balancing/docs/health-checks),
 this is helpful when adding new instances to an instance group.
 
-To enable health checks in Teleport start with `teleport start --diag-addr=0.0.0.0:3000`
+To enable health checks in Teleport start with `teleport start --diag-addr=0.0.0.0:3434`
 see  [Admin Guide: Troubleshooting](admin-guide.md#troubleshooting) for more information.
 
 ### Storage: Cloud Firestore

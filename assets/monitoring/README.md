@@ -7,8 +7,8 @@ Teleport exports Prometheus Metrics endpoints.
 To start teleport with prometheus endpoint enabled:
 
 ```bash
-teleport start --diag-addr=127.0.0.1:3000
-# http://127.0.0.1:3000/metrics
+teleport start --diag-addr=127.0.0.1:3434
+# http://127.0.0.1:3434/metrics
 ```
 
 To start monitoring stack, simply `docker-compose up`
@@ -33,31 +33,31 @@ python convert.py health-raw.json health-dashboard.json
 Teleport can be started with Go's standard profiler [pprof](https://golang.org/pkg/net/http/pprof/).
 
 ```bash
-$ teleport start -d --diag-addr=127.0.0.1:3000
-# http://127.0.0.1:3000/debug/pprof/
+$ teleport start -d --diag-addr=127.0.0.1:3434
+# http://127.0.0.1:3434/debug/pprof/
 ```
 
 When teleport is started in debug mode (with teleport start -d flag) Go’s CPU,
 memory and go routines dumps could be collected on the host.
 
-Assuming debugging endpoint address is set to `127.0.0.1:3000`, the following key profiles
+Assuming debugging endpoint address is set to `127.0.0.1:3434`, the following key profiles
 can be collected:
 
 CPU profile (it will observe the system for 30 seconds and collect metrics) about CPU usage
 per function:
 
-`curl -o cpu.profile http://127.0.0.1:3000/debug/pprof/profile`
+`curl -o cpu.profile http://127.0.0.1:3434/debug/pprof/profile`
 
 Note: This curl command will hang for 30 seconds collecting the CPU profile
 
 Goroutine profile shows how many concurrent Golang “lightweight threads” are used
 in the system:
 
-`curl -o goroutine.profile http://127.0.0.1:3000/debug/pprof/goroutine`
+`curl -o goroutine.profile http://127.0.0.1:3434/debug/pprof/goroutine`
 
 Heap profile shows allocated objects in the system:
 
-`curl -o heap.profile http://127.0.0.1:3000/debug/pprof/heap`
+`curl -o heap.profile http://127.0.0.1:3434/debug/pprof/heap`
 
 To view the resulting profiles, use go tool pprof:
 

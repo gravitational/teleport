@@ -11,23 +11,23 @@ Teleport provides HTTP endpoints for monitoring purposes. They are disabled
 by default, but you can enable them using the `--diag-addr` flag to `teleport start`:
 
 ```bash
-$ teleport start --diag-addr=127.0.0.1:3000
+$ teleport start --diag-addr=127.0.0.1:3434
 ```
 
 Now you can see the monitoring information by visiting several endpoints:
 
-* `http://127.0.0.1:3000/metrics` is the list of internal metrics Teleport is
+* `http://127.0.0.1:3434/metrics` is the list of internal metrics Teleport is
    tracking. It is compatible with [Prometheus](https://prometheus.io/)
    collectors.
 
-* `http://127.0.0.1:3000/healthz` returns "OK" if the process is healthy or
+* `http://127.0.0.1:3434/healthz` returns "OK" if the process is healthy or
   `503` otherwise.
 
-* `http://127.0.0.1:3000/readyz` is similar to `/healthz` , but it returns "OK"
+* `http://127.0.0.1:3434/readyz` is similar to `/healthz`, but it returns "OK"
   _only after_ the node successfully joined the cluster, i.e.it draws the
   difference between "healthy" and "ready".
 
-* `http://127.0.0.1:3000/debug/pprof/` is Golang's standard profiler. It's only
+* `http://127.0.0.1:3434/debug/pprof/` is Golang's standard profiler. It's only
   available when `-d` flag is given in addition to `--diag-addr`
 
 
