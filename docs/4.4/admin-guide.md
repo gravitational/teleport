@@ -517,7 +517,7 @@ or `node` .
 There are two ways to create invitation tokens:
 
 * **Static Tokens** are easy to use and somewhat less secure.
-* **Dynamic Tokens** are more secure but require more planning.
+* **Short-lived Dynamic Tokens** are more secure but require more planning.
 
 ### Static Tokens
 
@@ -536,7 +536,7 @@ auth_service:
     - "auth:/path/to/tokenfile"
 ```
 
-### Short-lived Tokens
+### Short-lived Dynamic Tokens
 
 A more secure way to add nodes to a cluster is to generate tokens as they are
 needed. Such token can be used multiple times until its time to live (TTL)
@@ -570,7 +570,7 @@ $ tctl tokens rm e94d68a8a1e5821dbd79d03a960644f0
 
 ### Using Node Invitation Tokens
 
-Both static and short-lived tokens are used the same way. Execute the following
+Both static and short-lived dynamic tokens are used the same way. Execute the following
 command on a new node to add it to a cluster:
 
 ``` bash
