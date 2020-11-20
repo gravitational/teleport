@@ -100,12 +100,6 @@ $ helm install teleport teleport/teleport
 
 ## MacOS
 
-=== "Homebrew"
-
-    ```bash
-    $ brew install teleport
-    ```
-
 === "Download"
 
       [Download MacOS .pkg installer](https://gravitational.com/teleport/download) (tsh client only, signed) file, double-click to run the Installer.
@@ -113,6 +107,15 @@ $ helm install teleport teleport/teleport
     !!! note
         This method only installs the `tsh` client for interacting with Teleport clusters.
         If you need the `teleport` server or `tctl` admin tool, use the "Terminal" method instead.
+
+=== "Homebrew"
+
+    ```bash
+    $ brew install teleport
+    ```
+
+    !!! note
+        The Teleport package in Homebrew is not maintained by Teleport. We recommend the use of our [own Teleport packages](https://goteleport.com/teleport/download?os=macos).
 
 === "Terminal"
 
