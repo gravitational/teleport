@@ -131,6 +131,9 @@ type Config struct {
 
 	// Context is used to signal process exit.
 	Context context.Context
+
+	// AuthType is the authentication type for auth service.
+	AuthType string
 }
 
 type RewritingHandler struct {
@@ -742,6 +745,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		Providers:        authProviders,
 		SecondFactor:     secondFactor,
 		LocalAuthEnabled: clsCfg.GetLocalAuth(),
+		AuthType:         h.cfg.AuthType,
 	}
 
 	webCfg := ui.WebConfig{
