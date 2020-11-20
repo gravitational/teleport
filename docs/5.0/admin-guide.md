@@ -235,6 +235,9 @@ proxy_service:
   listen_addr: 0.0.0.0:3023
   web_listen_addr: 0.0.0.0:3080
   tunnel_listen_addr: 0.0.0.0:3024
+  
+  # Expose a k8s listening port on the proxy if using Kubernetes
+  kube_listen_addr: 0.0.0.0:3026
 
   # The DNS name of the proxy HTTPS endpoint as accessible by cluster users.
   # Defaults to the proxy's hostname if not specified. If running multiple
@@ -1277,7 +1280,7 @@ scp_if_ssh = True
 
 Teleport can be configured as a compliance gateway for Kubernetes clusters.
 This allows users to authenticate against a Teleport proxy using [`tsh
-login`](cli-docs.md#tsh) command to retrieve credentials for both SSH and
+login`](cli-docs.md#tsh) and  [`tsh kube login`](cli-docs.md/#tsh-kube-ls)command to retrieve credentials for both SSH and
 Kubernetes API.
 
 Follow our [Kubernetes guide](kubernetes-ssh.md) which contains some more specific

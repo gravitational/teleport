@@ -133,6 +133,11 @@ spec:
       # of the list example above can be expressed as:
       'environment': '^test|staging$'
 
+    kubernetes_labels:
+    - env: prod
+    - region: us-west1
+    - cluster_name: '^us.*\.example\.com$' # cluster_name label is generated automatically
+
     # defines roles that this user can can request.
     # needed for teleport's request workflow
     # https://gravitational.com/teleport/docs/enterprise/workflow/

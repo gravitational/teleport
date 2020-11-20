@@ -3,22 +3,19 @@ title: Kubernetes Access Guide
 description: How to set up and configure Teleport for Kubernetes access with SSO and RBAC
 ---
 
-# Teleport Kubernetes Access Guide
+# Teleport Kubernetes Access
 
 Teleport has the ability to act as a compliance gateway for managing privileged
 access to Kubernetes clusters. This enables the following capabilities:
 
-* A Teleport Proxy can act as a single authentication endpoint for both SSH and
-  Kubernetes. Users can authenticate against a Teleport proxy using Teleport's
-  [`tsh login`](cli-docs.md#tsh-login) command
-  and retrieve credentials for both SSH and Kubernetes API.
+* Teleport acts as a single authentication endpoint for both SSH and multiple
+  Kubernetes clusters. Users can authenticate against a Teleport proxy using Teleport's
+  [`tsh login`](cli-docs.md#tsh-login) command and retrieve credentials for both SSH and Kubernetes API. 
 * Users RBAC roles are always synchronized between SSH and Kubernetes, making
   it easier to implement policies like _developers must not access production
   data_.
-* Teleport's session recording and audit log extend to Kubernetes, as well.
-  Regular `kubectl exec` commands are logged into the audit log and the interactive
-  commands are recorded as regular sessions that can be stored and replayed in the
-  future.
+* Complete `kubectl` auditing and session recordings for `kubectl exec`
+* Multi Kubernetes Support. Quickly switch between multiple K8s clusters using [`tsh kube login`]()
 
 ## Teleport Kubernetes Service
 
@@ -45,21 +42,29 @@ Let's take a closer look at the available Kubernetes settings:
 - `listen_addr` defines which network interface and port the Teleport proxy server
   should bind to. It defaults to port 3026 on all NICs.
 
-### Connecting the Teleport proxy to Kubernetes
+## Setup
+
+Connecting the Teleport proxy to Kubernetes
 
 There are two options for setting up Teleport to access Kubernetes:
 
-## Option 1: Deploy Inside Kubernetes as a pod
+### Option 1: Proxy running inside a k8s cluster.
 
 Deploy Teleport Proxy service as a Kubernetes pod inside the Kubernetes cluster
 you want the proxy to have access to.
 
 ```yaml
 # snippet from /etc/teleport.yaml on the Teleport proxy service:
+auth_service:
+  cluster_name: example.com
+  public_addr: auth.example.com:3025
+# ..
 proxy_service:
-    # create the 'kubernetes' section and set 'enabled' to 'yes':
-    kubernetes:
-        enabled: yes
+  public_addr: proxy.example.com:3080
+  kube_listen_addr: 0.0.0.0:3026
+
+kubernetes_service:
+  enabled: yes
 ```
 
 If you're using Helm, we've a chart that you can use. Run these commands:
@@ -73,74 +78,16 @@ our [Helm Docs](https://github.com/gravitational/teleport/tree/master/examples/c
 
 ![teleport-kubernetes-inside](img/teleport-k8s-pod.svg)
 
-## Option 2: Deploy Outside of Kubernetes
+### Option 2: Teleport as a  "gateway" to multipel K8s Clsuters
 
-Deploy the Teleport proxy service outside of Kubernetes and update the Teleport
-Proxy configuration with Kubernetes credentials. Update the Teleport Proxy
-configuration with Kubernetes credentials.
+A single central Teleport proxy acting as "gateway". Multiple k8s clusters connect to it over reverse tunnels.
 
-In this case, we need to update `/etc/teleport.yaml` for the proxy service as shown
-below:
-
-```yaml
-# snippet from /etc/teleport.yaml on the Teleport proxy service:
+```
+...
 proxy_service:
-  # create the 'kubernetes' section and set 'enabled' to 'yes':
-  kubernetes:
-    enabled: yes
-    # The address for the proxy process to accept k8s requests.
-    listen_addr: 0.0.0.0:3026
-    # The address used by the clients after tsh login. If you run a load balancer
-    # in front of this proxy, use the address of that balancer here. Otherwise,
-    # use the address of the host running this proxy.
-    public_addr: [teleport.example.com:3026]
-    kubeconfig_file: /path/to/.kube/config
+  public_addr: proxy.example.com:3080
+  kube_listen_addr: 0.0.0.0:3026
 ```
-
-![teleport-ssh-kubernetes-integration](img/teleport-kubernetes-outside.svg)
-
-To generate the `kubeconfig_file` for the Teleport proxy service:
-
-1. Configure your `kubectl` to point at the Kubernetes cluster and have admin-level access.
-2. Use [this
-   script](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh)
-   to generate `kubeconfig`:
-
-```bash
-# Download the script.
-$ curl -o get-kubeconfig.sh https://raw.githubusercontent.com/gravitational/teleport/master/examples/k8s-auth/get-kubeconfig.sh
-
-# Make it executable.
-$ chmod +x get-kubeconfig.sh
-
-# Run the script, it will write the generated kubeconfig to the current
-# directory.
-$ ./get-kubeconfig.sh
-
-# Check that the generated kubeconfig has the right permissions.
-# The output should look similar to this.
-$ kubectl --kubeconfig kubeconfig auth can-i --list
-Resources                                       Non-Resource URLs   Resource Names   Verbs
-selfsubjectaccessreviews.authorization.k8s.io   []                  []               [create create]
-selfsubjectrulesreviews.authorization.k8s.io    []                  []               [create create]
-                                                [/api/*]            []               [get]
-                                                ...                 []               [...]
-groups                                          []                  []               [impersonate]
-serviceaccounts                                 []                  []               [impersonate]
-users                                           []                  []               [impersonate]
-```
-
-3. Copy the generated `kubeconfig` file to the host running the Teleport proxy
-   service.
-4. Update `kubeconfig_file` path in `teleport.yaml` to where you copied the
-   `kubeconfig`.
-
-Alternatively, you can use your existing local config from `~/.kube/config`.
-However, it will result in Teleport proxy using your personal Kubernetes
-credentials. This is risky: your credentials can expire or get revoked (such as
-when leaving your company).
-
-
 
 ## Impersonation
 

@@ -331,6 +331,23 @@ Node Name Address            Labels
 grav-02      10.156.0.7:3022    os:osx
 ```
 
+## tsh kube ls
+
+List Kubernetes Clusters
+
+**Usage** `usage: tsh kube ls [<flags>] [<label>]` <!--TODO: label? or labels? seems
+like it only supports one label at a time-->
+
+### Examples
+
+``` bsh
+$ tsh kube ls
+Kube Cluster Name                     Selected 
+------------------------------------- -------- 
+gke_bens-demos_us-central1-c_gks-demo *        
+microk8s      
+```
+
 ## tsh clusters
 
 **Usage**: `tsh clusters [<flags>]`
@@ -430,6 +447,29 @@ $ tsh login --proxy=proxy.example.com --format=kubernetes -o kubeconfig
 $ tsh login --proxy=proxy.example.com --request-reason="I need to run a debug script on production"
 ```
 
+## tsh kube login
+
+Login to a kubernetes cluster. Discover connected clusters by using [`tsh kube ls`](cli-docs.md/#tsh-kube-ls)
+
+**Usage**: `tsh kube login <kube-cluster>`
+
+```bash
+# tsh kube login to K8s Cluster gke_bens-demos_us-central1-c_gks-demo
+$ tsh kube login gke_bens-demos_us-central1-c_gks-demo 
+Logged into kubernetes cluster "gke_bens-demos_us-central1-c_gks-demo"
+
+# on login, kubeconfig is pointed at the first cluster (alphabetically)
+$ kubectl config current-context
+gke_bens-demos_us-central1-c_gks-demo
+
+# but all clusters are populated as contexts
+$ kubectl config get-contexts
+CURRENT   NAME                                        CLUSTER                       AUTHINFO                                    NAMESPACE
+*         aws-gke_bens-demos_us-central1-c_gks-demo   aws                           aws-gke_bens-demos_us-central1-c_gks-demo   
+          aws-microk8s                                aws                           aws-microk8s                                
+          teleport-enterprise-pd-demo                 teleport-enterprise-pd-demo   teleport-enterprise-pd-demo       
+```
+
 ## tsh logout
 
 Deletes the client's cluster certificate
@@ -448,11 +488,15 @@ Display the list of proxy servers and retrieved certificates
 $ tsh status
 
 > Profile URL:  https://proxy.example.com:3080
-  Logged in as: johndoe
-  Roles:        admin*
-  Logins:       root, admin, guest
-  Valid until:  2017-04-25 15:02:30 -0700 PDT [valid for 1h0m0s]
-  Extensions:   permit-agent-forwarding, permit-port-forwarding, permit-pty
+  Logged in as:       benarent
+  Cluster:            aws
+  Roles:              admin*
+  Logins:             benarent, root, ec2-user, ubunutu
+  Kubernetes:         enabled
+  Kubernetes cluster: "gke_bens-demos_us-central1-c_gks-demo"
+  Kubernetes groups:  system:masters
+  Valid until:        2020-11-21 01:50:23 -0800 PST [valid for 11h52m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
 # tctl
