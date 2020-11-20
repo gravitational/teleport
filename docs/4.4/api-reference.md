@@ -311,6 +311,8 @@ These are all of the possible resource values, which can be found in the `servic
 VerbList          = "list"
 VerbCreate        = "create"
 VerbRead          = "read"
+// readnosecrets prevents secrets on some resources from being read.
+// For example, retrieving the Certificate Authority will return it without its private keys.
 VerbReadNoSecrets = "readnosecrets"
 VerbUpdate        = "update"
 VerbDelete        = "delete"
@@ -796,14 +798,129 @@ if err := client.DeleteAccessRequest(ctx, accessReqID); err != nil {
 
 ## Certificate Authority
 
-It might be useful to retrieve your [Certificate Authority](architecture/authentication.md#ssh-certificates) through the API if it is rotating frequently.
+Teleport uses SSH Certificates to securely connect servers. To achieve this, the Auth server of a Teleport cluster acts as the [Certificate Authority](architecture/authentication.md#ssh-certificates) (CA), which signs SSH certificates for users and hosts in the cluster. The auth server uses separate CAs for users and hosts.
+
+You may want to use this API to manage your CA if:
+
+- You need to access CA information from within the API for some use case
+- You cannot [use tctl to rotate certificates](admin-guide.md#certificate-rotation) for some reason
+- You want to set up a custom auto schedule for rotating certificates for more security and stability
+- You want to implement a robust manual rotation solution, which automatically triggers each rotation phase according to your specification, such as by catching an event or webhook
+
+### Certificate Rotation
+
+To maintain security across your cluster, it is a good idea to set up automatic [certificate rotation](architecture/authentication.md#certificate-rotation).
+
+You can use Teleport's `auto` rotation mode to rotate the CA with a default or custom schedule, or you can use `manual` mode to create a custom automated solution that manually triggers each phase.
+
+A carefully implemented `manual` mode solution has the potential to be more fault tolerant and faster, due to the arbitrary nature of rotation schedules and grace periods (explained below).
+
+**Rotation Phases**
+
+A certificate rotation occurs in a series of phases, either triggered automatically or manually.
+
+1. `Standby`: No rotation operations underway. This is the beginning and end state of every CA rotation. If a CA's rotation is not in the standby state, a new rotation cannot begin.
+2. `Init`: New Certificate Authority is issued, but it remains unused while users and servers get updated certificates.
+3. `Update Clients`: Client credentials will have to be updated and reloaded, but servers will still use and respond with old credentials (grace period).
+4. `Update Servers`: Servers will have to reload and should start serving TLS and SSH certificates signed by new CA (retrieved in previous phase).
+5. `Rollback`: Rollback moves back both clients and servers to use the old credentials, but will continue to trust new credentials as well. Must be triggered Manually.
+
+The phases must occur in the order `Init -> Update Clients -> Update Servers` with the beginning and ending resting state being `Standby`. `Rollback` can occur after any phase.
+
+**Automated Rotation**
+
+You can use `tctl auth rotate --type=user --grace-period=10h` or the following RPC to start the rotation in `auto` mode.
 
 ```go
-ca, err := client.GetCertAuthority(services.CertAuthID{
-  DomainName: clusterName,
-  Type:       services.HostCA,
-}, false)
+// This will start an automatic rotation that schedules each phase of the rotation in equal increments (each 1/3 of the grace period).
+gracePeriod := time.Hour * 24
+req := auth.RotateRequest{
+  Mode: services.RotationModeAuto,
+  GracePeriod: &gracePeriod, // defaults to 48 hours
+  Type: services.UserCA, // Leave empty to target UserCA and HostCA
+}
+if err := client.RotateCertAuthority(req); err != nil {
+  return err
+}
+```
+
+The grace period should be set to 2-3 times the expected time to rotate the CA to ensure completion, while minimizing the grace period. The `type` flag is useful if you want to rotate both user and host CAs with different strategies or frequencies.
+
+**Automated Rotation with a Custom Schedule**
+
+You can also rotate certificates with a custom schedule. Using a custom certificate rotation schedule will allow you to target specific phase(s) and extend their length without having to use an unnecessarily long grace period, since long grace periods present a possible vulnerability.
+
+```go
+// This will automate your CA rotation with the custom schedule. Use with caution, each phase should have extra time to ensure they complete in less than optimal situations.
+if err := client.RotateCertAuthority(auth.RotateRequest{
+  Mode: services.RotationModeAuto,
+  Schedule: &services.RotationSchedule{
+    // 1 hour for Init
+    UpdateClients: time.Now().UTC().Add(time.Hour),
+    // 4 hours for UpdateClients
+    UpdateServers: time.Now().UTC().Add(time.Hour * 5),
+    // 2 hours for UpdateServers
+    Standby: time.Now().UTC().Add(time.Hour * 7),
+  },
+}); err := client.RotateCertAuthority(req); err != nil {
+  return err
+}
+```
+
+**Manual Rotation** (custom automated solution)
+
+You can set up a custom system for rotation by triggering each phase manually with `manual` mode. This can be done with `tctl auth rotate --phase=update_clients` or the following RPC.
+
+```go
+// You can run this RPC to start the Update Servers phase
+if err := client.RotateCertAuthority(auth.RotateRequest{
+  Mode:        services.RotationModeManual,
+  TargetPhase: services.RotationPhaseUpdateServers,
+}); err != nil {
+  return err
+}
+```
+
+This can be used to make rotations independent of an arbitrary rotation schedule or grace period. For example, you might be able to set up a custom automated solution where each phase is triggered by the event of the prior phase completing. This is possible in theory, though it may be complicated to set up.
+
+However there are multiple upsides if you make it work:
+- it would be quicker than `auto` mode since it wouldn't wait for a phase that is already complete
+- it would be more error proof in cases where the servers miss their chance to update credentials, whether due to time constraints or from going offline during the rotation
+- you would not need to worry about scaling the grace period with the size of your clusters
+- you could catch rotation errors and automatically trigger the `Rollback` phase to try again (though this shouldn't be necessary outside of specific scenarios, such as servers going offline for long periods of time)
+
+!!! Note
+    See our [TestRotateSuccess](https://github.com/gravitational/teleport/blob/645ac573c59240974a1306d28d79d1df3b2d9845/integration/integration_test.go#L3243) integration test to see how you might get started with implementing a manual rotation solution.
+
+### Retrieve Certificate Authority
+
+If you need to access specific information on your CA in a program, you can use the following RPC to retrieve the CA and view its keys, certificates, and more. This can also be done using `tctl auth export`.
+
+```go
+// retrieve the cluster's Certificate Authority for Hosts
+ca, err := client.GetCertAuthority(
+  services.CertAuthID{
+    DomainName: clusterName,
+    Type:       services.HostCA,
+  },
+  false,
+)
 if err != nil {
   return err
+}
+
+// use the CA getter methods to retrieve info about the CA
+// For example, you can use GetTLSKeyPairs to get and decode the CA's certificates for use in your program
+for _, k := range ca.GetTLSKeyPairs() {
+  block, _ := pem.Decode(k.Cert)
+  if block == nil {
+    return fmt.Errorf("error decoding pem block")
+  }
+  cert, err := x509.ParseCertificate(block.Bytes)
+  if err != nil {
+    return err
+  }
+
+  // use cert
 }
 ```
