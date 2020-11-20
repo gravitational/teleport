@@ -31,9 +31,28 @@ All Teleport clusters have a User and Host CA used to issue user and host SSH an
 
 An unauthenticated endpoint will be added at https://proxy.example.com:3080/.well-known/jwks.json which returns the public keys that can be used to verify the signed JWT. Multiple keys are supported because JWT signers can be rotated similar to CAs.
 
-Many sources exist that explain the JWT signature scheme and how to verify a JWT. Introduction to JSON Web Tokens is a good starting point for general JWT information.
+Many sources exist that explain the JWT signature scheme and how to verify a JWT. [Introduction to JSON Web Tokens](https://jwt.io/introduction/) is a good starting point for general JWT information.
 
-However, we strongly recommend you use a well written and supported library in the language of your choice to validate the JWT and you not try to write parsing and validation code yourself. We have provided an example written in Go within Teleport showing how to validate the JWT token.
+However, we strongly recommend you use a well written and supported library in the language of your choice to verify the JWT and you not try to write parsing and verification code yourself.
+
+We've provided a small program available at [examples/jwt/verify-jwt.go](https://github.com/gravitational/teleport/blob/master/examples/jwt/verify-jwt.go) that can be used to verify a JWT. When you run it, you should see output like the following:
+
+```
+# Replace "..." with the JWT when running the program below.
+#
+# To validate claims, provide the expected claims of issuer (cluster name),
+# subject (Teleport username), and audience (URI of internal application).
+
+$ ./verify-jwt -jwt="..." -validate-claims=true -issuer=example.com -subject=jsmith -audience="http://127.0.0.1:8080"
+
+Claims
+-------
+Username: jsmith.
+Roles:    admin.
+Issuer:   example.com.
+Subject:  jsmith.
+Audience: [http://127.0.0.1:8080].
+```
 
 #### Claims
 
