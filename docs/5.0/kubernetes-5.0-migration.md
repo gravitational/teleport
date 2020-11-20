@@ -3,7 +3,7 @@ title: Kubernetes 5.0 Migration Guide
 description: How to migrate pre-5.0 Teleport clusters to new configuration
 ---
 
-# Kubernetes intergartion in 5.0
+# Kubernetes integration in 5.0
 
 In release 5.0, Teleport has changed the [Kubernetes
 integration](kubernetes-ssh.md) to improve configuration and user experience.
@@ -15,7 +15,7 @@ The main changes in 5.0 are:
 - new `kubernetes_service` configuration section in `teleport.yaml`, decoupled
   from `proxy_service`
 - support for multiple Kubernetes clusters per Teleport cluster (replaces the
-  need for [Trusted Clusters](admin-guide.md#trusted-clusters))
+  need to use [Trusted Clusters](admin-guide.md#trusted-clusters) to achieve this)
 - RBAC support for Kubernetes clusters
 
 Important note: `proxy_service` with an open port for Kubernetes requests is
@@ -98,6 +98,9 @@ This is the recommended approach for handling multiple Kubernetes clusters.
 Instead of running multiple Teleport clusters (auth and proxy for each
 Kubernetes cluster), we will connect multiple `kubernetes_service` agents to
 the same root Teleport cluster.
+
+Each `kubernetes_service` will create its own reverse tunnel back to a Teleport
+proxy to join the cluster.
 
 Before 5.0:
 
@@ -320,14 +323,14 @@ You may keep using the Trusted Clusters as before and migrate them internally
 to `kubernetes_service`, as described in the first two scenarios.
 
 Note that `tsh kube ls` will **not** show all Kubernetes clusters across all
-Trusted Clusters. It only shows the Kubernetes clusters from the Teleort
+Trusted Clusters. It only shows the Kubernetes clusters from the Teleport
 cluster you are currently logged into.
 
 # RBAC
 
 !!! note
 
-    Kubernetes RBAC integration only works with kubernetes_service. Make sure
+    Kubernetes RBAC integration only works with `kubernetes_service`. Make sure
     you've migrated all the clusters as described above before proceeding.
 
 By default, all users have access to all Kubernetes clusters (as a limited set
@@ -389,4 +392,4 @@ kubernetes_service:
 
 Users with a role that matches a specific Kubernetes cluster labels will be
 able to see and connect to that cluster. Other users will neither see nor
-connect to it.
+be able to connect to it.
