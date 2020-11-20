@@ -57,8 +57,11 @@ to call [`tsh login`](cli-docs.md#tsh-login) in the beginning.
 
 - Windows Users: [Download tsh Binary](https://gravitational.com/teleport/download?os=windows)
 - Mac Users: [Download Mac Teleport Binary. Includes tsh](https://gravitational.com/teleport/download?os=macos)
-- Mac Users with [Brew](https://brew.sh/): `brew install teleport`
+- Mac Users with [Homebrew](https://brew.sh/): `brew install teleport`
 - Linux Users: [Download Linux Teleport Binary. Includes tsh](https://gravitational.com/teleport/download?os=linux)
+
+    !!! note
+        The Teleport package in Homebrew is not maintained by Teleport. We recommend the use of our [own Teleport packages](https://goteleport.com/teleport/download?os=macos).
 
 ## User Identities
 

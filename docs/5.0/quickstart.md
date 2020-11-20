@@ -179,11 +179,18 @@ A selection of Two-Factor Authentication apps are.
 
 ## Step 2a: Install Teleport Locally
 
+=== "Mac"
+
+    [Download MacOS .pkg installer](https://goteleport.com/teleport/download?os=macos) (tsh client only, signed) file, double-click to run the Installer.
+
 === "Mac - Homebrew"
 
     ```bash
-    brew install teleport
+    $ brew install teleport
     ```
+
+    !!! note
+        The Teleport package in Homebrew is not maintained by Teleport. We recommend the use of our [own Teleport packages](https://goteleport.com/teleport/download?os=macos).
 
 === "Windows - Powershell"
 
