@@ -1,0 +1,36 @@
+##################################################
+# Values that must always be provided by the user.
+##################################################
+
+# Join token for the cluster.
+authToken:
+# Address of the teleport proxy with port (usually :3080).
+proxyAddr:
+# Name for this kubernetes cluster to be used by teleport users.
+kubeClusterName:
+
+##################################################
+# Values that you may need to change.
+##################################################
+
+# Version of teleport image, if different from appVersion in Chart.yaml.
+teleportVersionOverride: ""
+# When set to true, the agent will skip the verification of proxy TLS
+# certificate.
+insecureSkipProxyTLSVerify: false
+
+##################################################
+# Values that you shouldn't need to change.
+##################################################
+
+# Container image for the agent. Since this runs without the auth_service, we
+# don't need the enterprise version.
+image: quay.io/gravitational/teleport
+# Number of replicas for the agent deployment.
+replicaCount: 1
+# Name of the ClusterRole, used by the agent's service account.
+clusterRoleName: teleport-kube-agent
+# Name of the ClusterRoleBinding, used by the agent's service account.
+clusterRoleBindingName: teleport-kube-agent
+# Name of the service account used by the agent.
+serviceAccountName: teleport-kube-agent
