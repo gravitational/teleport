@@ -16,6 +16,7 @@
 
 import React from 'react';
 import { Text, Box, Link } from 'design';
+import cfg from 'teleport/config';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import * as links from 'teleport/services/links';
 
@@ -49,7 +50,7 @@ export default function Manually({ user, version, ...styles }: Props) {
         {' - Login to Teleport'}
         <TextSelectCopy
           mt="2"
-          text={`tsh login --proxy=${host} --auth=local --user=${user}`}
+          text={`tsh login --proxy=${host} --auth=${cfg.getAuthType()} --user=${user}`}
         />
       </Box>
       <Box mb={4}>

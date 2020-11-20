@@ -27,6 +27,7 @@ const cfg = {
     localAuthEnabled: true,
     providers: [],
     second_factor: 'off',
+    authType: 'local',
   },
 
   proxyCluster: 'localhost',
@@ -127,6 +128,10 @@ const cfg = {
 
   getLocalAuthFlag() {
     return cfg.auth.localAuthEnabled;
+  },
+
+  getAuthType() {
+    return cfg.auth.authType;
   },
 
   getSsoUrl(providerUrl, providerName, redirect) {
