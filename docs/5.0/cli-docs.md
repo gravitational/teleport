@@ -342,10 +342,10 @@ like it only supports one label at a time-->
 
 ``` bsh
 $ tsh kube ls
-Kube Cluster Name                     Selected 
-------------------------------------- -------- 
-gke_bens-demos_us-central1-c_gks-demo *        
-microk8s      
+Kube Cluster Name                     Selected
+------------------------------------- --------
+gke_bens-demos_us-central1-c_gks-demo *
+microk8s
 ```
 
 ## tsh clusters
@@ -455,7 +455,7 @@ Login to a kubernetes cluster. Discover connected clusters by using [`tsh kube l
 
 ```bash
 # tsh kube login to K8s Cluster gke_bens-demos_us-central1-c_gks-demo
-$ tsh kube login gke_bens-demos_us-central1-c_gks-demo 
+$ tsh kube login gke_bens-demos_us-central1-c_gks-demo
 Logged into kubernetes cluster "gke_bens-demos_us-central1-c_gks-demo"
 
 # on login, kubeconfig is pointed at the first cluster (alphabetically)
@@ -465,9 +465,9 @@ gke_bens-demos_us-central1-c_gks-demo
 # but all clusters are populated as contexts
 $ kubectl config get-contexts
 CURRENT   NAME                                        CLUSTER                       AUTHINFO                                    NAMESPACE
-*         aws-gke_bens-demos_us-central1-c_gks-demo   aws                           aws-gke_bens-demos_us-central1-c_gks-demo   
-          aws-microk8s                                aws                           aws-microk8s                                
-          teleport-enterprise-pd-demo                 teleport-enterprise-pd-demo   teleport-enterprise-pd-demo       
+*         aws-gke_bens-demos_us-central1-c_gks-demo   aws                           aws-gke_bens-demos_us-central1-c_gks-demo
+          aws-microk8s                                aws                           aws-microk8s
+          teleport-enterprise-pd-demo                 teleport-enterprise-pd-demo   teleport-enterprise-pd-demo
 ```
 
 ## tsh logout
@@ -709,7 +709,11 @@ $ tctl tokens add --type=trusted_cluster --ttl=5m
 $ tctl tokens add --type=trusted_cluster --labels=env=prod
 # Generate an invite token for a node
 # This is equivalent to `tctl nodes add`
-$ tctl tokens add --type node
+$ tctl tokens add --type=node
+# Generate an invite token for a kubernetes
+$ tctl tokens add --type=kube
+# Generate an invite token for a applications
+$ tctl tokens add --type=apps
 ```
 
 ## tctl tokens rm
