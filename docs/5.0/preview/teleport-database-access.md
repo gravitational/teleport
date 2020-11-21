@@ -210,10 +210,11 @@ $ psql "service=postgres-aurora user=<db-user> database=<db-name>"
 ## Demo
 
 <video autoplay loop muted playsinline controls style="width:100%">
-  <source src="/video/dbaccessdemo.mp4" type="video/mp4">
-  <source src="/video/dbaccessdemo.webm" type="video/webm">
+  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.mp4" type="video/mp4">
+  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.webm" type="video/webm">
 Your browser does not support the video tag.
 </video>
+
 
 ## RFD
 
