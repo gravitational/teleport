@@ -495,7 +495,7 @@ To log out of a particular database (i.e. remove certificate from key store):
 $ tsh db logout db1
 ```
 
-### Selecting database users
+### Selecting databases and database user
 
 The `tsh db login` command also prints a footer explaining how to connect
 to the database:
@@ -512,8 +512,8 @@ Or configure environment variables and use regular CLI flags:
   $ psql -U <user> <database>
 ```
 
-After successful login, users can use any database user to connect to the
-database, as long as it is allowed by the RBAC rules. For example:
+After a successful login, users can use any database user and database to
+connect to, as long as it is allowed by the RBAC rules. For example:
 
 ```sh
 $ tsh db login postgres-prod && eval $(tsh db env)
@@ -521,6 +521,21 @@ $ psql -U alice mydb     # allowed by role so will connect
 $ psql -U bob mydb       # allowed by role so will connect
 $ psql -U charlie mydb   # not allowed by role so will deny access
 ```
+
+Default database user and name can also be provided to the `tsh db login`
+command, in which case then won't be required when using `psql` or other
+client:
+
+```sh
+$ tsh db login --db-user=alice --db-name=mydb postgres-prod
+$ psql "service=postgres-prod"
+$ eval $(tsh db env)
+$ psql
+```
+
+Users can still choose to specify a user/database explicitly when connecting,
+for example to use a different database user or connect to a different 
+database (subject to RBAC checks).
 
 ### Connecting to PostgreSQL / service file
 
@@ -534,11 +549,10 @@ clients can refer to a particular service using `service` connection string
 parameter which all libpq-based clients should recognize (e.g. `psql` and
 `pgAdmin` do).
 
-The section is named after the name of the Teleport database service instance
-a user has logged into with `tsh db login <name>` command. If service file is
-already present on the user's machine, its contents will be preserved as just
-a new section will be configured in it. If the file already happens to have
-a section with the same name, it will get overwritten.
+The section is named after the Teleport database service instance a user has
+logged into with `tsh db login <name>` command. If a service file is already
+present, a new section will be added or existing section with the same name
+overwritten. 
 
 An added section may look like this:
 
@@ -578,15 +592,17 @@ $ psql -U alice metrics
 The following new events are emitted to the Teleport audit log for database
 sessions.
 
-* `db.session.start` fires upon successful connection to the database.
+### Session start
+
+`db.session.start` is emitted when a user has successfully connected to a database:
 
 ```json
 {
   "code": "TDB00I",
-  "db_database": "postgres",
+  "service": "postgres",
   "db_endpoint": "localhost:5432",
-  "db_name": "postgres",
   "db_protocol": "postgres",
+  "db_database": "postgres",
   "db_user": "postgres",
   "ei": 0,
   "event": "db.session.start",
@@ -599,15 +615,27 @@ sessions.
 }
 ```
 
-* `db.session.end` fires upon database connection termination.
+New fields are:
+
+* `service`: The name of Teleport database service handling the connection.
+* `db_endpoint`: The database instance address.
+* `db_protocol`: The database protocol.
+* `db_database`: The name of the database within DBMS a user is connecting to
+  for databases with protocol parsing support.
+* `db_user`: The name of the database user a user is connecting as for
+  databases with protocol parsing support.
+
+### Session end
+
+`db.session.end` is emitted when a user has disconnected from the database:
 
 ```json
 {
   "code": "TDB01I",
-  "db_database": "test",
+  "service": "postgres",
   "db_endpoint": "localhost:5432",
-  "db_name": "postgres",
   "db_protocol": "postgres",
+  "db_database": "test",
   "db_user": "postgres",
   "ei": 0,
   "event": "db.session.end",
@@ -618,15 +646,19 @@ sessions.
 }
 ```
 
-* `db.query` fires when a database query is executed.
+Same new fields as in the `db.session.start` event.
+
+### Query
+
+`db.query` is emitted when a user executes a database query:
 
 ```json
 {
   "code": "TDB02I",
-  "db_database": "test",
+  "service": "postgres",
   "db_endpoint": "localhost:5432",
-  "db_name": "postgres",
   "db_protocol": "postgres",
+  "db_database": "test",
   "db_query": "SELECT 1;",
   "db_user": "postgres",
   "ei": 0,
@@ -637,6 +669,11 @@ sessions.
   "user": "dev"
 }
 ```
+
+Same new fields as in the `db.session.start` event, plus:
+
+* `db_query`: Full text of the executed query for databases with protocol
+  parsing support.
 
 ## CA rotation
 
