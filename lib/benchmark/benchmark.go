@@ -54,9 +54,8 @@ func Run(ctx context.Context, cnf interface{}, cmd, host, login, proxy string) (
 	}
 	logrus.SetLevel(logrus.ErrorLevel)
 	switch c := cnf.(type) {
-	case *Linear:
+	case Linear:
 		return c.Benchmark(ctx, cmd, tc)
-
 	}
 	return nil, trace.BadParameter("invalid generator, not of type linear")
 }
@@ -77,7 +76,6 @@ func makeTeleportClient(host, login, proxy string) (*client.TeleportClient, erro
 	if err := c.LoadProfile(path, proxy); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	tc, err := client.NewClient(&c)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -85,54 +83,30 @@ func makeTeleportClient(host, login, proxy string) (*client.TeleportClient, erro
 	return tc, nil
 }
 
-// ExportLatencyProfiles exports the latency profile and returns the path as a string if no errors
-func ExportLatencyProfiles(path string, response, service *hdrhistogram.Histogram, ticks int32, valueScale float64) (string, error) {
+// ExportLatencyProfile exports the latency profile and returns the path as a string if no errors
+func ExportLatencyProfile(path, prefix string, h *hdrhistogram.Histogram, ticks int32, valueScale float64) (string, error) {
 	var fullPath string
-	var fileError error
 	timeStamp := time.Now().Format("2006-01-02_15:04:05")
-	responseSuffix := fmt.Sprintf("response_latency_profile_%s.txt", timeStamp)
-	serviceSuffix := fmt.Sprintf("service_latency_profile_%s.txt", timeStamp)
-	titles := []string{responseSuffix, serviceSuffix}
-	histograms := []*hdrhistogram.Histogram{response, service}
-	paths := make(chan string, 2)
-
+	suffix := fmt.Sprintf("%s_latency_profile_%s.txt", prefix, timeStamp)
 	if path != "." {
-		if _, err := os.Stat(path); err != nil {
-			if os.IsNotExist(err) {
-				if err = os.MkdirAll(path, 0700); err != nil {
-					return "", trace.Wrap(err)
-				}
-			} else {
-				return "", trace.Wrap(err)
-			}
+		if err := os.MkdirAll(path, 0700); err != nil {
+			return "", trace.Wrap(err)
 		}
 	}
-	for i, name := range titles {
-		go func(fileName string, index int) {
-			fullPath = filepath.Join(path, fileName)
-			fo, err := os.Create(fullPath)
-
-			if err != nil {
-				fileError = err
-			}
-			if _, err := histograms[index].PercentilesPrint(fo, ticks, valueScale); err != nil {
-				err := fo.Close()
-				if err != nil {
-					logrus.WithError(err).Warningf("failed to close file")
-				}
-				fileError = err
-			}
-
-			if err := fo.Close(); err != nil {
-				fileError = err
-			}
-			paths <- fo.Name()
-		}(name, i)
+	fullPath = filepath.Join(path, suffix)
+	fo, err := os.Create(fullPath)
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
-	if fileError != nil {
-		return "", trace.Wrap(fileError)
+	if _, err := h.PercentilesPrint(fo, ticks, valueScale); err != nil {
+		err := fo.Close()
+		if err != nil {
+			logrus.WithError(err).Warningf("Failed to close file")
+		}
+		return "", trace.Wrap(err)
 	}
-
-	result := <-paths + ", " + <-paths
-	return result, nil
+	if err := fo.Close(); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return fo.Name(), nil
 }
