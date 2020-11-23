@@ -1,6 +1,6 @@
 ---
 authors: Roman Tkachenko (roman@gravitational.com)
-state: draft
+state: proposal
 ---
 
 # RFD 0011 - Teleport Database Access (Preview)
