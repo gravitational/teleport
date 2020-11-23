@@ -1,10 +1,11 @@
 # Teleport
 
-Teleport is a modern security gateway for remotely accessing:
-* Clusters of Linux servers via SSH or SSH-over-HTTPS in a browser.
-* Kubernetes clusters.
-* Web Applications.
-* Databases. [(Postgres Preview)](https://goteleport.com/teleport/docs/preview/teleport-database-access/)
+Teleport is a unified access plane for infrastructure:
+
+* [Clusters of Linux servers](https://goteleport.com/teleport/docs/quickstart/) via SSH or SSH-over-HTTPS in a browser
+* [Kubernetes clusters](https://goteleport.com/teleport/docs/kubernetes-ssh/)
+* [Web Applications](https://goteleport.com/teleport/docs/application-access/)
+* [Databases - (Postgres Preview)](https://goteleport.com/teleport/docs/preview/teleport-database-access/)
 
 It is intended to be used instead or together with `sshd` for organizations who
 need:
@@ -62,9 +63,9 @@ and run it under `$USER`, in this case you will not be able to login as someone 
 ### Deploy Teleport
 If you wish to deploy Teleport inside a Docker container:
 ```
-# This command will pull the Teleport container image for version 4.4
-# Replace 4.4 with the version you need:
-$ docker pull quay.io/gravitational/teleport:4.4
+# This command will pull the Teleport container image for version 5.0
+# Replace 5.0 with the version you need:
+$ docker pull quay.io/gravitational/teleport:5.0
 ```
 View latest tags on [Quay.io | gravitational/teleport](https://quay.io/repository/gravitational/teleport?tab=tags)
 
@@ -96,7 +97,7 @@ NOTE: The Go compiler is somewhat sensitive to amount of memory: you will need
 at least 1GB of virtual memory to compile Teleport. 512MB instance without swap
 will not work.
 
-NOTE: This will build the latest version of Teleport, regardless of whether it is stable. If you want to build the latest stable release, `git checkout` to that tag (e.g. `git checkout v4.3.0`) before running `make full`.
+NOTE: This will build the latest version of Teleport, regardless of whether it is stable. If you want to build the latest stable release, `git checkout` to that tag (e.g. `git checkout v5.0.0`) before running `make full`.
 
 ### Rebuilding Web UI
 
@@ -129,7 +130,7 @@ Refer to [the webapps README](https://github.com/gravitational/webapps/blob/mast
 
 TL;DR version:
 
-```
+```bash
 make docs
 make run-docs
 ```
@@ -146,7 +147,7 @@ some common tasks:
 
 Latest version:
 
-```
+```sh
 go get github.com/new/dependency
 # Update the source to actually use this dependency, then run:
 make update-vendor
@@ -154,7 +155,7 @@ make update-vendor
 
 Specific version:
 
-```
+```bash
 go get github.com/new/dependency@version
 # Update the source to actually use this dependency, then run:
 make update-vendor
@@ -162,21 +163,21 @@ make update-vendor
 
 #### Set dependency to a specific version
 
-```
+```bash
 go get github.com/new/dependency@version
 make update-vendor
 ```
 
 #### Update dependency to the latest version
 
-```
+```bash
 go get -u github.com/new/dependency
 make update-vendor
 ```
 
 #### Update all dependencies
 
-```
+```bash
 go get -u all
 make update-vendor
 ```
