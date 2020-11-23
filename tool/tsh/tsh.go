@@ -956,11 +956,10 @@ func onBenchmark(cf *CLIConf) {
 		fmt.Printf("* Last error: %v\n", result.LastError)
 	}
 	fmt.Printf("\nHistogram\n\n")
-	t := asciitable.MakeTable([]string{"Percentile", "Response Duration", "Service Duration"})
+	t := asciitable.MakeTable([]string{"Percentile", "Response Duration"})
 	for _, quantile := range []float64{25, 50, 75, 90, 95, 99, 100} {
 		t.AddRow([]string{fmt.Sprintf("%v", quantile),
 			fmt.Sprintf("%v ms", result.ResponseHistogram.ValueAtQuantile(quantile)),
-			fmt.Sprintf("%v ms", result.ServiceHistogram.ValueAtQuantile(quantile)),
 		})
 	}
 	if _, err := io.Copy(os.Stdout, t.AsBuffer()); err != nil {
@@ -969,11 +968,11 @@ func onBenchmark(cf *CLIConf) {
 	fmt.Printf("\n")
 
 	if cf.BenchExport {
-		path, err := benchmark.ExportLatencyProfiles(cf.BenchExportPath, result.ResponseHistogram, result.ServiceHistogram, cf.BenchTicks, cf.BenchValueScale)
+		path, err := benchmark.ExportLatencyProfile(cf.BenchExportPath, "response", result.ResponseHistogram, 1, 1.0)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed exporting latency profiles: %s\n", utils.UserMessageFromError(err))
+			fmt.Fprintf(os.Stderr, "failed exporting latency profile: %s\n", utils.UserMessageFromError(err))
 		} else {
-			fmt.Printf("latency profiles saved: %v\n", path)
+			fmt.Printf("latency profile saved: %v\n", path)
 		}
 	}
 }
