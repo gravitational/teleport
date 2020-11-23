@@ -160,9 +160,9 @@ func Write(filePath string, key *client.Key, format Format, clusterAddr string) 
 	case FormatKubernetes:
 		filesWritten = append(filesWritten, filePath)
 		if err := kubeconfig.Update(filePath, kubeconfig.Values{
-			Name:        key.ClusterName,
-			ClusterAddr: clusterAddr,
-			Credentials: key,
+			TeleportClusterName: key.ClusterName,
+			ClusterAddr:         clusterAddr,
+			Credentials:         key,
 		}); err != nil {
 			return nil, trace.Wrap(err)
 		}

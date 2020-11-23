@@ -367,6 +367,31 @@ message CreateAppSessionResponse {
 // DeleteAppSessionRequest contains the parameters used to remove an application web session.
 message DeleteAppSessionRequest { string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ]; }
 
+// GetKubeServicesRequest are the parameters used to request kubernetes services.
+message GetKubeServicesRequest {}
+
+// GetKubeServicesResponse contains all requested kubernetes services.
+message GetKubeServicesResponse {
+    // Servers is a slice of services.Server that represent kubernetes
+    // services.
+    repeated services.ServerV2 Servers = 1 [ (gogoproto.jsontag) = "servers" ];
+}
+
+// UpsertKubeServiceRequest are the parameters used to add or update a
+// kubernetes service.
+message UpsertKubeServiceRequest {
+    services.ServerV2 Server = 1 [ (gogoproto.jsontag) = "server" ];
+}
+
+// DeleteKubeServiceRequest are the parameters used to remove a kubernetes service.
+message DeleteKubeServiceRequest {
+    // Name is the name of the kubernetes service to delete.
+    string Name = 2 [ (gogoproto.jsontag) = "name" ];
+}
+
+// DeleteAllKubeServicesRequest are the parameters used to remove all kubernetes services.
+message DeleteAllKubeServicesRequest {}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
@@ -455,4 +480,13 @@ service AuthService {
 
     // UpdateRemoteCluster updates remote cluster
     rpc UpdateRemoteCluster(services.RemoteClusterV3) returns (google.protobuf.Empty);
+
+    // GetKubeServices gets all kubernetes services.
+    rpc GetKubeServices(GetKubeServicesRequest) returns (GetKubeServicesResponse);
+    // UpsertKubeService adds or updates a kubernetes service.
+    rpc UpsertKubeService(UpsertKubeServiceRequest) returns (google.protobuf.Empty);
+    // DeleteKubeService removes a kubernetes service.
+    rpc DeleteKubeService(DeleteKubeServiceRequest) returns (google.protobuf.Empty);
+    // DeleteAllKubeServices removes all kubernetes services.
+    rpc DeleteAllKubeServices(DeleteAllKubeServicesRequest) returns (google.protobuf.Empty);
 }

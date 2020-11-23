@@ -751,11 +751,6 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 
 	// Loop over all apps and load app configuration.
 	for _, application := range fc.Apps.Apps {
-		// Validate application.
-		if err := application.CheckAndSetDefaults(); err != nil {
-			return trace.Wrap(err)
-		}
-
 		// Parse the static labels of the application.
 		staticLabels := make(map[string]string)
 		if application.StaticLabels != nil {
@@ -774,7 +769,7 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 
 		// Add the application to the list of proxied applications.
-		a := service.App{
+		app := service.App{
 			Name:               application.Name,
 			URI:                application.URI,
 			PublicAddr:         application.PublicAddr,
@@ -783,11 +778,14 @@ func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 			InsecureSkipVerify: application.InsecureSkipVerify,
 		}
 		if application.Rewrite != nil {
-			a.Rewrite = &service.Rewrite{
+			app.Rewrite = &service.Rewrite{
 				Redirect: application.Rewrite.Redirect,
 			}
 		}
-		cfg.Apps.Apps = append(cfg.Apps.Apps, a)
+		if err := app.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Apps.Apps = append(cfg.Apps.Apps, app)
 	}
 
 	return nil
@@ -1014,32 +1012,36 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		}
 	}
 
+	// If this process is trying to join a cluster as an application service,
+	// make sure application name and URI are provided.
+	if utils.SliceContainsStr(splitRoles(clf.Roles), defaults.RoleApp) &&
+		(clf.AppName == "" || clf.AppURI == "") {
+		return trace.BadParameter("application name (--app-name) and URI (--app-uri) flags are both required to join application proxy to the cluster")
+	}
+
 	// If application name was specified on command line, add to file
 	// configuration where it will be validated.
 	if clf.AppName != "" {
-		fileConf.Apps.Service.EnabledFlag = "yes"
+		cfg.Apps.Enabled = true
 
 		// Parse static and dynamic labels.
 		static, dynamic, err := parseLabels(clf.Labels)
 		if err != nil {
 			return trace.BadParameter("labels invalid: %v", err)
 		}
-		dynamicLabels := make([]CommandLabel, 0, len(dynamic))
-		for key, value := range dynamic {
-			dynamicLabels = append(dynamicLabels, CommandLabel{
-				Name:    key,
-				Command: value.GetCommand(),
-				Period:  value.GetPeriod(),
-			})
-		}
 
-		fileConf.Apps.Apps = append(fileConf.Apps.Apps, &App{
+		// Create and validate application. If valid, add to list of applications.
+		app := service.App{
 			Name:          clf.AppName,
 			URI:           clf.AppURI,
 			PublicAddr:    clf.AppPublicAddr,
 			StaticLabels:  static,
-			DynamicLabels: dynamicLabels,
-		})
+			DynamicLabels: dynamic,
+		}
+		if err := app.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Apps.Apps = append(cfg.Apps.Apps, app)
 	}
 
 	if err = ApplyFileConfig(fileConf, cfg); err != nil {
@@ -1317,7 +1319,7 @@ func fileExists(fp string) bool {
 
 // validateRoles makes sure that value upassed to --roles flag is valid
 func validateRoles(roles string) error {
-	for _, role := range strings.Split(roles, ",") {
+	for _, role := range splitRoles(roles) {
 		switch role {
 		case defaults.RoleAuthService,
 			defaults.RoleNode,
@@ -1329,4 +1331,9 @@ func validateRoles(roles string) error {
 		}
 	}
 	return nil
+}
+
+// splitRoles splits in the format roles expects.
+func splitRoles(roles string) []string {
+	return strings.Split(roles, ",")
 }

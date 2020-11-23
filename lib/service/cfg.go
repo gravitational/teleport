@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -539,6 +540,38 @@ type App struct {
 
 	// Rewrite defines a block that is used to rewrite requests and responses.
 	Rewrite *Rewrite
+}
+
+// Check validates an application.
+func (a App) Check() error {
+	if a.Name == "" {
+		return trace.BadParameter("missing application name")
+	}
+	if a.URI == "" {
+		return trace.BadParameter("missing application URI")
+	}
+	// Check if the application name is a valid subdomain. Don't allow names that
+	// are invalid subdomains because for trusted clusters the name is used to
+	// construct the domain that the application will be available at.
+	if errs := validation.IsDNS1035Label(a.Name); len(errs) > 0 {
+		return trace.BadParameter("application name %q must be a valid DNS subdomain: https://gravitational.com/teleport/docs/application-access/#application-name", a.Name)
+	}
+	// Parse and validate URL.
+	if _, err := url.Parse(a.URI); err != nil {
+		return trace.BadParameter("application URI invalid: %v", err)
+	}
+	// If a port was specified or an IP address was provided for the public
+	// address, return an error.
+	if a.PublicAddr != "" {
+		if _, _, err := net.SplitHostPort(a.PublicAddr); err == nil {
+			return trace.BadParameter("public_addr %q can not contain a port, applications will be available on the same port as the web proxy", a.PublicAddr)
+		}
+		if net.ParseIP(a.PublicAddr) != nil {
+			return trace.BadParameter("public_addr %q can not be an IP address, Teleport Application Access uses DNS names for routing", a.PublicAddr)
+		}
+	}
+
+	return nil
 }
 
 // Rewrite is a list of rewriting rules to apply to requests and responses.

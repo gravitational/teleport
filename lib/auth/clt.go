@@ -2951,38 +2951,38 @@ func (c *Client) DeleteSemaphore(ctx context.Context, filter services.SemaphoreF
 
 // UpsertKubeService is used by kubernetes services to report their presence
 // to other auth servers in form of hearbeat expiring after ttl period.
-func (c *Client) UpsertKubeService(s services.Server) error {
-	data, err := services.GetServerMarshaler().MarshalServer(s)
+func (c *Client) UpsertKubeService(ctx context.Context, s services.Server) error {
+	clt, err := c.grpc()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	args := &upsertServerRawReq{
-		Server: data,
+	server, ok := s.(*services.ServerV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T, expected *services.ServerV2", server)
 	}
-	_, err = c.PostJSON(c.Endpoint("kube_services"), args)
+	_, err = clt.UpsertKubeService(ctx, &proto.UpsertKubeServiceRequest{
+		Server: server,
+	})
 	return trace.Wrap(err)
 }
 
 // GetKubeServices returns the list of kubernetes services registered in the
 // cluster.
-func (c *Client) GetKubeServices() ([]services.Server, error) {
-	out, err := c.Get(c.Endpoint("kube_services"), url.Values{})
+func (c *Client) GetKubeServices(ctx context.Context) ([]services.Server, error) {
+	clt, err := c.grpc()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+	resp, err := clt.GetKubeServices(ctx, &proto.GetKubeServicesRequest{})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	re := make([]services.Server, len(items))
-	for i, raw := range items {
-		server, err := services.GetServerMarshaler().UnmarshalServer(raw, services.KindKubeService, services.SkipValidation())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		re[i] = server
+
+	var servers []services.Server
+	for _, server := range resp.GetServers() {
+		servers = append(servers, server)
 	}
-	return re, nil
+	return servers, nil
 }
 
 // GetAppServers gets all application servers.
@@ -3180,6 +3180,28 @@ func (c *Client) GenerateAppToken(ctx context.Context, req jwt.GenerateAppTokenR
 	}
 
 	return resp.GetToken(), nil
+}
+
+// DeleteKubeService deletes a named kubernetes service.
+func (c *Client) DeleteKubeService(ctx context.Context, name string) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = clt.DeleteKubeService(ctx, &proto.DeleteKubeServiceRequest{
+		Name: name,
+	})
+	return trace.Wrap(err)
+}
+
+// DeleteAllKubeServices deletes all registered kubernetes services.
+func (c *Client) DeleteAllKubeServices(ctx context.Context) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = clt.DeleteAllKubeServices(ctx, &proto.DeleteAllKubeServicesRequest{})
+	return trace.Wrap(err)
 }
 
 // WebService implements features used by Web UI clients

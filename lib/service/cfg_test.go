@@ -98,3 +98,48 @@ func (s *ConfigSuite) TestDefaultConfig(c *check.C) {
 	c.Assert(proxy.Limiter.MaxConnections, check.Equals, int64(defaults.LimiterMaxConnections))
 	c.Assert(proxy.Limiter.MaxNumberOfUsers, check.Equals, defaults.LimiterMaxConcurrentUsers)
 }
+
+// TestAppName makes sure application names are valid subdomains.
+func (s *ConfigSuite) TestAppName(c *check.C) {
+	tests := []struct {
+		desc     check.CommentInterface
+		inName   string
+		outValid bool
+	}{
+		{
+			desc:     check.Commentf("valid subdomain"),
+			inName:   "foo",
+			outValid: true,
+		},
+		{
+			desc:     check.Commentf("subdomain cannot start with a dash"),
+			inName:   "-foo",
+			outValid: false,
+		},
+		{
+			desc:     check.Commentf(`subdomain cannot contain the exclamation mark character "!"`),
+			inName:   "foo!bar",
+			outValid: false,
+		},
+		{
+			desc:     check.Commentf("subdomain of length 63 characters is valid (maximum length)"),
+			inName:   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			outValid: true,
+		},
+		{
+			desc:     check.Commentf("subdomain of length 64 characters is invalid"),
+			inName:   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			outValid: false,
+		},
+	}
+
+	for _, tt := range tests {
+		a := App{
+			Name:       tt.inName,
+			URI:        "http://localhost:8080",
+			PublicAddr: "foo.example.com",
+		}
+		err := a.Check()
+		c.Assert(err == nil, check.Equals, tt.outValid, tt.desc)
+	}
+}

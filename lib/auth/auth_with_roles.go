@@ -440,55 +440,10 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch services.Watch) 
 		return nil, trace.AccessDenied("can't setup global watch")
 	}
 	for _, kind := range watch.Kinds {
+		// Check the permissions for data of each kind. For watching, most
+		// kinds of data just need a Read permission, but some have more
+		// complicated logic.
 		switch kind.Kind {
-		case services.KindNamespace:
-			if err := a.action(defaults.Namespace, services.KindNamespace, services.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case services.KindUser:
-			if err := a.action(defaults.Namespace, services.KindUser, services.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case services.KindRole:
-			if err := a.action(defaults.Namespace, services.KindRole, services.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case services.KindNode:
-			if err := a.action(defaults.Namespace, services.KindNode, services.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case services.KindProxy:
-			if err := a.action(defaults.Namespace, services.KindProxy, services.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case services.KindAuthServer:
-			if err := a.action(defaults.Namespace, services.KindAuthServer, services.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case services.KindTunnelConnection:
-			if err := a.action(defaults.Namespace, services.KindTunnelConnection, services.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case services.KindReverseTunnel:
-			if err := a.action(defaults.Namespace, services.KindReverseTunnel, services.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case services.KindClusterConfig:
-			if err := a.action(defaults.Namespace, services.KindClusterConfig, services.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case services.KindClusterName:
-			if err := a.action(defaults.Namespace, services.KindClusterName, services.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case services.KindToken:
-			if err := a.action(defaults.Namespace, services.KindToken, services.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case services.KindStaticTokens:
-			if err := a.action(defaults.Namespace, services.KindStaticTokens, services.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
 		case services.KindCertAuthority:
 			if kind.LoadSecrets {
 				if err := a.action(defaults.Namespace, services.KindCertAuthority, services.VerbRead); err != nil {
@@ -522,7 +477,9 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch services.Watch) 
 				return nil, trace.Wrap(err)
 			}
 		default:
-			return nil, trace.AccessDenied("not authorized to watch %v events", kind.Kind)
+			if err := a.action(defaults.Namespace, kind.Kind, services.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
 	switch {
@@ -913,19 +870,17 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 	}, nil
 }
 
-type contextKey string
-
 // WithDelegator creates a child context with the AccessRequestDelegator
 // value set.  Optionally used by AuthServer.SetAccessRequestState to log
 // a delegating identity.
 func WithDelegator(ctx context.Context, delegator string) context.Context {
-	return context.WithValue(ctx, contextKey(events.AccessRequestDelegator), delegator)
+	return context.WithValue(ctx, ContextDelegator, delegator)
 }
 
 // getDelegator attempts to load the context value AccessRequestDelegator,
 // returning the empty string if no value was found.
 func getDelegator(ctx context.Context) string {
-	delegator, ok := ctx.Value(contextKey(events.AccessRequestDelegator)).(string)
+	delegator, ok := ctx.Value(ContextDelegator).(string)
 	if !ok {
 		return ""
 	}
@@ -2216,26 +2171,68 @@ func (a *ServerWithRoles) WaitForDelivery(context.Context) error {
 
 // UpsertKubeService creates or updates a Server representing a teleport
 // kubernetes service.
-func (a *ServerWithRoles) UpsertKubeService(s services.Server) error {
+func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s services.Server) error {
 	if err := a.action(defaults.Namespace, services.KindKubeService, services.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.action(defaults.Namespace, services.KindKubeService, services.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertKubeService(s)
+
+	for _, kube := range s.GetKubernetesClusters() {
+		if err := a.context.Checker.CheckAccessToKubernetes(s.GetNamespace(), kube); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return a.authServer.UpsertKubeService(ctx, s)
 }
 
 // GetKubeServices returns all Servers representing teleport kubernetes
 // services.
-func (a *ServerWithRoles) GetKubeServices() ([]services.Server, error) {
+func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]services.Server, error) {
 	if err := a.action(defaults.Namespace, services.KindKubeService, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := a.action(defaults.Namespace, services.KindKubeService, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetKubeServices()
+	servers, err := a.authServer.GetKubeServices(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Loop over all servers, filter out kube clusters on each server and only
+	// return the kube cluster the caller has access to.
+	for _, server := range servers {
+		filtered := make([]*services.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
+		for _, kube := range server.GetKubernetesClusters() {
+			if err := a.context.Checker.CheckAccessToKubernetes(server.GetNamespace(), kube); err != nil {
+				if trace.IsAccessDenied(err) {
+					continue
+				}
+				return nil, trace.Wrap(err)
+			}
+			filtered = append(filtered, kube)
+		}
+		server.SetKubernetesClusters(filtered)
+	}
+	return servers, nil
+}
+
+// DeleteKubeService deletes a named kubernetes service.
+func (a *ServerWithRoles) DeleteKubeService(ctx context.Context, name string) error {
+	if err := a.action(defaults.Namespace, services.KindKubeService, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteKubeService(ctx, name)
+}
+
+// DeleteAllKubeService deletes all registered kubernetes services.
+func (a *ServerWithRoles) DeleteAllKubeServices(ctx context.Context) error {
+	if err := a.action(defaults.Namespace, services.KindKubeService, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.DeleteAllKubeServices(ctx)
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

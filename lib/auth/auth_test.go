@@ -33,13 +33,16 @@ import (
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/trace"
@@ -223,6 +226,7 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 		KubernetesGroups: []string{"system:masters"},
 		Expires:          gotTLSCert.NotAfter,
 		RouteToCluster:   "me.localhost",
+		TeleportCluster:  "me.localhost",
 	}
 	gotID, err := tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	c.Assert(err, IsNil)
@@ -234,9 +238,10 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 			Username: user,
 			Pass:     &PassCreds{Password: pass},
 		},
-		PublicKey:      pub,
-		TTL:            time.Hour,
-		RouteToCluster: "leaf.localhost",
+		PublicKey:         pub,
+		TTL:               time.Hour,
+		RouteToCluster:    "leaf.localhost",
+		KubernetesCluster: "leaf-kube-cluster",
 	})
 	c.Assert(err, IsNil)
 	// Verify the TLS cert has the correct RouteToCluster set.
@@ -248,12 +253,179 @@ func (s *AuthSuite) TestAuthenticateSSHUser(c *C) {
 		Principals:       []string{user},
 		KubernetesUsers:  []string{user},
 		KubernetesGroups: []string{"system:masters"},
-		Expires:          gotTLSCert.NotAfter,
-		RouteToCluster:   "leaf.localhost",
+		// It's OK to use a non-existent kube cluster for leaf teleport
+		// clusters. The leaf is responsible for validating those.
+		KubernetesCluster: "leaf-kube-cluster",
+		Expires:           gotTLSCert.NotAfter,
+		RouteToCluster:    "leaf.localhost",
+		TeleportCluster:   "me.localhost",
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	c.Assert(err, IsNil)
 	c.Assert(*gotID, DeepEquals, wantID)
+
+	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
+	// generation.
+	err = s.a.UpsertKubeService(ctx, &services.ServerV2{
+		Metadata: services.Metadata{Name: "kube-service"},
+		Kind:     services.KindKubeService,
+		Version:  services.V2,
+		Spec: services.ServerSpecV2{
+			KubernetesClusters: []*services.KubernetesCluster{{Name: "root-kube-cluster"}},
+		},
+	})
+	c.Assert(err, IsNil)
+
+	// Login specifying a valid kube cluster. It should appear in the TLS cert.
+	resp, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+		AuthenticateUserRequest: AuthenticateUserRequest{
+			Username: user,
+			Pass:     &PassCreds{Password: pass},
+		},
+		PublicKey:         pub,
+		TTL:               time.Hour,
+		RouteToCluster:    "me.localhost",
+		KubernetesCluster: "root-kube-cluster",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(resp.Username, Equals, user)
+	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
+	c.Assert(err, IsNil)
+	wantID = tlsca.Identity{
+		Username:          user,
+		Groups:            []string{role.GetName()},
+		Principals:        []string{user},
+		KubernetesUsers:   []string{user},
+		KubernetesGroups:  []string{"system:masters"},
+		KubernetesCluster: "root-kube-cluster",
+		Expires:           gotTLSCert.NotAfter,
+		RouteToCluster:    "me.localhost",
+		TeleportCluster:   "me.localhost",
+	}
+	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
+	c.Assert(err, IsNil)
+	c.Assert(*gotID, DeepEquals, wantID)
+
+	// Login without specifying kube cluster. A registered one should be picked
+	// automatically.
+	resp, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+		AuthenticateUserRequest: AuthenticateUserRequest{
+			Username: user,
+			Pass:     &PassCreds{Password: pass},
+		},
+		PublicKey:      pub,
+		TTL:            time.Hour,
+		RouteToCluster: "me.localhost",
+		// Intentionally empty, auth server should default to a registered
+		// kubernetes cluster.
+		KubernetesCluster: "",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(resp.Username, Equals, user)
+	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
+	c.Assert(err, IsNil)
+	wantID = tlsca.Identity{
+		Username:          user,
+		Groups:            []string{role.GetName()},
+		Principals:        []string{user},
+		KubernetesUsers:   []string{user},
+		KubernetesGroups:  []string{"system:masters"},
+		KubernetesCluster: "root-kube-cluster",
+		Expires:           gotTLSCert.NotAfter,
+		RouteToCluster:    "me.localhost",
+		TeleportCluster:   "me.localhost",
+	}
+	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
+	c.Assert(err, IsNil)
+	c.Assert(*gotID, DeepEquals, wantID)
+
+	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
+	// generation.
+	err = s.a.UpsertKubeService(ctx, &services.ServerV2{
+		Metadata: services.Metadata{Name: "kube-service"},
+		Kind:     services.KindKubeService,
+		Version:  services.V2,
+		Spec: services.ServerSpecV2{
+			KubernetesClusters: []*services.KubernetesCluster{{Name: "root-kube-cluster"}},
+		},
+	})
+	c.Assert(err, IsNil)
+
+	// Login specifying a valid kube cluster. It should appear in the TLS cert.
+	resp, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+		AuthenticateUserRequest: AuthenticateUserRequest{
+			Username: user,
+			Pass:     &PassCreds{Password: pass},
+		},
+		PublicKey:         pub,
+		TTL:               time.Hour,
+		RouteToCluster:    "me.localhost",
+		KubernetesCluster: "root-kube-cluster",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(resp.Username, Equals, user)
+	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
+	c.Assert(err, IsNil)
+	wantID = tlsca.Identity{
+		Username:          user,
+		Groups:            []string{role.GetName()},
+		Principals:        []string{user},
+		KubernetesUsers:   []string{user},
+		KubernetesGroups:  []string{"system:masters"},
+		KubernetesCluster: "root-kube-cluster",
+		Expires:           gotTLSCert.NotAfter,
+		RouteToCluster:    "me.localhost",
+		TeleportCluster:   "me.localhost",
+	}
+	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
+	c.Assert(err, IsNil)
+	c.Assert(*gotID, DeepEquals, wantID)
+
+	// Login without specifying kube cluster. A registered one should be picked
+	// automatically.
+	resp, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+		AuthenticateUserRequest: AuthenticateUserRequest{
+			Username: user,
+			Pass:     &PassCreds{Password: pass},
+		},
+		PublicKey:      pub,
+		TTL:            time.Hour,
+		RouteToCluster: "me.localhost",
+		// Intentionally empty, auth server should default to a registered
+		// kubernetes cluster.
+		KubernetesCluster: "",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(resp.Username, Equals, user)
+	gotTLSCert, err = tlsca.ParseCertificatePEM(resp.TLSCert)
+	c.Assert(err, IsNil)
+	wantID = tlsca.Identity{
+		Username:          user,
+		Groups:            []string{role.GetName()},
+		Principals:        []string{user},
+		KubernetesUsers:   []string{user},
+		KubernetesGroups:  []string{"system:masters"},
+		KubernetesCluster: "root-kube-cluster",
+		Expires:           gotTLSCert.NotAfter,
+		RouteToCluster:    "me.localhost",
+		TeleportCluster:   "me.localhost",
+	}
+	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
+	c.Assert(err, IsNil)
+	c.Assert(*gotID, DeepEquals, wantID)
+
+	// Login specifying an invalid kube cluster. This should fail.
+	_, err = s.a.AuthenticateSSHUser(AuthenticateSSHRequest{
+		AuthenticateUserRequest: AuthenticateUserRequest{
+			Username: user,
+			Pass:     &PassCreds{Password: pass},
+		},
+		PublicKey:         pub,
+		TTL:               time.Hour,
+		RouteToCluster:    "me.localhost",
+		KubernetesCluster: "invalid-kube-cluster",
+	})
+	c.Assert(err, NotNil)
 }
 
 func (s *AuthSuite) TestUserLock(c *C) {
@@ -854,4 +1026,20 @@ func (s *AuthSuite) TestSAMLConnectorCRUDEventsEmitted(c *C) {
 	err = s.a.DeleteSAMLConnector(ctx, "test")
 	c.Assert(err, IsNil)
 	c.Assert(s.mockEmitter.LastEvent().GetType(), DeepEquals, events.SAMLConnectorDeletedEvent)
+}
+
+func newTestServices(t *testing.T) Services {
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	return Services{
+		Trust:                local.NewCAService(bk),
+		Presence:             local.NewPresenceService(bk),
+		Provisioner:          local.NewProvisioningService(bk),
+		Identity:             local.NewIdentityService(bk),
+		Access:               local.NewAccessService(bk),
+		DynamicAccess:        local.NewDynamicAccessService(bk),
+		ClusterConfiguration: local.NewClusterConfigurationService(bk),
+		Events:               local.NewEventsService(bk),
+		IAuditLog:            events.NewDiscardAuditLog(),
+	}
 }

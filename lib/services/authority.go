@@ -517,7 +517,7 @@ func (ca *CertAuthorityV2) WithoutSecrets() Resource {
 	return ca2
 }
 
-// V2 returns V2 version of the resouirce - itself
+// V2 returns V2 version of the resource - itself
 func (ca *CertAuthorityV2) V2() *CertAuthorityV2 {
 	return ca
 }

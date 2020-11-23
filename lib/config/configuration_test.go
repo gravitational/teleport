@@ -1130,3 +1130,74 @@ app_service:
 		c.Assert(err != nil, check.Equals, tt.outError, tt.inComment)
 	}
 }
+
+// TestAppsCLF checks that validation runs on application configuration passed
+// in on the command line.
+func (s *ConfigTestSuite) TestAppsCLF(c *check.C) {
+	tests := []struct {
+		desc      check.CommentInterface
+		inRoles   string
+		inAppName string
+		inAppURI  string
+		outError  error
+	}{
+		{
+			desc:      check.Commentf("role provided, valid name and uri"),
+			inRoles:   defaults.RoleApp,
+			inAppName: "foo",
+			inAppURI:  "http://localhost:8080",
+			outError:  nil,
+		},
+		{
+			desc:      check.Commentf("role provided, name not provided"),
+			inRoles:   defaults.RoleApp,
+			inAppName: "",
+			inAppURI:  "http://localhost:8080",
+			outError:  trace.BadParameter(""),
+		},
+		{
+			desc:      check.Commentf("role provided, uri not provided"),
+			inRoles:   defaults.RoleApp,
+			inAppName: "foo",
+			inAppURI:  "",
+			outError:  trace.BadParameter(""),
+		},
+		{
+			desc:      check.Commentf("valid name and uri"),
+			inAppName: "foo",
+			inAppURI:  "http://localhost:8080",
+			outError:  nil,
+		},
+		{
+			desc:      check.Commentf("invalid name"),
+			inAppName: "-foo",
+			inAppURI:  "http://localhost:8080",
+			outError:  trace.BadParameter(""),
+		},
+		{
+			desc:      check.Commentf("missing uri"),
+			inAppName: "foo",
+			outError:  trace.BadParameter(""),
+		},
+	}
+
+	for _, tt := range tests {
+		clf := CommandLineFlags{
+			Roles:   tt.inRoles,
+			AppName: tt.inAppName,
+			AppURI:  tt.inAppURI,
+		}
+		cfg := service.MakeDefaultConfig()
+		err := Configure(&clf, cfg)
+		if err != nil {
+			c.Assert(err, check.FitsTypeOf, tt.outError)
+		} else {
+			c.Assert(err, check.IsNil)
+		}
+		if tt.outError != nil {
+			continue
+		}
+		c.Assert(cfg.Apps.Enabled, check.Equals, true)
+		c.Assert(cfg.Apps.Apps, check.HasLen, 1)
+	}
+}

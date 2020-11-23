@@ -1,6 +1,12 @@
 # Changelog
 
-### 4.4.3
+### 4.4.5
+
+This release of Teleport contains a bug fix.
+
+* Fixed an issue where a slow or unresponsive Teleport auth service could hang client connections in async recording mode. [#4696](https://github.com/gravitational/teleport/pull/4696)
+
+### 4.4.4
 
 This release of Teleport adds enhancements to the Access Workflows API.
 

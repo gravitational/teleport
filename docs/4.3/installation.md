@@ -92,18 +92,13 @@ $ docker pull quay.io/gravitational/teleport:{{ teleport.version }}
 
 ## Helm
 Please follow our [Helm Chart Readme](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport) for install and setup instructions.
+
 ```bash
-$ helm repo add gravitational https://charts.gravitational.io
-$ helm install teleport gravitational/teleport
+$ helm repo add teleport https://charts.releases.teleport.dev
+$ helm install teleport teleport/teleport
 ```
 
 ## MacOS
-
-=== "Homebrew"
-
-    ```bash
-    $ brew install teleport
-    ```
 
 === "Download"
 
@@ -112,6 +107,15 @@ $ helm install teleport gravitational/teleport
     !!! note
         This method only installs the `tsh` client for interacting with Teleport clusters.
         If you need the `teleport` server or `tctl` admin tool, use the "Terminal" method instead.
+
+=== "Homebrew"
+
+    ```bash
+    $ brew install teleport
+    ```
+
+    !!! note
+        The Teleport package in Homebrew is not maintained by Teleport. We recommend the use of our [own Teleport packages](https://goteleport.com/teleport/download?os=macos).
 
 === "Terminal"
 

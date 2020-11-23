@@ -19,10 +19,12 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -73,6 +75,11 @@ type Server interface {
 	GetApps() []*App
 	// GetApps gets the list of applications this server is proxying.
 	SetApps([]*App)
+	// GetKubeClusters returns the kubernetes clusters directly handled by this
+	// server.
+	GetKubernetesClusters() []*KubernetesCluster
+	// SetKubeClusters sets the kubernetes clusters handled by this server.
+	SetKubernetesClusters([]*KubernetesCluster)
 	// V1 returns V1 version for backwards compatibility
 	V1() *ServerV1
 	// MatchAgainst takes a map of labels and returns True if this server
@@ -292,6 +299,15 @@ func CombineLabels(static map[string]string, dynamic map[string]CommandLabelV2) 
 	return lmap
 }
 
+// GetKubeClusters returns the kubernetes clusters directly handled by this
+// server.
+func (s *ServerV2) GetKubernetesClusters() []*KubernetesCluster { return s.Spec.KubernetesClusters }
+
+// SetKubeClusters sets the kubernetes clusters handled by this server.
+func (s *ServerV2) SetKubernetesClusters(clusters []*KubernetesCluster) {
+	s.Spec.KubernetesClusters = clusters
+}
+
 // MatchAgainst takes a map of labels and returns True if this server
 // has ALL of them
 //
@@ -333,10 +349,18 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	if s.Kind == "" {
+		return trace.BadParameter("server Kind is empty")
+	}
 
 	for key := range s.Spec.CmdLabels {
 		if !IsValidLabelKey(key) {
 			return trace.BadParameter("invalid label key: %q", key)
+		}
+	}
+	for _, kc := range s.Spec.KubernetesClusters {
+		if !validKubeClusterName.MatchString(kc.Name) {
+			return trace.BadParameter("invalid kubernetes cluster name: %q", kc.Name)
 		}
 	}
 
@@ -392,11 +416,14 @@ func CompareServers(a, b Server) int {
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
 		return Different
 	}
-
 	// If this server is proxying applications, compare the applications to
 	// make sure they match.
 	if a.GetKind() == KindAppServer {
 		return CompareApps(a.GetApps(), b.GetApps())
+	}
+
+	if !cmp.Equal(a.GetKubernetesClusters(), b.GetKubernetesClusters()) {
+		return Different
 	}
 
 	return Equal
@@ -533,6 +560,39 @@ const ServerSpecV2Schema = `{
           }
         }
       }
+    },
+    "kube_clusters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+         "required": ["name"],
+         "properties": {
+           "name": {"type": "string"},
+           "static_labels": {
+             "type": "object",
+             "additionalProperties": false,
+             "patternProperties": {
+               "^.*$":  { "type": "string" }
+             }
+           },
+           "dynamic_labels": {
+             "type": "object",
+             "additionalProperties": false,
+             "patternProperties": {
+               "^.*$": {
+                 "type": "object",
+                 "additionalProperties": false,
+                 "required": ["command"],
+                 "properties": {
+                   "command": {"type": "array", "items": {"type": "string"}},
+                   "period": {"type": "string"},
+                   "result": {"type": "string"}
+                 }
+               }
+             }
+           }
+         }
+       }
     },
     "rotation": %v
   }
@@ -739,6 +799,9 @@ func UnmarshalServerResource(data []byte, kind string, cfg *MarshalConfig) (Serv
 		if !cfg.Expires.IsZero() {
 			v2.SetExpiry(cfg.Expires)
 		}
+		if err := v2.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
 		return v2, nil
 	case V2:
 		var s ServerV2
@@ -813,6 +876,9 @@ func (*TeleportServerMarshaler) UnmarshalServer(bytes []byte, kind string, opts 
 
 // MarshalServer marshals server into JSON.
 func (*TeleportServerMarshaler) MarshalServer(s Server, opts ...MarshalOption) ([]byte, error) {
+	if err := s.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	cfg, err := collectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -932,3 +998,9 @@ func GuessProxyHostAndVersion(proxies []Server) (string, string, error) {
 	guessProxyHost := fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
 	return guessProxyHost, proxies[0].GetTeleportVersion(), nil
 }
+
+// validKubeClusterName filters the allowed characters in kubernetes cluster
+// names. We need this because cluster names are used for cert filenames on the
+// client side, in the ~/.tsh directory. Restricting characters helps with
+// sneaky cluster names being used for client directory traversal and exploits.
+var validKubeClusterName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)

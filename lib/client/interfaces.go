@@ -17,7 +17,6 @@ limitations under the License.
 package client
 
 import (
-	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -48,8 +47,12 @@ type Key struct {
 	Pub []byte `json:"Pub,omitempty"`
 	// Cert is an SSH client certificate
 	Cert []byte `json:"Cert,omitempty"`
-	// TLSCert is a PEM encoded client TLS x509 certificate
+	// TLSCert is a PEM encoded client TLS x509 certificate.
+	// It's used to authenticate to the Teleport APIs.
 	TLSCert []byte `json:"TLSCert,omitempty"`
+	// KubeTLSCerts are TLS certificates (PEM-encoded) for individual
+	// kubernetes clusters. Map key is a kubernetes cluster name.
+	KubeTLSCerts map[string][]byte `json:"KubeCerts,omitempty"`
 
 	// ProxyHost (optionally) contains the hostname of the proxy server
 	// which issued this key
@@ -71,8 +74,9 @@ func NewKey() (key *Key, err error) {
 	}
 
 	return &Key{
-		Priv: priv,
-		Pub:  pub,
+		Priv:         priv,
+		Pub:          pub,
+		KubeTLSCerts: make(map[string][]byte),
 	}, nil
 }
 
@@ -92,9 +96,23 @@ func (k *Key) SSHCAs() (result [][]byte) {
 	return result
 }
 
-// TLSConfig returns client TLS configuration used
-// to authenticate against API servers
-func (k *Key) ClientTLSConfig(cipherSuites []uint16) (*tls.Config, error) {
+// KubeClientTLSConfig returns client TLS configuration used
+// to authenticate against kubernetes servers.
+func (k *Key) KubeClientTLSConfig(cipherSuites []uint16, kubeClusterName string) (*tls.Config, error) {
+	tlsCert, ok := k.KubeTLSCerts[kubeClusterName]
+	if !ok {
+		return nil, trace.NotFound("TLS certificate for kubernetes cluster %q not found", kubeClusterName)
+	}
+	return k.clientTLSConfig(cipherSuites, tlsCert)
+}
+
+// TeleportClientTLSConfig returns client TLS configuration used
+// to authenticate against API servers.
+func (k *Key) TeleportClientTLSConfig(cipherSuites []uint16) (*tls.Config, error) {
+	return k.clientTLSConfig(cipherSuites, k.TLSCert)
+}
+
+func (k *Key) clientTLSConfig(cipherSuites []uint16, tlsCertRaw []byte) (*tls.Config, error) {
 	tlsConfig := utils.TLSConfig(cipherSuites)
 
 	pool := x509.NewCertPool()
@@ -106,7 +124,7 @@ func (k *Key) ClientTLSConfig(cipherSuites []uint16) (*tls.Config, error) {
 		}
 	}
 	tlsConfig.RootCAs = pool
-	tlsCert, err := tls.X509KeyPair(k.TLSCert, k.Priv)
+	tlsCert, err := tls.X509KeyPair(tlsCertRaw, k.Priv)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse TLS cert and key")
 	}
@@ -241,25 +259,24 @@ func (k *Key) AsAgentKeys() ([]agent.AddedKey, error) {
 	}, nil
 }
 
-// EqualsTo returns true if this key is the same as the other.
-// Primarily used in tests
-func (k *Key) EqualsTo(other *Key) bool {
-	if k == other {
-		return true
-	}
-	return bytes.Equal(k.Cert, other.Cert) &&
-		bytes.Equal(k.Priv, other.Priv) &&
-		bytes.Equal(k.Pub, other.Pub) &&
-		bytes.Equal(k.TLSCert, other.TLSCert)
-}
-
-// TLSCertificate returns x509 certificate
-func (k *Key) TLSCertificate() (*x509.Certificate, error) {
+// TeleportTLSCertificate returns the parsed x509 certificate for
+// authentication against Teleport APIs.
+func (k *Key) TeleportTLSCertificate() (*x509.Certificate, error) {
 	return tlsca.ParseCertificatePEM(k.TLSCert)
 }
 
-// TLSCertValidBefore returns the time of the TLS cert expiration
-func (k *Key) TLSCertValidBefore() (t time.Time, err error) {
+// KubeTLSCertificate returns the parsed x509 certificate for
+// authentication against a named kubernetes cluster.
+func (k *Key) KubeTLSCertificate(kubeClusterName string) (*x509.Certificate, error) {
+	tlsCert, ok := k.KubeTLSCerts[kubeClusterName]
+	if !ok {
+		return nil, trace.NotFound("TLS certificate for kubernetes cluster %q not found", kubeClusterName)
+	}
+	return tlsca.ParseCertificatePEM(tlsCert)
+}
+
+// TeleportTLSCertValidBefore returns the time of the TLS cert expiration
+func (k *Key) TeleportTLSCertValidBefore() (t time.Time, err error) {
 	cert, err := tlsca.ParseCertificatePEM(k.TLSCert)
 	if err != nil {
 		return t, trace.Wrap(err)
@@ -361,4 +378,25 @@ func (k *Key) HostKeyCallback() (ssh.HostKeyCallback, error) {
 		}
 		return trace.AccessDenied("host %v is untrusted or Teleport CA has been rotated; try getting new credentials by logging in again ('tsh login') or re-exporting the identity file ('tctl auth sign' or 'tsh login -o'), depending on how you got them initially", host)
 	}, nil
+}
+
+// ProxyClientSSHConfig returns an ssh.ClientConfig with SSH credentials from this
+// Key and HostKeyCallback matching SSH CAs in the Key.
+//
+// The config is set up to authenticate to proxy with the first
+// available principal and trust local SSH CAs without asking
+// for public keys.
+//
+func ProxyClientSSHConfig(k *Key, keyStore LocalKeyStore) (*ssh.ClientConfig, error) {
+	sshConfig, err := k.ClientSSHConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	principals, err := k.CertPrincipals()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshConfig.User = principals[0]
+	sshConfig.HostKeyCallback = NewKeyStoreCertChecker(keyStore)
+	return sshConfig, nil
 }

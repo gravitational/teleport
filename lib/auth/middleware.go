@@ -330,6 +330,7 @@ func (a *Middleware) UnaryInterceptor(ctx context.Context, req interface{}, info
 		return nil, trail.ToGRPC(trace.LimitExceeded("connection limit exceeded"))
 	}
 	defer a.Limiter.ConnLimiter.Release(clientIP, 1)
+	ctx = context.WithValue(ctx, ContextClientAddr, peerInfo.Addr)
 
 	tlsInfo, ok := peerInfo.AuthInfo.(credentials.TLSInfo)
 	if !ok {
@@ -412,15 +413,22 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 		}, nil
 	}
 	clientCert := peers[0]
-	certClusterName, err := tlsca.ClusterName(clientCert.Issuer)
-	if err != nil {
-		log.Warnf("Failed to parse client certificate %v.", err)
-		return nil, trace.AccessDenied("access denied: invalid client certificate")
-	}
 
 	identity, err := tlsca.FromSubject(clientCert.Subject, clientCert.NotAfter)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	// Since 5.0, teleport TLS certs include the origin teleport cluster in the
+	// subject (identity). Before 5.0, origin teleport cluster was inferred
+	// from the cert issuer.
+	certClusterName := identity.TeleportCluster
+	if certClusterName == "" {
+		certClusterName, err = tlsca.ClusterName(clientCert.Issuer)
+		if err != nil {
+			log.Warnf("Failed to parse client certificate %v.", err)
+			return nil, trace.AccessDenied("access denied: invalid client certificate")
+		}
+		identity.TeleportCluster = certClusterName
 	}
 	// If there is any restriction on the certificate usage
 	// reject the API server request. This is done so some classes
