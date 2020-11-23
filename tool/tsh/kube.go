@@ -19,7 +19,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/gravitational/kingpin"
@@ -223,7 +222,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 		//
 		// Re-generate kubeconfig contexts and try selecting this kube cluster
 		// again.
-		if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
+		if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
 			return trace.Wrap(err)
 		}
 		if err := kubeconfig.SelectContext(currentTeleportCluster, c.kubeCluster); err != nil {
