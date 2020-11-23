@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 )
 
@@ -102,7 +103,8 @@ func (s *ServicesSuite) TestLabelKeyValidation(c *check.C) {
 	}
 }
 
-func (s *ServicesSuite) TestServerDeepCopy(c *check.C) {
+func TestServerDeepCopy(t *testing.T) {
+	t.Parallel()
 	now := time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC)
 	expires := now.Add(1 * time.Hour)
 	srv := &ServerV2{
@@ -158,9 +160,9 @@ func (s *ServicesSuite) TestServerDeepCopy(c *check.C) {
 		},
 	}
 	srv2 := srv.DeepCopy()
-	c.Assert(cmp.Diff(srv, srv2), check.Equals, "")
+	require.Empty(t, cmp.Diff(srv, srv2))
 
-	c.Assert(srv2, check.FitsTypeOf, &ServerV2{})
+	require.IsType(t, srv2, &ServerV2{})
 	// Mutate the second value but expect the original to be unaffected
 	srv2.(*ServerV2).Spec.CmdLabels = map[string]CommandLabelV2{
 		"srv-cmd": {
@@ -171,6 +173,6 @@ func (s *ServicesSuite) TestServerDeepCopy(c *check.C) {
 	expires2 := now.Add(10 * time.Minute)
 	srv2.(*ServerV2).Metadata.Expires = &expires2
 	srv3 := srv.DeepCopy()
-	c.Assert(cmp.Diff(srv, srv3), check.Equals, "")
-	c.Assert(cmp.Diff(srv2, srv3), check.Not(check.Equals), "")
+	require.Empty(t, cmp.Diff(srv, srv3))
+	require.NotEmpty(t, cmp.Diff(srv2, srv3))
 }

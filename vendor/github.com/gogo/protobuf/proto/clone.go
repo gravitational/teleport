@@ -138,7 +138,7 @@ func mergeStruct(out, in reflect.Value) {
 // viaPtr indicates whether the values were indirected through a pointer (implying proto2).
 // prop is set if this is a struct field (it may be nil).
 func mergeAny(out, in reflect.Value, viaPtr bool, prop *Properties) {
-	if in.Type() == protoMessageType || in.Addr().Type().Implements(protoMessageType) {
+	if in.Type() == protoMessageType || (in.CanAddr() && in.Addr().Type().Implements(protoMessageType)) {
 		if in.Kind() == reflect.Ptr {
 			if !in.IsNil() {
 				if out.IsNil() {

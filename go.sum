@@ -294,8 +294,8 @@ github.com/gravitational/license v0.0.0-20180912170534-4f189e3bd6e3 h1:vy9WwUq3H
 github.com/gravitational/license v0.0.0-20180912170534-4f189e3bd6e3/go.mod h1:jaxS7X2ouXfNd2Pxpybd01qNQK15UmkixKj4vtpp7f8=
 github.com/gravitational/oxy v0.0.0-20200916204440-3eb06d921a1d h1:IsbTjCQ4u5mr30ceWZ4GNcrQkp/Y/J9G+s9prmJm1ac=
 github.com/gravitational/oxy v0.0.0-20200916204440-3eb06d921a1d/go.mod h1:ESOxlf8BB2yG3zJ0SfZe9U6wpYu3YF3znxIICg73FYA=
-github.com/gravitational/protobuf v1.3.2-0.20201111195440-def42e0f694b h1:eb6H7DvHptlvZOOxxNX6JfXsylKuimIFRGv+EqB3wtQ=
-github.com/gravitational/protobuf v1.3.2-0.20201111195440-def42e0f694b/go.mod h1:nvYIs0zpwkaOfMJVk19T1RNuB29ZB6NrweRnDqTwYEc=
+github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf h1:MQ4e8XcxvZTeuOmRl7yE519vcWc2h/lyvYzsvt41cdY=
+github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf/go.mod h1:SlYgWuQ5SjCEi6WLHjHCa1yvBfUnHcTbrrZtXPKa29o=
 github.com/gravitational/reporting v0.0.0-20180907002058-ac7b85c75c4c h1:UwN3jo2EfZSGDchLVqH/EJ2A5GWvKROx3NJNUI6/plg=
 github.com/gravitational/reporting v0.0.0-20180907002058-ac7b85c75c4c/go.mod h1:rBJeI3JYVzbL7Yw2hYrp4QdKIkncb1pUHo95DyoEGns=
 github.com/gravitational/roundtrip v1.0.0 h1:eb+0EABfSKC8607CQ4oOyWCm9zVIfio/wW78TjQqLSc=
