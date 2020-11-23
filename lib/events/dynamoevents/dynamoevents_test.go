@@ -18,6 +18,7 @@ limitations under the License.
 package dynamoevents
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
@@ -52,7 +53,7 @@ func (s *DynamoeventsSuite) SetUpSuite(c *check.C) {
 	}
 
 	fakeClock := clockwork.NewFakeClock()
-	log, err := New(Config{
+	log, err := New(context.Background(), Config{
 		Region:       "us-west-1",
 		Tablename:    fmt.Sprintf("teleport-test-%v", uuid.New()),
 		Clock:        fakeClock,

@@ -10,18 +10,26 @@ option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_getters_all) = false;
 
 message KeepAlive {
-    // ServerName is a server name to keep alive
-    string ServerName = 1 [ (gogoproto.jsontag) = "server_name" ];
-    // Namespace is a server namespace
+    // Name of the resource to keep alive.
+    string Name = 1 [ (gogoproto.jsontag) = "server_name" ];
+    // Namespace is the namespace of the resource.
     string Namespace = 2 [ (gogoproto.jsontag) = "namespace" ];
-    // LeaseID is ID of the lease
+    // LeaseID is ID of the lease.
     int64 LeaseID = 3 [ (gogoproto.jsontag) = "lease_id" ];
-    // Expires is set to update expiry time
+    // Expires is set to update expiry time of the resource.
     google.protobuf.Timestamp Expires = 4 [
         (gogoproto.stdtime) = true,
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "expires"
     ];
+    // Type is the type of keep alive, used by servers. At the moment only
+    // "node" and "app" are supported.
+    enum KeepAliveType {
+        UNKNOWN = 0;
+        NODE = 1;
+        APP = 2;
+    }
+    KeepAliveType Type = 9 [ (gogoproto.jsontag) = "type" ];
 }
 
 // Metadata is resource metadata
@@ -120,7 +128,7 @@ message ResourceHeader {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata,omitempty" ];
 }
 
-// ServerV2 represents a Node, Proxy or Auth server in a Teleport cluster
+// ServerV2 represents a Node, App, Proxy or Auth server in a Teleport cluster.
 message ServerV2 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
@@ -139,6 +147,8 @@ message ServerV2 {
 
 // ServerSpecV2 is a specification for V2 Server
 message ServerSpecV2 {
+    reserved 8;
+
     // Addr is server host:port address
     string Addr = 1 [ (gogoproto.jsontag) = "addr" ];
     // PublicAddr is the public address this cluster can be reached at.
@@ -156,10 +166,43 @@ message ServerSpecV2 {
     bool UseTunnel = 6 [ (gogoproto.jsontag) = "use_tunnel,omitempty" ];
     // TeleportVersion is the teleport version that the server is running on
     string Version = 7 [ (gogoproto.jsontag) = "version" ];
-    // KubernetesClusters is a list of kubernetes clusters reachable through
-    // this proxy.
-    repeated string KubernetesClusters = 8
-        [ (gogoproto.jsontag) = "kubernetes_clusters,omitempty" ];
+    // Apps is a list of applications this server is proxying.
+    repeated App Apps = 9 [ (gogoproto.jsontag) = "apps,omitempty" ];
+    // KubernetesClusters is a list of kubernetes clusters provided by this
+    // Proxy or KubeService server.
+    //
+    // Important: jsontag must not be "kubernetes_clusters", because a
+    // different field with that jsontag existed in 4.4:
+    // https://github.com/gravitational/teleport/issues/4862
+    repeated KubernetesCluster KubernetesClusters = 10
+        [ (gogoproto.jsontag) = "kube_clusters,omitempty" ];
+}
+
+// App is a specific application that a server proxies.
+message App {
+    // Name is the name of the application.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+    // URI is the internal address the application is available at.
+    string URI = 2 [ (gogoproto.jsontag) = "uri" ];
+    // PublicAddr is the public address the application is accessible at.
+    string PublicAddr = 3 [ (gogoproto.jsontag) = "public_addr,omitempty" ];
+    // StaticLabels is map of static labels associated with an application.
+    // Used for RBAC.
+    map<string, string> StaticLabels = 4 [ (gogoproto.jsontag) = "labels,omitempty" ];
+    // DynamicLabels is map of dynamic labels associated with an application.
+    // Used for RBAC.
+    map<string, CommandLabelV2> DynamicLabels = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "commands,omitempty" ];
+    bool InsecureSkipVerify = 6 [ (gogoproto.jsontag) = "insecure_skip_verify" ];
+    // Rewrite is a list of rewriting rules to apply to requests and responses.
+    Rewrite Rewrite = 7 [ (gogoproto.jsontag) = "rewrite,omitempty" ];
+}
+
+// Rewrite is a list of rewriting rules to apply to requests and responses.
+message Rewrite {
+    // Redirect defines a list of hosts which will be rewritten to the public
+    // address of the application if they occur in the "Location" header.
+    repeated string Redirect = 1 [ (gogoproto.jsontag) = "redirect" ];
 }
 
 // CommandLabelV2 is a label that has a value as a result of the
@@ -179,6 +222,14 @@ message TLSKeyPair {
     bytes Cert = 1 [ (gogoproto.jsontag) = "cert,omitempty" ];
     // Key is a PEM encoded TLS key
     bytes Key = 2 [ (gogoproto.jsontag) = "key,omitempty" ];
+}
+
+// JWTKeyPair is a PEM encoded keypair used for signing JWT tokens.
+message JWTKeyPair {
+    // PublicKey is a PEM encoded public key.
+    bytes PublicKey = 1 [ (gogoproto.jsontag) = "public_key,omitempty" ];
+    // PrivateKey is a PEM encoded private key.
+    bytes PrivateKey = 2 [ (gogoproto.jsontag) = "private_key,omitempty" ];
 }
 
 // CertAuthorityV2 is version 2 resource spec for Cert Authority
@@ -211,7 +262,7 @@ message CertAuthoritySpecV2 {
     string ClusterName = 2 [ (gogoproto.jsontag) = "cluster_name" ];
     // Checkers is a list of SSH public keys that can be used to check
     // certificate signatures
-    repeated bytes CheckingKeys = 3 [ (gogoproto.jsontag) = "checking_keys" ];
+    repeated bytes CheckingKeys = 3 [ (gogoproto.jsontag) = "checking_keys,omitempty" ];
     // SigningKeys is a list of private keys used for signing
     repeated bytes SigningKeys = 4 [ (gogoproto.jsontag) = "signing_keys,omitempty" ];
     // Roles is a list of roles assumed by users signed by this CA
@@ -234,6 +285,9 @@ message CertAuthoritySpecV2 {
         RSA_SHA2_512 = 3;
     }
     SigningAlgType SigningAlg = 9 [ (gogoproto.jsontag) = "signing_alg,omitempty" ];
+    // JWTKeyPair is a list of JWT key pairs.
+    repeated JWTKeyPair JWTKeyPairs = 10
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "jwt_key_pairs,omitempty" ];
 }
 
 // RoleMappping provides mapping of remote roles to local roles
@@ -427,6 +481,24 @@ message AuditConfig {
     // Deprecated in favor of AuditEventsURI
     // DELETE IN (3.1.0)
     string AuditTableName = 5 [ (gogoproto.jsontag) = "audit_table_name,omitempty" ];
+
+    // EnableContinuousBackups is used to enable (or disable) PITR (Point-In-Time Recovery).
+    bool EnableContinuousBackups = 6 [ (gogoproto.jsontag) = "continuous_backups,omitempty" ];
+
+    // EnableAutoScaling is used to enable (or disable) auto scaling policy.
+    bool EnableAutoScaling = 7 [ (gogoproto.jsontag) = "auto_scaling,omitempty" ];
+    // ReadMaxCapacity is the maximum provisioned read capacity.
+    int64 ReadMaxCapacity = 8 [ (gogoproto.jsontag) = "read_max_capacity,omitempty" ];
+    // ReadMinCapacity is the minimum provisioned read capacity.
+    int64 ReadMinCapacity = 9 [ (gogoproto.jsontag) = "read_min_capacity,omitempty" ];
+    // ReadTargetValue is the ratio of consumed read to provisioned capacity.
+    double ReadTargetValue = 10 [ (gogoproto.jsontag) = "read_target_value,omitempty" ];
+    // WriteMaxCapacity is the maximum provisioned write capacity.
+    int64 WriteMaxCapacity = 11 [ (gogoproto.jsontag) = "write_max_capacity,omitempty" ];
+    // WriteMinCapacity is the minimum provisioned write capacity.
+    int64 WriteMinCapacity = 12 [ (gogoproto.jsontag) = "write_min_capacity,omitempty" ];
+    // WriteTargetValue is the ratio of consumed write to provisioned capacity.
+    double WriteTargetValue = 13 [ (gogoproto.jsontag) = "write_target_value,omitempty" ];
 }
 
 // Namespace represents namespace resource specification
@@ -559,6 +631,34 @@ message AccessRequestSpecV3 {
         (gogoproto.stdtime) = true,
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "expires,omitempty"
+    ];
+
+    // RequestReason is an optional message explaining the reason for the request.
+    string RequestReason = 6 [ (gogoproto.jsontag) = "request_reason,omitempty" ];
+
+    // ResolveReason is an optional message explaining the reason for the resolution
+    // of the request (approval, denail, etc...).
+    string ResolveReason = 7 [ (gogoproto.jsontag) = "resolve_reason,omitempty" ];
+
+    // ResolveAnnotations is a set of arbitrary values received from plugins or other
+    // resolving parties during approval/denial.  Importantly, these annotations are
+    // included in the access_request.update event, allowing plugins to propagate
+    // arbitrary structured data to the audit log.
+    wrappers.LabelValues ResolveAnnotations = 8 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "resolve_annotations,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/lib/wrappers.Traits"
+    ];
+
+    // SystemAnnotations is a set of programmatically generated annotations attached
+    // to pending access requests by teleport.  These annotations are generated by
+    // applying variable interpolation to the RoleConditions.Request.Annotations block
+    // of a user's role(s).  These annotations serve as a mechanism for administrators
+    // to pass extra information to plugins when they process pending access requests.
+    wrappers.LabelValues SystemAnnotations = 9 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "system_annotations,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/lib/wrappers.Traits"
     ];
 }
 
@@ -719,13 +819,23 @@ message RoleOptions {
     // MaxSessions defines the maximum number of
     // concurrent sessions per connection.
     int64 MaxSessions = 10 [ (gogoproto.jsontag) = "max_sessions,omitempty" ];
+
+    // RequestAccess defines the access request stategy (optional|note|always)
+    // where optional is the default.
+    string RequestAccess = 11 [
+        (gogoproto.jsontag) = "request_access,omitempty",
+        (gogoproto.casttype) = "RequestStrategy"
+    ];
+
+    // RequestPrompt is an optional message which tells users what they aught to
+    string RequestPrompt = 12 [ (gogoproto.jsontag) = "request_prompt,omitempty" ];
 }
 
 // RoleConditions is a set of conditions that must all match to be allowed or
 // denied access.
 message RoleConditions {
     // Logins is a list of *nix system logins.
-    repeated string Logins = 1 [ (gogoproto.jsontag) = "logins" ];
+    repeated string Logins = 1 [ (gogoproto.jsontag) = "logins,omitempty" ];
 
     // Namespaces is a list of namespaces (used to partition a cluster). The
     // field should be called "namespaces" when it returns in Teleport 2.4.
@@ -751,6 +861,28 @@ message RoleConditions {
 
     // KubeUsers is an optional kubernetes users to impersonate
     repeated string KubeUsers = 7 [ (gogoproto.jsontag) = "kubernetes_users,omitempty" ];
+
+    // AppLabels is a map of labels used as part of the RBAC system.
+    wrappers.LabelValues AppLabels = 8 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "app_labels,omitempty",
+        (gogoproto.customtype) = "Labels"
+    ];
+
+    // ClusterLabels is a map of node labels (used to dynamically grant access to
+    // clusters).
+    wrappers.LabelValues ClusterLabels = 9 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "cluster_labels,omitempty",
+        (gogoproto.customtype) = "Labels"
+    ];
+
+    // KubernetesLabels is a map of kubernetes cluster labels used for RBAC.
+    wrappers.LabelValues KubernetesLabels = 10 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "kubernetes_labels,omitempty",
+        (gogoproto.customtype) = "Labels"
+    ];
 }
 
 // AccessRequestConditions is a matcher for allow/deny restrictions on
@@ -758,6 +890,37 @@ message RoleConditions {
 message AccessRequestConditions {
     // Roles is the name of roles which will match the request rule.
     repeated string Roles = 1 [ (gogoproto.jsontag) = "roles,omitempty" ];
+
+    // ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
+    repeated AccessRequestClaimMapping ClaimsToRoles = 2
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "claims_to_roles,omitempty" ];
+
+    // Annotations is a collection of annotations to be programmatically
+    // appended to pending access requests at the time of their creation.
+    // These annotations serve as a mechanism to propagate extra information
+    // to plugins.  Since these annotations support variable interpolation
+    // syntax, they also offer a mechanism for forwarding claims from an
+    // external identity provider, to a plugin via `{{external.trait_name}}`
+    // style substitutions.
+    wrappers.LabelValues Annotations = 3 [
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "annotations,omitempty",
+        (gogoproto.customtype) = "github.com/gravitational/teleport/lib/wrappers.Traits"
+    ];
+}
+
+// AccessRequestClaimMapping is a variant of the trait mapping pattern,
+// used to propagate requestable roles from external identity providers.
+message AccessRequestClaimMapping {
+    // Claim is the name of the trait to be matched against.
+    string Claim = 1 [ (gogoproto.jsontag) = "claim,omitempty" ];
+
+    // Value is matches a trait value.
+    string Value = 2 [ (gogoproto.jsontag) = "value,omitempty" ];
+
+    // Roles are the roles being mapped to.
+    repeated string Roles = 3 [ (gogoproto.jsontag) = "roles,omitempty" ];
+    ;
 }
 
 // Rule represents allow or deny rule that is executed to check
@@ -1077,4 +1240,96 @@ message SemaphoreSpecV3 {
     // Leases is a list of all currently acquired leases.
     repeated SemaphoreLeaseRef Leases = 1
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "leases" ];
+}
+
+// WebSessionV2 represents an application or UI web session.
+message WebSessionV2 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is a resource kind.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources.
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is version.
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is a resource metadata.
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec is a tunnel specification.
+    WebSessionSpecV2 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// WebSessionSpecV2 is a specification for web session.
+message WebSessionSpecV2 {
+    // User is the identity of the user to which the web session belongs.
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
+    // Pub is the SSH certificate for the user.
+    bytes Pub = 2 [ (gogoproto.jsontag) = "pub" ];
+    // Priv is the SSH private key for the user.
+    bytes Priv = 3 [ (gogoproto.jsontag) = "priv,omitempty" ];
+    // TLSCert is the TLS certificate for the user.
+    bytes TLSCert = 4 [ (gogoproto.jsontag) = "tls_cert,omitempty" ];
+    // BearerToken is a token that is paired with the session cookie for
+    // authentication. It is periodically rotated so a stolen cookie itself
+    // is not enough to steal a session. In addition it is used for CSRF
+    // mitigation.
+    string BearerToken = 5 [ (gogoproto.jsontag) = "bearer_token" ];
+    // BearerTokenExpires is the absolute time when the token expires.
+    google.protobuf.Timestamp BearerTokenExpires = 6 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "bearer_token_expires"
+    ];
+    // Expires is the absolute time when the session expires.
+    google.protobuf.Timestamp Expires = 7 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "expires"
+    ];
+}
+
+// RemoteClusterV3 represents remote cluster resource specification
+message RemoteClusterV3 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is a resource kind
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind, used in some resources
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is resource API version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+
+    // Metadata is User metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Status is a remote cluster status
+    RemoteClusterStatusV3 Status = 5
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "status" ];
+}
+
+// RemoteClusterStatusV3 represents status of the remote cluster
+message RemoteClusterStatusV3 {
+    // Connection represents connection status, online or offline
+    string Connection = 1 [ (gogoproto.jsontag) = "connection" ];
+
+    // LastHeartbeat records last heartbeat of the cluster
+    google.protobuf.Timestamp LastHeartbeat = 2 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "last_heartbeat"
+    ];
+}
+
+// KubernetesCluster is a named kubernetes API endpoint handled by a Server.
+message KubernetesCluster {
+    // Name is the name of this kubernetes cluster.
+    string Name = 1 [ (gogoproto.jsontag) = "name" ];
+
+    // StaticLabels is map of static labels associated with this cluster.
+    // Used for RBAC.
+    map<string, string> StaticLabels = 2 [ (gogoproto.jsontag) = "static_labels,omitempty" ];
+    // DynamicLabels is map of dynamic labels associated with this cluster.
+    // Used for RBAC.
+    map<string, CommandLabelV2> DynamicLabels = 3
+        [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
 }

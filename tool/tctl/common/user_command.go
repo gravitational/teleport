@@ -139,7 +139,7 @@ func (u *UserCommand) ResetPassword(client auth.ClientI) error {
 func (u *UserCommand) PrintResetPasswordToken(token services.ResetPasswordToken, format string) error {
 	err := u.printResetPasswordToken(token,
 		format,
-		"User %v has been reset. Share this URL with the user to complete password reset, link is valid for %v:\n%v\n\n",
+		"User %q has been reset. Share this URL with the user to complete password reset, link is valid for %v:\n%v\n\n",
 	)
 
 	if err != nil {
@@ -153,7 +153,7 @@ func (u *UserCommand) PrintResetPasswordToken(token services.ResetPasswordToken,
 func (u *UserCommand) PrintResetPasswordTokenAsInvite(token services.ResetPasswordToken, format string) error {
 	err := u.printResetPasswordToken(token,
 		format,
-		"User %v has been created but requires a password. Share this URL with the user to complete user setup, link is valid for %v:\n%v\n\n")
+		"User %q has been created but requires a password. Share this URL with the user to complete user setup, link is valid for %v:\n%v\n\n")
 	if err != nil {
 		return trace.Wrap(err)
 	}

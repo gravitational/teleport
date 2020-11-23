@@ -14,13 +14,13 @@ AWS_REGION ?= us-west-2
 # This must be a _released_ version of Teleport, i.e. one which has binaries
 # available for download on https://gravitational.com/teleport/download
 # Unreleased versions will fail to build.
-TELEPORT_VERSION ?= 4.3.7
+TELEPORT_VERSION ?= 4.4.5
 
 # Teleport UID is the UID of a non-privileged 'teleport' user
 TELEPORT_UID ?= 1007
 
 # Instance type to build the AMI on
-INSTANCE_TYPE ?= t2.micro
+INSTANCE_TYPE ?= t2.medium
 
 # Use comma-separated values without spaces for multiple regions
 # For now, limit AMI to regions with DynamoDB encryption at rest enabled
@@ -56,7 +56,7 @@ oss:
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	mkdir -p files/build
-	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) -only teleport-aws-linux single-ami.json
+	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) -only teleport-aws-linux -var destination_regions=$(AWS_REGION) single-ami.json
 	@echo "$(BUILD_TIMESTAMP)" > files/build/oss_build_timestamp.txt
 
 # Build named 'production' AMI and marketplace version
@@ -83,7 +83,7 @@ ent: check-vars
 	@echo "Building image $(TELEPORT_VERSION) $(TELEPORT_TYPE)"
 	@echo "BUILD_TIMESTAMP=$(BUILD_TIMESTAMP)"
 	mkdir -p files/build
-	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) -only teleport-aws-linux single-ami.json
+	packer build -force -var build_timestamp=$(BUILD_TIMESTAMP) -only teleport-aws-linux -var destination_regions=$(AWS_REGION) single-ami.json
 	@echo "$(BUILD_TIMESTAMP)" > files/build/ent_build_timestamp.txt
 
 # Build named 'production' AMI and marketplace version
@@ -132,3 +132,17 @@ update-ami-ids-terraform:
 	./update-ami-ids.sh -a $(AWS_ACCOUNT_ID) -m terraform -t ent -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
 	@echo -e "\nUpdating Enterprise FIPS Terraform image IDs"
 	./update-ami-ids.sh -a $(AWS_ACCOUNT_ID) -m terraform -t ent-fips -r $(DESTINATION_REGIONS) -v $(TELEPORT_VERSION)
+
+# you will need the Github 'gh' CLI installed and working to be able to use this target
+# https://github.com/cli/cli/releases/latest
+AUTO_BRANCH_NAME := "ami-auto-branch-$(shell date +%s)"
+MAKEFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
+.PHONY: create-update-pr
+create-update-pr: update-ami-ids-cloudformation update-ami-ids-terraform
+	@echo "Creating PR for updates"
+	sed -i -E "s/^TELEPORT_VERSION \?= [0-9.]+$$/TELEPORT_VERSION ?= $(TELEPORT_VERSION)/g" $(MAKEFILE_PATH)
+	git add -A ../../examples/aws $(shell pwd)
+	git checkout -b $(AUTO_BRANCH_NAME)
+	git commit -am "[auto] Update AMI IDs for $(TELEPORT_VERSION)"
+	git push --set-upstream origin $(AUTO_BRANCH_NAME)
+	gh pr create --fill --label automated --label terraform

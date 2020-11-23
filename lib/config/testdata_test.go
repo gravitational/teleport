@@ -150,6 +150,9 @@ ssh_service:
 proxy_service:
   enabled: no
   public_addr: "proxy.example.com"
+
+app_service:
+  enabled: no
 `
 
 // LegacyAuthenticationSection is the deprecated format for authentication method. We still

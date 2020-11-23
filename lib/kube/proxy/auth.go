@@ -4,13 +4,10 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 
-	"github.com/gravitational/teleport"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/trace"
 
@@ -32,6 +29,9 @@ import (
 )
 
 // kubeCreds contain authentication-related fields from kubeconfig.
+//
+// TODO(awly): make this an interface, one implementation for local k8s cluster
+// and another for a remote teleport cluster.
 type kubeCreds struct {
 	// tlsConfig contains (m)TLS configuration.
 	tlsConfig *tls.Config
@@ -40,6 +40,7 @@ type kubeCreds struct {
 	transportConfig *transport.Config
 	// targetAddr is a kubernetes API address.
 	targetAddr string
+	kubeClient *kubernetes.Clientset
 }
 
 var skipSelfPermissionCheck bool
@@ -53,77 +54,108 @@ func TestOnlySkipSelfPermissionCheck(skip bool) {
 	skipSelfPermissionCheck = skip
 }
 
-func getKubeCreds(ctx context.Context, log logrus.FieldLogger, kubeconfigPath string) (*kubeCreds, error) {
-	var cfg *rest.Config
-	// no kubeconfig is set, assume auth server is running in the cluster
-	if kubeconfigPath == "" {
-		caPEM, err := ioutil.ReadFile(teleport.KubeCAPath)
-		if err != nil {
-			if os.IsNotExist(err) {
-				log.Debugf("kubeconfig_file was not provided in the config and %q doesn't exist; this proxy will still be able to forward requests to trusted leaf Teleport clusters, but not to a Kubernetes cluster directly", teleport.KubeCAPath)
-				return nil, nil
-			}
-			return nil, trace.BadParameter(`auth server assumed that it is
-running in a kubernetes cluster, but %v mounted in pods could not be read: %v,
-set kubeconfig_file if auth server is running outside of the cluster`, teleport.KubeCAPath, err)
-		}
+// getKubeCreds fetches the kubernetes API credentials.
+//
+// There are 2 possible sources of credentials:
+// - pod service account credentials: files in hardcoded paths when running
+//   inside of a k8s pod; this is used when kubeClusterName is set
+// - kubeconfig: a file with a set of k8s endpoints and credentials mapped to
+//   them this is used when kubeconfigPath is set
+//
+// newKubeService changes the loading behavior:
+// - false:
+//   - if loading from kubeconfig, only "current-context" is returned; the
+//     returned map key matches tpClusterName
+//   - if no credentials are loaded, no error is returned
+//   - permission self-test failures are only logged
+// - true:
+//   - if loading from kubeconfig, all contexts are returned
+//   - if no credentials are loaded, returns an error
+//   - permission self-test failures cause an error to be returned
+func getKubeCreds(ctx context.Context, log logrus.FieldLogger, tpClusterName, kubeClusterName, kubeconfigPath string, newKubeService bool) (map[string]*kubeCreds, error) {
+	log.
+		WithField("kubeconfigPath", kubeconfigPath).
+		WithField("kubeClusterName", kubeClusterName).
+		WithField("newKubeService", newKubeService).
+		Debug("Reading kubernetes creds.")
 
-		cfg, err = kubeutils.GetKubeConfig(os.Getenv(teleport.EnvKubeConfig))
-		if err != nil {
-			return nil, trace.BadParameter(`auth server assumed that it is
-running in a kubernetes cluster, but could not init in-cluster kubernetes client: %v`, err)
-		}
-		cfg.CAData = caPEM
-	} else {
-		log.Debugf("Reading configuration from kubeconfig file %v.", kubeconfigPath)
-
-		var err error
-		cfg, err = kubeutils.GetKubeConfig(kubeconfigPath)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	log.Debug("Checking kubernetes impersonation permissions granted to proxy.")
-	client, err := kubernetes.NewForConfig(cfg)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to generate kubernetes client from kubeconfig: %v", err)
-	}
-	if err := checkImpersonationPermissions(ctx, client.AuthorizationV1().SelfSubjectAccessReviews()); err != nil {
-		if kubeconfigPath == "" {
-			return nil, trace.Wrap(err)
-		}
-		// Some users run proxies in root teleport clusters with k8s
-		// integration enabled but no local k8s cluster. They only forward
-		// requests to leaf teleport clusters.
-		//
-		// Before https://github.com/gravitational/teleport/pull/3811,
-		// users needed to add a dummy kubeconfig_file in the root proxy to
-		// get it to start. To allow those users to upgrade without a
-		// config change, log the error but don't fail startup.
-		log.WithError(err).Errorf("Failed to self-verify the kubernetes permissions using kubeconfig file %q; proceeding with startup but kubernetes integration on this proxy might not work; if this is a root proxy in trusted cluster setup and you only plan to forward kubernetes requests to leaf clusters, you can remove 'kubeconfig_file' from 'proxy_service' in your teleport.yaml to suppress this error", kubeconfigPath)
-	} else {
-		log.Debugf("Proxy has all necessary kubernetes impersonation permissions.")
-	}
-
-	targetAddr, err := parseKubeHost(cfg.Host)
-	if err != nil {
+	// Load kubeconfig or local pod credentials.
+	cfg, err := kubeutils.GetKubeConfig(kubeconfigPath, newKubeService, kubeClusterName)
+	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	tlsConfig, err := rest.TLSConfigFor(cfg)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to generate TLS config from kubeconfig: %v", err)
+	if trace.IsNotFound(err) || len(cfg.Contexts) == 0 {
+		if newKubeService {
+			return nil, trace.BadParameter("no kubernetes credentials found; kubernetes_service requires either a valid kubeconfig_path or to run inside of a kubernetes pod")
+		}
+		log.Debugf("Could not load kubernetes credentials. This proxy will still handle kubernetes requests for trusted teleport clusters or kubernetes nodes in this teleport cluster")
+		return map[string]*kubeCreds{}, nil
 	}
-	transportConfig, err := cfg.TransportConfig()
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to generate transport config from kubeconfig: %v", err)
+	if !newKubeService {
+		// Hack for proxy_service - register a k8s cluster named after the
+		// teleport cluster name to route legacy requests.
+		//
+		// Also, remove all other contexts. Multiple kubeconfig entries are
+		// only supported for kubernetes_service.
+		cfg.Contexts = map[string]*rest.Config{
+			tpClusterName: cfg.Contexts[cfg.CurrentContext],
+		}
 	}
 
-	return &kubeCreds{
-		tlsConfig:       tlsConfig,
-		transportConfig: transportConfig,
-		targetAddr:      targetAddr,
-	}, nil
+	res := make(map[string]*kubeCreds, len(cfg.Contexts))
+	// Convert kubeconfig contexts into kubeCreds.
+	for cluster, clientCfg := range cfg.Contexts {
+		log := log.WithField("cluster", cluster)
+		log.Debug("Checking kubernetes impersonation permissions.")
+		client, err := kubernetes.NewForConfig(clientCfg)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to generate kubernetes client for cluster %q", cluster)
+		}
+		// For each loaded cluster, check impersonation permissions. This
+		// failure is only critical for newKubeService.
+		if err := checkImpersonationPermissions(ctx, client.AuthorizationV1().SelfSubjectAccessReviews()); err != nil {
+			// kubernetes_service must have valid RBAC permissions, otherwise
+			// it's pointless.
+			// proxy_service can run without them (e.g. a root proxy).
+			if newKubeService {
+				return nil, trace.Wrap(err)
+			}
+			log.WithError(err).Warning("Failed to test the necessary kubernetes permissions. This teleport instance will still handle kubernetes requests towards other kubernetes clusters")
+			// We used to recommend users to set a dummy kubeconfig on root
+			// proxies to get kubernetes support working for leaf clusters:
+			// https://community.gravitational.com/t/enabling-teleport-to-act-as-a-kubernetes-proxy-for-trusted-leaf-clusters/418
+			//
+			// Since this is no longer necessary, recommend them to clean up
+			// via logs.
+			if kubeconfigPath != "" {
+				log.Info("If this is a proxy and you provided a dummy kubeconfig_path, you can remove it from teleport.yaml to get rid of this warning")
+			}
+		} else {
+			log.Debug("Have all necessary kubernetes impersonation permissions.")
+		}
+
+		targetAddr, err := parseKubeHost(clientCfg.Host)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsConfig, err := rest.TLSConfigFor(clientCfg)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to generate TLS config from kubeconfig: %v", err)
+		}
+		transportConfig, err := clientCfg.TransportConfig()
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to generate transport config from kubeconfig: %v", err)
+		}
+
+		log.Debug("Initialized kubernetes credentials")
+		res[cluster] = &kubeCreds{
+			tlsConfig:       tlsConfig,
+			transportConfig: transportConfig,
+			targetAddr:      targetAddr,
+			kubeClient:      client,
+		}
+	}
+	return res, nil
 }
 
 // parseKubeHost parses and formats kubernetes hostname

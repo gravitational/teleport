@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.14
+go 1.15
 
 require (
 	cloud.google.com/go/firestore v1.1.1
@@ -13,7 +13,7 @@ require (
 	github.com/alecthomas/colour v0.1.0 // indirect
 	github.com/alecthomas/repr v0.0.0-20200325044227-4184120f674c // indirect
 	github.com/armon/go-radix v1.0.0
-	github.com/aws/aws-sdk-go v1.32.7
+	github.com/aws/aws-sdk-go v1.35.19
 	github.com/beevik/etree v1.1.0
 	github.com/boombuler/barcode v0.0.0-20161226211916-fe0f26ff6d26 // indirect
 	github.com/cjbassi/drawille-go v0.1.0 // indirect
@@ -26,6 +26,7 @@ require (
 	github.com/fsouza/fake-gcs-server v1.11.6
 	github.com/ghodss/yaml v1.0.0
 	github.com/gizak/termui v0.0.0-20190224181052-63c2a0d70943
+	github.com/go-sql-driver/mysql v1.5.0 // indirect
 	github.com/gogo/protobuf v1.3.1
 	github.com/gokyle/hotp v0.0.0-20160218004637-c180d57d286b
 	github.com/golang/protobuf v1.4.2
@@ -91,8 +92,9 @@ require (
 	google.golang.org/appengine v1.6.6 // indirect
 	google.golang.org/genproto v0.0.0-20200806141610-86f49bd18e98
 	google.golang.org/grpc v1.27.0
-	google.golang.org/protobuf v1.25.0 // indirect
+	google.golang.org/protobuf v1.25.0
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
+	gopkg.in/square/go-jose.v2 v2.5.1
 	gopkg.in/yaml.v2 v2.3.0
 	gotest.tools v2.2.0+incompatible // indirect
 	k8s.io/api v0.0.0-20200821051526-051d027c14e1

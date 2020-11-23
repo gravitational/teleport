@@ -14,7 +14,6 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
 */
 
 package dynamo
@@ -34,7 +33,7 @@ import (
 func TestDynamoDB(t *testing.T) { check.TestingT(t) }
 
 type DynamoDBSuite struct {
-	bk        *DynamoDBBackend
+	bk        *Backend
 	suite     test.BackendSuite
 	tableName string
 }
@@ -54,7 +53,7 @@ func (s *DynamoDBSuite) SetUpSuite(c *check.C) {
 	}
 	bk, err := newBackend()
 	c.Assert(err, check.IsNil)
-	s.bk = bk.(*DynamoDBBackend)
+	s.bk = bk.(*Backend)
 	s.suite.B = s.bk
 	s.suite.NewBackend = newBackend
 }

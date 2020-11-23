@@ -74,7 +74,7 @@ Follow instructions at [docker/README](docker/README.md)
 Teleport source code consists of the actual Teleport daemon binary written in Golang, and also
 of a web UI (a git submodule located in /webassets directory) written in Javascript.
 
-Make sure you have Golang `v1.14` or newer, then run:
+Make sure you have Golang `v1.15` or newer, then run:
 
 ```bash
 # get the source & build:
@@ -121,7 +121,7 @@ $ DEBUG=1 ./build/teleport start -d
 ```
 
 Keep the server running in this mode, and make your UI changes in `/dist` directory.
-Refer to [web/README.md](web/README.md) for instructions on how to update the Web UI.
+Refer to [the webapps README](https://github.com/gravitational/webapps/blob/master/README.md) for instructions on how to update the Web UI.
 
 ### Updating Documentation
 

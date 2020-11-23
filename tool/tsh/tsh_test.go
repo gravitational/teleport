@@ -269,7 +269,7 @@ func (s *MainTestSuite) TestIdentityRead(c *check.C) {
 	c.Assert(k, check.NotNil)
 	c.Assert(k.TLSCert, check.NotNil)
 	// generate a TLS client config
-	conf, err := k.ClientTLSConfig(nil)
+	conf, err := k.TeleportClientTLSConfig(nil)
 	c.Assert(err, check.IsNil)
 	c.Assert(conf, check.NotNil)
 	// ensure that at least root CA was successfully loaded

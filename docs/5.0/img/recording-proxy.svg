@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="624px" height="357px" viewBox="0 0 624 357" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!-- Generator: Sketch 47.1 (45422) - http://www.bohemiancoding.com/sketch -->
+    <title>new diagram</title>
+    <desc>Created with Sketch.</desc>
+    <defs>
+        <rect id="path-1" x="199" y="18" width="218" height="120" rx="24"></rect>
+        <filter x="-12.8%" y="-16.7%" width="125.7%" height="146.7%" filterUnits="objectBoundingBox" id="filter-2">
+            <feOffset dx="0" dy="8" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="8" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.103742074 0" type="matrix" in="shadowBlurOuter1"></feColorMatrix>
+        </filter>
+        <rect id="path-3" x="19" y="17" width="120" height="120" rx="24"></rect>
+        <filter x="-23.3%" y="-16.7%" width="146.7%" height="146.7%" filterUnits="objectBoundingBox" id="filter-4">
+            <feOffset dx="0" dy="8" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="8" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.103742074 0" type="matrix" in="shadowBlurOuter1"></feColorMatrix>
+        </filter>
+        <rect id="path-5" x="488" y="17" width="120" height="120" rx="24"></rect>
+        <filter x="-23.3%" y="-16.7%" width="146.7%" height="146.7%" filterUnits="objectBoundingBox" id="filter-6">
+            <feOffset dx="0" dy="8" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="8" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.103742074 0" type="matrix" in="shadowBlurOuter1"></feColorMatrix>
+        </filter>
+        <rect id="path-7" x="199" y="198" width="120" height="120" rx="24"></rect>
+        <filter x="-23.3%" y="-16.7%" width="146.7%" height="146.7%" filterUnits="objectBoundingBox" id="filter-8">
+            <feOffset dx="0" dy="8" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset>
+            <feGaussianBlur stdDeviation="8" in="shadowOffsetOuter1" result="shadowBlurOuter1"></feGaussianBlur>
+            <feColorMatrix values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.103742074 0" type="matrix" in="shadowBlurOuter1"></feColorMatrix>
+        </filter>
+    </defs>
+    <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <g id="new-diagram">
+            <g id="Rectangle-Copy-5">
+                <use fill="black" fill-opacity="1" filter="url(#filter-2)" xlink:href="#path-1"></use>
+                <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-1"></use>
+            </g>
+            <g id="Rectangle">
+                <use fill="black" fill-opacity="1" filter="url(#filter-4)" xlink:href="#path-3"></use>
+                <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-3"></use>
+            </g>
+            <path d="M99.5,84 L241.5,84" id="Line-2-Copy-2" stroke="#CFCFCF" stroke-width="3" stroke-linecap="square" stroke-dasharray="1,5,1,5"></path>
+            <rect id="Rectangle-2-Copy" fill="#F5A623" x="238" y="57" width="40" height="40" rx="3"></rect>
+            <text id="D" font-family="HelveticaNeue, Helvetica Neue" font-size="20" font-weight="normal" fill="#FFFFFF">
+                <tspan x="251" y="85">D</tspan>
+            </text>
+            <rect id="Rectangle-2" fill="#7ED321" x="338" y="57" width="40" height="40" rx="3"></rect>
+            <text id="E" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="20" font-weight="400" fill="#FFFFFF">
+                <tspan x="351" y="85">E</tspan>
+            </text>
+            <rect id="Rectangle-2" fill="#7ED321" x="59" y="57" width="40" height="40" rx="3"></rect>
+            <text id="E" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="20" font-weight="400" fill="#FFFFFF">
+                <tspan x="72" y="85">E</tspan>
+            </text>
+            <text id="Proxy" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#4A4A4A">
+                <tspan x="276.8" y="13">Proxy</tspan>
+            </text>
+            <rect id="Rectangle-2" fill="#7ED321" x="59" y="57" width="40" height="40" rx="3"></rect>
+            <text id="E" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="20" font-weight="400" fill="#FFFFFF">
+                <tspan x="72" y="85">E</tspan>
+            </text>
+            <text id="Client" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#4A4A4A">
+                <tspan x="57.664" y="13">Client</tspan>
+            </text>
+            <path d="M76.7714138,112.8 L95.2731195,112.8 L99,116.583984 L99,117.6 L94.6918145,121.727734 L92.4393065,119.493164 L90.1533744,121.727734 L87.7562243,119.493164 L85.6833461,121.727734 L83.2818958,119.493164 L80.3796709,122.4 L76.6539854,122.4 C74.9898379,125.156631 71.9639991,127 68.5072883,127 C63.256558,127 59,122.746705 59,117.5 C59,112.253295 63.256558,108 68.5072883,108 C72.0469426,108 75.1347993,109.932893 76.7714138,112.8 Z M64.3040661,120 C65.6858372,120 66.8059841,118.880712 66.8059841,117.5 C66.8059841,116.119288 65.6858372,115 64.3040661,115 C62.922295,115 61.8021481,116.119288 61.8021481,117.5 C61.8021481,118.880712 62.922295,120 64.3040661,120 Z" id="Combined-Shape" fill="#919191" opacity="0.870074728"></path>
+            <path d="M355.771414,112.8 L374.27312,112.8 L378,116.583984 L378,117.6 L373.691815,121.727734 L371.439306,119.493164 L369.153374,121.727734 L366.756224,119.493164 L364.683346,121.727734 L362.281896,119.493164 L359.379671,122.4 L355.653985,122.4 C353.989838,125.156631 350.963999,127 347.507288,127 C342.256558,127 338,122.746705 338,117.5 C338,112.253295 342.256558,108 347.507288,108 C351.046943,108 354.134799,109.932893 355.771414,112.8 Z M343.304066,120 C344.685837,120 345.805984,118.880712 345.805984,117.5 C345.805984,116.119288 344.685837,115 343.304066,115 C341.922295,115 340.802148,116.119288 340.802148,117.5 C340.802148,118.880712 341.922295,120 343.304066,120 Z" id="Combined-Shape-Copy" fill="#919191" opacity="0.870074728"></path>
+            <rect id="Rectangle-16-Copy-3" x="0" y="237" width="280" height="120"></rect>
+            <rect id="Rectangle-4" fill="#B8E986" x="19" y="310" width="14" height="3"></rect>
+            <rect id="Rectangle-4-Copy" fill="#F5A623" x="19" y="330" width="14" height="3"></rect>
+            <text id="SSH-connection" font-family="HelveticaNeue, Helvetica Neue" font-size="14" font-weight="normal" fill="#787878">
+                <tspan x="40" y="317">SSH connection</tspan>
+            </text>
+            <text id="HTTPS-connection" font-family="HelveticaNeue, Helvetica Neue" font-size="14" font-weight="normal" fill="#787878">
+                <tspan x="40" y="337">HTTPS connection</tspan>
+            </text>
+            <text id="Encrypted" font-family="HelveticaNeue, Helvetica Neue" font-size="14" font-weight="normal" line-spacing="21" fill="#787878">
+                <tspan x="39" y="274">Encrypted</tspan>
+            </text>
+            <text id="Decrypted" font-family="HelveticaNeue, Helvetica Neue" font-size="14" font-weight="normal" fill="#787878">
+                <tspan x="39" y="297">Decrypted</tspan>
+            </text>
+            <path d="M100.5,78 L236.5,78" id="Line-Copy" stroke="#B8E986" stroke-width="3" stroke-linecap="square"></path>
+            <rect id="Rectangle-2-Copy-2" fill="#7ED321" x="18" y="265" width="15" height="14" rx="2"></rect>
+            <text id="E-Copy" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="10" font-weight="400" fill="#FFFFFF">
+                <tspan x="22" y="276">E</tspan>
+            </text>
+            <rect id="Rectangle-2-Copy-3" fill="#F5A623" x="18" y="285" width="15" height="14" rx="2"></rect>
+            <text id="D" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="10" font-weight="400" fill="#FFFFFF">
+                <tspan x="22" y="296">D</tspan>
+            </text>
+            <text id="SSH-Copy-2" font-family="HelveticaNeue, Helvetica Neue" font-size="12" font-weight="normal" fill="#787878">
+                <tspan x="155.892" y="74">SSH</tspan>
+            </text>
+            <text id="SSH-Copy-3" font-family="HelveticaNeue, Helvetica Neue" font-size="12" font-weight="normal" fill="#787878">
+                <tspan x="445.892" y="74">SSH</tspan>
+            </text>
+            <g id="Rectangle-Copy-3">
+                <use fill="black" fill-opacity="1" filter="url(#filter-6)" xlink:href="#path-5"></use>
+                <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-5"></use>
+            </g>
+            <text id="Node" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#4A4A4A">
+                <tspan x="528.144" y="13">Node</tspan>
+            </text>
+            <rect id="Rectangle-2-Copy" fill="#F5A623" x="528" y="57" width="40" height="40" rx="3"></rect>
+            <text id="D" font-family="HelveticaNeue, Helvetica Neue" font-size="20" font-weight="normal" fill="#FFFFFF">
+                <tspan x="541" y="85">D</tspan>
+            </text>
+            <g id="Rectangle-Copy-4">
+                <use fill="black" fill-opacity="1" filter="url(#filter-8)" xlink:href="#path-7"></use>
+                <use fill="#FFFFFF" fill-rule="evenodd" xlink:href="#path-7"></use>
+            </g>
+            <text id="Auth" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="16" font-weight="400" fill="#4A4A4A">
+                <tspan x="241.816" y="338">Auth</tspan>
+            </text>
+            <g id="Group-2" transform="translate(239.000000, 238.000000)">
+                <path d="M0,36 C0,38.209139 8.954305,40 20,40 C31.045695,40 40,38.209139 40,36 L40,4 L0,4 L0,36 Z" id="Combined-Shape" fill="#F5A623"></path>
+                <ellipse id="Oval-2" fill="#FFCB76" cx="20" cy="4" rx="20" ry="4"></ellipse>
+            </g>
+            <text id="Agent-key-forwarding" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="10" font-weight="400">
+                <tspan x="145.435" y="130" fill="#787878">A</tspan>
+                <tspan x="152.105" y="130" fill="#787878">g</tspan>
+                <tspan x="158.035" y="130" fill="#787878">e</tspan>
+                <tspan x="163.595" y="130" fill="#787878">n</tspan>
+                <tspan x="169.335" y="130" fill="#787878">t</tspan>
+                <tspan x="172.665" y="130" fill="#787878"> </tspan>
+                <tspan x="175.445" y="130" fill="#787878">k</tspan>
+                <tspan x="180.815" y="130" fill="#787878">e</tspan>
+                <tspan x="186.375" y="130" fill="#787878">y</tspan>
+                <tspan x="191.565" y="130" fill="#787877"> </tspan>
+                <tspan x="143.765" y="142" fill="#787877">f</tspan>
+                <tspan x="146.915" y="142" fill="#777877">o</tspan>
+                <tspan x="152.845" y="142" fill="#777977">r</tspan>
+                <tspan x="156.365" y="142" fill="#777977">w</tspan>
+                <tspan x="164.145" y="142" fill="#777977">a</tspan>
+                <tspan x="169.705" y="142" fill="#777977">r</tspan>
+                <tspan x="173.045" y="142" fill="#777977">d</tspan>
+                <tspan x="179.155" y="142" fill="#777976">i</tspan>
+                <tspan x="181.565" y="142" fill="#777976">n</tspan>
+                <tspan x="187.305" y="142" fill="#777976">g</tspan>
+            </text>
+            <path d="M100,117 L336,117" id="Line" stroke="#CFCFCF" stroke-width="3" stroke-linecap="square"></path>
+            <path d="M258,99 L258,236" id="Line-3" stroke="#F5A623" stroke-width="2" fill="#F5A623" stroke-linecap="square"></path>
+            <path id="Line-3-decoration-1" d="M258,236 L261,225.2 L255,225.2 L258,236 Z" stroke="#F5A623" stroke-width="2" fill="#F5A623" stroke-linecap="square"></path>
+            <path d="M379.5,78 L526.5,78" id="Line-Copy-2" stroke="#B8E986" stroke-width="3" stroke-linecap="square"></path>
+            <path d="M77.5,98.5 L77.5,115.5" id="Line-2" stroke="#CFCFCF" stroke-width="3" stroke-linecap="square" stroke-dasharray="1,5,1,5"></path>
+            <path d="M358.5,98.5 L358.5,115.5" id="Line-2-Copy" stroke="#CFCFCF" stroke-width="3" stroke-linecap="square" stroke-dasharray="1,5,1,5"></path>
+            <path d="M277.5,76.5 L333.5,76.5" id="Line-4" stroke="#F5A623" stroke-width="3" fill="#F5A623" stroke-linecap="square"></path>
+            <path id="Line-4-decoration-1" d="M333.5,76.5 L322.7,73.5 L322.7,79.5 L333.5,76.5 Z" stroke="#F5A623" stroke-width="3" fill="#F5A623" stroke-linecap="square"></path>
+            <text id="Audit-Copy" font-family="HelveticaNeue-Medium, Helvetica Neue" font-size="14" font-weight="400" fill="#787878">
+                <tspan x="241.018" y="293">Audit</tspan>
+            </text>
+        </g>
+    </g>
+</svg>

@@ -57,8 +57,11 @@ to call [`tsh login`](cli-docs.md#tsh-login) in the beginning.
 
 - Windows Users: [Download tsh Binary](https://gravitational.com/teleport/download?os=windows)
 - Mac Users: [Download Mac Teleport Binary. Includes tsh](https://gravitational.com/teleport/download?os=macos)
-- Mac Users with [Brew](https://brew.sh/): `brew install teleport`
-- Linux Users: [Download Mac Teleport Binary. Includes tsh](https://gravitational.com/teleport/download?os=linux)
+- Mac Users with [Homebrew](https://brew.sh/): `brew install teleport`
+- Linux Users: [Download Linux Teleport Binary. Includes tsh](https://gravitational.com/teleport/download?os=linux)
+
+    !!! note
+        The Teleport package in Homebrew is not maintained by Teleport. We recommend the use of our [own Teleport packages](https://goteleport.com/teleport/download?os=macos).
 
 ## User Identities
 
@@ -352,9 +355,6 @@ $ tsh ssh -J proxy.example.com telenode
 
 Known limits:
 
-* Only one jump host is supported (`-J` supports chaining that Teleport does not utilise)
-and tsh will return with error in case of two jumphosts: `-J` proxy-1.example.com,proxy-2.example.com
-will not work.
 * Only one jump host is supported (`-J` supports chaining that Teleport does not utilise) and `tsh` will return with error in the case of two jumphosts, i.e. `-J proxy-1.example.com,proxy-2.example.com` will not work.
 * When `tsh ssh -J user@proxy` is used, it overrides the SSH proxy defined in the tsh profile and port forwarding is used instead of the existing Teleport proxy subsystem.
 

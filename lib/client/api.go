@@ -358,11 +358,14 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		return trace.Wrap(err)
 	}
 	log.Debugf("Activating relogin on %v.", err)
-	key, err := tc.Login(ctx, true)
+	key, err := tc.Login(ctx)
 	if err != nil {
 		if trace.IsTrustError(err) {
 			return trace.Wrap(err, "refusing to connect to untrusted proxy %v without --insecure flag\n", tc.Config.SSHProxyAddr)
 		}
+		return trace.Wrap(err)
+	}
+	if err := tc.ActivateKey(ctx, key); err != nil {
 		return trace.Wrap(err)
 	}
 	// Save profile to record proxy credentials
@@ -399,7 +402,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	key, err := store.GetKey(profile.Name(), profile.Username)
+	key, err := store.GetKey(profile.Name(), profile.Username, WithKubeCerts(profile.SiteName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -471,7 +474,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		clusterName = profile.Name()
 	}
 
-	tlsCert, err := key.TLSCertificate()
+	tlsCert, err := key.TeleportTLSCertificate()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -501,6 +504,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 }
 
 // Status returns the active profile as well as a list of available profiles.
+// If not profile is active, Status returns a nil error and nil profile.
 func Status(profileDir string, proxyHost string) (*ProfileStatus, []*ProfileStatus, error) {
 	var err error
 	var profile *ProfileStatus
@@ -690,12 +694,12 @@ func (c *Config) KubeProxyHostPort() (string, int) {
 	if c.KubeProxyAddr != "" {
 		addr, err := utils.ParseAddr(c.KubeProxyAddr)
 		if err == nil {
-			return addr.Host(), addr.Port(defaults.KubeProxyListenPort)
+			return addr.Host(), addr.Port(defaults.KubeListenPort)
 		}
 	}
 
 	webProxyHost, _ := c.WebProxyHostPort()
-	return webProxyHost, defaults.KubeProxyListenPort
+	return webProxyHost, defaults.KubeListenPort
 }
 
 // KubeClusterAddr returns a public HTTPS address of the proxy for use by
@@ -903,6 +907,8 @@ func (tc *TeleportClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	return proxyClient.ReissueUserCerts(ctx, params)
 }
 
@@ -912,6 +918,8 @@ func (tc *TeleportClient) CreateAccessRequest(ctx context.Context, req services.
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	return proxyClient.CreateAccessRequest(ctx, req)
 }
 
@@ -921,7 +929,32 @@ func (tc *TeleportClient) GetAccessRequests(ctx context.Context, filter services
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	return proxyClient.GetAccessRequests(ctx, filter)
+}
+
+// GetRole loads a role resource by name.
+func (tc *TeleportClient) GetRole(ctx context.Context, name string) (services.Role, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	return proxyClient.GetRole(ctx, name)
+}
+
+// watchCloser is a wrapper around a services.Watcher
+// which holds a closer that must be called after the watcher
+// is closed.
+type watchCloser struct {
+	services.Watcher
+	io.Closer
+}
+
+func (w watchCloser) Close() error {
+	return trace.NewAggregate(w.Watcher.Close(), w.Closer.Close())
 }
 
 // NewWatcher sets up a new event watcher.
@@ -930,7 +963,35 @@ func (tc *TeleportClient) NewWatcher(ctx context.Context, watch services.Watch) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return proxyClient.NewWatcher(ctx, watch)
+
+	watcher, err := proxyClient.NewWatcher(ctx, watch)
+	if err != nil {
+		proxyClient.Close()
+		return nil, trace.Wrap(err)
+	}
+
+	return watchCloser{
+		Watcher: watcher,
+		Closer:  proxyClient,
+	}, nil
+}
+
+// WithRootClusterClient provides a functional interface for making calls against the root cluster's
+// auth server.
+func (tc *TeleportClient) WithRootClusterClient(ctx context.Context, do func(clt auth.ClientI) error) error {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	clt, err := proxyClient.ConnectToRootCluster(ctx, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	return trace.Wrap(do(clt))
 }
 
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
@@ -1136,6 +1197,8 @@ func (tc *TeleportClient) Play(ctx context.Context, namespace, sessionID string)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	site, err := proxyClient.ConnectToCurrentCluster(ctx, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1426,6 +1489,17 @@ func (tc *TeleportClient) ListNodes(ctx context.Context) ([]services.Server, err
 	return proxyClient.FindServersByLabels(ctx, tc.Namespace, tc.Labels)
 }
 
+// ListAppServers returns a list of application servers.
+func (tc *TeleportClient) ListAppServers(ctx context.Context) ([]services.Server, error) {
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	return proxyClient.GetAppServers(ctx, tc.Namespace)
+}
+
 // ListAllNodes is the same as ListNodes except that it ignores labels.
 func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]services.Server, error) {
 	proxyClient, err := tc.ConnectToProxy(ctx)
@@ -1639,7 +1713,7 @@ func (tc *TeleportClient) Logout() error {
 	if tc.localAgent == nil {
 		return nil
 	}
-	if err := tc.localAgent.DeleteKey(); err != nil {
+	if err := tc.localAgent.DeleteKey(WithKubeCerts(tc.SiteName)); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1660,10 +1734,10 @@ func (tc *TeleportClient) LogoutAll() error {
 
 // Login logs the user into a Teleport cluster by talking to a Teleport proxy.
 //
-// If 'activateKey' is true, saves the received session cert into the local
-// keystore (and into the ssh-agent) for future use.
+// The returned Key should typically be passed to ActivateKey in order to
+// update local agent state.
 //
-func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, error) {
+func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	// preserve original web proxy host that could have
 	webProxyHost, _ := tc.WebProxyHostPort()
 
@@ -1727,6 +1801,9 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 	// extract the new certificate out of the response
 	key.Cert = response.Cert
 	key.TLSCert = response.TLSCert
+	if tc.KubernetesCluster != "" {
+		key.KubeTLSCerts[tc.KubernetesCluster] = response.TLSCert
+	}
 	key.ProxyHost = webProxyHost
 	key.TrustedCA = response.HostSigners
 
@@ -1739,39 +1816,48 @@ func (tc *TeleportClient) Login(ctx context.Context, activateKey bool) (*Key, er
 	// Add the cluster name into the key from the host certificate.
 	key.ClusterName = response.HostSigners[0].ClusterName
 
-	if activateKey && tc.localAgent != nil {
-		// save the list of CAs client trusts to ~/.tsh/known_hosts
-		err = tc.localAgent.AddHostSignersToCache(response.HostSigners)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// save the list of TLS CAs client trusts
-		err = tc.localAgent.SaveCerts(response.HostSigners)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// save the cert to the local storage (~/.tsh usually):
-		_, err = tc.localAgent.AddKey(key)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Connect to the Auth Server of the main cluster and fetch the known hosts
-		// for this cluster.
-		if err := tc.UpdateTrustedCA(ctx, key.ClusterName); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Update the cluster name (which will be saved in the profile) with the
-		// name of the cluster the caller requested to connect to.
-		tc.SiteName, err = updateClusterName(ctx, tc, tc.SiteName, response.HostSigners)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
 	return key, nil
+}
+
+// ActivateKey saves the target session cert into the local
+// keystore (and into the ssh-agent) for future use.
+func (tc *TeleportClient) ActivateKey(ctx context.Context, key *Key) error {
+	if tc.localAgent == nil {
+		// skip activation if no local agent is present
+		return nil
+	}
+	// save the list of CAs client trusts to ~/.tsh/known_hosts
+	err := tc.localAgent.AddHostSignersToCache(key.TrustedCA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// save the list of TLS CAs client trusts
+	err = tc.localAgent.SaveCerts(key.TrustedCA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// save the cert to the local storage (~/.tsh usually):
+	_, err = tc.localAgent.AddKey(key)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Connect to the Auth Server of the main cluster and fetch the known hosts
+	// for this cluster.
+	if err := tc.UpdateTrustedCA(ctx, key.ClusterName); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Update the cluster name (which will be saved in the profile) with the
+	// name of the cluster the caller requested to connect to.
+	tc.SiteName, err = updateClusterName(ctx, tc, tc.SiteName, key.TrustedCA)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // Ping makes a ping request to the proxy, and updates tc based on the
@@ -1918,17 +2004,25 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 			tc.KubeProxyAddr = proxySettings.Kube.PublicAddr
 		// ListenAddr is the second preference.
 		case proxySettings.Kube.ListenAddr != "":
-			if _, err := utils.ParseAddr(proxySettings.Kube.ListenAddr); err != nil {
+			addr, err := utils.ParseAddr(proxySettings.Kube.ListenAddr)
+			if err != nil {
 				return trace.BadParameter(
 					"failed to parse value received from the server: %q, contact your administrator for help",
 					proxySettings.Kube.ListenAddr)
 			}
-			tc.KubeProxyAddr = proxySettings.Kube.ListenAddr
+			// If ListenAddr host is 0.0.0.0 or [::], replace it with something
+			// routable from the web endpoint.
+			if net.ParseIP(addr.Host()).IsUnspecified() {
+				webProxyHost, _ := tc.WebProxyHostPort()
+				tc.KubeProxyAddr = net.JoinHostPort(webProxyHost, strconv.Itoa(addr.Port(defaults.KubeListenPort)))
+			} else {
+				tc.KubeProxyAddr = proxySettings.Kube.ListenAddr
+			}
 		// If neither PublicAddr nor ListenAddr are passed, use the web
 		// interface hostname with default k8s port as a guess.
 		default:
 			webProxyHost, _ := tc.WebProxyHostPort()
-			tc.KubeProxyAddr = fmt.Sprintf("%s:%d", webProxyHost, defaults.KubeProxyListenPort)
+			tc.KubeProxyAddr = net.JoinHostPort(webProxyHost, strconv.Itoa(defaults.KubeListenPort))
 		}
 	}
 

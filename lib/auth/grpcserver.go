@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"io"
+	"net"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -27,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -36,8 +38,10 @@ import (
 	"github.com/gravitational/trace/trail"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 
 	// Register gzip compressor for gRPC.
 	_ "google.golang.org/grpc/encoding/gzip"
@@ -85,7 +89,7 @@ func (g *GRPCServer) SendKeepAlives(stream proto.AuthService_SendKeepAlivesServe
 			g.Debugf("Failed to receive heartbeat: %v", err)
 			return trail.ToGRPC(err)
 		}
-		err = auth.KeepAliveNode(stream.Context(), *keepAlive)
+		err = auth.KeepAliveServer(stream.Context(), *keepAlive)
 		if err != nil {
 			return trail.ToGRPC(err)
 		}
@@ -385,7 +389,13 @@ func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *proto.Reque
 	if req.Delegator != "" {
 		ctx = WithDelegator(ctx, req.Delegator)
 	}
-	if err := auth.ServerWithRoles.SetAccessRequestState(ctx, req.ID, req.State); err != nil {
+	if err := auth.ServerWithRoles.SetAccessRequestState(ctx, services.AccessRequestUpdate{
+		RequestID:   req.ID,
+		State:       req.State,
+		Reason:      req.Reason,
+		Annotations: req.Annotations,
+		Roles:       req.Roles,
+	}); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 	return &empty.Empty{}, nil
@@ -639,6 +649,304 @@ func (g *GRPCServer) DeleteSemaphore(ctx context.Context, req *services.Semaphor
 	return &empty.Empty{}, nil
 }
 
+// GetAppServers gets all application servers.
+func (g *GRPCServer) GetAppServers(ctx context.Context, req *proto.GetAppServersRequest) (*proto.GetAppServersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var opts []services.MarshalOption
+	if req.GetSkipValidation() {
+		opts = append(opts, services.SkipValidation())
+	}
+
+	appServers, err := auth.GetAppServers(ctx, req.GetNamespace(), opts...)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var servers []*services.ServerV2
+	for _, s := range appServers {
+		server, ok := s.(*services.ServerV2)
+		if !ok {
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", s))
+		}
+		servers = append(servers, server)
+	}
+
+	return &proto.GetAppServersResponse{
+		Servers: servers,
+	}, nil
+}
+
+// UpsertAppServer adds an application server.
+func (g *GRPCServer) UpsertAppServer(ctx context.Context, req *proto.UpsertAppServerRequest) (*services.KeepAlive, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	keepAlive, err := auth.UpsertAppServer(ctx, req.GetServer())
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return keepAlive, nil
+}
+
+// DeleteAppServer removes an application server.
+func (g *GRPCServer) DeleteAppServer(ctx context.Context, req *proto.DeleteAppServerRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	err = auth.DeleteAppServer(ctx, req.GetNamespace(), req.GetName())
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllAppServers removes all application servers.
+func (g *GRPCServer) DeleteAllAppServers(ctx context.Context, req *proto.DeleteAllAppServersRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	err = auth.DeleteAllAppServers(ctx, req.GetNamespace())
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+// GetAppSession gets an application web session.
+func (g *GRPCServer) GetAppSession(ctx context.Context, req *proto.GetAppSessionRequest) (*proto.GetAppSessionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	session, err := auth.GetAppSession(ctx, services.GetAppSessionRequest{
+		SessionID: req.GetSessionID(),
+	})
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	sess, ok := session.(*services.WebSessionV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unexpected session type %T", session))
+	}
+
+	return &proto.GetAppSessionResponse{
+		Session: sess,
+	}, nil
+}
+
+// GetAppSessions gets all application web sessions.
+func (g *GRPCServer) GetAppSessions(ctx context.Context, _ *empty.Empty) (*proto.GetAppSessionsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	sessions, err := auth.GetAppSessions(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var out []*services.WebSessionV2
+	for _, session := range sessions {
+		sess, ok := session.(*services.WebSessionV2)
+		if !ok {
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", session))
+		}
+		out = append(out, sess)
+	}
+
+	return &proto.GetAppSessionsResponse{
+		Sessions: out,
+	}, nil
+}
+
+// CreateAppSession creates an application web session. Application web
+// sessions represent a browser session the client holds.
+func (g *GRPCServer) CreateAppSession(ctx context.Context, req *proto.CreateAppSessionRequest) (*proto.CreateAppSessionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	session, err := auth.CreateAppSession(ctx, services.CreateAppSessionRequest{
+		Username:      req.GetUsername(),
+		ParentSession: req.GetParentSession(),
+		PublicAddr:    req.GetPublicAddr(),
+		ClusterName:   req.GetClusterName(),
+	})
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	sess, ok := session.(*services.WebSessionV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", session))
+	}
+
+	return &proto.CreateAppSessionResponse{
+		Session: sess,
+	}, nil
+}
+
+// DeleteAppSession removes an application web session.
+func (g *GRPCServer) DeleteAppSession(ctx context.Context, req *proto.DeleteAppSessionRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.DeleteAppSession(ctx, services.DeleteAppSessionRequest{
+		SessionID: req.GetSessionID(),
+	}); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllAppSessions removes all application web sessions.
+func (g *GRPCServer) DeleteAllAppSessions(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.DeleteAllAppSessions(ctx); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+// GenerateAppToken creates a JWT token with application access.
+func (g GRPCServer) GenerateAppToken(ctx context.Context, req *proto.GenerateAppTokenRequest) (*proto.GenerateAppTokenResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	token, err := auth.GenerateAppToken(ctx, jwt.GenerateAppTokenRequest{
+		Username: req.Username,
+		Roles:    req.Roles,
+		URI:      req.URI,
+		Expires:  req.Expires,
+	})
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &proto.GenerateAppTokenResponse{
+		Token: token,
+	}, nil
+}
+
+// UpdateRemoteCluster updates remote cluster
+func (g *GRPCServer) UpdateRemoteCluster(ctx context.Context, req *services.RemoteClusterV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.UpdateRemoteCluster(ctx, req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
+// GetKubeServices gets all kubernetes services.
+func (g *GRPCServer) GetKubeServices(ctx context.Context, req *proto.GetKubeServicesRequest) (*proto.GetKubeServicesResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	kubeServices, err := auth.GetKubeServices(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var servers []*services.ServerV2
+	for _, s := range kubeServices {
+		server, ok := s.(*services.ServerV2)
+		if !ok {
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", s))
+		}
+		servers = append(servers, server)
+	}
+
+	return &proto.GetKubeServicesResponse{
+		Servers: servers,
+	}, nil
+}
+
+// UpsertKubeService adds a kubernetes service.
+func (g *GRPCServer) UpsertKubeService(ctx context.Context, req *proto.UpsertKubeServiceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	server := req.GetServer()
+	// If Addr in the server is localhost, replace it with the address we see
+	// from our end.
+	//
+	// Services that listen on "0.0.0.0:12345" will put that exact address in
+	// the server.Addr field. It's not useful for other services that want to
+	// connect to it (like a proxy). Remote address of the gRPC connection is
+	// the closest thing we have to a public IP for the service.
+	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
+	if !ok {
+		return nil, status.Errorf(codes.FailedPrecondition, "bug: client address not found in request context")
+	}
+	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), clientAddr.String()))
+
+	if err := auth.UpsertKubeService(ctx, server); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return new(empty.Empty), nil
+}
+
+// DeleteKubeService removes a kubernetes service.
+func (g *GRPCServer) DeleteKubeService(ctx context.Context, req *proto.DeleteKubeServiceRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	err = auth.DeleteKubeService(ctx, req.GetName())
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllKubeServices removes all kubernetes services.
+func (g *GRPCServer) DeleteAllKubeServices(ctx context.Context, req *proto.DeleteAllKubeServicesRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	err = auth.DeleteAllKubeServices(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
 type grpcContext struct {
 	*Context
 	*ServerWithRoles
@@ -801,6 +1109,17 @@ func eventToGRPC(in services.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_AccessRequest{
 			AccessRequest: r,
 		}
+	case *services.WebSessionV2:
+		if r.GetSubKind() != services.KindAppSession {
+			return nil, trace.BadParameter("only %v supported", services.KindAppSession)
+		}
+		out.Resource = &proto.Event_AppSession{
+			AppSession: r,
+		}
+	case *services.RemoteClusterV3:
+		out.Resource = &proto.Event_RemoteCluster{
+			RemoteCluster: r,
+		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
 	}
@@ -868,6 +1187,12 @@ func eventFromGRPC(in proto.Event) (*services.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetAccessRequest(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetAppSession(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetRemoteCluster(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else {

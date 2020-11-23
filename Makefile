@@ -27,7 +27,7 @@ TELEPORT_DEBUG ?= no
 GITTAG=v$(VERSION)
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s'
 CGOFLAG ?= CGO_ENABLED=1
-GO_LINTERS ?= "unused,govet,typecheck,deadcode,goimports,varcheck,structcheck,bodyclose,staticcheck,ineffassign,unconvert,misspell,gosimple"
+GO_LINTERS ?= "unused,govet,typecheck,deadcode,goimports,varcheck,structcheck,bodyclose,staticcheck,ineffassign,unconvert,misspell,gosimple,golint"
 
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
@@ -237,15 +237,15 @@ docs-test-whitespace:
 	fi
 
 #
-# Run milv in docs to detect broken links.
+# Run milv in docs to detect broken internal links.
 # milv is installed if missing.
 #
 .PHONY:docs-test-links
 docs-test-links: DOCS_FOLDERS := $(shell find . -name milv.config.yaml -exec dirname {} \;)
 docs-test-links:
 	for docs_dir in $(DOCS_FOLDERS); do \
-		echo "running milv in $${docs_dir}"; \
-		cd $${docs_dir} && milv ; cd $(PWD); \
+		echo "running milv -ignore-external in $${docs_dir}"; \
+		cd $${docs_dir} && milv -ignore-external; cd $(PWD); \
 	done
 
 #
@@ -301,6 +301,14 @@ lint-sh:
 	find . -type f -name '*.sh' | grep -v vendor | xargs \
 		shellcheck \
 		--exclude=SC2086 \
+		$(SH_LINT_FLAGS)
+
+	# lint AWS AMI scripts
+	# SC1091 prints errors when "source" directives are not followed
+	find assets/aws/files/bin -type f | xargs \
+		shellcheck \
+		--exclude=SC2086 \
+		--exclude=SC1091 \
 		$(SH_LINT_FLAGS)
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
@@ -511,8 +519,14 @@ rpm:
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
+	cp -a ./build.assets/rpm-sign $(BUILDDIR)/
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p rpm -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e rpm; fi
+
+# build unsigned .rpm (for testing)
+.PHONY: rpm-unsigned
+rpm-unsigned:
+	$(MAKE) UNSIGNED_RPM=true rpm
 
 # build .deb
 .PHONY: deb

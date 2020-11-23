@@ -1,5 +1,5 @@
 /*
-Copyright 2016-2019 Gravitational, Inc.
+Copyright 2016-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -39,12 +39,18 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 )
 
 // AdminUserRules provides access to the default set of rules assigned to
 // all users.
+//
+// DELETE IN: 5.1.0.
+//
+// Once RBAC is open sourced, remove this and rename "ExtendedAdminUserRules" to
+// "AdminUserRules".
 var AdminUserRules = []Rule{
 	NewRule(KindRole, RW()),
 	NewRule(KindAuthConnector, RW()),
@@ -53,16 +59,32 @@ var AdminUserRules = []Rule{
 	NewRule(KindEvent, RO()),
 }
 
+// ExtendedAdminUserRules provides access to the default set of rules assigned to
+// all users.
+var ExtendedAdminUserRules = []Rule{
+	NewRule(KindRole, RW()),
+	NewRule(KindAuthConnector, RW()),
+	NewRule(KindSession, RO()),
+	NewRule(KindTrustedCluster, RW()),
+	NewRule(KindEvent, RO()),
+	NewRule(KindUser, RW()),
+	NewRule(KindToken, RW()),
+}
+
 // DefaultImplicitRules provides access to the default set of implicit rules
 // assigned to all roles.
 var DefaultImplicitRules = []Rule{
 	NewRule(KindNode, RO()),
+	NewRule(KindProxy, RO()),
 	NewRule(KindAuthServer, RO()),
 	NewRule(KindReverseTunnel, RO()),
 	NewRule(KindCertAuthority, ReadNoSecrets()),
 	NewRule(KindClusterAuthPreference, RO()),
 	NewRule(KindClusterName, RO()),
 	NewRule(KindSSHSession, RO()),
+	NewRule(KindAppServer, RO()),
+	NewRule(KindRemoteCluster, RO()),
+	NewRule(KindKubeService, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
@@ -89,6 +111,14 @@ func RoleNameForCertAuthority(name string) string {
 // NewAdminRole is the default admin role for all local users if another role
 // is not explicitly assigned (this role applies to all users in OSS version).
 func NewAdminRole() Role {
+	// DELETE IN: 5.1.0
+	//
+	// Only needed until 5.1 when user and token management will be added to OSS.
+	adminRules := CopyRulesSlice(AdminUserRules)
+	if modules.GetModules().ExtendAdminUserRules() {
+		adminRules = CopyRulesSlice(ExtendedAdminUserRules)
+	}
+
 	role := &RoleV3{
 		Kind:    KindRole,
 		Version: V3,
@@ -105,9 +135,11 @@ func NewAdminRole() Role {
 				BPF:               defaults.EnhancedEvents(),
 			},
 			Allow: RoleConditions{
-				Namespaces: []string{defaults.Namespace},
-				NodeLabels: Labels{Wildcard: []string{Wildcard}},
-				Rules:      CopyRulesSlice(AdminUserRules),
+				Namespaces:       []string{defaults.Namespace},
+				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
+				AppLabels:        Labels{Wildcard: []string{Wildcard}},
+				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
+				Rules:            adminRules,
 			},
 		},
 	}
@@ -161,9 +193,11 @@ func RoleForUser(u User) Role {
 				BPF:               defaults.EnhancedEvents(),
 			},
 			Allow: RoleConditions{
-				Namespaces: []string{defaults.Namespace},
-				NodeLabels: Labels{Wildcard: []string{Wildcard}},
-				Rules:      CopyRulesSlice(AdminUserRules),
+				Namespaces:       []string{defaults.Namespace},
+				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
+				AppLabels:        Labels{Wildcard: []string{Wildcard}},
+				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
+				Rules:            CopyRulesSlice(AdminUserRules),
 			},
 		},
 	}
@@ -183,9 +217,11 @@ func RoleForCertAuthority(ca CertAuthority) Role {
 				MaxSessionTTL: NewDuration(defaults.MaxCertDuration),
 			},
 			Allow: RoleConditions{
-				Namespaces: []string{defaults.Namespace},
-				NodeLabels: Labels{Wildcard: []string{Wildcard}},
-				Rules:      CopyRulesSlice(DefaultCertAuthorityRules),
+				Namespaces:       []string{defaults.Namespace},
+				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
+				AppLabels:        Labels{Wildcard: []string{Wildcard}},
+				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
+				Rules:            CopyRulesSlice(DefaultCertAuthorityRules),
 			},
 		},
 	}
@@ -263,6 +299,23 @@ type Role interface {
 	GetNodeLabels(RoleConditionType) Labels
 	// SetNodeLabels sets the map of node labels this role is allowed or denied access to.
 	SetNodeLabels(RoleConditionType, Labels)
+
+	// GetAppLabels gets the map of app labels this role is allowed or denied access to.
+	GetAppLabels(RoleConditionType) Labels
+	// SetAppLabels sets the map of app labels this role is allowed or denied access to.
+	SetAppLabels(RoleConditionType, Labels)
+
+	// GetClusterLabels gets the map of cluster labels this role is allowed or denied access to.
+	GetClusterLabels(RoleConditionType) Labels
+	// SetClusterLabels sets the map of cluster labels this role is allowed or denied access to.
+	SetClusterLabels(RoleConditionType, Labels)
+
+	// GetKubernetesLabels gets the map of kubernetes labels this role is
+	// allowed or denied access to.
+	GetKubernetesLabels(RoleConditionType) Labels
+	// SetKubernetesLabels sets the map of kubernetes labels this role is
+	// allowed or denied access to.
+	SetKubernetesLabels(RoleConditionType, Labels)
 
 	// GetRules gets all allow or deny rules.
 	GetRules(rct RoleConditionType) []Rule
@@ -345,37 +398,59 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 		}
 		r.SetKubeUsers(condition, utils.Deduplicate(outKubeUsers))
 
+		// apply templates to node labels
 		inLabels := r.GetNodeLabels(condition)
-		// to avoid unnecessary allocations
 		if inLabels != nil {
-			outLabels := make(Labels, len(inLabels))
+			r.SetNodeLabels(condition, applyLabelsTraits(inLabels, traits))
+		}
 
-			// every key will be mapped to the first value
-			for key, vals := range inLabels {
-				keyVars, err := applyValueTraits(key, traits)
-				if err != nil {
-					// empty key will not match anything
-					log.Debugf("Setting empty node label pair %q -> %q: %v", key, vals, err)
-					keyVars = []string{""}
-				}
-
-				var values []string
-				for _, val := range vals {
-					valVars, err := applyValueTraits(val, traits)
-					if err != nil {
-						log.Debugf("Setting empty node label value %q -> %q: %v", key, val, err)
-						// empty value will not match anything
-						valVars = []string{""}
-					}
-					values = append(values, valVars...)
-				}
-				outLabels[keyVars[0]] = utils.Deduplicate(values)
-			}
-			r.SetNodeLabels(condition, outLabels)
+		// apply templates to cluster labels
+		inLabels = r.GetClusterLabels(condition)
+		if inLabels != nil {
+			r.SetClusterLabels(condition, applyLabelsTraits(inLabels, traits))
 		}
 	}
 
 	return r
+}
+
+// applyLabelsTraits interpolates variables based on the templates
+// and traits from identity provider. For example:
+//
+// cluster_labels:
+//   env: ['{{external.groups}}']
+//
+// and groups: ['admins', 'devs']
+//
+// will be interpolated to:
+//
+// cluster_labels:
+//   env: ['admins', 'devs']
+//
+func applyLabelsTraits(inLabels Labels, traits map[string][]string) Labels {
+	outLabels := make(Labels, len(inLabels))
+	// every key will be mapped to the first value
+	for key, vals := range inLabels {
+		keyVars, err := applyValueTraits(key, traits)
+		if err != nil {
+			// empty key will not match anything
+			log.Debugf("Setting empty node label pair %q -> %q: %v", key, vals, err)
+			keyVars = []string{""}
+		}
+
+		var values []string
+		for _, val := range vals {
+			valVars, err := applyValueTraits(val, traits)
+			if err != nil {
+				log.Debugf("Setting empty node label value %q -> %q: %v", key, val, err)
+				// empty value will not match anything
+				valVars = []string{""}
+			}
+			values = append(values, valVars...)
+		}
+		outLabels[keyVars[0]] = utils.Deduplicate(values)
+	}
+	return outLabels
 }
 
 // applyValueTraits applies the passed in traits to the variable,
@@ -456,7 +531,16 @@ func (r *RoleV3) Equals(other Role) bool {
 		if !r.GetNodeLabels(condition).Equals(other.GetNodeLabels(condition)) {
 			return false
 		}
+		if !r.GetAppLabels(condition).Equals(other.GetAppLabels(condition)) {
+			return false
+		}
 		if !RuleSlicesEqual(r.GetRules(condition), other.GetRules(condition)) {
+			return false
+		}
+		if !r.GetClusterLabels(condition).Equals(other.GetClusterLabels(condition)) {
+			return false
+		}
+		if !r.GetKubernetesLabels(condition).Equals(other.GetKubernetesLabels(condition)) {
 			return false
 		}
 	}
@@ -624,6 +708,57 @@ func (r *RoleV3) SetNodeLabels(rct RoleConditionType, labels Labels) {
 	}
 }
 
+// GetAppLabels gets the map of app labels this role is allowed or denied access to.
+func (r *RoleV3) GetAppLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return r.Spec.Allow.AppLabels
+	}
+	return r.Spec.Deny.AppLabels
+}
+
+// SetAppLabels sets the map of node labels this role is allowed or denied access to.
+func (r *RoleV3) SetAppLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.AppLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.AppLabels = labels.Clone()
+	}
+}
+
+// GetClusterLabels gets the map of cluster labels this role is allowed or denied access to.
+func (r *RoleV3) GetClusterLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return r.Spec.Allow.ClusterLabels
+	}
+	return r.Spec.Deny.ClusterLabels
+}
+
+// SetClusterLabels sets the map of cluster labels this role is allowed or denied access to.
+func (r *RoleV3) SetClusterLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.ClusterLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.ClusterLabels = labels.Clone()
+	}
+}
+
+// GetKubernetesLabels gets the map of app labels this role is allowed or denied access to.
+func (r *RoleV3) GetKubernetesLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return r.Spec.Allow.KubernetesLabels
+	}
+	return r.Spec.Deny.KubernetesLabels
+}
+
+// SetKubernetesLabels sets the map of node labels this role is allowed or denied access to.
+func (r *RoleV3) SetKubernetesLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.KubernetesLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.KubernetesLabels = labels.Clone()
+	}
+}
+
 // GetRules gets all allow or deny rules.
 func (r *RoleV3) GetRules(rct RoleConditionType) []Rule {
 	if rct == Allow {
@@ -667,8 +802,22 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		r.Spec.Allow.Namespaces = []string{defaults.Namespace}
 	}
 	if r.Spec.Allow.NodeLabels == nil {
-		r.Spec.Allow.NodeLabels = Labels{Wildcard: []string{Wildcard}}
+		if len(r.Spec.Allow.Logins) == 0 {
+			// no logins implies no node access
+			r.Spec.Allow.NodeLabels = Labels{}
+		} else {
+			r.Spec.Allow.NodeLabels = Labels{Wildcard: []string{Wildcard}}
+		}
 	}
+
+	if r.Spec.Allow.AppLabels == nil {
+		r.Spec.Allow.AppLabels = Labels{Wildcard: []string{Wildcard}}
+	}
+
+	if r.Spec.Allow.KubernetesLabels == nil {
+		r.Spec.Allow.KubernetesLabels = Labels{Wildcard: []string{Wildcard}}
+	}
+
 	if r.Spec.Deny.Namespaces == nil {
 		r.Spec.Deny.Namespaces = []string{defaults.Namespace}
 	}
@@ -711,6 +860,16 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 			return trace.BadParameter("selector *:<val> is not supported")
 		}
 	}
+	for key, val := range r.Spec.Allow.AppLabels {
+		if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {
+			return trace.BadParameter("selector *:<val> is not supported")
+		}
+	}
+	for key, val := range r.Spec.Allow.KubernetesLabels {
+		if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {
+			return trace.BadParameter("selector *:<val> is not supported")
+		}
+	}
 	for i := range r.Spec.Allow.Rules {
 		err := r.Spec.Allow.Rules[i].CheckAndSetDefaults()
 		if err != nil {
@@ -723,6 +882,7 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 			return trace.BadParameter("failed to process 'deny' rule %v: %v", i, err)
 		}
 	}
+
 	return nil
 }
 
@@ -753,6 +913,12 @@ func (r *RoleConditions) Equals(o RoleConditions) bool {
 		return false
 	}
 	if !r.NodeLabels.Equals(o.NodeLabels) {
+		return false
+	}
+	if !r.AppLabels.Equals(o.AppLabels) {
+		return false
+	}
+	if !r.KubernetesLabels.Equals(o.KubernetesLabels) {
 		return false
 	}
 	if len(r.Rules) != len(o.Rules) {
@@ -1034,279 +1200,6 @@ func RuleSlicesEqual(a, b []Rule) bool {
 	return true
 }
 
-// RoleV2 represents role resource specification
-type RoleV2 struct {
-	// Kind is a resource kind - always resource
-	Kind string `json:"kind"`
-	// SubKind is a resource subkind
-	SubKind string `json:"sub_kind,omitempty"`
-	// Version is a resource version
-	Version string `json:"version"`
-	// Metadata is Role metadata
-	Metadata Metadata `json:"metadata"`
-	// Spec contains role specification
-	Spec RoleSpecV2 `json:"spec"`
-}
-
-// GetVersion returns resource version
-func (r *RoleV2) GetVersion() string {
-	return r.Version
-}
-
-// GetKind returns resource kind
-func (r *RoleV2) GetKind() string {
-	return r.Kind
-}
-
-// GetSubKind returns resource sub kind
-func (r *RoleV2) GetSubKind() string {
-	return r.SubKind
-}
-
-// SetSubKind sets resource subkind
-func (r *RoleV2) SetSubKind(s string) {
-	r.SubKind = s
-}
-
-// GetResourceID returns resource ID
-func (r *RoleV2) GetResourceID() int64 {
-	return r.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (r *RoleV2) SetResourceID(id int64) {
-	r.Metadata.ID = id
-}
-
-// Equals test roles for equality. Roles are considered equal if all resources,
-// logins, namespaces, labels, and options match.
-func (r *RoleV2) Equals(other Role) bool {
-	return r.V3().Equals(other)
-}
-
-// SetResource sets resource rule
-func (r *RoleV2) SetResource(kind string, actions []string) {
-	if r.Spec.Resources == nil {
-		r.Spec.Resources = make(map[string][]string)
-	}
-	r.Spec.Resources[kind] = actions
-}
-
-// RemoveResource deletes resource entry
-func (r *RoleV2) RemoveResource(kind string) {
-	delete(r.Spec.Resources, kind)
-}
-
-// SetLogins sets logins for role
-func (r *RoleV2) SetLogins(logins []string) {
-	r.Spec.Logins = logins
-}
-
-// SetNodeLabels sets node labels for role
-func (r *RoleV2) SetNodeLabels(labels map[string]string) {
-	r.Spec.NodeLabels = labels
-}
-
-// SetMaxSessionTTL sets a maximum TTL for SSH or Web session
-func (r *RoleV2) SetMaxSessionTTL(duration time.Duration) {
-	r.Spec.MaxSessionTTL = Duration(duration)
-}
-
-// SetExpiry sets expiry time for the object
-func (r *RoleV2) SetExpiry(expires time.Time) {
-	r.Metadata.SetExpiry(expires)
-}
-
-// Expires returns object expiry setting
-func (r *RoleV2) Expiry() time.Time {
-	return r.Metadata.Expiry()
-}
-
-// SetTTL sets Expires header using realtime clock
-func (r *RoleV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
-	r.Metadata.SetTTL(clock, ttl)
-}
-
-// SetName is a shortcut for SetMetadata().Name
-func (r *RoleV2) SetName(s string) {
-	r.Metadata.Name = s
-}
-
-// GetName returns role name and is a shortcut for GetMetadata().Name
-func (r *RoleV2) GetName() string {
-	return r.Metadata.Name
-}
-
-// GetMetadata returns role metadata
-func (r *RoleV2) GetMetadata() Metadata {
-	return r.Metadata
-}
-
-// GetMaxSessionTTL is a maximum SSH or Web session TTL
-func (r *RoleV2) GetMaxSessionTTL() Duration {
-	return r.Spec.MaxSessionTTL
-}
-
-// GetLogins returns a list of linux logins allowed for this role
-func (r *RoleV2) GetLogins() []string {
-	return r.Spec.Logins
-}
-
-// GetNodeLabels returns a list of matchign nodes this role has access to
-func (r *RoleV2) GetNodeLabels() map[string]string {
-	return r.Spec.NodeLabels
-}
-
-// GetNamespaces returns a list of namespaces this role has access to
-func (r *RoleV2) GetNamespaces() []string {
-	return r.Spec.Namespaces
-}
-
-// SetNamespaces sets a list of namespaces this role has access to
-func (r *RoleV2) SetNamespaces(namespaces []string) {
-	r.Spec.Namespaces = namespaces
-}
-
-// GetResources returns access to resources
-func (r *RoleV2) GetResources() map[string][]string {
-	return r.Spec.Resources
-}
-
-// CanForwardAgent returns true if this role is allowed
-// to request agent forwarding
-func (r *RoleV2) CanForwardAgent() bool {
-	return r.Spec.ForwardAgent
-}
-
-// SetForwardAgent sets forward agent property
-func (r *RoleV2) SetForwardAgent(forwardAgent bool) {
-	r.Spec.ForwardAgent = forwardAgent
-}
-
-// Check checks validity of all parameters and sets defaults
-func (r *RoleV2) CheckAndSetDefaults() error {
-	// make sure we have defaults for all fields
-	if r.Metadata.Name == "" {
-		return trace.BadParameter("missing parameter Name")
-	}
-	if r.Metadata.Namespace == "" {
-		r.Metadata.Namespace = defaults.Namespace
-	}
-	if r.Spec.MaxSessionTTL == 0 {
-		r.Spec.MaxSessionTTL = Duration(defaults.MaxCertDuration)
-	}
-	if r.Spec.MaxSessionTTL.Duration() < defaults.MinCertDuration {
-		return trace.BadParameter("maximum session TTL can not be less than %v", defaults.MinCertDuration)
-	}
-	if r.Spec.Namespaces == nil {
-		r.Spec.Namespaces = []string{defaults.Namespace}
-	}
-	if r.Spec.NodeLabels == nil {
-		r.Spec.NodeLabels = map[string]string{Wildcard: Wildcard}
-	}
-	if r.Spec.Resources == nil {
-		r.Spec.Resources = map[string][]string{
-			KindSSHSession:    RO(),
-			KindRole:          RO(),
-			KindNode:          RO(),
-			KindAuthServer:    RO(),
-			KindReverseTunnel: RO(),
-			KindCertAuthority: RO(),
-		}
-	}
-
-	// restrict wildcards
-	for _, login := range r.Spec.Logins {
-		if login == Wildcard {
-			return trace.BadParameter("wildcard matcher is not allowed in logins")
-		}
-	}
-	for key, val := range r.Spec.NodeLabels {
-		if key == Wildcard && val != Wildcard {
-			return trace.BadParameter("selector *:<val> is not supported")
-		}
-	}
-
-	return nil
-}
-
-func (r *RoleV2) V3() *RoleV3 {
-	role := &RoleV3{
-		Kind:     KindRole,
-		Version:  V3,
-		Metadata: r.Metadata,
-		Spec: RoleSpecV3{
-			Options: RoleOptions{
-				CertificateFormat: teleport.CertificateFormatStandard,
-				MaxSessionTTL:     r.GetMaxSessionTTL(),
-				PortForwarding:    NewBoolOption(true),
-				BPF:               defaults.EnhancedEvents(),
-			},
-			Allow: RoleConditions{
-				Logins:     r.GetLogins(),
-				Namespaces: r.GetNamespaces(),
-				NodeLabels: scalarLabels(r.GetNodeLabels()).labels(),
-			},
-		},
-	}
-
-	// translate old v2 agent forwarding to a v3 option
-	if r.CanForwardAgent() {
-		role.Spec.Options.ForwardAgent = NewBool(true)
-	}
-
-	// translate old v2 resources to v3 rules
-	rules := []Rule{}
-	for resource, actions := range r.GetResources() {
-		var verbs []string
-
-		containsRead := utils.SliceContainsStr(actions, ActionRead)
-		containsWrite := utils.SliceContainsStr(actions, ActionWrite)
-
-		if containsRead && containsWrite {
-			verbs = RW()
-		} else if containsRead {
-			verbs = RO()
-		} else if containsWrite {
-			// in RoleV2 ActionWrite implied the ability to read secrets.
-			verbs = []string{VerbCreate, VerbRead, VerbUpdate, VerbDelete}
-		}
-
-		rules = append(rules, NewRule(resource, verbs))
-	}
-	role.Spec.Allow.Rules = rules
-
-	err := role.CheckAndSetDefaults()
-	if err != nil {
-		// as V2 to V3 migration should not throw any errors, we can ignore this error
-		log.Warnf("[RBAC] Errors while converting %v from V2 to V3: %v ", r.String(), err)
-	}
-
-	return role
-}
-
-func (r *RoleV2) String() string {
-	return fmt.Sprintf("Role(Name=%v,MaxSessionTTL=%v,Logins=%v,NodeLabels=%v,Namespaces=%v,Resources=%v,CanForwardAgent=%v)",
-		r.GetName(), r.GetMaxSessionTTL(), r.GetLogins(), r.GetNodeLabels(), r.GetNamespaces(), r.GetResources(), r.CanForwardAgent())
-}
-
-// RoleSpecV2 is role specification for RoleV2
-type RoleSpecV2 struct {
-	// MaxSessionTTL is a maximum SSH or Web session TTL
-	MaxSessionTTL Duration `json:"max_session_ttl" yaml:"max_session_ttl"`
-	// Logins is a list of linux logins allowed for this role
-	Logins []string `json:"logins,omitempty" yaml:"logins,omitempty"`
-	// NodeLabels is a set of matching labels that users of this role
-	// will be allowed to access
-	NodeLabels map[string]string `json:"node_labels,omitempty" yaml:"node_labels,omitempty"`
-	// Namespaces is a list of namespaces, guarding access to resources
-	Namespaces []string `json:"namespaces,omitempty" yaml:"namespaces,omitempty"`
-	// Resources limits access to resources
-	Resources map[string][]string `json:"resources,omitempty" yaml:"resources,omitempty"`
-	// ForwardAgent permits SSH agent forwarding if requested by the client
-	ForwardAgent bool `json:"forward_agent" yaml:"forward_agent"`
-}
-
 // AccessChecker interface implements access checks for given role or role set
 type AccessChecker interface {
 	// HasRole checks if the checker includes the role
@@ -1317,6 +1210,9 @@ type AccessChecker interface {
 
 	// CheckAccessToServer checks access to server.
 	CheckAccessToServer(login string, server Server) error
+
+	// CheckAccessToRemoteCluster checks access to remote cluster
+	CheckAccessToRemoteCluster(cluster RemoteCluster) error
 
 	// CheckAccessToRule checks access to a rule within a namespace.
 	CheckAccessToRule(context RuleContext, namespace string, rule string, verb string, silent bool) error
@@ -1363,6 +1259,12 @@ type AccessChecker interface {
 	// EnhancedRecordingSet returns a set of events that will be recorded
 	// for enhanced session recording.
 	EnhancedRecordingSet() map[string]bool
+
+	// CheckAccessToApp checks access to an application.
+	CheckAccessToApp(string, *App) error
+
+	// CheckAccessToKubernetes checks access to a kubernetes cluster.
+	CheckAccessToKubernetes(string, *KubernetesCluster) error
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -1748,6 +1650,14 @@ func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
 	if !matchedTTL {
 		return nil, trace.AccessDenied("this user cannot request a certificate for %v", ttl)
 	}
+	if len(logins) == 0 && !set.hasPossibleLogins() {
+		// user was deliberately configured to have no login capability,
+		// but ssh certificates must contain at least one valid principal.
+		// we add a single distinctive value which should be unique, and
+		// will never be a valid unix login (due to leading '-').
+		logins["-teleport-nologin-"+uuid.New()] = true
+	}
+
 	if len(logins) == 0 {
 		return nil, trace.AccessDenied("this user cannot create SSH sessions, has no allowed logins")
 	}
@@ -1756,6 +1666,101 @@ func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
 		out = append(out, login)
 	}
 	return out, nil
+}
+
+// CheckAccessToRemoteCluster checks if a role has access to remote cluster. Deny rules are
+// checked first then allow rules. Access to a cluster is determined by
+// namespaces, labels, and logins.
+//
+// Note, logging in this function only happens in debug mode, this is because
+// adding logging to this function (which is called on every server returned
+// by GetRemoteClusters) can slow down this function by 50x for large clusters!
+func (set RoleSet) CheckAccessToRemoteCluster(rc RemoteCluster) error {
+	if len(set) == 0 {
+		return trace.AccessDenied("access to cluster denied")
+	}
+
+	var errs []error
+
+	rcLabels := rc.GetMetadata().Labels
+
+	// For backwards compatibility, if there is no role in the set with labels and the cluster
+	// has no labels, assume that the role set has access to the cluster.
+	usesLabels := false
+	for _, role := range set {
+		if len(role.GetClusterLabels(Allow)) != 0 || len(role.GetClusterLabels(Deny)) != 0 {
+			usesLabels = true
+			break
+		}
+	}
+
+	if usesLabels == false && len(rcLabels) == 0 {
+		if log.GetLevel() == log.DebugLevel {
+			log.WithFields(log.Fields{
+				trace.Component: teleport.ComponentRBAC,
+			}).Debugf("Grant access to cluster %v - no role in %v uses cluster labels and the cluster is not labeled.",
+				rc.GetName(), set.RoleNames())
+		}
+		return nil
+	}
+
+	// Check deny rules first: a single matching label from
+	// the deny role set prohibits access.
+	for _, role := range set {
+		matchLabels, labelsMessage, err := MatchLabels(role.GetClusterLabels(Deny), rcLabels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matchLabels {
+			// This condition avoids formatting calls on large scale.
+			if log.GetLevel() == log.DebugLevel {
+				log.WithFields(log.Fields{
+					trace.Component: teleport.ComponentRBAC,
+				}).Debugf("Access to cluster %v denied, deny rule in %v matched; match(label=%v)",
+					rc.GetName(), role.GetName(), labelsMessage)
+			}
+			return trace.AccessDenied("access to cluster denied")
+		}
+	}
+
+	// Check allow rules: label has to match in any role in the role set to be granted access.
+	for _, role := range set {
+		matchLabels, labelsMessage, err := MatchLabels(role.GetClusterLabels(Allow), rcLabels)
+		log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentRBAC,
+		}).Debugf("Check access to role(%v) rc(%v, labels=%v) matchLabels=%v, msg=%v, err=%v allow=%v rcLabels=%v",
+			role.GetName(), rc.GetName(), rcLabels, matchLabels, labelsMessage, err, role.GetClusterLabels(Allow), rcLabels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matchLabels {
+			return nil
+		}
+		if log.GetLevel() == log.DebugLevel {
+			deniedError := trace.AccessDenied("role=%v, match(label=%v)",
+				role.GetName(), labelsMessage)
+			errs = append(errs, deniedError)
+		}
+	}
+
+	if log.GetLevel() == log.DebugLevel {
+		log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentRBAC,
+		}).Debugf("Access to cluster %v denied, no allow rule matched; %v", rc.GetName(), errs)
+	}
+	return trace.AccessDenied("access to cluster denied")
+}
+
+func (set RoleSet) hasPossibleLogins() bool {
+	for _, role := range set {
+		if role.GetName() == teleport.DefaultImplicitRole {
+			continue
+		}
+		if len(role.GetLogins(Allow)) != 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // CheckAccessToServer checks if a role has access to a node. Deny rules are
@@ -1813,6 +1818,106 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 		}).Debugf("Access to node %v denied, no allow rule matched; %v", s.GetHostname(), errs)
 	}
 	return trace.AccessDenied("access to server denied")
+}
+
+// CheckAccessToApp checks if a role has access to an application. Deny rules
+// are checked first, then allow rules. Access to an application is determined by
+// namespaces and labels.
+func (set RoleSet) CheckAccessToApp(namespace string, app *App) error {
+	var errs []error
+
+	// Check deny rules: a matching namespace and label in the deny section
+	// prohibits access.
+	for _, role := range set {
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), namespace)
+		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Deny), CombineLabels(app.StaticLabels, app.DynamicLabels))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matchNamespace && matchLabels {
+			if log.GetLevel() == log.DebugLevel {
+				log.WithFields(log.Fields{
+					trace.Component: teleport.ComponentRBAC,
+				}).Debugf("Access to app %v denied, deny rule in %v matched; match(namespace=%v, label=%v)",
+					app.Name, role.GetName(), namespaceMessage, labelsMessage)
+			}
+			return trace.AccessDenied("access to app denied")
+		}
+	}
+
+	// Check allow rules: namespace and label both have to match to be granted access.
+	for _, role := range set {
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), namespace)
+		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Allow), CombineLabels(app.StaticLabels, app.DynamicLabels))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matchNamespace && matchLabels {
+			return nil
+		}
+		if log.GetLevel() == log.DebugLevel {
+			deniedError := trace.AccessDenied("role=%v, match(namespace=%v, label=%v)",
+				role.GetName(), namespaceMessage, labelsMessage)
+			errs = append(errs, deniedError)
+		}
+	}
+
+	if log.GetLevel() == log.DebugLevel {
+		log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentRBAC,
+		}).Debugf("Access to app %v denied, no allow rule matched; %v", app.Name, errs)
+	}
+	return trace.AccessDenied("access to app denied")
+}
+
+// CheckAccessToKubernetes checks if a role has access to a kubernetes cluster.
+// Deny rules are checked first, then allow rules. Access to a kubernetes
+// cluster is determined by namespaces and labels.
+func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesCluster) error {
+	var errs []error
+
+	// Check deny rules: a matching namespace and label in the deny section
+	// prohibits access.
+	for _, role := range set {
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), namespace)
+		matchLabels, labelsMessage, err := MatchLabels(role.GetKubernetesLabels(Deny), CombineLabels(kube.StaticLabels, kube.DynamicLabels))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matchNamespace && matchLabels {
+			if log.GetLevel() == log.DebugLevel {
+				log.WithFields(log.Fields{
+					trace.Component: teleport.ComponentRBAC,
+				}).Debugf("Access to kubernetes cluster %v denied, deny rule in %v matched; match(namespace=%v, label=%v)",
+					kube.Name, role.GetName(), namespaceMessage, labelsMessage)
+			}
+			return trace.AccessDenied("access to kubernetes cluster denied")
+		}
+	}
+
+	// Check allow rules: namespace and label both have to match to be granted access.
+	for _, role := range set {
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), namespace)
+		matchLabels, labelsMessage, err := MatchLabels(role.GetKubernetesLabels(Allow), CombineLabels(kube.StaticLabels, kube.DynamicLabels))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matchNamespace && matchLabels {
+			return nil
+		}
+		if log.GetLevel() == log.DebugLevel {
+			deniedError := trace.AccessDenied("role=%v, match(namespace=%v, label=%v)",
+				role.GetName(), namespaceMessage, labelsMessage)
+			errs = append(errs, deniedError)
+		}
+	}
+
+	if log.GetLevel() == log.DebugLevel {
+		log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentRBAC,
+		}).Debugf("Access to kubernetes cluster %v denied, no allow rule matched; %v", kube.Name, errs)
+	}
+	return trace.AccessDenied("access to kubernetes cluster denied")
 }
 
 // CanForwardAgents returns true if role set allows forwarding agents.
@@ -2097,18 +2202,6 @@ func (l Labels) Equals(o Labels) bool {
 	return true
 }
 
-// scalarLabels is a key value map
-// with scalar values
-type scalarLabels map[string]string
-
-func (l scalarLabels) labels() Labels {
-	out := make(Labels, len(l))
-	for key, val := range l {
-		out[key] = []string{val}
-	}
-	return out
-}
-
 // Bool is a wrapper around boolean values
 type Bool bool
 
@@ -2326,7 +2419,9 @@ const RoleSpecV3SchemaTemplate = `{
           "items": { "type": "string" }
         },
         "max_connections": { "type": "number" },
-        "max_sessions": {"type": "number"}
+        "max_sessions": {"type": "number"},
+        "request_access": { "type": "string" },
+        "request_prompt": { "type": "string" }
       }
     },
     "allow": { "$ref": "#/definitions/role_condition" },
@@ -2349,6 +2444,13 @@ const RoleSpecV3SchemaDefinitions = `
           "^[a-zA-Z/.0-9_*-]+$": { "anyOf": [{"type": "string"}, { "type": "array", "items": {"type": "string"}}]}
         }
       },
+      "cluster_labels": {
+        "type": "object",
+        "additionalProperties": false,
+        "patternProperties": {
+          "^[a-zA-Z/.0-9_*-]+$": { "anyOf": [{"type": "string"}, { "type": "array", "items": {"type": "string"}}]}
+        }
+      },
       "logins": {
         "type": "array",
         "items": { "type": "string" }
@@ -2364,7 +2466,21 @@ const RoleSpecV3SchemaDefinitions = `
 		  "roles": {
 		    "type": "array",
 			"items": { "type": "string" }
-		  }
+		  },
+          "claims_to_roles": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "claim": {"type": "string"},
+              "value": {"type": "string"},
+              "roles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
 		}
 	  },
       "rules": {
@@ -2395,51 +2511,11 @@ const RoleSpecV3SchemaDefinitions = `
   }
 `
 
-const RoleSpecV2SchemaTemplate = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-    "max_session_ttl": {"type": "string"},
-    "forward_agent": {"type": "boolean"},
-    "node_labels": {
-      "type": "object",
-      "patternProperties": {
-         "^[a-zA-Z/.0-9_-]$":  { "type": "string" }
-      }
-    },
-    "namespaces": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "logins": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "resources": {
-      "type": "object",
-      "patternProperties": {
-         "^[a-zA-Z/.0-9_]$":  { "type": "array", "items": {"type": "string"} }
-       }
-    }%v
-  }
-}`
-
 // GetRoleSchema returns role schema for the version requested with optionally
 // injected schema for extensions.
 func GetRoleSchema(version string, extensionSchema string) string {
 	schemaDefinitions := "," + RoleSpecV3SchemaDefinitions
-	if version == V2 {
-		schemaDefinitions = DefaultDefinitions
-	}
-
 	schemaTemplate := RoleSpecV3SchemaTemplate
-	if version == V2 {
-		schemaTemplate = RoleSpecV2SchemaTemplate
-	}
 
 	schema := fmt.Sprintf(schemaTemplate, ``)
 	if extensionSchema != "" {
@@ -2454,7 +2530,7 @@ func UnmarshalRole(data []byte, opts ...MarshalOption) (*RoleV3, error) {
 	var h ResourceHeader
 	err := json.Unmarshal(data, &h)
 	if err != nil {
-		h.Version = V2
+		return nil, trace.Wrap(err)
 	}
 
 	cfg, err := collectOptions(opts)
@@ -2463,19 +2539,6 @@ func UnmarshalRole(data []byte, opts ...MarshalOption) (*RoleV3, error) {
 	}
 
 	switch h.Version {
-	case V2:
-		var role RoleV2
-		if err := utils.UnmarshalWithSchema(GetRoleSchema(V2, ""), &role, data); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-
-		if err := role.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		roleV3 := role.V3()
-		roleV3.SetResourceID(cfg.ID)
-		return roleV3, nil
 	case V3:
 		var role RoleV3
 		if cfg.SkipValidation {

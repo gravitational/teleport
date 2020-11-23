@@ -29,7 +29,6 @@ import (
 	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 )
 
 // OIDCConnector specifies configuration for Open ID Connect compatible external
@@ -54,14 +53,15 @@ type OIDCConnector interface {
 	GetProvider() string
 	// Display - Friendly name for this provider.
 	GetDisplay() string
-	// Scope is additional scopes set by provder
+	// Scope is additional scopes set by provider
 	GetScope() []string
 	// ClaimsToRoles specifies dynamic mapping from claims to roles
 	GetClaimsToRoles() []ClaimMapping
 	// GetClaims returns list of claims expected by mappings
 	GetClaims() []string
-	// MapClaims maps claims to roles
-	MapClaims(claims jose.Claims) []string
+	// GetTraitMappings converts gets all claim mappings in the
+	// generic trait mapping format.
+	GetTraitMappings() TraitMappingSet
 	// Check checks OIDC connector for errors
 	Check() error
 	// CheckAndSetDefaults checks and set default values for any missing fields.
@@ -141,7 +141,7 @@ func GetOIDCConnectorSchema() string {
 
 type TeleportOIDCConnectorMarshaler struct{}
 
-// UnmarshalOIDCConnector unmarshals connector from
+// UnmarshalOIDCConnector unmarshals connector from the specified byte payload
 func (*TeleportOIDCConnectorMarshaler) UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (OIDCConnector, error) {
 	cfg, err := collectOptions(opts)
 	if err != nil {
@@ -187,7 +187,7 @@ func (*TeleportOIDCConnectorMarshaler) UnmarshalOIDCConnector(bytes []byte, opts
 	return nil, trace.BadParameter("OIDC connector resource version %v is not supported", h.Version)
 }
 
-// MarshalUser marshals OIDC connector into JSON
+// MarshalOIDCConnector marshals OIDC connector into JSON
 func (*TeleportOIDCConnectorMarshaler) MarshalOIDCConnector(c OIDCConnector, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := collectOptions(opts)
 	if err != nil {
@@ -442,7 +442,7 @@ func (o *OIDCConnectorV2) GetDisplay() string {
 	return o.GetName()
 }
 
-// Scope is additional scopes set by provder
+// Scope is additional scopes set by provider
 func (o *OIDCConnectorV2) GetScope() []string {
 	return o.Spec.Scope
 }
@@ -461,42 +461,16 @@ func (o *OIDCConnectorV2) GetClaims() []string {
 	return utils.Deduplicate(out)
 }
 
-// MapClaims maps claims to roles
-func (o *OIDCConnectorV2) MapClaims(claims jose.Claims) []string {
-	var roles []string
+func (o *OIDCConnectorV2) GetTraitMappings() TraitMappingSet {
+	tms := make([]TraitMapping, 0, len(o.Spec.ClaimsToRoles))
 	for _, mapping := range o.Spec.ClaimsToRoles {
-		for claimName := range claims {
-			if claimName != mapping.Claim {
-				continue
-			}
-			var claimValues []string
-			claimValue, ok, _ := claims.StringClaim(claimName)
-			if ok {
-				claimValues = []string{claimValue}
-			} else {
-				claimValues, _, _ = claims.StringsClaim(claimName)
-			}
-		claimLoop:
-			for _, claimValue := range claimValues {
-				for _, role := range mapping.Roles {
-					outRole, err := utils.ReplaceRegexp(mapping.Value, role, claimValue)
-					switch {
-					case err != nil:
-						if trace.IsNotFound(err) {
-							log.Debugf("Failed to match expression %v, replace with: %v input: %v, err: %v", mapping.Value, role, claimValue, err)
-						}
-						// this claim value clearly did not match, move on to another
-						continue claimLoop
-						// skip empty replacement or empty role
-					case outRole == "":
-					case outRole != "":
-						roles = append(roles, outRole)
-					}
-				}
-			}
-		}
+		tms = append(tms, TraitMapping{
+			Trait: mapping.Claim,
+			Value: mapping.Value,
+			Roles: mapping.Roles,
+		})
 	}
-	return utils.Deduplicate(roles)
+	return TraitMappingSet(tms)
 }
 
 // Check returns nil if all parameters are great, err otherwise
@@ -519,19 +493,8 @@ func (o *OIDCConnectorV2) Check() error {
 
 	// make sure claim mappings have either roles or a role template
 	for _, v := range o.Spec.ClaimsToRoles {
-		hasRoles := false
-		if len(v.Roles) > 0 {
-			hasRoles = true
-		}
-		hasRoleTemplate := false
-		if v.RoleTemplate != nil {
-			hasRoleTemplate = true
-		}
-
-		// we either need to have roles or role templates not both or neither
-		// ! ( hasRoles XOR hasRoleTemplate )
-		if hasRoles == hasRoleTemplate {
-			return trace.BadParameter("need roles or role template (not both or none)")
+		if len(v.Roles) == 0 {
+			return trace.BadParameter("add roles in claims_to_roles")
 		}
 	}
 
@@ -603,7 +566,7 @@ type OIDCConnectorSpecV2 struct {
 	Provider string `json:"provider,omitempty"`
 	// Display - Friendly name for this provider.
 	Display string `json:"display,omitempty"`
-	// Scope is additional scopes set by provder
+	// Scope is additional scopes set by provider
 	Scope []string `json:"scope,omitempty"`
 	// Prompt is optional OIDC prompt, empty string omits prompt
 	// if not specified, defaults to select_account for backwards compatibility
@@ -664,12 +627,29 @@ type ClaimMapping struct {
 	Value string `json:"value"`
 	// Roles is a list of static teleport roles to match.
 	Roles []string `json:"roles,omitempty"`
-	// RoleTemplate a template role that will be filled out with claims.
-	RoleTemplate *RoleV2 `json:"role_template,omitempty"`
+}
+
+// OIDCClaimsToTraits converts OIDC-style claims into the standardized
+// teleport trait format.
+func OIDCClaimsToTraits(claims jose.Claims) map[string][]string {
+	traits := make(map[string][]string)
+
+	for claimName := range claims {
+		claimValue, ok, _ := claims.StringClaim(claimName)
+		if ok {
+			traits[claimName] = []string{claimValue}
+		}
+		claimValues, ok, _ := claims.StringsClaim(claimName)
+		if ok {
+			traits[claimName] = claimValues
+		}
+	}
+
+	return traits
 }
 
 // ClaimMappingSchema is JSON schema for claim mapping
-var ClaimMappingSchema = fmt.Sprintf(`{
+var ClaimMappingSchema = `{
   "type": "object",
   "additionalProperties": false,
   "required": ["claim", "value" ],
@@ -681,10 +661,9 @@ var ClaimMappingSchema = fmt.Sprintf(`{
       "items": {
         "type": "string"
       }
-    },
-    "role_template": %v
+    }
   }
-}`, GetRoleSchema(V2, ""))
+}`
 
 // OIDCConnectorV1 specifies configuration for Open ID Connect compatible external
 // identity provider, e.g. google in some organisation
@@ -704,7 +683,7 @@ type OIDCConnectorV1 struct {
 	RedirectURL string `json:"redirect_url"`
 	// Display - Friendly name for this provider.
 	Display string `json:"display"`
-	// Scope is additional scopes set by provder
+	// Scope is additional scopes set by provider
 	Scope []string `json:"scope"`
 	// ClaimsToRoles specifies dynamic mapping from claims to roles
 	ClaimsToRoles []ClaimMapping `json:"claims_to_roles"`

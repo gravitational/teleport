@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -487,9 +488,9 @@ func (c *Client) WaitForDelivery(context.Context) error {
 	return nil
 }
 
-// CreateCertAuthority inserts new cert authority
+// CreateCertAuthority not implemented: can only be called locally.
 func (c *Client) CreateCertAuthority(ca services.CertAuthority) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // RotateCertAuthority starts or restarts certificate authority rotation process.
@@ -589,16 +590,14 @@ func (c *Client) DeleteCertAuthority(id services.CertAuthID) error {
 	return trace.Wrap(err)
 }
 
-// ActivateCertAuthority moves a CertAuthority from the deactivated list to
-// the normal list.
+// ActivateCertAuthority not implemented: can only be called locally.
 func (c *Client) ActivateCertAuthority(id services.CertAuthID) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeactivateCertAuthority moves a CertAuthority from the normal list to
-// the deactivated list.
+// DeactivateCertAuthority not implemented: can only be called locally.
 func (c *Client) DeactivateCertAuthority(id services.CertAuthID) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // GenerateToken creates a special provisioning token for a new SSH server
@@ -727,8 +726,17 @@ func (c *Client) UpsertNode(s services.Server) (*services.KeepAlive, error) {
 	return keepAlive, nil
 }
 
-// KeepAliveNode updates node keep alive information
+// DELETE IN: 5.1.0
+//
+// This logic has been moved to KeepAliveServer.
+//
+// KeepAliveNode updates node keep alive information.
 func (c *Client) KeepAliveNode(ctx context.Context, keepAlive services.KeepAlive) error {
+	return trace.BadParameter("not implemented, use StreamKeepAlives instead")
+}
+
+// KeepAliveServer not implemented: can only be called locally.
+func (c *Client) KeepAliveServer(ctx context.Context, keepAlive services.KeepAlive) error {
 	return trace.BadParameter("not implemented, use StreamKeepAlives instead")
 }
 
@@ -855,6 +863,9 @@ type streamWatcher struct {
 func (w *streamWatcher) Error() error {
 	w.RLock()
 	defer w.RUnlock()
+	if w.err == nil {
+		return trace.Wrap(w.ctx.Err())
+	}
 	return w.err
 }
 
@@ -991,9 +1002,9 @@ func (c *Client) UpsertReverseTunnel(tunnel services.ReverseTunnel) error {
 	return trace.Wrap(err)
 }
 
-// GetReverseTunnel returns reverse tunnel by name
+// GetReverseTunnel not implemented: can only be called locally.
 func (c *Client) GetReverseTunnel(name string, opts ...services.MarshalOption) (services.ReverseTunnel, error) {
-	return nil, trace.NotImplemented("not implemented")
+	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
 // GetReverseTunnels returns the list of created reverse tunnels
@@ -1108,9 +1119,9 @@ func (c *Client) DeleteTunnelConnections(clusterName string) error {
 	return trace.Wrap(err)
 }
 
-// DeleteAllTokens deletes all tokens
+// DeleteAllTokens not implemented: can only be called locally.
 func (c *Client) DeleteAllTokens() error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // DeleteAllTunnelConnections deletes all tunnel connections
@@ -1190,9 +1201,23 @@ func (c *Client) CreateRemoteCluster(rc services.RemoteCluster) error {
 	return trace.Wrap(err)
 }
 
-// UpdateRemoteCluster updates remote cluster resource
+// UpdateRemoteCluster updates remote cluster.
 func (c *Client) UpdateRemoteCluster(ctx context.Context, rc services.RemoteCluster) error {
-	return trace.NotImplemented("not implemented: remote clusters can only be updated by auth server locally")
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	rcV3, ok := rc.(*services.RemoteClusterV3)
+	if !ok {
+		return trace.BadParameter("unsupported remote cluster type %T", rcV3)
+	}
+
+	if _, err := clt.UpdateRemoteCluster(ctx, rcV3); err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
 }
 
 // UpsertAuthServer is used by auth servers to report their presence
@@ -1230,14 +1255,14 @@ func (c *Client) GetAuthServers() ([]services.Server, error) {
 	return re, nil
 }
 
-// DeleteAllAuthServers deletes all auth servers
+// DeleteAllAuthServers not implemented: can only be called locally.
 func (c *Client) DeleteAllAuthServers() error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAuthServer deletes auth server by name
+// DeleteAuthServer not implemented: can only be called locally.
 func (c *Client) DeleteAuthServer(name string) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // UpsertProxy is used by proxies to report their presence
@@ -1408,11 +1433,12 @@ func (c *Client) GetU2FSignRequest(user string, password []byte) (*u2f.SignReque
 
 // ExtendWebSession creates a new web session for a user based on another
 // valid web session
-func (c *Client) ExtendWebSession(user string, prevSessionID string) (services.WebSession, error) {
+func (c *Client) ExtendWebSession(user string, prevSessionID string, accessRequestID string) (services.WebSession, error) {
 	out, err := c.PostJSON(
 		c.Endpoint("users", user, "web", "sessions"),
 		createWebSessionReq{
-			PrevSessionID: prevSessionID,
+			PrevSessionID:   prevSessionID,
+			AccessRequestID: accessRequestID,
 		},
 	)
 	if err != nil {
@@ -2402,9 +2428,9 @@ func (c *Client) GetRoles() ([]services.Role, error) {
 	return roles, nil
 }
 
-// CreateRole creates a role.
+// CreateRole not implemented: can only be called locally.
 func (c *Client) CreateRole(role services.Role) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // UpsertRole creates or updates role
@@ -2500,9 +2526,9 @@ func (c *Client) SetClusterName(cn services.ClusterName) error {
 	return nil
 }
 
-// UpsertClusterName updates or creates cluster name once
+// UpsertClusterName not implemented: can only be called locally.
 func (c *Client) UpsertClusterName(cn services.ClusterName) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // DeleteStaticTokens deletes static tokens
@@ -2574,44 +2600,44 @@ func (c *Client) GetLocalClusterName() (string, error) {
 	return c.GetDomainName()
 }
 
-// DeleteClusterConfig deletes cluster config
+// DeleteClusterConfig not implemented: can only be called locally.
 func (c *Client) DeleteClusterConfig() error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteClusterName deletes cluster name
+// DeleteClusterName not implemented: can only be called locally.
 func (c *Client) DeleteClusterName() error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// UpsertLocalClusterName upserts local cluster name
+// UpsertLocalClusterName not implemented: can only be called locally.
 func (c *Client) UpsertLocalClusterName(string) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllCertAuthorities deletes all certificate authorities of a certain type
+// DeleteAllCertAuthorities not implemented: can only be called locally.
 func (c *Client) DeleteAllCertAuthorities(caType services.CertAuthType) error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllReverseTunnels deletes all reverse tunnels
+// DeleteAllReverseTunnels not implemented: can only be called locally.
 func (c *Client) DeleteAllReverseTunnels() error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllCertNamespaces deletes all namespaces
+// DeleteAllCertNamespaces not implemented: can only be called locally.
 func (c *Client) DeleteAllNamespaces() error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllRoles deletes all roles
+// DeleteAllRoles not implemented: can only be called locally.
 func (c *Client) DeleteAllRoles() error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteAllUsers deletes all users
+// DeleteAllUsers not implemented: can only be called locally.
 func (c *Client) DeleteAllUsers() error {
-	return trace.NotImplemented("not implemented")
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 func (c *Client) GetTrustedCluster(name string) (services.TrustedCluster, error) {
@@ -2793,14 +2819,17 @@ func (c *Client) DeleteAccessRequest(ctx context.Context, reqID string) error {
 	return nil
 }
 
-func (c *Client) SetAccessRequestState(ctx context.Context, reqID string, state services.RequestState) error {
+func (c *Client) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) error {
 	clt, err := c.grpc()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	setter := proto.RequestStateSetter{
-		ID:    reqID,
-		State: state,
+		ID:          params.RequestID,
+		State:       params.State,
+		Reason:      params.Reason,
+		Annotations: params.Annotations,
+		Roles:       params.Roles,
 	}
 	if d := getDelegator(ctx); d != "" {
 		setter.Delegator = d
@@ -2920,6 +2949,261 @@ func (c *Client) DeleteSemaphore(ctx context.Context, filter services.SemaphoreF
 	return nil
 }
 
+// UpsertKubeService is used by kubernetes services to report their presence
+// to other auth servers in form of hearbeat expiring after ttl period.
+func (c *Client) UpsertKubeService(ctx context.Context, s services.Server) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	server, ok := s.(*services.ServerV2)
+	if !ok {
+		return trace.BadParameter("invalid type %T, expected *services.ServerV2", server)
+	}
+	_, err = clt.UpsertKubeService(ctx, &proto.UpsertKubeServiceRequest{
+		Server: server,
+	})
+	return trace.Wrap(err)
+}
+
+// GetKubeServices returns the list of kubernetes services registered in the
+// cluster.
+func (c *Client) GetKubeServices(ctx context.Context) ([]services.Server, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := clt.GetKubeServices(ctx, &proto.GetKubeServicesRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var servers []services.Server
+	for _, server := range resp.GetServers() {
+		servers = append(servers, server)
+	}
+	return servers, nil
+}
+
+// GetAppServers gets all application servers.
+func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg, err := services.CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.GetAppServers(ctx, &proto.GetAppServersRequest{
+		Namespace:      namespace,
+		SkipValidation: cfg.SkipValidation,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	var servers []services.Server
+	for _, server := range resp.GetServers() {
+		servers = append(servers, server)
+	}
+
+	return servers, nil
+}
+
+// UpsertAppServer adds an application server.
+func (c *Client) UpsertAppServer(ctx context.Context, server services.Server) (*services.KeepAlive, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s, ok := server.(*services.ServerV2)
+	if !ok {
+		return nil, trace.BadParameter("invalid type %T", server)
+	}
+
+	keepAlive, err := clt.UpsertAppServer(ctx, &proto.UpsertAppServerRequest{
+		Server: s,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return keepAlive, nil
+}
+
+// DeleteAppServer removes an application server.
+func (c *Client) DeleteAppServer(ctx context.Context, namespace string, name string) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = clt.DeleteAppServer(ctx, &proto.DeleteAppServerRequest{
+		Namespace: namespace,
+		Name:      name,
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
+}
+
+// DeleteAllAppServers removes all application servers.
+func (c *Client) DeleteAllAppServers(ctx context.Context, namespace string) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = clt.DeleteAllAppServers(ctx, &proto.DeleteAllAppServersRequest{
+		Namespace: namespace,
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
+}
+
+// GetAppSession gets an application web session.
+func (c *Client) GetAppSession(ctx context.Context, req services.GetAppSessionRequest) (services.WebSession, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.GetAppSession(ctx, &proto.GetAppSessionRequest{
+		SessionID: req.SessionID,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp.GetSession(), nil
+}
+
+// GetAppSessions gets all application web sessions.
+func (c *Client) GetAppSessions(ctx context.Context) ([]services.WebSession, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.GetAppSessions(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	out := make([]services.WebSession, 0, len(resp.GetSessions()))
+	for _, v := range resp.GetSessions() {
+		out = append(out, v)
+	}
+	return out, nil
+}
+
+// CreateAppSession creates an application web session. Application web
+// sessions represent a browser session the client holds.
+func (c *Client) CreateAppSession(ctx context.Context, req services.CreateAppSessionRequest) (services.WebSession, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := clt.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
+		Username:      req.Username,
+		ParentSession: req.ParentSession,
+		PublicAddr:    req.PublicAddr,
+		ClusterName:   req.ClusterName,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp.GetSession(), nil
+}
+
+// UpsertAppSession not implemented: can only be called locally.
+func (c *Client) UpsertAppSession(ctx context.Context, session services.WebSession) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// DeleteAppSession removes an application web session.
+func (c *Client) DeleteAppSession(ctx context.Context, req services.DeleteAppSessionRequest) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = clt.DeleteAppSession(ctx, &proto.DeleteAppSessionRequest{
+		SessionID: req.SessionID,
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
+}
+
+// DeleteAllAppSessions removes all application web sessions.
+func (c *Client) DeleteAllAppSessions(ctx context.Context) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := clt.DeleteAllAppSessions(ctx, &empty.Empty{}); err != nil {
+		return trail.FromGRPC(err)
+	}
+
+	return nil
+}
+
+// GenerateAppToken creates a JWT token with application access.
+func (c *Client) GenerateAppToken(ctx context.Context, req jwt.GenerateAppTokenRequest) (string, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	resp, err := clt.GenerateAppToken(ctx, &proto.GenerateAppTokenRequest{
+		Username: req.Username,
+		Roles:    req.Roles,
+		URI:      req.URI,
+		Expires:  req.Expires,
+	})
+	if err != nil {
+		return "", trail.FromGRPC(err)
+	}
+
+	return resp.GetToken(), nil
+}
+
+// DeleteKubeService deletes a named kubernetes service.
+func (c *Client) DeleteKubeService(ctx context.Context, name string) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = clt.DeleteKubeService(ctx, &proto.DeleteKubeServiceRequest{
+		Name: name,
+	})
+	return trace.Wrap(err)
+}
+
+// DeleteAllKubeServices deletes all registered kubernetes services.
+func (c *Client) DeleteAllKubeServices(ctx context.Context) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = clt.DeleteAllKubeServices(ctx, &proto.DeleteAllKubeServicesRequest{})
+	return trace.Wrap(err)
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
@@ -2927,11 +3211,14 @@ type WebService interface {
 	GetWebSessionInfo(user string, sid string) (services.WebSession, error)
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
-	ExtendWebSession(user string, prevSessionID string) (services.WebSession, error)
+	ExtendWebSession(user string, prevSessionID string, accessRequestID string) (services.WebSession, error)
 	// CreateWebSession creates a new web session for a user
 	CreateWebSession(user string) (services.WebSession, error)
 	// DeleteWebSession deletes a web session for this user by id
 	DeleteWebSession(user string, sid string) error
+
+	// AppSession defines application session features.
+	services.AppSession
 }
 
 // IdentityService manages identities and users
@@ -3145,4 +3432,8 @@ type ClientI interface {
 
 	// Ping gets basic info about the auth server.
 	Ping(ctx context.Context) (proto.PingResponse, error)
+
+	// CreateAppSession creates an application web session. Application web
+	// sessions represent a browser session the client holds.
+	CreateAppSession(context.Context, services.CreateAppSessionRequest) (services.WebSession, error)
 }

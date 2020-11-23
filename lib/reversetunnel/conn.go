@@ -36,6 +36,17 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// connKey is a key used to identity tunnel connections. It contains the UUID
+// of the process as well as the type of tunnel. For example, this allows a
+// single process to connect multiple reverse tunnels to a proxy, like SSH IoT
+// and applications.
+type connKey struct {
+	// uuid is the host UUID of the process.
+	uuid string
+	// connType is the type of tunnel, for example: node or application.
+	connType services.TunnelType
+}
+
 // remoteConn holds a connection to a remote host, either node or proxy.
 type remoteConn struct {
 	*connConfig
