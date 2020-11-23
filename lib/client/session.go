@@ -201,7 +201,7 @@ func (ns *NodeSession) createServerSession() (*ssh.Session, error) {
 
 // interactiveSession creates an interactive session on the remote node, executes
 // the given callback on it, and waits for the session to end
-func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
+func (ns *NodeSession) interactiveSession(callback interactiveCallback) (err error) {
 	// determine what kind of a terminal we need
 	termType := os.Getenv("TERM")
 	if termType == "" {
@@ -217,11 +217,11 @@ func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer remoteTerm.Close()
 
 	// call the passed callback and give them the established
 	// ssh session:
 	if err := callback(sess, remoteTerm); err != nil {
+		remoteTerm.Close()
 		return trace.Wrap(err)
 	}
 
@@ -232,6 +232,8 @@ func (ns *NodeSession) interactiveSession(callback interactiveCallback) error {
 
 	// start piping input into the remote shell and pipe the output from
 	// the remote shell into stdout:
+	// Note, that pipeInOut takes ownership of remoteTerm and will close it
+	// upon completion
 	ns.pipeInOut(remoteTerm)
 
 	// switch the terminal to raw mode (and switch back on exit!)
@@ -544,12 +546,13 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser) {
 		defer ns.closer.Close()
 		_, err := io.Copy(ns.stdout, shell)
 		if err != nil {
-			log.Errorf(err.Error())
+			log.Error("Error copying from shell:", err.Error())
 		}
 	}()
 	// copy from the local input to the remote shell:
 	go func() {
 		defer ns.closer.Close()
+		defer shell.Close()
 		buf := make([]byte, 128)
 
 		stdin := ns.stdin
@@ -567,17 +570,22 @@ func (ns *NodeSession) pipeInOut(shell io.ReadWriteCloser) {
 			})
 		}
 		for {
-			n, err := stdin.Read(buf)
-			if err != nil {
-				fmt.Fprintf(ns.stderr, "\r\n%v\r\n", trace.Wrap(err))
+			select {
+			case <-ns.closer.C:
 				return
-			}
-
-			if n > 0 {
-				_, err = shell.Write(buf[:n])
+			default:
+				n, err := stdin.Read(buf)
 				if err != nil {
-					ns.ExitMsg = err.Error()
+					fmt.Fprintf(ns.stderr, "\r\n%v\r\n", trace.Wrap(err))
 					return
+				}
+
+				if n > 0 {
+					_, err = shell.Write(buf[:n])
+					if err != nil {
+						ns.ExitMsg = err.Error()
+						return
+					}
 				}
 			}
 		}

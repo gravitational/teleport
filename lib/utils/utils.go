@@ -334,12 +334,13 @@ type multiCloser struct {
 }
 
 func (mc *multiCloser) Close() error {
+	var errors []error
 	for _, closer := range mc.closers {
 		if err := closer.Close(); err != nil {
-			return trace.Wrap(err)
+			errors = append(errors, err)
 		}
 	}
-	return nil
+	return trace.NewAggregate(errors...)
 }
 
 // MultiCloser implements io.Close, it sequentially calls Close() on each object

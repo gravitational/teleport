@@ -230,7 +230,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		if err := asrv.UpsertReverseTunnel(tunnel); err != nil {
 			return nil, trace.Wrap(err)
 		}
-		log.Infof("Created reverse tunnel: %v.", tunnel)
+		log.Infof("Created reverse tunnel for cluster %v.", tunnel.GetClusterName())
 	}
 
 	// set cluster level config on the backend and then force a sync of the cache.

@@ -29,8 +29,7 @@ import (
 	"gopkg.in/check.v1"
 )
 
-type ServicesSuite struct {
-}
+type ServicesSuite struct{}
 
 func TestServices(t *testing.T) { check.TestingT(t) }
 

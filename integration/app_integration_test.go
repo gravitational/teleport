@@ -345,12 +345,12 @@ func setup(t *testing.T) *pack {
 	err = p.leafCluster.Start()
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		p.leafCluster.StopAll()
+		p.leafCluster.StopAll(t)
 	})
 	err = p.rootCluster.Start()
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		p.rootCluster.StopAll()
+		p.rootCluster.StopAll(t)
 	})
 
 	raConf := service.MakeDefaultConfig()

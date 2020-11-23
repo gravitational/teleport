@@ -193,7 +193,7 @@ func (s *KubeSuite) TestKubeExec(c *check.C) {
 
 	err = t.Start()
 	c.Assert(err, check.IsNil)
-	defer t.StopAll()
+	defer t.StopAll(c)
 
 	// impersonating client requests will be denied if the headers
 	// are referencing users or groups not allowed by the existing roles
@@ -363,7 +363,7 @@ func (s *KubeSuite) TestKubeDeny(c *check.C) {
 
 	err = t.Start()
 	c.Assert(err, check.IsNil)
-	defer t.StopAll()
+	defer t.StopAll(c)
 
 	// set up kube configuration using proxy
 	proxyClient, _, err := kubeProxyClient(kubeProxyConfig{
@@ -405,7 +405,7 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 
 	err = t.Start()
 	c.Assert(err, check.IsNil)
-	defer t.StopAll()
+	defer t.StopAll(c)
 
 	// set up kube configuration using proxy
 	_, proxyClientConfig, err := kubeProxyClient(kubeProxyConfig{
@@ -535,11 +535,11 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 	// start both clusters
 	err = main.Start()
 	c.Assert(err, check.IsNil)
-	defer main.StopAll()
+	defer main.StopAll(c)
 
 	err = aux.Start()
 	c.Assert(err, check.IsNil)
-	defer aux.StopAll()
+	defer aux.StopAll(c)
 
 	// try and upsert a trusted cluster
 	var upsertSuccess bool
@@ -784,11 +784,11 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 	// start both clusters
 	err = main.Start()
 	c.Assert(err, check.IsNil)
-	defer main.StopAll()
+	defer main.StopAll(c)
 
 	err = aux.Start()
 	c.Assert(err, check.IsNil)
-	defer aux.StopAll()
+	defer aux.StopAll(c)
 
 	// try and upsert a trusted cluster
 	var upsertSuccess bool
@@ -1009,7 +1009,7 @@ func (s *KubeSuite) runKubeDisconnectTest(c *check.C, tc disconnectTestCase) {
 
 	err = t.Start()
 	c.Assert(err, check.IsNil)
-	defer t.StopAll()
+	defer t.StopAll(c)
 
 	// set up kube configuration using proxy
 	proxyClient, proxyClientConfig, err := kubeProxyClient(kubeProxyConfig{
