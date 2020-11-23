@@ -13,7 +13,7 @@ need:
 * SSH audit with session recording/replay.
 * Kubernetes API Access with audit and `kubectl exec` recording/replay.
 * Easily manage trust between teams, organizations and data centers.
-* Have Application, SSH or Kubernetes access to behind-firewall clusters without any open ports.
+* Application, SSH or Kubernetes access to behind-firewall clusters without any open ports.
 * Role-based access control (RBAC) for SSH protocol.
 * Unified RBAC for SSH and Kubernetes.
 
@@ -24,7 +24,7 @@ practices like:
 - No need to distribute keys: Teleport uses certificate-based access with automatic certificate expiration time.
 - 2nd factor authentication (2FA) for Apps, SSH, Kubernetes.
 - Collaboratively troubleshoot issues through session sharing.
-- Single sign-on (SSO) for Apps,SSH/Kubernetes and your organization identities via
+- Single sign-on (SSO) for Applications, SSH/Kubernetes and your organization identities via
   Github Auth, OpenID Connect or SAML with endpoints like Okta or Active Directory.
 - Cluster introspection: every SSH node and its status can be queried via CLI and Web UI.
 
@@ -147,7 +147,7 @@ some common tasks:
 
 Latest version:
 
-```sh
+```bash
 go get github.com/new/dependency
 # Update the source to actually use this dependency, then run:
 make update-vendor
