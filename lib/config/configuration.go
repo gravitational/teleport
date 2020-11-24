@@ -1012,6 +1012,13 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		}
 	}
 
+	// If this process is trying to join a cluster as an application service,
+	// make sure application name and URI are provided.
+	if utils.SliceContainsStr(splitRoles(clf.Roles), defaults.RoleApp) &&
+		(clf.AppName == "" || clf.AppURI == "") {
+		return trace.BadParameter("application name (--app-name) and URI (--app-uri) flags are both required to join application proxy to the cluster")
+	}
+
 	// If application name was specified on command line, add to file
 	// configuration where it will be validated.
 	if clf.AppName != "" {
@@ -1312,7 +1319,7 @@ func fileExists(fp string) bool {
 
 // validateRoles makes sure that value upassed to --roles flag is valid
 func validateRoles(roles string) error {
-	for _, role := range strings.Split(roles, ",") {
+	for _, role := range splitRoles(roles) {
 		switch role {
 		case defaults.RoleAuthService,
 			defaults.RoleNode,
@@ -1324,4 +1331,9 @@ func validateRoles(roles string) error {
 		}
 	}
 	return nil
+}
+
+// splitRoles splits in the format roles expects.
+func splitRoles(roles string) []string {
+	return strings.Split(roles, ",")
 }
