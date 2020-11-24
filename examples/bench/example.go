@@ -44,8 +44,8 @@ func main() {
 		fmt.Printf("Requests Failed: %v\n", res.RequestsFailed)
 	}
 	// Export latency profile
-	responseHistogram := results[0].ResponseHistogram
-	_, err = benchmark.ExportLatencyProfile("profiles/", "response_histogram", responseHistogram, 1, 1.0)
+	responseHistogram := results[0].Histogram
+	_, err = benchmark.ExportLatencyProfile("profiles/", responseHistogram, 1, 1.0)
 	if err != nil {
 		fmt.Println(err)
 	}
