@@ -1136,10 +1136,32 @@ app_service:
 func (s *ConfigTestSuite) TestAppsCLF(c *check.C) {
 	tests := []struct {
 		desc      check.CommentInterface
+		inRoles   string
 		inAppName string
 		inAppURI  string
 		outError  error
 	}{
+		{
+			desc:      check.Commentf("role provided, valid name and uri"),
+			inRoles:   defaults.RoleApp,
+			inAppName: "foo",
+			inAppURI:  "http://localhost:8080",
+			outError:  nil,
+		},
+		{
+			desc:      check.Commentf("role provided, name not provided"),
+			inRoles:   defaults.RoleApp,
+			inAppName: "",
+			inAppURI:  "http://localhost:8080",
+			outError:  trace.BadParameter(""),
+		},
+		{
+			desc:      check.Commentf("role provided, uri not provided"),
+			inRoles:   defaults.RoleApp,
+			inAppName: "foo",
+			inAppURI:  "",
+			outError:  trace.BadParameter(""),
+		},
 		{
 			desc:      check.Commentf("valid name and uri"),
 			inAppName: "foo",
@@ -1161,6 +1183,7 @@ func (s *ConfigTestSuite) TestAppsCLF(c *check.C) {
 
 	for _, tt := range tests {
 		clf := CommandLineFlags{
+			Roles:   tt.inRoles,
 			AppName: tt.inAppName,
 			AppURI:  tt.inAppURI,
 		}
