@@ -58,7 +58,7 @@ app_service:
      # Optional labels
      # Labels can be combined with RBAC rules to provide access.
      labels:
-       customer: "acme",
+       customer: "acme"
        env: "production"
      # Optional dynamic labels
      commands:
