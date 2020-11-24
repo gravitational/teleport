@@ -186,6 +186,9 @@ type CLIConf struct {
 	// command/shell execution. This also requires stdin to be an interactive
 	// terminal.
 	EnableEscapeSequences bool
+
+	// executablePath is the absolute path to the current executable.
+	executablePath string
 }
 
 func main() {
@@ -383,6 +386,11 @@ func Run(args []string) {
 		}
 	}
 
+	cf.executablePath, err = os.Executable()
+	if err != nil {
+		utils.FatalError(err)
+	}
+
 	switch command {
 	case ver.FullCommand():
 		utils.PrintVersion()
@@ -504,7 +512,7 @@ func onLogin(cf *CLIConf) {
 		// in case if nothing is specified, re-fetch kube clusters and print
 		// current status
 		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.IdentityFileOut == "":
-			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
+			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
 				utils.FatalError(err)
 			}
 			printProfiles(cf.Debug, profile, profiles)
@@ -512,7 +520,7 @@ func onLogin(cf *CLIConf) {
 		// in case if parameters match, re-fetch kube clusters and print
 		// current status
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "":
-			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
+			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
 				utils.FatalError(err)
 			}
 			printProfiles(cf.Debug, profile, profiles)
@@ -532,7 +540,7 @@ func onLogin(cf *CLIConf) {
 			if err := tc.SaveProfile("", true); err != nil {
 				utils.FatalError(err)
 			}
-			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
+			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
 				utils.FatalError(err)
 			}
 			onStatus(cf)
@@ -544,7 +552,7 @@ func onLogin(cf *CLIConf) {
 			if err := executeAccessRequest(cf); err != nil {
 				utils.FatalError(err)
 			}
-			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
+			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
 				utils.FatalError(err)
 			}
 			onStatus(cf)
@@ -594,7 +602,7 @@ func onLogin(cf *CLIConf) {
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
-		if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
+		if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
 			utils.FatalError(err)
 		}
 	}
@@ -1655,7 +1663,7 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 	if err := tc.SaveProfile("", true); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
+	if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
