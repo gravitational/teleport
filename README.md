@@ -22,7 +22,7 @@ because it facilitates easy adoption of the best infrastructure security
 practices like:
 
 - No need to distribute keys: Teleport uses certificate-based access with automatic certificate expiration time.
-- 2nd factor authentication (2FA) for Apps, SSH, Kubernetes.
+- 2nd factor authentication (2FA) for Apps, SSH and Kubernetes.
 - Collaboratively troubleshoot issues through session sharing.
 - Single sign-on (SSO) for Applications, SSH/Kubernetes and your organization identities via
   Github Auth, OpenID Connect or SAML with endpoints like Okta or Active Directory.
@@ -34,8 +34,8 @@ implementation and it is _fully compatible with OpenSSH_ and can be used with
 
 |Project Links| Description
 |---|----
-| [Teleport Website](https://goteleport.com/teleport)  | The official website of the project |
-| [Documentation](https://goteleport.com/teleport/docs/quickstart/)  | Admin guide, user manual and more |
+| [Teleport Website](https://goteleport.com/teleport) | The official website of the project |
+| [Documentation](https://goteleport.com/teleport/docs/quickstart/) | Admin guide, user manual and more |
 | [Demo Video](https://www.youtube.com/watch?v=DUlTAlEJr5w) | 5-minute video overview of the UI. |
 | [Teleconsole](https://www.teleconsole.com) | The free service to "invite" SSH clients behind NAT, built on top of Teleport |
 | [Blog](https://gravitational.com/blog/) | Our blog where we publish Teleport news |
