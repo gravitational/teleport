@@ -1,10 +1,8 @@
 
-# Tsh Bench
+# `tsh bench`
 
 
 ## Linear Benchmark Generator
-
-### What is this
 A linear generator generates benchmarks between a lower and upper bound using a fixed step as configured by the user. 
 
 
