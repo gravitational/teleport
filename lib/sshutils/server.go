@@ -44,9 +44,9 @@ import (
 // Server is a generic implementation of an SSH server. All Teleport
 // services (auth, proxy, ssh) use this as a base to accept SSH connections.
 type Server struct {
-	log.FieldLogger
 	sync.RWMutex
 
+	log log.FieldLogger
 	// component is a name of the facility which uses this server,
 	// used for logging/debugging. typically it's "proxy" or "auth api", etc
 	component string
@@ -110,7 +110,7 @@ type ServerOption func(cfg *Server) error
 // SetLogger sets the logger for the server
 func SetLogger(logger log.FieldLogger) ServerOption {
 	return func(s *Server) error {
-		s.FieldLogger = logger.WithField(trace.Component, "ssh:"+s.component)
+		s.log = logger.WithField(trace.Component, "ssh:"+s.component)
 		return nil
 	}
 }
@@ -150,7 +150,7 @@ func NewServer(
 
 	closeContext, cancel := context.WithCancel(context.TODO())
 	s := &Server{
-		FieldLogger: log.WithFields(log.Fields{
+		log: log.WithFields(log.Fields{
 			trace.Component: "ssh:" + component,
 		}),
 		addr:           a,
@@ -214,7 +214,7 @@ func SetNewConnHandler(handler NewConnHandler) ServerOption {
 
 func SetCiphers(ciphers []string) ServerOption {
 	return func(s *Server) error {
-		s.Debugf("Supported ciphers: %q.", ciphers)
+		s.log.Debugf("Supported ciphers: %q.", ciphers)
 		if ciphers != nil {
 			s.cfg.Ciphers = ciphers
 		}
@@ -224,7 +224,7 @@ func SetCiphers(ciphers []string) ServerOption {
 
 func SetKEXAlgorithms(kexAlgorithms []string) ServerOption {
 	return func(s *Server) error {
-		s.Debugf("Supported KEX algorithms: %q.", kexAlgorithms)
+		s.log.Debugf("Supported KEX algorithms: %q.", kexAlgorithms)
 		if kexAlgorithms != nil {
 			s.cfg.KeyExchanges = kexAlgorithms
 		}
@@ -234,7 +234,7 @@ func SetKEXAlgorithms(kexAlgorithms []string) ServerOption {
 
 func SetMACAlgorithms(macAlgorithms []string) ServerOption {
 	return func(s *Server) error {
-		s.Debugf("Supported MAC algorithms: %q.", macAlgorithms)
+		s.log.Debugf("Supported MAC algorithms: %q.", macAlgorithms)
 		if macAlgorithms != nil {
 			s.cfg.MACs = macAlgorithms
 		}
@@ -277,7 +277,7 @@ func (s *Server) Start() error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
-	s.WithField("addr", listener.Addr().String()).Debug("Server start.")
+	s.log.WithField("addr", listener.Addr().String()).Debug("Server start.")
 	if err := s.setListener(listener); err != nil {
 		return trace.Wrap(err)
 	}
@@ -315,7 +315,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	if activeConnections == 0 {
 		return err
 	}
-	s.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
+	s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
 	lastReport := time.Time{}
 	ticker := time.NewTicker(s.shutdownPollPeriod)
 	defer ticker.Stop()
@@ -327,11 +327,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 				return err
 			}
 			if time.Since(lastReport) > 10*s.shutdownPollPeriod {
-				s.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
+				s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
 				lastReport = time.Now()
 			}
 		case <-ctx.Done():
-			s.Infof("Context cancelled wait, returning.")
+			s.log.Infof("Context cancelled wait, returning.")
 			return trace.ConnectionProblem(err, "context cancelled")
 		}
 	}
@@ -367,20 +367,20 @@ func (s *Server) acceptConnections() {
 	backoffTimer := time.NewTicker(5 * time.Second)
 	defer backoffTimer.Stop()
 	addr := s.Addr()
-	s.Debugf("Listening on %v.", addr)
+	s.log.Debugf("Listening on %v.", addr)
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			if s.isClosed() {
-				s.Debugf("Server %v has closed.", addr)
+				s.log.Debugf("Server %v has closed.", addr)
 				return
 			}
 			select {
 			case <-s.closeContext.Done():
-				s.Debugf("Server %v has closed.", addr)
+				s.log.Debugf("Server %v has closed.", addr)
 				return
 			case <-backoffTimer.C:
-				s.Debugf("Backoff on network error: %v.", err)
+				s.log.Debugf("Backoff on network error: %v.", err)
 			}
 		} else {
 			go s.HandleConnection(conn)
@@ -440,12 +440,12 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		return
 	}
 	// Connection successfully initiated
-	s.Debugf("Incoming connection %v -> %v vesion: %v.",
+	s.log.Debugf("Incoming connection %v -> %v vesion: %v.",
 		sconn.RemoteAddr(), sconn.LocalAddr(), string(sconn.ClientVersion()))
 
 	// will be called when the connection is closed
 	connClosed := func() {
-		s.Debugf("Closed connection %v.", sconn.RemoteAddr())
+		s.log.Debugf("Closed connection %v.", sconn.RemoteAddr())
 	}
 
 	// The keepalive ticket will ensure that SSH keepalive requests are being sent
@@ -467,7 +467,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		// from a NewConnHandler are rejections.
 		ctx, err = s.newConnHandler.HandleNewConn(ctx, ccx)
 		if err != nil {
-			s.Warnf("Dropping inbound ssh connection due to error: %v", err)
+			s.log.Warnf("Dropping inbound ssh connection due to error: %v", err)
 			// Immediately dropping the ssh connection results in an
 			// EOF error for the client.  We therefore wait briefly
 			// to see if the client opens a channel, which will give
@@ -495,7 +495,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 				connClosed()
 				return
 			}
-			s.Debugf("Received out-of-band request: %+v.", req)
+			s.log.Debugf("Received out-of-band request: %+v.", req)
 			if s.reqHandler != nil {
 				go s.reqHandler.HandleRequest(req)
 			}
@@ -514,7 +514,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 				log.Errorf("Failed sending keepalive request: %v", err)
 			}
 		case <-ctx.Done():
-			log.Debugf("Connection context canceled: %v -> %v", conn.RemoteAddr(), conn.LocalAddr())
+			s.log.Debugf("Connection context canceled: %v -> %v", conn.RemoteAddr(), conn.LocalAddr())
 			return
 		}
 	}

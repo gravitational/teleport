@@ -61,6 +61,10 @@ func marshalDiscoveryRequest(req discoveryRequest) ([]byte, error) {
 	var out discoveryRequestRaw
 	m := services.GetServerMarshaler()
 	for _, p := range req.Proxies {
+		// Clone the server value to avoid a potential race
+		// since the proxies are shared.
+		// Marshaling attempts to enforce defaults which modifies
+		// the original value.
 		p = p.DeepCopy()
 		data, err := m.MarshalServer(p)
 		if err != nil {
