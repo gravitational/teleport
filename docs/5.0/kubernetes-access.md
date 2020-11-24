@@ -9,13 +9,35 @@ Teleport has the ability to act as a compliance gateway for managing privileged
 access to Kubernetes clusters. This enables the following capabilities:
 
 * Teleport acts as a single authentication endpoint for both SSH and multiple
-  Kubernetes clusters. Users can authenticate against a Teleport proxy using Teleport's
-  [`tsh login`](cli-docs.md#tsh-login) command and retrieve credentials for both SSH and Kubernetes API. 
+  Kubernetes clusters. Users can authenticate against a Teleport Access Plane using
+  Teleport's [`tsh login`](cli-docs.md#tsh-login) command and retrieve credentials
+  for both SSH and Kubernetes API.
 * Users RBAC roles are always synchronized between SSH and Kubernetes, making
   it easier to implement policies like _developers must not access production
   data_.
 * Complete `kubectl` auditing and session recordings for `kubectl exec`
 * Multi Kubernetes Support. Quickly switch between multiple K8s clusters using [`tsh kube login`]()
+
+## Start Here
+
+Before we dive into setup, we've a few options to help guide you. We've create
+Teleport Kubernetes Access to easy for solo-devs accessing minikube to large enterprises
+accessing hundreds of Kubernetes clusters.
+
+Example Kubernetes Cluster Configurations:
+
+* Connecting to a local MicroK8s Cluster:
+     * Use Option 2, once setup you'll need to connect to Ingress via TODO
+
+* Connecting to one EKS/GKS hosted Kubernetes:
+      * Use Option 2, once setup you'll need to connect to Ingress via TODO
+
+* Connecting to multiple Kubernetes clusters in one cloud/region:
+      * Use Option 1, once setup you'll need to connect via the root Teleport service.
+
+* Connecting to multiple Kubernetes clusters in multiple regions/cloud:
+      *  Use Option 1, once setup you'll need to connect via the root Teleport service.
+      *  Use Option 1 combined with [Trusted Clusters](kubernetes-access.md/#multiple-kubernetes-clusters-via-trusted-cluster)
 
 ## Teleport Kubernetes Service
 
@@ -48,7 +70,31 @@ Connecting the Teleport proxy to Kubernetes
 
 There are two options for setting up Teleport to access Kubernetes:
 
-### Option 1: Proxy running inside a k8s cluster.
+### Option 1: Teleport as a  "gateway" to multiple K8s Clusters
+
+A single central Teleport Data Plane acting as "gateway". Multiple Kubernetes clusters
+connect to it over reverse tunnels.
+
+```yaml
+#...
+proxy_service:
+  public_addr: proxy.example.com:3080
+  kube_listen_addr: 0.0.0.0:3026
+```
+
+```bash
+# Add Teleport Helm Repo
+$ helm repo add teleport https://charts.releases.teleport.dev
+
+# Installing the Helm Chart
+helm install teleport-agent . \
+  --namespace teleport \
+  --set proxyAddr=$PROXY_ENDPOINT \
+  --set authToken=$JOIN_TOKEN \
+  --set kubeClusterName=$KUBERNETES_CLUSTER_NAME
+```
+
+### Option 2: Proxy running inside a k8s cluster.
 
 Deploy Teleport Proxy service as a Kubernetes pod inside the Kubernetes cluster
 you want the proxy to have access to.
@@ -78,23 +124,12 @@ our [Helm Docs](https://github.com/gravitational/teleport/tree/master/examples/c
 
 ![teleport-kubernetes-inside](img/teleport-k8s-pod.svg)
 
-### Option 2: Teleport as a  "gateway" to multipel K8s Clsuters
-
-A single central Teleport proxy acting as "gateway". Multiple k8s clusters connect to it over reverse tunnels.
-
-```
-...
-proxy_service:
-  public_addr: proxy.example.com:3080
-  kube_listen_addr: 0.0.0.0:3026
-```
-
 ## Impersonation
 
 !!! note
 
-    If you used [the script from Option
-    2](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh)
+    If you used [the helm chart from Option
+    1](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh)
     above, you can skip this step. The script already configured impersonation permissions.
 
 The next step is to configure the Teleport Proxy to be able to impersonate Kubernetes principals within a given group
@@ -345,7 +380,7 @@ $ kubectl --kubeconfig /path/to/kubeconfig get pods
 
 We've a complete guide on setting up Teleport with EKS. Please see the [Using Teleport with EKS Guide](aws-oss-guide.md#using-teleport-with-eks).
 
-## Multiple Kubernetes Clusters
+## Multiple Kubernetes Clusters via Trusted Cluster
 
 You can take advantage of the [Trusted Clusters](trustedclusters.md) feature of
 Teleport to federate trust across multiple Kubernetes clusters.
