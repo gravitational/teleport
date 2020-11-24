@@ -3,7 +3,7 @@ title: Kubernetes 5.0 Migration Guide
 description: How to migrate pre-5.0 Teleport clusters to new configuration
 ---
 
-# Kubernetes integration in 5.0
+# Migrating to Teleport Kubernetes Access 5.0
 
 In release 5.0, Teleport has changed the [Kubernetes
 integration](kubernetes-ssh.md) to improve configuration and user experience.
@@ -91,7 +91,7 @@ kubernetes_service:
 In this scenario, we're running multiple Trusted Teleport clusters, one for
 each Kubernetes cluster.
 
-### Option 1: Teleport Kubernetes agents in each Kubernetes cluster
+### Recommend Option 1: Teleport Kubernetes agents in each Kubernetes cluster
 
 This is the recommended approach for handling multiple Kubernetes clusters.
 
