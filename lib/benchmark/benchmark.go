@@ -76,6 +76,7 @@ type Result struct {
 // use the default login
 func Run(ctx context.Context, lg *Linear, cmd, host, login, proxy string) ([]Result, error) {
 	var results []Result
+	sleep := false
 	c := strings.Split(cmd, " ")
 	lg.config = &Config{Command: c}
 	if lg.Threads == 0 {
@@ -85,11 +86,16 @@ func Run(ctx context.Context, lg *Linear, cmd, host, login, proxy string) ([]Res
 	if err := validateConfig(lg); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	tc, err := makeTeleportClient(host, login, proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	logrus.SetLevel(logrus.ErrorLevel)
 	for {
+		if sleep {
+			time.Sleep(pauseTimeBetweenBenchmarks)
+		}
 		benchmarkC := lg.GetBenchmark()
 		if benchmarkC == nil {
 			break
@@ -100,7 +106,7 @@ func Run(ctx context.Context, lg *Linear, cmd, host, login, proxy string) ([]Res
 		}
 		results = append(results, result)
 		fmt.Printf("current generation requests: %v, duration: %v\n", result.RequestsOriginated, result.Duration)
-		time.Sleep(pauseTimeBetweenBenchmarks)
+		sleep = true
 	}
 	return results, nil
 }

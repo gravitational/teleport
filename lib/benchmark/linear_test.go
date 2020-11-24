@@ -69,7 +69,6 @@ func TestGetBenchmarkNotEvenMultiple(t *testing.T) {
 		config:              initial,
 	}
 	expected := initial
-
 	bm := linearConfig.GetBenchmark()
 	require.NotNil(t, bm)
 	expected.Rate = 10

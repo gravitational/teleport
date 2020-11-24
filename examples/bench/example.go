@@ -39,7 +39,7 @@ func main() {
 	}
 
 	for i, res := range results {
-		fmt.Printf("Benchmark #%v\n", i)
+		fmt.Printf("Benchmark #%v\n", i+1)
 		fmt.Printf("Duration: %v\n", res.Duration)
 		fmt.Printf("Requests Originated: %v\n", res.RequestsOriginated)
 		fmt.Printf("Requests Failed: %v\n", res.RequestsFailed)
