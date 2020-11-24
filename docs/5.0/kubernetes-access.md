@@ -39,6 +39,9 @@ Example Kubernetes Cluster Configurations:
       *  Use Option 1, once setup you'll need to connect via the root Teleport service.
       *  Use Option 1 combined with [Trusted Clusters](kubernetes-access.md/#multiple-kubernetes-clusters-via-trusted-cluster)
 
+* Migrating pre-5.0 Teleport clusters to new `kubernetes_service`:
+      * Please review our [Teleport Kubernetes Guide](kubernetes-5.0-migration.md)
+
 ## Teleport Kubernetes Service
 
 By default, the Kubernetes integration is turned off in Teleport. The configuration
