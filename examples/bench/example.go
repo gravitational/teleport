@@ -1,8 +1,22 @@
+/*
+Copyright 2020 Gravitational, Inc.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package main
 
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/gravitational/teleport/lib/benchmark"
@@ -16,10 +30,11 @@ func main() {
 		MinimumMeasurements: 1000,
 		MinimumWindow:       30 * time.Second,
 	}
-	// Run benchmark
-	results, err := benchmark.Run(context.TODO(), linear, "ls -l /", "ec2-3-15-147-120.us-east-2.compute.amazonaws.com", "ec2-user", "ec2-3-15-147-120.us-east-2.compute.amazonaws.com")
+	// Run Linear generator 
+	results, err := benchmark.Run(context.TODO(), linear, "ls -l /", "host", "username", "teleport.example.com")
 	if err != nil {
 		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	for i, res := range results {
@@ -27,7 +42,6 @@ func main() {
 		fmt.Printf("Duration: %v\n", res.Duration)
 		fmt.Printf("Requests Originated: %v\n", res.RequestsOriginated)
 		fmt.Printf("Requests Failed: %v\n", res.RequestsFailed)
-
 	}
 	// Export latency profile
 	responseHistogram := results[0].ResponseHistogram

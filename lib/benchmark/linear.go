@@ -14,79 +14,58 @@ limitations under the License.
 package benchmark
 
 import (
-	"context"
 	"errors"
-	"log"
-	"strings"
 	"time"
-
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/trace"
 )
 
 // Linear generator
 type Linear struct {
-	LowerBound          int
-	UpperBound          int
-	Step                int
+	// LowerBound is the lower end of rps to execute
+	LowerBound int
+	// UpperBound is the upper end of rps to execute
+	UpperBound int
+	// Step is the amount of rps to increment by
+	Step int
+	// MinimumMeasurements is the minimum measurement a benchmark should execute
 	MinimumMeasurements int
-	MinimumWindow       time.Duration
-	currentRPS          int
-	config              Config
-}
-
-// Generate advances the Generator to the next generation.
-func (lg *Linear) Generate() bool {
-	if lg.currentRPS < lg.LowerBound {
-		lg.currentRPS = lg.LowerBound
-		return true
-	}
-
-	lg.currentRPS += lg.Step
-	return lg.currentRPS <= lg.UpperBound
+	// MinimumWindow is the minimum duration to run benchmark for
+	MinimumWindow time.Duration
+	// Threads is amount of concurrent execution threads to run
+	Threads    int
+	currentRPS int
+	config     *Config
 }
 
 // GetBenchmark returns the benchmark config for the current generation.
-func (lg *Linear) GetBenchmark() (Config, error) {
-	if lg.currentRPS > lg.UpperBound {
-		return Config{}, errors.New("No more generations")
-	}
-
-	return Config{
+func (lg *Linear) GetBenchmark() *Config {
+	cnf := &Config{
 		MinimumWindow:       lg.MinimumWindow,
 		MinimumMeasurements: lg.MinimumMeasurements,
 		Rate:                lg.currentRPS,
+		Threads:             lg.Threads,
 		Command:             lg.config.Command,
-	}, nil
+	}
+
+	if lg.currentRPS < lg.LowerBound {
+		lg.currentRPS = lg.LowerBound
+		cnf.Rate = lg.currentRPS
+		return cnf
+	}
+
+	lg.currentRPS += lg.Step
+	cnf.Rate = lg.currentRPS
+	if lg.currentRPS > lg.UpperBound {
+		return nil
+	}
+	return cnf
 }
 
-// Benchmark runs the benchmark of receiver type
-func (lg *Linear) Benchmark(ctx context.Context, cmd string, tc *client.TeleportClient) ([]Result, error) {
-	var result Result
-	var results []Result
-	c := strings.Split(cmd, " ")
-	lg.config.Command = c
-	sleep := false
-
-	for lg.Generate() {
-		if sleep {
-			select {
-			case <-time.After(PauseTimeBetweenBenchmarks):
-			case <-ctx.Done():
-				return results, trace.ConnectionProblem(ctx.Err(), "context canceled or timed out")
-			}
-		}
-		benchmarkC, err := lg.GetBenchmark()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		result, err = benchmarkC.Benchmark(ctx, tc)
-		if err != nil {
-			return results, trace.Wrap(err)
-		}
-		results = append(results, result)
-		sleep = true
-		log.Printf("The current generation made %v requests in %v.\n", result.RequestsOriginated, result.Duration)
+func validateConfig(lg *Linear) error {
+	if lg.MinimumMeasurements <= 0 || lg.UpperBound <= 0 || lg.LowerBound <= 0 || lg.Step <= 0 {
+		return errors.New("minimumMeasurements, upperbound, step, and lowerBound must be greater than 0")
 	}
-	return results, nil
+	if lg.LowerBound > lg.UpperBound {
+		return errors.New("upperbound must be greater than lowerbound")
+	}
+	return nil
 }

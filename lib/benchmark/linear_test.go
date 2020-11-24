@@ -1,7 +1,18 @@
+/*
+Copyright 2020 Gravitational, Inc.
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+    http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package benchmark
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -9,13 +20,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGenerate(t *testing.T) {
-	d, _ := time.ParseDuration("30s")
-	initial := Config{
+func TestGetBenchmark(t *testing.T) {
+	initial := &Config{
+		Threads:             10,
 		Rate:                0,
 		Command:             []string{"ls"},
 		Interactive:         false,
-		MinimumWindow:       d,
+		MinimumWindow:       time.Second * 30,
 		MinimumMeasurements: 1000,
 	}
 
@@ -24,67 +35,27 @@ func TestGenerate(t *testing.T) {
 		UpperBound:          50,
 		Step:                10,
 		MinimumMeasurements: 1000,
-		MinimumWindow:       d,
+		MinimumWindow:       time.Second * 30,
+		Threads:             10,
 		config:              initial,
 	}
-
-	i := 0
-	for i < linearConfig.UpperBound {
-		res := linearConfig.Generate()
-		require.True(t, res, "failed to generate generation %v", i/linearConfig.Step)
-		bm, err := linearConfig.GetBenchmark()
-		if err != nil {
-			t.Errorf("failed to get current benchmark")
-		}
-		expected := initial
-		expected.Rate = i + linearConfig.Step
+	expected := initial
+	for _, rate := range []int{10, 20, 30, 40, 50} {
+		expected.Rate = rate
+		bm := linearConfig.GetBenchmark()
 		require.Empty(t, cmp.Diff(expected, bm))
-		i += linearConfig.Step
 	}
-
-	res := linearConfig.Generate()
-	require.False(t, res, "failed to generate generation %v", i/linearConfig.Step)
-	_, err := linearConfig.GetBenchmark()
-	if err == nil {
-		t.Errorf("generating more benchmarks than expected")
-	}
+	bm := linearConfig.GetBenchmark()
+	require.Nil(t, bm)
 }
 
-func TestGenerateNotEvenMultiple(t *testing.T) {
-	d, _ := time.ParseDuration("30s")
-	invalidBenchmarkD, _ := time.ParseDuration("0s")
-	var tests = []struct {
-		expected bool
-		conf     Config
-	}{
-		{true, Config{
-			Rate:                10,
-			Command:             []string{"ls"},
-			Interactive:         false,
-			MinimumWindow:       d,
-			MinimumMeasurements: 1000,
-		}},
-		{true, Config{
-			Rate:                17,
-			Command:             []string{"ls"},
-			Interactive:         false,
-			MinimumWindow:       d,
-			MinimumMeasurements: 1000,
-		}},
-		{false, Config{
-			Rate:                0,
-			Command:             nil,
-			Interactive:         false,
-			MinimumWindow:       invalidBenchmarkD,
-			MinimumMeasurements: 0,
-		}},
-	}
-
-	initial := Config{
-		Rate:                10,
+func TestGetBenchmarkNotEvenMultiple(t *testing.T) {
+	initial := &Config{
+		Threads:             10,
+		Rate:                0,
 		Command:             []string{"ls"},
 		Interactive:         false,
-		MinimumWindow:       d,
+		MinimumWindow:       time.Second * 30,
 		MinimumMeasurements: 1000,
 	}
 
@@ -93,62 +64,48 @@ func TestGenerateNotEvenMultiple(t *testing.T) {
 		UpperBound:          20,
 		Step:                7,
 		MinimumMeasurements: 1000,
-		MinimumWindow:       d,
+		MinimumWindow:       time.Second * 30,
+		Threads:             10,
 		config:              initial,
 	}
+	expected := initial
+	bm := linearConfig.GetBenchmark()
+	require.NotNil(t, bm)
+	expected.Rate = 10
+	require.Empty(t, cmp.Diff(expected, bm))
 
-	for _, tt := range tests {
-		t.Run("", func(t *testing.T) {
-			res := linearConfig.Generate()
-			if res != tt.expected {
-				t.Errorf("got %v, want %v", res, tt.conf.Rate)
-			}
-			fmt.Println(linearConfig.currentRPS)
+	bm = linearConfig.GetBenchmark()
+	require.NotNil(t, bm)
+	expected.Rate = 17
+	require.Empty(t, cmp.Diff(expected, bm))
 
-			bm, err := linearConfig.GetBenchmark()
-			if err != nil && bm.Rate != 0 {
-				t.Errorf("failed to get current benchmark")
-			}
-			require.Empty(t, cmp.Diff(tt.conf, bm))
-		})
-	}
+	bm = linearConfig.GetBenchmark()
+	require.Nil(t, bm)
 }
 
-func TestGetBenchmark(t *testing.T) {
-	d, _ := time.ParseDuration("30s")
-	initial := Config{
-		Rate:                0,
-		Command:             []string{"ls"},
-		Interactive:         false,
-		MinimumWindow:       d,
-		MinimumMeasurements: 1000,
-	}
-	linearConfig := Linear{
+func TestValidateConfig(t *testing.T) {
+	linearConfig := &Linear{
 		LowerBound:          10,
 		UpperBound:          20,
-		Step:                10,
+		Step:                7,
 		MinimumMeasurements: 1000,
-		MinimumWindow:       d,
-		config:              initial,
+		MinimumWindow:       time.Second * 30,
+		Threads:             10,
+		config:              nil,
 	}
-	// GetBenchmark with current generation
-	res := linearConfig.Generate()
-	initial.MinimumMeasurements = linearConfig.MinimumMeasurements
-	require.Equal(t, res, true)
-	conf, err := linearConfig.GetBenchmark()
-	if err != nil {
-		t.Errorf("expected benchmark, got error: %v", err)
-	}
-	require.Equal(t, conf.Rate, linearConfig.currentRPS)
+	err := validateConfig(linearConfig)
+	require.NoError(t, err)
 
-	res = linearConfig.Generate()
-	require.Equal(t, res, true)
+	linearConfig.MinimumWindow = time.Second * 0
+	err = validateConfig(linearConfig)
+	require.NoError(t, err)
 
-	// GetBenchmark when Generate returns false
-	res = linearConfig.Generate()
-	require.Equal(t, res, false)
+	linearConfig.LowerBound = 21
+	err = validateConfig(linearConfig)
+	require.Error(t, err)
+	linearConfig.LowerBound = 10
 
-	if _, err = linearConfig.GetBenchmark(); err == nil {
-		t.Errorf("There should be no current generations, expected error")
-	}
+	linearConfig.MinimumMeasurements = 0
+	err = validateConfig(linearConfig)
+	require.Error(t, err)
 }

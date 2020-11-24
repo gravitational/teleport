@@ -1,5 +1,5 @@
 
-# `tsh` Bench
+# `tsh bench`
 
 
 ## Using `tsh` bench 
@@ -34,8 +34,6 @@ Your histograms should now be plotted!
 
 
 ## Linear Benchmark Generator
-
-### What is this?
 A linear generator generates benchmarks between a lower and upper bound using a fixed step as configured by the user. 
 
 
