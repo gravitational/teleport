@@ -78,12 +78,25 @@ There are two options for setting up Teleport to access Kubernetes:
 A single central Teleport Data Plane acting as "gateway". Multiple Kubernetes clusters
 connect to it over reverse tunnels.
 
+The root Teleport Cluster should be setup following our standard config, to make sure
+clients can connect you must make sure that an invite token is set for the `kube`
+service and proxy_addr has `kube_lisetn_addr` set.
+
 ```yaml
+# Example Snippet for the Teleport Root Service
+#...
+auth_service:
+  enabled: "yes"
+  listen_addr: 0.0.0.0:3025
+  tokens:
+  - kube:866c6c114724a0fa4d4d73216afd99fb1a2d6bfde8e13a19
 #...
 proxy_service:
   public_addr: proxy.example.com:3080
   kube_listen_addr: 0.0.0.0:3026
 ```
+
+To get quickly setup, we've a Helm chart that'll connect to the above root cluster.
 
 ```bash
 # Add Teleport Helm Repo
@@ -96,6 +109,12 @@ helm install teleport-agent . \
   --set authToken=$JOIN_TOKEN \
   --set kubeClusterName=$KUBERNETES_CLUSTER_NAME
 ```
+
+| Things to set | Description |
+|-|-|
+| `proxyAddr` | The Address of the Teleport Root Service |
+| `authToken` | A static `kube` invite token |
+| `kubeClusterName` | Kubernetes Cluster nam: As we there is no easy to detect the name from the environment. |
 
 ### Option 2: Proxy running inside a k8s cluster.
 
@@ -382,6 +401,13 @@ $ kubectl --kubeconfig /path/to/kubeconfig get pods
 ## AWS EKS
 
 We've a complete guide on setting up Teleport with EKS. Please see the [Using Teleport with EKS Guide](aws-oss-guide.md#using-teleport-with-eks).
+
+## Multiple Kubernetes Clusters via Teleport Access Plane
+
+Teleport 5.0 fixed a long [requested feature](https://github.com/gravitational/teleport/issues/3680)
+to support multiple Kubernetes Clusters via a single Teleport instance. This setup is
+described in [Option 1](kubernetes-access.md/#option-1-teleport-as-a-gateway-to-multiple-k8s-clusters)
+and uses reverse tunnels to connect back to the root cluster.
 
 ## Multiple Kubernetes Clusters via Trusted Cluster
 
