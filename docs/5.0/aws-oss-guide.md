@@ -82,7 +82,7 @@ types of Teleport data:
 * Cluster state
 * Cluster events
 
-See [DynamoDB Admin Guide for more information](https://gravitational.com/teleport/docs/admin-guide/#using-dynamodb)
+See [DynamoDB Admin Guide for more information](admin-guide.md/#using-dynamodb)
 
 ![AWS DynamoDB Tables](img/aws/dynamodb-tables.png)
 ![Setting Streams](img/aws/setting-stream.png)
