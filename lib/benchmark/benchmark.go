@@ -44,8 +44,6 @@ const (
 
 // Config specifies benchmark requests to run
 type Config struct {
-	// Threads is amount of concurrent execution threads to run
-	Threads int
 	// Rate is requests per second origination rate
 	Rate int
 	// Command is a command to run
@@ -60,14 +58,12 @@ type Config struct {
 
 // Result is a result of the benchmark
 type Result struct {
-	// RequestsOriginated is amount of reuqests originated
+	// RequestsOriginated is amount of requests originated
 	RequestsOriginated int
 	// RequestsFailed is amount of requests failed
 	RequestsFailed int
-	// ResponseHistogram is a duration actual request histogram
-	ResponseHistogram *hdrhistogram.Histogram
-	//ServiceHistogram is the duration of service histogram
-	ServiceHistogram *hdrhistogram.Histogram
+	// Histogram holds the response duration values
+	Histogram *hdrhistogram.Histogram
 	// LastError contains last recorded error
 	LastError error
 	// Duration it takes for the whole benchmark to run
@@ -82,10 +78,6 @@ func Run(ctx context.Context, lg *Linear, cmd, host, login, proxy string) ([]Res
 	sleep := false
 	c := strings.Split(cmd, " ")
 	lg.config = &Config{Command: c}
-	if lg.Threads == 0 {
-		lg.Threads = 1
-	}
-
 	if err := validateConfig(lg); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -119,9 +111,9 @@ func Run(ctx context.Context, lg *Linear, cmd, host, login, proxy string) ([]Res
 }
 
 // ExportLatencyProfile exports the latency profile and returns the path as a string if no errors
-func ExportLatencyProfile(path, prefix string, h *hdrhistogram.Histogram, ticks int32, valueScale float64) (string, error) {
+func ExportLatencyProfile(path string, h *hdrhistogram.Histogram, ticks int32, valueScale float64) (string, error) {
 	timeStamp := time.Now().Format("2006-01-02_15:04:05")
-	suffix := fmt.Sprintf("%s_latency_profile_%s.txt", prefix, timeStamp)
+	suffix := fmt.Sprintf("latency_profile_%s.txt", timeStamp)
 	if path != "." {
 		if err := os.MkdirAll(path, 0700); err != nil {
 			return "", trace.Wrap(err)
@@ -190,8 +182,7 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 	go run(ctx, requestsC, resultC)
 
 	var result Result
-	result.ResponseHistogram = hdrhistogram.New(minValue, maxValue, significantFigures)
-	result.ServiceHistogram = hdrhistogram.New(minValue, maxValue, significantFigures)
+	result.Histogram = hdrhistogram.New(minValue, maxValue, significantFigures)
 	statusTicker := time.NewTicker(1 * time.Second)
 	timeElapsed := false
 	start := time.Now()
@@ -201,8 +192,7 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 		}
 		select {
 		case measure := <-resultC:
-			result.ResponseHistogram.RecordValue(int64(measure.End.Sub(measure.ResponseStart) / time.Millisecond))
-			result.ServiceHistogram.RecordValue(int64(measure.End.Sub(measure.ServiceStart) / time.Millisecond))
+			result.Histogram.RecordValue(int64(measure.End.Sub(measure.ResponseStart) / time.Millisecond))
 			result.RequestsOriginated++
 			if timeElapsed && result.RequestsOriginated >= c.MinimumMeasurements {
 				go cancel()
@@ -211,7 +201,6 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 				result.RequestsFailed++
 				result.LastError = measure.Error
 			}
-
 		case <-ctx.Done():
 			result.Duration = time.Since(start)
 			return result, nil
@@ -224,7 +213,6 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 
 type benchMeasure struct {
 	ResponseStart time.Time
-	ServiceStart  time.Time
 	End           time.Time
 	Error         error
 	ctx           context.Context
@@ -253,7 +241,6 @@ func run(ctx context.Context, request <-chan benchMeasure, done chan<- benchMeas
 }
 
 func work(ctx context.Context, m benchMeasure, send chan<- benchMeasure) {
-	m.ServiceStart = time.Now()
 	m.Error = execute(m)
 	m.End = time.Now()
 	select {

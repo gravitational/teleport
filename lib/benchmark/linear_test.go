@@ -22,7 +22,6 @@ import (
 
 func TestGetBenchmark(t *testing.T) {
 	initial := &Config{
-		Threads:             10,
 		Rate:                0,
 		Command:             []string{"ls"},
 		Interactive:         false,
@@ -36,7 +35,6 @@ func TestGetBenchmark(t *testing.T) {
 		Step:                10,
 		MinimumMeasurements: 1000,
 		MinimumWindow:       time.Second * 30,
-		Threads:             10,
 		config:              initial,
 	}
 	expected := initial
@@ -51,7 +49,6 @@ func TestGetBenchmark(t *testing.T) {
 
 func TestGetBenchmarkNotEvenMultiple(t *testing.T) {
 	initial := &Config{
-		Threads:             10,
 		Rate:                0,
 		Command:             []string{"ls"},
 		Interactive:         false,
@@ -65,7 +62,6 @@ func TestGetBenchmarkNotEvenMultiple(t *testing.T) {
 		Step:                7,
 		MinimumMeasurements: 1000,
 		MinimumWindow:       time.Second * 30,
-		Threads:             10,
 		config:              initial,
 	}
 	expected := initial
@@ -90,7 +86,6 @@ func TestValidateConfig(t *testing.T) {
 		Step:                7,
 		MinimumMeasurements: 1000,
 		MinimumWindow:       time.Second * 30,
-		Threads:             10,
 		config:              nil,
 	}
 	err := validateConfig(linearConfig)
