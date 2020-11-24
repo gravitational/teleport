@@ -1280,7 +1280,7 @@ scp_if_ssh = True
 
 Teleport can be configured as a compliance gateway for Kubernetes clusters.
 This allows users to authenticate against a Teleport proxy using [`tsh
-login`](cli-docs.md#tsh) and  [`tsh kube login`](cli-docs.md/#tsh-kube-ls)command to retrieve credentials for both SSH and
+login`](cli-docs.md#tsh) and  [`tsh kube login`](cli-docs.md/#tsh-kube-login) command to retrieve credentials for both SSH and
 Kubernetes API.
 
 Follow our [Kubernetes guide](kubernetes-ssh.md) which contains some more specific

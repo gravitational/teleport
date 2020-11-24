@@ -449,12 +449,12 @@ $ tsh login --proxy=proxy.example.com --request-reason="I need to run a debug sc
 
 ## tsh kube login
 
-Login to a kubernetes cluster. Discover connected clusters by using [`tsh kube ls`](cli-docs.md/#tsh-kube-ls)
+Log into a Kubernetes cluster. Discover connected clusters by using [`tsh kube ls`](cli-docs.md/#tsh-kube-ls)
 
 **Usage**: `tsh kube login <kube-cluster>`
 
 ```bash
-# tsh kube login to K8s Cluster gke_bens-demos_us-central1-c_gks-demo
+# tsh kube login to k8s cluster (gke_bens-demos_us-central1-c_gks-demo)
 $ tsh kube login gke_bens-demos_us-central1-c_gks-demo
 Logged into kubernetes cluster "gke_bens-demos_us-central1-c_gks-demo"
 
@@ -710,9 +710,9 @@ $ tctl tokens add --type=trusted_cluster --labels=env=prod
 # Generate an invite token for a node
 # This is equivalent to `tctl nodes add`
 $ tctl tokens add --type=node
-# Generate an invite token for a kubernetes
+# Generate an invite token for a kubernetes_service
 $ tctl tokens add --type=kube
-# Generate an invite token for a applications
+# Generate an invite token for an app_service
 $ tctl tokens add --type=apps
 ```
 

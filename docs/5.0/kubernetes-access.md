@@ -20,9 +20,9 @@ access to Kubernetes clusters. This enables the following capabilities:
 
 ## Start Here
 
-Before we dive into setup, we've a few options to help guide you. We've create
-Teleport Kubernetes Access to easy for solo-devs accessing minikube to large enterprises
-accessing hundreds of Kubernetes clusters.
+Before we dive into setup, we've a few options to help guide you. We've created some example
+Teleport Kubernetes Access configurations for different scenarios, all the way from solo developers
+accessing minikube through to to large enterprises accessing hundreds of Kubernetes clusters.
 
 Example Kubernetes Cluster Configurations:
 
@@ -96,7 +96,7 @@ proxy_service:
   kube_listen_addr: 0.0.0.0:3026
 ```
 
-To get quickly setup, we've a Helm chart that'll connect to the above root cluster.
+To get quickly setup, we provide a Helm chart that'll connect to the above root cluster.
 
 ```bash
 # Add Teleport Helm Repo
@@ -114,7 +114,7 @@ helm install teleport-agent . \
 |-|-|
 | `proxyAddr` | The Address of the Teleport Root Service |
 | `authToken` | A static `kube` invite token |
-| `kubeClusterName` | Kubernetes Cluster nam: As we there is no easy to detect the name from the environment. |
+| `kubeClusterName` | Kubernetes Cluster name (there is no easy way to automatically detect the name from the environment) |
 
 ### Option 2: Proxy running inside a k8s cluster.
 
@@ -135,7 +135,7 @@ kubernetes_service:
   enabled: yes
 ```
 
-If you're using Helm, we've a chart that you can use. Run these commands:
+If you're using Helm, we provide a chart that you can use. Run these commands:
 
 ```bash
 $ helm repo add teleport https://charts.releases.teleport.dev
@@ -404,8 +404,8 @@ We've a complete guide on setting up Teleport with EKS. Please see the [Using Te
 
 ## Multiple Kubernetes Clusters via Teleport Access Plane
 
-Teleport 5.0 fixed a long [requested feature](https://github.com/gravitational/teleport/issues/3680)
-to support multiple Kubernetes Clusters via a single Teleport instance. This setup is
+Teleport 5.0 adds the [long requested feature](https://github.com/gravitational/teleport/issues/3680)
+of supporting multiple Kubernetes Clusters via a single Teleport instance. This setup is
 described in [Option 1](kubernetes-access.md/#option-1-teleport-as-a-gateway-to-multiple-k8s-clusters)
 and uses reverse tunnels to connect back to the root cluster.
 

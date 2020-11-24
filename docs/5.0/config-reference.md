@@ -353,7 +353,7 @@ app_service:
        command: ["/usr/bin/uname"]
        period: "5s"
 
-## This section confitures the 'kubernetes service'
+## This section configures the 'kubernetes service'
 kubernetes_service:
     enabled: yes
     # Optional Public & Listen Addr: Set these if you are connecting to 
@@ -362,8 +362,8 @@ kubernetes_service:
     public_addr: [k8s.example.com:3026]
     # Optional Listen Addr 
     listen_addr: 0.0.0.0:3026
-    # Optional Kubconfig: Service inside k8s does not have a kubeconfig. 
-    #Instead, it uses the pod service account credentials to authenticate to its k8s API.
+    # Optional kubeconfig: Service inside k8s does not have a kubeconfig. 
+    # Instead, it uses the pod service account credentials to authenticate to its k8s API.
     kubeconfig_file: /secrets/kubeconfig
     kube_cluster_name: 
     # Optional Label: These can be used in combination with RBAC rules
