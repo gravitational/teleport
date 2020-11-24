@@ -30,7 +30,7 @@ func main() {
 		MinimumMeasurements: 1000,
 		MinimumWindow:       30 * time.Second,
 	}
-	// Run Linear generator 
+	// Run Linear generator
 	results, err := benchmark.Run(context.TODO(), linear, "ls -l /", "host", "username", "teleport.example.com")
 	if err != nil {
 		fmt.Println(err)
