@@ -72,7 +72,7 @@ func (s *EtcdSuite) SetUpSuite(c *check.C) {
 
 func (s *EtcdSuite) SetUpTest(c *check.C) {
 	if !etcdTestEnabled() {
-		c.Skip("This test requires etcd")
+		c.Skip("This test requires etcd, start it with examples/etcd/start-etcd.sh and set TELEPORT_ETCD_TEST=yes")
 	}
 	// Initiate a backend with a registry
 	b, err := s.suite.NewBackend()
@@ -372,7 +372,7 @@ func (s *EtcdSuite) TestSyncLegacyPrefix(c *check.C) {
 // See https://github.com/gravitational/teleport/issues/4786
 func TestCompareAndSwapOversizedValue(t *testing.T) {
 	if !etcdTestEnabled() {
-		t.Skip("This test requires etcd")
+		t.Skip("This test requires etcd, start it with examples/etcd/start-etcd.sh and set TELEPORT_ETCD_TEST=yes")
 	}
 	// setup
 	const maxClientMsgSize = 128
