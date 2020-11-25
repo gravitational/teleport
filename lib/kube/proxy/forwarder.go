@@ -670,7 +670,8 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 					ServerNamespace: f.Namespace,
 				},
 				SessionMetadata: events.SessionMetadata{
-					SessionID: string(sessionID),
+					SessionID:   string(sessionID),
+					ClusterName: f.ClusterName,
 				},
 				UserMetadata: events.UserMetadata{
 					User:  ctx.User.GetName(),
@@ -710,7 +711,8 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				ServerAddr:      sess.teleportCluster.targetAddr,
 			},
 			SessionMetadata: events.SessionMetadata{
-				SessionID: string(sessionID),
+				SessionID:   string(sessionID),
+				ClusterName: f.ClusterName,
 			},
 			UserMetadata: events.UserMetadata{
 				User:  ctx.User.GetName(),
@@ -791,7 +793,8 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				ServerNamespace: f.Namespace,
 			},
 			SessionMetadata: events.SessionMetadata{
-				SessionID: string(sessionID),
+				SessionID:   string(sessionID),
+				ClusterName: f.ClusterName,
 			},
 			UserMetadata: events.UserMetadata{
 				User:  ctx.User.GetName(),
@@ -820,7 +823,8 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				ServerNamespace: f.Namespace,
 			},
 			SessionMetadata: events.SessionMetadata{
-				SessionID: string(sessionID),
+				SessionID:   string(sessionID),
+				ClusterName: f.ClusterName,
 			},
 			UserMetadata: events.UserMetadata{
 				User:  ctx.User.GetName(),
@@ -854,7 +858,8 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				ServerNamespace: f.Namespace,
 			},
 			SessionMetadata: events.SessionMetadata{
-				SessionID: string(sessionID),
+				SessionID:   string(sessionID),
+				ClusterName: f.ClusterName,
 			},
 			UserMetadata: events.UserMetadata{
 				User:  ctx.User.GetName(),

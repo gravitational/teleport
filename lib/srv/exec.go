@@ -360,7 +360,9 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 		ServerNamespace: ctx.srv.GetNamespace(),
 	}
 
-	sessionMeta := events.SessionMetadata{}
+	sessionMeta := events.SessionMetadata{
+		ClusterName: ctx.ClusterName,
+	}
 	if ctx.session != nil {
 		sessionMeta.SessionID = string(ctx.session.id)
 	}

@@ -32,6 +32,9 @@ message Metadata {
 message SessionMetadata {
     // SessionID is a unique UUID of the session.
     string SessionID = 1 [ (gogoproto.jsontag) = "sid" ];
+
+    // ClusterName identifies the originating teleport cluster
+    string ClusterName = 2 [ (gogoproto.jsontag) = "cluster_name" ];
 }
 
 // UserMetadata is a common user event metadata

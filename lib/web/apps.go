@@ -154,7 +154,8 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 			ServerNamespace: defaults.Namespace,
 		},
 		SessionMetadata: events.SessionMetadata{
-			SessionID: identity.RouteToApp.SessionID,
+			SessionID:   identity.RouteToApp.SessionID,
+			ClusterName: identity.RouteToApp.ClusterName,
 		},
 		UserMetadata: events.UserMetadata{
 			User: ws.GetUser(),

@@ -137,7 +137,8 @@ func (s *SessionRegistry) emitSessionJoinEvent(ctx *ServerContext) {
 			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 		},
 		SessionMetadata: events.SessionMetadata{
-			SessionID: string(ctx.session.id),
+			SessionID:   string(ctx.session.id),
+			ClusterName: ctx.ClusterName,
 		},
 		UserMetadata: events.UserMetadata{
 			User:  ctx.Identity.TeleportUser,
@@ -258,7 +259,8 @@ func (s *SessionRegistry) emitSessionLeaveEvent(party *party) {
 			ServerAddr:      party.ctx.ServerConn.LocalAddr().String(),
 		},
 		SessionMetadata: events.SessionMetadata{
-			SessionID: party.id.String(),
+			SessionID:   party.id.String(),
+			ClusterName: party.ctx.ClusterName,
 		},
 		UserMetadata: events.UserMetadata{
 			User: party.user,
@@ -337,7 +339,8 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 				ServerAddr:      party.ctx.ServerConn.LocalAddr().String(),
 			},
 			SessionMetadata: events.SessionMetadata{
-				SessionID: string(sess.id),
+				SessionID:   string(sess.id),
+				ClusterName: party.ctx.ClusterName,
 			},
 			UserMetadata: events.UserMetadata{
 				User: party.user,
@@ -418,7 +421,8 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 		},
 		SessionMetadata: events.SessionMetadata{
-			SessionID: string(sid),
+			SessionID:   string(sid),
+			ClusterName: ctx.ClusterName,
 		},
 		UserMetadata: events.UserMetadata{
 			User:  ctx.Identity.TeleportUser,
@@ -763,7 +767,8 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 			ServerNamespace: ctx.srv.GetNamespace(),
 		},
 		SessionMetadata: events.SessionMetadata{
-			SessionID: string(s.id),
+			SessionID:   string(s.id),
+			ClusterName: ctx.ClusterName,
 		},
 		UserMetadata: events.UserMetadata{
 			User:  ctx.Identity.TeleportUser,
@@ -900,7 +905,8 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			ServerNamespace: ctx.srv.GetNamespace(),
 		},
 		SessionMetadata: events.SessionMetadata{
-			SessionID: string(s.id),
+			SessionID:   string(s.id),
+			ClusterName: ctx.ClusterName,
 		},
 		UserMetadata: events.UserMetadata{
 			User:  ctx.Identity.TeleportUser,
@@ -995,6 +1001,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			},
 			SessionMetadata: events.SessionMetadata{
 				SessionID: string(s.id),
+				// FIXME(dmitri): ctx.ClusterName,
 			},
 			UserMetadata: events.UserMetadata{
 				User:  ctx.Identity.TeleportUser,
