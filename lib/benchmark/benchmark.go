@@ -3,7 +3,9 @@ Copyright 2020 Gravitational, Inc.
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-    http://www.apache.org/licenses/LICENSE-2.0
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -11,6 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package benchmark package provides tools to run progressive or independent benchmarks against teleport services.
 package benchmark
 
 import (
@@ -75,8 +78,6 @@ type Result struct {
 // a host, host login, and proxy. If host login or proxy is an empty string, it will
 // use the default login
 func Run(ctx context.Context, lg *Linear, cmd, host, login, proxy string) ([]Result, error) {
-	var results []Result
-	sleep := false
 	c := strings.Split(cmd, " ")
 	lg.config = &Config{Command: c}
 	if lg.Threads == 0 {
@@ -92,6 +93,8 @@ func Run(ctx context.Context, lg *Linear, cmd, host, login, proxy string) ([]Res
 		return nil, trace.Wrap(err)
 	}
 	logrus.SetLevel(logrus.ErrorLevel)
+	var results []Result
+	sleep := false
 	for {
 		if sleep {
 			time.Sleep(pauseTimeBetweenBenchmarks)
@@ -184,7 +187,7 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 			result.Histogram.RecordValue(int64(measure.End.Sub(measure.Start) / time.Millisecond))
 			results = append(results, measure)
 			if timeElapsed && len(results) >= c.MinimumMeasurements {
-				go cancelWorkers()
+				cancelWorkers()
 			}
 			if measure.Error != nil {
 				result.RequestsFailed++
@@ -195,7 +198,7 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 			result.Duration = time.Since(start)
 			return result, nil
 		case <-statusTicker.C:
-			logrus.Printf("working... observations: %d", len(results))
+			logrus.Infof("working... observations: %d", len(results))
 		}
 	}
 }
@@ -267,7 +270,7 @@ func (b *benchmarkThread) execute(measure benchMeasure) {
 	client.Stderr = out
 	done := make(chan bool)
 	go func() {
-		measure.Error = b.client.SSH(b.ctx, nil, false)
+		measure.Error = b.client.SSH(context.TODO(), nil, false)
 		measure.End = time.Now()
 		b.sendMeasure(measure)
 		close(done)
@@ -281,18 +284,11 @@ func (b *benchmarkThread) sendMeasure(measure benchMeasure) {
 	select {
 	case b.sendC <- measure:
 	default:
-		logrus.Warningf("blocked on measure send\n")
+		logrus.Warning("blocked on measure send")
 	}
 }
 
 func (b *benchmarkThread) run() {
-	defer func() {
-		if r := recover(); r != nil {
-			logrus.Warningf("recover from panic: %v", r)
-			b.sendMeasure(benchMeasure{ThreadCompleted: true})
-		}
-	}()
-
 	for {
 		select {
 		case measure := <-b.receiveC:
