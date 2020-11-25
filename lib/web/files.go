@@ -17,7 +17,6 @@ limitations under the License.
 package web
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/gravitational/teleport/lib/auth"
@@ -70,9 +69,9 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 
 	isUpload := r.Method == http.MethodPost
 	if isUpload {
-		err = ft.upload(r.Context(), req, r)
+		err = ft.upload(req, r)
 	} else {
-		err = ft.download(r.Context(), req, r, w)
+		err = ft.download(req, r, w)
 	}
 
 	if err != nil {
@@ -89,7 +88,7 @@ type fileTransfer struct {
 	proxyHostPort string
 }
 
-func (f *fileTransfer) download(ctx context.Context, req fileTransferRequest, httpReq *http.Request, w http.ResponseWriter) error {
+func (f *fileTransfer) download(req fileTransferRequest, httpReq *http.Request, w http.ResponseWriter) error {
 	cmd, err := scp.CreateHTTPDownload(scp.HTTPTransferRequest{
 		RemoteLocation: req.remoteLocation,
 		HTTPResponse:   w,
@@ -104,7 +103,7 @@ func (f *fileTransfer) download(ctx context.Context, req fileTransferRequest, ht
 		return trace.Wrap(err)
 	}
 
-	err = tc.ExecuteSCP(ctx, cmd)
+	err = tc.ExecuteSCP(httpReq.Context(), cmd)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -112,7 +111,7 @@ func (f *fileTransfer) download(ctx context.Context, req fileTransferRequest, ht
 	return nil
 }
 
-func (f *fileTransfer) upload(ctx context.Context, req fileTransferRequest, httpReq *http.Request) error {
+func (f *fileTransfer) upload(req fileTransferRequest, httpReq *http.Request) error {
 	cmd, err := scp.CreateHTTPUpload(scp.HTTPTransferRequest{
 		RemoteLocation: req.remoteLocation,
 		FileName:       req.filename,
@@ -128,7 +127,7 @@ func (f *fileTransfer) upload(ctx context.Context, req fileTransferRequest, http
 		return trace.Wrap(err)
 	}
 
-	err = tc.ExecuteSCP(ctx, cmd)
+	err = tc.ExecuteSCP(httpReq.Context(), cmd)
 	if err != nil {
 		return trace.Wrap(err)
 	}

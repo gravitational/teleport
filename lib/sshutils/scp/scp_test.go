@@ -132,6 +132,7 @@ func TestSend(t *testing.T) {
 	for _, tt := range testCases {
 		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
 			cmd, err := CreateCommand(tt.config)
 			require.NoError(t, err)
 
@@ -196,13 +197,13 @@ func TestReceive(t *testing.T) {
 	for _, tt := range testCases {
 		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
 			cmd, err := CreateCommand(tt.config)
 			require.NoError(t, err)
 
 			sourceDir := tempDir(t)
 			source := filepath.Join(sourceDir, tt.config.Flags.Target[0])
 			args := append(tt.args, source)
-			t.Logf("Running SCP: %v.", args)
 
 			// Source is missing, expect an error.
 			err = runSCP(cmd, args...)
