@@ -245,7 +245,7 @@ func printTokenAsText(token services.ResetPasswordToken, messageFormat string) e
 		return trace.Wrap(err, "failed to parse reset password token url")
 	}
 
-	ttl := token.Expiry().Sub(time.Now().UTC()).Round(time.Second)
+	ttl := trimDurationZeroSuffix(token.Expiry().Sub(time.Now().UTC()))
 	fmt.Printf(messageFormat, token.GetUser(), ttl, url)
 	fmt.Printf("NOTE: Make sure %v points at a Teleport proxy which users can access.\n", url.Host)
 	return nil
@@ -308,4 +308,16 @@ func (u *UserCommand) Delete(client auth.ClientI) error {
 		fmt.Printf("User %q has been deleted\n", l)
 	}
 	return nil
+}
+
+func trimDurationZeroSuffix(d time.Duration) string {
+	s := d.Round(time.Second).String()
+	switch {
+	case strings.HasSuffix(s, "h0m0s"):
+		return strings.TrimSuffix(s, "0m0s")
+	case strings.HasSuffix(s, "m0s"):
+		return strings.TrimSuffix(s, "0s")
+	default:
+		return s
+	}
 }
