@@ -41,7 +41,7 @@ func TestStreams(t *testing.T) {
 	uri := os.Getenv(teleport.GCSTestURI)
 	if uri == "" {
 		t.Skip(
-			fmt.Sprintf("Skipping GCS tests, set env var %q, details here: https://gravitational.com/teleport/docs/gcp_guide/",
+			fmt.Sprintf("Skipping GCS tests, set env var %q, details here: https://goteleport.com/teleport/docs/gcp-guide/",
 				teleport.GCSTestURI))
 	}
 	u, err := url.Parse(uri)
