@@ -5,6 +5,9 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Release.Name }}
+  annotations:
+    # ConfigMap checksum, to recreate deployment on config changes.
+    checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -45,12 +48,18 @@ spec:
         - mountPath: /etc/teleport
           name: "config"
           readOnly: true
+        - mountPath: /etc/teleport-secrets
+          name: "auth-token"
+          readOnly: true
         - mountPath: /var/lib/teleport
           name: "data"
       volumes:
       - name: "config"
         configMap:
           name: {{ .Release.Name }}
+      - name: "auth-token"
+        secret:
+          secretName: {{ .Values.secretName }}
       - name: "data"
         emptyDir: {}
       serviceAccountName: {{ .Values.serviceAccountName }}

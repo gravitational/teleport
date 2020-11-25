@@ -19,6 +19,7 @@ To install the agent, run:
 
 ```sh
 $ helm install teleport-kube-agent . \
+  --create-namespace \
   --namespace teleport \
   --set proxyAddr=$PROXY_ENDPOINT \
   --set authToken=$JOIN_TOKEN \

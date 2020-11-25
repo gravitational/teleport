@@ -5,7 +5,7 @@ metadata:
 data:
   teleport.yaml: |
     teleport:
-      auth_token: {{ required "authToken is required in chart values" .Values.authToken }}
+      auth_token: "/etc/teleport-secrets/auth-token"
       auth_servers: ["{{ required "proxyAddr is required in chart values" .Values.proxyAddr }}"]
 
     kubernetes_service:
