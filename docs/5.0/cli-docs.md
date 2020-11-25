@@ -449,7 +449,7 @@ $ tsh login --proxy=proxy.example.com --request-reason="I need to run a debug sc
 
 ## tsh kube login
 
-Log into a Kubernetes cluster. Discover connected clusters by using [`tsh kube ls`](cli-docs.md/#tsh-kube-ls)
+Log into a Kubernetes cluster. Discover connected clusters by using [`tsh kube ls`](cli-docs.md#tsh-kube-ls)
 
 **Usage**: `tsh kube login <kube-cluster>`
 

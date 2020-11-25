@@ -37,7 +37,7 @@ Example Kubernetes Cluster Configurations:
 
 * Connecting to multiple Kubernetes clusters in multiple regions/cloud:
       *  Use Option 1, once setup you'll need to connect via the root Teleport service.
-      *  Use Option 1 combined with [Trusted Clusters](kubernetes-access.md/#multiple-kubernetes-clusters-via-trusted-cluster)
+      *  Use Option 1 combined with [Trusted Clusters](kubernetes-access.md#multiple-kubernetes-clusters-via-trusted-cluster)
 
 * Migrating pre-5.0 Teleport clusters to new `kubernetes_service`:
       * Please review our [Teleport Kubernetes Guide](kubernetes-5.0-migration.md)
@@ -409,8 +409,7 @@ We've a complete guide on setting up Teleport with EKS. Please see the [Using Te
 
 Teleport 5.0 adds the [long requested feature](https://github.com/gravitational/teleport/issues/3680)
 of supporting multiple Kubernetes Clusters via a single Teleport instance. This setup is
-described in [Option 1](kubernetes-access.md/#option-1-teleport-as-a-gateway-to-multiple-k8s-clusters)
-and uses reverse tunnels to connect back to the root cluster.
+described in Option 1 and uses reverse tunnels to connect back to the root cluster.
 
 ## Multiple Kubernetes Clusters via Trusted Cluster
 
