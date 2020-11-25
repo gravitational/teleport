@@ -1,9 +1,6 @@
-
 # `tsh bench`
 
-
 ## Using `tsh` bench 
-
 Specify the rps and duration with `--rate` and `--duration`. By default rate is 10 requests per seconds and duration is 1 second. You will need to provide `[user@]host` and a command to run. 
 
 ```
@@ -14,7 +11,6 @@ tsh bench --rate=100 --duration=30s localhost ls -l /
 
 
 ## Exporting Latency Profile 
-
 Run `tsh bench` as usual and use the `--export` flag to export both the response and service histograms. Use `--path` to specify a directory to save the profiles to. If the path is not specified, the files will be saved to your current working directory. 
 
 Example:  
@@ -29,9 +25,7 @@ The files will be saved in the following format:
 1. Navigate to [HDR Histogram Plotter](http://hdrhistogram.github.io/HdrHistogram/plotFiles.html)
 2. In the upper left corner of the page you will see a button that reads "choose files" and select both exported files 
 
-Your histograms should now be plotted! 
-
-
+Your histograms should now be plotted.
 
 ## Linear Benchmark Generator
 A linear generator generates benchmarks between a lower and upper bound using a fixed step as configured by the user. 
