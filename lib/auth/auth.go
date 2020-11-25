@@ -609,7 +609,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 			if !trace.IsNotFound(err) {
 				return nil, trace.Wrap(err)
 			}
-			log.WithError(err).Warning("Failed setting default kubernetes cluster for user login (user did not provide a cluster); leaving KubernetesCluster extension in the TLS certificate empty")
+			log.WithError(err).Debug("Failed setting default kubernetes cluster for user login (user did not provide a cluster); leaving KubernetesCluster extension in the TLS certificate empty")
 		}
 	}
 	// generate TLS certificate

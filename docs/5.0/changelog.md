@@ -1,0 +1,6 @@
+---
+title: Teleport Changelog
+description: Learn about what's new, improved and fixed in Teleport.
+---
+
+{!CHANGELOG.md!}
