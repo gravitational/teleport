@@ -135,6 +135,10 @@ func (s *AddrTestSuite) TestReplaceLocalhost(c *C) {
 	c.Assert(result, Equals, "192.168.1.100:22")
 	result = ReplaceLocalhost("0.0.0.0:22", "192.168.1.100:399")
 	c.Assert(result, Equals, "192.168.1.100:22")
+	result = ReplaceLocalhost("[::]:22", "192.168.1.100:399")
+	c.Assert(result, Equals, "192.168.1.100:22")
+	result = ReplaceLocalhost("[::]:22", "[1::1]:399")
+	c.Assert(result, Equals, "[1::1]:22")
 }
 
 func (s *AddrTestSuite) TestLocalAddrs(c *C) {
