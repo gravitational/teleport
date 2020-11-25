@@ -51,6 +51,7 @@ nav:
         - Admin Manual: admin-guide.md
         - Production Guide: production.md
         - FAQ: faq.md
+        - Changelog: changelog.md
     - Infrastructure Guides:
         - AWS: aws-oss-guide.md
         - GCP: gcp-guide.md
