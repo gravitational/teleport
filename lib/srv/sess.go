@@ -131,7 +131,10 @@ func (s *SessionRegistry) emitSessionJoinEvent(ctx *ServerContext) {
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
+			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 			ServerNamespace: s.srv.GetNamespace(),
+			ServerHostname:  s.srv.GetInfo().GetHostname(),
+			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 		},
 		SessionMetadata: events.SessionMetadata{
 			SessionID: string(ctx.session.id),
@@ -249,7 +252,10 @@ func (s *SessionRegistry) emitSessionLeaveEvent(party *party) {
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        party.ctx.srv.HostUUID(),
+			ServerLabels:    party.ctx.srv.GetInfo().GetAllLabels(),
 			ServerNamespace: s.srv.GetNamespace(),
+			ServerHostname:  s.srv.GetInfo().GetHostname(),
+			ServerAddr:      party.ctx.ServerConn.LocalAddr().String(),
 		},
 		SessionMetadata: events.SessionMetadata{
 			SessionID: party.id.String(),
@@ -325,9 +331,10 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 			},
 			ServerMetadata: events.ServerMetadata{
 				ServerID:        party.ctx.srv.HostUUID(),
+				ServerLabels:    party.ctx.srv.GetInfo().GetAllLabels(),
 				ServerNamespace: s.srv.GetNamespace(),
 				ServerHostname:  s.srv.GetInfo().GetHostname(),
-				ServerAddr:      s.srv.GetInfo().GetAddr(),
+				ServerAddr:      party.ctx.ServerConn.LocalAddr().String(),
 			},
 			SessionMetadata: events.SessionMetadata{
 				SessionID: string(sess.id),
@@ -405,7 +412,10 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
+			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 			ServerNamespace: s.srv.GetNamespace(),
+			ServerHostname:  s.srv.GetInfo().GetHostname(),
+			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 		},
 		SessionMetadata: events.SessionMetadata{
 			SessionID: string(sid),
@@ -749,6 +759,7 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 			ServerID:        ctx.srv.HostUUID(),
 			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 			ServerHostname:  ctx.srv.GetInfo().GetHostname(),
+			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 			ServerNamespace: ctx.srv.GetNamespace(),
 		},
 		SessionMetadata: events.SessionMetadata{
@@ -885,6 +896,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			ServerID:        ctx.srv.HostUUID(),
 			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 			ServerHostname:  ctx.srv.GetInfo().GetHostname(),
+			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 			ServerNamespace: ctx.srv.GetNamespace(),
 		},
 		SessionMetadata: events.SessionMetadata{
@@ -976,9 +988,10 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 			},
 			ServerMetadata: events.ServerMetadata{
 				ServerID:        ctx.srv.HostUUID(),
+				ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 				ServerNamespace: ctx.srv.GetNamespace(),
 				ServerHostname:  ctx.srv.GetInfo().GetHostname(),
-				ServerAddr:      ctx.srv.GetInfo().GetAddr(),
+				ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 			},
 			SessionMetadata: events.SessionMetadata{
 				SessionID: string(s.id),
