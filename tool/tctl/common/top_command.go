@@ -55,7 +55,7 @@ type TopCommand struct {
 func (c *TopCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	c.config = config
 	c.top = app.Command("top", "Report diagnostic information")
-	c.diagURL = c.top.Arg("diag-addr", "Diagnostic HTTP URL").Default("http://127.0.0.1:3434").String()
+	c.diagURL = c.top.Arg("diag-addr", "Diagnostic HTTP URL").Default("http://127.0.0.1:3000").String()
 	c.refreshPeriod = c.top.Arg("refresh", "Refresh period").Default("5s").Duration()
 }
 
