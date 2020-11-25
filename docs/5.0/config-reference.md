@@ -357,16 +357,16 @@ app_service:
 ## This section configures the 'kubernetes service'
 kubernetes_service:
     enabled: yes
-    # Optional Public & Listen Addr: Set these if you are connecting to 
+    # Optional Public & Listen Addr: Set these if you are connecting to
     # Teleport running inside a Kubernetes cluster instead of using a
-    # reverse tunnel. 
+    # reverse tunnel.
     #
     # Optional Public Addr
     public_addr: [k8s.example.com:3026]
-    # Optional Listen Addr 
+    # Optional Listen Addr
     listen_addr: 0.0.0.0:3026
     # Optional kubeconfig_file and kube_cluster_name. Exactly one of these must be set.
-    # 
+    #
     # When running teleport outside of the kubernetes cluster, use kubeconfig_file to provide
     # teleport with cluster credentials.
     #
@@ -374,10 +374,10 @@ kubernetes_service:
     # provide a user-visible name. Teleport uses the pod service account credentials to authenticate
     # to its local kubernetes API.
     kubeconfig_file: /secrets/kubeconfig
-    kube_cluster_name: 
+    kube_cluster_name:
     # Optional labels: These can be used in combination with RBAC rules
     # to limit access to applications.
-    # When using kubeconfig_file above, these labels apply to all kubernetes 
+    # When using kubeconfig_file above, these labels apply to all kubernetes
     # clusters specified in the kubeconfig.
     labels:
       env: "prod"
