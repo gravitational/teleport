@@ -25,9 +25,10 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/testlog"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
@@ -38,7 +39,7 @@ func TestServerKeyAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	s := &server{
-		FieldLogger: testlog.FailureOnly(t),
+		log: utils.NewLoggerForTests(logrus.New()),
 		localAccessPoint: mockAccessPoint{ca: services.NewCertAuthority(
 			services.HostCA,
 			"cluster-name",

@@ -48,7 +48,7 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 			Keygen: testauthority.New(),
 			Client: cl,
 		},
-		FieldLogger: logrus.NewEntry(logrus.New()),
+		log: logrus.New(),
 	}
 	user, err := services.NewUser("bob")
 	c.Assert(err, check.IsNil)
@@ -94,7 +94,7 @@ func (s ForwarderSuite) TestGetClusterSession(c *check.C) {
 	c.Assert(err, check.IsNil)
 	f := &Forwarder{
 		clusterSessions: clusterSessions,
-		FieldLogger:     logrus.NewEntry(logrus.New()),
+		log:             logrus.New(),
 	}
 
 	user, err := services.NewUser("bob")
@@ -148,7 +148,7 @@ func TestAuthenticate(t *testing.T) {
 	}
 
 	f := &Forwarder{
-		FieldLogger: logrus.NewEntry(logrus.New()),
+		log: logrus.New(),
 		ForwarderConfig: ForwarderConfig{
 			ClusterName: "local",
 			AccessPoint: ap,
@@ -575,7 +575,7 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 	csrClient, err := newMockCSRClient()
 	c.Assert(err, check.IsNil)
 	f := &Forwarder{
-		FieldLogger: logrus.NewEntry(logrus.New()),
+		log: logrus.New(),
 		ForwarderConfig: ForwarderConfig{
 			Keygen:      testauthority.New(),
 			Client:      csrClient,

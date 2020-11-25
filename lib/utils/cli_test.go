@@ -38,8 +38,7 @@ func (s *CLISuite) SetUpSuite(c *check.C) {
 }
 
 func (s *CLISuite) TestUserMessageFromError(c *check.C) {
-	// FIXME: enable after https://drone.gravitational.io/gravitational/teleport/3517 is merged
-	c.Skip("TODO")
+	c.Skip("Enable after https://drone.gravitational.io/gravitational/teleport/3517 is merged.")
 	tests := []struct {
 		comment   string
 		inError   error

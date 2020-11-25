@@ -109,8 +109,10 @@ func init() {
 // sessions. It implements IAuditLog
 type AuditLog struct {
 	sync.Mutex
-	log.FieldLogger
 	AuditLogConfig
+
+	// log specifies the logger
+	log log.FieldLogger
 
 	// playbackDir is a directory used for unpacked session recordings
 	playbackDir string
@@ -242,7 +244,7 @@ func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
 	al := &AuditLog{
 		playbackDir:    filepath.Join(cfg.DataDir, PlaybackDir, SessionLogsDir, defaults.Namespace),
 		AuditLogConfig: cfg,
-		FieldLogger: log.WithFields(log.Fields{
+		log: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentAuditLog,
 		}),
 		activeDownloads: make(map[string]context.Context),
@@ -340,10 +342,10 @@ func (l *AuditLog) UploadSessionRecording(r SessionRecording) error {
 	start := time.Now()
 	url, err := l.UploadHandler.Upload(context.TODO(), r.SessionID, r.Recording)
 	if err != nil {
-		l.WithFields(log.Fields{"duration": time.Since(start), "session-id": r.SessionID}).Warningf("Session upload failed: %v", trace.DebugReport(err))
+		l.log.WithFields(log.Fields{"duration": time.Since(start), "session-id": r.SessionID}).Warningf("Session upload failed: %v", trace.DebugReport(err))
 		return trace.Wrap(err)
 	}
-	l.WithFields(log.Fields{"duration": time.Since(start), "session-id": r.SessionID}).Debugf("Session upload completed.")
+	l.log.WithFields(log.Fields{"duration": time.Since(start), "session-id": r.SessionID}).Debugf("Session upload completed.")
 	return l.EmitAuditEventLegacy(SessionUploadE, EventFields{
 		SessionEventID: string(r.SessionID),
 		URL:            url,
@@ -625,7 +627,7 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 			return trace.Wrap(err)
 		}
 		if unpacked {
-			l.Debugf("Recording %v is stored in legacy unpacked format.", sid)
+			l.log.Debugf("Recording %v is stored in legacy unpacked format.", sid)
 			return nil
 		}
 	}
@@ -636,7 +638,7 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 	// means that another download is in progress, so simply wait until
 	// it finishes
 	if cancel == nil {
-		l.Debugf("Another download is in progress for %v, waiting until it gets completed.", sid)
+		l.log.Debugf("Another download is in progress for %v, waiting until it gets completed.", sid)
 		select {
 		case <-ctx.Done():
 			return nil
@@ -648,14 +650,14 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 	_, err := os.Stat(tarballPath)
 	err = trace.ConvertSystemError(err)
 	if err == nil {
-		l.Debugf("Recording %v is already downloaded and unpacked to %v.", sid, tarballPath)
+		l.log.Debugf("Recording %v is already downloaded and unpacked to %v.", sid, tarballPath)
 		return nil
 	}
 	if !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 	start := time.Now()
-	l.Debugf("Starting download of %v.", sid)
+	l.log.Debugf("Starting download of %v.", sid)
 	tarball, err := os.OpenFile(tarballPath, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0640)
 	if err != nil {
 		return trace.ConvertSystemError(err)
@@ -666,7 +668,7 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 		os.Remove(tarball.Name())
 		return trace.Wrap(err)
 	}
-	l.WithFields(log.Fields{"duration": time.Since(start)}).Debugf("Downloaded %v to %v.", sid, tarballPath)
+	l.log.WithField("duration", time.Since(start)).Debugf("Downloaded %v to %v.", sid, tarballPath)
 
 	_, err = tarball.Seek(0, 0)
 	if err != nil {
@@ -674,7 +676,7 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 	}
 	format, err := DetectFormat(tarball)
 	if err != nil {
-		l.WithError(err).Debugf("Failed to detect playback %v format.", tarballPath)
+		l.log.WithError(err).Debugf("Failed to detect playback %v format.", tarballPath)
 		return trace.Wrap(err)
 	}
 	_, err = tarball.Seek(0, 0)
@@ -684,16 +686,16 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 	switch {
 	case format.Proto == true:
 		start = time.Now()
-		l.Debugf("Converting %v to playback format.", tarballPath)
+		l.log.Debugf("Converting %v to playback format.", tarballPath)
 		protoReader := NewProtoReader(tarball)
 		err = WriteForPlayback(l.Context, sid, protoReader, l.playbackDir)
 		if err != nil {
-			l.WithError(err).Error("Failed to convert.")
+			l.log.WithError(err).Error("Failed to convert.")
 			return trace.Wrap(err)
 		}
 		stats := protoReader.GetStats().ToFields()
 		stats["duration"] = time.Since(start)
-		l.WithFields(stats).Debugf("Converted %v to %v.", tarballPath, l.playbackDir)
+		l.log.WithFields(stats).Debugf("Converted %v to %v.", tarballPath, l.playbackDir)
 	case format.Tar == true:
 		if err := utils.Extract(tarball, l.playbackDir); err != nil {
 			return trace.Wrap(err)
@@ -714,10 +716,10 @@ func (l *AuditLog) downloadSession(namespace string, sid session.ID) error {
 			return trace.Wrap(err)
 		}
 		if err := reader.Close(); err != nil {
-			l.Warningf("Failed to close file: %v.", err)
+			l.log.Warningf("Failed to close file: %v.", err)
 		}
 	}
-	l.WithFields(log.Fields{"duration": time.Since(start)}).Debugf("Unpacked %v to %v.", tarballPath, l.playbackDir)
+	l.log.WithField("duration", time.Since(start)).Debugf("Unpacked %v to %v.", tarballPath, l.playbackDir)
 	return nil
 }
 
@@ -771,9 +773,9 @@ func (l *AuditLog) cleanupOldPlaybacks() error {
 		fileToRemove := filepath.Join(l.playbackDir, fi.Name())
 		err := os.Remove(fileToRemove)
 		if err != nil {
-			l.Warningf("Failed to remove file %v: %v.", fileToRemove, err)
+			l.log.Warningf("Failed to remove file %v: %v.", fileToRemove, err)
 		}
-		l.Debugf("Removed unpacked session playback file %v after %v.", fileToRemove, diff)
+		l.log.Debugf("Removed unpacked session playback file %v after %v.", fileToRemove, diff)
 	}
 	return nil
 }
@@ -835,7 +837,7 @@ func (l *AuditLog) unpackFile(fileName string) (readSeekCloser, error) {
 		dest.Close()
 		return nil, trace.Wrap(err)
 	}
-	l.Debugf("Uncompressed %v into %v in %v", fileName, unpackedFile, l.Clock.Now().Sub(start))
+	l.log.Debugf("Uncompressed %v into %v in %v", fileName, unpackedFile, l.Clock.Now().Sub(start))
 	return dest, nil
 }
 
@@ -876,7 +878,7 @@ func (l *AuditLog) getSessionChunk(namespace string, sid session.ID, offsetBytes
 // This function is usually used in conjunction with GetSessionReader to
 // replay recorded session streams.
 func (l *AuditLog) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]EventFields, error) {
-	l.WithFields(log.Fields{"sid": string(sid), "afterN": afterN, "printEvents": includePrintEvents}).Debugf("GetSessionEvents.")
+	l.log.WithFields(log.Fields{"sid": string(sid), "afterN": afterN, "printEvents": includePrintEvents}).Debugf("GetSessionEvents.")
 	if namespace == "" {
 		return nil, trace.BadParameter("missing parameter namespace")
 	}
@@ -1003,7 +1005,7 @@ func (l *AuditLog) auditDirs() ([]string, error) {
 // SearchEvents finds events. Results show up sorted by date (newest first),
 // limit is used when set to value > 0
 func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit int) ([]EventFields, error) {
-	l.Debugf("SearchEvents(%v, %v, query=%v, limit=%v)", fromUTC, toUTC, query, limit)
+	l.log.Debugf("SearchEvents(%v, %v, query=%v, limit=%v)", fromUTC, toUTC, query, limit)
 	if limit <= 0 {
 		limit = defaults.EventsIterationLimit
 	}
@@ -1018,7 +1020,7 @@ func (l *AuditLog) SearchEvents(fromUTC, toUTC time.Time, query string, limit in
 
 // SearchSessionEvents searches for session related events. Used to find completed sessions.
 func (l *AuditLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int) ([]EventFields, error) {
-	l.Debugf("SearchSessionEvents(%v, %v, %v)", fromUTC, toUTC, limit)
+	l.log.Debugf("SearchSessionEvents(%v, %v, %v)", fromUTC, toUTC, limit)
 
 	if l.ExternalLog != nil {
 		return l.ExternalLog.SearchSessionEvents(fromUTC, toUTC, limit)
@@ -1057,7 +1059,7 @@ func (l *AuditLog) periodicCleanupPlaybacks() {
 			return
 		case <-ticker.C:
 			if err := l.cleanupOldPlaybacks(); err != nil {
-				l.Warningf("Error while cleaning up playback files: %v.", err)
+				l.log.Warningf("Error while cleaning up playback files: %v.", err)
 			}
 		}
 	}

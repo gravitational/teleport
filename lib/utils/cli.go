@@ -68,10 +68,16 @@ func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
 
 // InitLoggerForTests initializes the standard logger for tests
 func InitLoggerForTests() {
-	log.StandardLogger().ReplaceHooks(make(log.LevelHooks))
-	log.SetFormatter(&trace.TextFormatter{})
-	log.SetLevel(log.DebugLevel)
-	log.SetOutput(os.Stderr)
+	NewLoggerForTests(log.StandardLogger())
+}
+
+// NewLoggerForTests sets up the specified logger for test environment
+func NewLoggerForTests(logger *log.Logger) *log.Logger {
+	logger.ReplaceHooks(make(log.LevelHooks))
+	logger.SetFormatter(&trace.TextFormatter{})
+	logger.SetLevel(log.DebugLevel)
+	logger.SetOutput(os.Stderr)
+	return logger
 }
 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging
