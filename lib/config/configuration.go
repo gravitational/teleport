@@ -667,7 +667,7 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) error {
 			if !pam.BuildHasPAM() {
 				errorMessage := "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
 					"Teleport binary was built without PAM support. To continue either download a \n" +
-					"Teleport binary build with PAM support from https://gravitational.com/teleport \n" +
+					"Teleport binary build with PAM support from https://goteleport.com/teleport \n" +
 					"or disable PAM in file configuration."
 				return trace.BadParameter(errorMessage)
 			}
