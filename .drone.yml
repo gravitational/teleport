@@ -320,7 +320,7 @@ clone:
 
 steps:
   - name: Check out code
-    image: golang:1.14.4
+    image: golang:1.15.5
     volumes:
       - name: tmpfs
         path: /tmpfs
@@ -351,7 +351,7 @@ steps:
         fi
 
   - name: Run docs tests (internal links only)
-    image: golang:1.14.4
+    image: golang:1.15.5
     volumes:
       - name: tmpfs
         path: /tmpfs
@@ -405,7 +405,7 @@ clone:
 
 steps:
   - name: Check out code
-    image: golang:1.14.4
+    image: golang:1.15.5
     volumes:
       - name: tmpfs
         path: /tmpfs
@@ -436,7 +436,7 @@ steps:
         fi
 
   - name: Run docs tests (external links only)
-    image: golang:1.14.4
+    image: golang:1.15.5
     failure: ignore
     volumes:
       - name: tmpfs
@@ -494,9 +494,9 @@ steps:
     environment:
       # increment these variables when a new major/minor version is released to bump the automatic builds
       # this only needs to be done on the master branch, as that's the branch that the Drone cron is configured for
-      CURRENT_VERSION_ROOT: v4.4
-      PREVIOUS_VERSION_ONE_ROOT: v4.3
-      PREVIOUS_VERSION_TWO_ROOT: v4.2
+      CURRENT_VERSION_ROOT: v5.0
+      PREVIOUS_VERSION_ONE_ROOT: v4.4
+      PREVIOUS_VERSION_TWO_ROOT: v4.3
     commands:
       - apk --update --no-cache add curl
       - mkdir -p /go/build && cd /go/build
@@ -3174,6 +3174,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 1ff36cee3293e86f8fa22d4aee5da84fb0c8b36d1ebc31d2234f23242a76faea
+hmac: 48bfe0ed0cb5c95f714ddc2cb483fac84586dadc09fe8e65f9d967ac458f8d2b
 
 ...
