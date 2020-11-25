@@ -31,9 +31,28 @@ All Teleport clusters have a User and Host CA used to issue user and host SSH an
 
 An unauthenticated endpoint will be added at https://proxy.example.com:3080/.well-known/jwks.json which returns the public keys that can be used to verify the signed JWT. Multiple keys are supported because JWT signers can be rotated similar to CAs.
 
-Many sources exist that explain the JWT signature scheme and how to verify a JWT. Introduction to JSON Web Tokens is a good starting point for general JWT information.
+Many sources exist that explain the JWT signature scheme and how to verify a JWT. [Introduction to JSON Web Tokens](https://jwt.io/introduction/) is a good starting point for general JWT information.
 
-However, we strongly recommend you use a well written and supported library in the language of your choice to validate the JWT and you not try to write parsing and validation code yourself. We have provided an example written in Go within Teleport showing how to validate the JWT token.
+However, we strongly recommend you use a well written and supported library in the language of your choice to verify the JWT and you not try to write parsing and verification code yourself.
+
+We've provided a small program available at [examples/jwt/verify-jwt.go](https://github.com/gravitational/teleport/blob/master/examples/jwt/verify-jwt.go) that can be used to verify a JWT. When you run it, you should see output like the following:
+
+```
+# Replace "..." with the JWT when running the program below.
+#
+# To validate claims, provide the expected claims of issuer (cluster name),
+# subject (Teleport username), and audience (URI of internal application).
+
+$ ./verify-jwt -jwt="..." -validate-claims=true -issuer=example.com -subject=jsmith -audience="http://127.0.0.1:8080"
+
+Claims
+-------
+Username: jsmith.
+Roles:    admin.
+Issuer:   example.com.
+Subject:  jsmith.
+Audience: [http://127.0.0.1:8080].
+```
 
 #### Claims
 
@@ -91,6 +110,63 @@ To explicitly log a session out, an authenticated session can issue a `GET /tele
 Internal applications and implementers are encouraged to support `DELETE /teleport-logout` in the form of a logout button within the internal application.
 
 The `GET /teleport-logout` endpoint is for internal applications that can not be modified. For example, you may go to `https://acme.example.com/teleport-logout` to log out of the ACME application.
+
+### Audit Events
+
+Application Access generates three distinct events.
+
+* `app.session.start`: Issued when the certificate is issued.
+* `app.session.chunk`: Points to a 5 minute chunk archive of `app.session.request` events.
+* `app.session.request`: Contains the request and response pair.
+
+This means fetching all events for a particular certificate first require that the user finds the initial `app.session.start` event then find all `app.session.chunk` events with a matching `sid` field. Those `app.session.chunk` events can then be used to fetch all the request and response pairs. This allows proxies and application service nodes to continue to be stateless: they all simply emit events that they see, and the auth server can aggregate and return them when the user uses `tsh play`.
+
+#### Examples
+
+Below are examples of the three events.
+
+```
+{
+  "ei": 0,
+  "event": "app.session.start",
+  "uid": "a0065d17-d820-431d-9cc6-1933ab5abe39",
+  "code": "T2007I",
+  "time": "2020-11-19T22:20:46.257Z",
+  "user": "rjones",
+  "sid": "804defb1-e2fa-4daa-9ba1-b73490888c78",
+  "namespace": "default",
+  "server_id": "15a54155-aae2-410e-825f-6d0588fb0771",
+  "addr.remote": "127.0.0.1:37380",
+  "public_addr": "cli-app.proxy.example.com"
+}
+```
+```
+{
+  "ei": 0,
+  "event": "app.session.chunk",
+  "uid": "45fcbe2b-4b55-4423-b64e-91eb35804a24",
+  "code": "T2008I",
+  "time": "2020-11-19T22:20:46.467Z",
+  "user": "rjones",
+  "sid": "804defb1-e2fa-4daa-9ba1-b73490888c78",
+  "namespace": "default",
+  "server_id": "15a54155-aae2-410e-825f-6d0588fb0771",
+  "session_chunk_id": "46957727-4170-42f8-80f1-a89c8b42a93e"
+}
+```
+```
+{
+  "ei": 0,
+  "event": "app.session.request",
+  "uid": "46957727-4170-42f8-80f1-a89c8b42a93e",
+  "code": "T2009I",
+  "time": "2020-11-19T22:20:54.939Z",
+  "status_code": 200,
+  "method": "GET",
+  "path": "/",
+  "raw_query": ""
+}
+```
 
 ## Configuration
 

@@ -173,6 +173,12 @@ rules:
   verbs:
   - impersonate
 - apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+- apiGroups:
   - "authorization.k8s.io"
   resources:
   - selfsubjectaccessreviews
