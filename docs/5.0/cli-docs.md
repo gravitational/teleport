@@ -460,14 +460,13 @@ Logged into kubernetes cluster "gke_bens-demos_us-central1-c_gks-demo"
 
 # on login, kubeconfig is pointed at the first cluster (alphabetically)
 $ kubectl config current-context
-gke_bens-demos_us-central1-c_gks-demo
+aws-gke_bens-demos_us-central1-c_gks-demo
 
 # but all clusters are populated as contexts
 $ kubectl config get-contexts
 CURRENT   NAME                                        CLUSTER                       AUTHINFO                                    NAMESPACE
 *         aws-gke_bens-demos_us-central1-c_gks-demo   aws                           aws-gke_bens-demos_us-central1-c_gks-demo
           aws-microk8s                                aws                           aws-microk8s
-          teleport-enterprise-pd-demo                 teleport-enterprise-pd-demo   teleport-enterprise-pd-demo
 ```
 
 ## tsh logout
@@ -713,7 +712,7 @@ $ tctl tokens add --type=node
 # Generate an invite token for a kubernetes_service
 $ tctl tokens add --type=kube
 # Generate an invite token for an app_service
-$ tctl tokens add --type=apps
+$ tctl tokens add --type=app
 ```
 
 ## tctl tokens rm

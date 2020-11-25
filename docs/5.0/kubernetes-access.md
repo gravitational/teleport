@@ -16,13 +16,13 @@ access to Kubernetes clusters. This enables the following capabilities:
   it easier to implement policies like _developers must not access production
   data_.
 * Complete `kubectl` auditing and session recordings for `kubectl exec`
-* Multi Kubernetes Support. Quickly switch between multiple K8s clusters using [`tsh kube login`]()
+* Multi Kubernetes Support. Login to Teleport once and quickly switch between multiple K8s clusters using [`tsh kube login`](cli-docs.md/#tsh-kube-login)
 
 ## Start Here
 
 Before we dive into setup, we've a few options to help guide you. We've created some example
 Teleport Kubernetes Access configurations for different scenarios, all the way from solo developers
-accessing minikube through to to large enterprises accessing hundreds of Kubernetes clusters.
+accessing minikube through to large enterprises accessing hundreds of Kubernetes clusters.
 
 Example Kubernetes Cluster Configurations:
 
@@ -52,8 +52,8 @@ config file, as shown below:
 # snippet from /etc/teleport.yaml on the Teleport proxy service:
 kubernetes_service:
     enabled: yes
-    public_addr: [k8s.example.com:3026]
-    listen_addr: 0.0.0.0:3026
+    public_addr: [k8s.example.com:3027]
+    listen_addr: 0.0.0.0:3027
     kubeconfig_file: /secrets/kubeconfig
 ```
 Let's take a closer look at the available Kubernetes settings:
@@ -73,9 +73,9 @@ Connecting the Teleport proxy to Kubernetes
 
 There are two options for setting up Teleport to access Kubernetes:
 
-### Option 1: Teleport as a  "gateway" to multiple K8s Clusters
+### Option 1: Standalone Teleport "gateway" for multiple K8s Clusters
 
-A single central Teleport Data Plane acting as "gateway". Multiple Kubernetes clusters
+A single central Teleport Access Plane acting as "gateway". Multiple Kubernetes clusters
 connect to it over reverse tunnels.
 
 The root Teleport Cluster should be setup following our standard config, to make sure
@@ -103,16 +103,17 @@ To get quickly setup, we provide a Helm chart that'll connect to the above root 
 $ helm repo add teleport https://charts.releases.teleport.dev
 
 # Installing the Helm Chart
-helm install teleport-agent . \
+helm install teleport-kube-agent teleport/teleport-kube-agent \
   --namespace teleport \
-  --set proxyAddr=$PROXY_ENDPOINT \
+  --create-namespace \
+  --set proxyAddr=proxy.example.com:3080 \
   --set authToken=$JOIN_TOKEN \
   --set kubeClusterName=$KUBERNETES_CLUSTER_NAME
 ```
 
 | Things to set | Description |
 |-|-|
-| `proxyAddr` | The Address of the Teleport Root Service |
+| `proxyAddr` | The Address of the Teleport Root Service, using the proxy listening port |
 | `authToken` | A static `kube` invite token |
 | `kubeClusterName` | Kubernetes Cluster name (there is no easy way to automatically detect the name from the environment) |
 
@@ -133,6 +134,8 @@ proxy_service:
 
 kubernetes_service:
   enabled: yes
+  listen_addr: 0.0.0.0:3027
+  kube_cluster_name: kube.example.com
 ```
 
 If you're using Helm, we provide a chart that you can use. Run these commands:

@@ -329,6 +329,7 @@ proxy_service:
     - key_file: /etc/letsencrypt/live/*.teleport.example.com/privkey.pem
       cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 
+    kube_listen_addr: 0.0.0.0:3026
 # This section configures the 'application service'
 app_service:
     # Turns 'app' role on. Default is 'no'
@@ -357,17 +358,27 @@ app_service:
 kubernetes_service:
     enabled: yes
     # Optional Public & Listen Addr: Set these if you are connecting to 
-    # Teleport running inside a Kubernetes cluster. 
+    # Teleport running inside a Kubernetes cluster instead of using a
+    # reverse tunnel. 
+    #
     # Optional Public Addr
     public_addr: [k8s.example.com:3026]
     # Optional Listen Addr 
     listen_addr: 0.0.0.0:3026
-    # Optional kubeconfig: Service inside k8s does not have a kubeconfig. 
-    # Instead, it uses the pod service account credentials to authenticate to its k8s API.
+    # Optional kubeconfig_file and kube_cluster_name. Exactly one of these must be set.
+    # 
+    # When running teleport outside of the kubernetes cluster, use kubeconfig_file to provide
+    # teleport with cluster credentials.
+    #
+    # When running teleport inside of the kubernetes cluster pod, use kube_cluster_name to
+    # provide a user-visible name. Teleport uses the pod service account credentials to authenticate
+    # to its local kubernetes API.
     kubeconfig_file: /secrets/kubeconfig
     kube_cluster_name: 
-    # Optional Label: These can be used in combination with RBAC rules
-    # to limit access to applications
+    # Optional labels: These can be used in combination with RBAC rules
+    # to limit access to applications.
+    # When using kubeconfig_file above, these labels apply to all kubernetes 
+    # clusters specified in the kubeconfig.
     labels:
       env: "prod"
     # Optional Dynamic Labels
