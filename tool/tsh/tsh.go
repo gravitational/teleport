@@ -1573,7 +1573,7 @@ func printProfiles(debug bool, profile *client.ProfileStatus, profiles []*client
 	// here, they are only available in Enterprise.
 	if profile != nil || len(profiles) > 0 {
 		fmt.Printf("\n* RBAC is only available in Teleport Enterprise\n")
-		fmt.Printf("  https://gravitational.com/teleport/docs/enterprise\n")
+		fmt.Printf("  https://goteleport.com/teleport/docs/enterprise\n")
 	}
 }
 
