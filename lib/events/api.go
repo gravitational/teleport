@@ -447,6 +447,9 @@ type ServerMetadataSetter interface {
 type SessionMetadataGetter interface {
 	// GetSessionID returns event session ID
 	GetSessionID() string
+
+	// GetClusterName returns the originating teleport cluster name
+	GetClusterName() string
 }
 
 // SessionMetadataSetter represents interface
@@ -454,6 +457,9 @@ type SessionMetadataGetter interface {
 type SessionMetadataSetter interface {
 	// SetSessionID sets event session ID
 	SetSessionID(string)
+
+	// SetClusterName sets teleport cluster name
+	SetClusterName(string)
 }
 
 // SetCode is a shortcut that sets code for the audit event

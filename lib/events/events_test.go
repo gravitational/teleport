@@ -42,7 +42,7 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 	testCases := []testCase{
 		{
 			name: "session start event",
-			json: `{"ei":0,"event":"session.start","uid":"36cee9e9-9a80-4c32-9163-3d9241cdac7a","code":"T2000I","time":"2020-03-30T15:58:54.561Z","namespace":"default","sid":"5b3555dc-729f-11ea-b66a-507b9dd95841","login":"bob","user":"bob@example.com","server_id":"a7c54b0c-469c-431e-af4d-418cd3ae9694","server_hostname":"planet","server_labels":{"group":"gravitational/devc","kernel":"5.3.0-42-generic","date":"Mon Mar 30 08:58:54 PDT 2020"},"addr.local":"127.0.0.1:3022","addr.remote":"[::1]:37718","size":"80:25"}`,
+			json: `{"ei":0,"event":"session.start","uid":"36cee9e9-9a80-4c32-9163-3d9241cdac7a","code":"T2000I","time":"2020-03-30T15:58:54.561Z","namespace":"default","sid":"5b3555dc-729f-11ea-b66a-507b9dd95841","cluster_name":"testcluster","login":"bob","user":"bob@example.com","server_id":"a7c54b0c-469c-431e-af4d-418cd3ae9694","server_hostname":"planet","server_labels":{"group":"gravitational/devc","kernel":"5.3.0-42-generic","date":"Mon Mar 30 08:58:54 PDT 2020"},"addr.local":"127.0.0.1:3022","addr.remote":"[::1]:37718","size":"80:25"}`,
 			event: SessionStart{
 				Metadata: Metadata{
 					Index: 0,
@@ -62,7 +62,8 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 					ServerNamespace: "default",
 				},
 				SessionMetadata: SessionMetadata{
-					SessionID: "5b3555dc-729f-11ea-b66a-507b9dd95841",
+					SessionID:   "5b3555dc-729f-11ea-b66a-507b9dd95841",
+					ClusterName: "testcluster",
 				},
 				UserMetadata: UserMetadata{
 					User:  "bob@example.com",
@@ -77,7 +78,7 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 		},
 		{
 			name: "resize event",
-			json: `{"time":"2020-03-30T15:58:54.564Z","uid":"c34e512f-e6cb-44f1-ab94-4cea09002d29","event":"resize","login":"bob","sid":"5b3555dc-729f-11ea-b66a-507b9dd95841","size":"194:59","ei":1,"code":"T2002I","namespace":"default","server_id":"a7c54b0c-469c-431e-af4d-418cd3ae9694","user":"bob@example.com"}`,
+			json: `{"time":"2020-03-30T15:58:54.564Z","uid":"c34e512f-e6cb-44f1-ab94-4cea09002d29","event":"resize","login":"bob","sid":"5b3555dc-729f-11ea-b66a-507b9dd95841","cluster_name":"testcluster","size":"194:59","ei":1,"code":"T2002I","namespace":"default","server_id":"a7c54b0c-469c-431e-af4d-418cd3ae9694","user":"bob@example.com"}`,
 			event: Resize{
 				Metadata: Metadata{
 					Index: 1,
@@ -91,7 +92,8 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 					ServerNamespace: "default",
 				},
 				SessionMetadata: SessionMetadata{
-					SessionID: "5b3555dc-729f-11ea-b66a-507b9dd95841",
+					SessionID:   "5b3555dc-729f-11ea-b66a-507b9dd95841",
+					ClusterName: "testcluster",
 				},
 				UserMetadata: UserMetadata{
 					User:  "bob@example.com",
@@ -102,7 +104,7 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 		},
 		{
 			name: "session end event",
-			json: `{"code":"T2004I","ei":20,"enhanced_recording":true,"event":"session.end","interactive":true,"namespace":"default","participants":["alice@example.com"],"server_id":"a7c54b0c-469c-431e-af4d-418cd3ae9694","sid":"5b3555dc-729f-11ea-b66a-507b9dd95841","time":"2020-03-30T15:58:58.999Z","uid":"da455e0f-c27d-459f-a218-4e83b3db9426","user":"alice@example.com", "session_start":"2020-03-30T15:58:54.561Z", "session_stop": "2020-03-30T15:58:58.999Z"}`,
+			json: `{"code":"T2004I","ei":20,"enhanced_recording":true,"event":"session.end","interactive":true,"namespace":"default","participants":["alice@example.com"],"server_id":"a7c54b0c-469c-431e-af4d-418cd3ae9694","sid":"5b3555dc-729f-11ea-b66a-507b9dd95841","cluster_name":"test-cluster","time":"2020-03-30T15:58:58.999Z","uid":"da455e0f-c27d-459f-a218-4e83b3db9426","user":"alice@example.com", "session_start":"2020-03-30T15:58:54.561Z", "session_stop": "2020-03-30T15:58:58.999Z"}`,
 			event: SessionEnd{
 				Metadata: Metadata{
 					Index: 20,
@@ -116,7 +118,8 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 					ServerNamespace: "default",
 				},
 				SessionMetadata: SessionMetadata{
-					SessionID: "5b3555dc-729f-11ea-b66a-507b9dd95841",
+					SessionID:   "5b3555dc-729f-11ea-b66a-507b9dd95841",
+					ClusterName: "test-cluster",
 				},
 				UserMetadata: UserMetadata{
 					User: "alice@example.com",
@@ -145,7 +148,7 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 		},
 		{
 			name: "session command event",
-			json: `{"argv":["/usr/bin/lesspipe"],"login":"alice","path":"/usr/bin/dirname","return_code":0,"time":"2020-03-30T15:58:54.65Z","user":"alice@example.com","code":"T4000I","event":"session.command","pid":31638,"server_id":"a7c54b0c-469c-431e-af4d-418cd3ae9694","uid":"4f725f11-e87a-452f-96ec-ef93e9e6a260","cgroup_id":4294971450,"ppid":31637,"program":"dirname","namespace":"default","sid":"5b3555dc-729f-11ea-b66a-507b9dd95841","ei":4}`,
+			json: `{"argv":["/usr/bin/lesspipe"],"login":"alice","path":"/usr/bin/dirname","return_code":0,"time":"2020-03-30T15:58:54.65Z","user":"alice@example.com","code":"T4000I","event":"session.command","pid":31638,"server_id":"a7c54b0c-469c-431e-af4d-418cd3ae9694","uid":"4f725f11-e87a-452f-96ec-ef93e9e6a260","cgroup_id":4294971450,"ppid":31637,"program":"dirname","namespace":"default","sid":"5b3555dc-729f-11ea-b66a-507b9dd95841","cluster_name":"test","ei":4}`,
 			event: SessionCommand{
 				Metadata: Metadata{
 					Index: 4,
@@ -159,7 +162,8 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 					ServerNamespace: "default",
 				},
 				SessionMetadata: SessionMetadata{
-					SessionID: "5b3555dc-729f-11ea-b66a-507b9dd95841",
+					SessionID:   "5b3555dc-729f-11ea-b66a-507b9dd95841",
+					ClusterName: "test",
 				},
 				UserMetadata: UserMetadata{
 					User:  "alice@example.com",
@@ -178,7 +182,7 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 		},
 		{
 			name: "session network event",
-			json: `{"dst_port":443,"cgroup_id":4294976805,"dst_addr":"2607:f8b0:400a:801::200e","program":"curl","sid":"e9a4bd34-78ff-11ea-b062-507b9dd95841","src_addr":"2601:602:8700:4470:a3:813c:1d8c:30b9","login":"alice","pid":17604,"uid":"729498e0-c28b-438f-baa7-663a74418449","user":"alice@example.com","event":"session.network","namespace":"default","time":"2020-04-07T18:45:16.602Z","version":6,"ei":0,"code":"T4002I","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8"}`,
+			json: `{"dst_port":443,"cgroup_id":4294976805,"dst_addr":"2607:f8b0:400a:801::200e","program":"curl","sid":"e9a4bd34-78ff-11ea-b062-507b9dd95841","src_addr":"2601:602:8700:4470:a3:813c:1d8c:30b9","login":"alice","pid":17604,"uid":"729498e0-c28b-438f-baa7-663a74418449","user":"alice@example.com","event":"session.network","namespace":"default","time":"2020-04-07T18:45:16.602Z","version":6,"ei":0,"code":"T4002I","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","cluster_name":"example"}`,
 			event: SessionNetwork{
 				Metadata: Metadata{
 					Index: 0,
@@ -192,7 +196,8 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 					ServerNamespace: "default",
 				},
 				SessionMetadata: SessionMetadata{
-					SessionID: "e9a4bd34-78ff-11ea-b062-507b9dd95841",
+					SessionID:   "e9a4bd34-78ff-11ea-b062-507b9dd95841",
+					ClusterName: "example",
 				},
 				UserMetadata: UserMetadata{
 					User:  "alice@example.com",
@@ -211,7 +216,7 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 		},
 		{
 			name: "session disk event",
-			json: `{"time":"2020-04-07T19:56:38.545Z","login":"bob","pid":31521,"sid":"ddddce15-7909-11ea-b062-507b9dd95841","user":"bob@example.com","ei":175,"code":"T4001I","flags":142606336,"namespace":"default","uid":"ab8467af-6d85-46ce-bb5c-bdfba8acad3f","cgroup_id":4294976835,"program":"clear_console","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","event":"session.disk","path":"/etc/ld.so.cache","return_code":3}`,
+			json: `{"time":"2020-04-07T19:56:38.545Z","login":"bob","pid":31521,"sid":"ddddce15-7909-11ea-b062-507b9dd95841","user":"bob@example.com","ei":175,"code":"T4001I","flags":142606336,"namespace":"default","uid":"ab8467af-6d85-46ce-bb5c-bdfba8acad3f","cgroup_id":4294976835,"program":"clear_console","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","event":"session.disk","path":"/etc/ld.so.cache","return_code":3,"cluster_name":"example2"}`,
 			event: SessionDisk{
 				Metadata: Metadata{
 					Index: 175,
@@ -225,7 +230,8 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 					ServerNamespace: "default",
 				},
 				SessionMetadata: SessionMetadata{
-					SessionID: "ddddce15-7909-11ea-b062-507b9dd95841",
+					SessionID:   "ddddce15-7909-11ea-b062-507b9dd95841",
+					ClusterName: "example2",
 				},
 				UserMetadata: UserMetadata{
 					User:  "bob@example.com",
@@ -283,7 +289,7 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 		},
 		{
 			name: "session data event",
-			json: `{"addr.local":"127.0.0.1:3022","addr.remote":"[::1]:44382","code":"T2006I","ei":2147483646,"event":"session.data","login":"alice","rx":9526,"server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","sid":"ddddce15-7909-11ea-b062-507b9dd95841","time":"2020-04-07T19:56:39Z","tx":10279,"uid":"cb404873-cd7c-4036-854b-42e0f5fd5f2c","user":"alice@example.com"}`,
+			json: `{"addr.local":"127.0.0.1:3022","addr.remote":"[::1]:44382","code":"T2006I","ei":2147483646,"event":"session.data","login":"alice","rx":9526,"server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","sid":"ddddce15-7909-11ea-b062-507b9dd95841","time":"2020-04-07T19:56:39Z","tx":10279,"uid":"cb404873-cd7c-4036-854b-42e0f5fd5f2c","user":"alice@example.com","cluster_name":"test"}`,
 			event: SessionData{
 				Metadata: Metadata{
 					Index: 2147483646,
@@ -296,7 +302,8 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 					ServerID: "00b54ef5-ae1e-425f-8565-c71b01d8f7b8",
 				},
 				SessionMetadata: SessionMetadata{
-					SessionID: "ddddce15-7909-11ea-b062-507b9dd95841",
+					SessionID:   "ddddce15-7909-11ea-b062-507b9dd95841",
+					ClusterName: "test",
 				},
 				UserMetadata: UserMetadata{
 					User:  "alice@example.com",
@@ -312,7 +319,7 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 		},
 		{
 			name: "session leave event",
-			json: `{"code":"T2003I","ei":39,"event":"session.leave","namespace":"default","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","sid":"ddddce15-7909-11ea-b062-507b9dd95841","time":"2020-04-07T19:56:38.556Z","uid":"d7c7489f-6559-42ad-9963-8543e518a058","user":"alice@example.com"}`,
+			json: `{"code":"T2003I","ei":39,"event":"session.leave","namespace":"default","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","sid":"ddddce15-7909-11ea-b062-507b9dd95841","time":"2020-04-07T19:56:38.556Z","uid":"d7c7489f-6559-42ad-9963-8543e518a058","user":"alice@example.com","cluster_name":"example"}`,
 			event: SessionLeave{
 				Metadata: Metadata{
 					Index: 39,
@@ -326,7 +333,8 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 					ServerNamespace: "default",
 				},
 				SessionMetadata: SessionMetadata{
-					SessionID: "ddddce15-7909-11ea-b062-507b9dd95841",
+					SessionID:   "ddddce15-7909-11ea-b062-507b9dd95841",
+					ClusterName: "example",
 				},
 				UserMetadata: UserMetadata{
 					User: "alice@example.com",
@@ -445,7 +453,7 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 		},
 		{
 			name: "session join",
-			json: `{"uid":"cd03665f-3ce1-4c22-809d-4be9512c36e2","addr.local":"127.0.0.1:3022","addr.remote":"[::1]:34902","code":"T2001I","event":"session.join","login":"root","time":"2020-04-23T18:22:35.35Z","namespace":"default","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","sid":"b0252ad2-2fa5-4bb2-a7de-2cacd1169c96","user":"bob@example.com","ei":4}`,
+			json: `{"uid":"cd03665f-3ce1-4c22-809d-4be9512c36e2","addr.local":"127.0.0.1:3022","addr.remote":"[::1]:34902","code":"T2001I","event":"session.join","login":"root","time":"2020-04-23T18:22:35.35Z","namespace":"default","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","sid":"b0252ad2-2fa5-4bb2-a7de-2cacd1169c96","user":"bob@example.com","ei":4,"cluster_name":"test-cluster"}`,
 			event: SessionJoin{
 				Metadata: Metadata{
 					Index: 4,
@@ -459,7 +467,8 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 					ServerNamespace: "default",
 				},
 				SessionMetadata: SessionMetadata{
-					SessionID: "b0252ad2-2fa5-4bb2-a7de-2cacd1169c96",
+					SessionID:   "b0252ad2-2fa5-4bb2-a7de-2cacd1169c96",
+					ClusterName: "test-cluster",
 				},
 				UserMetadata: UserMetadata{
 					User:  "bob@example.com",

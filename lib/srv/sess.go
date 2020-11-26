@@ -932,7 +932,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		return trace.Wrap(err)
 	}
 	if result != nil {
-		ctx.Debugf("Exec request (%v) result: %v.", ctx.ExecRequest, result)
+		ctx.Debugf("Exec request (%v) result: %v.", ctx.ExecRequest.String(), result)
 		ctx.SendExecResult(*result)
 	}
 
@@ -1000,8 +1000,8 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 				ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 			},
 			SessionMetadata: events.SessionMetadata{
-				SessionID: string(s.id),
-				// FIXME(dmitri): ctx.ClusterName,
+				SessionID:   string(s.id),
+				ClusterName: ctx.ClusterName,
 			},
 			UserMetadata: events.UserMetadata{
 				User:  ctx.Identity.TeleportUser,

@@ -175,7 +175,7 @@ type ServerContext struct {
 	*sshutils.ConnectionContext
 	*log.Entry
 
-	mu sync.RWMutex
+	sync.RWMutex
 
 	// env is a list of environment variables passed to the session.
 	env map[string]string

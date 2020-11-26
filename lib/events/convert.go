@@ -210,6 +210,11 @@ func (m *SessionMetadata) GetSessionID() string {
 	return m.SessionID
 }
 
+// GetClusterName returns originating teleport cluster name
+func (m *SessionMetadata) GetClusterName() string {
+	return m.ClusterName
+}
+
 // MustToOneOf converts audit event to OneOf
 // or panics, used in tests
 func MustToOneOf(in AuditEvent) *OneOf {

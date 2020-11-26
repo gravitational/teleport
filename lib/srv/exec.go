@@ -60,6 +60,8 @@ type ExecResult struct {
 
 // Exec executes an "exec" request.
 type Exec interface {
+	fmt.Stringer
+
 	// GetCommand returns the command to be executed.
 	GetCommand() string
 
@@ -287,6 +289,11 @@ type remoteExec struct {
 	command string
 	session *ssh.Session
 	ctx     *ServerContext
+}
+
+// String describes this remote exec value
+func (e *remoteExec) String() string {
+	return fmt.Sprintf("RemoteExec(Command=%v)", e.command)
 }
 
 // GetCommand returns the command string.

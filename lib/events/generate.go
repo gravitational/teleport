@@ -36,6 +36,8 @@ type SessionParams struct {
 	ServerID string
 	// SessionID is an optional session ID to set
 	SessionID string
+	// ClusterName is an optional originating cluster name
+	ClusterName string
 }
 
 // SetDefaults sets parameters defaults
@@ -75,7 +77,8 @@ func GenerateTestSession(params SessionParams) []AuditEvent {
 			ServerNamespace: "default",
 		},
 		SessionMetadata: SessionMetadata{
-			SessionID: params.SessionID,
+			SessionID:   params.SessionID,
+			ClusterName: params.ClusterName,
 		},
 		UserMetadata: UserMetadata{
 			User:  "bob@example.com",
