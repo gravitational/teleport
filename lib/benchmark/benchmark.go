@@ -78,7 +78,7 @@ type Result struct {
 // use the default login
 func Run(ctx context.Context, lg *Linear, cmd, host, login, proxy string) ([]Result, error) {
 	c := strings.Split(cmd, " ")
-	lg.config = &Config{Command: c}
+	lg.config = &Config{Command: c }
 	if err := validateConfig(lg); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -130,10 +130,12 @@ func ExportLatencyProfile(path string, h *hdrhistogram.Histogram, ticks int32, v
 
 	if _, err := h.PercentilesPrint(fo, ticks, valueScale); err != nil {
 		if err := fo.Close(); err != nil {
+
 			logrus.WithError(err).Warningf("failed to close file")
 		}
 		return "", trace.Wrap(err)
 	}
+
 	if err := fo.Close(); err != nil {
 		return "", trace.Wrap(err)
 	}

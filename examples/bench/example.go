@@ -32,6 +32,7 @@ func main() {
 		MinimumMeasurements: 1000,
 		MinimumWindow:       30 * time.Second,
 	}
+  
 	// Run Linear generator
 	results, err := benchmark.Run(context.TODO(), linear, "ls -l /", "host", "username", "teleport.example.com")
 	if err != nil {
@@ -45,6 +46,7 @@ func main() {
 		fmt.Printf("Requests Originated: %v\n", res.RequestsOriginated)
 		fmt.Printf("Requests Failed: %v\n", res.RequestsFailed)
 	}
+
 	// Export latency profile
 	responseHistogram := results[0].Histogram
 	_, err = benchmark.ExportLatencyProfile("profiles/", responseHistogram, 1, 1.0)
