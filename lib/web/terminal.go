@@ -379,15 +379,15 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 	}
 	envelopeBytes, err := proto.Marshal(envelope)
 	if err != nil {
-		t.log.Errorf("Unable to marshal close event for web client.")
+		t.log.Error("Unable to marshal close event for web client.")
 		return
 	}
 	err = websocket.Message.Send(ws, envelopeBytes)
 	if err != nil {
-		t.log.Errorf("Unable to send close event to web client.")
+		t.log.Error("Unable to send close event to web client.")
 		return
 	}
-	t.log.Debugf("Sent close event to web client.")
+	t.log.Debug("Sent close event to web client.")
 }
 
 // streamEvents receives events over the SSH connection and forwards them to
@@ -590,6 +590,8 @@ func (t *TerminalHandler) read(out []byte, ws *websocket.Conn) (n int, err error
 		go t.windowChange(params)
 
 		return 0, nil
+	case defaults.WebsocketClose:
+		return 0, io.EOF
 	default:
 		return 0, trace.BadParameter("unknown prefix type: %v", envelope.GetType())
 	}

@@ -1343,7 +1343,7 @@ func (s *IntSuite) twoClustersTunnel(c *check.C, now time.Time, proxyRecordMode 
 	// make sure the direct dialer was used and not the proxy dialer
 	c.Assert(ps.Count(), check.Equals, 0)
 
-	// if we got here, it means two sites are cross-connected. lets execute SSH commands
+	// if we got here, it means two sites are cross-connected. Let's execute SSH commands
 	sshPort := a.GetPortSSHInt()
 	cmd := []string{"echo", "hello world"}
 
@@ -1418,7 +1418,7 @@ func (s *IntSuite) twoClustersTunnel(c *check.C, now time.Time, proxyRecordMode 
 	}
 	c.Assert(err, check.IsNil)
 
-	searchAndAssert := func(site auth.ClientI, count int) error {
+	searchAndAssert := func(site auth.ClientI, count int) {
 		tickCh := time.Tick(500 * time.Millisecond)
 		stopCh := time.After(5 * time.Second)
 
@@ -3343,7 +3343,7 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	defer cancel()
 
 	t := s.newTeleportInstance(c)
-	defer t.StopAll()
+	defer t.StopAll(c)
 
 	logins := []string{s.me.Username}
 	for _, login := range logins {

@@ -1181,19 +1181,20 @@ func (s *WebSuite) TestCloseConnectionsOnLogout(c *C) {
 
 	// wait until we timeout or detect that connection has been closed
 	after := time.After(5 * time.Second)
-	errC := make(chan error)
+	errC := make(chan error, 1)
 	go func() {
 		for {
 			_, err := stream.Read(out)
 			if err != nil {
 				errC <- err
+				return
 			}
 		}
 	}()
 
 	select {
 	case <-after:
-		c.Fatalf("timeout")
+		c.Fatal("Timed out.")
 	case err := <-errC:
 		c.Assert(err, Equals, io.EOF)
 	}
