@@ -1106,9 +1106,10 @@ type RuleSet map[string][]Rule
 // rule can override more specific rules with 'where' sections that can have
 // 'actions' lists with side effects that will not be triggered otherwise.
 //
-func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.Parser, resource string, verb string) (bool, error) {
+func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.Parser, resource string, verb string, tracer Tracer) (bool, error) {
 	// empty set matches nothing
 	if len(set) == 0 {
+		tracer.Write(TString("empty set did not match"))
 		return false, nil
 	}
 
@@ -1116,8 +1117,10 @@ func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.P
 	// the most specific rule should win
 	rules := set[resource]
 	for _, rule := range rules {
+		tracer.AddChild(RuleTrace())
 		match, err := rule.MatchesWhere(whereParser)
 		if err != nil {
+			tracer.Write(TString("rule did not match where clause"))
 			return false, trace.Wrap(err)
 		}
 		if match && (rule.HasVerb(Wildcard) || rule.HasVerb(verb)) {
@@ -1445,37 +1448,43 @@ type RoleSet []Role
 
 // MatchNamespace returns true if given list of namespace matches
 // target namespace, wildcard matches everything.
-func MatchNamespace(selectors []string, namespace string) (bool, string) {
+func MatchNamespace(selectors []string, namespace string, tracer Tracer) bool {
 	for _, n := range selectors {
 		if n == namespace || n == Wildcard {
-			return true, "matched"
+			tracer.Write(MatchTrace{Result: true, Input: namespace, Selector: n, Message: "namespace matched"})
+			return true
 		}
 	}
-	return false, fmt.Sprintf("no match, role selectors %v, server namespace: %v", selectors, namespace)
+	tracer.Write(MatchTrace{Result: false, Input: namespace, Selector: selectors, Message: "namespace mismatch"})
+	return false
 }
 
 // MatchLogin returns true if attempted login matches any of the logins.
-func MatchLogin(selectors []string, login string) (bool, string) {
+func MatchLogin(selectors []string, login string, tracer Tracer) bool {
 	for _, l := range selectors {
 		if l == login {
-			return true, "matched"
+			tracer.Write(MatchTrace{Result: true, Input: login, Selector: l})
+			return true
 		}
 	}
-	return false, fmt.Sprintf("no match, role selectors %v, login: %v", selectors, login)
+	tracer.Write(MatchTrace{Result: false, Input: login, Selector: selectors})
+	return false
 }
 
 // MatchLabels matches selector against target. Empty selector matches
 // nothing, wildcard matches everything.
-func MatchLabels(selector Labels, target map[string]string) (bool, string, error) {
+func MatchLabels(selector Labels, target map[string]string, tracer Tracer) (bool, error) {
 	// Empty selector matches nothing.
 	if len(selector) == 0 {
-		return false, "no match, empty selector", nil
+		tracer.Write(MatchTrace{Result: false, Selector: selector, Input: target, Message: "empty selector matches nothing"})
+		return false, nil
 	}
 
 	// *: * matches everything even empty target set.
 	selectorValues := selector[Wildcard]
 	if len(selectorValues) == 1 && selectorValues[0] == Wildcard {
-		return true, "matched", nil
+		tracer.Write(MatchTrace{Result: true, Selector: Wildcard, Input: target})
+		return true, nil
 	}
 
 	// Perform full match.
@@ -1483,20 +1492,24 @@ func MatchLabels(selector Labels, target map[string]string) (bool, string, error
 		targetVal, hasKey := target[key]
 
 		if !hasKey {
-			return false, fmt.Sprintf("no key match: '%v'", key), nil
+			tracer.Write(MatchTrace{Result: false, Selector: key, Input: target, Message: "input labels have no key"})
+			return false, nil
 		}
 
 		if !utils.SliceContainsStr(selectorValues, Wildcard) {
 			result, err := utils.SliceMatchesRegex(targetVal, selectorValues)
 			if err != nil {
-				return false, "", trace.Wrap(err)
+				tracer.Write(MatchTrace{Result: false, Error: trace.Wrap(err), Input: targetVal, Selector: selectorValues, Message: "did not match - error in regular expression"})
+				return false, trace.Wrap(err)
 			} else if !result {
-				return false, fmt.Sprintf("no value match: got '%v' want: '%v'", targetVal, selectorValues), nil
+				tracer.Write(MatchTrace{Result: false, Input: targetVal, Selector: selectorValues, Message: "input did not match selector"})
+				return false, nil
 			}
 		}
 	}
 
-	return true, "matched", nil
+	tracer.Write(MatchTrace{Result: true, Input: target, Selector: selector})
+	return true, nil
 }
 
 // RoleNames returns a slice with role names. Removes runtime roles like
@@ -1767,28 +1780,22 @@ func (set RoleSet) hasPossibleLogins() bool {
 // checked first then allow rules. Access to a node is determined by
 // namespaces, labels, and logins.
 //
-// Note, logging in this function only happens in debug mode, this is because
-// adding logging to this function (which is called on every server returned
-// by GetNodes) can slow down this function by 50x for large clusters!
-func (set RoleSet) CheckAccessToServer(login string, s Server) error {
-	var errs []error
+// Logging can slow down this function by 50x for large clusters. Use tracer instead.
+func (set RoleSet) CheckAccessToServer(login string, s Server, tracer Tracer) error {
+	tracer = tracer.AddChild(ServerAccessTrace{Login: login, Server: s, RoleSet: set})
 
 	// Check deny rules first: a single matching namespace, label, or login from
 	// the deny role set prohibits access.
 	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), s.GetNamespace())
-		matchLabels, labelsMessage, err := MatchLabels(role.GetNodeLabels(Deny), s.GetAllLabels())
+		tracer := tracer.AddChild(ConditionTrace{Role: role.GetName(), Cond: Deny})
+		matchNamespace := MatchNamespace(role.GetNamespaces(Deny), s.GetNamespace(), tracer)
+		matchLabels, err := MatchLabels(role.GetNodeLabels(Deny), s.GetAllLabels(), tracer)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		matchLogin, loginMessage := MatchLogin(role.GetLogins(Deny), login)
+		matchLogin := MatchLogin(role.GetLogins(Deny), login, tracer)
 		if matchNamespace && (matchLabels || matchLogin) {
-			if log.GetLevel() == log.DebugLevel {
-				log.WithFields(log.Fields{
-					trace.Component: teleport.ComponentRBAC,
-				}).Debugf("Access to node %v denied, deny rule in %v matched; match(namespace=%v, label=%v, login=%v)",
-					s.GetHostname(), role.GetName(), namespaceMessage, labelsMessage, loginMessage)
-			}
+			tracer.Write(MatchTrace{Result: true, Message: "deny rule matched"})
 			return trace.AccessDenied("access to server denied")
 		}
 	}
@@ -1796,70 +1803,64 @@ func (set RoleSet) CheckAccessToServer(login string, s Server) error {
 	// Check allow rules: namespace, label, and login have to all match in
 	// one role in the role set to be granted access.
 	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), s.GetNamespace())
-		matchLabels, labelsMessage, err := MatchLabels(role.GetNodeLabels(Allow), s.GetAllLabels())
+		tracer := tracer.AddChild(ConditionTrace{Role: role.GetName(), Cond: Allow})
+
+		matchNamespace := MatchNamespace(role.GetNamespaces(Allow), s.GetNamespace(), tracer)
+		matchLabels, err := MatchLabels(role.GetNodeLabels(Allow), s.GetAllLabels(), tracer)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		matchLogin, loginMessage := MatchLogin(role.GetLogins(Allow), login)
+		matchLogin := MatchLogin(role.GetLogins(Allow), login, tracer)
 		if matchNamespace && matchLabels && matchLogin {
+			tracer.Write(MatchTrace{Result: true, Message: "namespace, labels and login matched"})
 			return nil
 		}
-		if log.GetLevel() == log.DebugLevel {
-			deniedError := trace.AccessDenied("role=%v, match(namespace=%v, label=%v, login=%v)",
-				role.GetName(), namespaceMessage, labelsMessage, loginMessage)
-			errs = append(errs, deniedError)
-		}
+		tracer.Write(MatchTrace{Result: false, Message: "allow rule did not match"})
 	}
 
-	if log.GetLevel() == log.DebugLevel {
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Debugf("Access to node %v denied, no allow rule matched; %v", s.GetHostname(), errs)
-	}
+	tracer.Write(MatchTrace{Result: false, Message: "no allow rules matched"})
+
 	return trace.AccessDenied("access to server denied")
 }
 
 // CheckAccessToApp checks if a role has access to an application. Deny rules
 // are checked first, then allow rules. Access to an application is determined by
 // namespaces and labels.
-func (set RoleSet) CheckAccessToApp(namespace string, app *App) error {
+func (set RoleSet) CheckAccessToApp(namespace string, app *App, tracer Tracer) error {
+	tracer = tracer.AddChild(AppAccessTrace{App: app})
+
 	var errs []error
 
 	// Check deny rules: a matching namespace and label in the deny section
 	// prohibits access.
 	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), namespace)
-		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Deny), CombineLabels(app.StaticLabels, app.DynamicLabels))
+		tracer := tracer.AddChild(ConditionTrace{Role: role.GetName(), Cond: Deny})
+
+		matchNamespace := MatchNamespace(role.GetNamespaces(Deny), namespace, tracer)
+		matchLabels, err := MatchLabels(role.GetAppLabels(Deny), CombineLabels(app.StaticLabels, app.DynamicLabels), tracer)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		if matchNamespace && matchLabels {
-			if log.GetLevel() == log.DebugLevel {
-				log.WithFields(log.Fields{
-					trace.Component: teleport.ComponentRBAC,
-				}).Debugf("Access to app %v denied, deny rule in %v matched; match(namespace=%v, label=%v)",
-					app.Name, role.GetName(), namespaceMessage, labelsMessage)
-			}
+			tracer.Write(MatchTrace{Result: true, Message: "namespace and labels matched"})
 			return trace.AccessDenied("access to app denied")
 		}
 	}
 
 	// Check allow rules: namespace and label both have to match to be granted access.
 	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), namespace)
-		matchLabels, labelsMessage, err := MatchLabels(role.GetAppLabels(Allow), CombineLabels(app.StaticLabels, app.DynamicLabels))
+		tracer := tracer.AddChild(ConditionTrace{Role: role.GetName(), Cond: Deny})
+
+		matchNamespace := MatchNamespace(role.GetNamespaces(Allow), namespace, tracer)
+		matchLabels, err := MatchLabels(role.GetAppLabels(Allow), CombineLabels(app.StaticLabels, app.DynamicLabels), tracer)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		if matchNamespace && matchLabels {
+			tracer.Write(MatchTrace{Result: true, Message: "namespace and labels matched"})
 			return nil
 		}
-		if log.GetLevel() == log.DebugLevel {
-			deniedError := trace.AccessDenied("role=%v, match(namespace=%v, label=%v)",
-				role.GetName(), namespaceMessage, labelsMessage)
-			errs = append(errs, deniedError)
-		}
+		tracer.Write(MatchTrace{Result: false, Message: "allow rule did not match"})
 	}
 
 	if log.GetLevel() == log.DebugLevel {
@@ -1873,7 +1874,7 @@ func (set RoleSet) CheckAccessToApp(namespace string, app *App) error {
 // CheckAccessToKubernetes checks if a role has access to a kubernetes cluster.
 // Deny rules are checked first, then allow rules. Access to a kubernetes
 // cluster is determined by namespaces and labels.
-func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesCluster) error {
+func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesCluster, tracer Tracer) error {
 	var errs []error
 
 	// Check deny rules: a matching namespace and label in the deny section
@@ -2034,7 +2035,9 @@ func (set RoleSet) String() string {
 	return fmt.Sprintf("roles %v", strings.Join(roleNames, ","))
 }
 
-func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
+func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string, tracer Tracer) error {
+	tracer = tracer.AddChild(set)
+
 	whereParser, err := GetWhereParserFn()(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -2045,19 +2048,14 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 	}
 	// check deny: a single match on a deny rule prohibits access
 	for _, role := range set {
+		tracer := tracer.AddChild(role.GetName(), Deny)
 		matchNamespace, _ := MatchNamespace(role.GetNamespaces(Deny), ProcessNamespace(namespace))
 		if matchNamespace {
-			matched, err := MakeRuleSet(role.GetRules(Deny)).Match(whereParser, actionsParser, resource, verb)
+			matched, err := MakeRuleSet(role.GetRules(Deny)).Match(whereParser, actionsParser, resource, verb, tracer)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			if matched {
-				if !silent {
-					log.WithFields(log.Fields{
-						trace.Component: teleport.ComponentRBAC,
-					}).Infof("Access to %v %v in namespace %v denied to %v: deny rule matched.",
-						verb, resource, namespace, role.GetName())
-				}
 				return trace.AccessDenied("access denied to perform action '%s' on %s", verb, resource)
 			}
 		}
@@ -2065,9 +2063,10 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 
 	// check allow: if rule matches, grant access to resource
 	for _, role := range set {
+		tracer := tracer.AddChild(role.GetName(), Deny)
 		matchNamespace, _ := MatchNamespace(role.GetNamespaces(Allow), ProcessNamespace(namespace))
 		if matchNamespace {
-			match, err := MakeRuleSet(role.GetRules(Allow)).Match(whereParser, actionsParser, resource, verb)
+			match, err := MakeRuleSet(role.GetRules(Allow)).Match(whereParser, actionsParser, resource, verb, tracer)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -2076,13 +2075,7 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 			}
 		}
 	}
-
-	if !silent {
-		log.WithFields(log.Fields{
-			trace.Component: teleport.ComponentRBAC,
-		}).Infof("Access to %v %v in namespace %v denied to %v: no allow rule matched.",
-			verb, resource, namespace, set)
-	}
+	tracer.Write("access denied: no allow rule matched", verb, resource, namespace)
 	return trace.AccessDenied("access denied to perform action %q on %q", verb, resource)
 }
 

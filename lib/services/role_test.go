@@ -2192,3 +2192,46 @@ func (f *userGetter) GetUser(name string, _ bool) (User, error) {
 	user.SetTraits(f.traits)
 	return user, nil
 }
+
+// TestRoleTracing verifies role tracing and troubleshooting
+func TestRoleTracing(t *testing.T) {
+	type check struct {
+		hasAccess   bool
+		verb        string
+		namespace   string
+		rule        string
+		context     testContext
+		matchBuffer string
+	}
+	testCases := []struct {
+		name   string
+		roles  []RoleV3
+		checks []check
+	}{
+		{
+			name:  "0 - empty role set has access to nothing",
+			roles: []RoleV3{},
+			checks: []check{
+				{rule: KindUser, verb: ActionWrite, namespace: defaults.Namespace, hasAccess: false},
+			},
+		},
+	}
+	for i, tc := range testCases {
+		var set RoleSet
+		for i := range tc.roles {
+			set = append(set, &tc.roles[i])
+		}
+		for j, check := range tc.checks {
+			comment := fmt.Sprintf("test case %v '%v', check %v", i, tc.name, j)
+			result := set.CheckAccessToRule(&check.context, check.namespace, check.rule, check.verb, false)
+			if check.hasAccess {
+				require.NoError(t, result, comment)
+			} else {
+				require.True(t, trace.IsAccessDenied(result), comment)
+			}
+			if check.matchBuffer != "" {
+				require.Contains(t, check.context.buffer.String(), check.matchBuffer, comment)
+			}
+		}
+	}
+}
