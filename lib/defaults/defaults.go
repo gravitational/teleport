@@ -615,7 +615,8 @@ const (
 
 const (
 	// ApplicationTokenKeyType is the type of asymmetric key used to sign tokens.
-	ApplicationTokenKeyType = "rsa"
+	// See https://tools.ietf.org/html/rfc7518#section-6.1 for possible values.
+	ApplicationTokenKeyType = "RSA"
 	// ApplicationTokenAlgorithm is the default algorithm used to sign
 	// application access tokens.
 	ApplicationTokenAlgorithm = jose.RS256
