@@ -60,8 +60,8 @@ type userACL struct {
 	AppServers access `json:"appServers"`
 	// SSH defines access to servers
 	SSHLogins []string `json:"sshLogins"`
-	// AccessRequest defines access to access requests.
-	AccessRequest access `json:"accessRequest"`
+	// AccessRequests defines access to access requests.
+	AccessRequests access `json:"accessRequests"`
 }
 
 type authType string
@@ -165,13 +165,13 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 	tokenAccess := newAccess(userRoles, ctx, services.KindToken)
 	nodeAccess := newAccess(userRoles, ctx, services.KindNode)
 	appServerAccess := newAccess(userRoles, ctx, services.KindAppServer)
-	accessRequest := newAccess(userRoles, ctx, services.KindAccessRequest)
+	requestAccess := newAccess(userRoles, ctx, services.KindAccessRequest)
 
 	logins := getLogins(userRoles)
 	accessStrategy := getAccessStrategy(userRoles)
 
 	acl := userACL{
-		AccessRequest:   accessRequest,
+		AccessRequests:  requestAccess,
 		AppServers:      appServerAccess,
 		AuthConnectors:  authConnectors,
 		TrustedClusters: trustedClusterAccess,
