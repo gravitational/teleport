@@ -106,7 +106,9 @@ numbers.
 |3024      | Proxy      | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server.
 |3025      | Auth       | SSH port used by the Auth Service to serve its API to other nodes in a cluster.
 |3080      | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Web UI.
-|3026      | Kubernetes Proxy      | HTTPS Kubernetes proxy (if enabled)
+|3026      | Kubernetes       | HTTPS Kubernetes proxy `proxy_service.kube_listen_addr`
+|3027      | Kubernetes       | Kubernetes Service `kubernetes_service.listen_addr`
+
 
 ### Filesystem Layout
 

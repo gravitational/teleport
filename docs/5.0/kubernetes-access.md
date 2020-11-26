@@ -16,13 +16,16 @@ access to Kubernetes clusters. This enables the following capabilities:
   it easier to implement policies like _developers must not access production
   data_.
 * Complete `kubectl` auditing and session recordings for `kubectl exec`
-* Multi Kubernetes Support. Login to Teleport once and quickly switch between multiple K8s clusters using [`tsh kube login`](cli-docs.md/#tsh-kube-login)
+* Multi Kubernetes Support. Login to Teleport once and quickly switch between multiple K8s clusters using [`tsh kube login`](cli-docs.md#tsh-kube-login)
 
 ## Start Here
 
 Before we dive into setup, we've a few options to help guide you. We've created some example
 Teleport Kubernetes Access configurations for different scenarios, all the way from solo developers
 accessing minikube through to large enterprises accessing hundreds of Kubernetes clusters.
+
+Teleport Kubernetes service requires Auth & Proxy to be setup. This can be inside or
+outside of k8s.
 
 Example Kubernetes Cluster Configurations:
 
@@ -93,7 +96,7 @@ auth_service:
 #...
 proxy_service:
   public_addr: proxy.example.com:3080
-  kube_listen_addr: 0.0.0.0:3026
+  kube_listen_addr: 0.0.0.0:3027
 ```
 
 To get quickly setup, we provide a Helm chart that'll connect to the above root cluster.

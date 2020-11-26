@@ -330,6 +330,7 @@ proxy_service:
       cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 
     kube_listen_addr: 0.0.0.0:3026
+
 # This section configures the 'application service'
 app_service:
     # Turns 'app' role on. Default is 'no'
@@ -382,4 +383,7 @@ kubernetes_service:
     labels:
       env: "prod"
     # Optional Dynamic Labels
+    - name: "os"
+       command: ["/usr/bin/uname"]
+       period: "5s"
 ```
