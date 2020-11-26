@@ -1,0 +1,105 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{listings}
+\lstset{language=C}
+\graphicspath{ {images/} }
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+}
+\lstset{basicstyle=\sffamily}
+\usepackage{array}
+\usepackage[table]{xcolor}
+\usepackage{geometry}
+ \geometry{
+ a1paper,
+ left=20mm,
+ top=20mm,
+ }
+ 
+\begin{document} 
+\title{Engineering Levels}
+
+\section{Legend}
+ 
+The matrix below explains the requirements for engineering levels. Each level has to match at least one of the requirements for the level and the level before it.
+
+Not all skills go to level 6. This is determined by the focus of Teleport.
+For example, security skills are more relevant, as we are security oriented company, and we are interested in R\&D level 6 engineers, however OS/Tooling is not primary focus, so basic levels are satisfactory.
+As the level advances past 4, the focus shifts from technical skills to bringing products to market, as it's more relevant to Teleport as a for-profit startup.
+
+Skills are a mix of technical and communication skills, some references to security are based on the coding challenge.
+
+\section{Skills}
+    
+\begin{center}
+\rowcolors{2}{gray!80!gray!50}{gray!50!gray!20}
+\begin{tabular}{ | m{15em} | m{15em} | m{15em} |  m{15em} | m{15em} |  m{15em} | m{15em} | m{15em} |}
+  \hline
+  \rowcolor{blue!60!black!10}
+  Level/Skill & Data structures/Algorithms & Product Output & Security & Communication/Writing & Networking & Systems Engineering & OS/Tooling \\
+  \hline
+    1 &
+    Demonstrates good understanding of basic data structures - hash tables, linked lists, trees. Can reason about algorithm complexity.
+    Applies relevant data structures in day to day activity, can implement a production quality. It might be not the most efficient or secure, but correct. &
+    Creates a design document based on the well defined scoped requirements and implements it. &
+    Applies basic security principles to program design. For example, can set up HTTPS and password based auth. &
+    Reports progress on a regular basis as required by team's operational requirements. Actively solicits feedback.&
+    Understands and reasons about networking concepts. Understands and can write production quality web servers. Understands common networking issues and troubleshooting techniques. &
+    Understands the usage of Posix and other APIs for Linux systems. Understands synchronisation primitives and their including reasoning about deadlocks, data races.
+    Can write basic systems level code understanding types of memory, allocation.
+    Understands inter process communication and can build systems leveraging it.
+    Can implement data race and deadlock free code using basic production guidelines - using synchronization primitives and properly sharing state between components of the system.&
+    Understands usage of compilers, interpreters, build tools used at the organisation. \\
+  \hline
+    2 & & &
+    Applies best practices industry security guidelines, like setting up strong TLS, can pick strong authentication and authorization mechanisms.&
+    &
+    Has more granular understanding of the networking design, for example can reason about using GRPC vs HTTPS-JSON and their networking and scalability trade-offs.
+    Can do the same for UDP vs TCP and lower level protocols.&
+    Can reason about performance implications and risks of using synchronisation primitives, understands granularity of locking, can debug and troubleshoot memory and synchronisation issues.&
+    Understands tools and compilers as advanced user - for example, can refactor Makefile to make it more efficient and parallel or select most optimal compilation flags of a complier for Linux and MacOS. \\
+  \hline
+    3 &
+    Uses advanced data structures and algorithms, such as consensus, gossip protocols to implement key product features.&
+    Collaborates with the team to scope requirements, based on good understanding of existing longer term product vision and estimates of the system design of a feature of a product.&
+    Understands security aspects of protocols on a deeper level, for example can explain differences between TLS 1.2 and 1.3 and security implications.
+    Understands common attack vectors for server side or client side applications and can build secure systems that will pass quality security audit that will uncover no critical system design errors.&
+    &
+    Understands scalability and resilience aspects of practical implementation of systems leveraging networking.
+    Can write a fast, scalable networking servers and troubleshoot common networking issues in the servers and client design, such as connection lifecycle and pooling, backpressure and other aspects of the design. &
+    Not only can write data-race and deadlock free code, but can implement most safe and concurrent and parallel systems using minimum amount of shared state, granular locking and easy to read and extend and troubleshoot system.
+    Senior engineer usually can not find any faults or provide any suggestions in the systems design submitted by the Level 3 engineer.
+    & \\
+  \hline
+    4 &
+    Leads implementation of products and standalone systems using advanced data structures and algorithms, such as upgrade/install distributed framework.&
+    Leads the implementation of the isolated feature/improvement that measurably and significantly impacts business outcomes from gathering requirements to getting to the market stage.&
+    Can implement production quality existing novel crytpography and security systems considering tradeoffs. For example can build eBPF driven security into the system from scratch that will pass quality external security audit that will uncover no critical system design errors.&
+    Writes technical articles/blog posts, delivers tech and lightning talks representing the company's technical vision.&
+    &
+    Can implement production level systems leveraging advancedlow level and novel components of the Linux design like BPF, control groups.
+    & \\
+  \hline
+    5&
+    Implements customer facing features and systems using advanced data structures and algorithms.&
+    Leads the implementation of a new product line or significant part of the product to deliver it to the market in collaboration with all other teams.&
+    Writes technical articles on security aspects of the system, implements significant security product innovations in the area delivered to customers.&
+    Writes advanced technical articles/blog posts, gaining significant industry traction or delivers tech talks on major conferences representing the company's technical vision.
+    & &
+    Applies system level design to deliver new products or significant new components of an existing product to the market.
+    & \\
+  \hline
+    6&
+    Designs new data structures and algorithms solving relevant business problems and creating competitive advantage for the company.&
+    &
+    Researches and designs new security systems, cryptography and protocols.&
+    Produces peer-reviewed research papers or patent applications.
+    & & & \\
+\end{tabular}
+\end{center}
+
+\end{document}
