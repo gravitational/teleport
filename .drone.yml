@@ -3059,10 +3059,10 @@ steps:
       - name: debrepo
         path: /debrepo
     commands:
-    - mkdir -p /debrepo/teleport
     # we explicitly want to delete anything present locally which has been deleted
     # from the upstream S3 bucket
-    - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ /debrepo/teleport/ --delete
+    - aws s3 sync s3://$AWS_S3_BUCKET/teleport /debrepo/teleport --delete
+    - mkdir -p /debrepo/teleport
 
   - name: Download built tarball artifacts from S3 (temp)
     image: amazon/aws-cli
@@ -3134,8 +3134,7 @@ steps:
         rm -rf $GNUPGHOME
       - |
         # copy artifacts to PVC
-        mkdir -p /debrepo/teleport
-        cp -r /go/reprepro/teleport/ /debrepo/teleport/
+        cp -r /go/reprepro/teleport /debrepo/
 
   - name: Sync RPM repo changes to S3
     image: amazon/aws-cli
@@ -3384,6 +3383,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 2c5e5e303a786f757aa032ec45d0792fe882e59411621c25418c44746fd8d63e
+hmac: 9f0431e00006975937bf7cbac9d88dde0d28c4ef5c0859c25b92687d26cd12c1
 
 ...
