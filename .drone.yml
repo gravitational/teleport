@@ -3089,7 +3089,7 @@ steps:
     image: ubuntu:20.04
     environment:
       DEBIAN_FRONTEND: noninteractive
-      GNUPG_HOME: /tmpfs/gnupg
+      GNUPGHOME: /tmpfs/gnupg
       GPG_RPM_SIGNING_ARCHIVE:
         from_secret: TMP_GPG_RPM_SIGNING_ARCHIVE
     volumes:
@@ -3122,18 +3122,18 @@ steps:
         EOF
       - |
         # extract signing key
-        mkdir -m0700 $GNUPG_HOME
-        echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_HOME
-        chown -R root:root $GNUPG_HOME
+        mkdir -m0700 $GNUPGHOME
+        echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
+        chown -R root:root $GNUPGHOME
       - |
         # create repo
         cd /go/reprepro/teleport
         reprepro --outdir /go/reprepro/teleport/public includedeb stable /go/artifacts/teleport*.deb
       - |
-        # clean up
-        rm -rf $GNUPG_HOME
+        # clean up gnupg
+        rm -rf $GNUPGHOME
       - |
-        # copy output
+        # copy artifacts to PVC
         cp -r /go/reprepro/teleport/ /debrepo/teleport/
 
   - name: Sync RPM repo changes to S3
@@ -3383,6 +3383,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 59272af4ffa9b132136cb219ea9a00cd74780817e26c621d66b17069d01bca85
+hmac: 2ebe1f883ea267aa092c31db61b9cb612c32309d5fd9cec733959dd6a8f018a7
 
 ...
