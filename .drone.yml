@@ -3080,8 +3080,10 @@ steps:
       - export VERSION=$(cat /go/.version.txt)
       - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport_$${VERSION}_amd64.deb /go/artifacts/
-      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport_$${VERSION}-fips_amd64.deb /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent_$${VERSION}_amd64.deb /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent_$${VERSION}-fips_amd64.deb /go/artifacts/
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport_$${VERSION}_i386.deb /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent_$${VERSION}_i386.deb /go/artifacts/
 
   - name: Build DEB repo
     image: ubuntu:20.04
@@ -3381,6 +3383,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 086aac5f79630f72deddbe5353891f3d2ba166900676f78ff1eade85a89546cd
+hmac: 770e6dbfddc2bb5de131ec044df7962fbfd2cf604e0e2f66e623c23d8d7e8875
 
 ...
