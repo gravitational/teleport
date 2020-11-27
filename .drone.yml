@@ -3075,6 +3075,8 @@ steps:
         from_secret: AWS_SECRET_ACCESS_KEY
       AWS_REGION: us-west-2
     commands:
+      # set version (testing only)
+      - if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt
       - export VERSION=$(cat /go/.version.txt)
       - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport_$${VERSION}_amd64.deb /go/artifacts/
@@ -3379,6 +3381,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 9d98435ddccaf8fa8024c982b435b1037973a83b00ee45d2ff58e6f10167fd3f
+hmac: 086aac5f79630f72deddbe5353891f3d2ba166900676f78ff1eade85a89546cd
 
 ...
