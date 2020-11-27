@@ -23,8 +23,10 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/HdrHistogram/hdrhistogram-go"
@@ -78,16 +80,22 @@ type Result struct {
 // use the default login
 func Run(ctx context.Context, lg *Linear, cmd, host, login, proxy string) ([]Result, error) {
 	c := strings.Split(cmd, " ")
-	lg.config = &Config{Command: c }
+	lg.config = &Config{Command: c}
 	if err := validateConfig(lg); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	tc, err := makeTeleportClient(host, login, proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	logrus.SetLevel(logrus.ErrorLevel)
+	ctx, cancel := context.WithCancel(ctx)
+	go func() {
+		exitSignals := make(chan os.Signal, 1)
+		signal.Notify(exitSignals, syscall.SIGTERM, syscall.SIGINT)
+		sig := <-exitSignals
+		logrus.Debugf("signal: %v", sig)
+		cancel()
+	}()
 	var results []Result
 	sleep := false
 	for {
@@ -150,7 +158,6 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 	tc.Stderr = ioutil.Discard
 	tc.Stdin = &bytes.Buffer{}
 	var delay time.Duration = 0
-
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
