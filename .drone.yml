@@ -3102,8 +3102,8 @@ steps:
         apt-get -y update && apt-get -y install curl gzip gnupg2 reprepro tar
       - |
         # write config files
-        mkdir -p /go/reprepro/conf
-        cat << EOF > /go/reprepro/conf/distributions
+        mkdir -p /go/reprepro/teleport/conf /go/reprepro/teleport/public
+        cat << EOF > /go/reprepro/teleport/conf/distributions
         Origin: teleport
         Label: teleport
         Codename: stable
@@ -3112,9 +3112,9 @@ steps:
         Description: apt repository for teleport
         SignWith: 6282C411
         EOF
-        cat << EOF > /go/reprepro/conf/options
+        cat << EOF > /go/reprepro/teleport/conf/options
         verbose
-        basedir /go/reprepro
+        basedir /go/reprepro/teleport
         EOF
       - |
         # extract signing key
@@ -3123,11 +3123,14 @@ steps:
         chown -R root:root $GNUPG_DIR
       - |
         # create repo
-        cd /go/reprepro
-        reprepro includedeb stable /go/artifacts/teleport*.deb
+        cd /go/reprepro/teleport
+        reprepro --outdir /go/reprepro/teleport/public includedeb stable /go/artifacts/teleport*.deb
       - |
         # clean up
         rm -rf $GNUPG_DIR
+      - |
+        # copy output
+        cp -r /go/reprepro/teleport/ /debrepo/teleport/
 
   - name: Sync RPM repo changes to S3
     image: amazon/aws-cli
@@ -3376,6 +3379,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 7d2f8755699cfe3750f0952864eda8903839775d25d1988c510d98f53283718f
+hmac: 9d98435ddccaf8fa8024c982b435b1037973a83b00ee45d2ff58e6f10167fd3f
 
 ...
