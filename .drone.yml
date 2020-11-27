@@ -894,15 +894,19 @@ name: build-linux-amd64-centos6
 environment:
   RUNTIME: go1.15.5
 
+# TODO(gus): uncomment
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
-  event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
-  repo:
-    include:
-      - gravitational/*
+  cron:
+    - none
 
 workspace:
   path: /go
@@ -998,15 +1002,19 @@ name: build-linux-amd64-centos6-fips
 environment:
   RUNTIME: go1.15.5
 
+# TODO(gus): uncomment
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
-  event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
-  repo:
-    include:
-      - gravitational/*
+  cron:
+    - none
 
 workspace:
   path: /go
@@ -1098,15 +1106,19 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-rpm
 
+# TODO(gus): uncomment
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
-  event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
-  repo:
-    include:
-      - gravitational/*
+  cron:
+    - none
 
 depends_on:
   - build-linux-amd64
@@ -1224,15 +1236,19 @@ kind: pipeline
 type: kubernetes
 name: build-linux-amd64-fips-rpm
 
+# TODO(gus): uncomment
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
-  event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
-  repo:
-    include:
-      - gravitational/*
+  cron:
+    - none
 
 depends_on:
   - build-linux-amd64-fips
@@ -1680,15 +1696,19 @@ kind: pipeline
 type: kubernetes
 name: build-linux-i386-rpm
 
+# TODO(gus): uncomment
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
-  event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
-  repo:
-    include:
-      - gravitational/*
+  cron:
+    - none
 
 depends_on:
   - build-linux-i386
@@ -1925,15 +1945,19 @@ platform:
   os: darwin
   arch: amd64
 
+# TODO(gus): uncomment
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
-  event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
-  repo:
-    include:
-      - gravitational/*
+  cron:
+    - none
 
 workspace:
   path: /tmp/build-darwin-amd64
@@ -2016,15 +2040,19 @@ platform:
   os: darwin
   arch: amd64
 
+# TODO(gus): uncomment
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
-  event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
-  repo:
-    include:
-      - gravitational/*
+  cron:
+    - none
 
 depends_on:
   - build-darwin-amd64
@@ -2128,15 +2156,19 @@ platform:
   os: darwin
   arch: amd64
 
+# TODO(gus): uncomment
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
-  event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
-  repo:
-    include:
-      - gravitational/*
+  cron:
+    - none
 
 depends_on:
   - build-darwin-amd64
@@ -2255,15 +2287,19 @@ platform:
 environment:
   TMPDIR: /dev/shm
 
+# TODO(gus): uncomment
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
-  event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
-  repo:
-    include:
-      - gravitational/*
+  cron:
+    - none
 
 workspace:
   path: /dev/shm/tmp
@@ -2349,15 +2385,19 @@ platform:
 environment:
   TMPDIR: /dev/shm
 
+# TODO(gus): uncomment
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
-  event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
-  repo:
-    include:
-      - gravitational/*
+  cron:
+    - none
 
 workspace:
   path: /dev/shm/tmp
@@ -2435,15 +2475,19 @@ name: build-windows
 environment:
   RUNTIME: go1.15.5
 
+# TODO(gus): uncomment
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
-  event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
-  repo:
-    include:
-      - gravitational/*
+  cron:
+    - none
 
 workspace:
   path: /go
@@ -2540,15 +2584,19 @@ name: build-docker-images
 environment:
   RUNTIME: go1.15.5
 
+# TODO(gus): uncomment
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
-  event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
-  repo:
-    include:
-      - gravitational/*
+  cron:
+    - none
 
 workspace:
   path: /go
@@ -2647,15 +2695,19 @@ kind: pipeline
 type: kubernetes
 name: build-oss-amis
 
+# TODO(gus): uncomment
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
-  event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
-  repo:
-    include:
-      - gravitational/*
+  cron:
+    - none
 
 depends_on:
   - build-linux-amd64
@@ -2747,15 +2799,19 @@ kind: pipeline
 type: kubernetes
 name: build-ent-amis
 
+# TODO(gus): uncomment
+# trigger:
+#   event:
+#     - tag
+#   ref:
+#     include:
+#       - refs/tags/v*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
-  event:
-    - tag
-  ref:
-    include:
-      - refs/tags/v*
-  repo:
-    include:
-      - gravitational/*
+  cron:
+    - none
 
 depends_on:
   - build-linux-amd64
@@ -2962,6 +3018,152 @@ services:
 volumes:
   - name: dockersock
     temp: {}
+
+---
+kind: pipeline
+type: kubernetes
+name: build-deb-repo
+
+trigger:
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
+depends_on:
+  - build-linux-amd64-deb
+  - build-linux-amd64-fips-deb
+  - build-linux-i386-deb
+
+workspace:
+  path: /go
+
+clone:
+  disable: true
+
+steps:
+  - name: Download DEB repo contents
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: DEBREPO_AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: DEBREPO_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: DEBREPO_AWS_SECRET_ACCESS_KEY
+    volumes:
+      - name: debrepo
+        path: /debrepo
+    commands:
+    - mkdir -p /debrepo/teleport
+    # we explicitly want to delete anything present locally which has been deleted
+    # from the upstream S3 bucket
+    - aws s3 sync s3://$AWS_S3_BUCKET/teleport/ /debrepo/teleport/ --delete
+
+  - name: Download built tarball artifacts from S3 (temp)
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: AWS_SECRET_ACCESS_KEY
+      AWS_REGION: us-west-2
+    commands:
+      - export VERSION=$(cat /go/.version.txt)
+      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport_$${VERSION}_amd64.deb /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport_$${VERSION}-fips_amd64.deb /go/artifacts/
+      - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport_$${VERSION}_i386.deb /go/artifacts/
+
+  - name: Build DEB repo
+    image: ubuntu:20.04
+    environment:
+      DEBIAN_FRONTEND: noninteractive
+      GNUPG_DIR: /tmpfs/gnupg
+      GPG_RPM_SIGNING_ARCHIVE:
+        from_secret: TMP_GPG_RPM_SIGNING_ARCHIVE
+    volumes:
+      - name: dockersock
+        path: /var/run
+      - name: debrepo
+        path: /debrepo
+      # for in-memory tmpfs for key material
+      - name: tmpfs
+        path: /tmpfs
+    commands:
+      - |
+        # install needed tools
+        apt-get -y update && apt-get -y install curl gzip gnupg2 reprepro tar
+      - |
+        # write config files
+        mkdir -p /go/reprepro/conf
+        cat << EOF > /go/reprepro/conf/distributions
+        Origin: teleport
+        Label: teleport
+        Codename: stable
+        Architectures: i386 amd64
+        Components: main
+        Description: apt repository for teleport
+        SignWith: 6282C411
+        EOF
+        cat << EOF > /go/reprepro/conf/options
+        verbose
+        basedir /go/reprepro
+        EOF
+      - |
+        # extract signing key
+        mkdir -m0700 $GNUPG_DIR
+        echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPG_DIR
+        chown -R root:root $GNUPG_DIR
+      - |
+        # create repo
+        cd /go/reprepro
+        reprepro includedeb stable /go/artifacts/teleport*.deb
+      - |
+        # clean up
+        rm -rf $GNUPG_DIR
+
+  - name: Sync RPM repo changes to S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: DEBREPO_AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: DEBREPO_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: DEBREPO_AWS_SECRET_ACCESS_KEY
+    volumes:
+      - name: debrepo
+        path: /debrepo
+    commands:
+    - aws s3 sync /debrepo/teleport/ s3://$AWS_S3_BUCKET/teleport/
+
+services:
+  - name: Start Docker
+    image: docker:dind
+    volumes:
+      - name: dockersock
+        path: /var/run
+      - name: tmpfs
+        path: /tmpfs
+      # this persistent volume caches DEBs near Drone so that we don't need to download the
+      # entire repo contents from S3 every time to build the repo, we just sync any differences
+      - name: debrepo
+        claim:
+          name: drone-s3-debrepo-pvc
+
+volumes:
+  - name: dockersock
+    temp: {}
+  - name: tmpfs
+    temp:
+      medium: memory
 
 ---
 kind: pipeline
@@ -3174,6 +3376,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 48bfe0ed0cb5c95f714ddc2cb483fac84586dadc09fe8e65f9d967ac458f8d2b
+hmac: 7d2f8755699cfe3750f0952864eda8903839775d25d1988c510d98f53283718f
 
 ...
