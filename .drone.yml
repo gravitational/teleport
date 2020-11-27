@@ -3160,11 +3160,6 @@ services:
         path: /var/run
       - name: tmpfs
         path: /tmpfs
-      # this persistent volume caches DEBs near Drone so that we don't need to download the
-      # entire repo contents from S3 every time to build the repo, we just sync any differences
-      - name: debrepo
-        claim:
-          name: drone-s3-debrepo-pvc
 
 volumes:
   - name: dockersock
@@ -3172,6 +3167,11 @@ volumes:
   - name: tmpfs
     temp:
       medium: memory
+  # this persistent volume caches DEBs near Drone so that we don't need to download the
+  # entire repo contents from S3 every time to build the repo, we just sync any differences
+  - name: debrepo
+    claim:
+      name: drone-s3-debrepo-pvc
 
 ---
 kind: pipeline
@@ -3384,6 +3384,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 60f3702f0321de884ed42fb1b35b73eab6ab956df6dbbfabb0d301fe08228198
+hmac: 2c5e5e303a786f757aa032ec45d0792fe882e59411621c25418c44746fd8d63e
 
 ...
