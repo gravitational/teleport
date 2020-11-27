@@ -3134,6 +3134,7 @@ steps:
         rm -rf $GNUPGHOME
       - |
         # copy artifacts to PVC
+        mkdir -p /debrepo/teleport
         cp -r /go/reprepro/teleport/ /debrepo/teleport/
 
   - name: Sync RPM repo changes to S3
@@ -3383,6 +3384,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 2ebe1f883ea267aa092c31db61b9cb612c32309d5fd9cec733959dd6a8f018a7
+hmac: 60f3702f0321de884ed42fb1b35b73eab6ab956df6dbbfabb0d301fe08228198
 
 ...
