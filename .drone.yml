@@ -3156,6 +3156,90 @@ steps:
     commands:
     - aws s3 sync /rpmrepo/teleport/ s3://$AWS_S3_BUCKET/teleport/
 
+  - name: Download DEB repo contents
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: DEBREPO_AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: DEBREPO_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: DEBREPO_AWS_SECRET_ACCESS_KEY
+    volumes:
+      - name: debrepo
+        path: /debrepo
+    commands:
+    # we explicitly want to delete anything present locally which has been deleted
+    # from the upstream S3 bucket
+    - aws s3 sync s3://$AWS_S3_BUCKET/teleport /debrepo/teleport --delete
+    - mkdir -p /debrepo/teleport
+
+  - name: Build DEB repo
+    image: ubuntu:20.04
+    environment:
+      DEBIAN_FRONTEND: noninteractive
+      GNUPGHOME: /tmpfs/gnupg
+      GPG_RPM_SIGNING_ARCHIVE:
+        from_secret: GPG_RPM_SIGNING_ARCHIVE
+    volumes:
+      - name: dockersock
+        path: /var/run
+      - name: debrepo
+        path: /debrepo
+      # for in-memory tmpfs for key material
+      - name: tmpfs
+        path: /tmpfs
+    commands:
+      - |
+        # install needed tools
+        apt-get -y update && apt-get -y install curl gzip gnupg2 reprepro tar
+      - |
+        # write config files
+        mkdir -p /go/reprepro/teleport/conf /go/reprepro/teleport/public
+        cat << EOF > /go/reprepro/teleport/conf/distributions
+        Origin: teleport
+        Label: teleport
+        Codename: stable
+        Architectures: i386 amd64
+        Components: main
+        Description: apt repository for teleport
+        SignWith: 6282C411
+        EOF
+        cat << EOF > /go/reprepro/teleport/conf/options
+        verbose
+        basedir /go/reprepro/teleport
+        EOF
+      - |
+        # extract signing key
+        mkdir -m0700 $GNUPGHOME
+        echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
+        chown -R root:root $GNUPGHOME
+      - |
+        # create repo
+        cd /go/reprepro/teleport
+        reprepro --outdir /go/reprepro/teleport/public includedeb stable /go/artifacts/teleport*.deb
+      - |
+        # clean up gnupg
+        rm -rf $GNUPGHOME
+      - |
+        # copy artifacts to PVC
+        cp -r /go/reprepro/teleport /debrepo/
+
+  - name: Sync DEB repo changes to S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: DEBREPO_AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: DEBREPO_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: DEBREPO_AWS_SECRET_ACCESS_KEY
+    volumes:
+      - name: debrepo
+        path: /debrepo
+    commands:
+    - aws s3 sync /debrepo/teleport/ s3://$AWS_S3_BUCKET/teleport/
+
 services:
   - name: Start Docker
     image: docker:dind
@@ -3174,6 +3258,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 48bfe0ed0cb5c95f714ddc2cb483fac84586dadc09fe8e65f9d967ac458f8d2b
+hmac: eb3f238e8a05cbcec7dfa0586a26ea1beeac8ed3842ccaecfcfc8789580e9bd4
 
 ...
