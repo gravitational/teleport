@@ -3171,8 +3171,8 @@ steps:
     commands:
     # we explicitly want to delete anything present locally which has been deleted
     # from the upstream S3 bucket
-    - aws s3 sync s3://$AWS_S3_BUCKET/teleport /debrepo/teleport --delete
     - mkdir -p /debrepo/teleport
+    - aws s3 sync s3://$AWS_S3_BUCKET/teleport /debrepo/teleport --delete
 
   - name: Build DEB repo
     image: ubuntu:20.04
@@ -3258,6 +3258,6 @@ volumes:
 
 ---
 kind: signature
-hmac: eb3f238e8a05cbcec7dfa0586a26ea1beeac8ed3842ccaecfcfc8789580e9bd4
+hmac: 2201a4e263cb7a95baa71311c710228c4ba6dcc4e6034d8011fcc0dc2d2b323b
 
 ...
