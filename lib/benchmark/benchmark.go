@@ -92,6 +92,7 @@ func Run(ctx context.Context, lg *Linear, cmd, host, login, proxy string) ([]Res
 	go func() {
 		exitSignals := make(chan os.Signal, 1)
 		signal.Notify(exitSignals, syscall.SIGTERM, syscall.SIGINT)
+		defer signal.Stop(exitSignals)
 		sig := <-exitSignals
 		logrus.Debugf("signal: %v", sig)
 		cancel()
@@ -157,7 +158,7 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 	tc.Stdout = ioutil.Discard
 	tc.Stderr = ioutil.Discard
 	tc.Stdin = &bytes.Buffer{}
-	var delay time.Duration = 0
+	var delay time.Duration
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -180,18 +181,15 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 					ResponseStart: t,
 					command:       c.Command,
 					client:        tc,
-					ctx:           ctx,
 					interactive:   c.Interactive,
 				}
-				requestsC <- measure
+				go work(ctx, measure, resultC)
 			case <-ctx.Done():
 				close(requestsC)
 				return
 			}
 		}
 	}()
-
-	go run(ctx, requestsC, resultC)
 
 	var result Result
 	result.Histogram = hdrhistogram.New(minValue, maxValue, significantFigures)
@@ -227,24 +225,9 @@ type benchMeasure struct {
 	ResponseStart time.Time
 	End           time.Time
 	Error         error
-	ctx           context.Context
 	client        *client.TeleportClient
 	command       []string
 	interactive   bool
-}
-
-func run(ctx context.Context, request <-chan benchMeasure, done chan<- benchMeasure) {
-	for {
-		select {
-		case m, ok := <-request:
-			if !ok {
-				return
-			}
-			go work(ctx, m, done)
-		case <-ctx.Done():
-			return
-		}
-	}
 }
 
 func work(ctx context.Context, m benchMeasure, send chan<- benchMeasure) {
@@ -270,20 +253,17 @@ func execute(m benchMeasure) error {
 	}
 	config := m.client.Config
 	client, err := client.NewClient(&config)
+	if err != nil {
+		return err
+	}
 	reader, writer := io.Pipe()
+	defer reader.Close()
+	defer writer.Close()
 	client.Stdin = reader
 	out := &utils.SyncBuffer{}
 	client.Stdout = out
 	client.Stderr = out
-	if err != nil {
-		return err
-	}
-	err = m.client.SSH(context.TODO(), nil, false)
-	if err != nil {
-		return err
-	}
-	writer.Write([]byte(strings.Join(m.command, " ") + "\r\nexit\r\n"))
-	return nil
+	return m.client.SSH(context.TODO(), nil, false)
 }
 
 // makeTeleportClient creates an instance of a teleport client
