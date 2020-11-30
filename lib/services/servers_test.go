@@ -36,7 +36,7 @@ type ServerSuite struct {
 var _ = check.Suite(&ServerSuite{})
 
 func (s *ServerSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
 
 // TestServersCompare tests comparing two servers

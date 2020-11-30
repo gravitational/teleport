@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"testing"
 	"time"
 
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
@@ -41,7 +42,7 @@ var _ = fmt.Printf
 var _ = check.Suite(&OIDCSuite{})
 
 func (s *OIDCSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 
 	s.c = clockwork.NewFakeClockAt(time.Now())
 

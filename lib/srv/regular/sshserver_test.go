@@ -101,7 +101,7 @@ func TestMain(m *testing.M) {
 }
 
 func (s *SrvSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
 
 const hostID = "00000000-0000-0000-0000-000000000000"

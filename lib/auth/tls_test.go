@@ -87,7 +87,7 @@ var _ = testing.Verbose
 var _ = fmt.Printf
 
 func (s *TLSSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
 
 func (s *TLSSuite) SetUpTest(c *check.C) {

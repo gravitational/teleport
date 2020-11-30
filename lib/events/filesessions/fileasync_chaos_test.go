@@ -51,7 +51,7 @@ func TestChaosUpload(t *testing.T) {
 		t.Skip("Skipping chaos test in short mode.")
 	}
 
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()

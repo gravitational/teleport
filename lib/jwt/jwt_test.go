@@ -34,7 +34,7 @@ var _ = check.Suite(&Suite{})
 func TestJWT(t *testing.T) { check.TestingT(t) }
 
 func (s *Suite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
 
 func (s *Suite) TestSignAndVerify(c *check.C) {

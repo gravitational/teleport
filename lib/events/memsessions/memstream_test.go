@@ -27,7 +27,7 @@ import (
 
 // TestStreams tests various streaming upload scenarios
 func TestStreams(t *testing.T) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 
 	// Stream with handler and many parts
 	t.Run("StreamManyParts", func(t *testing.T) {

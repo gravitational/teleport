@@ -3817,7 +3817,7 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// wait until service reloaded
-	c.Log("Wating for service reload")
+	c.Log("Waiting for service reload")
 	svc, err = s.waitForReload(serviceC, svc)
 	c.Assert(err, check.IsNil)
 	c.Log("Service reload completed, waiting for phase")

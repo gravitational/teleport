@@ -71,7 +71,7 @@ var _ = check.Suite(&Suite{})
 func TestApp(t *testing.T) { check.TestingT(t) }
 
 func (s *Suite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 
 	s.clock = clockwork.NewFakeClockAt(time.Now())
 	s.dataDir = c.MkDir()

@@ -41,7 +41,7 @@ var _ = fmt.Printf
 var _ = check.Suite(&ServerSuite{})
 
 func (s *ServerSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 
 	var err error
 	_, s.signer, err = utils.CreateCertificate("foo", ssh.HostCert)

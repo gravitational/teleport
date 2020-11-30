@@ -39,7 +39,7 @@ type HeartbeatSuite struct {
 var _ = check.Suite(&HeartbeatSuite{})
 
 func (s *HeartbeatSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
 
 // TestHeartbeatKeepAlive tests keep alive cycle used for nodes and apps.

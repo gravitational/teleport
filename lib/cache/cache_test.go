@@ -50,7 +50,7 @@ var _ = check.Suite(&CacheSuite{})
 func TestState(t *testing.T) { check.TestingT(t) }
 
 func (s *CacheSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 	s.clock = clockwork.NewRealClock()
 }
 

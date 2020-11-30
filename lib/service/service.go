@@ -1228,9 +1228,6 @@ func (process *TeleportProcess) initAuthService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// if cfg.Console != nil {
-	// 	fmt.Println("RegisterCriticalFunc:", string(debug.Stack()))
-	// }
 	process.RegisterCriticalFunc("auth.tls", func() error {
 		utils.Consolef(cfg.Console, log, teleport.ComponentAuth, "Auth service %s:%s is starting on %v.",
 			teleport.Version, teleport.Gitref, cfg.Auth.SSHAddr.Addr)

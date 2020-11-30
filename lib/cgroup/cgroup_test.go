@@ -39,7 +39,7 @@ var _ = check.Suite(&Suite{})
 func TestControlGroups(t *testing.T) { check.TestingT(t) }
 
 func (s *Suite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
 
 // TestCreate tests creating and removing cgroups as well as shutting down

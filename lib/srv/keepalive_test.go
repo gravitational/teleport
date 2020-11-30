@@ -38,7 +38,7 @@ var _ = check.Suite(&KeepAliveSuite{})
 func TestSrv(t *testing.T) { check.TestingT(t) }
 
 func (s *KeepAliveSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
 
 func (s *KeepAliveSuite) TestServerClose(c *check.C) {
