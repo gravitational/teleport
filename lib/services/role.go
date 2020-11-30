@@ -1098,7 +1098,7 @@ func (r *Rule) Equals(other Rule) bool {
 // RuleSet maps resource to a set of rules defined for it
 type RuleSet map[string][]Rule
 
-// MatchRule tests if the resource name and verb are in a given list of rules.
+// Match tests if the resource name and verb are in a given list of rules.
 // More specific rules will be matched first. See Rule.IsMoreSpecificThan
 // for exact specs on whether the rule is more or less specific.
 //
@@ -1109,7 +1109,7 @@ type RuleSet map[string][]Rule
 func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.Parser, resource string, verb string, tracer Tracer) (bool, error) {
 	// empty set matches nothing
 	if len(set) == 0 {
-		tracer.Write(TString("empty set did not match"))
+		tracer.SetMatch(Match{Result: false, Message: "empty set did not match"})
 		return false, nil
 	}
 
@@ -1117,10 +1117,10 @@ func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.P
 	// the most specific rule should win
 	rules := set[resource]
 	for _, rule := range rules {
-		tracer.AddChild(RuleTrace())
+		tracer := tracer.AddChild(RuleTrace{Rule: rule, Resource: resource})
 		match, err := rule.MatchesWhere(whereParser)
 		if err != nil {
-			tracer.Write(TString("rule did not match where clause"))
+			tracer.SetMatch(Match{Result: false, Message: "rule did not match where clause"})
 			return false, trace.Wrap(err)
 		}
 		if match && (rule.HasVerb(Wildcard) || rule.HasVerb(verb)) {

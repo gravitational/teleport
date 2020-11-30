@@ -43,6 +43,10 @@ type RuleContext interface {
 	// GetResource returns resource if specified in the context,
 	// if unpecified, returns error.
 	GetResource() (Resource, error)
+	// GetTracer returns tracer
+	GetTracer() Tracer
+	// WithTracer returns a new rule context copy with tracer
+	WithTracer(Tracer)
 }
 
 var (
@@ -83,15 +87,19 @@ func NewWhereParser(ctx RuleContext) (predicate.Parser, error) {
 			},
 		},
 		GetIdentifier: ctx.GetIdentifier,
-		GetProperty:   GetStringMapValue,
+		GetProperty:   &mapValueGetter{tracer: ctx.GetTracer()}.getString,
 	})
 }
 
-// GetStringMapValue is a helper function that returns property
+type mapValueGetter struct {
+	tracer Tracer
+}
+
+// getString is a helper function that returns property
 // from map[string]string or map[string][]string
 // the function returns empty value in case if key not found
 // In case if map is nil, returns empty value as well
-func GetStringMapValue(mapVal, keyVal interface{}) (interface{}, error) {
+func (m *mapValueGetter) getString(mapVal, keyVal interface{}) (interface{}, error) {
 	key, ok := keyVal.(string)
 	if !ok {
 		return nil, trace.BadParameter("only string keys are supported")
@@ -176,6 +184,8 @@ type Context struct {
 	// Resource is an optional resource, in case if the rule
 	// checks access to the resource
 	Resource Resource
+	// Tracer traces all matches in the expression
+	Tracer Tracer
 }
 
 // String returns user friendly representation of this context
@@ -189,6 +199,14 @@ const (
 	// ResourceIdentifier represents resource registered identifier in the rules
 	ResourceIdentifier = "resource"
 )
+
+// GetTracer returns tracer
+func (ctx *Context) GetTracer() Tracer {
+	if ctx.Tracer == nil {
+		return &DiscardTracer{}
+	}
+	return ctx.Tracer
+}
 
 // GetResource returns resource specified in the context,
 // returns error if not specified.
