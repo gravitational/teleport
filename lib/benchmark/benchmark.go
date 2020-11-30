@@ -263,8 +263,12 @@ func execute(m benchMeasure) error {
 	out := &utils.SyncBuffer{}
 	client.Stdout = out
 	client.Stderr = out
+	err = m.client.SSH(context.TODO(), nil, false)
+	if err != nil {
+		return err
+	}
 	writer.Write([]byte(strings.Join(m.command, " ") + "\r\nexit\r\n"))
-	return m.client.SSH(context.TODO(), nil, false)
+	return nil
 }
 
 // makeTeleportClient creates an instance of a teleport client
