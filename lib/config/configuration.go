@@ -242,41 +242,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// apply logger settings
-	switch fc.Logger.Output {
-	case "":
-		break // not set
-	case "stderr", "error", "2":
-		log.SetOutput(os.Stderr)
-	case "stdout", "out", "1":
-		log.SetOutput(os.Stdout)
-	case teleport.Syslog:
-		err := utils.SwitchLoggingtoSyslog()
-		if err != nil {
-			// this error will go to stderr
-			log.Errorf("Failed to switch logging to syslog: %v.", err)
-		}
-	default:
-		// assume it's a file path:
-		logFile, err := os.Create(fc.Logger.Output)
-		if err != nil {
-			return trace.Wrap(err, "failed to create the log file")
-		}
-		log.SetOutput(logFile)
+	err = applyLogConfig(fc.Logger, log.New())
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	switch strings.ToLower(fc.Logger.Severity) {
-	case "":
-		break // not set
-	case "info":
-		log.SetLevel(log.InfoLevel)
-	case "err", "error":
-		log.SetLevel(log.ErrorLevel)
-	case teleport.DebugLevel:
-		log.SetLevel(log.DebugLevel)
-	case "warn", "warning":
-		log.SetLevel(log.WarnLevel)
-	default:
-		return trace.BadParameter("unsupported logger severity: '%v'", fc.Logger.Severity)
-	}
+
 	// apply cache policy for node and proxy
 	cachePolicy, err := fc.CachePolicy.Parse()
 	if err != nil {
@@ -364,6 +334,45 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
+	return nil
+}
+
+func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
+	switch loggerConfig.Output {
+	case "":
+		break // not set
+	case "stderr", "error", "2":
+		logger.SetOutput(os.Stderr)
+	case "stdout", "out", "1":
+		logger.SetOutput(os.Stdout)
+	case teleport.Syslog:
+		err := utils.SwitchLoggerToSyslog(logger)
+		if err != nil {
+			// this error will go to stderr
+			log.Errorf("Failed to switch logging to syslog: %v.", err)
+		}
+	default:
+		// assume it's a file path:
+		logFile, err := os.Create(loggerConfig.Output)
+		if err != nil {
+			return trace.Wrap(err, "failed to create the log file")
+		}
+		logger.SetOutput(logFile)
+	}
+	switch strings.ToLower(loggerConfig.Severity) {
+	case "":
+		break // not set
+	case "info":
+		logger.SetLevel(log.InfoLevel)
+	case "err", "error":
+		logger.SetLevel(log.ErrorLevel)
+	case teleport.DebugLevel:
+		logger.SetLevel(log.DebugLevel)
+	case "warn", "warning":
+		logger.SetLevel(log.WarnLevel)
+	default:
+		return trace.BadParameter("unsupported logger severity: '%v'", loggerConfig.Severity)
+	}
 	return nil
 }
 

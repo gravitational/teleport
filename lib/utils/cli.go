@@ -80,13 +80,9 @@ func InitLoggerForTests(verbose bool) {
 	logger.SetOutput(ioutil.Discard)
 }
 
-// InitLoggerForTestsExperimental initializes the standard logger for tests
-func InitLoggerForTestsExperimental() {
-	NewLoggerForTests(log.StandardLogger())
-}
-
-// NewLoggerForTests sets up the specified logger for test environment
-func NewLoggerForTests(logger *log.Logger) *log.Logger {
+// NewLoggerForTests creates a new logger for test environment
+func NewLoggerForTests() *log.Logger {
+	logger := log.New()
 	logger.ReplaceHooks(make(log.LevelHooks))
 	logger.SetFormatter(&trace.TextFormatter{})
 	logger.SetLevel(log.DebugLevel)

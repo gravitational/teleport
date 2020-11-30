@@ -28,18 +28,23 @@ import (
 	logrusSyslog "github.com/sirupsen/logrus/hooks/syslog"
 )
 
-// SwitchLoggingtoSyslog tells the logger to send the output to syslog. This
+// SwitchLoggingtoSyslog tells the default logger to send the output to syslog. This
 // code is behind a build flag because Windows does not support syslog.
 func SwitchLoggingtoSyslog() error {
-	log.StandardLogger().ReplaceHooks(make(log.LevelHooks))
+	return SwitchLoggerToSyslog(log.StandardLogger())
+}
+
+// SwitchLoggerToSyslog tells the logger to send the output to syslog.
+func SwitchLoggerToSyslog(logger *log.Logger) error {
+	logger.ReplaceHooks(make(log.LevelHooks))
 	hook, err := logrusSyslog.NewSyslogHook("", "", syslog.LOG_WARNING, "")
 	if err != nil {
 		// syslog is not available
-		log.SetOutput(os.Stderr)
+		logger.SetOutput(os.Stderr)
 		return trace.Wrap(err)
 	}
-	log.AddHook(hook)
+	logger.AddHook(hook)
 	// ... and disable stderr:
-	log.SetOutput(ioutil.Discard)
+	logger.SetOutput(ioutil.Discard)
 	return nil
 }

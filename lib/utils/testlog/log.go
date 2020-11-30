@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/check.v1"
 )
@@ -33,9 +32,8 @@ import (
 func FailureOnly(t testingInterface) logrus.FieldLogger {
 	// Collect all output into buf.
 	buf := utils.NewSyncBuffer()
-	log := logrus.New()
+	log := utils.NewLoggerForTests()
 	log.SetOutput(buf)
-	log.SetFormatter(&trace.TextFormatter{})
 
 	// Register a cleanup callback which prints buf iff t has failed.
 	t.Cleanup(func() {

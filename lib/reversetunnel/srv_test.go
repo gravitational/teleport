@@ -28,7 +28,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
@@ -39,7 +38,7 @@ func TestServerKeyAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	s := &server{
-		log: utils.NewLoggerForTests(logrus.New()),
+		log: utils.NewLoggerForTests(),
 		localAccessPoint: mockAccessPoint{ca: services.NewCertAuthority(
 			services.HostCA,
 			"cluster-name",
