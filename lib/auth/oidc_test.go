@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"testing"
 	"time"
 
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"

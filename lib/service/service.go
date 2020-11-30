@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	stdlog "log"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -542,11 +543,6 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 // and starts them under a supervisor, returning the supervisor object.
 func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	var err error
-	defer func() {
-		if err != nil {
-			fmt.Println(trace.DebugReport(err))
-		}
-	}()
 
 	// Before we do anything reset the SIGINT handler back to the default.
 	system.ResetInterruptSignalHandler()

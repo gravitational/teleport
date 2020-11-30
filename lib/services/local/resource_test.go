@@ -50,7 +50,7 @@ var _ = fmt.Printf
 var _ = check.Suite(&ResourceSuite{})
 
 func (r *ResourceSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
 
 func (r *ResourceSuite) SetUpTest(c *check.C) {

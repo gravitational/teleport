@@ -312,14 +312,14 @@ func (a *Agent) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.
 			case versionRequest:
 				err := r.Reply(true, []byte(teleport.Version))
 				if err != nil {
-					log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
+					a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
 					continue
 				}
 			default:
 				// This handles keep-alive messages and matches the behaviour of OpenSSH.
 				err := r.Reply(false, nil)
 				if err != nil {
-					log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
+					a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)
 					continue
 				}
 			}

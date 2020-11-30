@@ -405,10 +405,10 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// in case of error as ssh server takes care of this
 	remoteAddr, _, err := net.SplitHostPort(conn.RemoteAddr().String())
 	if err != nil {
-		log.Errorf(err.Error())
+		s.log.Error(err.Error())
 	}
 	if err := s.limiter.AcquireConnection(remoteAddr); err != nil {
-		log.Errorf(err.Error())
+		s.log.Error(err.Error())
 		conn.Close()
 		return
 	}
@@ -426,7 +426,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// create a new SSH server which handles the handshake (and pass the custom
 	// payload structure which will be populated only when/if this connection
 	// comes from another Teleport proxy):
-	sconn, chans, reqs, err := ssh.NewServerConn(wrapConnection(wconn), &s.cfg)
+	sconn, chans, reqs, err := ssh.NewServerConn(wrapConnection(wconn, s.log), &s.cfg)
 	if err != nil {
 		conn.SetDeadline(time.Time{})
 		return
@@ -434,7 +434,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 
 	user := sconn.User()
 	if err := s.limiter.RegisterRequest(user); err != nil {
-		log.Errorf(err.Error())
+		s.log.Error(err.Error())
 		sconn.Close()
 		conn.Close()
 		return
@@ -511,7 +511,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			const wantReply = true
 			_, _, err = sconn.SendRequest(teleport.KeepAliveReqType, wantReply, keepAlivePayload[:])
 			if err != nil {
-				log.Errorf("Failed sending keepalive request: %v", err)
+				s.log.Errorf("Failed sending keepalive request: %v", err)
 			}
 		case <-ctx.Done():
 			s.log.Debugf("Connection context canceled: %v -> %v", conn.RemoteAddr(), conn.LocalAddr())
@@ -634,6 +634,9 @@ type connectionWrapper struct {
 	// a proxy). Keeping this address is the entire point of the
 	// connection wrapper.
 	clientAddr net.Addr
+
+	// log specifies the logger
+	log log.FieldLogger
 }
 
 // RemoteAddr returns the behind-the-proxy client address
@@ -655,7 +658,7 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 	if err != nil {
 		// EOF happens quite often, don't pollute the logs with it
 		if !trace.IsEOF(err) {
-			log.Error(err)
+			c.log.WithError(err).Error("Failed to read from connection.")
 		}
 		return n, err
 	}
@@ -671,11 +674,11 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 			var hp HandshakePayload
 			payload := buff[len(ProxyHelloSignature):payloadBoundary]
 			if err = json.Unmarshal(payload, &hp); err != nil {
-				log.Error(err)
+				c.log.WithError(err).Error("Failed to unmarshal hello payload.")
 			} else {
 				ca, err := utils.ParseAddr(hp.ClientAddr)
 				if err != nil {
-					log.Error(err)
+					c.log.WithError(err).Errorf("Failed to parse client addr %v.", hp.ClientAddr)
 				} else {
 					// replace proxy's client addr with a real client address
 					// we just got from the custom payload:
@@ -691,9 +694,10 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 
 // wrapConnection takes a network connection, wraps it into connectionWrapper
 // object (which overrides Read method) and returns the wrapper.
-func wrapConnection(conn net.Conn) net.Conn {
+func wrapConnection(conn net.Conn, log log.FieldLogger) net.Conn {
 	return &connectionWrapper{
 		Conn:       conn,
 		clientAddr: conn.RemoteAddr(),
+		log:        log,
 	}
 }

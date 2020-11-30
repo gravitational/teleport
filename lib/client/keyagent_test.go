@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"testing"
 	"time"
 
 	"golang.org/x/crypto/ssh"

@@ -18,6 +18,7 @@ package bpf
 
 import (
 	"fmt"
+	"testing"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"

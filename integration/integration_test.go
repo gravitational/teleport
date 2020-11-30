@@ -1156,6 +1156,10 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 	}
 }
 
+func timeNow() string {
+	return time.Now().Format(time.StampMilli)
+}
+
 func enterInput(ctx context.Context, c *check.C, person *Terminal, command, pattern string) {
 	person.Type(command)
 	abortTime := time.Now().Add(10 * time.Second)
@@ -1274,11 +1278,11 @@ func (s *IntSuite) TestTwoClustersTunnel(c *check.C) {
 	}
 
 	for _, tt := range tests {
-		s.twoClustersTunnel(c, now, tt.inRecordLocation, tt.outExecCountSiteA, tt.outExecCountSiteB)
+		s.twoClustersTunnel(c, now, tt.inRecordLocation, tt.outExecCountSiteA, tt.outExecCountSiteB, tt.comment)
 	}
 }
 
-func (s *IntSuite) twoClustersTunnel(c *check.C, now time.Time, proxyRecordMode string, execCountSiteA, execCountSiteB int) {
+func (s *IntSuite) twoClustersTunnel(c *check.C, now time.Time, proxyRecordMode string, execCountSiteA, execCountSiteB int, commentS string) {
 	// start the http proxy, we need to make sure this was not used
 	ps := &proxyServer{}
 	ts := httptest.NewServer(ps)
@@ -1299,11 +1303,13 @@ func (s *IntSuite) twoClustersTunnel(c *check.C, now time.Time, proxyRecordMode 
 	a.AddUser(username, []string{username})
 	b.AddUser(username, []string{username})
 
+	comment := check.Commentf(commentS)
+
 	clusterConfig, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 		SessionRecording: proxyRecordMode,
 		LocalAuth:        services.NewBool(true),
 	})
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, comment)
 
 	acfg := s.defaultServiceConfig()
 	acfg.Auth.Enabled = true
@@ -1320,11 +1326,11 @@ func (s *IntSuite) twoClustersTunnel(c *check.C, now time.Time, proxyRecordMode 
 	bcfg.Proxy.DisableWebInterface = true
 	bcfg.SSH.Enabled = false
 
-	c.Assert(b.CreateEx(a.Secrets.AsSlice(), bcfg), check.IsNil)
-	c.Assert(a.CreateEx(b.Secrets.AsSlice(), acfg), check.IsNil)
+	c.Assert(b.CreateEx(a.Secrets.AsSlice(), bcfg), check.IsNil, comment)
+	c.Assert(a.CreateEx(b.Secrets.AsSlice(), acfg), check.IsNil, comment)
 
-	c.Assert(b.Start(), check.IsNil)
-	c.Assert(a.Start(), check.IsNil)
+	c.Assert(b.Start(), check.IsNil, comment)
+	c.Assert(a.Start(), check.IsNil, comment)
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
 	abortTime := time.Now().Add(time.Second * 10)
@@ -1341,7 +1347,7 @@ func (s *IntSuite) twoClustersTunnel(c *check.C, now time.Time, proxyRecordMode 
 	)
 
 	// make sure the direct dialer was used and not the proxy dialer
-	c.Assert(ps.Count(), check.Equals, 0)
+	c.Assert(ps.Count(), check.Equals, 0, comment)
 
 	// if we got here, it means two sites are cross-connected. Let's execute SSH commands
 	sshPort := a.GetPortSSHInt()
@@ -1356,29 +1362,29 @@ func (s *IntSuite) twoClustersTunnel(c *check.C, now time.Time, proxyRecordMode 
 		ForwardAgent: true,
 	})
 	tc.Stdout = &outputA
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, comment)
 	err = tc.SSH(context.TODO(), cmd, false)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, comment)
 	c.Assert(outputA.String(), check.Equals, "hello world\n")
 
 	// Update trusted CAs.
 	err = tc.UpdateTrustedCA(context.TODO(), a.Secrets.SiteName)
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, comment)
 
 	// The known_hosts file should have two certificates, the way bytes.Split
 	// works that means the output will be 3 (2 certs + 1 empty).
 	buffer, err := ioutil.ReadFile(filepath.Join(tc.KeysDir, "known_hosts"))
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, comment)
 	parts := bytes.Split(buffer, []byte("\n"))
-	c.Assert(parts, check.HasLen, 3)
+	c.Assert(parts, check.HasLen, 3, comment)
 
 	// The certs.pem file should have 2 certificates.
 	buffer, err = ioutil.ReadFile(filepath.Join(tc.KeysDir, "keys", Host, "certs.pem"))
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, comment)
 	roots := x509.NewCertPool()
 	ok := roots.AppendCertsFromPEM(buffer)
-	c.Assert(ok, check.Equals, true)
-	c.Assert(roots.Subjects(), check.HasLen, 2)
+	c.Assert(ok, check.Equals, true, comment)
+	c.Assert(roots.Subjects(), check.HasLen, 2, comment)
 
 	// wait for active tunnel connections to be established
 	waitForActiveTunnelConnections(c, b.Tunnel, a.Secrets.SiteName, 1)
@@ -1392,19 +1398,19 @@ func (s *IntSuite) twoClustersTunnel(c *check.C, now time.Time, proxyRecordMode 
 		ForwardAgent: true,
 	})
 	tc.Stdout = &outputB
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, comment)
 	err = tc.SSH(context.TODO(), cmd, false)
-	c.Assert(err, check.IsNil)
-	c.Assert(outputA.String(), check.DeepEquals, outputB.String())
+	c.Assert(err, check.IsNil, comment)
+	c.Assert(outputA.String(), check.DeepEquals, outputB.String(), comment)
 
 	// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
 	a.StopAuth(c, false)
 	err = tc.SSH(context.TODO(), cmd, false)
-			c.Assert(trace.Unwrap(err), check.FitsTypeOf, &trace.ConnectionProblemError{}, comment)
+	c.Assert(trace.Unwrap(err), check.FitsTypeOf, &trace.ConnectionProblemError{}, comment)
 
-			// Reset and start "site-A" again
-			c.Assert(a.Reset(), check.IsNil)
-			c.Assert(a.Start(), check.IsNil)
+	// Reset and start "site-A" again
+	c.Assert(a.Reset(), check.IsNil, comment)
+	c.Assert(a.Start(), check.IsNil, comment)
 
 	// try to execute an SSH command using the same old client to Site-B
 	// "site-A" and "site-B" reverse tunnels are supposed to reconnect,
@@ -1416,7 +1422,7 @@ func (s *IntSuite) twoClustersTunnel(c *check.C, now time.Time, proxyRecordMode 
 			break
 		}
 	}
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.IsNil, comment)
 
 	searchAndAssert := func(site auth.ClientI, count int) {
 		tickCh := time.Tick(500 * time.Millisecond)
@@ -1429,14 +1435,14 @@ func (s *IntSuite) twoClustersTunnel(c *check.C, now time.Time, proxyRecordMode 
 			select {
 			case <-tickCh:
 				eventsInSite, err := site.SearchEvents(now, now.Add(1*time.Hour), execQuery, 0)
-				c.Assert(err, check.IsNil)
+				c.Assert(err, check.IsNil, comment)
 
 				// found the number of events we were looking for
 				if got, want := len(eventsInSite), count; got == want {
 					return
 				}
 			case <-stopCh:
-				c.Errorf("Unable to find %v events after 5s (%s)", count, tt.comment)
+				c.Errorf("%s: Unable to find %v events after 5s", commentS, count)
 			}
 		}
 	}
@@ -3367,7 +3373,7 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 		})
 	}()
 
-	svc waitForProcessStart(c, serviceC)
+	svc := waitForProcessStart(c, serviceC)
 	defer svc.Shutdown(context.TODO())
 
 	// Setup user in the cluster
@@ -3402,7 +3408,7 @@ func (s *IntSuite) TestRotateSuccess(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// wait until service reload
-	svc = s.waitForReload(c, serviceC, svc)
+	svc = waitForReload(c, serviceC, svc)
 	defer svc.Shutdown(context.TODO())
 
 	cfg := ClientConfig{
@@ -3807,9 +3813,10 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// wait until service reloaded
-	c.Log("Waiting for service reload.")
-	svc = s.waitForReload(c, serviceC, svc)
+	c.Log("Wating for service reload.")
+	svc = waitForReload(c, serviceC, svc)
 	defer svc.Shutdown(context.TODO())
+
 	c.Log("Service reload completed, waiting for phase.")
 
 	err = waitForPhase(services.RotationPhaseStandby)
@@ -3868,7 +3875,8 @@ func (s *IntSuite) TestRotateChangeSigningAlg(c *check.C) {
 			case err := <-runErrCh:
 				c.Assert(err, check.IsNil)
 			case <-time.After(20 * time.Second):
-				c.Fatalf("failed to shut down the server")
+				dumpGoroutineProfile()
+				c.Fatal("Failed to shut down the server.")
 			}
 		}
 
@@ -3934,7 +3942,7 @@ func (s *IntSuite) TestRotateChangeSigningAlg(c *check.C) {
 		svc = waitForReload(c, serviceC, svc)
 		defer svc.Shutdown(context.TODO())
 
-		c.Logf("rotation phase: %q", services.RotationPhaseStandby)
+		c.Logf("Rotation phase: %q.", services.RotationPhaseStandby)
 		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
 			TargetPhase: services.RotationPhaseStandby,
 			Mode:        mode,
@@ -3942,35 +3950,38 @@ func (s *IntSuite) TestRotateChangeSigningAlg(c *check.C) {
 		c.Assert(err, check.IsNil)
 
 		// wait until service reloaded
-		svc = waitForReload(c, serviceC, svc)
-
-		return svc
+		return waitForReload(c, serviceC, svc)
 	}
 
 	// Start the instance.
 	svc, cancel := restart(nil, nil)
+	defer svc.Shutdown(context.TODO())
 
-	c.Log("default signature algorithm due to empty config value")
+	c.Log("Default signature algorithm due to empty config value.")
 	// Verify the default signing algorithm with config value empty.
 	assertSigningAlg(svc, defaults.CASignatureAlgorithm)
 
-	c.Log("change signature algorithm with custom config value and manual rotation")
+	c.Log("Change signature algorithm with custom config value and manual rotation.")
 	// Change the signing algorithm in config file.
 	signingAlg := ssh.SigAlgoRSA
 	config.CASignatureAlgorithm = &signingAlg
 	svc, cancel = restart(svc, cancel)
+	defer svc.Shutdown(context.TODO())
 	// Do a manual rotation - this should change the signing algorithm.
 	svc = rotate(svc, services.RotationModeManual)
+	defer svc.Shutdown(context.TODO())
 	assertSigningAlg(svc, ssh.SigAlgoRSA)
 
-	c.Log("preserve signature algorithm with empty config value and manual rotation")
+	c.Log("preserve signature algorithm with empty config value and manual rotation.")
 	// Unset the config value.
 	config.CASignatureAlgorithm = nil
 	svc, cancel = restart(svc, cancel)
+	defer svc.Shutdown(context.TODO())
 
 	// Do a manual rotation - this should leave the signing algorithm
 	// unaffected because config value is not set.
 	svc = rotate(svc, services.RotationModeManual)
+	defer svc.Shutdown(context.TODO())
 	assertSigningAlg(svc, ssh.SigAlgoRSA)
 
 	// shut down the service
@@ -3982,7 +3993,8 @@ func (s *IntSuite) TestRotateChangeSigningAlg(c *check.C) {
 	case err := <-runErrCh:
 		c.Assert(err, check.IsNil)
 	case <-time.After(20 * time.Second):
-		c.Fatalf("failed to shut down the server")
+		dumpGoroutinneProfile()
+		c.Fatal("Failed to shut down the server.")
 	}
 }
 
@@ -4019,9 +4031,10 @@ func waitForProcessStart(c *check.C, serviceC chan *svcStartResult) *service.Tel
 			c.Fatal(result.err)
 		}
 		return result.svc
-	case <-time.After(1 * time.Minute):
-		dumpGoroutineProfile()
-		c.Fatal("Timeout waiting for service to start.")
+	case <-time.After(60 * time.Second):
+		// FIXME: dump goroutines for debugging
+		pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
+		c.Fatal("timeout waiting for service to start")
 	}
 	panic("unreachable")
 }

@@ -37,7 +37,7 @@ type MemorySuite struct {
 var _ = check.Suite(&MemorySuite{})
 
 func (s *MemorySuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 	newBackend := func() (backend.Backend, error) {
 		mem, err := New(Config{})
 		if err != nil {

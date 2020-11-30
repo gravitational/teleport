@@ -19,6 +19,7 @@ package local
 import (
 	"context"
 	"fmt"
+	"testing"
 	"time"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -40,7 +41,7 @@ var _ = fmt.Printf
 var _ = check.Suite(&ServicesSuite{})
 
 func (s *ServicesSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
 
 func (s *ServicesSuite) SetUpTest(c *check.C) {

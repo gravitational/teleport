@@ -46,7 +46,6 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 )
 
 // Config structure is used to initialize _all_ services Teleport can run.

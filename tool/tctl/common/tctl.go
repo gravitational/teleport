@@ -139,7 +139,8 @@ func Run(commands []CLICommand, loadConfigExt LoadConfigFn) {
 
 	client, err := connectToAuthService(ctx, cfg, clientConfig)
 	if err != nil {
-		utils.Consolef(os.Stderr, log.WithField(trace.Component, teleport.ComponentClient), teleport.ComponentClient,
+		utils.Consolef(os.Stderr, log.WithField(trace.Component, teleport.ComponentClient),
+			teleport.ComponentClient,
 			"Cannot connect to the auth server: %v.\nIs the auth server running on %q?",
 			err, cfg.AuthServers[0].Addr)
 		os.Exit(1)
