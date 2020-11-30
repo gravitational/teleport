@@ -61,7 +61,7 @@ func (s *ServiceTestSuite) TestSelfSignedHTTPS(c *check.C) {
 	cfg := &Config{
 		DataDir:  c.MkDir(),
 		Hostname: "example.com",
-		Log:      log.WithField("test", c.TestName()),
+		Log:      utils.WrapLogger(log.WithField("test", c.TestName())),
 	}
 	err := initSelfSignedHTTPSCert(cfg)
 	c.Assert(err, check.IsNil)

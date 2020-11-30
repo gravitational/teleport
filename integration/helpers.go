@@ -107,7 +107,7 @@ type TeleInstance struct {
 	tempDirs []string
 
 	// log specifies the instance logger
-	log log.FieldLogger
+	log utils.Logger
 }
 
 type User struct {
@@ -164,7 +164,7 @@ type InstanceConfig struct {
 	MultiplexProxy bool
 
 	// log specifies the logger
-	log log.FieldLogger
+	log utils.Logger
 }
 
 // NewInstance creates a new Teleport process instance.

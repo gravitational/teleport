@@ -23,17 +23,16 @@ import (
 
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/sirupsen/logrus"
 	"gopkg.in/check.v1"
 )
 
 // FailureOnly returns a logger that only prints the logs to STDERR when the
 // test fails.
-func FailureOnly(t testingInterface) logrus.FieldLogger {
+func FailureOnly(t testingInterface) utils.Logger {
 	// Collect all output into buf.
 	buf := utils.NewSyncBuffer()
-	log := utils.NewLoggerForTests()
-	log.SetOutput(buf)
+	logger := utils.NewLoggerForTests()
+	logger.SetOutput(buf)
 
 	// Register a cleanup callback which prints buf iff t has failed.
 	t.Cleanup(func() {
@@ -43,7 +42,7 @@ func FailureOnly(t testingInterface) logrus.FieldLogger {
 		fmt.Fprintln(os.Stderr, buf.String())
 	})
 
-	return log.WithField("test", t.Name())
+	return utils.WrapLogger(logger.WithField("test", t.Name()))
 }
 
 // NewCheckTestWrapper creates a new logging wrapper for the specified
@@ -89,7 +88,7 @@ func (r *TestWrapper) Close() {
 type TestWrapper struct {
 	// Log specifies the logger that can be used to emit
 	// test-specific messages
-	Log logrus.FieldLogger
+	Log utils.Logger
 
 	c        *check.C
 	cleanups []func()

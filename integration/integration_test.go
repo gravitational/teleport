@@ -79,7 +79,7 @@ type IntSuite struct {
 	priv []byte
 	pub  []byte
 	// log defines the test-specific logger
-	log log.FieldLogger
+	log utils.Logger
 	w   *testlog.TestWrapper
 }
 
@@ -201,7 +201,6 @@ func (s *IntSuite) newTeleportIoT(c *check.C, logins []string) *TeleInstance {
 	nodeConfig := func() *service.Config {
 		tconf := s.defaultServiceConfig()
 		tconf.Hostname = Host
-		tconf.Console = nil
 		tconf.Token = "token"
 		tconf.AuthServers = []utils.NetAddr{
 			{
@@ -3529,8 +3528,6 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 		})
 	}()
 
-	l := s.log.WithFields(log.Fields{trace.Component: teleport.Component("test", "rotate")})
-
 	svc, err := waitForProcessStart(serviceC)
 	c.Assert(err, check.IsNil)
 
@@ -3542,7 +3539,7 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	initialCreds, err := GenerateUserCreds(UserCredsRequest{Process: svc, Username: s.me.Username})
 	c.Assert(err, check.IsNil)
 
-	l.Infof("Service started. Setting rotation state to %v", services.RotationPhaseInit)
+	c.Logf("Service started. Setting rotation state to %q.", services.RotationPhaseInit)
 
 	// start rotation
 	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
@@ -3554,7 +3551,7 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	err = waitForProcessEvent(svc, service.TeleportPhaseChangeEvent, 10*time.Second)
 	c.Assert(err, check.IsNil)
 
-	l.Infof("Setting rotation state to %v", services.RotationPhaseUpdateClients)
+	c.Logf("Setting rotation state to %q.", services.RotationPhaseUpdateClients)
 
 	// start rotation
 	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
@@ -3579,7 +3576,7 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
-	l.Infof("Service reloaded. Setting rotation state to %v", services.RotationPhaseUpdateServers)
+	c.Logf("Service reloaded. Setting rotation state to %q.", services.RotationPhaseUpdateServers)
 
 	// move to the next phase
 	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
@@ -3592,7 +3589,7 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	svc, err = s.waitForReload(serviceC, svc)
 	c.Assert(err, check.IsNil)
 
-	l.Infof("Service reloaded. Setting rotation state to %v.", services.RotationPhaseRollback)
+	c.Logf("Service reloaded. Setting rotation state to %q.", services.RotationPhaseRollback)
 
 	// complete rotation
 	err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
@@ -3609,7 +3606,7 @@ func (s *IntSuite) TestRotateRollback(c *check.C) {
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
 	c.Assert(err, check.IsNil)
 
-	l.Infof("Service reloaded. Rotation has completed. Shuttting down service.")
+	c.Log("Service reloaded. Rotation has completed. Shuttting down service.")
 
 	// shut down the service
 	cancel()
@@ -3817,14 +3814,14 @@ func (s *IntSuite) TestRotateTrustedClusters(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// wait until service reloaded
-	c.Log("Waiting for service reload")
+	c.Log("Waiting for service reload.")
 	svc, err = s.waitForReload(serviceC, svc)
 	c.Assert(err, check.IsNil)
-	c.Log("Service reload completed, waiting for phase")
+	c.Log("Service reload completed, waiting for phase.")
 
 	err = waitForPhase(services.RotationPhaseStandby)
 	c.Assert(err, check.IsNil)
-	c.Logf("Phase completed.")
+	c.Log("Phase completed.")
 
 	// new client still works
 	err = runAndMatch(clt, 8, []string{"echo", "hello world"}, ".*hello world.*")
@@ -3909,7 +3906,7 @@ func (s *IntSuite) TestRotateChangeSigningAlg(c *check.C) {
 	}
 
 	rotate := func(svc *service.TeleportProcess, mode string) *service.TeleportProcess {
-		c.Logf("rotation phase: %q", services.RotationPhaseInit)
+		c.Logf("Rotation phase: %q.", services.RotationPhaseInit)
 		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
 			TargetPhase: services.RotationPhaseInit,
 			Mode:        mode,
@@ -3920,7 +3917,7 @@ func (s *IntSuite) TestRotateChangeSigningAlg(c *check.C) {
 		err = waitForProcessEvent(svc, service.TeleportPhaseChangeEvent, 10*time.Second)
 		c.Assert(err, check.IsNil)
 
-		c.Logf("rotation phase: %q", services.RotationPhaseUpdateClients)
+		c.Logf("Rotation phase: %q.", services.RotationPhaseUpdateClients)
 		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
 			TargetPhase: services.RotationPhaseUpdateClients,
 			Mode:        mode,
@@ -3931,7 +3928,7 @@ func (s *IntSuite) TestRotateChangeSigningAlg(c *check.C) {
 		svc, err = s.waitForReload(serviceC, svc)
 		c.Assert(err, check.IsNil)
 
-		c.Logf("rotation phase: %q", services.RotationPhaseUpdateServers)
+		c.Logf("Rotation phase: %q.", services.RotationPhaseUpdateServers)
 		err = svc.GetAuthServer().RotateCertAuthority(auth.RotateRequest{
 			TargetPhase: services.RotationPhaseUpdateServers,
 			Mode:        mode,
@@ -4025,6 +4022,7 @@ func waitForProcessStart(serviceC chan *service.TeleportProcess) (*service.Telep
 	select {
 	case svc = <-serviceC:
 	case <-time.After(60 * time.Second):
+		pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
 		return nil, trace.BadParameter("timeout waiting for service to start")
 	}
 	return svc, nil

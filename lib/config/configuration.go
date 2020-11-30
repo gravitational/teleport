@@ -242,10 +242,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// apply logger settings
-	err = applyLogConfig(fc.Logger, log.New())
+	logger := utils.NewLogger()
+	err = applyLogConfig(fc.Logger, logger)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	cfg.Log = logger
 
 	// apply cache policy for node and proxy
 	cachePolicy, err := fc.CachePolicy.Parse()

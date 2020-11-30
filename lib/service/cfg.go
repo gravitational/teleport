@@ -45,7 +45,6 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 )
 
 // Config structure is used to initialize _all_ services Teleport can run.
@@ -196,7 +195,7 @@ type Config struct {
 	Kube KubeConfig
 
 	// Log optionally specifies the logger
-	Log logrus.FieldLogger
+	Log utils.Logger
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -599,8 +598,7 @@ func ApplyDefaults(cfg *Config) {
 	sc.SetDefaults()
 
 	if cfg.Log == nil {
-		// TODO(dmitri): setup using the standard method (use lib/utils?)
-		cfg.Log = logrus.New()
+		cfg.Log = utils.NewLogger()
 	}
 
 	// Remove insecure and (borderline insecure) cryptographic primitives from

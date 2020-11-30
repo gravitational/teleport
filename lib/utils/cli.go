@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -88,6 +89,30 @@ func NewLoggerForTests() *log.Logger {
 	logger.SetLevel(log.DebugLevel)
 	logger.SetOutput(os.Stderr)
 	return logger
+}
+
+// WrapLogger wraps an existing logger entry and returns
+// an value satisfying the Logger interface
+func WrapLogger(logger *log.Entry) Logger {
+	return &logWrapper{Entry: logger}
+}
+
+// NewLogger creates a new empty logger
+func NewLogger() *log.Logger {
+	logger := log.New()
+	logger.SetFormatter(&trace.TextFormatter{
+		DisableTimestamp: true,
+		EnableColors:     trace.IsTerminal(os.Stderr),
+	})
+	return logger
+}
+
+// Logger describes a logger value
+type Logger interface {
+	log.FieldLogger
+	// GetLevel specifies the level at which this logger
+	// value is logging
+	GetLevel() log.Level
 }
 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging
@@ -225,6 +250,17 @@ type StdlogAdapter struct {
 // leveledOutputFunc describes a function that emits given
 // arguments at the specific level to an underlying logger
 type leveledOutputFunc func(args ...interface{})
+
+// GetLevel returns the level of the underlying logger
+func (r *logWrapper) GetLevel() logrus.Level {
+	return r.Entry.Logger.GetLevel()
+}
+
+// logWrapper wraps a log entry.
+// Implements Logger
+type logWrapper struct {
+	*logrus.Entry
+}
 
 // needsQuoting returns true if any non-printable characters are found.
 func needsQuoting(text string) bool {
