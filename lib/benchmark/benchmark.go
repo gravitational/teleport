@@ -263,6 +263,7 @@ func execute(m benchMeasure) error {
 	out := &utils.SyncBuffer{}
 	client.Stdout = out
 	client.Stderr = out
+	writer.Write([]byte(strings.Join(m.command, " ") + "\r\nexit\r\n"))
 	return m.client.SSH(context.TODO(), nil, false)
 }
 
