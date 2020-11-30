@@ -31,6 +31,7 @@ import (
 	"os/user"
 	"strconv"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -83,7 +84,7 @@ func (s *KubeSuite) SetUpSuite(c *check.C) {
 	kubeproxy.TestOnlySkipSelfPermissionCheck(true)
 
 	var err error
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 	SetTestTimeouts(time.Millisecond * time.Duration(100))
 
 	s.priv, s.pub, err = testauthority.New().GenerateKeyPair("")

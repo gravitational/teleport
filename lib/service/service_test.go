@@ -169,6 +169,9 @@ func TestMonitor(t *testing.T) {
 func (s *ServiceTestSuite) TestCheckPrincipals(c *check.C) {
 	dataDir := c.MkDir()
 
+	t := newTestWrapper(c)
+	defer t.close()
+
 	// Create a test auth server to extract the server identity (SSH and TLS
 	// certificates).
 	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
@@ -221,7 +224,7 @@ func (s *ServiceTestSuite) TestCheckPrincipals(c *check.C) {
 		},
 	}
 	for _, tt := range tests {
-		ok := checkServerIdentity(testConnector, tt.inPrincipals, tt.inDNS)
+		ok := checkServerIdentity(testConnector, tt.inPrincipals, tt.inDNS, t.log)
 		c.Assert(ok, check.Equals, tt.outRegenerate)
 	}
 }
@@ -231,6 +234,9 @@ func (s *ServiceTestSuite) TestCheckPrincipals(c *check.C) {
 // setup of true external loggers, but at the time of writing there isn't good
 // support for setting up fake external logging endpoints.
 func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
+	t := testlog.NewTestWrapper(c)
+	defer t.Close()
+
 	tts := []struct {
 		events []string
 		isNil  bool
@@ -258,7 +264,7 @@ func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
 
 		loggers, err := initExternalLog(context.Background(), services.AuditConfig{
 			AuditEventsURI: tt.events,
-		})
+		}, t.log)
 
 		if tt.isErr {
 			c.Assert(err, check.NotNil, cmt)

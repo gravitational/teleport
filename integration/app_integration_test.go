@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testlog"
 	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/lib/web/app"
 
@@ -233,10 +234,12 @@ type pack struct {
 
 // setup configures all clusters and servers needed for a test.
 func setup(t *testing.T) *pack {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
+
+	log := testlog.FailureOnly(t)
 
 	// Insecure development mode needs to be set because the web proxy uses a
 	// self-signed certificate during tests.
@@ -292,6 +295,7 @@ func setup(t *testing.T) *pack {
 		Ports:       ports.PopIntSlice(5),
 		Priv:        privateKey,
 		Pub:         publicKey,
+		log:         log,
 	})
 
 	// Create a new Teleport instance with passed in configuration.
@@ -302,9 +306,12 @@ func setup(t *testing.T) *pack {
 		Ports:       ports.PopIntSlice(5),
 		Priv:        privateKey,
 		Pub:         publicKey,
+		log:         log,
 	})
 
 	rcConf := service.MakeDefaultConfig()
+	rcConf.Console = nil
+	rcConf.Log = log
 	rcConf.DataDir, err = ioutil.TempDir("", "cluster-"+p.rootCluster.Secrets.SiteName)
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(rcConf.DataDir) })
@@ -317,6 +324,8 @@ func setup(t *testing.T) *pack {
 	rcConf.Apps.Enabled = false
 
 	lcConf := service.MakeDefaultConfig()
+	lcConf.Console = nil
+	lcConf.Log = log
 	lcConf.DataDir, err = ioutil.TempDir("", "cluster-"+p.leafCluster.Secrets.SiteName)
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(lcConf.DataDir) })
@@ -345,6 +354,8 @@ func setup(t *testing.T) *pack {
 	})
 
 	raConf := service.MakeDefaultConfig()
+	raConf.Console = nil
+	raConf.Log = log
 	raConf.DataDir, err = ioutil.TempDir("", "app-server-"+p.rootCluster.Secrets.SiteName)
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(raConf.DataDir) })
@@ -376,6 +387,8 @@ func setup(t *testing.T) *pack {
 	t.Cleanup(func() { p.rootAppServer.Close() })
 
 	laConf := service.MakeDefaultConfig()
+	laConf.Console = nil
+	laConf.Log = log
 	laConf.DataDir, err = ioutil.TempDir("", "app-server-"+p.leafCluster.Secrets.SiteName)
 	require.NoError(t, err)
 	t.Cleanup(func() { os.RemoveAll(laConf.DataDir) })

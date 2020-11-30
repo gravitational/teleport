@@ -45,6 +45,7 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 )
 
 // Config structure is used to initialize _all_ services Teleport can run.
@@ -193,6 +194,9 @@ type Config struct {
 
 	// Kube is a Kubernetes API gateway using Teleport client identities.
 	Kube KubeConfig
+
+	// Log optionally specifies the logger
+	Log logrus.FieldLogger
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -594,6 +598,11 @@ func ApplyDefaults(cfg *Config) {
 	var sc ssh.Config
 	sc.SetDefaults()
 
+	if cfg.Log == nil {
+		// TODO(dmitri): setup using the standard method (use lib/utils?)
+		cfg.Log = logrus.New()
+	}
+
 	// Remove insecure and (borderline insecure) cryptographic primitives from
 	// default configuration. These can still be added back in file configuration by
 	// users, but not supported by default by Teleport. See #1856 for more
@@ -608,7 +617,7 @@ func ApplyDefaults(cfg *Config) {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "localhost"
-		log.Errorf("Failed to determine hostname: %v.", err)
+		cfg.Log.Errorf("Failed to determine hostname: %v.", err)
 	}
 
 	// Global defaults.

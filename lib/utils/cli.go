@@ -66,8 +66,22 @@ func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
 	}
 }
 
-// InitLoggerForTests initializes the standard logger for tests
-func InitLoggerForTests() {
+// InitLoggerForTests initializes the standard logger for tests with verbosity
+func InitLoggerForTests(verbose bool) {
+	logger := log.StandardLogger()
+	logger.ReplaceHooks(make(log.LevelHooks))
+	logger.SetFormatter(&trace.TextFormatter{})
+	logger.SetLevel(log.DebugLevel)
+	logger.SetOutput(os.Stderr)
+	if verbose {
+		return
+	}
+	logger.SetLevel(log.WarnLevel)
+	logger.SetOutput(ioutil.Discard)
+}
+
+// InitLoggerForTestsExperimental initializes the standard logger for tests
+func InitLoggerForTestsExperimental() {
 	NewLoggerForTests(log.StandardLogger())
 }
 
@@ -155,12 +169,9 @@ func UserMessageFromError(err error) string {
 
 // Consolef prints the same message to a 'ui console' (if defined) and also to
 // the logger with INFO priority
-func Consolef(w io.Writer, component string, msg string, params ...interface{}) {
-	entry := log.WithFields(log.Fields{
-		trace.Component: component,
-	})
+func Consolef(w io.Writer, log log.FieldLogger, component, msg string, params ...interface{}) {
 	msg = fmt.Sprintf(msg, params...)
-	entry.Info(msg)
+	log.Info(msg)
 	if w != nil {
 		component := strings.ToUpper(component)
 		// 13 is the length of "[KUBERNETES]", which is the longest component
@@ -194,6 +205,30 @@ func EscapeControl(s string) string {
 	}
 	return s
 }
+
+// Write writes the specifies buffer p to the underlying logger at INFO level.
+// Implements io.Writer
+func (r *StdlogAdapter) Write(p []byte) (n int, err error) {
+	r.log(string(p))
+	return len(p), nil
+}
+
+// NewStdlogAdaptor creates a new adaptor for the specified logger
+func NewStdlogAdaptor(logger leveledOutputFunc) *StdlogAdapter {
+	return &StdlogAdapter{
+		log: logger,
+	}
+}
+
+// StdlogAdapter is an io.Writer that writes into an instance
+// of logrus.Logger
+type StdlogAdapter struct {
+	log leveledOutputFunc
+}
+
+// leveledOutputFunc describes a function that emits given
+// arguments at the specific level to an underlying logger
+type leveledOutputFunc func(args ...interface{})
 
 // needsQuoting returns true if any non-printable characters are found.
 func needsQuoting(text string) bool {

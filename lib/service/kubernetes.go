@@ -34,7 +34,7 @@ import (
 )
 
 func (process *TeleportProcess) initKubernetes() {
-	log := logrus.WithFields(logrus.Fields{
+	log := process.log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentKube, process.id),
 	})
 
@@ -70,7 +70,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	// clean up unused descriptors passed for proxy, but not used by it
 	defer func() {
 		if err := process.closeImportedDescriptors(teleport.ComponentKube); err != nil {
-			log.WithError(err).Warn("Failed closing imported file descriptors")
+			log.WithError(err).Warn("Failed closing imported file descriptors.")
 		}
 	}()
 	cfg := process.Config
@@ -237,10 +237,14 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	process.RegisterCriticalFunc("kube.serve", func() error {
 		if conn.UseTunnel() {
 			log.Info("Starting Kube service via proxy reverse tunnel.")
-			utils.Consolef(cfg.Console, teleport.ComponentKube, "Kubernetes service %s:%s is starting via proxy reverse tunnel.", teleport.Version, teleport.Gitref)
+			utils.Consolef(cfg.Console, log, teleport.ComponentKube,
+				"Kubernetes service %s:%s is starting via proxy reverse tunnel.",
+				teleport.Version, teleport.Gitref)
 		} else {
 			log.Infof("Starting Kube service on %v.", listener.Addr())
-			utils.Consolef(cfg.Console, teleport.ComponentKube, "Kubernetes service %s:%s is starting on %v.", teleport.Version, teleport.Gitref, listener.Addr())
+			utils.Consolef(cfg.Console, log, teleport.ComponentKube,
+				"Kubernetes service %s:%s is starting on %v.",
+				teleport.Version, teleport.Gitref, listener.Addr())
 		}
 		err := kubeServer.Serve(listener)
 		if err != nil {
