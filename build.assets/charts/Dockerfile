@@ -19,5 +19,8 @@ COPY teleport /usr/local/bin/teleport
 COPY tctl /usr/local/bin/tctl
 COPY tsh /usr/local/bin/tsh
 
+# Instruct docker to send SIGQUIT instead of SIGTERM on `docker stop`
+STOPSIGNAL SIGQUIT
+
 # By setting this entry point, we expose make target as command.
 ENTRYPOINT ["/usr/bin/dumb-init", "teleport", "start", "-c", "/etc/teleport/teleport.yaml"]
