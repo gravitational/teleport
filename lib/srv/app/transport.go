@@ -240,9 +240,10 @@ func (t *transport) emitAuditEvent(req *http.Request, resp *http.Response) error
 			Type: events.AppSessionRequestEvent,
 			Code: events.AppSessionRequestCode,
 		},
-		StatusCode: uint32(resp.StatusCode),
+		Method:     req.Method,
 		Path:       req.URL.Path,
 		RawQuery:   req.URL.RawQuery,
+		StatusCode: uint32(resp.StatusCode),
 	}
 	if err := t.c.w.EmitAuditEvent(t.closeContext, appSessionRequestEvent); err != nil {
 		return trace.Wrap(err)

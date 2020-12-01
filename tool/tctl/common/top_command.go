@@ -55,7 +55,7 @@ type TopCommand struct {
 func (c *TopCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	c.config = config
 	c.top = app.Command("top", "Report diagnostic information")
-	c.diagURL = c.top.Arg("diag-addr", "Diagnostic HTTP URL").Default("http://127.0.0.1:3434").String()
+	c.diagURL = c.top.Arg("diag-addr", "Diagnostic HTTP URL").Default("http://127.0.0.1:3000").String()
 	c.refreshPeriod = c.top.Arg("refresh", "Refresh period").Default("5s").Duration()
 }
 
@@ -70,7 +70,7 @@ func (c *TopCommand) TryRun(cmd string, client auth.ClientI) (match bool, err er
 		err = c.Top(diagClient)
 		if trace.IsConnectionProblem(err) {
 			return true, trace.ConnectionProblem(err,
-				"[CLIENT] Could not connect to metrics service at %v. Is teleport is running with --diag-addr=%v?", *c.diagURL, *c.diagURL)
+				"[CLIENT] Could not connect to metrics service at %v. Is teleport running with --diag-addr=%v?", *c.diagURL, *c.diagURL)
 		}
 		return true, trace.Wrap(err)
 	default:

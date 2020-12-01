@@ -34,7 +34,7 @@ environments, not servers. Below is a list of the most popular Teleport features
 * Enforce 2nd factor authentication.
 * Connect to clusters located behind firewalls without direct Internet access via SSH bastions.
 * Collaboratively troubleshoot issues through [session sharing](user-manual.md#sharing-sessions).
-* Discover online servers and Docker containers within a cluster with [dynamic node labels](admin-guide.md#labeling-nodes).
+* Discover online servers and Docker containers within a cluster with [dynamic node labels](admin-guide.md#labeling-nodes-and-applications).
 * A single tool ("pane of glass") to manage RBAC for both SSH and Kubernetes.
 * Audit log with session recording/replay.
 * Kubernetes audit log, including the recording of interactive commands executed via `kubectl`.

@@ -517,7 +517,7 @@ or `node` .
 There are two ways to create invitation tokens:
 
 * **Static Tokens** are easy to use and somewhat less secure.
-* **Dynamic Tokens** are more secure but require more planning.
+* **Short-lived Dynamic Tokens** are more secure but require more planning.
 
 ### Static Tokens
 
@@ -536,7 +536,7 @@ auth_service:
     - "auth:/path/to/tokenfile"
 ```
 
-### Short-lived Tokens
+### Short-lived Dynamic Tokens
 
 A more secure way to add nodes to a cluster is to generate tokens as they are
 needed. Such token can be used multiple times until its time to live (TTL)
@@ -570,7 +570,7 @@ $ tctl tokens rm e94d68a8a1e5821dbd79d03a960644f0
 
 ### Using Node Invitation Tokens
 
-Both static and short-lived tokens are used the same way. Execute the following
+Both static and short-lived dynamic tokens are used the same way. Execute the following
 command on a new node to add it to a cluster:
 
 ``` bash
@@ -1458,6 +1458,18 @@ teleport:
      # NOT RECOMMENDED: enables insecure etcd mode in which self-signed
      # certificate will be accepted
      insecure: false
+
+     # Optionally sets the limit on the client message size.
+     # This is usually used to increase the default which is 2MiB
+     # (1.5MiB server's default + gRPC overhead bytes).
+     # Make sure this does not exceed the value for the etcd
+     # server specified with `--max-request-bytes` (1.5MiB by default).
+     # Keep the two values in sync.
+     #
+     # See https://etcd.io/docs/v3.4.0/dev-guide/limit/ for details
+     #
+     # This bumps the size to 15MiB as an example:
+     etcd_max_client_msg_size_bytes: 15728640
 ```
 
 ### Using Amazon S3

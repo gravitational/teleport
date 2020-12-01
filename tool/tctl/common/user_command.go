@@ -139,7 +139,7 @@ func (u *UserCommand) ResetPassword(client auth.ClientI) error {
 func (u *UserCommand) PrintResetPasswordToken(token services.ResetPasswordToken, format string) error {
 	err := u.printResetPasswordToken(token,
 		format,
-		"User %v has been reset. Share this URL with the user to complete password reset, link is valid for %v:\n%v\n\n",
+		"User %q has been reset. Share this URL with the user to complete password reset, link is valid for %v:\n%v\n\n",
 	)
 
 	if err != nil {
@@ -153,7 +153,7 @@ func (u *UserCommand) PrintResetPasswordToken(token services.ResetPasswordToken,
 func (u *UserCommand) PrintResetPasswordTokenAsInvite(token services.ResetPasswordToken, format string) error {
 	err := u.printResetPasswordToken(token,
 		format,
-		"User %v has been created but requires a password. Share this URL with the user to complete user setup, link is valid for %v:\n%v\n\n")
+		"User %q has been created but requires a password. Share this URL with the user to complete user setup, link is valid for %v:\n%v\n\n")
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -245,7 +245,7 @@ func printTokenAsText(token services.ResetPasswordToken, messageFormat string) e
 		return trace.Wrap(err, "failed to parse reset password token url")
 	}
 
-	ttl := token.Expiry().Sub(time.Now().UTC()).Round(time.Second)
+	ttl := trimDurationZeroSuffix(token.Expiry().Sub(time.Now().UTC()))
 	fmt.Printf(messageFormat, token.GetUser(), ttl, url)
 	fmt.Printf("NOTE: Make sure %v points at a Teleport proxy which users can access.\n", url.Host)
 	return nil
@@ -308,4 +308,16 @@ func (u *UserCommand) Delete(client auth.ClientI) error {
 		fmt.Printf("User %q has been deleted\n", l)
 	}
 	return nil
+}
+
+func trimDurationZeroSuffix(d time.Duration) string {
+	s := d.Round(time.Second).String()
+	switch {
+	case strings.HasSuffix(s, "h0m0s"):
+		return strings.TrimSuffix(s, "0m0s")
+	case strings.HasSuffix(s, "m0s"):
+		return strings.TrimSuffix(s, "0s")
+	default:
+		return s
+	}
 }

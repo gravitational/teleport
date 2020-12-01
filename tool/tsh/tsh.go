@@ -25,7 +25,6 @@ import (
 	"os"
 	"os/signal"
 	"path"
-	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -35,11 +34,11 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -189,6 +188,9 @@ type CLIConf struct {
 	// command/shell execution. This also requires stdin to be an interactive
 	// terminal.
 	EnableEscapeSequences bool
+
+	// executablePath is the absolute path to the current executable.
+	executablePath string
 }
 
 func main() {
@@ -387,6 +389,11 @@ func Run(args []string) {
 		}
 	}
 
+	cf.executablePath, err = os.Executable()
+	if err != nil {
+		utils.FatalError(err)
+	}
+
 	switch command {
 	case ver.FullCommand():
 		utils.PrintVersion()
@@ -505,12 +512,20 @@ func onLogin(cf *CLIConf) {
 	// client is already logged in and profile is not expired
 	if profile != nil && !profile.IsExpired(clockwork.NewRealClock()) {
 		switch {
-		// in case if nothing is specified, print current status
+		// in case if nothing is specified, re-fetch kube clusters and print
+		// current status
 		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.IdentityFileOut == "":
+			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
+				utils.FatalError(err)
+			}
 			printProfiles(cf.Debug, profile, profiles)
 			return
-		// in case if parameters match, print current status
+		// in case if parameters match, re-fetch kube clusters and print
+		// current status
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "":
+			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
+				utils.FatalError(err)
+			}
 			printProfiles(cf.Debug, profile, profiles)
 			return
 		// proxy is unspecified or the same as the currently provided proxy,
@@ -528,7 +543,7 @@ func onLogin(cf *CLIConf) {
 			if err := tc.SaveProfile("", true); err != nil {
 				utils.FatalError(err)
 			}
-			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
+			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
 				utils.FatalError(err)
 			}
 			onStatus(cf)
@@ -538,6 +553,9 @@ func onLogin(cf *CLIConf) {
 		// request for the same login session.
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.DesiredRoles != "" && cf.IdentityFileOut == "":
 			if err := executeAccessRequest(cf); err != nil {
+				utils.FatalError(err)
+			}
+			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
 				utils.FatalError(err)
 			}
 			onStatus(cf)
@@ -587,7 +605,7 @@ func onLogin(cf *CLIConf) {
 
 	// If the proxy is advertising that it supports Kubernetes, update kubeconfig.
 	if tc.KubeProxyAddr != "" {
-		if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
+		if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
 			utils.FatalError(err)
 		}
 	}
@@ -605,14 +623,26 @@ func onLogin(cf *CLIConf) {
 			tc.Logout()
 			utils.FatalError(err)
 		}
-		for _, roleName := range roleNames {
-			role, err := tc.GetRole(cf.Context, roleName)
-			if err != nil {
-				tc.Logout()
-				utils.FatalError(err)
+		// load all roles from root cluster and collect relevant options.
+		// the normal one-off TeleportClient methods don't re-use the auth server
+		// connection, so we use WithRootClusterClient to speed things up.
+		err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+			for _, roleName := range roleNames {
+				role, err := clt.GetRole(roleName)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				reason = reason || role.GetOptions().RequestAccess.RequireReason()
+				auto = auto || role.GetOptions().RequestAccess.ShouldAutoRequest()
+				if prompt == "" {
+					prompt = role.GetOptions().RequestPrompt
+				}
 			}
-			reason = reason || role.GetOptions().RequestAccess.RequireReason()
-			auto = auto || role.GetOptions().RequestAccess.ShouldAutoRequest()
+			return nil
+		})
+		if err != nil {
+			tc.Logout()
+			utils.FatalError(err)
 		}
 		if reason && cf.RequestReason == "" {
 			tc.Logout()
@@ -1082,18 +1112,17 @@ func onBenchmark(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-
-	result, err := tc.Benchmark(cf.Context, client.Benchmark{
-		Command:  cf.RemoteCommand,
-		Threads:  cf.BenchThreads,
-		Duration: cf.BenchDuration,
-		Rate:     cf.BenchRate,
-	})
+	cnf := benchmark.Config{
+		Command:       cf.RemoteCommand,
+		Threads:       cf.BenchThreads,
+		MinimumWindow: cf.BenchDuration,
+		Rate:          cf.BenchRate,
+	}
+	result, err := cnf.Benchmark(cf.Context, tc)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 		os.Exit(255)
 	}
-
 	fmt.Printf("\n")
 	fmt.Printf("* Requests originated: %v\n", result.RequestsOriginated)
 	fmt.Printf("* Requests failed: %v\n", result.RequestsFailed)
@@ -1113,7 +1142,7 @@ func onBenchmark(cf *CLIConf) {
 	fmt.Printf("\n")
 
 	if cf.BenchExport {
-		path, err := exportLatencyProfile(cf, result.Histogram)
+		path, err := benchmark.ExportLatencyProfile(cf.BenchExportPath, result.Histogram, cf.BenchTicks, cf.BenchValueScale)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed exporting latency profile: %s\n", utils.UserMessageFromError(err))
 		} else {
@@ -1544,7 +1573,7 @@ func printProfiles(debug bool, profile *client.ProfileStatus, profiles []*client
 	// here, they are only available in Enterprise.
 	if profile != nil || len(profiles) > 0 {
 		fmt.Printf("\n* RBAC is only available in Teleport Enterprise\n")
-		fmt.Printf("  https://gravitational.com/teleport/docs/enterprise\n")
+		fmt.Printf("  https://goteleport.com/teleport/docs/enterprise\n")
 	}
 }
 
@@ -1639,46 +1668,10 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, reqIDs ...strin
 	if err := tc.SaveProfile("", true); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, os.Args[0]); err != nil {
+	if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-// exportLatencyProfile exports the latency profile and returns the path as a string if no errors
-func exportLatencyProfile(cf *CLIConf, h *hdrhistogram.Histogram) (string, error) {
-	var fullPath string
-	timeStamp := time.Now().Format("2006-01-02_15:04:05")
-	suffix := fmt.Sprintf("latency_profile_%s.txt", timeStamp)
-
-	if cf.BenchExportPath != "." {
-		if _, err := os.Stat(cf.BenchExportPath); err != nil {
-			if os.IsNotExist(err) {
-				if err = os.MkdirAll(cf.BenchExportPath, 0700); err != nil {
-					return "", err
-				}
-			} else {
-				return "", err
-			}
-		}
-	}
-
-	fullPath = filepath.Join(cf.BenchExportPath, suffix)
-
-	fo, err := os.Create(fullPath)
-	if err != nil {
-		return "", err
-	}
-
-	if _, err := h.PercentilesPrint(fo, cf.BenchTicks, cf.BenchValueScale); err != nil {
-		fo.Close()
-		return "", err
-	}
-
-	if err := fo.Close(); err != nil {
-		return "", err
-	}
-	return fo.Name(), nil
 }
 
 func onApps(cf *CLIConf) {

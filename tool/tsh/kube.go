@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -152,33 +154,7 @@ func (c *kubeLSCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	var currentTeleportCluster string
-	var kubeClusters []string
-	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		pc, err := tc.ConnectToProxy(cf.Context)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer pc.Close()
-		ac, err := pc.ConnectToCurrentCluster(cf.Context, true)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer ac.Close()
-
-		cn, err := ac.GetClusterName()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		currentTeleportCluster = cn.GetClusterName()
-
-		kubeClusters, err = kubeutils.KubeClusterNames(cf.Context, ac)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
-	})
+	currentTeleportCluster, kubeClusters, err := fetchKubeClusters(cf.Context, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -222,33 +198,71 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 }
 
 func (c *kubeLoginCommand) run(cf *CLIConf) error {
-	profile, _, err := client.Status("", cf.Proxy)
-	if err != nil {
-		if trace.IsNotFound(err) {
-			return trace.AccessDenied("not logged in")
-		}
-		return trace.Wrap(err)
-	}
-	if profile == nil {
-		return trace.AccessDenied("not logged in")
-	}
-	kc, err := kubeconfig.Load("")
+	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	// Check that this kube cluster exists.
+	currentTeleportCluster, kubeClusters, err := fetchKubeClusters(cf.Context, tc)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !utils.SliceContainsStr(kubeClusters, c.kubeCluster) {
+		return trace.NotFound("kubernetes cluster %q not found, check 'tsh kube ls' for a list of known clusters", c.kubeCluster)
 	}
 
-	kubeContext := kubeconfig.ContextName(profile.Cluster, c.kubeCluster)
-	if _, ok := kc.Contexts[kubeContext]; !ok {
-		fmt.Println(`check 'tsh kube ls' for known clusters
-if this is a new cluster, you may need to 'tsh login' again to access it`)
-		return trace.BadParameter("kubernetes cluster %q not found", c.kubeCluster)
+	// Try updating the active kubeconfig context.
+	if err := kubeconfig.SelectContext(currentTeleportCluster, c.kubeCluster); err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+		// We know that this kube cluster exists from the API, but there isn't
+		// a context for it in the current kubeconfig. This is probably a new
+		// cluster, added after the last 'tsh login'.
+		//
+		// Re-generate kubeconfig contexts and try selecting this kube cluster
+		// again.
+		if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
+			return trace.Wrap(err)
+		}
+		if err := kubeconfig.SelectContext(currentTeleportCluster, c.kubeCluster); err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	kc.CurrentContext = kubeContext
-	if err := kubeconfig.Save("", *kc); err != nil {
-		return trace.Wrap(err)
-	}
+
 	fmt.Printf("Logged into kubernetes cluster %q\n", c.kubeCluster)
 	return nil
+}
+
+func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleportCluster string, kubeClusters []string, err error) {
+	err = client.RetryWithRelogin(ctx, tc, func() error {
+		pc, err := tc.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer pc.Close()
+		ac, err := pc.ConnectToCurrentCluster(ctx, true)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer ac.Close()
+
+		cn, err := ac.GetClusterName()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		teleportCluster = cn.GetClusterName()
+
+		kubeClusters, err = kubeutils.KubeClusterNames(ctx, ac)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return "", nil, trace.Wrap(err)
+	}
+	return teleportCluster, kubeClusters, nil
 }
 
 // Required magic boilerplate to use the k8s encoder.
