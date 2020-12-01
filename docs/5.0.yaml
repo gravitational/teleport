@@ -56,6 +56,9 @@ nav:
         - GCP: gcp-guide.md
         - IBM: ibm-cloud-guide.md
         - OpenSSH Guide: openssh-teleport.md
+    - Preview:
+        - Database Access: preview/database-access.md
+        - Cloud: preview/cloud.md
     - Teleport Enterprise :
         - Introduction: enterprise/introduction.md
         - Quick Start Guide: enterprise/quickstart-enterprise.md
