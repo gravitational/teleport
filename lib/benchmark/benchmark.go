@@ -23,12 +23,15 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/HdrHistogram/hdrhistogram-go"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
@@ -46,8 +49,6 @@ const (
 
 // Config specifies benchmark requests to run
 type Config struct {
-	// Threads is amount of concurrent execution threads to run
-	Threads int
 	// Rate is requests per second origination rate
 	Rate int
 	// Command is a command to run
@@ -62,11 +63,11 @@ type Config struct {
 
 // Result is a result of the benchmark
 type Result struct {
-	// RequestsOriginated is amount of reuqests originated
+	// RequestsOriginated is amount of requests originated
 	RequestsOriginated int
 	// RequestsFailed is amount of requests failed
 	RequestsFailed int
-	// Histogram is a duration histogram
+	// Histogram holds the response duration values
 	Histogram *hdrhistogram.Histogram
 	// LastError contains last recorded error
 	LastError error
@@ -80,24 +81,31 @@ type Result struct {
 func Run(ctx context.Context, lg *Linear, cmd, host, login, proxy string) ([]Result, error) {
 	c := strings.Split(cmd, " ")
 	lg.config = &Config{Command: c}
-	if lg.Threads == 0 {
-		lg.Threads = 1
-	}
-
 	if err := validateConfig(lg); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	tc, err := makeTeleportClient(host, login, proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	logrus.SetLevel(logrus.ErrorLevel)
+	ctx, cancel := context.WithCancel(ctx)
+	go func() {
+		exitSignals := make(chan os.Signal, 1)
+		signal.Notify(exitSignals, syscall.SIGTERM, syscall.SIGINT)
+		defer signal.Stop(exitSignals)
+		sig := <-exitSignals
+		logrus.Debugf("signal: %v", sig)
+		cancel()
+	}()
 	var results []Result
 	sleep := false
 	for {
 		if sleep {
-			time.Sleep(pauseTimeBetweenBenchmarks)
+			select {
+			case <-time.After(pauseTimeBetweenBenchmarks):
+			case <-ctx.Done():
+				return results, trace.ConnectionProblem(ctx.Err(), "context canceled or timed out")
+			}
 		}
 		benchmarkC := lg.GetBenchmark()
 		if benchmarkC == nil {
@@ -131,7 +139,8 @@ func ExportLatencyProfile(path string, h *hdrhistogram.Histogram, ticks int32, v
 
 	if _, err := h.PercentilesPrint(fo, ticks, valueScale); err != nil {
 		if err := fo.Close(); err != nil {
-			logrus.WithError(err).Warningf("Failed to close file")
+
+			logrus.WithError(err).Warningf("failed to close file")
 		}
 		return "", trace.Wrap(err)
 	}
@@ -149,157 +158,113 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 	tc.Stdout = ioutil.Discard
 	tc.Stderr = ioutil.Discard
 	tc.Stdin = &bytes.Buffer{}
-	ctx, cancelWorkers := context.WithCancel(ctx)
-	defer cancelWorkers()
+	var delay time.Duration
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
-	requestC := make(chan benchMeasure)
-	responseC := make(chan benchMeasure, c.Threads)
+	requestsC := make(chan benchMeasure)
+	resultC := make(chan benchMeasure)
 
-	for i := 0; i < c.Threads; i++ {
-		thread := &benchmarkThread{
-			id:          i,
-			ctx:         ctx,
-			client:      tc,
-			command:     c.Command,
-			interactive: c.Interactive,
-			receiveC:    requestC,
-			sendC:       responseC,
+	go func() {
+		interval := time.Duration(1 / float64(c.Rate) * float64(time.Second))
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		start := time.Now()
+		for {
+			select {
+			case <-ticker.C:
+				// ticker makes its first tick after the given duration, not immediately
+				// this sets the send measure ResponseStart time accurately
+				delay = delay + interval
+				t := start.Add(delay)
+				measure := benchMeasure{
+					ResponseStart: t,
+					command:       c.Command,
+					client:        tc,
+					interactive:   c.Interactive,
+				}
+				go work(ctx, measure, resultC)
+			case <-ctx.Done():
+				close(requestsC)
+				return
+			}
 		}
-		go thread.run()
-	}
-
-	go produceMeasures(ctx, c.Rate, requestC)
+	}()
 
 	var result Result
-	// from one millisecond to 60000 milliseconds (minute) with 3 digits precision, refer to constants
 	result.Histogram = hdrhistogram.New(minValue, maxValue, significantFigures)
-	results := make([]benchMeasure, 0, c.MinimumMeasurements)
 	statusTicker := time.NewTicker(1 * time.Second)
 	timeElapsed := false
 	start := time.Now()
-
 	for {
 		if c.MinimumWindow <= time.Since(start) {
 			timeElapsed = true
 		}
 		select {
-		case measure := <-responseC:
-			result.Histogram.RecordValue(int64(measure.End.Sub(measure.Start) / time.Millisecond))
-			results = append(results, measure)
-			if timeElapsed && len(results) >= c.MinimumMeasurements {
-				cancelWorkers()
+		case measure := <-resultC:
+			result.Histogram.RecordValue(int64(measure.End.Sub(measure.ResponseStart) / time.Millisecond))
+			result.RequestsOriginated++
+			if timeElapsed && result.RequestsOriginated >= c.MinimumMeasurements {
+				cancel()
 			}
 			if measure.Error != nil {
 				result.RequestsFailed++
 				result.LastError = measure.Error
 			}
-			result.RequestsOriginated++
 		case <-ctx.Done():
 			result.Duration = time.Since(start)
 			return result, nil
 		case <-statusTicker.C:
-			logrus.Infof("working... observations: %d", len(results))
+			logrus.Infof("working... current observation count: %d", result.RequestsOriginated)
 		}
-	}
-}
 
-func produceMeasures(ctx context.Context, rate int, c chan<- benchMeasure) {
-	interval := time.Duration(1 / float64(rate) * float64(time.Second))
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-
-			measure := benchMeasure{
-				Start: time.Now(),
-			}
-			select {
-			case c <- measure:
-			case <-ctx.Done():
-				return
-			}
-		case <-ctx.Done():
-			return
-		}
 	}
 }
 
 type benchMeasure struct {
-	Start           time.Time
-	End             time.Time
-	ThreadCompleted bool
-	ThreadID        int
-	Error           error
+	ResponseStart time.Time
+	End           time.Time
+	Error         error
+	client        *client.TeleportClient
+	command       []string
+	interactive   bool
 }
 
-type benchmarkThread struct {
-	id          int
-	ctx         context.Context
-	client      *client.TeleportClient
-	command     []string
-	interactive bool
-	receiveC    chan benchMeasure
-	sendC       chan benchMeasure
+func work(ctx context.Context, m benchMeasure, send chan<- benchMeasure) {
+	m.Error = execute(m)
+	m.End = time.Now()
+	select {
+	case send <- m:
+	case <-ctx.Done():
+		return
+	}
 }
 
-func (b *benchmarkThread) execute(measure benchMeasure) {
-	if !b.interactive {
+func execute(m benchMeasure) error {
+	if !m.interactive {
 		// do not use parent context that will cancel in flight requests
 		// because we give test some time to gracefully wrap up
 		// the in-flight connections to avoid extra errors
-		measure.Error = b.client.SSH(context.TODO(), nil, false)
-		measure.End = time.Now()
-		b.sendMeasure(measure)
-		return
+		return m.client.SSH(context.TODO(), m.command, false)
 	}
-	config := b.client.Config
+	config := m.client.Config
 	client, err := client.NewClient(&config)
 	if err != nil {
-		measure.Error = err
-		measure.End = time.Now()
-		b.sendMeasure(measure)
-		return
+		return err
 	}
 	reader, writer := io.Pipe()
 	defer reader.Close()
 	defer writer.Close()
 	client.Stdin = reader
-	out := &bytes.Buffer{}
+	out := &utils.SyncBuffer{}
 	client.Stdout = out
 	client.Stderr = out
-	done := make(chan bool)
-	go func() {
-		measure.Error = b.client.SSH(context.TODO(), nil, false)
-		measure.End = time.Now()
-		b.sendMeasure(measure)
-		close(done)
-	}()
-	writer.Write([]byte(strings.Join(b.command, " ") + "\r\nexit\r\n"))
-	<-done
-}
-
-func (b *benchmarkThread) sendMeasure(measure benchMeasure) {
-	measure.ThreadID = b.id
-	select {
-	case b.sendC <- measure:
-	default:
-		logrus.Warning("blocked on measure send")
+	err = m.client.SSH(context.TODO(), nil, false)
+	if err != nil {
+		return err
 	}
-}
-
-func (b *benchmarkThread) run() {
-	for {
-		select {
-		case measure := <-b.receiveC:
-			b.execute(measure)
-		case <-b.ctx.Done():
-			b.sendMeasure(benchMeasure{
-				ThreadCompleted: true,
-			})
-			return
-		}
-	}
+	writer.Write([]byte(strings.Join(m.command, " ") + "\r\nexit\r\n"))
+	return nil
 }
 
 // makeTeleportClient creates an instance of a teleport client
