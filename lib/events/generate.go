@@ -75,10 +75,10 @@ func GenerateTestSession(params SessionParams) []AuditEvent {
 			},
 			ServerHostname:  "planet",
 			ServerNamespace: "default",
+			ClusterName:     params.ClusterName,
 		},
 		SessionMetadata: SessionMetadata{
-			SessionID:   params.SessionID,
-			ClusterName: params.ClusterName,
+			SessionID: params.SessionID,
 		},
 		UserMetadata: UserMetadata{
 			User:  "bob@example.com",

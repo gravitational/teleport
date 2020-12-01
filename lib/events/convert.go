@@ -205,14 +205,14 @@ func (m *ServerMetadata) SetServerNamespace(ns string) {
 	m.ServerNamespace = ns
 }
 
+// GetClusterName returns originating teleport cluster name
+func (m *ServerMetadata) GetClusterName() string {
+	return m.ClusterName
+}
+
 // GetSessionID returns event session ID
 func (m *SessionMetadata) GetSessionID() string {
 	return m.SessionID
-}
-
-// GetClusterName returns originating teleport cluster name
-func (m *SessionMetadata) GetClusterName() string {
-	return m.ClusterName
 }
 
 // MustToOneOf converts audit event to OneOf

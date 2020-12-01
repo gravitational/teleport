@@ -668,10 +668,10 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				},
 				ServerMetadata: events.ServerMetadata{
 					ServerNamespace: f.Namespace,
+					ClusterName:     f.ClusterName,
 				},
 				SessionMetadata: events.SessionMetadata{
-					SessionID:   string(sessionID),
-					ClusterName: f.ClusterName,
+					SessionID: string(sessionID),
 				},
 				UserMetadata: events.UserMetadata{
 					User:  ctx.User.GetName(),
@@ -709,10 +709,10 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 				ServerNamespace: f.Namespace,
 				ServerHostname:  sess.teleportCluster.name,
 				ServerAddr:      sess.teleportCluster.targetAddr,
+				ClusterName:     f.ClusterName,
 			},
 			SessionMetadata: events.SessionMetadata{
-				SessionID:   string(sessionID),
-				ClusterName: f.ClusterName,
+				SessionID: string(sessionID),
 			},
 			UserMetadata: events.UserMetadata{
 				User:  ctx.User.GetName(),
@@ -791,10 +791,10 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			ServerMetadata: events.ServerMetadata{
 				ServerID:        f.ServerID,
 				ServerNamespace: f.Namespace,
+				ClusterName:     f.ClusterName,
 			},
 			SessionMetadata: events.SessionMetadata{
-				SessionID:   string(sessionID),
-				ClusterName: f.ClusterName,
+				SessionID: string(sessionID),
 			},
 			UserMetadata: events.UserMetadata{
 				User:  ctx.User.GetName(),
@@ -821,10 +821,10 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			ServerMetadata: events.ServerMetadata{
 				ServerID:        f.ServerID,
 				ServerNamespace: f.Namespace,
+				ClusterName:     f.ClusterName,
 			},
 			SessionMetadata: events.SessionMetadata{
-				SessionID:   string(sessionID),
-				ClusterName: f.ClusterName,
+				SessionID: string(sessionID),
 			},
 			UserMetadata: events.UserMetadata{
 				User:  ctx.User.GetName(),
@@ -856,10 +856,10 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			ServerMetadata: events.ServerMetadata{
 				ServerID:        f.ServerID,
 				ServerNamespace: f.Namespace,
+				ClusterName:     f.ClusterName,
 			},
 			SessionMetadata: events.SessionMetadata{
-				SessionID:   string(sessionID),
-				ClusterName: f.ClusterName,
+				SessionID: string(sessionID),
 			},
 			UserMetadata: events.UserMetadata{
 				User:  ctx.User.GetName(),

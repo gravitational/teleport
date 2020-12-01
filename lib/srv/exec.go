@@ -365,11 +365,10 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	serverMeta := events.ServerMetadata{
 		ServerID:        ctx.srv.HostUUID(),
 		ServerNamespace: ctx.srv.GetNamespace(),
+		ClusterName:     ctx.ClusterName,
 	}
 
-	sessionMeta := events.SessionMetadata{
-		ClusterName: ctx.ClusterName,
-	}
+	var sessionMeta events.SessionMetadata
 	if ctx.session != nil {
 		sessionMeta.SessionID = string(ctx.session.id)
 	}

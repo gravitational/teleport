@@ -137,10 +137,10 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        s.c.Server.GetName(),
 			ServerNamespace: defaults.Namespace,
+			ClusterName:     identity.RouteToApp.ClusterName,
 		},
 		SessionMetadata: events.SessionMetadata{
-			SessionID:   identity.RouteToApp.SessionID,
-			ClusterName: identity.RouteToApp.ClusterName,
+			SessionID: identity.RouteToApp.SessionID,
 		},
 		UserMetadata: events.UserMetadata{
 			User: identity.Username,

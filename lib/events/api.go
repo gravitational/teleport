@@ -430,6 +430,9 @@ type ServerMetadataGetter interface {
 
 	// GetServerNamespace returns event server namespace
 	GetServerNamespace() string
+
+	// GetClusterName returns the originating teleport cluster name
+	GetClusterName() string
 }
 
 // ServerMetadataSetter represents interface
@@ -447,9 +450,6 @@ type ServerMetadataSetter interface {
 type SessionMetadataGetter interface {
 	// GetSessionID returns event session ID
 	GetSessionID() string
-
-	// GetClusterName returns the originating teleport cluster name
-	GetClusterName() string
 }
 
 // SessionMetadataSetter represents interface

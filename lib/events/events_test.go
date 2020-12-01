@@ -60,10 +60,10 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 					},
 					ServerHostname:  "planet",
 					ServerNamespace: "default",
+					ClusterName:     "testcluster",
 				},
 				SessionMetadata: SessionMetadata{
-					SessionID:   "5b3555dc-729f-11ea-b66a-507b9dd95841",
-					ClusterName: "testcluster",
+					SessionID: "5b3555dc-729f-11ea-b66a-507b9dd95841",
 				},
 				UserMetadata: UserMetadata{
 					User:  "bob@example.com",
@@ -90,10 +90,10 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 				ServerMetadata: ServerMetadata{
 					ServerID:        "a7c54b0c-469c-431e-af4d-418cd3ae9694",
 					ServerNamespace: "default",
+					ClusterName:     "testcluster",
 				},
 				SessionMetadata: SessionMetadata{
-					SessionID:   "5b3555dc-729f-11ea-b66a-507b9dd95841",
-					ClusterName: "testcluster",
+					SessionID: "5b3555dc-729f-11ea-b66a-507b9dd95841",
 				},
 				UserMetadata: UserMetadata{
 					User:  "bob@example.com",
@@ -116,10 +116,10 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 				ServerMetadata: ServerMetadata{
 					ServerID:        "a7c54b0c-469c-431e-af4d-418cd3ae9694",
 					ServerNamespace: "default",
+					ClusterName:     "test-cluster",
 				},
 				SessionMetadata: SessionMetadata{
-					SessionID:   "5b3555dc-729f-11ea-b66a-507b9dd95841",
-					ClusterName: "test-cluster",
+					SessionID: "5b3555dc-729f-11ea-b66a-507b9dd95841",
 				},
 				UserMetadata: UserMetadata{
 					User: "alice@example.com",
@@ -160,10 +160,10 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 				ServerMetadata: ServerMetadata{
 					ServerID:        "a7c54b0c-469c-431e-af4d-418cd3ae9694",
 					ServerNamespace: "default",
+					ClusterName:     "test",
 				},
 				SessionMetadata: SessionMetadata{
-					SessionID:   "5b3555dc-729f-11ea-b66a-507b9dd95841",
-					ClusterName: "test",
+					SessionID: "5b3555dc-729f-11ea-b66a-507b9dd95841",
 				},
 				UserMetadata: UserMetadata{
 					User:  "alice@example.com",
@@ -194,10 +194,10 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 				ServerMetadata: ServerMetadata{
 					ServerID:        "00b54ef5-ae1e-425f-8565-c71b01d8f7b8",
 					ServerNamespace: "default",
+					ClusterName:     "example",
 				},
 				SessionMetadata: SessionMetadata{
-					SessionID:   "e9a4bd34-78ff-11ea-b062-507b9dd95841",
-					ClusterName: "example",
+					SessionID: "e9a4bd34-78ff-11ea-b062-507b9dd95841",
 				},
 				UserMetadata: UserMetadata{
 					User:  "alice@example.com",
@@ -228,10 +228,10 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 				ServerMetadata: ServerMetadata{
 					ServerID:        "00b54ef5-ae1e-425f-8565-c71b01d8f7b8",
 					ServerNamespace: "default",
+					ClusterName:     "example2",
 				},
 				SessionMetadata: SessionMetadata{
-					SessionID:   "ddddce15-7909-11ea-b062-507b9dd95841",
-					ClusterName: "example2",
+					SessionID: "ddddce15-7909-11ea-b062-507b9dd95841",
 				},
 				UserMetadata: UserMetadata{
 					User:  "bob@example.com",
@@ -299,11 +299,11 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 					Code:  SessionDataCode,
 				},
 				ServerMetadata: ServerMetadata{
-					ServerID: "00b54ef5-ae1e-425f-8565-c71b01d8f7b8",
+					ServerID:    "00b54ef5-ae1e-425f-8565-c71b01d8f7b8",
+					ClusterName: "test",
 				},
 				SessionMetadata: SessionMetadata{
-					SessionID:   "ddddce15-7909-11ea-b062-507b9dd95841",
-					ClusterName: "test",
+					SessionID: "ddddce15-7909-11ea-b062-507b9dd95841",
 				},
 				UserMetadata: UserMetadata{
 					User:  "alice@example.com",
@@ -331,10 +331,10 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 				ServerMetadata: ServerMetadata{
 					ServerID:        "00b54ef5-ae1e-425f-8565-c71b01d8f7b8",
 					ServerNamespace: "default",
+					ClusterName:     "example",
 				},
 				SessionMetadata: SessionMetadata{
-					SessionID:   "ddddce15-7909-11ea-b062-507b9dd95841",
-					ClusterName: "example",
+					SessionID: "ddddce15-7909-11ea-b062-507b9dd95841",
 				},
 				UserMetadata: UserMetadata{
 					User: "alice@example.com",
@@ -465,10 +465,10 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 				ServerMetadata: ServerMetadata{
 					ServerID:        "00b54ef5-ae1e-425f-8565-c71b01d8f7b8",
 					ServerNamespace: "default",
+					ClusterName:     "test-cluster",
 				},
 				SessionMetadata: SessionMetadata{
-					SessionID:   "b0252ad2-2fa5-4bb2-a7de-2cacd1169c96",
-					ClusterName: "test-cluster",
+					SessionID: "b0252ad2-2fa5-4bb2-a7de-2cacd1169c96",
 				},
 				UserMetadata: UserMetadata{
 					User:  "bob@example.com",
