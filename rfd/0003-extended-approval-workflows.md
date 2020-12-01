@@ -12,7 +12,7 @@ granting limited access to infrastructure on demand.
 
 ## Why
 
-Customers provide limited access to the infrastructure
+Customers providing limited access to the infrastructure
 for contractors are lacking support for their scenarios.
 
 This document describes the scenarios and introduces design changes
@@ -23,7 +23,7 @@ to support them.
 Imagine two organizations, Acme Co and Contractor Inc.
 
 Acme Co serves multiple customers `A` and `B` via leaf clusters `a` and `b`
-connected to it's root cluster `acme`.
+connected to its root cluster `acme`.
 
 Acme Co creates a support issue `issue-1` for customer `A` and assigns it to
 Contractor Inc's employee Alice. Acme would like to provide temporary access
@@ -40,7 +40,7 @@ is determined by the plugin based on the username, SSO information and
 the ticket number.
 
 However, if the ticketing system is down, requests to login should be
-manually processed by the cluster administrator to provide
+manually processed by the cluster administrator to provide an
 emergency way to access the infrastructure.
 
 **Access to nodes**
@@ -101,9 +101,9 @@ spec:
      #              is setup for the role
      # 'always'   - always create access request after login without asking for
      #              note if `can_access` is setup for the role
-     request_access: 'note'
+     request_access: 'reason'
      request_prompt: |
-       Hey, Enter the Ticker number from https://ibm.com/tickets
+       Hey, Enter the Ticker number from https://jira.com/tickets
   allow:
     request:
       roles: ['^customer-.*$']
@@ -112,12 +112,12 @@ spec:
     # ...
 ```
 
-**Auto**
+**always**
 
-`auto` creates access request after successfull login and blocks
+`always` creates access request after successful login and blocks
 the screen until the request is granted.
 
-Auto creates a request and fills in the roles based on matching values
+Always creates a request and fills in the roles based on matching values
 in the `request` field of the role set.
 
 So if the user has a role:
@@ -155,7 +155,7 @@ spec:
     principal: root
 ```
 
-**Note**
+**Reason**
 
 `reason` presents a dialog after the successful login, requests
 a note and creates a request.
@@ -168,7 +168,7 @@ picked as the most restrictive.
 For external systems to make better decisions on incoming request. The request should
 send forward on any claims/traits provided by the IdP. This is configurable by the
 Teleport Admin as part of Teleport Setup.
-https://gravitational.com/teleport/docs/enterprise/sso/ssh-sso/.
+https://goteleport.com/teleport/docs/enterprise/sso/ssh-sso/.
 
 
 ## Cluster access labels
@@ -230,7 +230,7 @@ request-id-1      bob       ssh root@mongodb     ticket-1234  07 Nov 19 19:38 UT
 $ tctl role create custom.yaml
 
 # approve access request and assign the custom role
-$ tctl request approve request-id --roles=custom
+$ tctl request approve request-id-1 --roles=custom
 ```
 
 ## Denying access request
@@ -269,6 +269,7 @@ $ tctl request deny request-id --reason='User wanted to know too much' --reason-
 ```
 
 User flow for requesting and logging in.
+
 ```bash
 $ tsh login --request-roles=dictator --nowait
 
@@ -317,7 +318,7 @@ Once in the system, Bob clicks on the top right nav corner and
 fills in fields request access dialog window:
 
 * Selects a role from the list
-* Optionally adds a note - ticket-1234
+* Optionally adds a reason - `ticket-1234`
 
 He then waits for the request to be granted or denied. The user interface shows
 a screen "Requesting access, please wait" as a separate message in the user interface.
