@@ -245,11 +245,7 @@ func execute(m benchMeasure) error {
 		// do not use parent context that will cancel in flight requests
 		// because we give test some time to gracefully wrap up
 		// the in-flight connections to avoid extra errors
-		err := m.client.SSH(context.TODO(), nil, false)
-		if err != nil {
-			return err
-		}
-		return nil
+		return m.client.SSH(context.TODO(), nil, false)
 	}
 	config := m.client.Config
 	client, err := client.NewClient(&config)
