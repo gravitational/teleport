@@ -5,7 +5,7 @@ you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
 	http://www.apache.org/licenses/LICENSE-2.0
-	
+
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -31,9 +31,9 @@ func main() {
 		Step:                10,
 		MinimumMeasurements: 1000,
 		MinimumWindow:       30 * time.Second,
-		Threads:             10,
 	}
 
+	// Run Linear generator
 	results, err := benchmark.Run(context.TODO(), linear, "ls -l /", "host", "username", "teleport.example.com")
 	if err != nil {
 		fmt.Println(err)
@@ -45,5 +45,12 @@ func main() {
 		fmt.Printf("Duration: %v\n", res.Duration)
 		fmt.Printf("Requests Originated: %v\n", res.RequestsOriginated)
 		fmt.Printf("Requests Failed: %v\n", res.RequestsFailed)
+	}
+
+	// Export latency profile
+	responseHistogram := results[0].Histogram
+	_, err = benchmark.ExportLatencyProfile("profiles/", responseHistogram, 1, 1.0)
+	if err != nil {
+		fmt.Println(err)
 	}
 }
