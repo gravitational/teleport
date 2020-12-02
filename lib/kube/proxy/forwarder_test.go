@@ -44,9 +44,9 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 	cl, err := newMockCSRClient()
 	c.Assert(err, check.IsNil)
 	f := &Forwarder{
-		ForwarderConfig: ForwarderConfig{
-			Keygen: testauthority.New(),
-			Client: cl,
+		cfg: ForwarderConfig{
+			Keygen:     testauthority.New(),
+			AuthClient: cl,
 		},
 		log: logrus.New(),
 	}
@@ -149,9 +149,9 @@ func TestAuthenticate(t *testing.T) {
 
 	f := &Forwarder{
 		log: logrus.New(),
-		ForwarderConfig: ForwarderConfig{
-			ClusterName: "local",
-			AccessPoint: ap,
+		cfg: ForwarderConfig{
+			ClusterName:       "local",
+			CachingAuthClient: ap,
 		},
 	}
 
@@ -392,7 +392,7 @@ func TestAuthenticate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			f.Tunnel = tt.tunnel
+			f.cfg.ReverseTunnelSrv = tt.tunnel
 			ap.kubeServices = tt.kubeServices
 			roles, err := services.FromSpec("ops", services.RoleSpecV3{
 				Allow: services.RoleConditions{
@@ -413,7 +413,7 @@ func TestAuthenticate(t *testing.T) {
 			if tt.authzErr {
 				authz.err = trace.AccessDenied("denied!")
 			}
-			f.Auth = authz
+			f.cfg.Authz = authz
 
 			req := &http.Request{
 				Host:       "example.com",
@@ -576,10 +576,10 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 	c.Assert(err, check.IsNil)
 	f := &Forwarder{
 		log: logrus.New(),
-		ForwarderConfig: ForwarderConfig{
-			Keygen:      testauthority.New(),
-			Client:      csrClient,
-			AccessPoint: mockAccessPoint{},
+		cfg: ForwarderConfig{
+			Keygen:            testauthority.New(),
+			AuthClient:        csrClient,
+			CachingAuthClient: mockAccessPoint{},
 		},
 		clusterSessions: clusterSessions,
 	}
