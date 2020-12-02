@@ -106,7 +106,9 @@ numbers.
 |3024      | Proxy      | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server.
 |3025      | Auth       | SSH port used by the Auth Service to serve its API to other nodes in a cluster.
 |3080      | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Web UI.
-|3026      | Kubernetes Proxy      | HTTPS Kubernetes proxy (if enabled)
+|3026      | Kubernetes       | HTTPS Kubernetes proxy `proxy_service.kube_listen_addr`
+|3027      | Kubernetes       | Kubernetes Service `kubernetes_service.listen_addr`
+
 
 ### Filesystem Layout
 
@@ -235,6 +237,9 @@ proxy_service:
   listen_addr: 0.0.0.0:3023
   web_listen_addr: 0.0.0.0:3080
   tunnel_listen_addr: 0.0.0.0:3024
+
+  # Expose a k8s listening port on the proxy if using Kubernetes
+  kube_listen_addr: 0.0.0.0:3026
 
   # The DNS name of the proxy HTTPS endpoint as accessible by cluster users.
   # Defaults to the proxy's hostname if not specified. If running multiple
@@ -1092,7 +1097,7 @@ To learn more about Trusted Clusters please visit our [Trusted Cluster Guide](tr
 
 Teleport supports authentication and authorization via external identity
 providers such as Github. You can watch the video for how to configure
-[Github as an SSO provider](https://gravitational.com/resources/guides/github-sso-provider-kubernetes-ssh/),
+[Github as an SSO provider](https://goteleport.com/resources/guides/github-sso-provider-kubernetes-ssh/),
 or you can follow the documentation below.
 
 First, the Teleport auth service must be configured to use Github for
@@ -1277,10 +1282,10 @@ scp_if_ssh = True
 
 Teleport can be configured as a compliance gateway for Kubernetes clusters.
 This allows users to authenticate against a Teleport proxy using [`tsh
-login`](cli-docs.md#tsh) command to retrieve credentials for both SSH and
+login`](cli-docs.md#tsh) and  [`tsh kube login`](cli-docs.md#tsh-kube-login) command to retrieve credentials for both SSH and
 Kubernetes API.
 
-Follow our [Kubernetes guide](kubernetes-ssh.md) which contains some more specific
+Follow our [Kubernetes guide](kubernetes-access.md) which contains some more specific
 examples and instructions.
 
 ## High Availability

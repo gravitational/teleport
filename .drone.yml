@@ -320,7 +320,7 @@ clone:
 
 steps:
   - name: Check out code
-    image: golang:1.14.4
+    image: golang:1.15.5
     volumes:
       - name: tmpfs
         path: /tmpfs
@@ -351,7 +351,7 @@ steps:
         fi
 
   - name: Run docs tests (internal links only)
-    image: golang:1.14.4
+    image: golang:1.15.5
     volumes:
       - name: tmpfs
         path: /tmpfs
@@ -405,7 +405,7 @@ clone:
 
 steps:
   - name: Check out code
-    image: golang:1.14.4
+    image: golang:1.15.5
     volumes:
       - name: tmpfs
         path: /tmpfs
@@ -436,7 +436,7 @@ steps:
         fi
 
   - name: Run docs tests (external links only)
-    image: golang:1.14.4
+    image: golang:1.15.5
     failure: ignore
     volumes:
       - name: tmpfs
@@ -494,9 +494,9 @@ steps:
     environment:
       # increment these variables when a new major/minor version is released to bump the automatic builds
       # this only needs to be done on the master branch, as that's the branch that the Drone cron is configured for
-      CURRENT_VERSION_ROOT: v4.4
-      PREVIOUS_VERSION_ONE_ROOT: v4.3
-      PREVIOUS_VERSION_TWO_ROOT: v4.2
+      CURRENT_VERSION_ROOT: v5.0
+      PREVIOUS_VERSION_ONE_ROOT: v4.4
+      PREVIOUS_VERSION_TWO_ROOT: v4.3
     commands:
       - apk --update --no-cache add curl
       - mkdir -p /go/build && cd /go/build
@@ -662,6 +662,22 @@ steps:
       source: /go/chart/*
       target: /
       strip_prefix: /go/chart
+
+  - name: Send Slack notification
+    image: plugins/slack
+    settings:
+      webhook:
+        from_secret: SLACK_WEBHOOK_DEV_TELEPORT
+      channel: dev-teleport
+      template: |
+        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
+        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+        <{{ build.link }}|Visit Drone build page ↗>
+        Details: The `teleport-helm-cron` job in Drone failed to publish Helm charts to S3. This is unusual and should be investigated.
+    when:
+      status: [failure]
 
 ---
 kind: pipeline
@@ -3140,6 +3156,90 @@ steps:
     commands:
     - aws s3 sync /rpmrepo/teleport/ s3://$AWS_S3_BUCKET/teleport/
 
+  - name: Download DEB repo contents
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: DEBREPO_AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: DEBREPO_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: DEBREPO_AWS_SECRET_ACCESS_KEY
+    volumes:
+      - name: debrepo
+        path: /debrepo
+    commands:
+    # we explicitly want to delete anything present locally which has been deleted
+    # from the upstream S3 bucket
+    - mkdir -p /debrepo/teleport
+    - aws s3 sync s3://$AWS_S3_BUCKET/teleport /debrepo/teleport --delete
+
+  - name: Build DEB repo
+    image: ubuntu:20.04
+    environment:
+      DEBIAN_FRONTEND: noninteractive
+      GNUPGHOME: /tmpfs/gnupg
+      GPG_RPM_SIGNING_ARCHIVE:
+        from_secret: GPG_RPM_SIGNING_ARCHIVE
+    volumes:
+      - name: dockersock
+        path: /var/run
+      - name: debrepo
+        path: /debrepo
+      # for in-memory tmpfs for key material
+      - name: tmpfs
+        path: /tmpfs
+    commands:
+      - |
+        # install needed tools
+        apt-get -y update && apt-get -y install curl gzip gnupg2 reprepro tar
+      - |
+        # write config files
+        mkdir -p /go/reprepro/teleport/conf /go/reprepro/teleport/public
+        cat << EOF > /go/reprepro/teleport/conf/distributions
+        Origin: teleport
+        Label: teleport
+        Codename: stable
+        Architectures: i386 amd64
+        Components: main
+        Description: apt repository for teleport
+        SignWith: 6282C411
+        EOF
+        cat << EOF > /go/reprepro/teleport/conf/options
+        verbose
+        basedir /go/reprepro/teleport
+        EOF
+      - |
+        # extract signing key
+        mkdir -m0700 $GNUPGHOME
+        echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
+        chown -R root:root $GNUPGHOME
+      - |
+        # create repo
+        cd /go/reprepro/teleport
+        reprepro --outdir /go/reprepro/teleport/public includedeb stable /go/artifacts/teleport*.deb
+      - |
+        # clean up gnupg
+        rm -rf $GNUPGHOME
+      - |
+        # copy artifacts to PVC
+        cp -r /go/reprepro/teleport /debrepo/
+
+  - name: Sync DEB repo changes to S3
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: DEBREPO_AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: DEBREPO_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: DEBREPO_AWS_SECRET_ACCESS_KEY
+    volumes:
+      - name: debrepo
+        path: /debrepo
+    commands:
+    - aws s3 sync /debrepo/teleport/ s3://$AWS_S3_BUCKET/teleport/
+
 services:
   - name: Start Docker
     image: docker:dind
@@ -3158,6 +3258,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 8f17b3edc11f7c493d4465bccf1e349646b3ce8234919f9af3fec974ba634800
+hmac: 2201a4e263cb7a95baa71311c710228c4ba6dcc4e6034d8011fcc0dc2d2b323b
 
 ...

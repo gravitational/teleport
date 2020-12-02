@@ -3,36 +3,61 @@ title: Kubernetes Access Guide
 description: How to set up and configure Teleport for Kubernetes access with SSO and RBAC
 ---
 
-# Teleport Kubernetes Access Guide
+# Teleport Kubernetes Access
 
 Teleport has the ability to act as a compliance gateway for managing privileged
 access to Kubernetes clusters. This enables the following capabilities:
 
-* A Teleport Proxy can act as a single authentication endpoint for both SSH and
-  Kubernetes. Users can authenticate against a Teleport proxy using Teleport's
-  [`tsh login`](cli-docs.md#tsh-login) command
-  and retrieve credentials for both SSH and Kubernetes API.
+* Teleport acts as a single authentication endpoint for both SSH and multiple
+  Kubernetes clusters. Users can authenticate against a Teleport Access Plane using
+  Teleport's [`tsh login`](cli-docs.md#tsh-login) command and retrieve credentials
+  for both SSH and Kubernetes API.
 * Users RBAC roles are always synchronized between SSH and Kubernetes, making
   it easier to implement policies like _developers must not access production
   data_.
-* Teleport's session recording and audit log extend to Kubernetes, as well.
-  Regular `kubectl exec` commands are logged into the audit log and the interactive
-  commands are recorded as regular sessions that can be stored and replayed in the
-  future.
+* Complete `kubectl` auditing and session recordings for `kubectl exec`
+* Multi Kubernetes Support. Login to Teleport once and quickly switch between multiple K8s clusters using [`tsh kube login`](cli-docs.md#tsh-kube-login)
 
-## Teleport Proxy Service
+## Start Here
+
+Before we dive into setup, we've a few options to help guide you. We've created some example
+Teleport Kubernetes Access configurations for different scenarios, all the way from solo developers
+accessing minikube through to large enterprises accessing hundreds of Kubernetes clusters.
+
+Teleport Kubernetes service requires Auth & Proxy to be setup. This can be inside or
+outside of k8s.
+
+Example Kubernetes Cluster Configurations:
+
+* Connecting to a local MicroK8s Cluster:
+     * Use Option 2, once setup you'll need to connect to Ingress via TODO
+
+* Connecting to one EKS/GKS hosted Kubernetes:
+      * Use Option 2, once setup you'll need to connect to Ingress via TODO
+
+* Connecting to multiple Kubernetes clusters in one cloud/region:
+      * Use Option 1, once setup you'll need to connect via the root Teleport service.
+
+* Connecting to multiple Kubernetes clusters in multiple regions/cloud:
+      *  Use Option 1, once setup you'll need to connect via the root Teleport service.
+      *  Use Option 1 combined with [Trusted Clusters](kubernetes-access.md#multiple-kubernetes-clusters-via-trusted-cluster)
+
+* Migrating pre-5.0 Teleport clusters to new `kubernetes_service`:
+      * Please review our [Teleport Kubernetes Guide](kubernetes-5.0-migration.md)
+
+## Teleport Kubernetes Service
+
 By default, the Kubernetes integration is turned off in Teleport. The configuration
 setting to enable the integration in the proxy service section in the `/etc/teleport.yaml`
 config file, as shown below:
 
 ```yaml
 # snippet from /etc/teleport.yaml on the Teleport proxy service:
-proxy_service:
-    # create the 'kubernetes' section and set 'enabled' to 'yes':
-    kubernetes:
-        enabled: yes
-        public_addr: [teleport.example.com:3026]
-        listen_addr: 0.0.0.0:3026
+kubernetes_service:
+    enabled: yes
+    public_addr: [k8s.example.com:3027]
+    listen_addr: 0.0.0.0:3027
+    kubeconfig_file: /secrets/kubeconfig
 ```
 Let's take a closer look at the available Kubernetes settings:
 
@@ -45,24 +70,85 @@ Let's take a closer look at the available Kubernetes settings:
 - `listen_addr` defines which network interface and port the Teleport proxy server
   should bind to. It defaults to port 3026 on all NICs.
 
-### Connecting the Teleport proxy to Kubernetes
+## Setup
+
+Connecting the Teleport proxy to Kubernetes.
+
+Teleport Auth And Proxy can be ran anywhere (inside or outside of k8s). The Teleport
+proxy must have `kube_listen_addr` set.
+
+- Options for connecting k8s clusters:
+    - `kubernetes_service` in a pod [Using our Helm Chart](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport-kube-agent/README.md)
+    - `kubernetes_service` elsewhere, with kubeconfig. Use [get-kubeconfig.sh](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/) for building kubeconfigs
 
 There are two options for setting up Teleport to access Kubernetes:
 
-## Option 1: Deploy Inside Kubernetes as a pod
+### Option 1: Standalone Teleport "gateway" for multiple K8s Clusters
+
+A single central Teleport Access Plane acting as "gateway". Multiple Kubernetes clusters
+connect to it over reverse tunnels.
+
+The root Teleport Cluster should be setup following our standard config, to make sure
+clients can connect you must make sure that an invite token is set for the `kube`
+service and proxy_addr has `kube_lisetn_addr` set.
+
+```yaml
+# Example Snippet for the Teleport Root Service
+#...
+auth_service:
+  enabled: "yes"
+  listen_addr: 0.0.0.0:3025
+  tokens:
+  - kube:866c6c114724a0fa4d4d73216afd99fb1a2d6bfde8e13a19
+#...
+proxy_service:
+  public_addr: proxy.example.com:3080
+  kube_listen_addr: 0.0.0.0:3027
+```
+
+To get quickly setup, we provide a Helm chart that'll connect to the above root cluster.
+
+```bash
+# Add Teleport Helm Repo
+$ helm repo add teleport https://charts.releases.teleport.dev
+
+# Installing the Helm Chart
+helm install teleport-kube-agent teleport/teleport-kube-agent \
+  --namespace teleport \
+  --create-namespace \
+  --set proxyAddr=proxy.example.com:3080 \
+  --set authToken=$JOIN_TOKEN \
+  --set kubeClusterName=$KUBERNETES_CLUSTER_NAME
+```
+
+| Things to set | Description |
+|-|-|
+| `proxyAddr` | The Address of the Teleport Root Service, using the proxy listening port |
+| `authToken` | A static `kube` invite token |
+| `kubeClusterName` | Kubernetes Cluster name (there is no easy way to automatically detect the name from the environment) |
+
+### Option 2: Proxy running inside a k8s cluster.
 
 Deploy Teleport Proxy service as a Kubernetes pod inside the Kubernetes cluster
 you want the proxy to have access to.
 
 ```yaml
 # snippet from /etc/teleport.yaml on the Teleport proxy service:
+auth_service:
+  cluster_name: example.com
+  public_addr: auth.example.com:3025
+# ..
 proxy_service:
-    # create the 'kubernetes' section and set 'enabled' to 'yes':
-    kubernetes:
-        enabled: yes
+  public_addr: proxy.example.com:3080
+  kube_listen_addr: 0.0.0.0:3026
+
+kubernetes_service:
+  enabled: yes
+  listen_addr: 0.0.0.0:3027
+  kube_cluster_name: kube.example.com
 ```
 
-If you're using Helm, we've a chart that you can use. Run these commands:
+If you're using Helm, we provide a chart that you can use. Run these commands:
 
 ```bash
 $ helm repo add teleport https://charts.releases.teleport.dev
@@ -73,81 +159,12 @@ our [Helm Docs](https://github.com/gravitational/teleport/tree/master/examples/c
 
 ![teleport-kubernetes-inside](img/teleport-k8s-pod.svg)
 
-## Option 2: Deploy Outside of Kubernetes
-
-Deploy the Teleport proxy service outside of Kubernetes and update the Teleport
-Proxy configuration with Kubernetes credentials. Update the Teleport Proxy
-configuration with Kubernetes credentials.
-
-In this case, we need to update `/etc/teleport.yaml` for the proxy service as shown
-below:
-
-```yaml
-# snippet from /etc/teleport.yaml on the Teleport proxy service:
-proxy_service:
-  # create the 'kubernetes' section and set 'enabled' to 'yes':
-  kubernetes:
-    enabled: yes
-    # The address for the proxy process to accept k8s requests.
-    listen_addr: 0.0.0.0:3026
-    # The address used by the clients after tsh login. If you run a load balancer
-    # in front of this proxy, use the address of that balancer here. Otherwise,
-    # use the address of the host running this proxy.
-    public_addr: [teleport.example.com:3026]
-    kubeconfig_file: /path/to/.kube/config
-```
-
-![teleport-ssh-kubernetes-integration](img/teleport-kubernetes-outside.svg)
-
-To generate the `kubeconfig_file` for the Teleport proxy service:
-
-1. Configure your `kubectl` to point at the Kubernetes cluster and have admin-level access.
-2. Use [this
-   script](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh)
-   to generate `kubeconfig`:
-
-```bash
-# Download the script.
-$ curl -o get-kubeconfig.sh https://raw.githubusercontent.com/gravitational/teleport/master/examples/k8s-auth/get-kubeconfig.sh
-
-# Make it executable.
-$ chmod +x get-kubeconfig.sh
-
-# Run the script, it will write the generated kubeconfig to the current
-# directory.
-$ ./get-kubeconfig.sh
-
-# Check that the generated kubeconfig has the right permissions.
-# The output should look similar to this.
-$ kubectl --kubeconfig kubeconfig auth can-i --list
-Resources                                       Non-Resource URLs   Resource Names   Verbs
-selfsubjectaccessreviews.authorization.k8s.io   []                  []               [create create]
-selfsubjectrulesreviews.authorization.k8s.io    []                  []               [create create]
-                                                [/api/*]            []               [get]
-                                                ...                 []               [...]
-groups                                          []                  []               [impersonate]
-serviceaccounts                                 []                  []               [impersonate]
-users                                           []                  []               [impersonate]
-```
-
-3. Copy the generated `kubeconfig` file to the host running the Teleport proxy
-   service.
-4. Update `kubeconfig_file` path in `teleport.yaml` to where you copied the
-   `kubeconfig`.
-
-Alternatively, you can use your existing local config from `~/.kube/config`.
-However, it will result in Teleport proxy using your personal Kubernetes
-credentials. This is risky: your credentials can expire or get revoked (such as
-when leaving your company).
-
-
-
 ## Impersonation
 
 !!! note
 
-    If you used [the script from Option
-    2](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh)
+    If you used [the helm chart from Option
+    1](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh)
     above, you can skip this step. The script already configured impersonation permissions.
 
 The next step is to configure the Teleport Proxy to be able to impersonate Kubernetes principals within a given group
@@ -172,6 +189,12 @@ rules:
   - serviceaccounts
   verbs:
   - impersonate
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
 - apiGroups:
   - "authorization.k8s.io"
   resources:
@@ -235,6 +258,29 @@ $ tctl users add joe --k8s-groups="system:masters"
 $ tctl users add jenkins --k8s-users="jenkins"
 # Enterprise users should manage k8s-users and k8s-groups via RBAC, see Okta Auth
 # example below
+```
+
+### Kubernetes Labels
+
+Labels can be applied to Kubernetes clusters to provide a better inventory of clusters
+and more fined grained RBAC.
+
+```yaml
+    # ... Snippet of teleport.yaml
+    # Optional labels: These can be used in combination with RBAC rules
+    # to limit access to applications.
+    # When using kubeconfig_file above, these labels apply to all kubernetes
+    # clusters specified in the kubeconfig.
+    labels:
+      env: "prod"
+    # Optional Dynamic Labels
+    - name: "os"
+       command: ["/usr/bin/uname"]
+       period: "5s"
+    # Get cluster name on GKE.
+    - name: cluster-name
+      command: ['curl', 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name', '-H', 'Metadata-Flavor: Google']
+      period: 1m0s
 ```
 
 ### Github Auth
@@ -398,7 +444,16 @@ $ kubectl --kubeconfig /path/to/kubeconfig get pods
 
 We've a complete guide on setting up Teleport with EKS. Please see the [Using Teleport with EKS Guide](aws-oss-guide.md#using-teleport-with-eks).
 
-## Multiple Kubernetes Clusters
+## Multiple Kubernetes Clusters via Teleport Access Plane
+
+Teleport 5.0 adds the [long requested feature](https://github.com/gravitational/teleport/issues/3680)
+of supporting multiple Kubernetes Clusters via a single Teleport Root. This setup is
+described in Option 1 and uses reverse tunnels to connect back to the root cluster.
+
+Teleport provides an option for running a single Teleport instance. This can be done
+using Option 2 and a kubeconfig with multiple entries.
+
+## Multiple Kubernetes Clusters via Trusted Cluster
 
 You can take advantage of the [Trusted Clusters](trustedclusters.md) feature of
 Teleport to federate trust across multiple Kubernetes clusters.

@@ -331,6 +331,22 @@ Node Name Address            Labels
 grav-02      10.156.0.7:3022    os:osx
 ```
 
+## tsh kube ls
+
+List Kubernetes Clusters
+
+**Usage** `usage: tsh kube ls`
+
+### Examples
+
+``` bsh
+$ tsh kube ls
+Kube Cluster Name                     Selected
+------------------------------------- --------
+gke_bens-demos_us-central1-c_gks-demo *
+microk8s
+```
+
 ## tsh clusters
 
 **Usage**: `tsh clusters [<flags>]`
@@ -430,6 +446,28 @@ $ tsh login --proxy=proxy.example.com --format=kubernetes -o kubeconfig
 $ tsh login --proxy=proxy.example.com --request-reason="I need to run a debug script on production"
 ```
 
+## tsh kube login
+
+Log into a Kubernetes cluster. Discover connected clusters by using [`tsh kube ls`](cli-docs.md#tsh-kube-ls)
+
+**Usage**: `tsh kube login <kube-cluster>`
+
+```bash
+# tsh kube login to k8s cluster (gke_bens-demos_us-central1-c_gks-demo)
+$ tsh kube login gke_bens-demos_us-central1-c_gks-demo
+Logged into kubernetes cluster "gke_bens-demos_us-central1-c_gks-demo"
+
+# on login, kubeconfig is pointed at the first cluster (alphabetically)
+$ kubectl config current-context
+aws-gke_bens-demos_us-central1-c_gks-demo
+
+# but all clusters are populated as contexts
+$ kubectl config get-contexts
+CURRENT   NAME                                        CLUSTER                       AUTHINFO                                    NAMESPACE
+*         aws-gke_bens-demos_us-central1-c_gks-demo   aws                           aws-gke_bens-demos_us-central1-c_gks-demo
+          aws-microk8s                                aws                           aws-microk8s
+```
+
 ## tsh logout
 
 Deletes the client's cluster certificate
@@ -448,11 +486,15 @@ Display the list of proxy servers and retrieved certificates
 $ tsh status
 
 > Profile URL:  https://proxy.example.com:3080
-  Logged in as: johndoe
-  Roles:        admin*
-  Logins:       root, admin, guest
-  Valid until:  2017-04-25 15:02:30 -0700 PDT [valid for 1h0m0s]
-  Extensions:   permit-agent-forwarding, permit-port-forwarding, permit-pty
+  Logged in as:       benarent
+  Cluster:            aws
+  Roles:              admin*
+  Logins:             benarent, root, ec2-user, ubunutu
+  Kubernetes:         enabled
+  Kubernetes cluster: "gke_bens-demos_us-central1-c_gks-demo"
+  Kubernetes groups:  system:masters
+  Valid until:        2020-11-21 01:50:23 -0800 PST [valid for 11h52m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
 # tctl
@@ -665,7 +707,11 @@ $ tctl tokens add --type=trusted_cluster --ttl=5m
 $ tctl tokens add --type=trusted_cluster --labels=env=prod
 # Generate an invite token for a node
 # This is equivalent to `tctl nodes add`
-$ tctl tokens add --type node
+$ tctl tokens add --type=node
+# Generate an invite token for a kubernetes_service
+$ tctl tokens add --type=kube
+# Generate an invite token for an app_service
+$ tctl tokens add --type=app
 ```
 
 ## tctl tokens rm
@@ -746,6 +792,8 @@ Create an identity file(s) for a given user
 `--ttl` | none | relative duration like 5s, 2m, or 3h | TTL (time to live) for the generated certificate
 `--compat` | `""` | `standard` or `oldssh` | OpenSSH compatibility flag
 `--proxy` | `""` |  Address of the teleport proxy. | When --format is set to "kubernetes", this address will be set as cluster address in the generated kubeconfig file
+`--leaf-cluster` | `""` |  The name of a leaf cluster. |
+`--kube-cluster-name` | `""` |  Kubernetes Cluster Name |
 
 ### [Global Flags](#tctl-global-flags)
 
@@ -936,9 +984,9 @@ The diagnostic metrics endpoint must be enabled with `teleport start --diag-addr
 ### Example
 
 ``` bsh
-$ teleport start --diag-addr=127.0.0.1:3434
+$ teleport start --diag-addr=127.0.0.1:3000
 # View stats with refresh period of 5 seconds
-$ tctl top http://127.0.0.1:3434 5s
+$ tctl top http://127.0.0.1:3000 5s
 ```
 
 ## tctl version
