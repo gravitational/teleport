@@ -383,6 +383,7 @@ spec:
     db_labels:
       environment: ["dev", "stage"]
     # Database names (within a database instance) this role has access to.
+    # Note: this is not the same as the "name" field in "db_service".
     db_names: ["main", "metrics", "postgres"]
     # Database users this role can log in as.
     db_users: ["alice", "bob"]
@@ -501,10 +502,10 @@ The `tsh db login` command also prints a footer explaining how to connect
 to the database:
 
 ```
-Connection information for "postgres" has been saved to ~/.pg_service.conf.
+Connection information for "postgres" has been saved.
 You can connect to the database using the following command:
 
-  $ psql "service=postgres user=<user> dbname=<dbname>"
+  $ psql "service=root-postgres user=<user> dbname=<dbname>"
 
 Or configure environment variables and use regular CLI flags:
 
@@ -549,27 +550,29 @@ clients can refer to a particular service using `service` connection string
 parameter which all libpq-based clients should recognize (e.g. `psql` and
 `pgAdmin` do).
 
-The section is named after the Teleport database service instance a user has
-logged into with `tsh db login <name>` command. If a service file is already
-present, a new section will be added or existing section with the same name
-overwritten. 
+The section name has the format `${TELEPORT_CLUSTER}-${DATABASE_SERVICE}` to
+avoid conflicts in situations where multiple trusted clusters have database
+services with the same name.
+
+If a service file is already present, a new section will be added or existing
+section with the same name overwritten. 
 
 An added section may look like this:
 
 ```ini
-[postgres-prod]
-host=proxy.teleport.example.com
+[root-postgres-prod]
+host=root.example.com
 port=3080
 sslmode=verify-full
-sslrootcert=/home/user/.tsh/keys/proxy.teleport.example.com/certs.pem
-sslcert=/home/user/.tsh/keys/proxy.teleport.example.com/alice-x509.pem
-sslkey=/home/user/.tsh/keys/proxy.teleport.example.com/alice
+sslrootcert=/home/user/.tsh/keys/root.example.com/certs.pem
+sslcert=/home/user/.tsh/keys/root.example.com/alice-db/root/postgres-prod-x509.pem
+sslkey=/home/user/.tsh/keys/root.example.com/alice
 ```
 
 Users can then connect to the database using the following command:
 
 ```sh
-$ psql "service=postgres-prod user=alice dbname=metrics"
+$ psql "service=root-postgres-prod user=alice dbname=metrics"
 ```
 
 Alternatively, `tsh` can output a set of environment variables supported by
@@ -577,15 +580,39 @@ PostgreSQL clients for users to set in their session:
 
 ```sh
 $ tsh db env
-export PGHOST=proxy.teleport.example.com
+export PGHOST=root.example.com
 export PGPORT=3080
 export PGSSLMODE=verify-full
-export PGSSLROOTCERT=/home/user/.tsh/keys/proxy.teleport.example.com/certs.pem
-export PGSSLCERT=/home/user/.tsh/keys/proxy.teleport.example.com/alice-x509.pem
-export PGSSLKEY=/home/user/.tsh/keys/proxy.teleport.example.com/alice
+export PGSSLROOTCERT=/home/user/.tsh/keys/root.example.com/certs.pem
+export PGSSLCERT=/home/user/.tsh/keys/root.example.com/alice-db/root/postgres-prod-x509.pem
+export PGSSLKEY=/home/user/.tsh/keys/root.example.com/alice
 $ eval $(tsh db env)
 $ psql -U alice metrics
 ```
+
+The output of `tsh db env` command is shell-specific, the shell is detected
+using the `$SHELL` environment variable value. The default output is compatible
+with shells like `bash` and `zsh`, in the future we'll add support for other
+shells like `fish` which has different syntax for setting environment variables.
+
+## pgAdmin
+
+pgAdmin 4 is the Postgres GUI client. It has a client/server architecture and
+users interact with it by connecting to its server component via a browser.
+
+To connect to a database instance using pgAdmin, the server must have access
+to credentials issued by `tsh db login` command.
+
+pgAdmin recognizes Postgres service file so to add a new server connection
+users will need to specify:
+
+* [General / Name] Name used for identification purposes in the UI.
+* [Connection / Service] Postgres service name e.g. `root-postgres-prod` from
+  examples above.
+* [Connection / Username] Username to use connecting to database.
+
+All other fields such as hostname, port and SSL settings will be taken by
+pdAdmin from the service definition.
 
 ## Audit events
 
@@ -599,7 +626,7 @@ sessions.
 ```json
 {
   "code": "TDB00I",
-  "service": "postgres",
+  "db_service": "postgres",
   "db_endpoint": "localhost:5432",
   "db_protocol": "postgres",
   "db_database": "postgres",
@@ -632,7 +659,7 @@ New fields are:
 ```json
 {
   "code": "TDB01I",
-  "service": "postgres",
+  "db_service": "postgres",
   "db_endpoint": "localhost:5432",
   "db_protocol": "postgres",
   "db_database": "test",
@@ -655,7 +682,7 @@ Same new fields as in the `db.session.start` event.
 ```json
 {
   "code": "TDB02I",
-  "service": "postgres",
+  "db_service": "postgres",
   "db_endpoint": "localhost:5432",
   "db_protocol": "postgres",
   "db_database": "test",
@@ -689,6 +716,9 @@ for more information about certificate rotation.
 Unlike Teleport nodes that automatically get reissued certificates signed by
 a new authority, we do not have control over database servers so a user must
 replace CA and keypair within the rotation grace period.
+
+In addition, `tctl auth rotate` should detect that database access is configured
+and print instructions about rotating database secrets as well.
 
 **Future work**
 
