@@ -61,7 +61,7 @@ This should result in three PEM encoded files being generated in the `/certs` di
 Move the `/certs` folder into your `/api-examples` folder.
 
 !!! Note
-    By default, `tctl auth sign` produces certificates with a relatively short lifetime. See our [Kubernetes Section](kubernetes-ssh.md#using-teleport-kubernetes-with-automation) for more information on automating the signing process for short lived certificates.
+    By default, `tctl auth sign` produces certificates with a relatively short lifetime. See our [Kubernetes Section](kubernetes-access.md#using-teleport-kubernetes-with-automation) for more information on automating the signing process for short lived certificates.
 
     While we encourage you to use short lived certificates, we understand you may not have all the infrastructure to issues and obtain them at the onset. You can use the --ttl flag to extend the lifetime of a certificate in these cases but understand this reduces your security posture
 

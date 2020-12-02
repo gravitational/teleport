@@ -46,7 +46,7 @@ nav:
         - Quick Start Guide: quickstart.md
         - User Manual: user-manual.md
         - Application Guide: application-access.md
-        - Kubernetes Guide: kubernetes-ssh.md
+        - Kubernetes Guide: kubernetes-access.md
         - Admin Manual: admin-guide.md
         - Production Guide: production.md
         - FAQ: faq.md
