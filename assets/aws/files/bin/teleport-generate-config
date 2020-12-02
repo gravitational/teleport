@@ -511,7 +511,7 @@ if [[ "${TELEPORT_ROLE}" == "auth" || "${TELEPORT_ROLE}" == "node" || "${TELEPOR
 
 [[inputs.prometheus]]
   # An array of urls to scrape metrics from.
-  urls = ["http://127.0.0.1:3434/metrics"]
+  urls = ["http://127.0.0.1:3000/metrics"]
   # Add a metric name prefix
   name_prefix = "teleport_"
   # Add tags to be able to make beautiful dashboards

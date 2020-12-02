@@ -984,9 +984,9 @@ The diagnostic metrics endpoint must be enabled with `teleport start --diag-addr
 ### Example
 
 ``` bsh
-$ teleport start --diag-addr=127.0.0.1:3434
+$ teleport start --diag-addr=127.0.0.1:3000
 # View stats with refresh period of 5 seconds
-$ tctl top http://127.0.0.1:3434 5s
+$ tctl top http://127.0.0.1:3000 5s
 ```
 
 ## tctl version
