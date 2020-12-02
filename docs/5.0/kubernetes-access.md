@@ -72,7 +72,14 @@ Let's take a closer look at the available Kubernetes settings:
 
 ## Setup
 
-Connecting the Teleport proxy to Kubernetes
+Connecting the Teleport proxy to Kubernetes.
+
+Teleport Auth And Proxy can be ran anywhere (inside or outside of k8s). The Teleport
+proxy must have `kube_listen_addr` set.
+
+- Options for connecting k8s clusters:
+    - `kubernetes_service` in a pod [Using our Helm Chart](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport-kube-agent/README.md)
+    - `kubernetes_service` elsewhere, with kubeconfig. Use [get-kubeconfig.sh](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/) for building kubeconfigs
 
 There are two options for setting up Teleport to access Kubernetes:
 
@@ -247,6 +254,29 @@ $ tctl users add jenkins --k8s-users="jenkins"
 # example below
 ```
 
+### Kubernetes Labels
+
+Labels can be applied to Kubernetes clusters to provide a better inventory of clusters
+and more fined grained RBAC.
+
+```yaml
+    # ... Snippet of teleport.yaml
+    # Optional labels: These can be used in combination with RBAC rules
+    # to limit access to applications.
+    # When using kubeconfig_file above, these labels apply to all kubernetes
+    # clusters specified in the kubeconfig.
+    labels:
+      env: "prod"
+    # Optional Dynamic Labels
+    - name: "os"
+       command: ["/usr/bin/uname"]
+       period: "5s"
+    # Get cluster name on GKE.
+    - name: cluster-name
+      command: ['curl', 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name', '-H', 'Metadata-Flavor: Google']
+      period: 1m0s
+```
+
 ### Github Auth
 
 When configuring Teleport to authenticate against Github, you have to create a
@@ -411,8 +441,11 @@ We've a complete guide on setting up Teleport with EKS. Please see the [Using Te
 ## Multiple Kubernetes Clusters via Teleport Access Plane
 
 Teleport 5.0 adds the [long requested feature](https://github.com/gravitational/teleport/issues/3680)
-of supporting multiple Kubernetes Clusters via a single Teleport instance. This setup is
+of supporting multiple Kubernetes Clusters via a single Teleport Root. This setup is
 described in Option 1 and uses reverse tunnels to connect back to the root cluster.
+
+Teleport provides an option for running a single Teleport instance. This can be done
+using Option 2 and a kubeconfig with multiple entries.
 
 ## Multiple Kubernetes Clusters via Trusted Cluster
 

@@ -355,6 +355,7 @@ app_service:
        command: ["/usr/bin/uname"]
        period: "5s"
 
+
 ## This section configures the 'kubernetes service'
 kubernetes_service:
     enabled: yes
@@ -386,4 +387,8 @@ kubernetes_service:
     - name: "os"
        command: ["/usr/bin/uname"]
        period: "5s"
+    # Get cluster name on GKE.
+    - name: cluster-name
+      command: ['curl', 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name', '-H', 'Metadata-Flavor: Google']
+      period: 1m0s
 ```
