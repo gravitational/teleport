@@ -1631,7 +1631,7 @@ teleport:
     write_target_value: float
 ```
 
-To enable these options you will need to update the [IAM Role for Teleport](aws-oss-guide.md/#iam)
+To enable these options you will need to update the [IAM Role for Teleport](aws-oss-guide.md#iam)
 
 ```json
 {
