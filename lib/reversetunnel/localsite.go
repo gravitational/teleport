@@ -283,28 +283,35 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 	}
 	// If server ID matches a node that has self registered itself over the tunnel,
 	// return a connection to that node. Otherwise net.Dial to the target host.
-	conn, err = s.dialTunnel(dreq)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, false, trace.Wrap(err)
+	conn, tunnelErr := s.dialTunnel(dreq)
+	if tunnelErr != nil {
+		if !trace.IsNotFound(tunnelErr) {
+			return nil, false, trace.Wrap(tunnelErr)
 		}
+
+		s.log.Debugf("Error occurred while dialing through a tunnel: %v.", tunnelErr)
 
 		// Connections to applications should never occur over a direct dial, return right away.
 		if params.ConnType == services.AppTunnel {
-			return nil, false, trace.ConnectionProblem(err, "failed to connect to application")
+			return nil, false, trace.ConnectionProblem(tunnelErr, "failed to connect to application")
 		}
+
+		offlineMsg := "the node is offline or has disconnected, if the issue " +
+			"persists, restart the node or re-register it in the cluster"
 
 		// This node can only be reached over a tunnel, don't attempt to dial
 		// remotely.
 		if params.To.String() == "" {
-			return nil, false, trace.ConnectionProblem(err, "node is offline, please try again later")
+			return nil, false, trace.ConnectionProblem(tunnelErr, offlineMsg)
 		}
-		tunnelErr := trace.Errorf("dialing through a tunnel: %v", err)
+
 		// If no tunnel connection was found, dial to the target host.
 		dialer := proxy.DialerFromEnvironment(params.To.String())
-		conn, err = dialer.DialTimeout(params.To.Network(), params.To.String(), defaults.DefaultDialTimeout)
-		if err != nil {
-			return nil, false, trace.NewAggregate(tunnelErr, trace.Errorf("dialing directly: %v", err))
+		conn, directErr := dialer.DialTimeout(params.To.Network(), params.To.String(), defaults.DefaultDialTimeout)
+		if directErr != nil {
+			s.log.Debugf("Error occurred while dialing directly: %v.", directErr)
+			aggregateErr := trace.NewAggregate(tunnelErr, directErr)
+			return nil, false, trace.ConnectionProblem(aggregateErr, offlineMsg)
 		}
 
 		// Return a direct dialed connection.
