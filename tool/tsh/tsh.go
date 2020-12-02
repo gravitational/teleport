@@ -114,8 +114,6 @@ type CLIConf struct {
 	Namespace string
 	// NoCache is used to turn off client cache for nodes discovery
 	NoCache bool
-	// BenchThreads is amount of concurrent threads to run
-	BenchThreads int
 	// BenchDuration is a duration for the benchmark
 	BenchDuration time.Duration
 	// BenchRate is a requests per second rate to mantain
@@ -329,7 +327,6 @@ func Run(args []string) {
 	bench.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	bench.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
 	bench.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
-	bench.Flag("threads", "Concurrent threads to run").Default("10").IntVar(&cf.BenchThreads)
 	bench.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
 	bench.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
@@ -1114,7 +1111,6 @@ func onBenchmark(cf *CLIConf) {
 	}
 	cnf := benchmark.Config{
 		Command:       cf.RemoteCommand,
-		Threads:       cf.BenchThreads,
 		MinimumWindow: cf.BenchDuration,
 		Rate:          cf.BenchRate,
 	}
@@ -1130,7 +1126,7 @@ func onBenchmark(cf *CLIConf) {
 		fmt.Printf("* Last error: %v\n", result.LastError)
 	}
 	fmt.Printf("\nHistogram\n\n")
-	t := asciitable.MakeTable([]string{"Percentile", "Duration"})
+	t := asciitable.MakeTable([]string{"Percentile", "Response Duration"})
 	for _, quantile := range []float64{25, 50, 75, 90, 95, 99, 100} {
 		t.AddRow([]string{fmt.Sprintf("%v", quantile),
 			fmt.Sprintf("%v ms", result.Histogram.ValueAtQuantile(quantile)),
@@ -1140,7 +1136,6 @@ func onBenchmark(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 	fmt.Printf("\n")
-
 	if cf.BenchExport {
 		path, err := benchmark.ExportLatencyProfile(cf.BenchExportPath, result.Histogram, cf.BenchTicks, cf.BenchValueScale)
 		if err != nil {

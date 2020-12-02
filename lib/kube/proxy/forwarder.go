@@ -1094,8 +1094,8 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 		f.Errorf("Failed to set up forwarding headers: %v.", err)
 		return nil, trace.Wrap(err)
 	}
-	w = &responseStatusRecorder{ResponseWriter: w}
-	sess.forwarder.ServeHTTP(w, req)
+	rw := newResponseStatusRecorder(w)
+	sess.forwarder.ServeHTTP(rw, req)
 
 	if sess.noAuditEvents {
 		return nil, nil
@@ -1122,7 +1122,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 		},
 		RequestPath:               req.URL.Path,
 		Verb:                      req.Method,
-		ResponseCode:              int32(w.(*responseStatusRecorder).getStatus()),
+		ResponseCode:              int32(rw.getStatus()),
 		KubernetesClusterMetadata: ctx.eventClusterMeta(),
 	}
 	r := parseResourcePath(req.URL.Path)
@@ -1611,12 +1611,35 @@ func (f *Forwarder) kubeClusters() []*services.KubernetesCluster {
 
 type responseStatusRecorder struct {
 	http.ResponseWriter
-	status int
+	flusher http.Flusher
+	status  int
+}
+
+func newResponseStatusRecorder(w http.ResponseWriter) *responseStatusRecorder {
+	rec := &responseStatusRecorder{ResponseWriter: w}
+	if flusher, ok := w.(http.Flusher); ok {
+		rec.flusher = flusher
+	}
+	return rec
 }
 
 func (r *responseStatusRecorder) WriteHeader(status int) {
 	r.status = status
 	r.ResponseWriter.WriteHeader(status)
+}
+
+// Flush optionally flushes the inner ResponseWriter if it supports that.
+// Otherwise, Flush is a noop.
+//
+// Flush is optionally used by github.com/gravitational/oxy/forward to flush
+// pending data on streaming HTTP responses (like streaming pod logs).
+//
+// Without this, oxy/forward will handle streaming responses by accumulating
+// ~32kb of response in a buffer before flushing it.
+func (r *responseStatusRecorder) Flush() {
+	if r.flusher != nil {
+		r.flusher.Flush()
+	}
 }
 
 func (r *responseStatusRecorder) getStatus() int {

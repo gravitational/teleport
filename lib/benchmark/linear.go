@@ -32,10 +32,8 @@ type Linear struct {
 	MinimumMeasurements int
 	// MinimumWindow is the minimum duration to run benchmark for
 	MinimumWindow time.Duration
-	// Threads is amount of concurrent execution threads to run
-	Threads    int
-	currentRPS int
-	config     *Config
+	currentRPS    int
+	config        *Config
 }
 
 // GetBenchmark returns the benchmark config for the current generation.
@@ -44,7 +42,6 @@ func (lg *Linear) GetBenchmark() *Config {
 		MinimumWindow:       lg.MinimumWindow,
 		MinimumMeasurements: lg.MinimumMeasurements,
 		Rate:                lg.currentRPS,
-		Threads:             lg.Threads,
 		Command:             lg.config.Command,
 	}
 
