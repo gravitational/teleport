@@ -115,19 +115,19 @@ type ForwarderConfig struct {
 // CheckAndSetDefaults checks and sets default values
 func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	if f.AuthClient == nil {
-		return trace.BadParameter("missing parameter Client")
+		return trace.BadParameter("missing parameter AuthClient")
 	}
 	if f.CachingAuthClient == nil {
-		return trace.BadParameter("missing parameter AccessPoint")
+		return trace.BadParameter("missing parameter CachingAuthClient")
 	}
 	if f.Authz == nil {
-		return trace.BadParameter("missing parameter Auth")
+		return trace.BadParameter("missing parameter Authz")
 	}
 	if f.StreamEmitter == nil {
 		return trace.BadParameter("missing parameter StreamEmitter")
 	}
 	if f.ClusterName == "" {
-		return trace.BadParameter("missing parameter LocalCluster")
+		return trace.BadParameter("missing parameter ClusterName")
 	}
 	if f.Keygen == nil {
 		return trace.BadParameter("missing parameter Keygen")
@@ -1481,14 +1481,14 @@ func (f *Forwarder) getOrCreateRequestContext(key string) (context.Context, cont
 }
 
 func (f *Forwarder) getOrRequestClientCreds(ctx authContext) (*tls.Config, error) {
-	c := f.getClientCred(ctx)
+	c := f.getClientCreds(ctx)
 	if c == nil {
 		return f.serializedRequestClientCreds(ctx)
 	}
 	return c, nil
 }
 
-func (f *Forwarder) getClientCred(ctx authContext) *tls.Config {
+func (f *Forwarder) getClientCreds(ctx authContext) *tls.Config {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	creds, ok := f.clientCredentials.Get(ctx.key())
@@ -1502,7 +1502,7 @@ func (f *Forwarder) getClientCred(ctx authContext) *tls.Config {
 	return c
 }
 
-func (f *Forwarder) saveClientCred(ctx authContext, c *tls.Config) error {
+func (f *Forwarder) saveClientCreds(ctx authContext, c *tls.Config) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.clientCredentials.Set(ctx.key(), c, ctx.sessionTTL)
@@ -1530,14 +1530,14 @@ func (f *Forwarder) serializedRequestClientCreds(authContext authContext) (*tls.
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return c, f.saveClientCred(authContext, c)
+		return c, f.saveClientCreds(authContext, c)
 	}
 	// cancel == nil means that another request is in progress, so simply wait until
 	// it finishes or fails
 	f.log.Debugf("Another request is in progress for %v, waiting until it gets completed.", authContext)
 	select {
 	case <-ctx.Done():
-		c := f.getClientCred(authContext)
+		c := f.getClientCreds(authContext)
 		if c == nil {
 			return nil, trace.BadParameter("failed to request ephemeral certificate, try again")
 		}

@@ -81,6 +81,12 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		return trace.Wrap(err)
 	}
 
+	// Start uploader that will scan a path on disk and upload completed
+	// sessions to the Auth Server.
+	if err := process.initUploaderService(accessPoint, conn.Client); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// This service can run in 2 modes:
 	// 1. Reachable (by the proxy) - registers with auth server directly and
 	//    creates a local listener to accept proxy conns.
@@ -198,22 +204,22 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
-			Namespace:       defaults.Namespace,
-			Keygen:          cfg.Keygen,
-			ClusterName:     conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
-			Authz:            authorizer,
-			AuthClient:          conn.Client,
-			StreamEmitter:   streamEmitter,
-			DataDir:         cfg.DataDir,
-			CachingAuthClient:     accessPoint,
-			ServerID:        cfg.HostUUID,
-			Context:         process.ExitContext(),
-			KubeconfigPath:  cfg.Kube.KubeconfigPath,
-			KubeClusterName: cfg.Kube.KubeClusterName,
-			NewKubeService:  true,
-			Component:       teleport.ComponentKube,
-			StaticLabels:    cfg.Kube.StaticLabels,
-			DynamicLabels:   dynLabels,
+			Namespace:         defaults.Namespace,
+			Keygen:            cfg.Keygen,
+			ClusterName:       conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+			Authz:             authorizer,
+			AuthClient:        conn.Client,
+			StreamEmitter:     streamEmitter,
+			DataDir:           cfg.DataDir,
+			CachingAuthClient: accessPoint,
+			ServerID:          cfg.HostUUID,
+			Context:           process.ExitContext(),
+			KubeconfigPath:    cfg.Kube.KubeconfigPath,
+			KubeClusterName:   cfg.Kube.KubeClusterName,
+			NewKubeService:    true,
+			Component:         teleport.ComponentKube,
+			StaticLabels:      cfg.Kube.StaticLabels,
+			DynamicLabels:     dynLabels,
 		},
 		TLS:           tlsConfig,
 		AccessPoint:   accessPoint,
