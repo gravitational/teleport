@@ -589,8 +589,13 @@ func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
 
 // exec forwards all exec requests to the target server, captures
 // all output from the session
-func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
+func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
 	f.log.Debugf("Exec %v.", req.URL.String())
+	defer func() {
+		if err != nil {
+			f.log.WithError(err).Debug("Exec request failed")
+		}
+	}()
 
 	sess, err := f.getOrCreateClusterSession(*ctx)
 	if err != nil {
@@ -684,7 +689,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 
 			// Report the updated window size to the event log (this is so the sessions
 			// can be replayed correctly).
-			if err := recorder.EmitAuditEvent(request.context, resizeEvent); err != nil {
+			if err := recorder.EmitAuditEvent(f.ctx, resizeEvent); err != nil {
 				f.log.WithError(err).Warn("Failed to emit terminal resize event.")
 			}
 		}
@@ -728,7 +733,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			KubernetesPodMetadata:     eventPodMeta,
 			InitialCommand:            request.cmd,
 		}
-		if err := emitter.EmitAuditEvent(request.context, sessionStartEvent); err != nil {
+		if err := emitter.EmitAuditEvent(f.ctx, sessionStartEvent); err != nil {
 			f.log.WithError(err).Warn("Failed to emit event.")
 		}
 	}
@@ -810,7 +815,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			// Bytes received from pod by user.
 			BytesReceived: trackOut.Count() + trackErr.Count(),
 		}
-		if err := emitter.EmitAuditEvent(request.context, sessionDataEvent); err != nil {
+		if err := emitter.EmitAuditEvent(f.ctx, sessionDataEvent); err != nil {
 			f.log.WithError(err).Warn("Failed to emit session data event.")
 		}
 		sessionEndEvent := &events.SessionEnd{
@@ -844,7 +849,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			KubernetesPodMetadata:     eventPodMeta,
 			InitialCommand:            request.cmd,
 		}
-		if err := emitter.EmitAuditEvent(request.context, sessionEndEvent); err != nil {
+		if err := emitter.EmitAuditEvent(f.ctx, sessionEndEvent); err != nil {
 			f.log.WithError(err).Warn("Failed to emit session end event.")
 		}
 	} else {
@@ -885,7 +890,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		} else {
 			execEvent.Code = events.ExecCode
 		}
-		if err := emitter.EmitAuditEvent(request.context, execEvent); err != nil {
+		if err := emitter.EmitAuditEvent(f.ctx, execEvent); err != nil {
 			f.log.WithError(err).Warn("Failed to emit event.")
 		}
 	}
@@ -941,7 +946,7 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 		if !success {
 			portForward.Code = events.PortForwardFailureCode
 		}
-		if err := f.StreamEmitter.EmitAuditEvent(req.Context(), portForward); err != nil {
+		if err := f.StreamEmitter.EmitAuditEvent(f.ctx, portForward); err != nil {
 			f.log.WithError(err).Warn("Failed to emit event.")
 		}
 	}
@@ -1137,7 +1142,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 		return nil, nil
 	}
 	r.populateEvent(event)
-	if err := f.Client.EmitAuditEvent(req.Context(), event); err != nil {
+	if err := f.Client.EmitAuditEvent(f.ctx, event); err != nil {
 		f.log.WithError(err).Warn("Failed to emit event.")
 	}
 
