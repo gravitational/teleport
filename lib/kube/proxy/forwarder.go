@@ -177,20 +177,20 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clusterSessions, err := ttlmap.New(defaults.ClientCacheSize)
+	clientCredentials, err := ttlmap.New(defaults.ClientCacheSize)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	closeCtx, close := context.WithCancel(cfg.Context)
 	fwd := &Forwarder{
-		creds:           creds,
-		log:             log,
-		router:          *httprouter.New(),
-		cfg:             cfg,
-		clusterSessions: clusterSessions,
-		activeRequests:  make(map[string]context.Context),
-		ctx:             closeCtx,
-		close:           close,
+		creds:             creds,
+		log:               log,
+		router:            *httprouter.New(),
+		cfg:               cfg,
+		clientCredentials: clientCredentials,
+		activeRequests:    make(map[string]context.Context),
+		ctx:               closeCtx,
+		close:             close,
 	}
 
 	fwd.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", fwd.withAuth(fwd.exec))
@@ -218,11 +218,12 @@ type Forwarder struct {
 	log    log.FieldLogger
 	router httprouter.Router
 	cfg    ForwarderConfig
-	// clusterSessions is an expiring cache associated with authenticated
-	// user connected to a remote cluster, session is invalidated
-	// if user changes kubernetes groups via RBAC or cache has expired
+	// clientCredentials is an expiring cache of ephemeral client credentials.
+	// Forwarder requests credentials with client identity, when forwarding to
+	// another teleport process (but not when forwarding to k8s API).
+	//
 	// TODO(klizhentas): flush certs on teleport CA rotation?
-	clusterSessions *ttlmap.TTLMap
+	clientCredentials *ttlmap.TTLMap
 	// activeRequests is a map used to serialize active CSR requests to the auth server
 	activeRequests map[string]context.Context
 	// close is a close function
@@ -598,7 +599,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		}
 	}()
 
-	sess, err := f.getOrCreateClusterSession(*ctx)
+	sess, err := f.newClusterSession(*ctx)
 	if err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
 		// of the teleport server if not logged here.
@@ -903,7 +904,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 // portForward starts port forwarding to the remote cluster
 func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
 	f.log.Debugf("Port forward: %v. req headers: %v.", req.URL.String(), req.Header)
-	sess, err := f.getOrCreateClusterSession(*ctx)
+	sess, err := f.newClusterSession(*ctx)
 	if err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
 		// of the teleport server if not logged here.
@@ -1094,7 +1095,7 @@ func setupImpersonationHeaders(log log.FieldLogger, ctx authContext, headers htt
 
 // catchAll forwards all HTTP requests to the target k8s API server
 func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.Request) (interface{}, error) {
-	sess, err := f.getOrCreateClusterSession(*ctx)
+	sess, err := f.newClusterSession(*ctx)
 	if err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
 		// of the teleport server if not logged here.
@@ -1287,56 +1288,6 @@ func (t *trackingConn) UpdateClientActivity() {
 	t.lastActive = t.clock.Now().UTC()
 }
 
-func (f *Forwarder) getOrCreateClusterSession(ctx authContext) (*clusterSession, error) {
-	client := f.getClusterSession(ctx)
-	if client != nil {
-		return client, nil
-	}
-	return f.serializedNewClusterSession(ctx)
-}
-
-func (f *Forwarder) getClusterSession(ctx authContext) *clusterSession {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	creds, ok := f.clusterSessions.Get(ctx.key())
-	if !ok {
-		return nil
-	}
-	s := creds.(*clusterSession)
-	if s.teleportCluster.isRemote && s.teleportCluster.isRemoteClosed() {
-		f.log.Debugf("Found an existing clusterSession for remote cluster %q but it has been closed. Discarding it to create a new clusterSession.", ctx.teleportCluster.name)
-		f.clusterSessions.Remove(ctx.key())
-		return nil
-	}
-	return s
-}
-
-func (f *Forwarder) serializedNewClusterSession(authContext authContext) (*clusterSession, error) {
-	ctx, cancel := f.getOrCreateRequestContext(authContext.key())
-	if cancel != nil {
-		f.log.Debugf("Requesting new cluster session for %v.", authContext)
-		defer cancel()
-		sess, err := f.newClusterSession(authContext)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return f.setClusterSession(sess)
-	}
-	// cancel == nil means that another request is in progress, so simply wait until
-	// it finishes or fails
-	f.log.Debugf("Another request is in progress for %v, waiting until it gets completed.", authContext)
-	select {
-	case <-ctx.Done():
-		sess := f.getClusterSession(authContext)
-		if sess == nil {
-			return nil, trace.BadParameter("failed to request certificate, try again")
-		}
-		return sess, nil
-	case <-f.ctx.Done():
-		return nil, trace.BadParameter("forwarder is closing, aborting the request")
-	}
-}
-
 // TODO(awly): unit test this
 func (f *Forwarder) newClusterSession(ctx authContext) (*clusterSession, error) {
 	if ctx.teleportCluster.isRemote {
@@ -1351,7 +1302,7 @@ func (f *Forwarder) newClusterSessionRemoteCluster(ctx authContext) (*clusterSes
 		authContext: ctx,
 	}
 	var err error
-	sess.tlsConfig, err = f.requestCertificate(ctx)
+	sess.tlsConfig, err = f.getOrRequestClientCreds(ctx)
 	if err != nil {
 		f.log.Warningf("Failed to get certificate for %v: %v.", ctx, err)
 		return nil, trace.AccessDenied("access denied: failed to authenticate with auth server")
@@ -1468,7 +1419,7 @@ func (f *Forwarder) newClusterSessionDirect(ctx authContext, kubeService service
 	sess.authContext.teleportCluster.serverID = fmt.Sprintf("%s.%s", kubeService.GetName(), ctx.teleportCluster.name)
 
 	var err error
-	sess.tlsConfig, err = f.requestCertificate(ctx)
+	sess.tlsConfig, err = f.getOrRequestClientCreds(ctx)
 	if err != nil {
 		f.log.Warningf("Failed to get certificate for %v: %v.", ctx, err)
 		return nil, trace.AccessDenied("access denied: failed to authenticate with auth server")
@@ -1485,22 +1436,6 @@ func (f *Forwarder) newClusterSessionDirect(ctx authContext, kubeService service
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sess, nil
-}
-
-func (f *Forwarder) setClusterSession(sess *clusterSession) (*clusterSession, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	sessI, ok := f.clusterSessions.Get(sess.authContext.key())
-	if ok {
-		return sessI.(*clusterSession), nil
-	}
-
-	if err := f.clusterSessions.Set(sess.authContext.key(), sess, sess.authContext.sessionTTL); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	f.log.Debugf("Created new session for %v.", sess.authContext)
 	return sess, nil
 }
 
@@ -1542,6 +1477,73 @@ func (f *Forwarder) getOrCreateRequestContext(key string) (context.Context, cont
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		delete(f.activeRequests, key)
+	}
+}
+
+func (f *Forwarder) getOrRequestClientCreds(ctx authContext) (*tls.Config, error) {
+	c := f.getClientCred(ctx)
+	if c == nil {
+		return f.serializedRequestClientCreds(ctx)
+	}
+	return c, nil
+}
+
+func (f *Forwarder) getClientCred(ctx authContext) *tls.Config {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	creds, ok := f.clientCredentials.Get(ctx.key())
+	if !ok {
+		return nil
+	}
+	c := creds.(*tls.Config)
+	if !validClientCreds(f.cfg.Clock, c) {
+		return nil
+	}
+	return c
+}
+
+func (f *Forwarder) saveClientCred(ctx authContext, c *tls.Config) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.clientCredentials.Set(ctx.key(), c, ctx.sessionTTL)
+}
+
+func validClientCreds(clock clockwork.Clock, c *tls.Config) bool {
+	if len(c.Certificates) == 0 || len(c.Certificates[0].Certificate) == 0 {
+		return false
+	}
+	crt, err := x509.ParseCertificate(c.Certificates[0].Certificate[0])
+	if err != nil {
+		return false
+	}
+	// Make sure that the returned cert will be valid for at least 1 more
+	// minute.
+	return clock.Now().Add(time.Minute).Before(crt.NotAfter)
+}
+
+func (f *Forwarder) serializedRequestClientCreds(authContext authContext) (*tls.Config, error) {
+	ctx, cancel := f.getOrCreateRequestContext(authContext.key())
+	if cancel != nil {
+		f.log.Debugf("Requesting new ephemeral user certificate for %v.", authContext)
+		defer cancel()
+		c, err := f.requestCertificate(authContext)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return c, f.saveClientCred(authContext, c)
+	}
+	// cancel == nil means that another request is in progress, so simply wait until
+	// it finishes or fails
+	f.log.Debugf("Another request is in progress for %v, waiting until it gets completed.", authContext)
+	select {
+	case <-ctx.Done():
+		c := f.getClientCred(authContext)
+		if c == nil {
+			return nil, trace.BadParameter("failed to request ephemeral certificate, try again")
+		}
+		return c, nil
+	case <-f.ctx.Done():
+		return nil, trace.BadParameter("forwarder is closing, aborting the request")
 	}
 }
 
