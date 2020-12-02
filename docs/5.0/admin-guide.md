@@ -1593,7 +1593,8 @@ teleport:
 #### DynamoDB Autoscaling
 
 When setting up DynamoDB it's important to setup backup and autoscaling. We make
-setup simply by enabling AWS DynamoDB settings during Teleport setup.
+setup simpler by allowing AWS DynamoDB settings to be set automatically
+during Teleport startup.
 
 **DynamoDB Continuous Backups**
 - [AWS Blog Post - Amazon DynamoDB Continuous Backup](https://aws.amazon.com/blogs/aws/new-amazon-dynamodb-continuous-backups-and-point-in-time-recovery-pitr/)
@@ -1608,14 +1609,18 @@ teleport:
     type: "dynamodb"
     [...]
 
-    # continuous_backups is used to enable continuous backups.
+    # continuous_backups is used to optionally enable continuous backups.
+    # default: false
     continuous_backups: [true|false]
 
-    # auto_scaling is used to enable (and define settings for) auto scaling.
+    # auto_scaling is used to optionally enable (and define settings for) auto scaling.
+    # default: false
     auto_scaling:  [true|false]
+    # minimum/maximum read capacity in units
     read_min_capacity: int
     read_max_capacity: int
     read_target_value: float
+    # minimum/maximum write capacity in units
     write_min_capacity: int
     write_max_capacity: int
     write_target_value: float

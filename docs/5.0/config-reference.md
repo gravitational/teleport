@@ -88,10 +88,13 @@ teleport:
 
         # DynamoDB Specific Section
         # auto_scaling is used to enable (and define settings for) auto scaling.
+        # default: false
         auto_scaling:  [true|false]
+        # minimum/maximum read capacity in units
         read_min_capacity: int
         read_max_capacity: int
         read_target_value: float
+        # minimum/maximum write capacity in units
         write_min_capacity: int
         write_max_capacity: int
         write_target_value: float
