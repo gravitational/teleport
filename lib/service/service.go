@@ -1170,7 +1170,8 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 
 	var authCache auth.Cache
-	if process.Config.CachePolicy.Enabled {
+	//if process.Config.CachePolicy.Enabled {
+	if false { // DEBUG
 		cache, err := process.newAccessCache(accessCacheConfig{
 			services:  authServer.Services,
 			setup:     cache.ForAuth,
@@ -1423,6 +1424,7 @@ func (c *accessCacheConfig) CheckAndSetDefaults() error {
 
 // newAccessCache returns new local cache access point
 func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Cache, error) {
+	panic("unreachable") // DEBUG
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1518,7 +1520,8 @@ func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt auth.ClientI,
 // newLocalCache returns new instance of access point
 func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (auth.AccessPoint, error) {
 	// if caching is disabled, return access point
-	if !process.Config.CachePolicy.Enabled {
+	//if !process.Config.CachePolicy.Enabled {
+	if true { // DEBUG
 		return clt, nil
 	}
 	cache, err := process.newAccessCache(accessCacheConfig{
