@@ -16,10 +16,6 @@ terraform {
   }
 }
 
-provider "aws" {
-  region = var.region
-}
-
 variable "aws_max_retries" {
   default = 5
 }
