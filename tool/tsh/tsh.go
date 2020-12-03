@@ -1034,7 +1034,8 @@ func onListClusters(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 
-	var clusters []services.RemoteCluster
+	var rootCluster services.RemoteCluster
+	var leafClusters []services.RemoteCluster
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		proxyClient, err := tc.ConnectToProxy(cf.Context)
 		if err != nil {
@@ -1042,23 +1043,25 @@ func onListClusters(cf *CLIConf) {
 		}
 		defer proxyClient.Close()
 
-		clusters, err = proxyClient.GetAllClusters(cf.Context)
-		return err
+		var rootErr, leafErr error
+		rootCluster, rootErr = proxyClient.GetRootCluster()
+		leafClusters, leafErr = proxyClient.GetLeafClusters(cf.Context)
+		return trace.NewAggregate(rootErr, leafErr)
 	})
 	if err != nil {
 		utils.FatalError(err)
 	}
+
 	var t asciitable.Table
 	if cf.Quiet {
-		t = asciitable.MakeHeadlessTable(2)
+		t = asciitable.MakeHeadlessTable(3)
 	} else {
-		t = asciitable.MakeTable([]string{"Cluster Name", "Status"})
+		t = asciitable.MakeTable([]string{"Cluster Name", "Status", "Cluster Type"})
 	}
-	if len(clusters) == 0 {
-		return
-	}
-	for _, cluster := range clusters {
-		t.AddRow([]string{cluster.GetName(), cluster.GetConnectionStatus()})
+
+	t.AddRow([]string{rootCluster.GetName(), rootCluster.GetConnectionStatus(), "root"})
+	for _, cluster := range leafClusters {
+		t.AddRow([]string{cluster.GetName(), cluster.GetConnectionStatus(), "leaf"})
 	}
 	fmt.Println(t.AsBuffer().String())
 }
