@@ -85,9 +85,10 @@ func (a *AgentServer) Serve() error {
 				return trace.Wrap(err, "unknown error")
 			}
 			if !neterr.Temporary() {
-				if !strings.Contains(neterr.Error(), "use of closed network connection") {
-					log.Errorf("got permanent error: %v", err)
+				if strings.Contains(neterr.Error(), "use of closed network connection") {
+					return nil
 				}
+				log.Errorf("got permanent error: %v", err)
 				return err
 			}
 			if tempDelay == 0 {
