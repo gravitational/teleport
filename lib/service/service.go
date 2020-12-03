@@ -87,6 +87,8 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentProcess,
 })
 
+const debugCacheEnabled = true
+
 const (
 	// AuthIdentityEvent is generated when the Auth Servers identity has been
 	// initialized in the backend.
@@ -1171,7 +1173,7 @@ func (process *TeleportProcess) initAuthService() error {
 
 	var authCache auth.Cache
 	//if process.Config.CachePolicy.Enabled {
-	if false { // DEBUG
+	if debugCacheEnabled { // DEBUG
 		cache, err := process.newAccessCache(accessCacheConfig{
 			services:  authServer.Services,
 			setup:     cache.ForAuth,
@@ -1424,7 +1426,9 @@ func (c *accessCacheConfig) CheckAndSetDefaults() error {
 
 // newAccessCache returns new local cache access point
 func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Cache, error) {
-	panic("unreachable") // DEBUG
+	if !debugCacheEnabled {
+		panic("unreachable") // DEBUG
+	}
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1521,7 +1525,7 @@ func (process *TeleportProcess) newLocalCacheForOldRemoteProxy(clt auth.ClientI,
 func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cache.SetupConfigFn, cacheName []string) (auth.AccessPoint, error) {
 	// if caching is disabled, return access point
 	//if !process.Config.CachePolicy.Enabled {
-	if true { // DEBUG
+	if !debugCacheEnabled {
 		return clt, nil
 	}
 	cache, err := process.newAccessCache(accessCacheConfig{
