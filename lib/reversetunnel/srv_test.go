@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testlog"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
@@ -38,7 +38,7 @@ func TestServerKeyAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	s := &server{
-		log: utils.NewLoggerForTests(),
+		log: testlog.FailureOnly(t),
 		localAccessPoint: mockAccessPoint{ca: services.NewCertAuthority(
 			services.HostCA,
 			"cluster-name",

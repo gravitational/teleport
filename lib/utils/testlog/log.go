@@ -28,7 +28,7 @@ import (
 
 // FailureOnly returns a logger that only prints the logs to STDERR when the
 // test fails.
-func FailureOnly(t testingInterface) utils.Logger {
+func FailureOnly(t TestingInterface) utils.Logger {
 	// Collect all output into buf.
 	buf := utils.NewSyncBuffer()
 	logger := utils.NewLoggerForTests()
@@ -46,7 +46,7 @@ func FailureOnly(t testingInterface) utils.Logger {
 }
 
 // NewCheckTestWrapper creates a new logging wrapper for the specified
-// instance of the gocheck.C.
+// *gocheck.C value.
 // Returned value has an exported Log attribute that represents
 // the logger for the underlying test.
 // It is caller's responsibility to release the wrapper by invoking
@@ -60,7 +60,7 @@ func NewCheckTestWrapper(c *check.C) *TestWrapper {
 }
 
 // Cleanup registers the specified handler f to be run
-// after the hest gas completed
+// after the test has completed
 func (r *TestWrapper) Cleanup(f func()) {
 	r.cleanups = append(r.cleanups, f)
 }
@@ -82,9 +82,8 @@ func (r *TestWrapper) Close() {
 	}
 }
 
-// TestWrapper wraps an existing instance of gocheck.C
-// for a specific test.
-// Implements testingInterface
+// TestWrapper wraps an existing *gocheck.C value for a specific test.
+// Implements TestingInterface
 type TestWrapper struct {
 	// Log specifies the logger that can be used to emit
 	// test-specific messages
@@ -94,9 +93,10 @@ type TestWrapper struct {
 	cleanups []func()
 }
 
-type testingInterface interface {
+// TestingInterface abstracts a testing implementation.
+type TestingInterface interface {
 	// Cleanup registers the specified handler f to be run
-	// after the hest gas completed
+	// after the test has completed
 	Cleanup(func())
 	// Failed returns true of the underlying test has failed
 	Failed() bool

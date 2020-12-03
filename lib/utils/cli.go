@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	stdlog "log"
 	"math"
 	"os"
 	"strconv"
@@ -227,29 +228,30 @@ func EscapeControl(s string) string {
 	return s
 }
 
-// Write writes the specifies buffer p to the underlying logger at INFO level.
+// NewStdlogger creates a new stdlib logger that uses the specified leveled logger
+// for output and the given component as a logging prefix.
+func NewStdlogger(logger LeveledOutputFunc, component string) *stdlog.Logger {
+	return stdlog.New(&stdlogAdapter{
+		log: logger,
+	}, component, stdlog.LstdFlags)
+}
+
+// Write writes the specified buffer p to the underlying leveled logger.
 // Implements io.Writer
-func (r *StdlogAdapter) Write(p []byte) (n int, err error) {
+func (r *stdlogAdapter) Write(p []byte) (n int, err error) {
 	r.log(string(p))
 	return len(p), nil
 }
 
-// NewStdlogAdaptor creates a new adaptor for the specified logger
-func NewStdlogAdaptor(logger leveledOutputFunc) *StdlogAdapter {
-	return &StdlogAdapter{
-		log: logger,
-	}
-}
-
-// StdlogAdapter is an io.Writer that writes into an instance
+// stdlogAdapter is an io.Writer that writes into an instance
 // of logrus.Logger
-type StdlogAdapter struct {
-	log leveledOutputFunc
+type stdlogAdapter struct {
+	log LeveledOutputFunc
 }
 
-// leveledOutputFunc describes a function that emits given
-// arguments at the specific level to an underlying logger
-type leveledOutputFunc func(args ...interface{})
+// LeveledOutputFunc describes a function that emits given
+// arguments at a specific level to an underlying logger
+type LeveledOutputFunc func(args ...interface{})
 
 // GetLevel returns the level of the underlying logger
 func (r *logWrapper) GetLevel() logrus.Level {

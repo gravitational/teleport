@@ -22,7 +22,6 @@ package app
 import (
 	"context"
 	"crypto/tls"
-	stdlog "log"
 	"net"
 	"net/http"
 	"strconv"
@@ -441,7 +440,7 @@ func (s *Server) newHTTPServer() *http.Server {
 	return &http.Server{
 		Handler:           authMiddleware,
 		ReadHeaderTimeout: defaults.DefaultDialTimeout,
-		ErrorLog:          stdlog.New(utils.NewStdlogAdaptor(s.log.Error), teleport.ComponentApp, stdlog.LstdFlags),
+		ErrorLog:          utils.NewStdlogger(s.log.Error, teleport.ComponentApp),
 	}
 }
 

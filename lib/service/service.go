@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	stdlog "log"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -83,8 +82,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 )
-
-var log = logrus.WithField(trace.Component, teleport.ComponentProcess)
 
 const (
 	// AuthIdentityEvent is generated when the Auth Servers identity has been
@@ -464,19 +461,19 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 	cfg.Log.Infof("Started in-process service reload.")
 	fileDescriptors, err := srv.ExportFileDescriptors()
 	if err != nil {
-		warnOnErr(srv.Close())
+		warnOnErr(srv.Close(), cfg.Log)
 		return nil, trace.Wrap(err)
 	}
 	newCfg := cfg
 	newCfg.FileDescriptors = fileDescriptors
 	newSrv, err := newTeleport(&newCfg)
 	if err != nil {
-		warnOnErr(srv.Close())
+		warnOnErr(srv.Close(), cfg.Log)
 		return nil, trace.Wrap(err, "failed to create a new service")
 	}
 	cfg.Log.Infof("Created new process.")
 	if err := newSrv.Start(); err != nil {
-		warnOnErr(srv.Close())
+		warnOnErr(srv.Close(), cfg.Log)
 		return nil, trace.Wrap(err, "failed to start a new service")
 	}
 	// Wait for the new server to report that it has started
@@ -489,8 +486,8 @@ func waitAndReload(ctx context.Context, cfg Config, srv Process, newTeleport New
 	case <-eventC:
 		cfg.Log.Infof("New service has started successfully.")
 	case <-startTimeoutCtx.Done():
-		warnOnErr(newSrv.Close())
-		warnOnErr(srv.Close())
+		warnOnErr(newSrv.Close(), cfg.Log)
+		warnOnErr(srv.Close(), cfg.Log)
 		return nil, trace.BadParameter("the new service has failed to start")
 	}
 	shutdownTimeout := cfg.ShutdownTimeout
@@ -643,7 +640,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiagnostic))
+		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiagnostic), process.log)
 	}
 
 	// Create a process wide key generator that will be shared. This is so the
@@ -690,7 +687,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 		serviceStarted = true
 	} else {
-		warnOnErr(process.closeImportedDescriptors(teleport.ComponentAuth))
+		warnOnErr(process.closeImportedDescriptors(teleport.ComponentAuth), process.log)
 	}
 
 	if cfg.SSH.Enabled {
@@ -699,7 +696,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 		serviceStarted = true
 	} else {
-		warnOnErr(process.closeImportedDescriptors(teleport.ComponentNode))
+		warnOnErr(process.closeImportedDescriptors(teleport.ComponentNode), process.log)
 	}
 
 	if cfg.Proxy.Enabled {
@@ -708,14 +705,14 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		}
 		serviceStarted = true
 	} else {
-		warnOnErr(process.closeImportedDescriptors(teleport.ComponentProxy))
+		warnOnErr(process.closeImportedDescriptors(teleport.ComponentProxy), process.log)
 	}
 
 	if cfg.Kube.Enabled {
 		process.initKubernetes()
 		serviceStarted = true
 	} else {
-		warnOnErr(process.closeImportedDescriptors(teleport.ComponentKube))
+		warnOnErr(process.closeImportedDescriptors(teleport.ComponentKube), process.log)
 	}
 
 	// If this process is proxying applications, start application access server.
@@ -723,7 +720,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		process.initApps()
 		serviceStarted = true
 	} else {
-		warnOnErr(process.closeImportedDescriptors(teleport.ComponentApp))
+		warnOnErr(process.closeImportedDescriptors(teleport.ComponentApp), process.log)
 	}
 
 	process.RegisterFunc("common.rotate", process.periodicSyncRotationState)
@@ -1202,7 +1199,7 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	// clean up unused descriptors passed for proxy, but not used by it
-	warnOnErr(process.closeImportedDescriptors(teleport.ComponentAuth))
+	warnOnErr(process.closeImportedDescriptors(teleport.ComponentAuth), log)
 	if cfg.Auth.EnableProxyProtocol {
 		log.Infof("Starting Auth service with PROXY protocol support.")
 	}
@@ -1341,28 +1338,28 @@ func (process *TeleportProcess) initAuthService() error {
 		// the http server would have not started tracking the listeners
 		// and http.Shutdown will do nothing.
 		if mux != nil {
-			warnOnErr(mux.Close())
+			warnOnErr(mux.Close(), log)
 		}
 		if listener != nil {
-			warnOnErr(listener.Close())
+			warnOnErr(listener.Close(), log)
 		}
 		if payload == nil {
 			log.Info("Shutting down immediately.")
-			warnOnErr(tlsServer.Close())
+			warnOnErr(tlsServer.Close(), log)
 		} else {
 			log.Info("Shutting down gracefully.")
-			ctx := payloadContext(payload)
-			warnOnErr(tlsServer.Shutdown(ctx))
+			ctx := payloadContext(payload, log)
+			warnOnErr(tlsServer.Shutdown(ctx), log)
 		}
 		if uploadCompleter != nil {
-			warnOnErr(uploadCompleter.Close())
+			warnOnErr(uploadCompleter.Close(), log)
 		}
 		log.Info("Exited.")
 	})
 	return nil
 }
 
-func payloadContext(payload interface{}) context.Context {
+func payloadContext(payload interface{}, log logrus.FieldLogger) context.Context {
 	ctx, ok := payload.(context.Context)
 	if ok {
 		return ctx
@@ -1732,7 +1729,7 @@ func (process *TeleportProcess) initSSH() error {
 				return trace.Wrap(err)
 			}
 			// clean up unused descriptors passed for proxy, but not used by it
-			warnOnErr(process.closeImportedDescriptors(teleport.ComponentNode))
+			warnOnErr(process.closeImportedDescriptors(teleport.ComponentNode), log)
 
 			log.Infof("Service %s:%s is starting on %v %v.", teleport.Version, teleport.Gitref, cfg.SSH.Addr.Addr, process.Config.CachePolicy)
 			utils.Consolef(cfg.Console, log, teleport.ComponentNode, "Service %s:%s is starting on %v.",
@@ -1793,12 +1790,12 @@ func (process *TeleportProcess) initSSH() error {
 		if payload == nil {
 			log.Infof("Shutting down immediately.")
 			if s != nil {
-				warnOnErr(s.Close())
+				warnOnErr(s.Close(), log)
 			}
 		} else {
 			log.Infof("Shutting down gracefully.")
 			if s != nil {
-				warnOnErr(s.Shutdown(payloadContext(payload)))
+				warnOnErr(s.Shutdown(payloadContext(payload, log)), log)
 			}
 		}
 		if conn != nil && conn.UseTunnel() {
@@ -1807,11 +1804,11 @@ func (process *TeleportProcess) initSSH() error {
 
 		if ebpf != nil {
 			// Close BPF service.
-			warnOnErr(ebpf.Close())
+			warnOnErr(ebpf.Close(), log)
 		}
 
 		if asyncEmitter != nil {
-			warnOnErr(asyncEmitter.Close())
+			warnOnErr(asyncEmitter.Close(), log)
 		}
 
 		log.Infof("Exited.")
@@ -1904,7 +1901,7 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 
 	process.onExit("uploader.shutdown", func(payload interface{}) {
 		log.Infof("Shutting down.")
-		warnOnErr(uploader.Stop())
+		warnOnErr(uploader.Stop(), log)
 		log.Infof("Exited.")
 	})
 
@@ -1929,7 +1926,7 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 
 	process.onExit("fileuploader.shutdown", func(payload interface{}) {
 		log.Infof("File uploader is shutting down.")
-		warnOnErr(fileUploader.Close())
+		warnOnErr(fileUploader.Close(), log)
 		log.Infof("File uploader has shut down.")
 	})
 
@@ -2008,12 +2005,12 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiagnostic))
+	warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiagnostic), log)
 
 	server := &http.Server{
 		Handler:           mux,
 		ReadHeaderTimeout: defaults.DefaultDialTimeout,
-		ErrorLog:          stdlog.New(utils.NewStdlogAdaptor(log.Error), teleport.ComponentDiagnostic, stdlog.LstdFlags),
+		ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentDiagnostic),
 	}
 
 	log.Infof("Starting diagnostic service on %v.", process.Config.DiagnosticAddr.Addr)
@@ -2029,11 +2026,11 @@ func (process *TeleportProcess) initDiagnosticService() error {
 	process.onExit("diagnostic.shutdown", func(payload interface{}) {
 		if payload == nil {
 			log.Infof("Shutting down immediately.")
-			warnOnErr(server.Close())
+			warnOnErr(server.Close(), log)
 		} else {
 			log.Infof("Shutting down gracefully.")
-			ctx := payloadContext(payload)
-			warnOnErr(server.Shutdown(ctx))
+			ctx := payloadContext(payload, log)
+			warnOnErr(server.Shutdown(ctx), log)
 		}
 		log.Infof("Exited.")
 	})
@@ -2153,7 +2150,7 @@ func (process *TeleportProcess) initProxy() error {
 		err := process.initProxyEndpoint(conn)
 		if err != nil {
 			if conn.Client != nil {
-				warnOnErr(conn.Client.Close())
+				warnOnErr(conn.Client.Close(), process.log)
 			}
 			return trace.Wrap(err)
 		}
@@ -2448,7 +2445,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		webServer = &http.Server{
 			Handler:           proxyLimiter,
 			ReadHeaderTimeout: defaults.DefaultDialTimeout,
-			ErrorLog:          stdlog.New(utils.NewStdlogAdaptor(log.Error), teleport.ComponentProxy, stdlog.LstdFlags),
+			ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentProxy),
 		}
 		process.RegisterCriticalFunc("proxy.web", func() error {
 			utils.Consolef(cfg.Console, log, teleport.ComponentProxy, "Web proxy service %s:%s is starting on %v.",
@@ -2459,11 +2456,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			if err := webServer.Serve(listeners.web); err != nil && err != http.ErrServerClosed {
 				log.Warningf("Error while serving web requests: %v", err)
 			}
-			log.Infof("Exited.")
+			log.Info("Exited.")
 			return nil
 		})
 	} else {
-		log.Infof("Web UI is disabled.")
+		log.Info("Web UI is disabled.")
 	}
 
 	// Register SSH proxy server - SSH jumphost proxy server
@@ -2607,44 +2604,44 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			listeners.kube.Close()
 		}
 		if asyncEmitter != nil {
-			warnOnErr(asyncEmitter.Close())
+			warnOnErr(asyncEmitter.Close(), log)
 		}
 		if payload == nil {
 			log.Infof("Shutting down immediately.")
 			if tsrv != nil {
-				warnOnErr(tsrv.Close())
+				warnOnErr(tsrv.Close(), log)
 			}
 			if webServer != nil {
-				warnOnErr(webServer.Close())
+				warnOnErr(webServer.Close(), log)
 			}
 			if webHandler != nil {
-				warnOnErr(webHandler.Close())
+				warnOnErr(webHandler.Close(), log)
 			}
-			warnOnErr(sshProxy.Close())
+			warnOnErr(sshProxy.Close(), log)
 			if kubeServer != nil {
-				warnOnErr(kubeServer.Close())
+				warnOnErr(kubeServer.Close(), log)
 			}
 		} else {
 			log.Infof("Shutting down gracefully.")
-			ctx := payloadContext(payload)
+			ctx := payloadContext(payload, log)
 			if tsrv != nil {
-				warnOnErr(tsrv.Shutdown(ctx))
+				warnOnErr(tsrv.Shutdown(ctx), log)
 			}
-			warnOnErr(sshProxy.Shutdown(ctx))
+			warnOnErr(sshProxy.Shutdown(ctx), log)
 			if webServer != nil {
-				warnOnErr(webServer.Shutdown(ctx))
+				warnOnErr(webServer.Shutdown(ctx), log)
 			}
 			if kubeServer != nil {
-				warnOnErr(kubeServer.Shutdown(ctx))
+				warnOnErr(kubeServer.Shutdown(ctx), log)
 			}
 			if webHandler != nil {
-				warnOnErr(webHandler.Close())
+				warnOnErr(webHandler.Close(), log)
 			}
 		}
 		// Close client after graceful shutdown has been completed,
 		// to make sure in flight streams are not terminated,
 		if conn.Client != nil {
-			warnOnErr(conn.Client.Close())
+			warnOnErr(conn.Client.Close(), log)
 		}
 		log.Infof("Exited.")
 	})
@@ -2886,7 +2883,7 @@ func (process *TeleportProcess) initApps() {
 	process.onExit("apps.stop", func(payload interface{}) {
 		log.Infof("Shutting down.")
 		if appServer != nil {
-			warnOnErr(appServer.Close())
+			warnOnErr(appServer.Close(), log)
 		}
 		if agentPool != nil {
 			agentPool.Stop()
@@ -2897,14 +2894,14 @@ func (process *TeleportProcess) initApps() {
 
 }
 
-func warnOnErr(err error) {
+func warnOnErr(err error, log logrus.FieldLogger) {
 	if err != nil {
-		// don't warn on double close, happens sometimes when closing
+		// don't warn on double close, happens sometimes when
 		// calling accept on a closed listener
 		if strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) {
 			return
 		}
-		log.Warningf("Got error while cleaning up: %v.", err)
+		log.WithError(err).Warn("Got error while cleaning up.")
 	}
 }
 

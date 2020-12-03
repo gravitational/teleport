@@ -59,7 +59,7 @@ func (process *TeleportProcess) initKubernetes() {
 
 		err := process.initKubernetesService(log, conn)
 		if err != nil {
-			warnOnErr(conn.Close())
+			warnOnErr(conn.Close(), log)
 			return trace.Wrap(err)
 		}
 		return nil
@@ -115,7 +115,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		}
 		defer func() {
 			if retErr != nil {
-				warnOnErr(listener.Close())
+				warnOnErr(listener.Close(), log)
 			}
 		}()
 
@@ -231,7 +231,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	}
 	defer func() {
 		if retErr != nil {
-			warnOnErr(kubeServer.Close())
+			warnOnErr(kubeServer.Close(), log)
 		}
 	}()
 	process.RegisterCriticalFunc("kube.serve", func() error {
@@ -259,21 +259,21 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	// Cleanup, when process is exiting.
 	process.onExit("kube.shutdown", func(payload interface{}) {
 		if asyncEmitter != nil {
-			warnOnErr(asyncEmitter.Close())
+			warnOnErr(asyncEmitter.Close(), log)
 		}
 		// Clean up items in reverse order from their initialization.
 		if payload != nil {
 			// Graceful shutdown.
-			warnOnErr(kubeServer.Shutdown(payloadContext(payload)))
+			warnOnErr(kubeServer.Shutdown(payloadContext(payload, log)), log)
 			agentPool.Stop()
 			agentPool.Wait()
 		} else {
 			// Fast shutdown.
-			warnOnErr(kubeServer.Close())
+			warnOnErr(kubeServer.Close(), log)
 			agentPool.Stop()
 		}
-		warnOnErr(listener.Close())
-		warnOnErr(conn.Close())
+		warnOnErr(listener.Close(), log)
+		warnOnErr(conn.Close(), log)
 
 		if dynLabels != nil {
 			dynLabels.Close()

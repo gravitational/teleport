@@ -33,11 +33,12 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testlog"
-	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 )
 
@@ -61,7 +62,7 @@ func (s *ServiceTestSuite) TestSelfSignedHTTPS(c *check.C) {
 	cfg := &Config{
 		DataDir:  c.MkDir(),
 		Hostname: "example.com",
-		Log:      utils.WrapLogger(log.WithField("test", c.TestName())),
+		Log:      utils.WrapLogger(logrus.New().WithField("test", c.TestName())),
 	}
 	err := initSelfSignedHTTPSCert(cfg)
 	c.Assert(err, check.IsNil)
