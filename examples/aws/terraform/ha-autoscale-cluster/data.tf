@@ -34,3 +34,7 @@ data "aws_kms_alias" "ssm" {
   name = var.kms_alias_name
 }
 
+// pick up the license path and make it accessible as a file
+data "local_file" "license" {
+  filename = var.license_path
+}
