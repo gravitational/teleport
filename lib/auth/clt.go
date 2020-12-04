@@ -24,9 +24,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -35,9 +33,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golang.org/x/net/http2"
-
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -56,9 +53,7 @@ import (
 	"github.com/tstranex/u2f"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials"
 	ggzip "google.golang.org/grpc/encoding/gzip"
-	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 )
 
@@ -74,8 +69,11 @@ const (
 	MissingNamespaceError = "missing required parameter: namespace"
 )
 
-// Dialer defines dialer function
-type Dialer func(network, addr string) (net.Conn, error)
+// These types are aliases for backwards compatibility
+type ClientConfig = api.ClientConfig
+type APIClient = api.Client
+type ContextDialer = api.ContextDialer
+type ContextDialerFunc = api.ContextDialerFunc
 
 // Client is HTTP Auth API client. It works by connecting to auth servers
 // via HTTP.
@@ -85,11 +83,12 @@ type Dialer func(network, addr string) (net.Conn, error)
 // in lib/auth/tun.go
 type Client struct {
 	sync.Mutex
-	ClientConfig
+	ClientConfig // TODO: is this necessary? already on APIClient
 	roundtrip.Client
-	transport  *http.Transport
-	conn       *grpc.ClientConn
-	grpcClient proto.AuthServiceClient
+	transport *http.Transport
+	*APIClient
+	grpcClient proto.AuthServiceClient // TODO: remove
+	conn       *grpc.ClientConn        // TODO: remove
 	// closedFlag is set to indicate that the services are closed
 	closedFlag int32
 }
@@ -101,21 +100,6 @@ var _ ClientI = &Client{}
 // if the client is not using TLS
 func (c *Client) TLSConfig() *tls.Config {
 	return c.ClientConfig.TLS
-}
-
-// ContextDialer represents network dialer interface that uses context
-type ContextDialer interface {
-	// DialContext is a function that dials to the specified address
-	DialContext(in context.Context, network, addr string) (net.Conn, error)
-}
-
-// ContextDialerFunc is a function wrapper that implements
-// ContextDialer interface
-type ContextDialerFunc func(in context.Context, network, addr string) (net.Conn, error)
-
-// DialContext is a function that dials to the specified address
-func (f ContextDialerFunc) DialContext(in context.Context, network, addr string) (net.Conn, error) {
-	return f(in, network, addr)
 }
 
 // EncodeClusterName encodes cluster name in the SNI hostname
@@ -145,27 +129,6 @@ func DecodeClusterName(serverName string) (string, error) {
 	return string(decoded), nil
 }
 
-// NewAddrDialer returns new dialer from a list of addresses
-func NewAddrDialer(addrs []utils.NetAddr, keepAliveInterval time.Duration) ContextDialer {
-	dialer := net.Dialer{
-		Timeout:   defaults.DefaultDialTimeout,
-		KeepAlive: keepAliveInterval,
-	}
-	return ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {
-		var err error
-		var conn net.Conn
-		for _, addr := range addrs {
-			conn, err = dialer.DialContext(in, network, addr.Addr)
-			if err == nil {
-				return conn, nil
-			}
-			log.Errorf("Failed to dial auth server %v: %v.", addr.Addr, err)
-		}
-		// not wrapping on purpose to preserve the original error
-		return nil, err
-	})
-}
-
 // ClientTimeout sets idle and dial timeouts of the HTTP transport
 // used by the client.
 func ClientTimeout(timeout time.Duration) roundtrip.ClientParam {
@@ -178,56 +141,6 @@ func ClientTimeout(timeout time.Duration) roundtrip.ClientParam {
 		transport.ResponseHeaderTimeout = timeout
 		return nil
 	}
-}
-
-// ClientConfig contains configuration of the client
-type ClientConfig struct {
-	// Addrs is a list of addresses to dial
-	Addrs []utils.NetAddr
-	// Dialer is a custom dialer, if provided
-	// is used instead of the list of addresses
-	Dialer ContextDialer
-	// KeepAlivePeriod defines period between keep alives
-	KeepAlivePeriod time.Duration
-	// KeepAliveCount specifies amount of missed keep alives
-	// to wait for until declaring connection as broken
-	KeepAliveCount int
-	// TLS is a TLS config
-	TLS *tls.Config
-}
-
-// CheckAndSetDefaults checks and sets default config values
-func (c *ClientConfig) CheckAndSetDefaults() error {
-	if len(c.Addrs) == 0 && c.Dialer == nil {
-		return trace.BadParameter("set parameter Addrs or DialContext")
-	}
-	if c.TLS == nil {
-		return trace.BadParameter("missing parameter TLS")
-	}
-	if c.KeepAlivePeriod == 0 {
-		c.KeepAlivePeriod = defaults.ServerKeepAliveTTL
-	}
-	if c.KeepAliveCount == 0 {
-		c.KeepAliveCount = defaults.KeepAliveCountMax
-	}
-	if c.Dialer == nil {
-		c.Dialer = NewAddrDialer(c.Addrs, c.KeepAlivePeriod)
-	}
-	if c.TLS.ServerName == "" {
-		c.TLS.ServerName = teleport.APIDomain
-	}
-	// this logic is necessary to force client to always send certificate
-	// regardless of the server setting, otherwise client may pick
-	// not to send the client certificate by looking at certificate request
-	if len(c.TLS.Certificates) != 0 {
-		cert := c.TLS.Certificates[0]
-		c.TLS.Certificates = nil
-		c.TLS.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-			return &cert, nil
-		}
-	}
-
-	return nil
 }
 
 // NewTLSClient returns a new TLS client that uses mutual TLS authentication
@@ -278,10 +191,14 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	apiClient, err := api.NewTLSClient(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &Client{
-		ClientConfig: cfg,
-		Client:       *roundtripClient,
-		transport:    transport,
+		APIClient: apiClient,
+		Client:    *roundtripClient,
+		transport: transport,
 	}, nil
 }
 
@@ -295,42 +212,7 @@ func (c *Client) setClosed() {
 
 // grpc returns grpc client
 func (c *Client) grpc() (proto.AuthServiceClient, error) {
-	// it's ok to lock here, because Dial below is not locking
-	c.Lock()
-	defer c.Unlock()
-
-	if c.grpcClient != nil {
-		return c.grpcClient, nil
-	}
-	dialer := grpc.WithContextDialer(func(ctx context.Context, addr string) (net.Conn, error) {
-		if c.isClosed() {
-			return nil, trace.ConnectionProblem(nil, "client is closed")
-		}
-		c, err := c.Dialer.DialContext(ctx, "tcp", addr)
-		if err != nil {
-			log.Debugf("Dial to addr %v failed: %v.", addr, err)
-		}
-		return c, err
-	})
-	tlsConfig := c.TLS.Clone()
-	tlsConfig.NextProtos = []string{http2.NextProtoTLS}
-	log.Debugf("GRPC(CLIENT): keep alive %v count: %v.", c.KeepAlivePeriod, c.KeepAliveCount)
-	conn, err := grpc.Dial(teleport.APIDomain,
-		dialer,
-		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:                c.KeepAlivePeriod,
-			Timeout:             c.KeepAlivePeriod * time.Duration(c.KeepAliveCount),
-			PermitWithoutStream: true,
-		}),
-	)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	c.conn = conn
-	c.grpcClient = proto.NewAuthServiceClient(c.conn)
-
-	return c.grpcClient, nil
+	return c.APIClient.GetGRPC()
 }
 
 func (c *Client) GetTransport() *http.Transport {
@@ -476,11 +358,14 @@ func (c *Client) Close() error {
 	if c.transport != nil {
 		c.transport.CloseIdleConnections()
 	}
-	if c.conn != nil {
-		err := c.conn.Close()
-		c.conn = nil
+	if err := c.APIClient.Close(); err != nil {
 		return err
 	}
+	// if c.conn != nil {
+	// 	err := c.conn.Close()
+	// 	c.conn = nil
+	// 	return err
+	// }
 	return nil
 }
 
@@ -1545,62 +1430,6 @@ func (c *Client) grpcGetUser(name string, withSecrets bool) (services.User, erro
 		return nil, trail.FromGRPC(err)
 	}
 	return user, nil
-}
-
-// GetUsers returns a list of usernames registered in the system
-func (c *Client) GetUsers(withSecrets bool) ([]services.User, error) {
-	users, err := c.grpcGetUsers(withSecrets)
-	if err == nil {
-		return users, nil
-	}
-	if status.Code(err) != codes.Unimplemented {
-		return nil, trace.Wrap(err)
-	}
-	if withSecrets {
-		return nil, trace.BadParameter("server API appears outdated; cannot get users with secrets")
-	}
-	out, err := c.Get(c.Endpoint("users"), url.Values{})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var items []json.RawMessage
-	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	users = make([]services.User, len(items))
-	for i, userBytes := range items {
-		user, err := services.GetUserMarshaler().UnmarshalUser(userBytes, services.SkipValidation())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		users[i] = user
-	}
-	return users, nil
-}
-
-func (c *Client) grpcGetUsers(withSecrets bool) ([]services.User, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	stream, err := clt.GetUsers(context.TODO(), &proto.GetUsersRequest{
-		WithSecrets: withSecrets,
-	})
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	var users []services.User
-	for {
-		user, err := stream.Recv()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, trail.FromGRPC(err)
-		}
-		users = append(users, user)
-	}
-	return users, nil
 }
 
 // DeleteUser deletes a user by username.
@@ -2868,19 +2697,6 @@ func (c *Client) UpdatePluginData(ctx context.Context, params services.PluginDat
 		return trail.FromGRPC(err)
 	}
 	return nil
-}
-
-// Ping gets basic info about the auth server.
-func (c *Client) Ping(ctx context.Context) (proto.PingResponse, error) {
-	clt, err := c.grpc()
-	if err != nil {
-		return proto.PingResponse{}, trace.Wrap(err)
-	}
-	rsp, err := clt.Ping(ctx, &proto.PingRequest{})
-	if err != nil {
-		return proto.PingResponse{}, trail.FromGRPC(err)
-	}
-	return *rsp, nil
 }
 
 // AcquireSemaphore acquires lease with requested resources from semaphore.

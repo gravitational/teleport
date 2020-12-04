@@ -27,6 +27,8 @@ spec:
         verbs: ['create', 'list', 'read', 'update', 'delete']
       - resources: ['remote_cluster']
         verbs: ['create', 'list', 'read', 'update', 'delete']
+      - resources: ['user']
+        verbs: ['create', 'list', 'read', 'update', 'delete']
     # teleport currently refuses to issue certs for a user with 0 logins,
     # this restriction may be lifted in future versions.
     logins: ['api-admin']
