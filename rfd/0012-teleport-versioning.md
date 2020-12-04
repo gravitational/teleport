@@ -61,8 +61,8 @@ Therefore, I propose to switch to a more semver-like scheme, starting with 6.0.
 - Minor versions are for regular, non-critical bugfix batches and important
   backported fixes for users.
 - Patch versions are for quick followup regression and critical bug fixes.
-
-As before, `vN.*.*` is compatible with `vN+1.*.*`.
+- `-rc.X` suffixes are for pre-release candidates
+- `-dev` suffix is for development builds (e.g. off of the `master` branch)
 
 The benefits are:
 - Major version bumps clearly communicate to users to exercise caution when
@@ -71,19 +71,56 @@ The benefits are:
 - Users can intuitively understand versioning semantics, due to popularity of
   semver
 
-### Example
+### Compatibility
 
-If this RFD is approved, the next release of Teleport (e.g. the one containing
-database access) will be `v6.0.0`.
+`vN.*.*` binaries are compatible with any other `vN.*.*` binaries.
 
-If we find serious regressions or bugs that make the product unusable same week
-as the release, `v6.0.1` will be cut with the fixes.
+`vN.*.*` server binaries are compatible with `vN-1.*.*` client binaries (one
+major version back).
 
-As we accumulate a batch of non-critical backported changes (e.g. usability and
-performance fixes, backport requests by users), `v6.1.0` will be released.
+Users are free to use any `vN.*.*` versions throughout their deployment, after
+upgrading everything from `vN-1.*.*`.
 
-Users are free to use any `v6.*.*` versions throughout their deployment, after
-upgrading everything from `v5.*.*`.
+### Support window
+
+Teleport officially supports the latest major version and two previous major
+versions. For example:
+- `v8.*.*` (latest)
+- `v7.*.*`
+- `v6.*.*`
+
+### Example: new release
+
+The current release of teleport is `v5` and the next will be `v6`.
+
+- initially, builds from `master` will be `v6.0.0-dev`
+- when most big changes are merged, we make `branch/v6` and cut `v6.0.0-rc.1`
+- during release testing, we fix bugs and cut `v6.0.0-rc.2`, `v6.0.0-rc.3`, etc
+- assuming `v6.0.0-rc.3` passes the tests, we tag it as `v6.0.0`
+- we discover a serious bug in `v6.0.0`, fix it and cut `v6.0.1`
+- over the next few days/weeks, we gather user feedback
+- based on feedback, we fix a number of bugs and cut `v6.1.0`
+
+### Example: backports
+
+The latest 3 released versions are `v8.0.1`, `v7.1.2`, `v6.3.2`.
+
+- we discover a bug affecting all versions
+- we fix it in `master`
+- if the bug is urgent, we backport to `branch/v8`, `branch/v7`, `branch/v6`
+  and release `v8.0.2`, `v7.1.3`, `v6.3.3`
+- if the bug is not urgent and no customer has requested backports to older
+  versions, we backport to `branch/v8` and release `v8.1.0`
+  - optionally, we wait for more bug fixes to accumulate in `branch/v8` before
+    releasing `v8.1.0`
+
+### Example: security vulnerability
+
+The latest 3 released versions are `v8.0.1`, `v7.1.2`, `v6.3.2`.
+
+- we discover a security bug affecting all versions
+- we fix it in `master` and backport to `branch/v8`, `branch/v7`, `branch/v6`
+- after backports merge, we release `v8.0.2`, `v7.1.3`, `v6.3.3`
 
 ### Why not use minor versions, like we do now?
 
