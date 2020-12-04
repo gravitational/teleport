@@ -1052,16 +1052,27 @@ func onListClusters(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 
-	var t asciitable.Table
-	if cf.Quiet {
-		t = asciitable.MakeHeadlessTable(3)
-	} else {
-		t = asciitable.MakeTable([]string{"Cluster Name", "Status", "Cluster Type"})
+	profile, _, err := client.Status("", cf.Proxy)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	showActive := func(cluster services.RemoteCluster) string {
+		if profile.Cluster == cluster.GetName() {
+			return "*"
+		}
+		return ""
 	}
 
-	t.AddRow([]string{rootCluster.GetName(), rootCluster.GetConnectionStatus(), "root"})
+	var t asciitable.Table
+	if cf.Quiet {
+		t = asciitable.MakeHeadlessTable(4)
+	} else {
+		t = asciitable.MakeTable([]string{"Cluster Name", "Status", "Cluster Type", "Active"})
+	}
+
+	t.AddRow([]string{rootCluster.GetName(), rootCluster.GetConnectionStatus(), "root", showActive(rootCluster)})
 	for _, cluster := range leafClusters {
-		t.AddRow([]string{cluster.GetName(), cluster.GetConnectionStatus(), "leaf"})
+		t.AddRow([]string{cluster.GetName(), cluster.GetConnectionStatus(), "leaf", showActive(cluster)})
 	}
 	fmt.Println(t.AsBuffer().String())
 }
