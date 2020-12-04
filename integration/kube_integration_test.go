@@ -100,7 +100,8 @@ func (s *KubeSuite) SetUpSuite(c *check.C) {
 
 	var err error
 	utils.InitLoggerForTests(testing.Verbose())
-	SetTestTimeouts(time.Millisecond * time.Duration(100))
+	// TODO(dmitri): this races with testing-native tests
+	// SetTestTimeouts(time.Millisecond * time.Duration(100))
 
 	s.priv, s.pub, err = testauthority.New().GenerateKeyPair("")
 	c.Assert(err, check.IsNil)

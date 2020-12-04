@@ -1730,6 +1730,7 @@ func (process *TeleportProcess) initSSH() error {
 					process.BroadcastEvent(Event{Name: TeleportOKEvent, Payload: teleport.ComponentNode})
 				}
 			}),
+			regular.SetLogger(process.log),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2576,6 +2577,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 		}),
 		regular.SetEmitter(streamEmitter),
+		regular.SetLogger(process.log),
 	)
 	if err != nil {
 		return trace.Wrap(err)

@@ -245,7 +245,7 @@ func setup(t *testing.T) *pack {
 	// self-signed certificate during tests.
 	lib.SetInsecureDevMode(true)
 
-	SetTestTimeouts(time.Millisecond * time.Duration(500))
+	// SetTestTimeouts(time.Millisecond * time.Duration(500))
 
 	p := &pack{
 		rootAppName:        "app-01",

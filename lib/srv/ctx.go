@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -173,7 +174,9 @@ type ServerContext struct {
 	// ConnectionContext is the parent context which manages connection-level
 	// resources.
 	*sshutils.ConnectionContext
-	*log.Entry
+
+	// Log specifies the logger
+	Log logrus.FieldLogger
 
 	mu sync.RWMutex
 
@@ -285,7 +288,7 @@ type ServerContext struct {
 // the ServerContext is closed.  The ctx parameter should be a child of the ctx
 // associated with the scope of the parent ConnectionContext to ensure that
 // cancellation of the ConnectionContext propagates to the ServerContext.
-func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, srv Server, identityContext IdentityContext) (context.Context, *ServerContext, error) {
+func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, srv Server, identityContext IdentityContext, log logrus.FieldLogger) (context.Context, *ServerContext, error) {
 	clusterConfig, err := srv.GetAccessPoint().GetClusterConfig()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -313,7 +316,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		child.disconnectExpiredCert = identityContext.CertValidBefore
 	}
 
-	fields := log.Fields{
+	fields := logrus.Fields{
 		"local":        child.ServerConn.LocalAddr(),
 		"remote":       child.ServerConn.RemoteAddr(),
 		"login":        child.Identity.Login,
@@ -326,7 +329,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	if child.clientIdleTimeout != 0 {
 		fields["idle"] = child.clientIdleTimeout
 	}
-	child.Entry = log.WithFields(log.Fields{
+	child.Log = log.WithFields(logrus.Fields{
 		trace.Component:       srv.Component(),
 		trace.ComponentFields: fields,
 	})
@@ -342,8 +345,8 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 			TeleportUser:          child.Identity.TeleportUser,
 			Login:                 child.Identity.Login,
 			ServerID:              child.srv.ID(),
-			Entry:                 child.Entry,
 			Emitter:               child.srv,
+			Entry:                 child.Log,
 		})
 		if err != nil {
 			child.Close()
@@ -426,9 +429,9 @@ func (c *ServerContext) CreateOrJoinSession(reg *SessionRegistry) error {
 	// update ctx with a session ID
 	c.session, _ = findSession()
 	if c.session == nil {
-		log.Debugf("Will create new session for SSH connection %v.", c.ServerConn.RemoteAddr())
+		c.Log.Debugf("Will create new session for SSH connection %v.", c.ServerConn.RemoteAddr())
 	} else {
-		log.Debugf("Will join session %v for SSH connection %v.", c.session.id, c.ServerConn.RemoteAddr())
+		c.Log.Debugf("Will join session %v for SSH connection %v.", c.session.id, c.ServerConn.RemoteAddr())
 	}
 
 	return nil
@@ -593,7 +596,7 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 		sessionDataEvent.SessionMetadata.SessionID = sessionID
 	}
 	if err := c.GetServer().EmitAuditEvent(c.GetServer().Context(), sessionDataEvent); err != nil {
-		c.WithError(err).Warn("Failed to emit session data event.")
+		c.Log.WithError(err).Warn("Failed to emit session data event.")
 	}
 
 	// Emit TX and RX bytes to their respective Prometheus counters.
@@ -649,7 +652,7 @@ func (c *ServerContext) SendSubsystemResult(r SubsystemResult) {
 	select {
 	case c.SubsystemResultCh <- r:
 	default:
-		c.Infof("blocked on sending subsystem result")
+		c.Log.Infof("blocked on sending subsystem result")
 	}
 }
 
@@ -665,14 +668,14 @@ func (c *ServerContext) ProxyPublicAddress() string {
 
 	proxies, err := c.srv.GetAccessPoint().GetProxies()
 	if err != nil {
-		c.Errorf("Unable to retrieve proxy list: %v", err)
+		c.Log.Errorf("Unable to retrieve proxy list: %v", err)
 	}
 
 	if len(proxies) > 0 {
 		proxyHost = proxies[0].GetPublicAddr()
 		if proxyHost == "" {
 			proxyHost = fmt.Sprintf("%v:%v", proxies[0].GetHostname(), defaults.HTTPListenPort)
-			c.Debugf("public_address not set for proxy, returning proxyHost: %q", proxyHost)
+			c.Log.Debugf("public_address not set for proxy, returning proxyHost: %q", proxyHost)
 		}
 	}
 
@@ -754,11 +757,11 @@ func buildEnvironment(ctx *ServerContext) []string {
 	// SSH_CONNECTION environment variables.
 	remoteHost, remotePort, err := net.SplitHostPort(ctx.ServerConn.RemoteAddr().String())
 	if err != nil {
-		log.Debugf("Failed to split remote address: %v.", err)
+		ctx.Log.Debugf("Failed to split remote address: %v.", err)
 	} else {
 		localHost, localPort, err := net.SplitHostPort(ctx.ServerConn.LocalAddr().String())
 		if err != nil {
-			log.Debugf("Failed to split local address: %v.", err)
+			ctx.Log.Debugf("Failed to split local address: %v.", err)
 		} else {
 			env = append(env,
 				fmt.Sprintf("SSH_CLIENT=%s %s %s", remoteHost, remotePort, localPort),

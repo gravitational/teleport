@@ -85,6 +85,12 @@ type IntSuite struct {
 	w   *testlog.TestWrapper
 }
 
+func init() {
+	// This cannot run in neither (*Suite).SetUpSuite nor in testing-native
+	// test since it will race with each other and the code that runs in separate goroutines
+	SetTestTimeouts(time.Millisecond * time.Duration(100))
+}
+
 // bootstrap check
 func TestIntegrations(t *testing.T) { check.TestingT(t) }
 
@@ -108,7 +114,10 @@ func TestMain(m *testing.M) {
 
 func (s *IntSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())
-	SetTestTimeouts(time.Millisecond * time.Duration(100))
+	// TODO(dmitri): this races with the testing-native tests
+	// and will probably race with other gocheck tests if they're ever
+	// parallel
+	// SetTestTimeouts(time.Millisecond * time.Duration(100))
 
 	var err error
 	s.priv, s.pub, err = testauthority.New().GenerateKeyPair("")
@@ -953,21 +962,24 @@ func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
 
 	testCases := []disconnectTestCase{
 		{
+			comment:       "recording node mode",
 			recordingMode: services.RecordAtNode,
 			options: services.RoleOptions{
 				ClientIdleTimeout: services.NewDuration(500 * time.Millisecond),
 			},
-			disconnectTimeout: time.Second,
+			disconnectTimeout: 1 * time.Second,
 		},
 		{
+			comment:       "recording proxy mode",
 			recordingMode: services.RecordAtProxy,
 			options: services.RoleOptions{
 				ForwardAgent:      services.NewBool(true),
 				ClientIdleTimeout: services.NewDuration(500 * time.Millisecond),
 			},
-			disconnectTimeout: time.Second,
+			disconnectTimeout: 1 * time.Second,
 		},
 		{
+			comment:       "recording node mode with explicit session TTL",
 			recordingMode: services.RecordAtNode,
 			options: services.RoleOptions{
 				DisconnectExpiredCert: services.NewBool(true),
@@ -976,6 +988,7 @@ func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
 			disconnectTimeout: 4 * time.Second,
 		},
 		{
+			comment:       "recording proxy mode with explicit session TTL",
 			recordingMode: services.RecordAtProxy,
 			options: services.RoleOptions{
 				ForwardAgent:          services.NewBool(true),
@@ -1028,6 +1041,7 @@ func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
 				site := t.GetSiteAPI(Site)
 				var sems []services.Semaphore
 				var err error
+				comment := check.Commentf("verify that lost connections to auth server terminate controlled conns")
 				for i := 0; i < 6; i++ {
 					sems, err = site.GetSemaphores(ctx, services.SemaphoreFilter{
 						SemaphoreKind: services.SemaphoreKindConnection,
@@ -1041,8 +1055,8 @@ func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
 						return
 					}
 				}
-				c.Assert(err, check.IsNil)
-				c.Assert(len(sems), check.Equals, 1)
+				c.Assert(err, check.IsNil, comment)
+				c.Assert(len(sems), check.Equals, 1, comment)
 				var ss []session.Session
 				for i := 0; i < 6; i++ {
 					ss, err = site.GetSessions(defaults.Namespace)
@@ -1055,8 +1069,8 @@ func (s *IntSuite) TestDisconnectScenarios(c *check.C) {
 						return
 					}
 				}
-				c.Assert(err, check.IsNil)
-				c.Assert(len(ss), check.Equals, 1)
+				c.Assert(err, check.IsNil, comment)
+				c.Assert(len(ss), check.Equals, 1, comment)
 			},
 		},
 	}
@@ -1121,7 +1135,7 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 			cl.Stdout = person
 			cl.Stdin = person
 
-			err = cl.SSH(ctx, []string{}, false)
+			err = cl.SSH(ctx, nil, false)
 			select {
 			case <-ctx.Done():
 				// either we timed out, or a different session
