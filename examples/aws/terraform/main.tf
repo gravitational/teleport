@@ -5,7 +5,7 @@ data "local_file" "license" {
 
 # create license resource (which the module depends on)
 resource "local_file" "license" {
-    content = data.local_file.license.content
+    sensitive_content = data.local_file.license.content
     filename = "${path.module}/license.pem"
 }
 
@@ -40,7 +40,7 @@ module "teleport-ha-autoscale-cluster" {
 
   # Region is AWS region, the region should support EFS
   # Required, no default on module
-  region = "us-west-2"
+  region = "us-east-1"
 
   # path to teleport enterprise/pro license file
   license_path = local_file.license.filename
