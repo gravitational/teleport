@@ -716,6 +716,7 @@ Create an identity file(s) for a given user
 `--ttl` | none | relative duration like 5s, 2m, or 3h | TTL (time to live) for the generated certificate
 `--compat` | `""` | `standard` or `oldssh` | OpenSSH compatibility flag
 `--proxy` | `""` |  Address of the teleport proxy. | When --format is set to "kubernetes", this address will be set as cluster address in the generated kubeconfig file
+`--kube-cluster` | `""` |  The name of a leaf cluster. | When --format is set to "kubernetes", the kubeconfig generated will allow access to this leaf cluster.
 
 ### [Global Flags](#tctl-global-flags)
 
