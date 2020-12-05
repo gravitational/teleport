@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth/proto"
+	"github.com/gravitational/teleport/api/proto/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -54,13 +54,13 @@ func (c *Client) ConnectGRPC() error {
 		return trail.FromGRPC(err)
 	}
 	c.conn = conn
-	c.grpc = proto.NewAuthServiceClient(c.conn)
+	c.grpc = auth.NewAuthServiceClient(c.conn)
 	return nil
 }
 
 // GetGRPC is a getter method for the client's AuthServiceClient.
-// TODO: Once grpc client is factored out of /lib, this should be removed.
-func (c *Client) GetGRPC() (proto.AuthServiceClient, error) {
+// TODO: Once grpc client is factored out of /lib, this can be removed.
+func (c *Client) GetGRPC() (auth.AuthServiceClient, error) {
 	if err := c.ConnectGRPC(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -73,7 +73,7 @@ func (c *Client) GetUsers(withSecrets bool) ([]services.User, error) {
 	if err := c.ConnectGRPC(); err != nil {
 		return []services.User{}, err
 	}
-	stream, err := c.grpc.GetUsers(context.TODO(), &proto.GetUsersRequest{
+	stream, err := c.grpc.GetUsers(context.TODO(), &auth.GetUsersRequest{
 		WithSecrets: withSecrets,
 	})
 	if err != nil {
@@ -94,13 +94,13 @@ func (c *Client) GetUsers(withSecrets bool) ([]services.User, error) {
 }
 
 // Ping gets basic info about the auth server.
-func (c *Client) Ping(ctx context.Context) (proto.PingResponse, error) {
+func (c *Client) Ping(ctx context.Context) (auth.PingResponse, error) {
 	if err := c.ConnectGRPC(); err != nil {
-		return proto.PingResponse{}, err
+		return auth.PingResponse{}, err
 	}
-	rsp, err := c.grpc.Ping(ctx, &proto.PingRequest{})
+	rsp, err := c.grpc.Ping(ctx, &auth.PingRequest{})
 	if err != nil {
-		return proto.PingResponse{}, trail.FromGRPC(err)
+		return auth.PingResponse{}, trail.FromGRPC(err)
 	}
 	return *rsp, nil
 }

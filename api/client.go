@@ -12,7 +12,7 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth/proto"
+	"github.com/gravitational/teleport/api/proto/auth"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -32,7 +32,7 @@ var log = logrus.WithFields(logrus.Fields{
 type Client struct {
 	sync.Mutex
 	ClientConfig
-	grpc proto.AuthServiceClient
+	grpc auth.AuthServiceClient
 	conn *grpc.ClientConn
 	// closedFlag is set to indicate that the services are closed
 	closedFlag int32
@@ -173,7 +173,7 @@ type ClientI interface {
 	// ProcessKubeCSR(req auth.KubeCSR) (*auth.KubeCSRResponse, error)
 
 	// Ping gets basic info about the auth server.
-	Ping(ctx context.Context) (proto.PingResponse, error)
+	Ping(ctx context.Context) (auth.PingResponse, error)
 
 	// // CreateAppSession creates an application web session. Application web
 	// // sessions represent a browser session the client holds.

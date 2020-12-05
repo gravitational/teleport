@@ -4,10 +4,9 @@ import (
 	"time"
 )
 
+// TODO: copied over from /lib/defaults to limit imports
+// maybe move to /teleport/constants.go?
 const (
-	// CurrentVersion is a current API version
-	CurrentVersion = "v2"
-
 	// DefaultDialTimeout is a default TCP dial timeout we set for our
 	// connection attempts
 	DefaultDialTimeout = 30 * time.Second

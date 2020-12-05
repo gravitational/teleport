@@ -4,7 +4,7 @@ package auth;
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
-import "github.com/gravitational/teleport/api/proto/types/types.proto";
+import "github.com/gravitational/teleport/lib/services/types.proto";
 import "github.com/gravitational/teleport/lib/events/events.proto";
 import "github.com/gravitational/teleport/lib/wrappers/wrappers.proto";
 
@@ -37,8 +37,7 @@ message Event {
         services.CertAuthorityV2 CertAuthority = 3
             [ (gogoproto.jsontag) = "cert_authority,omitempty" ];
         // StaticTokens is filled in static-tokens related events
-        services.StaticTokensV2 StaticTokens = 4
-            [ (gogoproto.jsontag) = "static_tokens,omitempty" ];
+        services.StaticTokensV2 StaticTokens = 4 [ (gogoproto.jsontag) = "static_tokens,omitempty" ];
         // ProvisionToken is filled in provision-token related events
         services.ProvisionTokenV2 ProvisionToken = 5
             [ (gogoproto.jsontag) = "provision_token,omitempty" ];
@@ -149,8 +148,7 @@ message GetUsersRequest {
 
 // AccessRequests is a collection of AccessRequest values.
 message AccessRequests {
-    repeated services.AccessRequestV3 AccessRequests = 1
-        [ (gogoproto.jsontag) = "access_requests" ];
+    repeated services.AccessRequestV3 AccessRequests = 1 [ (gogoproto.jsontag) = "access_requests" ];
 }
 
 // PluginDataSeq is a sequence of plugin data.
@@ -206,7 +204,7 @@ message CreateResetPasswordTokenRequest {
     // TTL specifies how long the generated token is valid for.
     int64 TTL = 3 [
         (gogoproto.jsontag) = "ttl",
-        (gogoproto.casttype) = "github.com/gravitational/api/proto/proto.Duration"
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api/proto.Duration"
     ];
 }
 
@@ -382,9 +380,7 @@ message GetKubeServicesResponse {
 
 // UpsertKubeServiceRequest are the parameters used to add or update a
 // kubernetes service.
-message UpsertKubeServiceRequest {
-    services.ServerV2 Server = 1 [ (gogoproto.jsontag) = "server" ];
-}
+message UpsertKubeServiceRequest { services.ServerV2 Server = 1 [ (gogoproto.jsontag) = "server" ]; }
 
 // DeleteKubeServiceRequest are the parameters used to remove a kubernetes service.
 message DeleteKubeServiceRequest {

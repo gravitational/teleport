@@ -441,21 +441,7 @@ api: buildbox
 buildbox-api:
 # standard GRPC output
 	echo $$PROTO_INCLUDE
-	find api/proto/ -iname *.proto | xargs clang-format -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
-
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/proto/types \
-		--gofast_out=plugins=grpc:api/proto/types \
-		--doc_out=api/docs \
-		--doc_opt=markdown,types.md \
-		types.proto
-
-	protoc -I=.:$$PROTO_INCLUDE \
-		--proto_path=api/proto/wrappers \
-		--gofast_out=plugins=grpc:api/proto/wrappers \
-		--doc_out=api/docs \
-		--doc_opt=markdown,wrappers.md \
-		wrappers.proto
+	find lib/ -iname *.proto | xargs clang-format -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/proto/auth \

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
@@ -37,10 +36,10 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter TLS")
 	}
 	if c.KeepAlivePeriod == 0 {
-		c.KeepAlivePeriod = defaults.ServerKeepAliveTTL
+		c.KeepAlivePeriod = ServerKeepAliveTTL
 	}
 	if c.KeepAliveCount == 0 {
-		c.KeepAliveCount = defaults.KeepAliveCountMax
+		c.KeepAliveCount = KeepAliveCountMax
 	}
 	if c.Dialer == nil {
 		c.Dialer = NewAddrDialer(c.Addrs, c.KeepAlivePeriod)
@@ -80,7 +79,7 @@ func (f ContextDialerFunc) DialContext(in context.Context, network, addr string)
 // NewAddrDialer returns new dialer from a list of addresses
 func NewAddrDialer(addrs []utils.NetAddr, keepAliveInterval time.Duration) ContextDialer {
 	dialer := net.Dialer{
-		Timeout:   defaults.DefaultDialTimeout,
+		Timeout:   DefaultDialTimeout,
 		KeepAlive: keepAliveInterval,
 	}
 	return ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {
