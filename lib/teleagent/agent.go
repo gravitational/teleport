@@ -89,7 +89,7 @@ func (a *AgentServer) Serve() error {
 					return nil
 				}
 				log.WithError(err).Error("Got permanent error.")
-				return err
+				return trace.Wrap(err)
 			}
 			if tempDelay == 0 {
 				tempDelay = 5 * time.Millisecond
