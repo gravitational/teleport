@@ -1057,7 +1057,7 @@ func onListClusters(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 	showActive := func(cluster services.RemoteCluster) string {
-		if profile.Cluster == cluster.GetName() {
+		if profile != nil && cluster.GetName() == profile.Cluster {
 			return "*"
 		}
 		return ""
