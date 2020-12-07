@@ -365,7 +365,6 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	serverMeta := events.ServerMetadata{
 		ServerID:        ctx.srv.HostUUID(),
 		ServerNamespace: ctx.srv.GetNamespace(),
-		ClusterName:     ctx.ClusterName,
 	}
 
 	var sessionMeta events.SessionMetadata
@@ -409,7 +408,8 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	if isSCP {
 		scpEvent := &events.SCP{
 			Metadata: events.Metadata{
-				Type: events.SCPEvent,
+				Type:        events.SCPEvent,
+				ClusterName: ctx.ClusterName,
 			},
 			ServerMetadata:     serverMeta,
 			SessionMetadata:    sessionMeta,

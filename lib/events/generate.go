@@ -60,11 +60,12 @@ func GenerateTestSession(params SessionParams) []AuditEvent {
 	params.SetDefaults()
 	sessionStart := SessionStart{
 		Metadata: Metadata{
-			Index: 0,
-			Type:  SessionStartEvent,
-			ID:    "36cee9e9-9a80-4c32-9163-3d9241cdac7a",
-			Code:  SessionStartCode,
-			Time:  params.Clock.Now().UTC(),
+			Index:       0,
+			Type:        SessionStartEvent,
+			ID:          "36cee9e9-9a80-4c32-9163-3d9241cdac7a",
+			Code:        SessionStartCode,
+			Time:        params.Clock.Now().UTC(),
+			ClusterName: params.ClusterName,
 		},
 		ServerMetadata: ServerMetadata{
 			ServerID: params.ServerID,
@@ -75,7 +76,6 @@ func GenerateTestSession(params SessionParams) []AuditEvent {
 			},
 			ServerHostname:  "planet",
 			ServerNamespace: "default",
-			ClusterName:     params.ClusterName,
 		},
 		SessionMetadata: SessionMetadata{
 			SessionID: params.SessionID,

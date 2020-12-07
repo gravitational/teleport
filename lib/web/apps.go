@@ -146,13 +146,13 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	// for all events associated with this certificate.
 	appSessionStartEvent := &events.AppSessionStart{
 		Metadata: events.Metadata{
-			Type: events.AppSessionStartEvent,
-			Code: events.AppSessionStartCode,
+			Type:        events.AppSessionStartEvent,
+			Code:        events.AppSessionStartCode,
+			ClusterName: identity.RouteToApp.ClusterName,
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        h.cfg.HostUUID,
 			ServerNamespace: defaults.Namespace,
-			ClusterName:     identity.RouteToApp.ClusterName,
 		},
 		SessionMetadata: events.SessionMetadata{
 			SessionID: identity.RouteToApp.SessionID,

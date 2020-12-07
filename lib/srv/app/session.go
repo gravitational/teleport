@@ -131,13 +131,13 @@ func (s *Server) newStreamWriter(identity *tlsca.Identity) (events.StreamWriter,
 	// Emit an event to the Audit Log that a new session chunk has been created.
 	appSessionChunkEvent := &events.AppSessionChunk{
 		Metadata: events.Metadata{
-			Type: events.AppSessionChunkEvent,
-			Code: events.AppSessionChunkCode,
+			Type:        events.AppSessionChunkEvent,
+			Code:        events.AppSessionChunkCode,
+			ClusterName: identity.RouteToApp.ClusterName,
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        s.c.Server.GetName(),
 			ServerNamespace: defaults.Namespace,
-			ClusterName:     identity.RouteToApp.ClusterName,
 		},
 		SessionMetadata: events.SessionMetadata{
 			SessionID: identity.RouteToApp.SessionID,

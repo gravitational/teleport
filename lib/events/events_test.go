@@ -45,11 +45,12 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 			json: `{"ei":0,"event":"session.start","uid":"36cee9e9-9a80-4c32-9163-3d9241cdac7a","code":"T2000I","time":"2020-03-30T15:58:54.561Z","namespace":"default","sid":"5b3555dc-729f-11ea-b66a-507b9dd95841","cluster_name":"testcluster","login":"bob","user":"bob@example.com","server_id":"a7c54b0c-469c-431e-af4d-418cd3ae9694","server_hostname":"planet","server_labels":{"group":"gravitational/devc","kernel":"5.3.0-42-generic","date":"Mon Mar 30 08:58:54 PDT 2020"},"addr.local":"127.0.0.1:3022","addr.remote":"[::1]:37718","size":"80:25"}`,
 			event: SessionStart{
 				Metadata: Metadata{
-					Index: 0,
-					Type:  SessionStartEvent,
-					ID:    "36cee9e9-9a80-4c32-9163-3d9241cdac7a",
-					Code:  SessionStartCode,
-					Time:  time.Date(2020, 03, 30, 15, 58, 54, 561*int(time.Millisecond), time.UTC),
+					Index:       0,
+					Type:        SessionStartEvent,
+					ID:          "36cee9e9-9a80-4c32-9163-3d9241cdac7a",
+					Code:        SessionStartCode,
+					Time:        time.Date(2020, 03, 30, 15, 58, 54, 561*int(time.Millisecond), time.UTC),
+					ClusterName: "testcluster",
 				},
 				ServerMetadata: ServerMetadata{
 					ServerID: "a7c54b0c-469c-431e-af4d-418cd3ae9694",
@@ -60,7 +61,6 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 					},
 					ServerHostname:  "planet",
 					ServerNamespace: "default",
-					ClusterName:     "testcluster",
 				},
 				SessionMetadata: SessionMetadata{
 					SessionID: "5b3555dc-729f-11ea-b66a-507b9dd95841",
@@ -81,16 +81,16 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 			json: `{"time":"2020-03-30T15:58:54.564Z","uid":"c34e512f-e6cb-44f1-ab94-4cea09002d29","event":"resize","login":"bob","sid":"5b3555dc-729f-11ea-b66a-507b9dd95841","cluster_name":"testcluster","size":"194:59","ei":1,"code":"T2002I","namespace":"default","server_id":"a7c54b0c-469c-431e-af4d-418cd3ae9694","user":"bob@example.com"}`,
 			event: Resize{
 				Metadata: Metadata{
-					Index: 1,
-					Type:  ResizeEvent,
-					ID:    "c34e512f-e6cb-44f1-ab94-4cea09002d29",
-					Code:  TerminalResizeCode,
-					Time:  time.Date(2020, 03, 30, 15, 58, 54, 564*int(time.Millisecond), time.UTC),
+					Index:       1,
+					Type:        ResizeEvent,
+					ID:          "c34e512f-e6cb-44f1-ab94-4cea09002d29",
+					Code:        TerminalResizeCode,
+					Time:        time.Date(2020, 03, 30, 15, 58, 54, 564*int(time.Millisecond), time.UTC),
+					ClusterName: "testcluster",
 				},
 				ServerMetadata: ServerMetadata{
 					ServerID:        "a7c54b0c-469c-431e-af4d-418cd3ae9694",
 					ServerNamespace: "default",
-					ClusterName:     "testcluster",
 				},
 				SessionMetadata: SessionMetadata{
 					SessionID: "5b3555dc-729f-11ea-b66a-507b9dd95841",
@@ -107,16 +107,16 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 			json: `{"code":"T2004I","ei":20,"enhanced_recording":true,"event":"session.end","interactive":true,"namespace":"default","participants":["alice@example.com"],"server_id":"a7c54b0c-469c-431e-af4d-418cd3ae9694","sid":"5b3555dc-729f-11ea-b66a-507b9dd95841","cluster_name":"test-cluster","time":"2020-03-30T15:58:58.999Z","uid":"da455e0f-c27d-459f-a218-4e83b3db9426","user":"alice@example.com", "session_start":"2020-03-30T15:58:54.561Z", "session_stop": "2020-03-30T15:58:58.999Z"}`,
 			event: SessionEnd{
 				Metadata: Metadata{
-					Index: 20,
-					Type:  SessionEndEvent,
-					ID:    "da455e0f-c27d-459f-a218-4e83b3db9426",
-					Code:  SessionEndCode,
-					Time:  time.Date(2020, 03, 30, 15, 58, 58, 999*int(time.Millisecond), time.UTC),
+					Index:       20,
+					Type:        SessionEndEvent,
+					ID:          "da455e0f-c27d-459f-a218-4e83b3db9426",
+					Code:        SessionEndCode,
+					Time:        time.Date(2020, 03, 30, 15, 58, 58, 999*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
 				},
 				ServerMetadata: ServerMetadata{
 					ServerID:        "a7c54b0c-469c-431e-af4d-418cd3ae9694",
 					ServerNamespace: "default",
-					ClusterName:     "test-cluster",
 				},
 				SessionMetadata: SessionMetadata{
 					SessionID: "5b3555dc-729f-11ea-b66a-507b9dd95841",
@@ -151,16 +151,16 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 			json: `{"argv":["/usr/bin/lesspipe"],"login":"alice","path":"/usr/bin/dirname","return_code":0,"time":"2020-03-30T15:58:54.65Z","user":"alice@example.com","code":"T4000I","event":"session.command","pid":31638,"server_id":"a7c54b0c-469c-431e-af4d-418cd3ae9694","uid":"4f725f11-e87a-452f-96ec-ef93e9e6a260","cgroup_id":4294971450,"ppid":31637,"program":"dirname","namespace":"default","sid":"5b3555dc-729f-11ea-b66a-507b9dd95841","cluster_name":"test","ei":4}`,
 			event: SessionCommand{
 				Metadata: Metadata{
-					Index: 4,
-					ID:    "4f725f11-e87a-452f-96ec-ef93e9e6a260",
-					Type:  SessionCommandEvent,
-					Time:  time.Date(2020, 03, 30, 15, 58, 54, 650*int(time.Millisecond), time.UTC),
-					Code:  SessionCommandCode,
+					Index:       4,
+					ID:          "4f725f11-e87a-452f-96ec-ef93e9e6a260",
+					Type:        SessionCommandEvent,
+					Time:        time.Date(2020, 03, 30, 15, 58, 54, 650*int(time.Millisecond), time.UTC),
+					Code:        SessionCommandCode,
+					ClusterName: "test",
 				},
 				ServerMetadata: ServerMetadata{
 					ServerID:        "a7c54b0c-469c-431e-af4d-418cd3ae9694",
 					ServerNamespace: "default",
-					ClusterName:     "test",
 				},
 				SessionMetadata: SessionMetadata{
 					SessionID: "5b3555dc-729f-11ea-b66a-507b9dd95841",
@@ -185,16 +185,16 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 			json: `{"dst_port":443,"cgroup_id":4294976805,"dst_addr":"2607:f8b0:400a:801::200e","program":"curl","sid":"e9a4bd34-78ff-11ea-b062-507b9dd95841","src_addr":"2601:602:8700:4470:a3:813c:1d8c:30b9","login":"alice","pid":17604,"uid":"729498e0-c28b-438f-baa7-663a74418449","user":"alice@example.com","event":"session.network","namespace":"default","time":"2020-04-07T18:45:16.602Z","version":6,"ei":0,"code":"T4002I","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","cluster_name":"example"}`,
 			event: SessionNetwork{
 				Metadata: Metadata{
-					Index: 0,
-					ID:    "729498e0-c28b-438f-baa7-663a74418449",
-					Type:  SessionNetworkEvent,
-					Time:  time.Date(2020, 04, 07, 18, 45, 16, 602*int(time.Millisecond), time.UTC),
-					Code:  SessionNetworkCode,
+					Index:       0,
+					ID:          "729498e0-c28b-438f-baa7-663a74418449",
+					Type:        SessionNetworkEvent,
+					Time:        time.Date(2020, 04, 07, 18, 45, 16, 602*int(time.Millisecond), time.UTC),
+					Code:        SessionNetworkCode,
+					ClusterName: "example",
 				},
 				ServerMetadata: ServerMetadata{
 					ServerID:        "00b54ef5-ae1e-425f-8565-c71b01d8f7b8",
 					ServerNamespace: "default",
-					ClusterName:     "example",
 				},
 				SessionMetadata: SessionMetadata{
 					SessionID: "e9a4bd34-78ff-11ea-b062-507b9dd95841",
@@ -219,16 +219,16 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 			json: `{"time":"2020-04-07T19:56:38.545Z","login":"bob","pid":31521,"sid":"ddddce15-7909-11ea-b062-507b9dd95841","user":"bob@example.com","ei":175,"code":"T4001I","flags":142606336,"namespace":"default","uid":"ab8467af-6d85-46ce-bb5c-bdfba8acad3f","cgroup_id":4294976835,"program":"clear_console","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","event":"session.disk","path":"/etc/ld.so.cache","return_code":3,"cluster_name":"example2"}`,
 			event: SessionDisk{
 				Metadata: Metadata{
-					Index: 175,
-					ID:    "ab8467af-6d85-46ce-bb5c-bdfba8acad3f",
-					Type:  SessionDiskEvent,
-					Time:  time.Date(2020, 04, 07, 19, 56, 38, 545*int(time.Millisecond), time.UTC),
-					Code:  SessionDiskCode,
+					Index:       175,
+					ID:          "ab8467af-6d85-46ce-bb5c-bdfba8acad3f",
+					Type:        SessionDiskEvent,
+					Time:        time.Date(2020, 04, 07, 19, 56, 38, 545*int(time.Millisecond), time.UTC),
+					Code:        SessionDiskCode,
+					ClusterName: "example2",
 				},
 				ServerMetadata: ServerMetadata{
 					ServerID:        "00b54ef5-ae1e-425f-8565-c71b01d8f7b8",
 					ServerNamespace: "default",
-					ClusterName:     "example2",
 				},
 				SessionMetadata: SessionMetadata{
 					SessionID: "ddddce15-7909-11ea-b062-507b9dd95841",
@@ -292,15 +292,15 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 			json: `{"addr.local":"127.0.0.1:3022","addr.remote":"[::1]:44382","code":"T2006I","ei":2147483646,"event":"session.data","login":"alice","rx":9526,"server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","sid":"ddddce15-7909-11ea-b062-507b9dd95841","time":"2020-04-07T19:56:39Z","tx":10279,"uid":"cb404873-cd7c-4036-854b-42e0f5fd5f2c","user":"alice@example.com","cluster_name":"test"}`,
 			event: SessionData{
 				Metadata: Metadata{
-					Index: 2147483646,
-					ID:    "cb404873-cd7c-4036-854b-42e0f5fd5f2c",
-					Type:  SessionDataEvent,
-					Time:  time.Date(2020, 04, 07, 19, 56, 39, 0*int(time.Millisecond), time.UTC),
-					Code:  SessionDataCode,
+					Index:       2147483646,
+					ID:          "cb404873-cd7c-4036-854b-42e0f5fd5f2c",
+					Type:        SessionDataEvent,
+					Time:        time.Date(2020, 04, 07, 19, 56, 39, 0*int(time.Millisecond), time.UTC),
+					Code:        SessionDataCode,
+					ClusterName: "test",
 				},
 				ServerMetadata: ServerMetadata{
-					ServerID:    "00b54ef5-ae1e-425f-8565-c71b01d8f7b8",
-					ClusterName: "test",
+					ServerID: "00b54ef5-ae1e-425f-8565-c71b01d8f7b8",
 				},
 				SessionMetadata: SessionMetadata{
 					SessionID: "ddddce15-7909-11ea-b062-507b9dd95841",
@@ -322,16 +322,16 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 			json: `{"code":"T2003I","ei":39,"event":"session.leave","namespace":"default","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","sid":"ddddce15-7909-11ea-b062-507b9dd95841","time":"2020-04-07T19:56:38.556Z","uid":"d7c7489f-6559-42ad-9963-8543e518a058","user":"alice@example.com","cluster_name":"example"}`,
 			event: SessionLeave{
 				Metadata: Metadata{
-					Index: 39,
-					ID:    "d7c7489f-6559-42ad-9963-8543e518a058",
-					Type:  SessionLeaveEvent,
-					Time:  time.Date(2020, 04, 07, 19, 56, 38, 556*int(time.Millisecond), time.UTC),
-					Code:  SessionLeaveCode,
+					Index:       39,
+					ID:          "d7c7489f-6559-42ad-9963-8543e518a058",
+					Type:        SessionLeaveEvent,
+					Time:        time.Date(2020, 04, 07, 19, 56, 38, 556*int(time.Millisecond), time.UTC),
+					Code:        SessionLeaveCode,
+					ClusterName: "example",
 				},
 				ServerMetadata: ServerMetadata{
 					ServerID:        "00b54ef5-ae1e-425f-8565-c71b01d8f7b8",
 					ServerNamespace: "default",
-					ClusterName:     "example",
 				},
 				SessionMetadata: SessionMetadata{
 					SessionID: "ddddce15-7909-11ea-b062-507b9dd95841",
@@ -456,16 +456,16 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 			json: `{"uid":"cd03665f-3ce1-4c22-809d-4be9512c36e2","addr.local":"127.0.0.1:3022","addr.remote":"[::1]:34902","code":"T2001I","event":"session.join","login":"root","time":"2020-04-23T18:22:35.35Z","namespace":"default","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","sid":"b0252ad2-2fa5-4bb2-a7de-2cacd1169c96","user":"bob@example.com","ei":4,"cluster_name":"test-cluster"}`,
 			event: SessionJoin{
 				Metadata: Metadata{
-					Index: 4,
-					Type:  SessionJoinEvent,
-					ID:    "cd03665f-3ce1-4c22-809d-4be9512c36e2",
-					Code:  SessionJoinCode,
-					Time:  time.Date(2020, 04, 23, 18, 22, 35, 350*int(time.Millisecond), time.UTC),
+					Index:       4,
+					Type:        SessionJoinEvent,
+					ID:          "cd03665f-3ce1-4c22-809d-4be9512c36e2",
+					Code:        SessionJoinCode,
+					Time:        time.Date(2020, 04, 23, 18, 22, 35, 350*int(time.Millisecond), time.UTC),
+					ClusterName: "test-cluster",
 				},
 				ServerMetadata: ServerMetadata{
 					ServerID:        "00b54ef5-ae1e-425f-8565-c71b01d8f7b8",
 					ServerNamespace: "default",
-					ClusterName:     "test-cluster",
 				},
 				SessionMetadata: SessionMetadata{
 					SessionID: "b0252ad2-2fa5-4bb2-a7de-2cacd1169c96",

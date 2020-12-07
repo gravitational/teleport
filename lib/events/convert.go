@@ -185,6 +185,16 @@ func (m *Metadata) GetIndex() int64 {
 	return m.Index
 }
 
+// GetClusterName returns originating teleport cluster name
+func (m *Metadata) GetClusterName() string {
+	return m.ClusterName
+}
+
+// SetClusterName returns originating teleport cluster name
+func (m *Metadata) SetClusterName(clusterName string) {
+	m.ClusterName = clusterName
+}
+
 // GetServerID returns event server ID
 func (m *ServerMetadata) GetServerID() string {
 	return m.ServerID
@@ -203,11 +213,6 @@ func (m *ServerMetadata) GetServerNamespace() string {
 // SetServerNamespace sets server namespace
 func (m *ServerMetadata) SetServerNamespace(ns string) {
 	m.ServerNamespace = ns
-}
-
-// GetClusterName returns originating teleport cluster name
-func (m *ServerMetadata) GetClusterName() string {
-	return m.ClusterName
 }
 
 // GetSessionID returns event session ID
