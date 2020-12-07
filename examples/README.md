@@ -12,13 +12,15 @@
 ## AWS examples
 
 * [AWS: CloudFormation](https://github.com/gravitational/teleport/tree/master/examples/aws/cloudformation#aws-cloudformation-based-provisioning-example) : CloudFormation templates as an example of how to setup HA Teleport in AWS using our AMIs.
-* [AWS: Terraform](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform#terraform-based-provisioning-example-amazon-single-ami) : Terraform specifies example provisioning script for Teleport auth, proxy and nodes in HA mode. 
+* [AWS: Terraform](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform#terraform-based-provisioning-example-amazon-single-ami) : Terraform specifies example provisioning script for Teleport auth, proxy and nodes in HA mode.
 * [AWS: EKS. External Link](https://aws.amazon.com/blogs/opensource/authenticating-eks-github-credentials-teleport/)
 
 ## Kubernetes - Helm Charts
 
-* [Helm Chart - Teleport Enterprise](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport) : For deploying into Kubernetes using Helm 
-* [Helm Chart - Teleport Demo](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-demo) : An internal demo app showing Teleport components deployed into Kubernetes using Helm Charts. 
+* [Helm Chart - Teleport](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport) : Deploy Teleport into Kubernetes
+* [Helm Chart - `auto-trustedcluster `](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-auto-trustedcluster) : Deploy Teleport into Kubernetes and connects back to a root cluster.
+* [Helm Chart - `teleport-daemonset`](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-auto-trustedcluster) : Deploy Teleport into Kubernetes, and installs Teleport on each Kubernetes worker and connects back to a root cluster.
+* [Helm Chart - `teleport-kube-agent`](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-kube-agent) : Deploy Teleport Agent into Kubernetes and connects to a root Teleport cluster using a tunnel.
 
 
 ## SSO Connector Examples and Trusted Cluster Examples
