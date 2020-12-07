@@ -54,7 +54,11 @@ Update the included Makefile to define your configuration.
 
 1. Run `make apply`.
 2. SSH to your new instance. `ssh ec2-user@<cluster_domain>`.
-3. Run `tctl users add <username> ec2-user` (this will create a Teleport User and permit login as the local ec2-user)
+3. Create a user (this will create a Teleport User and permit login as the local ec2-user).
+   - OSS:
+   `tctl users add <username> ec2-user` 
+   - Enterprise (requires a role):
+    `tctl users add --roles=admin <username> --logins=ec2-user` 
 4. Click the registration link provided by the output. Set a password and configure your 2fa token.
 5. Success! You've configured a fully functional Teleport cluster.
 
