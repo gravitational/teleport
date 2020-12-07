@@ -17,7 +17,6 @@ limitations under the License.
 package utils
 
 import (
-	"bytes"
 	"crypto/x509"
 	"fmt"
 	"io"
@@ -27,7 +26,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/gravitational/teleport"
 

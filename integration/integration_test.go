@@ -1462,11 +1462,9 @@ func (s *IntSuite) twoClustersTunnel(c *check.C, now time.Time, proxyRecordMode 
 	}
 
 	siteA := a.GetSiteAPI(a.Secrets.SiteName)
-	err = searchAndAssert(siteA, execCountSiteA)
-	c.Assert(err, check.IsNil)
+	searchAndAssert(siteA, execCountSiteA)
 	siteB := b.GetSiteAPI(b.Secrets.SiteName)
-	err = searchAndAssert(siteB, execCountSiteB)
-	c.Assert(err, check.IsNil)
+	searchAndAssert(siteB, execCountSiteB)
 }
 
 // TestTwoClustersProxy checks if the reverse tunnel uses a HTTP PROXY to
@@ -4007,7 +4005,7 @@ func (s *IntSuite) TestRotateChangeSigningAlg(c *check.C) {
 	case err := <-runErrCh:
 		c.Assert(err, check.IsNil)
 	case <-time.After(20 * time.Second):
-		dumpGoroutinneProfile()
+		dumpGoroutineProfile()
 		c.Fatal("Failed to shut down the server.")
 	}
 }
@@ -4089,8 +4087,8 @@ func waitForReload(c *check.C, serviceC chan *svcStartResult, old *service.Telep
 		select {
 		case <-ctx.Done():
 		case <-time.After(1 * time.Minute):
-		dumpGoroutineProfile()
-		c.Fatal("Timeout waiting for old service to stop.")
+			dumpGoroutineProfile()
+			c.Fatal("Timeout waiting for old service to stop.")
 		}
 	}
 	return svc
