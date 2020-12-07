@@ -1,6 +1,6 @@
 # Teleport Terraform AWS AMI Simple Example
 
-This is a simple Terraform example to get you started provisioning an all-in-one Teleport cluster (auth, node, proxy) on a single ec2 instance based on Gravitational's pre-built AMI.
+This is a simple Terraform example to get you started provisioning an all-in-one Teleport cluster (auth, node, proxy) on a single ec2 instance based on Teleport's pre-built AMI.
 
 Do not use this in production! This example should be used for demo, proof-of-concept, or learning purposes only.
 
@@ -81,7 +81,7 @@ TF_VAR_key_name ?="example"
 TF_VAR_license_path ?="/path/to/license"
 
 # AMI name contains the version of Teleport to install, and whether to use OSS or Enterprise version
-# These AMIs are published by Gravitational and shared as public whenever a new version of Teleport is released
+# These AMIs are published by Teleport and shared as public whenever a new version of Teleport is released
 # To list available AMIs:
 # OSS: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'
 # Enterprise: aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*'
