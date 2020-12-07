@@ -19,213 +19,12 @@ package services
 import (
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-)
-
-const (
-	// DefaultAPIGroup is a default group of permissions API,
-	// lets us to add different permission types
-	DefaultAPIGroup = "gravitational.io/teleport"
-
-	// ActionRead grants read access (get, list)
-	ActionRead = "read"
-
-	// ActionWrite allows to write (create, update, delete)
-	ActionWrite = "write"
-
-	// Wildcard is a special wildcard character matching everything
-	Wildcard = "*"
-
-	// KindNamespace is a namespace
-	KindNamespace = "namespace"
-
-	// KindUser is a user resource
-	KindUser = "user"
-
-	// KindKeyPair is a public/private key pair
-	KindKeyPair = "key_pair"
-
-	// KindHostCert is a host certificate
-	KindHostCert = "host_cert"
-
-	// KindJWT is a JWT token signer.
-	KindJWT = "jwt"
-
-	// KindLicense is a license resource
-	KindLicense = "license"
-
-	// KindRole is a role resource
-	KindRole = "role"
-
-	// KindAccessRequest is an AccessReqeust resource
-	KindAccessRequest = "access_request"
-
-	// KindPluginData is a PluginData resource
-	KindPluginData = "plugin_data"
-
-	// KindOIDC is OIDC connector resource
-	KindOIDC = "oidc"
-
-	// KindSAML is SAML connector resource
-	KindSAML = "saml"
-
-	// KindGithub is Github connector resource
-	KindGithub = "github"
-
-	// KindOIDCRequest is OIDC auth request resource
-	KindOIDCRequest = "oidc_request"
-
-	// KindSAMLRequest is SAML auth request resource
-	KindSAMLRequest = "saml_request"
-
-	// KindGithubRequest is Github auth request resource
-	KindGithubRequest = "github_request"
-
-	// KindSession is a recorded SSH session.
-	KindSession = "session"
-
-	// KindSSHSession is an active SSH session.
-	KindSSHSession = "ssh_session"
-
-	// KindWebSession is a web session resource
-	KindWebSession = "web_session"
-
-	// KindAppSession represents an application specific web session.
-	KindAppSession = "app_session"
-
-	// KindEvent is structured audit logging event
-	KindEvent = "event"
-
-	// KindAuthServer is auth server resource
-	KindAuthServer = "auth_server"
-
-	// KindProxy is proxy resource
-	KindProxy = "proxy"
-
-	// KindNode is node resource
-	KindNode = "node"
-
-	// KindAppServer is an application server resource.
-	KindAppServer = "app_server"
-
-	// KindToken is a provisioning token resource
-	KindToken = "token"
-
-	// KindCertAuthority is a certificate authority resource
-	KindCertAuthority = "cert_authority"
-
-	// KindReverseTunnel is a reverse tunnel connection
-	KindReverseTunnel = "tunnel"
-
-	// KindOIDCConnector is a OIDC connector resource
-	KindOIDCConnector = "oidc"
-
-	// KindSAMLConnector is a SAML connector resource
-	KindSAMLConnector = "saml"
-
-	// KindGithubConnector is Github OAuth2 connector resource
-	KindGithubConnector = "github"
-
-	// KindConnectors is a shortcut for all authentication connector types.
-	KindConnectors = "connectors"
-
-	// KindClusterAuthPreference is the type of authentication for this cluster.
-	KindClusterAuthPreference = "cluster_auth_preference"
-
-	// MetaNameClusterAuthPreference is the type of authentication for this cluster.
-	MetaNameClusterAuthPreference = "cluster-auth-preference"
-
-	// KindClusterConfig is the resource that holds cluster level configuration.
-	KindClusterConfig = "cluster_config"
-
-	// KindSemaphore is the resource that provides distributed semaphore functionality
-	KindSemaphore = "semaphore"
-
-	// MetaNameClusterConfig is the exact name of the cluster config singleton resource.
-	MetaNameClusterConfig = "cluster-config"
-
-	// KindClusterName is a type of configuration resource that contains the cluster name.
-	KindClusterName = "cluster_name"
-
-	// MetaNameClusterName is the name of a configuration resource for cluster name.
-	MetaNameClusterName = "cluster-name"
-
-	// KindStaticTokens is a type of configuration resource that contains static tokens.
-	KindStaticTokens = "static_tokens"
-
-	// MetaNameStaticTokens is the name of a configuration resource for static tokens.
-	MetaNameStaticTokens = "static-tokens"
-
-	// KindTrustedCluster is a resource that contains trusted cluster configuration.
-	KindTrustedCluster = "trusted_cluster"
-
-	// KindAuthConnector allows access to OIDC and SAML connectors.
-	KindAuthConnector = "auth_connector"
-
-	// KindTunnelConnection specifies connection of a reverse tunnel to proxy
-	KindTunnelConnection = "tunnel_connection"
-
-	// KindRemoteCluster represents remote cluster connected via reverse tunnel
-	// to proxy
-	KindRemoteCluster = "remote_cluster"
-
-	// KindResetPasswordToken is a token used to change user passwords
-	KindResetPasswordToken = "user_token"
-
-	// KindResetPasswordTokenSecrets is reset password token secrets
-	KindResetPasswordTokenSecrets = "reset_password_token_secrets"
-
-	// KindIdentity is local on disk identity resource
-	KindIdentity = "identity"
-
-	// KindState is local on disk process state
-	KindState = "state"
-
-	// KindKubeService is a kubernetes service resource
-	KindKubeService = "kube_service"
-
-	// V3 is the third version of resources.
-	V3 = "v3"
-
-	// V2 is the second version of resources.
-	V2 = "v2"
-
-	// V1 is the first version of resources. Note: The first version was
-	// not explicitly versioned.
-	V1 = "v1"
-)
-
-const (
-	// VerbList is used to list all objects. Does not imply the ability to read a single object.
-	VerbList = "list"
-
-	// VerbCreate is used to create an object.
-	VerbCreate = "create"
-
-	// VerbRead is used to read a single object.
-	VerbRead = "read"
-
-	// VerbReadNoSecrets is used to read a single object without secrets.
-	VerbReadNoSecrets = "readnosecrets"
-
-	// VerbUpdate is used to update an object.
-	VerbUpdate = "update"
-
-	// VerbDelete is used to remove an object.
-	VerbDelete = "delete"
-
-	// VerbRotate is used to rotate certificate authorities
-	// used only internally
-	VerbRotate = "rotate"
 )
 
 // CollectOptions collects all options from functional arg and returns config
@@ -526,30 +325,6 @@ const V2SchemaTemplate = `{
   }%v
 }`
 
-// MetadataSchema is a schema for resource metadata
-var MetadataSchema = fmt.Sprintf(baseMetadataSchema, labelPattern)
-
-const baseMetadataSchema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "default": {},
-  "required": ["name"],
-  "properties": {
-    "name": {"type": "string"},
-    "namespace": {"type": "string", "default": "default"},
-    "description": {"type": "string"},
-    "expires": {"type": "string"},
-    "id": {"type": "integer"},
-    "labels": {
-      "type": "object",
-      "additionalProperties": false,
-      "patternProperties": {
-         "%s":  { "type": "string" }
-      }
-    }
-  }
-}`
-
 // DefaultDefinitions the default list of JSON schema definitions which is none.
 const DefaultDefinitions = ``
 
@@ -558,66 +333,6 @@ type UnknownResource struct {
 	ResourceHeader
 	// Raw is raw representation of the resource
 	Raw []byte
-}
-
-// GetVersion returns resource version
-func (h *ResourceHeader) GetVersion() string {
-	return h.Version
-}
-
-// GetResourceID returns resource ID
-func (h *ResourceHeader) GetResourceID() int64 {
-	return h.Metadata.ID
-}
-
-// SetResourceID sets resource ID
-func (h *ResourceHeader) SetResourceID(id int64) {
-	h.Metadata.ID = id
-}
-
-// GetName returns the name of the resource
-func (h *ResourceHeader) GetName() string {
-	return h.Metadata.Name
-}
-
-// SetName sets the name of the resource
-func (h *ResourceHeader) SetName(v string) {
-	h.Metadata.SetName(v)
-}
-
-// Expiry returns object expiry setting
-func (h *ResourceHeader) Expiry() time.Time {
-	return h.Metadata.Expiry()
-}
-
-// SetExpiry sets object expiry
-func (h *ResourceHeader) SetExpiry(t time.Time) {
-	h.Metadata.SetExpiry(t)
-}
-
-// SetTTL sets Expires header using current clock
-func (h *ResourceHeader) SetTTL(clock clockwork.Clock, ttl time.Duration) {
-	h.Metadata.SetTTL(clock, ttl)
-}
-
-// GetMetadata returns object metadata
-func (h *ResourceHeader) GetMetadata() Metadata {
-	return h.Metadata
-}
-
-// GetKind returns resource kind
-func (h *ResourceHeader) GetKind() string {
-	return h.Kind
-}
-
-// GetSubKind returns resource subkind
-func (h *ResourceHeader) GetSubKind() string {
-	return h.SubKind
-}
-
-// SetSubKind sets resource subkind
-func (h *ResourceHeader) SetSubKind(s string) {
-	h.SubKind = s
 }
 
 // UnmarshalJSON unmarshals header and captures raw state
@@ -668,73 +383,6 @@ type ResourceWithSecrets interface {
 	// has had all secrets removed.  If the current resource has
 	// already had its secrets removed, this may be a no-op.
 	WithoutSecrets() Resource
-}
-
-// GetID returns resource ID
-func (m *Metadata) GetID() int64 {
-	return m.ID
-}
-
-// SetID sets resource ID
-func (m *Metadata) SetID(id int64) {
-	m.ID = id
-}
-
-// GetMetadata returns object metadata
-func (m *Metadata) GetMetadata() Metadata {
-	return *m
-}
-
-// GetName returns the name of the resource
-func (m *Metadata) GetName() string {
-	return m.Name
-}
-
-// SetName sets the name of the resource
-func (m *Metadata) SetName(name string) {
-	m.Name = name
-}
-
-// SetExpiry sets expiry time for the object
-func (m *Metadata) SetExpiry(expires time.Time) {
-	m.Expires = &expires
-}
-
-// Expiry returns object expiry setting.
-func (m *Metadata) Expiry() time.Time {
-	if m.Expires == nil {
-		return time.Time{}
-	}
-	return *m.Expires
-}
-
-// SetTTL sets Expires header using realtime clock
-func (m *Metadata) SetTTL(clock clockwork.Clock, ttl time.Duration) {
-	expireTime := clock.Now().UTC().Add(ttl)
-	m.Expires = &expireTime
-}
-
-// CheckAndSetDefaults checks validity of all parameters and sets defaults
-func (m *Metadata) CheckAndSetDefaults() error {
-	if m.Name == "" {
-		return trace.BadParameter("missing parameter Name")
-	}
-	if m.Namespace == "" {
-		m.Namespace = defaults.Namespace
-	}
-
-	// adjust expires time to utc if it's set
-	if m.Expires != nil {
-		utils.UTC(m.Expires)
-	}
-
-	for key := range m.Labels {
-		if !IsValidLabelKey(key) {
-			return trace.BadParameter("invalid label key: %q", key)
-		}
-	}
-
-	return nil
 }
 
 // ParseShortcut parses resource shortcut
@@ -894,7 +542,7 @@ func (r *Refs) Set(v string) error {
 	return nil
 }
 
-// Check if refs is special wildcard case `all`.
+// IsAll checks if refs is special wildcard case `all`.
 func (r *Refs) IsAll() bool {
 	refs := *r
 	if len(refs) != 1 {
@@ -957,14 +605,4 @@ func fieldsFunc(s string, f func(rune) bool) []string {
 	}
 
 	return a
-}
-
-const labelPattern = `^[a-zA-Z/.0-9_*-]+$`
-
-var validLabelKey = regexp.MustCompile(labelPattern)
-
-// IsValidLabelKey checks if the supplied string matches the
-// label key regexp.
-func IsValidLabelKey(s string) bool {
-	return validLabelKey.MatchString(s)
 }

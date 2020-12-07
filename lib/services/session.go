@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/teleport/api/proto/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/jonboulle/clockwork"
@@ -79,19 +80,17 @@ type WebSession interface {
 // NewWebSession returns new instance of the web session based on the V2 spec
 func NewWebSession(name string, kind string, subkind string, spec WebSessionSpecV2) WebSession {
 	return &WebSessionV2{
-		Kind:    kind,
-		SubKind: subkind,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
+		WebSessionV2: types.WebSessionV2{
+			Kind:    kind,
+			SubKind: subkind,
+			Version: V2,
+			Metadata: Metadata{
+				Name:      name,
+				Namespace: defaults.Namespace,
+			},
+			Spec: spec,
 		},
-		Spec: spec,
 	}
-}
-
-func (ws *WebSessionV2) GetKind() string {
-	return ws.Kind
 }
 
 func (ws *WebSessionV2) GetSubKind() string {
@@ -104,10 +103,6 @@ func (ws *WebSessionV2) SetSubKind(subKind string) {
 
 func (ws *WebSessionV2) GetVersion() string {
 	return ws.Version
-}
-
-func (ws *WebSessionV2) GetName() string {
-	return ws.Metadata.Name
 }
 
 func (ws *WebSessionV2) SetName(name string) {
@@ -155,19 +150,9 @@ func (ws *WebSessionV2) CheckAndSetDefaults() error {
 	return nil
 }
 
-// String returns string representation of the session.
-func (ws *WebSessionV2) String() string {
-	return fmt.Sprintf("WebSession(kind=%v,name=%v,id=%v)", ws.GetKind(), ws.GetUser(), ws.GetName())
-}
-
 // SetUser sets user associated with this session
 func (ws *WebSessionV2) SetUser(u string) {
 	ws.Spec.User = u
-}
-
-// GetUser returns the user this session is associated with
-func (ws *WebSessionV2) GetUser() string {
-	return ws.Spec.User
 }
 
 // GetShortName returns visible short name used in logging
@@ -282,18 +267,20 @@ func (ws *WebSessionV1) V1() *WebSessionV1 {
 // V2 returns V2 version of the resource
 func (ws *WebSessionV1) V2() *WebSessionV2 {
 	return &WebSessionV2{
-		Kind:    KindWebSession,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      ws.ID,
-			Namespace: defaults.Namespace,
-		},
-		Spec: WebSessionSpecV2{
-			Pub:                ws.Pub,
-			Priv:               ws.Priv,
-			BearerToken:        ws.BearerToken,
-			Expires:            ws.Expires,
-			BearerTokenExpires: ws.Expires,
+		WebSessionV2: types.WebSessionV2{
+			Kind:    KindWebSession,
+			Version: V2,
+			Metadata: Metadata{
+				Name:      ws.ID,
+				Namespace: defaults.Namespace,
+			},
+			Spec: WebSessionSpecV2{
+				Pub:                ws.Pub,
+				Priv:               ws.Priv,
+				BearerToken:        ws.BearerToken,
+				Expires:            ws.Expires,
+				BearerTokenExpires: ws.Expires,
+			},
 		},
 	}
 }

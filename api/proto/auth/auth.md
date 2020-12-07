@@ -71,7 +71,7 @@ AccessRequests is a collection of AccessRequest values.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| AccessRequests | [services.AccessRequestV3](#services.AccessRequestV3) | repeated |  |
+| AccessRequests | [types.AccessRequestV3](#types.AccessRequestV3) | repeated |  |
 
 
 
@@ -166,7 +166,7 @@ CreateAppSessionResponse contains the requested application web session.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| Session | [services.WebSessionV2](#services.WebSessionV2) |  | Session is the application web session. |
+| Session | [types.WebSessionV2](#types.WebSessionV2) |  | Session is the application web session. |
 
 
 
@@ -224,7 +224,7 @@ DeleteAllAppServersRequest are the parameters used to remove all applications.
 <a name="auth.DeleteAllKubeServicesRequest"></a>
 
 ### DeleteAllKubeServicesRequest
-DeleteAllKubeServicesRequest are the parameters used to remove all kubernetes services.
+DeleteAllKubeServicesRequest are the parameters used to remove all kubernetes types.
 
 
 
@@ -301,21 +301,21 @@ Event returns cluster event
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | Type | [Operation](#auth.Operation) |  | Operation identifies operation |
-| ResourceHeader | [services.ResourceHeader](#services.ResourceHeader) |  | ResourceHeader is specified in delete events, the full object is not available, so resource header is used to provide information about object type |
-| CertAuthority | [services.CertAuthorityV2](#services.CertAuthorityV2) |  | CertAuthority is filled in certificate-authority related events |
-| StaticTokens | [services.StaticTokensV2](#services.StaticTokensV2) |  | StaticTokens is filled in static-tokens related events |
-| ProvisionToken | [services.ProvisionTokenV2](#services.ProvisionTokenV2) |  | ProvisionToken is filled in provision-token related events |
-| ClusterName | [services.ClusterNameV2](#services.ClusterNameV2) |  | ClusterNameV2 is a cluster name resource |
-| ClusterConfig | [services.ClusterConfigV3](#services.ClusterConfigV3) |  | ClusterConfig is a cluster configuration resource |
-| User | [services.UserV2](#services.UserV2) |  | User is a user resource |
-| Role | [services.RoleV3](#services.RoleV3) |  | Role is a role resource |
-| Namespace | [services.Namespace](#services.Namespace) |  | Namespace is a namespace resource |
-| Server | [services.ServerV2](#services.ServerV2) |  | Server is a node or proxy resource |
-| ReverseTunnel | [services.ReverseTunnelV2](#services.ReverseTunnelV2) |  | ReverseTunnel is a resource with reverse tunnel |
-| TunnelConnection | [services.TunnelConnectionV2](#services.TunnelConnectionV2) |  | TunnelConnection is a resource for tunnel connnections |
-| AccessRequest | [services.AccessRequestV3](#services.AccessRequestV3) |  | AccessRequest is a resource for access requests |
-| AppSession | [services.WebSessionV2](#services.WebSessionV2) |  | AppSession is an application web session. |
-| RemoteCluster | [services.RemoteClusterV3](#services.RemoteClusterV3) |  | RemoteCluster is a resource for remote clusters |
+| ResourceHeader | [types.ResourceHeader](#types.ResourceHeader) |  | ResourceHeader is specified in delete events, the full object is not available, so resource header is used to provide information about object type |
+| CertAuthority | [types.CertAuthorityV2](#types.CertAuthorityV2) |  | CertAuthority is filled in certificate-authority related events |
+| StaticTokens | [types.StaticTokensV2](#types.StaticTokensV2) |  | StaticTokens is filled in static-tokens related events |
+| ProvisionToken | [types.ProvisionTokenV2](#types.ProvisionTokenV2) |  | ProvisionToken is filled in provision-token related events |
+| ClusterName | [types.ClusterNameV2](#types.ClusterNameV2) |  | ClusterNameV2 is a cluster name resource |
+| ClusterConfig | [types.ClusterConfigV3](#types.ClusterConfigV3) |  | ClusterConfig is a cluster configuration resource |
+| User | [types.UserV2](#types.UserV2) |  | User is a user resource |
+| Role | [types.RoleV3](#types.RoleV3) |  | Role is a role resource |
+| Namespace | [types.Namespace](#types.Namespace) |  | Namespace is a namespace resource |
+| Server | [types.ServerV2](#types.ServerV2) |  | Server is a node or proxy resource |
+| ReverseTunnel | [types.ReverseTunnelV2](#types.ReverseTunnelV2) |  | ReverseTunnel is a resource with reverse tunnel |
+| TunnelConnection | [types.TunnelConnectionV2](#types.TunnelConnectionV2) |  | TunnelConnection is a resource for tunnel connnections |
+| AccessRequest | [types.AccessRequestV3](#types.AccessRequestV3) |  | AccessRequest is a resource for access requests |
+| AppSession | [types.WebSessionV2](#types.WebSessionV2) |  | AppSession is an application web session. |
+| RemoteCluster | [types.RemoteClusterV3](#types.RemoteClusterV3) |  | RemoteCluster is a resource for remote clusters |
 
 
 
@@ -390,7 +390,7 @@ GetAppServersResponse contains all requested application servers.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| Servers | [services.ServerV2](#services.ServerV2) | repeated | Servers is a slice of services.Server that represent applications. |
+| Servers | [types.ServerV2](#types.ServerV2) | repeated | Servers is a slice of types.Server that represent applications. |
 
 
 
@@ -420,7 +420,7 @@ GetAppSessionResponse contains the requested application web session.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| Session | [services.WebSessionV2](#services.WebSessionV2) |  | Session is the application web session. |
+| Session | [types.WebSessionV2](#types.WebSessionV2) |  | Session is the application web session. |
 
 
 
@@ -435,7 +435,7 @@ GetAppSessionsResponse contains all the requested application web sessions.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| Sessions | [services.WebSessionV2](#services.WebSessionV2) | repeated | Sessions is a list of application web sessions. |
+| Sessions | [types.WebSessionV2](#types.WebSessionV2) | repeated | Sessions is a list of application web sessions. |
 
 
 
@@ -445,7 +445,7 @@ GetAppSessionsResponse contains all the requested application web sessions.
 <a name="auth.GetKubeServicesRequest"></a>
 
 ### GetKubeServicesRequest
-GetKubeServicesRequest are the parameters used to request kubernetes services.
+GetKubeServicesRequest are the parameters used to request kubernetes types.
 
 
 
@@ -455,12 +455,12 @@ GetKubeServicesRequest are the parameters used to request kubernetes services.
 <a name="auth.GetKubeServicesResponse"></a>
 
 ### GetKubeServicesResponse
-GetKubeServicesResponse contains all requested kubernetes services.
+GetKubeServicesResponse contains all requested kubernetes types.
 
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| Servers | [services.ServerV2](#services.ServerV2) | repeated | Servers is a slice of services.Server that represent kubernetes services. |
+| Servers | [types.ServerV2](#types.ServerV2) | repeated | Servers is a slice of types.Server that represent kubernetes types. |
 
 
 
@@ -549,7 +549,7 @@ PluginDataSeq is a sequence of plugin data.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| PluginData | [services.PluginDataV3](#services.PluginDataV3) | repeated |  |
+| PluginData | [types.PluginDataV3](#types.PluginDataV3) | repeated |  |
 
 
 
@@ -581,7 +581,7 @@ state of a privilege escalation request.
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | ID | [string](#string) |  | ID is the request ID being targeted |
-| State | [services.RequestState](#services.RequestState) |  | State is the desired state to be set |
+| State | [types.RequestState](#types.RequestState) |  | State is the desired state to be set |
 | Delegator | [string](#string) |  | Delegator is an optional indicator of who delegated this state update (used by plugins to indicate which user approved or denied the request). |
 | Reason | [string](#string) |  | Reason is an optional message indicating the reason for the resolution (approval, denail , etc...). |
 | Annotations | [wrappers.LabelValues](#wrappers.LabelValues) |  | Annotations are key/value pairs received from plugins during request resolution. They are currently only used to provide additional logging information. |
@@ -631,7 +631,7 @@ Semaphores is a sequence of Semaphore resources.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| Semaphores | [services.SemaphoreV3](#services.SemaphoreV3) | repeated |  |
+| Semaphores | [types.SemaphoreV3](#types.SemaphoreV3) | repeated |  |
 
 
 
@@ -646,7 +646,7 @@ UpsertAppServerRequest are the parameters used to add an application.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| Server | [services.ServerV2](#services.ServerV2) |  |  |
+| Server | [types.ServerV2](#types.ServerV2) |  |  |
 
 
 
@@ -662,7 +662,7 @@ kubernetes service.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| Server | [services.ServerV2](#services.ServerV2) |  |  |
+| Server | [types.ServerV2](#types.ServerV2) |  |  |
 
 
 
@@ -766,34 +766,34 @@ AuthService is authentication/authorization service implementation
 
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
-| SendKeepAlives | [.services.KeepAlive](#services.KeepAlive) stream | [.google.protobuf.Empty](#google.protobuf.Empty) | SendKeepAlives allows node to send a stream of keep alive requests |
+| SendKeepAlives | [.types.KeepAlive](#types.KeepAlive) stream | [.google.protobuf.Empty](#google.protobuf.Empty) | SendKeepAlives allows node to send a stream of keep alive requests |
 | WatchEvents | [Watch](#auth.Watch) | [Event](#auth.Event) stream | WatchEvents returns a new stream of cluster events |
-| UpsertNode | [.services.ServerV2](#services.ServerV2) | [.services.KeepAlive](#services.KeepAlive) | UpsertNode upserts node |
+| UpsertNode | [.types.ServerV2](#types.ServerV2) | [.types.KeepAlive](#types.KeepAlive) | UpsertNode upserts node |
 | GenerateUserCerts | [UserCertsRequest](#auth.UserCertsRequest) | [Certs](#auth.Certs) | GenerateUserCerts generates a set of user certificates for use by `tctl auth sign`. |
-| GetUser | [GetUserRequest](#auth.GetUserRequest) | [.services.UserV2](#services.UserV2) | GetUser gets a user resource by name. |
-| GetUsers | [GetUsersRequest](#auth.GetUsersRequest) | [.services.UserV2](#services.UserV2) stream | GetUsers gets all current user resources. |
-| GetAccessRequests | [.services.AccessRequestFilter](#services.AccessRequestFilter) | [AccessRequests](#auth.AccessRequests) | GetAccessRequests gets all pending access requests. |
-| CreateAccessRequest | [.services.AccessRequestV3](#services.AccessRequestV3) | [.google.protobuf.Empty](#google.protobuf.Empty) | CreateAccessRequest creates a new access request. |
+| GetUser | [GetUserRequest](#auth.GetUserRequest) | [.types.UserV2](#types.UserV2) | GetUser gets a user resource by name. |
+| GetUsers | [GetUsersRequest](#auth.GetUsersRequest) | [.types.UserV2](#types.UserV2) stream | GetUsers gets all current user resources. |
+| GetAccessRequests | [.types.AccessRequestFilter](#types.AccessRequestFilter) | [AccessRequests](#auth.AccessRequests) | GetAccessRequests gets all pending access requests. |
+| CreateAccessRequest | [.types.AccessRequestV3](#types.AccessRequestV3) | [.google.protobuf.Empty](#google.protobuf.Empty) | CreateAccessRequest creates a new access request. |
 | DeleteAccessRequest | [RequestID](#auth.RequestID) | [.google.protobuf.Empty](#google.protobuf.Empty) | DeleteAccessRequest deletes an access request. |
 | SetAccessRequestState | [RequestStateSetter](#auth.RequestStateSetter) | [.google.protobuf.Empty](#google.protobuf.Empty) | SetAccessRequestState sets the state of an access request. |
-| GetPluginData | [.services.PluginDataFilter](#services.PluginDataFilter) | [PluginDataSeq](#auth.PluginDataSeq) | GetPluginData gets all plugin data matching the supplied filter. |
-| UpdatePluginData | [.services.PluginDataUpdateParams](#services.PluginDataUpdateParams) | [.google.protobuf.Empty](#google.protobuf.Empty) | UpdatePluginData updates a plugin&#39;s resource-specific datastore. |
+| GetPluginData | [.types.PluginDataFilter](#types.PluginDataFilter) | [PluginDataSeq](#auth.PluginDataSeq) | GetPluginData gets all plugin data matching the supplied filter. |
+| UpdatePluginData | [.types.PluginDataUpdateParams](#types.PluginDataUpdateParams) | [.google.protobuf.Empty](#google.protobuf.Empty) | UpdatePluginData updates a plugin&#39;s resource-specific datastore. |
 | Ping | [PingRequest](#auth.PingRequest) | [PingResponse](#auth.PingResponse) | Ping gets basic info about the auth server. This method is intended to mimic the behavior of the proxy&#39;s Ping method, and may be used by clients for verification or configuration on startup. |
-| RotateResetPasswordTokenSecrets | [RotateResetPasswordTokenSecretsRequest](#auth.RotateResetPasswordTokenSecretsRequest) | [.services.ResetPasswordTokenSecretsV3](#services.ResetPasswordTokenSecretsV3) | RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID. |
-| GetResetPasswordToken | [GetResetPasswordTokenRequest](#auth.GetResetPasswordTokenRequest) | [.services.ResetPasswordTokenV3](#services.ResetPasswordTokenV3) | GetResetPasswordToken returns a token. |
-| CreateResetPasswordToken | [CreateResetPasswordTokenRequest](#auth.CreateResetPasswordTokenRequest) | [.services.ResetPasswordTokenV3](#services.ResetPasswordTokenV3) | CreateResetPasswordToken creates ResetPasswordToken. |
-| CreateUser | [.services.UserV2](#services.UserV2) | [.google.protobuf.Empty](#google.protobuf.Empty) | CreateUser inserts a new user entry to a backend. |
-| UpdateUser | [.services.UserV2](#services.UserV2) | [.google.protobuf.Empty](#google.protobuf.Empty) | UpdateUser updates an existing user in a backend. |
+| RotateResetPasswordTokenSecrets | [RotateResetPasswordTokenSecretsRequest](#auth.RotateResetPasswordTokenSecretsRequest) | [.types.ResetPasswordTokenSecretsV3](#types.ResetPasswordTokenSecretsV3) | RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID. |
+| GetResetPasswordToken | [GetResetPasswordTokenRequest](#auth.GetResetPasswordTokenRequest) | [.types.ResetPasswordTokenV3](#types.ResetPasswordTokenV3) | GetResetPasswordToken returns a token. |
+| CreateResetPasswordToken | [CreateResetPasswordTokenRequest](#auth.CreateResetPasswordTokenRequest) | [.types.ResetPasswordTokenV3](#types.ResetPasswordTokenV3) | CreateResetPasswordToken creates ResetPasswordToken. |
+| CreateUser | [.types.UserV2](#types.UserV2) | [.google.protobuf.Empty](#google.protobuf.Empty) | CreateUser inserts a new user entry to a backend. |
+| UpdateUser | [.types.UserV2](#types.UserV2) | [.google.protobuf.Empty](#google.protobuf.Empty) | UpdateUser updates an existing user in a backend. |
 | DeleteUser | [DeleteUserRequest](#auth.DeleteUserRequest) | [.google.protobuf.Empty](#google.protobuf.Empty) | DeleteUser deletes an existing user in a backend by username. |
-| AcquireSemaphore | [.services.AcquireSemaphoreRequest](#services.AcquireSemaphoreRequest) | [.services.SemaphoreLease](#services.SemaphoreLease) | AcquireSemaphore acquires lease with requested resources from semaphore. |
-| KeepAliveSemaphoreLease | [.services.SemaphoreLease](#services.SemaphoreLease) | [.google.protobuf.Empty](#google.protobuf.Empty) | KeepAliveSemaphoreLease updates semaphore lease. |
-| CancelSemaphoreLease | [.services.SemaphoreLease](#services.SemaphoreLease) | [.google.protobuf.Empty](#google.protobuf.Empty) | CancelSemaphoreLease cancels semaphore lease early. |
-| GetSemaphores | [.services.SemaphoreFilter](#services.SemaphoreFilter) | [Semaphores](#auth.Semaphores) | GetSemaphores returns a list of all semaphores matching the supplied filter. |
-| DeleteSemaphore | [.services.SemaphoreFilter](#services.SemaphoreFilter) | [.google.protobuf.Empty](#google.protobuf.Empty) | DeleteSemaphore deletes a semaphore matching the supplied filter. |
+| AcquireSemaphore | [.types.AcquireSemaphoreRequest](#types.AcquireSemaphoreRequest) | [.types.SemaphoreLease](#types.SemaphoreLease) | AcquireSemaphore acquires lease with requested resources from semaphore. |
+| KeepAliveSemaphoreLease | [.types.SemaphoreLease](#types.SemaphoreLease) | [.google.protobuf.Empty](#google.protobuf.Empty) | KeepAliveSemaphoreLease updates semaphore lease. |
+| CancelSemaphoreLease | [.types.SemaphoreLease](#types.SemaphoreLease) | [.google.protobuf.Empty](#google.protobuf.Empty) | CancelSemaphoreLease cancels semaphore lease early. |
+| GetSemaphores | [.types.SemaphoreFilter](#types.SemaphoreFilter) | [Semaphores](#auth.Semaphores) | GetSemaphores returns a list of all semaphores matching the supplied filter. |
+| DeleteSemaphore | [.types.SemaphoreFilter](#types.SemaphoreFilter) | [.google.protobuf.Empty](#google.protobuf.Empty) | DeleteSemaphore deletes a semaphore matching the supplied filter. |
 | EmitAuditEvent | [.events.OneOf](#events.OneOf) | [.google.protobuf.Empty](#google.protobuf.Empty) | EmitAuditEvent emits audit event |
 | CreateAuditStream | [AuditStreamRequest](#auth.AuditStreamRequest) stream | [.events.StreamStatus](#events.StreamStatus) stream | CreateAuditStream creates or resumes audit events streams |
 | GetAppServers | [GetAppServersRequest](#auth.GetAppServersRequest) | [GetAppServersResponse](#auth.GetAppServersResponse) | GetAppServers gets all application servers. |
-| UpsertAppServer | [UpsertAppServerRequest](#auth.UpsertAppServerRequest) | [.services.KeepAlive](#services.KeepAlive) | UpsertAppServer adds an application server. |
+| UpsertAppServer | [UpsertAppServerRequest](#auth.UpsertAppServerRequest) | [.types.KeepAlive](#types.KeepAlive) | UpsertAppServer adds an application server. |
 | DeleteAppServer | [DeleteAppServerRequest](#auth.DeleteAppServerRequest) | [.google.protobuf.Empty](#google.protobuf.Empty) | DeleteAppServer removes an application server. |
 | DeleteAllAppServers | [DeleteAllAppServersRequest](#auth.DeleteAllAppServersRequest) | [.google.protobuf.Empty](#google.protobuf.Empty) | DeleteAllAppServers removes all application servers. |
 | GenerateAppToken | [GenerateAppTokenRequest](#auth.GenerateAppTokenRequest) | [GenerateAppTokenResponse](#auth.GenerateAppTokenResponse) | GenerateAppToken will generate a JWT token for application access. |
@@ -802,11 +802,11 @@ AuthService is authentication/authorization service implementation
 | CreateAppSession | [CreateAppSessionRequest](#auth.CreateAppSessionRequest) | [CreateAppSessionResponse](#auth.CreateAppSessionResponse) | CreateAppSession creates an application web session. Application web sessions represent a browser session the client holds. |
 | DeleteAppSession | [DeleteAppSessionRequest](#auth.DeleteAppSessionRequest) | [.google.protobuf.Empty](#google.protobuf.Empty) | DeleteAppSession removes an application web session. |
 | DeleteAllAppSessions | [.google.protobuf.Empty](#google.protobuf.Empty) | [.google.protobuf.Empty](#google.protobuf.Empty) | DeleteAllAppSessions removes all application web sessions. |
-| UpdateRemoteCluster | [.services.RemoteClusterV3](#services.RemoteClusterV3) | [.google.protobuf.Empty](#google.protobuf.Empty) | UpdateRemoteCluster updates remote cluster |
-| GetKubeServices | [GetKubeServicesRequest](#auth.GetKubeServicesRequest) | [GetKubeServicesResponse](#auth.GetKubeServicesResponse) | GetKubeServices gets all kubernetes services. |
+| UpdateRemoteCluster | [.types.RemoteClusterV3](#types.RemoteClusterV3) | [.google.protobuf.Empty](#google.protobuf.Empty) | UpdateRemoteCluster updates remote cluster |
+| GetKubeServices | [GetKubeServicesRequest](#auth.GetKubeServicesRequest) | [GetKubeServicesResponse](#auth.GetKubeServicesResponse) | GetKubeServices gets all kubernetes types. |
 | UpsertKubeService | [UpsertKubeServiceRequest](#auth.UpsertKubeServiceRequest) | [.google.protobuf.Empty](#google.protobuf.Empty) | UpsertKubeService adds or updates a kubernetes service. |
 | DeleteKubeService | [DeleteKubeServiceRequest](#auth.DeleteKubeServiceRequest) | [.google.protobuf.Empty](#google.protobuf.Empty) | DeleteKubeService removes a kubernetes service. |
-| DeleteAllKubeServices | [DeleteAllKubeServicesRequest](#auth.DeleteAllKubeServicesRequest) | [.google.protobuf.Empty](#google.protobuf.Empty) | DeleteAllKubeServices removes all kubernetes services. |
+| DeleteAllKubeServices | [DeleteAllKubeServicesRequest](#auth.DeleteAllKubeServicesRequest) | [.google.protobuf.Empty](#google.protobuf.Empty) | DeleteAllKubeServices removes all kubernetes types. |
 
  
 

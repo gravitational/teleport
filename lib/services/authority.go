@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/proto/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -36,6 +37,8 @@ import (
 	"github.com/tstranex/u2f"
 	"golang.org/x/crypto/ssh"
 )
+
+type CertAuthorityV2 = types.CertAuthorityV2
 
 // HostCertParams defines all parameters needed to generate a host certificate
 type HostCertParams struct {

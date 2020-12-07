@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/proto/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -29,7 +30,7 @@ import (
 )
 
 // MustCreateProvisionToken returns a new valid provision token
-// or panics, used in testes
+// or panics, used in tests
 func MustCreateProvisionToken(token string, roles teleport.Roles, expires time.Time) ProvisionToken {
 	t, err := NewProvisionToken(token, roles, expires)
 	if err != nil {
@@ -41,15 +42,17 @@ func MustCreateProvisionToken(token string, roles teleport.Roles, expires time.T
 // NewProvisionToken returns a new instance of provision token resource
 func NewProvisionToken(token string, roles teleport.Roles, expires time.Time) (ProvisionToken, error) {
 	t := &ProvisionTokenV2{
-		Kind:    KindToken,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      token,
-			Expires:   &expires,
-			Namespace: defaults.Namespace,
-		},
-		Spec: ProvisionTokenSpecV2{
-			Roles: roles,
+		ProvisionTokenV2: types.ProvisionTokenV2{
+			Kind:    KindToken,
+			Version: V2,
+			Metadata: Metadata{
+				Name:      token,
+				Expires:   &expires,
+				Namespace: defaults.Namespace,
+			},
+			Spec: ProvisionTokenSpecV2{
+				Roles: roles,
+			},
 		},
 	}
 	if err := t.CheckAndSetDefaults(); err != nil {
@@ -190,9 +193,10 @@ func (p *ProvisionTokenV2) SetMetadata(meta Metadata) {
 // V1 returns V1 version of the resource
 func (p *ProvisionTokenV2) V1() *ProvisionTokenV1 {
 	return &ProvisionTokenV1{
-		Roles:   p.Spec.Roles,
-		Expires: p.Metadata.Expiry(),
-		Token:   p.Metadata.Name,
+		ProvisionTokenV1: types.ProvisionTokenV1{
+			Roles:   p.Spec.Roles,
+			Expires: p.Metadata.Expiry(),
+			Token:   p.Metadata.Name},
 	}
 }
 
@@ -204,11 +208,6 @@ func (p *ProvisionTokenV2) V2() *ProvisionTokenV2 {
 // SetExpiry sets expiry time for the object
 func (p *ProvisionTokenV2) SetExpiry(expires time.Time) {
 	p.Metadata.SetExpiry(expires)
-}
-
-// Expires returns object expiry setting
-func (p *ProvisionTokenV2) Expiry() time.Time {
-	return p.Metadata.Expiry()
 }
 
 // SetTTL sets Expires header using realtime clock
@@ -226,15 +225,6 @@ func (p *ProvisionTokenV2) SetName(e string) {
 	p.Metadata.Name = e
 }
 
-// String returns the human readable representation of a provisioning token.
-func (p ProvisionTokenV2) String() string {
-	expires := "never"
-	if !p.Expiry().IsZero() {
-		expires = p.Expiry().String()
-	}
-	return fmt.Sprintf("ProvisionToken(Roles=%v, Expires=%v)", p.Spec.Roles, expires)
-}
-
 // V1 returns V1 version of the resource
 func (p *ProvisionTokenV1) V1() *ProvisionTokenV1 {
 	return p
@@ -243,30 +233,22 @@ func (p *ProvisionTokenV1) V1() *ProvisionTokenV1 {
 // V2 returns V2 version of the resource
 func (p *ProvisionTokenV1) V2() *ProvisionTokenV2 {
 	t := &ProvisionTokenV2{
-		Kind:    KindToken,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      p.Token,
-			Namespace: defaults.Namespace,
-		},
-		Spec: ProvisionTokenSpecV2{
-			Roles: p.Roles,
+		ProvisionTokenV2: types.ProvisionTokenV2{
+			Kind:    KindToken,
+			Version: V2,
+			Metadata: Metadata{
+				Name:      p.Token,
+				Namespace: defaults.Namespace,
+			},
+			Spec: ProvisionTokenSpecV2{
+				Roles: p.Roles,
+			},
 		},
 	}
 	if !p.Expires.IsZero() {
 		t.SetExpiry(p.Expires)
 	}
 	return t
-}
-
-// String returns the human readable representation of a provisioning token.
-func (p ProvisionTokenV1) String() string {
-	expires := "never"
-	if p.Expires.Unix() != 0 {
-		expires = p.Expires.String()
-	}
-	return fmt.Sprintf("ProvisionToken(Roles=%v, Expires=%v)",
-		p.Roles, expires)
 }
 
 // ProvisionTokenSpecV2Schema is a JSON schema for provision token

@@ -1,4 +1,4 @@
-package api
+package auth
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/proto/auth"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/api/proto/types"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"golang.org/x/net/http2"
@@ -54,13 +54,13 @@ func (c *Client) ConnectGRPC() error {
 		return trail.FromGRPC(err)
 	}
 	c.conn = conn
-	c.grpc = auth.NewAuthServiceClient(c.conn)
+	c.grpc = NewAuthServiceClient(c.conn)
 	return nil
 }
 
 // GetGRPC is a getter method for the client's AuthServiceClient.
 // TODO: Once grpc client is factored out of /lib, this can be removed.
-func (c *Client) GetGRPC() (auth.AuthServiceClient, error) {
+func (c *Client) GetGRPC() (AuthServiceClient, error) {
 	if err := c.ConnectGRPC(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -69,17 +69,17 @@ func (c *Client) GetGRPC() (auth.AuthServiceClient, error) {
 }
 
 // GetUsers returns a list of users
-func (c *Client) GetUsers(withSecrets bool) ([]services.User, error) {
+func (c *Client) GetUsers(withSecrets bool) ([]types.User, error) {
 	if err := c.ConnectGRPC(); err != nil {
-		return []services.User{}, err
+		return []types.User{}, err
 	}
-	stream, err := c.grpc.GetUsers(context.TODO(), &auth.GetUsersRequest{
+	stream, err := c.grpc.GetUsers(context.TODO(), &GetUsersRequest{
 		WithSecrets: withSecrets,
 	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
-	var users []services.User
+	var users []types.User
 	for {
 		user, err := stream.Recv()
 		if err != nil {
@@ -94,13 +94,13 @@ func (c *Client) GetUsers(withSecrets bool) ([]services.User, error) {
 }
 
 // Ping gets basic info about the auth server.
-func (c *Client) Ping(ctx context.Context) (auth.PingResponse, error) {
+func (c *Client) Ping(ctx context.Context) (PingResponse, error) {
 	if err := c.ConnectGRPC(); err != nil {
-		return auth.PingResponse{}, err
+		return PingResponse{}, err
 	}
-	rsp, err := c.grpc.Ping(ctx, &auth.PingRequest{})
+	rsp, err := c.grpc.Ping(ctx, &PingRequest{})
 	if err != nil {
-		return auth.PingResponse{}, trail.FromGRPC(err)
+		return PingResponse{}, trail.FromGRPC(err)
 	}
 	return *rsp, nil
 }

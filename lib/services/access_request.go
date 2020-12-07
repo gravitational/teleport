@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/teleport/api/proto/types"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 
@@ -100,27 +101,6 @@ func (r *RequestIDs) Check() error {
 
 func (r *RequestIDs) IsEmpty() bool {
 	return len(r.AccessRequests) < 1
-}
-
-// stateVariants allows iteration of the expected variants
-// of RequestState.
-var stateVariants = [4]RequestState{
-	RequestState_NONE,
-	RequestState_PENDING,
-	RequestState_APPROVED,
-	RequestState_DENIED,
-}
-
-// Parse attempts to interpret a value as a string representation
-// of a RequestState.
-func (s *RequestState) Parse(val string) error {
-	for _, state := range stateVariants {
-		if state.String() == val {
-			*s = state
-			return nil
-		}
-	}
-	return trace.BadParameter("unknown request state: %q", val)
 }
 
 // key values for map encoding of request filter
@@ -293,7 +273,9 @@ type AccessRequest interface {
 // GetAccessRequest is a helper function assists with loading a specific request by ID.
 func GetAccessRequest(ctx context.Context, acc DynamicAccess, reqID string) (AccessRequest, error) {
 	reqs, err := acc.GetAccessRequests(ctx, AccessRequestFilter{
-		ID: reqID,
+		AccessRequestFilter: types.AccessRequestFilter{
+			ID: reqID,
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -304,38 +286,20 @@ func GetAccessRequest(ctx context.Context, acc DynamicAccess, reqID string) (Acc
 	return reqs[0], nil
 }
 
-func (s RequestState) IsNone() bool {
-	return s == RequestState_NONE
-}
-
-func (s RequestState) IsPending() bool {
-	return s == RequestState_PENDING
-}
-
-func (s RequestState) IsApproved() bool {
-	return s == RequestState_APPROVED
-}
-
-func (s RequestState) IsDenied() bool {
-	return s == RequestState_DENIED
-}
-
-func (s RequestState) IsResolved() bool {
-	return s.IsApproved() || s.IsDenied()
-}
-
 // NewAccessRequest assembled an AccessReqeust resource.
 func NewAccessRequest(user string, roles ...string) (AccessRequest, error) {
 	req := AccessRequestV3{
-		Kind:    KindAccessRequest,
-		Version: V3,
-		Metadata: Metadata{
-			Name: uuid.New(),
-		},
-		Spec: AccessRequestSpecV3{
-			User:  user,
-			Roles: roles,
-			State: RequestState_PENDING,
+		AccessRequestV3: types.AccessRequestV3{
+			Kind:    KindAccessRequest,
+			Version: V3,
+			Metadata: Metadata{
+				Name: uuid.New(),
+			},
+			Spec: AccessRequestSpecV3{
+				User:  user,
+				Roles: roles,
+				State: RequestState_PENDING,
+			},
 		},
 	}
 	if err := req.CheckAndSetDefaults(); err != nil {
@@ -739,27 +703,6 @@ func (r *AccessRequestV3) Equals(other AccessRequest) bool {
 	return r.Spec.Equals(&o.Spec)
 }
 
-func (s *AccessRequestSpecV3) Equals(other *AccessRequestSpecV3) bool {
-	if s.User != other.User {
-		return false
-	}
-	if len(s.Roles) != len(other.Roles) {
-		return false
-	}
-	for i, role := range s.Roles {
-		if role != other.Roles[i] {
-			return false
-		}
-	}
-	if s.Created != other.Created {
-		return false
-	}
-	if s.Expires != other.Expires {
-		return false
-	}
-	return s.State == other.State
-}
-
 type AccessRequestMarshaler interface {
 	MarshalAccessRequest(req AccessRequest, opts ...MarshalOption) ([]byte, error)
 	UnmarshalAccessRequest(bytes []byte, opts ...MarshalOption) (AccessRequest, error)
@@ -891,8 +834,4 @@ func (r *AccessRequestV3) GetResourceID() int64 {
 
 func (r *AccessRequestV3) SetResourceID(id int64) {
 	r.Metadata.SetID(id)
-}
-
-func (r *AccessRequestV3) String() string {
-	return fmt.Sprintf("AccessRequest(user=%v,roles=%+v)", r.Spec.User, r.Spec.Roles)
 }

@@ -1,4 +1,4 @@
-package api
+package auth
 
 import (
 	"context"
@@ -11,8 +11,6 @@ import (
 	"sync/atomic"
 
 	"github.com/gravitational/roundtrip"
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/proto/auth"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -32,7 +30,7 @@ var log = logrus.WithFields(logrus.Fields{
 type Client struct {
 	sync.Mutex
 	ClientConfig
-	grpc auth.AuthServiceClient
+	grpc AuthServiceClient
 	conn *grpc.ClientConn
 	// closedFlag is set to indicate that the services are closed
 	closedFlag int32

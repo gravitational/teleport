@@ -446,9 +446,16 @@ buildbox-api:
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/proto/auth \
 		--gofast_out=plugins=grpc:api/proto/auth \
-		--doc_out=api/docs \
-		--doc_opt=markdown,client.md \
+		--doc_out=api/proto/auth \
+		--doc_opt=markdown,auth.md \
 		auth.proto
+
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/proto/types \
+		--gofast_out=plugins=grpc:api/proto/types \
+		--doc_out=api/proto/types \
+		--doc_opt=markdown,types.md \
+		types.proto
 
 .PHONY: goinstall
 goinstall:

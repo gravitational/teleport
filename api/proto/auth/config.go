@@ -1,4 +1,4 @@
-package api
+package auth
 
 import (
 	"context"
@@ -36,10 +36,10 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter TLS")
 	}
 	if c.KeepAlivePeriod == 0 {
-		c.KeepAlivePeriod = ServerKeepAliveTTL
+		c.KeepAlivePeriod = teleport.ServerKeepAliveTTL
 	}
 	if c.KeepAliveCount == 0 {
-		c.KeepAliveCount = KeepAliveCountMax
+		c.KeepAliveCount = teleport.KeepAliveCountMax
 	}
 	if c.Dialer == nil {
 		c.Dialer = NewAddrDialer(c.Addrs, c.KeepAlivePeriod)
@@ -79,7 +79,7 @@ func (f ContextDialerFunc) DialContext(in context.Context, network, addr string)
 // NewAddrDialer returns new dialer from a list of addresses
 func NewAddrDialer(addrs []utils.NetAddr, keepAliveInterval time.Duration) ContextDialer {
 	dialer := net.Dialer{
-		Timeout:   DefaultDialTimeout,
+		Timeout:   teleport.DefaultDialTimeout,
 		KeepAlive: keepAliveInterval,
 	}
 	return ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {

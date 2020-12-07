@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gravitational/teleport/api/proto/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -52,11 +53,13 @@ type RemoteCluster interface {
 // NewRemoteCluster is a convenience way to create a RemoteCluster resource.
 func NewRemoteCluster(name string) (RemoteCluster, error) {
 	return &RemoteClusterV3{
-		Kind:    KindRemoteCluster,
-		Version: V3,
-		Metadata: Metadata{
-			Name:      name,
-			Namespace: defaults.Namespace,
+		RemoteClusterV3: types.RemoteClusterV3{
+			Kind:    KindRemoteCluster,
+			Version: V3,
+			Metadata: Metadata{
+				Name:      name,
+				Namespace: defaults.Namespace,
+			},
 		},
 	}, nil
 }
@@ -149,11 +152,6 @@ func (c *RemoteClusterV3) GetName() string {
 // SetName sets the name of the RemoteCluster.
 func (c *RemoteClusterV3) SetName(e string) {
 	c.Metadata.Name = e
-}
-
-// String represents a human readable version of remote cluster settings.
-func (c *RemoteClusterV3) String() string {
-	return fmt.Sprintf("RemoteCluster(%v, %v)", c.Metadata.Name, c.Status.Connection)
 }
 
 // RemoteClusterSchemaTemplate is a template JSON Schema for V3 style objects
