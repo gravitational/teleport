@@ -19,6 +19,7 @@ package config
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -256,6 +257,8 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 		}
 		return &fc, nil
 	}
+	// Remove all newlines in the YAML error, to avoid escaping when printing.
+	strictUnmarshalErr = errors.New(strings.Replace(strictUnmarshalErr.Error(), "\n", "", -1))
 	// DELETE IN 7.0: during 6.0, users should notice any issues that passed
 	// old validation but not the new strict one. With 7.0, we should always
 	// enforce the strict validation.
