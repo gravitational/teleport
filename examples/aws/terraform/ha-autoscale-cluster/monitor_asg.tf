@@ -81,7 +81,7 @@ resource "aws_launch_configuration" "monitor" {
     create_before_destroy = true
   }
   name_prefix                 = "${var.cluster_name}-monitor-"
-  image_id                    = data.aws_ami.base.id
+  image_id                    = var.ami_id
   instance_type               = var.monitor_instance_type
   user_data                   = templatefile(
     "${path.module}/monitor-user-data.tpl",

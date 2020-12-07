@@ -1,16 +1,3 @@
-// Base AMI is found by name, users can (and should) supply own AMIs
-// the only requirement is systemd installed as all scripts
-// are relying on systemd
-data "aws_ami" "base" {
-  most_recent = true
-  owners      = [126027368216]
-
-  filter {
-    name   = "name"
-    values = [var.ami_name]
-  }
-}
-
 // This is to figure account_id used in some IAM rules
 data "aws_caller_identity" "current" {
 }

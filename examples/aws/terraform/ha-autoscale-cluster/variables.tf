@@ -83,8 +83,8 @@ variable "license_path" {
   default = ""
 }
 
-// AMI name to use
-variable "ami_name" {
+// AMI ID to use
+variable "ami_id" {
   type = string
 }
 

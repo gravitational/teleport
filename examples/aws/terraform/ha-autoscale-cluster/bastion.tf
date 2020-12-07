@@ -3,7 +3,7 @@
 // of need to have emrergency administrative access
 resource "aws_instance" "bastion" {
   count                       = "1"
-  ami                         = data.aws_ami.base.id
+  ami                         = var.ami_id
   instance_type               = "t2.medium"
   key_name                    = var.key_name
   associate_public_ip_address = true

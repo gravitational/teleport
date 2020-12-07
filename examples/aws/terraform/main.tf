@@ -45,9 +45,9 @@ module "teleport-ha-autoscale-cluster" {
   # path to teleport enterprise/pro license file
   license_path = local_file.license.filename
 
-  # AMI name to use
+  # AMI ID to use
   # Required, no default on module
-  ami_name = "gravitational-teleport-ami-ent-5.0.0"
+  ami_id = "ami-06c663231516705da"
 
   # Password for grafana admin user
   # Required, no default on module
