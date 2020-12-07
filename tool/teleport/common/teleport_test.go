@@ -41,7 +41,7 @@ type MainTestSuite struct {
 var _ = check.Suite(&MainTestSuite{})
 
 func (s *MainTestSuite) SetUpTest(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
 
 func (s *MainTestSuite) SetUpSuite(c *check.C) {
@@ -118,7 +118,7 @@ func (s *MainTestSuite) TestConfigFile(c *check.C) {
 	c.Assert(conf.SSH.Enabled, check.Equals, true)
 	c.Assert(conf.Auth.Enabled, check.Equals, false)
 	c.Assert(conf.Proxy.Enabled, check.Equals, false)
-	c.Assert(log.GetLevel(), check.Equals, log.DebugLevel)
+	c.Assert(conf.Log.GetLevel(), check.Equals, log.DebugLevel)
 	c.Assert(conf.Hostname, check.Equals, "hvostongo.example.org")
 	c.Assert(conf.Token, check.Equals, "xxxyyy")
 	c.Assert(conf.AdvertiseIP, check.DeepEquals, "10.5.5.5")

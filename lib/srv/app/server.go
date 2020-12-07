@@ -440,6 +440,7 @@ func (s *Server) newHTTPServer() *http.Server {
 	return &http.Server{
 		Handler:           authMiddleware,
 		ReadHeaderTimeout: defaults.DefaultDialTimeout,
+		ErrorLog:          utils.NewStdlogger(s.log.Error, teleport.ComponentApp),
 	}
 }
 

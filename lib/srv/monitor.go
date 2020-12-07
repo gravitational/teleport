@@ -75,7 +75,7 @@ type MonitorConfig struct {
 	// Emitter is events emitter
 	Emitter events.Emitter
 	// Entry is a logging entry
-	Entry *log.Entry
+	Entry log.FieldLogger
 }
 
 // CheckAndSetDefaults checks values and sets defaults

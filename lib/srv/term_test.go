@@ -39,9 +39,6 @@ var _ = fmt.Printf
 func (s *TermSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())
 }
-func (s *TermSuite) TearDownSuite(c *check.C) {}
-func (s *TermSuite) SetUpTest(c *check.C)     {}
-func (s *TermSuite) TearDownTest(c *check.C)  {}
 
 func (s *TermSuite) TestGetOwner(c *check.C) {
 	tests := []struct {
