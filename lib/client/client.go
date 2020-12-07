@@ -129,22 +129,6 @@ func (proxy *ProxyClient) GetLeafClusters(ctx context.Context) ([]services.Remot
 	return remoteClusters, nil
 }
 
-// GetRootCluster returns the root cluster presented as a RemoteCluster.
-func (proxy *ProxyClient) GetRootCluster() (services.RemoteCluster, error) {
-	rootClusterName, err := proxy.RootClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	rc, err := services.NewRemoteCluster(rootClusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	rc.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
-	rc.SetLastHeartbeat(time.Now().UTC())
-	return rc, nil
-}
-
 // ReissueParams encodes optional parameters for
 // user certificate reissue.
 type ReissueParams struct {

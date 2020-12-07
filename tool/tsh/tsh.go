@@ -1034,7 +1034,7 @@ func onListClusters(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 
-	var rootCluster services.RemoteCluster
+	var rootClusterName string
 	var leafClusters []services.RemoteCluster
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		proxyClient, err := tc.ConnectToProxy(cf.Context)
@@ -1044,7 +1044,7 @@ func onListClusters(cf *CLIConf) {
 		defer proxyClient.Close()
 
 		var rootErr, leafErr error
-		rootCluster, rootErr = proxyClient.GetRootCluster()
+		rootClusterName, rootErr = proxyClient.RootClusterName()
 		leafClusters, leafErr = proxyClient.GetLeafClusters(cf.Context)
 		return trace.NewAggregate(rootErr, leafErr)
 	})
@@ -1056,8 +1056,8 @@ func onListClusters(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	showActive := func(cluster services.RemoteCluster) string {
-		if profile != nil && cluster.GetName() == profile.Cluster {
+	showActive := func(clusterName string) string {
+		if profile != nil && clusterName == profile.Cluster {
 			return "*"
 		}
 		return ""
@@ -1070,9 +1070,13 @@ func onListClusters(cf *CLIConf) {
 		t = asciitable.MakeTable([]string{"Cluster Name", "Status", "Cluster Type", "Active"})
 	}
 
-	t.AddRow([]string{rootCluster.GetName(), rootCluster.GetConnectionStatus(), "root", showActive(rootCluster)})
+	t.AddRow([]string{
+		rootClusterName, teleport.RemoteClusterStatusOnline, "root", showActive(rootClusterName),
+	})
 	for _, cluster := range leafClusters {
-		t.AddRow([]string{cluster.GetName(), cluster.GetConnectionStatus(), "leaf", showActive(cluster)})
+		t.AddRow([]string{
+			cluster.GetName(), cluster.GetConnectionStatus(), "leaf", showActive(cluster.GetName()),
+		})
 	}
 	fmt.Println(t.AsBuffer().String())
 }
