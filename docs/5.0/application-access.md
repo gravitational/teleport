@@ -185,6 +185,16 @@ app_service:
      uri: "https://localhost:8001"
      public_addr: "jira.example.com"
 ```
+### Skip TLS certification verification
+
+  Skip validating TLS certificate for applications.  Useful for applications that are using self-signed certificates.
+
+```yaml
+   - name: "app"
+     uri: "https://localhost:8443"
+     public_addr: "app.example.com"
+     insecure_skip_verify: true
+```
 
 ### Deeplink to Subdirectory
 
