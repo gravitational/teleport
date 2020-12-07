@@ -43,9 +43,6 @@ func (s *PresenceSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())
 }
 
-func (s *PresenceSuite) TearDownSuite(c *check.C) {
-}
-
 func (s *PresenceSuite) SetUpTest(c *check.C) {
 	var err error
 

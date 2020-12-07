@@ -32,11 +32,13 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
+	"github.com/gravitational/teleport/lib/utils/testlog"
 
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 )
 
@@ -60,6 +62,7 @@ func (s *ServiceTestSuite) TestSelfSignedHTTPS(c *check.C) {
 	cfg := &Config{
 		DataDir:  c.MkDir(),
 		Hostname: "example.com",
+		Log:      utils.WrapLogger(logrus.New().WithField("test", c.TestName())),
 	}
 	err := initSelfSignedHTTPSCert(cfg)
 	c.Assert(err, check.IsNil)
@@ -169,6 +172,9 @@ func TestMonitor(t *testing.T) {
 func (s *ServiceTestSuite) TestCheckPrincipals(c *check.C) {
 	dataDir := c.MkDir()
 
+	t := testlog.NewCheckTestWrapper(c)
+	defer t.Close()
+
 	// Create a test auth server to extract the server identity (SSH and TLS
 	// certificates).
 	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
@@ -221,7 +227,7 @@ func (s *ServiceTestSuite) TestCheckPrincipals(c *check.C) {
 		},
 	}
 	for _, tt := range tests {
-		ok := checkServerIdentity(testConnector, tt.inPrincipals, tt.inDNS)
+		ok := checkServerIdentity(testConnector, tt.inPrincipals, tt.inDNS, t.Log)
 		c.Assert(ok, check.Equals, tt.outRegenerate)
 	}
 }
@@ -231,6 +237,9 @@ func (s *ServiceTestSuite) TestCheckPrincipals(c *check.C) {
 // setup of true external loggers, but at the time of writing there isn't good
 // support for setting up fake external logging endpoints.
 func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
+	t := testlog.NewCheckTestWrapper(c)
+	defer t.Close()
+
 	tts := []struct {
 		events []string
 		isNil  bool
@@ -258,7 +267,7 @@ func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
 
 		loggers, err := initExternalLog(context.Background(), services.AuditConfig{
 			AuditEventsURI: tt.events,
-		})
+		}, t.Log)
 
 		if tt.isErr {
 			c.Assert(err, check.NotNil, cmt)
