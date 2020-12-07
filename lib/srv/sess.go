@@ -932,7 +932,7 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		return trace.Wrap(err)
 	}
 	if result != nil {
-		ctx.Debugf("Exec request (%v) result: %v.", ctx.ExecRequest.String(), result)
+		ctx.Debugf("Exec request (%v) result: %v.", ctx.ExecRequest, result)
 		ctx.SendExecResult(*result)
 	}
 

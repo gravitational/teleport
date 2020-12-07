@@ -133,12 +133,13 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 		},
 		{
 			name: "session print event",
-			json: `{"time":"2020-03-30T15:58:56.959Z","event":"print","bytes":1551,"ms":2284,"offset":1957,"ei":11,"ci":9}`,
+			json: `{"time":"2020-03-30T15:58:56.959Z","event":"print","bytes":1551,"ms":2284,"offset":1957,"ei":11,"ci":9,"cluster_name":"test"}`,
 			event: SessionPrint{
 				Metadata: Metadata{
-					Index: 11,
-					Type:  SessionPrintEvent,
-					Time:  time.Date(2020, 03, 30, 15, 58, 56, 959*int(time.Millisecond), time.UTC),
+					Index:       11,
+					Type:        SessionPrintEvent,
+					Time:        time.Date(2020, 03, 30, 15, 58, 56, 959*int(time.Millisecond), time.UTC),
+					ClusterName: "test",
 				},
 				ChunkIndex:        9,
 				Bytes:             1551,
@@ -249,13 +250,14 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 		},
 		{
 			name: "successful user.login event",
-			json: `{"ei": 0, "attributes":{"followers_url": "https://api.github.com/users/bob/followers", "err": null, "public_repos": 20, "site_admin": false, "app_metadata":{"roles":["example/admins","example/devc"]}, "emails":[{"email":"bob@example.com","primary":true,"verified":true,"visibility":"public"},{"email":"bob@alternative.com","primary":false,"verified":true,"visibility":null}]},"code":"T1001I","event":"user.login","method":"oidc","success":true,"time":"2020-04-07T18:45:07Z","uid":"019432f1-3021-4860-af41-d9bd1668c3ea","user":"bob@example.com"}`,
+			json: `{"ei": 0, "attributes":{"followers_url": "https://api.github.com/users/bob/followers", "err": null, "public_repos": 20, "site_admin": false, "app_metadata":{"roles":["example/admins","example/devc"]}, "emails":[{"email":"bob@example.com","primary":true,"verified":true,"visibility":"public"},{"email":"bob@alternative.com","primary":false,"verified":true,"visibility":null}]},"code":"T1001I","event":"user.login","method":"oidc","success":true,"time":"2020-04-07T18:45:07Z","uid":"019432f1-3021-4860-af41-d9bd1668c3ea","user":"bob@example.com","cluster_name":"testcluster"}`,
 			event: UserLogin{
 				Metadata: Metadata{
-					ID:   "019432f1-3021-4860-af41-d9bd1668c3ea",
-					Type: UserLoginEvent,
-					Time: time.Date(2020, 04, 07, 18, 45, 07, 0*int(time.Millisecond), time.UTC),
-					Code: UserSSOLoginCode,
+					ID:          "019432f1-3021-4860-af41-d9bd1668c3ea",
+					Type:        UserLoginEvent,
+					Time:        time.Date(2020, 04, 07, 18, 45, 07, 0*int(time.Millisecond), time.UTC),
+					Code:        UserSSOLoginCode,
+					ClusterName: "testcluster",
 				},
 				Status: Status{
 					Success: true,
@@ -343,13 +345,14 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 		},
 		{
 			name: "user update",
-			json: `{"ei": 0, "code":"T1003I","connector":"auth0","event":"user.update","expires":"2020-04-08T02:45:06.524816756Z","roles":["clusteradmin"],"time":"2020-04-07T18:45:07Z","uid":"e7c8e36e-adb4-4c98-b818-226d73add7fc","user":"alice@example.com"}`,
+			json: `{"ei": 0, "code":"T1003I","connector":"auth0","event":"user.update","expires":"2020-04-08T02:45:06.524816756Z","roles":["clusteradmin"],"time":"2020-04-07T18:45:07Z","uid":"e7c8e36e-adb4-4c98-b818-226d73add7fc","user":"alice@example.com","cluster_name":"test-cluster"}`,
 			event: UserCreate{
 				Metadata: Metadata{
-					ID:   "e7c8e36e-adb4-4c98-b818-226d73add7fc",
-					Type: UserUpdatedEvent,
-					Time: time.Date(2020, 4, 7, 18, 45, 7, 0*int(time.Millisecond), time.UTC),
-					Code: UserUpdateCode,
+					ID:          "e7c8e36e-adb4-4c98-b818-226d73add7fc",
+					Type:        UserUpdatedEvent,
+					Time:        time.Date(2020, 4, 7, 18, 45, 7, 0*int(time.Millisecond), time.UTC),
+					Code:        UserUpdateCode,
+					ClusterName: "test-cluster",
 				},
 				UserMetadata: UserMetadata{
 					User: "alice@example.com",
@@ -363,13 +366,14 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 		},
 		{
 			name: "success port forward",
-			json: `{"ei": 0, "addr":"localhost:3025","addr.local":"127.0.0.1:3022","addr.remote":"127.0.0.1:45976","code":"T3003I","event":"port","login":"alice","success":true,"time":"2020-04-15T18:06:56.397Z","uid":"7efc5025-a712-47de-8086-7d935c110188","user":"alice@example.com"}`,
+			json: `{"ei": 0, "addr":"localhost:3025","addr.local":"127.0.0.1:3022","addr.remote":"127.0.0.1:45976","code":"T3003I","event":"port","login":"alice","success":true,"time":"2020-04-15T18:06:56.397Z","uid":"7efc5025-a712-47de-8086-7d935c110188","user":"alice@example.com","cluster_name":"test"}`,
 			event: PortForward{
 				Metadata: Metadata{
-					ID:   "7efc5025-a712-47de-8086-7d935c110188",
-					Type: PortForwardEvent,
-					Time: time.Date(2020, 4, 15, 18, 06, 56, 397*int(time.Millisecond), time.UTC),
-					Code: PortForwardCode,
+					ID:          "7efc5025-a712-47de-8086-7d935c110188",
+					Type:        PortForwardEvent,
+					Time:        time.Date(2020, 4, 15, 18, 06, 56, 397*int(time.Millisecond), time.UTC),
+					Code:        PortForwardCode,
+					ClusterName: "test",
 				},
 				UserMetadata: UserMetadata{
 					User:  "alice@example.com",
@@ -387,13 +391,14 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 		},
 		{
 			name: "rejected port forward",
-			json: `{"ei": 0, "addr":"localhost:3025","addr.local":"127.0.0.1:3022","addr.remote":"127.0.0.1:46452","code":"T3003E","error":"port forwarding not allowed by role set: roles clusteradmin,default-implicit-role","event":"port","login":"bob","success":false,"time":"2020-04-15T18:20:21Z","uid":"097724d1-5ee3-4c8d-a911-ea6021e5b3fb","user":"bob@example.com"}`,
+			json: `{"ei": 0, "addr":"localhost:3025","addr.local":"127.0.0.1:3022","addr.remote":"127.0.0.1:46452","code":"T3003E","error":"port forwarding not allowed by role set: roles clusteradmin,default-implicit-role","event":"port","login":"bob","success":false,"time":"2020-04-15T18:20:21Z","uid":"097724d1-5ee3-4c8d-a911-ea6021e5b3fb","user":"bob@example.com","cluster_name":"test"}`,
 			event: PortForward{
 				Metadata: Metadata{
-					ID:   "097724d1-5ee3-4c8d-a911-ea6021e5b3fb",
-					Type: PortForwardEvent,
-					Time: time.Date(2020, 4, 15, 18, 20, 21, 0*int(time.Millisecond), time.UTC),
-					Code: PortForwardFailureCode,
+					ID:          "097724d1-5ee3-4c8d-a911-ea6021e5b3fb",
+					Type:        PortForwardEvent,
+					Time:        time.Date(2020, 4, 15, 18, 20, 21, 0*int(time.Millisecond), time.UTC),
+					Code:        PortForwardFailureCode,
+					ClusterName: "test",
 				},
 				UserMetadata: UserMetadata{
 					User:  "bob@example.com",
@@ -412,13 +417,14 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 		},
 		{
 			name: "rejected subsystem",
-			json: `{"ei": 0, "addr.local":"127.0.0.1:57518","addr.remote":"127.0.0.1:3022","code":"T3001E","event":"subsystem","exitError":"some error","login":"alice","name":"proxy","time":"2020-04-15T20:28:18Z","uid":"3129a5ae-ee1e-4b39-8d7c-a0a3f218e7dc","user":"alice@example.com"}`,
+			json: `{"ei":0,"cluster_name":"test","addr.local":"127.0.0.1:57518","addr.remote":"127.0.0.1:3022","code":"T3001E","event":"subsystem","exitError":"some error","login":"alice","name":"proxy","time":"2020-04-15T20:28:18Z","uid":"3129a5ae-ee1e-4b39-8d7c-a0a3f218e7dc","user":"alice@example.com"}`,
 			event: Subsystem{
 				Metadata: Metadata{
-					ID:   "3129a5ae-ee1e-4b39-8d7c-a0a3f218e7dc",
-					Type: SubsystemEvent,
-					Time: time.Date(2020, 4, 15, 20, 28, 18, 0*int(time.Millisecond), time.UTC),
-					Code: SubsystemFailureCode,
+					ID:          "3129a5ae-ee1e-4b39-8d7c-a0a3f218e7dc",
+					Type:        SubsystemEvent,
+					Time:        time.Date(2020, 4, 15, 20, 28, 18, 0*int(time.Millisecond), time.UTC),
+					Code:        SubsystemFailureCode,
+					ClusterName: "test",
 				},
 				UserMetadata: UserMetadata{
 					User:  "alice@example.com",
@@ -434,13 +440,14 @@ func (a *EventsTestSuite) TestJSON(c *check.C) {
 		},
 		{
 			name: "failed auth attempt",
-			json: `{"ei": 0, "code":"T3007W","error":"ssh: principal \"bob\" not in the set of valid principals for given certificate: [\"root\" \"alice\"]","event":"auth","success":false,"time":"2020-04-22T20:53:50Z","uid":"ebac95ca-8673-44af-b2cf-65f517acf35a","user":"alice@example.com"}`,
+			json: `{"ei": 0, "code":"T3007W","error":"ssh: principal \"bob\" not in the set of valid principals for given certificate: [\"root\" \"alice\"]","event":"auth","success":false,"time":"2020-04-22T20:53:50Z","uid":"ebac95ca-8673-44af-b2cf-65f517acf35a","user":"alice@example.com","cluster_name":"testcluster"}`,
 			event: AuthAttempt{
 				Metadata: Metadata{
-					ID:   "ebac95ca-8673-44af-b2cf-65f517acf35a",
-					Type: AuthAttemptEvent,
-					Time: time.Date(2020, 4, 22, 20, 53, 50, 0*int(time.Millisecond), time.UTC),
-					Code: AuthAttemptFailureCode,
+					ID:          "ebac95ca-8673-44af-b2cf-65f517acf35a",
+					Type:        AuthAttemptEvent,
+					Time:        time.Date(2020, 4, 22, 20, 53, 50, 0*int(time.Millisecond), time.UTC),
+					Code:        AuthAttemptFailureCode,
+					ClusterName: "testcluster",
 				},
 				UserMetadata: UserMetadata{
 					User: "alice@example.com",

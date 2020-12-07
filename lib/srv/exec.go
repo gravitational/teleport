@@ -60,8 +60,6 @@ type ExecResult struct {
 
 // Exec executes an "exec" request.
 type Exec interface {
-	fmt.Stringer
-
 	// GetCommand returns the command to be executed.
 	GetCommand() string
 
