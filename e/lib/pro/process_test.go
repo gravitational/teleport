@@ -13,6 +13,7 @@ import (
 	check "gopkg.in/check.v1"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 type ProcessSuite struct {
@@ -29,6 +30,7 @@ func (s *ProcessSuite) TestNotAuthNoLicense(c *check.C) {
 		AuthServers: []utils.NetAddr{
 			*utils.MustParseAddr("tcp://127.0.0.1:8080"),
 		},
+		Log: utils.WrapLogger(logrus.WithField("test", c.TestName())),
 	})
 	c.Assert(err, check.IsNil)
 }
@@ -59,6 +61,7 @@ func (s *ProcessSuite) TestAuthNoLicense(c *check.C) {
 		AuthServers: []utils.NetAddr{
 			*utils.MustParseAddr("tcp://127.0.0.1:8080"),
 		},
+		Log: utils.WrapLogger(logrus.WithField("test", c.TestName())),
 	})
 	fmt.Printf("%v\n\n", trace.DebugReport(err))
 	fixtures.ExpectAccessDenied(c, err)
