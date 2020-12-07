@@ -1708,12 +1708,26 @@ version is recommended for production use.
 When running multiple binaries of Teleport within a cluster (nodes, proxies,
 clients, etc), the following rules apply:
 
-* Patch versions are always compatible, for example any 4.0.1 component will
-  work with any 4.0.3 component.
+**Before 5.0.0**
 
-* Other versions are always compatible with their **previous** release. This
-  means you must not attempt to upgrade from 4.1 straight to 4.3. You must
-  upgrade to 4.2 first.
+* **Only patch** versions are always compatible, for example any 4.0.1 component will
+work with any 4.0.3 component.
+
+* Minor versions are always compatible with the **previous** minor release. This
+  means you must not attempt to upgrade from 4.1.x straight to 4.3.x. You must
+  upgrade to 4.2.x first.
+
+* Teleport clients [`tsh`](cli-docs.md#tsh) for users and [`tctl`](cli-docs.md#tctl) for admins
+  may not be compatible with different versions of the `teleport` service.
+
+**After 5.0.0**
+
+* **Patch and minor** versions are always compatible, for example any 5.0.1 component will
+work with any 5.0.3 component and 6.1.0 component will work with any 6.7.0 component.
+
+* Major versions are always compatible with the **previous** major release. This
+  means you must not attempt to upgrade from 5.x.x straight to 7.x.x. You must
+  upgrade to 6.x.x first.
 
 * Teleport clients [`tsh`](cli-docs.md#tsh) for users and [`tctl`](cli-docs.md#tctl) for admins
   may not be compatible with different versions of the `teleport` service.
