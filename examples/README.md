@@ -22,7 +22,6 @@
 * [Helm Chart - `teleport-daemonset`](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-auto-trustedcluster) : Deploy Teleport into Kubernetes, and installs Teleport on each Kubernetes worker and connects back to a root cluster.
 * [Helm Chart - `teleport-kube-agent`](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-kube-agent) : Deploy Teleport Agent into Kubernetes and connects to a root Teleport cluster using a tunnel.
 
-
 ## SSO Connector Examples and Trusted Cluster Examples
 ### SSO Resources
 * [Active Directory - YAML Resource](https://github.com/gravitational/teleport/blob/master/examples/resources/adfs-connector.yaml)
