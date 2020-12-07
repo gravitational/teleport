@@ -438,7 +438,7 @@ func (s *IntSuite) TestAuditOn(c *check.C) {
 				}
 				break loop
 			case <-timeoutC:
-				pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
+				dumpGoroutineProfile()
 				c.Fatalf("%s: Timeout waiting for upload of session %v to complete to %v",
 					tt.comment, session.ID, tt.auditSessionsURI)
 			}
@@ -1146,7 +1146,7 @@ func (s *IntSuite) runDisconnectTest(c *check.C, tc disconnectTestCase) {
 
 	select {
 	case <-time.After(tc.disconnectTimeout + time.Second):
-		pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
+		dumpGoroutineProfile()
 		c.Fatalf("%s: timeout waiting for session to exit: %+v", timeNow(), tc)
 	case <-ctx.Done():
 		// session closed.  a test case is successful if the first
@@ -3324,7 +3324,7 @@ func (s *IntSuite) TestPAM(c *check.C) {
 		// Wait for the session to end or timeout after 10 seconds.
 		select {
 		case <-time.After(10 * time.Second):
-			pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
+			dumpGoroutineProfile()
 			c.Fatalf("Timeout exceeded waiting for session to complete.")
 		case <-ctx.Done():
 		}
@@ -4021,8 +4021,8 @@ func waitForProcessStart(serviceC chan *service.TeleportProcess) (*service.Telep
 	var svc *service.TeleportProcess
 	select {
 	case svc = <-serviceC:
-	case <-time.After(60 * time.Second):
-		pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
+	case <-time.After(1 * time.Minute):
+		dumpGoroutineProfile()
 		return nil, trace.BadParameter("timeout waiting for service to start")
 	}
 	return svc, nil
@@ -4038,8 +4038,8 @@ func (s *IntSuite) waitForReload(serviceC chan *service.TeleportProcess, old *se
 	var svc *service.TeleportProcess
 	select {
 	case svc = <-serviceC:
-	case <-time.After(60 * time.Second):
-		pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
+	case <-time.After(1 * time.Minute):
+		dumpGoroutineProfile()
 		return nil, trace.BadParameter("timeout waiting for service to start")
 	}
 
@@ -4049,7 +4049,7 @@ func (s *IntSuite) waitForReload(serviceC chan *service.TeleportProcess, old *se
 	case <-eventC:
 
 	case <-time.After(20 * time.Second):
-		pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
+		dumpGoroutineProfile()
 		return nil, trace.BadParameter("timeout waiting for service to broadcast ready status")
 	}
 
@@ -4062,8 +4062,8 @@ func (s *IntSuite) waitForReload(serviceC chan *service.TeleportProcess, old *se
 		}()
 		select {
 		case <-ctx.Done():
-		case <-time.After(60 * time.Second):
-			pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
+		case <-time.After(1 * time.Minute):
+			dumpGoroutineProfile()
 			return nil, trace.BadParameter("timeout waiting for old service to stop")
 		}
 	}
@@ -4187,7 +4187,7 @@ func (s *IntSuite) TestWindowChange(c *check.C) {
 					}
 				}
 			case <-timeoutCh:
-				pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
+				dumpGoroutineProfile()
 				return trace.BadParameter("timed out waiting for output, last output: %q doesn't contain any of the expected substrings: %q", t.Output(5000), outputs)
 			}
 		}
@@ -4821,7 +4821,7 @@ func (s *IntSuite) TestBPFSessionDifferentiation(c *check.C) {
 				break
 			}
 		case <-timeout:
-			pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
+			dumpGoroutineProfile()
 			c.Fatalf("Timed out waiting for client to finish interactive session.")
 		}
 	}
@@ -5108,4 +5108,8 @@ func canTestBPF() error {
 	}
 
 	return nil
+}
+
+func dumpGoroutineProfile() {
+	pprof.Lookup("goroutine").WriteTo(os.Stderr, 2)
 }
