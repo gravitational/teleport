@@ -114,6 +114,7 @@ func (s *PasswordSuite) TestTiming(c *C) {
 		err     error
 	}
 
+	const numTests = 10
 	// Run multiple password checks in parallel, for both existing and
 	// non-existing user. This should ensure that there's always contention and
 	// that both checking paths are subject to it together.
@@ -122,8 +123,8 @@ func (s *PasswordSuite) TestTiming(c *C) {
 	// and reduce test flakiness.
 	wg := sync.WaitGroup{}
 	resCh := make(chan res)
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
+	wg.Add(numTests * 2)
+	for i := 0; i < numTests; i++ {
 		go func() {
 			defer wg.Done()
 			start := time.Now()
@@ -134,7 +135,6 @@ func (s *PasswordSuite) TestTiming(c *C) {
 				err:     err,
 			}
 		}()
-		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			start := time.Now()
@@ -165,8 +165,8 @@ func (s *PasswordSuite) TestTiming(c *C) {
 	// Get the relative percentage difference in runtimes of password check
 	// with real and non-existent users. It should be <10%.
 	diffFraction := math.Abs(1.0 - (float64(elapsedExists) / float64(elapsedNotExists)))
-	comment := Commentf("elapsed difference (%v%%) greater than 10%%", 100*diffFraction)
-	c.Assert(diffFraction < 0.1, Equals, true, comment)
+	comment := Commentf("elapsed difference (%v%%) greater than 20%%", 100*diffFraction)
+	c.Assert(diffFraction < 0.2, Equals, true, comment)
 }
 
 func (s *PasswordSuite) TestUserNotFound(c *C) {

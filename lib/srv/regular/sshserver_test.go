@@ -78,6 +78,7 @@ type SrvSuite struct {
 	adminClient *auth.Client
 	testServer  *auth.TestAuthServer
 	clock       clockwork.FakeClock
+	log         *logrus.Entry
 }
 
 // teleportTestUser is additional user used for tests
@@ -166,6 +167,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	nodeDir := c.MkDir()
+	s.log = logrus.WithField("test", c.TestName())
 	srv, err := New(
 		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
 		s.server.ClusterName(),
@@ -190,6 +192,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 		),
 		SetBPF(&bpf.NOP{}),
 		SetClock(s.clock),
+		SetLogger(s.log),
 	)
 	c.Assert(err, IsNil)
 	s.srv = srv
@@ -742,6 +745,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(s.clock),
+		SetLogger(s.log),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -820,6 +824,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetBPF(&bpf.NOP{}),
 		SetEmitter(s.nodeClient),
 		SetClock(s.clock),
+		SetLogger(s.log),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(srv2.Start(), IsNil)
@@ -910,6 +915,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(s.clock),
+		SetLogger(s.log),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -1016,6 +1022,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(s.clock),
+		SetLogger(s.log),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -1127,6 +1134,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetClock(s.clock),
+		SetLogger(s.log),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(srv.Start(), IsNil)

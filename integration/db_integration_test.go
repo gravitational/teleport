@@ -198,12 +198,12 @@ func setupDatabaseTest(t *testing.T) *databasePack {
 	err = p.leaf.cluster.Start()
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		p.leaf.cluster.StopAll()
+		p.leaf.cluster.StopAll(t)
 	})
 	err = p.root.cluster.Start()
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		p.root.cluster.StopAll()
+		p.root.cluster.StopAll(t)
 	})
 
 	// Setup users and roles on both clusters.

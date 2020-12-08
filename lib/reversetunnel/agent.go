@@ -179,7 +179,7 @@ func NewAgent(cfg AgentConfig) (*Agent, error) {
 	if cfg.Log == nil {
 		logger = log.StandardLogger()
 	}
-	a.log  = logger.WithFields(log.Fields{
+	a.log = logger.WithFields(log.Fields{
 		trace.Component: teleport.Component(cfg.Component, teleport.ComponentReverseTunnelAgent),
 		trace.ComponentFields: log.Fields{
 			"target":  cfg.Addr.String(),

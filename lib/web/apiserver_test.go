@@ -173,6 +173,8 @@ func (s *WebSuite) SetUpTest(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	logger := logrus.WithField("test", c.TestName())
+
 	// create SSH service:
 	nodeDataDir := c.MkDir()
 	node, err := regular.New(
@@ -191,6 +193,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
+		regular.SetLogger(logger),
 	)
 	c.Assert(err, IsNil)
 	s.node = node
@@ -244,6 +247,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetNamespace(defaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
 		regular.SetClock(s.clock),
+		regular.SetLogger(logger),
 	)
 	c.Assert(err, IsNil)
 

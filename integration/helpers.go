@@ -787,7 +787,6 @@ func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportPro
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	i.tempDirs = append(i.tempDirs, dataDir)
 
 	conf.DataDir = dataDir
 	conf.AuthServers = []utils.NetAddr{
