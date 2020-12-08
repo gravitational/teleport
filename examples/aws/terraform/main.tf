@@ -1,7 +1,13 @@
 # load license from file in local directory
 data "local_file" "license" {
-    filename = "teleport-license.pem"
+    filename = "license.pem"
 }
+
+# alternatvely, load the license from a variable and write the file locally
+# resource "local_file" "license" {
+#   sensitive_content = var.teleport_license
+#   filename          = "/tmp/license.pem"
+# }
 
 # create license resource (which the module depends on)
 resource "local_file" "license" {
@@ -9,93 +15,81 @@ resource "local_file" "license" {
     filename = "${path.module}/license.pem"
 }
 
-# optionally load license from variable
-# resource "local_file" "license" {
-#   sensitive_content = data.local_file.license.content
-#   filename          = "/tmp/license.pem"
-# }
-
 module "teleport-ha-autoscale-cluster" {
-  # remote source
+  # source
   source = "./ha-autoscale-cluster"
 
   # the license file must be created first, because the module needs to load it
   depends_on = [local_file.license]
 
-  # Required
+  # Teleport cluster name to set up
+  # This cannot be changed later, so pick something descriptive
+  cluster_name = "gus-tfmodule"
 
-  # DNS and letsencrypt integration variables
-  # Zone name to host DNS record, e.g. example.com
-  # Required, no default on module
-  route53_zone = "gravitational.io"
-
-  # Subdomain to set up in the zone above, e.g. cluster.example.com
-  # This will be used for internet access for users connecting to teleport proxy
-  # Required, no default on module
-  route53_domain = "gus-tfmodule.gravitational.io"
-
-  # Email for letsencrypt domain registration
-  # Required, no default on module
-  email = "gus@goteleport.com"
-
-  # Region is AWS region, the region should support EFS
-  # Required, no default on module
-  region = "us-east-1"
-
-  # path to teleport enterprise/pro license file
-  license_path = local_file.license.filename
+  # SSH key name to provision instances with
+  # This must be a key that already exists in the AWS account
+  key_name = "gus"
 
   # AMI ID to use
-  # Required, no default on module
-  ami_id = "ami-06c663231516705da"
+  # See https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/AMIS.md
+  ami_id = "ami-0dffa937ccf604a2f"
 
-  # Password for grafana admin user
-  # Required, no default on module
+  # Password for Grafana admin user
+  # Grafana is hosted on https://<route53_domain>:8443
   grafana_pass = "this-is-the-grafana-password"
 
   # Whether to use Amazon-issued certificates via ACM or not
   # This must be set to true for any use of ACM whatsoever, regardless of whether Terraform generates/approves the cert
-  # Required, no default on module
-  use_acm = "false"
+  use_acm = "true"
 
-  # Defaults
+  # List of AZs to spawn auth/proxy instances in
+  # e.g. ["us-east-1a", "us-east-1d"]
+  # This must match the region specified in your provider.tf file
+  az_list = ["us-east-1c", "us-east-1d"]
 
-  # Script creates a separate VPC with demo deployment
-  vpc_cidr = "172.31.0.0/16"
+  # CIDR to use in the VPC that the module creates
+  # This must be at least a /16
+  vpc_cidr = "10.10.0.0/16"
 
-  # Teleport cluster name to set up
-  cluster_name = "gus-tfmodule"
+  # Zone name which will host DNS records, e.g. example.com
+  # This must already be configured in Route 53
+  route53_zone = "gravitational.io"
 
-  # Teleport UID is a UID for teleport user provisioned on the hosts
-  teleport_uid = "1007"
+  # Domain name to use for Teleport proxies, e.g. proxy.example.com
+  # This will be the domain that Teleport users will connect to via web UI or the tsh client
+  route53_domain = "gus-tfmodule.gravitational.io"
 
-  # Instance types used for authentication servers auto scale groups
-  auth_instance_type = "t3.micro"
+  # Email for LetsEncrypt domain registration
+  email = "gus@goteleport.com"
 
-  # Instance types used for proxy auto scale groups
-  proxy_instance_type = "t3.micro"
-
-  # Instance types used for teleport nodes auto scale groups
-  node_instance_type = "t3.micro"
-
-  # Instance types used for monitor auto scale groups
-  monitor_instance_type = "t3.micro"
-
-  # SSH key name to provision instances with
-  key_name = "gus"
-
-  # S3 Bucket to create for encrypted letsencrypt certificates
+  # S3 bucket to create for encrypted LetsEncrypt certificates
+  # This is also used for storing the Teleport license which is downloaded to auth servers
+  # This cannot be a pre-existing bucket
   s3_bucket_name = "gus-tfmodule.gravitational.io"
 
-  # AWS KMS alias used for encryption/decryption
-  # default is alias used in SSM
+  # Path to Teleport Enterprise license file
+  license_path = local_file.license.filename
+
+  # Instance type used for auth autoscaling group
+  auth_instance_type = "t3.micro"
+
+  # Instance type used for proxy autoscaling group
+  proxy_instance_type = "t3.micro"
+
+  # Instance type used for node autoscaling group
+  node_instance_type = "t3.micro"
+
+  # Instance type used for monitor autoscaling group
+  monitor_instance_type = "t3.micro"
+
+  # AWS KMS alias used for encryption/decryption, defaults to alias used in SSM
   kms_alias_name = "alias/aws/ssm"
 
-  # DynamoDB autoscale parameters
+  # DynamoDB autoscaling parameters
   autoscale_write_target = 50
   autoscale_read_target = 50
-  autoscale_min_read_capacity = 10
+  autoscale_min_read_capacity = 5
   autoscale_max_read_capacity = 100
-  autoscale_min_write_capacity = 10
+  autoscale_min_write_capacity = 5
   autoscale_max_write_capacity = 100
 }

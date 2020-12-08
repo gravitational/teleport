@@ -16,6 +16,7 @@ terraform {
   }
 }
 
+# This region must match the az_list that you configure in the module
 provider "aws" {
-  region = "us-west-2"
+  region = "us-east-1"
 }

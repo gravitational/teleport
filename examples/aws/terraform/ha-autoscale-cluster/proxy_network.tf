@@ -118,7 +118,7 @@ resource "aws_security_group_rule" "proxy_egress_allow_all_traffic_acm" {
 resource "aws_lb" "proxy" {
   name                              = "${var.cluster_name}-proxy"
   internal                          = false
-  subnets                           = aws_subnet.public.*.id
+  subnets                           = [for subnet in aws_subnet.public : subnet.id]
   load_balancer_type                = "network"
   idle_timeout                      = 3600
   enable_cross_zone_load_balancing  = true
@@ -132,7 +132,7 @@ resource "aws_lb" "proxy" {
 resource "aws_lb" "proxy_acm" {
   name               = "${var.cluster_name}-proxy-acm"
   internal           = false
-  subnets            = aws_subnet.public.*.id
+  subnets            = [for subnet in aws_subnet.public : subnet.id]
   load_balancer_type = "application"
   idle_timeout       = 3600
   security_groups    = [aws_security_group.proxy_acm[0].id]

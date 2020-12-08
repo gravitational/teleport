@@ -1,6 +1,6 @@
 // Bastion is an emergency access bastion
-// that could be spinned up on demand in case if
-// of need to have emrergency administrative access
+// that can be spun up on demand in case
+// of need to have emergency administrative access
 resource "aws_instance" "bastion" {
   count                       = "1"
   ami                         = var.ami_id
@@ -9,10 +9,15 @@ resource "aws_instance" "bastion" {
   associate_public_ip_address = true
   source_dest_check           = false
   vpc_security_group_ids      = [aws_security_group.bastion.id]
-  subnet_id                   = element(aws_subnet.public.*.id, 0)
+  subnet_id                   = local.public_subnet_ids[0]
   tags = {
     TeleportCluster = var.cluster_name
     TeleportRole    = "bastion"
+  }
+  lifecycle {
+    ignore_changes = [
+      tags["Name"],
+    ]
   }
 }
 

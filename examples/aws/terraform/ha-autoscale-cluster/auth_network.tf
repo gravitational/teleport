@@ -1,9 +1,10 @@
 // Auth subnets are for authentication servers
 resource "aws_route_table" "auth" {
-  count  = length(local.azs)
-  vpc_id = local.vpc_id
+  for_each = var.az_list
 
+  vpc_id = local.vpc_id
   tags = {
+    Name            = "teleport-auth-${each.key}"
     TeleportCluster = var.cluster_name
   }
 }
@@ -12,28 +13,32 @@ resource "aws_route_table" "auth" {
 // Auth servers do not have public IP address and are located
 // in their own subnet restricted by security group rules.
 resource "aws_route" "auth" {
-  count                  = length(local.azs)
-  route_table_id         = element(aws_route_table.auth.*.id, count.index)
+  for_each               = aws_route_table.auth
+
+  route_table_id         = each.value.id
   destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = element(local.nat_gateways, count.index)
+  nat_gateway_id         = aws_nat_gateway.teleport[each.key].id
   depends_on             = [aws_route_table.auth]
 }
 
-// This is a private subnet for auth servers.
+# A subnet for each availability zone in the region.
 resource "aws_subnet" "auth" {
-  count             = length(local.azs)
+  for_each          = var.az_list
+
   vpc_id            = local.vpc_id
-  cidr_block        = cidrsubnet(var.vpc_cidr, 8, count.index)
-  availability_zone = element(local.azs, count.index)
+  cidr_block        = cidrsubnet(local.auth_cidr, 4, var.az_number[substr(each.key, 9, 1)])
+  availability_zone = each.key
   tags = {
+    Name            = "teleport-auth-${each.key}"
     TeleportCluster = var.cluster_name
   }
 }
 
 resource "aws_route_table_association" "auth" {
-  count          = length(local.azs)
-  subnet_id      = element(aws_subnet.auth.*.id, count.index)
-  route_table_id = element(aws_route_table.auth.*.id, count.index)
+  for_each       = aws_subnet.auth
+
+  subnet_id      = each.value.id
+  route_table_id = aws_route_table.auth[each.key].id
 }
 
 // Security groups for auth servers only allow access to 3025 port from
@@ -77,7 +82,7 @@ resource "aws_security_group_rule" "auth_ingress_allow_cidr_traffic" {
   from_port         = 3025
   to_port           = 3025
   protocol          = "tcp"
-  cidr_blocks       = aws_subnet.public.*.cidr_block
+  cidr_blocks       = [for subnet in aws_subnet.public : subnet.cidr_block]
   security_group_id = aws_security_group.auth.id
 }
 
@@ -92,7 +97,7 @@ resource "aws_security_group_rule" "auth_ingress_allow_node_cidr_traffic" {
   from_port         = 3025
   to_port           = 3025
   protocol          = "tcp"
-  cidr_blocks       = aws_subnet.node.*.cidr_block
+  cidr_blocks       = [for subnet in aws_subnet.node : subnet.cidr_block]
   security_group_id = aws_security_group.auth.id
 }
 
@@ -120,7 +125,7 @@ resource "aws_security_group_rule" "auth_egress_allow_all_traffic" {
 resource "aws_lb" "auth" {
   name               = "${var.cluster_name}-auth"
   internal           = true
-  subnets            = aws_subnet.public.*.id
+  subnets            = [for subnet in aws_subnet.public : subnet.id]
   load_balancer_type = "network"
   idle_timeout       = 3600
 

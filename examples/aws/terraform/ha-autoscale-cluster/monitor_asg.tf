@@ -12,7 +12,7 @@ resource "aws_autoscaling_group" "monitor" {
   desired_capacity          = 1
   force_delete              = false
   launch_configuration      = aws_launch_configuration.monitor.name
-  vpc_zone_identifier       = [aws_subnet.public[0].id]
+  vpc_zone_identifier       = [local.public_subnet_ids[0]]
 
   // Auto scaling group is associated with internal load balancer for metrics ingestion
   // and proxy load balancer for grafana
@@ -52,7 +52,7 @@ resource "aws_autoscaling_group" "monitor_acm" {
   desired_capacity          = 1
   force_delete              = false
   launch_configuration      = aws_launch_configuration.monitor.name
-  vpc_zone_identifier       = [aws_subnet.public[0].id]
+  vpc_zone_identifier       = [local.public_subnet_ids[0]]
 
   // Auto scaling group is associated with internal load balancer for metrics ingestion
   // and proxy load balancer for grafana
@@ -172,7 +172,7 @@ resource "aws_security_group_rule" "monitor_egress_allow_all_traffic" {
 resource "aws_lb" "monitor" {
   name               = "${var.cluster_name}-monitor"
   internal           = true
-  subnets            = [aws_subnet.public[0].id]
+  subnets            = [local.public_subnet_ids[0]]
   load_balancer_type = "network"
   idle_timeout       = 3600
 

@@ -48,7 +48,7 @@ resource "aws_iam_role_policy" "proxy_s3" {
      }
    ]
  }
- 
+
 EOF
 
 }

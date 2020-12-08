@@ -6,13 +6,13 @@
 resource "aws_autoscaling_group" "proxy" {
   name                      = "${var.cluster_name}-proxy"
   max_size                  = 5
-  min_size                  = length(local.azs)
+  min_size                  = length(var.az_list)
   health_check_grace_period = 300
   health_check_type         = "EC2"
-  desired_capacity          = length(local.azs)
+  desired_capacity          = length(var.az_list)
   force_delete              = false
   launch_configuration      = aws_launch_configuration.proxy.name
-  vpc_zone_identifier       = aws_subnet.public.*.id
+  vpc_zone_identifier       = [for subnet in aws_subnet.public : subnet.id]
 
   // Auto scaling group is associated with load balancer
   target_group_arns = [
@@ -49,13 +49,13 @@ resource "aws_autoscaling_group" "proxy" {
 resource "aws_autoscaling_group" "proxy_acm" {
   name                      = "${var.cluster_name}-proxy"
   max_size                  = 5
-  min_size                  = length(local.azs)
+  min_size                  = length(var.az_list)
   health_check_grace_period = 300
   health_check_type         = "EC2"
-  desired_capacity          = length(local.azs)
+  desired_capacity          = length(var.az_list)
   force_delete              = false
   launch_configuration      = aws_launch_configuration.proxy.name
-  vpc_zone_identifier       = aws_subnet.public.*.id
+  vpc_zone_identifier       = [for subnet in aws_subnet.public : subnet.id]
 
   // Auto scaling group is associated with load balancer
   target_group_arns = [

@@ -2,37 +2,42 @@
 // Nodes are not accessible via internet and are accessed
 // via emergency access bastions or proxies
 resource "aws_route_table" "node" {
-  count  = length(local.azs)
-  vpc_id = local.vpc_id
+  for_each = var.az_list
 
+  vpc_id = local.vpc_id
   tags = {
+    Name            = "teleport-node-${each.key}"
     TeleportCluster = var.cluster_name
   }
 }
 
 // Route all outbound traffic through NAT gateway
 resource "aws_route" "node" {
-  count                  = length(local.azs)
-  route_table_id         = element(aws_route_table.node.*.id, count.index)
+  for_each               = aws_route_table.node
+
+  route_table_id         = each.value.id
   destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = element(local.nat_gateways, count.index)
+  nat_gateway_id         = aws_nat_gateway.teleport[each.key].id
   depends_on             = [aws_route_table.node]
 }
 
 resource "aws_subnet" "node" {
-  count             = length(local.azs)
+  for_each          = var.az_list
+
   vpc_id            = local.vpc_id
-  cidr_block        = cidrsubnet(var.vpc_cidr, 6, count.index + 1)
-  availability_zone = element(local.azs, count.index)
+  cidr_block        = cidrsubnet(local.node_cidr, 4, var.az_number[substr(each.key, 9, 1)])
+  availability_zone = each.key
   tags = {
+    Name            = "teleport-node-${each.key}"
     TeleportCluster = var.cluster_name
   }
 }
 
 resource "aws_route_table_association" "node" {
-  count          = length(local.azs)
-  subnet_id      = element(aws_subnet.node.*.id, count.index)
-  route_table_id = element(aws_route_table.node.*.id, count.index)
+  for_each       = aws_subnet.node
+
+  subnet_id      = each.value.id
+  route_table_id = aws_route_table.node[each.key].id
 }
 
 // Node security groups do not allow direct internet access
@@ -73,4 +78,3 @@ resource "aws_security_group_rule" "node_egress_allow_all_traffic" {
   cidr_blocks       = ["0.0.0.0/0"]
   security_group_id = aws_security_group.node.id
 }
-

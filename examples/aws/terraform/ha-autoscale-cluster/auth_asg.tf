@@ -5,13 +5,13 @@
 resource "aws_autoscaling_group" "auth" {
   name                      = "${var.cluster_name}-auth"
   max_size                  = 5
-  min_size                  = length(local.azs)
+  min_size                  = length(var.az_list)
   health_check_grace_period = 300
   health_check_type         = "EC2"
-  desired_capacity          = length(local.azs)
+  desired_capacity          = length(var.az_list)
   force_delete              = false
   launch_configuration      = aws_launch_configuration.auth.name
-  vpc_zone_identifier       = aws_subnet.auth.*.id
+  vpc_zone_identifier       = [for subnet in aws_subnet.auth : subnet.id]
 
   // These are target groups of the auth server network load balancer
   // this autoscaling group is associated with target groups of the NLB
@@ -45,7 +45,7 @@ resource "aws_launch_configuration" "auth" {
     create_before_destroy = true
   }
   name_prefix                 = "${var.cluster_name}-auth-"
-  image_id                    = var.ami_id
+  image_id                    = data.aws_ami.base.id
   instance_type               = var.auth_instance_type
   user_data                   = templatefile(
     "${path.module}/auth-user-data.tpl",

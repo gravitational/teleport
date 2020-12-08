@@ -10,7 +10,8 @@ resource "aws_vpc" "teleport" {
 
 // Elastic IP for NAT gateways
 resource "aws_eip" "nat" {
-  count = length(local.azs)
+  for_each = var.az_list
+
   vpc   = true
   tags = {
     TeleportCluster = var.cluster_name
@@ -27,10 +28,13 @@ resource "aws_internet_gateway" "teleport" {
 
 // Creates nat gateway per availability zone
 resource "aws_nat_gateway" "teleport" {
-  count         = length(local.azs)
-  allocation_id = element(aws_eip.nat.*.id, count.index)
-  subnet_id     = element(aws_subnet.public.*.id, count.index)
+  for_each      = var.az_list
+
+  allocation_id = aws_eip.nat[each.key].id
+  subnet_id     = aws_subnet.public[each.key].id
+
   depends_on = [
+    aws_eip.nat,
     aws_subnet.public,
     aws_internet_gateway.teleport,
   ]
@@ -42,6 +46,13 @@ resource "aws_nat_gateway" "teleport" {
 locals {
   vpc_id              = aws_vpc.teleport.id
   internet_gateway_id = aws_internet_gateway.teleport.id
-  nat_gateways        = aws_nat_gateway.teleport.*.id
+
+  # Break up the VPC CIDR into chunks according to different instance type
+  # This helps to avoid subnet CIDR conflicts if/when AZs change
+  auth_cidr = cidrsubnet(var.vpc_cidr, 4, var.az_subnet_type.auth)
+  bastion_cidr = cidrsubnet(var.vpc_cidr, 4, var.az_subnet_type.bastion)
+  node_cidr = cidrsubnet(var.vpc_cidr, 4, var.az_subnet_type.node)
+  monitor_cidr = cidrsubnet(var.vpc_cidr, 4, var.az_subnet_type.monitor)
+  proxy_cidr = cidrsubnet(var.vpc_cidr, 4, var.az_subnet_type.proxy)
 }
 

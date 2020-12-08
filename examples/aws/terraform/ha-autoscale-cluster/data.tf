@@ -1,27 +1,27 @@
-// This is to figure account_id used in some IAM rules
-data "aws_caller_identity" "current" {
+# Base AMI is found by ID - this is to prevent issues where launch configurations
+# are changed and ASGs recreated because the AMI ID gets updated externally
+data "aws_ami" "base" {
+  most_recent = true
+  owners      = [126027368216]
+
+  filter {
+    name   = "image-id"
+    values = [var.ami_id]
+  }
 }
 
-// Use current region of the credentials in some parts of the script,
-// could be as well hardcoded.
-data "aws_region" "current" {
-  name = var.region
-}
+# Used in role ARNs
+data "aws_caller_identity" "current" {}
 
-data "aws_availability_zones" "available" {
-}
+# Used to access provider region
+data "aws_region" "current" {}
 
-// Pick first two availability zones in the region
-locals {
-  azs = [data.aws_availability_zones.available.names[0], data.aws_availability_zones.available.names[1]]
-}
-
-// SSM is picking alias for key to use for encryption in SSM
+# By default, SSM picks the alias for the encryption key
 data "aws_kms_alias" "ssm" {
   name = var.kms_alias_name
 }
 
-// pick up the license path and make it accessible as a file
+# Pick up the license path and make it accessible as a file
 data "local_file" "license" {
   filename = var.license_path
 }

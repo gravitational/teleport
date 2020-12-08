@@ -48,7 +48,6 @@ resource "aws_iam_role_policy" "monitor_s3" {
      }
    ]
  }
- 
 EOF
 
 }

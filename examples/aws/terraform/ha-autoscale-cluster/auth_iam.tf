@@ -150,7 +150,7 @@ resource "aws_iam_role_policy" "auth_s3" {
      }
    ]
  }
- 
+
 EOF
 
 }

@@ -1,94 +1,107 @@
-// Region is AWS region, the region should support EFS
-variable "region" {
-  type = string
-}
-
-// Script creates a separate VPC with demo deployment
-variable "vpc_cidr" {
-  type    = string
-  default = "172.31.0.0/16"
-}
-
-// Teleport cluster name to set up
+# Teleport cluster name to set up
+# This cannot be changed later, so pick something descriptive
 variable "cluster_name" {
   type = string
 }
 
-// Teleport UID is a UID for teleport user provisioned on the hosts
-variable "teleport_uid" {
-  type    = string
-  default = "1007"
-}
-
-// Instance types used for authentication servers auto scale groups
-variable "auth_instance_type" {
-  type    = string
-  default = "m4.large"
-}
-
-// Instance types used for proxy auto scale groups
-variable "proxy_instance_type" {
-  type    = string
-  default = "m4.large"
-}
-
-// Instance types used for teleport nodes auto scale groups
-variable "node_instance_type" {
-  type    = string
-  default = "t2.medium"
-}
-
-// Instance types used for monitor auto scale groups
-variable "monitor_instance_type" {
-  type    = string
-  default = "m4.large"
-}
-
-// SSH key name to provision instances withx
+# SSH key name to provision instances with
+# This must be a key that already exists in the AWS account
 variable "key_name" {
   type = string
 }
 
-// DNS and letsencrypt integration variables
-// Zone name to host DNS record, e.g. example.com
+# AMI ID to use
+# See https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/AMIS.md
+variable "ami_id" {
+  type = string
+}
+
+# Password for Grafana admin user
+variable "grafana_pass" {
+  type = string
+}
+
+# Whether to use Amazon-issued certificates via ACM or not
+# This must be set to true for any use of ACM whatsoever, regardless of whether Terraform generates/approves the cert
+variable "use_acm" {
+  type = string
+}
+
+# List of AZs to spawn auth/proxy instances in
+# e.g. ["us-east-1a", "us-east-1d"]
+# This must match the region specified in your provider.tf file
+variable "az_list" {
+  type = set(string)
+}
+
+# CIDR to use in the VPC that the module creates
+# This must be at least a /16
+variable "vpc_cidr" {
+  type    = string
+  default = "10.10.0.0/16"
+}
+
+# DNS and LetsEncrypt integration variables
+
+# Zone name which will host DNS records, e.g. example.com
+# This must already be configured in Route 53
 variable "route53_zone" {
   type = string
 }
 
-// Domain name to use for Teleport proxies,
-// e.g. proxy.example.com
+# Domain name to use for Teleport proxies, e.g. proxy.example.com
+# This will be the domain that Teleport users will connect to via web UI or the tsh client
 variable "route53_domain" {
   type = string
 }
 
-// Email for letsencrypt domain registration
+# Email for LetsEncrypt domain registration
 variable "email" {
   type = string
 }
 
-// S3 Bucket to create for encrypted letsencrypt certificates
+# S3 bucket to create for encrypted LetsEncrypt certificates
+# This is also used for storing the Teleport license which is downloaded to auth servers
 variable "s3_bucket_name" {
   type = string
 }
 
-// AWS KMS alias used for encryption/decryption
-// default is alias used in SSM
-variable "kms_alias_name" {
-  default = "alias/aws/ssm"
-}
-
-// path to teleport enterprise/pro license file
+# Path to Teleport Enterprise license file
 variable "license_path" {
   type    = string
   default = ""
 }
 
-// AMI ID to use
-variable "ami_id" {
-  type = string
+# Instance type used for auth autoscaling group
+variable "auth_instance_type" {
+  type    = string
+  default = "m4.large"
 }
 
-// DynamoDB autoscale parameters
+# Instance type used for proxy autoscaling group
+variable "proxy_instance_type" {
+  type    = string
+  default = "m4.large"
+}
+
+# Instance type used for node autoscaling group
+variable "node_instance_type" {
+  type    = string
+  default = "t2.medium"
+}
+
+# Instance type used for monitor autoscaling group
+variable "monitor_instance_type" {
+  type    = string
+  default = "m4.large"
+}
+
+# AWS KMS alias used for encryption/decryption, defaults to alias used in SSM
+variable "kms_alias_name" {
+  default = "alias/aws/ssm"
+}
+
+# DynamoDB autoscaling parameters
 variable "autoscale_write_target" {
   type    = string
   default = 50
