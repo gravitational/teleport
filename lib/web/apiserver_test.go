@@ -123,7 +123,6 @@ func TestMain(m *testing.M) {
 }
 
 func (s *WebSuite) SetUpSuite(c *C) {
-	var err error
 	os.Unsetenv(teleport.DebugEnvVar)
 	utils.InitLoggerForTests(testing.Verbose())
 
@@ -131,7 +130,7 @@ func (s *WebSuite) SetUpSuite(c *C) {
 	debugAssetsPath = "../../webassets/teleport"
 	os.Setenv(teleport.DebugEnvVar, "true")
 
-	//sessionStreamPollPeriod = time.Millisecond
+	var err error
 	s.mockU2F, err = mocku2f.Create()
 	c.Assert(err, IsNil)
 	c.Assert(s.mockU2F, NotNil)
