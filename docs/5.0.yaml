@@ -46,11 +46,15 @@ nav:
         - Quick Start Guide: quickstart.md
         - User Manual: user-manual.md
         - Application Guide: application-access.md
-        - Kubernetes Guide: kubernetes-ssh.md
+        - Kubernetes Guide: kubernetes-access.md
         - Admin Manual: admin-guide.md
         - Production Guide: production.md
         - FAQ: faq.md
         - Changelog: changelog.md
+    - Preview:
+        - Upcoming Releases: preview/upcoming-releases.md
+        - Database Access: preview/database-access.md
+        - Cloud: preview/cloud.md
     - Infrastructure Guides:
         - AWS: aws-oss-guide.md
         - GCP: gcp-guide.md

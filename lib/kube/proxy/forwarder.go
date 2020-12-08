@@ -185,7 +185,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	closeCtx, close := context.WithCancel(cfg.Context)
 	fwd := &Forwarder{
 		creds:           creds,
-		Entry:           log,
+		log:             log,
 		Router:          *httprouter.New(),
 		ForwarderConfig: cfg,
 		clusterSessions: clusterSessions,
@@ -206,7 +206,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	fwd.NotFound = fwd.withAuthStd(fwd.catchAll)
 
 	if cfg.ClusterOverride != "" {
-		fwd.Debugf("Cluster override is set, forwarder will send all requests to remote cluster %v.", cfg.ClusterOverride)
+		fwd.log.Debugf("Cluster override is set, forwarder will send all requests to remote cluster %v.", cfg.ClusterOverride)
 	}
 	return fwd, nil
 }
@@ -216,9 +216,11 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 // however some requests like exec sessions it intercepts and records.
 type Forwarder struct {
 	sync.Mutex
-	*log.Entry
 	httprouter.Router
 	ForwarderConfig
+
+	// log specifies the logger
+	log log.FieldLogger
 	// clusterSessions is an expiring cache associated with authenticated
 	// user connected to a remote cluster, session is invalidated
 	// if user changes kubernetes groups via RBAC or cache has expired
@@ -320,10 +322,10 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 	case auth.RemoteUser:
 		isRemoteUser = true
 	case auth.BuiltinRole:
-		f.Warningf("Denying proxy access to unauthenticated user of type %T - this can sometimes be caused by inadvertently using an HTTP load balancer instead of a TCP load balancer on the Kubernetes port.", userTypeI)
+		f.log.Warningf("Denying proxy access to unauthenticated user of type %T - this can sometimes be caused by inadvertently using an HTTP load balancer instead of a TCP load balancer on the Kubernetes port.", userTypeI)
 		return nil, trace.AccessDenied(accessDeniedMsg)
 	default:
-		f.Warningf("Denying proxy access to unsupported user type: %T.", userTypeI)
+		f.log.Warningf("Denying proxy access to unsupported user type: %T.", userTypeI)
 		return nil, trace.AccessDenied(accessDeniedMsg)
 	}
 
@@ -336,10 +338,10 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 			return nil, trace.ConnectionProblem(err, "[07] failed to connect to the database")
 		case trace.IsAccessDenied(err):
 			// don't print stack trace, just log the warning
-			f.Warn(err)
+			f.log.Warn(err)
 			return nil, trace.AccessDenied(accessDeniedMsg)
 		default:
-			f.Warn(trace.DebugReport(err))
+			f.log.Warn(trace.DebugReport(err))
 			return nil, trace.AccessDenied(accessDeniedMsg)
 		}
 	}
@@ -355,7 +357,7 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 	clientCert := peers[0]
 	authContext, err := f.setupContext(*userContext, req, isRemoteUser, clientCert.NotAfter)
 	if err != nil {
-		f.Warn(err.Error())
+		f.log.Warn(err.Error())
 		return nil, trace.AccessDenied(accessDeniedMsg)
 	}
 	return authContext, nil
@@ -525,13 +527,13 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	if actx.teleportCluster.isRemote {
 		// Authorization for a remote kube cluster will happen on the remote
 		// end (by their proxy), after that cluster has remapped used roles.
-		f.WithField("auth_context", actx.String()).Debug("Skipping authorization for a remote kubernetes cluster name")
+		f.log.WithField("auth_context", actx.String()).Debug("Skipping authorization for a remote kubernetes cluster name")
 		return nil
 	}
 	if actx.kubeCluster == "" {
 		// This should only happen for remote clusters (filtered above), but
 		// check and report anyway.
-		f.WithField("auth_context", actx.String()).Debug("Skipping authorization due to unknown kubernetes cluster name")
+		f.log.WithField("auth_context", actx.String()).Debug("Skipping authorization due to unknown kubernetes cluster name")
 		return nil
 	}
 	servers, err := f.AccessPoint.GetKubeServices(ctx)
@@ -554,7 +556,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		}
 	}
 	if actx.kubeCluster == f.ClusterName {
-		f.WithField("auth_context", actx.String()).Debug("Skipping authorization for proxy-based kubernetes cluster")
+		f.log.WithField("auth_context", actx.String()).Debug("Skipping authorization for proxy-based kubernetes cluster.")
 		return nil
 	}
 	return trace.AccessDenied("kubernetes cluster %q not found", actx.kubeCluster)
@@ -567,10 +569,10 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
 	mode := ctx.clusterConfig.GetSessionRecording()
 	if services.IsRecordSync(mode) {
-		f.Debugf("Using sync streamer for session")
+		f.log.Debugf("Using sync streamer for session.")
 		return f.Client, nil
 	}
-	f.Debugf("Using async streamer for session.")
+	f.log.Debugf("Using async streamer for session.")
 	dir := filepath.Join(
 		f.DataDir, teleport.LogsDir, teleport.ComponentUpload,
 		events.StreamingLogsDir, defaults.Namespace,
@@ -588,13 +590,13 @@ func (f *Forwarder) newStreamer(ctx *authContext) (events.Streamer, error) {
 // exec forwards all exec requests to the target server, captures
 // all output from the session
 func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
-	f.Debugf("Exec %v.", req.URL.String())
+	f.log.Debugf("Exec %v.", req.URL.String())
 
 	sess, err := f.getOrCreateClusterSession(*ctx)
 	if err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
 		// of the teleport server if not logged here.
-		f.Errorf("Failed to create cluster session: %v.", err)
+		f.log.Errorf("Failed to create cluster session: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 	sessionStart := f.Clock.Now().UTC()
@@ -657,8 +659,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			// Build the resize event.
 			resizeEvent := &events.Resize{
 				Metadata: events.Metadata{
-					Type: events.ResizeEvent,
-					Code: events.TerminalResizeCode,
+					Type:        events.ResizeEvent,
+					Code:        events.TerminalResizeCode,
+					ClusterName: f.ClusterName,
 				},
 				ConnectionMetadata: events.ConnectionMetadata{
 					RemoteAddr: req.RemoteAddr,
@@ -682,7 +685,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			// Report the updated window size to the event log (this is so the sessions
 			// can be replayed correctly).
 			if err := recorder.EmitAuditEvent(request.context, resizeEvent); err != nil {
-				f.WithError(err).Warn("Failed to emit terminal resize event.")
+				f.log.WithError(err).Warn("Failed to emit terminal resize event.")
 			}
 		}
 	} else {
@@ -698,8 +701,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		}
 		sessionStartEvent := &events.SessionStart{
 			Metadata: events.Metadata{
-				Type: events.SessionStartEvent,
-				Code: events.SessionStartCode,
+				Type:        events.SessionStartEvent,
+				Code:        events.SessionStartCode,
+				ClusterName: f.ClusterName,
 			},
 			ServerMetadata: events.ServerMetadata{
 				ServerID:        f.ServerID,
@@ -725,7 +729,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			InitialCommand:            request.cmd,
 		}
 		if err := emitter.EmitAuditEvent(request.context, sessionStartEvent); err != nil {
-			f.WithError(err).Warn("Failed to emit event.")
+			f.log.WithError(err).Warn("Failed to emit event.")
 		}
 	}
 
@@ -739,11 +743,11 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	}
 	defer proxy.Close()
 
-	f.Debugf("Created streams, getting executor.")
+	f.log.Debugf("Created streams, getting executor.")
 
 	executor, err := f.getExecutor(*ctx, sess, req)
 	if err != nil {
-		f.WithError(err).Warning("Failed creating executor.")
+		f.log.WithError(err).Warning("Failed creating executor.")
 		return nil, trace.Wrap(err)
 	}
 	streamOptions := proxy.options()
@@ -770,19 +774,20 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	}
 
 	if err = executor.Stream(streamOptions); err != nil {
-		f.WithError(err).Warning("Executor failed while streaming.")
+		f.log.WithError(err).Warning("Executor failed while streaming.")
 		return nil, trace.Wrap(err)
 	}
 	if err := proxy.sendStatus(err); err != nil {
-		f.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
+		f.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
 		return nil, trace.Wrap(err)
 	}
 
 	if request.tty {
 		sessionDataEvent := &events.SessionData{
 			Metadata: events.Metadata{
-				Type: events.SessionDataEvent,
-				Code: events.SessionDataCode,
+				Type:        events.SessionDataEvent,
+				Code:        events.SessionDataCode,
+				ClusterName: f.ClusterName,
 			},
 			ServerMetadata: events.ServerMetadata{
 				ServerID:        f.ServerID,
@@ -806,12 +811,13 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			BytesReceived: trackOut.Count() + trackErr.Count(),
 		}
 		if err := emitter.EmitAuditEvent(request.context, sessionDataEvent); err != nil {
-			f.WithError(err).Warn("Failed to emit session data event.")
+			f.log.WithError(err).Warn("Failed to emit session data event.")
 		}
 		sessionEndEvent := &events.SessionEnd{
 			Metadata: events.Metadata{
-				Type: events.SessionEndEvent,
-				Code: events.SessionEndCode,
+				Type:        events.SessionEndEvent,
+				Code:        events.SessionEndCode,
+				ClusterName: f.ClusterName,
 			},
 			ServerMetadata: events.ServerMetadata{
 				ServerID:        f.ServerID,
@@ -839,13 +845,14 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			InitialCommand:            request.cmd,
 		}
 		if err := emitter.EmitAuditEvent(request.context, sessionEndEvent); err != nil {
-			f.WithError(err).Warn("Failed to emit session end event.")
+			f.log.WithError(err).Warn("Failed to emit session end event.")
 		}
 	} else {
 		// send an exec event
 		execEvent := &events.Exec{
 			Metadata: events.Metadata{
-				Type: events.ExecEvent,
+				Type:        events.ExecEvent,
+				ClusterName: f.ClusterName,
 			},
 			ServerMetadata: events.ServerMetadata{
 				ServerID:        f.ServerID,
@@ -879,27 +886,27 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			execEvent.Code = events.ExecCode
 		}
 		if err := emitter.EmitAuditEvent(request.context, execEvent); err != nil {
-			f.WithError(err).Warn("Failed to emit event.")
+			f.log.WithError(err).Warn("Failed to emit event.")
 		}
 	}
 
-	f.Debugf("Exited successfully.")
+	f.log.Debugf("Exited successfully.")
 	return nil, nil
 }
 
 // portForward starts port forwarding to the remote cluster
 func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
-	f.Debugf("Port forward: %v. req headers: %v", req.URL.String(), req.Header)
+	f.log.Debugf("Port forward: %v. req headers: %v.", req.URL.String(), req.Header)
 	sess, err := f.getOrCreateClusterSession(*ctx)
 	if err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
 		// of the teleport server if not logged here.
-		f.Errorf("Failed to create cluster session: %v.", err)
+		f.log.Errorf("Failed to create cluster session: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 
 	if err := f.setupForwardingHeaders(sess, req); err != nil {
-		f.Debugf("DENIED Port forward: %v.", req.URL.String())
+		f.log.Debugf("DENIED Port forward: %v.", req.URL.String())
 		return nil, trace.Wrap(err)
 	}
 
@@ -935,7 +942,7 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 			portForward.Code = events.PortForwardFailureCode
 		}
 		if err := f.StreamEmitter.EmitAuditEvent(req.Context(), portForward); err != nil {
-			f.WithError(err).Warn("Failed to emit event.")
+			f.log.WithError(err).Warn("Failed to emit event.")
 		}
 	}
 
@@ -951,12 +958,12 @@ func (f *Forwarder) portForward(ctx *authContext, w http.ResponseWriter, req *ht
 		targetDialer:       dialer,
 		pingPeriod:         f.PingPeriod,
 	}
-	f.Debugf("Starting %v.", request)
+	f.log.Debugf("Starting %v.", request)
 	err = runPortForwarding(request)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	f.Debugf("Done %v.", request)
+	f.log.Debugf("Done %v.", request)
 	return nil, nil
 }
 
@@ -973,7 +980,7 @@ const (
 )
 
 func (f *Forwarder) setupForwardingHeaders(sess *clusterSession, req *http.Request) error {
-	if err := setupImpersonationHeaders(f.Entry, sess.authContext, req.Header); err != nil {
+	if err := setupImpersonationHeaders(f.log, sess.authContext, req.Header); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1085,17 +1092,17 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 	if err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
 		// of the teleport server if not logged here.
-		f.Errorf("Failed to create cluster session: %v.", err)
+		f.log.Errorf("Failed to create cluster session: %v.", err)
 		return nil, trace.Wrap(err)
 	}
 	if err := f.setupForwardingHeaders(sess, req); err != nil {
 		// This error goes to kubernetes client and is not visible in the logs
 		// of the teleport server if not logged here.
-		f.Errorf("Failed to set up forwarding headers: %v.", err)
+		f.log.Errorf("Failed to set up forwarding headers: %v.", err)
 		return nil, trace.Wrap(err)
 	}
-	w = &responseStatusRecorder{ResponseWriter: w}
-	sess.forwarder.ServeHTTP(w, req)
+	rw := newResponseStatusRecorder(w)
+	sess.forwarder.ServeHTTP(rw, req)
 
 	if sess.noAuditEvents {
 		return nil, nil
@@ -1122,7 +1129,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 		},
 		RequestPath:               req.URL.Path,
 		Verb:                      req.Method,
-		ResponseCode:              int32(w.(*responseStatusRecorder).getStatus()),
+		ResponseCode:              int32(rw.getStatus()),
 		KubernetesClusterMetadata: ctx.eventClusterMeta(),
 	}
 	r := parseResourcePath(req.URL.Path)
@@ -1131,7 +1138,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 	}
 	r.populateEvent(event)
 	if err := f.Client.EmitAuditEvent(req.Context(), event); err != nil {
-		f.WithError(err).Warn("Failed to emit event.")
+		f.log.WithError(err).Warn("Failed to emit event.")
 	}
 
 	return nil, nil
@@ -1218,7 +1225,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error) (net.Conn, error)
 		Context:               ctx,
 		TeleportUser:          s.User.GetName(),
 		ServerID:              s.parent.ServerID,
-		Entry:                 s.parent.Entry,
+		Entry:                 s.parent.log,
 		Emitter:               s.parent.Client,
 	})
 	if err != nil {
@@ -1291,7 +1298,7 @@ func (f *Forwarder) getClusterSession(ctx authContext) *clusterSession {
 	}
 	s := creds.(*clusterSession)
 	if s.teleportCluster.isRemote && s.teleportCluster.isRemoteClosed() {
-		f.Debugf("Found an existing clusterSession for remote cluster %q but it has been closed. Discarding it to create a new clusterSession.", ctx.teleportCluster.name)
+		f.log.Debugf("Found an existing clusterSession for remote cluster %q but it has been closed. Discarding it to create a new clusterSession.", ctx.teleportCluster.name)
 		f.clusterSessions.Remove(ctx.key())
 		return nil
 	}
@@ -1301,7 +1308,7 @@ func (f *Forwarder) getClusterSession(ctx authContext) *clusterSession {
 func (f *Forwarder) serializedNewClusterSession(authContext authContext) (*clusterSession, error) {
 	ctx, cancel := f.getOrCreateRequestContext(authContext.key())
 	if cancel != nil {
-		f.Debugf("Requesting new cluster session for %v.", authContext)
+		f.log.Debugf("Requesting new cluster session for %v.", authContext)
 		defer cancel()
 		sess, err := f.newClusterSession(authContext)
 		if err != nil {
@@ -1311,7 +1318,7 @@ func (f *Forwarder) serializedNewClusterSession(authContext authContext) (*clust
 	}
 	// cancel == nil means that another request is in progress, so simply wait until
 	// it finishes or fails
-	f.Debugf("Another request is in progress for %v, waiting until it gets completed.", authContext)
+	f.log.Debugf("Another request is in progress for %v, waiting until it gets completed.", authContext)
 	select {
 	case <-ctx.Done():
 		sess := f.getClusterSession(authContext)
@@ -1340,7 +1347,7 @@ func (f *Forwarder) newClusterSessionRemoteCluster(ctx authContext) (*clusterSes
 	var err error
 	sess.tlsConfig, err = f.requestCertificate(ctx)
 	if err != nil {
-		f.Warningf("Failed to get certificate for %v: %v.", ctx, err)
+		f.log.Warningf("Failed to get certificate for %v: %v.", ctx, err)
 		return nil, trace.AccessDenied("access denied: failed to authenticate with auth server")
 	}
 	// remote clusters use special hardcoded URL,
@@ -1352,7 +1359,7 @@ func (f *Forwarder) newClusterSessionRemoteCluster(ctx authContext) (*clusterSes
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
 		forward.WebsocketDial(sess.Dial),
-		forward.Logger(f.Entry),
+		forward.Logger(f.log),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1397,7 +1404,7 @@ outer:
 }
 
 func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, error) {
-	f.Debugf("Handling kubernetes session for %v using local credentials.", ctx)
+	f.log.Debugf("Handling kubernetes session for %v using local credentials.", ctx)
 	sess := &clusterSession{
 		parent:      f,
 		authContext: ctx,
@@ -1428,7 +1435,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
 		forward.WebsocketDial(sess.Dial),
-		forward.Logger(f.Entry),
+		forward.Logger(f.log),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1438,7 +1445,7 @@ func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, er
 }
 
 func (f *Forwarder) newClusterSessionDirect(ctx authContext, kubeService services.Server) (*clusterSession, error) {
-	f.WithFields(log.Fields{
+	f.log.WithFields(log.Fields{
 		"kubernetes_service.name": kubeService.GetName(),
 		"kubernetes_service.addr": kubeService.GetAddr(),
 	}).Debugf("Kubernetes session for %v forwarded to remote kubernetes_service instance.", ctx)
@@ -1457,7 +1464,7 @@ func (f *Forwarder) newClusterSessionDirect(ctx authContext, kubeService service
 	var err error
 	sess.tlsConfig, err = f.requestCertificate(ctx)
 	if err != nil {
-		f.Warningf("Failed to get certificate for %v: %v.", ctx, err)
+		f.log.Warningf("Failed to get certificate for %v: %v.", ctx, err)
 		return nil, trace.AccessDenied("access denied: failed to authenticate with auth server")
 	}
 
@@ -1467,7 +1474,7 @@ func (f *Forwarder) newClusterSessionDirect(ctx authContext, kubeService service
 		forward.FlushInterval(100*time.Millisecond),
 		forward.RoundTripper(transport),
 		forward.WebsocketDial(sess.Dial),
-		forward.Logger(f.Entry),
+		forward.Logger(f.log),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1487,7 +1494,7 @@ func (f *Forwarder) setClusterSession(sess *clusterSession) (*clusterSession, er
 	if err := f.clusterSessions.Set(sess.authContext.key(), sess, sess.authContext.sessionTTL); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	f.Debugf("Created new session for %v.", sess.authContext)
+	f.log.Debugf("Created new session for %v.", sess.authContext)
 	return sess, nil
 }
 
@@ -1533,7 +1540,7 @@ func (f *Forwarder) getOrCreateRequestContext(key string) (context.Context, cont
 }
 
 func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
-	f.Debugf("Requesting K8s cert for %v.", ctx)
+	f.log.Debugf("Requesting K8s cert for %v.", ctx)
 	keyPEM, _, err := f.Keygen.GenerateKeyPair("")
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1570,7 +1577,7 @@ func (f *Forwarder) requestCertificate(ctx authContext) (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	f.Debugf("Received valid K8s cert for %v.", ctx)
+	f.log.Debugf("Received valid K8s cert for %v.", ctx)
 
 	cert, err := tls.X509KeyPair(response.Cert, keyPEM)
 	if err != nil {
@@ -1611,12 +1618,35 @@ func (f *Forwarder) kubeClusters() []*services.KubernetesCluster {
 
 type responseStatusRecorder struct {
 	http.ResponseWriter
-	status int
+	flusher http.Flusher
+	status  int
+}
+
+func newResponseStatusRecorder(w http.ResponseWriter) *responseStatusRecorder {
+	rec := &responseStatusRecorder{ResponseWriter: w}
+	if flusher, ok := w.(http.Flusher); ok {
+		rec.flusher = flusher
+	}
+	return rec
 }
 
 func (r *responseStatusRecorder) WriteHeader(status int) {
 	r.status = status
 	r.ResponseWriter.WriteHeader(status)
+}
+
+// Flush optionally flushes the inner ResponseWriter if it supports that.
+// Otherwise, Flush is a noop.
+//
+// Flush is optionally used by github.com/gravitational/oxy/forward to flush
+// pending data on streaming HTTP responses (like streaming pod logs).
+//
+// Without this, oxy/forward will handle streaming responses by accumulating
+// ~32kb of response in a buffer before flushing it.
+func (r *responseStatusRecorder) Flush() {
+	if r.flusher != nil {
+		r.flusher.Flush()
+	}
 }
 
 func (r *responseStatusRecorder) getStatus() int {

@@ -354,6 +354,7 @@ interval via `--ttl` flag (capped by the server-side configuration).
 | `--browser` | none | `none` | Set to 'none' to suppress opening system default browser for `tsh login` commands
 | `--request-roles`  | none |  | Request one or more extra roles
 | `--request-reason`  | none |  | Reason for requesting additional roles
+| `--no-use-local-ssh-agent` | | | Do not load generated SSH certificates into the local ssh-agent (specified via `$SSH_AUTH_SOCK`). Useful when using `gpg-agent` or Yubikeys. You can also set the `TELEPORT_USE_LOCAL_SSH_AGENT` environment variable to `false` (default `true`)
 
 ### [Global Flags](#tsh-global-flags)
 
@@ -715,6 +716,7 @@ Create an identity file(s) for a given user
 `--ttl` | none | relative duration like 5s, 2m, or 3h | TTL (time to live) for the generated certificate
 `--compat` | `""` | `standard` or `oldssh` | OpenSSH compatibility flag
 `--proxy` | `""` |  Address of the teleport proxy. | When --format is set to "kubernetes", this address will be set as cluster address in the generated kubeconfig file
+`--kube-cluster` | `""` |  The name of a leaf cluster. | When --format is set to "kubernetes", the kubeconfig generated will allow access to this leaf cluster.
 
 ### [Global Flags](#tctl-global-flags)
 

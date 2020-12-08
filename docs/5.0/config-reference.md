@@ -329,23 +329,7 @@ proxy_service:
     - key_file: /etc/letsencrypt/live/*.teleport.example.com/privkey.pem
       cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 
-    # This section configures the Kubernetes proxy service
-    kubernetes:
-        # Turns 'kubernetes' proxy on. Default is 'no'
-        enabled: yes
-
-        # Kubernetes proxy listen address.
-        listen_addr: 0.0.0.0:3026
-
-        # The DNS name of the Kubernetes proxy server that is accessible by cluster clients.
-        # If running multiple proxies behind  a load balancer, this name must point to the
-        # load balancer.
-        public_addr: ['kube.example.com:3026']
-
-        # This setting is not required if the Teleport proxy service is
-        # deployed inside a Kubernetes cluster. Otherwise, Teleport proxy
-        # will use the credentials from this file:
-        kubeconfig_file: /path/to/kube/config
+    kube_listen_addr: 0.0.0.0:3026
 
 # This section configures the 'application service'
 app_service:
@@ -370,4 +354,41 @@ app_service:
      - name: "os"
        command: ["/usr/bin/uname"]
        period: "5s"
+
+
+## This section configures the 'kubernetes service'
+kubernetes_service:
+    enabled: yes
+    # Optional Public & Listen Addr: Set these if you are connecting to
+    # Teleport running inside a Kubernetes cluster instead of using a
+    # reverse tunnel.
+    #
+    # Optional Public Addr
+    public_addr: [k8s.example.com:3026]
+    # Optional Listen Addr
+    listen_addr: 0.0.0.0:3026
+    # Optional kubeconfig_file and kube_cluster_name. Exactly one of these must be set.
+    #
+    # When running teleport outside of the kubernetes cluster, use kubeconfig_file to provide
+    # teleport with cluster credentials.
+    #
+    # When running teleport inside of the kubernetes cluster pod, use kube_cluster_name to
+    # provide a user-visible name. Teleport uses the pod service account credentials to authenticate
+    # to its local kubernetes API.
+    kubeconfig_file: /secrets/kubeconfig
+    kube_cluster_name:
+    # Optional labels: These can be used in combination with RBAC rules
+    # to limit access to applications.
+    # When using kubeconfig_file above, these labels apply to all kubernetes
+    # clusters specified in the kubeconfig.
+    labels:
+      env: "prod"
+    # Optional Dynamic Labels
+    - name: "os"
+       command: ["/usr/bin/uname"]
+       period: "5s"
+    # Get cluster name on GKE.
+    - name: cluster-name
+      command: ['curl', 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name', '-H', 'Metadata-Flavor: Google']
+      period: 1m0s
 ```

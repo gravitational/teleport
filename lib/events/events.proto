@@ -26,6 +26,9 @@ message Metadata {
     // Time is event time
     google.protobuf.Timestamp Time = 5
         [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false, (gogoproto.jsontag) = "time" ];
+
+    // ClusterName identifies the originating teleport cluster
+    string ClusterName = 6 [ (gogoproto.jsontag) = "cluster_name" ];
 }
 
 // SesssionMetadata is a common session event metadata

@@ -345,6 +345,9 @@ func LabelsAsString(static map[string]string, dynamic map[string]CommandLabelV2)
 
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (s *ServerV2) CheckAndSetDefaults() error {
+	// TODO(awly): default s.Metadata.Expiry if not set (use
+	// defaults.ServerAnnounceTTL).
+
 	err := s.Metadata.CheckAndSetDefaults()
 	if err != nil {
 		return trace.Wrap(err)

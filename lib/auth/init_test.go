@@ -47,9 +47,6 @@ func (s *AuthInitSuite) SetUpSuite(c *C) {
 	utils.InitLoggerForTests(testing.Verbose())
 }
 
-func (s *AuthInitSuite) TearDownSuite(c *C) {
-}
-
 func (s *AuthInitSuite) SetUpTest(c *C) {
 	var err error
 	s.tempDir, err = ioutil.TempDir("", "auth-init-test-")

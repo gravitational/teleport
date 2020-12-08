@@ -45,9 +45,6 @@ func (s *ClusterConfigurationSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())
 }
 
-func (s *ClusterConfigurationSuite) TearDownSuite(c *check.C) {
-}
-
 func (s *ClusterConfigurationSuite) SetUpTest(c *check.C) {
 	var err error
 	s.bk, err = lite.New(context.TODO(), backend.Params{"path": c.MkDir()})

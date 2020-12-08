@@ -133,9 +133,16 @@ spec:
       # of the list example above can be expressed as:
       'environment': '^test|staging$'
 
+    kubernetes_labels:
+      # a user can only acess prod enviroments
+      'env': 'prod'
+      # user can access any region in us-west, e.g us-west-1, us-west-2
+      'region': 'us-west-*'
+      'cluster_name': '^us.*\.example\.com$'
+
     # defines roles that this user can can request.
     # needed for teleport's request workflow
-    # https://gravitational.com/teleport/docs/enterprise/workflow/
+    # https://goteleport.com/teleport/docs/enterprise/workflow/
     request:
       roles:
       - dba
