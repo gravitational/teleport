@@ -16,80 +16,240 @@ Teleport manages privileged access to Kubernetes clusters.
 
 ![teleport-kubernetes-inside](img/teleport-k8s-pod.svg)
 
-```bash
-$ helm repo add teleport https://charts.releases.teleport.dev
-$ helm install teleport teleport/teleport --values=values.yaml
-```
+=== "Community"
 
-See [Helm Docs](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport#introduction)
-for more information.
+    Setup and Install Teleport Helm chart repository.
+    ```bash
+    helm repo add teleport https://charts.releases.teleport.dev
+    helm install teleport teleport/teleport
+    ```
 
-Deploy Teleport Proxy service as a Kubernetes pod inside the Kubernetes cluster
-you want the proxy to have access to.
+    Download Demo Helm Value and Update Teleport Pod.
+    ```bash
+    curl https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/quickstart/values-community.yaml --output values.yaml
+    helm upgrade -f values.yaml teleport teleport/teleport
+    ```
 
-```yaml
-# snippet from /etc/teleport.yaml on the Teleport proxy service:
-auth_service:
-  cluster_name: example.com
-  public_addr: auth.example.com:3025
-# ..
-proxy_service:
-  public_addr: proxy.example.com:3080
-  kube_listen_addr: 0.0.0.0:3026
+    Check that the Teleport Service is running.
+    ```bash
+    kubectl get service
+    # NAME       TYPE       CLUSTER-IP    EXTERNAL-IP   PORT(S)                                                                      AGE
+    # teleport   NodePort   10.20.28.76   <none>        3025:32676/TCP,3026:30207/TCP,3023:32763/TCP,3024:31710/TCP,3080:32333/TCP   89m
+    ```
 
-kubernetes_service:
-  enabled: yes
-  listen_addr: 0.0.0.0:3027
-  kube_cluster_name: kube.example.com
-```
+    !!! Tip
 
-## Deploy Teleport
+        If Teleport isn't starting you can tail Kubernetes logs for more info `kubectl logs --follow deployments/teleport`
+        or `kubectl get pods`<br>_Example: `kubectl describe pod teleport-5f5f989b96-9khzq`_
 
-A single central Teleport Access Plane acting as "gateway". Multiple Kubernetes clusters
-connect to it over reverse tunnels.
+    Forward ports to provide UI and CLI access.
+    ```
+    # Change teleport-699d68645c-wpqm7 to the name of the Pod
+    kubectl port-forward teleport-699d68645c-wpqm7 6379:32334
+    ```
 
-The root Teleport Cluster should be setup following our standard config, to make sure
-clients can connect you must make sure that an invite token is set for the `kube`
-service and proxy_addr has `kube_lisetn_addr` set.
+    Next Step: Create a Teleport User & Setup 2FA
+    ```
+    kubectl exec deployments/teleport -- tctl users add testuser root,ubuntu,k8s
+    ```
 
-```yaml
-# Example Snippet for the Teleport Root Service
-#...
-auth_service:
-  enabled: "yes"
-  listen_addr: 0.0.0.0:3025
-  tokens:
-  - kube:866c6c114724a0fa4d4d73216afd99fb1a2d6bfde8e13a19
-#...
-proxy_service:
-  public_addr: proxy.example.com:3080
-  kube_listen_addr: 0.0.0.0:3027
-```
+    Teleport is now setup within Kubernetes. This example provides a simple POC for
+    deploying Teleport. For Production deploys you should [Add TLS Certificates](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport#adding-tls-certificates), consider setting up for [High Availability](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/HIGHAVAILABILITY.md) and changing Teleports service type to an option such
+    as [LoadBalancer](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/values.yaml#L197)
 
-To get quickly setup, we provide a Helm chart that'll connect to the above root cluster.
 
-```bash
-# Add Teleport Helm Repo
-$ helm repo add teleport https://charts.releases.teleport.dev
+=== "Enterprise"
 
-# Installing the Helm Chart
-helm install teleport-kube-agent teleport/teleport-kube-agent \
-  --namespace teleport \
-  --create-namespace \
-  --set proxyAddr=proxy.example.com:3080 \
-  --set authToken=$JOIN_TOKEN \
-  --set kubeClusterName=$KUBERNETES_CLUSTER_NAME
-```
+    Prepare a Teleport Enterprise license file<br>
+    If you are deploying the Enterprise version you will require the license file as a secret available to Teleport.
+    Download the `license.pem` from the [Teleport dashboard,](https://dashboard.gravitational.com/web/login) and rename
+    it to the filename that this chart expects:
 
-| Things to set | Description |
-|-|-|
-| `proxyAddr` | The Address of the Teleport Root Service, using the proxy listening port |
-| `authToken` | A static `kube` invite token |
-| `kubeClusterName` | Kubernetes Cluster name (there is no easy way to automatically detect the name from the environment) |
+    ```bash
+    cp ~/Downloads/license.pem license-enterprise.pem
+    ```
+
+    Store it as a Kubernetes secret:
+    ```
+    kubectl create secret generic license --from-file=license-enterprise.pem
+    ```
+
+    Setup and Install Teleport Helm chart repository.
+    ```bash
+    helm repo add teleport https://charts.releases.teleport.dev
+    helm install teleport teleport/teleport
+    ```
+
+    Download Demo Helm Value and Update Teleport Pod.
+    ```bash
+    curl https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/values.yaml  --output values.yaml
+    helm upgrade -f values.yaml teleport teleport/teleport
+    ```
+
+    Check that the Teleport Service is running.
+    ```bash
+    kubectl get service
+    # NAME       TYPE       CLUSTER-IP    EXTERNAL-IP   PORT(S)                                                                      AGE
+    # teleport   NodePort   10.20.28.76   <none>        3025:32676/TCP,3026:30207/TCP,3023:32763/TCP,3024:31710/TCP,3080:32333/TCP   89m
+    ```
+
+    !!! Tip
+
+        If Teleport isn't starting you can tail Kubernetes logs for more info `kubectl logs --follow deployments/teleport`
+        or `kubectl get pods`<br>_Example: `kubectl describe pod teleport-5f5f989b96-9khzq`_
+
+    Forward ports to provide UI and CLI access.
+    ```
+    # Change teleport-699d68645c-wpqm7 to the name of the Pod
+    kubectl port-forward teleport-699d68645c-wpqm7 6379:32334
+    ```
+
+    Create a Teleport User & Setup 2FA
+    ```
+    # tctl is a tool to administer Teleport
+    kubectl exec deployments/teleport -- tctl users add testuser root,ubuntu,k8s
+    ```
+
+    Teleport is now setup within Kubernetes. This example provides a simple POC for
+    deploying Teleport. For Production deploys you should [Add TLS Certificates](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport#adding-tls-certificates), consider setting up for [High Availability](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/HIGHAVAILABILITY.md) and changing Teleports service type to an option such
+    as [LoadBalancer](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/values.yaml#L197)
+
+
+## Deploy Teleport outside Kubernetes
+
+Teleport can deployed outside of Kubernetes using two possible options:
+
+1. Using **Trusted Clusters** connecting back to a Teleport root cluster. This method leverages
+[Trusted Clusters](trustedclusters.md) features to connect a complete auth & proxy
+back to a root cluster. This can be useful when customers want to isolate environments.
+ _e.g. A MSP provide is managing customer infrastructure_
+2. Using **Kube Agent** connecting to a root Teleport Cluster.  This method
+leverages Teleports use of tunnels and is a lightweight way to quickly setup Teleport.
+All Audit log activity and access will happen on the root. This can be useful for managing
+multiple environments inside the same company. _e.g. providing access to staging and production
+clusters_
+
+![teleport-outside-kubernetes](img/teleport-kubernetes.svg)
+
+
+
+=== "Using Kube Agent"
+
+    Prepare Teleport Root<br>
+    The  Teleport Cluster should be setup following our standard config. For
+    clients to connect need an invite token is set for the `kube` service and
+    proxy_addr has `kube_lisetn_addr` set.
+
+    ```yaml
+    # Example Snippet for the teleport.yaml for Teleport root cluster
+    #...
+    auth_service:
+      enabled: "yes"
+      listen_addr: 0.0.0.0:3025
+      tokens:
+      - kube:866c6c114724a0fa4d4d73216afd99fb1a2d6bfde8e13a19
+    #...
+    proxy_service:
+      public_addr: proxy.example.com:3080
+      kube_listen_addr: 0.0.0.0:3027
+    ```
+
+    Setup and Install Teleport Helm chart repository.
+
+    | Things to set | Description |
+    |-|-|
+    | `proxyAddr` | The Address of the Teleport Root Service, using the proxy listening port |
+    | `authToken` | A static `kube` invite token |
+    | `kubeClusterName` | Kubernetes Cluster name (there is no easy way to automatically detect the name from the environment) |
+
+    ```bash
+    helm repo add teleport https://charts.releases.teleport.dev
+    helm install teleport-kube-agent teleport/teleport-kube-agent \
+      --namespace teleport \
+      --create-namespace \
+      --set proxyAddr=proxy.example.com:3080 \
+      --set authToken=$JOIN_TOKEN \
+      --set kubeClusterName=$KUBERNETES_CLUSTER_NAME
+    ```
+
+=== "Using Trusted Cluster: Teleport Enterprise Example"
+
+    Prepare a Teleport Enterprise license file<br>
+    If you are deploying the Enterprise version you will require the license file as a secret available to Teleport.
+    Download the `license.pem` from the [Teleport dashboard,](https://dashboard.gravitational.com/web/login) and rename
+    it to the filename that this chart expects:
+
+    ```bash
+    cp ~/Downloads/license.pem license-enterprise.pem
+    ```
+
+    Store it as a Kubernetes secret:
+    ```
+    kubectl create secret generic license --from-file=license-enterprise.pem
+    ```
+
+    Setup and Install Teleport Helm chart repository.
+    ```bash
+    helm repo add teleport https://charts.releases.teleport.dev
+    helm install teleport teleport/teleport-auto-trustedcluster
+    ```
+
+    Download Demo Helm Value
+    ```bash
+    wget https://github.com/gravitational/teleport/blob/master/examples/chart/teleport-auto-trustedcluster/values.yaml
+    ```
+
+    Edit `values.yaml` defining [Trusted Cluster Configuration](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport-auto-trustedcluster/values.yaml#L41-L55)
+
+
+    ```bash
+    helm upgrade -f values.yaml teleport teleport/teleport-auto-trustedcluster
+    ```
+
+    Check that the Teleport Service is running.
+    ```bash
+    kubectl get service
+    # NAME       TYPE       CLUSTER-IP    EXTERNAL-IP   PORT(S)                                                                      AGE
+    # teleport   NodePort   10.20.28.76   <none>        3025:32676/TCP,3026:30207/TCP,3023:32763/TCP,3024:31710/TCP,3080:32333/TCP   89m
+    ```
+
+    Teleport should now be accessible from your root cluster.
+
+=== "Using kubeconfig on a Teleport root."
+
+    Prior to Teleport 5.0, this was the only way to setup Teleport. This option
+    `kubernetes_service` elsewhere, with kubeconfig. Use [get-kubeconfig.sh](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh) for building kubeconfigs.
+
+    ```yaml
+    # snippet from /etc/teleport.yaml:
+    kubernetes_service:
+      enabled: yes
+      public_addr: [k8s.example.com:3027]
+      listen_addr: 0.0.0.0:3027
+      kubeconfig_file: /secrets/kubeconfig
+    ```
+
 
 ## Migrating Pre-5.0 Teleport clusters
 
-[Teleport 5.0 Migration Guide](kubernetes-5.0-migration.md)
+In release 5.0, Teleport has changed the [Kubernetes
+integration](kubernetes-ssh.md) to improve configuration and user experience.
+These changes are backwards compatible and there is no _required_ migration.
+However, to get the most out of Teleport, you should consider migrating as
+described below.
+
+The main changes in 5.0 are:
+- New `kubernetes_service` configuration section in `teleport.yaml`, decoupled
+  from `proxy_service`
+- Support for multiple Kubernetes clusters per Teleport cluster (replaces the
+  need to use [Trusted Clusters](admin-guide.md#trusted-clusters) to achieve this)
+- RBAC support for Kubernetes clusters
+
+Important note: `proxy_service` with an open port for Kubernetes requests is
+still required. A proxy is always the public-facing gateway into the Teleport
+cluster, acting as an authentication point and a connection router.
+
+Please follow our [Teleport 5.0 Migration Guide](kubernetes-5.0-migration.md)
 
 ## Teleport Kubernetes Service
 
@@ -114,26 +274,11 @@ kubernetes_service:
 - `listen_addr` defines which network interface and port the Teleport proxy server
   should bind to. It defaults to port 3026 on all NICs.
 
-## Setup
-
-Connecting the Teleport proxy to Kubernetes.
-
-Teleport Auth And Proxy can be ran anywhere (inside or outside of k8s). The Teleport
-proxy must have `kube_listen_addr` set.
-
-- Options for connecting k8s clusters:
-    - `kubernetes_service` in a pod [Using our Helm Chart](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport-kube-agent/README.md)
-    - `kubernetes_service` elsewhere, with kubeconfig. Use [get-kubeconfig.sh](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/) for building kubeconfigs
-
-There are two options for setting up Teleport to access Kubernetes:
-
 ## Impersonation
 
 !!! note
 
-    If you used [the helm chart from Option
-    1](https://github.com/gravitational/teleport/blob/master/examples/k8s-auth/get-kubeconfig.sh)
-    above, you can skip this step. The script already configured impersonation permissions.
+    If you used one of our helm charts above, you can skip this step. The script already configured impersonation permissions.
 
 The next step is to configure the Teleport Proxy to be able to impersonate Kubernetes principals within a given group
 using [Kubernetes Impersonation Headers](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation).
@@ -234,21 +379,24 @@ Labels can be applied to Kubernetes clusters to provide a better inventory of cl
 and more fined grained RBAC.
 
 ```yaml
-    # ... Snippet of teleport.yaml
-    # Optional labels: These can be used in combination with RBAC rules
-    # to limit access to applications.
-    # When using kubeconfig_file above, these labels apply to all kubernetes
-    # clusters specified in the kubeconfig.
-    labels:
-      env: "prod"
-    # Optional Dynamic Labels
-    - name: "os"
-       command: ["/usr/bin/uname"]
-       period: "5s"
-    # Get cluster name on GKE.
-    - name: cluster-name
-      command: ['curl', 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name', '-H', 'Metadata-Flavor: Google']
-      period: 1m0s
+# ... Snippet of teleport.yaml
+# Optional labels: These can be used in combination with RBAC rules
+# to limit access to applications.
+# When using kubeconfig_file above, these labels apply to all kubernetes
+# clusters specified in the kubeconfig.
+kubernetes_service:
+  enabled: yes
+  public_addr: [k8s.example.com:3027]
+  labels:
+    env: "prod"
+  # Optional Dynamic Labels
+  - name: "os"
+      command: ["/usr/bin/uname"]
+      period: "5s"
+  # Get cluster name on Google Kubernetes Engine (GKE)
+  - name: cluster-name
+    command: ['curl', 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name', '-H', 'Metadata-Flavor: Google']
+    period: 1m0s
 ```
 
 ### Github Auth
