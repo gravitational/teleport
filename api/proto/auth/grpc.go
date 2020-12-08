@@ -10,7 +10,6 @@ import (
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/proto"
 	events "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/services"
@@ -604,11 +603,7 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateResetPa
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := c.grpc.CreateResetPasswordToken(ctx, &CreateResetPasswordTokenRequest{
-		Name: req.Name,
-		TTL:  proto.Duration(req.TTL),
-		Type: req.Type,
-	})
+	token, err := c.grpc.CreateResetPasswordToken(ctx, &req)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}

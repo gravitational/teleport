@@ -34,6 +34,8 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/proto"
+	"github.com/gravitational/teleport/api/proto/auth"
 	api "github.com/gravitational/teleport/api/proto/auth"
 	authProto "github.com/gravitational/teleport/api/proto/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -2056,6 +2058,15 @@ func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterR
 	}
 
 	return validateResponse, nil
+}
+
+// CreateResetPasswordToken creates reset password token
+func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error) {
+	return c.grpcClient.CreateResetPasswordToken(ctx, &auth.CreateResetPasswordTokenRequest{
+		Name: req.Name,
+		TTL:  proto.Duration(req.TTL),
+		Type: req.Type,
+	})
 }
 
 // DeleteTrustedCluster deletes a trusted cluster by name.
