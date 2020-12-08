@@ -659,8 +659,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			// Build the resize event.
 			resizeEvent := &events.Resize{
 				Metadata: events.Metadata{
-					Type: events.ResizeEvent,
-					Code: events.TerminalResizeCode,
+					Type:        events.ResizeEvent,
+					Code:        events.TerminalResizeCode,
+					ClusterName: f.ClusterName,
 				},
 				ConnectionMetadata: events.ConnectionMetadata{
 					RemoteAddr: req.RemoteAddr,
@@ -700,8 +701,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		}
 		sessionStartEvent := &events.SessionStart{
 			Metadata: events.Metadata{
-				Type: events.SessionStartEvent,
-				Code: events.SessionStartCode,
+				Type:        events.SessionStartEvent,
+				Code:        events.SessionStartCode,
+				ClusterName: f.ClusterName,
 			},
 			ServerMetadata: events.ServerMetadata{
 				ServerID:        f.ServerID,
@@ -783,8 +785,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 	if request.tty {
 		sessionDataEvent := &events.SessionData{
 			Metadata: events.Metadata{
-				Type: events.SessionDataEvent,
-				Code: events.SessionDataCode,
+				Type:        events.SessionDataEvent,
+				Code:        events.SessionDataCode,
+				ClusterName: f.ClusterName,
 			},
 			ServerMetadata: events.ServerMetadata{
 				ServerID:        f.ServerID,
@@ -812,8 +815,9 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		}
 		sessionEndEvent := &events.SessionEnd{
 			Metadata: events.Metadata{
-				Type: events.SessionEndEvent,
-				Code: events.SessionEndCode,
+				Type:        events.SessionEndEvent,
+				Code:        events.SessionEndCode,
+				ClusterName: f.ClusterName,
 			},
 			ServerMetadata: events.ServerMetadata{
 				ServerID:        f.ServerID,
@@ -847,7 +851,8 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		// send an exec event
 		execEvent := &events.Exec{
 			Metadata: events.Metadata{
-				Type: events.ExecEvent,
+				Type:        events.ExecEvent,
+				ClusterName: f.ClusterName,
 			},
 			ServerMetadata: events.ServerMetadata{
 				ServerID:        f.ServerID,
