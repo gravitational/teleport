@@ -126,8 +126,9 @@ func (s *SessionRegistry) Close() {
 func (s *SessionRegistry) emitSessionJoinEvent(ctx *ServerContext) {
 	sessionJoinEvent := &events.SessionJoin{
 		Metadata: events.Metadata{
-			Type: events.SessionJoinEvent,
-			Code: events.SessionJoinCode,
+			Type:        events.SessionJoinEvent,
+			Code:        events.SessionJoinCode,
+			ClusterName: ctx.ClusterName,
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
@@ -247,8 +248,9 @@ func (s *SessionRegistry) OpenExecSession(channel ssh.Channel, req *ssh.Request,
 func (s *SessionRegistry) emitSessionLeaveEvent(party *party) {
 	sessionLeaveEvent := &events.SessionLeave{
 		Metadata: events.Metadata{
-			Type: events.SessionLeaveEvent,
-			Code: events.SessionLeaveCode,
+			Type:        events.SessionLeaveEvent,
+			Code:        events.SessionLeaveCode,
+			ClusterName: party.ctx.ClusterName,
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        party.ctx.srv.HostUUID(),
@@ -326,8 +328,9 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 		// Emit a session.end event for this (interactive) session.
 		sessionEndEvent := &events.SessionEnd{
 			Metadata: events.Metadata{
-				Type: events.SessionEndEvent,
-				Code: events.SessionEndCode,
+				Type:        events.SessionEndEvent,
+				Code:        events.SessionEndCode,
+				ClusterName: party.ctx.ClusterName,
 			},
 			ServerMetadata: events.ServerMetadata{
 				ServerID:        party.ctx.srv.HostUUID(),
@@ -407,8 +410,9 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 	// Build the resize event.
 	resizeEvent := &events.Resize{
 		Metadata: events.Metadata{
-			Type: events.ResizeEvent,
-			Code: events.TerminalResizeCode,
+			Type:        events.ResizeEvent,
+			Code:        events.TerminalResizeCode,
+			ClusterName: ctx.ClusterName,
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
@@ -752,8 +756,9 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	// Emit "new session created" event for the interactive session.
 	sessionStartEvent := &events.SessionStart{
 		Metadata: events.Metadata{
-			Type: events.SessionStartEvent,
-			Code: events.SessionStartCode,
+			Type:        events.SessionStartEvent,
+			Code:        events.SessionStartCode,
+			ClusterName: ctx.ClusterName,
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
@@ -889,8 +894,9 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 	// Emit a session.start event for the exec session.
 	sessionStartEvent := &events.SessionStart{
 		Metadata: events.Metadata{
-			Type: events.SessionStartEvent,
-			Code: events.SessionStartCode,
+			Type:        events.SessionStartEvent,
+			Code:        events.SessionStartCode,
+			ClusterName: ctx.ClusterName,
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
@@ -983,8 +989,9 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		// Emit a session.end event for this (exec) session.
 		sessionEndEvent := &events.SessionEnd{
 			Metadata: events.Metadata{
-				Type: events.SessionEndEvent,
-				Code: events.SessionEndCode,
+				Type:        events.SessionEndEvent,
+				Code:        events.SessionEndCode,
+				ClusterName: ctx.ClusterName,
 			},
 			ServerMetadata: events.ServerMetadata{
 				ServerID:        ctx.srv.HostUUID(),
