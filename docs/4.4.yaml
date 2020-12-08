@@ -68,7 +68,7 @@ nav:
         #    - OneLogin:  enterprise/sso/ssh-one-login.md
         #    - OIDC:  enterprise/sso/oidc.md
         #    - Okta:  enterprise/sso/ssh-okta.md
-        - Approval Workflow: enterprise/workflow/index.md
+        - Access Workflows: enterprise/workflow/index.md
         #- Teleport Plugins:
         #    - Teleport  Plugin Setup: enterprise/workflow/ssh-approval-jira-cloud.md
         #    - Teleport Jira Server Plugin Setup: enterprise/workflow/ssh-approval-jira-server.md

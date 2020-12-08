@@ -63,7 +63,7 @@ nav:
         - Introduction: enterprise/introduction.md
         - Quick Start Guide: enterprise/quickstart-enterprise.md
         - Single sign-on (SSO): enterprise/sso/ssh-sso.md
-        - Approval Workflow: enterprise/workflow/index.md
+        - Access Workflows: enterprise/workflow/index.md
         - FedRAMP for SSH & K8s: enterprise/ssh-kubernetes-fedramp.md
         - RBAC: enterprise/ssh-rbac.md
     - Architecture:
