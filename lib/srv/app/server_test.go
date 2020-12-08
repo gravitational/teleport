@@ -29,6 +29,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -289,8 +290,14 @@ func (s *Suite) TestHandleConnection(c *check.C) {
 		},
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(1)
+
 	// Handle the connection in another goroutine.
-	go s.appServer.HandleConnection(pw)
+	go func() {
+		s.appServer.HandleConnection(pw)
+		wg.Done()
+	}()
 
 	// Issue request.
 	resp, err := httpClient.Get("https://" + teleport.APIDomain)
@@ -307,6 +314,10 @@ func (s *Suite) TestHandleConnection(c *check.C) {
 	// error here.
 	err = s.appServer.Close()
 	c.Assert(err, check.NotNil)
+
+	// Wait for the application server to actually stop serving before
+	// closing the test. This will make sure the server removes the listeners
+	wg.Wait()
 }
 
 // TestAuthorize verifies that only authorized requests are handled.
