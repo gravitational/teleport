@@ -72,10 +72,12 @@ func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
 func InitLoggerForTests(verbose bool) {
 	logger := log.StandardLogger()
 	logger.ReplaceHooks(make(log.LevelHooks))
-	logger.SetFormatter(&trace.TextFormatter{})
+	logger.SetFormatter(&trace.TextFormatter{
+		EnableColors: true,
+	})
 	logger.SetLevel(log.DebugLevel)
 	logger.SetOutput(os.Stderr)
-	if verbose {
+	if verbose || verboseLogsConfigured() {
 		return
 	}
 	logger.SetLevel(log.WarnLevel)
