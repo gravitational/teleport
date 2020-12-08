@@ -1,4 +1,4 @@
-package api
+package auth
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/proto/auth"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -27,12 +26,12 @@ var log = logrus.WithFields(logrus.Fields{
 // via HTTP.
 //
 // When Teleport servers connect to auth API, they usually establish an SSH
-// tunnel first, and then do HTTP-over-SSH. This client is wrapped by auth.TunClient
+// tunnel first, and then do HTTP-over-SSH. This client is wrapped by TunClient
 // in lib/auth/tun.go
 type Client struct {
 	sync.Mutex
 	ClientConfig
-	grpc auth.AuthServiceClient
+	grpc AuthServiceClient
 	conn *grpc.ClientConn
 	// closedFlag is set to indicate that the services are closed
 	closedFlag int32
@@ -122,8 +121,8 @@ var _ ClientI = &Client{}
 type ClientI interface {
 	// GetUsers(withSecrets bool) ([]services.User, error)
 
-	// auth.IdentityService
-	// auth.ProvisioningService
+	// IdentityService
+	// ProvisioningService
 	// services.Trust
 	// events.IAuditLog
 	// events.Streamer
@@ -131,7 +130,7 @@ type ClientI interface {
 	// services.Presence
 	// services.Access
 	// services.DynamicAccess
-	// auth.WebService
+	// WebService
 	// session.Service
 	// services.ClusterConfiguration
 	// services.Events
@@ -140,7 +139,7 @@ type ClientI interface {
 	// NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
 
 	// // RotateCertAuthority starts or restarts certificate authority rotation process.
-	// RotateCertAuthority(req auth.RotateRequest) error
+	// RotateCertAuthority(req RotateRequest) error
 
 	// // RotateExternalCertAuthority rotates external certificate authority,
 	// // this method is used to update only public keys and certificates of the
@@ -150,30 +149,30 @@ type ClientI interface {
 	// // ValidateTrustedCluster validates trusted cluster token with
 	// // main cluster, in case if validation is successful, main cluster
 	// // adds remote cluster
-	// ValidateTrustedCluster(*auth.ValidateTrustedClusterRequest) (*auth.ValidateTrustedClusterResponse, error)
+	// ValidateTrustedCluster(*ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
 
 	// // GetDomainName returns auth server cluster name
 	// GetDomainName() (string, error)
 
 	// // GetClusterCACert returns the CAs for the local cluster without signing keys.
-	// GetClusterCACert() (*auth.LocalCAResponse, error)
+	// GetClusterCACert() (*LocalCAResponse, error)
 
 	// // GenerateServerKeys generates new host private keys and certificates (signed
 	// // by the host certificate authority) for a node
-	// GenerateServerKeys(auth.GenerateServerKeysRequest) (*auth.PackedKeys, error)
+	// GenerateServerKeys(GenerateServerKeysRequest) (*PackedKeys, error)
 	// // AuthenticateWebUser authenticates web user, creates and  returns web session
 	// // in case if authentication is successful
-	// AuthenticateWebUser(req auth.AuthenticateUserRequest) (services.WebSession, error)
+	// AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error)
 	// // AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
 	// // short lived certificates as a result
-	// AuthenticateSSHUser(req auth.AuthenticateSSHRequest) (*auth.SSHLoginResponse, error)
+	// AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error)
 
 	// // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
 	// // signed certificate if successful.
-	// ProcessKubeCSR(req auth.KubeCSR) (*auth.KubeCSRResponse, error)
+	// ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error)
 
 	// Ping gets basic info about the auth server.
-	Ping(ctx context.Context) (auth.PingResponse, error)
+	Ping(ctx context.Context) (PingResponse, error)
 
 	// // CreateAppSession creates an application web session. Application web
 	// // sessions represent a browser session the client holds.
