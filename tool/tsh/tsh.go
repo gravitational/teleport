@@ -1415,33 +1415,34 @@ func onSSH(cf *CLIConf) error {
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		return tc.SSH(cf.Context, cf.RemoteCommand, cf.LocalExec)
 	})
-	if err == nil {
-		return nil
-	}
-	if strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
-		allNodes, err := tc.ListAllNodes(cf.Context)
-		if err != nil {
+	if err != nil {
+		if strings.Contains(utils.UserMessageFromError(err), teleport.NodeIsAmbiguous) {
+			allNodes, err := tc.ListAllNodes(cf.Context)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			var nodes []services.Server
+			for _, node := range allNodes {
+				if node.GetHostname() == tc.Host {
+					nodes = append(nodes, node)
+				}
+			}
+			fmt.Fprintf(os.Stderr, "error: ambiguous host could match multiple nodes\n\n")
+			printNodesAsText(nodes, true)
+			fmt.Fprintf(os.Stderr, "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
+			fmt.Fprintf(os.Stderr, "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
+			fmt.Fprintf(os.Stderr, "\n")
+			os.Exit(1)
+		}
+		// exit with the same exit status as the failed command:
+		if tc.ExitStatus != 0 {
+			fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
+			os.Exit(tc.ExitStatus)
+		} else {
 			return trace.Wrap(err)
 		}
-		var nodes []services.Server
-		for _, node := range allNodes {
-			if node.GetHostname() == tc.Host {
-				nodes = append(nodes, node)
-			}
-		}
-		fmt.Fprintf(os.Stderr, "error: ambiguous host could match multiple nodes\n\n")
-		printNodesAsText(nodes, true)
-		fmt.Fprintf(os.Stderr, "Hint: try addressing the node by unique id (ex: tsh ssh user@node-id)\n")
-		fmt.Fprintf(os.Stderr, "Hint: use 'tsh ls -v' to list all nodes with their unique ids\n")
-		fmt.Fprintf(os.Stderr, "\n")
-		os.Exit(1)
 	}
-	// exit with the same exit status as the failed command:
-	if tc.ExitStatus != 0 {
-		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
-		os.Exit(tc.ExitStatus)
-	}
-	return trace.Wrap(err)
+	return nil
 }
 
 // onBenchmark executes benchmark

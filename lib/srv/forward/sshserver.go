@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strings"
 	"sync"
 
 	"golang.org/x/crypto/ssh"
@@ -1164,17 +1163,14 @@ func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerCont
 
 func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
 	s.log.Error(err)
-	message := utils.FormatError(err)
 	// Terminate the error with a newline when writing to remote channel's
 	// stderr so the output does not mix with the rest of the output if the remote
 	// side is not doing additional formatting for extended data.
 	// See github.com/gravitational/teleport/issues/4542
-	if !strings.HasSuffix(message, "\n") {
-		message = message + "\n"
-	}
+	message := utils.FormatErrorWithNewline(err)
 	s.stderrWrite(ch, message)
 	if req.WantReply {
-		if err := req.Reply(false, []byte(payload)); err != nil {
+		if err := req.Reply(false, []byte(message)); err != nil {
 			s.log.Errorf("sending error reply on SSH channel: %v", err)
 		}
 	}

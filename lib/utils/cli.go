@@ -155,34 +155,60 @@ func UserMessageFromError(err error) string {
 	if err == nil {
 		return ""
 	}
-	if certErr := formatCertError(err); certErr != "" {
-		return certErr
-	}
 	if log.GetLevel() == log.DebugLevel {
 		return trace.DebugReport(err)
 	}
-	return FormatError(err)
+	var buf bytes.Buffer
+	fmt.Fprint(&buf, Color(Red, "ERROR: "))
+	FormatErrorWriter(err, &buf)
+	return buf.String()
+}
+
+// FormatErrorWithNewline returns user friendly error message from error.
+// The error message is escaped if necessary. A newline is added if the error text
+// does not end with a newline.
+func FormatErrorWithNewline(err error) string {
+	message := FormatError(err)
+	if !strings.HasSuffix(message, "\n") {
+		message = message + "\n"
+	}
+	return message
 }
 
 // FormatError returns user friendly error message from error.
 // The error message is escaped if necessary
 func FormatError(err error) string {
+	var buf bytes.Buffer
+	FormatErrorWriter(err, &buf)
+	return buf.String()
+}
+
+// FormatErrorWriter formats the specified error into the provided writer.
+// The error message is escaped if necessary
+func FormatErrorWriter(err error, w io.Writer) {
 	if err == nil {
-		return ""
+		return
 	}
 	if certErr := formatCertError(err); certErr != "" {
-		return certErr
+		fmt.Fprintln(w, certErr)
+		return
 	}
 	// If the error is a trace error, check if it has a user message embedded in
 	// it, if it does, print it, otherwise escape and print the original error.
-	if err, ok := err.(*trace.TraceErr); ok && err.Message != "" {
-		// Avoid escaping an error message that terminates with a newline
-		errMsg := strings.TrimSuffix(err.Message, "\n")
-		return fmt.Sprintf("error: %v", EscapeControl(errMsg))
+	if traceErr, ok := err.(*trace.TraceErr); ok {
+		for _, message := range traceErr.Messages {
+			fmt.Fprintln(w, AllowNewlines(message))
+		}
+		fmt.Fprintln(w, AllowNewlines(trace.Unwrap(traceErr).Error()))
+		return
 	}
-	// Avoid escaping an error message that terminates with a newline
-	errMsg := strings.TrimSuffix(err.Error(), "\n")
-	return fmt.Sprintf("error: %v", EscapeControl(errMsg))
+	strErr := err.Error()
+	// Error can be of type trace.proxyError where error message didn't get captured.
+	if strErr == "" {
+		fmt.Fprintln(w, "please check Teleport's log for more details")
+	} else {
+		fmt.Fprintln(w, AllowNewlines(err.Error()))
+	}
 }
 
 func formatCertError(err error) string {
@@ -217,34 +243,10 @@ func formatCertError(err error) string {
   The certificate presented by the proxy is invalid: %v.
 
   Contact your Teleport system administrator to resolve this issue.`, innerError)
+	default:
+		return ""
 	}
-	if log.GetLevel() == log.DebugLevel {
-		return trace.DebugReport(err)
-	}
-	if err != nil {
-		var buf bytes.Buffer
-		fmt.Fprint(&buf, Color(Red, "ERROR: "))
 
-		// If the error is a trace error, check if it has a user message embedded in
-		// it, if it does, print it, otherwise escape and print the original error.
-		if traceErr, ok := err.(*trace.TraceErr); ok {
-			for _, message := range traceErr.Messages {
-				fmt.Fprintln(&buf, AllowNewlines(message))
-			}
-			fmt.Fprintln(&buf, AllowNewlines(trace.Unwrap(traceErr).Error()))
-		} else {
-			strErr := err.Error()
-			// Error can be of type trace.proxyError where error message didn't get captured.
-			if strErr == "" {
-				fmt.Fprintln(&buf, "please check Teleport's log for more details")
-			} else {
-				fmt.Fprintln(&buf, AllowNewlines(err.Error()))
-			}
-		}
-
-		return buf.String()
-	}
-	return ""
 }
 
 const (
