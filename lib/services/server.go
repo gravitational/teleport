@@ -408,6 +408,12 @@ func (r *Metadata) Merge(src proto.Message) {
 		expires := *m.Expires
 		r.Expires = &expires
 	}
+	if len(m.Labels) != 0 {
+		r.Labels = make(map[string]string)
+		for k, v := range m.Labels {
+			r.Labels[k] = v
+		}
+	}
 }
 
 const (

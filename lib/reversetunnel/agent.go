@@ -341,7 +341,10 @@ func (a *Agent) run() {
 	defer conn.Close()
 
 	// Successfully connected to remote cluster.
-	a.log.WithField("addr", conn.LocalAddr().String()).WithField("remote-addr", conn.RemoteAddr().String()).Info("Connected.")
+	a.log.WithFields(log.Fields{
+		"addr":        conn.LocalAddr().String(),
+		"remote-addr": conn.RemoteAddr().String(),
+	}).Info("Connected.")
 
 	// wrap up remaining business logic in closure for easy
 	// conditional execution.

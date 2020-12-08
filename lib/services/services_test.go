@@ -105,6 +105,7 @@ func (s *ServicesSuite) TestLabelKeyValidation(c *check.C) {
 
 func TestServerDeepCopy(t *testing.T) {
 	t.Parallel()
+	// setup
 	now := time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC)
 	expires := now.Add(1 * time.Hour)
 	srv := &ServerV2{
@@ -159,11 +160,16 @@ func TestServerDeepCopy(t *testing.T) {
 			},
 		},
 	}
-	srv2 := srv.DeepCopy()
-	require.Empty(t, cmp.Diff(srv, srv2))
 
+	// exercise
+	srv2 := srv.DeepCopy()
+
+	// verify
+	require.Empty(t, cmp.Diff(srv, srv2))
 	require.IsType(t, srv2, &ServerV2{})
+
 	// Mutate the second value but expect the original to be unaffected
+	srv2.(*ServerV2).Metadata.Labels["foo"] = "bar"
 	srv2.(*ServerV2).Spec.CmdLabels = map[string]CommandLabelV2{
 		"srv-cmd": {
 			Period:  Duration(3 * time.Second),
@@ -172,7 +178,12 @@ func TestServerDeepCopy(t *testing.T) {
 	}
 	expires2 := now.Add(10 * time.Minute)
 	srv2.(*ServerV2).Metadata.Expires = &expires2
+
+	// exercise
 	srv3 := srv.DeepCopy()
+
+	// verify
 	require.Empty(t, cmp.Diff(srv, srv3))
+	require.NotEmpty(t, cmp.Diff(srv.GetMetadata().Labels, srv2.GetMetadata().Labels))
 	require.NotEmpty(t, cmp.Diff(srv2, srv3))
 }
