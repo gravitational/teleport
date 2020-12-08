@@ -61,8 +61,12 @@ Therefore, I propose to switch to a more semver-like scheme, starting with 6.0.
 - Minor versions are for regular, non-critical bugfix batches and important
   backported fixes for users.
 - Patch versions are for quick followup regression and critical bug fixes.
-- `-rc.X` suffixes are for pre-release candidates
-- `-dev` suffix is for development builds (e.g. off of the `master` branch)
+- Suffixes:
+  - `-dev` suffix is for development builds (e.g. off of the `master` branch)
+  - `-alpha.X` suffix, good for demos and early deploys, but not staging
+  - `-beta.X` suffix, good for staging deploys, but not production
+  - `-rc.X` suffixes are for release candidates, potentially production-ready
+    but still in testing
 
 The benefits are:
 - Major version bumps clearly communicate to users to exercise caution when
@@ -94,7 +98,9 @@ versions. For example:
 The current release of teleport is `v5` and the next will be `v6`.
 
 - initially, builds from `master` will be `v6.0.0-dev`
-- when most big changes are merged, we make `branch/v6` and cut `v6.0.0-rc.1`
+- when most big changes are merged, we make `branch/v6` and cut `v6.0.0-alpha.1`
+- when only small bugfix changes are pending, we cut `v6.0.0-beta.1`
+- all planned changes are merged, we cut `v6.0.0-rc.1`
 - during release testing, we fix bugs and cut `v6.0.0-rc.2`, `v6.0.0-rc.3`, etc
 - assuming `v6.0.0-rc.3` passes the tests, we tag it as `v6.0.0`
 - we discover a serious bug in `v6.0.0`, fix it and cut `v6.0.1`
