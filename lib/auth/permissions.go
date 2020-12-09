@@ -22,7 +22,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/events"
+	proto "github.com/gravitational/teleport/api/proto/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -527,7 +527,7 @@ const (
 	ContextClientAddr contextKey = "client-addr"
 	// ContextDelegator is a delegator for access requests set in the context
 	// of the request
-	ContextDelegator contextKey = events.AccessRequestDelegator
+	ContextDelegator contextKey = contextKey(proto.ContextDelegator)
 )
 
 // clientUsername returns the username of a remote HTTP client making the call.

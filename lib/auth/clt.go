@@ -18,8 +18,8 @@ package auth
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -29,11 +29,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/proto"
+	"github.com/gravitational/teleport/api"
 	authProto "github.com/gravitational/teleport/api/proto/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -47,12 +46,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/tstranex/u2f"
-	ggzip "google.golang.org/grpc/encoding/gzip"
 )
-
-func init() {
-	ggzip.SetLevel(gzip.BestSpeed)
-}
 
 const (
 	// CurrentVersion is a current API version
@@ -63,10 +57,15 @@ const (
 )
 
 // These types are aliases for backwards compatibility
-type ClientConfig = authProto.Config
 type APIClient = authProto.Client
 type ContextDialer = authProto.ContextDialer
 type ContextDialerFunc = authProto.ContextDialerFunc
+
+var (
+	ServerKeepAliveTTL = api.ServerKeepAliveTTL
+	KeepAliveCountMax  = api.KeepAliveCountMax
+	NewAddrDialer      = authProto.NewAddrDialer
+)
 
 // Client is HTTP Auth API client. It works by connecting to auth servers
 // via HTTP.
@@ -76,11 +75,10 @@ type ContextDialerFunc = authProto.ContextDialerFunc
 // in lib/auth/tun.go
 type Client struct {
 	sync.Mutex
+	ClientConfig
 	roundtrip.Client
 	transport *http.Transport
 	*APIClient
-	// closedFlag is set to indicate that the services are closed
-	closedFlag int32
 }
 
 // Make sure Client implements all the necessary methods.
@@ -125,6 +123,60 @@ func ClientTimeout(timeout time.Duration) roundtrip.ClientParam {
 		transport.ResponseHeaderTimeout = timeout
 		return nil
 	}
+}
+
+// ClientConfig contains configuration of the client
+type ClientConfig struct {
+	// Addrs is a list of addresses to dial
+	Addrs []utils.NetAddr
+	// Dialer is a custom dialer, if provided
+	// is used instead of the list of addresses
+	Dialer ContextDialer
+	// KeepAlivePeriod defines period between keep alives
+	KeepAlivePeriod time.Duration
+	// KeepAliveCount specifies amount of missed keep alives
+	// to wait for until declaring connection as broken
+	KeepAliveCount int
+	// TLS is a TLS config
+	TLS *tls.Config
+}
+
+// CheckAndSetDefaults checks and sets default config values
+func (c *ClientConfig) CheckAndSetDefaults() error {
+	if len(c.Addrs) == 0 && c.Dialer == nil {
+		return trace.BadParameter("set parameter AuthAddrs or DialContext")
+	}
+	if c.TLS == nil {
+		return trace.BadParameter("missing parameter TLS")
+	}
+	if c.KeepAlivePeriod == 0 {
+		c.KeepAlivePeriod = ServerKeepAliveTTL
+	}
+	if c.KeepAliveCount == 0 {
+		c.KeepAliveCount = KeepAliveCountMax
+	}
+	if c.Dialer == nil {
+		addrs := make([]string, len(c.Addrs))
+		for i, a := range c.Addrs {
+			addrs[i] = a.Addr
+		}
+		c.Dialer = NewAddrDialer(addrs, c.KeepAlivePeriod, api.DefaultDialTimeout)
+	}
+	if c.TLS.ServerName == "" {
+		c.TLS.ServerName = teleport.APIDomain
+	}
+	// this logic is necessary to force client to always send certificate
+	// regardless of the server setting, otherwise client may pick
+	// not to send the client certificate by looking at certificate request
+	if len(c.TLS.Certificates) != 0 {
+		cert := c.TLS.Certificates[0]
+		c.TLS.Certificates = nil
+		c.TLS.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
+			return &cert, nil
+		}
+	}
+
+	return nil
 }
 
 // NewTLSClient returns a new TLS client that uses mutual TLS authentication
@@ -175,7 +227,16 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	apiClient, err := authProto.NewTLSClient(cfg)
+	addrs := make([]string, len(cfg.Addrs))
+	for i, a := range cfg.Addrs {
+		addrs[i] = a.Addr
+	}
+	apiClient, err := authProto.NewTLSClient(authProto.Config{
+		Dialer:          cfg.Dialer,
+		KeepAlivePeriod: cfg.KeepAlivePeriod,
+		KeepAliveCount:  cfg.KeepAliveCount,
+		TLS:             cfg.TLS,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -184,10 +245,6 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 		Client:    *roundtripClient,
 		transport: transport,
 	}, nil
-}
-
-func (c *Client) setClosed() {
-	atomic.StoreInt32(&c.closedFlag, 1)
 }
 
 func (c *Client) GetTransport() *http.Transport {
@@ -329,7 +386,6 @@ func (c *Client) GetClusterCACert() (*LocalCAResponse, error) {
 func (c *Client) Close() error {
 	c.Lock()
 	defer c.Unlock()
-	c.setClosed()
 	if c.transport != nil {
 		c.transport.CloseIdleConnections()
 	}
@@ -2034,7 +2090,7 @@ func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterR
 func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error) {
 	return c.APIClient.CreateResetPasswordToken(ctx, authProto.CreateResetPasswordTokenRequest{
 		Name: req.Name,
-		TTL:  proto.Duration(req.TTL),
+		TTL:  api.Duration(req.TTL),
 		Type: req.Type,
 	})
 }

@@ -37,7 +37,7 @@ message Event {
         services.CertAuthorityV2 CertAuthority = 3
             [ (gogoproto.jsontag) = "cert_authority,omitempty" ];
         // StaticTokens is filled in static-tokens related events
-        services.StaticTokensV2 StaticTokens = 4 
+        services.StaticTokensV2 StaticTokens = 4
             [ (gogoproto.jsontag) = "static_tokens,omitempty" ];
         // ProvisionToken is filled in provision-token related events
         services.ProvisionTokenV2 ProvisionToken = 5
@@ -149,7 +149,7 @@ message GetUsersRequest {
 
 // AccessRequests is a collection of AccessRequest values.
 message AccessRequests {
-    repeated services.AccessRequestV3 AccessRequests = 1 
+    repeated services.AccessRequestV3 AccessRequests = 1
         [ (gogoproto.jsontag) = "access_requests" ];
 }
 
@@ -206,7 +206,7 @@ message CreateResetPasswordTokenRequest {
     // TTL specifies how long the generated token is valid for.
     int64 TTL = 3 [
         (gogoproto.jsontag) = "ttl",
-        (gogoproto.casttype) = "github.com/gravitational/teleport/api/proto.Duration"
+        (gogoproto.casttype) = "github.com/gravitational/teleport/api.Duration"
     ];
 }
 
@@ -382,8 +382,8 @@ message GetKubeServicesResponse {
 
 // UpsertKubeServiceRequest are the parameters used to add or update a
 // kubernetes service.
-message UpsertKubeServiceRequest { services.ServerV2 Server = 1 
-    [ (gogoproto.jsontag) = "server" ];
+message UpsertKubeServiceRequest {
+    services.ServerV2 Server = 1 [ (gogoproto.jsontag) = "server" ];
 }
 
 // DeleteKubeServiceRequest are the parameters used to remove a kubernetes service.

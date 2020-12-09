@@ -1,23 +1,39 @@
+/*
+Copyright 2020 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package auth
 
 import (
-	"context"
 	"crypto/tls"
-	"net"
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/trace"
 )
 
 // Config contains configuration of the client
 type Config struct {
-	// Addrs is a list of addresses to dial
-	Addrs []utils.NetAddr
+	// Addrs is a list of teleport auth/proxy server addresses to dial
+	Addrs []string
 	// Dialer is a custom dialer, if provided
 	// is used instead of the list of addresses
 	Dialer ContextDialer
+	// DialTimeout defines how long to attempt dialing before timing out
+	DialTimeout time.Duration
 	// KeepAlivePeriod defines period between keep alives
 	KeepAlivePeriod time.Duration
 	// KeepAliveCount specifies amount of missed keep alives
@@ -30,69 +46,29 @@ type Config struct {
 // CheckAndSetDefaults checks and sets default config values
 func (c *Config) CheckAndSetDefaults() error {
 	if len(c.Addrs) == 0 && c.Dialer == nil {
-		return trace.BadParameter("set parameter Addrs or DialContext")
+		return trace.BadParameter("set parameter AuthAddrs or DialContext")
+	}
+	if len(c.Addrs) != 0 && c.Dialer != nil {
+		return trace.BadParameter("set parameter AuthAddrs or DialContext, not both")
 	}
 	if c.TLS == nil {
 		return trace.BadParameter("missing parameter TLS")
 	}
 	if c.KeepAlivePeriod == 0 {
-		c.KeepAlivePeriod = ServerKeepAliveTTL
+		c.KeepAlivePeriod = api.ServerKeepAliveTTL
 	}
 	if c.KeepAliveCount == 0 {
-		c.KeepAliveCount = KeepAliveCountMax
+		c.KeepAliveCount = api.KeepAliveCountMax
+	}
+	if c.DialTimeout == 0 {
+		c.DialTimeout = api.DefaultDialTimeout
 	}
 	if c.Dialer == nil {
-		c.Dialer = NewAddrDialer(c.Addrs, c.KeepAlivePeriod)
+		c.Dialer = NewAddrDialer(c.Addrs, c.KeepAlivePeriod, c.DialTimeout)
 	}
 	if c.TLS.ServerName == "" {
 		c.TLS.ServerName = teleport.APIDomain
 	}
-	// this logic is necessary to force client to always send certificate
-	// regardless of the server setting, otherwise client may pick
-	// not to send the client certificate by looking at certificate request
-	if len(c.TLS.Certificates) != 0 {
-		cert := c.TLS.Certificates[0]
-		c.TLS.Certificates = nil
-		c.TLS.GetClientCertificate = func(_ *tls.CertificateRequestInfo) (*tls.Certificate, error) {
-			return &cert, nil
-		}
-	}
 
 	return nil
-}
-
-// ContextDialer represents network dialer interface that uses context
-type ContextDialer interface {
-	// DialContext is a function that dials to the specified address
-	DialContext(in context.Context, network, addr string) (net.Conn, error)
-}
-
-// ContextDialerFunc is a function wrapper that implements
-// ContextDialer interface
-type ContextDialerFunc func(in context.Context, network, addr string) (net.Conn, error)
-
-// DialContext is a function that dials to the specified address
-func (f ContextDialerFunc) DialContext(in context.Context, network, addr string) (net.Conn, error) {
-	return f(in, network, addr)
-}
-
-// NewAddrDialer returns new dialer from a list of addresses
-func NewAddrDialer(addrs []utils.NetAddr, keepAliveInterval time.Duration) ContextDialer {
-	dialer := net.Dialer{
-		Timeout:   DefaultDialTimeout,
-		KeepAlive: keepAliveInterval,
-	}
-	return ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {
-		var err error
-		var conn net.Conn
-		for _, addr := range addrs {
-			conn, err = dialer.DialContext(in, network, addr.Addr)
-			if err == nil {
-				return conn, nil
-			}
-			log.Errorf("Failed to dial auth server %v: %v.", addr.Addr, err)
-		}
-		// not wrapping on purpose to preserve the original error
-		return nil, err
-	})
 }
