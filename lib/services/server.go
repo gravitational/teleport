@@ -382,6 +382,11 @@ func (s *ServerV2) DeepCopy() Server {
 // Merge overwrites r from src and
 // is part of support for cloning Server values
 // using proto.Clone.
+//
+// Note: this does not implement the full Merger interface,
+// specifically, it assumes that r is zero value.
+// See https://github.com/gogo/protobuf/blob/v1.3.1/proto/clone.go#L58-L60
+//
 // Implements proto.Merger
 func (r *Rotation) Merge(src proto.Message) {
 	s, ok := src.(*Rotation)
@@ -394,6 +399,11 @@ func (r *Rotation) Merge(src proto.Message) {
 // Merge overwrites r from src and
 // is part of support for cloning Server values
 // using proto.Clone.
+//
+// Note: this does not implement the full Merger interface,
+// specifically, it assumes that r is zero value.
+// See https://github.com/gogo/protobuf/blob/v1.3.1/proto/clone.go#L58-L60
+//
 // Implements proto.Merger
 func (r *Metadata) Merge(src proto.Message) {
 	m, ok := src.(*Metadata)

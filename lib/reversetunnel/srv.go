@@ -183,6 +183,7 @@ type Config struct {
 	// Component is a component used in logs
 	Component string
 
+	// Log specifies the logger
 	Log log.FieldLogger
 
 	// FIPS means Teleport was started in a FedRAMP/FIPS 140-2 compliant
