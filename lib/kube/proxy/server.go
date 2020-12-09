@@ -132,7 +132,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 			Mode:            srv.HeartbeatModeKube,
 			Context:         cfg.Context,
 			Component:       cfg.Component,
-			Announcer:       cfg.Client,
+			Announcer:       cfg.AuthClient,
 			GetServerInfo:   server.GetServerInfo,
 			KeepAlivePeriod: defaults.ServerKeepAliveTTL,
 			AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/10),
