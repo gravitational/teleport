@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -118,69 +117,4 @@ func (c *Client) isClosed() bool {
 
 func (c *Client) setClosed() {
 	atomic.StoreInt32(&c.closedFlag, 1)
-}
-
-// Make sure Client implements all the necessary methods.
-var _ ClientI = &Client{}
-
-// ClientI is a client to Auth service
-type ClientI interface {
-	// GetUsers(withSecrets bool) ([]services.User, error)
-
-	// IdentityService
-	// ProvisioningService
-	// services.Trust
-	// events.IAuditLog
-	// events.Streamer
-	// events.Emitter
-	// services.Presence
-	// services.Access
-	// services.DynamicAccess
-	// WebService
-	// session.Service
-	// services.ClusterConfiguration
-	// services.Events
-
-	// // NewKeepAliver returns a new instance of keep aliver
-	// NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
-
-	// // RotateCertAuthority starts or restarts certificate authority rotation process.
-	// RotateCertAuthority(req RotateRequest) error
-
-	// // RotateExternalCertAuthority rotates external certificate authority,
-	// // this method is used to update only public keys and certificates of the
-	// // the certificate authorities of trusted clusters.
-	// RotateExternalCertAuthority(ca services.CertAuthority) error
-
-	// // ValidateTrustedCluster validates trusted cluster token with
-	// // main cluster, in case if validation is successful, main cluster
-	// // adds remote cluster
-	// ValidateTrustedCluster(*ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
-
-	// // GetDomainName returns auth server cluster name
-	// GetDomainName() (string, error)
-
-	// // GetClusterCACert returns the CAs for the local cluster without signing keys.
-	// GetClusterCACert() (*LocalCAResponse, error)
-
-	// // GenerateServerKeys generates new host private keys and certificates (signed
-	// // by the host certificate authority) for a node
-	// GenerateServerKeys(GenerateServerKeysRequest) (*PackedKeys, error)
-	// // AuthenticateWebUser authenticates web user, creates and  returns web session
-	// // in case if authentication is successful
-	// AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error)
-	// // AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
-	// // short lived certificates as a result
-	// AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginResponse, error)
-
-	// // ProcessKubeCSR processes CSR request against Kubernetes CA, returns
-	// // signed certificate if successful.
-	// ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error)
-
-	// Ping gets basic info about the auth server.
-	Ping(ctx context.Context) (PingResponse, error)
-
-	// // CreateAppSession creates an application web session. Application web
-	// // sessions represent a browser session the client holds.
-	// CreateAppSession(context.Context, services.CreateAppSessionRequest) (services.WebSession, error)
 }

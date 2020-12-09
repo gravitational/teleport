@@ -35,7 +35,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/proto"
-	api "github.com/gravitational/teleport/api/proto/auth"
 	authProto "github.com/gravitational/teleport/api/proto/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -65,10 +64,10 @@ const (
 )
 
 // These types are aliases for backwards compatibility
-type ClientConfig = api.ClientConfig
-type APIClient = api.Client
-type ContextDialer = api.ContextDialer
-type ContextDialerFunc = api.ContextDialerFunc
+type ClientConfig = authProto.ClientConfig
+type APIClient = authProto.Client
+type ContextDialer = authProto.ContextDialer
+type ContextDialerFunc = authProto.ContextDialerFunc
 
 // Client is HTTP Auth API client. It works by connecting to auth servers
 // via HTTP.
@@ -183,7 +182,7 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	apiClient, err := api.NewTLSClient(cfg)
+	apiClient, err := authProto.NewTLSClient(cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -341,15 +340,7 @@ func (c *Client) Close() error {
 	if c.transport != nil {
 		c.transport.CloseIdleConnections()
 	}
-	if err := c.APIClient.Close(); err != nil {
-		return err
-	}
-	// if c.conn != nil {
-	// 	err := c.conn.Close()
-	// 	c.conn = nil
-	// 	return err
-	// }
-	return nil
+	return c.APIClient.Close()
 }
 
 func (c *Client) WaitForDelivery(context.Context) error {

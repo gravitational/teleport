@@ -31,26 +31,12 @@ func main() {
 
 	ctx := context.Background()
 
-	res, err := client.Ping(ctx)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(res)
-	}
+	fmt.Println("")
+	roleCRUD(ctx, client)
 
-	users, err := client.GetUsers(false)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(users)
-	}
+	fmt.Println("")
+	tokenCRUD(ctx, client)
 
-	// fmt.Println("")
-	// roleCRUD(ctx, client)
-
-	// fmt.Println("")
-	// tokenCRUD(ctx, client)
-
-	// fmt.Println("")
-	// accessWorkflow(ctx, client)
+	fmt.Println("")
+	accessWorkflow(ctx, client)
 }
