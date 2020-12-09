@@ -68,16 +68,6 @@ func (c *Client) ConnectGRPC() error {
 	return nil
 }
 
-// GetGRPC is a getter method for the client's AuthServiceClient.
-// TODO: Once grpc client is factored out of /lib, this can be removed.
-func (c *Client) GetGRPC() (AuthServiceClient, error) {
-	if err := c.ConnectGRPC(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return c.grpc, nil
-}
-
 // Ping gets basic info about the auth server.
 func (c *Client) Ping(ctx context.Context) (PingResponse, error) {
 	if err := c.ConnectGRPC(); err != nil {

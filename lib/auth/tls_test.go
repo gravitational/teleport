@@ -2919,7 +2919,7 @@ func (s *TLSSuite) TestAPIBackwardsCompatibilityLogic(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	grpcMock := newMockAuthServiceClient()
-	clt.grpcClient = grpcMock
+	clt.APIClient = proto.NewFromAuthServiceClient(grpcMock)
 
 	// check the REST endpoint gets called
 	grpcMock.err = trace.NotImplemented("")

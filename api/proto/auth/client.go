@@ -48,8 +48,7 @@ func NewClient() (*Client, error) {
 	addrs := []utils.NetAddr{{Addr: "127.0.0.1:3025"}}
 	clientConfig := ClientConfig{Addrs: addrs, TLS: tlsConfig}
 
-	client, err := NewTLSClient(clientConfig)
-	return client, nil
+	return NewTLSClient(clientConfig)
 }
 
 // NewTLSClient returns a new TLS client that uses mutual TLS authentication
@@ -85,6 +84,13 @@ func PathCreds(path string) (*tls.Config, error) {
 		RootCAs:      caPool,
 	}
 	return conf, nil
+}
+
+// NewFromAuthServiceClient is used to make mock clients for testing
+func NewFromAuthServiceClient(asc AuthServiceClient) *Client {
+	return &Client{
+		grpc: asc,
+	}
 }
 
 // Close closes the Client connection to the auth server

@@ -35,7 +35,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/proto"
-	"github.com/gravitational/teleport/api/proto/auth"
 	api "github.com/gravitational/teleport/api/proto/auth"
 	authProto "github.com/gravitational/teleport/api/proto/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -50,7 +49,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/tstranex/u2f"
-	"google.golang.org/grpc"
 	ggzip "google.golang.org/grpc/encoding/gzip"
 )
 
@@ -80,12 +78,9 @@ type ContextDialerFunc = api.ContextDialerFunc
 // in lib/auth/tun.go
 type Client struct {
 	sync.Mutex
-	ClientConfig // TODO: is this necessary? already on APIClient
 	roundtrip.Client
 	transport *http.Transport
 	*APIClient
-	grpcClient authProto.AuthServiceClient // TODO: remove
-	conn       *grpc.ClientConn            // TODO: remove
 	// closedFlag is set to indicate that the services are closed
 	closedFlag int32
 }
@@ -199,17 +194,8 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 	}, nil
 }
 
-func (c *Client) isClosed() bool {
-	return atomic.LoadInt32(&c.closedFlag) == 1
-}
-
 func (c *Client) setClosed() {
 	atomic.StoreInt32(&c.closedFlag, 1)
-}
-
-// grpc returns grpc client
-func (c *Client) grpc() (authProto.AuthServiceClient, error) {
-	return c.APIClient.GetGRPC()
 }
 
 func (c *Client) GetTransport() *http.Transport {
@@ -2062,7 +2048,7 @@ func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterR
 
 // CreateResetPasswordToken creates reset password token
 func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error) {
-	return c.grpcClient.CreateResetPasswordToken(ctx, &auth.CreateResetPasswordTokenRequest{
+	return c.APIClient.CreateResetPasswordToken(ctx, authProto.CreateResetPasswordTokenRequest{
 		Name: req.Name,
 		TTL:  proto.Duration(req.TTL),
 		Type: req.Type,
