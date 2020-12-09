@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
-	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -64,7 +63,7 @@ const (
 )
 
 // These types are aliases for backwards compatibility
-type ClientConfig = authProto.ClientConfig
+type ClientConfig = authProto.Config
 type APIClient = authProto.Client
 type ContextDialer = authProto.ContextDialer
 type ContextDialerFunc = authProto.ContextDialerFunc
@@ -86,12 +85,6 @@ type Client struct {
 
 // Make sure Client implements all the necessary methods.
 var _ ClientI = &Client{}
-
-// TLSConfig returns TLS config used by the client, could return nil
-// if the client is not using TLS
-func (c *Client) TLSConfig() *tls.Config {
-	return c.ClientConfig.TLS
-}
 
 // EncodeClusterName encodes cluster name in the SNI hostname
 func EncodeClusterName(clusterName string) string {

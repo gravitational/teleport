@@ -37,7 +37,8 @@ message Event {
         services.CertAuthorityV2 CertAuthority = 3
             [ (gogoproto.jsontag) = "cert_authority,omitempty" ];
         // StaticTokens is filled in static-tokens related events
-        services.StaticTokensV2 StaticTokens = 4 [ (gogoproto.jsontag) = "static_tokens,omitempty" ];
+        services.StaticTokensV2 StaticTokens = 4 
+            [ (gogoproto.jsontag) = "static_tokens,omitempty" ];
         // ProvisionToken is filled in provision-token related events
         services.ProvisionTokenV2 ProvisionToken = 5
             [ (gogoproto.jsontag) = "provision_token,omitempty" ];
@@ -148,7 +149,8 @@ message GetUsersRequest {
 
 // AccessRequests is a collection of AccessRequest values.
 message AccessRequests {
-    repeated services.AccessRequestV3 AccessRequests = 1 [ (gogoproto.jsontag) = "access_requests" ];
+    repeated services.AccessRequestV3 AccessRequests = 1 
+        [ (gogoproto.jsontag) = "access_requests" ];
 }
 
 // PluginDataSeq is a sequence of plugin data.
@@ -380,7 +382,9 @@ message GetKubeServicesResponse {
 
 // UpsertKubeServiceRequest are the parameters used to add or update a
 // kubernetes service.
-message UpsertKubeServiceRequest { services.ServerV2 Server = 1 [ (gogoproto.jsontag) = "server" ]; }
+message UpsertKubeServiceRequest { services.ServerV2 Server = 1 
+    [ (gogoproto.jsontag) = "server" ];
+}
 
 // DeleteKubeServiceRequest are the parameters used to remove a kubernetes service.
 message DeleteKubeServiceRequest {

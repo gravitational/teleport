@@ -18,20 +18,15 @@ import (
 )
 
 var log = logrus.WithFields(logrus.Fields{
-	trace.Component: teleport.ComponentAuth,
+	trace.Component: teleport.ComponentAPI,
 })
 
-// Client is HTTP Auth API client. It works by connecting to auth servers
-// via HTTP.
-//
-// When Teleport servers connect to auth API, they usually establish an SSH
-// tunnel first, and then do HTTP-over-SSH. This client is wrapped by TunClient
-// in lib/auth/tun.go
+// Client is a grpc Client that connects to a teleport auth server through TLS.
 type Client struct {
-	sync.Mutex
-	ClientConfig
-	grpc AuthServiceClient
-	conn *grpc.ClientConn
+	Cfg     Config
+	grpc    AuthServiceClient
+	connMux sync.Mutex
+	conn    *grpc.ClientConn
 	// closedFlag is set to indicate that the services are closed
 	closedFlag int32
 }
@@ -45,19 +40,19 @@ func NewClient() (*Client, error) {
 
 	// replace 127.0.0.1:3025 (default) with your auth server address
 	addrs := []utils.NetAddr{{Addr: "127.0.0.1:3025"}}
-	clientConfig := ClientConfig{Addrs: addrs, TLS: tlsConfig}
+	clientConfig := Config{Addrs: addrs, TLS: tlsConfig}
 
 	return NewTLSClient(clientConfig)
 }
 
 // NewTLSClient returns a new TLS client that uses mutual TLS authentication
 // and dials the remote server using dialer. Connection is loaded lazily.
-func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, error) {
+func NewTLSClient(cfg Config, params ...roundtrip.ClientParam) (*Client, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &Client{ClientConfig: cfg}, nil
+	return &Client{Cfg: cfg}, nil
 }
 
 // PathCreds loads mounted creds from path, detects reloads and updates the grpc transport
@@ -94,8 +89,8 @@ func NewFromAuthServiceClient(asc AuthServiceClient) *Client {
 
 // Close closes the Client connection to the auth server
 func (c *Client) Close() error {
-	c.Lock()
-	defer c.Unlock()
+	c.connMux.Lock()
+	defer c.connMux.Unlock()
 	c.setClosed()
 	if c.conn != nil {
 		err := c.conn.Close()
@@ -108,7 +103,7 @@ func (c *Client) Close() error {
 // TLSConfig returns TLS config used by the client, could return nil
 // if the client is not using TLS
 func (c *Client) TLSConfig() *tls.Config {
-	return c.ClientConfig.TLS
+	return c.Cfg.TLS
 }
 
 func (c *Client) isClosed() bool {

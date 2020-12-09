@@ -27,12 +27,12 @@ func init() {
 	ggzip.SetLevel(gzip.BestSpeed)
 }
 
-// ConnectGRPC establishes a grpc connection for the client, if it hasn't done so
+// connectGRPC establishes a grpc connection for the client, if it hasn't done so
 // yet. This can be used to connect for lazy loading the connection.
-func (c *Client) ConnectGRPC() error {
+func (c *Client) connectGRPC() error {
 	// it's ok to lock here, because Dial below is not locking
-	c.Lock()
-	defer c.Unlock()
+	c.connMux.Lock()
+	defer c.connMux.Unlock()
 
 	if c.grpc != nil {
 		return nil
@@ -42,21 +42,20 @@ func (c *Client) ConnectGRPC() error {
 		if c.isClosed() {
 			return nil, trace.ConnectionProblem(nil, "client is closed")
 		}
-		c, err := c.Dialer.DialContext(ctx, "tcp", addr)
+		c, err := c.Cfg.Dialer.DialContext(ctx, "tcp", addr)
 		if err != nil {
-			log.Debugf("Dial to addr %v failed: %v.", addr, err)
+			return nil, trace.ConnectionProblem(err, "failed to dial")
 		}
 		return c, err
 	})
-	tlsConfig := c.TLS.Clone()
+	tlsConfig := c.Cfg.TLS.Clone()
 	tlsConfig.NextProtos = []string{http2.NextProtoTLS}
-	log.Debugf("GRPC(CLIENT): keep alive %v count: %v.", c.KeepAlivePeriod, c.KeepAliveCount)
 	conn, err := grpc.Dial(teleport.APIDomain,
 		dialer,
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:                c.KeepAlivePeriod,
-			Timeout:             c.KeepAlivePeriod * time.Duration(c.KeepAliveCount),
+			Time:                c.Cfg.KeepAlivePeriod,
+			Timeout:             c.Cfg.KeepAlivePeriod * time.Duration(c.Cfg.KeepAliveCount),
 			PermitWithoutStream: true,
 		}),
 	)
@@ -70,7 +69,7 @@ func (c *Client) ConnectGRPC() error {
 
 // Ping gets basic info about the auth server.
 func (c *Client) Ping(ctx context.Context) (PingResponse, error) {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return PingResponse{}, err
 	}
 	rsp, err := c.grpc.Ping(ctx, &PingRequest{})
@@ -90,7 +89,7 @@ func (c *Client) UpsertNode(s services.Server) (*services.KeepAlive, error) {
 	if !ok {
 		return nil, trace.BadParameter("unsupported client")
 	}
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	keepAlive, err := c.grpc.UpsertNode(context.TODO(), protoServer)
@@ -102,7 +101,7 @@ func (c *Client) UpsertNode(s services.Server) (*services.KeepAlive, error) {
 
 // NewKeepAliver returns a new instance of keep aliver
 func (c *Client) NewKeepAliver(ctx context.Context) (services.KeepAliver, error) {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	cancelCtx, cancel := context.WithCancel(ctx)
@@ -181,7 +180,7 @@ func (k *streamKeepAliver) Close() error {
 
 // NewWatcher returns a new event watcher
 func (c *Client) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	cancelCtx, cancel := context.WithCancel(ctx)
@@ -247,8 +246,7 @@ func (w *streamWatcher) receiveEvents() {
 		}
 		out, err := eventFromGRPC(*event)
 		if err != nil {
-			log.Warningf("Failed to convert from GRPC: %v", err)
-			w.Close()
+			w.closeWithError(trail.FromGRPC(err))
 			return
 		}
 		select {
@@ -270,7 +268,7 @@ func (w *streamWatcher) Close() error {
 
 // UpdateRemoteCluster updates remote cluster.
 func (c *Client) UpdateRemoteCluster(ctx context.Context, rc services.RemoteCluster) error {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -285,7 +283,7 @@ func (c *Client) UpdateRemoteCluster(ctx context.Context, rc services.RemoteClus
 
 // CreateUser inserts a new user entry in a backend.
 func (c *Client) CreateUser(ctx context.Context, user services.User) error {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -300,7 +298,7 @@ func (c *Client) CreateUser(ctx context.Context, user services.User) error {
 
 // UpdateUser updates an existing user in a backend.
 func (c *Client) UpdateUser(ctx context.Context, user services.User) error {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -318,7 +316,7 @@ func (c *Client) GetUser(name string, withSecrets bool) (services.User, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing username")
 	}
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	user, err := c.grpc.GetUser(context.TODO(), &GetUserRequest{
@@ -333,7 +331,7 @@ func (c *Client) GetUser(name string, withSecrets bool) (services.User, error) {
 
 // GetUsers returns a list of users
 func (c *Client) GetUsers(withSecrets bool) ([]services.User, error) {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return []services.User{}, err
 	}
 	stream, err := c.grpc.GetUsers(context.TODO(), &GetUsersRequest{
@@ -358,7 +356,7 @@ func (c *Client) GetUsers(withSecrets bool) ([]services.User, error) {
 
 // DeleteUser deletes a user by username.
 func (c *Client) DeleteUser(ctx context.Context, user string) error {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -371,7 +369,7 @@ func (c *Client) DeleteUser(ctx context.Context, user string) error {
 // text format, signs it using User Certificate Authority signing key and
 // returns the resulting certificates.
 func (c *Client) GenerateUserCerts(ctx context.Context, req UserCertsRequest) (*Certs, error) {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	certs, err := c.grpc.GenerateUserCerts(ctx, &req)
@@ -383,7 +381,7 @@ func (c *Client) GenerateUserCerts(ctx context.Context, req UserCertsRequest) (*
 
 // createOrResumeAuditStream creates or resumes audit stream
 func (c *Client) createOrResumeAuditStream(ctx context.Context, request AuditStreamRequest) (events.Stream, error) {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	closeCtx, cancel := context.WithCancel(ctx)
@@ -470,7 +468,6 @@ func (s *auditStreamer) EmitAuditEvent(ctx context.Context, event events.AuditEv
 		Request: &AuditStreamRequest_Event{Event: oneof},
 	}))
 	if err != nil {
-		log.WithError(err).Errorf("Failed to send event.")
 		s.closeWithError(err)
 		return trace.Wrap(err)
 	}
@@ -521,7 +518,7 @@ func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) er
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return trace.Wrap(err)
 	}
 	_, err = c.grpc.EmitAuditEvent(ctx, grpcEvent)
@@ -532,7 +529,7 @@ func (c *Client) EmitAuditEvent(ctx context.Context, event events.AuditEvent) er
 }
 
 func (c *Client) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	rsp, err := c.grpc.GetAccessRequests(ctx, &filter)
@@ -551,7 +548,7 @@ func (c *Client) CreateAccessRequest(ctx context.Context, req services.AccessReq
 	if !ok {
 		return trace.BadParameter("unexpected access request type %T", req)
 	}
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return trace.Wrap(err)
 	}
 	_, err := c.grpc.CreateAccessRequest(ctx, r)
@@ -559,7 +556,7 @@ func (c *Client) CreateAccessRequest(ctx context.Context, req services.AccessReq
 }
 
 func (c *Client) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID string) (services.ResetPasswordTokenSecrets, error) {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -573,7 +570,7 @@ func (c *Client) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID st
 }
 
 func (c *Client) GetResetPasswordToken(ctx context.Context, tokenID string) (services.ResetPasswordToken, error) {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -589,7 +586,7 @@ func (c *Client) GetResetPasswordToken(ctx context.Context, tokenID string) (ser
 
 // CreateResetPasswordToken creates reset password token
 func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error) {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -602,7 +599,7 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateResetPa
 }
 
 func (c *Client) DeleteAccessRequest(ctx context.Context, reqID string) error {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -613,7 +610,7 @@ func (c *Client) DeleteAccessRequest(ctx context.Context, reqID string) error {
 }
 
 func (c *Client) SetAccessRequestState(ctx context.Context, params services.AccessRequestUpdate) error {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return trace.Wrap(err)
 	}
 	setter := RequestStateSetter{
@@ -632,7 +629,7 @@ func (c *Client) SetAccessRequestState(ctx context.Context, params services.Acce
 
 // GetPluginData loads all plugin data matching the supplied filter.
 func (c *Client) GetPluginData(ctx context.Context, filter services.PluginDataFilter) ([]services.PluginData, error) {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	seq, err := c.grpc.GetPluginData(ctx, &filter)
@@ -648,7 +645,7 @@ func (c *Client) GetPluginData(ctx context.Context, filter services.PluginDataFi
 
 // UpdatePluginData updates a per-resource PluginData entry.
 func (c *Client) UpdatePluginData(ctx context.Context, params services.PluginDataUpdateParams) error {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return trace.Wrap(err)
 	}
 	_, err := c.grpc.UpdatePluginData(ctx, &params)
@@ -657,7 +654,7 @@ func (c *Client) UpdatePluginData(ctx context.Context, params services.PluginDat
 
 // AcquireSemaphore acquires lease with requested resources from semaphore.
 func (c *Client) AcquireSemaphore(ctx context.Context, params services.AcquireSemaphoreRequest) (*services.SemaphoreLease, error) {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	lease, err := c.grpc.AcquireSemaphore(ctx, &params)
@@ -669,7 +666,7 @@ func (c *Client) AcquireSemaphore(ctx context.Context, params services.AcquireSe
 
 // KeepAliveSemaphoreLease updates semaphore lease.
 func (c *Client) KeepAliveSemaphoreLease(ctx context.Context, lease services.SemaphoreLease) error {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return trace.Wrap(err)
 	}
 	_, err := c.grpc.KeepAliveSemaphoreLease(ctx, &lease)
@@ -678,7 +675,7 @@ func (c *Client) KeepAliveSemaphoreLease(ctx context.Context, lease services.Sem
 
 // CancelSemaphoreLease cancels semaphore lease early.
 func (c *Client) CancelSemaphoreLease(ctx context.Context, lease services.SemaphoreLease) error {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return trace.Wrap(err)
 	}
 	_, err := c.grpc.CancelSemaphoreLease(ctx, &lease)
@@ -687,7 +684,7 @@ func (c *Client) CancelSemaphoreLease(ctx context.Context, lease services.Semaph
 
 // GetSemaphores returns a list of all semaphores matching the supplied filter.
 func (c *Client) GetSemaphores(ctx context.Context, filter services.SemaphoreFilter) ([]services.Semaphore, error) {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	rsp, err := c.grpc.GetSemaphores(ctx, &filter)
@@ -703,7 +700,7 @@ func (c *Client) GetSemaphores(ctx context.Context, filter services.SemaphoreFil
 
 // DeleteSemaphore deletes a semaphore matching the supplied filter.
 func (c *Client) DeleteSemaphore(ctx context.Context, filter services.SemaphoreFilter) error {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return trace.Wrap(err)
 	}
 	_, err := c.grpc.DeleteSemaphore(ctx, &filter)
@@ -713,7 +710,7 @@ func (c *Client) DeleteSemaphore(ctx context.Context, filter services.SemaphoreF
 // UpsertKubeService is used by kubernetes services to report their presence
 // to other auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertKubeService(ctx context.Context, s services.Server) error {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return trace.Wrap(err)
 	}
 	server, ok := s.(*services.ServerV2)
@@ -729,7 +726,7 @@ func (c *Client) UpsertKubeService(ctx context.Context, s services.Server) error
 // GetKubeServices returns the list of kubernetes services registered in the
 // cluster.
 func (c *Client) GetKubeServices(ctx context.Context) ([]services.Server, error) {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	resp, err := c.grpc.GetKubeServices(ctx, &GetKubeServicesRequest{})
@@ -746,7 +743,7 @@ func (c *Client) GetKubeServices(ctx context.Context) ([]services.Server, error)
 
 // GetAppServers gets all application servers.
 func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error) {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -773,7 +770,7 @@ func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...se
 
 // UpsertAppServer adds an application server.
 func (c *Client) UpsertAppServer(ctx context.Context, server services.Server) (*services.KeepAlive, error) {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -793,7 +790,7 @@ func (c *Client) UpsertAppServer(ctx context.Context, server services.Server) (*
 
 // DeleteAppServer removes an application server.
 func (c *Client) DeleteAppServer(ctx context.Context, namespace string, name string) error {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -806,7 +803,7 @@ func (c *Client) DeleteAppServer(ctx context.Context, namespace string, name str
 
 // DeleteAllAppServers removes all application servers.
 func (c *Client) DeleteAllAppServers(ctx context.Context, namespace string) error {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -818,7 +815,7 @@ func (c *Client) DeleteAllAppServers(ctx context.Context, namespace string) erro
 
 // GetAppSession gets an application web session.
 func (c *Client) GetAppSession(ctx context.Context, req services.GetAppSessionRequest) (services.WebSession, error) {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -834,7 +831,7 @@ func (c *Client) GetAppSession(ctx context.Context, req services.GetAppSessionRe
 
 // GetAppSessions gets all application web sessions.
 func (c *Client) GetAppSessions(ctx context.Context) ([]services.WebSession, error) {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -853,7 +850,7 @@ func (c *Client) GetAppSessions(ctx context.Context) ([]services.WebSession, err
 // CreateAppSession creates an application web session. Application web
 // sessions represent a browser session the client holds.
 func (c *Client) CreateAppSession(ctx context.Context, req services.CreateAppSessionRequest) (services.WebSession, error) {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -872,7 +869,7 @@ func (c *Client) CreateAppSession(ctx context.Context, req services.CreateAppSes
 
 // DeleteAppSession removes an application web session.
 func (c *Client) DeleteAppSession(ctx context.Context, req services.DeleteAppSessionRequest) error {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return err
 	}
 
@@ -884,7 +881,7 @@ func (c *Client) DeleteAppSession(ctx context.Context, req services.DeleteAppSes
 
 // DeleteAllAppSessions removes all application web sessions.
 func (c *Client) DeleteAllAppSessions(ctx context.Context) error {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return err
 	}
 
@@ -894,7 +891,7 @@ func (c *Client) DeleteAllAppSessions(ctx context.Context) error {
 
 // GenerateAppToken creates a JWT token with application access.
 func (c *Client) GenerateAppToken(ctx context.Context, req jwt.GenerateAppTokenRequest) (string, error) {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return "", err
 	}
 
@@ -913,7 +910,7 @@ func (c *Client) GenerateAppToken(ctx context.Context, req jwt.GenerateAppTokenR
 
 // DeleteKubeService deletes a named kubernetes service.
 func (c *Client) DeleteKubeService(ctx context.Context, name string) error {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return err
 	}
 	_, err := c.grpc.DeleteKubeService(ctx, &DeleteKubeServiceRequest{
@@ -924,7 +921,7 @@ func (c *Client) DeleteKubeService(ctx context.Context, name string) error {
 
 // DeleteAllKubeServices deletes all registered kubernetes services.
 func (c *Client) DeleteAllKubeServices(ctx context.Context) error {
-	if err := c.ConnectGRPC(); err != nil {
+	if err := c.connectGRPC(); err != nil {
 		return err
 	}
 	_, err := c.grpc.DeleteAllKubeServices(ctx, &DeleteAllKubeServicesRequest{})

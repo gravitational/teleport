@@ -113,6 +113,9 @@ const (
 	// ComponentGRPC is grpc server
 	ComponentGRPC = "grpc"
 
+	// ComponentAPI is a api client
+	ComponentAPI = "api"
+
 	// ComponentMigrate is responsible for data migrations
 	ComponentMigrate = "migrate"
 

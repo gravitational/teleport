@@ -11,8 +11,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// ClientConfig contains configuration of the client
-type ClientConfig struct {
+// Config contains configuration of the client
+type Config struct {
 	// Addrs is a list of addresses to dial
 	Addrs []utils.NetAddr
 	// Dialer is a custom dialer, if provided
@@ -28,7 +28,7 @@ type ClientConfig struct {
 }
 
 // CheckAndSetDefaults checks and sets default config values
-func (c *ClientConfig) CheckAndSetDefaults() error {
+func (c *Config) CheckAndSetDefaults() error {
 	if len(c.Addrs) == 0 && c.Dialer == nil {
 		return trace.BadParameter("set parameter Addrs or DialContext")
 	}
