@@ -33,12 +33,12 @@ Your browser does not support the video tag.
 
     Teleport uses SSH reverse tunnels to connect applications to the proxy. This is why the configuration below mentions SSH ports.
 
-|Port      .| Service    | Description
+|Port      | Service    | Description
 |----------|------------|-------------------------------------------
-| 3023      | Proxy      | SSH port for clients who need tsh login
-| 3024      | Proxy      | SSH port used to create reverse SSH tunnels from behind-firewall environments into a trusted proxy server.
-| 3025      | Auth       | TLS port used by the Auth Service to serve its API to other nodes in a cluster.
-| 3080      | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Teleport UI.
+| 3023     | Proxy      | SSH port for clients who need tsh login
+| 3024     | Proxy      | SSH port used to create reverse SSH tunnels from behind-firewall environments into a trusted proxy server.
+| 3025     | Auth       | TLS port used by the Auth Service to serve its API to other nodes in a cluster.
+| 3080     | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Teleport UI.
 
 #### TLS Requirements
 
