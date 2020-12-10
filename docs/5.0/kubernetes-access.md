@@ -53,10 +53,6 @@ Teleport manages privileged access to Kubernetes clusters.
     kubectl exec deployments/teleport -- tctl users add testuser root,ubuntu,k8s
     ```
 
-    Teleport is now setup within Kubernetes. This example provides a simple POC for
-    deploying Teleport. For Production deploys you should [Add TLS Certificates](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport#adding-tls-certificates), consider setting up for [High Availability](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/HIGHAVAILABILITY.md) and changing Teleports service type to an option such
-    as [LoadBalancer](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/values.yaml#L197)
-
 
 === "Enterprise"
 
@@ -110,9 +106,9 @@ Teleport manages privileged access to Kubernetes clusters.
     kubectl exec deployments/teleport -- tctl users add testuser root,ubuntu,k8s
     ```
 
-    Teleport is now setup within Kubernetes. This example provides a simple POC for
-    deploying Teleport. For Production deploys you should [Add TLS Certificates](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport#adding-tls-certificates), consider setting up for [High Availability](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/HIGHAVAILABILITY.md) and changing Teleports service type to an option such
-    as [LoadBalancer](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/values.yaml#L197)
+Teleport is now setup within Kubernetes. This example provides a simple POC for
+deploying Teleport. For Production deploys you should [Add TLS Certificates](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport#adding-tls-certificates), consider setting up for [High Availability](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/HIGHAVAILABILITY.md) and changing Teleports service type to an option such
+as [LoadBalancer](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/values.yaml#L197)
 
 
 ## Deploy Teleport outside Kubernetes
@@ -138,23 +134,27 @@ clusters_
     Prepare Teleport Root<br>
     The  Teleport Cluster should be setup following our standard config. For
     clients to connect need an invite token is set for the `kube` service and
-    proxy_addr has `kube_lisetn_addr` set.
+    proxy_addr has `kube_listen_addr` set.
 
     ```yaml
     # Example Snippet for the teleport.yaml for Teleport root cluster
     #...
     auth_service:
-      enabled: "yes"
-      listen_addr: 0.0.0.0:3025
+    # Example Static Kube invite token. Note V1 only supports static
+    # invite tokens.
       tokens:
       - kube:866c6c114724a0fa4d4d73216afd99fb1a2d6bfde8e13a19
     #...
     proxy_service:
       public_addr: proxy.example.com:3080
-      kube_listen_addr: 0.0.0.0:3027
+      kube_listen_addr: 0.0.0.0:3026
     ```
 
     Setup and Install Teleport Helm chart repository.
+
+    ```bash
+    helm repo add teleport https://charts.releases.teleport.dev
+    ```
 
     | Things to set | Description |
     |-|-|
@@ -162,8 +162,9 @@ clusters_
     | `authToken` | A static `kube` invite token |
     | `kubeClusterName` | Kubernetes Cluster name (there is no easy way to automatically detect the name from the environment) |
 
+    Install the Helm Chart.
+
     ```bash
-    helm repo add teleport https://charts.releases.teleport.dev
     helm install teleport-kube-agent teleport/teleport-kube-agent \
       --namespace teleport \
       --create-namespace \
@@ -229,32 +230,35 @@ clusters_
       kubeconfig_file: /secrets/kubeconfig
     ```
 
-
 ## Migrating Pre-5.0 Teleport clusters
 
 In release 5.0, Teleport has changed the [Kubernetes
 integration](kubernetes-ssh.md) to improve configuration and user experience.
 These changes are backwards compatible and there is no _required_ migration.
-However, to get the most out of Teleport, you should consider migrating as
-described below.
 
-The main changes in 5.0 are:
+However, to get the most out of Teleport, you should consider migrating as
+described below. The main changes in 5.0 are:
+
 - New `kubernetes_service` configuration section in `teleport.yaml`, decoupled
   from `proxy_service`
+
 - Support for multiple Kubernetes clusters per Teleport cluster (replaces the
   need to use [Trusted Clusters](admin-guide.md#trusted-clusters) to achieve this)
+
 - RBAC support for Kubernetes clusters
 
-Important note: `proxy_service` with an open port for Kubernetes requests is
-still required. A proxy is always the public-facing gateway into the Teleport
-cluster, acting as an authentication point and a connection router.
+!!! note
+
+    `proxy_service` with an open port for Kubernetes requests is
+    still required. A proxy is always the public-facing gateway into the Teleport
+    cluster, acting as an authentication point and a connection router.
 
 Please follow our [Teleport 5.0 Migration Guide](kubernetes-5.0-migration.md)
 
 ## Teleport Kubernetes Service
 
 By default, the Kubernetes integration is turned off.
-Enable the integrationin the `/etc/teleport.yaml` config file:
+Enable the integration in the `/etc/teleport.yaml` config file:
 
 ```yaml
 # snippet from /etc/teleport.yaml:
@@ -324,7 +328,7 @@ roleRef:
   kind: ClusterRole
   name: teleport-impersonation
 subjects:
-- kind: ServiceAccount
+- kind: ServiceAccountkube_lisetn_addr
   # this should be changed to the name of the Kubernetes ServiceAccount being used
   name: teleport-serviceaccount
   namespace: default
@@ -560,16 +564,8 @@ $ kubectl --kubeconfig /path/to/kubeconfig get pods
 
 We've a complete guide on setting up Teleport with EKS. Please see the [Using Teleport with EKS Guide](aws-oss-guide.md#using-teleport-with-eks).
 
-## Multiple Kubernetes Clusters via Teleport Access Plane
 
-Teleport 5.0 adds the [long requested feature](https://github.com/gravitational/teleport/issues/3680)
-of supporting multiple Kubernetes Clusters via a single Teleport Root. This setup is
-described in Option 1 and uses reverse tunnels to connect back to the root cluster.
-
-Teleport provides an option for running a single Teleport instance. This can be done
-using Option 2 and a kubeconfig with multiple entries.
-
-## Multiple Kubernetes Clusters via Trusted Cluster
+## Multiple Kubernetes Clusters using Trusted Clusters
 
 You can take advantage of the [Trusted Clusters](trustedclusters.md) feature of
 Teleport to federate trust across multiple Kubernetes clusters.
