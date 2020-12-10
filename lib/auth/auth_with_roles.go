@@ -56,8 +56,24 @@ func (a *ServerWithRoles) actionWithContext(ctx *services.Context, namespace str
 	return a.context.Checker.CheckAccessToRule(ctx, namespace, resource, action, false)
 }
 
-func (a *ServerWithRoles) action(namespace string, resource string, action string) error {
-	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, action, false)
+type actionConfig struct {
+	quiet bool
+}
+
+type actionOption func(*actionConfig)
+
+func quiet(value bool) actionOption {
+	return func(cfg *actionConfig) {
+		cfg.quiet = value
+	}
+}
+
+func (a *ServerWithRoles) action(namespace string, resource string, action string, opts ...actionOption) error {
+	var cfg actionConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return a.context.Checker.CheckAccessToRule(&services.Context{User: a.context.User}, namespace, resource, action, cfg.quiet)
 }
 
 // currentUserAction is a special checker that allows certain actions for users
@@ -794,12 +810,33 @@ func (a *ServerWithRoles) DeleteWebSession(user string, sid string) error {
 
 func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
 	// An exception is made to allow users to get their own access requests.
+	// Where possible, this method should prefer returning the subset of requests that the
+	// user *is* allowed to see rather than returning AccessDenied.
 	if filter.User == "" || a.currentUserAction(filter.User) != nil {
-		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbList); err != nil {
-			return nil, trace.Wrap(err)
+		// wrap rule checks in closure for readability.
+		checkRules := func(opts ...actionOption) error {
+			if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbList, opts...); err != nil {
+				return trace.Wrap(err)
+			}
+			if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbRead, opts...); err != nil {
+				return trace.Wrap(err)
+			}
+			return nil
 		}
-		if err := a.action(defaults.Namespace, services.KindAccessRequest, services.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
+
+		if filter.User == "" {
+			// caller did not specify a specific user, so if they
+			// are not allowed to list all requests, automatically
+			// update the query to show only their own requests.
+			if err := checkRules(quiet(true)); err != nil {
+				filter.User = a.context.User.GetName()
+			}
+		} else {
+			// caller is explicitly trying to read requests associated with
+			// a different user.
+			if err := checkRules(); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
 	return a.authServer.GetAccessRequests(ctx, filter)

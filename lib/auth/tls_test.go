@@ -1626,10 +1626,31 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 	userClient, err := s.server.NewClient(testUser)
 	c.Assert(err, check.IsNil)
 
+	user2 := "user2"
+	role2 := "some-other-role"
+	_, err = CreateUserRoleAndRequestable(s.server.Auth(), user2, role2)
+	c.Assert(err, check.IsNil)
+
+	testUser2 := TestUser(user2)
+	testUser2.TTL = time.Hour
+	userClient2, err := s.server.NewClient(testUser2)
+	c.Assert(err, check.IsNil)
+
+	// create an access request for user1
 	req, err := services.NewAccessRequest(user, role)
 	c.Assert(err, check.IsNil)
 
 	c.Assert(userClient.CreateAccessRequest(context.TODO(), req), check.IsNil)
+
+	// verify that user1 can see the request.
+	reqs, err := userClient.GetAccessRequests(context.TODO(), services.AccessRequestFilter{})
+	c.Assert(err, check.IsNil)
+	c.Assert(len(reqs), check.Equals, 1)
+
+	// verify that user2 can't see the request.
+	reqs, err = userClient2.GetAccessRequests(context.TODO(), services.AccessRequestFilter{})
+	c.Assert(err, check.IsNil)
+	c.Assert(len(reqs), check.Equals, 0)
 
 	// sanity check; ensure that roles for which no `allow` directive
 	// exists cannot be requested.
