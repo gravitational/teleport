@@ -489,4 +489,7 @@ service AuthService {
     rpc DeleteKubeService(DeleteKubeServiceRequest) returns (google.protobuf.Empty);
     // DeleteAllKubeServices removes all kubernetes services.
     rpc DeleteAllKubeServices(DeleteAllKubeServicesRequest) returns (google.protobuf.Empty);
+
+    // UpdateClusterConfig updates cluster configuration.
+    rpc UpdateClusterConfig(services.ClusterConfigV3) returns (google.protobuf.Empty);
 }

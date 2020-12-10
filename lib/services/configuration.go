@@ -16,6 +16,10 @@ limitations under the License.
 
 package services
 
+import (
+	"context"
+)
+
 // ClusterConfiguration stores the cluster configuration in the backend. All
 // the resources modified by this interface can only have a single instance
 // in the backend.
@@ -46,6 +50,8 @@ type ClusterConfiguration interface {
 	GetClusterConfig(opts ...MarshalOption) (ClusterConfig, error)
 	// SetClusterConfig sets services.ClusterConfig on the backend.
 	SetClusterConfig(ClusterConfig) error
+	// UpdateClusterConfig updates services.ClusterConfig on the backend.
+	UpdateClusterConfig(context.Context, ClusterConfig) error
 	// DeleteClusterConfig deletes cluster config resource
 	DeleteClusterConfig() error
 }

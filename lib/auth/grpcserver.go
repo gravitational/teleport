@@ -947,6 +947,18 @@ func (g *GRPCServer) DeleteAllKubeServices(ctx context.Context, req *proto.Delet
 	return &empty.Empty{}, nil
 }
 
+// UpdateClusterConfig updates cluster configuration.
+func (g *GRPCServer) UpdateClusterConfig(ctx context.Context, req *services.ClusterConfigV3) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	if err := auth.UpdateClusterConfig(ctx, req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	return &empty.Empty{}, nil
+}
+
 type grpcContext struct {
 	*Context
 	*ServerWithRoles

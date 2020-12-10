@@ -2465,7 +2465,7 @@ func (c *Client) DeleteRole(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
-// GetClusterConfig returns cluster level configuration information.
+// GetClusterConfig returns cluster level configuration.
 func (c *Client) GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error) {
 	out, err := c.Get(c.Endpoint("configuration"), url.Values{})
 	if err != nil {
@@ -2480,7 +2480,7 @@ func (c *Client) GetClusterConfig(opts ...services.MarshalOption) (services.Clus
 	return cc, err
 }
 
-// SetClusterConfig sets cluster level configuration information.
+// SetClusterConfig sets cluster level configuration.
 func (c *Client) SetClusterConfig(cc services.ClusterConfig) error {
 	data, err := services.GetClusterConfigMarshaler().Marshal(cc)
 	if err != nil {
@@ -2490,6 +2490,25 @@ func (c *Client) SetClusterConfig(cc services.ClusterConfig) error {
 	_, err = c.PostJSON(c.Endpoint("configuration"), &setClusterConfigReq{ClusterConfig: data})
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// UpdateClusterConfig updates cluster level configuration.
+func (c *Client) UpdateClusterConfig(ctx context.Context, cc services.ClusterConfig) error {
+	clt, err := c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	ccV3, ok := cc.(*services.ClusterConfigV3)
+	if !ok {
+		return trace.BadParameter("unsupported cluster config type %T", ccV3)
+	}
+
+	if _, err := clt.UpdateClusterConfig(ctx, ccV3); err != nil {
+		return trail.FromGRPC(err)
 	}
 
 	return nil

@@ -1644,7 +1644,26 @@ func (a *ServerWithRoles) GetClusterConfig(opts ...services.MarshalOption) (serv
 	return a.authServer.GetClusterConfig(opts...)
 }
 
-// DeleteClusterConfig deletes cluster config
+// SetClusterConfig sets cluster level configuration.
+func (a *ServerWithRoles) SetClusterConfig(c services.ClusterConfig) error {
+	if err := a.action(defaults.Namespace, services.KindClusterConfig, services.VerbCreate); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindClusterConfig, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.SetClusterConfig(c)
+}
+
+// UpdateClusterConfig updates cluster level configuration.
+func (a *ServerWithRoles) UpdateClusterConfig(ctx context.Context, cc services.ClusterConfig) error {
+	if err := a.action(defaults.Namespace, services.KindClusterConfig, services.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	return a.authServer.UpdateClusterConfig(ctx, cc)
+}
+
+// DeleteClusterConfig deletes cluster level configuration.
 func (a *ServerWithRoles) DeleteClusterConfig() error {
 	if err := a.action(defaults.Namespace, services.KindClusterConfig, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
@@ -1666,17 +1685,6 @@ func (a *ServerWithRoles) DeleteStaticTokens() error {
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteStaticTokens()
-}
-
-// SetClusterConfig sets cluster level configuration.
-func (a *ServerWithRoles) SetClusterConfig(c services.ClusterConfig) error {
-	if err := a.action(defaults.Namespace, services.KindClusterConfig, services.VerbCreate); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := a.action(defaults.Namespace, services.KindClusterConfig, services.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.SetClusterConfig(c)
 }
 
 // GetClusterName gets the name of the cluster.

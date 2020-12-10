@@ -184,16 +184,62 @@ func (s *ClusterConfigurationService) SetAuthPreference(preferences services.Aut
 
 // GetClusterConfig gets services.ClusterConfig from the backend.
 func (s *ClusterConfigurationService) GetClusterConfig(opts ...services.MarshalOption) (services.ClusterConfig, error) {
-	item, err := s.Get(context.TODO(), backend.Key(clusterConfigPrefix, generalPrefix))
+	_, rc, err := s.getClusterConfig(context.TODO())
+	return rc, trace.Wrap(err)
+}
+
+// UpdateClusterConfig updates services.ClusterConfig from the backend.
+func (s *ClusterConfigurationService) UpdateClusterConfig(ctx context.Context, cc services.ClusterConfig) error {
+	if err := cc.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	existingItem, update, err := s.getClusterConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	update.SetSessionRecording(cc.GetSessionRecording())
+
+	updateValue, err := services.GetClusterConfigMarshaler().Marshal(update)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	updateItem := backend.Item{
+		Key:     backend.Key(clusterConfigPrefix, generalPrefix),
+		Value:   updateValue,
+		Expires: update.Expiry(),
+	}
+
+	_, err = s.CompareAndSwap(ctx, *existingItem, updateItem)
+	if err != nil {
+		if trace.IsCompareFailed(err) {
+			return trace.CompareFailed("cluster configuration has been updated by another client, try again")
+		}
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// getClusterConfig returns the cluster config in raw form and unmarshaled.
+func (s *ClusterConfigurationService) getClusterConfig(ctx context.Context, opts ...services.MarshalOption) (*backend.Item, services.ClusterConfig, error) {
+	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, generalPrefix))
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return nil, trace.NotFound("cluster configuration not found")
+			return nil, nil, trace.NotFound("cluster configuration not found")
 		}
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
-	return services.GetClusterConfigMarshaler().Unmarshal(item.Value,
-		services.AddOptions(opts, services.WithResourceID(item.ID),
-			services.WithExpires(item.Expires))...)
+
+	cc, err := services.GetClusterConfigMarshaler().Unmarshal(
+		item.Value,
+		services.AddOptions(
+			opts,
+			services.WithResourceID(item.ID),
+			services.WithExpires(item.Expires))...,
+	)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return item, cc, nil
 }
 
 // DeleteClusterConfig deletes services.ClusterConfig from the backend.
