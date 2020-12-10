@@ -41,6 +41,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace/trail"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -1057,6 +1060,83 @@ func (c *Client) UpsertUser(user services.User) error {
 	}
 	_, err = c.PostJSON(c.Endpoint("users"), &upsertUserRawReq{User: data})
 	return trace.Wrap(err)
+}
+
+// GetUser returns a list of usernames registered in the system
+func (c *Client) GetUser(name string, withSecrets bool) (services.User, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing username")
+	}
+	user, err := c.APIClient.GetUser(name, withSecrets)
+	if err == nil {
+		return user, nil
+	}
+	if status.Code(err) != codes.Unimplemented {
+		return nil, trace.Wrap(err)
+	}
+	if withSecrets {
+		return nil, trace.BadParameter("server API appears outdated; cannot get user with secrets")
+	}
+	out, err := c.Get(c.Endpoint("users", name), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user, err = services.GetUserMarshaler().UnmarshalUser(out.Bytes(), services.SkipValidation())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return user, nil
+}
+
+// GetUsers returns a list of usernames registered in the system
+func (c *Client) GetUsers(withSecrets bool) ([]services.User, error) {
+	users, err := c.APIClient.GetUsers(withSecrets)
+	if err == nil {
+		return users, nil
+	}
+	if status.Code(err) != codes.Unimplemented {
+		return nil, trace.Wrap(err)
+	}
+	if withSecrets {
+		return nil, trace.BadParameter("server API appears outdated; cannot get users with secrets")
+	}
+	out, err := c.Get(c.Endpoint("users"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	users = make([]services.User, len(items))
+	for i, userBytes := range items {
+		user, err := services.GetUserMarshaler().UnmarshalUser(userBytes, services.SkipValidation())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		users[i] = user
+	}
+	return users, nil
+}
+
+// DeleteUser deletes a user by username.
+func (c *Client) DeleteUser(ctx context.Context, user string) error {
+	err := c.APIClient.DeleteUser(ctx, user)
+	if err == nil {
+		return nil
+	}
+
+	// Allows cross-version compatibility.
+	// DELETE IN: 5.2 REST method is replaced by grpc with context.
+	if status.Code(err) != codes.Unimplemented {
+		return trace.Wrap(trail.FromGRPC(err))
+	}
+
+	if _, err := c.Delete(c.Endpoint("users", user)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // ChangePassword updates users password based on the old password.

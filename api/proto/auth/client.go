@@ -395,7 +395,6 @@ func (c *Client) GetUsers(withSecrets bool) ([]services.User, error) {
 
 // DeleteUser deletes a user by name.
 func (c *Client) DeleteUser(ctx context.Context, user string) error {
-
 	req := &DeleteUserRequest{Name: user}
 	_, err := c.grpc.DeleteUser(ctx, req)
 	return trail.FromGRPC(err)
