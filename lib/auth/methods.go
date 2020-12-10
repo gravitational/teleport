@@ -17,6 +17,7 @@ limitations under the License.
 package auth
 
 import (
+	"context"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -165,10 +166,10 @@ func (s *Server) authenticateUser(req AuthenticateUserRequest) error {
 	}
 }
 
-// AuthenticateWebUser authenticates web user, creates and  returns web session
-// in case if authentication is successful. In case if existing session id
-// is used to authenticate, returns session associated with the existing session id
-// instead of creating the new one
+// AuthenticateWebUser authenticates web user, creates and returns a web session
+// in case authentication is successful. In case existing session id
+// is used to authenticate, returns the session associated with the existing session id
+// instead of creating a new one
 func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error) {
 	clusterConfig, err := s.GetClusterConfig()
 	if err != nil {
@@ -185,7 +186,9 @@ func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebS
 	}
 
 	if req.Session != nil {
-		session, err := s.GetWebSession(req.Username, req.Session.ID)
+		session, err := s.GetWebSession(context.TODO(), services.GetWebSessionRequest{
+			User: req.Username, SessionID: req.Session.ID,
+		})
 		if err != nil {
 			return nil, trace.AccessDenied("session is invalid or has expired")
 		}
@@ -201,7 +204,7 @@ func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebS
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := s.createUserWebSession(user)
+	sess, err := s.createUserWebSession(context.TODO(), user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -383,14 +386,14 @@ func (s *Server) emitNoLocalAuthEvent(username string) {
 	}
 }
 
-func (s *Server) createUserWebSession(user services.User) (services.WebSession, error) {
+func (s *Server) createUserWebSession(ctx context.Context, user services.User) (services.WebSession, error) {
 	// It's safe to extract the roles and traits directly from services.User as	this method
 	// is only used for local accounts.
 	sess, err := s.NewWebSession(user.GetName(), user.GetRoles(), user.GetTraits())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = s.UpsertWebSession(user.GetName(), sess)
+	err = s.UpsertWebSession(ctx, user.GetName(), sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

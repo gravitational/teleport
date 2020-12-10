@@ -1441,13 +1441,13 @@ func (s *TLSSuite) TestWebSessionWithoutAccessRequest(c *check.C) {
 	err = web.DeleteUser(context.TODO(), user)
 	fixtures.ExpectAccessDenied(c, err)
 
-	err = clt.DeleteWebSession(user, ws.GetName())
+	err = clt.DeleteWebSession(context.TODO(), user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
 	_, err = web.GetWebSessionInfo(user, ws.GetName())
 	c.Assert(err, check.NotNil)
 
-	_, err = web.ExtendWebSession(user, ws.GetName(), "")
+	_, err = web.ExtendWebSession(context.TODO(), user, ws.GetName(), "")
 	c.Assert(err, check.NotNil)
 }
 
@@ -2242,7 +2242,7 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 	_, err = userClient.GetWebSessionInfo(user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
-	err = clt.DeleteWebSession(user, ws.GetName())
+	err = clt.DeleteWebSession(context.TODO(), user, ws.GetName())
 	c.Assert(err, check.IsNil)
 
 	_, err = userClient.GetWebSessionInfo(user, ws.GetName())

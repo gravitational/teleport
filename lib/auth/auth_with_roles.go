@@ -125,8 +125,8 @@ func (a *ServerWithRoles) hasLocalUserRole(checker services.AccessChecker) bool 
 	return true
 }
 
-// AuthenticateWebUser authenticates web user, creates and  returns web session
-// in case if authentication is successful
+// AuthenticateWebUser authenticates web user, creates and returns a web session
+// in case authentication is successful
 func (a *ServerWithRoles) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error) {
 	// authentication request has it's own authentication, however this limits the requests
 	// types to proxies to make it harder to break
@@ -785,32 +785,40 @@ func (a *ServerWithRoles) GetU2FSignRequest(user string, password []byte) (*u2f.
 	return a.authServer.U2FSignRequest(user, password)
 }
 
-func (a *ServerWithRoles) CreateWebSession(user string) (services.WebSession, error) {
+func (a *ServerWithRoles) CreateWebSession(ctx context.Context, user string) (services.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.CreateWebSession(user)
+	return a.authServer.CreateWebSession(ctx, user)
 }
 
-func (a *ServerWithRoles) ExtendWebSession(user, prevSessionID, accessRequestID string) (services.WebSession, error) {
-	if err := a.currentUserAction(user); err != nil {
+func (a *ServerWithRoles) ExtendWebSession(ctx context.Context, req services.GetWebSessionRequest, accessRequestID string) (services.WebSession, error) {
+	if err := a.currentUserAction(req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.ExtendWebSession(user, prevSessionID, accessRequestID, a.context.Identity.GetIdentity())
+	return a.authServer.ExtendWebSession(ctx, req, accessRequestID, a.context.Identity.GetIdentity())
 }
 
-func (a *ServerWithRoles) GetWebSessionInfo(user string, sid string) (services.WebSession, error) {
-	if err := a.currentUserAction(user); err != nil {
+// implements services.WebService in ClientI
+func (a *ServerWithRoles) GetWebSessionInfo(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
+	if err := a.currentUserAction(req.User); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetWebSessionInfo(user, sid)
+	return a.authServer.GetWebSessionInfo(ctx, req)
 }
 
-func (a *ServerWithRoles) DeleteWebSession(user string, sid string) error {
-	if err := a.currentUserAction(user); err != nil {
+func (a *ServerWithRoles) GetWebSession(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
+	if err := a.currentUserAction(req.User); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return a.authServer.GetWebSession(ctx, req)
+}
+
+func (a *ServerWithRoles) DeleteWebSession(ctx context.Context, req services.DeleteWebSessionRequest) error {
+	if err := a.currentUserAction(req.User); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteWebSession(user, sid)
+	return a.authServer.DeleteWebSession(ctx, req)
 }
 
 func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {

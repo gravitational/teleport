@@ -299,7 +299,7 @@ func (a *Server) ValidateSAMLResponse(samlResponse string) (*SAMLAuthResponse, e
 		},
 		Method: events.LoginMethodSAML,
 	}
-	re, err := a.validateSAMLResponse(samlResponse)
+	re, err := a.validateSAMLResponse(context.TODO(), samlResponse)
 	if re != nil && re.attributeStatements != nil {
 		attributes, err := events.EncodeMapStrings(re.attributeStatements)
 		if err != nil {
@@ -332,7 +332,7 @@ type samlAuthResponse struct {
 	attributeStatements map[string][]string
 }
 
-func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, error) {
+func (a *Server) validateSAMLResponse(ctx context.Context, samlResponse string) (*samlAuthResponse, error) {
 	requestID, err := parseSAMLInResponseTo(samlResponse)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -406,7 +406,7 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 
 	// If the request is coming from a browser, create a web session.
 	if request.CreateWebSession {
-		session, err := a.createWebSession(user, params.sessionTTL)
+		session, err := a.createWebSession(ctx, user, params.sessionTTL)
 		if err != nil {
 			return re, trace.Wrap(err)
 		}

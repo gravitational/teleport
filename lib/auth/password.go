@@ -40,7 +40,7 @@ func (s *Server) ChangePasswordWithToken(ctx context.Context, req ChangePassword
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err := s.createUserWebSession(user)
+	sess, err := s.createUserWebSession(ctx, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

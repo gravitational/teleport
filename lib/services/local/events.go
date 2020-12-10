@@ -92,7 +92,12 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 		case services.KindAppServer:
 			parser = newAppServerParser()
 		case services.KindWebSession:
-			parser = newAppSessionParser()
+			switch kind.SubKind {
+			case services.KindAppSession:
+				parser = newAppSessionParser()
+			case services.KindWebSession:
+				parser = newWebSessionParser()
+			}
 		case services.KindRemoteCluster:
 			parser = newRemoteClusterParser()
 		case services.KindKubeService:
@@ -685,6 +690,12 @@ func (p *appServerParser) parse(event backend.Event) (services.Resource, error) 
 func newAppSessionParser() *webSessionParser {
 	return &webSessionParser{
 		baseParser: baseParser{matchPrefix: backend.Key(appsPrefix, sessionsPrefix)},
+	}
+}
+
+func newWebSessionParser() *webSessionParser {
+	return &webSessionParser{
+		baseParser: baseParser{matchPrefix: backend.Key(webPrefix, sessionsPrefix)},
 	}
 }
 

@@ -148,15 +148,15 @@ func (s *AuthSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ws, NotNil)
 
-	out, err := s.a.GetWebSessionInfo(user, ws.GetName())
+	out, err := s.a.GetWebSessionInfo(context.TODO(), user, ws.GetName())
 	c.Assert(err, IsNil)
 	ws.SetPriv(nil)
 	fixtures.DeepCompare(c, ws, out)
 
-	err = s.a.DeleteWebSession(user, ws.GetName())
+	err = s.a.DeleteWebSession(context.TODO(), user, ws.GetName())
 	c.Assert(err, IsNil)
 
-	_, err = s.a.GetWebSession(user, ws.GetName())
+	_, err = s.a.GetUserWebSession(context.TODO(), user, ws.GetName())
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 }
 
