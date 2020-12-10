@@ -24,12 +24,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
 )
 
@@ -91,6 +92,9 @@ type Server interface {
 	LabelsString() string
 	// CheckAndSetDefaults checks and set default values for any missing fields.
 	CheckAndSetDefaults() error
+
+	// DeepCopy creates a clone of this server value
+	DeepCopy() Server
 }
 
 // ServersToV1 converts list of servers to slice of V1 style ones
@@ -368,6 +372,58 @@ func (s *ServerV2) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// DeepCopy creates a clone of this server value
+func (s *ServerV2) DeepCopy() Server {
+	return proto.Clone(s).(*ServerV2)
+}
+
+// Merge overwrites r from src and
+// is part of support for cloning Server values
+// using proto.Clone.
+//
+// Note: this does not implement the full Merger interface,
+// specifically, it assumes that r is zero value.
+// See https://github.com/gogo/protobuf/blob/v1.3.1/proto/clone.go#L58-L60
+//
+// Implements proto.Merger
+func (r *Rotation) Merge(src proto.Message) {
+	s, ok := src.(*Rotation)
+	if !ok {
+		return
+	}
+	*r = *s
+}
+
+// Merge overwrites r from src and
+// is part of support for cloning Server values
+// using proto.Clone.
+//
+// Note: this does not implement the full Merger interface,
+// specifically, it assumes that r is zero value.
+// See https://github.com/gogo/protobuf/blob/v1.3.1/proto/clone.go#L58-L60
+//
+// Implements proto.Merger
+func (r *Metadata) Merge(src proto.Message) {
+	m, ok := src.(*Metadata)
+	if !ok {
+		return
+	}
+	*r = *m
+	// Manually clone expiry timestamp as proto.Clone
+	// cannot cope with values that contain unexported
+	// attributes (as time.Time does)
+	if m.Expires != nil {
+		expires := *m.Expires
+		r.Expires = &expires
+	}
+	if len(m.Labels) != 0 {
+		r.Labels = make(map[string]string)
+		for k, v := range m.Labels {
+			r.Labels[k] = v
+		}
+	}
 }
 
 const (
