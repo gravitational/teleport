@@ -185,6 +185,16 @@ app_service:
      uri: "https://localhost:8001"
      public_addr: "jira.example.com"
 ```
+### Skip TLS certificate verification
+
+  Corporations often use self-signed certificates for internal applications. Teleport attempts to check if the certificates are signed by a trusted CA (Certificate Authority). If using self-signed certificates use `insecure_skip_verify: true` to skip this verification step.
+
+```yaml
+   - name: "app"
+     uri: "https://localhost:8443"
+     public_addr: "app.example.com"
+     insecure_skip_verify: true
+```
 
 ### Deeplink to Subdirectory
 
