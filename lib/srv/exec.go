@@ -289,6 +289,11 @@ type remoteExec struct {
 	ctx     *ServerContext
 }
 
+// String describes this remote exec value
+func (e *remoteExec) String() string {
+	return fmt.Sprintf("RemoteExec(Command=%v)", e.command)
+}
+
 // GetCommand returns the command string.
 func (e *remoteExec) GetCommand() string {
 	return e.command
@@ -360,7 +365,7 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 		ServerNamespace: ctx.srv.GetNamespace(),
 	}
 
-	sessionMeta := events.SessionMetadata{}
+	var sessionMeta events.SessionMetadata
 	if ctx.session != nil {
 		sessionMeta.SessionID = string(ctx.session.id)
 	}
@@ -401,7 +406,8 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	if isSCP {
 		scpEvent := &events.SCP{
 			Metadata: events.Metadata{
-				Type: events.SCPEvent,
+				Type:        events.SCPEvent,
+				ClusterName: ctx.ClusterName,
 			},
 			ServerMetadata:     serverMeta,
 			SessionMetadata:    sessionMeta,
