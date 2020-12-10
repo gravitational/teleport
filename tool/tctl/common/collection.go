@@ -477,3 +477,27 @@ func (a *appCollection) toMarshal() interface{} {
 func (a *appCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, a.toMarshal())
 }
+
+type clusterConfigCollection struct {
+	configs []services.ClusterConfig
+}
+
+func (c *clusterConfigCollection) resources() (r []services.Resource) {
+	for _, resource := range c.configs {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *clusterConfigCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{
+		"Cluster ID", "Session Recording", "Proxy Checks Host Keys?",
+	})
+	for _, c := range c.configs {
+		t.AddRow([]string{
+			c.GetClusterID(), c.GetSessionRecording(), c.GetProxyChecksHostKeys(),
+		})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}

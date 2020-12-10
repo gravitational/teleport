@@ -682,8 +682,15 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 			return nil, trace.Wrap(err)
 		}
 		return &serverCollection{servers: servers}, nil
+	case services.KindClusterConfig:
+		config, err := client.GetClusterConfig()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		configs := []services.ClusterConfig{config}
+		return &clusterConfigCollection{configs: configs}, nil
 	}
-	return nil, trace.BadParameter("'%v' is not supported", rc.ref.Kind)
+	return nil, trace.BadParameter("getting resources of type %q is not supported", rc.ref.Kind)
 }
 
 // UpsertVerb generates the correct string form of a verb based on the action taken
