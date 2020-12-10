@@ -14,27 +14,27 @@ Teleport manages privileged access to Kubernetes clusters.
 
 ## Deploy Teleport In Kubernetes
 
+Teleport running in Kubernetes provides SSO, auditing for all `kubectl` commands and
+serves as a proxy for Kubernetes API server.
+
 ![teleport-kubernetes-inside](img/teleport-k8s-pod.svg)
 
 === "Community"
 
-    Setup and Install Teleport Helm chart repository.
+    Setup Teleport Helm chart repository.
     ```bash
     helm repo add teleport https://charts.releases.teleport.dev
-    helm install teleport teleport/teleport
     ```
 
     Download Demo Helm Value and Update Teleport Pod.
     ```bash
     curl https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/quickstart/values-community.yaml --output values.yaml
-    helm upgrade -f values.yaml teleport teleport/teleport
+    helm install teleport teleport/teleport --values=values.yaml
     ```
 
     Check that the Teleport Service is running.
     ```bash
-    kubectl get service
-    # NAME       TYPE       CLUSTER-IP    EXTERNAL-IP   PORT(S)                                                                      AGE
-    # teleport   NodePort   10.20.28.76   <none>        3025:32676/TCP,3026:30207/TCP,3023:32763/TCP,3024:31710/TCP,3080:32333/TCP   89m
+    kubectl describe deployments/teleport
     ```
 
     !!! Tip
@@ -44,8 +44,8 @@ Teleport manages privileged access to Kubernetes clusters.
 
     Forward ports to provide UI and CLI access.
     ```
-    # Change teleport-699d68645c-wpqm7 to the name of the Pod
-    kubectl port-forward teleport-699d68645c-wpqm7 6379:32334
+    kubectl expose deployment teleport --type LoadBalancer \
+      --port 3080 --target-port 3080
     ```
 
     Next Step: Create a Teleport User & Setup 2FA
@@ -112,6 +112,10 @@ as [LoadBalancer](https://github.com/gravitational/teleport/blob/master/examples
 
 
 ## Deploy Teleport outside Kubernetes
+Teleport can be setup outside of Kubernetes providing SSO, RBAC and as a proxy for
+multiple Kubernetes API servers. Allowing users to connect multiple Kubernetes clusters
+to the same access plane.
+
 
 Teleport can deployed outside of Kubernetes using two possible options:
 
