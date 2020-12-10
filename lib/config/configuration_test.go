@@ -925,52 +925,73 @@ func (s *ConfigTestSuite) TestLicenseFile(c *check.C) {
 
 // TestFIPS makes sure configuration is correctly updated/enforced when in
 // FedRAMP/FIPS 140-2 mode.
-func (s *ConfigTestSuite) TestFIPS(c *check.C) {
+func TestFIPS(t *testing.T) {
 	tests := []struct {
+		desc           string
 		inConfigString string
 		inFIPSMode     bool
+		inInsecure     bool
 		outError       bool
 	}{
 		{
+			desc:           "FIPS mode requested with non-FIPS compliant KEX.",
 			inConfigString: configWithoutFIPSKex,
 			inFIPSMode:     true,
+			inInsecure:     false,
 			outError:       true,
 		},
 		{
+			desc:           "Regular mode with non-FIPS compliant KEX.",
 			inConfigString: configWithoutFIPSKex,
 			inFIPSMode:     false,
+			inInsecure:     false,
 			outError:       false,
 		},
 		{
+			desc:           "FIPS mode requested with FIPS compliant KEX.",
 			inConfigString: configWithFIPSKex,
 			inFIPSMode:     true,
+			inInsecure:     false,
 			outError:       false,
 		},
 		{
+			desc:           "Regular mode requested with FIPS complaint KEX.",
 			inConfigString: configWithFIPSKex,
 			inFIPSMode:     false,
+			inInsecure:     false,
+			outError:       false,
+		},
+		{
+			desc:           "FIPS mode requested with insecure flag.",
+			inConfigString: configWithFIPSKex,
+			inFIPSMode:     true,
+			inInsecure:     true,
+			outError:       true,
+		},
+		{
+			desc:           "Regular mode requested with insecure flag.",
+			inConfigString: configWithFIPSKex,
+			inFIPSMode:     false,
+			inInsecure:     true,
 			outError:       false,
 		},
 	}
 
-	for i, tt := range tests {
-		comment := check.Commentf("Test %v", i)
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			clf := CommandLineFlags{
+				ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
+				InsecureMode: tt.inInsecure,
+				FIPS:         tt.inFIPSMode,
+			}
 
-		clf := CommandLineFlags{
-			ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
-			FIPS:         tt.inFIPSMode,
-		}
+			cfg := service.MakeDefaultConfig()
+			service.ApplyDefaults(cfg)
+			service.ApplyFIPSDefaults(cfg)
 
-		cfg := service.MakeDefaultConfig()
-		service.ApplyDefaults(cfg)
-		service.ApplyFIPSDefaults(cfg)
-
-		err := Configure(&clf, cfg)
-		if tt.outError {
-			c.Assert(err, check.NotNil, comment)
-		} else {
-			c.Assert(err, check.IsNil, comment)
-		}
+			err := Configure(&clf, cfg)
+			require.Equal(t, tt.outError, err != nil)
+		})
 	}
 }
 

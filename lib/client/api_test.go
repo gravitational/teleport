@@ -339,6 +339,14 @@ func (s *APITestSuite) TestLoginCluster(c *check.C) {
 	}
 }
 
+// TestFIPSInsecure verifies that Teleport clients can't be created in
+// insecure mode when the binary is a FIPS binary.
+func TestFIPSInsecure(t *testing.T) {
+	_, err := NewClient(&Config{
+		InsecureSkipVerify: true,
+	})
+}
+
 // testCertGetter implies the certGetter interface allowing tests to simulate
 // response from auth server.
 type testCertGetter struct {

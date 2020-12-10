@@ -778,6 +778,10 @@ type ShellCreatedCallback func(s *ssh.Session, c *ssh.Client, terminal io.ReadWr
 
 // NewClient creates a TeleportClient object and fully configures it
 func NewClient(c *Config) (tc *TeleportClient, err error) {
+	if isFIPS() && c.InsecureSkipVerify {
+		return nil, trace.BadParameter("insecure flag (--insecure) not supported with FIPS binaries")
+	}
+
 	if len(c.JumpHosts) > 1 {
 		return nil, trace.BadParameter("only one jump host is supported, got %v", len(c.JumpHosts))
 	}

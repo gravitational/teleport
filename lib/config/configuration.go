@@ -983,6 +983,7 @@ func applyString(src string, target *string) bool {
 // Configure merges command line arguments with what's in a configuration file
 // with CLI commands taking precedence
 func Configure(clf *CommandLineFlags, cfg *service.Config) error {
+
 	// pass the value of --insecure flag to the runtime
 	lib.SetInsecureDevMode(clf.InsecureMode)
 
@@ -1062,6 +1063,11 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	// If FIPS mode is specified, validate Teleport configuration is FedRAMP/FIPS
 	// 140-2 compliant.
 	if clf.FIPS {
+		// Don't allow support insecure flag in FIPS mode.
+		if clf.InsecureMode {
+			return trace.BadParameter("insecure flag (--insecure) not supported with FIPS binaries")
+		}
+
 		// Make sure all cryptographic primitives are FIPS compliant.
 		err = utils.UintSliceSubset(defaults.FIPSCipherSuites, cfg.CipherSuites)
 		if err != nil {
