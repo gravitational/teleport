@@ -42,11 +42,8 @@ serves as a proxy for Kubernetes API server.
         If Teleport isn't starting you can tail Kubernetes logs for more info `kubectl logs --follow deployments/teleport`
         or `kubectl get pods`<br>_Example: `kubectl describe pod teleport-5f5f989b96-9khzq`_
 
-    Forward ports to provide UI and CLI access.
-    ```
-    kubectl expose deployment teleport --type LoadBalancer \
-      --port 3080 --target-port 3080
-    ```
+    Forward ports to provide UI and CLI access. Using `kubectl expose` or `minikube tunnel`
+    if using minikube.
 
     Next Step: Create a Teleport User & Setup 2FA
     ```
@@ -70,23 +67,20 @@ serves as a proxy for Kubernetes API server.
     kubectl create secret generic license --from-file=license-enterprise.pem
     ```
 
-    Setup and Install Teleport Helm chart repository.
+    Setup Teleport Helm chart repository.
     ```bash
     helm repo add teleport https://charts.releases.teleport.dev
-    helm install teleport teleport/teleport
     ```
 
-    Download Demo Helm Value and Update Teleport Pod.
+    Download Demo Helm Value and Install Teleport .
     ```bash
     curl https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/values.yaml  --output values.yaml
-    helm upgrade -f values.yaml teleport teleport/teleport
+    helm install teleport teleport/teleport --values=values.yaml
     ```
 
     Check that the Teleport Service is running.
     ```bash
-    kubectl get service
-    # NAME       TYPE       CLUSTER-IP    EXTERNAL-IP   PORT(S)                                                                      AGE
-    # teleport   NodePort   10.20.28.76   <none>        3025:32676/TCP,3026:30207/TCP,3023:32763/TCP,3024:31710/TCP,3080:32333/TCP   89m
+    kubectl describe deployments/teleport
     ```
 
     !!! Tip
@@ -94,11 +88,8 @@ serves as a proxy for Kubernetes API server.
         If Teleport isn't starting you can tail Kubernetes logs for more info `kubectl logs --follow deployments/teleport`
         or `kubectl get pods`<br>_Example: `kubectl describe pod teleport-5f5f989b96-9khzq`_
 
-    Forward ports to provide UI and CLI access.
-    ```
-    # Change teleport-699d68645c-wpqm7 to the name of the Pod
-    kubectl port-forward teleport-699d68645c-wpqm7 6379:32334
-    ```
+    Forward ports to provide UI and CLI access. Using `kubectl expose` or `minikube tunnel`
+    if using minikube.
 
     Create a Teleport User & Setup 2FA
     ```
@@ -110,28 +101,23 @@ Teleport is now setup within Kubernetes. This example provides a simple POC for
 deploying Teleport. For Production deploys you should [Add TLS Certificates](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport#adding-tls-certificates), consider setting up for [High Availability](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/HIGHAVAILABILITY.md) and changing Teleports service type to an option such
 as [LoadBalancer](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/values.yaml#L197)
 
+## Connect Kubernetes cluster to an external Teleport Access Plane
+Users can connect multiple Kubernetes clusters to an external Teleport Access Plane
+this helps consolidate SSO, RBAC and kubectl Auditing.
 
-## Deploy Teleport outside Kubernetes
-Teleport can be setup outside of Kubernetes providing SSO, RBAC and as a proxy for
-multiple Kubernetes API servers. Allowing users to connect multiple Kubernetes clusters
-to the same access plane.
+Kubernetes can connect to the external Teleport cluster using two possible options:
 
-
-Teleport can deployed outside of Kubernetes using two possible options:
-
-1. Using **Trusted Clusters** connecting back to a Teleport root cluster. This method leverages
-[Trusted Clusters](trustedclusters.md) features to connect a complete auth & proxy
+1. Using **Trusted Clusters** connecting to a Teleport root cluster. This method leverages
+[Trusted Clusters](trustedclusters.md) feature to connect a Teleport auth & proxy
 back to a root cluster. This can be useful when customers want to isolate environments.
  _e.g. A MSP provide is managing customer infrastructure_
-2. Using **Kube Agent** connecting to a root Teleport Cluster.  This method
+2. Using **Kube Agent** connecting to a root Teleport Access Plane.  This method
 leverages Teleports use of tunnels and is a lightweight way to quickly setup Teleport.
 All Audit log activity and access will happen on the root. This can be useful for managing
 multiple environments inside the same company. _e.g. providing access to staging and production
 clusters_
 
-![teleport-outside-kubernetes](img/teleport-kubernetes.svg)
-
-
+![teleport-outside-kubernetes](img/kubernetes-eks-gcp.svg)
 
 === "Using Kube Agent"
 
@@ -154,7 +140,7 @@ clusters_
       kube_listen_addr: 0.0.0.0:3026
     ```
 
-    Setup and Install Teleport Helm chart repository.
+    Setup Teleport Helm chart repository.
 
     ```bash
     helm repo add teleport https://charts.releases.teleport.dev
@@ -193,19 +179,18 @@ clusters_
     kubectl create secret generic license --from-file=license-enterprise.pem
     ```
 
-    Setup and Install Teleport Helm chart repository.
+    Setup Teleport Helm chart repository.
     ```bash
     helm repo add teleport https://charts.releases.teleport.dev
-    helm install teleport teleport/teleport-auto-trustedcluster
     ```
 
-    Download Demo Helm Value
+    Download Demo Helm Value and Install Chart
     ```bash
-    wget https://github.com/gravitational/teleport/blob/master/examples/chart/teleport-auto-trustedcluster/values.yaml
+    curl https://github.com/gravitational/teleport/blob/master/examples/chart/teleport-auto-trustedcluster/values.yaml --output values.yaml
+    helm install teleport teleport/teleport-auto-trustedcluster --values=values.yaml
     ```
 
     Edit `values.yaml` defining [Trusted Cluster Configuration](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport-auto-trustedcluster/values.yaml#L41-L55)
-
 
     ```bash
     helm upgrade -f values.yaml teleport teleport/teleport-auto-trustedcluster
@@ -213,9 +198,7 @@ clusters_
 
     Check that the Teleport Service is running.
     ```bash
-    kubectl get service
-    # NAME       TYPE       CLUSTER-IP    EXTERNAL-IP   PORT(S)                                                                      AGE
-    # teleport   NodePort   10.20.28.76   <none>        3025:32676/TCP,3026:30207/TCP,3023:32763/TCP,3024:31710/TCP,3080:32333/TCP   89m
+    kubectl describe deployments/teleport
     ```
 
     Teleport should now be accessible from your root cluster.
@@ -256,69 +239,6 @@ kubernetes_service:
 
 - `listen_addr` defines which network interface and port the Teleport proxy server
   should bind to. It defaults to port 3026 on all NICs.
-
-## Impersonation
-
-!!! note
-
-    If you used one of our helm charts above, you can skip this step. The script already configured impersonation permissions.
-
-The next step is to configure the Teleport Proxy to be able to impersonate Kubernetes principals within a given group
-using [Kubernetes Impersonation Headers](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation).
-
-If Teleport is running inside the cluster using a Kubernetes `ServiceAccount`,
-here's an example of the permissions that the `ServiceAccount` will need to be able
-to use impersonation (change `teleport-serviceaccount` to the name of the `ServiceAccount`
-that's being used):
-
-```yaml
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: teleport-impersonation
-rules:
-- apiGroups:
-  - ""
-  resources:
-  - users
-  - groups
-  - serviceaccounts
-  verbs:
-  - impersonate
-- apiGroups:
-  - ""
-  resources:
-  - pods
-  verbs:
-  - get
-- apiGroups:
-  - "authorization.k8s.io"
-  resources:
-  - selfsubjectaccessreviews
-  verbs:
-  - create
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: teleport
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: teleport-impersonation
-subjects:
-- kind: ServiceAccountkube_lisetn_addr
-  # this should be changed to the name of the Kubernetes ServiceAccount being used
-  name: teleport-serviceaccount
-  namespace: default
-```
-
-There is also an [example of this usage](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/templates/clusterrole.yaml)
-within the [example Teleport Helm chart](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/).
-
-If Teleport is running outside of the Kubernetes cluster, you will need to ensure
-that the principal used to connect to Kubernetes via the `kubeconfig` file has the
-same impersonation permissions as are described in the `ClusterRole` above.
 
 ## Kubernetes RBAC
 
@@ -578,6 +498,69 @@ $ tsh --proxy=main.example.com login east
 # user's `kubeconfig` now contains the entry for the "east" Kubernetes
 # endpoint, i.e. `east.proxy.example.com` .
 ```
+
+## Impersonation
+
+!!! note
+
+    If you used one of our helm charts above, you can skip this step. The script already configured impersonation permissions.
+
+The next step is to configure the Teleport Proxy to be able to impersonate Kubernetes principals within a given group
+using [Kubernetes Impersonation Headers](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation).
+
+If Teleport is running inside the cluster using a Kubernetes `ServiceAccount`,
+here's an example of the permissions that the `ServiceAccount` will need to be able
+to use impersonation (change `teleport-serviceaccount` to the name of the `ServiceAccount`
+that's being used):
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: teleport-impersonation
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - users
+  - groups
+  - serviceaccounts
+  verbs:
+  - impersonate
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - get
+- apiGroups:
+  - "authorization.k8s.io"
+  resources:
+  - selfsubjectaccessreviews
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: teleport
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: teleport-impersonation
+subjects:
+- kind: ServiceAccountkube_lisetn_addr
+  # this should be changed to the name of the Kubernetes ServiceAccount being used
+  name: teleport-serviceaccount
+  namespace: default
+```
+
+There is also an [example of this usage](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/templates/clusterrole.yaml)
+within the [example Teleport Helm chart](https://github.com/gravitational/teleport/blob/master/examples/chart/teleport/).
+
+If Teleport is running outside of the Kubernetes cluster, you will need to ensure
+that the principal used to connect to Kubernetes via the `kubeconfig` file has the
+same impersonation permissions as are described in the `ClusterRole` above.
 
 ## Migrating Pre-5.0 Teleport clusters
 
