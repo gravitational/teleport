@@ -230,31 +230,6 @@ clusters_
       kubeconfig_file: /secrets/kubeconfig
     ```
 
-## Migrating Pre-5.0 Teleport clusters
-
-In release 5.0, Teleport has changed the [Kubernetes
-integration](kubernetes-ssh.md) to improve configuration and user experience.
-These changes are backwards compatible and there is no _required_ migration.
-
-However, to get the most out of Teleport, you should consider migrating as
-described below. The main changes in 5.0 are:
-
-- New `kubernetes_service` configuration section in `teleport.yaml`, decoupled
-  from `proxy_service`
-
-- Support for multiple Kubernetes clusters per Teleport cluster (replaces the
-  need to use [Trusted Clusters](admin-guide.md#trusted-clusters) to achieve this)
-
-- RBAC support for Kubernetes clusters
-
-!!! note
-
-    `proxy_service` with an open port for Kubernetes requests is
-    still required. A proxy is always the public-facing gateway into the Teleport
-    cluster, acting as an authentication point and a connection router.
-
-Please follow our [Teleport 5.0 Migration Guide](kubernetes-5.0-migration.md)
-
 ## Teleport Kubernetes Service
 
 By default, the Kubernetes integration is turned off.
@@ -599,3 +574,28 @@ $ tsh --proxy=main.example.com login east
 # user's `kubeconfig` now contains the entry for the "east" Kubernetes
 # endpoint, i.e. `east.proxy.example.com` .
 ```
+
+## Migrating Pre-5.0 Teleport clusters
+
+In release 5.0, Teleport has changed the [Kubernetes
+integration](kubernetes-ssh.md) to improve configuration and user experience.
+These changes are backwards compatible and there is no _required_ migration.
+
+However, to get the most out of Teleport, you should consider migrating as
+described below. The main changes in 5.0 are:
+
+- New `kubernetes_service` configuration section in `teleport.yaml`, decoupled
+  from `proxy_service`
+
+- Support for multiple Kubernetes clusters per Teleport cluster (replaces the
+  need to use [Trusted Clusters](admin-guide.md#trusted-clusters) to achieve this)
+
+- RBAC support for Kubernetes clusters
+
+!!! note
+
+    `proxy_service` with an open port for Kubernetes requests is
+    still required. A proxy is always the public-facing gateway into the Teleport
+    cluster, acting as an authentication point and a connection router.
+
+Please follow our [Teleport 5.0 Migration Guide](kubernetes-5.0-migration.md)
