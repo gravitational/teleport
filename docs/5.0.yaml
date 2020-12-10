@@ -33,7 +33,7 @@ extra_javascript: []
 extra:
     version: 5.0
     teleport:
-        version: 5.0.0
+        version: 5.0.1
         golang: 1.15
         plugin:
             version: 0.2.0
