@@ -35,7 +35,7 @@ import (
 // control is enforced.
 func (s *Server) CreateAppSession(ctx context.Context, req services.CreateAppSessionRequest, user services.User, checker services.AccessChecker) (services.WebSession, error) {
 	// Check that a matching parent web session exists in the backend.
-	parentSession, err := s.GetWebSession(req.Username, req.ParentSession)
+	parentSession, err := s.GetWebSession(ctx, services.GetWebSessionRequest{User: req.Username, SessionID: req.ParentSession})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -57,7 +57,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req services.CreateAppSes
 		// used to log into servers but SSH certificate generation code requires a
 		// principal be in the certificate.
 		traits: wrappers.Traits(map[string][]string{
-			teleport.TraitLogins: []string{uuid.New()},
+			teleport.TraitLogins: {uuid.New()},
 		}),
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},

@@ -1591,8 +1591,8 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	h.log.Debugf("New terminal request for ns=%s, server=%s, login=%s, sid=%s.",
-		req.Namespace, req.Server, req.Login, req.SessionID)
+	h.log.Debugf("New terminal request for ns=%s, server=%s, login=%s, sid=%s, websid=%s.",
+		req.Namespace, req.Server, req.Login, req.SessionID, ctx.sess.GetName())
 
 	authAccessPoint, err := site.CachingAccessPoint()
 	if err != nil {
@@ -1623,7 +1623,7 @@ func (h *Handler) siteNodeConnect(
 	}
 
 	// start the websocket session with a web-based terminal:
-	h.log.Infof("Getting terminal to '%#v'.", req)
+	h.log.Infof("Getting terminal to %#v.", req)
 	term.Serve(w, r)
 
 	return nil, nil

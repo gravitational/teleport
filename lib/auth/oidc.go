@@ -239,7 +239,7 @@ func (a *Server) CreateOIDCAuthRequest(req services.OIDCAuthRequest) (*services.
 // returned by OIDC Provider, if everything checks out, auth server
 // will respond with OIDCAuthResponse, otherwise it will return error
 func (a *Server) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, error) {
-	re, err := a.validateOIDCAuthCallback(q)
+	re, err := a.validateOIDCAuthCallback(context.TODO(), q)
 	event := &events.UserLogin{
 		Metadata: events.Metadata{
 			Type: events.UserLoginEvent,
@@ -284,7 +284,7 @@ type oidcAuthResponse struct {
 	claims jose.Claims
 }
 
-func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, error) {
+func (a *Server) validateOIDCAuthCallback(ctx context.Context, q url.Values) (*oidcAuthResponse, error) {
 	if error := q.Get("error"); error != "" {
 		return nil, trace.OAuth2(oauth2.ErrorInvalidRequest, error, q)
 	}
@@ -388,7 +388,7 @@ func (a *Server) validateOIDCAuthCallback(q url.Values) (*oidcAuthResponse, erro
 
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
-		session, err := a.createWebSession(user, params.sessionTTL)
+		session, err := a.createWebSession(ctx, user, params.sessionTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

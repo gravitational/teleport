@@ -281,3 +281,43 @@ func (r CreateAppSessionRequest) Check() error {
 type DeleteAppSessionRequest struct {
 	SessionID string `json:"session_id"`
 }
+
+// GetWebSessionRequest contains the parameters to request a regular
+// web session.
+type GetWebSessionRequest struct {
+	// User is username this session belongs to
+	User string
+	// SessionID is the session ID to request
+	SessionID string
+}
+
+// Check validates the request.
+func (r *GetWebSessionRequest) Check() error {
+	if r.User == "" {
+		return trace.BadParameter("get web session: user name missing")
+	}
+	if r.SessionID == "" {
+		return trace.BadParameter("get web session: session ID missing")
+	}
+	return nil
+}
+
+// DeleteWebSessionRequest contains the parameters to delete a regular
+// web session.
+type DeleteWebSessionRequest struct {
+	// User is username this session belongs to
+	User string
+	// SessionID is the session ID to request
+	SessionID string
+}
+
+// Check validates the request.
+func (r *DeleteWebSessionRequest) Check() error {
+	if r.User == "" {
+		return trace.BadParameter("delete web session: user name missing")
+	}
+	if r.SessionID == "" {
+		return trace.BadParameter("delete web session: session ID missing")
+	}
+	return nil
+}

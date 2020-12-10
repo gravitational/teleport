@@ -547,7 +547,8 @@ func (s *ServicesTestSuite) PasswordHashCRUD(c *check.C) {
 }
 
 func (s *ServicesTestSuite) WebSessionCRUD(c *check.C) {
-	_, err := s.WebS.GetWebSession("user1", "sid1")
+	req := services.GetWebSessionRequest{User: "user1", SessionID: "sid1"}
+	_, err := s.WebS.GetWebSession(context.TODO(), req)
 	c.Assert(trace.IsNotFound(err), check.Equals, true, check.Commentf("%#v", err))
 
 	dt := s.Clock.Now().Add(1 * time.Minute)
@@ -557,10 +558,10 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *check.C) {
 			Priv:    []byte("priv123"),
 			Expires: dt,
 		})
-	err = s.WebS.UpsertWebSession("user1", "sid1", ws)
+	err = s.WebS.UpsertWebSession(context.TODO(), ws)
 	c.Assert(err, check.IsNil)
 
-	out, err := s.WebS.GetWebSession("user1", "sid1")
+	out, err := s.WebS.GetWebSession(context.TODO(), req)
 	c.Assert(err, check.IsNil)
 	c.Assert(out, check.DeepEquals, ws)
 
@@ -570,16 +571,21 @@ func (s *ServicesTestSuite) WebSessionCRUD(c *check.C) {
 			Priv:    []byte("priv321"),
 			Expires: dt,
 		})
-	err = s.WebS.UpsertWebSession("user1", "sid1", ws1)
+	err = s.WebS.UpsertWebSession(context.TODO(), ws1)
 	c.Assert(err, check.IsNil)
 
-	out2, err := s.WebS.GetWebSession("user1", "sid1")
+	out2, err := s.WebS.GetWebSession(context.TODO(), req)
 	c.Assert(err, check.IsNil)
 	c.Assert(out2, check.DeepEquals, ws1)
 
-	c.Assert(s.WebS.DeleteWebSession("user1", "sid1"), check.IsNil)
+	c.Assert(s.WebS.DeleteWebSession(
+		context.TODO(),
+		services.DeleteWebSessionRequest{
+			SessionID: req.SessionID,
+		},
+	), check.IsNil)
 
-	_, err = s.WebS.GetWebSession("user1", "sid1")
+	_, err = s.WebS.GetWebSession(context.TODO(), req)
 	fixtures.ExpectNotFound(c, err)
 }
 

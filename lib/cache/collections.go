@@ -45,110 +45,131 @@ type collection interface {
 }
 
 // setupCollections returns a mapping of collections
-func setupCollections(c *Cache, watches []services.WatchKind) (map[string]collection, error) {
-	collections := make(map[string]collection, len(watches))
+func setupCollections(c *Cache, watches []services.WatchKind) (map[resourceKind]collection, error) {
+	collections := make(map[resourceKind]collection, len(watches))
 	for _, watch := range watches {
+		resKind := newResourceKind(watch)
 		switch watch.Kind {
 		case services.KindCertAuthority:
 			if c.Trust == nil {
 				return nil, trace.BadParameter("missing parameter Trust")
 			}
-			collections[watch.Kind] = &certAuthority{watch: watch, Cache: c}
+			collections[resKind] = &certAuthority{watch: watch, Cache: c}
 		case services.KindStaticTokens:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
-			collections[watch.Kind] = &staticTokens{watch: watch, Cache: c}
+			collections[resKind] = &staticTokens{watch: watch, Cache: c}
 		case services.KindToken:
 			if c.Provisioner == nil {
 				return nil, trace.BadParameter("missing parameter Provisioner")
 			}
-			collections[watch.Kind] = &provisionToken{watch: watch, Cache: c}
+			collections[resKind] = &provisionToken{watch: watch, Cache: c}
 		case services.KindClusterName:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
-			collections[watch.Kind] = &clusterName{watch: watch, Cache: c}
+			collections[resKind] = &clusterName{watch: watch, Cache: c}
 		case services.KindClusterConfig:
 			if c.ClusterConfig == nil {
 				return nil, trace.BadParameter("missing parameter ClusterConfig")
 			}
-			collections[watch.Kind] = &clusterConfig{watch: watch, Cache: c}
+			collections[resKind] = &clusterConfig{watch: watch, Cache: c}
 		case services.KindUser:
 			if c.Users == nil {
 				return nil, trace.BadParameter("missing parameter Users")
 			}
-			collections[watch.Kind] = &user{watch: watch, Cache: c}
+			collections[resKind] = &user{watch: watch, Cache: c}
 		case services.KindRole:
 			if c.Access == nil {
 				return nil, trace.BadParameter("missing parameter Access")
 			}
-			collections[watch.Kind] = &role{watch: watch, Cache: c}
+			collections[resKind] = &role{watch: watch, Cache: c}
 		case services.KindNamespace:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[watch.Kind] = &namespace{watch: watch, Cache: c}
+			collections[resKind] = &namespace{watch: watch, Cache: c}
 		case services.KindNode:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[watch.Kind] = &node{watch: watch, Cache: c}
+			collections[resKind] = &node{watch: watch, Cache: c}
 		case services.KindProxy:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[watch.Kind] = &proxy{watch: watch, Cache: c}
+			collections[resKind] = &proxy{watch: watch, Cache: c}
 		case services.KindAuthServer:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[watch.Kind] = &authServer{watch: watch, Cache: c}
+			collections[resKind] = &authServer{watch: watch, Cache: c}
 		case services.KindReverseTunnel:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[watch.Kind] = &reverseTunnel{watch: watch, Cache: c}
+			collections[resKind] = &reverseTunnel{watch: watch, Cache: c}
 		case services.KindTunnelConnection:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[watch.Kind] = &tunnelConnection{watch: watch, Cache: c}
+			collections[resKind] = &tunnelConnection{watch: watch, Cache: c}
 		case services.KindRemoteCluster:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[watch.Kind] = &remoteCluster{watch: watch, Cache: c}
+			collections[resKind] = &remoteCluster{watch: watch, Cache: c}
 		case services.KindAccessRequest:
 			if c.DynamicAccess == nil {
 				return nil, trace.BadParameter("missing parameter DynamicAccess")
 			}
-			collections[watch.Kind] = &accessRequest{watch: watch, Cache: c}
+			collections[resKind] = &accessRequest{watch: watch, Cache: c}
 		case services.KindAppServer:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[watch.Kind] = &appServer{watch: watch, Cache: c}
+			collections[resKind] = &appServer{watch: watch, Cache: c}
 		case services.KindWebSession:
-			if c.AppSession == nil {
-				return nil, trace.BadParameter("missing parameter AppSession")
+			switch watch.SubKind {
+			case services.KindAppSession:
+				if c.AppSession == nil {
+					return nil, trace.BadParameter("missing parameter AppSession")
+				}
+				collections[resKind] = &appSession{watch: watch, Cache: c}
+			case services.KindWebSession:
+				if c.WebSession == nil {
+					return nil, trace.BadParameter("missing parameter WebSession")
+				}
+				collections[resKind] = &webSession{watch: watch, Cache: c}
 			}
-			collections[watch.Kind] = &appSession{watch: watch, Cache: c}
 		case services.KindKubeService:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[watch.Kind] = &kubeService{watch: watch, Cache: c}
+			collections[resKind] = &kubeService{watch: watch, Cache: c}
 		case types.KindDatabaseServer:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
 			}
-			collections[watch.Kind] = &databaseServer{watch: watch, Cache: c}
+			collections[resKind] = &databaseServer{watch: watch, Cache: c}
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
 	}
 	return collections, nil
+}
+
+func newResourceKind(wk services.WatchKind) resourceKind {
+	return resourceKind{
+		kind:    wk.Kind,
+		subkind: wk.SubKind,
+	}
+}
+
+type resourceKind struct {
+	kind    string
+	subkind string
 }
 
 type accessRequest struct {
@@ -1422,6 +1443,73 @@ func (a *appSession) processEvent(ctx context.Context, event services.Event) err
 
 func (a *appSession) watchKind() services.WatchKind {
 	return a.watch
+}
+
+type webSession struct {
+	*Cache
+	watch services.WatchKind
+}
+
+func (r *webSession) erase(ctx context.Context) error {
+	err := r.webSessionCache.DeleteAllWebSessions(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (r *webSession) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := r.WebSession.GetWebSessions(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return func(ctx context.Context) error {
+		if err := r.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		for _, resource := range resources {
+			r.setTTL(resource)
+			if err := r.webSessionCache.UpsertWebSession(ctx, resource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (r *webSession) processEvent(ctx context.Context, event services.Event) error {
+	switch event.Type {
+	case backend.OpDelete:
+		err := r.webSessionCache.DeleteWebSession(ctx, services.DeleteWebSessionRequest{
+			// TODO(dmitri)
+			// User: resource.GetUser(),
+			SessionID: event.Resource.GetName(),
+		})
+		if err != nil {
+			// Resource could be missing in the cache expired or not created, if the
+			// first consumed event is delete.
+			if !trace.IsNotFound(err) {
+				r.WithError(err).Warn("Failed to delete resource.")
+				return trace.Wrap(err)
+			}
+		}
+	case backend.OpPut:
+		resource, ok := event.Resource.(services.WebSession)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		r.setTTL(resource)
+		if err := r.webSessionCache.UpsertWebSession(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		r.WithField("event", event.Type).Warn("Skipping unsupported event type.")
+	}
+	return nil
+}
+
+func (r *webSession) watchKind() services.WatchKind {
+	return r.watch
 }
 
 type kubeService struct {

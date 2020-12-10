@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -85,7 +86,6 @@ type AuthProvider interface {
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
 // new TerminalHandler.
 func NewTerminal(req TerminalRequest, authProvider AuthProvider, ctx *SessionContext) (*TerminalHandler, error) {
-
 	// Make sure whatever session is requested is a valid session.
 	_, err := session.ParseID(string(req.SessionID))
 	if err != nil {
@@ -173,6 +173,8 @@ type TerminalHandler struct {
 	// buffer is a buffer used to store the remaining payload data if it did not
 	// fit into the buffer provided by the callee to Read method
 	buffer []byte
+
+	closeOnce sync.Once
 }
 
 // Serve builds a connect to the remote node and then pumps back two types of
@@ -197,20 +199,21 @@ func (t *TerminalHandler) Serve(w http.ResponseWriter, r *http.Request) {
 
 // Close the websocket stream.
 func (t *TerminalHandler) Close() error {
-	// Close the websocket connection to the client web browser.
-	if t.ws != nil {
-		t.ws.Close()
-	}
+	t.closeOnce.Do(func() {
+		// Close the websocket connection to the client web browser.
+		if t.ws != nil {
+			t.ws.Close()
+		}
 
-	// Close the SSH connection to the remote node.
-	if t.sshSession != nil {
-		t.sshSession.Close()
-	}
+		// Close the SSH connection to the remote node.
+		if t.sshSession != nil {
+			t.sshSession.Close()
+		}
 
-	// If the terminal handler was closed (most likely due to the *SessionContext
-	// closing) then the stream should be closed as well.
-	t.terminalCancel()
-
+		// If the terminal handler was closed (most likely due to the *SessionContext
+		// closing) then the stream should be closed as well.
+		t.terminalCancel()
+	})
 	return nil
 }
 

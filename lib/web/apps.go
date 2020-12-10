@@ -126,7 +126,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	// Block and wait a few seconds for the session that was created to show up
 	// in the cache. If this request is not blocked here, it can get struck in a
 	// racy session creation loop.
-	err = h.waitForSession(r.Context(), ws.GetName())
+	err = h.waitForAppSession(r.Context(), ws.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -174,18 +174,16 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	}, nil
 }
 
-// waitForSession will block until the requested session shows up in the
+// waitForAppSession will block until the requested application session shows up in the
 // cache or a timeout occurs.
-func (h *Handler) waitForSession(ctx context.Context, sessionID string) error {
-	timeout := time.NewTimer(defaults.WebHeadersTimeout)
-	defer timeout.Stop()
-
+func (h *Handler) waitForAppSession(ctx context.Context, sessionID string) error {
 	// Establish a watch on application session.
 	watcher, err := h.cfg.AccessPoint.NewWatcher(ctx, services.Watch{
 		Name: teleport.ComponentAppProxy,
 		Kinds: []services.WatchKind{
-			services.WatchKind{
-				Kind: services.KindWebSession,
+			{
+				Kind:    services.KindWebSession,
+				SubKind: services.KindAppSession,
 			},
 		},
 		MetricComponent: teleport.ComponentAppProxy,
@@ -194,6 +192,24 @@ func (h *Handler) waitForSession(ctx context.Context, sessionID string) error {
 		return trace.Wrap(err)
 	}
 	defer watcher.Close()
+	sessionProber := func() error {
+		_, err = h.cfg.AccessPoint.GetAppSession(ctx, services.GetAppSessionRequest{
+			SessionID: sessionID,
+		})
+		return trace.Wrap(err)
+	}
+	matcher := func(event services.Event) bool {
+		return event.Type == backend.OpPut && event.Resource.GetName() == sessionID
+	}
+	return waitForSession(ctx, watcher, sessionProber, matcher)
+}
+
+type sessionProberFunc func() error
+type eventMatcherFunc func(services.Event) bool
+
+func waitForSession(ctx context.Context, watcher services.Watcher, sessionProber sessionProberFunc, eventMatcher eventMatcherFunc) error {
+	timeout := time.NewTimer(defaults.WebHeadersTimeout)
+	defer timeout.Stop()
 
 	select {
 	// Received an event, first event should always be an initialize event.
@@ -210,9 +226,7 @@ func (h *Handler) waitForSession(ctx context.Context, sessionID string) error {
 	}
 
 	// Check if the session exists in the backend.
-	_, err = h.cfg.AccessPoint.GetAppSession(ctx, services.GetAppSessionRequest{
-		SessionID: sessionID,
-	})
+	err := sessionProber()
 	if err == nil {
 		return nil
 	}
@@ -224,7 +238,7 @@ func (h *Handler) waitForSession(ctx context.Context, sessionID string) error {
 			if event.Resource.GetKind() != services.KindWebSession {
 				return trace.BadParameter("unexpected event: %v.", event.Resource.GetKind())
 			}
-			if event.Type == backend.OpPut && event.Resource.GetName() == sessionID {
+			if eventMatcher(event) {
 				return nil
 			}
 		// Watcher closed, probably due to a network error.
@@ -233,7 +247,6 @@ func (h *Handler) waitForSession(ctx context.Context, sessionID string) error {
 		// Timed out waiting for initialize event.
 		case <-timeout.C:
 			return trace.BadParameter("timed out waiting for session")
-
 		}
 	}
 }
