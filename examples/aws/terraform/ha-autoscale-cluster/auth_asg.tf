@@ -50,7 +50,7 @@ resource "aws_launch_configuration" "auth" {
   user_data                   = templatefile(
     "${path.module}/auth-user-data.tpl",
     {
-      region                   = var.region
+      region                   = data.aws_region.current.name
       locks_table_name         = aws_dynamodb_table.locks.name
       auth_server_addr         = aws_lb.auth.dns_name
       cluster_name             = var.cluster_name
@@ -62,7 +62,6 @@ resource "aws_launch_configuration" "auth" {
       influxdb_addr            = "http://${aws_lb.monitor.dns_name}:8086"
       license_path             = var.license_path
       telegraf_version         = var.telegraf_version
-      teleport_uid             = var.teleport_uid
       use_acm                  = var.use_acm
     }
   )

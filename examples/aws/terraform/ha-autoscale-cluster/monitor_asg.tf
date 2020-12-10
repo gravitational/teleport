@@ -86,7 +86,7 @@ resource "aws_launch_configuration" "monitor" {
   user_data                   = templatefile(
     "${path.module}/monitor-user-data.tpl",
     {
-      region           = var.region
+      region           = data.aws_region.current.name
       cluster_name     = var.cluster_name
       influxdb_version = var.influxdb_version
       grafana_version  = var.grafana_version
