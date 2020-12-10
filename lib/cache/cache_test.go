@@ -847,6 +847,29 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 
 	clusterName.SetResourceID(outName.GetResourceID())
 	fixtures.DeepCompare(c, outName, clusterName)
+
+	// update cluster session recording mode
+	clusterConfig.SetSessionRecording(services.RecordAtNode)
+
+	ctx := context.TODO()
+	err = p.clusterConfigS.UpdateClusterConfig(ctx, clusterConfig)
+	c.Assert(err, check.IsNil)
+
+	clusterConfig, err = p.clusterConfigS.GetClusterConfig()
+	c.Assert(err, check.IsNil)
+	c.Assert(clusterConfig.GetSessionRecording(), check.Equals, services.RecordAtNode)
+
+	select {
+	case event := <-p.eventsC:
+		c.Assert(event.Type, check.Equals, EventProcessed)
+	case <-time.After(time.Second):
+		c.Fatalf("timeout waiting for event")
+	}
+
+	out, err = p.cache.GetClusterConfig()
+	c.Assert(err, check.IsNil)
+	clusterConfig.SetResourceID(out.GetResourceID())
+	fixtures.DeepCompare(c, clusterConfig, out)
 }
 
 // TestNamespaces tests caching of namespaces
