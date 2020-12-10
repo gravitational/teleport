@@ -187,7 +187,7 @@ app_service:
 ```
 ### Skip TLS certificate verification
 
-  Corporations often use self-signed certificates for internal applications. Teleport attempts to check if the certificates are signed by a trusted CA (Certificate Authority). If using self-signed certificates use  `insecure_skip_verify: true` to skip this verification step. 
+  Corporations often use self-signed certificates for internal applications. Teleport attempts to check if the certificates are signed by a trusted CA (Certificate Authority). If using self-signed certificates use `insecure_skip_verify: true` to skip this verification step.
 
 ```yaml
    - name: "app"
