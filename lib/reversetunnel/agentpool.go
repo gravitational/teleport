@@ -231,7 +231,7 @@ func filterAndClose(agents []*Agent, matchAgent matchAgentFn) []*Agent {
 	for i := range agents {
 		agent := agents[i]
 		if matchAgent(agent) {
-			agent.Debugf("Pool is closing agent.")
+			agent.log.Debugf("Pool is closing agent.")
 			agent.Close()
 		} else {
 			filtered = append(filtered, agent)

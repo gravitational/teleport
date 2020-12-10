@@ -173,7 +173,7 @@ lint: buildbox
 #
 .PHONY:docs
 docs: docsbox
-	docker run --rm=true -ti $(NOROOT) \
+	docker run --rm=true $(NOROOT) \
 		-v $$(pwd)/..:$(DOCSDIR) \
 		-v /tmp:/tmp \
 		-w $(DOCSDIR) \
