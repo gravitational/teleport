@@ -33,7 +33,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
-	authProto "github.com/gravitational/teleport/api/proto/auth"
+	proto "github.com/gravitational/teleport/api/proto/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -57,14 +57,14 @@ const (
 )
 
 // These types are aliases for backwards compatibility
-type APIClient = authProto.Client
-type ContextDialer = authProto.ContextDialer
-type ContextDialerFunc = authProto.ContextDialerFunc
+type APIClient = proto.Client
+type ContextDialer = proto.ContextDialer
+type ContextDialerFunc = proto.ContextDialerFunc
 
 var (
 	ServerKeepAliveTTL = api.ServerKeepAliveTTL
 	KeepAliveCountMax  = api.KeepAliveCountMax
-	NewAddrDialer      = authProto.NewAddrDialer
+	NewAddrDialer      = proto.NewAddrDialer
 )
 
 // Client is HTTP Auth API client. It works by connecting to auth servers
@@ -160,7 +160,10 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 		for i, a := range c.Addrs {
 			addrs[i] = a.Addr
 		}
-		c.Dialer = NewAddrDialer(addrs, c.KeepAlivePeriod, api.DefaultDialTimeout)
+		var err error
+		if c.Dialer, err = NewAddrDialer(addrs, c.KeepAlivePeriod, api.DefaultDialTimeout); err != nil {
+			return err
+		}
 	}
 	if c.TLS.ServerName == "" {
 		c.TLS.ServerName = teleport.APIDomain
@@ -231,7 +234,7 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 	for i, a := range cfg.Addrs {
 		addrs[i] = a.Addr
 	}
-	apiClient, err := authProto.NewTLSClient(authProto.Config{
+	apiClient, err := proto.NewTLSClient(proto.Config{
 		Dialer:          cfg.Dialer,
 		KeepAlivePeriod: cfg.KeepAlivePeriod,
 		KeepAliveCount:  cfg.KeepAliveCount,
@@ -2088,7 +2091,7 @@ func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterR
 
 // CreateResetPasswordToken creates reset password token
 func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error) {
-	return c.APIClient.CreateResetPasswordToken(ctx, authProto.CreateResetPasswordTokenRequest{
+	return c.APIClient.CreateResetPasswordToken(ctx, proto.CreateResetPasswordTokenRequest{
 		Name: req.Name,
 		TTL:  api.Duration(req.TTL),
 		Type: req.Type,
@@ -2235,7 +2238,7 @@ type IdentityService interface {
 	// GenerateUserCerts takes the public key in the OpenSSH `authorized_keys` plain
 	// text format, signs it using User Certificate Authority signing key and
 	// returns the resulting certificates.
-	GenerateUserCerts(ctx context.Context, req authProto.UserCertsRequest) (*authProto.Certs, error)
+	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers() error
@@ -2333,7 +2336,7 @@ type ClientI interface {
 	ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error)
 
 	// Ping gets basic info about the auth server.
-	Ping(ctx context.Context) (authProto.PingResponse, error)
+	Ping(ctx context.Context) (proto.PingResponse, error)
 
 	// CreateAppSession creates an application web session. Application web
 	// sessions represent a browser session the client holds.

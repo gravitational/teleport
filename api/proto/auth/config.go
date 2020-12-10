@@ -64,7 +64,10 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.DialTimeout = api.DefaultDialTimeout
 	}
 	if c.Dialer == nil {
-		c.Dialer = NewAddrDialer(c.Addrs, c.KeepAlivePeriod, c.DialTimeout)
+		var err error
+		if c.Dialer, err = NewAddrDialer(c.Addrs, c.KeepAlivePeriod, c.DialTimeout); err != nil {
+			return err
+		}
 	}
 	if c.TLS.ServerName == "" {
 		c.TLS.ServerName = teleport.APIDomain
