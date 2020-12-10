@@ -183,6 +183,9 @@ type Config struct {
 	// Component is a component used in logs
 	Component string
 
+	// Log specifies the logger
+	Log log.FieldLogger
+
 	// FIPS means Teleport was started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
 	FIPS bool
@@ -236,6 +239,13 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.Component == "" {
 		cfg.Component = teleport.Component(teleport.ComponentProxy, teleport.ComponentServer)
 	}
+	logger := cfg.Log
+	if cfg.Log == nil {
+		logger = log.StandardLogger()
+	}
+	cfg.Log = logger.WithFields(log.Fields{
+		trace.Component: cfg.Component,
+	})
 	return nil
 }
 
@@ -254,14 +264,11 @@ func NewServer(cfg Config) (Server, error) {
 
 	ctx, cancel := context.WithCancel(cfg.Context)
 
-	entry := log.WithFields(log.Fields{
-		trace.Component: cfg.Component,
-	})
 	proxyWatcher, err := services.NewProxyWatcher(services.ProxyWatcherConfig{
 		Context:   ctx,
 		Component: cfg.Component,
 		Client:    cfg.LocalAuthClient,
-		Entry:     entry,
+		Entry:     cfg.Log,
 		ProxiesC:  make(chan []services.Server, 10),
 	})
 	if err != nil {
@@ -281,7 +288,7 @@ func NewServer(cfg Config) (Server, error) {
 		cancel:           cancel,
 		proxyWatcher:     proxyWatcher,
 		clusterPeers:     make(map[string]*clusterPeers),
-		log:              entry,
+		log:              cfg.Log,
 		offlineThreshold: offlineThreshold,
 	}
 
@@ -304,6 +311,7 @@ func NewServer(cfg Config) (Server, error) {
 		sshutils.AuthMethods{
 			PublicKey: srv.keyAuth,
 		},
+		sshutils.SetLogger(cfg.Log),
 		sshutils.SetLimiter(cfg.Limiter),
 		sshutils.SetCiphers(cfg.Ciphers),
 		sshutils.SetKEXAlgorithms(cfg.KEXAlgorithms),
