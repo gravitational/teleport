@@ -39,21 +39,25 @@ import (
 // ResourceCreateHandler is the generic implementation of a resource creation handler
 type ResourceCreateHandler func(auth.ClientI, services.UnknownResource) error
 
+// ResourceUpdateHandler is the generic implementation of a resource update handler
+type ResourceUpdateHandler func(context.Context, auth.ClientI) error
+
 // ResourceKind is the string form of a resource, i.e. "oidc"
 type ResourceKind string
 
 // ResourceCommand implements `tctl get/create/list` commands for manipulating
 // Teleport resources
 type ResourceCommand struct {
-	config      *service.Config
-	ref         services.Ref
-	refs        services.Refs
-	format      string
-	namespace   string
-	withSecrets bool
-	force       bool
-	ttl         string
-	labels      string
+	config           *service.Config
+	ref              services.Ref
+	refs             services.Refs
+	format           string
+	namespace        string
+	withSecrets      bool
+	force            bool
+	ttl              string
+	labels           string
+	sessionRecording string
 
 	// filename is the name of the resource, used for 'create'
 	filename string
@@ -65,6 +69,7 @@ type ResourceCommand struct {
 	updateCmd *kingpin.CmdClause
 
 	CreateHandlers map[ResourceKind]ResourceCreateHandler
+	UpdateHandlers map[ResourceKind]ResourceUpdateHandler
 }
 
 const getHelp = `Examples:
@@ -80,6 +85,8 @@ Same as above, but using JSON output:
 
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.Config) {
+	rc.config = config
+
 	rc.CreateHandlers = map[ResourceKind]ResourceCreateHandler{
 		services.KindUser:            rc.createUser,
 		services.KindTrustedCluster:  rc.createTrustedCluster,
@@ -87,7 +94,11 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		services.KindCertAuthority:   rc.createCertAuthority,
 		services.KindClusterConfig:   rc.createClusterConfig,
 	}
-	rc.config = config
+
+	rc.UpdateHandlers = map[ResourceKind]ResourceUpdateHandler{
+		services.KindRemoteCluster: rc.updateRemoteCluster,
+		services.KindClusterConfig: rc.updateClusterConfig,
+	}
 
 	rc.createCmd = app.Command("create", "Create or update a Teleport resource from a YAML file")
 	rc.createCmd.Arg("filename", "resource definition file, empty for stdin").StringVar(&rc.filename)
@@ -102,6 +113,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 	$ tctl update rc/remote`).SetValue(&rc.ref)
 	rc.updateCmd.Flag("set-labels", "Set labels").StringVar(&rc.labels)
 	rc.updateCmd.Flag("set-ttl", "Set TTL").StringVar(&rc.ttl)
+	rc.updateCmd.Flag("set-session-recording", "Set session recording mode").StringVar(&rc.sessionRecording)
 
 	rc.deleteCmd = app.Command("rm", "Delete a resource").Alias("del")
 	rc.deleteCmd.Arg("resource type/resource name", `Resource to delete
@@ -481,10 +493,24 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 
 // Update updates select resource fields: expiry and labels
 func (rc *ResourceCommand) Update(clt auth.ClientI) error {
-	if rc.ref.Kind == "" || rc.ref.Name == "" {
-		return trace.BadParameter("provide a full resource name to update, for example:\n$ tctl update rc/remote --set-labels=env=prod\n")
+	if rc.ref.Kind == "" {
+		return trace.BadParameter("specify a resource to update, for example: tctl update rc/remote --set-labels=env=prod")
 	}
 
+	updater, found := rc.UpdateHandlers[ResourceKind(rc.ref.Kind)]
+	if !found {
+		return trace.BadParameter("updating resources of type %q is not supported", rc.ref.Kind)
+	}
+
+	// TODO: pass the context from CLI to terminate requests on Ctrl-C
+	ctx := context.TODO()
+	if err := updater(ctx, clt); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (rc *ResourceCommand) updateRemoteCluster(ctx context.Context, clt auth.ClientI) error {
 	var err error
 	var labels map[string]string
 	if rc.labels != "" {
@@ -507,29 +533,46 @@ func (rc *ResourceCommand) Update(clt auth.ClientI) error {
 		return trace.BadParameter("use at least one of --set-labels or --set-ttl")
 	}
 
-	// TODO: pass the context from CLI to terminate requests on Ctrl-C
-	ctx := context.TODO()
-	switch rc.ref.Kind {
-	case services.KindRemoteCluster:
-		cluster, err := clt.GetRemoteCluster(rc.ref.Name)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if labels != nil {
-			meta := cluster.GetMetadata()
-			meta.Labels = labels
-			cluster.SetMetadata(meta)
-		}
-		if !expiry.IsZero() {
-			cluster.SetExpiry(expiry)
-		}
-		if err = clt.UpdateRemoteCluster(ctx, cluster); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("cluster %v has been updated\n", rc.ref.Name)
-	default:
-		return trace.BadParameter("updating resources of type %q is not supported, supported are: %q", rc.ref.Kind, services.KindRemoteCluster)
+	cluster, err := clt.GetRemoteCluster(rc.ref.Name)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+
+	if labels != nil {
+		meta := cluster.GetMetadata()
+		meta.Labels = labels
+		cluster.SetMetadata(meta)
+	}
+
+	if !expiry.IsZero() {
+		cluster.SetExpiry(expiry)
+	}
+
+	if err = clt.UpdateRemoteCluster(ctx, cluster); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("cluster %q has been updated\n", rc.ref.Name)
+	return nil
+}
+
+func (rc *ResourceCommand) updateClusterConfig(ctx context.Context, clt auth.ClientI) error {
+	if rc.sessionRecording == "" {
+		return trace.BadParameter("use --set-session-recording")
+	}
+
+	cc, err := clt.GetClusterConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if rc.sessionRecording != "" {
+		cc.SetSessionRecording(rc.sessionRecording)
+	}
+
+	if err = clt.UpdateClusterConfig(ctx, cc); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("cluster configuration has been updated\n")
 	return nil
 }
 
