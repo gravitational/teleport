@@ -43,4 +43,17 @@ const (
 	// ServerKeepAliveTTL is a period between server keep alives,
 	// when servers announce only presence withough sending full data
 	ServerKeepAliveTTL = 60 * time.Second
+
+	// SignupTokenTTL is a default TTL for a web signup one time token
+	SignupTokenTTL = Duration(time.Hour)
+
+	// MaxSignupTokenTTL is a maximum TTL for a web signup one time token
+	// clients can reduce this time, not increase it
+	MaxSignupTokenTTL = Duration(48 * time.Hour)
+
+	// MaxChangePasswordTokenTTL is a maximum TTL for password change token
+	MaxChangePasswordTokenTTL = Duration(24 * time.Hour)
+
+	// ChangePasswordTokenTTL is a default password change token expiry time
+	ChangePasswordTokenTTL = Duration(8 * time.Hour)
 )

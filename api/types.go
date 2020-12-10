@@ -34,3 +34,7 @@ func (d Duration) Get() time.Duration {
 func (d *Duration) Set(value time.Duration) {
 	*d = Duration(value)
 }
+
+func (d *Duration) String() string {
+	return time.Duration(*d).String()
+}

@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
+	"github.com/gravitational/teleport/api/proto/auth"
 	authProto "github.com/gravitational/teleport/api/proto/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -2086,15 +2087,6 @@ func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterR
 	return validateResponse, nil
 }
 
-// CreateResetPasswordToken creates reset password token
-func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error) {
-	return c.APIClient.CreateResetPasswordToken(ctx, authProto.CreateResetPasswordTokenRequest{
-		Name: req.Name,
-		TTL:  api.Duration(req.TTL),
-		Type: req.Type,
-	})
-}
-
 // DeleteTrustedCluster deletes a trusted cluster by name.
 func (c *Client) DeleteTrustedCluster(ctx context.Context, name string) error {
 	_, err := c.Delete(c.Endpoint("trustedclusters", name))
@@ -2241,7 +2233,7 @@ type IdentityService interface {
 	DeleteAllUsers() error
 
 	// CreateResetPasswordToken creates a new user reset token
-	CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error)
+	CreateResetPasswordToken(ctx context.Context, req auth.CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error)
 
 	// ChangePasswordWithToken changes password with token
 	ChangePasswordWithToken(ctx context.Context, req ChangePasswordWithTokenRequest) (services.WebSession, error)

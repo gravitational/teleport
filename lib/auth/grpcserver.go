@@ -411,11 +411,7 @@ func (g *GRPCServer) CreateResetPasswordToken(ctx context.Context, req *proto.Cr
 		req = &proto.CreateResetPasswordTokenRequest{}
 	}
 
-	token, err := auth.CreateResetPasswordToken(ctx, CreateResetPasswordTokenRequest{
-		Name: req.Name,
-		TTL:  time.Duration(req.TTL),
-		Type: req.Type,
-	})
+	token, err := auth.CreateResetPasswordToken(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

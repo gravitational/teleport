@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"image/png"
 	"net/url"
-	"time"
 
+	"github.com/gravitational/teleport/api/proto/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -34,65 +34,7 @@ import (
 	"github.com/pquerna/otp/totp"
 )
 
-const (
-	// ResetPasswordTokenTypeInvite indicates invite UI flow
-	ResetPasswordTokenTypeInvite = "invite"
-	// ResetPasswordTokenTypePassword indicates set new password UI flow
-	ResetPasswordTokenTypePassword = "password"
-)
-
-// CreateResetPasswordTokenRequest is a request to create a new reset password token
-type CreateResetPasswordTokenRequest struct {
-	// Name is the user name to reset.
-	Name string `json:"name"`
-	// TTL specifies how long the generated reset token is valid for.
-	TTL time.Duration `json:"ttl"`
-	// Type is a token type.
-	Type string `json:"type"`
-}
-
-// CheckAndSetDefaults checks and sets the defaults
-func (r *CreateResetPasswordTokenRequest) CheckAndSetDefaults() error {
-	if r.Name == "" {
-		return trace.BadParameter("user name can't be empty")
-	}
-	if r.TTL < 0 {
-		return trace.BadParameter("TTL can't be negative")
-	}
-
-	if r.Type == "" {
-		r.Type = ResetPasswordTokenTypePassword
-	}
-
-	// We use the same mechanism to handle invites and password resets
-	// as both allow setting up a new password based on auth preferences.
-	// The only difference is default TTL values and URLs to web UI.
-	switch r.Type {
-	case ResetPasswordTokenTypeInvite:
-		if r.TTL == 0 {
-			r.TTL = defaults.SignupTokenTTL
-		}
-
-		if r.TTL > defaults.MaxSignupTokenTTL {
-			return trace.BadParameter(
-				"failed to create user invite token: maximum token TTL is %v hours",
-				defaults.MaxSignupTokenTTL)
-		}
-	case ResetPasswordTokenTypePassword:
-		if r.TTL == 0 {
-			r.TTL = defaults.ChangePasswordTokenTTL
-		}
-		if r.TTL > defaults.MaxChangePasswordTokenTTL {
-			return trace.BadParameter(
-				"failed to create reset password token: maximum token TTL is %v hours",
-				defaults.MaxChangePasswordTokenTTL)
-		}
-	default:
-		return trace.BadParameter("unknown reset password token request type(%v)", r.Type)
-	}
-
-	return nil
-}
+type CreateResetPasswordTokenRequest = auth.CreateResetPasswordTokenRequest
 
 // CreateResetPasswordToken creates a reset password token
 func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error) {
@@ -138,7 +80,7 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateResetPa
 		ResourceMetadata: events.ResourceMetadata{
 			Name:    req.Name,
 			TTL:     req.TTL.String(),
-			Expires: s.GetClock().Now().UTC().Add(req.TTL),
+			Expires: s.GetClock().Now().UTC().Add(req.TTL.Get()),
 		},
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit create reset password token event.")
@@ -256,7 +198,7 @@ func (s *Server) newResetPasswordToken(req CreateResetPasswordTokenRequest) (ser
 	}
 
 	token := services.NewResetPasswordToken(tokenID)
-	token.Metadata.SetExpiry(s.clock.Now().UTC().Add(req.TTL))
+	token.Metadata.SetExpiry(s.clock.Now().UTC().Add(req.TTL.Get()))
 	token.Spec.User = req.Name
 	token.Spec.Created = s.clock.Now().UTC()
 	token.Spec.URL = url
@@ -270,9 +212,9 @@ func formatResetPasswordTokenURL(proxyHost string, tokenID string, reqType strin
 	}
 
 	// We have 2 different UI flows to process password reset tokens
-	if reqType == ResetPasswordTokenTypeInvite {
+	if reqType == auth.ResetPasswordTokenTypeInvite {
 		u.Path = fmt.Sprintf("/web/invite/%v", tokenID)
-	} else if reqType == ResetPasswordTokenTypePassword {
+	} else if reqType == auth.ResetPasswordTokenTypePassword {
 		u.Path = fmt.Sprintf("/web/reset/%v", tokenID)
 	}
 
