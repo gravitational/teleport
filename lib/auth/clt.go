@@ -144,7 +144,7 @@ type ClientConfig struct {
 // CheckAndSetDefaults checks and sets default config values
 func (c *ClientConfig) CheckAndSetDefaults() error {
 	if len(c.Addrs) == 0 && c.Dialer == nil {
-		return trace.BadParameter("set parameter AuthAddrs or DialContext")
+		return trace.BadParameter("set parameter Addrs or Dialer")
 	}
 	if c.TLS == nil {
 		return trace.BadParameter("missing parameter TLS")

@@ -28,7 +28,7 @@ type ContextDialer interface {
 	DialContext(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
-// ContextDialerFunc is a function wrapper that implementsa
+// ContextDialerFunc is a function wrapper that implements the
 // ContextDialer interface
 type ContextDialerFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 

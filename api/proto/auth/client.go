@@ -153,7 +153,7 @@ func (c *Client) Ping(ctx context.Context) (PingResponse, error) {
 	return *rsp, nil
 }
 
-// UpsertNode is used by SSH servers to reprt their presence
+// UpsertNode is used by SSH servers to report their presence
 // to the auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertNode(s services.Server) (*services.KeepAlive, error) {
 	if s.GetNamespace() == "" {
@@ -283,7 +283,7 @@ func (c *Client) NewWatcher(ctx context.Context, watch services.Watch) (services
 }
 
 type streamWatcher struct {
-	sync.RWMutex
+	mu sync.RWMutex
 	stream  AuthService_WatchEventsClient
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -340,7 +340,7 @@ func (w *streamWatcher) Close() error {
 	return nil
 }
 
-// UpdateRemoteCluster updates remote cluster.
+// UpdateRemoteCluster updates remote cluster from the specified value.
 func (c *Client) UpdateRemoteCluster(ctx context.Context, rc services.RemoteCluster) error {
 	if err := c.connect(); err != nil {
 		return trace.Wrap(err)
@@ -355,7 +355,7 @@ func (c *Client) UpdateRemoteCluster(ctx context.Context, rc services.RemoteClus
 	return trail.FromGRPC(err)
 }
 
-// CreateUser inserts a new user entry in a backend.
+// CreateUser creates a new user from the specified descriptor.
 func (c *Client) CreateUser(ctx context.Context, user services.User) error {
 	if err := c.connect(); err != nil {
 		return trace.Wrap(err)
@@ -385,7 +385,8 @@ func (c *Client) UpdateUser(ctx context.Context, user services.User) error {
 	return trail.FromGRPC(err)
 }
 
-// GetUser returns a list of usernames registered in the system
+// GetUser returns a list of usernames registered in the system.
+// withSecrets controls whether authentication details are returned.
 func (c *Client) GetUser(name string, withSecrets bool) (services.User, error) {
 	if name == "" {
 		return nil, trace.BadParameter("missing username")
@@ -403,7 +404,8 @@ func (c *Client) GetUser(name string, withSecrets bool) (services.User, error) {
 	return user, nil
 }
 
-// GetUsers returns a list of users
+// GetUsers returns a list of users.
+// withSecrets controls whether authentication details are returned.
 func (c *Client) GetUsers(withSecrets bool) ([]services.User, error) {
 	if err := c.connect(); err != nil {
 		return []services.User{}, err
@@ -428,7 +430,7 @@ func (c *Client) GetUsers(withSecrets bool) ([]services.User, error) {
 	return users, nil
 }
 
-// DeleteUser deletes a user by username.
+// DeleteUser deletes a user by name.
 func (c *Client) DeleteUser(ctx context.Context, user string) error {
 	if err := c.connect(); err != nil {
 		return trace.Wrap(err)
@@ -453,7 +455,7 @@ func (c *Client) GenerateUserCerts(ctx context.Context, req UserCertsRequest) (*
 	return certs, nil
 }
 
-// createOrResumeAuditStream creates or resumes audit stream
+// createOrResumeAuditStream creates or resumes audit stream described in the request
 func (c *Client) createOrResumeAuditStream(ctx context.Context, request AuditStreamRequest) (events.Stream, error) {
 	if err := c.connect(); err != nil {
 		return nil, trace.Wrap(err)
@@ -499,7 +501,7 @@ func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (events.
 
 type auditStreamer struct {
 	statusCh chan events.StreamStatus
-	sync.RWMutex
+	mu sync.RWMutex
 	stream   AuthService_CreateAuditStreamClient
 	err      error
 	closeCtx context.Context
