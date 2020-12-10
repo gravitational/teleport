@@ -161,8 +161,20 @@ EOF
 
     # if we are using letsencrypt (i.e. not ACM) then append config lines
     if [[ "${USE_ACM}" != "true" ]]; then
-        echo "  https_cert_file: /var/lib/teleport/fullchain.pem" >> /etc/teleport.yaml
-        echo "  https_key_file: /var/lib/teleport/privkey.pem" >> /etc/teleport.yaml
+        echo "  https_keypairs:" >> /etc/teleport.yaml
+        echo "    - cert_file: /var/lib/teleport/fullchain.pem" >> /etc/teleport.yaml
+        echo "      key_file: /var/lib/teleport/privkey.pem" >> /etc/teleport.yaml
+    fi
+
+    # set up the kubernetes listener
+    echo "  kubernetes:" >> /etc/teleport.yaml
+    echo "    enabled: yes" >> /etc/teleport.yaml
+    echo "    listen_addr: 0.0.0.0:3026" >> /etc/teleport.yaml
+    # when using ACM, we have to explicitly give the proxy NLB as a public_addr
+    if [[ "${USE_ACM}" == "true" && "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
+        echo "    public_addr: ${TELEPORT_PROXY_SERVER_LB}:3026" >> /etc/teleport.yaml
+    else
+        echo "    public_addr: ${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}:3026" >> /etc/teleport.yaml
     fi
 
     # enable/start cert services and timers
@@ -332,8 +344,9 @@ EOF
       # these variables must all be set for letsencrypt to work
       # it also needs the running instance to have permissions to read from/write to the S3 bucket
       if [[ "${TELEPORT_DOMAIN_ADMIN_EMAIL}" != "" && "${TELEPORT_DOMAIN_NAME}" != "" && "${TELEPORT_S3_BUCKET}" != "" ]]; then
-          echo "  https_cert_file: /var/lib/teleport/fullchain.pem" >> /etc/teleport.yaml
-          echo "  https_key_file: /var/lib/teleport/privkey.pem" >> /etc/teleport.yaml
+          echo "  https_keypairs:" >> /etc/teleport.yaml
+          echo "    - cert_file: /var/lib/teleport/fullchain.pem" >> /etc/teleport.yaml
+          echo "      key_file: /var/lib/teleport/privkey.pem" >> /etc/teleport.yaml
 
           # enable/start cert services and timers
           systemctl enable teleport-get-cert.service teleport-get-cert.timer
@@ -349,6 +362,18 @@ EOF
       fi
   elif [[ "${USE_ACM}" == "true" ]]; then
       echo "ACM support enabled"
+
+      # set up the kubernetes listener
+      echo "  kubernetes:" >> /etc/teleport.yaml
+      echo "    enabled: yes" >> /etc/teleport.yaml
+      echo "    listen_addr: 0.0.0.0:3026" >> /etc/teleport.yaml
+      # when using ACM, we have to explicitly give the proxy NLB as a public_addr
+      if [[ "${USE_ACM}" == "true" && "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
+          echo "    public_addr: ${TELEPORT_PROXY_SERVER_LB}:3026" >> /etc/teleport.yaml
+      else
+          echo "    public_addr: ${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}:3026" >> /etc/teleport.yaml
+      fi
+
       systemctl disable teleport.service
       systemctl stop --no-block teleport.service
 
@@ -432,8 +457,9 @@ EOF
         # these variables must all be set for letsencrypt to work
         # it also needs the running instance to have permissions to read from/write to the S3 bucket
         if [[ "${TELEPORT_DOMAIN_ADMIN_EMAIL}" != "" && "${TELEPORT_DOMAIN_NAME}" != "" && "${TELEPORT_S3_BUCKET}" != "" ]]; then
-            echo "  https_cert_file: /var/lib/teleport/fullchain.pem" >> /etc/teleport.yaml
-            echo "  https_key_file: /var/lib/teleport/privkey.pem" >> /etc/teleport.yaml
+            echo "  https_keypairs:" >> /etc/teleport.yaml
+            echo "    - cert_file: /var/lib/teleport/fullchain.pem" >> /etc/teleport.yaml
+            echo "    - key_file: /var/lib/teleport/privkey.pem" >> /etc/teleport.yaml
 
             # enable/start cert services and timers
             systemctl enable teleport-get-cert.service teleport-get-cert.timer
@@ -449,6 +475,18 @@ EOF
         fi
     elif [[ "${USE_ACM}" == "true" ]]; then
         echo "ACM support enabled"
+
+        # set up the kubernetes listener
+        echo "  kubernetes:" >> /etc/teleport.yaml
+        echo "    enabled: yes" >> /etc/teleport.yaml
+        echo "    listen_addr: 0.0.0.0:3026" >> /etc/teleport.yaml
+        # when using ACM, we have to explicitly give the proxy NLB as a public_addr
+        if [[ "${USE_ACM}" == "true" && "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
+            echo "    public_addr: ${TELEPORT_PROXY_SERVER_LB}:3026" >> /etc/teleport.yaml
+        else
+            echo "    public_addr: ${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}:3026" >> /etc/teleport.yaml
+        fi
+
         systemctl disable teleport.service
         systemctl stop --no-block teleport.service
 
