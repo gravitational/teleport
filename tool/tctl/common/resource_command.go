@@ -85,6 +85,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		services.KindTrustedCluster:  rc.createTrustedCluster,
 		services.KindGithubConnector: rc.createGithubConnector,
 		services.KindCertAuthority:   rc.createCertAuthority,
+		services.KindClusterConfig:   rc.createClusterConfig,
 	}
 	rc.config = config
 
@@ -373,6 +374,34 @@ func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownR
 		fmt.Printf("user %q has been created\n", userName)
 	}
 
+	return nil
+}
+
+// createClusterConfig implements `tctl create -f cc.yaml` command,
+// overwriting the current cluster configuration.
+func (rc *ResourceCommand) createClusterConfig(client auth.ClientI, raw services.UnknownResource) error {
+	if !rc.force {
+		return trace.AlreadyExists("cluster configuration can be only overwritten or updated")
+	}
+
+	existingConfig, err := client.GetClusterConfig()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	newConfig, err := services.GetClusterConfigMarshaler().Unmarshal(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if newConfig.GetName() != existingConfig.GetName() {
+		return trace.CompareFailed("cluster config resource must have the name %q", existingConfig.GetName())
+	}
+
+	if err := client.SetClusterConfig(newConfig); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("cluster configuration has been overwritten\n")
 	return nil
 }
 
