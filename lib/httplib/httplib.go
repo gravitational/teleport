@@ -84,9 +84,8 @@ func WithCSRFProtection(fn HandlerFunc) httprouter.Handle {
 		err := csrf.VerifyHTTPHeader(r)
 		if err != nil {
 			log.Warningf("unable to validate CSRF token %v", err)
-			terr := trace.AccessDenied("access denied")
-			log.Warnf("%v", trace.DebugReport(terr))
-			trace.WriteError(w, trace.Unwrap(terr))
+			log.Warnf("%v", trace.DebugReport(err))
+			trace.WriteError(w, trace.Unwrap(trace.AccessDenied("access denied")))
 			return
 		}
 		hanlderFn(w, r, p)
