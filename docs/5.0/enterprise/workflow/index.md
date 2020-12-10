@@ -1,9 +1,9 @@
 ---
-title: Approval Workflows for SSH and Kubernetes Access
+title: Access Workflows for SSH and Kubernetes Access
 description: How to customize SSH and Kubernetes access using Teleport.
 ---
 
-# Teleport Approval Workflows
+# Teleport Access Workflows
 
 #### Approving Workflow using an External Integration
 - [Integrating Teleport with Slack](ssh-approval-slack.md)
@@ -13,7 +13,7 @@ description: How to customize SSH and Kubernetes access using Teleport.
 - [Integrating Teleport with PagerDuty](ssh-approval-pagerduty.md)
 
 
-## Approval Workflows Setup
+## Access Workflows Setup
 
 Teleport 4.2 introduced the ability for users to request additional roles. The
 workflow API makes it easy to dynamically approve or deny these requests.
@@ -72,7 +72,7 @@ spec:
 # list of allow-rules, see
 # https://gravitational.com/teleport/docs/enterprise/ssh-rbac/
 rules:
-    # Access Request is part of Approval Workflows introduced in 4.2
+    # Access Request is part of Access Workflows introduced in 4.2
     # `access_request` should only be given to Teleport Admins.
     - resources: [access_request]
       verbs: [list, read, update, delete]
@@ -98,7 +98,7 @@ bc8ca931-fec9-4b15-9a6f-20c13c5641a9 alice     roles=dba      07 Nov 19 19:38 UT
 $ tctl request approve bc8ca931-fec9-4b15-9a6f-20c13c5641a9
 ```
 
-Assuming approval, `tsh` will automatically manage a certificate re-issued with
+Assuming access, `tsh` will automatically manage a certificate re-issued with
 the newly requested roles applied. In this case `contractor` will now have have
 the permission of the `dba`.
 
@@ -224,7 +224,7 @@ Because automatically generated requests always include all roles that the user 
 $ tctl request approve --roles=role-1,role-3 --reason='Approved, but not role-2 right now' 28a3fb86-0230-439d-ad88-11cfcb213193
 ```
 
-### Other features of Approval Workflows.
+### Other features of Access Workflows.
 
  - Users can request multiple roles at one time. e.g `roles: ['dba','netsec','cluster-x']`
  - Approved requests have no effect on Teleport's behavior outside of allowing additional
