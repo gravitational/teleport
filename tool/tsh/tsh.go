@@ -128,6 +128,8 @@ type CLIConf struct {
 	BenchTicks int32
 	// BenchValueScale value at which to scale the values recorded
 	BenchValueScale float64
+	// BenchCollectProfiles collects cpu, heap, and goroutine profiles of server bench is running against
+	BenchCollectProfiles bool
 	// Context is a context to control execution
 	Context context.Context
 	// Gops starts gops agent on a specified address
@@ -331,9 +333,10 @@ func Run(args []string) {
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
 	bench.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
 	bench.Flag("export", "Export the latency profile").BoolVar(&cf.BenchExport)
-	bench.Flag("path", "Directory to save the latency profile to, default path is the current directory").Default(".").StringVar(&cf.BenchExportPath)
+	bench.Flag("path", "Directory to save the latency/metric profiles to, default path is the current directory").Default(".").StringVar(&cf.BenchExportPath)
 	bench.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
 	bench.Flag("scale", "Value scale in which to scale the recorded values").Default("1.0").Float64Var(&cf.BenchValueScale)
+	bench.Flag("profiles", "Collect cpu, goroutine, and heap profiles").BoolVar(&cf.BenchCollectProfiles)
 
 	// show key
 	show := app.Command("show", "Read an identity from file and print to stdout").Hidden()
@@ -1113,6 +1116,8 @@ func onBenchmark(cf *CLIConf) {
 		Command:       cf.RemoteCommand,
 		MinimumWindow: cf.BenchDuration,
 		Rate:          cf.BenchRate,
+		CollectProfiles: cf.BenchCollectProfiles,
+		ProfilePath: cf.BenchExportPath,
 	}
 	result, err := cnf.Benchmark(cf.Context, tc)
 	if err != nil {

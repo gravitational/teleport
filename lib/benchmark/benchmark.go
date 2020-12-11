@@ -59,6 +59,10 @@ type Config struct {
 	MinimumWindow time.Duration
 	// MinimumMeasurments is the min amount of requests
 	MinimumMeasurements int
+	// CollectProfiles collects cpu, heap, and goroutin profiles
+	CollectProfiles bool
+	// ProfilePath is the path where the profiles should be saved
+	ProfilePath string
 }
 
 // Result is a result of the benchmark
@@ -151,10 +155,21 @@ func ExportLatencyProfile(path string, h *hdrhistogram.Histogram, ticks int32, v
 	return fo.Name(), nil
 }
 
+//BenchmarkCLI ...
+func (c *Config) BenchmarkCLI(ctx context.Context, tc *client.TeleportClient) (Result, error) {
+	return Result{}, nil
+}
+
 // Benchmark connects to remote server and executes requests in parallel according
 // to benchmark spec. It returns benchmark result when completed.
 // This is a blocking function that can be cancelled via context argument.
 func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Result, error) {
+	if c.CollectProfiles {
+		err := collectProfiles(ctx, "before", c.ProfilePath, tc.Config.HostLogin, tc)
+		if err != nil {
+			return Result{}, trace.Wrap(err)
+		}
+	}
 	tc.Stdout = ioutil.Discard
 	tc.Stderr = ioutil.Discard
 	tc.Stdin = &bytes.Buffer{}
@@ -196,10 +211,12 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 	statusTicker := time.NewTicker(1 * time.Second)
 	timeElapsed := false
 	start := time.Now()
+	duringTimeout := time.After((c.MinimumWindow / 2))
 	for {
 		if c.MinimumWindow <= time.Since(start) {
 			timeElapsed = true
 		}
+
 		select {
 		case measure := <-resultC:
 			result.Histogram.RecordValue(int64(measure.End.Sub(measure.ResponseStart) / time.Millisecond))
@@ -211,8 +228,17 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 				result.RequestsFailed++
 				result.LastError = measure.Error
 			}
+		case <-duringTimeout:
+			err := collectProfiles(ctx, "during", c.ProfilePath, tc.Config.HostLogin, tc)
+			if err != nil {
+				return Result{}, err
+			}
 		case <-ctx.Done():
 			result.Duration = time.Since(start)
+			err := collectProfiles(context.TODO(), "after", c.ProfilePath, tc.Config.HostLogin, tc)
+			if err != nil {
+				return Result{}, err
+			}
 			return result, nil
 		case <-statusTicker.C:
 			logrus.Infof("working... current observation count: %d", result.RequestsOriginated)
