@@ -114,6 +114,8 @@ type Logger interface {
 	// GetLevel specifies the level at which this logger
 	// value is logging
 	GetLevel() log.Level
+	// SetLevel sets the logger's level to the specified value
+	SetLevel(level log.Level)
 }
 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging
@@ -256,6 +258,11 @@ type LeveledOutputFunc func(args ...interface{})
 // GetLevel returns the level of the underlying logger
 func (r *logWrapper) GetLevel() logrus.Level {
 	return r.Entry.Logger.GetLevel()
+}
+
+// SetLevel sets the logging level to the given value
+func (r *logWrapper) SetLevel(level logrus.Level) {
+	r.Entry.Logger.SetLevel(level)
 }
 
 // logWrapper wraps a log entry.
