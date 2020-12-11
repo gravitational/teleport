@@ -204,7 +204,7 @@ message CreateResetPasswordTokenRequest {
     // Type is a token type.
     string Type = 2 [ (gogoproto.jsontag) = "type" ];
     // TTL specifies how long the generated token is valid for.
-    int64 TTL = 3 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "github.com/gravitational/teleport/api.Duration" ];
+    int64 TTL = 3 [ (gogoproto.jsontag) = "ttl", (gogoproto.casttype) = "time.Duration" ];
 }
 
 // PingRequest is the input value for the Ping method.

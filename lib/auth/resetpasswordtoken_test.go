@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/proto/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -92,7 +91,7 @@ func (s *ResetPasswordTokenTest) TestCreateResetPasswordToken(c *check.C) {
 
 	req := CreateResetPasswordTokenRequest{
 		Name: username,
-		TTL:  api.Duration(time.Hour),
+		TTL:  time.Hour,
 	}
 
 	token, err := s.a.CreateResetPasswordToken(context.TODO(), req)
@@ -142,27 +141,27 @@ func (s *ResetPasswordTokenTest) TestCreateResetPasswordTokenErrors(c *check.C) 
 			desc: "Reset Password: TTL > max",
 			req: CreateResetPasswordTokenRequest{
 				Name: username,
-				TTL:  api.Duration(defaults.MaxChangePasswordTokenTTL + time.Hour),
+				TTL:  defaults.MaxChangePasswordTokenTTL + time.Hour,
 			},
 		},
 		{
 			desc: "Reset Password: empty user name",
 			req: CreateResetPasswordTokenRequest{
-				TTL: api.Duration(time.Hour),
+				TTL: time.Hour,
 			},
 		},
 		{
 			desc: "Reset Password: user does not exist",
 			req: CreateResetPasswordTokenRequest{
 				Name: "doesnotexist@example.com",
-				TTL:  api.Duration(time.Hour),
+				TTL:  time.Hour,
 			},
 		},
 		{
 			desc: "Invite: TTL > max",
 			req: CreateResetPasswordTokenRequest{
 				Name: username,
-				TTL:  api.Duration(defaults.MaxSignupTokenTTL + time.Hour),
+				TTL:  defaults.MaxSignupTokenTTL + time.Hour,
 				Type: auth.ResetPasswordTokenTypeInvite,
 			},
 		},

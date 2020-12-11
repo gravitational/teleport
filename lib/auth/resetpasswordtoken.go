@@ -80,7 +80,7 @@ func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateResetPa
 		ResourceMetadata: events.ResourceMetadata{
 			Name:    req.Name,
 			TTL:     req.TTL.String(),
-			Expires: s.GetClock().Now().UTC().Add(req.TTL.Get()),
+			Expires: s.GetClock().Now().UTC().Add(req.TTL),
 		},
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit create reset password token event.")
@@ -198,7 +198,7 @@ func (s *Server) newResetPasswordToken(req CreateResetPasswordTokenRequest) (ser
 	}
 
 	token := services.NewResetPasswordToken(tokenID)
-	token.Metadata.SetExpiry(s.clock.Now().UTC().Add(req.TTL.Get()))
+	token.Metadata.SetExpiry(s.clock.Now().UTC().Add(req.TTL))
 	token.Spec.User = req.Name
 	token.Spec.Created = s.clock.Now().UTC()
 	token.Spec.URL = url

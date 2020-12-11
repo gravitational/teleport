@@ -37,7 +37,6 @@ import (
 
 	empty "github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api"
 	proto "github.com/gravitational/teleport/api/proto/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -2323,7 +2322,7 @@ func (s *TLSSuite) TestChangePasswordWithToken(c *check.C) {
 
 	token, err := s.server.Auth().CreateResetPasswordToken(context.TODO(), CreateResetPasswordTokenRequest{
 		Name: username,
-		TTL:  api.Duration(time.Hour),
+		TTL:  time.Hour,
 	})
 	c.Assert(err, check.IsNil)
 

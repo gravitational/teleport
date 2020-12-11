@@ -26,7 +26,6 @@ import (
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api"
 	authProto "github.com/gravitational/teleport/api/proto/auth"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
@@ -121,7 +120,7 @@ func (u *UserCommand) TryRun(cmd string, client auth.ClientI) (match bool, err e
 func (u *UserCommand) ResetPassword(client auth.ClientI) error {
 	req := auth.CreateResetPasswordTokenRequest{
 		Name: u.login,
-		TTL:  api.Duration(u.ttl),
+		TTL:  u.ttl,
 		Type: authProto.ResetPasswordTokenTypePassword,
 	}
 	token, err := client.CreateResetPasswordToken(context.TODO(), req)
@@ -217,7 +216,7 @@ func (u *UserCommand) Add(client auth.ClientI) error {
 
 	token, err := client.CreateResetPasswordToken(context.TODO(), auth.CreateResetPasswordTokenRequest{
 		Name: u.login,
-		TTL:  api.Duration(u.ttl),
+		TTL:  u.ttl,
 		Type: authProto.ResetPasswordTokenTypeInvite,
 	})
 	if err != nil {
