@@ -36,6 +36,11 @@ import (
 
 type CreateResetPasswordTokenRequest = auth.CreateResetPasswordTokenRequest
 
+const (
+	ResetPasswordTokenTypeInvite   = auth.ResetPasswordTokenTypeInvite
+	ResetPasswordTokenTypePassword = auth.ResetPasswordTokenTypePassword
+)
+
 // CreateResetPasswordToken creates a reset password token
 func (s *Server) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error) {
 	err := req.CheckAndSetDefaults()
@@ -212,9 +217,9 @@ func formatResetPasswordTokenURL(proxyHost string, tokenID string, reqType strin
 	}
 
 	// We have 2 different UI flows to process password reset tokens
-	if reqType == auth.ResetPasswordTokenTypeInvite {
+	if reqType == ResetPasswordTokenTypeInvite {
 		u.Path = fmt.Sprintf("/web/invite/%v", tokenID)
-	} else if reqType == auth.ResetPasswordTokenTypePassword {
+	} else if reqType == ResetPasswordTokenTypePassword {
 		u.Path = fmt.Sprintf("/web/reset/%v", tokenID)
 	}
 

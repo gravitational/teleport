@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/proto/auth"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -162,7 +161,7 @@ func (s *ResetPasswordTokenTest) TestCreateResetPasswordTokenErrors(c *check.C) 
 			req: CreateResetPasswordTokenRequest{
 				Name: username,
 				TTL:  defaults.MaxSignupTokenTTL + time.Hour,
-				Type: auth.ResetPasswordTokenTypeInvite,
+				Type: ResetPasswordTokenTypeInvite,
 			},
 		},
 	}
