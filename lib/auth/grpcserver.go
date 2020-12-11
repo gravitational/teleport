@@ -959,6 +959,89 @@ func (g GRPCServer) GenerateAppToken(ctx context.Context, req *proto.GenerateApp
 	}, nil
 }
 
+// GetWebSession gets a web session.
+func (g *GRPCServer) GetWebSession(ctx context.Context, req *proto.GetWebSessionRequest) (*proto.GetWebSessionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	// TODO(dmitri): move to a dedicted impl
+	session, err := auth.GetWebSessionV2(ctx, services.GetWebSessionRequest{
+		SessionID: req.GetSessionID(),
+	})
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	sess, ok := session.(*services.WebSessionV2)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unexpected session type %T", session))
+	}
+
+	return &proto.GetWebSessionResponse{
+		Session: sess,
+	}, nil
+}
+
+// GetWebSessions gets all web sessions.
+func (g *GRPCServer) GetWebSessions(ctx context.Context, _ *empty.Empty) (*proto.GetWebSessionsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	// TODO(dmitri): move to a dedicted impl
+	sessions, err := auth.GetWebSessionsV2(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var out []*services.WebSessionV2
+	for _, session := range sessions {
+		sess, ok := session.(*services.WebSessionV2)
+		if !ok {
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", session))
+		}
+		out = append(out, sess)
+	}
+
+	return &proto.GetWebSessionsResponse{
+		Sessions: out,
+	}, nil
+}
+
+// DeleteWebSession removes an application web session.
+func (g *GRPCServer) DeleteWebSession(ctx context.Context, req *proto.DeleteWebSessionRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	// TODO(dmitri): move to a dedicted impl
+	if err := auth.DeleteWebSessionV2(ctx, services.DeleteWebSessionRequest{
+		SessionID: req.GetSessionID(),
+	}); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllWebSessions removes all web sessions.
+func (g *GRPCServer) DeleteAllWebSessions(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	// TODO(dmitri): move to a dedicted impl
+	if err := auth.DeleteAllWebSessionsV2(ctx); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
 // UpdateRemoteCluster updates remote cluster
 func (g *GRPCServer) UpdateRemoteCluster(ctx context.Context, req *services.RemoteClusterV3) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)

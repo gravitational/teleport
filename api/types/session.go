@@ -53,8 +53,6 @@ type WebSession interface {
 	// BearerToken is a special bearer token used for additional
 	// bearer authentication
 	GetBearerToken() string
-	// SetBearerTokenExpiryTime sets bearer token expiry time
-	SetBearerTokenExpiryTime(time.Time)
 	// SetExpiryTime sets session expiry time
 	SetExpiryTime(time.Time)
 	// GetBearerTokenExpiryTime - absolute time when token expires
@@ -73,7 +71,7 @@ type WebSession interface {
 
 // NewWebSession returns new instance of the web session based on the V2 spec
 func NewWebSession(name string, kind string, subkind string, spec WebSessionSpecV2) WebSession {
-	return &WebSessionV2{
+	session := &WebSessionV2{
 		Kind:    kind,
 		SubKind: subkind,
 		Version: V2,
@@ -83,6 +81,8 @@ func NewWebSession(name string, kind string, subkind string, spec WebSessionSpec
 		},
 		Spec: spec,
 	}
+	session.Metadata.SetExpiry(spec.Expires)
+	return session
 }
 
 // GetKind gets resource Kind
@@ -165,7 +165,8 @@ func (ws *WebSessionV2) CheckAndSetDefaults() error {
 
 // String returns string representation of the session.
 func (ws *WebSessionV2) String() string {
-	return fmt.Sprintf("WebSession(kind=%v,name=%v,id=%v)", ws.GetKind(), ws.GetUser(), ws.GetName())
+	return fmt.Sprintf("WebSession(kind=%v,user=%v,id=%v,expires=%v)",
+		ws.GetKind(), ws.GetUser(), ws.GetName(), ws.GetExpiryTime())
 }
 
 // SetUser sets user associated with this session
@@ -210,11 +211,6 @@ func (ws *WebSessionV2) SetPriv(priv []byte) {
 // bearer authentication
 func (ws *WebSessionV2) GetBearerToken() string {
 	return ws.Spec.BearerToken
-}
-
-// SetBearerTokenExpiryTime sets bearer token expiry time
-func (ws *WebSessionV2) SetBearerTokenExpiryTime(tm time.Time) {
-	ws.Spec.BearerTokenExpires = tm
 }
 
 // SetExpiryTime sets session expiry time
@@ -414,32 +410,284 @@ func GetWebSessionMarshaler() WebSessionMarshaler {
 	return webSessionMarshaler
 }
 
-// GetWebSessionRequest contains the parameters to request a regular
-// web session.
-type GetWebSessionRequest struct {
-	// SessionID is the session ID to request
-	SessionID string
-}
-
 // Check validates the request.
 func (r *GetWebSessionRequest) Check() error {
+	if r.User == "" {
+		return trace.BadParameter("user name missing")
+	}
 	if r.SessionID == "" {
-		return trace.BadParameter("get web session: session ID missing")
+		return trace.BadParameter("session ID missing")
 	}
 	return nil
-}
-
-// DeleteWebSessionRequest contains the parameters to delete a regular
-// web session.
-type DeleteWebSessionRequest struct {
-	// SessionID is the session ID to request
-	SessionID string
 }
 
 // Check validates the request.
 func (r *DeleteWebSessionRequest) Check() error {
 	if r.SessionID == "" {
-		return trace.BadParameter("delete web session: session ID missing")
+		return trace.BadParameter("session ID missing")
 	}
 	return nil
+}
+
+// NewWebToken returns a new web token with the given value and spec
+func NewWebToken(spec WebTokenSpecV1) WebToken {
+	token := &WebTokenV1{
+		Kind:    KindWebToken,
+		Version: V1,
+		Metadata: Metadata{
+			Name:      spec.Token,
+			Namespace: defaults.Namespace,
+		},
+		Spec: spec,
+	}
+	token.Metadata.SetExpiry(spec.Expires)
+	return token
+}
+
+// WebToken is a time-limited unique token bound to a user's session
+type WebToken interface {
+	// Resource represents common properties for all resources.
+	Resource
+
+	// CheckAndSetDefaults checks and set default values for any missing fields.
+	CheckAndSetDefaults() error
+	// GetToken returns the token value
+	GetToken() string
+	// SetToken sets the token value
+	SetToken(token string)
+	// GetUser returns the user the token is bound to
+	GetUser() string
+	// SetUser sets the user the token is bound to
+	SetUser(user string)
+	// String returns the text representation of this token
+	String() string
+	// V1 returns the current version of the resource
+	V1() *WebTokenV1
+}
+
+var _ WebToken = &WebTokenV1{}
+
+// GetMetadata returns the token metadata
+func (r *WebTokenV1) GetMetadata() Metadata {
+	return r.Metadata
+}
+
+// GetKind returns the token resource kind
+func (r *WebTokenV1) GetKind() string {
+	return r.Kind
+}
+
+// GetSubKind returns the token resource subkind
+func (r *WebTokenV1) GetSubKind() string {
+	return r.SubKind
+}
+
+// SetSubKind sets the token resource subkind
+func (r *WebTokenV1) SetSubKind(subKind string) {
+	r.SubKind = subKind
+}
+
+// GetVersion returns the token resource version
+func (r *WebTokenV1) GetVersion() string {
+	return r.Version
+}
+
+// GetName returns the token value
+func (r *WebTokenV1) GetName() string {
+	return r.Metadata.Name
+}
+
+// SetName sets the token value
+func (r *WebTokenV1) SetName(name string) {
+	r.Metadata.Name = name
+}
+
+// GetResourceID returns the token resource ID
+func (r *WebTokenV1) GetResourceID() int64 {
+	return r.Metadata.GetID()
+}
+
+// SetResourceID sets the token resource ID
+func (r *WebTokenV1) SetResourceID(id int64) {
+	r.Metadata.SetID(id)
+}
+
+// SetTTL sets the token resource TTL (time-to-live) value
+func (r *WebTokenV1) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+	r.Metadata.SetTTL(clock, ttl)
+}
+
+// GetToken returns the token value
+func (r *WebTokenV1) GetToken() string {
+	return r.Spec.Token
+}
+
+// SetToken sets the token value
+func (r *WebTokenV1) SetToken(token string) {
+	r.Spec.Token = token
+}
+
+// GetUser returns the user this token is bound to
+func (r *WebTokenV1) GetUser() string {
+	return r.Spec.User
+}
+
+// SetUser sets the user this token is bound to
+func (r *WebTokenV1) SetUser(user string) {
+	r.Spec.User = user
+}
+
+// Expiry returns the token absolute expiration time
+func (r *WebTokenV1) Expiry() time.Time {
+	return r.Spec.Expires
+}
+
+// SetExpiry sets the token absolute expiration time
+func (r *WebTokenV1) SetExpiry(t time.Time) {
+	r.Spec.Expires = t
+}
+
+// CheckAndSetDefaults validates this token value and sets defaults
+func (r *WebTokenV1) CheckAndSetDefaults() error {
+	return r.Metadata.CheckAndSetDefaults()
+}
+
+// V1 returns the current version of this token.
+func (r *WebTokenV1) V1() *WebTokenV1 {
+	return r
+}
+
+// String returns string representation of the token.
+func (r *WebTokenV1) String() string {
+	return fmt.Sprintf("WebToken(kind=%v,user=%v,token=%v,expires=%v)",
+		r.GetKind(), r.GetUser(), r.GetToken(), r.Expiry())
+}
+
+// MarshalWebToken serializes the web token as JSON-encoded payload
+func MarshalWebToken(token WebToken, opts ...MarshalOption) ([]byte, error) {
+	cfg, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	type tokenV1 interface {
+		V1() *WebTokenV1
+	}
+	version := cfg.GetVersion()
+	switch version {
+	case V1:
+		value, ok := token.(tokenV1)
+		if !ok {
+			return nil, trace.BadParameter("don't know how to marshal web token %v", V1)
+		}
+		v1 := value.V1()
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *v1
+			copy.Metadata.ID = 0
+			v1 = &copy
+		}
+		return utils.FastMarshal(v1)
+	default:
+		return nil, trace.BadParameter("version %v is not supported", version)
+	}
+}
+
+// UnmarshalWebToken interprets web token from on-disk byte format
+func UnmarshalWebToken(bytes []byte, opts ...MarshalOption) (WebToken, error) {
+	config, err := collectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var hdr ResourceHeader
+	err = json.Unmarshal(bytes, &hdr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch hdr.Version {
+	case V1:
+		var token WebTokenV1
+		if err := utils.UnmarshalWithSchema(GetWebTokenSchema(), &token, bytes); err != nil {
+			return nil, trace.BadParameter("invalid web token: %v", err.Error())
+		}
+		utils.UTC(&token.Spec.Expires)
+		if err := token.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if config.ID != 0 {
+			token.SetResourceID(config.ID)
+		}
+		if !config.Expires.IsZero() {
+			token.Metadata.SetExpiry(config.Expires)
+		}
+		return &token, nil
+	}
+	return nil, trace.BadParameter("web token resource version %v is not supported", hdr.Version)
+}
+
+// GetWebTokenSchema returns JSON schema for the web token resource
+func GetWebTokenSchema() string {
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, WebTokenSpecV1Schema, "")
+}
+
+// WebTokenSpecV1Schema is JSON schema for the web token V1
+const WebTokenSpecV1Schema = `{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["token", "user", "expires"],
+  "properties": {
+    "user": {"type": "string"},
+    "token": {"type": "string"},
+    "expires": {"type": "string"}
+  }
+}`
+
+// Check validates the request.
+func (r *GetWebTokenRequest) Check() error {
+	if r.User == "" {
+		return trace.BadParameter("user name is missing")
+	}
+	if r.Token == "" {
+		return trace.BadParameter("token is missing")
+	}
+	return nil
+}
+
+// Check validates the request.
+func (r *DeleteWebTokenRequest) Check() error {
+	if r.Token == "" {
+		return trace.BadParameter("token is missing")
+	}
+	return nil
+}
+
+// CheckAndSetDefaults validates the request and sets defaults.
+func (r *NewWebSessionRequest) CheckAndSetDefaults() error {
+	if r.User == "" {
+		return trace.BadParameter("user name is required")
+	}
+	if len(r.Roles) == 0 {
+		return trace.BadParameter("roles is required")
+	}
+	if len(r.Traits) == 0 {
+		return trace.BadParameter("traits is required")
+	}
+	if r.SessionTTL == 0 {
+		r.SessionTTL = defaults.CertDuration
+	}
+	return nil
+}
+
+// NewWebSessionRequest defines a request to create a new user
+// web session
+type NewWebSessionRequest struct {
+	// User specifies the user this session is bound to
+	User string
+	// Roles optionally lists additional user roles
+	Roles []string
+	// Traits optionally lists role traits
+	Traits map[string][]string
+	// SessionTTL optionally specifies the session time-to-live.
+	// If left unspecified, the default certifice duration is used.
+	SessionTTL time.Duration
 }

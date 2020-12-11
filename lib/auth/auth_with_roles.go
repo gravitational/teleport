@@ -821,39 +821,49 @@ func (a *ServerWithRoles) DeleteWebSession(user string, sid string) error {
 
 // GetWebSession returns the web session specified with req
 func (a *ServerWithRoles) GetWebSessionV2(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
-	// TODO
-	return nil, nil
+	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// TODO(dmitri): move to a dedicated impl
+	return a.authServer.GetWebSessionV2(ctx, req)
 }
 
 // GetWebSessions returns the list of all web sessions
 func (a *ServerWithRoles) GetWebSessionsV2(ctx context.Context) ([]services.WebSession, error) {
-	// TODO
-	return nil, nil
+	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// TODO(dmitri): move to a dedicated impl
+	return a.authServer.GetWebSessionsV2(ctx)
 }
 
 // UpsertWebSession creates a new or updates the existing web session from the specified session
 func (a *ServerWithRoles) UpsertWebSessionV2(ctx context.Context, session services.WebSession) error {
-	// TODO
-	return nil
+	return trace.NotImplemented(notImplementedMessage)
 }
 
 // DeleteWebSession removes the web session specified with req
 func (a *ServerWithRoles) DeleteWebSessionV2(ctx context.Context, req services.DeleteWebSessionRequest) error {
-	// TODO
-	return nil
+	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	// TODO(dmitri): move to a dedicated impl
+	return a.authServer.DeleteWebSessionV2(ctx, req)
 }
 
 // DeleteAllWebSessions removes all web sessions.
 func (a *ServerWithRoles) DeleteAllWebSessionsV2(ctx context.Context) error {
-	// TODO
-	// if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbList); err != nil {
-	// 	return trace.Wrap(err)
-	// }
-	// if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
-	// 	return trace.Wrap(err)
-	// }
-	// return a.authServer.DeleteAllWebSessionV2(ctx)
-	return nil
+	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbList); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	// TODO(dmitri): move to a dedicated impl
+	return a.authServer.DeleteAllWebSessionsV2(ctx)
 }
 
 func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {

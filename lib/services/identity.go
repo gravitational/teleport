@@ -219,16 +219,16 @@ type Identity interface {
 	// GetResetPasswordTokenSecrets returns token secrets
 	GetResetPasswordTokenSecrets(ctx context.Context, tokenID string) (ResetPasswordTokenSecrets, error)
 
-	// FIXME(dmitri): avoid name collisions with embedding other interfaces
-	// // WebSessionInterface defines web session features.
-	WebSessionInterface
-
 	// GetWebSession returns a web session state for a given user and session id
 	GetWebSession(user, sid string) (WebSession, error)
 	// UpsertWebSession updates or inserts a web session for a user and session
 	UpsertWebSession(user, sid string, session WebSession) error
 	// DeleteWebSession deletes web session from the storage
 	DeleteWebSession(user, sid string) error
+
+	// FIXME(dmitri): avoid name collisions with embedding other interfaces
+	// // WebSessionInterface defines web session features.
+	WebSessionInterface
 
 	// AppSession defines application session features.
 	AppSession

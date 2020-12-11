@@ -850,8 +850,6 @@ func (a *Server) CheckU2FSignResponse(user string, response *u2f.AuthenticateCha
 	})
 }
 
-// TODO(dmitri): enable reuse of the session ID
-//
 // ExtendWebSession creates a new web session for a user based on a valid previous sessionID.
 // Additional roles are appended to initial roles if there is an approved access request.
 func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, identity tlsca.Identity) (services.WebSession, error) {
@@ -896,6 +894,8 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 	sess.SetExpiryTime(expiresAt)
 	bearerTokenTTL := utils.MinTTL(utils.ToTTL(a.clock, expiresAt), BearerTokenTTL)
 	sess.SetBearerTokenExpiryTime(a.clock.Now().UTC().Add(bearerTokenTTL))
+	// Keep the session ID
+	sess.SetName(prevSessionID)
 	if err := a.UpsertWebSession(user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1463,11 +1463,7 @@ func (a *Server) GetTokens(opts ...services.MarshalOption) (tokens []services.Pr
 	return tokens, nil
 }
 
-func (a *Server) NewWebSessionV2(user services.User, checker services.AccessChecker) (services.WebSession, error) {
-	// TODO(dmitri): accept existing session ID?
-	return nil, nil
-}
-
+// NewWebSession creates and returns a new web session for the specified user, given role and traits
 func (a *Server) NewWebSession(username string, roles []string, traits wrappers.Traits) (services.WebSession, error) {
 	user, err := a.GetUser(username, false)
 	if err != nil {
@@ -1477,7 +1473,6 @@ func (a *Server) NewWebSession(username string, roles []string, traits wrappers.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	priv, pub, err := a.GetNewKeyPairFromPool()
 	if err != nil {
 		return nil, trace.Wrap(err)

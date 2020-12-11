@@ -384,6 +384,30 @@ message CreateAppSessionResponse {
 // DeleteAppSessionRequest contains the parameters used to remove an application web session.
 message DeleteAppSessionRequest { string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ]; }
 
+// GetWebSessionRequest are the parameters used to request a regular web session.
+message GetWebSessionRequest {
+    // SessionID is the ID of the session being requested.
+    string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ];
+}
+
+// GetWebSessionResponse contains the requested web session.
+message GetWebSessionResponse {
+    // Session is the web session.
+    types.WebSessionV2 Session = 1 [ (gogoproto.jsontag) = "session" ];
+}
+
+// GetWebSessionsResponse contains all the requested web sessions.
+message GetWebSessionsResponse {
+    // Sessions is a list of web sessions.
+    repeated types.WebSessionV2 Sessions = 1 [ (gogoproto.jsontag) = "sessions" ];
+}
+
+// DeleteWebSessionRequest contains the parameters used to remove a web session.
+message DeleteWebSessionRequest {
+    // SessionID specifies the session ID to remove
+    string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ];
+}
+
 // GetKubeServicesRequest are the parameters used to request kubernetes services.
 message GetKubeServicesRequest {}
 
@@ -567,6 +591,15 @@ service AuthService {
     rpc DeleteAppSession(DeleteAppSessionRequest) returns (google.protobuf.Empty);
     // DeleteAllAppSessions removes all application web sessions.
     rpc DeleteAllAppSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+    // GetWebSession gets a web session.
+    rpc GetWebSession(GetWebSessionRequest) returns (GetWebSessionResponse);
+    // GetWebSessions gets all web sessions.
+    rpc GetWebSessions(google.protobuf.Empty) returns (GetWebSessionsResponse);
+    // DeleteWebSession deletes a web session.
+    rpc DeleteWebSession(DeleteWebSessionRequest) returns (google.protobuf.Empty);
+    // DeleteAllWebSessions deletes all web sessions.
+    rpc DeleteAllWebSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
 
     // UpdateRemoteCluster updates remote cluster
     rpc UpdateRemoteCluster(types.RemoteClusterV3) returns (google.protobuf.Empty);
