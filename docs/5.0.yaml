@@ -29,6 +29,9 @@ plugins:
     - search:
         separator: '[\s\-\.]'
     - markdownextradata: {}
+    - redirects:
+        redirect_maps:
+          'kubernetes-ssh.md': 'kubernetes-access.md'
 extra_javascript: []
 extra:
     version: 5.0
