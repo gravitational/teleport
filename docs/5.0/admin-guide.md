@@ -1268,15 +1268,51 @@ $ tctl status
 ## Ansible Integration
 
 Ansible uses the OpenSSH client by default. This makes it compatible with
-Teleport without any extra work, except configuring OpenSSH client to work with
-Teleport Proxy:
+Teleport without any extra work, except configuring OpenSSH client to work with Teleport Proxy.
 
-* configure your OpenSSH to connect to Teleport proxy and use `ssh-agent` socket
-* enable scp mode in the Ansible config file (default is `/etc/ansible/ansible.cfg` ):
 
-```bash
-scp_if_ssh = True
-```
+There are two recommended scenarios:
+
+1. Ansible connects directly to Teleport Node using built in ssh library over port 3022 and Teleport user credentials
+
+2. Ansible connects to Teleport Node using the Teleport Proxy as a jumphost. This method uses Teleport user credentials over port 3022
+
+The configuration for openssh is as follows:
+
+1. Add hosts to know hosts in Ansible node
+    * From Teleport Auth Node:
+        ```bash
+        $ tsh auth export --type=host
+        ```
+    * Add the output on Ansible node `/.ssh/known_hosts` by modifying the node section to match the nodes you are reaching. (Note: wildcards are accepted)
+    ```bash
+    @cert-authority <NODE(S)> ssh-rsa AAA...REDACTED...TD9 logins=-teleport-nologin-f0d...REDACTED...fb1&type=host
+    ```
+    * Modify ssh config file to include the proxy node and the desired Teleport nodes with `ProxyCommand` or `ProxyJump` parameters configured
+
+1. Create identity file and extract to Ansible node
+    * From Teleport Auth Node:
+        ```bash
+        $ tctl auth sign --user=<teleport-user> --format=openssh --out=<file-name>
+        ```
+    * Extract both files created and add to `/.ssh/` on Ansible node
+
+1. Enable `scp mode` in the Ansible config file (default is `/etc/ansible/ansible.cfg` ):
+        ``` bash
+        scp_if_ssh = True
+        ```
+
+1. Configure your OpenSSH to connect to Teleport proxy and use `ssh-agent` socket:
+    ```bash
+    $ eval `ssh-agent`
+    $ tsh --proxy=root.example.com login
+    # Verify the certs were added
+    $ ssh-add -L
+    ```
+
+!!! tip "NOTE"
+    Additional Teleport and OpenSSH intergration information can be located [HERE](https://goteleport.com/teleport/docs/openssh-teleport/#using-openssh-client)
+
 
 ## Kubernetes Integration
 
