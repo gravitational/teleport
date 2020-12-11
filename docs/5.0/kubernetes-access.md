@@ -5,45 +5,12 @@ description: How to set up and configure Teleport for Kubernetes access with SSO
 
 # Teleport Kubernetes Access
 
-Teleport has the ability to act as a compliance gateway for managing privileged
-access to Kubernetes clusters. This enables the following capabilities:
+Teleport handles SSO and provides a unified access plane for Kubernetes clusters.
 
-* Teleport acts as a single authentication endpoint for both SSH and multiple
-  Kubernetes clusters. Users can authenticate against a Teleport Access Plane using
-  Teleport's [`tsh login`](cli-docs.md#tsh-login) command and retrieve credentials
-  for both SSH and Kubernetes API.
-* Users RBAC roles are always synchronized between SSH and Kubernetes, making
-  it easier to implement policies like _developers must not access production
-  data_.
-* Complete `kubectl` auditing and session recordings for `kubectl exec`
-* Multi Kubernetes Support. Login to Teleport once and quickly switch between multiple K8s clusters using [`tsh kube login`](cli-docs.md#tsh-kube-login)
-
-## Start Here
-
-Before we dive into setup, we've a few options to help guide you. We've created some example
-Teleport Kubernetes Access configurations for different scenarios, all the way from solo developers
-accessing minikube through to large enterprises accessing hundreds of Kubernetes clusters.
-
-Teleport Kubernetes service requires Auth & Proxy to be setup. This can be inside or
-outside of k8s.
-
-Example Kubernetes Cluster Configurations:
-
-* Connecting to a local MicroK8s Cluster:
-     * Use Option 2, once setup you'll need to connect to Ingress via TODO
-
-* Connecting to one EKS/GKS hosted Kubernetes:
-      * Use Option 2, once setup you'll need to connect to Ingress via TODO
-
-* Connecting to multiple Kubernetes clusters in one cloud/region:
-      * Use Option 1, once setup you'll need to connect via the root Teleport service.
-
-* Connecting to multiple Kubernetes clusters in multiple regions/cloud:
-      *  Use Option 1, once setup you'll need to connect via the root Teleport service.
-      *  Use Option 1 combined with [Trusted Clusters](kubernetes-access.md#multiple-kubernetes-clusters-via-trusted-cluster)
-
-* Migrating pre-5.0 Teleport clusters to new `kubernetes_service`:
-      * Please review our [Teleport Kubernetes Guide](kubernetes-5.0-migration.md)
+* Users can login once using [`tsh login`](cli-docs.md#tsh-login) and
+  switch between multiple clusters using [`tsh kube login`](cli-docs.md#tsh-kube-login).
+* Admins can use roles to implement policies like `developers must not access production`.
+* Achieve compliance by capturing `kubectl` events and session recordings for `kubectl exec`.
 
 ## Teleport Kubernetes Service
 
@@ -90,7 +57,7 @@ connect to it over reverse tunnels.
 
 The root Teleport Cluster should be setup following our standard config, to make sure
 clients can connect you must make sure that an invite token is set for the `kube`
-service and proxy_addr has `kube_lisetn_addr` set.
+service and proxy_addr has `kube_listen_addr` set.
 
 ```yaml
 # Example Snippet for the Teleport Root Service
