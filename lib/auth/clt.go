@@ -1071,7 +1071,7 @@ func (c *Client) GetUser(name string, withSecrets bool) (services.User, error) {
 	if err == nil {
 		return user, nil
 	}
-	if status.Code(err) != codes.Unimplemented {
+	if status.Code(trail.ToGRPC(err)) != codes.Unimplemented {
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
@@ -1094,7 +1094,7 @@ func (c *Client) GetUsers(withSecrets bool) ([]services.User, error) {
 	if err == nil {
 		return users, nil
 	}
-	if status.Code(err) != codes.Unimplemented {
+	if status.Code(trail.ToGRPC(err)) != codes.Unimplemented {
 		return nil, trace.Wrap(err)
 	}
 	if withSecrets {
@@ -1128,8 +1128,8 @@ func (c *Client) DeleteUser(ctx context.Context, user string) error {
 
 	// Allows cross-version compatibility.
 	// DELETE IN: 5.2 REST method is replaced by grpc with context.
-	if status.Code(err) != codes.Unimplemented {
-		return trace.Wrap(trail.FromGRPC(err))
+	if status.Code(trail.ToGRPC(err)) != codes.Unimplemented {
+		return trace.Wrap(err)
 	}
 
 	if _, err := c.Delete(c.Endpoint("users", user)); err != nil {
