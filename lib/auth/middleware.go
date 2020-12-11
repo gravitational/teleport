@@ -289,7 +289,7 @@ func (a *AuthMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	user, err := a.GetUser(r)
 	if err != nil {
-		log.Errorf("%v", trace.DebugReport(err))
+		log.WithError(err).Info(err.Error())
 		trace.WriteError(w, trace.Unwrap(err))
 		return
 	}

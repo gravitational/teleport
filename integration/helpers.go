@@ -1022,11 +1022,11 @@ type proxyServer struct {
 func (p *proxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Validate http connect parameters.
 	if r.Method != http.MethodConnect {
-		trace.WriteError(w, trace.BadParameter("%v not supported", r.Method))
+		trace.WriteError(w, trace.Unwrap(trace.BadParameter("%v not supported", r.Method)))
 		return
 	}
 	if r.Host == "" {
-		trace.WriteError(w, trace.BadParameter("host not set"))
+		trace.WriteError(w, trace.Unwrap(trace.BadParameter("host not set")))
 		return
 	}
 
@@ -1034,7 +1034,8 @@ func (p *proxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// ensure the target host is accessible.
 	dconn, err := net.Dial("tcp", r.Host)
 	if err != nil {
-		trace.WriteError(w, err)
+		log.WithError(err).Info(err.Error())
+		trace.WriteError(w, trace.Unwrap(err))
 		return
 	}
 	defer dconn.Close()
@@ -1046,12 +1047,13 @@ func (p *proxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Hijack request so we can get underlying connection.
 	hj, ok := w.(http.Hijacker)
 	if !ok {
-		trace.WriteError(w, trace.AccessDenied("unable to hijack connection"))
+		trace.WriteError(w, trace.Unwrap(trace.AccessDenied("unable to hijack connection")))
 		return
 	}
 	sconn, _, err := hj.Hijack()
 	if err != nil {
-		trace.WriteError(w, err)
+		log.WithError(err).Info(err.Error())
+		trace.WriteError(w, trace.Unwrap(err))
 		return
 	}
 	defer sconn.Close()
