@@ -35,7 +35,7 @@ import (
 // control is enforced.
 func (s *Server) CreateAppSession(ctx context.Context, req services.CreateAppSessionRequest, user services.User, checker services.AccessChecker) (services.WebSession, error) {
 	// Check that a matching parent web session exists in the backend.
-	parentSession, err := s.GetWebSession(ctx, services.GetWebSessionRequest{User: req.Username, SessionID: req.ParentSession})
+	parentSession, err := s.GetWebSession(req.Username, req.ParentSession)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

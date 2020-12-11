@@ -118,9 +118,6 @@ type ReadAccessPoint interface {
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, services.GetAppSessionRequest) (services.WebSession, error)
 
-	// GetWebSession gets a regular web session.
-	GetWebSession(context.Context, services.GetWebSessionRequest) (services.WebSession, error)
-
 	// GetRemoteClusters returns a list of remote clusters
 	GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error)
 

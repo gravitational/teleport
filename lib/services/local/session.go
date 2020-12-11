@@ -96,8 +96,57 @@ func (s *IdentityService) DeleteAllAppSessions(ctx context.Context) error {
 	return nil
 }
 
+// GetWebSession returns a web session state for the given user and session id
+func (s *IdentityService) GetWebSession(user, sid string) (services.WebSession, error) {
+	item, err := s.Get(context.TODO(), backend.Key(webPrefix, sessionsPrefix, sid))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(item.Value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// this is for backwards compatibility to ensure we
+	// always have these values
+	session.SetUser(user)
+	session.SetName(sid)
+	return session, nil
+}
+
+// UpsertWebSession updates or inserts a web session for a user and session id
+// the session will be created with bearer token expiry time TTL, because
+// it is expected to be extended by the client before then
+func (s *IdentityService) UpsertWebSession(user, sid string, session services.WebSession) error {
+	session.SetUser(user)
+	session.SetName(sid)
+	value, err := services.GetWebSessionMarshaler().MarshalWebSession(session)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sessionMetadata := session.GetMetadata()
+	item := backend.Item{
+		Key:     backend.Key(webPrefix, sessionsPrefix, sid),
+		Value:   value,
+		Expires: backend.EarliestExpiry(session.GetBearerTokenExpiryTime(), sessionMetadata.Expiry()),
+	}
+	_, err = s.Put(context.TODO(), item)
+	return trace.Wrap(err)
+}
+
+// DeleteWebSession deletes web session from the storage
+func (s *IdentityService) DeleteWebSession(user, sid string) error {
+	if user == "" {
+		return trace.BadParameter("missing username")
+	}
+	if sid == "" {
+		return trace.BadParameter("missing session id")
+	}
+	err := s.Delete(context.TODO(), backend.Key(webPrefix, usersPrefix, user, sessionsPrefix, sid))
+	return trace.Wrap(err)
+}
+
 // GetWebSession returns a web session state described with req
-func (s *IdentityService) GetWebSession(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
+func (s *IdentityService) GetWebSessionV2(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
 	if err := req.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -109,15 +158,11 @@ func (s *IdentityService) GetWebSession(ctx context.Context, req services.GetWeb
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// this is for backwards compatibility to ensure we
-	// always have these values
-	session.SetUser(req.User)
-	session.SetName(req.SessionID)
 	return session, nil
 }
 
 // GetWebSessions gets all regular web sessions.
-func (s *IdentityService) GetWebSessions(ctx context.Context) ([]services.WebSession, error) {
+func (s *IdentityService) GetWebSessionsV2(ctx context.Context) ([]services.WebSession, error) {
 	startKey := backend.Key(webPrefix, sessionsPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
@@ -134,13 +179,10 @@ func (s *IdentityService) GetWebSessions(ctx context.Context) ([]services.WebSes
 	return out, nil
 }
 
-// UpsertWebSession updates or inserts a web session for the given req.
+// UpsertWebSession updates the existing or inserts a new web session.
 // Session will be created with bearer token expiry time TTL, because
 // it is expected that client will periodically update it
-func (s *IdentityService) UpsertWebSession(ctx context.Context, session services.WebSession) error {
-	// TODO(dmitri): session should already have the user and name (ID)
-	// session.SetUser(req.User)
-	// session.SetName(req.Name)
+func (s *IdentityService) UpsertWebSessionV2(ctx context.Context, session services.WebSession) error {
 	value, err := services.GetWebSessionMarshaler().MarshalWebSession(session)
 	if err != nil {
 		return trace.Wrap(err)
@@ -155,8 +197,8 @@ func (s *IdentityService) UpsertWebSession(ctx context.Context, session services
 	return trace.Wrap(err)
 }
 
-// DeleteWebSession deletes web session from the storage
-func (s *IdentityService) DeleteWebSession(ctx context.Context, req services.DeleteWebSessionRequest) error {
+// DeleteWebSession deletes web session specified with req from the storage
+func (s *IdentityService) DeleteWebSessionV2(ctx context.Context, req services.DeleteWebSessionRequest) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -164,7 +206,7 @@ func (s *IdentityService) DeleteWebSession(ctx context.Context, req services.Del
 }
 
 // DeleteAllWebSessions removes all regular web sessions.
-func (s *IdentityService) DeleteAllWebSessions(ctx context.Context) error {
+func (s *IdentityService) DeleteAllWebSessionsV2(ctx context.Context) error {
 	startKey := backend.Key(webPrefix, sessionsPrefix)
 	if err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
 		return trace.Wrap(err)
