@@ -1493,7 +1493,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		DynamicAccess: cfg.services,
 		Presence:      cfg.services,
 		AppSession:    cfg.services,
-		// TODO(dmitri)
+		// TODO(dmitri): move to a dedicated impl
 		WebSession:      cfg.services,
 		Component:       teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
 		MetricComponent: teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),

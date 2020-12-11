@@ -1481,8 +1481,6 @@ func (r *webSession) processEvent(ctx context.Context, event services.Event) err
 	switch event.Type {
 	case backend.OpDelete:
 		err := r.webSessionCache.DeleteWebSessionV2(ctx, services.DeleteWebSessionRequest{
-			// TODO(dmitri)
-			// User: resource.GetUser(),
 			SessionID: event.Resource.GetName(),
 		})
 		if err != nil {
