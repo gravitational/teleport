@@ -6,7 +6,7 @@ description: How to migrate pre-5.0 Teleport clusters to new configuration
 # Migrating to Teleport Kubernetes Access 5.0
 
 In release 5.0, Teleport has changed the [Kubernetes
-integration](kubernetes-ssh.md) to improve configuration and user experience.
+integration](kubernetes-access.md) to improve configuration and user experience.
 These changes are backwards compatible and there is no _required_ migration.
 However, to get the most out of Teleport, you should consider migrating as
 described below.
