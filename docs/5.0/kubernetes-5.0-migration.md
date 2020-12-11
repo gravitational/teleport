@@ -6,7 +6,7 @@ description: How to migrate pre-5.0 Teleport clusters to new configuration
 # Migrating to Teleport Kubernetes Access 5.0
 
 In release 5.0, Teleport has changed the [Kubernetes
-integration](kubernetes-ssh.md) to improve configuration and user experience.
+integration](kubernetes-access.md) to improve configuration and user experience.
 These changes are backwards compatible and there is no _required_ migration.
 However, to get the most out of Teleport, you should consider migrating as
 described below.
@@ -353,8 +353,8 @@ spec:
   allow:
     logins: ['{% raw %}{{internal.logins}}{% endraw %}']
     # Define the Kubernetes users and groups mapped to users with this role.
-    kubernetes_users: ["{% raw %}{{internal.kubernetes_users}}{% endraw %}"]]
-    kubernetes_groups: ["some-group", "{% raw %}{{internal.kubernetes_groups}}{% endraw %}"]]
+    kubernetes_users: ["{% raw %}{{internal.kubernetes_users}}{% endraw %}"]
+    kubernetes_groups: ["some-group", "{% raw %}{{internal.kubernetes_groups}}{% endraw %}"]
 
     # List of kubernetes labels a user will be allowed to connect to:
     kubernetes_labels:
