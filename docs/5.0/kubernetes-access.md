@@ -362,7 +362,7 @@ spec:
     # kubernetes groups the users of this role will be assigned to.
     # note that you can refer to a SAML/OIDC trait via the "external" property bag,
     # this allows you to specify Kubernetes group membership in an identity manager:
-    kubernetes_groups: ["system:masters", "{% raw %}{{external.trait_name}}{% endraw %}"]]
+    kubernetes_groups: ["system:masters", "{% raw %}{{external.trait_name}}{% endraw %}"]
 ```
 
 To add `kubernetes_groups` setting to an existing Teleport role, you can either

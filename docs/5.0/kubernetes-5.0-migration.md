@@ -353,8 +353,8 @@ spec:
   allow:
     logins: ['{% raw %}{{internal.logins}}{% endraw %}']
     # Define the Kubernetes users and groups mapped to users with this role.
-    kubernetes_users: ["{% raw %}{{internal.kubernetes_users}}{% endraw %}"]]
-    kubernetes_groups: ["some-group", "{% raw %}{{internal.kubernetes_groups}}{% endraw %}"]]
+    kubernetes_users: ["{% raw %}{{internal.kubernetes_users}}{% endraw %}"]
+    kubernetes_groups: ["some-group", "{% raw %}{{internal.kubernetes_groups}}{% endraw %}"]
 
     # List of kubernetes labels a user will be allowed to connect to:
     kubernetes_labels:
