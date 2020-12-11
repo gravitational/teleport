@@ -59,7 +59,7 @@ type Config struct {
 	MinimumWindow time.Duration
 	// MinimumMeasurments is the min amount of requests
 	MinimumMeasurements int
-	// CollectProfiles collects cpu, heap, and goroutin profiles
+	// CollectProfiles collects cpu, heap, and goroutine profiles
 	CollectProfiles bool
 	// ProfilePath is the path where the profiles should be saved
 	ProfilePath string
@@ -153,11 +153,6 @@ func ExportLatencyProfile(path string, h *hdrhistogram.Histogram, ticks int32, v
 		return "", trace.Wrap(err)
 	}
 	return fo.Name(), nil
-}
-
-//BenchmarkCLI ...
-func (c *Config) BenchmarkCLI(ctx context.Context, tc *client.TeleportClient) (Result, error) {
-	return Result{}, nil
 }
 
 // Benchmark connects to remote server and executes requests in parallel according
