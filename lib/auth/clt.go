@@ -237,7 +237,7 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 	for i, a := range cfg.Addrs {
 		addrs[i] = a.Addr
 	}
-	apiClient, err := proto.NewTLSClient(proto.Config{
+	apiClient, err := proto.NewClient(proto.Config{
 		Dialer:          cfg.Dialer,
 		KeepAlivePeriod: cfg.KeepAlivePeriod,
 		KeepAliveCount:  cfg.KeepAliveCount,

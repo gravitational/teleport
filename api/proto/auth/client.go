@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -64,9 +63,9 @@ func (c *Client) TLSConfig() *tls.Config {
 	return c.c.TLS
 }
 
-// NewTLSClient returns a new auth client that uses mutual TLS authentication and
+// NewClient returns a new auth client that uses mutual TLS authentication and
 // connects to the remote server using the Dialer or Addrs in Config.
-func NewTLSClient(cfg Config, params ...roundtrip.ClientParam) (*Client, error) {
+func NewClient(cfg Config) (*Client, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
