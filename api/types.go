@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package api holds commonly used types, contants, defaults, and functions
+// Package api holds commonly used types, constants, defaults, and support functions
 // that are related to the api client implementation.
 package api
 

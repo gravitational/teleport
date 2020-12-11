@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"time"
 )
@@ -28,7 +29,7 @@ type ContextDialer interface {
 	DialContext(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
-// ContextDialerFunc is a function wrapper that implementsa
+// ContextDialerFunc is a function wrapper that implements the
 // ContextDialer interface
 type ContextDialerFunc func(ctx context.Context, network, addr string) (net.Conn, error)
 
@@ -38,9 +39,9 @@ func (f ContextDialerFunc) DialContext(ctx context.Context, network, addr string
 }
 
 // NewAddrDialer returns new dialer from a list of addresses
-func NewAddrDialer(addrs []string, keepAliveInterval time.Duration, dialTimeout time.Duration) ContextDialer {
+func NewAddrDialer(addrs []string, keepAliveInterval time.Duration, dialTimeout time.Duration) (ContextDialer, error) {
 	if len(addrs) == 0 {
-		panic("no addresses to dial")
+		return nil, fmt.Errorf("no addreses to dial")
 	}
 	dialer := net.Dialer{
 		Timeout:   dialTimeout,
@@ -55,5 +56,5 @@ func NewAddrDialer(addrs []string, keepAliveInterval time.Duration, dialTimeout 
 		}
 		// not wrapping on purpose to preserve the original error
 		return nil, err
-	})
+	}), nil
 }

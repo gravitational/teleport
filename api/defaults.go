@@ -23,10 +23,10 @@ const (
 	// connection attempts
 	DefaultDialTimeout = 30 * time.Second
 
-	// HTTPMaxIdleConns is the max idle connections across all hosts.
+	// HTTPMaxIdleConns is the maximum idle connections across all hosts.
 	HTTPMaxIdleConns = 2000
 
-	// HTTPMaxIdleConnsPerHost is the max idle connections per-host.
+	// HTTPMaxIdleConnsPerHost is the maximum idle connections per-host.
 	HTTPMaxIdleConnsPerHost = 1000
 
 	// HTTPMaxConnsPerHost is the maximum number of connections per-host.
@@ -37,11 +37,11 @@ const (
 
 	// KeepAliveCountMax is the number of keep-alive messages that can be sent
 	// without receiving a response from the client before the client is
-	// disconnected. The max count mirrors ClientAliveCountMax of sshd.
+	// disconnected. The value mirrors ClientAliveCountMax of sshd.
 	KeepAliveCountMax = 3
 
 	// ServerKeepAliveTTL is a period between server keep alives,
-	// when servers announce only presence withough sending full data
+	// when servers only announce presence without sending full data
 	ServerKeepAliveTTL = 60 * time.Second
 
 	// SignupTokenTTL is a default TTL for a web signup one time token

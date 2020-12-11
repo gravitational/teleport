@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/proto/auth"
-	authProto "github.com/gravitational/teleport/api/proto/auth"
+	proto "github.com/gravitational/teleport/api/proto/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -42,6 +42,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace/trail"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -58,14 +61,14 @@ const (
 )
 
 // These types are aliases for backwards compatibility
-type APIClient = authProto.Client
-type ContextDialer = authProto.ContextDialer
-type ContextDialerFunc = authProto.ContextDialerFunc
+type APIClient = proto.Client
+type ContextDialer = proto.ContextDialer
+type ContextDialerFunc = proto.ContextDialerFunc
 
 var (
 	ServerKeepAliveTTL = api.ServerKeepAliveTTL
 	KeepAliveCountMax  = api.KeepAliveCountMax
-	NewAddrDialer      = authProto.NewAddrDialer
+	NewAddrDialer      = proto.NewAddrDialer
 )
 
 // Client is HTTP Auth API client. It works by connecting to auth servers
@@ -145,7 +148,7 @@ type ClientConfig struct {
 // CheckAndSetDefaults checks and sets default config values
 func (c *ClientConfig) CheckAndSetDefaults() error {
 	if len(c.Addrs) == 0 && c.Dialer == nil {
-		return trace.BadParameter("set parameter AuthAddrs or DialContext")
+		return trace.BadParameter("set parameter Addrs or Dialer")
 	}
 	if c.TLS == nil {
 		return trace.BadParameter("missing parameter TLS")
@@ -161,7 +164,10 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 		for i, a := range c.Addrs {
 			addrs[i] = a.Addr
 		}
-		c.Dialer = NewAddrDialer(addrs, c.KeepAlivePeriod, api.DefaultDialTimeout)
+		var err error
+		if c.Dialer, err = NewAddrDialer(addrs, c.KeepAlivePeriod, api.DefaultDialTimeout); err != nil {
+			return err
+		}
 	}
 	if c.TLS.ServerName == "" {
 		c.TLS.ServerName = teleport.APIDomain
@@ -232,7 +238,7 @@ func NewTLSClient(cfg ClientConfig, params ...roundtrip.ClientParam) (*Client, e
 	for i, a := range cfg.Addrs {
 		addrs[i] = a.Addr
 	}
-	apiClient, err := authProto.NewTLSClient(authProto.Config{
+	apiClient, err := proto.NewClient(proto.Config{
 		Dialer:          cfg.Dialer,
 		KeepAlivePeriod: cfg.KeepAlivePeriod,
 		KeepAliveCount:  cfg.KeepAliveCount,
@@ -1055,6 +1061,83 @@ func (c *Client) UpsertUser(user services.User) error {
 	}
 	_, err = c.PostJSON(c.Endpoint("users"), &upsertUserRawReq{User: data})
 	return trace.Wrap(err)
+}
+
+// GetUser returns a list of usernames registered in the system
+func (c *Client) GetUser(name string, withSecrets bool) (services.User, error) {
+	if name == "" {
+		return nil, trace.BadParameter("missing username")
+	}
+	user, err := c.APIClient.GetUser(name, withSecrets)
+	if err == nil {
+		return user, nil
+	}
+	if status.Code(trail.ToGRPC(err)) != codes.Unimplemented {
+		return nil, trace.Wrap(err)
+	}
+	if withSecrets {
+		return nil, trace.BadParameter("server API appears outdated; cannot get user with secrets")
+	}
+	out, err := c.Get(c.Endpoint("users", name), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	user, err = services.GetUserMarshaler().UnmarshalUser(out.Bytes(), services.SkipValidation())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return user, nil
+}
+
+// GetUsers returns a list of usernames registered in the system
+func (c *Client) GetUsers(withSecrets bool) ([]services.User, error) {
+	users, err := c.APIClient.GetUsers(withSecrets)
+	if err == nil {
+		return users, nil
+	}
+	if status.Code(trail.ToGRPC(err)) != codes.Unimplemented {
+		return nil, trace.Wrap(err)
+	}
+	if withSecrets {
+		return nil, trace.BadParameter("server API appears outdated; cannot get users with secrets")
+	}
+	out, err := c.Get(c.Endpoint("users"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	users = make([]services.User, len(items))
+	for i, userBytes := range items {
+		user, err := services.GetUserMarshaler().UnmarshalUser(userBytes, services.SkipValidation())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		users[i] = user
+	}
+	return users, nil
+}
+
+// DeleteUser deletes a user by username.
+func (c *Client) DeleteUser(ctx context.Context, user string) error {
+	err := c.APIClient.DeleteUser(ctx, user)
+	if err == nil {
+		return nil
+	}
+
+	// Allows cross-version compatibility.
+	// DELETE IN: 5.2 REST method is replaced by grpc with context.
+	if status.Code(trail.ToGRPC(err)) != codes.Unimplemented {
+		return trace.Wrap(err)
+	}
+
+	if _, err := c.Delete(c.Endpoint("users", user)); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // ChangePassword updates users password based on the old password.
@@ -2227,7 +2310,7 @@ type IdentityService interface {
 	// GenerateUserCerts takes the public key in the OpenSSH `authorized_keys` plain
 	// text format, signs it using User Certificate Authority signing key and
 	// returns the resulting certificates.
-	GenerateUserCerts(ctx context.Context, req authProto.UserCertsRequest) (*authProto.Certs, error)
+	GenerateUserCerts(ctx context.Context, req proto.UserCertsRequest) (*proto.Certs, error)
 
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers() error
@@ -2325,7 +2408,7 @@ type ClientI interface {
 	ProcessKubeCSR(req KubeCSR) (*KubeCSRResponse, error)
 
 	// Ping gets basic info about the auth server.
-	Ping(ctx context.Context) (authProto.PingResponse, error)
+	Ping(ctx context.Context) (proto.PingResponse, error)
 
 	// CreateAppSession creates an application web session. Application web
 	// sessions represent a browser session the client holds.
