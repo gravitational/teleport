@@ -249,6 +249,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	cfg.Log = logger
 
+	// Apply logging configuration for the global logger instance
+	// DELETE this when global logger instance is no longer in use.
+	//
+	// Logging configuration has already been validated above
+	_ = applyLogConfig(fc.Logger, log.StandardLogger())
+
 	// apply cache policy for node and proxy
 	cachePolicy, err := fc.CachePolicy.Parse()
 	if err != nil {
@@ -373,7 +379,7 @@ func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
 	case "warn", "warning":
 		logger.SetLevel(log.WarnLevel)
 	default:
-		return trace.BadParameter("unsupported logger severity: '%v'", loggerConfig.Severity)
+		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
 	}
 	return nil
 }
@@ -1018,6 +1024,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		// logger severity in file configuration.
 		if fileConf == nil {
 			log.SetLevel(log.DebugLevel)
+			cfg.Log.SetLevel(log.DebugLevel)
 		} else {
 			fileConf.Logger.Severity = teleport.DebugLevel
 		}
