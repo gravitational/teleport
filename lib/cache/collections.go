@@ -1451,7 +1451,7 @@ type webSession struct {
 }
 
 func (r *webSession) erase(ctx context.Context) error {
-	err := r.webSessionCache.DeleteAllWebSessions(ctx)
+	err := r.webSessionCache.DeleteAllWebSessionsV2(ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
@@ -1459,7 +1459,7 @@ func (r *webSession) erase(ctx context.Context) error {
 }
 
 func (r *webSession) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
-	resources, err := r.WebSession.GetWebSessions(ctx)
+	resources, err := r.WebSession.GetWebSessionsV2(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1469,7 +1469,7 @@ func (r *webSession) fetch(ctx context.Context) (apply func(ctx context.Context)
 		}
 		for _, resource := range resources {
 			r.setTTL(resource)
-			if err := r.webSessionCache.UpsertWebSession(ctx, resource); err != nil {
+			if err := r.webSessionCache.UpsertWebSessionV2(ctx, resource); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -1480,7 +1480,7 @@ func (r *webSession) fetch(ctx context.Context) (apply func(ctx context.Context)
 func (r *webSession) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
-		err := r.webSessionCache.DeleteWebSession(ctx, services.DeleteWebSessionRequest{
+		err := r.webSessionCache.DeleteWebSessionV2(ctx, services.DeleteWebSessionRequest{
 			// TODO(dmitri)
 			// User: resource.GetUser(),
 			SessionID: event.Resource.GetName(),
@@ -1499,7 +1499,7 @@ func (r *webSession) processEvent(ctx context.Context, event services.Event) err
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
 		r.setTTL(resource)
-		if err := r.webSessionCache.UpsertWebSession(ctx, resource); err != nil {
+		if err := r.webSessionCache.UpsertWebSessionV2(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 	default:

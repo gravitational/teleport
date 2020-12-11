@@ -186,9 +186,7 @@ func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebS
 	}
 
 	if req.Session != nil {
-		session, err := s.GetWebSession(context.TODO(), services.GetWebSessionRequest{
-			User: req.Username, SessionID: req.Session.ID,
-		})
+		session, err := s.GetWebSession(req.Username, req.Session.ID)
 		if err != nil {
 			return nil, trace.AccessDenied("session is invalid or has expired")
 		}
@@ -393,7 +391,7 @@ func (s *Server) createUserWebSession(ctx context.Context, user services.User) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = s.UpsertWebSession(ctx, user.GetName(), sess)
+	err = s.UpsertWebSession(user.GetName(), sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

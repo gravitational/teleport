@@ -312,7 +312,7 @@ func (a *Server) createWebSession(ctx context.Context, user services.User, sessi
 	bearerTTL := utils.MinTTL(BearerTokenTTL, sessionTTL)
 	session.SetBearerTokenExpiryTime(a.clock.Now().UTC().Add(bearerTTL))
 
-	err = a.UpsertWebSession(ctx, user.GetName(), session)
+	err = a.UpsertWebSession(user.GetName(), session)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

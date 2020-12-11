@@ -219,8 +219,16 @@ type Identity interface {
 	// GetResetPasswordTokenSecrets returns token secrets
 	GetResetPasswordTokenSecrets(ctx context.Context, tokenID string) (ResetPasswordTokenSecrets, error)
 
-	// WebSessionInterface defines web session features.
+	// FIXME(dmitri): avoid name collisions with embedding other interfaces
+	// // WebSessionInterface defines web session features.
 	WebSessionInterface
+
+	// GetWebSession returns a web session state for a given user and session id
+	GetWebSession(user, sid string) (WebSession, error)
+	// UpsertWebSession updates or inserts a web session for a user and session
+	UpsertWebSession(user, sid string, session WebSession) error
+	// DeleteWebSession deletes web session from the storage
+	DeleteWebSession(user, sid string) error
 
 	// AppSession defines application session features.
 	AppSession
@@ -240,25 +248,22 @@ type AppSession interface {
 	DeleteAllAppSessions(context.Context) error
 }
 
-// FIXME(dmitri): separate WebSession interface used in HTTP client from the one
-// required for cache
-
 // WebSessionInterface defines interface to regular web sessions
 type WebSessionInterface interface {
-	// GetWebSession returns a web session state for the given request
-	GetWebSession(ctx context.Context, req GetWebSessionRequest) (WebSession, error)
+	// GetSession returns a web session state for the given request
+	GetWebSessionV2(ctx context.Context, req GetWebSessionRequest) (WebSession, error)
 
 	// GetWebSessions gets all regular web sessions.
-	GetWebSessions(context.Context) ([]WebSession, error)
+	GetWebSessionsV2(context.Context) ([]WebSession, error)
 
-	// UpsertWebSession updates or inserts a web session for the given request
-	UpsertWebSession(ctx context.Context, session WebSession) error
+	// UpsertSession updates existing or inserts a new web session
+	UpsertWebSessionV2(ctx context.Context, session WebSession) error
 
-	// DeleteWebSession deletes web session described by req from the storage.
-	DeleteWebSession(ctx context.Context, req DeleteWebSessionRequest) error
+	// DeleteSession deletes the web session described by req.
+	DeleteWebSessionV2(ctx context.Context, req DeleteWebSessionRequest) error
 
-	// DeleteAllWebSessions removes all regular web sessions.
-	DeleteAllWebSessions(context.Context) error
+	// DeleteAllSessions removes all web sessions.
+	DeleteAllWebSessionsV2(context.Context) error
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),

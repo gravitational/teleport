@@ -1219,11 +1219,11 @@ func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts .
 }
 
 // GetWebSession gets a regular web session.
-func (c *Cache) GetWebSession(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
+func (c *Cache) GetWebSessionV2(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.webSession.GetWebSession(ctx, req)
+	return rg.webSession.GetWebSessionV2(ctx, req)
 }

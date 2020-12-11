@@ -785,40 +785,75 @@ func (a *ServerWithRoles) GetU2FSignRequest(user string, password []byte) (*u2f.
 	return a.authServer.U2FSignRequest(user, password)
 }
 
-func (a *ServerWithRoles) CreateWebSession(ctx context.Context, user string) (services.WebSession, error) {
+// CreateWebSession creates a new web session for the specified user
+func (a *ServerWithRoles) CreateWebSession(user string) (services.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.CreateWebSession(ctx, user)
+	return a.authServer.CreateWebSession(user)
 }
 
-func (a *ServerWithRoles) ExtendWebSession(ctx context.Context, req services.GetWebSessionRequest, accessRequestID string) (services.WebSession, error) {
-	if err := a.currentUserAction(req.User); err != nil {
+// ExtendWebSession returns a copy of the web session specified with prevSessionID
+func (a *ServerWithRoles) ExtendWebSession(user, prevSessionID, accessRequestID string) (services.WebSession, error) {
+	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.ExtendWebSession(ctx, req, accessRequestID, a.context.Identity.GetIdentity())
+	return a.authServer.ExtendWebSession(user, prevSessionID, accessRequestID, a.context.Identity.GetIdentity())
 }
 
-// implements services.WebService in ClientI
-func (a *ServerWithRoles) GetWebSessionInfo(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
-	if err := a.currentUserAction(req.User); err != nil {
+// GetWebSessionInfo returns the web session for the given user specified with sid.
+// The session is stripped of any authentication details.
+// implements services.WebUIService
+func (a *ServerWithRoles) GetWebSessionInfo(user string, sid string) (services.WebSession, error) {
+	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetWebSessionInfo(ctx, req)
+	return a.authServer.GetWebSessionInfo(user, sid)
 }
 
-func (a *ServerWithRoles) GetWebSession(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
-	if err := a.currentUserAction(req.User); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.GetWebSession(ctx, req)
-}
-
-func (a *ServerWithRoles) DeleteWebSession(ctx context.Context, req services.DeleteWebSessionRequest) error {
-	if err := a.currentUserAction(req.User); err != nil {
+// DeleteWebSession deletes the web session specified with sid for the given user
+func (a *ServerWithRoles) DeleteWebSession(user string, sid string) error {
+	if err := a.currentUserAction(user); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteWebSession(ctx, req)
+	return a.authServer.DeleteWebSession(user, sid)
+}
+
+// GetWebSession returns the web session specified with req
+func (a *ServerWithRoles) GetWebSessionV2(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
+	// TODO
+	return nil, nil
+}
+
+// GetWebSessions returns the list of all web sessions
+func (a *ServerWithRoles) GetWebSessionsV2(ctx context.Context) ([]services.WebSession, error) {
+	// TODO
+	return nil, nil
+}
+
+// UpsertWebSession creates a new or updates the existing web session from the specified session
+func (a *ServerWithRoles) UpsertWebSessionV2(ctx context.Context, session services.WebSession) error {
+	// TODO
+	return nil
+}
+
+// DeleteWebSession removes the web session specified with req
+func (a *ServerWithRoles) DeleteWebSessionV2(ctx context.Context, req services.DeleteWebSessionRequest) error {
+	// TODO
+	return nil
+}
+
+// DeleteAllWebSessions removes all web sessions.
+func (a *ServerWithRoles) DeleteAllWebSessionsV2(ctx context.Context) error {
+	// TODO
+	// if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbList); err != nil {
+	// 	return trace.Wrap(err)
+	// }
+	// if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
+	// 	return trace.Wrap(err)
+	// }
+	// return a.authServer.DeleteAllWebSessionV2(ctx)
+	return nil
 }
 
 func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
