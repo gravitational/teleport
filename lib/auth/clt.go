@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
+	"github.com/gravitational/teleport/api/proto/auth"
 	proto "github.com/gravitational/teleport/api/proto/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -63,12 +64,6 @@ const (
 type APIClient = proto.Client
 type ContextDialer = proto.ContextDialer
 type ContextDialerFunc = proto.ContextDialerFunc
-
-var (
-	ServerKeepAliveTTL = api.ServerKeepAliveTTL
-	KeepAliveCountMax  = api.KeepAliveCountMax
-	NewAddrDialer      = proto.NewAddrDialer
-)
 
 // Client is HTTP Auth API client. It works by connecting to auth servers
 // via HTTP.
@@ -153,10 +148,10 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter TLS")
 	}
 	if c.KeepAlivePeriod == 0 {
-		c.KeepAlivePeriod = ServerKeepAliveTTL
+		c.KeepAlivePeriod = api.ServerKeepAliveTTL
 	}
 	if c.KeepAliveCount == 0 {
-		c.KeepAliveCount = KeepAliveCountMax
+		c.KeepAliveCount = api.KeepAliveCountMax
 	}
 	if c.Dialer == nil {
 		addrs := make([]string, len(c.Addrs))
@@ -164,7 +159,7 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 			addrs[i] = a.Addr
 		}
 		var err error
-		if c.Dialer, err = NewAddrDialer(addrs, c.KeepAlivePeriod, api.DefaultDialTimeout); err != nil {
+		if c.Dialer, err = auth.NewAddrDialer(addrs, c.KeepAlivePeriod, api.DefaultDialTimeout); err != nil {
 			return err
 		}
 	}
@@ -2173,7 +2168,7 @@ func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterR
 func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error) {
 	return c.APIClient.CreateResetPasswordToken(ctx, proto.CreateResetPasswordTokenRequest{
 		Name: req.Name,
-		TTL:  api.Duration(req.TTL),
+		TTL:  req.TTL,
 		Type: req.Type,
 	})
 }

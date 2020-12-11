@@ -176,7 +176,7 @@ func (c *Client) NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
 }
 
 type streamKeepAliver struct {
-	sync.RWMutex
+	mu          sync.RWMutex
 	stream      AuthService_SendKeepAlivesClient
 	ctx         context.Context
 	cancel      context.CancelFunc
@@ -204,8 +204,8 @@ func (k *streamKeepAliver) forwardKeepAlives() {
 }
 
 func (k *streamKeepAliver) Error() error {
-	k.RLock()
-	defer k.RUnlock()
+	k.mu.RLock()
+	defer k.mu.RUnlock()
 	return k.err
 }
 
@@ -221,9 +221,9 @@ func (k *streamKeepAliver) recv() {
 }
 
 func (k *streamKeepAliver) closeWithError(err error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
 	k.Close()
-	k.Lock()
-	defer k.Unlock()
 	k.err = err
 }
 
@@ -278,9 +278,9 @@ func (w *streamWatcher) Error() error {
 }
 
 func (w *streamWatcher) closeWithError(err error) {
-	w.Close()
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	w.Close()
 	w.err = err
 }
 
@@ -394,6 +394,9 @@ func (c *Client) GetUsers(withSecrets bool) ([]services.User, error) {
 
 // DeleteUser deletes a user by name.
 func (c *Client) DeleteUser(ctx context.Context, user string) error {
+	if user == "" {
+		return trace.BadParameter("missing username")
+	}
 	req := &DeleteUserRequest{Name: user}
 	_, err := c.grpc.DeleteUser(ctx, req)
 	return trail.FromGRPC(err)
