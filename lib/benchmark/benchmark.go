@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -143,7 +144,6 @@ func ExportLatencyProfile(path string, h *hdrhistogram.Histogram, ticks int32, v
 
 	if _, err := h.PercentilesPrint(fo, ticks, valueScale); err != nil {
 		if err := fo.Close(); err != nil {
-
 			logrus.WithError(err).Warningf("failed to close file")
 		}
 		return "", trace.Wrap(err)
@@ -211,7 +211,6 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 		if c.MinimumWindow <= time.Since(start) {
 			timeElapsed = true
 		}
-
 		select {
 		case measure := <-resultC:
 			result.Histogram.RecordValue(int64(measure.End.Sub(measure.ResponseStart) / time.Millisecond))
@@ -224,19 +223,26 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 				result.LastError = measure.Error
 			}
 		case <-duringTimeout:
-			err := collectProfiles(ctx, "during", c.ProfilePath, tc.Config.HostLogin, tc)
-			if err != nil {
-				return Result{}, err
+			var profileError error
+			go func() {
+				err := collectProfiles(ctx, "during", c.ProfilePath, tc.Config.HostLogin, tc)
+				if err != nil {
+					profileError = err
+					return 
+				}
+			}()
+			if profileError != nil {
+				return Result{}, profileError
 			}
 		case <-ctx.Done():
 			result.Duration = time.Since(start)
-			err := collectProfiles(context.TODO(), "after", c.ProfilePath, tc.Config.HostLogin, tc)
+			err := collectProfiles(ctx, "after", c.ProfilePath, tc.Config.HostLogin, tc)
 			if err != nil {
 				return Result{}, err
 			}
 			return result, nil
 		case <-statusTicker.C:
-			logrus.Infof("working... current observation count: %d", result.RequestsOriginated)
+			log.Printf("working... current observation count: %d", result.RequestsOriginated)
 		}
 
 	}
