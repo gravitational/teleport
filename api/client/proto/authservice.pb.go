@@ -6292,6 +6292,12 @@ func (m *WatchKind) MarshalTo(dAtA []byte) (int, error) {
 			i += copy(dAtA[i:], v)
 		}
 	}
+	if len(m.SubKind) > 0 {
+		dAtA[i] = 0x2a
+		i++
+		i = encodeVarintAuthservice(dAtA, i, uint64(len(m.SubKind)))
+		i += copy(dAtA[i:], m.SubKind)
+	}
 	if m.XXX_unrecognized != nil {
 		i += copy(dAtA[i:], m.XXX_unrecognized)
 	}
@@ -8321,6 +8327,10 @@ func (m *WatchKind) Size() (n int) {
 			n += mapEntrySize + 1 + sovAuthservice(uint64(mapEntrySize))
 		}
 	}
+	l = len(m.SubKind)
+	if l > 0 {
+		n += 1 + l + sovAuthservice(uint64(l))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -10100,6 +10110,35 @@ func (m *WatchKind) Unmarshal(dAtA []byte) error {
 				}
 			}
 			m.Filter[mapkey] = mapvalue
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SubKind", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowAuthservice
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= (uint64(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthAuthservice
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.SubKind = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

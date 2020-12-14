@@ -901,7 +901,7 @@ func (c *Cache) fetch(ctx context.Context) (apply func(ctx context.Context) erro
 }
 
 func (c *Cache) processEvent(ctx context.Context, event services.Event) error {
-	resourceKind := resourceKind{kind: event.Resource.GetKind(), subkind: event.Resource.GetSubKind()}
+	resourceKind := resourceKindFromResource(event.Resource)
 	collection, ok := c.collections[resourceKind]
 	if !ok {
 		c.Warningf("Skipping unsupported event %v.", event.Resource.GetKind())

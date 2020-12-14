@@ -1165,6 +1165,85 @@ func (c *Client) DeleteWebSession(user string, sid string) error {
 	return trace.Wrap(err)
 }
 
+func (c *Client) WebSessions() services.WebSessionInterface {
+	return &webSessions{c: c}
+}
+
+// GetWebSession returns the web session for the specified request.
+// Implements ReadAccessPoint
+func (c *Client) GetWebSession(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
+	return c.WebSessions().Get(ctx, req)
+}
+
+// Get returns the web session for the specified request
+func (r *webSessions) Get(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
+	clt, err := r.c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := clt.GetWebSession(ctx, &proto.GetWebSessionRequest{
+		SessionID: req.SessionID,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp.Session, nil
+}
+
+// List returns the list of all web sessions
+func (r *webSessions) List(ctx context.Context) ([]services.WebSession, error) {
+	clt, err := r.c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resp, err := clt.GetWebSessions(ctx, &empty.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	out := make([]services.WebSession, 0, len(resp.Sessions))
+	for _, session := range resp.Sessions {
+		out = append(out, session)
+	}
+	return out, nil
+}
+
+// Upsert not implemented: can only be called locally.
+func (r *webSessions) Upsert(ctx context.Context, session services.WebSession) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// Delete deletes the web session specified with the request
+func (r *webSessions) Delete(ctx context.Context, req services.DeleteWebSessionRequest) error {
+	clt, err := r.c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = clt.DeleteWebSession(ctx, &proto.DeleteWebSessionRequest{
+		SessionID: req.SessionID,
+	})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// DeleteAll deletes all web sessions
+func (r *webSessions) DeleteAll(ctx context.Context) error {
+	clt, err := r.c.grpc()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = clt.DeleteAllWebSessions(ctx, &empty.Empty{})
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+type webSessions struct {
+	c *Client
+}
+
 // GenerateKeyPair generates SSH private/public key pair optionally protected
 // by password. If the pass parameter is an empty string, the key pair
 // is not password-protected.

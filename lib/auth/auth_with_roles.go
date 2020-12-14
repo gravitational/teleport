@@ -804,7 +804,7 @@ func (a *ServerWithRoles) ExtendWebSession(user, prevSessionID, accessRequestID 
 
 // GetWebSessionInfo returns the web session for the given user specified with sid.
 // The session is stripped of any authentication details.
-// implements services.WebUIService
+// Implements auth.WebUIService
 func (a *ServerWithRoles) GetWebSessionInfo(user string, sid string) (services.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
@@ -821,13 +821,13 @@ func (a *ServerWithRoles) DeleteWebSession(user string, sid string) error {
 }
 
 // GetWebSession returns the web session specified with req.
-// Implements auth.ReadAccessPoint
+// Implements auth.ReadAccessPoint.
 func (a *ServerWithRoles) GetWebSession(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
 	return a.webSessions.Get(ctx, req)
 }
 
 // WebSessions returns the web session manager.
-// Implements services.WebSessionsGetter
+// Implements services.WebSessionsGetter.
 func (a *ServerWithRoles) WebSessions() services.WebSessionInterface {
 	return a.webSessions
 }

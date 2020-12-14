@@ -228,12 +228,7 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		Name: auth.User.GetName(),
 	}
 	for _, kind := range watch.Kinds {
-		servicesWatch.Kinds = append(servicesWatch.Kinds, services.WatchKind{
-			Name:        kind.Name,
-			Kind:        kind.Kind,
-			LoadSecrets: kind.LoadSecrets,
-			Filter:      kind.Filter,
-		})
+		servicesWatch.Kinds = append(servicesWatch.Kinds, proto.ProtoToWatchKind(kind))
 	}
 	watcher, err := auth.NewWatcher(stream.Context(), servicesWatch)
 	if err != nil {
@@ -1008,7 +1003,7 @@ func (g *GRPCServer) GetWebSessions(ctx context.Context, _ *empty.Empty) (*proto
 	}, nil
 }
 
-// DeleteWebSession removes an application web session.
+// DeleteWebSession removes the web session given with req.
 func (g *GRPCServer) DeleteWebSession(ctx context.Context, req *proto.DeleteWebSessionRequest) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1155,7 +1150,7 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 		}
 		return nil, trace.AccessDenied("[10] access denied")
 	}
-	return &grpcContext{
+	auth := &grpcContext{
 		Context: authContext,
 		ServerWithRoles: &ServerWithRoles{
 			authServer: g.AuthServer,
@@ -1163,7 +1158,12 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 			sessions:   g.SessionService,
 			alog:       g.AuthServer.IAuditLog,
 		},
-	}, nil
+	}
+	auth.ServerWithRoles.webSessions = &webSessionsWithRoles{
+		c:  auth.ServerWithRoles,
+		ws: g.AuthServer.WebSessions(),
+	}
+	return auth, nil
 }
 
 // GRPCServerConfig specifies GRPC server configuration
