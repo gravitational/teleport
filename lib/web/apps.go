@@ -124,7 +124,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	// Block and wait a few seconds for the session that was created to show up
-	// in the cache. If this request is not blocked here, it can get struck in a
+	// in the cache. If this request is not blocked here, it can get stuck in a
 	// racy session creation loop.
 	err = h.waitForAppSession(r.Context(), ws.GetName())
 	if err != nil {
@@ -202,53 +202,6 @@ func (h *Handler) waitForAppSession(ctx context.Context, sessionID string) error
 		return event.Type == backend.OpPut && event.Resource.GetName() == sessionID
 	}
 	return waitForSession(ctx, watcher, sessionProber, matcher)
-}
-
-type sessionProberFunc func() error
-type eventMatcherFunc func(services.Event) bool
-
-func waitForSession(ctx context.Context, watcher services.Watcher, sessionProber sessionProberFunc, eventMatcher eventMatcherFunc) error {
-	timeout := time.NewTimer(defaults.WebHeadersTimeout)
-	defer timeout.Stop()
-
-	select {
-	// Received an event, first event should always be an initialize event.
-	case event := <-watcher.Events():
-		if event.Type != backend.OpInit {
-			return trace.BadParameter("expected init event, got %v instead", event.Type)
-		}
-	// Watcher closed, probably due to a network error.
-	case <-watcher.Done():
-		return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
-	// Timed out waiting for initialize event.
-	case <-timeout.C:
-		return trace.BadParameter("timed out waiting for initialize event")
-	}
-
-	// Check if the session exists in the backend.
-	err := sessionProber()
-	if err == nil {
-		return nil
-	}
-
-	for {
-		select {
-		// If the event is the expected one, return right away.
-		case event := <-watcher.Events():
-			if event.Resource.GetKind() != services.KindWebSession {
-				return trace.BadParameter("unexpected event: %v.", event.Resource.GetKind())
-			}
-			if eventMatcher(event) {
-				return nil
-			}
-		// Watcher closed, probably due to a network error.
-		case <-watcher.Done():
-			return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
-		// Timed out waiting for initialize event.
-		case <-timeout.C:
-			return trace.BadParameter("timed out waiting for session")
-		}
-	}
 }
 
 func (h *Handler) validateAppSessionRequest(ctx context.Context, req *CreateAppSessionRequest) (*validateAppSessionResult, error) {

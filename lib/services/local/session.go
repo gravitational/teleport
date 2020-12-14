@@ -141,16 +141,21 @@ func (s *IdentityService) DeleteWebSession(user, sid string) error {
 	if sid == "" {
 		return trace.BadParameter("missing session id")
 	}
-	err := s.Delete(context.TODO(), backend.Key(webPrefix, usersPrefix, user, sessionsPrefix, sid))
+	err := s.Delete(context.TODO(), backend.Key(webPrefix, sessionsPrefix, sid))
 	return trace.Wrap(err)
 }
 
-// GetWebSession returns a web session state described with req
-func (s *IdentityService) GetWebSessionV2(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
+// WebSessions returns the web sessions manager
+func (s *IdentityService) WebSessions() services.WebSessionInterface {
+	return &webSessions{identity: s}
+}
+
+// Get returns a web session state described with req
+func (r *webSessions) Get(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
 	if err := req.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	item, err := s.Get(ctx, backend.Key(webPrefix, sessionsPrefix, req.SessionID))
+	item, err := r.identity.Get(ctx, backend.Key(webPrefix, sessionsPrefix, req.SessionID))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -161,10 +166,10 @@ func (s *IdentityService) GetWebSessionV2(ctx context.Context, req services.GetW
 	return session, nil
 }
 
-// GetWebSessions gets all regular web sessions.
-func (s *IdentityService) GetWebSessionsV2(ctx context.Context) ([]services.WebSession, error) {
+// List gets all regular web sessions.
+func (r *webSessions) List(ctx context.Context) ([]services.WebSession, error) {
 	startKey := backend.Key(webPrefix, sessionsPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	result, err := r.identity.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -179,10 +184,10 @@ func (s *IdentityService) GetWebSessionsV2(ctx context.Context) ([]services.WebS
 	return out, nil
 }
 
-// UpsertWebSession updates the existing or inserts a new web session.
+// Upsert updates the existing or inserts a new web session.
 // Session will be created with bearer token expiry time TTL, because
 // it is expected that client will periodically update it
-func (s *IdentityService) UpsertWebSessionV2(ctx context.Context, session services.WebSession) error {
+func (r *webSessions) Upsert(ctx context.Context, session services.WebSession) error {
 	value, err := services.GetWebSessionMarshaler().MarshalWebSession(session)
 	if err != nil {
 		return trace.Wrap(err)
@@ -193,23 +198,27 @@ func (s *IdentityService) UpsertWebSessionV2(ctx context.Context, session servic
 		Value:   value,
 		Expires: backend.EarliestExpiry(session.GetBearerTokenExpiryTime(), sessionMetadata.Expiry()),
 	}
-	_, err = s.Put(ctx, item)
+	_, err = r.identity.Put(ctx, item)
 	return trace.Wrap(err)
 }
 
-// DeleteWebSession deletes web session specified with req from the storage
-func (s *IdentityService) DeleteWebSessionV2(ctx context.Context, req services.DeleteWebSessionRequest) error {
+// Delete deletes web session specified with req from the storage
+func (r *webSessions) Delete(ctx context.Context, req services.DeleteWebSessionRequest) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(s.Delete(ctx, backend.Key(webPrefix, sessionsPrefix, req.SessionID)))
+	return trace.Wrap(r.identity.Delete(ctx, backend.Key(webPrefix, sessionsPrefix, req.SessionID)))
 }
 
-// DeleteAllWebSessions removes all regular web sessions.
-func (s *IdentityService) DeleteAllWebSessionsV2(ctx context.Context) error {
+// DeleteAll removes all regular web sessions.
+func (r *webSessions) DeleteAll(ctx context.Context) error {
 	startKey := backend.Key(webPrefix, sessionsPrefix)
-	if err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
+	if err := r.identity.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+type webSessions struct {
+	identity *IdentityService
 }

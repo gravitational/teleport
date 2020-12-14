@@ -163,6 +163,11 @@ const (
 	// ComponentAppProxy is the application handler within the web proxy service.
 	ComponentAppProxy = "app:web"
 
+	// ComponentWebProxy is the web handler within the web proxy service.
+	ComponentWebProxy = "web"
+
+	// ComponentDiagnostic is a diagnostic service
+
 	// ComponentDiagnostic is a diagnostic service
 	ComponentDiagnostic = "diag"
 

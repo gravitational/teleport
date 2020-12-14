@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -50,8 +51,13 @@ import (
 // between requests for example to avoid connecting
 // to the auth server on every page hit
 type SessionContext struct {
-	mu        sync.Mutex
-	log       logrus.FieldLogger
+	mu  sync.Mutex
+	log logrus.FieldLogger
+	// sess refers the web session created for the user.
+	// The session is never updated until the context eventually
+	// expires - all session queries are done through the auth cache
+	// as the session might be updated from multiple replicas so it is
+	// never accurate once set.
 	sess      services.WebSession
 	user      string
 	clt       auth.ClientI
@@ -303,21 +309,26 @@ func (c *SessionContext) Close() error {
 	closers := c.closers
 	c.closers = nil
 	c.mu.Unlock()
+	var errors []error
 	for _, closer := range closers {
 		c.log.Debugf("Closing %v.", closer)
-		closer.Close()
+		if err := closer.Close(); err != nil {
+			errors = append(errors, err)
+		}
 	}
 	if c.clt != nil {
-		return trace.Wrap(c.clt.Close())
+		if err := c.clt.Close(); err != nil {
+			errors = append(errors, err)
+		}
 	}
-	return nil
+	return trace.NewAggregate(errors...)
 }
 
 // expired returns whether this context has expired.
 // The context is considered expired when its bearer token TTL
 // is in the past
 func (c *SessionContext) expired(ctx context.Context) bool {
-	sess, err := c.parent.accessPoint.GetWebSessionV2(ctx, services.GetWebSessionRequest{SessionID: c.sess.GetName()})
+	sess, err := c.parent.accessPoint.GetWebSession(ctx, services.GetWebSessionRequest{SessionID: c.sess.GetName()})
 	if err != nil {
 		c.log.WithError(err).Warn("Failed to query web session.")
 		return false
@@ -529,12 +540,6 @@ func (s *sessionCache) getContext(user, sid string) (*SessionContext, error) {
 	return nil, trace.NotFound("session context not found")
 }
 
-func (s *sessionCache) updateContext(user, sid string, ctx *SessionContext) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.contexts[user+sid] = ctx
-}
-
 func (s *sessionCache) insertContext(user, sid string, ctx *SessionContext) (exists bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -626,4 +631,81 @@ func (s *sessionCache) tlsConfig(cert, privKey []byte) (*tls.Config, error) {
 	tlsConfig.RootCAs = certPool
 	tlsConfig.ServerName = auth.EncodeClusterName(s.clusterName)
 	return tlsConfig, nil
+}
+
+// waitForWebSession will block until the requested web session shows up in the
+// cache or a timeout occurs.
+func (h *Handler) waitForWebSession(ctx context.Context, sessionID string) error {
+	// Establish a watch on application session.
+	watcher, err := h.cfg.AccessPoint.NewWatcher(ctx, services.Watch{
+		Name: teleport.ComponentWebProxy,
+		Kinds: []services.WatchKind{
+			{
+				Kind:    services.KindWebSession,
+				SubKind: services.KindWebSession,
+			},
+		},
+		MetricComponent: teleport.ComponentWebProxy,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer watcher.Close()
+	sessionProber := func() error {
+		_, err = h.cfg.AccessPoint.GetWebSession(ctx, services.GetWebSessionRequest{
+			SessionID: sessionID,
+		})
+		return trace.Wrap(err)
+	}
+	matcher := func(event services.Event) bool {
+		return event.Type == backend.OpPut && event.Resource.GetName() == sessionID
+	}
+	return waitForSession(ctx, watcher, sessionProber, matcher)
+}
+
+type sessionProberFunc func() error
+type eventMatcherFunc func(services.Event) bool
+
+func waitForSession(ctx context.Context, watcher services.Watcher, sessionProber sessionProberFunc, eventMatcher eventMatcherFunc) error {
+	timeout := time.NewTimer(defaults.WebHeadersTimeout)
+	defer timeout.Stop()
+
+	select {
+	// Received an event, first event should always be an initialize event.
+	case event := <-watcher.Events():
+		if event.Type != backend.OpInit {
+			return trace.BadParameter("expected init event, got %v instead", event.Type)
+		}
+	// Watcher closed, probably due to a network error.
+	case <-watcher.Done():
+		return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
+	// Timed out waiting for initialize event.
+	case <-timeout.C:
+		return trace.BadParameter("timed out waiting for initialize event")
+	}
+
+	// Check if the session exists in the backend.
+	err := sessionProber()
+	if err == nil {
+		return nil
+	}
+
+	for {
+		select {
+		// If the event is the expected one, return right away.
+		case event := <-watcher.Events():
+			if event.Resource.GetKind() != services.KindWebSession {
+				return trace.BadParameter("unexpected event: %v.", event.Resource.GetKind())
+			}
+			if eventMatcher(event) {
+				return nil
+			}
+		// Watcher closed, probably due to a network error.
+		case <-watcher.Done():
+			return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
+		// Timed out waiting for initialize event.
+		case <-timeout.C:
+			return trace.BadParameter("timed out waiting for session")
+		}
+	}
 }
