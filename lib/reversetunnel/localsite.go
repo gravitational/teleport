@@ -293,7 +293,7 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 		return nil, false, trace.Wrap(tunnelErr)
 	}
 
-	s.log.WithError(tunnelErr).Debug("Error occurred while dialing through a tunnel.")
+	s.log.WithError(tunnelErr).WithField("address", dreq.Address).Debug("Error occurred while dialing through a tunnel.")
 
 	// Connections to applications should never occur over a direct dial, return right away.
 	if params.ConnType == services.AppTunnel {
@@ -313,7 +313,7 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 	dialer := proxy.DialerFromEnvironment(params.To.String())
 	conn, directErr := dialer.DialTimeout(params.To.Network(), params.To.String(), defaults.DefaultDialTimeout)
 	if directErr != nil {
-		s.log.WithError(directErr).Debug("Error occurred while dialing directly.")
+		s.log.WithError(directErr).WithField("address", params.To.String()).Debug("Error occurred while dialing directly.")
 		aggregateErr := trace.NewAggregate(tunnelErr, directErr)
 		return nil, false, trace.ConnectionProblem(aggregateErr, offlineMsg)
 	}
