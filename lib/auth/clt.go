@@ -2130,9 +2130,6 @@ type WebService interface {
 	// WebUIService implements web session support for UI clients
 	WebUIService
 
-	// WebSessionInterface defines regular session features.
-	services.WebSessionInterface
-
 	// AppSession defines application session features.
 	services.AppSession
 }
@@ -2324,6 +2321,7 @@ type ClientI interface {
 	session.Service
 	services.ClusterConfiguration
 	services.Events
+	services.WebSessionsGetter
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
@@ -2371,4 +2369,8 @@ type ClientI interface {
 	// GenerateDatabaseCert generates client certificate used by a database
 	// service to authenticate with the database instance.
 	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
+
+	// GetWebSession queries the existing web session described with req.
+	// Implements ReadAccessPoint.
+	GetWebSession(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error)
 }

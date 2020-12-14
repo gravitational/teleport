@@ -41,9 +41,10 @@ import (
 // ServerWithRoles is a wrapper around auth service
 // methods that focuses on authorizing every request
 type ServerWithRoles struct {
-	authServer *Server
-	sessions   session.Service
-	alog       events.IAuditLog
+	authServer  *Server
+	webSessions *webSessionsWithRoles
+	sessions    session.Service
+	alog        events.IAuditLog
 	// context holds authorization context
 	context Context
 }
@@ -819,51 +820,69 @@ func (a *ServerWithRoles) DeleteWebSession(user string, sid string) error {
 	return a.authServer.DeleteWebSession(user, sid)
 }
 
-// GetWebSession returns the web session specified with req
-func (a *ServerWithRoles) GetWebSessionV2(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
-	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// TODO(dmitri): move to a dedicated impl
-	return a.authServer.GetWebSessionV2(ctx, req)
+// GetWebSession returns the web session specified with req.
+// Implements auth.ReadAccessPoint
+func (a *ServerWithRoles) GetWebSession(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
+	return a.webSessions.Get(ctx, req)
 }
 
-// GetWebSessions returns the list of all web sessions
-func (a *ServerWithRoles) GetWebSessionsV2(ctx context.Context) ([]services.WebSession, error) {
-	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbList); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// TODO(dmitri): move to a dedicated impl
-	return a.authServer.GetWebSessionsV2(ctx)
+// WebSessions returns the web session manager.
+// Implements services.WebSessionsGetter
+func (a *ServerWithRoles) WebSessions() services.WebSessionInterface {
+	return a.webSessions
 }
 
-// UpsertWebSession creates a new or updates the existing web session from the specified session
-func (a *ServerWithRoles) UpsertWebSessionV2(ctx context.Context, session services.WebSession) error {
+// Get returns the web session specified with req.
+func (r *webSessionsWithRoles) Get(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
+	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return r.ws.Get(ctx, req)
+}
+
+// List returns the list of all web sessions.
+func (r *webSessionsWithRoles) List(ctx context.Context) ([]services.WebSession, error) {
+	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return r.ws.List(ctx)
+}
+
+// Upsert creates a new or updates the existing web session from the specified session.
+func (*webSessionsWithRoles) Upsert(ctx context.Context, session services.WebSession) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
-// DeleteWebSession removes the web session specified with req
-func (a *ServerWithRoles) DeleteWebSessionV2(ctx context.Context, req services.DeleteWebSessionRequest) error {
-	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
+// Delete removes the web session specified with req.
+func (r *webSessionsWithRoles) Delete(ctx context.Context, req services.DeleteWebSessionRequest) error {
+	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	// TODO(dmitri): move to a dedicated impl
-	return a.authServer.DeleteWebSessionV2(ctx, req)
+	return r.ws.Delete(ctx, req)
 }
 
-// DeleteAllWebSessions removes all web sessions.
-func (a *ServerWithRoles) DeleteAllWebSessionsV2(ctx context.Context) error {
-	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbList); err != nil {
+// DeleteAll removes all web sessions.
+func (r *webSessionsWithRoles) DeleteAll(ctx context.Context) error {
+	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbList); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
+	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	// TODO(dmitri): move to a dedicated impl
-	return a.authServer.DeleteAllWebSessionsV2(ctx)
+	return r.ws.DeleteAll(ctx)
+}
+
+type webSessionsWithRoles struct {
+	c  accessChecker
+	ws services.WebSessionInterface
+}
+
+type accessChecker interface {
+	actionWithContext(ctx *services.Context, namespace, resource, action string) error
+	action(namespace, resource, action string) error
 }
 
 func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
@@ -2403,10 +2422,12 @@ func NewAdminAuthServer(authServer *Server, sessions session.Service, alog event
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &ServerWithRoles{
+	s := &ServerWithRoles{
 		authServer: authServer,
 		context:    *ctx,
 		alog:       alog,
 		sessions:   sessions,
-	}, nil
+	}
+	s.webSessions = &webSessionsWithRoles{c: s, ws: authServer.WebSessions()}
+	return s, nil
 }

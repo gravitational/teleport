@@ -1482,19 +1482,18 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	}
 
 	return cache.New(cfg.setup(cache.Config{
-		Context:       process.ExitContext(),
-		Backend:       reporter,
-		Events:        cfg.services,
-		ClusterConfig: cfg.services,
-		Provisioner:   cfg.services,
-		Trust:         cfg.services,
-		Users:         cfg.services,
-		Access:        cfg.services,
-		DynamicAccess: cfg.services,
-		Presence:      cfg.services,
-		AppSession:    cfg.services,
-		// TODO(dmitri): move to a dedicated impl
-		WebSession:      cfg.services,
+		Context:         process.ExitContext(),
+		Backend:         reporter,
+		Events:          cfg.services,
+		ClusterConfig:   cfg.services,
+		Provisioner:     cfg.services,
+		Trust:           cfg.services,
+		Users:           cfg.services,
+		Access:          cfg.services,
+		DynamicAccess:   cfg.services,
+		Presence:        cfg.services,
+		AppSession:      cfg.services,
+		WebSession:      cfg.services.WebSessions(),
 		Component:       teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
 		MetricComponent: teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
 	}))

@@ -97,6 +97,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 				parser = newAppSessionParser()
 			case services.KindWebSession:
 				parser = newWebSessionParser()
+			default:
+				return nil, trace.BadParameter("watcher on object subkind %v is not supported", kind)
 			}
 		case services.KindRemoteCluster:
 			parser = newRemoteClusterParser()

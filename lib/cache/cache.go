@@ -547,7 +547,7 @@ func New(config Config) (*Cache, error) {
 		dynamicAccessCache: local.NewDynamicAccessService(wrapper),
 		presenceCache:      local.NewPresenceService(wrapper),
 		appSessionCache:    local.NewIdentityService(wrapper),
-		webSessionCache:    local.NewIdentityService(wrapper),
+		webSessionCache:    local.NewIdentityService(wrapper).WebSessions(),
 		eventsFanout:       services.NewFanout(),
 		Entry: log.WithFields(log.Fields{
 			trace.Component: config.Component,
@@ -1219,11 +1219,11 @@ func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts .
 }
 
 // GetWebSession gets a regular web session.
-func (c *Cache) GetWebSessionV2(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
+func (c *Cache) GetWebSession(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.webSession.GetWebSessionV2(ctx, req)
+	return rg.webSession.Get(ctx, req)
 }

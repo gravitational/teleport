@@ -156,6 +156,12 @@ type Services struct {
 	events.IAuditLog
 }
 
+// GetWebSession returns existing web session described by req.
+// Implements ReadAccessPoint
+func (r Services) GetWebSession(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
+	return r.Identity.WebSessions().Get(ctx, req)
+}
+
 var (
 	generateRequestsCount = prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -853,7 +859,7 @@ func (a *Server) CheckU2FSignResponse(user string, response *u2f.AuthenticateCha
 // ExtendWebSession creates a new web session for a user based on a valid previous sessionID.
 // Additional roles are appended to initial roles if there is an approved access request.
 func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, identity tlsca.Identity) (services.WebSession, error) {
-	prevSession, err := a.GetWebSession(user, prevSessionID)
+	prevSession, err := a.GetWebSessionByUser(user, prevSessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1512,8 +1518,9 @@ func (a *Server) UpsertWebSession(user string, sess services.WebSession) error {
 	return a.Identity.UpsertWebSession(user, sess.GetName(), sess)
 }
 
-func (a *Server) GetWebSession(userName string, id string) (services.WebSession, error) {
-	return a.Identity.GetWebSession(userName, id)
+// GetWebSessionByUser queries the web session using the specified user name and session ID
+func (a *Server) GetWebSessionByUser(userName string, sid string) (services.WebSession, error) {
+	return a.Identity.GetWebSession(userName, sid)
 }
 
 func (a *Server) GetWebSessionInfo(userName string, id string) (services.WebSession, error) {

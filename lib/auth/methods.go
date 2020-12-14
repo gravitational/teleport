@@ -186,7 +186,7 @@ func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebS
 	}
 
 	if req.Session != nil {
-		session, err := s.GetWebSession(req.Username, req.Session.ID)
+		session, err := s.GetWebSessionByUser(req.Username, req.Session.ID)
 		if err != nil {
 			return nil, trace.AccessDenied("session is invalid or has expired")
 		}

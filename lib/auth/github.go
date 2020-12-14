@@ -129,7 +129,7 @@ type GithubAuthResponse struct {
 }
 
 type githubManager interface {
-	validateGithubAuthCallback(ctx context.Context, q url.Values) (*githubAuthResponse, error)
+	validateGithubAuthCallback(q url.Values) (*githubAuthResponse, error)
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
@@ -138,7 +138,7 @@ func (a *Server) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, 
 }
 
 func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, q url.Values, emitter events.Emitter) (*GithubAuthResponse, error) {
-	re, err := m.validateGithubAuthCallback(ctx, q)
+	re, err := m.validateGithubAuthCallback(q)
 
 	event := &events.UserLogin{
 		Metadata: events.Metadata{
@@ -180,7 +180,7 @@ type githubAuthResponse struct {
 }
 
 // ValidateGithubAuthCallback validates Github auth callback redirect
-func (a *Server) validateGithubAuthCallback(ctx context.Context, q url.Values) (*githubAuthResponse, error) {
+func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, error) {
 	logger := log.WithFields(logrus.Fields{trace.Component: "github"})
 	error := q.Get("error")
 	if error != "" {
@@ -259,7 +259,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, q url.Values) (
 
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
-		session, err := a.createWebSession(ctx, user, params.sessionTTL)
+		session, err := a.createWebSession(user, params.sessionTTL)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -296,7 +296,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, q url.Values) (
 	return re, nil
 }
 
-func (a *Server) createWebSession(ctx context.Context, user services.User, sessionTTL time.Duration) (services.WebSession, error) {
+func (a *Server) createWebSession(user services.User, sessionTTL time.Duration) (services.WebSession, error) {
 	// It's safe to extract the roles and traits directly from services.User
 	// because this occurs during the user creation process and services.User
 	// is not fetched from the backend.

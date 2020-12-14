@@ -966,8 +966,7 @@ func (g *GRPCServer) GetWebSession(ctx context.Context, req *proto.GetWebSession
 		return nil, trail.ToGRPC(err)
 	}
 
-	// TODO(dmitri): move to a dedicted impl
-	session, err := auth.GetWebSessionV2(ctx, services.GetWebSessionRequest{
+	session, err := auth.WebSessions().Get(ctx, services.GetWebSessionRequest{
 		SessionID: req.GetSessionID(),
 	})
 	if err != nil {
@@ -990,8 +989,7 @@ func (g *GRPCServer) GetWebSessions(ctx context.Context, _ *empty.Empty) (*proto
 		return nil, trail.ToGRPC(err)
 	}
 
-	// TODO(dmitri): move to a dedicted impl
-	sessions, err := auth.GetWebSessionsV2(ctx)
+	sessions, err := auth.WebSessions().List(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -1017,8 +1015,7 @@ func (g *GRPCServer) DeleteWebSession(ctx context.Context, req *proto.DeleteWebS
 		return nil, trail.ToGRPC(err)
 	}
 
-	// TODO(dmitri): move to a dedicted impl
-	if err := auth.DeleteWebSessionV2(ctx, services.DeleteWebSessionRequest{
+	if err := auth.WebSessions().Delete(ctx, services.DeleteWebSessionRequest{
 		SessionID: req.GetSessionID(),
 	}); err != nil {
 		return nil, trail.ToGRPC(err)
@@ -1034,8 +1031,7 @@ func (g *GRPCServer) DeleteAllWebSessions(ctx context.Context, _ *empty.Empty) (
 		return nil, trail.ToGRPC(err)
 	}
 
-	// TODO(dmitri): move to a dedicted impl
-	if err := auth.DeleteAllWebSessionsV2(ctx); err != nil {
+	if err := auth.WebSessions().DeleteAll(ctx); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 

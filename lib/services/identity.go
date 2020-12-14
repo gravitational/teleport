@@ -226,9 +226,7 @@ type Identity interface {
 	// DeleteWebSession deletes web session from the storage
 	DeleteWebSession(user, sid string) error
 
-	// FIXME(dmitri): avoid name collisions with embedding other interfaces
-	// // WebSessionInterface defines web session features.
-	WebSessionInterface
+	WebSessionsGetter
 
 	// AppSession defines application session features.
 	AppSession
@@ -248,22 +246,28 @@ type AppSession interface {
 	DeleteAllAppSessions(context.Context) error
 }
 
+// WebSessionsGetter provides access to web sessions
+type WebSessionsGetter interface {
+	// WebSessions returns the web session manager
+	WebSessions() WebSessionInterface
+}
+
 // WebSessionInterface defines interface to regular web sessions
 type WebSessionInterface interface {
-	// GetSession returns a web session state for the given request
-	GetWebSessionV2(ctx context.Context, req GetWebSessionRequest) (WebSession, error)
+	// Get returns a web session state for the given request
+	Get(ctx context.Context, req GetWebSessionRequest) (WebSession, error)
 
-	// GetWebSessions gets all regular web sessions.
-	GetWebSessionsV2(context.Context) ([]WebSession, error)
+	// List gets all regular web sessions.
+	List(context.Context) ([]WebSession, error)
 
-	// UpsertSession updates existing or inserts a new web session
-	UpsertWebSessionV2(ctx context.Context, session WebSession) error
+	// Upsert updates existing or inserts a new web session
+	Upsert(ctx context.Context, session WebSession) error
 
-	// DeleteSession deletes the web session described by req.
-	DeleteWebSessionV2(ctx context.Context, req DeleteWebSessionRequest) error
+	// Delete deletes the web session described by req.
+	Delete(ctx context.Context, req DeleteWebSessionRequest) error
 
-	// DeleteAllSessions removes all web sessions.
-	DeleteAllWebSessionsV2(context.Context) error
+	// DeleteAll removes all web sessions.
+	DeleteAll(context.Context) error
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),
