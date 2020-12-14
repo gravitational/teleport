@@ -1284,7 +1284,7 @@ The configuration for openssh is as follows:
         ```bash
         $ tsh auth export --type=host
         ```
-    * Add the output on Ansible node `/.ssh/known_hosts` by modifying the node section to match the nodes you are reaching. (Note: wildcards are accepted)
+    * Add the output on Ansible node `/.ssh/known_hosts` by modifying the node section to match the nodes you are reaching (note: wildcards are accepted).
     ```bash
     @cert-authority <NODE(S)> ssh-rsa AAA...REDACTED...TD9 logins=-teleport-nologin-f0d...REDACTED...fb1&type=host
     ```
