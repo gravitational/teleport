@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.0.2
+
+This release of Teleport contains a security fix.
+
+* Patch a SAML authentication bypass (see https://github.com/russellhaering/gosaml2/security/advisories/GHSA-xhqq-x44f-9fgg): [#5119](https://github.com/gravitational/teleport/pull/5119).
+
+Any Enterprise SSO users using Okta, Active Directory, OneLogin or custom SAML connectors should upgrade their auth servers to version 5.0.2 and restart Teleport. If you are unable to upgrade immediately, we suggest disabling SAML connectors for all clusters until the updates can be applied.
+
 ## 5.0.1
 
 This release of Teleport contains multiple bug fixes.
