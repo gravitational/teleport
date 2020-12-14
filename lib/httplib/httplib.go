@@ -49,7 +49,7 @@ func MakeHandler(fn HandlerFunc) httprouter.Handle {
 
 		out, err := fn(w, r, p)
 		if err != nil {
-			log.WithError(err).Info(err.Error())
+			log.WithError(err).Warn(err.Error())
 			trace.WriteError(w, trace.Unwrap(err))
 			return
 		}
@@ -67,7 +67,7 @@ func MakeStdHandler(fn StdHandlerFunc) http.HandlerFunc {
 
 		out, err := fn(w, r)
 		if err != nil {
-			log.WithError(err).Info(err.Error())
+			log.WithError(err).Warn(err.Error())
 			trace.WriteError(w, trace.Unwrap(err))
 			return
 		}

@@ -1034,7 +1034,10 @@ func (p *proxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// ensure the target host is accessible.
 	dconn, err := net.Dial("tcp", r.Host)
 	if err != nil {
-		log.WithError(err).Info(err.Error())
+		log.WithFields(log.Fields{
+			log.ErrorKey: err,
+			"addr": r.Host,
+		}).Warn("Failed to dial.")
 		trace.WriteError(w, trace.Unwrap(err))
 		return
 	}
@@ -1052,7 +1055,7 @@ func (p *proxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	sconn, _, err := hj.Hijack()
 	if err != nil {
-		log.WithError(err).Info(err.Error())
+		log.WithError(err).Warn(err.Error())
 		trace.WriteError(w, trace.Unwrap(err))
 		return
 	}
