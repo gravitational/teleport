@@ -30,9 +30,6 @@ import (
 )
 
 const (
-	// CPU command takes 30 seconds, a minute will be added to the benchmark (before and after, collecting the profiles during happens concurrently).
-	// If you cancel the benchmark during collecting cpu data, you will need to wait until the cpu command is done on the remote server (no more than ~30s)
-	// Benchmarks will need to be at least one minute long if you would like to collect profiles.
 	cpuEndpoint          = "http://127.0.0.1:3434/debug/pprof/profile"
 	goroutineEndpoint    = "http://127.0.0.1:3434/debug/pprof/goroutine"
 	heapEndpoint         = "http://127.0.0.1:3434/debug/pprof/heap"
