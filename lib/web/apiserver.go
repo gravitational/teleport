@@ -385,6 +385,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 				}
 			} else {
 				h.log.WithError(err).Debug("Could not authenticate.")
+				// TODO(dmitri): this looks like a bug and the client should be
+				// notified with an error
 			}
 			httplib.SetIndexHTMLHeaders(w.Header())
 			if err := indexPage.Execute(w, session); err != nil {
@@ -1301,7 +1303,7 @@ func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params ht
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	newContext, err := ctx.parent.ValidateSession(newSess.GetUser(), newSess.GetName())
+	newContext, err := ctx.parent.ValidateSession(r.Context(), newSess.GetUser(), newSess.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2239,7 +2241,7 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 		logger.WithError(err).Warn("Failed to decode cookie.")
 		return nil, trace.AccessDenied("failed to decode cookie")
 	}
-	ctx, err := h.auth.ValidateSession(d.User, d.SID)
+	ctx, err := h.auth.ValidateSession(r.Context(), d.User, d.SID)
 	if err != nil {
 		logger.WithError(err).Warn("Invalid session.")
 		ClearSession(w)

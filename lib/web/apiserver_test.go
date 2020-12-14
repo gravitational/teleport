@@ -616,22 +616,22 @@ func (s *WebSuite) TestWebSessionsRenew(c *C) {
 	//
 	prevSessionCookie := *pack.cookies[0]
 	prevBearerToken := pack.session.Token
-	re, err := pack.clt.PostJSON(context.Background(), pack.clt.Endpoint("webapi", "sessions", "renew"), nil)
+	resp, err := pack.clt.PostJSON(context.Background(), pack.clt.Endpoint("webapi", "sessions", "renew"), nil)
 	c.Assert(err, IsNil)
 
-	newPack := s.authPackFromResponse(c, re)
+	newPack := s.authPackFromResponse(c, resp)
 
 	// new session is functioning
 	_, err = newPack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, IsNil)
 
-	// old session is stil valid too (until it expires)
+	// old session is invalid as the context is updated immediately
 	jar, err := cookiejar.New(nil)
 	c.Assert(err, IsNil)
 	oldClt := s.client(roundtrip.BearerAuth(prevBearerToken), roundtrip.CookieJar(jar))
 	jar.SetCookies(s.url(), []*http.Cookie{&prevSessionCookie})
 	_, err = oldClt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, ".*bad bearer token.*")
 
 	// now delete session
 	_, err = newPack.clt.Delete(

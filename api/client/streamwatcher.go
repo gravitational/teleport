@@ -32,12 +32,7 @@ func (c *Client) NewWatcher(ctx context.Context, watch types.Watch) (types.Watch
 	cancelCtx, cancel := context.WithCancel(ctx)
 	var protoWatch proto.Watch
 	for _, k := range watch.Kinds {
-		protoWatch.Kinds = append(protoWatch.Kinds, proto.WatchKind{
-			Name:        k.Name,
-			Kind:        k.Kind,
-			LoadSecrets: k.LoadSecrets,
-			Filter:      k.Filter,
-		})
+		protoWatch.Kinds = append(protoWatch.Kinds, proto.WatchKindToProto(kind))
 	}
 	stream, err := c.grpc.WatchEvents(cancelCtx, &protoWatch)
 	if err != nil {

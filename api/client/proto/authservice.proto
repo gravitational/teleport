@@ -94,6 +94,8 @@ message WatchKind {
     // Filter is an optional mapping of custom filter parameters.
     // Valid values vary by resource kind.
     map<string, string> Filter = 4 [ (gogoproto.jsontag) = "filter,omitempty" ];
+    // SubKind is a resource subkind to watch
+    string SubKind = 5 [ (gogoproto.jsontag) = "sub_kind" ];
 }
 
 // Set of certificates corresponding to a single public key.

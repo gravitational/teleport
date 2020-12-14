@@ -51,33 +51,35 @@ import (
 // between requests for example to avoid connecting
 // to the auth server on every page hit
 type SessionContext struct {
-	mu  sync.Mutex
-	log logrus.FieldLogger
+	log    logrus.FieldLogger
+	user   string
+	clt    auth.ClientI
+	parent *sessionCache
+	clock  clockwork.Clock
+
+	mu sync.Mutex
 	// sess refers the web session created for the user.
-	// The session is never updated until the context eventually
-	// expires - all session queries are done through the auth cache
-	// as the session might be updated from multiple replicas so it is
-	// never accurate once set.
+	// The session is updated here each time it is refreshed by the client.
 	sess      services.WebSession
-	user      string
-	clt       auth.ClientI
 	remoteClt map[string]auth.ClientI
-	parent    *sessionCache
 	closers   []io.Closer
-	clock     clockwork.Clock
 }
 
 // String returns the text representation of this context
 func (c *SessionContext) String() string {
-	return fmt.Sprintf("session(user=%v, sid=%v)", c.user, c.sess.GetName())
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return fmt.Sprintf("session(user=%v,sid=%v,bearer=%v)", c.user, c.sess.GetName(), c.sess.GetBearerToken())
 }
 
+// AddClosers adds the specified closers to this context
 func (c *SessionContext) AddClosers(closers ...io.Closer) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.closers = append(c.closers, closers...)
 }
 
+// RemoevCloser removes the specified closer from this context
 func (c *SessionContext) RemoveCloser(closer io.Closer) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -89,6 +91,8 @@ func (c *SessionContext) RemoveCloser(closer io.Closer) {
 	}
 }
 
+// Invalidate invalidates this context by removing the underlying session
+// and closing all underlying closers
 func (c *SessionContext) Invalidate() error {
 	return c.parent.InvalidateSession(c)
 }
@@ -241,6 +245,8 @@ func (c *SessionContext) GetUser() string {
 
 // GetWebSession returns a web session
 func (c *SessionContext) GetWebSession() services.WebSession {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	return c.sess
 }
 
@@ -328,12 +334,29 @@ func (c *SessionContext) Close() error {
 // The context is considered expired when its bearer token TTL
 // is in the past
 func (c *SessionContext) expired(ctx context.Context) bool {
-	sess, err := c.parent.accessPoint.GetWebSession(ctx, services.GetWebSessionRequest{SessionID: c.sess.GetName()})
+	session, err := c.readSession(ctx)
 	if err != nil {
 		c.log.WithError(err).Warn("Failed to query web session.")
 		return false
 	}
-	return c.clock.Now().After(sess.GetBearerTokenExpiryTime())
+	return c.clock.Now().After(session.GetBearerTokenExpiryTime())
+}
+
+func (c *SessionContext) readSession(ctx context.Context) (services.WebSession, error) {
+	c.mu.Lock()
+	sessionID := c.sess.GetName()
+	c.mu.Unlock()
+	sess, err := c.parent.accessPoint.GetWebSession(ctx, services.GetWebSessionRequest{SessionID: sessionID})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sess, nil
+}
+
+func (c *SessionContext) setSession(session services.WebSession) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.sess = session
 }
 
 // newSessionCache returns new instance of the session cache
@@ -509,12 +532,17 @@ func (s *sessionCache) NewSession(user, sid string) (*SessionContext, error) {
 }
 
 // ValidateSession returns the existing session context for the specified user/session ID.
-func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error) {
-	ctx, err := s.getContext(user, sid)
+func (s *sessionCache) ValidateSession(ctx context.Context, user, sid string) (*SessionContext, error) {
+	sessionCtx, err := s.getContext(user, sid)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ctx, nil
+	session, err := sessionCtx.readSession(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sessionCtx.setSession(session)
+	return sessionCtx, nil
 }
 
 func (s *sessionCache) InvalidateSession(ctx *SessionContext) error {
@@ -563,7 +591,7 @@ func (s *sessionCache) resetContext(user, sid string) error {
 		s.log.WithFields(logrus.Fields{
 			logrus.ErrorKey: err,
 			"ctx":           ctx.String(),
-		}).Warn("Failed to close session context.")
+		}).Debug("Failed to close session context.")
 	}
 	return nil
 }
