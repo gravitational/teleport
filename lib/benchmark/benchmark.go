@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -94,14 +93,7 @@ func Run(ctx context.Context, lg *Linear, cmd, host, login, proxy string) ([]Res
 		return nil, trace.Wrap(err)
 	}
 	ctx, cancel := context.WithCancel(ctx)
-	go func() {
-		exitSignals := make(chan os.Signal, 1)
-		signal.Notify(exitSignals, syscall.SIGTERM, syscall.SIGINT)
-		defer signal.Stop(exitSignals)
-		sig := <-exitSignals
-		logrus.Debugf("signal: %v", sig)
-		cancel()
-	}()
+	go signalStop(cancel)
 	var results []Result
 	sleep := false
 	for {
@@ -159,8 +151,10 @@ func ExportLatencyProfile(path string, h *hdrhistogram.Histogram, ticks int32, v
 // to benchmark spec. It returns benchmark result when completed.
 // This is a blocking function that can be cancelled via context argument.
 func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Result, error) {
+	bctx, bcancel := context.WithCancel(context.Background())
+	go signalStop(bcancel)
 	if c.CollectProfiles {
-		err := collectProfiles(ctx, "before", c.ProfilePath, tc.Config.HostLogin, tc)
+		err := collectProfiles(bctx, "before", c.ProfilePath, tc)
 		if err != nil {
 			return Result{}, trace.Wrap(err)
 		}
@@ -168,10 +162,9 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 	tc.Stdout = ioutil.Discard
 	tc.Stderr = ioutil.Discard
 	tc.Stdin = &bytes.Buffer{}
-	var delay time.Duration
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-
+	var delay time.Duration
 	requestsC := make(chan benchMeasure)
 	resultC := make(chan benchMeasure)
 
@@ -224,25 +217,30 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient) (Resu
 			}
 		case <-duringTimeout:
 			var profileError error
-			go func() {
-				err := collectProfiles(ctx, "during", c.ProfilePath, tc.Config.HostLogin, tc)
-				if err != nil {
-					profileError = err
-					return 
+			if c.CollectProfiles {
+				go func() {
+					err := collectProfiles(bctx, "during", c.ProfilePath, tc)
+					if err != nil {
+						profileError = err
+						return
+					}
+				}()
+				// Should we return or let it keep running?
+				if profileError != nil {
+					return Result{}, profileError
 				}
-			}()
-			if profileError != nil {
-				return Result{}, profileError
 			}
 		case <-ctx.Done():
 			result.Duration = time.Since(start)
-			err := collectProfiles(ctx, "after", c.ProfilePath, tc.Config.HostLogin, tc)
-			if err != nil {
-				return Result{}, err
+			if c.CollectProfiles {
+				err := collectProfiles(bctx, "after", c.ProfilePath, tc)
+				if err != nil {
+					return Result{}, err
+				}
 			}
 			return result, nil
 		case <-statusTicker.C:
-			log.Printf("working... current observation count: %d", result.RequestsOriginated)
+			logrus.Infof("working... current observation count: %d", result.RequestsOriginated)
 		}
 
 	}
@@ -313,4 +311,13 @@ func makeTeleportClient(host, login, proxy string) (*client.TeleportClient, erro
 		return nil, trace.Wrap(err)
 	}
 	return tc, nil
+}
+
+func signalStop(cancel context.CancelFunc) {
+	exitSignals := make(chan os.Signal, 1)
+	signal.Notify(exitSignals, syscall.SIGTERM, syscall.SIGINT)
+	defer signal.Stop(exitSignals)
+	sig := <-exitSignals
+	logrus.Debugf("signal: %v", sig)
+	cancel()
 }

@@ -19,35 +19,35 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 )
 
 const (
-	cpuEndpoint       = "http://127.0.0.1:3434/debug/pprof/profile"
-	goroutineEndpoint = "http://127.0.0.1:3434/debug/pprof/goroutine"
-	heapEndpoint      = "http://127.0.0.1:3434/debug/pprof/heap"
+	// CPU command takes 30 seconds, a minute will be added to the benchmark (before and after, collecting the profiles during happens concurrently).
+	// If you cancel the benchmark during collecting cpu data, you will need to wait until the cpu command is done on the remote server (no more than ~30s)
+	// Benchmarks will need to be at least one minute long if you would like to collect profiles.
+	cpuEndpoint          = "http://127.0.0.1:3434/debug/pprof/profile"
+	goroutineEndpoint    = "http://127.0.0.1:3434/debug/pprof/goroutine"
+	heapEndpoint         = "http://127.0.0.1:3434/debug/pprof/heap"
+	checkEndpointCommand = "curl -s -w \"%{http_code}\n\" http://127.0.0.1:3434/debug/pprof/ -o /dev/null"
 )
 
 // collectProfiles collects cpu, heap, and goroutine profiles
-func collectProfiles(ctx context.Context, prefix, path, remoteUser string, tc *client.TeleportClient) error {
-	var profileCommands = new([3]string)
-	endpoints := []string{cpuEndpoint, goroutineEndpoint, heapEndpoint}
-	files := []string{"cpu.profile", "goroutine.profile", "heap.profile"}
-	ok, err := exists(path)
-	if !ok || err != nil {
-		return trace.Wrap(err)
-	}
-	for i := range endpoints {
-		profileCommands[i] = fmt.Sprintf("%s %s_%s %s", "curl -o", prefix, files[i], endpoints[i])
-		files[i] = fmt.Sprintf("%s_%s", prefix, files[i])
-	}
-	config := tc.Config
-	client, err := client.NewClient(&config)
+func collectProfiles(ctx context.Context, prefix, path string, tc *client.TeleportClient) error {
+	var endpoints = []string{cpuEndpoint, goroutineEndpoint, heapEndpoint}
+	var timeStamp = time.Now().Format("2006-01-02_15:04:05")
+	var files = []string{fmt.Sprintf("%s_cpu-%s.profile", prefix, timeStamp),
+		fmt.Sprintf("%s_goroutine-%s.profile", prefix, timeStamp),
+		fmt.Sprintf("%s_heap-%s.profile", prefix, timeStamp)}
+
+	err := checkPath(path)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -58,8 +58,9 @@ func collectProfiles(ctx context.Context, prefix, path, remoteUser string, tc *c
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for i := range profileCommands {
-		err = client.SSH(context.TODO(), strings.Split(profileCommands[i], " "), false)
+	for i := range endpoints {
+		cmd := fmt.Sprintf("%s %s %s", "curl -o", files[i], endpoints[i])
+		err = tc.SSH(ctx, strings.Split(cmd, " "), false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -71,39 +72,33 @@ func collectProfiles(ctx context.Context, prefix, path, remoteUser string, tc *c
 	return nil
 }
 
-// exists checks if path exists
-func exists(path string) (bool, error) {
+// checkPath checks if path is ok to save profiles to
+func checkPath(path string) error {
 	if err := os.MkdirAll(path, 0700); err != nil {
-		return false, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	return true, nil
+	return nil
 }
 
 // statusOK checks diagnostic endpoint status code on the remote server
 func statusOK(tc *client.TeleportClient, out *bytes.Buffer) error {
-	command := fmt.Sprint("curl -s -w \"%{http_code}\n\" http://127.0.0.1:3434/debug/pprof/ -o /dev/null")
-	err := tc.SSH(context.TODO(), strings.Split(command, " "), false)
+	err := tc.SSH(context.TODO(), strings.Split(checkEndpointCommand, " "), false)
 	if (err == nil) && !(strings.Contains(out.String(), "200")) {
 		return nil
 	}
-	return trace.Wrap(err, ": make sure --diag-addr and -d flags are enabled on server start up")
+	return trace.Wrap(err, ": be sure --diag-addr and -d flags are were enabled on server startup.")
 }
 
 // scpProfiles securely copies all profiles from remote server to local
 func scpProfiles(files []string, path string, tc *client.TeleportClient) error {
 	var remote string
-	config := tc.Config
-	client, err := client.NewClient(&config)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	for i := range files {
 		remote = fmt.Sprintf("%s@%s:%s", tc.HostLogin, tc.Host, files[i])
-		log.Println("securley copying... ", remote, " --> ", path)
-		err := client.SCP(context.TODO(), []string{remote, path}, tc.HostPort, false, true)
+		err := tc.SCP(context.TODO(), []string{remote, path}, tc.HostPort, false, true)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		logrus.Println("securley copied:", remote, " -->", filepath.Join(path, files[i]))
 	}
 	return nil
 }

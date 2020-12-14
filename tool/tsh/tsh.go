@@ -1113,11 +1113,11 @@ func onBenchmark(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 	cnf := benchmark.Config{
-		Command:       cf.RemoteCommand,
-		MinimumWindow: cf.BenchDuration,
-		Rate:          cf.BenchRate,
+		Command:         cf.RemoteCommand,
+		MinimumWindow:   cf.BenchDuration,
+		Rate:            cf.BenchRate,
 		CollectProfiles: cf.BenchCollectProfiles,
-		ProfilePath: cf.BenchExportPath,
+		ProfilePath:     cf.BenchExportPath,
 	}
 	result, err := cnf.Benchmark(cf.Context, tc)
 	if err != nil {
