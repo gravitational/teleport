@@ -1302,7 +1302,7 @@ The configuration for openssh is as follows:
         scp_if_ssh = True
         ```
 
-1. Configure your OpenSSH to connect to Teleport proxy and use `ssh-agent` socket:
+1. Configure your OpenSSH client to connect to Teleport proxy and use `ssh-agent` socket:
     ```bash
     $ eval `ssh-agent`
     $ tsh --proxy=root.example.com login
