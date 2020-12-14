@@ -1,5 +1,13 @@
 # Changelog
 
+## 5.0.1
+
+This release of Teleport contains multiple bug fixes.
+
+* Always set expiry times on server resource in heartbeats [#5008](https://github.com/gravitational/teleport/pull/5008)
+* Fixes streaming k8s responses (`kubectl logs -f`, `kubectl run -it`, etc) [#5009](https://github.com/gravitational/teleport/pull/5009)
+* Multiple fixes for the k8s forwarder [#5038](https://github.com/gravitational/teleport/pull/5038)
+
 ## 5.0.0
 
 Teleport 5.0 is a major release with new features, functionality, and bug fixes. Users can review [5.0 closed issues](https://github.com/gravitational/teleport/milestone/39?closed=1) on Github for details of all items.
