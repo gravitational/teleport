@@ -574,7 +574,9 @@ func (o *SAMLConnectorV2) GetServiceProvider(clock clockwork.Clock) (*saml2.SAML
 			}
 		}
 		o.Spec.Issuer = metadata.EntityID
-		o.Spec.SSO = metadata.IDPSSODescriptor.SingleSignOnService.Location
+		if len(metadata.IDPSSODescriptor.SingleSignOnServices) > 0 {
+			o.Spec.SSO = metadata.IDPSSODescriptor.SingleSignOnServices[0].Location
+		}
 	}
 	if o.Spec.Issuer == "" {
 		return nil, trace.BadParameter("no issuer or entityID set, either set issuer as a parameter or via entity_descriptor spec")

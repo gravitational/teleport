@@ -626,6 +626,14 @@
   revision = "16b258d86efc53ac5cf3e550604f566c32624fab"
 
 [[projects]]
+  branch = "master"
+  digest = "1:314f0a78b6c1e696ab04602e2ccd682521beff84de6254e2de067df9647da360"
+  name = "github.com/mattermost/xml-roundtrip-validator"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "bcd7e1b9601e23e68c7a801c1e70c75b01573241"
+
+[[projects]]
   digest = "1:70ef8268170621826f8c111ac1674afe75136f526f449453b4a6631c6dba1946"
   name = "github.com/mattn/go-runewidth"
   packages = ["."]
@@ -772,14 +780,15 @@
   version = "v0.0.4"
 
 [[projects]]
-  digest = "1:ebd11dba223a1ad42de8d1dd567c44016257aa642af4552c64d7db98cbb2d989"
+  digest = "1:7023f0ea0bbcf29335a25ed48c5fc3c7a59997739a5af42f25524b70d86e221f"
   name = "github.com/russellhaering/gosaml2"
   packages = [
     ".",
     "types",
+    "uuid",
   ]
   pruneopts = "NUT"
-  revision = "8908227c114abe0b63b1f0606abae72d11bf632a"
+  revision = "v0.6.0"
 
 [[projects]]
   branch = "master"
@@ -800,13 +809,6 @@
   packages = ["skiplist"]
   pruneopts = "NUT"
   revision = "2dfbae5fcf46374f166f8969cb07e167f1be6273"
-
-[[projects]]
-  digest = "1:54f275b550b8a8a20bc91e2067ed740600b69dae9dcf9cdfe905bac1b9cfd1d0"
-  name = "github.com/satori/go.uuid"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "5bf94b69c6b68ee1b541973bb8e1144db23a194b"
 
 [[projects]]
   branch = "master"
