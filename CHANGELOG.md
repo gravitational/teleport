@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.3.9
+
+This release of Teleport contains a security fix.
+
+* Patch a SAML authentication bypass (see https://github.com/russellhaering/gosaml2/security/advisories/GHSA-xhqq-x44f-9fgg): [#5122](https://github.com/gravitational/teleport/pull/5122). Users with SAML SSO providers should upgrade as soon as possible.
+
 ## 4.3.8
 
 This release of Teleport adds support for a new build architecture.
