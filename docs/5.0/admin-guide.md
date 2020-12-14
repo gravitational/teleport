@@ -1286,7 +1286,7 @@ The configuration for openssh is as follows:
         ```
     * Add the output on Ansible node `/.ssh/known_hosts` by modifying the node section to match the nodes you are reaching (note: wildcards are accepted).
     ```bash
-    @cert-authority <NODE(S)> ssh-rsa AAA...REDACTED...TD9 logins=-teleport-nologin-f0d...REDACTED...fb1&type=host
+    @cert-authority <hostname.example.com|hostname|10.0.0.0> ssh-rsa AAA...REDACTED...TD9 logins=-teleport-nologin-f0d...REDACTED...fb1&type=host
     ```
     * Modify ssh config file to include the proxy node and the desired Teleport nodes with `ProxyCommand` or `ProxyJump` parameters configured
 
