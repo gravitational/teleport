@@ -1279,7 +1279,7 @@ There are two recommended scenarios:
 
 The configuration for openssh is as follows:
 
-1. Add hosts to know hosts in Ansible node
+1. Add hosts to known hosts in Ansible node
     * From Teleport Auth Node:
         ```bash
         $ tsh auth export --type=host
