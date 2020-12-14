@@ -1277,7 +1277,7 @@ There are two recommended scenarios:
 
 2. Ansible connects to Teleport Node using the Teleport Proxy as a jumphost. This method uses Teleport user credentials over port 3022
 
-The configuration for openssh is as follows:
+The configuration for OpenSSH is as follows:
 
 1. Add hosts to known hosts in Ansible node
     * From Teleport Auth Node:
