@@ -56,7 +56,7 @@ The diagram shows the following mappings. A couple of noteworthy things
 from this example:
 
 * Teleport User `sandra` does **not** have access to `grav-02`
-through Teleport because `sandra` is not an OS username.
+through Teleport because `ops` is not an OS username on that node.
 * Teleport User `joe` has access to all nodes because the OS user `root`
 is present on all nodes.
 
