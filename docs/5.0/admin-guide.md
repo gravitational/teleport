@@ -1312,7 +1312,7 @@ The configuration for openssh is as follows:
 
 !!! tip "NOTE"
 
-    Additional Teleport and OpenSSH integration information can be located [HERE](https://goteleport.com/teleport/docs/openssh-teleport/#using-openssh-client)
+    Additional Teleport and OpenSSH integration information can be located [here](https://goteleport.com/teleport/docs/openssh-teleport/#using-openssh-client)
 
 
 ## Kubernetes Integration
