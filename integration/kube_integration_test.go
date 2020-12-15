@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/testlog"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -78,9 +79,23 @@ type KubeSuite struct {
 
 	// kubeConfig is a kubernetes config struct
 	kubeConfig *rest.Config
+
+	// log defines the test-specific logger
+	log utils.Logger
+	w   *testlog.TestWrapper
 }
 
 func (s *KubeSuite) SetUpSuite(c *check.C) {
+	testEnabled := os.Getenv(teleport.KubeRunTests)
+	if ok, _ := strconv.ParseBool(testEnabled); !ok {
+		c.Skip("Skipping Kubernetes test suite.")
+	}
+
+	s.kubeConfigPath = os.Getenv(teleport.EnvKubeConfig)
+	if s.kubeConfigPath == "" {
+		c.Fatal("This test requires path to valid kubeconfig.")
+	}
+
 	kubeproxy.TestOnlySkipSelfPermissionCheck(true)
 
 	var err error
@@ -99,20 +114,11 @@ func (s *KubeSuite) SetUpSuite(c *check.C) {
 
 	// close & re-open stdin because 'go test' runs with os.stdin connected to /dev/null
 	stdin, err := os.Open("/dev/tty")
-	if err != nil {
+	if err == nil {
 		os.Stdin.Close()
 		os.Stdin = stdin
 	}
 
-	testEnabled := os.Getenv(teleport.KubeRunTests)
-	if ok, _ := strconv.ParseBool(testEnabled); !ok {
-		c.Skip("Skipping Kubernetes test suite.")
-	}
-
-	s.kubeConfigPath = os.Getenv(teleport.EnvKubeConfig)
-	if s.kubeConfigPath == "" {
-		c.Fatal("This test requires path to valid kubeconfig")
-	}
 	s.Clientset, s.kubeConfig, err = kubeutils.GetKubeClient(s.kubeConfigPath)
 	c.Assert(err, check.IsNil)
 
@@ -148,8 +154,24 @@ func (s *KubeSuite) TearDownSuite(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
+// setUpTest configures the specific test identified with the given c.
+// Note, that this c is different from the one passed into SetUpTest/TearDownTest
+// and reflects the actual test's state - e.g. c.Failed() will properly reflect whether
+// the test failed
+func (s *KubeSuite) setUpTest(c *check.C) {
+	s.w = testlog.NewCheckTestWrapper(c)
+	s.log = s.w.Log
+}
+
+func (s *KubeSuite) tearDownTest(c *check.C) {
+	s.w.Close()
+}
+
 // TestKubeExec tests kubernetes Exec command set
 func (s *KubeSuite) TestKubeExec(c *check.C) {
+	s.setUpTest(c)
+	defer s.tearDownTest(c)
+
 	tconf := s.teleKubeConfig(Host)
 
 	t := NewInstance(InstanceConfig{
@@ -159,6 +181,7 @@ func (s *KubeSuite) TestKubeExec(c *check.C) {
 		Ports:       s.ports.PopIntSlice(5),
 		Priv:        s.priv,
 		Pub:         s.pub,
+		log:         s.log,
 	})
 
 	username := s.me.Username
@@ -320,6 +343,9 @@ loop:
 // TestKubeDeny makes sure that deny rule conflicting with allow
 // rule takes precedence
 func (s *KubeSuite) TestKubeDeny(c *check.C) {
+	s.setUpTest(c)
+	defer s.tearDownTest(c)
+
 	tconf := s.teleKubeConfig(Host)
 
 	t := NewInstance(InstanceConfig{
@@ -329,6 +355,7 @@ func (s *KubeSuite) TestKubeDeny(c *check.C) {
 		Ports:       s.ports.PopIntSlice(5),
 		Priv:        s.priv,
 		Pub:         s.pub,
+		log:         s.log,
 	})
 
 	username := s.me.Username
@@ -372,6 +399,9 @@ func (s *KubeSuite) TestKubeDeny(c *check.C) {
 
 // TestKubePortForward tests kubernetes port forwarding
 func (s *KubeSuite) TestKubePortForward(c *check.C) {
+	s.setUpTest(c)
+	defer s.tearDownTest(c)
+
 	tconf := s.teleKubeConfig(Host)
 
 	t := NewInstance(InstanceConfig{
@@ -381,6 +411,7 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 		Ports:       s.ports.PopIntSlice(5),
 		Priv:        s.priv,
 		Pub:         s.pub,
+		log:         s.log,
 	})
 
 	username := s.me.Username
@@ -463,6 +494,9 @@ func (s *KubeSuite) TestKubePortForward(c *check.C) {
 // TestKubeTrustedClustersClientCert tests scenario with trusted clusters
 // using metadata encoded in the certificate
 func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
+	s.setUpTest(c)
+	defer s.tearDownTest(c)
+
 	ctx := context.Background()
 	clusterMain := "cluster-main"
 	mainConf := s.teleKubeConfig(Host)
@@ -476,6 +510,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 		Ports:       s.ports.PopIntSlice(5),
 		Priv:        s.priv,
 		Pub:         s.pub,
+		log:         s.log,
 	})
 
 	// main cluster has a role and user called main-kube
@@ -499,6 +534,7 @@ func (s *KubeSuite) TestKubeTrustedClustersClientCert(c *check.C) {
 		Ports:       s.ports.PopIntSlice(5),
 		Priv:        s.priv,
 		Pub:         s.pub,
+		log:         s.log,
 	})
 
 	lib.SetInsecureDevMode(true)
@@ -721,6 +757,9 @@ loop:
 // using SNI-forwarding
 // DELETE IN(4.3.0)
 func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
+	s.setUpTest(c)
+	defer s.tearDownTest(c)
+
 	ctx := context.Background()
 
 	clusterMain := "cluster-main"
@@ -732,6 +771,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 		Ports:       s.ports.PopIntSlice(5),
 		Priv:        s.priv,
 		Pub:         s.pub,
+		log:         s.log,
 	})
 
 	// main cluster has a role and user called main-kube
@@ -755,6 +795,7 @@ func (s *KubeSuite) TestKubeTrustedClustersSNI(c *check.C) {
 		Ports:       s.ports.PopIntSlice(5),
 		Priv:        s.priv,
 		Pub:         s.pub,
+		log:         s.log,
 	})
 
 	lib.SetInsecureDevMode(true)
@@ -977,6 +1018,9 @@ loop:
 
 // TestKubeDisconnect tests kubernetes session disconnects
 func (s *KubeSuite) TestKubeDisconnect(c *check.C) {
+	s.setUpTest(c)
+	defer s.tearDownTest(c)
+
 	testCases := []disconnectTestCase{
 		{
 			options: services.RoleOptions{
@@ -1010,6 +1054,7 @@ func (s *KubeSuite) runKubeDisconnectTest(c *check.C, tc disconnectTestCase) {
 		Ports:       s.ports.PopIntSlice(5),
 		Priv:        s.priv,
 		Pub:         s.pub,
+		log:         s.log,
 	})
 
 	username := s.me.Username
@@ -1088,6 +1133,8 @@ func (s *KubeSuite) runKubeDisconnectTest(c *check.C, tc disconnectTestCase) {
 // teleKubeConfig sets up teleport with kubernetes turned on
 func (s *KubeSuite) teleKubeConfig(hostname string) *service.Config {
 	tconf := service.MakeDefaultConfig()
+	tconf.Console = nil
+	tconf.Log = s.log
 	tconf.SSH.Enabled = true
 	tconf.Proxy.DisableWebInterface = true
 	tconf.PollingPeriod = 500 * time.Millisecond

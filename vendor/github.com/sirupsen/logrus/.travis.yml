@@ -1,10 +1,17 @@
 language: go
-go:
-  - 1.3
-  - 1.4
-  - 1.5
-  - 1.6
-  - tip
+go_import_path: github.com/sirupsen/logrus
+git:
+  depth: 1
+env:
+  - GO111MODULE=on
+go: [1.13.x, 1.14.x]
+os: [linux, osx]
 install:
-  - go get -t ./...
-script: GOMAXPROCS=4 GORACE="halt_on_error=1" go test -race -v ./...
+  - ./travis/install.sh
+script:
+  - ./travis/cross_build.sh
+  - ./travis/lint.sh
+  - export GOMAXPROCS=4
+  - export GORACE=halt_on_error=1
+  - go test -race -v ./...
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then go test -race -v -tags appengine ./... ; fi

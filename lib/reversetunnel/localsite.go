@@ -76,7 +76,7 @@ func newlocalSite(srv *server, domainName string, client auth.ClientI) (*localSi
 type localSite struct {
 	sync.Mutex
 
-	log        *log.Entry
+	log        log.FieldLogger
 	domainName string
 	srv        *server
 

@@ -42,10 +42,13 @@ The following diagram shows an example Database Access setup:
 
 ![Teleport database access diagram](../img/dbaccess.svg)
 
+## Schedule
+
 !!! info
-    Teleport Database Access is currently under active development, with a
-    preview release slated for Teleport 5.1 in December 2020. The preview
-    will include support for PostgreSQL, including Amazon RDS and Aurora.
+    Teleport Database Access is under active development.
+    The alpha release will include support for PostgreSQL, including Amazon RDS and Aurora.
+
+[Database Access Release Schedule](./upcoming-releases.md#release-schedule)
 
 ## Setup
 

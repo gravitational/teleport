@@ -104,7 +104,8 @@ type server struct {
 	// ctx is a context used for signalling and broadcast
 	ctx context.Context
 
-	*log.Entry
+	// log specifies the logger
+	log log.FieldLogger
 
 	// proxyWatcher monitors changes to the proxies
 	// and broadcasts updates
@@ -182,6 +183,9 @@ type Config struct {
 	// Component is a component used in logs
 	Component string
 
+	// Log specifies the logger
+	Log log.FieldLogger
+
 	// FIPS means Teleport was started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
 	FIPS bool
@@ -235,6 +239,13 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.Component == "" {
 		cfg.Component = teleport.Component(teleport.ComponentProxy, teleport.ComponentServer)
 	}
+	logger := cfg.Log
+	if cfg.Log == nil {
+		logger = log.StandardLogger()
+	}
+	cfg.Log = logger.WithFields(log.Fields{
+		trace.Component: cfg.Component,
+	})
 	return nil
 }
 
@@ -253,14 +264,11 @@ func NewServer(cfg Config) (Server, error) {
 
 	ctx, cancel := context.WithCancel(cfg.Context)
 
-	entry := log.WithFields(log.Fields{
-		trace.Component: cfg.Component,
-	})
 	proxyWatcher, err := services.NewProxyWatcher(services.ProxyWatcherConfig{
 		Context:   ctx,
 		Component: cfg.Component,
 		Client:    cfg.LocalAuthClient,
-		Entry:     entry,
+		Entry:     cfg.Log,
 		ProxiesC:  make(chan []services.Server, 10),
 	})
 	if err != nil {
@@ -280,7 +288,7 @@ func NewServer(cfg Config) (Server, error) {
 		cancel:           cancel,
 		proxyWatcher:     proxyWatcher,
 		clusterPeers:     make(map[string]*clusterPeers),
-		Entry:            entry,
+		log:              cfg.Log,
 		offlineThreshold: offlineThreshold,
 	}
 
@@ -303,6 +311,7 @@ func NewServer(cfg Config) (Server, error) {
 		sshutils.AuthMethods{
 			PublicKey: srv.keyAuth,
 		},
+		sshutils.SetLogger(cfg.Log),
 		sshutils.SetLimiter(cfg.Limiter),
 		sshutils.SetCiphers(cfg.Ciphers),
 		sshutils.SetKEXAlgorithms(cfg.KEXAlgorithms),
@@ -340,11 +349,11 @@ func (s *server) disconnectClusters() error {
 	remoteMap := remoteClustersMap(remoteClusters)
 	for _, cluster := range connectedRemoteClusters {
 		if _, ok := remoteMap[cluster.GetName()]; !ok {
-			s.Infof("Remote cluster %q has been deleted. Disconnecting it from the proxy.", cluster.GetName())
+			s.log.Infof("Remote cluster %q has been deleted. Disconnecting it from the proxy.", cluster.GetName())
 			s.removeSite(cluster.GetName())
 			err := cluster.Close()
 			if err != nil {
-				s.Debugf("Failure closing cluster %q: %v.", cluster.GetName(), err)
+				s.log.Debugf("Failure closing cluster %q: %v.", cluster.GetName(), err)
 			}
 		}
 	}
@@ -356,12 +365,12 @@ func (s *server) periodicFunctions() {
 	defer ticker.Stop()
 
 	if err := s.fetchClusterPeers(); err != nil {
-		s.Warningf("Failed to fetch cluster peers: %v.", err)
+		s.log.Warningf("Failed to fetch cluster peers: %v.", err)
 	}
 	for {
 		select {
 		case <-s.ctx.Done():
-			s.Debugf("Closing.")
+			s.log.Debugf("Closing.")
 			return
 		// Proxies have been updated, notify connected agents about the update.
 		case proxies := <-s.proxyWatcher.ProxiesC:
@@ -369,15 +378,15 @@ func (s *server) periodicFunctions() {
 		case <-ticker.C:
 			err := s.fetchClusterPeers()
 			if err != nil {
-				s.Warningf("Failed to fetch cluster peers: %v.", err)
+				s.log.Warningf("Failed to fetch cluster peers: %v.", err)
 			}
 			err = s.disconnectClusters()
 			if err != nil {
-				s.Warningf("Failed to disconnect clusters: %v.", err)
+				s.log.Warningf("Failed to disconnect clusters: %v.", err)
 			}
 			err = s.reportClusterStats()
 			if err != nil {
-				s.Warningf("Failed to report cluster stats: %v.", err)
+				s.log.Warningf("Failed to report cluster stats: %v.", err)
 			}
 		}
 	}
@@ -480,11 +489,11 @@ func (s *server) removeClusterPeers(conns []services.TunnelConnection) {
 	for _, conn := range conns {
 		peers, ok := s.clusterPeers[conn.GetClusterName()]
 		if !ok {
-			s.Warningf("failed to remove cluster peer, not found peers for %v", conn)
+			s.log.Warningf("failed to remove cluster peer, not found peers for %v.", conn)
 			continue
 		}
 		peers.removePeer(conn)
-		s.Debugf("removed cluster peer %v", conn)
+		s.log.Debugf("Removed cluster peer %v.", conn)
 	}
 }
 
@@ -569,23 +578,23 @@ func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 		if channelType == "session" {
 			msg = "Cannot open new SSH session on reverse tunnel. Are you connecting to the right port?"
 		}
-		s.Warn(msg)
+		s.log.Warn(msg)
 		s.rejectRequest(nch, ssh.ConnectionFailed, msg)
 		return
 	}
 }
 
 func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
-	s.Debugf("Transport request: %v.", nch.ChannelType())
+	s.log.Debugf("Transport request: %v.", nch.ChannelType())
 	channel, requestCh, err := nch.Accept()
 	if err != nil {
 		sconn.Close()
-		s.Warnf("Failed to accept request: %v.", err)
+		s.log.Warnf("Failed to accept request: %v.", err)
 		return
 	}
 
 	t := &transport{
-		log:              s.Entry,
+		log:              s.log,
 		closeContext:     s.ctx,
 		authClient:       s.LocalAccessPoint,
 		channel:          channel,
@@ -598,9 +607,9 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 
 // TODO(awly): unit test this
 func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.NewChannel) {
-	s.Debugf("New tunnel from %v.", sconn.RemoteAddr())
+	s.log.Debugf("New tunnel from %v.", sconn.RemoteAddr())
 	if sconn.Permissions.Extensions[extCertType] != extCertTypeHost {
-		s.Error(trace.BadParameter("can't retrieve certificate type in certType"))
+		s.log.Error(trace.BadParameter("can't retrieve certificate type in certType"))
 		return
 	}
 
@@ -695,7 +704,7 @@ func (s *server) getTrustedCAKeysByID(id services.CertAuthID) ([]ssh.PublicKey, 
 }
 
 func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Permissions, err error) {
-	logger := s.WithFields(log.Fields{
+	logger := s.log.WithFields(log.Fields{
 		"remote": conn.RemoteAddr(),
 		"user":   conn.User(),
 	})
@@ -953,7 +962,7 @@ func (s *server) fanOutProxies(proxies []services.Server) {
 
 func (s *server) rejectRequest(ch ssh.NewChannel, reason ssh.RejectionReason, msg string) {
 	if err := ch.Reject(reason, msg); err != nil {
-		s.Warnf("Failed rejecting new channel request: %v", err)
+		s.log.Warnf("Failed rejecting new channel request: %v", err)
 	}
 }
 
