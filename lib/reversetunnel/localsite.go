@@ -281,38 +281,45 @@ func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, e
 	if params.To != nil {
 		dreq.Address = params.To.String()
 	}
+
 	// If server ID matches a node that has self registered itself over the tunnel,
-	// return a connection to that node. Otherwise net.Dial to the target host.
-	conn, err = s.dialTunnel(dreq)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, false, trace.Wrap(err)
-		}
-
-		// Connections to applications should never occur over a direct dial, return right away.
-		if params.ConnType == services.AppTunnel {
-			return nil, false, trace.ConnectionProblem(err, "failed to connect to application")
-		}
-
-		// This node can only be reached over a tunnel, don't attempt to dial
-		// remotely.
-		if params.To.String() == "" {
-			return nil, false, trace.ConnectionProblem(err, "node is offline, please try again later")
-		}
-		tunnelErr := trace.Errorf("dialing through a tunnel: %v", err)
-		// If no tunnel connection was found, dial to the target host.
-		dialer := proxy.DialerFromEnvironment(params.To.String())
-		conn, err = dialer.DialTimeout(params.To.Network(), params.To.String(), defaults.DefaultDialTimeout)
-		if err != nil {
-			return nil, false, trace.NewAggregate(tunnelErr, trace.Errorf("dialing directly: %v", err))
-		}
-
-		// Return a direct dialed connection.
-		return conn, false, nil
+	// return a tunnel connection to that node. Otherwise net.Dial to the target host.
+	conn, tunnelErr := s.dialTunnel(dreq)
+	if tunnelErr == nil {
+		return conn, true, nil
 	}
 
-	// Return a tunnel dialed connection.
-	return conn, true, nil
+	if !trace.IsNotFound(tunnelErr) {
+		return nil, false, trace.Wrap(tunnelErr)
+	}
+
+	s.log.WithError(tunnelErr).WithField("address", dreq.Address).Debug("Error occurred while dialing through a tunnel.")
+
+	// Connections to applications should never occur over a direct dial, return right away.
+	if params.ConnType == services.AppTunnel {
+		return nil, false, trace.ConnectionProblem(tunnelErr, "failed to connect to application")
+	}
+
+	offlineMsg := "the node is offline or has disconnected, if the issue " +
+		"persists, restart the node or re-register it in the cluster"
+
+	// This node can only be reached over a tunnel, don't attempt to dial
+	// remotely.
+	if params.To.String() == "" {
+		return nil, false, trace.ConnectionProblem(tunnelErr, offlineMsg)
+	}
+
+	// If no tunnel connection was found, dial to the target host.
+	dialer := proxy.DialerFromEnvironment(params.To.String())
+	conn, directErr := dialer.DialTimeout(params.To.Network(), params.To.String(), defaults.DefaultDialTimeout)
+	if directErr != nil {
+		s.log.WithError(directErr).WithField("address", params.To.String()).Debug("Error occurred while dialing directly.")
+		aggregateErr := trace.NewAggregate(tunnelErr, directErr)
+		return nil, false, trace.ConnectionProblem(aggregateErr, offlineMsg)
+	}
+
+	// Return a direct dialed connection.
+	return conn, false, nil
 }
 
 func (s *localSite) addConn(nodeID string, connType services.TunnelType, conn net.Conn, sconn ssh.Conn) (*remoteConn, error) {
