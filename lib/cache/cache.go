@@ -59,6 +59,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: services.KindAccessRequest},
 		{Kind: services.KindAppServer},
 		{Kind: services.KindWebSession, SubKind: services.KindAppSession},
+		{Kind: services.KindWebSession, SubKind: services.KindWebSession},
 		{Kind: services.KindRemoteCluster},
 		{Kind: services.KindKubeService},
 		{Kind: types.KindDatabaseServer},

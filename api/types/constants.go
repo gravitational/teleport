@@ -219,6 +219,9 @@ const (
 	VerbRotate = "rotate"
 )
 
+// WebSessionSubKinds lists subkinds of web session resources
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession}
+
 const (
 	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.
 	RecordAtNode = "node"

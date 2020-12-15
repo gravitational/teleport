@@ -71,6 +71,8 @@ message Event {
         // DatabaseServer is a resource for database servers.
         types.DatabaseServerV3 DatabaseServer = 17
             [ (gogoproto.jsontag) = "database_server,omitempty" ];
+        // WebSession is a regular web session.
+        types.WebSessionV2 WebSession = 18 [ (gogoproto.jsontag) = "web_session,omitempty" ];
     }
 }
 
