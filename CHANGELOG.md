@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.1.16
+
+This release of Teleport contains two security fixes.
+
+* Mitigated [CVE-2020-15216](https://nvd.nist.gov/vuln/detail/CVE-2020-15216) by updating `github.com/russellhaering/goxmldsig`.
+* Mitigated [CVE-2020-29509](https://github.com/russellhaering/gosaml2/security/advisories/GHSA-xhqq-x44f-9fgg) by updating `github.com/russellhaering/gosaml2`.
+
+### Details
+
+Vulnerabilities have been discovered in `github.com/russellhaering/goxmldsig` and `github.com/russellhaering/gosaml2` which are used by Teleport for SSO authentication via the SAML protocol. With a carefully crafted SAML response, an attacker could inject malicious content, bypassing signature validation, permitting full authentication bypass.  
+
+### Actions
+
+All Enterprise SSO users using Okta, Active Directory, OneLogin or custom SAML connectors should upgrade their auth servers to the latest patched release of Teleport.
+
+If you are unable to upgrade immediately, we suggest disabling SAML connectors for all clusters until the updates can be applied.
+
 ## 3.1.15
 
 This release of Teleport contains a security fix.
