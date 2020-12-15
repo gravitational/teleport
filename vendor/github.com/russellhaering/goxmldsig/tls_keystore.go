@@ -32,3 +32,8 @@ func (d TLSCertKeyStore) GetKeyPair() (*rsa.PrivateKey, []byte, error) {
 
 	return pk, crt, nil
 }
+
+//GetChain impliments X509ChainStore using the underlying tls.Certificate
+func (d TLSCertKeyStore) GetChain() ([][]byte, error) {
+	return d.Certificate, nil
+}

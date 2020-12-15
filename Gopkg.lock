@@ -580,6 +580,14 @@
   revision = "8b799c424f57fa123fc63a99d6383bc6e4c02578"
 
 [[projects]]
+  branch = "master"
+  digest = "1:314f0a78b6c1e696ab04602e2ccd682521beff84de6254e2de067df9647da360"
+  name = "github.com/mattermost/xml-roundtrip-validator"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "bcd7e1b9601e23e68c7a801c1e70c75b01573241"
+
+[[projects]]
   digest = "1:fb04e8f83a0a1be6c248fb11e439edf7a1540da1eb903801d5e1c2047ce9f091"
   name = "github.com/matttproud/golang_protobuf_extensions"
   packages = ["pbutil"]
@@ -684,18 +692,19 @@
   revision = "406e5b7bfd8201a36e2bb5f7bdae0b03380c2ce8"
 
 [[projects]]
-  digest = "1:ebd11dba223a1ad42de8d1dd567c44016257aa642af4552c64d7db98cbb2d989"
+  digest = "1:7023f0ea0bbcf29335a25ed48c5fc3c7a59997739a5af42f25524b70d86e221f"
   name = "github.com/russellhaering/gosaml2"
   packages = [
     ".",
     "types",
+    "uuid",
   ]
   pruneopts = "NUT"
-  revision = "8908227c114abe0b63b1f0606abae72d11bf632a"
+  revision = "42606dafba60c58c458f14f75c4c230459672ab9"
+  version = "v0.6.0"
 
 [[projects]]
-  branch = "master"
-  digest = "1:c1b6e4313972f8f3eff84689d6aa486138b0ce9d0308127db4f682de580edb45"
+  digest = "1:b4507a5fe7842decf6ba093f0f3bd631ddb7c063760e6d7b64f6d2c485a37f8b"
   name = "github.com/russellhaering/goxmldsig"
   packages = [
     ".",
@@ -703,14 +712,8 @@
     "types",
   ]
   pruneopts = "NUT"
-  revision = "605161228693b2efadce55323c9c661a40c5fbaa"
-
-[[projects]]
-  digest = "1:54f275b550b8a8a20bc91e2067ed740600b69dae9dcf9cdfe905bac1b9cfd1d0"
-  name = "github.com/satori/go.uuid"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "5bf94b69c6b68ee1b541973bb8e1144db23a194b"
+  revision = "6f318b2f18251aa66983056c1db7e4eef312103c"
+  version = "v1.1.0"
 
 [[projects]]
   digest = "1:ed14ef2a880d6674d8d9847a765b887fbb2af7b2e940900241a1e85bf1b4ca1f"
