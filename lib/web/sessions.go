@@ -346,17 +346,21 @@ func (c *SessionContext) readSession(ctx context.Context) (services.WebSession, 
 	c.mu.Lock()
 	sessionID := c.sess.GetName()
 	c.mu.Unlock()
-	sess, err := c.parent.accessPoint.GetWebSession(ctx, services.GetWebSessionRequest{SessionID: sessionID})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return sess, nil
+	return readSession(ctx, c.parent.accessPoint, sessionID)
 }
 
 func (c *SessionContext) setSession(session services.WebSession) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.sess = session
+}
+
+func readSession(ctx context.Context, accessPoint auth.ReadAccessPoint, sessionID string) (services.WebSession, error) {
+	session, err := accessPoint.GetWebSession(ctx, services.GetWebSessionRequest{SessionID: sessionID})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return session, nil
 }
 
 // newSessionCache returns new instance of the session cache
@@ -531,17 +535,25 @@ func (s *sessionCache) NewSession(user, sid string) (*SessionContext, error) {
 	return s.newSessionContext(user, sid)
 }
 
-// ValidateSession returns the existing session context for the specified user/session ID.
+// ValidateSession validates whether the session for the given user and session ID is valid.
+// It will be added it to the internal session cache if necessary
 func (s *sessionCache) ValidateSession(ctx context.Context, user, sid string) (*SessionContext, error) {
 	sessionCtx, err := s.getContext(user, sid)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+	session, err := readSession(ctx, s.accessPoint, sid)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := sessionCtx.readSession(ctx)
+	if sessionCtx != nil {
+		sessionCtx.setSession(session)
+		return sessionCtx, nil
+	}
+	sessionCtx, err = s.newSessionContextFromSession(user, sid, session)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sessionCtx.setSession(session)
 	return sessionCtx, nil
 }
 
@@ -597,7 +609,7 @@ func (s *sessionCache) resetContext(user, sid string) error {
 }
 
 func (s *sessionCache) newSessionContext(user, sid string) (*SessionContext, error) {
-	sess, err := s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
+	session, err := s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
 		Username: user,
 		Session: &auth.SessionCreds{
 			ID: sid,
@@ -607,7 +619,11 @@ func (s *sessionCache) newSessionContext(user, sid string) (*SessionContext, err
 		// This will fail if the session has expired and was removed
 		return nil, trace.Wrap(err)
 	}
-	tlsConfig, err := s.tlsConfig(sess.GetTLSCert(), sess.GetPriv())
+	return s.newSessionContextFromSession(user, sid, session)
+}
+
+func (s *sessionCache) newSessionContextFromSession(user, sid string, session services.WebSession) (*SessionContext, error) {
+	tlsConfig, err := s.tlsConfig(session.GetTLSCert(), session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -618,24 +634,24 @@ func (s *sessionCache) newSessionContext(user, sid string) (*SessionContext, err
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	c := &SessionContext{
+	sessionCtx := &SessionContext{
 		clt:       userClient,
 		remoteClt: make(map[string]auth.ClientI),
 		user:      user,
-		sess:      sess,
+		sess:      session,
 		parent:    s,
 		log: s.log.WithFields(logrus.Fields{
 			"user": user,
-			"sess": sess.GetShortName(),
+			"sess": session.GetShortName(),
 		}),
 		clock: s.clock,
 	}
-	if exists := s.insertContext(user, sid, c); exists {
+	if exists := s.insertContext(user, sid, sessionCtx); exists {
 		// this means that someone has just inserted the context, so
 		// close our extra context and return
-		c.Close()
+		sessionCtx.Close()
 	}
-	return c, nil
+	return sessionCtx, nil
 }
 
 func (s *sessionCache) tlsConfig(cert, privKey []byte) (*tls.Config, error) {
