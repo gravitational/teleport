@@ -6,44 +6,61 @@ import (
 	"runtime"
 )
 
+// Writer at INFO level. See WriterLevel for details.
 func (logger *Logger) Writer() *io.PipeWriter {
 	return logger.WriterLevel(InfoLevel)
 }
 
+// WriterLevel returns an io.Writer that can be used to write arbitrary text to
+// the logger at the given log level. Each line written to the writer will be
+// printed in the usual way using formatters and hooks. The writer is part of an
+// io.Pipe and it is the callers responsibility to close the writer when done.
+// This can be used to override the standard library logger easily.
 func (logger *Logger) WriterLevel(level Level) *io.PipeWriter {
+	return NewEntry(logger).WriterLevel(level)
+}
+
+func (entry *Entry) Writer() *io.PipeWriter {
+	return entry.WriterLevel(InfoLevel)
+}
+
+func (entry *Entry) WriterLevel(level Level) *io.PipeWriter {
 	reader, writer := io.Pipe()
 
 	var printFunc func(args ...interface{})
+
 	switch level {
+	case TraceLevel:
+		printFunc = entry.Trace
 	case DebugLevel:
-		printFunc = logger.Debug
+		printFunc = entry.Debug
 	case InfoLevel:
-		printFunc = logger.Info
+		printFunc = entry.Info
 	case WarnLevel:
-		printFunc = logger.Warn
+		printFunc = entry.Warn
 	case ErrorLevel:
-		printFunc = logger.Error
+		printFunc = entry.Error
 	case FatalLevel:
-		printFunc = logger.Fatal
+		printFunc = entry.Fatal
 	case PanicLevel:
-		printFunc = logger.Panic
+		printFunc = entry.Panic
 	default:
-		printFunc = logger.Print
+		printFunc = entry.Print
 	}
 
-	go logger.writerScanner(reader, printFunc)
+	go entry.writerScanner(reader, printFunc)
 	runtime.SetFinalizer(writer, writerFinalizer)
 
 	return writer
 }
 
-func (logger *Logger) writerScanner(reader *io.PipeReader, printFunc func(args ...interface{})) {
+func (entry *Entry) writerScanner(reader *io.PipeReader, printFunc func(args ...interface{})) {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
 		printFunc(scanner.Text())
 	}
 	if err := scanner.Err(); err != nil {
-		logger.Errorf("Error while reading from Writer: %s", err)
+		entry.Errorf("Error while reading from Writer: %s", err)
 	}
 	reader.Close()
 }

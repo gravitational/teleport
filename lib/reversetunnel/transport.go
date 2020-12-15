@@ -162,7 +162,7 @@ func connectProxyTransport(sconn ssh.Conn, req *dialReq, exclusive bool) (*utils
 // transport is used to build a connection to the target host.
 type transport struct {
 	component    string
-	log          *logrus.Entry
+	log          logrus.FieldLogger
 	closeContext context.Context
 	authClient   auth.AccessPoint
 	channel      ssh.Channel

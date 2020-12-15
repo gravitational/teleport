@@ -132,7 +132,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 			Mode:            srv.HeartbeatModeKube,
 			Context:         cfg.Context,
 			Component:       cfg.Component,
-			Announcer:       cfg.Client,
+			Announcer:       cfg.AuthClient,
 			GetServerInfo:   server.GetServerInfo,
 			KeepAlivePeriod: defaults.ServerKeepAliveTTL,
 			AnnouncePeriod:  defaults.ServerAnnounceTTL/2 + utils.RandomDuration(defaults.ServerAnnounceTTL/10),
@@ -220,7 +220,7 @@ func (t *TLSServer) GetServerInfo() (services.Server, error) {
 		name += "-proxy_service"
 	}
 
-	return &services.ServerV2{
+	srv := &services.ServerV2{
 		Kind:    services.KindKubeService,
 		Version: services.V2,
 		Metadata: services.Metadata{
@@ -232,5 +232,7 @@ func (t *TLSServer) GetServerInfo() (services.Server, error) {
 			Version:            teleport.Version,
 			KubernetesClusters: t.fwd.kubeClusters(),
 		},
-	}, nil
+	}
+	srv.SetTTL(t.Clock, defaults.ServerAnnounceTTL)
+	return srv, nil
 }

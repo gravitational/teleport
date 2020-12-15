@@ -48,6 +48,8 @@ Take a look at the [Teleport Installation](installation.md) page to pick the mos
         tar -xzf teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
         cd teleport
         sudo ./install
+        Teleport binaries have been copied to /usr/local/bin
+        To configure the systemd service for Teleport take a look at examples/systemd/README.md
         ```
 
 === "Linux Tarball"
@@ -57,6 +59,8 @@ Take a look at the [Teleport Installation](installation.md) page to pick the mos
     tar -xzf teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
     cd teleport
     sudo ./install
+    Teleport binaries have been copied to /usr/local/bin
+    To configure the systemd service for Teleport take a look at examples/systemd/README.md
     ```
 
 ## Step 1b: Configure Teleport
@@ -138,9 +142,13 @@ cat >> /etc/teleport.yaml <<EOF
 EOF
 ```
 
-Once you've updated the config file, you should restart Teleport to pick up the changes:
+Once you've updated the config file, assuming you have configured with [systemd](https://github.com/gravitational/teleport/tree/master/examples/systemd), you should restart Teleport to pick up the changes:
 
 `sudo systemctl restart teleport`
+
+Otherwise you can start Teleport directly:
+
+`sudo teleport start`
 
 You can access Teleport's web UI on port 3080.
 Replace `teleport.example.com` with your domain: `https://teleport.example.com:3080/`
@@ -214,6 +222,8 @@ Here's a selection of compatible Two-Factor authentication apps:
     tar -xzf teleport-v{{ teleport.version }}-linux-amd64-bin.tar.gz
     cd teleport
     sudo ./install
+    Teleport binaries have been copied to /usr/local/bin
+    To configure the systemd service for Teleport take a look at examples/systemd/README.md
     ```
 
 ## Step 3: Log in using `tsh`

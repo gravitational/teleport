@@ -514,8 +514,8 @@ Using `tsh bench` tool, perform the soak tests and benchmark tests on the follow
 Run 4hour soak test with a mix of interactive/non-interactive sessions:
 
 ```
-tsh bench --duration=4h --threads=10 user@teleport-monster-6757d7b487-x226b ls
-tsh bench -i --duration=4h --threads=10 user@teleport-monster-6757d7b487-x226b ps uax
+tsh bench --duration=4h user@teleport-monster-6757d7b487-x226b ls
+tsh bench -i --duration=4h user@teleport-monster-6757d7b487-x226b ps uax
 ```
 
 Observe prometheus metrics for goroutines, open files, RAM, CPU, Timers and make sure there are no leaks
