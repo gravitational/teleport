@@ -38,14 +38,13 @@ Session here means:
   multiple SSH channel multiplexed on top
 - Kubernetes: arbitrary number of k8s requests from the same client to a single
   k8s cluster within a short time window (seconds or minutes)
-- Web app: arbitrary number of HTTPS requests from the same client to a single
-  application within a short time window (seconds or minutes)
+- Web app: the built-in session concept, with a shorter session expiry (minutes or hours)
 - DB: database connection from the same client to a single database, with
   potentially multiple queries executed on top
 
 ### 2nd factor
 
-There are a variety of 2FA options available, but for this design we'll focus
+There are a variety of MFA options available, but for this design we'll focus
 on U2F hardware tokens, because:
 
 - portability: U2F devices are supported on all major OSs and browsers (vs
@@ -55,7 +54,20 @@ on U2F hardware tokens, because:
 - availability: many engineers already own a U2F token (like a YubiKey), since
   they are usable on popular websites (vs HSMs or smartcards)
 
-We may consider adding support for other 2FA options, if there's demand.
+We may consider adding support for other MFA options, if there's demand.
+
+### U2F device management
+
+A prerequisite for usable 2FA integration is solid 2FA device management. This
+work is tracked separately, as [RFD 15](0015-2fa-management.md), to keep
+designs reasonably scoped and understandable.
+
+For this RFD, we assume that:
+- teleport 2FA device management is separate from SSO 2FA
+- teleport supports 2FA device management on CLI and web
+- a user can have multiple 2FA devices registered, including multiple security
+  tokens
+- a user can remove registered 2FA devices
 
 ### authn protocol
 
@@ -77,7 +89,7 @@ server validating it using the presented constraints.
 #### constraints
 
 Each session has the following constraints, encoded in the TLS or SSH
-certificate issued after 2FA and enforced server-side:
+certificate issued after MFA and enforced server-side:
 
 - cert expiry: each certificate is valid for 1min, during which the client can
   _establish_ a session
@@ -86,7 +98,7 @@ certificate issued after 2FA and enforced server-side:
   - this is important to prevent a compromised session from being artificially
     kept alive forever, with some simulated activity
 - target: a specific server, k8s cluster, database or web app this session is for
-- client IP: only connections from the same IP that passed a 2FA check can
+- client IP: only connections from the same IP that passed a MFA check can
   establish a session
 
 ### session UX
@@ -98,7 +110,7 @@ But the plumbing details are different:
 
 The U2F handshake is performed by `tsh ssh`, before the actual SSH connection:
 
-```
+```sh
 awly@localhost $ tsh ssh server1
 please tap your security key... <tap>
 awly@server1 #
@@ -106,6 +118,10 @@ awly@server1 #
 
 For OpenSSH, `tsh ssh` can be injected using `ProxyCommand` option in the
 config, with identical UX.
+
+For the Web UI, the U2F exchange happens over the existing websocket
+connection, using JS messages (exact format TBD), before terminal traffic is
+allowed.
 
 #### kubernetes
 
@@ -115,15 +131,15 @@ in mTLS handshake.
 `tsh kube credentials` will handle the U2F handshake, and cache the resulting
 certificate in `~/.tsh/` for its validity period.
 
-```
+```sh
 $ kubectl get pods
 please tap your security key... <tap>
 ... list of pods ...
 
-$ kubectl get pods # no 2FA needed right after the previous command
+$ kubectl get pods # no MFA needed right after the previous command
 ... list of pods ...
 
-$ sleep 1m && kubectl get pods # 2FA needed since the short-lived cert expired
+$ sleep 1m && kubectl get pods # MFA needed since the short-lived cert expired
 please tap your security key... <tap>
 ... list of pods ...
 
@@ -131,31 +147,216 @@ please tap your security key... <tap>
 
 #### web apps
 
-TODO: native browser U2F on first request, via JS code from the proxy
+Web apps already have a session concept, with dedicated a login endpoint
+(`/x-teleport-auth`). The application endpoint serves a bit of JS code to
+redirect to the login endpoint.
+
+This JS code will be modified to trigger browser's native U2F API, if the proxy
+responds with a U2F challenge:
+
+- user opens `app.example.com` (with an existing Teleport cookie)
+- proxy serves a minimal JS page
+- JS requests `app.example.com/x-teleport-auth`
+- proxy responds with [407 Proxy Authentication
+  Required](https://tools.ietf.org/html/rfc7235#section-3.2) and a U2F
+  challenge in `Proxy-Authenticate` header
+- JS triggers the browser U2F API
+- browser shows a security key popup
+- user taps the key
+- JS requests `app.example.com/x-teleport-auth` with the signed U2F challenge
+  in `Proxy-Authenticate` header
+- proxy sends back an application-specific cookie and redirects to the
+  application
 
 #### DB
 
-TODO: command to generate short-lived cert, and maybe a wrapper for psql
+The initial integration for databases will be limited:
+
+```sh
+$ tsh db login prod
+please tap your security key... <tap>
+
+$ eval $(tsh db env)
+$ psql -U awly prod
+```
+
+We'll also provide an example wrapper script:
+
+```sh
+$ cat teleport/examples/db/psql.sh
+#!/bin/sh
+# simplified version, without checking arguments
+
+# Usage: psql.sh user dbname
+tsh db login $2
+eval $(tsh db env)
+psql -U $1 $2
+```
+
+Users will need to adapt this for their DB clients. Teleport will always
+generate short-lived key/cert in a predictable location under `~/.tsh/`.
 
 ### API
 
-TODO: new *streaming* gRPC endpoint, similar to `ReissueUserCerts` but for only
-1 cert and with U2F exchange
+The protocol to obtain a new cert after a U2F check is:
+```
+client                               server
+   |<-- mTLS using regular tsh cert -->|
+   |--------- initiate U2F auth ------>|
+   |<------------ challenge -----------|
+   |---- u2f signature + metadata ---->|
+   |<-------------- cert --------------|
+```
+
+This can be implemented as 2 request/response round-trips of the existing
+`GenerateUserCerts` RPC, with some downsides:
+- the server has to store state (challenge) in the backend
+- extra latency (backend RTT and RPC overhead)
+- complicating the existing RPC semantics
+
+Instead, we'll use a single _streaming_ gRPC endpoint, using `oneof`
+request/response messages.
+
+```protobuf
+rpc GenerateUserCertMFA(stream UserCertsMFARequest) returns (stream UserCertsMFAResponse);
+
+message UserCertsMFARequest {
+  // User sends UserCertsRequest initially, and MFAChallengeResponse after
+  // getting MFAChallengeRequest from the server.
+  oneof Request {
+    UserCertsRequest Request = 1;
+    MFAChallengeResponse MFAChallenge = 2;
+  }
+}
+
+message UserCertsMFAResponse {
+  // Server sends MFAChallengeRequest after receiving UserCertsRequest, and
+  // UserCert after receiving (and validating) MFAChallengeResponse.
+  oneof Response {
+    MFAChallengeRequest MFAChallenge = 1;
+    UserCert Cert = 2;
+  }
+}
+
+message MFAChallengeResponse {
+  // Extensible for other MFA protocols.
+  oneof Response {
+    U2FChallengeResponse U2F = 1;
+  }
+}
+
+message MFAChallengeRequest {
+  // Extensible for other MFA protocols.
+  oneof Request {
+    U2FChallengeRequest U2F = 1;
+  }
+}
+
+message UserCert {
+  // Only returns a single cert, specific to this session type.
+  oneof Cert {
+    bytes SSH = 1;
+    bytes TLSKube = 2;
+  }
+}
+```
+
+The exchange is:
+
+```
+client                               server
+   |<--------- gRPC over mTLS -------->|
+   |---- start GenerateUserCertMFA --->|
+   |-------- UserCertRequest --------->|
+   |<------- MFAChallengeRequest ------|
+   |------ MFAChallengeResponse ------>|
+   |<------------- UserCert -----------|
+```
 
 ### RBAC
 
+Pending user research.
+
+TODO: can 2FA be global, as auth_service config field? or should it be per-role?
 TODO: new role options: 2fa_per_session and session_ttl
-
-### U2F device management
-
-TODO: support multiple keys per user, easier enrollment on the CLI
 
 ## Alternatives considered
 
 ### Private keys stored on hardware tokens
 
-TODO: PKCS#11, HSMs, smartcards, yubikey PIV
+There's a range of hardware products that can store a private key and expose
+low-level crypto operations (sign/verify/encrypt/decrypt). They are generally
+accessible via a PKCS#11 module in userspace.
+
+PKCS#11 is not well integrated in browsers (clunky UX at best) and not an
+option at all for other client software (kubectl, psql, etc).
+
+Apart from that, each kind has their own downsides:
+
+#### HSMs
+
+Hardware security modules (HSMs) are targeted at server use (e.g. storing a CA
+private key) and way too expensive for an average user ($650 for YubiHSM, which
+is _very_ cheap).
+
+#### Smartcards
+
+Smartcards are an obsolete technology, requiring a separate USB-connected
+reader for the card, and targeted at multi-user cases (e.g. office access).
+
+#### PIV
+
+Personal Identity Verification (PIV) is a NIST standard and the closest thing
+to generally-available PKCS#11 USB device. Unfortunately, it's only supported
+in YubiKeys
+(https://developers.yubico.com/yubico-piv-tool/YubiKey_PIV_introduction.html)
+and future Solokeys
+(https://solokeys.com/blogs/news/update-on-our-new-and-upcoming-security-keys).
+
+All the non-Yubikey security keys out there don't support it and we still have
+the UX problems in browsers.
+
+#### CPU Enclaves
+
+Enclaves are CPU-specific (bad compatibility) and have a bad track record with
+vulnerabilities.
+
+#### TPMs
+
+Trusted Platform Modules (TPMs) are available on all Windows-compatible
+motherboards, almost universal. They are used without human interaction
+and only protect from key exfiltration (but not usage).
 
 ### Forward proxy on the client machine
 
-TODO
+Another option is running a forward proxy on the client machine. This means
+running `tsh` as a daemon, with a local listening socket. All Teleport-bound
+traffic goes to the local socket, through `tsh` and then out to the network.
+
+This lets `tsh` perform any 2FA exchanges before proxying the application
+traffic:
+
+```
+# using TLS as an example
+client                  local proxy                      teleport proxy
+ |------- mTLS dial ------->|                                   |
+ |                          |----------- mTLS dial ------------>|
+ |                          |<-------- mTLS dial OK ------------|
+ |                          |<-------- U2F challenge -----------|
+ |                          |--------- U2F response ----------->|
+ |                          |<-------- authenticated -----------|
+ |<---- mTLS dial OK -------|                                   |
+ |<--------------------- app traffic -------------------------->|
+```
+
+The local proxy can handle any authn customizations that we add. Local client
+only needs to support a regular mTLS. This allows the U2F check to be
+connection-bound (instead of time-bound), and can improve performance by
+reusing a TLS connection (with periodic expiry to force U2F re-checks).
+
+The downside is operational complexity - customers really don't want to manage
+yet another system daemon. And we'll need to invent a custom U2F handshake
+protocol on top of TLS.
+
+Note: a daemon can be added later, working on top of short-lived certs
+described in this doc, if there's a solid UX motivation.
