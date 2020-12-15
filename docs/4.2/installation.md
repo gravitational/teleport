@@ -29,6 +29,7 @@ $ curl https://get.gravitational.com/teleport-$version-$os-$arch-bin.tar.gz.sha2
 ## Install Pre-built Binaries
 
 !!! info "sudo"
+
     You may need to use `sudo` to run the installation commands.
 
 ### Linux
@@ -168,4 +169,4 @@ $ sudo chown $USER /var/lib/teleport
 If the build succeeds, the binaries `teleport, tsh`, and `tctl` are now in the
 directory `$GOPATH/src/github.com/gravitational/teleport/build`
 
-<!--Notes on what to do if the build does not succeed, troubleshooting-->
+<!-- Notes on what to do if the build does not succeed, troubleshooting -->

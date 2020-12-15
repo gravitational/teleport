@@ -69,7 +69,8 @@ Teleport supports two types of user accounts:
   Github, Active Directory (AD) or any identity store with an OpenID/OAuth2 or SAML endpoint.
 
 
-!!! tip "Version Warning":
+!!! tip "Version Warning"
+
     SAML, OIDC and Active Directory are only supported in Teleport Enterprise. Please
     take a look at the [Teleport Enterprise](/enterprise.md) chapter for more information.
 
@@ -107,7 +108,8 @@ node:
  Teleport uses [Google Authenticator](https://support.google.com/accounts/answer/1066447?hl=en)
     for the two-step authentication. The password + 2nd factor are submitted to a proxy via HTTPS, therefore it is critical for a secure configuration of Teleport to install a proper HTTPS certificate on a proxy.
 
-!!! warning "Warning":
+!!! warning "Warning"
+
 	Do not use a self-signed SSL/HTTPS certificates when creating production!
 
 If the credentials are correct, the auth server generates and signs a new certificate and returns
@@ -124,7 +126,8 @@ logins. The key will automatically expire after 12 hours by default. This TTL ca
 If the node is located, the proxy establishes the connection between the client and the
 requested node. The destination node then begins recording the session, sending the session history to the auth server to be stored.
 
-!!! note "Note":
+!!! note "Note"
+
     Teleport may also be configured to have the session recording occur on the proxy, see [Session Recording](architecture/#session-recording) for more information.
 
 4) When the node receives a connection request, it also checks with the auth server to validate
@@ -180,7 +183,8 @@ Cluster state    | `dir`, `etcd`, `dynamodb` | Multi-server (HA) configuration i
 Audit Log Events | `dir`, `dynamodb`         | If `dynamodb` is used for the audit log events, `s3` back-end **must** be used for the recorded sessions.
 Recorded Sessions| `dir`, `s3`               | `s3` is mandatory if `dynamodb` is used for the audit log.
 
-!!! tip "Note":
+!!! tip "Note"
+
     The reason Teleport designers split the audit log events and the recorded
     sessions into different back-ends is because of the nature of the data. A
     recorded session is a compressed binary stream (blob) while the event is a
@@ -237,7 +241,8 @@ the node and signs its certificate.
 To join a cluster for the first time, a node must present a "join token" to the auth server.
 The token can be static (configured via a config file) or a dynamic, single-use token.
 
-!!! tip "NOTE":
+!!! tip "NOTE"
+
     When using dynamic tokens, their default time to live (TTL) is 15 minutes, but it can be
     reduced (not increased) via `tctl` flag.
 
@@ -254,7 +259,8 @@ discover the member nodes of the cluster.
 
 Cluster administration is performed using `tctl` command line tool.
 
-!!! tip "NOTE":
+!!! tip "NOTE"
+
     For high availability in production, a Teleport cluster can be serviced by multiple auth servers
     running in sync. Check [HA configuration](/admin-guide.md#high-availability) in the
     Admin Guide.
@@ -279,7 +285,8 @@ recommended to have several of them running.
 When you launch the Teleport Proxy for the first time, it will generate a self-signed HTTPS
 certificate to make it easier to explore Teleport.
 
-!!! warning "Warning":
+!!! warning "Warning"
+
 	It is absolutely crucial to properly configure TLS for HTTPS when you use Teleport Proxy in production.
 
 
@@ -298,7 +305,8 @@ In this mode, Teleport Proxy implements WSS (secure web sockets) to SSH proxy:
 4. From the SSH node's perspective, it's a regular SSH client connection that is authenticated using an
    OpenSSH certificate, so no special logic is needed.
 
-!!! tip "NOTE":
+!!! tip "NOTE"
+
     When using the web UI, Teleport Proxy terminates the traffic and re-encodes for SSH client connection.
 
 ### SSH Proxy
@@ -324,7 +332,8 @@ Once the client has obtained a short lived certificate, it can use it to authent
 2. Proxy dials to the target TCP address and starts forwarding the traffic to the client.
 3. SSH client uses established SSH tunnel to open a new SSH connection and authenticate with the target node using its client certificate.
 
-!!! tip "NOTE":
+!!! tip "NOTE"
+
     Teleport's proxy command makes it compatible with [SSH jump hosts](https://wiki.gentoo.org/wiki/SSH_jump_host) implemented using OpenSSH's `ProxyCommand`
 
 
@@ -399,7 +408,8 @@ The Teleport auth server keeps the audit log of SSH-related events that take
 place on any node with a Teleport cluster. It is important to understand that
 the SSH nodes emit audit events and submit them to the auth server.
 
-!!! warning "Compatibility Warning":
+!!! warning "Compatibility Warning"
+
     Because all SSH events like `exec` or `session_start` are reported by the
     Teleport node service, they will not be logged if you are using OpenSSH
     `sshd` daemon on your nodes.
@@ -412,7 +422,8 @@ in the [Admin Manual](/admin-guide/#audit-log).
 Teleport users are encouraged to export the events into external, long term
 storage.
 
-!!! info "Deployment Considerations":
+!!! info "Deployment Considerations"
+
     If multiple Teleport auth servers are used to service the same cluster (HA mode)
     a network file system must be used for `/var/lib/teleport/log` to allow them
     to combine all audit events into the same audit log.

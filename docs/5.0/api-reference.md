@@ -7,12 +7,14 @@ description: The detailed guide to Teleport API
 
 In most cases, you can interact with Teleport using our CLI tools, [tsh](cli-docs.md#tsh) and [tctl](cli-docs.md#tctl). However, there are some scenarios where you may need to interact with Teleport programmatically. For this purpose, you can directly use the same API that `tctl` and `tsh` use.
 
-!!! Note
+!!! note
+
     We are currently working on improving our API Documentation. If you have an API suggestion, [please complete our survey](https://docs.google.com/forms/d/1HPQu5Asg3lR0cu5crnLDhlvovGpFVIIbDMRvqclPhQg/viewform).
 
 ## Go Examples
 
-!!! Note
+!!! note
+
     The Go examples below depend on some features and changes that are released in Teleport 5.0.
 
 Below are some code examples that can be used with Teleport to perform a few key tasks.
@@ -60,7 +62,8 @@ This should result in three PEM encoded files being generated in the `/certs` di
 
 Move the `/certs` folder into your `/api-examples` folder.
 
-!!! Note
+!!! note
+
     By default, `tctl auth sign` produces certificates with a relatively short lifetime. See our [Kubernetes Section](kubernetes-access.md#using-teleport-kubernetes-with-automation) for more information on automating the signing process for short lived certificates.
 
     While we encourage you to use short lived certificates, we understand you may not have all the infrastructure to issues and obtain them at the onset. You can use the --ttl flag to extend the lifetime of a certificate in these cases but understand this reduces your security posture
@@ -150,7 +153,8 @@ Some of the permissions a role could define include:
 - Ability to update cluster configuration.
 - Which UNIX logins a user is allowed to use when logging into servers.
 
-!!! Note
+!!! note
+
     The open source edition of Teleport automatically assigns every user to the built-in `admin` role, but Teleport Enterprise allows administrators to define their own roles with far greater control over the user permissions.
 
 You can manage roles with the Teleport CLI tool [tctl](cli-docs.md#tctl), or programmatically with the RPC calls documented below.
@@ -556,7 +560,8 @@ tokenString, err := client.GenerateToken(ctx, auth.GenerateTokenRequest{
 
 This is the equivalent of `tctl tokens add --type=trusted_cluster --labels=env=staging`.
 
-!!! Note
+!!! note
+
     Currently, it is not straightforward to add new leaf clusters with the API, but it is possible with the `RegisterUsingToken` RPC. Until we properly document this, follow the trusted cluster [join token docs](trustedclusters.md#join-tokens) to create a leaf cluster with this token using `tctl`.
 
 ### Update a Leaf Cluster's labels
@@ -886,7 +891,8 @@ However there are multiple upsides if you make it work:
 - you would not need to worry about scaling the grace period with the size of your clusters
 - you could catch rotation errors and automatically trigger the `Rollback` phase to try again (though this shouldn't be necessary outside of specific scenarios, such as servers going offline for long periods of time)
 
-!!! Note
+!!! note
+
     See our [TestRotateSuccess](https://github.com/gravitational/teleport/blob/645ac573c59240974a1306d28d79d1df3b2d9845/integration/integration_test.go#L3243) integration test to see how you might get started with implementing a manual rotation solution.
 
 ### Retrieve Certificate Authority

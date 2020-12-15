@@ -7,13 +7,14 @@ description: This guide explains how to setup a Slack plugin for Teleport for pr
 This guide will talk through how to setup Teleport with Slack. Teleport to Slack integration allows you to treat Teleport access and permission requests via Slack message and inline interactive components.
 
 !!! warning
+
     The Approval Workflow only works with Teleport Enterprise as it requires several roles.
 
 #### Example Slack Request
 
-<video style="width:100%" controls>
-  <source src="../../../img/enterprise/plugins/slack/slack.mp4" type="video/mp4">
-  <source src="../../../img/enterprise/plugins/slack/slack.webm" type="video/webm">
+<video controls>
+  <source src="../../../img/enterprise/plugins/slack/slack.mp4" type="video/mp4" />
+  <source src="../../../img/enterprise/plugins/slack/slack.webm" type="video/webm" />
 Your browser does not support the video tag.
 </video>
 
@@ -59,6 +60,7 @@ $ tctl create -f rscs.yaml
 ```
 
 !!! tip
+
     If you're using other plugins, you might want to create different users and roles for different plugins
 
 #### Export access-plugin Certificate
@@ -73,6 +75,7 @@ The above sequence should result in three PEM encoded files being generated: aut
 
 
 !!! note "Certificate Lifetime"
+
      By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
 
 ### Create Slack App
@@ -90,8 +93,8 @@ You'll need to:
 
 Visit [https://api.slack.com/apps](https://api.slack.com/apps) to create a new Slack App.
 
-**App Name:** Teleport<br>
-**Development Slack Workspace:** Pick the workspace you'd like the requests to show up in. </br>
+**App Name:** Teleport<br />
+**Development Slack Workspace:** Pick the workspace you'd like the requests to show up in. <br />
 **App Icon:** <a href="https://gravitational.com/teleport/docs/img/enterprise/plugins/teleport_bot@2x.png" download>Download Teleport Bot Icon</a>
 
 ![Create Slack App](../../img/enterprise/plugins/slack/Create-a-Slack-App.png)

@@ -68,11 +68,13 @@ $ mkdir -p /var/lib/teleport
 Now we are ready to start Teleport.
 
 !!! tip "Background Process"
+
     Avoid suspending your current shell session by
     running the process in the background like so: `teleport start >
     teleport.log 2>&1 & `. Access the process logs with ` less teleport.log`._
 
 !!! tip
+
     "Debugging/Verbose Output" If you encounter errors with any `teleport,
     tsh ` or ` tctl ` command you can enable verbose logging with the ` -d,--debug`
     flag.
@@ -101,6 +103,7 @@ yet. Let's create one for your OS user. In this example the OS user is
 `teleport` and the hostname of the node is `grav-00` .
 
 !!! info "OS User Mappings"
+
     The OS user `teleport` must exist! On Linux, if it
     does not already exist create it with `adduser teleport` . If you do not have
     the permission to create new users on the VM, run `tctl users add teleport
@@ -137,7 +140,8 @@ open this URL in a web browser to complete the registration process.
   Proxy via the host machine and port `3080` in a web browser. One simple way to
   do this is to temporarily append `[HOST_IP] grav-00` to `/etc/hosts`
 
-!!! warning "Warning":
+!!! warning "Warning"
+
     We haven't provisioned any SSL certs for Teleport yet.
     Your browser will throw a warning **Your connection is not private**. Click
     Advanced, and **Proceed to [HOST_IP] (unsafe)** to preview the Teleport UI.
@@ -163,7 +167,8 @@ Let's login using the `tsh` command line tool. Just as in the previous step, you
 will need to be able to resolve the **hostname** of the cluster to a network
 accessible IP.
 
-!!! warning "Warning":
+!!! warning "Warning"
+
     For the purposes of this quickstart we are using the
     `--insecure-no-tls` flag which allows us to skip configuring the HTTP/TLS
     certificate for Teleport proxy.
