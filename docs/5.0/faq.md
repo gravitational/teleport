@@ -49,7 +49,7 @@ Yes, Teleport supports tunnel multiplexing on a single port.  Set the `tunnel_li
 
 We recommend setting up Teleport with a [High Availability configuration](admin-guide.md#high-availability). Below is our
 recommended hardware for the Proxy and Auth server. If you plan to connect more than 10,000 nodes, please
-[get in touch](mailto:info@gravitational.com) and we can help architect the best solution for you.
+[get in touch](mailto:info@goteleport.com) and we can help architect the best solution for you.
 
 Scenario | Max Recommended Count | Proxy | Auth server
 ------------ | -------------|---------|-------
@@ -127,5 +127,5 @@ information contains the following:
 This allows Teleport Pro to print a warning if users are exceeding the usage limits
 of their license. The reporting library code is [on Github](https://github.com/gravitational/reporting).
 
-Reach out to `sales@gravitational.com` if you have questions about the commercial
+Reach out to `sales@goteleport.com` if you have questions about the commercial
 edition of Teleport.
