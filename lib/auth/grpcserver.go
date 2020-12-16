@@ -962,6 +962,7 @@ func (g *GRPCServer) GetWebSession(ctx context.Context, req *proto.GetWebSession
 	}
 
 	session, err := auth.WebSessions().Get(ctx, services.GetWebSessionRequest{
+		User:      req.GetUser(),
 		SessionID: req.GetSessionID(),
 	})
 	if err != nil {

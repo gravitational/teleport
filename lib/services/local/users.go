@@ -53,6 +53,7 @@ func NewIdentityService(backend backend.Backend) *IdentityService {
 // DeleteAllUsers deletes all users
 func (s *IdentityService) DeleteAllUsers() error {
 	startKey := backend.Key(webPrefix, usersPrefix)
+	// TODO(dmitri): also remove web/app sessions
 	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
 }
 

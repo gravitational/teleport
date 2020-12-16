@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -192,16 +193,28 @@ func (h *Handler) waitForAppSession(ctx context.Context, sessionID string) error
 		return trace.Wrap(err)
 	}
 	defer watcher.Close()
-	sessionProber := func() error {
-		_, err = h.cfg.AccessPoint.GetAppSession(ctx, services.GetAppSessionRequest{
-			SessionID: sessionID,
-		})
-		return trace.Wrap(err)
-	}
-	matcher := func(event services.Event) bool {
-		return event.Type == backend.OpPut && event.Resource.GetName() == sessionID
-	}
-	return waitForSession(ctx, watcher, sessionProber, matcher)
+	return waitForSession(ctx, watcher,
+		appSessionWaiter{
+			c: h.cfg.AccessPoint,
+			req: services.GetAppSessionRequest{
+				SessionID: sessionID,
+			},
+		},
+	)
+}
+
+func (w appSessionWaiter) read(ctx context.Context) error {
+	_, err := w.c.GetAppSession(ctx, w.req)
+	return trace.Wrap(err)
+}
+
+func (w appSessionWaiter) match(event services.Event) bool {
+	return event.Type == backend.OpPut && event.Resource.GetName() == w.req.SessionID
+}
+
+type appSessionWaiter struct {
+	c   auth.ReadAccessPoint
+	req services.GetAppSessionRequest
 }
 
 func (h *Handler) validateAppSessionRequest(ctx context.Context, req *CreateAppSessionRequest) (*validateAppSessionResult, error) {

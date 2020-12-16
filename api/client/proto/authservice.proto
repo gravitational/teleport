@@ -390,8 +390,10 @@ message DeleteAppSessionRequest { string SessionID = 1 [ (gogoproto.jsontag) = "
 
 // GetWebSessionRequest are the parameters used to request a regular web session.
 message GetWebSessionRequest {
+    // User is the user name to request session for.
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
     // SessionID is the ID of the session being requested.
-    string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ];
+    string SessionID = 2 [ (gogoproto.jsontag) = "session_id" ];
 }
 
 // GetWebSessionResponse contains the requested web session.

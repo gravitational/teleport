@@ -92,7 +92,7 @@ type WatchKind struct {
 	// specifies the type of web session
 	SubKind string
 	// Name is an optional specific resource type to watch,
-	// if specified only the events with a specific resource
+	// if specified, only the events with the given resource
 	// name will be sent
 	Name string
 	// LoadSecrets specifies whether to load secrets

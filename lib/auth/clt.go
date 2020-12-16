@@ -1182,6 +1182,7 @@ func (r *webSessions) Get(ctx context.Context, req services.GetWebSessionRequest
 		return nil, trace.Wrap(err)
 	}
 	resp, err := clt.GetWebSession(ctx, &proto.GetWebSessionRequest{
+		User:      req.User,
 		SessionID: req.SessionID,
 	})
 	if err != nil {
