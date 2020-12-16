@@ -1671,6 +1671,14 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params services.Acce
 	return trace.Wrap(err)
 }
 
+func (a *Server) GetAccessCapabilities(ctx context.Context, req services.AccessCapabilitiesRequest) (*services.AccessCapabilities, error) {
+	caps, err := services.CalculateAccessCapabilities(ctx, a, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return caps, nil
+}
+
 // calculateMaxAccessTTL determines the maximum allowable TTL for a given access request
 // based on the MaxSessionTTLs of the roles being requested (a access request's life cannot
 // exceed the smallest allowable MaxSessionTTL value of the roles that it requests).

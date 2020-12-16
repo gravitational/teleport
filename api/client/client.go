@@ -386,6 +386,15 @@ func (c *Client) SetAccessRequestState(ctx context.Context, params services.Acce
 	return trail.FromGRPC(err)
 }
 
+// GetAccessCapabilities requests the access capabilities of a user.
+func (c *Client) GetAccessCapabilities(ctx context.Context, req services.AccessCapabilitiesRequest) (*services.AccessCapabilities, error) {
+	caps, err := c.grpc.GetAccessCapabilities(ctx, &req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return caps, nil
+}
+
 // GetPluginData loads all plugin data matching the supplied filter.
 func (c *Client) GetPluginData(ctx context.Context, filter services.PluginDataFilter) ([]services.PluginData, error) {
 	seq, err := c.grpc.GetPluginData(ctx, &filter)
