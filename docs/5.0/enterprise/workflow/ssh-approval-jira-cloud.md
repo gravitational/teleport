@@ -148,7 +148,7 @@ The `[teleport]` section describes where the teleport service running, and what 
 The `[jira]` section requires a few things:
 
 1. Your Jira Cloud or Jira Server URL. For Jira Cloud, it looks something like `yourcompany.atlassian.net`.
-2. Your username on Jira, i.e. ben@gravitational.com
+2. Your username on Jira, i.e. ben@goteleport.com
 3. Your Jira API token that you've created above.
 4. A Jira Project key, available in Project settings.
 
