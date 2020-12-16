@@ -1595,6 +1595,69 @@ teleport:
 }
 ```
 
+#### DynamoDB Autoscaling
+
+When setting up DynamoDB it's important to setup backup and autoscaling. We make
+setup simpler by allowing AWS DynamoDB settings to be set automatically
+during Teleport startup.
+
+**DynamoDB Continuous Backups**
+- [AWS Blog Post - Amazon DynamoDB Continuous Backup](https://aws.amazon.com/blogs/aws/new-amazon-dynamodb-continuous-backups-and-point-in-time-recovery-pitr/)
+
+**DynamoDB Autoscaling Options**
+- [AWS Docs - Managing Throughput Capacity Automatically with DynamoDB Auto Scaling](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/AutoScaling.html)
+
+```yaml
+# ...
+teleport:
+  storage:
+    type: "dynamodb"
+    [...]
+
+    # continuous_backups is used to optionally enable continuous backups.
+    # default: false
+    continuous_backups: [true|false]
+
+    # auto_scaling is used to optionally enable (and define settings for) auto scaling.
+    # default: false
+    auto_scaling:  [true|false]
+    # minimum/maximum read capacity in units
+    read_min_capacity: int
+    read_max_capacity: int
+    read_target_value: float
+    # minimum/maximum write capacity in units
+    write_min_capacity: int
+    write_max_capacity: int
+    write_target_value: float
+```
+
+To enable these options you will need to update the [IAM Role for Teleport](aws-oss-guide.md#iam)
+
+```json
+{
+    "Action": [
+        "application-autoscaling:PutScalingPolicy",
+        "application-autoscaling:RegisterScalableTarget"
+    ],
+    "Effect": "Allow",
+    "Resource": "*"
+},
+{
+    "Action": [
+        "iam:CreateServiceLinkedRole"
+    ],
+    "Condition": {
+        "StringEquals": {
+            "iam:AWSServiceName": [
+                "dynamodb.application-autoscaling.amazonaws.com"
+            ]
+        }
+    },
+    "Effect": "Allow",
+    "Resource": "*"
+}
+```
+
 ### Using GCS
 
 !!! tip "Tip"
