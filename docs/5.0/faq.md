@@ -60,9 +60,10 @@ Teleport nodes connected to proxy server (IoT) | 2,000* | 2x 2-4 vCPUs/8GB RAM |
 
 | Release       | Long Term Support | Release Date         | Supported Until      | Min tsh version  |
 | --------------|-----| -------------------- | -------------------- | -------------------- |
+| 5.0           | Yes | November 24th, 2020  | November 24th, 2021  | 3.x                  |
 | 4.4           | Yes | October 20th, 2020   | October 20th, 2021   | 3.x                  |
 | 4.3           | Yes | July 8th, 2020       | July 8th, 2021       | 3.x                  |
-| 4.2           | Yes | December 19th, 2019  | December 19th, 2020  | 3.x                  |
+| 4.2 (EOL)     | Yes | December 19th, 2019  | December 19th, 2020  | 3.x                  |
 | 4.1 (EOL)     | Yes | October 1st, 2019    | October 1st, 2020    | 3.x                  |
 | 4.0 (EOL)     | Yes | June 18th, 2019      | June 18th, 2020      | 3.x                  |
 
