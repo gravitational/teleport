@@ -531,18 +531,18 @@ func (s *sessionCache) ValidateTrustedCluster(validateRequest *auth.ValidateTrus
 }
 
 // NewSession creates a new session for the specified user/session ID
-func (s *sessionCache) NewSession(user, sid string) (*SessionContext, error) {
-	return s.newSessionContext(user, sid)
+func (s *sessionCache) NewSession(user, sessionID string) (*SessionContext, error) {
+	return s.newSessionContext(user, sessionID)
 }
 
 // ValidateSession validates whether the session for the given user and session ID is valid.
 // It will be added it to the internal session cache if necessary
-func (s *sessionCache) ValidateSession(ctx context.Context, user, sid string) (*SessionContext, error) {
-	sessionCtx, err := s.getContext(user, sid)
+func (s *sessionCache) ValidateSession(ctx context.Context, user, sessionID string) (*SessionContext, error) {
+	sessionCtx, err := s.getContext(user, sessionID)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	session, err := readSession(ctx, s.accessPoint, sid)
+	session, err := readSession(ctx, s.accessPoint, sessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -550,7 +550,7 @@ func (s *sessionCache) ValidateSession(ctx context.Context, user, sid string) (*
 		sessionCtx.setSession(session)
 		return sessionCtx, nil
 	}
-	sessionCtx, err = s.newSessionContextFromSession(user, sid, session)
+	sessionCtx, err = s.newSessionContextFromSession(user, sessionID, session)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -679,7 +679,7 @@ func (s *sessionCache) tlsConfig(cert, privKey []byte) (*tls.Config, error) {
 
 // waitForWebSession will block until the requested web session shows up in the
 // cache or a timeout occurs.
-func (h *Handler) waitForWebSession(ctx context.Context, sessionID string) error {
+func (h *Handler) waitForWebSession(ctx context.Context, req services.GetWebSessionRequest) error {
 	// Establish a watch on application session.
 	watcher, err := h.cfg.AccessPoint.NewWatcher(ctx, services.Watch{
 		Name: teleport.ComponentWebProxy,
@@ -687,6 +687,7 @@ func (h *Handler) waitForWebSession(ctx context.Context, sessionID string) error
 			{
 				Kind:    services.KindWebSession,
 				SubKind: services.KindWebSession,
+				Name:    req.SessionID,
 			},
 		},
 		MetricComponent: teleport.ComponentWebProxy,
@@ -695,22 +696,31 @@ func (h *Handler) waitForWebSession(ctx context.Context, sessionID string) error
 		return trace.Wrap(err)
 	}
 	defer watcher.Close()
-	sessionProber := func() error {
-		_, err = h.cfg.AccessPoint.GetWebSession(ctx, services.GetWebSessionRequest{
-			SessionID: sessionID,
-		})
-		return trace.Wrap(err)
-	}
-	matcher := func(event services.Event) bool {
-		return event.Type == backend.OpPut && event.Resource.GetName() == sessionID
-	}
-	return waitForSession(ctx, watcher, sessionProber, matcher)
+
+	return waitForSession(ctx, watcher, webSessionWaiter{c: h.cfg.AccessPoint, req: req})
 }
 
-type sessionProberFunc func() error
-type eventMatcherFunc func(services.Event) bool
+func (w webSessionWaiter) read(ctx context.Context) error {
+	_, err := w.c.GetWebSession(ctx, w.req)
+	return trace.Wrap(err)
+}
 
-func waitForSession(ctx context.Context, watcher services.Watcher, sessionProber sessionProberFunc, eventMatcher eventMatcherFunc) error {
+func (webSessionWaiter) match(event services.Event) bool {
+	// TODO(dmitri): remove comparison against sessionID if watcher accepts the ID (see above)
+	return event.Type == backend.OpPut && event.Resource.GetName() == sessionID
+}
+
+type webSessionWaiter struct {
+	c   auth.ReadAccessPoint
+	req services.GetWebSessionRequest
+}
+
+type sessionWaiter interface {
+	read(context.Context) error
+	match(services.Event) bool
+}
+
+func waitForSession(ctx context.Context, watcher services.Watcher, w sessionWaiter) error {
 	timeout := time.NewTimer(defaults.WebHeadersTimeout)
 	defer timeout.Stop()
 
@@ -729,7 +739,7 @@ func waitForSession(ctx context.Context, watcher services.Watcher, sessionProber
 	}
 
 	// Check if the session exists in the backend.
-	err := sessionProber()
+	err := w.read(ctx)
 	if err == nil {
 		return nil
 	}
@@ -741,7 +751,7 @@ func waitForSession(ctx context.Context, watcher services.Watcher, sessionProber
 			if event.Resource.GetKind() != services.KindWebSession {
 				return trace.BadParameter("unexpected event: %v.", event.Resource.GetKind())
 			}
-			if eventMatcher(event) {
+			if w.match(event) {
 				return nil
 			}
 		// Watcher closed, probably due to a network error.
