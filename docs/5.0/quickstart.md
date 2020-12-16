@@ -30,27 +30,26 @@ Take a look at the [Teleport Installation](installation.md) page to pick the mos
     # sudo dnf install teleport
     ```
 
-=== "ARM"
 
-    === "ARMv7 (32-bit)"
+=== "ARMv7 (32-bit)"
 
-        ```bash
-        curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
-        tar -xzf teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
-        cd teleport
-        sudo ./install
-        ```
+    ```bash
+    curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
+    tar -xzf teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
+    cd teleport
+    sudo ./install
+    ```
 
-    === "ARM64/ARMv8 (64-bit)"
+=== "ARMv8 (64-bit)"
 
-        ```bash
-        curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
-        tar -xzf teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
-        cd teleport
-        sudo ./install
-        Teleport binaries have been copied to /usr/local/bin
-        To configure the systemd service for Teleport take a look at examples/systemd/README.md
-        ```
+    ```bash
+    curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
+    tar -xzf teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
+    cd teleport
+    sudo ./install
+    Teleport binaries have been copied to /usr/local/bin
+    To configure the systemd service for Teleport take a look at examples/systemd/README.md
+    ```
 
 === "Linux Tarball"
 
