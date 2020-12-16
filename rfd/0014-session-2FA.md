@@ -273,12 +273,76 @@ client                               server
    |<------------- UserCert -----------|
 ```
 
-### RBAC
+### enforcement
 
-Pending user research.
+2FA checks per session can be enforced per-role or globally.
 
-TODO: can 2FA be global, as auth_service config field? or should it be per-role?
-TODO: new role options: 2fa_per_session and session_ttl
+#### per-role
+
+This approach is for operators that want extra protection for some high-value
+resources (like a prod DB VM or k8s cluster) but not others (like a test k8s
+cluster), to reduce the friction for users.
+
+A new field `require_session_2fa` in role `options` specifies whether 2FA is
+required. For example, the below privileged role enforces 2FA per session:
+
+```yaml
+kind: role
+version: v3
+metadata:
+  name: prod-admin
+spec:
+  options:
+    require_session_2fa: true
+
+  allow:
+    logins: [root]
+    node_labels:
+      'environment': 'prod'
+```
+
+Assuming there exists node `A` with label `environment: prod` in the cluster.
+User with role `prod-admin` is required to pass the 2FA check before logging
+into node `A`.
+
+Now, if a user also has the role:
+
+```yaml
+kind: role
+version: v3
+metadata:
+  name: dev
+spec:
+  allow:
+    logins: [root]
+    node_labels:
+      'environment': 'dev'
+```
+
+And there exists node `B` with label `environment: dev` in the cluster.
+Then they _don't_ need the 2FA check before logging into `B`, because role
+`dev` doesn't require it.
+
+Generally, if at least one role that grants access to a resource (SSH node, k8s
+cluster, etc.) sets `require_session_2fa: true`, then 2FA check is required.
+It's required even if another role grants access to the same resource without
+2FA.
+
+#### globally
+
+This approach is for operators that want to enforce 2FA usage org-wide, for all
+sessions.
+
+A new field `require_session_2fa` is available under `auth_service`:
+
+```yaml
+# teleport.yaml
+auth_service:
+  require_session_2fa: true
+```
+
+If this field is set to true, it overrides any values set in roles and always
+requires 2FA checks for all sessions.
 
 ## Alternatives considered
 
