@@ -826,6 +826,28 @@ func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params serv
 	return a.authServer.SetAccessRequestState(ctx, params)
 }
 
+func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req services.AccessCapabilitiesRequest) (*services.AccessCapabilities, error) {
+	// default to checking the capabilities of the caller
+	if req.User == "" {
+		req.User = a.context.User.GetName()
+	}
+
+	// all users can check their own capabilities
+	if a.currentUserAction(req.User) != nil {
+		if err := a.action(defaults.Namespace, services.KindUser, services.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := a.action(defaults.Namespace, services.KindRole, services.VerbList); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := a.action(defaults.Namespace, services.KindRole, services.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return a.authServer.GetAccessCapabilities(ctx, req)
+}
+
 // GetPluginData loads all plugin data matching the supplied filter.
 func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter services.PluginDataFilter) ([]services.PluginData, error) {
 	switch filter.Kind {
