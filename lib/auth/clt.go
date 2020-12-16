@@ -2841,6 +2841,19 @@ func (c *Client) SetAccessRequestState(ctx context.Context, params services.Acce
 	return nil
 }
 
+// GetAccessCapabilities requests the access capabilities of a user.
+func (c *Client) GetAccessCapabilities(ctx context.Context, req services.AccessCapabilitiesRequest) (*services.AccessCapabilities, error) {
+	clt, err := c.grpc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	caps, err := clt.GetAccessCapabilities(ctx, &req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return caps, nil
+}
+
 // GetPluginData loads all plugin data matching the supplied filter.
 func (c *Client) GetPluginData(ctx context.Context, filter services.PluginDataFilter) ([]services.PluginData, error) {
 	clt, err := c.grpc()
@@ -3389,6 +3402,7 @@ type ClientI interface {
 	services.Presence
 	services.Access
 	services.DynamicAccess
+	services.DynamicAccessOracle
 	WebService
 	session.Service
 	services.ClusterConfiguration
