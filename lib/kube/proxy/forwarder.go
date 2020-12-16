@@ -644,7 +644,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		recorder, err = events.NewAuditWriter(events.AuditWriterConfig{
 			// Audit stream is using server context, not session context,
 			// to make sure that session is uploaded even after it is closed
-			Context:      request.context,
+			Context:      f.ctx,
 			Streamer:     streamer,
 			Clock:        f.cfg.Clock,
 			SessionID:    sessionID,
@@ -657,7 +657,7 @@ func (f *Forwarder) exec(ctx *authContext, w http.ResponseWriter, req *http.Requ
 			return nil, trace.Wrap(err)
 		}
 		emitter = recorder
-		defer recorder.Close(request.context)
+		defer recorder.Close(f.ctx)
 		request.onResize = func(resize remotecommand.TerminalSize) {
 			params := session.TerminalParams{
 				W: int(resize.Width),
