@@ -412,7 +412,7 @@ $ tsh --proxy <proxy-addr> ssh <hostname>
 
     External user identities are only supported in [Teleport Enterprise](enterprise/introduction.md).
 
-    Please reach out to [sales@gravitational.com](mailto:sales@gravitational.com) for more information.
+    Please reach out to [sales@goteleport.com](mailto:sales@goteleport.com) for more information.
 
 ## Adding and Deleting Users
 
@@ -2035,4 +2035,4 @@ If you need help, please ask on our [community forum](https://community.gravitat
 
 For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/web/login).
 
-For more information about custom features, or to try our [Enterprise edition](enterprise/introduction.md) of Teleport, please reach out to us at [sales@gravitational.com](mailto:sales@gravitational.com).
+For more information about custom features, or to try our [Enterprise edition](enterprise/introduction.md) of Teleport, please reach out to us at [sales@goteleport.com](mailto:sales@goteleport.com).
