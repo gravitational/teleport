@@ -167,7 +167,7 @@ github.com/gizak/termui
 github.com/gizak/termui/widgets
 # github.com/go-logr/logr v0.2.0
 github.com/go-logr/logr
-# github.com/gogo/protobuf v1.3.1
+# github.com/gogo/protobuf v1.3.1 => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 ## explicit
 github.com/gogo/protobuf/gogoproto
 github.com/gogo/protobuf/jsonpb
@@ -316,6 +316,8 @@ github.com/mailgun/timetools
 # github.com/mailgun/ttlmap v0.0.0-20150816203249-16b258d86efc
 ## explicit
 github.com/mailgun/ttlmap
+# github.com/mattermost/xml-roundtrip-validator v0.0.0-20201208211235-fe770d50d911
+github.com/mattermost/xml-roundtrip-validator
 # github.com/mattn/go-runewidth v0.0.4
 ## explicit
 github.com/mattn/go-runewidth
@@ -368,10 +370,11 @@ github.com/prometheus/common/model
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
-# github.com/russellhaering/gosaml2 v0.0.0-20170515204909-8908227c114a
+# github.com/russellhaering/gosaml2 v0.6.0
 ## explicit
 github.com/russellhaering/gosaml2
 github.com/russellhaering/gosaml2/types
+github.com/russellhaering/gosaml2/uuid
 # github.com/russellhaering/goxmldsig v1.1.0
 ## explicit
 github.com/russellhaering/goxmldsig
@@ -379,9 +382,6 @@ github.com/russellhaering/goxmldsig/etreeutils
 github.com/russellhaering/goxmldsig/types
 # github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46
 github.com/ryszard/goskiplist/skiplist
-# github.com/satori/go.uuid v1.1.1-0.20170321230731-5bf94b69c6b6
-## explicit
-github.com/satori/go.uuid
 # github.com/sergi/go-diff v1.1.0
 ## explicit
 # github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500
@@ -918,4 +918,5 @@ sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.2.0
 sigs.k8s.io/yaml
 # github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.3
+# github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 # github.com/iovisor/gobpf => github.com/gravitational/gobpf v0.0.1
