@@ -40,8 +40,8 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/dbprofile"
 	"github.com/gravitational/teleport/lib/client/identityfile"
-	"github.com/gravitational/teleport/lib/client/pgservicefile"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
@@ -296,6 +296,8 @@ func Run(args []string) {
 	dbLogout.Arg("db", "Database to remove credentials for.").StringVar(&cf.DatabaseService)
 	dbEnv := db.Command("env", "Print environment variables for the configured database.")
 	dbEnv.Flag("db", "Database to print environment for if logged into multiple.").StringVar(&cf.DatabaseService)
+	dbConfig := db.Command("config", "Print database connection information. Useful when configuring GUI clients.")
+	dbConfig.Flag("db", "Database to print information for if logged into multiple.").StringVar(&cf.DatabaseService)
 
 	// join
 	join := app.Command("join", "Join the active SSH session")
@@ -455,6 +457,8 @@ func Run(args []string) {
 		onDatabaseLogout(&cf)
 	case dbEnv.FullCommand():
 		onDatabaseEnv(&cf)
+	case dbConfig.FullCommand():
+		onDatabaseConfig(&cf)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
@@ -827,7 +831,7 @@ func onLogout(cf *CLIConf) {
 		if profile != nil {
 			for _, db := range profile.Databases {
 				log.Debugf("Logging %v out of database %v.", profile.Name, db)
-				err = pgservicefile.Delete(profile.Cluster, db.ServiceName)
+				err = dbprofile.Delete(tc, db)
 				if err != nil {
 					utils.FatalError(err)
 					return
@@ -889,7 +893,7 @@ func onLogout(cf *CLIConf) {
 		for _, profile := range profiles {
 			for _, db := range profile.Databases {
 				log.Debugf("Logging %v out of database %v.", profile.Name, db)
-				err = pgservicefile.Delete(profile.Cluster, db.ServiceName)
+				err = dbprofile.Delete(tc, db)
 				if err != nil {
 					utils.FatalError(err)
 					return
@@ -1075,9 +1079,9 @@ func showApps(servers []services.Server, verbose bool) {
 	}
 }
 
-func showDatabases(servers []services.DatabaseServer, active []tlsca.RouteToDatabase, verbose bool) {
+func showDatabases(cluster string, servers []services.DatabaseServer, active []tlsca.RouteToDatabase, verbose bool) {
 	if verbose {
-		t := asciitable.MakeTable([]string{"Name", "Description", "URI", "Labels"})
+		t := asciitable.MakeTable([]string{"Name", "Description", "Protocol", "URI", "Labels"})
 		for _, server := range servers {
 			name := server.GetName()
 			for _, a := range active {
@@ -1088,28 +1092,42 @@ func showDatabases(servers []services.DatabaseServer, active []tlsca.RouteToData
 			t.AddRow([]string{
 				name,
 				server.GetDescription(),
+				server.GetProtocol(),
 				server.GetURI(),
 				server.LabelsString(),
 			})
 		}
 		fmt.Println(t.AsBuffer().String())
 	} else {
-		t := asciitable.MakeTable([]string{"Name", "Description", "Labels"})
+		t := asciitable.MakeTable([]string{"Name", "Description", "Labels", "Connect"})
 		for _, server := range servers {
 			name := server.GetName()
+			var connect string
 			for _, a := range active {
 				if a.ServiceName == name {
 					name = formatActiveDB(a)
+					connect = formatConnectCommand(cluster, a)
 				}
 			}
 			t.AddRow([]string{
 				name,
 				server.GetDescription(),
 				server.LabelsString(),
+				connect,
 			})
 		}
 		fmt.Println(t.AsBuffer().String())
 	}
+}
+
+func formatConnectCommand(cluster string, active tlsca.RouteToDatabase) string {
+	switch active.Protocol {
+	case defaults.ProtocolPostgres:
+		return fmt.Sprintf(`psql "service=%v-%v"`, cluster, active.ServiceName)
+	case defaults.ProtocolMySQL:
+		return fmt.Sprintf("mysql --defaults-group-suffix=_%v-%v", cluster, active.ServiceName)
+	}
+	return ""
 }
 
 func formatActiveDB(active tlsca.RouteToDatabase) string {

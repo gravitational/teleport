@@ -310,7 +310,6 @@ github.com/julienschmidt/httprouter
 github.com/kardianos/osext
 # github.com/konsorten/go-windows-terminal-sequences v1.0.3
 github.com/konsorten/go-windows-terminal-sequences
-# github.com/kr/pty v1.1.1
 # github.com/kr/pty v1.1.8
 ## explicit
 github.com/kr/pty
@@ -364,6 +363,8 @@ github.com/nsf/termbox-go
 # github.com/pborman/uuid v1.2.0
 ## explicit
 github.com/pborman/uuid
+# github.com/pingcap/errors v0.11.0
+github.com/pingcap/errors
 # github.com/pmezard/go-difflib v1.0.0
 github.com/pmezard/go-difflib/difflib
 # github.com/pquerna/otp v0.0.0-20160912161815-54653902c20e
@@ -408,6 +409,19 @@ github.com/satori/go.uuid
 # github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500
 ## explicit
 github.com/shabbyrobe/gocovmerge
+# github.com/siddontang/go v0.0.0-20180604090527-bdc77568d726
+github.com/siddontang/go/hack
+github.com/siddontang/go/sync2
+# github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07
+github.com/siddontang/go-log/log
+github.com/siddontang/go-log/loggers
+# github.com/siddontang/go-mysql v1.1.0 => github.com/gravitational/go-mysql v1.1.1-0.20201221203007-8ef34676bbc0
+## explicit
+github.com/siddontang/go-mysql/client
+github.com/siddontang/go-mysql/mysql
+github.com/siddontang/go-mysql/packet
+github.com/siddontang/go-mysql/server
+github.com/siddontang/go-mysql/utils
 # github.com/sirupsen/logrus v1.6.0
 ## explicit
 github.com/sirupsen/logrus

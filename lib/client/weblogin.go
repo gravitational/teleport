@@ -217,6 +217,8 @@ type ProxySettings struct {
 	Kube KubeProxySettings `json:"kube"`
 	// SSH is SSH specific proxy settings
 	SSH SSHProxySettings `json:"ssh"`
+	// DB contains database access specific proxy settings
+	DB DBProxySettings `json:"db"`
 }
 
 // KubeProxySettings is kubernetes proxy settings
@@ -247,6 +249,12 @@ type SSHProxySettings struct {
 
 	// TunnelPublicAddr is the public address of the SSH reverse tunnel.
 	TunnelPublicAddr string `json:"ssh_tunnel_public_addr,omitempty"`
+}
+
+// DBProxySettings contains database access specific proxy settings.
+type DBProxySettings struct {
+	// MySQLListenAddr is MySQL proxy listen address.
+	MySQLListenAddr string `json:"mysql_listen_addr,omitempty"`
 }
 
 // PingResponse contains the form of authentication the auth server supports.

@@ -71,6 +71,7 @@ require (
 	github.com/russellhaering/goxmldsig v1.1.0
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
+	github.com/siddontang/go-mysql v1.1.0
 	github.com/sirupsen/logrus v1.6.0
 	github.com/stretchr/testify v1.6.1
 	github.com/tstranex/u2f v0.0.0-20160508205855-eb799ce68da4
@@ -108,4 +109,5 @@ replace (
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.3
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 	github.com/iovisor/gobpf => github.com/gravitational/gobpf v0.0.1
+	github.com/siddontang/go-mysql v1.1.0 => github.com/gravitational/go-mysql v1.1.1-0.20201221203007-8ef34676bbc0
 )

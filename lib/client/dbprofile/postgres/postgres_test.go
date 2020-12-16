@@ -14,12 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package pgservicefile
+package postgres
 
 import (
 	"path/filepath"
 	"strconv"
 	"testing"
+
+	"github.com/gravitational/teleport/lib/client/dbprofile/profile"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -31,13 +33,13 @@ func TestServiceFile(t *testing.T) {
 	serviceFile, err := LoadFromPath(path)
 	require.NoError(t, err)
 
-	profile := ConnectProfile{
+	profile := profile.ConnectProfile{
 		Name:        "test",
 		Host:        "localhost",
 		Port:        5342,
 		User:        "postgres",
 		Database:    "postgres",
-		SSLMode:     "on",
+		Insecure:    false,
 		SSLRootCert: "ca.pem",
 		SSLCert:     "cert.pem",
 		SSLKey:      "key.pem",
@@ -53,7 +55,7 @@ func TestServiceFile(t *testing.T) {
 		"PGPORT":        strconv.Itoa(profile.Port),
 		"PGUSER":        profile.User,
 		"PGDATABASE":    profile.Database,
-		"PGSSLMODE":     profile.SSLMode,
+		"PGSSLMODE":     SSLModeVerifyFull,
 		"PGSSLROOTCERT": profile.SSLRootCert,
 		"PGSSLCERT":     profile.SSLCert,
 		"PGSSLKEY":      profile.SSLKey,

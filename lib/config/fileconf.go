@@ -179,6 +179,7 @@ var (
 		"rewrite":                 false,
 		"redirect":                false,
 		"debug_app":               false,
+		"mysql_listen_addr":       false,
 	}
 )
 
@@ -945,6 +946,9 @@ type Proxy struct {
 
 	// KeyPairs is a list of x509 key pairs the proxy will load.
 	KeyPairs []KeyPair `yaml:"https_keypairs"`
+
+	// MySQLAddr is MySQL proxy listen address.
+	MySQLAddr string `yaml:"mysql_listen_addr,omitempty"`
 }
 
 // KeyPair represents a path on disk to a private key and certificate.
