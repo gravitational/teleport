@@ -54,7 +54,7 @@ $ tsh login --login=non-sso-user
 Enter password for Teleport user non-sso-user: ...
 Tap your security key... <tap>
 
-$ tsh login --login=non-sso-user --2fa=otp
+$ tsh login --login=non-sso-user --mfa=otp
 Enter password for Teleport user non-sso-user: ...
 Enter OTP code: ...
 
@@ -66,50 +66,50 @@ $ tsh login --login=sso-user --auth=oidc
 2FA management:
 
 ```sh
-$ tsh 2fa ls
-2FA deivice name   Type   Last used
+$ tsh mfa ls
+MFA deivice name   Type   Last used
 ----------------   ----   -------------------------------
 android OTP        OTP    Tue 15 Dec 2020 01:29:42 PM PST
 yubikey            U2F    Wed 16 Dec 2020 02:00:13 PM PST
 
-$ tsh 2fa add
-Adding a new 2FA device.
+$ tsh mfa add
+Adding a new MFA device.
 Choose device type (1 - OTP, 2 - U2F): 2
 Enter device name: solokey
 Tap any *registered* security key... <tap>
 Tap your *new* security key... <tap>
-2FA device "solokey" added.
+MFA device "solokey" added.
 
-$ tsh 2fa ls
-2FA deivice name   Type   Last used
+$ tsh mfa ls
+MFA deivice name   Type   Last used
 ----------------   ----   -------------------------------
 android OTP        OTP    Tue 15 Dec 2020 01:29:42 PM PST
 yubikey            U2F    Wed 16 Dec 2020 02:00:13 PM PST
 solokey            U2F    Wed 16 Dec 2020 02:05:46 PM PST
 
-$ tsh 2fa rm yubikey
+$ tsh mfa rm yubikey
 Tap any *registered* security key... <tap>
-2FA device "yubikey" removed.
+MFA device "yubikey" removed.
 
-$ tsh 2fa rm "android OTP"
+$ tsh mfa rm "android OTP"
 Tap any *registered* security key... <tap>
-2FA device "android OTP" removed.
+MFA device "android OTP" removed.
 
-$ tsh 2fa ls
-2FA deivice name   Type   Last used
+$ tsh mfa ls
+MFA deivice name   Type   Last used
 ----------------   ----   -------------------------------
 solokey            U2F    Wed 16 Dec 2020 02:06:46 PM PST
 
 # If 2FA is optional:
-$ tsh 2fa rm solokey
-You are about to remove the only remaining 2FA device.
-This will disable 2FA during login.
+$ tsh mfa rm solokey
+You are about to remove the only remaining MFA device.
+This will disable MFA during login.
 Are you sure? (y/N): N
 
 # If 2FA is required:
-$ tsh 2fa rm solokey
-Can't remove the only remaining 2FA device.
-Please add a replacement 2FA device first using "tsh 2fa add".
+$ tsh mfa rm solokey
+Can't remove the only remaining MFA device.
+Please add a replacement MFA device first using "tsh mfa add".
 ```
 
 #### web UI
@@ -143,12 +143,16 @@ and allow to mix different 2FA methods.
 Existing configuration options must be backwards-compatible - no change in
 behavior unless config values are changed.
 
-New fields added under `auth_service.authentication`:
-- `second_factor_optional` - bool, defaults to `false`; when `true`, users can
-  register and login without 2FA checks, and are able to add 2FA voluntarily
-- `second_factor` - keep existing values `otp`, `u2f`, `off`, and add a new
-  value `any`; when set to `any`, users can register with either 2FA device
-  - the default remains `otp`
+New values for `auth_service.authentication.second_factor` for this:
+- `off` (existing) - no 2FA can be enrolled
+- `otp` (existing) - only OTP can be enrolled and is required for all local
+  users
+- `u2f` (existing) - only U2F can be enrolled and is required for all local
+  users
+- `on` (new) - users can enroll both OTP and U2F devices, and 2FA is required
+  for all local users
+- `optional` (new) - users can enroll both OTP and U2F devices, and 2FA is
+  required only for users with 2FA enrolled
 
 ### backend storage
 
