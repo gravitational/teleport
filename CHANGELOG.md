@@ -412,6 +412,7 @@ Any Enterprise SSO users using Okta, Active Directory, OneLogin or custom SAML c
 ## 4.3.8
 
 This release of Teleport adds support for a new build architecture.
+
 * Added automatic arm64 builds of Teleport to the download portal.
 
 ## 4.3.7
