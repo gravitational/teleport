@@ -9,7 +9,7 @@ Teleport is currently working on documenting our API.
 
 !!! warning
 
-        We are currently working on this project. If you have an API suggestion, [please complete our survey](https://docs.google.com/forms/d/1HPQu5Asg3lR0cu5crnLDhlvovGpFVIIbDMRvqclPhQg/edit).
+    We are currently working on this project. If you have an API suggestion, [please complete our survey](https://docs.google.com/forms/d/1HPQu5Asg3lR0cu5crnLDhlvovGpFVIIbDMRvqclPhQg/edit).
 
 ## Authentication
 In order to interact with the Access Request API, you will need to provision appropriate

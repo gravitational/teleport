@@ -936,6 +936,7 @@ Token 696c0471453e75882ff70a761c1a8bfa has been deleted
 ## Adding a node located behind NAT
 
 !!! note
+
     This feature is sometimes called "Teleport IoT" or node tunneling.
 
 With the current setup, you've only been able to add nodes that have direct access to the
@@ -1411,6 +1412,7 @@ $ tctl rm users/admin
 ```
 
 !!! note
+
     Although `tctl get connectors` will show you every connector, when working with an individual
     connector you must use the correct `kind`, such as `saml` or `oidc`. You can see each
     connector's `kind` at the top of its YAML output from `tctl get connectors`.

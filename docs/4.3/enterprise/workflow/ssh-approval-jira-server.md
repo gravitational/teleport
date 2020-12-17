@@ -10,14 +10,16 @@ description: How to configure SSH login approval using Jira Server and Teleport
 This guide will talk through how to setup Teleport with Jira Server. Teleport to Jira Server integration allows you to treat Teleport access and permission requests as Jira Tasks.
 
 !!! warning
+
     The Approval Workflow only works with Teleport Enterprise as it requires several roles.
 
 !!! note
+
     Teleport's tsh request workflow is synchronous and needs to be approved within 1 hour of the request.
 
-<video style="width:100%" controls>
-  <source src="../../../img/enterprise/plugins/jira/jira-server.mp4" type="video/mp4">
-  <source src="../../../img/enterprise/plugins/jira/jira-server.webm" type="video/webm">
+<video controls>
+  <source src="../../../img/enterprise/plugins/jira/jira-server.mp4" type="video/mp4" />
+  <source src="../../../img/enterprise/plugins/jira/jira-server.webm" type="video/webm" />
 Your browser does not support the video tag.
 </video>
 
@@ -73,7 +75,8 @@ $ tctl auth sign --format=tls --user=access-plugin-jira --out=auth --ttl=8760h
 The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the plugins](#configuration-file).
 
 !!! note "Certificate Lifetime"
-     By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
+
+    By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
 
 ### Setting up your Jira Server instance
 

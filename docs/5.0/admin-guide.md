@@ -412,7 +412,7 @@ $ tsh --proxy <proxy-addr> ssh <hostname>
 
     External user identities are only supported in [Teleport Enterprise](enterprise/introduction.md).
 
-    Please reach out to [sales@gravitational.com](mailto:sales@gravitational.com) for more information.
+    Please reach out to [sales@goteleport.com](mailto:sales@goteleport.com) for more information.
 
 ## Adding and Deleting Users
 
@@ -695,6 +695,7 @@ Token 696c0471453e75882ff70a761c1a8bfa has been deleted
 ## Adding a node located behind NAT
 
 !!! note
+
     This feature is sometimes called "Teleport IoT" or node tunneling.
 
 With the current setup, you've only been able to add nodes that have direct access to the
@@ -1068,6 +1069,7 @@ $ tctl rm users/admin
 ```
 
 !!! note
+
     Although `tctl get connectors` will show you every connector, when working with an individual
     connector you must use the correct `kind`, such as `saml` or `oidc`. You can see each
     connector's `kind` at the top of its YAML output from `tctl get connectors`.
@@ -1595,6 +1597,69 @@ teleport:
 }
 ```
 
+#### DynamoDB Autoscaling
+
+When setting up DynamoDB it's important to setup backup and autoscaling. We make
+setup simpler by allowing AWS DynamoDB settings to be set automatically
+during Teleport startup.
+
+**DynamoDB Continuous Backups**
+- [AWS Blog Post - Amazon DynamoDB Continuous Backup](https://aws.amazon.com/blogs/aws/new-amazon-dynamodb-continuous-backups-and-point-in-time-recovery-pitr/)
+
+**DynamoDB Autoscaling Options**
+- [AWS Docs - Managing Throughput Capacity Automatically with DynamoDB Auto Scaling](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/AutoScaling.html)
+
+```yaml
+# ...
+teleport:
+  storage:
+    type: "dynamodb"
+    [...]
+
+    # continuous_backups is used to optionally enable continuous backups.
+    # default: false
+    continuous_backups: [true|false]
+
+    # auto_scaling is used to optionally enable (and define settings for) auto scaling.
+    # default: false
+    auto_scaling:  [true|false]
+    # minimum/maximum read capacity in units
+    read_min_capacity: int
+    read_max_capacity: int
+    read_target_value: float
+    # minimum/maximum write capacity in units
+    write_min_capacity: int
+    write_max_capacity: int
+    write_target_value: float
+```
+
+To enable these options you will need to update the [IAM Role for Teleport](aws-oss-guide.md#iam)
+
+```json
+{
+    "Action": [
+        "application-autoscaling:PutScalingPolicy",
+        "application-autoscaling:RegisterScalableTarget"
+    ],
+    "Effect": "Allow",
+    "Resource": "*"
+},
+{
+    "Action": [
+        "iam:CreateServiceLinkedRole"
+    ],
+    "Condition": {
+        "StringEquals": {
+            "iam:AWSServiceName": [
+                "dynamodb.application-autoscaling.amazonaws.com"
+            ]
+        }
+    },
+    "Effect": "Allow",
+    "Resource": "*"
+}
+```
+
 ### Using GCS
 
 !!! tip "Tip"
@@ -1972,4 +2037,4 @@ If you need help, please ask on our [community forum](https://community.gravitat
 
 For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/web/login).
 
-For more information about custom features, or to try our [Enterprise edition](enterprise/introduction.md) of Teleport, please reach out to us at [sales@gravitational.com](mailto:sales@gravitational.com).
+For more information about custom features, or to try our [Enterprise edition](enterprise/introduction.md) of Teleport, please reach out to us at [sales@goteleport.com](mailto:sales@goteleport.com).

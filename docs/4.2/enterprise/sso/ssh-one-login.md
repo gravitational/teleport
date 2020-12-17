@@ -157,6 +157,7 @@ automatically in a browser).
     can be passed via `tsh login --auth=connector_name`
 
 !!! note "IMPORTANT"
+
     Teleport only supports sending party initiated flows for SAML 2.0. This
     means you can not initiate login from your identity provider, you have to
     initiate login from either the Teleport Web UI or CLI.
