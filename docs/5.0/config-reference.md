@@ -203,8 +203,8 @@ auth_service:
     # storing the records on disk at all. *-sync requires all nodes to be
     # upgraded to 4.4.
     #
-    #    "node-sync" : sessions recording will be streamed from node -> auth -> storage service
-    #    "proxy-sync : sessions recording will be streamed from proxy -> auth -> storage service
+    #    "node-sync" : session recordings will be streamed from node -> auth -> storage service
+    #    "proxy-sync : session recordings will be streamed from proxy -> auth -> storage service
     #
     session_recording: "node"
 
@@ -352,8 +352,8 @@ proxy_service:
 app_service:
     # Turns 'app' role on. Default is 'no'
     enabled: yes
-    # We've a small debug app that can be used to make sure application
-    # Access is working correctly. It'll output JWTs so it can be useful
+    # Teleport contains a small debug app that can be used to make sure Application
+    # Access is working correctly. The app outputs JWTs so it can be useful
     # when extending your application.
     debug_app: true
     apps:
