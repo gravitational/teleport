@@ -7,6 +7,18 @@ description: A timeline of upcoming Teleport releases.
 
 The teleport team delivers a new major release roughly every 3 months.
 
+## Teleport Cloud "Austin"
+
+The cloud team focuses on security hardening and single-region production
+release.
+
+### Release Schedule
+
+| Version              | Date              | Description
+|----------------------|-------------------|---------------------------
+| Security Audit       | Jan 10th, 2021    | An external security team starts security audit.
+| Release              | March 1st, 2021   | A single region deployment with 99.9% uptime monthly SLA (max 45 minutes of downtime per month). Good to go for production.
+
 ## Teleport 6.0 "San Diego"
 
 The team open sources role based access controls, implements Database Access, Session Termination
@@ -16,7 +28,7 @@ and Access Workflows UI.
 ### Release Schedule
 
 | Version              | Date              | Description
-|---------------------|-------------------|---------------------------
+|----------------------|-------------------|---------------------------
 | First alpha          | Jan 15th, 2021    | Good for testing and demos.
 | First beta           | Feb 1st, 2021     | Deploy on staging.
 | Release              | March 1st, 2021   | Good to go for production.
