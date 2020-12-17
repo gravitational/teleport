@@ -889,8 +889,9 @@ These flags are available for all commands `--debug, --config` . Run
 # Update a user record
 $ tctl create -f joe.yaml
 # Add a trusted cluster
-$ tctl create cluster.yaml $ Update a trusted cluster $ tctl create -f
-cluster.yaml
+$ tctl create cluster.yaml
+# Update a trusted cluster
+$ tctl create -f cluster.yaml
 ```
 
 ## tctl rm

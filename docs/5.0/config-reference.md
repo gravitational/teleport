@@ -199,13 +199,13 @@ auth_service:
     #    "off"   : session recording is turned off
     #
     # EXPERIMENTAL *-sync modes
-    # Proxy and node send logs directly to S3 or other
-#    storage without storing the records on disk at all. *-sync requires all
-#    nodes to be upgraded to 4.4
-#
-#    "node-sync" : sessions recording will be streamed from node -> auth -> storage service
-#    "proxy-sync : sessions recording will be streamed from proxy -> auth -> storage service
-#
+    # Proxy and node send logs directly to S3 or other storage without
+    # storing the records on disk at all. *-sync requires all nodes to be
+    # upgraded to 4.4.
+    #
+    #    "node-sync" : session recordings will be streamed from node -> auth -> storage service
+    #    "proxy-sync : session recordings will be streamed from proxy -> auth -> storage service
+    #
     session_recording: "node"
 
     # This setting determines if a Teleport proxy performs strict host key checks.
@@ -351,26 +351,26 @@ proxy_service:
 # This section configures the 'application service'
 app_service:
     # Turns 'app' role on. Default is 'no'
-   enabled: yes
-   # We've a small debug app that can be used to make sure application
-   # Access is working correctly. It'll output JWTs so it can be useful
-   # when extending your application.
-   debug_app: true
-   apps:
-   - name: "kubernetes-dashboard"
-     # URI and Port of Application.
-     uri: "http://10.0.1.27:8000"
-     # Optional Public Addr
-     public_addr: "example.com"
-     # Optional Label: These can be used in combination with RBAC rules
-     # to limit access to applications
-     labels:
-        env: "prod"
-     # Optional Dynamic Labels
-     commands:
-     - name: "os"
-       command: ["/usr/bin/uname"]
-       period: "5s"
+    enabled: yes
+    # Teleport contains a small debug app that can be used to make sure Application
+    # Access is working correctly. The app outputs JWTs so it can be useful
+    # when extending your application.
+    debug_app: true
+    apps:
+    - name: "kubernetes-dashboard"
+      # URI and Port of Application.
+      uri: "http://10.0.1.27:8000"
+      # Optional Public Addr
+      public_addr: "example.com"
+      # Optional Label: These can be used in combination with RBAC rules
+      # to limit access to applications
+      labels:
+         env: "prod"
+      # Optional Dynamic Labels
+      commands:
+      - name: "os"
+        command: ["/usr/bin/uname"]
+        period: "5s"
 
 
 ## This section configures the 'kubernetes service'
