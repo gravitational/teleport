@@ -1,5 +1,5 @@
 ---
-authors: Andrew Lytvynov (andrew@gravitational.com)
+authors: Andrew Lytvynov (andrew@goteleport.com)
 state: draft
 ---
 
