@@ -49,7 +49,7 @@ teleport:
   nodename: ${LOCAL_HOSTNAME}
   advertise_ip: ${LOCAL_IP}
   log:
-    output: syslog
+    output: stderr
     severity: INFO
 
   data_dir: /var/lib/teleport
@@ -117,7 +117,7 @@ teleport:
   nodename: ${LOCAL_HOSTNAME}
   advertise_ip: ${LOCAL_IP}
   log:
-    output: syslog
+    output: stderr
     severity: INFO
 
   data_dir: /var/lib/teleport
@@ -186,7 +186,7 @@ teleport:
   nodename: ${LOCAL_HOSTNAME}
   advertise_ip: ${LOCAL_IP}
   log:
-    output: syslog
+    output: stderr
     severity: INFO
 
   data_dir: /var/lib/teleport
@@ -249,7 +249,7 @@ teleport:
   nodename: ${LOCAL_HOSTNAME}
   advertise_ip: ${LOCAL_IP}
   log:
-    output: syslog
+    output: stderr
     severity: INFO
 
   data_dir: /var/lib/teleport
@@ -379,7 +379,7 @@ teleport:
   nodename: ${LOCAL_HOSTNAME}
   advertise_ip: ${LOCAL_IP}
   log:
-    output: syslog
+    output: stderr
     severity: INFO
 
   data_dir: /var/lib/teleport
