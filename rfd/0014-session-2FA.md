@@ -16,7 +16,7 @@ Client machines may be compromised (either physically stolen or remotely
 controlled), along with Teleport credentials on those machines.
 
 Since Teleport keys and certificates are stored on disk, an attacker can
-download them to their own machine and have up to 12hrs of access via Teleport.
+exfiltrate them to their own machine and have up to 12hrs of access via Teleport.
 
 To mitigate this risk, a legitimate user needs to authenticate with a 2nd
 factor (usually a U2F hardware token) for every session. This is in addition to
@@ -53,6 +53,7 @@ on U2F hardware tokens, because:
   TOTP codes)
 - availability: many engineers already own a U2F token (like a YubiKey), since
   they are usable on popular websites (vs HSMs or smartcards)
+- compliance: hardware are available with FIPS certification. Helping strengthen Teleports current FedRAMP support. e.g. (YubiKey FIPS)[https://www.yubico.com/products/yubikey-fips/]
 
 We may consider adding support for other MFA options, if there's demand.
 
