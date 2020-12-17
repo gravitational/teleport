@@ -20,6 +20,10 @@ LOCAL_HOSTNAME=${LOCAL_HOSTNAME//./-}
 # Source variables from user-data
 source /etc/teleport.d/conf
 
+# Create /var/lib/teleport if it doesn't exist and fix permissions appropriately
+if [ ! -d /var/lib/teleport ]; then
+    mkdir -p /var/lib/teleport
+fi
 chown -R teleport:adm /var/lib/teleport
 touch /etc/teleport.yaml
 chmod 664 /etc/teleport.yaml
