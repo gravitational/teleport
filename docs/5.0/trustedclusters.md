@@ -467,7 +467,7 @@ the following:
 
 Remove the relationship from the root cluster: `tctl rm rc/leaf.example.com`.
 
-!!! Note
+!!! note
 
     The `leaf.example.com` cluster will continue to try and ping the root cluster,
     but will not be able to connect. To re-establish the trusted cluster relationship,

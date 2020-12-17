@@ -61,6 +61,7 @@ to call [`tsh login`](cli-docs.md#tsh-login) in the beginning.
 - Linux Users: [Download Linux Teleport Binary. Includes tsh](https://gravitational.com/teleport/download?os=linux)
 
     !!! note
+
         The Teleport package in Homebrew is not maintained by Teleport. We recommend the use of our [own Teleport packages](https://goteleport.com/teleport/download?os=macos).
 
 ## User Identities
@@ -213,7 +214,7 @@ total 8.0K
 
 ### SSH Certificates for Automation
 
-<!--This seems more like an admin task-->
+<!-- This seems more like an admin task -->
 
 Regular users of Teleport must request an auto-expiring SSH certificate, usually
 every day. This doesn't work for non-interactive scripts, like cron jobs or

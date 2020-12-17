@@ -17,7 +17,7 @@ ability for users to disable terminal echo. This is frequently used when request
 Furthermore, due to their unstructured nature, session recordings are difficult to
 ingest and perform monitoring/alerting on.
 
-!!! Note
+!!! note
 
     Enhanced Session Recording requires all parts of the Teleport system to be running
     4.2+.
@@ -46,7 +46,7 @@ Linux ip-172-31-43-104.ec2.internal 4.19.72-25.58.amzn2.x86_64 x86_64 x86_64 x86
 |---------------|------------------------|
 | 8.0-1905	    |            4.18.0.80 ✅  |
 
-!!! Note
+!!! note
 
     At release we've only production tested Enhanced Session recording with CentOS
     7 and 8. We welcome feedback for other Operating Systems, and simply require a

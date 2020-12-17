@@ -45,6 +45,7 @@ The following diagram shows an example Database Access setup:
 ## Schedule
 
 !!! info
+
     Teleport Database Access is under active development.
     The alpha release will include support for PostgreSQL, including Amazon RDS and Aurora.
 
@@ -116,6 +117,7 @@ First, head over to the Teleport [downloads page](https://gravitational.com/tele
 and download the latest version of Teleport.
 
 !!! warning
+
     As of this writing, no Teleport release with Database Access has been
     published yet.
 
@@ -217,9 +219,9 @@ $ psql "service=postgres-aurora user=<db-user> database=<db-name>"
 
 ## Demo
 
-<video autoplay loop muted playsinline controls style="width:100%">
-  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.mp4" type="video/mp4">
-  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.webm" type="video/webm">
+<video autoplay loop muted playsinline controls>
+  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.mp4" type="video/mp4" />
+  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.webm" type="video/webm" />
 Your browser does not support the video tag.
 </video>
 

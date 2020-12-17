@@ -9,7 +9,8 @@ like:
 * Developers must never SSH into production servers.
 * ... and many others.
 
-!!! warning "Version Warning":
+!!! warning "Version Warning"
+
     This guide requires a commercial edition of Teleport. The open source
     edition of Teleport only supports [Github](admin-guide/#github-oauth-20) as
     an SSO provider.
@@ -61,6 +62,7 @@ spec:
 ```
 
 !!! important
+
     The groups will be fetched only if admins include special auth scope https://www.googleapis.com/auth/admin.directory.group.readonly in the scopes of the connector as shown in the example above.
 
 
@@ -134,7 +136,8 @@ $ tsh --proxy=proxy.example.com login
 This command will print the SSO login URL (and will try to open it
 automatically in a browser).
 
-!!! tip "Tip":
+!!! tip "Tip"
+
     Teleport can use multiple OIDC connectors. In this case a connector name
     can be passed via `tsh login --auth=connector_name`
 

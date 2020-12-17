@@ -100,10 +100,10 @@ $ sudo mv teleport.yaml /etc
 Teleport requires a secure public endpoint for the Teleport UI and for end users to connect to.
 A domain name and TLS certificates are also required. We'll use Let's Encrypt to obtain a free TLS certificate.
 
-DNS Setup:<br>
+DNS Setup:<br />
 For this setup, we'll simply use an `A` or `CNAME` record pointing to the IP/FQDN of the machine with Teleport installed.
 
-TLS Setup:<br>
+TLS Setup:<br />
 If you already have TLS certificates available you can use those. If using a new domain we recommend using `certbot`, which is free and
 simple to set up. Follow [certbot instructions](https://certbot.eff.org/) for how to obtain a certificate for your distro.
 
@@ -124,7 +124,7 @@ simple to set up. Follow [certbot instructions](https://certbot.eff.org/) for ho
         -d "teleport.example.com, *.teleport.example.com"
       ```
 
-**Update `teleport.yaml`**<br>
+**Update `teleport.yaml`**<br />
 Once you've obtained certificates from Let's Encrypt, the below commands will update Teleport's
 config file to use your newly configured domain and TLS certificates.
 
@@ -203,6 +203,7 @@ Here's a selection of compatible Two-Factor authentication apps:
     ```
 
     !!! note
+
         The Teleport package in Homebrew is not maintained by Teleport. We recommend the use of our [own Teleport packages](https://goteleport.com/teleport/download?os=macos).
 
 === "Windows - Powershell"

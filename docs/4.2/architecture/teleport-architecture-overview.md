@@ -76,6 +76,7 @@ The numbers correspond to the steps needed to connect a client to a node. These
 steps are explained below the diagram.
 
 !!! warning "Caution"
+
     The teleport daemon calls services "roles" in the CLI
     client. The `--roles` flag has no relationship to concept of User Roles or
     permissions.
@@ -88,7 +89,6 @@ steps are explained below the diagram.
 4. Authorize Client Access to Node
 
 !!! tip "Tip"
-
 
     In the diagram above we show each Teleport service separately for
     clarity, but Teleport services do not have to run on separate nodes.
@@ -106,7 +106,6 @@ steps are explained in detail below the diagram.
 ![Teleport Everything](../img/everything.svg)
 
 !!! note "Caution"
-
 
     The Teleport Admin tool, `tctl` , must be physically present
     on the same machine where Teleport Auth is running. Adding new nodes or
@@ -174,7 +173,6 @@ and the requested node. The destination node then begins recording the session,
 sending the session history to the auth server to be stored.
 
 !!! note "Note"
-
 
     Teleport may also be configured to have the session recording
     occur on the proxy, see [Audit Log](../admin-guide.md#audit-log) for more

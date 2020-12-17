@@ -17,9 +17,9 @@ You can secure any web application using application access:
 
 ## Demo
 
-<video autoplay loop muted playsinline controls style="width:100%">
-  <source src="https://goteleport.com/teleport/videos/k8s-application-access/k8s-taa.mp4" type="video/mp4">
-  <source src="https://goteleport.com/teleport/videos/k8s-application-access/k8s-taa.webm" type="video/webm">
+<video autoplay loop muted playsinline controls>
+  <source src="https://goteleport.com/teleport/videos/k8s-application-access/k8s-taa.mp4" type="video/mp4" />
+  <source src="https://goteleport.com/teleport/videos/k8s-application-access/k8s-taa.webm" type="video/webm" />
 Your browser does not support the video tag.
 </video>
 
@@ -303,7 +303,7 @@ _Example jwks.json_
 
 As outlined in our introduction, Application Access has been designed to support two types of applications.
 
-**Example Legacy App**</br>
+**Example Legacy App**<br />
 A device such as a load balancer might come with a control panel, but it doesn't have any authentication and can only be access via a privileged network. These applications are supported and can extend access beyond your network.
 
 Other example legacy apps:
@@ -311,7 +311,7 @@ Other example legacy apps:
 + An internal admin tool
 + Control panel for networking devices
 
-**Example Modern App**</br>
+**Example Modern App**<br />
 Teleport Application Access supports all modern applications, these could be built in-house or off-the-shelf software such as Jenkins, Kubernetes Dashboard and Jupyter workbooks.
 
 + Kubernetes Internal Dashboard

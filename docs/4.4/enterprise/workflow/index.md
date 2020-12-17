@@ -144,7 +144,7 @@ should be approved/denied.
 
 ### Example Setup
 
-**Unprivileged User**<br>
+**Unprivileged User**<br />
 In this example we have an employee who isn't able to access any systems. When they
 log in, they'll always need to provide a reason for access.
 
@@ -197,7 +197,7 @@ version: v3
       `dev-{% raw %}{{regexp.not_match("beta")}}{% endraw %}-prod` - Can request any cluster, apart from beta cluster. e.g. Can access dev-alpha-prod, cannot access dev-beta-prod.
 
 
-**Unprivileged User Login**<br>
+**Unprivileged User Login**<br />
 
 ```bash
 # Login: This will prompt the user to provide a reason in the UI.
@@ -206,11 +206,11 @@ tsh login
 tsh login --request-reason="..."
 ```
 
-!!! Note
+!!! note
 
     Notice that the above role does not specify any logins. If a users's roles specify no logins, Teleport will now generate the user's initial SSH certificates with an invalid dummy login of the form `-teleport-nologin-<random-suffix>` (e.g. `-teleport-nologin-1e02dbfd`).
 
-**Admin Flow: Approve/Deny**<br>
+**Admin Flow: Approve/Deny**<br />
 
 A number of new parameters are now available that grant the plugin or administrator greater insight into approvals/denials:
 
