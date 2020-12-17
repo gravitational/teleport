@@ -105,6 +105,7 @@ $ helm install teleport teleport/teleport
       [Download MacOS .pkg installer](https://gravitational.com/teleport/download) (tsh client only, signed) file, double-click to run the Installer.
 
     !!! note
+
         This method only installs the `tsh` client for interacting with Teleport clusters.
         If you need the `teleport` server or `tctl` admin tool, use the "Terminal" method instead.
 
@@ -115,6 +116,7 @@ $ helm install teleport teleport/teleport
     ```
 
     !!! note
+
         The Teleport package in Homebrew is not maintained by Teleport. We recommend the use of our [own Teleport packages](https://goteleport.com/teleport/download?os=macos).
 
 === "Terminal"
@@ -188,7 +190,7 @@ $ sudo chown $USER /var/lib/teleport
 If the build succeeds, the binaries `teleport, tsh`, and `tctl` are now in the
 directory `$GOPATH/src/github.com/gravitational/teleport/build`
 
-<!--Notes on what to do if the build does not succeed, troubleshooting-->
+<!-- Notes on what to do if the build does not succeed, troubleshooting -->
 
 
 ## Checksums

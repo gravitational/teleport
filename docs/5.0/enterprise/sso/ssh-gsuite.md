@@ -87,7 +87,7 @@ Within GSuite to access the Manage API client access go to Security -> Settings.
 
 !!! Note
 
-   The email that you set for `google_admin_email` **must** be the email address of a user that has permission to list all groups, users, and group membership in your G Suite account. This user will generally need super admin privileges.
+    The email that you set for `google_admin_email` **must** be the email address of a user that has permission to list all groups, users, and group membership in your G Suite account. This user will generally need super admin privileges.
 
 **Client Name:** For Client Name: Use the Unique ID for the service account.  [See Video for instructions](https://youtu.be/DG97l8WJ6oU?t=281).
 

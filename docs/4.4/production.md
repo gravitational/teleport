@@ -39,9 +39,9 @@ Teleport services listen on several ports. This table shows the default port num
 | 3023      | Proxy      | SSH port clients connect to after authentication. A proxy will forward this connection to port `3022` on the destination node. | Allow inbound traffic from SSH clients. | Allow outbound traffic to SSH clients.
 | 3022      | Node       | SSH port to the Node Service. This is Teleport's equivalent of port `22` for SSH. | Allow inbound traffic from proxy host. | Allow outbound traffic to the proxy host.
 | 3025      | Auth       | SSH port used by the Auth Service to serve its Auth API to other nodes in a cluster. | Allow inbound connections from all cluster nodes. | Allow outbound traffic to cluster nodes.
-| 3024      | Proxy      | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server. | <TODO> | <TODO>
+| 3024      | Proxy      | SSH port used to create "reverse SSH tunnels" from behind-firewall environments into a trusted proxy server. | <!-- TODO --> | <!-- TODO -->
 
-<!--TODO: Add several diagrams of firewall config examples-->
+<!-- TODO: Add several diagrams of firewall config examples -->
 
 ## Installation
 
