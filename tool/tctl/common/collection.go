@@ -494,7 +494,7 @@ func (c *authPrefCollection) writeText(w io.Writer) error {
 	for _, authPref := range c.authPrefs {
 		u2f, err := authPref.GetU2F()
 		u2fDesc := "(none)"
-		if err != nil {
+		if err == nil && u2f.AppID != "" {
 			u2fDesc = u2f.AppID
 		}
 		t.AddRow([]string{
