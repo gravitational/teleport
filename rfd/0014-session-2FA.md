@@ -3,11 +3,11 @@ authors: Andrew Lytvynov (andrew@goteleport.com)
 state: draft
 ---
 
-# RFD 14 - Per-session 2FA
+# RFD 14 - Per-session MFA
 
 ## What
 
-Require a 2FA check before starting a new user "session" for all protocols that
+Require a MFA check before starting a new user "session" for all protocols that
 Teleport supports.
 
 ## Why
@@ -59,16 +59,16 @@ We may consider adding support for other MFA options, if there's demand.
 
 ### U2F device management
 
-A prerequisite for usable 2FA integration is solid 2FA device management. This
+A prerequisite for usable MFA integration is solid MFA device management. This
 work is tracked separately, as [RFD 15](0015-2fa-management.md), to keep
 designs reasonably scoped and understandable.
 
 For this RFD, we assume that:
-- teleport 2FA device management is separate from SSO 2FA
-- teleport supports 2FA device management on CLI and web
-- a user can have multiple 2FA devices registered, including multiple security
+- teleport MFA device management is separate from SSO MFA
+- teleport supports MFA device management on CLI and web
+- a user can have multiple MFA devices registered, including multiple security
   tokens
-- a user can remove registered 2FA devices
+- a user can remove registered MFA devices
 
 ### authn protocol
 
@@ -276,7 +276,7 @@ client                               server
 
 ### enforcement
 
-2FA checks per session can be enforced per-role or globally.
+MFA checks per session can be enforced per-role or globally.
 
 #### per-role
 
@@ -284,8 +284,8 @@ This approach is for operators that want extra protection for some high-value
 resources (like a prod DB VM or k8s cluster) but not others (like a test k8s
 cluster), to reduce the friction for users.
 
-A new field `require_session_2fa` in role `options` specifies whether 2FA is
-required. For example, the below privileged role enforces 2FA per session:
+A new field `require_session_mfa` in role `options` specifies whether MFA is
+required. For example, the below privileged role enforces MFA per session:
 
 ```yaml
 kind: role
@@ -294,7 +294,7 @@ metadata:
   name: prod-admin
 spec:
   options:
-    require_session_2fa: true
+    require_session_mfa: true
 
   allow:
     logins: [root]
@@ -303,7 +303,7 @@ spec:
 ```
 
 Assuming there exists node `A` with label `environment: prod` in the cluster.
-User with role `prod-admin` is required to pass the 2FA check before logging
+User with role `prod-admin` is required to pass the MFA check before logging
 into node `A`.
 
 Now, if a user also has the role:
@@ -321,46 +321,46 @@ spec:
 ```
 
 And there exists node `B` with label `environment: dev` in the cluster.
-Then they _don't_ need the 2FA check before logging into `B`, because role
+Then they _don't_ need the MFA check before logging into `B`, because role
 `dev` doesn't require it.
 
 Generally, if at least one role that grants access to a resource (SSH node, k8s
-cluster, etc.) sets `require_session_2fa: true`, then 2FA check is required.
+cluster, etc.) sets `require_session_mfa: true`, then MFA check is required.
 It's required even if another role grants access to the same resource without
-2FA.
+MFA.
 
 #### globally
 
-This approach is for operators that want to enforce 2FA usage org-wide, for all
+This approach is for operators that want to enforce MFA usage org-wide, for all
 sessions.
 
-A new field `require_session_2fa` is available under `auth_service`:
+A new field `require_session_mfa` is available under `auth_service`:
 
 ```yaml
 # teleport.yaml
 auth_service:
-  require_session_2fa: true
+  require_session_mfa: true
 ```
 
 If this field is set to true, it overrides any values set in roles and always
-requires 2FA checks for all sessions.
+requires MFA checks for all sessions.
 
 ### certificate changes
 
 x509 and SSH certificates need 2 new pieces of information encoded:
 
-- is this a short-lived cert issued after 2FA?
+- is this a short-lived cert issued after MFA?
 - [constraints](#constraints) for the cert usage
 
 When validating a certificate, the Teleport service will check RBAC to see if
-2FA is required per session. If required, the 2FA flag field must be set in the
+MFA is required per session. If required, the MFA flag field must be set in the
 certificate.
 
 #### SSH
 
 SSH certs will encode new data in extensions. New extensions are:
 
-- `issued-with-2fa` - UUID of the 2FA token used to issue the cert
+- `issued-with-mfa` - UUID of the MFA token used to issue the cert
 - `client-ip` - IP of the client
 - `session-deadline` - RFC3339 timestamp, hard deadline for the session, even
   when there's some activity
@@ -374,7 +374,7 @@ encode](https://github.com/gravitational/teleport/blob/103465ed5a8e20249275b48ac
 
 New extensions are:
 
-- `IssuedWith2FA` (OID `1.3.9999.1.8`) - UUID of the 2FA token used to issue the
+- `IssuedWithMFA` (OID `1.3.9999.1.8`) - UUID of the MFA token used to issue the
   cert
 - `ClientIP` (OID `1.3.9999.1.9`) - IP of the client
 - `SessionTTL` (OID `1.3.9999.1.10`) - RFC3339 timestamp, hard deadline for the
@@ -387,7 +387,7 @@ New extensions are:
     it's set, and the legacy fields otherwise
 
 The `identity.Usage` field (encoded as `OrganizationalUnit` in the certificate
-subject) will be enforced for 2FA certs by `auth.Middleware` (even if
+subject) will be enforced for MFA certs by `auth.Middleware` (even if
 `identity.Usage` is empty, which is currently not blocked). The possible values
 are:
 
@@ -397,12 +397,12 @@ are:
 
 ### audit log
 
-All audit events related to session secured with 2FA will include a `With2FA`
-field (under `SessionMetadata`) containing the UUID of the 2FA token used to
+All audit events related to session secured with MFA will include a `WithMFA`
+field (under `SessionMetadata`) containing the UUID of the MFA token used to
 start the session.
 
 If this field is not set on a session event, the session was started without
-2FA.
+MFA.
 
 ## Alternatives considered
 
@@ -457,7 +457,7 @@ Another option is running a forward proxy on the client machine. This means
 running `tsh` as a daemon, with a local listening socket. All Teleport-bound
 traffic goes to the local socket, through `tsh` and then out to the network.
 
-This lets `tsh` perform any 2FA exchanges before proxying the application
+This lets `tsh` perform any MFA exchanges before proxying the application
 traffic:
 
 ```
