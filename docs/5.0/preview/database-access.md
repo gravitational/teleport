@@ -54,6 +54,7 @@ See [release schedule](./upcoming-releases.md#release-schedule).
 ### Self-Hosted PostgreSQL
 
 !!! note
+
     This section explains how to configure a self-hosted instance of PostgreSQL
     to work with Teleport Database Access. For information about configuring
     AWS RDS/Aurora see the [section below](#aws-rdsaurora-postgresql).
@@ -87,6 +88,7 @@ The command will create 3 files: `server.cas` with Teleport's certificate
 authority and `server.crt`/`server.key` with generated certificate/key pair.
 
 !!! note "Certificate Rotation"
+
     Teleport signs database certificates with the host authority. As such,
     when performing [host certificates rotation](../admin-guide.md#certificate-rotation),
     the database certificates must be updated as well.
@@ -121,6 +123,7 @@ in PostgreSQL documentation for more details.
 ### AWS RDS/Aurora PostgreSQL
 
 !!! note
+
     This section explains how to configure a PostgreSQL-flavored instance of
     AWS RDS or Aurora database to work with Teleport Database Access. For
     information about configuring a self-hosted PostgreSQL see the [section above](#self-hosted-postgresql).
@@ -310,6 +313,7 @@ proxy_service:
 ```
 
 !!! tip
+
     A single Teleport process can run multiple different services, for example
     multiple database access proxies as well as running other services such an
     SSH service or an application access proxy.
@@ -356,6 +360,7 @@ $ tsh db login aurora
 ```
 
 !!! tip
+
     You can be logged into multiple databases simultaneously.
 
 You can optionally specify the database name and the user to use by default

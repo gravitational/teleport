@@ -902,7 +902,8 @@ teleport:
     If a CA pin not provided, Teleport node will join a cluster but it will print
     a `WARN` message (warning) into it's standard error output.
 
-!!! warning "Warning":
+!!! warning "Warning"
+
     The CA pin becomes invalid if a Teleport administrator performs the CA
     rotation by executing `tctl auth rotate`.
 
