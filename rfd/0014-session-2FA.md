@@ -364,6 +364,7 @@ SSH certs will encode new data in extensions. New extensions are:
 - `client-ip` - IP of the client
 - `session-deadline` - RFC3339 timestamp, hard deadline for the session, even
   when there's some activity
+- `target-node` - UUID of the target node for the SSH session
 
 #### x509
 
@@ -378,15 +379,17 @@ New extensions are:
 - `ClientIP` (OID `1.3.9999.1.9`) - IP of the client
 - `SessionTTL` (OID `1.3.9999.1.10`) - RFC3339 timestamp, hard deadline for the
   session, even when there's some activity
-- `Database` (OID `1.3.9999.1.11`) - name of the target database
+- `TargetName` (OID `1.3.9999.1.11`) - name of the target app, k8s cluster or
+  database; the type of target is defined by the `identity.Usage` field (see
+  below)
+  - existing `KubernetesCluster`, `TeleportCluster`, `RouteToApp` extensions
+    are kept for compatibility; enforcement happens based on `TargetName` if
+    it's set, and the legacy fields otherwise
 
-Existing `KubernetesCluster`, `TeleportCluster`, `RouteToApp` extensions are
-kept and enforced.
-
-In addition, the `identity.Usage` field (encoded as `OrganizationalUnit` in the
-certificate subject) will be enforced for 2FA certs by `auth.Middleware` (even
-if `identity.Usage` is empty, which is currently not blocked). The possible
-values are:
+The `identity.Usage` field (encoded as `OrganizationalUnit` in the certificate
+subject) will be enforced for 2FA certs by `auth.Middleware` (even if
+`identity.Usage` is empty, which is currently not blocked). The possible values
+are:
 
 - `usage:kube` (existing) - only k8s API
 - `usage:apps` (existing) - only web apps
