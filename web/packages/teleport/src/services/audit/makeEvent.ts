@@ -273,6 +273,26 @@ export const formatters: Formatters = {
     format: ({ user, kubernetes_cluster }) =>
       `User [${user}] made a request to kubernetes cluster [${kubernetes_cluster}]`,
   },
+  [CodeEnum.DATABASE_SESSION_STARTED]: {
+    desc: 'Database Session Started',
+    format: ({ user, db_service, db_name, db_user }) =>
+      `User [${user}] has connected to database [${db_name}] as [${db_user}] on [${db_service}]`,
+  },
+  [CodeEnum.DATABASE_SESSION_STARTED_FAILURE]: {
+    desc: 'Database Session Denied',
+    format: ({ user, db_service, db_name, db_user }) =>
+      `User [${user}] was denied access to database [${db_name}] as [${db_user}] on [${db_service}]`,
+  },
+  [CodeEnum.DATABASE_SESSION_ENDED]: {
+    desc: 'Database Session Ended',
+    format: ({ user, db_service, db_name, db_user }) =>
+      `User [${user}] has disconnected from database [${db_name}] on [${db_service}]`,
+  },
+  [CodeEnum.DATABASE_SESSION_QUERY]: {
+    desc: 'Database Query',
+    format: ({ user, db_service, db_name, db_query }) =>
+      `User [${user}] has executed query [${truncateStr(db_query, 80)}] in database [${db_name}] on [${db_service}]`,
+  },
 };
 
 const unknownFormatter = {
@@ -305,4 +325,11 @@ function getId(json: RawEvent<any>) {
   }
 
   return `${event}:${time}`;
+}
+
+function truncateStr(str: string, len: number): string {
+  if (str.length <= len) {
+    return str;
+  }
+  return str.substring(0, len - 3) + "...";
 }

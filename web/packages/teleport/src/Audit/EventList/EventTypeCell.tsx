@@ -67,6 +67,10 @@ const EventIconMap = {
   [CodeEnum.USER_SSO_LOGIN]: Icons.Info,
   [CodeEnum.USER_SSO_LOGINFAILURE]: Icons.Info,
   [CodeEnum.KUBE_REQUEST]: Icons.Kubernetes,
+  [CodeEnum.DATABASE_SESSION_STARTED]: Icons.Database,
+  [CodeEnum.DATABASE_SESSION_STARTED_FAILURE]: Icons.Database,
+  [CodeEnum.DATABASE_SESSION_ENDED]: Icons.Database,
+  [CodeEnum.DATABASE_SESSION_QUERY]: Icons.Database,
 };
 
 export default function TypeCell(props) {
