@@ -360,10 +360,10 @@ certificate.
 
 SSH certs will encode new data in extensions. New extensions are:
 
-- `issued-with-2fa` - ID of the 2FA token used to issue the cert
+- `issued-with-2fa` - UUID of the 2FA token used to issue the cert
 - `client-ip` - IP of the client
-- `session-ttl` - string-encoded `time.Duration`, how long the session is
-  allowed to last after connection start
+- `session-deadline` - RFC3339 timestamp, hard deadline for the session, even
+  when there's some activity
 
 #### x509
 
@@ -373,11 +373,11 @@ encode](https://github.com/gravitational/teleport/blob/103465ed5a8e20249275b48ac
 
 New extensions are:
 
-- `IssuedWith2FA` (OID `1.3.9999.1.8`) - ID of the 2FA token used to issue the
+- `IssuedWith2FA` (OID `1.3.9999.1.8`) - UUID of the 2FA token used to issue the
   cert
 - `ClientIP` (OID `1.3.9999.1.9`) - IP of the client
-- `SessionTTL` (OID `1.3.9999.1.10`) - string-encoded `time.Duration`, how long
-  the session is allowed to last after connection start
+- `SessionTTL` (OID `1.3.9999.1.10`) - RFC3339 timestamp, hard deadline for the
+  session, even when there's some activity
 - `Database` (OID `1.3.9999.1.11`) - name of the target database
 
 Existing `KubernetesCluster`, `TeleportCluster`, `RouteToApp` extensions are
