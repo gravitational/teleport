@@ -67,10 +67,10 @@ $ tsh login --login=sso-user --auth=oidc
 
 ```sh
 $ tsh mfa ls
-MFA deivice name   Type   Last used
-----------------   ----   -------------------------------
-android OTP        OTP    Tue 15 Dec 2020 01:29:42 PM PST
-yubikey            U2F    Wed 16 Dec 2020 02:00:13 PM PST
+MFA deivice name   Type   ID                                     Last used
+----------------   ----   ------------------------------------   -------------------------------
+android OTP        OTP    fa004bf4-acc7-435d-8965-5f5a0a4552e8   Tue 15 Dec 2020 01:29:42 PM PST
+yubikey            U2F    c8fbb126-3a29-4a9c-bfe9-ebaed31d8585   Wed 16 Dec 2020 02:00:13 PM PST
 
 $ tsh mfa add
 Adding a new MFA device.
@@ -81,24 +81,26 @@ Tap your *new* security key... <tap>
 MFA device "solokey" added.
 
 $ tsh mfa ls
-MFA deivice name   Type   Last used
-----------------   ----   -------------------------------
-android OTP        OTP    Tue 15 Dec 2020 01:29:42 PM PST
-yubikey            U2F    Wed 16 Dec 2020 02:00:13 PM PST
-solokey            U2F    Wed 16 Dec 2020 02:05:46 PM PST
+MFA deivice name   Type   ID                                     Last used
+----------------   ----   ------------------------------------   -------------------------------
+android OTP        OTP    fa004bf4-acc7-435d-8965-5f5a0a4552e8   Tue 15 Dec 2020 01:29:42 PM PST
+yubikey            U2F    c8fbb126-3a29-4a9c-bfe9-ebaed31d8585   Wed 16 Dec 2020 02:00:13 PM PST
+solokey            U2F    87d4fb03-012c-451c-ab0d-5f2a681c119a   Wed 16 Dec 2020 02:05:46 PM PST
 
+# remove by name
 $ tsh mfa rm yubikey
 Tap any *registered* security key... <tap>
 MFA device "yubikey" removed.
 
-$ tsh mfa rm "android OTP"
+# remove by ID
+$ tsh mfa rm fa004bf4-acc7-435d-8965-5f5a0a4552e8
 Tap any *registered* security key... <tap>
 MFA device "android OTP" removed.
 
 $ tsh mfa ls
-MFA deivice name   Type   Last used
-----------------   ----   -------------------------------
-solokey            U2F    Wed 16 Dec 2020 02:06:46 PM PST
+MFA deivice name   Type   ID                                     Last used
+----------------   ----   ------------------------------------   -------------------------------
+solokey            U2F    87d4fb03-012c-451c-ab0d-5f2a681c119a   Wed 16 Dec 2020 02:05:46 PM PST
 
 # If 2FA is optional:
 $ tsh mfa rm solokey
@@ -153,6 +155,10 @@ New values for `auth_service.authentication.second_factor` for this:
   for all local users
 - `optional` (new) - users can enroll both OTP and U2F devices, and 2FA is
   required only for users with 2FA enrolled
+- `session_only` (new) - users can enroll both OTP and U2F devices, and 2FA is
+  required only for [sessions](0014-session-2fa.md) but **not** for logins
+  - this mode is for users with SSO integration that want 2FA per session, but
+    not when logging in because their SSO already performs a 2FA check
 
 ### backend storage
 
@@ -182,11 +188,12 @@ message LocalAuthSecrets {
 }
 
 message MFADevice {
-    string Name = 1;
-    google.protobuf.Timestamp LastUsed = 2;
+    string ID = 1;
+    string Name = 2;
+    google.protobuf.Timestamp LastUsed = 3;
     oneof Device {
-        TOTPDevice TOTP = 3;
-        U2FDevice U2F = 4;
+        TOTPDevice TOTP = 4;
+        U2FDevice U2F = 5;
     }
 }
 
