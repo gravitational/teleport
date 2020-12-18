@@ -63,7 +63,7 @@ ensure backward compatibility with the already established workflows.
    settings is returned in place of the missing resource when the resource
    is requested).
 
-#### Option 2.A
+#### Choice 2.A
 
 In this option, dynamic-configuration resources are understood to exist only
 if they have been committed as a result of having been specified in static
@@ -73,7 +73,7 @@ configuration or via `tctl create`.
    "authentication preference not found".  To view the default state, `tctl
    get` would have to be invoked with a new CLI flag.
 
-#### Option 2.B
+#### Choice 2.B
 
 3. `tctl get cap` returns the resource data corresponding to the default
    settings.
@@ -84,7 +84,7 @@ configuration or via `tctl create`.
    it has been removed and left unspecified since the last auth server init.
    No user changes have been made to the dynamic configuration.
 
-#### Option 3.A
+#### Choice 3.A
 
 2. The auth server initialization procedure retains the last stored dynamic
    configuration which had been derived from the last specified static
@@ -94,7 +94,7 @@ configuration or via `tctl create`.
 3. `tctl get cap` returns the resource data corresponding to the last specified
    static configuration.
 
-#### Option 3.B
+#### Choice 3.B
 
 2. The auth server initialization procedure MUST NOT retain the last stored
    dynamic configuration.  The resource data are either overwritten with the
@@ -134,13 +134,13 @@ configuration or via `tctl create`.
 2. A user issues the command `tctl create authpref.yaml` with valid
    authentication preferences stored in the YAML file.
 
-#### Option 5.A
+#### Choice 5.A
 
 3. The command is rejected with an "already exists" error, recommending
    to use the `-f`/`--force` flag to overwrite the already existing
    `AuthPreference` resource.
 
-#### Option 5.B
+#### Choice 5.B
 
 3. The command is accepted and returns with success.
 
