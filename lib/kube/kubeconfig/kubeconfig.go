@@ -80,6 +80,15 @@ func UpdateWithClient(ctx context.Context, path string, tc *client.TeleportClien
 		return trace.Wrap(err)
 	}
 
+	// Fetch proxy's advertised ports to check for k8s support.
+	if _, err := tc.Ping(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+	if tc.KubeProxyAddr == "" {
+		// Kubernetes support disabled, don't touch kubeconfig.
+		return nil
+	}
+
 	// TODO(awly): unit test this.
 	if tshBinary != "" {
 		v.Exec = &ExecValues{
