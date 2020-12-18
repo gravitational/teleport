@@ -345,6 +345,53 @@ auth_service:
 If this field is set to true, it overrides any values set in roles and always
 requires 2FA checks for all sessions.
 
+### certificate changes
+
+x509 and SSH certificates need 2 new pieces of information encoded:
+
+- is this a short-lived cert issued after 2FA?
+- [constraints](#constraints) for the cert usage
+
+When validating a certificate, the Teleport service will check RBAC to see if
+2FA is required per session. If required, the 2FA flag field must be set in the
+certificate.
+
+#### SSH
+
+SSH certs will encode new data in extensions. New extensions are:
+
+- `issued-with-2fa` - ID of the 2FA token used to issue the cert
+- `client-ip` - IP of the client
+- `session-ttl` - string-encoded `time.Duration`, how long the session is
+  allowed to last after connection start
+
+#### x509
+
+x509 certs will encode new data in the Subject extensions, similar to [the
+other custom fields we
+encode](https://github.com/gravitational/teleport/blob/103465ed5a8e20249275b48ac081ef9517ae5aa7/lib/tlsca/ca.go#L180-L260).
+
+New extensions are:
+
+- `IssuedWith2FA` (OID `1.3.9999.1.8`) - ID of the 2FA token used to issue the
+  cert
+- `ClientIP` (OID `1.3.9999.1.9`) - IP of the client
+- `SessionTTL` (OID `1.3.9999.1.10`) - string-encoded `time.Duration`, how long
+  the session is allowed to last after connection start
+- `Database` (OID `1.3.9999.1.11`) - name of the target database
+
+Existing `KubernetesCluster`, `TeleportCluster`, `RouteToApp` extensions are
+kept and enforced.
+
+In addition, the `identity.Usage` field (encoded as `OrganizationalUnit` in the
+certificate subject) will be enforced for 2FA certs by `auth.Middleware` (even
+if `identity.Usage` is empty, which is currently not blocked). The possible
+values are:
+
+- `usage:kube` (existing) - only k8s API
+- `usage:apps` (existing) - only web apps
+- `usage:db` (new) - only database connections
+
 ## Alternatives considered
 
 ### Private keys stored on hardware tokens
