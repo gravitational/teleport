@@ -215,3 +215,11 @@ message U2FDevice {
 
 The above `LocalAuthSecrets` will be migrated by Teleport at startup in v6.
 In v7, we will remove the deprecated MFA fields from `LocalAuthSecrets.`
+
+### audit log
+
+All 2FA device operations (create/delete) will emit an audit log entry. The
+entry should contain the user, device UUID and device name at a minimum.
+
+Logging in with a 2FA check will add a `With2FA` field containing the device
+UUID to `UserLogin` event.
