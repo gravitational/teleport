@@ -372,7 +372,7 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 }
 
 func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc {
-	return httplib.MakeStdHandler(func(w http.ResponseWriter, req *http.Request) (interface{}, error) {
+	return httplib.MakeStdHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request) (interface{}, error) {
 		authContext, err := f.authenticate(req)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -386,7 +386,7 @@ func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc
 }
 
 func (f *Forwarder) withAuth(handler handlerWithAuthFunc) httprouter.Handle {
-	return httplib.MakeHandler(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
+	return httplib.MakeHandlerWithErrorWriter(func(w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
 		authContext, err := f.authenticate(req)
 		if err != nil {
 			return nil, trace.Wrap(err)

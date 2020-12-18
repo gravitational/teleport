@@ -46,22 +46,20 @@ type StdHandlerFunc func(w http.ResponseWriter, r *http.Request) (interface{}, e
 type ErrorWriter func(w http.ResponseWriter, err error)
 
 // MakeHandler returns a new httprouter.Handle func from a handler func
-func MakeHandler(fn HandlerFunc, errWriter ...ErrorWriter) httprouter.Handle {
-	if len(errWriter) > 1 {
-		panic("at most 1 ErrorWriter can be passed to MakeHandler")
-	}
-	writeErr := trace.WriteError
-	if len(errWriter) == 1 {
-		writeErr = errWriter[0]
-	}
+func MakeHandler(fn HandlerFunc) httprouter.Handle {
+	return MakeHandlerWithErrorWriter(fn, trace.WriteError)
+}
 
+// MakeHandlerWithErrorWriter returns a httprouter.Handle from the HandlerFunc,
+// and sends all errors to ErrorWriter.
+func MakeHandlerWithErrorWriter(fn HandlerFunc, errWriter ErrorWriter) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		// ensure that neither proxies nor browsers cache http traffic
 		SetNoCacheHeaders(w.Header())
 
 		out, err := fn(w, r, p)
 		if err != nil {
-			writeErr(w, err)
+			errWriter(w, err)
 			return
 		}
 		if out != nil {
@@ -71,22 +69,20 @@ func MakeHandler(fn HandlerFunc, errWriter ...ErrorWriter) httprouter.Handle {
 }
 
 // MakeStdHandler returns a new http.Handle func from http.HandlerFunc
-func MakeStdHandler(fn StdHandlerFunc, errWriter ...ErrorWriter) http.HandlerFunc {
-	if len(errWriter) > 1 {
-		panic("at most 1 ErrorWriter can be passed to MakeStdHandler")
-	}
-	writeErr := trace.WriteError
-	if len(errWriter) == 1 {
-		writeErr = errWriter[0]
-	}
+func MakeStdHandler(fn StdHandlerFunc) http.HandlerFunc {
+	return MakeStdHandlerWithErrorWriter(fn, trace.WriteError)
+}
 
+// MakeStdHandlerWithErrorWriter returns a http.HandlerFunc from the
+// StdHandlerFunc, and sends all errors to ErrorWriter.
+func MakeStdHandlerWithErrorWriter(fn StdHandlerFunc, errWriter ErrorWriter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// ensure that neither proxies nor browsers cache http traffic
 		SetNoCacheHeaders(w.Header())
 
 		out, err := fn(w, r)
 		if err != nil {
-			writeErr(w, err)
+			errWriter(w, err)
 			return
 		}
 		if out != nil {
