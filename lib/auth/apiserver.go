@@ -2278,7 +2278,7 @@ func (s *APIServer) getClusterAuthPreference(auth ClientI, w http.ResponseWriter
 }
 
 type setClusterAuthPreferenceReq struct {
-	ClusterAuthPreference json.RawMessage `json:"cluster_auth_preference"`
+	ClusterAuthPreference json.RawMessage `json:"cluster_auth_prerference"`
 }
 
 func (s *APIServer) setClusterAuthPreference(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
