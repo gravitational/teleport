@@ -392,6 +392,15 @@ values are:
 - `usage:apps` (existing) - only web apps
 - `usage:db` (new) - only database connections
 
+### audit log
+
+All audit events related to session secured with 2FA will include a `With2FA`
+field (under `SessionMetadata`) containing the UUID of the 2FA token used to
+start the session.
+
+If this field is not set on a session event, the session was started without
+2FA.
+
 ## Alternatives considered
 
 ### Private keys stored on hardware tokens
