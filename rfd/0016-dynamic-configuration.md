@@ -154,12 +154,18 @@ configuration or via `tctl create`.
    respective static configuration has been specified and that its derived
    dynamic configuration is fixed.
 
-**Needs decision:** There are differing opinions on whether the following
-should be allowed or it might constitute a security risk.
+#### Choice 6.A
 
-3. `tctl create -f authpref.yaml` allows the user to overwrite the dynamic
-   configuration but only temporarily until it gets replaced by the
-   static configuration as in Scenario 1.
+3. `tctl create -f authpref.yaml` allows the user to temporarily overwrite the
+   dynamic configuration until it gets replaced by the static configuration
+   during a restart as in Scenario 1.  In case the static configuration section
+   is removed before the restart, the dynamic configuration corresponding to
+   `authpref.yaml` is retained.
+
+#### Choice 6.B
+
+3. `tctl create -f authpref.yaml` is rejected as it constitutes a security
+   risk and may cause consistency issues in HA environments.
 
 ## Configuration source preferred by auth server init
 
