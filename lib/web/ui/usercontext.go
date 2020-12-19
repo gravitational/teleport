@@ -83,6 +83,8 @@ type UserContext struct {
 	Cluster *Cluster `json:"cluster"`
 	// AccessStrategy describes how a user should access teleport resources.
 	AccessStrategy accessStrategy `json:"accessStrategy"`
+	// RequestableRoles are roles that the user can assume when requesting access.
+	RequestableRoles []string `json:"requestableRoles"`
 }
 
 func getLogins(roleSet services.RoleSet) []string {
