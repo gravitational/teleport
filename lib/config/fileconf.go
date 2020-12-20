@@ -23,10 +23,12 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -179,6 +181,8 @@ var (
 		"rewrite":                 false,
 		"redirect":                false,
 		"debug_app":               false,
+		"acme":                    true,
+		"email":                   false,
 	}
 )
 
@@ -941,6 +945,44 @@ type Proxy struct {
 
 	// KeyPairs is a list of x509 key pairs the proxy will load.
 	KeyPairs []KeyPair `yaml:"https_keypairs"`
+
+	// ACME configures ACME protocol support
+	ACME ACME `yaml:"acme"`
+}
+
+// ACME configures ACME protocol - automatic X.509 certificates
+type ACME struct {
+	// EnabledFlag is whether ACME should be enabled
+	EnabledFlag string `yaml:"enabled,omitempty"`
+	// Email is the email that will receive problems with certificate renewals
+	Email string `yaml:"email,omitempty"`
+	// URI is ACME server URI
+	URI string `yaml:"uri,omitempty"`
+}
+
+// Parse parses ACME section values
+func (a ACME) Parse() (*service.ACME, error) {
+	// ACME is disabled by default
+	out := service.ACME{}
+	if a.EnabledFlag == "" {
+		return &out, nil
+	}
+
+	var err error
+	out.Enabled, err = utils.ParseBool(a.EnabledFlag)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out.Email = a.Email
+	if a.URI != "" {
+		_, err := url.Parse(a.URI)
+		if err != nil {
+			return nil, trace.Wrap(err, "acme.uri should be a valid URI, for example %v", acme.LetsEncryptURL)
+		}
+	}
+	out.URI = a.URI
+
+	return &out, nil
 }
 
 // KeyPair represents a path on disk to a private key and certificate.

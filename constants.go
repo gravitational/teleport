@@ -91,6 +91,9 @@ const (
 	// ComponentServer is a server subcomponent of some services
 	ComponentServer = "server"
 
+	// ComponentACME is ACME protocol controller
+	ComponentACME = "acme"
+
 	// ComponentReverseTunnelServer is reverse tunnel server
 	// that together with agent establish a bi-directional SSH revers tunnel
 	// to bypass firewall restrictions
