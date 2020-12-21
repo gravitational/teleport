@@ -113,19 +113,22 @@ func Register(params RegisterParams) (*Identity, error) {
 	// register through the proxy server.
 	ident, err := registerThroughAuth(token, params)
 	if err != nil {
-		// If no params client was set this is a proxy and fail right away.
+		log.WithError(err).Debug("Failed to register through auth server.")
+
+		// If no params client was set this is not a proxy and fail right away.
 		if params.GetHostCredentials == nil {
-			log.Debugf("Missing client, failing with error from Auth Server: %v.", err)
+			log.Debugf("Missing client, not falling back to proxy.")
 			return nil, trace.Wrap(err)
 		}
 
-		log.Errorf("Failed to register through auth server: %v; falling back to trying the proxy server", err)
+		log.Infof("Unable to register directly to teleport auth: attempting connection through proxy.")
 
-		// params.AuthServers could contain a proxy address, to deal with nodes
+		// params.Servers could contain a proxy address, to deal with nodes
 		// behind NAT. Try registering using the proxy API.
 		ident, err = registerThroughProxy(token, params)
 		if err != nil {
-			return nil, trace.Wrap(err, "failed to register through proxy server: %v", err)
+			log.WithError(err).Debug("Failed to register through proxy server.")
+			return nil, trace.Wrap(err)
 		}
 
 		log.Debugf("Successfully registered through proxy server.")
