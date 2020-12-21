@@ -109,40 +109,48 @@ func Register(params RegisterParams) (*Identity, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Attempt to register through the auth server, if it fails, try and
-	// register through the proxy server.
-	ident, err := registerThroughAuth(token, params)
-	if err != nil {
-		log.WithError(err).Debug("Failed to register through auth server.")
+	type registerMethod struct {
+		call func(token string, params RegisterParams) (*Identity, error)
+		desc string
+	}
+	registerThroughAuth := registerMethod{registerThroughAuth, "to auth server"}
+	registerThroughProxy := registerMethod{registerThroughProxy, "through proxy server"}
 
-		// If no params client was set this is not a proxy and fail right away.
-		if params.GetHostCredentials == nil {
-			log.Debugf("Missing client, not falling back to proxy.")
-			return nil, trace.Wrap(err)
-		}
-
-		log.Infof("Unable to register directly to teleport auth: attempting connection through proxy.")
-
-		// params.Servers could contain a proxy address, to deal with nodes
-		// behind NAT. Try registering using the proxy API.
-		ident, err = registerThroughProxy(token, params)
-		if err != nil {
-			log.WithError(err).Debug("Failed to register through proxy server.")
-			return nil, trace.Wrap(err)
-		}
-
-		log.Debugf("Successfully registered through proxy server.")
-		return ident, nil
+	var registerMethods []registerMethod
+	if params.GetHostCredentials == nil {
+		log.Debugf("Missing client, it is not possible to register through proxy.")
+		registerMethods = []registerMethod{registerThroughAuth}
+	} else if params.Servers[0].Port(0) == defaults.HTTPListenPort {
+		log.Debugf("The first specified auth server seems to be in fact a proxy.")
+		registerMethods = []registerMethod{registerThroughProxy, registerThroughAuth}
+	} else {
+		registerMethods = []registerMethod{registerThroughAuth, registerThroughProxy}
 	}
 
-	log.Debugf("Successfully registered through auth server.")
-	return ident, nil
+	var collectedErrs []error
+	for i, method := range registerMethods {
+		log.Debugf("Attempting registration %s.", method.desc)
+		ident, err := method.call(token, params)
+		if err != nil {
+			collectedErrs = append(collectedErrs, err)
+			log.WithError(err).Debugf("Registration %s failed.", method.desc)
+			if i < len(registerMethods)-1 {
+				log.Infof("Unable to register %s, falling back to registration %s.",
+					method.desc, registerMethods[i+1].desc)
+			}
+		} else {
+			log.Infof("Successfully registered %s.", method.desc)
+			return ident, nil
+		}
+	}
+
+	aggregateErr := trace.NewAggregate(collectedErrs...)
+	log.WithError(aggregateErr).Errorf("Failed to register with the cluster.")
+	return nil, aggregateErr
 }
 
 // registerThroughProxy is used to register through the proxy server.
 func registerThroughProxy(token string, params RegisterParams) (*Identity, error) {
-	log.Debugf("Attempting to register through proxy server.")
-
 	if len(params.Servers) == 0 {
 		return nil, trace.BadParameter("no auth servers set")
 	}
@@ -170,8 +178,6 @@ func registerThroughProxy(token string, params RegisterParams) (*Identity, error
 
 // registerThroughAuth is used to register through the auth server.
 func registerThroughAuth(token string, params RegisterParams) (*Identity, error) {
-	log.Debugf("Attempting to register through auth server.")
-
 	var client *Client
 	var err error
 
