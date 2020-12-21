@@ -99,7 +99,7 @@ teleport start --roles=app --token=xyz --auth-server=proxy.example.com:3080 \
 ```
 
 ### Application Name
-When picking an application name, it's important to make sure the name will make a valid sub-domain (<=63 characters, no spaces, only `A-Z a-z 0-9 _ -` allowed).
+When picking an application name, it's important to make sure the name will make a valid sub-domain (<=63 characters, no spaces, only `a-z 0-9 _ -` allowed).
 
 After Teleport is running, the application will be accessible at `app-name.proxy_public_addr.com` e.g. `jenkins.teleport.example.com`.  Teleport also provides the ability to override `public_addr`. e.g `jenkins.acme.com` if you configure the appropriate DNS entry to point to the Teleport proxy server.
 
