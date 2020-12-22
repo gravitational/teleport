@@ -94,11 +94,18 @@ func NewAuthPreference(spec AuthPreferenceSpecV2) (AuthPreference, error) {
 
 // DefaultAuthPreference returns the default authentication preferences.
 func DefaultAuthPreference() AuthPreference {
-	pref, err := NewAuthPreference(AuthPreferenceSpecV2{})
-	if err != nil {
-		panic(err)
+	return &AuthPreferenceV2{
+		Kind:    KindClusterAuthPreference,
+		Version: V2,
+		Metadata: Metadata{
+			Name:      MetaNameClusterAuthPreference,
+			Namespace: defaults.Namespace,
+		},
+		Spec: AuthPreferenceSpecV2{
+			Type:         teleport.Local,
+			SecondFactor: teleport.OTP,
+		},
 	}
-	return pref
 }
 
 // AuthPreferenceV2 implements AuthPreference.
