@@ -151,7 +151,7 @@ func (c *AuthPreferenceV2) Expiry() time.Time {
 	return c.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using realtime clock.
+// SetTTL sets Expires header using the provided clock.
 func (c *AuthPreferenceV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
 }
