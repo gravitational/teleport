@@ -491,11 +491,11 @@ func (c *clusterConfigCollection) resources() (r []services.Resource) {
 
 func (c *clusterConfigCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{
-		"Cluster ID", "Session Recording", "Proxy Checks Host Keys?",
+		"Cluster ID", "Session Recording Mode", "Local Auth",
 	})
 	for _, c := range c.configs {
 		t.AddRow([]string{
-			c.GetClusterID(), c.GetSessionRecording(), c.GetProxyChecksHostKeys(),
+			c.GetClusterID(), c.GetSessionRecording(), strconv.FormatBool(c.GetLocalAuth()),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
