@@ -113,15 +113,15 @@ func Register(params RegisterParams) (*Identity, error) {
 		call func(token string, params RegisterParams) (*Identity, error)
 		desc string
 	}
-	registerThroughAuth := registerMethod{registerThroughAuth, "to auth server"}
-	registerThroughProxy := registerMethod{registerThroughProxy, "through proxy server"}
+	registerThroughAuth := registerMethod{registerThroughAuth, "with auth server"}
+	registerThroughProxy := registerMethod{registerThroughProxy, "via proxy server"}
 
 	var registerMethods []registerMethod
 	if params.GetHostCredentials == nil {
 		log.Debugf("Missing client, it is not possible to register through proxy.")
 		registerMethods = []registerMethod{registerThroughAuth}
 	} else if params.Servers[0].Port(0) == defaults.HTTPListenPort {
-		log.Debugf("The first specified auth server seems to be in fact a proxy.")
+		log.Debugf("The first specified auth server appears to be a proxy.")
 		registerMethods = []registerMethod{registerThroughProxy, registerThroughAuth}
 	} else {
 		registerMethods = []registerMethod{registerThroughAuth, registerThroughProxy}
