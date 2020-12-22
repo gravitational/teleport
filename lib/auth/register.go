@@ -120,7 +120,7 @@ func Register(params RegisterParams) (*Identity, error) {
 	if params.GetHostCredentials == nil {
 		log.Debugf("Missing client, it is not possible to register through proxy.")
 		registerMethods = []registerMethod{registerThroughAuth}
-	} else if params.Servers[0].Port(0) == defaults.HTTPListenPort {
+	} else if authServerIsProxy(params) {
 		log.Debugf("The first specified auth server appears to be a proxy.")
 		registerMethods = []registerMethod{registerThroughProxy, registerThroughAuth}
 	} else {
@@ -147,6 +147,12 @@ func Register(params RegisterParams) (*Identity, error) {
 	aggregateErr := trace.NewAggregate(collectedErrs...)
 	log.WithError(aggregateErr).Errorf("Failed to register with the cluster.")
 	return nil, aggregateErr
+}
+
+// authServerIsProxy returns true if the first specified auth server
+// to register with appears to be a proxy.
+func authServerIsProxy(params RegisterParams) bool {
+	return len(params.Servers) > 0 && params.Servers[0].Port(0) == defaults.HTTPListenPort
 }
 
 // registerThroughProxy is used to register through the proxy server.
