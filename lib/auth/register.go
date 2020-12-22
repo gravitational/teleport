@@ -143,10 +143,7 @@ func Register(params RegisterParams) (*Identity, error) {
 			return ident, nil
 		}
 	}
-
-	aggregateErr := trace.NewAggregate(collectedErrs...)
-	log.WithError(aggregateErr).Errorf("Failed to register with the cluster.")
-	return nil, aggregateErr
+	return nil, trace.NewAggregate(collectedErrs...)
 }
 
 // authServerIsProxy returns true if the first specified auth server
