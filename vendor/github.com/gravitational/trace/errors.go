@@ -317,10 +317,10 @@ type ConnectionProblemError struct {
 
 // Error is debug - friendly error message
 func (c *ConnectionProblemError) Error() string {
-	if c.Err == nil {
+	if c.Message != "" {
 		return c.Message
 	}
-	return c.Err.Error()
+	return UserMessage(c.Err)
 }
 
 // IsConnectionProblemError indicates that this error is of ConnectionProblemError type
@@ -328,8 +328,16 @@ func (c *ConnectionProblemError) IsConnectionProblemError() bool {
 	return true
 }
 
-// OrigError returns original error (in this case this is the error itself)
+// Unwrap returns the wrapped error if any
+func (c *ConnectionProblemError) Unwrap() error {
+	return c.Err
+}
+
+// OrigError returns original error
 func (c *ConnectionProblemError) OrigError() error {
+	if c.Err != nil {
+		return c.Err
+	}
 	return c
 }
 
@@ -378,6 +386,14 @@ func IsLimitExceeded(e error) bool {
 	return ok
 }
 
+// Trust returns new instance of TrustError
+func Trust(err error, message string, args ...interface{}) Error {
+	return newTrace(&TrustError{
+		Message: fmt.Sprintf(message, args...),
+		Err:     err,
+	}, 2)
+}
+
 // TrustError indicates trust-related validation error (e.g. untrusted cert)
 type TrustError struct {
 	// Err is original error
@@ -387,7 +403,10 @@ type TrustError struct {
 
 // Error returns log-friendly error description
 func (t *TrustError) Error() string {
-	return t.Err.Error()
+	if t.Message != "" {
+		return t.Message
+	}
+	return UserMessage(t.Err)
 }
 
 // IsTrustError indicates that this error is of TrustError type
@@ -395,8 +414,16 @@ func (*TrustError) IsTrustError() bool {
 	return true
 }
 
+// Unwrap returns the wrapped error if any
+func (t *TrustError) Unwrap() error {
+	return t.Err
+}
+
 // OrigError returns original error (in this case this is the error itself)
 func (t *TrustError) OrigError() error {
+	if t.Err != nil {
+		return t.Err
+	}
 	return t
 }
 
@@ -449,7 +476,7 @@ func IsEOF(e error) bool {
 	return Unwrap(e) == io.EOF
 }
 
-// Retry return new instance of RetryError which indicates a transient error type
+// Retry returns new instance of RetryError which indicates a transient error type
 func Retry(err error, message string, args ...interface{}) Error {
 	return newTrace(&RetryError{
 		Message: fmt.Sprintf(message, args...),
@@ -465,10 +492,10 @@ type RetryError struct {
 
 // Error is debug-friendly error message
 func (c *RetryError) Error() string {
-	if c.Err == nil {
+	if c.Message != "" {
 		return c.Message
 	}
-	return c.Err.Error()
+	return UserMessage(c.Err)
 }
 
 // IsRetryError indicates that this error is of RetryError type
@@ -476,8 +503,16 @@ func (c *RetryError) IsRetryError() bool {
 	return true
 }
 
+// Unwrap returns the wrapped error if any
+func (c *RetryError) Unwrap() error {
+	return c.Err
+}
+
 // OrigError returns original error (in this case this is the error itself)
 func (c *RetryError) OrigError() error {
+	if c.Err != nil {
+		return c.Err
+	}
 	return c
 }
 

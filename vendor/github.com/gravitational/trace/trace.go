@@ -72,6 +72,12 @@ func Unwrap(err error) error {
 	return err
 }
 
+// UserMessager returns a user message associated with the error
+type UserMessager interface {
+	// UserMessage returns the user message associated with the error if any
+	UserMessage() string
+}
+
 // ErrorWrapper wraps another error
 type ErrorWrapper interface {
 	// OrigError returns the wrapped error
@@ -89,7 +95,7 @@ func UserMessage(err error) string {
 	if err == nil {
 		return ""
 	}
-	if wrap, ok := err.(Error); ok {
+	if wrap, ok := err.(UserMessager); ok {
 		return wrap.UserMessage()
 	}
 	return err.Error()
@@ -454,6 +460,7 @@ type Error interface {
 	error
 	ErrorWrapper
 	DebugReporter
+	UserMessager
 
 	// AddMessage adds formatted user-facing message
 	// to the error, depends on the implementation,
@@ -467,9 +474,6 @@ type Error interface {
 
 	// AddFields adds a map of additional fields to the error
 	AddFields(fields map[string]interface{}) *TraceErr
-
-	// UserMessage returns user-friendly error message
-	UserMessage() string
 
 	// GetFields returns any fields that have been added to the error
 	GetFields() map[string]interface{}
