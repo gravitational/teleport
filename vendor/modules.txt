@@ -249,7 +249,7 @@ github.com/gravitational/reporting/types
 # github.com/gravitational/roundtrip v1.0.0
 ## explicit
 github.com/gravitational/roundtrip
-# github.com/gravitational/trace v1.1.6
+# github.com/gravitational/trace v1.1.13
 ## explicit
 github.com/gravitational/trace
 github.com/gravitational/trace/trail
