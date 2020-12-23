@@ -64,6 +64,10 @@ export const CodeEnum = {
   TRUSTED_CLUSTER_TOKEN_CREATED: 'T7002I',
   TRUSTED_CLUSTER_CREATED: 'T7000I',
   TRUSTED_CLUSTER_DELETED: 'T7001I',
+  DATABASE_SESSION_STARTED: 'TDB00I',
+  DATABASE_SESSION_STARTED_FAILURE: 'TDB00W',
+  DATABASE_SESSION_ENDED: 'TDB01I',
+  DATABASE_SESSION_QUERY: 'TDB02I',
 } as const;
 
 /**
@@ -271,6 +275,43 @@ export type RawEvents = {
     typeof CodeEnum.KUBE_REQUEST,
     {
       kubernetes_cluster: string;
+    }
+  >;
+  [CodeEnum.DATABASE_SESSION_STARTED]: RawEvent<
+    typeof CodeEnum.DATABASE_SESSION_STARTED,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      db_user: string;
+    }
+  >;
+  [CodeEnum.DATABASE_SESSION_STARTED_FAILURE]: RawEvent<
+    typeof CodeEnum.DATABASE_SESSION_STARTED_FAILURE,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      db_user: string;
+    }
+  >;
+  [CodeEnum.DATABASE_SESSION_ENDED]: RawEvent<
+    typeof CodeEnum.DATABASE_SESSION_ENDED,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      db_user: string;
+    }
+  >;
+  [CodeEnum.DATABASE_SESSION_QUERY]: RawEvent<
+    typeof CodeEnum.DATABASE_SESSION_QUERY,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      db_user: string;
+      db_query: string;
     }
   >;
 };
