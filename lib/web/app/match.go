@@ -19,9 +19,12 @@ package app
 import (
 	"context"
 	"math/rand"
+	"strings"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -36,7 +39,7 @@ import (
 //
 // In the future this function should be updated to keep state on application
 // servers that are down and to not route requests to that server.
-func Match(ctx context.Context, authClient appGetter, fn Matcher) (*services.App, services.Server, error) {
+func Match(ctx context.Context, authClient Getter, fn Matcher) (*services.App, services.Server, error) {
 	servers, err := authClient.GetAppServers(ctx, defaults.Namespace)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -78,6 +81,60 @@ func MatchName(name string) Matcher {
 	}
 }
 
-type appGetter interface {
+// Getter returns a list of registered apps
+type Getter interface {
+	// GetAppServers returns a list of app servers
 	GetAppServers(context.Context, string, ...services.MarshalOption) ([]services.Server, error)
+}
+
+// ResolveFQDN makes a best effort attempt to resolve FQDN to an application
+// running a root or leaf cluster.
+//
+// Note: This function can incorrectly resolve application names. For example,
+// if you have an application named "acme" within both the root and leaf
+// cluster, this method will always return "acme" running within the root
+// cluster. Always supply public address and cluster name to deterministically
+// resolve an application.
+func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnel.Tunnel, clusterName string, fqdn string) (*services.App, services.Server, string, error) {
+	// Parse the address to remove the port if it's set.
+	addr, err := utils.ParseAddr(fqdn)
+	if err != nil {
+		return nil, nil, "", trace.Wrap(err)
+	}
+
+	// Try and match FQDN to public address of application within cluster.
+	application, server, err := Match(ctx, clt, MatchPublicAddr(addr.Host()))
+	if err == nil {
+		return application, server, clusterName, nil
+	}
+
+	// Extract the first subdomain from the FQDN and attempt to use this as the
+	// application name.
+	appName := strings.Split(addr.Host(), ".")[0]
+
+	// Try and match application name to an application within the cluster.
+	application, server, err = Match(ctx, clt, MatchName(appName))
+	if err == nil {
+		return application, server, clusterName, nil
+	}
+
+	// Loop over all clusters and try and match application name to an
+	// application with the cluster.
+	remoteClients, err := tunnel.GetSites()
+	if err != nil {
+		return nil, nil, "", trace.Wrap(err)
+	}
+	for _, remoteClient := range remoteClients {
+		authClient, err := remoteClient.CachingAccessPoint()
+		if err != nil {
+			return nil, nil, "", trace.Wrap(err)
+		}
+
+		application, server, err = Match(ctx, authClient, MatchName(appName))
+		if err == nil {
+			return application, server, remoteClient.GetName(), nil
+		}
+	}
+
+	return nil, nil, "", trace.NotFound("failed to resolve %v to any application within any cluster", fqdn)
 }
