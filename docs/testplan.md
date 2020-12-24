@@ -271,6 +271,84 @@ For main, test with admin role that has access to all resources.
 - [ ] Verify event detail dialogue renders when clicking on events `details` button
 - [ ] Verify searching by type, description, created works
 
+#### Access Requests
+1. Create a role with limited permissions (defined below as `allow-roles`). This role allows you to see Role screen, and allow you to ssh into all nodes.
+1. Create another role with limited permissions (defined below as `allow-users`). This role session expires in 4 minutes, allows you to see Users screen, and denies access to all nodes.
+1. Create another role with no permissions other than being able to create requests (defined below as `default`)
+1. Create a user with role `default` assigned
+1. Create a few requests under this user:
+  - Update requests to at least: one pending, two approved (for each requestable role), and one denied
+```
+kind: role
+metadata:
+  name: allow-roles
+spec:
+  allow:
+    logins:
+    - root
+    node_labels:
+      '*': '*'
+    rules:
+    - resources:
+      - role
+      verbs:
+      - list
+      - read
+  options:
+    max_session_ttl: 8h0m0s
+version: v3
+```
+```
+kind: role
+metadata:
+  name: allow-users
+spec:
+  allow:
+    rules:
+    - resources:
+      - user
+      verbs:
+      - list
+      - read
+  deny:
+    node_labels:
+      '*': '*'
+  options:
+    max_session_ttl: 4m0s
+version: v3
+```
+```
+kind: role
+metadata:
+  name: default
+spec:
+  allow:
+    request:
+      roles:
+      - allow-roles
+      - allow-users
+    rules:
+    - resources:
+      - access_request
+      verbs:
+      - list
+      - read
+      - create
+  options:
+    max_session_ttl: 8h0m0s
+version: v3
+```
+- [ ] Verify that requests are shown and that correct states are applied to each request (pending, approved, denied)
+- [ ] Verify that creating a new request works
+  - [ ] Verify that under requestable roles, only `allow-roles` and `allow-users` is listed
+  - [ ] Verify input validation requires at least one role to be selected
+- [ ] Verify assume buttons are only present for approved request and for logged in user
+  - [ ] Verify assuming `allow-roles` allows you to see roles screen and ssh into nodes
+  - [ ] Verify after clicking on assume buttons, button is disabled
+  - [ ] After assuming `allow-roles`, verify assuming `allow-users` allows you to see users screen, and denies access to nodes. 
+    - [ ] Verify after 4 minutes, user is logged out of screen automatically.
+- [ ] Verify after logging out (or getting logged out automatically) and relogging in, permissions are set back to `default`, and requests that are not expired and are approved, is assumable again. 
+
 #### Users
 - [ ] Verify that users are shown
 - [ ] Verify that creating a new user works
@@ -319,15 +397,8 @@ spec:
     request:
       roles:
       - <some other role to assign user after approval>
-  deny: {}
   options:
-    cert_format: standard
-    enhanced_recording:
-    - command
-    - network
-    forward_agent: false
     max_session_ttl: 8h0m0s
-    port_forwarding: true
     request_access: reason
     request_prompt: <some custom prompt to show in reason dialogue>
 version: v3
@@ -413,15 +484,8 @@ spec:
     - root
     node_labels:
       '*': '*'
-  deny: {}
   options:
-    cert_format: standard
-    enhanced_recording:
-    - command
-    - network
-    forward_agent: false
     max_session_ttl: 8h0m0s
-    port_forwarding: true
 version: v3
 ```
 - [ ] Verify that a user has access only to: "Servers", "Applications", "Active Sessions" and "Manage Clusters"
@@ -494,7 +558,17 @@ Add the following resource to enable read access to trusted clusters
 - [ ] Verify that a user can access the "Trust" screen
 - [ ] Verify that a user cannot create/delete/update a trusted cluster.
 
+Add the following resource to enable read access to access_request
 
+```
+- resources:
+      - access_request
+      verbs:
+      - list
+      - read
+```
+- [ ] Verify that a user can see the "Access Request" screen
+- [ ] Verify that a user cannot create a request
 
 ## Performance/Soak Test
 
