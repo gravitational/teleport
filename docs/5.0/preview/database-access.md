@@ -30,6 +30,14 @@ With Database Access users can:
 * Track individual users' access to databases as well as query activity
   through Teleport's audit log.
 
+## Demo
+
+<video autoplay loop muted playsinline controls>
+  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.mp4" type="video/mp4" />
+  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.webm" type="video/webm" />
+Your browser does not support the video tag.
+</video>
+
 ## Diagram
 
 The following diagram shows an example Database Access setup:
@@ -470,14 +478,6 @@ The following PostgreSQL protocol features aren't currently supported:
   won't be passed to the database server.
 * Any of the [authentication methods](https://www.postgresql.org/docs/current/auth-methods.html)
   except for client certificate authentication.
-
-## Demo
-
-<video autoplay loop muted playsinline controls>
-  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.mp4" type="video/mp4" />
-  <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.webm" type="video/webm" />
-Your browser does not support the video tag.
-</video>
 
 ## RFD
 
