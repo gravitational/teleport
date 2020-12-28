@@ -84,6 +84,9 @@ const (
 	// KindWebSession is a web session resource
 	KindWebSession = "web_session"
 
+	// KindWebToken is a web token resource
+	KindWebToken = "web_token"
+
 	// KindAppSession represents an application specific web session.
 	KindAppSession = "app_session"
 

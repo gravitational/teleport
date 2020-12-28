@@ -43,6 +43,7 @@ import (
 type ServerWithRoles struct {
 	authServer  *Server
 	webSessions *webSessionsWithRoles
+	webTokens   *webTokensWithRoles
 	sessions    session.Service
 	alog        events.IAuditLog
 	// context holds authorization context
@@ -829,7 +830,7 @@ func (a *ServerWithRoles) GetWebSession(ctx context.Context, req services.GetWeb
 // WebSessions returns the web session manager.
 // Implements services.WebSessionsGetter.
 func (a *ServerWithRoles) WebSessions() services.WebSessionInterface {
-	return a.webSessions
+	return a.authServer.WebSessions()
 }
 
 // Get returns the web session specified with req.
@@ -878,6 +879,61 @@ func (r *webSessionsWithRoles) DeleteAll(ctx context.Context) error {
 type webSessionsWithRoles struct {
 	c  accessChecker
 	ws services.WebSessionInterface
+}
+
+// WebTokens returns the web tokenmanager.
+// Implements services.WebTokensGetter.
+func (a *ServerWithRoles) WebTokens() services.WebTokenInterface {
+	return a.webTokens
+}
+
+// Get returns the web token specified with req.
+func (r *webTokensWithRoles) Get(ctx context.Context, req services.GetWebTokenRequest) (services.WebToken, error) {
+	// TODO(dmitri): check token resource kind?
+	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return r.t.Get(ctx, req)
+}
+
+// List returns the list of all web tokens.
+func (r *webTokensWithRoles) List(ctx context.Context) ([]services.WebToken, error) {
+	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return r.t.List(ctx)
+}
+
+// Upsert creates a new or updates the existing web token from the specified token.
+func (*webTokensWithRoles) Upsert(ctx context.Context, session services.WebToken) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+// Delete removes the web token specified with req.
+func (r *webTokensWithRoles) Delete(ctx context.Context, req services.DeleteWebTokenRequest) error {
+	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return r.t.Delete(ctx, req)
+}
+
+// DeleteAll removes all web tokens.
+func (r *webTokensWithRoles) DeleteAll(ctx context.Context) error {
+	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbList); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+	return r.t.DeleteAll(ctx)
+}
+
+type webTokensWithRoles struct {
+	c accessChecker
+	t services.WebTokenInterface
 }
 
 type accessChecker interface {
@@ -2429,5 +2485,6 @@ func NewAdminAuthServer(authServer *Server, sessions session.Service, alog event
 		sessions:   sessions,
 	}
 	s.webSessions = &webSessionsWithRoles{c: s, ws: authServer.WebSessions()}
+	s.webTokens = &webTokensWithRoles{c: s, t: authServer.WebTokens()}
 	return s, nil
 }

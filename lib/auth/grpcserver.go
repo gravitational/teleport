@@ -1034,6 +1034,86 @@ func (g *GRPCServer) DeleteAllWebSessions(ctx context.Context, _ *empty.Empty) (
 	return &empty.Empty{}, nil
 }
 
+// GetWebToken gets a web token.
+func (g *GRPCServer) GetWebToken(ctx context.Context, req *proto.GetWebTokenRequest) (*proto.GetWebTokenResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	resp, err := auth.WebTokens().Get(ctx, services.GetWebTokenRequest{
+		User:  req.GetUser(),
+		Token: req.GetToken(),
+	})
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+	token, ok := resp.(*services.WebTokenV1)
+	if !ok {
+		return nil, trail.ToGRPC(trace.BadParameter("unexpected web token type %T", resp))
+	}
+
+	return &proto.GetWebTokenResponse{
+		Token: token,
+	}, nil
+}
+
+// GetWebTokens gets all web tokens.
+func (g *GRPCServer) GetWebTokens(ctx context.Context, _ *empty.Empty) (*proto.GetWebTokensResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	tokens, err := auth.WebTokens().List(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	var out []*services.WebTokenV1
+	for _, t := range tokens {
+		token, ok := t.(*services.WebTokenV1)
+		if !ok {
+			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", t))
+		}
+		out = append(out, token)
+	}
+
+	return &proto.GetWebTokensResponse{
+		Tokens: out,
+	}, nil
+}
+
+// DeleteWebToken removes the web token given with req.
+func (g *GRPCServer) DeleteWebToken(ctx context.Context, req *proto.DeleteWebTokenRequest) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.WebTokens().Delete(ctx, services.DeleteWebTokenRequest{
+		Token: req.GetToken(),
+	}); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
+// DeleteAllWebTokens removes all web tokens.
+func (g *GRPCServer) DeleteAllWebTokens(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.WebTokens().DeleteAll(ctx); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &empty.Empty{}, nil
+}
+
 // UpdateRemoteCluster updates remote cluster
 func (g *GRPCServer) UpdateRemoteCluster(ctx context.Context, req *services.RemoteClusterV3) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -1151,20 +1231,24 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 		}
 		return nil, trace.AccessDenied("[10] access denied")
 	}
-	auth := &grpcContext{
-		Context: authContext,
-		ServerWithRoles: &ServerWithRoles{
-			authServer: g.AuthServer,
-			context:    *authContext,
-			sessions:   g.SessionService,
-			alog:       g.AuthServer.IAuditLog,
-		},
+	srv := &ServerWithRoles{
+		authServer: g.AuthServer,
+		context:    *authContext,
+		sessions:   g.SessionService,
+		alog:       g.AuthServer.IAuditLog,
 	}
-	auth.ServerWithRoles.webSessions = &webSessionsWithRoles{
-		c:  auth.ServerWithRoles,
+	srv.webSessions = &webSessionsWithRoles{
+		c:  srv,
 		ws: g.AuthServer.WebSessions(),
 	}
-	return auth, nil
+	srv.webTokens = &webTokensWithRoles{
+		c: srv,
+		t: g.AuthServer.WebTokens(),
+	}
+	return &grpcContext{
+		Context:         authContext,
+		ServerWithRoles: srv,
+	}, nil
 }
 
 // GRPCServerConfig specifies GRPC server configuration

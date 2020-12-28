@@ -96,6 +96,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 			case services.KindAppSession:
 				parser = newAppSessionParser()
 			case services.KindWebSession:
+				// TODO(dmitri): newWebSessionParser(kind.Name) to pass the session ID
 				parser = newWebSessionParser()
 			default:
 				return nil, trace.BadParameter("watcher on object subkind %q is not supported", kind.SubKind)

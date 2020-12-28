@@ -227,6 +227,7 @@ type Identity interface {
 	DeleteWebSession(user, sid string) error
 
 	WebSessionsGetter
+	WebTokensGetter
 
 	// AppSession defines application session features.
 	AppSession
@@ -244,6 +245,30 @@ type AppSession interface {
 	DeleteAppSession(context.Context, DeleteAppSessionRequest) error
 	// DeleteAllAppSessions removes all application web sessions.
 	DeleteAllAppSessions(context.Context) error
+}
+
+// TokensGetter provides access to tokens
+type WebTokensGetter interface {
+	// WebTokens returns the tokens manager
+	WebTokens() WebTokenInterface
+}
+
+// WebTokenInterface defines interface for managing web tokens
+type WebTokenInterface interface {
+	// Get returns a token specified by the request.
+	Get(ctx context.Context, req GetWebTokenRequest) (WebToken, error)
+
+	// List gets all web tokens.
+	List(context.Context) ([]WebToken, error)
+
+	// Upsert updates existing or inserts a new web token
+	Upsert(ctx context.Context, token WebToken) error
+
+	// Delete deletes the web token described by req.
+	Delete(ctx context.Context, req DeleteWebTokenRequest) error
+
+	// DeleteAll removes all web tokens.
+	DeleteAll(context.Context) error
 }
 
 // WebSessionsGetter provides access to web sessions

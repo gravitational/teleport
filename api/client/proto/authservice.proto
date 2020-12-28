@@ -414,6 +414,32 @@ message DeleteWebSessionRequest {
     string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ];
 }
 
+// GetWebTokenRequest are the parameters used to request a web token.
+message GetWebTokenRequest {
+    // User is the user name to request token for.
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
+    // Token is the token being requested.
+    string Token = 2 [ (gogoproto.jsontag) = "token" ];
+}
+
+// GetWebTokenResponse contains the requested web token.
+message GetWebTokenResponse {
+    // Token is the web token being requested.
+    types.WebTokenV1 Token = 1 [ (gogoproto.jsontag) = "token" ];
+}
+
+// GetWebTokensResponse contains all the requested web tokens.
+message GetWebTokensResponse {
+    // Tokens is a list of web tokens.
+    repeated types.WebTokenV1 Tokens = 1 [ (gogoproto.jsontag) = "tokens" ];
+}
+
+// DeleteWebTokenRequest contains the parameters used to remove a web token.
+message DeleteWebTokenRequest {
+    // Token specifies the token to remove
+    string Token = 1 [ (gogoproto.jsontag) = "token" ];
+}
+
 // GetKubeServicesRequest are the parameters used to request kubernetes services.
 message GetKubeServicesRequest {}
 
@@ -606,6 +632,15 @@ service AuthService {
     rpc DeleteWebSession(DeleteWebSessionRequest) returns (google.protobuf.Empty);
     // DeleteAllWebSessions deletes all web sessions.
     rpc DeleteAllWebSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+    // GetWebToken gets a web token.
+    rpc GetWebToken(GetWebTokenRequest) returns (GetWebTokenResponse);
+    // GetWebTokens gets all web tokens.
+    rpc GetWebTokens(google.protobuf.Empty) returns (GetWebTokensResponse);
+    // DeleteWebToken deletes a web token.
+    rpc DeleteWebToken(DeleteWebTokenRequest) returns (google.protobuf.Empty);
+    // DeleteAllWebTokens deletes all web tokens.
+    rpc DeleteAllWebTokens(google.protobuf.Empty) returns (google.protobuf.Empty);
 
     // UpdateRemoteCluster updates remote cluster
     rpc UpdateRemoteCluster(types.RemoteClusterV3) returns (google.protobuf.Empty);
