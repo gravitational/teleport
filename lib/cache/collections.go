@@ -142,6 +142,12 @@ func setupCollections(c *Cache, watches []services.WatchKind) (map[resourceKind]
 					return nil, trace.BadParameter("missing parameter WebSession")
 				}
 				collections[resourceKind] = &webSession{watch: watch, Cache: c}
+			case services.KindWebToken:
+				// FIXME(dmitri): move this to a dedicated kind
+				if c.WebToken == nil {
+					return nil, trace.BadParameter("missing parameter WebToken")
+				}
+				collections[resourceKind] = &webToken{watch: watch, Cache: c}
 			}
 		case services.KindKubeService:
 			if c.Presence == nil {
@@ -1503,6 +1509,7 @@ func (r *webSession) fetch(ctx context.Context) (apply func(ctx context.Context)
 func (r *webSession) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
+		r.WithField("session-id", event.Resource.GetName()).Info("Delete web session.")
 		err := r.webSessionCache.Delete(ctx, services.DeleteWebSessionRequest{
 			SessionID: event.Resource.GetName(),
 		})
@@ -1520,6 +1527,7 @@ func (r *webSession) processEvent(ctx context.Context, event services.Event) err
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
 		r.setTTL(resource)
+		r.WithField("session", resource.String()).Info("Put web session.")
 		if err := r.webSessionCache.Upsert(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
@@ -1530,6 +1538,74 @@ func (r *webSession) processEvent(ctx context.Context, event services.Event) err
 }
 
 func (r *webSession) watchKind() services.WatchKind {
+	return r.watch
+}
+
+type webToken struct {
+	*Cache
+	watch services.WatchKind
+}
+
+func (r *webToken) erase(ctx context.Context) error {
+	err := r.webTokenCache.DeleteAll(ctx)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (r *webToken) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+	resources, err := r.WebToken.List(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return func(ctx context.Context) error {
+		if err := r.erase(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+		for _, resource := range resources {
+			r.setTTL(resource)
+			if err := r.webTokenCache.Upsert(ctx, resource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func (r *webToken) processEvent(ctx context.Context, event services.Event) error {
+	switch event.Type {
+	case backend.OpDelete:
+		r.WithField("token", event.Resource.GetName()).Info("Delete web token.")
+		err := r.webTokenCache.Delete(ctx, services.DeleteWebTokenRequest{
+			// FIXME(dmitri)
+			Token: event.Resource.GetName(),
+		})
+		if err != nil {
+			// Resource could be missing in the cache expired or not created, if the
+			// first consumed event is delete.
+			if !trace.IsNotFound(err) {
+				r.WithError(err).Warn("Failed to delete resource.")
+				return trace.Wrap(err)
+			}
+		}
+	case backend.OpPut:
+		resource, ok := event.Resource.(services.WebToken)
+		if !ok {
+			return trace.BadParameter("unexpected type %T", event.Resource)
+		}
+		r.setTTL(resource)
+		r.WithField("token", resource.String()).Info("Put web token.")
+		if err := r.webTokenCache.Upsert(ctx, resource); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		r.WithField("event", event.Type).Warn("Skipping unsupported event type.")
+	}
+	return nil
+}
+
+func (r *webToken) watchKind() services.WatchKind {
 	return r.watch
 }
 

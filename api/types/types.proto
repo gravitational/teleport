@@ -1444,3 +1444,64 @@ message KubernetesCluster {
     map<string, CommandLabelV2> DynamicLabels = 3
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
 }
+
+// GetWebSessionRequest describes a request to query a web session
+message GetWebSessionRequest {
+    // User specifies the user the web session is for.
+    string User = 2 [ (gogoproto.jsontag) = "user" ];
+    // SessionID specifies the web session ID.
+    string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ];
+}
+
+// DeleteWebSessionRequest describes a request to delete a web session
+message DeleteWebSessionRequest {
+    // SessionID specifies the web session ID to delete.
+    string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ];
+}
+
+// WebTokenV1 describes a web token
+message WebTokenV1 {
+    option (gogoproto.goproto_stringer) = false;
+    option (gogoproto.stringer) = false;
+
+    // Kind is a resource kind
+    string Kind = 1 [ (gogoproto.jsontag) = "kind" ];
+    // SubKind is an optional resource sub kind
+    string SubKind = 2 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
+    // Version is the resource version
+    string Version = 3 [ (gogoproto.jsontag) = "version" ];
+    // Metadata is resource metadata
+    Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
+    // Spec defines the web token
+    WebTokenSpecV1 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+}
+
+// WebTokenSpecV1 is a unique time-limited token bound to a user's web session
+message WebTokenSpecV1 {
+    // Token specifies the token's value.
+    string Token = 1 [ (gogoproto.jsontag) = "token" ];
+    // User specifies the user the token is bound to.
+    string User = 2 [ (gogoproto.jsontag) = "user" ];
+    // Expires specifies the token's expiration time.
+    google.protobuf.Timestamp Expires = 3 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false,
+        (gogoproto.jsontag) = "expires"
+    ];
+}
+
+// GetWebTokenRequest describes a request to query a web token
+message GetWebTokenRequest {
+    // Token specifies the token to get.
+    string Token = 1 [ (gogoproto.jsontag) = "token" ];
+    // User specifies the user the token is for.
+    string User = 2 [ (gogoproto.jsontag) = "user" ];
+}
+
+// DeleteWebTokenRequest describes a request to delete a web token
+message DeleteWebTokenRequest {
+    // Token specifies the token to delete.
+    string Token = 1 [ (gogoproto.jsontag) = "token" ];
+    // User specifies the user the token is for.
+    string User = 2 [ (gogoproto.jsontag) = "user" ];
+}

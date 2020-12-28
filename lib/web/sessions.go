@@ -55,21 +55,21 @@ type SessionContext struct {
 	user   string
 	clt    auth.ClientI
 	parent *sessionCache
-	clock  clockwork.Clock
+	// session refers the web session created for the user.
+	session services.WebSession
 
-	mu sync.Mutex
-	// sess refers the web session created for the user.
-	// The session is updated here each time it is refreshed by the client.
-	sess      services.WebSession
+	mu        sync.Mutex
 	remoteClt map[string]auth.ClientI
 	closers   []io.Closer
 }
 
 // String returns the text representation of this context
 func (c *SessionContext) String() string {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return fmt.Sprintf("session(user=%v,sid=%v,bearer=%v)", c.user, c.sess.GetName(), c.sess.GetBearerToken())
+	return fmt.Sprintf("session(user=%v,id=%v,ttl=%v)",
+		c.user,
+		c.session.GetName(),
+		c.session.GetExpiryTime(),
+	)
 }
 
 // AddClosers adds the specified closers to this context
@@ -83,8 +83,8 @@ func (c *SessionContext) AddClosers(closers ...io.Closer) {
 func (c *SessionContext) RemoveCloser(closer io.Closer) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for i := range c.closers {
-		if c.closers[i] == closer {
+	for i, cls := range c.closers {
+		if cls == closer {
 			c.closers = append(c.closers[:i], c.closers[i+1:]...)
 			return
 		}
@@ -94,20 +94,26 @@ func (c *SessionContext) RemoveCloser(closer io.Closer) {
 // Invalidate invalidates this context by removing the underlying session
 // and closing all underlying closers
 func (c *SessionContext) Invalidate() error {
-	return c.parent.InvalidateSession(c)
+	return c.parent.invalidateSession(c)
+}
+
+func (c *SessionContext) validateBearerToken(token string) error {
+	_, err := readBearerToken(ctx, c.parent.accessPoint, services.GetTokenRequest{
+		User:  c.user,
+		Token: token,
+	})
+	return trace.Wrap(err)
 }
 
 func (c *SessionContext) addRemoteClient(siteName string, remoteClient auth.ClientI) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
 	c.remoteClt[siteName] = remoteClient
 }
 
 func (c *SessionContext) getRemoteClient(siteName string) (auth.ClientI, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
 	remoteClt, ok := c.remoteClt[siteName]
 	return remoteClt, ok
 }
@@ -123,31 +129,22 @@ func (c *SessionContext) GetClient() (auth.ClientI, error) {
 // returned.
 func (c *SessionContext) GetUserClient(site reversetunnel.RemoteSite) (auth.ClientI, error) {
 	// get the name of the current cluster
-	clt, err := c.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	cn, err := clt.GetClusterName()
+	clusterName, err := c.clt.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// if we're trying to access the local cluster, pass back the local client.
-	if cn.GetClusterName() == site.GetName() {
-		return clt, nil
+	if clusterName.GetClusterName() == site.GetName() {
+		return c.clt, nil
 	}
 
 	// look to see if we already have a connection to this cluster
 	remoteClt, ok := c.getRemoteClient(site.GetName())
 	if !ok {
-		rClt, rConn, err := c.newRemoteClient(site)
+		rClt, err := c.newRemoteClient(site)
 		if err != nil {
 			return nil, trace.Wrap(err)
-		}
-
-		// add a closer for the underlying connection
-		if rConn != nil {
-			c.AddClosers(rConn)
 		}
 
 		// we'll save the remote client in our session context so we don't have to
@@ -163,12 +160,12 @@ func (c *SessionContext) GetUserClient(site reversetunnel.RemoteSite) (auth.Clie
 
 // newRemoteClient returns a client to a remote cluster with the role of
 // the logged in user.
-func (c *SessionContext) newRemoteClient(cluster reversetunnel.RemoteSite) (auth.ClientI, net.Conn, error) {
+func (c *SessionContext) newRemoteClient(cluster reversetunnel.RemoteSite) (auth.ClientI, error) {
 	clt, err := c.tryRemoteTLSClient(cluster)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return clt, nil, nil
+	return clt, nil
 }
 
 // clusterDialer returns DialContext function using cluster's dial function
@@ -220,7 +217,7 @@ func (c *SessionContext) ClientTLSConfig(clusterName ...string) (*tls.Config, er
 	}
 
 	tlsConfig := utils.TLSConfig(c.parent.cipherSuites)
-	tlsCert, err := tls.X509KeyPair(c.sess.GetTLSCert(), c.sess.GetPriv())
+	tlsCert, err := tls.X509KeyPair(c.session.GetTLSCert(), c.session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to parse TLS cert and key")
 	}
@@ -245,25 +242,23 @@ func (c *SessionContext) GetUser() string {
 
 // GetWebSession returns a web session
 func (c *SessionContext) GetWebSession() services.WebSession {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.sess
+	return c.session
 }
 
 // ExtendWebSession creates a new web session for this user
 // based on the previous session
 func (c *SessionContext) ExtendWebSession(accessRequestID string) (services.WebSession, error) {
-	sess, err := c.clt.ExtendWebSession(c.user, c.sess.GetName(), accessRequestID)
+	session, err := c.clt.ExtendWebSession(c.user, c.session.GetName(), accessRequestID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return sess, nil
+	return session, nil
 }
 
 // GetAgent returns agent that can be used to answer challenges
 // for the web to ssh connection as well as certificate
 func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
-	pub, _, _, _, err := ssh.ParseAuthorizedKey(c.sess.GetPub())
+	pub, _, _, _, err := ssh.ParseAuthorizedKey(c.session.GetPub())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -274,7 +269,7 @@ func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
 	if len(cert.ValidPrincipals) == 0 {
 		return nil, nil, trace.BadParameter("expected at least valid principal in certificate")
 	}
-	privateKey, err := ssh.ParseRawPrivateKey(c.sess.GetPriv())
+	privateKey, err := ssh.ParseRawPrivateKey(c.session.GetPriv())
 	if err != nil {
 		return nil, nil, trace.Wrap(err, "failed to parse SSH private key")
 	}
@@ -291,76 +286,75 @@ func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
 }
 
 // GetCertificates returns the *ssh.Certificate and *x509.Certificate
-// associated with this session.
+// associated with this context's session.
 func (c *SessionContext) GetCertificates() (*ssh.Certificate, *x509.Certificate, error) {
-	pub, _, _, _, err := ssh.ParseAuthorizedKey(c.sess.GetPub())
+	pub, _, _, _, err := ssh.ParseAuthorizedKey(c.session.GetPub())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	sshcert, ok := pub.(*ssh.Certificate)
+	sshCert, ok := pub.(*ssh.Certificate)
 	if !ok {
 		return nil, nil, trace.BadParameter("not certificate")
 	}
-	tlscert, err := tlsca.ParseCertificatePEM(c.sess.GetTLSCert())
+	tlsCert, err := tlsca.ParseCertificatePEM(c.session.GetTLSCert())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	return sshCert, tlsCert, nil
 
-	return sshcert, tlscert, nil
 }
 
-// Close cleans up connections associated with requests
+// GetSessionID returns the ID of the underlying user web session.
+func (c *SessionContext) GetSessionID() string {
+	return c.session.GetName()
+}
+
+// Close cleans up resources associated with this context and removes it
+// from the user context
 func (c *SessionContext) Close() error {
-	c.mu.Lock()
-	closers := c.closers
-	c.closers = nil
-	c.mu.Unlock()
-	var errors []error
+	closers := c.transferClosers()
 	for _, closer := range closers {
 		c.log.Debugf("Closing %v.", closer)
-		if err := closer.Close(); err != nil {
-			errors = append(errors, err)
-		}
+		closer.Close()
 	}
 	if c.clt != nil {
-		if err := c.clt.Close(); err != nil {
-			errors = append(errors, err)
-		}
+		return trace.Wrap(c.clt.Close())
 	}
-	return trace.NewAggregate(errors...)
+	return nil
+}
+
+func (c *SessionContext) transferClosers() []io.Closer {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	closers := c.closers
+	c.closers = nil
+	return closers
+}
+
+func (c *SessionContext) validateSession(ctx context.Context, session services.WebSession) (*SessionContext, error) {
+	return c.parent.ValidateSession(ctx, session.GetUser(), session.GetName())
+}
+
+func (c *SessionContext) getToken() services.Token {
+	return services.Token{
+		Token:   c.session.GetBearerToken(),
+		Expires: c.session.GetBearerTokenExpiryTime(),
+	}
 }
 
 // expired returns whether this context has expired.
 // The context is considered expired when its bearer token TTL
 // is in the past
 func (c *SessionContext) expired(ctx context.Context) bool {
-	session, err := c.readSession(ctx)
-	if err != nil {
-		c.log.WithError(err).Warn("Failed to query web session.")
+	_, err := readSession(ctx, c.parent.accessPoint, services.GetWebSessionRequest{
+		User:      c.user,
+		SessionID: c.session.GetName(),
+	})
+	if err == nil {
 		return false
 	}
-	return c.clock.Now().After(session.GetBearerTokenExpiryTime())
-}
-
-func (c *SessionContext) readSession(ctx context.Context) (services.WebSession, error) {
-	c.mu.Lock()
-	sessionID := c.sess.GetName()
-	c.mu.Unlock()
-	return readSession(ctx, c.parent.accessPoint, sessionID)
-}
-
-func (c *SessionContext) setSession(session services.WebSession) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.sess = session
-}
-
-func readSession(ctx context.Context, accessPoint auth.ReadAccessPoint, sessionID string) (services.WebSession, error) {
-	session, err := accessPoint.GetWebSession(ctx, services.GetWebSessionRequest{SessionID: sessionID})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return session, nil
+	c.log.WithError(err).Warn("Failed to query web session.")
+	return true
 }
 
 // newSessionCache returns new instance of the session cache
@@ -386,7 +380,7 @@ func newSessionCache(config *sessionCache) (*sessionCache, error) {
 }
 
 // sessionCache handles web session authentication,
-// and holds in memory contexts associated with each session
+// and holds in-memory contexts associated with each session
 type sessionCache struct {
 	log         logrus.FieldLogger
 	proxyClient auth.ClientI
@@ -399,7 +393,7 @@ type sessionCache struct {
 	clock        clockwork.Clock
 
 	mu sync.Mutex
-	// contexts maps user/sid to an existing session context
+	// contexts maps user and session ID to an active web session
 	contexts map[string]*SessionContext
 }
 
@@ -436,7 +430,9 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 	}
 }
 
-func (s *sessionCache) AuthWithOTP(user, pass string, otpToken string) (services.WebSession, error) {
+// AuthWithOTP authenticates the specified user with the given password and OTP token.
+// Returns a new web session if successful.
+func (s *sessionCache) AuthWithOTP(user, pass, otpToken string) (services.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
 		Username: user,
 		OTP: &auth.OTPCreds{
@@ -446,6 +442,8 @@ func (s *sessionCache) AuthWithOTP(user, pass string, otpToken string) (services
 	})
 }
 
+// AuthWithoutOTP authenticates the specified user with the given password.
+// Returns a new web session if successful.
 func (s *sessionCache) AuthWithoutOTP(user, pass string) (services.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
 		Username: user,
@@ -468,6 +466,7 @@ func (s *sessionCache) AuthWithU2FSignResponse(user string, response *u2f.Authen
 	})
 }
 
+// GetCertificateWithoutOTP returns a new user certificate for the specified request.
 func (s *sessionCache) GetCertificateWithoutOTP(c client.CreateSSHCertReq) (*auth.SSHLoginResponse, error) {
 	return s.proxyClient.AuthenticateSSHUser(auth.AuthenticateSSHRequest{
 		AuthenticateUserRequest: auth.AuthenticateUserRequest{
@@ -484,6 +483,8 @@ func (s *sessionCache) GetCertificateWithoutOTP(c client.CreateSSHCertReq) (*aut
 	})
 }
 
+// GetCertificateWithOTP returns a new user certificate for the specified request.
+// The request is used with the given OTP token.
 func (s *sessionCache) GetCertificateWithOTP(c client.CreateSSHCertReq) (*auth.SSHLoginResponse, error) {
 	return s.proxyClient.AuthenticateSSHUser(auth.AuthenticateSSHRequest{
 		AuthenticateUserRequest: auth.AuthenticateUserRequest{
@@ -539,27 +540,26 @@ func (s *sessionCache) NewSession(user, sessionID string) (*SessionContext, erro
 // It will be added it to the internal session cache if necessary
 func (s *sessionCache) ValidateSession(ctx context.Context, user, sessionID string) (*SessionContext, error) {
 	sessionCtx, err := s.getContext(user, sessionID)
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-	session, err := readSession(ctx, s.accessPoint, sessionID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if sessionCtx != nil {
-		sessionCtx.setSession(session)
+	if err == nil {
 		return sessionCtx, nil
 	}
-	sessionCtx, err = s.newSessionContextFromSession(user, sessionID, session)
-	if err != nil {
+	if !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	return sessionCtx, nil
+	session, err := readSession(ctx, s.accessPoint, services.GetWebSessionRequest{
+		User:      user,
+		SessionID: sessionID,
+	})
+	if err != nil {
+		// Session must be a valid web sesssion - otherwise bail out with an error
+		return nil, trace.Wrap(err)
+	}
+	return s.newSessionContextFromSession(user, session)
 }
 
-func (s *sessionCache) InvalidateSession(ctx *SessionContext) error {
+func (s *sessionCache) invalidateSession(ctx *SessionContext) error {
 	defer ctx.Close()
-	if err := s.resetContext(ctx.GetUser(), ctx.GetWebSession().GetName()); err != nil {
+	if err := s.resetContext(ctx.GetUser(), ctx.session.GetName()); err != nil {
 		return trace.Wrap(err)
 	}
 	clt, err := ctx.GetClient()
@@ -570,30 +570,31 @@ func (s *sessionCache) InvalidateSession(ctx *SessionContext) error {
 	return trace.Wrap(err)
 }
 
-func (s *sessionCache) getContext(user, sid string) (*SessionContext, error) {
+func (s *sessionCache) getContext(user, sessionID string) (*SessionContext, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	ctx, ok := s.contexts[user+sid]
+	ctx, ok := s.contexts[user+sessionID]
 	if ok {
 		return ctx, nil
 	}
-	return nil, trace.NotFound("session context not found")
+	return nil, trace.NotFound("no session context for user %v and session %v",
+		user, sessionID)
 }
 
-func (s *sessionCache) insertContext(user, sid string, ctx *SessionContext) (exists bool) {
+func (s *sessionCache) insertContext(user, sessionID string, ctx *SessionContext) (exists bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, exists := s.contexts[user+sid]; exists {
+	if _, exists := s.contexts[user]; exists {
 		return true
 	}
-	s.contexts[user+sid] = ctx
+	s.contexts[user+sessionID] = ctx
 	return false
 }
 
-func (s *sessionCache) resetContext(user, sid string) error {
+func (s *sessionCache) resetContext(user, sessionID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	id := user + sid
+	id := user + sessionID
 	ctx, ok := s.contexts[id]
 	if !ok {
 		return nil
@@ -608,21 +609,21 @@ func (s *sessionCache) resetContext(user, sid string) error {
 	return nil
 }
 
-func (s *sessionCache) newSessionContext(user, sid string) (*SessionContext, error) {
+func (s *sessionCache) newSessionContext(user, sessionID string) (*SessionContext, error) {
 	session, err := s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
 		Username: user,
 		Session: &auth.SessionCreds{
-			ID: sid,
+			ID: sessionID,
 		},
 	})
 	if err != nil {
 		// This will fail if the session has expired and was removed
 		return nil, trace.Wrap(err)
 	}
-	return s.newSessionContextFromSession(user, sid, session)
+	return s.newSessionContextFromSession(user, session)
 }
 
-func (s *sessionCache) newSessionContextFromSession(user, sid string, session services.WebSession) (*SessionContext, error) {
+func (s *sessionCache) newSessionContextFromSession(user string, session services.WebSession) (*SessionContext, error) {
 	tlsConfig, err := s.tlsConfig(session.GetTLSCert(), session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -634,24 +635,62 @@ func (s *sessionCache) newSessionContextFromSession(user, sid string, session se
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sessionCtx := &SessionContext{
+	ctx := &SessionContext{
 		clt:       userClient,
 		remoteClt: make(map[string]auth.ClientI),
 		user:      user,
-		sess:      session,
+		session:   session,
 		parent:    s,
 		log: s.log.WithFields(logrus.Fields{
-			"user": user,
-			"sess": session.GetShortName(),
+			"user":    user,
+			"session": session.GetShortName(),
 		}),
-		clock: s.clock,
 	}
-	if exists := s.insertContext(user, sid, sessionCtx); exists {
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if exists := s.insertContext(user, session.GetName(), ctx); exists {
 		// this means that someone has just inserted the context, so
 		// close our extra context and return
-		sessionCtx.Close()
+		ctx.Close()
 	}
-	return sessionCtx, nil
+	return ctx, nil
+}
+
+func (s *sessionCache) clientTLSConfig(cert, privKey []byte, clusterName ...string) (*tls.Config, error) {
+	var certPool *x509.CertPool
+	if len(clusterName) == 0 {
+		certAuthorities, err := s.proxyClient.GetCertAuthorities(services.HostCA, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certPool, err = services.CertPoolFromCertAuthorities(certAuthorities)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		certAuthority, err := s.proxyClient.GetCertAuthority(services.CertAuthID{
+			Type:       services.HostCA,
+			DomainName: clusterName[0],
+		}, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certPool, err = services.CertPool(certAuthority)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	tlsConfig := utils.TLSConfig(s.cipherSuites)
+	tlsCert, err := tls.X509KeyPair(cert, privKey)
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to parse TLS certificate and key")
+	}
+	tlsConfig.Certificates = []tls.Certificate{tlsCert}
+	tlsConfig.RootCAs = certPool
+	tlsConfig.ServerName = auth.EncodeClusterName(s.clusterName)
+	return tlsConfig, nil
 }
 
 func (s *sessionCache) tlsConfig(cert, privKey []byte) (*tls.Config, error) {
@@ -680,7 +719,11 @@ func (s *sessionCache) tlsConfig(cert, privKey []byte) (*tls.Config, error) {
 // waitForWebSession will block until the requested web session shows up in the
 // cache or a timeout occurs.
 func (h *Handler) waitForWebSession(ctx context.Context, req services.GetWebSessionRequest) error {
-	// Establish a watch on application session.
+	_, err := h.cfg.AccessPoint.GetWebSession(ctx, req)
+	if err == nil {
+		return nil
+	}
+	// Establish a watch on the session.
 	watcher, err := h.cfg.AccessPoint.NewWatcher(ctx, services.Watch{
 		Name: teleport.ComponentWebProxy,
 		Kinds: []services.WatchKind{
@@ -692,74 +735,92 @@ func (h *Handler) waitForWebSession(ctx context.Context, req services.GetWebSess
 		},
 		MetricComponent: teleport.ComponentWebProxy,
 	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	defer watcher.Close()
-
-	return waitForSession(ctx, watcher, webSessionWaiter{c: h.cfg.AccessPoint, req: req})
-}
-
-func (w webSessionWaiter) read(ctx context.Context) error {
-	_, err := w.c.GetWebSession(ctx, w.req)
+	matchEvent := func(event services.Event) bool {
+		// TODO(dmitri): remove comparison against sessionID if watcher accepts the ID (see above)
+		return event.Type == backend.OpPut && event.Resource.GetName() == req.SessionID
+	}
+	_, err = waitForSession(ctx, watcher, eventMatcherFunc(matchEvent))
 	return trace.Wrap(err)
 }
 
-func (webSessionWaiter) match(event services.Event) bool {
-	// TODO(dmitri): remove comparison against sessionID if watcher accepts the ID (see above)
-	return event.Type == backend.OpPut && event.Resource.GetName() == sessionID
+func readBearerToken(ctx context.Context, accessPoint auth.ReadAccessPoint, req services.GetWebTokenRequest) (services.WebToken, error) {
+	token, err := accessPoint.GetWebToken(ctx, req)
+	if err == nil {
+		return token, nil
+	}
+	return nil, trace.Wrap(err)
+	// TODO(dmitri): wait for token to appear in cache if not found
 }
 
-type webSessionWaiter struct {
-	c   auth.ReadAccessPoint
-	req services.GetWebSessionRequest
+func readSession(ctx context.Context, accessPoint auth.ReadAccessPoint, req services.GetWebSessionRequest) (services.WebSession, error) {
+	session, err := accessPoint.GetWebSession(ctx, req)
+	if err == nil {
+		return session, nil
+	}
+	// Establish a watch on application session.
+	watcher, err := accessPoint.NewWatcher(ctx, services.Watch{
+		Name: teleport.ComponentWebProxy,
+		Kinds: []services.WatchKind{
+			{
+				Kind:    services.KindWebSession,
+				SubKind: services.KindWebSession,
+				Name:    req.SessionID,
+			},
+		},
+		MetricComponent: teleport.ComponentWebProxy,
+	})
+	defer watcher.Close()
+	matchEvent := func(event services.Event) bool {
+		return event.Resource.GetName() == req.SessionID
+	}
+	session, err = waitForSession(ctx, watcher, eventMatcherFunc(matchEvent))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return session, nil
 }
 
-type sessionWaiter interface {
-	read(context.Context) error
-	match(services.Event) bool
-}
-
-func waitForSession(ctx context.Context, watcher services.Watcher, w sessionWaiter) error {
+func waitForSession(ctx context.Context, watcher services.Watcher, m eventMatcher) (services.WebSession, error) {
 	timeout := time.NewTimer(defaults.WebHeadersTimeout)
 	defer timeout.Stop()
 
 	select {
-	// Received an event, first event should always be an initialize event.
 	case event := <-watcher.Events():
 		if event.Type != backend.OpInit {
-			return trace.BadParameter("expected init event, got %v instead", event.Type)
+			return nil, trace.BadParameter("expected init event, got %v instead", event.Type)
 		}
-	// Watcher closed, probably due to a network error.
 	case <-watcher.Done():
-		return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
-	// Timed out waiting for initialize event.
+		// Watcher closed, probably due to a network error.
+		return nil, trace.ConnectionProblem(watcher.Error(), "watcher is closed")
 	case <-timeout.C:
-		return trace.BadParameter("timed out waiting for initialize event")
-	}
-
-	// Check if the session exists in the backend.
-	err := w.read(ctx)
-	if err == nil {
-		return nil
+		return nil, trace.LimitExceeded("timed out waiting for initialize event")
 	}
 
 	for {
 		select {
-		// If the event is the expected one, return right away.
 		case event := <-watcher.Events():
 			if event.Resource.GetKind() != services.KindWebSession {
-				return trace.BadParameter("unexpected event: %v.", event.Resource.GetKind())
+				return nil, trace.BadParameter("unexpected event: %v.", event.Resource.GetKind())
 			}
-			if w.match(event) {
-				return nil
+			if m.match(event) {
+				return event.Resource.(services.WebSession), nil
 			}
-		// Watcher closed, probably due to a network error.
 		case <-watcher.Done():
-			return trace.ConnectionProblem(watcher.Error(), "watcher is closed")
-		// Timed out waiting for initialize event.
+			// Watcher closed, probably due to a network error.
+			return nil, trace.ConnectionProblem(watcher.Error(), "watcher is closed")
 		case <-timeout.C:
-			return trace.BadParameter("timed out waiting for session")
+			return nil, trace.LimitExceeded("timed out waiting for session")
 		}
 	}
+}
+
+func (r eventMatcherFunc) match(event services.Event) bool {
+	return r(event)
+}
+
+type eventMatcherFunc func(services.Event) bool
+
+type eventMatcher interface {
+	match(services.Event) bool
 }

@@ -49,7 +49,7 @@ func DecodeCookie(b string) (*SessionCookie, error) {
 	return c, nil
 }
 
-func SetSession(w http.ResponseWriter, user, sid string) error {
+func SetSessionCookie(w http.ResponseWriter, user, sid string) error {
 	d, err := EncodeCookie(user, sid)
 	if err != nil {
 		return err

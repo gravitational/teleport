@@ -259,7 +259,7 @@ type HandlerWithAuthFunc func(auth ClientI, w http.ResponseWriter, r *http.Reque
 func (s *APIServer) withAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 	const accessDeniedMsg = "auth API: access denied "
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
-		// HTTPS server expects auth  context to be set by the auth middleware
+		// HTTPS server expects auth context to be set by the auth middleware
 		authContext, err := s.Authorizer.Authorize(r.Context())
 		if err != nil {
 			// propagate connection problem error so we can differentiate

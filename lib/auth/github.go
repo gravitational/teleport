@@ -308,9 +308,10 @@ func (a *Server) createWebSession(user services.User, sessionTTL time.Duration) 
 	// Session expiry time is the same as the user expiry time.
 	session.SetExpiryTime(a.clock.Now().UTC().Add(sessionTTL))
 
+	// FIXME(dmitri)
 	// Bearer tokens expire quicker than the overall session time and need to be refreshed.
-	bearerTTL := utils.MinTTL(BearerTokenTTL, sessionTTL)
-	session.SetBearerTokenExpiryTime(a.clock.Now().UTC().Add(bearerTTL))
+	// bearerTTL := utils.MinTTL(BearerTokenTTL, sessionTTL)
+	// session.SetBearerTokenExpiryTime(a.clock.Now().UTC().Add(bearerTTL))
 
 	err = a.UpsertWebSession(user.GetName(), session)
 	if err != nil {

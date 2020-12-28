@@ -61,6 +61,8 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	saml2 "github.com/russellhaering/gosaml2"
+	"github.com/sirupsen/logrus"
+	"github.com/tstranex/u2f"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -909,12 +911,33 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 	}
 
 	sess.SetExpiryTime(expiresAt)
+
 	bearerTokenTTL := utils.MinTTL(utils.ToTTL(a.clock, expiresAt), BearerTokenTTL)
-	sess.SetBearerTokenExpiryTime(a.clock.Now().UTC().Add(bearerTokenTTL))
-	// Keep the session ID
-	sess.SetName(prevSessionID)
+	// bearerTokenExpires := a.clock.Now().UTC().Add(bearerTokenTTL)
+	// sess.SetBearerTokenExpiryTime(bearerTokenExpires)
 	if err := a.UpsertWebSession(user, sess); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// TODO(dmitri): add a bearer token
+	//
+	token := &services.WebTokenV1{
+		// FIXME(dmitri)
+		Kind:    services.KindWebSession,
+		SubKind: services.KindWebToken,
+		Version: services.V1,
+		Spec: services.WebTokenSpecV1{
+			User:    user,
+			Token:   sess.GetBearerToken(),
+			Expires: a.clock.Now().UTC().Add(bearerTokenTTL),
+		},
+	}
+	if err := a.WebTokens().Upsert(context.TODO(), token); err != nil {
+		log.WithFields(logrus.Fields{
+			logrus.ErrorKey: err,
+			"token":         sess.GetBearerToken(),
+			"session":       sess.GetName(),
+		}).Warn("Failed to update token.")
 	}
 
 	sess, err = services.ExtendWebSession(sess)
@@ -1526,8 +1549,8 @@ func (a *Server) UpsertWebSession(user string, sess services.WebSession) error {
 }
 
 // GetWebSessionByUser queries the web session using the specified user name and session ID
-func (a *Server) GetWebSessionByUser(userName string, sid string) (services.WebSession, error) {
-	return a.Identity.GetWebSession(userName, sid)
+func (a *Server) GetWebSessionByUser(userName, sessionID string) (services.WebSession, error) {
+	return a.Identity.GetWebSession(userName, sessionID)
 }
 
 func (a *Server) GetWebSessionInfo(userName string, id string) (services.WebSession, error) {

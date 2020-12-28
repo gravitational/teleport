@@ -121,6 +121,9 @@ type ReadAccessPoint interface {
 	// GetWebSession gets a web session for the given request
 	GetWebSession(context.Context, services.GetWebSessionRequest) (services.WebSession, error)
 
+	// GetWebToken gets a web token for the given request
+	GetWebToken(context.Context, services.GetWebTokenRequest) (services.WebToken, error)
+
 	// GetRemoteClusters returns a list of remote clusters
 	GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error)
 

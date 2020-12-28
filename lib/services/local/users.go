@@ -34,18 +34,22 @@ import (
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
+	"github.com/sirupsen/logrus"
+	"github.com/tstranex/u2f"
 )
 
 // IdentityService is responsible for managing web users and currently
 // user accounts as well
 type IdentityService struct {
 	backend.Backend
+	log logrus.FieldLogger
 }
 
 // NewIdentityService returns a new instance of IdentityService object
 func NewIdentityService(backend backend.Backend) *IdentityService {
 	return &IdentityService{
 		Backend: backend,
+		log:     logrus.WithField(trace.Component, "identity"),
 	}
 }
 
