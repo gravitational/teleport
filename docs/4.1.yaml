@@ -1,5 +1,5 @@
-site_name: Gravitational Teleport
-site_url: https://gravitational.com/teleport/docs
+site_name: Teleport
+site_url: https://goteleport.com/teleport/docs
 repo_url: https://github.com/gravitational/teleport
 site_description: "Teleport Documentation: Remote Access via SSH and Kubernetes"
 site_author: Gravitational Inc
