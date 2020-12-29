@@ -1883,7 +1883,7 @@ the audit log, logged events have a TTL of 1 year.
 
 | Backend | Recommended backup strategy  |
 |-|-|
-| dir ( local filesystem )   | Backup `/var/lib/teleport/storage` directory and the output of `tctl get all`. |
+| dir ( local filesystem )   | Backup `/var/lib/teleport/storage` directory and the output of `tctl get all --with-secrets`. |
 | DynamoDB | [Follow AWS Guidelines for Backup & Restore](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BackupRestore.html) |
 | etcd | [Follow etcD Guidleines for Disaster Recovery ](https://etcd.io/docs/v2/admin_guide) |
 | Firestore | [Follow GCP Guidlines for Automated Backups](https://firebase.google.com/docs/database/backups) |
