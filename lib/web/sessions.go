@@ -29,8 +29,9 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -227,7 +228,7 @@ func (c *SessionContext) newRemoteTLSClient(cluster reversetunnel.RemoteSite) (a
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return auth.NewTLSClient(auth.ClientConfig{Dialer: clusterDialer(cluster), TLS: tlsConfig})
+	return auth.NewClient(apiclient.Config{Dialer: clusterDialer(cluster), TLS: tlsConfig})
 }
 
 // GetUser returns the authenticated teleport user
@@ -576,8 +577,8 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 	tlsConfig.RootCAs = certPool
 	tlsConfig.ServerName = auth.EncodeClusterName(s.clusterName)
 
-	userClient, err := auth.NewTLSClient(auth.ClientConfig{
-		Addrs: s.authServers,
+	userClient, err := auth.NewClient(apiclient.Config{
+		Addrs: utils.NetAddrsToStrings(s.authServers),
 		TLS:   tlsConfig,
 	})
 	if err != nil {
