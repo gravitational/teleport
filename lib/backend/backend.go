@@ -160,17 +160,19 @@ type GetResult struct {
 type OpType int
 
 const (
+	// OpInvalid is returned for invalid operations
+	OpInvalid OpType = iota - 1
 	// OpInit is returned by the system whenever the system
 	// is initialized, init operation is always sent
 	// as a first event over the channel, so the client
 	// can verify that watch has been established.
-	OpInit OpType = iota
+	OpInit
 	// OpPut is returned for Put events
-	OpPut OpType = iota
+	OpPut
 	// OpDelete is returned for Delete events
-	OpDelete OpType = iota
+	OpDelete
 	// OpGet is used for tracking, not present in the event stream
-	OpGet OpType = iota
+	OpGet
 )
 
 // String returns user-friendly description of the operation

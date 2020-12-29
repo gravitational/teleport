@@ -199,10 +199,10 @@ type Connector struct {
 // TunnelProxy if non-empty, indicates that the client is connected to the Auth Server
 // through the reverse SSH tunnel proxy
 func (c *Connector) TunnelProxy() string {
-	if c.Client == nil || c.Client.Dialer == nil {
+	if c.Client == nil || c.Client.Dialer() == nil {
 		return ""
 	}
-	tun, ok := c.Client.Dialer.(*reversetunnel.TunnelAuthDialer)
+	tun, ok := c.Client.Dialer().(*reversetunnel.TunnelAuthDialer)
 	if !ok {
 		return ""
 	}
