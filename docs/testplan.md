@@ -345,9 +345,9 @@ version: v3
 - [ ] Verify assume buttons are only present for approved request and for logged in user
   - [ ] Verify assuming `allow-roles` allows you to see roles screen and ssh into nodes
   - [ ] Verify after clicking on assume buttons, button is disabled
-  - [ ] After assuming `allow-roles`, verify assuming `allow-users` allows you to see users screen, and denies access to nodes. 
+  - [ ] After assuming `allow-roles`, verify assuming `allow-users` allows you to see users screen, and denies access to nodes.
     - [ ] Verify after 4 minutes, user is logged out of screen automatically.
-- [ ] Verify after logging out (or getting logged out automatically) and relogging in, permissions are set back to `default`, and requests that are not expired and are approved, is assumable again. 
+- [ ] Verify after logging out (or getting logged out automatically) and relogging in, permissions are set back to `default`, and requests that are not expired and are approved, is assumable again.
 
 #### Users
 - [ ] Verify that users are shown
@@ -568,7 +568,7 @@ Add the following resource to enable read access to access_request
       - read
 ```
 - [ ] Verify that a user can see the "Access Request" screen
-- [ ] Verify that a user cannot create a request
+* Note: users are always allowed to create their own request, if they have any requestable roles
 
 ## Performance/Soak Test
 
