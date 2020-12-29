@@ -404,6 +404,7 @@ buildbox-grpc:
 # standard GRPC output
 	echo $$PROTO_INCLUDE
 	find lib/ -iname *.proto | xargs clang-format -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
+	find api/ -iname *.proto | xargs clang-format -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 
 	cd lib/events && protoc -I=.:$$PROTO_INCLUDE \
 	  --gofast_out=plugins=grpc:.\
@@ -413,9 +414,10 @@ buildbox-grpc:
 	  --gofast_out=plugins=grpc:.\
     *.proto
 
-	cd lib/auth/proto && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
-    *.proto
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/proto \
+		--gofast_out=plugins=grpc:api/proto \
+		authservice.proto
 
 	cd lib/wrappers && protoc -I=.:$$PROTO_INCLUDE \
 	  --gofast_out=plugins=grpc:.\

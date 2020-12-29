@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth/proto"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -868,23 +868,6 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 		ClusterName:   cn.GetClusterName(),
 		ServerVersion: teleport.Version,
 	}, nil
-}
-
-// WithDelegator creates a child context with the AccessRequestDelegator
-// value set.  Optionally used by AuthServer.SetAccessRequestState to log
-// a delegating identity.
-func WithDelegator(ctx context.Context, delegator string) context.Context {
-	return context.WithValue(ctx, ContextDelegator, delegator)
-}
-
-// getDelegator attempts to load the context value AccessRequestDelegator,
-// returning the empty string if no value was found.
-func getDelegator(ctx context.Context) string {
-	delegator, ok := ctx.Value(ContextDelegator).(string)
-	if !ok {
-		return ""
-	}
-	return delegator
 }
 
 func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) error {

@@ -35,6 +35,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -1651,7 +1652,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params services.Acce
 		Roles:        params.Roles,
 	}
 
-	if delegator := getDelegator(ctx); delegator != "" {
+	if delegator := client.GetDelegator(ctx); delegator != "" {
 		event.Delegator = delegator
 	}
 

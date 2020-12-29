@@ -1,5 +1,5 @@
 /*
-Copyright 2018 Gravitational, Inc.
+Copyright 2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,30 +14,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package main
+// Package auth holds the protobuff api specification
+// for Teleport Auth servers and clients
+package proto
 
 import (
-	"context"
-	"fmt"
-	"log"
+	"time"
 )
 
-func main() {
-	log.Printf("Starting Teleport client...")
-	client, err := connectClient()
-	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
-	}
-	defer client.Close()
+// Duration is a wrapper around duration
+type Duration time.Duration
 
-	ctx := context.Background()
+// Get returns time.Duration value
+func (d Duration) Get() time.Duration {
+	return time.Duration(d)
+}
 
-	fmt.Println("")
-	roleCRUD(ctx, client)
-
-	fmt.Println("")
-	tokenCRUD(ctx, client)
-
-	fmt.Println("")
-	accessWorkflow(ctx, client)
+// Set sets time.Duration value
+func (d *Duration) Set(value time.Duration) {
+	*d = Duration(value)
 }

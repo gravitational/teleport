@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -380,10 +381,8 @@ func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, p
 	tlsConfig.Certificates = []tls.Certificate{*cert}
 	tlsConfig.RootCAs = pool
 	tlsConfig.ServerName = EncodeClusterName(a.ClusterName)
-	addrs := []utils.NetAddr{{
-		AddrNetwork: addr.Network(),
-		Addr:        addr.String()}}
-	return NewTLSClient(ClientConfig{Addrs: addrs, TLS: tlsConfig})
+	addrs := []string{addr.String()}
+	return NewClient(client.Config{Addrs: addrs, TLS: tlsConfig})
 }
 
 // TestTLSServerConfig is a configuration for test TLS server
@@ -550,8 +549,8 @@ func (t *TestTLSServer) NewClientFromWebSession(sess services.WebSession) (*Clie
 		return nil, trace.Wrap(err, "failed to parse TLS cert and key")
 	}
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
-	addrs := []utils.NetAddr{utils.FromAddr(t.Listener.Addr())}
-	return NewTLSClient(ClientConfig{Addrs: addrs, TLS: tlsConfig})
+	addrs := []string{t.Addr().String()}
+	return NewClient(client.Config{Addrs: addrs, TLS: tlsConfig})
 }
 
 // CertPool returns cert pool that auth server represents
@@ -586,8 +585,8 @@ func (t *TestTLSServer) ClientTLSConfig(identity TestIdentity) (*tls.Config, err
 // CloneClient uses the same credentials as the passed client
 // but forces the client to be recreated
 func (t *TestTLSServer) CloneClient(clt *Client) *Client {
-	addr := []utils.NetAddr{{Addr: t.Addr().String(), AddrNetwork: t.Addr().Network()}}
-	newClient, err := NewTLSClient(ClientConfig{Addrs: addr, TLS: clt.TLSConfig()})
+	addr := []string{t.Addr().String()}
+	newClient, err := NewClient(client.Config{Addrs: addr, TLS: clt.TLSConfig()})
 	if err != nil {
 		panic(err)
 	}
@@ -600,8 +599,8 @@ func (t *TestTLSServer) NewClient(identity TestIdentity) (*Client, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	addrs := []utils.NetAddr{utils.FromAddr(t.Listener.Addr())}
-	return NewTLSClient(ClientConfig{Addrs: addrs, TLS: tlsConfig})
+	addrs := []string{t.Addr().String()}
+	return NewClient(client.Config{Addrs: addrs, TLS: tlsConfig})
 }
 
 // Addr returns address of TLS server
