@@ -2527,7 +2527,7 @@ As of version v4.1 you can now quickly export a collection of resources from
 Teleport. This feature set works best for local and etcd, it's currently experimental
 for AWS/GCP.
 
-Using `tctl get all` will backup.
+Using `tctl get all --with-secrets` will backup.
 
 - Users
 - Certificate Authorities
