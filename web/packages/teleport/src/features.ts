@@ -70,7 +70,7 @@ export class FeatureAuthConnectors {
   };
 
   register(ctx: Ctx) {
-    if (!ctx.isAuthConnectorEnabled()) {
+    if (!ctx.getFeatureFlags().authConnector) {
       return;
     }
 
@@ -126,7 +126,7 @@ export class FeatureAudit {
   };
 
   register(ctx: Ctx) {
-    if (!ctx.isAuditEnabled()) {
+    if (!ctx.getFeatureFlags().audit) {
       return;
     }
 
@@ -155,7 +155,7 @@ export class FeatureAccount {
   };
 
   register(ctx: Ctx) {
-    if (!ctx.isAccountEnabled()) {
+    if (!ctx.getFeatureFlags().account) {
       return;
     }
 
@@ -210,7 +210,7 @@ export class FeatureRecordings {
   };
 
   register(ctx: Ctx) {
-    if (!ctx.isAuditEnabled()) {
+    if (!ctx.getFeatureFlags().audit) {
       return;
     }
 
@@ -268,7 +268,7 @@ export class FeatureRoles {
   };
 
   register(ctx: Ctx) {
-    if (!ctx.isRolesEnabled()) {
+    if (!ctx.getFeatureFlags().roles) {
       return;
     }
 
@@ -299,7 +299,7 @@ export class FeatureUsers {
   };
 
   register(ctx: Ctx) {
-    if (!ctx.isUsersEnabled()) {
+    if (!ctx.getFeatureFlags().users) {
       return;
     }
 
@@ -330,7 +330,7 @@ export class FeatureApps {
   };
 
   register(ctx: Ctx) {
-    if (!ctx.isApplicationsEnabled()) {
+    if (!ctx.getFeatureFlags().applications) {
       return;
     }
 
@@ -359,7 +359,7 @@ export class FeatureTrust {
   };
 
   register(ctx: Ctx) {
-    if (!ctx.isTrustedClustersEnabled()) {
+    if (!ctx.getFeatureFlags().trustedClusters) {
       return;
     }
 

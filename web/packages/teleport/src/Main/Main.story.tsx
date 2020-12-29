@@ -22,17 +22,17 @@ import { ContextProvider, Context } from 'teleport';
 import getFeatures from 'teleport/features';
 import { Main } from './Main';
 import { clusters } from 'teleport/Clusters/fixtures';
-import { nodes, joinToken } from 'teleport/Nodes/fixtures';
+import { nodes } from 'teleport/Nodes/fixtures';
 import { events } from 'teleport/Audit/fixtures';
 import { sessions } from 'teleport/Sessions/fixtures';
 import { apps } from 'teleport/Apps/fixtures';
 import { userContext } from './fixtures';
 
 export default {
-  title: 'Teleport',
+  title: 'Teleport/Main',
 };
 
-export function Story() {
+export function OSS() {
   const state = useMainStory();
   return (
     <Flex my={-3} mx={-4}>
@@ -45,10 +45,6 @@ export function Story() {
   );
 }
 
-Story.story = {
-  name: 'Main',
-};
-
 function useMainStory() {
   const [history] = React.useState(() => {
     return createMemoryHistory({
@@ -59,7 +55,7 @@ function useMainStory() {
   const [ctx] = React.useState(() => {
     const ctx = new Context();
     // mock services
-    ctx.isEnterprise = true;
+    ctx.isEnterprise = false;
     ctx.auditService.fetchEvents = () =>
       Promise.resolve({ overflow: false, events });
     ctx.clusterService.fetchClusters = () => Promise.resolve(clusters);

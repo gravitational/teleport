@@ -28,5 +28,6 @@ export default function makeUser(json): User {
 }
 
 export function makeUsers(json): User[] {
+  json = json || [];
   return json.map(user => makeUser(user));
 }

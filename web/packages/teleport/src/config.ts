@@ -108,7 +108,6 @@ const cfg = {
     nodeTokenPath: '/v1/enterprise/nodes/token',
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
-    requestAccessPath: '/v1/enterprise/accessrequest/:requestId?',
   },
 
   getClusterEventsUrl(clusterId: string, params: UrlClusterEventsParams) {
@@ -266,10 +265,6 @@ const cfg = {
 
   getRenewTokenUrl(requestId?: string) {
     return generatePath(cfg.api.renewTokenPath, { requestId });
-  },
-
-  getRequestAccessUrl(requestId?: string) {
-    return generatePath(cfg.api.requestAccessPath, { requestId });
   },
 
   getResourcesUrl(kind?: Resource['kind']) {

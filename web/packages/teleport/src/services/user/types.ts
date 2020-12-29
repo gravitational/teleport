@@ -14,9 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Cluster } from '../../services/clusters';
+import { Cluster } from 'teleport/services/clusters';
 
 export type AuthType = 'local' | 'sso';
+
+export interface AccessStrategy {
+  type: 'optional' | 'always' | 'reason';
+  prompt: string;
+}
 
 export interface UserContext {
   authType: AuthType;
@@ -24,6 +29,7 @@ export interface UserContext {
   username: string;
   cluster: Cluster;
   accessStrategy: AccessStrategy;
+  requestableRoles: string[];
 }
 
 export interface Access {
@@ -44,6 +50,7 @@ export interface Acl {
   users: Access;
   tokens: Access;
   appServers: Access;
+  accessRequests: Access;
 }
 
 export interface User {
@@ -57,17 +64,6 @@ export interface ResetToken {
   value: string;
   username: string;
   expires: Date;
-}
-
-export interface AccessRequest {
-  id: string;
-  state: 'NONE' | 'PENDING' | 'APPROVED' | 'DENIED' | 'APPLIED' | '';
-  reason: string;
-}
-
-export interface AccessStrategy {
-  type: 'optional' | 'always' | 'reason';
-  prompt: string;
 }
 
 export type ResetPasswordType = 'invite' | 'password';

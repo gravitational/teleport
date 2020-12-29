@@ -28,6 +28,7 @@ export default function makeAcl(json): Acl {
   const users = json.users || defaultAccess;
   const appServers = json.appServers || defaultAccess;
   const tokens = json.tokens || defaultAccess;
+  const accessRequests = json.accessRequests || defaultAccess;
 
   return {
     logins,
@@ -39,10 +40,11 @@ export default function makeAcl(json): Acl {
     users,
     appServers,
     tokens,
+    accessRequests,
   };
 }
 
-const defaultAccess = {
+export const defaultAccess = {
   list: false,
   read: false,
   edit: false,

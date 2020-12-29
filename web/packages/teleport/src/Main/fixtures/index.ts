@@ -19,6 +19,7 @@ import makeUserContext from 'teleport/services/user/makeUserContext';
 export const userContext = makeUserContext({
   authType: 'sso',
   userName: 'Sam',
+  requestableRoles: ['dev-a', 'dev-b', 'dev-c', 'dev-d'],
   userAcl: {
     tokens: {
       list: true,
@@ -58,6 +59,13 @@ export const userContext = makeUserContext({
       edit: false,
       create: false,
       remove: false,
+    },
+    accessRequests: {
+      list: true,
+      read: true,
+      edit: true,
+      create: true,
+      remove: true,
     },
     sshLogins: ['dev', 'root'],
   },

@@ -18,15 +18,18 @@ import ReactDOM from 'react-dom';
 import React from 'react';
 import history from 'teleport/services/history';
 import Teleport from './Teleport';
+import TeleportContext from './teleportContext';
 import cfg from './config';
 
 // apply configuration received from the server
-cfg.init(window.GRV_CONFIG);
+cfg.init(window['GRV_CONFIG']);
 
 // use browser history
 history.init();
 
+const teleportContext = new TeleportContext();
+
 ReactDOM.render(
-  <Teleport history={history.original()} />,
+  <Teleport history={history.original()} ctx={teleportContext} />,
   document.getElementById('app')
 );

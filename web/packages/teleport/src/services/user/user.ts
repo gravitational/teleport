@@ -16,22 +16,16 @@ limitations under the License.
 
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
-import session from 'teleport/services/session';
 import makeUserContext from './makeUserContext';
 import makeResetToken from './makeResetToken';
 import makeUser, { makeUsers } from './makeUser';
 import { User, UserContext, ResetPasswordType } from './types';
-import makeAccessRequest from './makeAccessRequest';
 
 const cache = {
   userContext: null as UserContext,
 };
 
 const service = {
-  fetchAccessRequest(requestId?: string) {
-    return api.get(cfg.getRequestAccessUrl(requestId)).then(makeAccessRequest);
-  },
-
   fetchUserContext(fromCache = true) {
     if (fromCache && cache['userContext']) {
       return Promise.resolve(cache['userContext']);
@@ -48,16 +42,6 @@ const service = {
 
   fetchUsers() {
     return api.get(cfg.getUsersUrl()).then(makeUsers);
-  },
-
-  createAccessRequest(reason?: string) {
-    return api
-      .post(cfg.getRequestAccessUrl(), { reason })
-      .then(makeAccessRequest);
-  },
-
-  applyPermission(requestId?: string) {
-    return session.renewSession(requestId);
   },
 
   updateUser(user: User) {

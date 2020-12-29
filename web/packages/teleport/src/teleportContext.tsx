@@ -50,32 +50,18 @@ class TeleportContext implements types.Context {
     });
   }
 
-  isAccountEnabled() {
-    return this.storeUser.isSso() === false;
-  }
-
-  isAuditEnabled() {
-    return this.storeUser.getEventAccess().list;
-  }
-
-  isAuthConnectorEnabled() {
-    return this.storeUser.getConnectorAccess().list;
-  }
-
-  isRolesEnabled() {
-    return this.storeUser.getRoleAccess().list;
-  }
-
-  isTrustedClustersEnabled() {
-    return this.storeUser.getTrustedClusterAccess().list;
-  }
-
-  isUsersEnabled() {
-    return this.storeUser.getUserAccess().list;
-  }
-
-  isApplicationsEnabled() {
-    return this.storeUser.getAppServerAccess().list;
+  getFeatureFlags() {
+    const userContext = this.storeUser;
+    return {
+      account: userContext.isSso() === false,
+      audit: userContext.getEventAccess().list,
+      authConnector: userContext.getConnectorAccess().list,
+      roles: userContext.getRoleAccess().list,
+      trustedClusters: userContext.getTrustedClusterAccess().list,
+      users: userContext.getUserAccess().list,
+      applications: userContext.getAppServerAccess().list,
+      workflow: userContext.getWorkflowAccess().list,
+    };
   }
 }
 

@@ -18,12 +18,19 @@ import React from 'react';
 
 export type NavGroup = 'team' | 'activity' | 'clusters';
 
+type FeatureFlags = {
+  account: boolean;
+  audit: boolean;
+  authConnector: boolean;
+  roles: boolean;
+  trustedClusters: boolean;
+  users: boolean;
+  applications: boolean;
+};
+
 export interface Context {
-  isAccountEnabled(): boolean;
-  isAuditEnabled(): boolean;
-  isAuthConnectorEnabled(): boolean;
-  isRolesEnabled(): boolean;
-  isTrustedClustersEnabled(): boolean;
+  init(): Promise<void>;
+  getFeatureFlags(): FeatureFlags;
 }
 
 export interface Feature {

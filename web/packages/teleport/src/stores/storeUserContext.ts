@@ -21,6 +21,14 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.authType === 'sso';
   }
 
+  getUsername() {
+    return this.state.username;
+  }
+
+  getRequestableRoles() {
+    return this.state.requestableRoles;
+  }
+
   getEventAccess() {
     return this.state.acl.events;
   }
@@ -51,5 +59,13 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getTokenAccess() {
     return this.state.acl.tokens;
+  }
+
+  getWorkflowAccess() {
+    return this.state.acl.accessRequests;
+  }
+
+  getAccessStrategy() {
+    return this.state.accessStrategy;
   }
 }

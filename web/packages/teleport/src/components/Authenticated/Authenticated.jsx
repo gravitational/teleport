@@ -26,6 +26,7 @@ export default class Authenticated extends React.Component {
 
   componentDidMount() {
     if (!session.isValid()) {
+      session.clear();
       logger.warn('invalid session');
       const rememberLocation = true;
       history.goToLogin(rememberLocation);

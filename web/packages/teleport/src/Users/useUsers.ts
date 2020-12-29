@@ -78,7 +78,7 @@ export default function useUsers() {
 
   useEffect(() => {
     function fetchRoles() {
-      if (ctx.isRolesEnabled()) {
+      if (ctx.getFeatureFlags().roles) {
         return ctx.resourceService
           .fetchRoles()
           .then(resources => resources.map(role => role.name));

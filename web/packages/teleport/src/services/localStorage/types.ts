@@ -17,7 +17,6 @@ limitations under the License.
 export const KeysEnum = {
   TOKEN: 'grv_teleport_token',
   TOKEN_RENEW: 'grv_teleport_token_renew',
-  ACCESS_REQUEST: 'grv_teleport_access_request',
 };
 
 export class BearerToken {

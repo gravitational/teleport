@@ -13,7 +13,7 @@ spec:
   # connector display name that will be appended to the title of "Login with"
   # button on the cluster login screen so it will say "Login with Github"
   display: Github
-  # mapping of Github team memberships to Gravity cluster roles
+  # mapping of Github team memberships to Teleport cluster roles
   teams_to_logins:
     - organization: <github-org>
       team: admins

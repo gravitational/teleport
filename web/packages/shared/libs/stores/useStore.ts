@@ -20,7 +20,7 @@ import Store from './store';
 // This is the primary method to subscribe to store updates
 // using React hooks mechanism.
 export default function useStore<T extends Store<any>>(store: T): T {
-  const [, rerender] = React.useState();
+  const [, rerender] = React.useState<any>();
   const memoizedState = React.useMemo(() => store.state, [store.state]);
 
   React.useEffect(() => {
