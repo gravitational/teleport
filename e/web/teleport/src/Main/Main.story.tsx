@@ -1,0 +1,74 @@
+import React from 'react';
+import { createMemoryHistory } from 'history';
+import { Router } from 'react-router';
+import { Flex } from 'design';
+import { ContextProvider } from 'teleport';
+import TeleportContextE from 'e-teleport/teleportContextE';
+import getFeatures from 'e-teleport/features';
+import { Main } from 'teleport/Main/Main';
+import { clusters } from 'teleport/Clusters/fixtures';
+import { nodes } from 'teleport/Nodes/fixtures';
+import { events } from 'teleport/Audit/fixtures';
+import { sessions } from 'teleport/Sessions/fixtures';
+import { apps } from 'teleport/Apps/fixtures';
+import { userContext } from 'teleport/Main/fixtures';
+import {
+  MockedWorkflowService,
+  MockedStoreAccessRequests,
+} from 'e-teleport/Workflow/fixtures';
+
+export default {
+  title: 'Teleport/Main',
+};
+
+export function Enterprise() {
+  const state = useMainStory();
+  return (
+    <Flex my={-3} mx={-4}>
+      <ContextProvider ctx={state.ctx}>
+        <Router history={state.history}>
+          <Main {...state} />
+        </Router>
+      </ContextProvider>
+    </Flex>
+  );
+}
+
+function useMainStory() {
+  const [history] = React.useState(() => {
+    return createMemoryHistory({
+      initialEntries: ['/web/cluster/one/nodes'],
+    });
+  });
+
+  const [ctx] = React.useState(() => {
+    const ctx = new TeleportContextE();
+    // mock services
+    ctx.isEnterprise = true;
+    ctx.auditService.fetchEvents = () =>
+      Promise.resolve({ overflow: false, events });
+    ctx.clusterService.fetchClusters = () => Promise.resolve(clusters);
+    ctx.nodeService.fetchNodes = () => Promise.resolve(nodes);
+    ctx.sshService.fetchSessions = () => Promise.resolve(sessions);
+    ctx.appService.fetchApps = () => Promise.resolve(apps);
+    ctx.storeUser.setState(userContext);
+    ctx.storeAccessRequests = new MockedStoreAccessRequests();
+    ctx.workflowService = new MockedWorkflowService(
+      ctx.storeUser.getUsername()
+    );
+
+    getFeatures().forEach(f => f.register(ctx));
+
+    return ctx;
+  });
+
+  const status = 'success' as const;
+  const statusText = '';
+
+  return {
+    history,
+    ctx,
+    status,
+    statusText,
+  };
+}

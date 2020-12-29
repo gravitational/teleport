@@ -1,20 +1,38 @@
-/*
-Copyright 2019 Gravitational, Inc.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
+import * as Icons from 'design/Icon';
 import * as Features from 'teleport/features';
+import Ctx from 'teleport/teleportContext';
+import cfg from 'e-teleport/config';
+import Workflow from 'e-teleport/Workflow';
+
+class FeatureWorkflow {
+  getTopNavTitle() {
+    return 'Activity';
+  }
+
+  route = {
+    group: 'activity',
+    title: 'Access Requests',
+    path: cfg.routes.requests,
+    component: Workflow,
+  };
+
+  register(ctx: Ctx) {
+    if (!ctx.getFeatureFlags().workflow) {
+      return;
+    }
+
+    ctx.storeNav.addSideItem({
+      group: 'activity',
+      title: 'Access Requests',
+      Icon: Icons.EqualizerVertical,
+      getLink() {
+        return cfg.routes.requests;
+      },
+    });
+
+    ctx.features.push(this);
+  }
+}
 
 export default function getFeatures() {
   return [
@@ -30,5 +48,6 @@ export default function getFeatures() {
     new Features.FeatureTrust(),
     new Features.FeatureHelpAndSupport(),
     new Features.FeatureAccount(),
+    new FeatureWorkflow(),
   ];
 }
