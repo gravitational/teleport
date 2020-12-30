@@ -11,17 +11,38 @@ import (
 
 func TestCreateAccessRequest(t *testing.T) {
 	m := &mockedAccessRequestAPIGetter{}
+	var createdReq services.AccessRequest
+	m.mockGetAccessRequests = func(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
+		return []services.AccessRequest{createdReq}, nil
+	}
+
 	m.mockCreateAccessRequest = func(ctx context.Context, req services.AccessRequest) error {
+		createdReq = req
 		require.Equal(t, req.GetUser(), "userFoo")
 		require.Equal(t, req.GetRoles(), []string{"*"})
 		require.Equal(t, req.GetRequestReason(), "some reason")
 		return nil
 	}
 
-	req, err := createAccessRequest(context.Background(), m, "some reason", "userFoo")
+	request := accessRequestParameters{
+		Reason: "some reason",
+	}
+
+	// Test with empty role requests, wild card is used.
+	req, err := createAccessRequest(context.Background(), m, request, "userFoo")
 	require.Nil(t, err)
 	require.NotEmpty(t, req.ID)
 	require.Equal(t, req.State, services.RequestState_PENDING.String())
+
+	// Test with specific roles requested.
+	request.Roles = []string{"role1", "role2"}
+	m.mockCreateAccessRequest = func(ctx context.Context, req services.AccessRequest) error {
+		require.ElementsMatch(t, req.GetRoles(), []string{"role1", "role2"})
+		return nil
+	}
+
+	_, err = createAccessRequest(context.Background(), m, request, "userFoo")
+	require.Nil(t, err)
 }
 
 func TestGetAccessRequest(t *testing.T) {
@@ -43,7 +64,7 @@ func TestGetAccessRequest(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, req.ID, requestID)
 	require.Equal(t, req.State, services.RequestState_APPROVED.String())
-	require.Equal(t, req.Reason, "resolved reason")
+	require.Equal(t, req.ResolveReason, "resolved reason")
 
 	// Test empty request id.
 	req, err = getAccessRequest(context.Background(), m, "", "fail")
@@ -57,6 +78,28 @@ func TestGetAccessRequest(t *testing.T) {
 	req, err = getAccessRequest(context.Background(), m, "1234", "foo")
 	require.Nil(t, req)
 	require.True(t, trace.IsNotFound(err))
+}
+
+func TestGetAccessRequests(t *testing.T) {
+	m := &mockedAccessRequestAPIGetter{}
+
+	m.mockGetAccessRequests = func(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {
+		req, err := services.NewAccessRequest("baz", []string{"bar"}...)
+		require.Nil(t, err)
+		req.SetState(services.RequestState_NONE)
+
+		req2, err := services.NewAccessRequest("foz", []string{"foo"}...)
+		require.Nil(t, err)
+
+		return []services.AccessRequest{req, req2}, nil
+	}
+
+	// Test request state set to NONE, is not returned.
+	reqs, err := getAccessRequests(context.Background(), m, services.AccessRequestFilter{})
+	require.Nil(t, err)
+
+	require.Len(t, reqs, 1)
+	require.Equal(t, reqs[0].State, services.RequestState_PENDING.String())
 }
 
 type mockedAccessRequestAPIGetter struct {
@@ -77,5 +120,5 @@ func (m *mockedAccessRequestAPIGetter) GetAccessRequests(ctx context.Context, fi
 		return m.mockGetAccessRequests(ctx, filter)
 	}
 
-	return nil, trace.NotImplemented("GetAccessRequests not implemented")
+	return nil, trace.NotImplemented("mockGetAccessRequests not implemented")
 }

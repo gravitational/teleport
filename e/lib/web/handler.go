@@ -50,6 +50,7 @@ func (p *Plugin) AddHandlers(h *web.Handler) {
 
 	h.POST("/enterprise/accessrequest", h.WithAuth(p.createAccessRequestHandle))
 	h.GET("/enterprise/accessrequest/:requestId", h.WithAuth(p.getAccessRequestHandle))
+	h.GET("/enterprise/accessrequest", h.WithAuth(p.getAccessRequestsHandle))
 
 	h.GET("/scripts/:token/install-node.sh", httplib.MakeHandler(p.getNodeJoinScriptHandle))
 	h.GET("/scripts/:token/install-app.sh", httplib.MakeHandler(p.getAppJoinScriptHandle))

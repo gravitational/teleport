@@ -23,27 +23,28 @@ func (p *Plugin) createAccessRequestHandle(w http.ResponseWriter, r *http.Reques
 		return nil, trace.Wrap(err)
 	}
 
-	return createAccessRequest(r.Context(), clt, req.Reason, ctx.GetUser())
+	return createAccessRequest(r.Context(), clt, *req, ctx.GetUser())
 }
 
-func createAccessRequest(ctx context.Context, clt accessRequestAPIGetter, reason, user string) (*ui.AccessRequest, error) {
-	// Initial version of web UI does not ask user to specify what roles to request.
-	// Wild card is used so that the auth server automatically fills in the request role
-	// the user is allowed to request as defined in their rbac yaml.
-	req, err := services.NewAccessRequest(user, []string{"*"}...)
+func createAccessRequest(ctx context.Context, clt accessRequestAPIGetter, request accessRequestParameters, user string) (*ui.AccessRequest, error) {
+	// If no specific roles were requested, then by default wild card is used which
+	// the auth server automatically fills in with all roles the user is allowed to request.
+	rolesRequested := []string{services.Wildcard}
+	if len(request.Roles) != 0 {
+		rolesRequested = request.Roles
+	}
+
+	req, err := services.NewAccessRequest(user, rolesRequested...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	req.SetRequestReason(reason)
+	req.SetRequestReason(request.Reason)
 
 	if err := clt.CreateAccessRequest(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &ui.AccessRequest{
-		ID:    req.GetMetadata().Name,
-		State: req.GetState().String(),
-	}, nil
+	return getAccessRequest(ctx, clt, req.GetMetadata().Name, user)
 }
 
 func (p *Plugin) getAccessRequestHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
@@ -76,19 +77,41 @@ func getAccessRequest(ctx context.Context, clt accessRequestAPIGetter, requestID
 		return nil, trace.NotFound("access request %q not found", requestID)
 	}
 
-	req := reqs[0]
+	return ui.NewAccessRequest(reqs[0])
+}
 
-	// Access Request state NONE is its empty value and the empty value
-	// is treated internally as an error, so it should return as an error.
-	if req.GetState().IsNone() {
-		return nil, trace.AccessDenied("access request %q, state is set to none", requestID)
+func (p *Plugin) getAccessRequestsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return &ui.AccessRequest{
-		ID:     req.GetMetadata().Name,
-		State:  req.GetState().String(),
-		Reason: req.GetResolveReason(),
-	}, nil
+	query := r.URL.Query()
+	filter := services.AccessRequestFilter{
+		User: query.Get("user"),
+	}
+
+	return getAccessRequests(r.Context(), clt, filter)
+}
+
+func getAccessRequests(ctx context.Context, clt accessRequestAPIGetter, filter services.AccessRequestFilter) ([]ui.AccessRequest, error) {
+	reqs, err := clt.GetAccessRequests(ctx, filter)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiReqs := make([]ui.AccessRequest, 0, len(reqs))
+	for _, req := range reqs {
+		uiReq, err := ui.NewAccessRequest(req)
+		if err != nil {
+			log.Warnf("Failed to process access request: %v", err)
+			continue
+		}
+
+		uiReqs = append(uiReqs, *uiReq)
+	}
+
+	return uiReqs, nil
 }
 
 type accessRequestAPIGetter interface {
@@ -100,5 +123,13 @@ type accessRequestAPIGetter interface {
 
 type accessRequestParameters struct {
 	// Reason is the AccessRequest request reason.
+	// Used interchangeably between reason why request is made and resolved reason.
 	Reason string `json:"reason"`
+	// State is the AccessRequest state.
+	State string `json:"state"`
+	// ID is the request ID.
+	ID string `json:"id"`
+	// Roles is the list of roles.
+	// Used interchangeably between roles requested by user and overriding roles.
+	Roles []string `json:"roles"`
 }
