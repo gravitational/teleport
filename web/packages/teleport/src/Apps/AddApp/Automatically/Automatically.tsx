@@ -28,6 +28,7 @@ import Validation, { Validator } from 'shared/components/Validation';
 import FieldInput from 'shared/components/FieldInput';
 import { DialogContent, DialogFooter } from 'design/Dialog';
 import { Attempt } from 'shared/hooks/useAttemptNext';
+
 export default function Automatically(props: Props) {
   const { cmd, onClose, attempt, expires } = props;
 
@@ -66,7 +67,7 @@ export default function Automatically(props: Props) {
                 width="320px"
                 mr="3"
                 onKeyPress={e => handleEnterPress(e, validator)}
-                onChange={e => setName(e.target.value)}
+                onChange={e => setName(e.target.value.toLowerCase())}
               />
               <FieldInput
                 rule={requiredAppUri}
@@ -151,7 +152,7 @@ function renderUrl(name = '') {
 }
 
 const requiredAppUri = value => () => {
-  if (!value || value.length === 0) {
+  if (!value) {
     return {
       valid: false,
       message: 'Required',
@@ -172,6 +173,14 @@ const requiredAppUri = value => () => {
   };
 };
 
+/**
+ * Conforms to rfc 1035 name syntax where:
+ * - name should start with alphabets and end with alphanumerics
+ * - interior characters are only alphanumerics and hyphens
+ * - string must be 63 chars or less
+ */
+const REGEX_DNS1035LABEL = /^[a-z]([-a-z0-9]*[a-z0-9])?$/;
+const DNS1035LABEL_MAXLENGTH = 63;
 const requiredAppName = value => () => {
   if (!value || value.length === 0) {
     return {
@@ -180,20 +189,18 @@ const requiredAppName = value => () => {
     };
   }
 
-  try {
-    const tmp = new URL(`https://${value}`);
-    if (tmp.hostname !== value) {
-      throw new Error();
-    }
-
-    // cannot be a sub-domain
-    if (tmp.hostname.split('.').length > 1) {
-      throw new Error();
-    }
-  } catch {
+  if (value.length > DNS1035LABEL_MAXLENGTH) {
     return {
       valid: false,
-      message: 'Invalid',
+      message: 'Must be 63 chars or less',
+    };
+  }
+
+  const match = value.match(REGEX_DNS1035LABEL);
+  if (!match) {
+    return {
+      valid: false,
+      message: 'Invalid DNS sub-domain name',
     };
   }
 
