@@ -1,5 +1,11 @@
 # Changelog
 
+## 5.1.0
+
+This release of Teleport adds a new feature.
+
+* Support for creating and assuming Access Workflow requests from within the Web UI (first step toward full Workflow UI support: [#4937](https://github.com/gravitational/teleport/issues/4937)).
+
 ## 5.0.2
 
 This release of Teleport contains a security fix.
