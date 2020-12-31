@@ -17,10 +17,6 @@ class FeatureWorkflow {
   };
 
   register(ctx: Ctx) {
-    if (!ctx.getFeatureFlags().workflow) {
-      return;
-    }
-
     ctx.storeNav.addSideItem({
       group: 'activity',
       title: 'Access Requests',
