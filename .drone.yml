@@ -1982,12 +1982,13 @@ steps:
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
-      - mkdir -m 0700 ~/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
-      - ssh-keyscan -H github.com > ~/.ssh/known_hosts 2>/dev/null && chmod 600 ~/.ssh/known_hosts
-      - git submodule update --init e
+      - mkdir -m 0700 $$WORKSPACE_DIR/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > $$WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $$WORKSPACE_DIR/.ssh/id_rsa
+      - ssh-keyscan -H github.com > $$WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
+      - chmod 600 $$WORKSPACE_DIR/.ssh/known_hosts
+      - GIT_SSH_COMMAND='ssh -i $$WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init e
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init --recursive webassets || true
-      - rm -f ~/.ssh/id_rsa
+      - GIT_SSH_COMMAND='ssh -i $$WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true
+      - rm -rf $$WORKSPACE_DIR/.ssh
       - mkdir -p $$WORKSPACE_DIR/go/artifacts $$WORKSPACE_DIR/go/cache
       - echo "${DRONE_TAG##v:-unknown}" > $$WORKSPACE_DIR/go/.version.txt
       - cat $$WORKSPACE_DIR/go/.version.txt
@@ -2086,12 +2087,13 @@ steps:
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
-      - mkdir -m 0700 ~/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > ~/.ssh/id_rsa && chmod 600 ~/.ssh/id_rsa
-      - ssh-keyscan -H github.com > ~/.ssh/known_hosts 2>/dev/null && chmod 600 ~/.ssh/known_hosts
-      - git submodule update --init e
+      - mkdir -m 0700 $$WORKSPACE_DIR/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > $$WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $$WORKSPACE_DIR/.ssh/id_rsa
+      - ssh-keyscan -H github.com > $$WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
+      - chmod 600 $$WORKSPACE_DIR/.ssh/known_hosts
+      - GIT_SSH_COMMAND='ssh -i $$WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init e
       # this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
-      - git submodule update --init --recursive webassets || true
-      - rm -f ~/.ssh/id_rsa
+      - GIT_SSH_COMMAND='ssh -i $$WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true
+      - rm -rf $$WORKSPACE_DIR/.ssh
       - mkdir -p $$WORKSPACE_DIR/go/artifacts $$WORKSPACE_DIR/go/cache
       - echo "${DRONE_TAG##v:-unknown}" > $$WORKSPACE_DIR/go/.version.txt
       - cat $$WORKSPACE_DIR/go/.version.txt
@@ -3350,6 +3352,6 @@ volumes:
 
 ---
 kind: signature
-hmac: fbdc2f8d4a0a9f47ab886d686e66990f3dadce7c8ad966d7a18346b0deb35855
+hmac: 7ea9d3d2d83e4c0b71a25bae69077bf6c7031350427333dab4c6c4d80def2d64
 
 ...
