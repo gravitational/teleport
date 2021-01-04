@@ -682,12 +682,14 @@ func (s *APIServer) deleteToken(auth ClientI, w http.ResponseWriter, r *http.Req
 }
 
 func (s *APIServer) deleteWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	user, sid := p.ByName("user"), p.ByName("sid")
-	err := auth.DeleteWebSession(user, sid)
+	user, sessionID := p.ByName("user"), p.ByName("sid")
+	err := auth.WebSessions().Delete(r.Context(), services.DeleteWebSessionRequest{
+		SessionID: sessionID,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return message(fmt.Sprintf("session %q for user %q deleted", sid, user)), nil
+	return message(fmt.Sprintf("session %q for user %q deleted", sessionID, user)), nil
 }
 
 func (s *APIServer) getWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {

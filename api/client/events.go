@@ -101,7 +101,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		default:
 			return nil, trace.BadParameter("only %q supported", types.WebSessionSubKinds)
 		}
-		// TODO(dmitri): handle WebTokenV1
+	case *types.WebTokenV1:
+		out.Resource = &proto.Event_WebToken{
+			WebToken: r,
+		}
 	case *types.RemoteClusterV3:
 		out.Resource = &proto.Event_RemoteCluster{
 			RemoteCluster: r,
@@ -186,7 +189,9 @@ func EventFromGRPC(in proto.Event) (*types.Event, error) {
 	} else if r := in.GetWebSession(); r != nil {
 		out.Resource = r
 		return &out, nil
-		// TODO(dmitri): handle WebTokenV1
+	} else if r := in.GetWebToken(); r != nil {
+		out.Resource = r
+		return &out, nil
 	} else if r := in.GetRemoteCluster(); r != nil {
 		out.Resource = r
 		return &out, nil

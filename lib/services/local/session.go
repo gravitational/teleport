@@ -99,37 +99,24 @@ func (s *IdentityService) DeleteAllAppSessions(ctx context.Context) error {
 
 // GetWebSession returns a web session state for the given user and session id
 func (s *IdentityService) GetWebSession(user, sessionID string) (services.WebSession, error) {
-	item, err := s.Get(context.TODO(), webSessionKey(sessionID))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(item.Value)
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-	if session != nil {
-		return session, nil
-	}
-	return getLegacyWebSession(context.TODO(), s.Backend, user, sessionID)
+	return s.WebSessions().Get(context.TODO(), services.GetWebSessionRequest{
+		User:      user,
+		SessionID: sessionID,
+	})
 }
 
 // UpsertWebSession updates or inserts a web session for the user and the session ID
-func (s *IdentityService) UpsertWebSession(user, sid string, session services.WebSession) error {
+func (s *IdentityService) UpsertWebSession(user, sessionID string, session services.WebSession) error {
 	session.SetUser(user)
-	session.SetName(sid)
+	session.SetName(sessionID)
 	return s.WebSessions().Upsert(context.TODO(), session)
 }
 
 // DeleteWebSession deletes web session from the storage.
-func (s *IdentityService) DeleteWebSession(user, sid string) error {
-	if user == "" {
-		return trace.BadParameter("missing username")
-	}
-	if sid == "" {
-		return trace.BadParameter("missing session id")
-	}
-	err := s.Delete(context.TODO(), backend.Key(webPrefix, sessionsPrefix, sid))
-	return trace.Wrap(err)
+func (s *IdentityService) DeleteWebSession(user, sessionID string) error {
+	return trace.Wrap(s.WebSessions().Delete(context.TODO(), services.DeleteWebSessionRequest{
+		SessionID: sessionID,
+	}))
 }
 
 // WebSessions returns the web sessions manager.
@@ -209,10 +196,7 @@ func (r *webSessions) Delete(ctx context.Context, req services.DeleteWebSessionR
 // DeleteAll removes all regular web sessions.
 func (r *webSessions) DeleteAll(ctx context.Context) error {
 	startKey := backend.Key(webPrefix, sessionsPrefix)
-	if err := r.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(r.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
 // DELETE IN 6.x.

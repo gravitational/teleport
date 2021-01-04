@@ -61,7 +61,6 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	saml2 "github.com/russellhaering/gosaml2"
-	"github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 	"golang.org/x/crypto/ssh"
 )
@@ -821,7 +820,7 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (s
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.UpsertWebSession(user, sess); err != nil {
+	if err := a.upsertWebSession(context.TODO(), user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess.WithoutSecrets(), nil
@@ -915,43 +914,19 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 		}
 	}
 
+	sessionTTL := utils.ToTTL(a.clock, expiresAt)
 	sess, err := a.NewWebSession(services.NewWebSessionRequest{
-		User:   user,
-		Roles:  roles,
-		Traits: traits,
+		User:       user,
+		Roles:      roles,
+		Traits:     traits,
+		SessionTTL: sessionTTL,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sess.SetExpiryTime(expiresAt)
-
-	bearerTokenTTL := utils.MinTTL(utils.ToTTL(a.clock, expiresAt), BearerTokenTTL)
-	// bearerTokenExpires := a.clock.Now().UTC().Add(bearerTokenTTL)
-	// sess.SetBearerTokenExpiryTime(bearerTokenExpires)
-	if err := a.UpsertWebSession(user, sess); err != nil {
+	if err := a.upsertWebSession(context.TODO(), user, sess); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// TODO(dmitri): add a bearer token
-	//
-	token := &services.WebTokenV1{
-		// FIXME(dmitri)
-		Kind:    services.KindWebSession,
-		SubKind: services.KindWebToken,
-		Version: services.V1,
-		Spec: services.WebTokenSpecV1{
-			User:    user,
-			Token:   sess.GetBearerToken(),
-			Expires: a.clock.Now().UTC().Add(bearerTokenTTL),
-		},
-	}
-	if err := a.WebTokens().Upsert(context.TODO(), token); err != nil {
-		log.WithFields(logrus.Fields{
-			logrus.ErrorKey: err,
-			"token":         sess.GetBearerToken(),
-			"session":       sess.GetName(),
-		}).Warn("Failed to update token.")
 	}
 
 	sess, err = services.ExtendWebSession(sess)
@@ -1012,7 +987,7 @@ func (a *Server) CreateWebSession(user string) (services.WebSession, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := a.UpsertWebSession(user, sess); err != nil {
+	if err := a.upsertWebSession(context.TODO(), user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return sess, nil
@@ -1531,7 +1506,6 @@ func (a *Server) NewWebSession(req services.NewWebSessionRequest) (services.WebS
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// FIXME(dmitri): move to req.CheckAndSetDefaults
 	sessionTTL := req.SessionTTL
 	if sessionTTL == 0 {
 		sessionTTL = checker.AdjustSessionTTL(defaults.CertDuration)
@@ -1564,10 +1538,6 @@ func (a *Server) NewWebSession(req services.NewWebSessionRequest) (services.WebS
 		BearerToken:        bearerToken,
 		BearerTokenExpires: a.clock.Now().UTC().Add(bearerTokenTTL),
 	}), nil
-}
-
-func (a *Server) UpsertWebSession(user string, sess services.WebSession) error {
-	return a.Identity.UpsertWebSession(user, sess.GetName(), sess)
 }
 
 // GetWebSessionByUser queries the web session using the specified user name and session ID
@@ -2068,6 +2038,20 @@ func WithClock(clock clockwork.Clock) func(*Server) {
 	return func(s *Server) {
 		s.clock = clock
 	}
+}
+
+func (a *Server) upsertWebSession(ctx context.Context, user string, session services.WebSession) error {
+	if err := a.WebSessions().Upsert(ctx, session); err != nil {
+		return trace.Wrap(err)
+	}
+	token := services.NewWebToken(session.GetBearerToken(), services.WebTokenSpecV1{
+		Token:   session.GetBearerToken(),
+		Expires: session.GetBearerTokenExpiryTime(),
+	})
+	if err := a.WebTokens().Upsert(ctx, token); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // authKeepAliver is a keep aliver using auth server directly
