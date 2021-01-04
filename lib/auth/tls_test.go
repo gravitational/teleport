@@ -1593,6 +1593,7 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 	_, _, _, _, err = ssh.ParseAuthorizedKey(pub)
 	c.Assert(err, check.IsNil)
 
+	// create a user with one requestable role
 	user := "user1"
 	role := "some-role"
 	_, err = CreateUserRoleAndRequestable(s.server.Auth(), user, role)
@@ -1603,6 +1604,30 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 	userClient, err := s.server.NewClient(testUser)
 	c.Assert(err, check.IsNil)
 
+	// Verify that user has correct requestable roles
+	caps, err := userClient.GetAccessCapabilities(context.TODO(), services.AccessCapabilitiesRequest{
+		RequestableRoles: true,
+	})
+	c.Assert(err, check.IsNil)
+	c.Assert(caps.RequestableRoles, check.DeepEquals, []string{role})
+
+	// create a user with no requestable roles
+	user2, _, err := CreateUserAndRole(s.server.Auth(), "user2", []string{"user2"})
+	c.Assert(err, check.IsNil)
+
+	testUser2 := TestUser(user2.GetName())
+	testUser2.TTL = time.Hour
+	userClient2, err := s.server.NewClient(testUser2)
+	c.Assert(err, check.IsNil)
+
+	// verify that no requestable roles are shown for user2
+	caps2, err := userClient2.GetAccessCapabilities(context.TODO(), services.AccessCapabilitiesRequest{
+		RequestableRoles: true,
+	})
+	c.Assert(err, check.IsNil)
+	c.Assert(caps2.RequestableRoles, check.HasLen, 0)
+
+	// create an allowable access request for user1
 	req, err := services.NewAccessRequest(user, role)
 	c.Assert(err, check.IsNil)
 

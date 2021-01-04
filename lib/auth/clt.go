@@ -2290,6 +2290,7 @@ type ClientI interface {
 	services.Presence
 	services.Access
 	services.DynamicAccess
+	services.DynamicAccessOracle
 	WebService
 	session.Service
 	services.ClusterConfiguration
