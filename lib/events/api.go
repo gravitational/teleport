@@ -578,6 +578,9 @@ type IAuditLog interface {
 	// DELETE IN: 5.0.0
 	EmitAuditEventLegacy(Event, EventFields) error
 
+	// EmitAuditEvent emits audit event
+	EmitAuditEvent(context.Context, AuditEvent) error
+	
 	// DELETE IN: 2.7.0
 	// This method is no longer necessary as nodes and proxies >= 2.7.0
 	// use UploadSessionRecording method.
