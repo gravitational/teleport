@@ -457,7 +457,8 @@ func (a *AuditWriter) closeStream(stream Stream) {
 func (a *AuditWriter) completeStream(stream Stream) {
 	ctx, cancel := context.WithTimeout(a.cfg.Context, defaults.NetworkBackoffDuration)
 	defer cancel()
-	if err := stream.Complete(ctx); err != nil {
+	err := stream.Complete(ctx)
+	if err != nil {
 		a.log.WithError(err).Warning("Failed to complete stream.")
 	}
 }

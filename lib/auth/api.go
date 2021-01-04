@@ -214,6 +214,9 @@ func (w *Wrapper) CreateAuditStream(ctx context.Context, sid session.ID) (events
 	return w.NoCache.CreateAuditStream(ctx, sid)
 }
 
+func (w *Wrapper) GetUploadMetadata(sid session.ID) events.UploadMetadata {
+	return events.UploadMetadata{}
+}
 // Close closes all associated resources
 func (w *Wrapper) Close() error {
 	err := w.NoCache.Close()

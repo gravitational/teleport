@@ -201,6 +201,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_DatabaseSessionQuery{
 			DatabaseSessionQuery: e,
 		}
+	case *SessionUpload:
+		out.Event = &OneOf_SessionUpload{
+			SessionUpload: e,
+		}
 	default:
 		return nil, trace.BadParameter("event type %T is not supported", in)
 	}
@@ -292,6 +296,8 @@ func FromOneOf(in OneOf) (AuditEvent, error) {
 	} else if e := in.GetDatabaseSessionEnd(); e != nil {
 		return e, nil
 	} else if e := in.GetDatabaseSessionQuery(); e != nil {
+		return e, nil
+	} else if e := in.GetSessionUpload(); e != nil {
 		return e, nil
 	} else {
 		if in.Event == nil {
