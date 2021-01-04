@@ -840,20 +840,24 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 		roles = append(roles, newRoles...)
 		roles = utils.Deduplicate(roles)
 
-		// Let session expire with access request expiry.
-		expiresAt = requestExpiry
+		// Let session expire with the shortest expiry time.
+		if expiresAt.After(requestExpiry) {
+			expiresAt = requestExpiry
+		}
 	}
 
 	sess, err := a.NewWebSession(user, roles, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	sess.SetExpiryTime(expiresAt)
 	bearerTokenTTL := utils.MinTTL(utils.ToTTL(a.clock, expiresAt), BearerTokenTTL)
 	sess.SetBearerTokenExpiryTime(a.clock.Now().UTC().Add(bearerTokenTTL))
 	if err := a.UpsertWebSession(user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	sess, err = services.GetWebSessionMarshaler().ExtendWebSession(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1669,6 +1673,14 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params services.Acce
 		log.WithError(err).Warn("Failed to emit access request update event.")
 	}
 	return trace.Wrap(err)
+}
+
+func (a *Server) GetAccessCapabilities(ctx context.Context, req services.AccessCapabilitiesRequest) (*services.AccessCapabilities, error) {
+	caps, err := services.CalculateAccessCapabilities(ctx, a, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return caps, nil
 }
 
 // calculateMaxAccessTTL determines the maximum allowable TTL for a given access request

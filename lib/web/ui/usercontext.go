@@ -60,6 +60,8 @@ type userACL struct {
 	AppServers access `json:"appServers"`
 	// SSH defines access to servers
 	SSHLogins []string `json:"sshLogins"`
+	// AccessRequests defines access to access requests.
+	AccessRequests access `json:"accessRequests"`
 }
 
 type authType string
@@ -81,6 +83,8 @@ type UserContext struct {
 	Cluster *Cluster `json:"cluster"`
 	// AccessStrategy describes how a user should access teleport resources.
 	AccessStrategy accessStrategy `json:"accessStrategy"`
+	// RequestableRoles are roles that the user can assume when requesting access.
+	RequestableRoles []string `json:"requestableRoles"`
 }
 
 func getLogins(roleSet services.RoleSet) []string {
@@ -163,10 +167,13 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 	tokenAccess := newAccess(userRoles, ctx, services.KindToken)
 	nodeAccess := newAccess(userRoles, ctx, services.KindNode)
 	appServerAccess := newAccess(userRoles, ctx, services.KindAppServer)
+	requestAccess := newAccess(userRoles, ctx, services.KindAccessRequest)
+
 	logins := getLogins(userRoles)
-	requestAccess := getAccessStrategy(userRoles)
+	accessStrategy := getAccessStrategy(userRoles)
 
 	acl := userACL{
+		AccessRequests:  requestAccess,
 		AppServers:      appServerAccess,
 		AuthConnectors:  authConnectors,
 		TrustedClusters: trustedClusterAccess,
@@ -196,6 +203,6 @@ func NewUserContext(user services.User, userRoles services.RoleSet) (*UserContex
 		Name:           user.GetName(),
 		ACL:            acl,
 		AuthType:       authType,
-		AccessStrategy: requestAccess,
+		AccessStrategy: accessStrategy,
 	}, nil
 }
