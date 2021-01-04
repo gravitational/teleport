@@ -1056,7 +1056,7 @@ func onListClusters(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
-	showActive := func(clusterName string) string {
+	showSelected := func(clusterName string) string {
 		if profile != nil && clusterName == profile.Cluster {
 			return "*"
 		}
@@ -1067,15 +1067,15 @@ func onListClusters(cf *CLIConf) {
 	if cf.Quiet {
 		t = asciitable.MakeHeadlessTable(4)
 	} else {
-		t = asciitable.MakeTable([]string{"Cluster Name", "Status", "Cluster Type", "Active"})
+		t = asciitable.MakeTable([]string{"Cluster Name", "Status", "Cluster Type", "Selected"})
 	}
 
 	t.AddRow([]string{
-		rootClusterName, teleport.RemoteClusterStatusOnline, "root", showActive(rootClusterName),
+		rootClusterName, teleport.RemoteClusterStatusOnline, "root", showSelected(rootClusterName),
 	})
 	for _, cluster := range leafClusters {
 		t.AddRow([]string{
-			cluster.GetName(), cluster.GetConnectionStatus(), "leaf", showActive(cluster.GetName()),
+			cluster.GetName(), cluster.GetConnectionStatus(), "leaf", showSelected(cluster.GetName()),
 		})
 	}
 	fmt.Println(t.AsBuffer().String())
