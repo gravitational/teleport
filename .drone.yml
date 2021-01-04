@@ -1959,14 +1959,13 @@ trigger:
 workspace:
   path: /tmp/build-darwin-amd64
 
-environment:
-  WORKSPACE_DIR: /tmp/build-darwin-amd64
-
 clone:
   disable: true
 
 steps:
   - name: Set up exec runner storage
+    environment:
+      WORKSPACE_DIR: /tmp/build-darwin-amd64
     commands:
       - mkdir -p $$WORKSPACE_DIR
       - chmod -R u+rw $$WORKSPACE_DIR
@@ -1976,6 +1975,7 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
+      WORKSPACE_DIR: /tmp/build-darwin-amd64
     commands:
       - mkdir -p $$WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       - cd $$WORKSPACE_DIR/go/src/github.com/gravitational/teleport
@@ -1998,11 +1998,14 @@ steps:
       GOCACHE: /tmp/build-darwin-amd64/go/cache
       OS: darwin
       ARCH: amd64
+      WORKSPACE_DIR: /tmp/build-darwin-amd64
     commands:
       - cd $$WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       - make clean release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
 
   - name: Copy Mac artifacts
+    environment:
+      WORKSPACE_DIR: /tmp/build-darwin-amd64
     commands:
       - cd $$WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
@@ -2020,11 +2023,14 @@ steps:
       AWS_SECRET_ACCESS_KEY:
         from_secret: AWS_SECRET_ACCESS_KEY
       AWS_REGION: us-west-2
+      WORKSPACE_DIR: /tmp/build-darwin-amd64
     commands:
       - cd $$WORKSPACE_DIR/go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
 
   - name: Clean up exec runner storage (post)
+    environment:
+      WORKSPACE_DIR: /tmp/build-darwin-amd64
     commands:
       - chmod -R u+rw $$WORKSPACE_DIR
       - rm -rf $$WORKSPACE_DIR/go
@@ -2057,14 +2063,13 @@ depends_on:
 workspace:
   path: /tmp/build-darwin-amd64-pkg
 
-environment:
-  WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
-
 clone:
   disable: true
 
 steps:
   - name: Set up exec runner storage
+    environment:
+      WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
     commands:
       - mkdir -p $$WORKSPACE_DIR
       - chmod -R u+rw $$WORKSPACE_DIR
@@ -2074,6 +2079,7 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
+      WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
     commands:
       - mkdir -p $$WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       - cd $$WORKSPACE_DIR/go/src/github.com/gravitational/teleport
@@ -2099,6 +2105,7 @@ steps:
       AWS_SECRET_ACCESS_KEY:
         from_secret: AWS_SECRET_ACCESS_KEY
       AWS_REGION: us-west-2
+      WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
     commands:
       - export VERSION=$(cat $$WORKSPACE_DIR/go/.version.txt)
       - export S3_PATH="tag/$${DRONE_TAG##v:-}/"
@@ -2111,12 +2118,15 @@ steps:
       ARCH: amd64
       OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
       ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
+      WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
     commands:
       - cd $$WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       - export VERSION=$(cat $$WORKSPACE_DIR/go/.version.txt)
       - make pkg OS=$OS ARCH=$ARCH
 
   - name: Copy Mac pkg artifacts
+    environment:
+      WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
     commands:
       - cd $$WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       # delete temporary tarball artifacts so we don't re-upload them in the next stage
@@ -2136,11 +2146,14 @@ steps:
       AWS_SECRET_ACCESS_KEY:
         from_secret: AWS_SECRET_ACCESS_KEY
       AWS_REGION: us-west-2
+      WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
     commands:
       - cd $$WORKSPACE_DIR/go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
 
   - name: Clean up exec runner storage
+    environment:
+      WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
     commands:
       - chmod -R u+rw $$WORKSPACE_DIR
       - rm -rf $$WORKSPACE_DIR/go
@@ -2173,14 +2186,13 @@ depends_on:
 workspace:
   path: /tmp/build-darwin-amd64-pkg-tsh
 
-environment:
-  WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
-
 clone:
   disable: true
 
 steps:
   - name: Set up exec runner storage
+    environment:
+      WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
     commands:
       - mkdir -p $$WORKSPACE_DIR
       - chmod -R u+rw $$WORKSPACE_DIR
@@ -2190,6 +2202,7 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
+      WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
     commands:
       - mkdir -p $$WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       - cd $$WORKSPACE_DIR/go/src/github.com/gravitational/teleport
@@ -2216,6 +2229,7 @@ steps:
       AWS_SECRET_ACCESS_KEY:
         from_secret: AWS_SECRET_ACCESS_KEY
       AWS_REGION: us-west-2
+      WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
     commands:
       - export VERSION=$(cat $$WORKSPACE_DIR/go/.version.txt)
       - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
@@ -2232,6 +2246,7 @@ steps:
       BUILDBOX_PASSWORD:
         from_secret: BUILDBOX_PASSWORD
       OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
+      WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
     commands:
       - cd $$WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       - export VERSION=$(cat $$WORKSPACE_DIR/go/.version.txt)
@@ -2245,6 +2260,8 @@ steps:
       - make pkg-tsh OS=$OS ARCH=$ARCH
 
   - name: Copy Mac tsh pkg artifacts
+    environment:
+      WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
     commands:
       - cd $$WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       # delete temporary tarball artifacts so we don't re-upload them in the next stage
@@ -2263,11 +2280,14 @@ steps:
       AWS_SECRET_ACCESS_KEY:
         from_secret: AWS_SECRET_ACCESS_KEY
       AWS_REGION: us-west-2
+      WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
     commands:
       - cd $$WORKSPACE_DIR/go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
 
   - name: Clean up exec runner storage
+    environment:
+      WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
     commands:
       - chmod -R u+rw $$WORKSPACE_DIR
       - rm -rf $$WORKSPACE_DIR/go $$WORKSPACE_DIR/.ssh
@@ -2301,13 +2321,14 @@ workspace:
 # saves wear and tear on the SD card, plus it's faster
 environment:
   TMPDIR: /dev/shm
-  WORKSPACE_DIR: /dev/shm/tmp
 
 clone:
   disable: true
 
 steps:
   - name: Clean up exec runner storage (pre)
+    environment:
+      WORKSPACE_DIR: /dev/shm/tmp
     commands:
       - chmod -R u+rw $$WORKSPACE_DIR
       - rm -rf $$WORKSPACE_DIR/go $$WORKSPACE_DIR/.ssh
@@ -2316,6 +2337,7 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
+      WORKSPACE_DIR: /dev/shm/tmp
     commands:
       - mkdir -p $$WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       - cd $$WORKSPACE_DIR/go/src/github.com/gravitational/teleport
@@ -2339,11 +2361,14 @@ steps:
       GOCACHE: /dev/shm/tmp/go/cache
       OS: linux
       ARCH: arm
+      WORKSPACE_DIR: /dev/shm/tmp
     commands:
       - cd $$WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       - make clean release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
 
   - name: Copy ARM artifacts
+    environment:
+      WORKSPACE_DIR: /dev/shm/tmp
     commands:
       - cd $$WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
@@ -2361,11 +2386,14 @@ steps:
       AWS_SECRET_ACCESS_KEY:
         from_secret: AWS_SECRET_ACCESS_KEY
       AWS_REGION: us-west-2
+      WORKSPACE_DIR: /dev/shm/tmp
     commands:
       - cd $$WORKSPACE_DIR/go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
 
   - name: Clean up exec runner storage (post)
+    environment:
+      WORKSPACE_DIR: /dev/shm/tmp
     commands:
       - chmod -R u+rw $$WORKSPACE_DIR
       - rm -rf $$WORKSPACE_DIR/go $$WORKSPACE_DIR/.ssh
@@ -2398,13 +2426,14 @@ workspace:
 # use ramfs for go build cache
 environment:
   TMPDIR: /dev/shm
-  WORKSPACE_DIR: /dev/shm/tmp
 
 clone:
   disable: true
 
 steps:
   - name: Clean up exec runner storage (pre)
+    environment:
+      WORKSPACE_DIR: /dev/shm/tmp
     commands:
       - chmod -R u+rw $$WORKSPACE_DIR
       - rm -rf $$WORKSPACE_DIR/go $$WORKSPACE_DIR/.ssh
@@ -2413,6 +2442,7 @@ steps:
     environment:
       GITHUB_PRIVATE_KEY:
         from_secret: GITHUB_PRIVATE_KEY
+      WORKSPACE_DIR: /dev/shm/tmp
     commands:
       - mkdir -p $$WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       - cd $$WORKSPACE_DIR/go/src/github.com/gravitational/teleport
@@ -2436,11 +2466,14 @@ steps:
       GOCACHE: /dev/shm/tmp/go/cache
       OS: linux
       ARCH: arm64
+      WORKSPACE_DIR: /dev/shm/tmp
     commands:
       - cd $$WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       - make clean release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
 
   - name: Copy ARM64 artifacts
+    environment:
+      WORKSPACE_DIR: /dev/shm/tmp
     commands:
       - cd $$WORKSPACE_DIR/go/src/github.com/gravitational/teleport
       # copy release archives to artifact directory
@@ -2458,11 +2491,14 @@ steps:
       AWS_SECRET_ACCESS_KEY:
         from_secret: AWS_SECRET_ACCESS_KEY
       AWS_REGION: us-west-2
+      WORKSPACE_DIR: /dev/shm/tmp
     commands:
       - cd $$WORKSPACE_DIR/go/artifacts
       - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
 
   - name: Clean up exec runner storage (post)
+    environment:
+      WORKSPACE_DIR: /dev/shm/tmp
     commands:
       - chmod -R u+rw $$WORKSPACE_DIR
       - rm -rf $$WORKSPACE_DIR/go $$WORKSPACE_DIR/.ssh
@@ -3314,6 +3350,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 3eaef6cec850a3aa8e4f12882e7b4a40dbaa6cc4141a325cbf620e02d61980c4
+hmac: fbdc2f8d4a0a9f47ab886d686e66990f3dadce7c8ad966d7a18346b0deb35855
 
 ...
