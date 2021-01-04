@@ -688,6 +688,6 @@ type NewWebSessionRequest struct {
 	// Traits optionally lists role traits
 	Traits map[string][]string
 	// SessionTTL optionally specifies the session time-to-live.
-	// If left unspecified, the default certifice duration is used.
+	// If left unspecified, the default certificate duration is used.
 	SessionTTL time.Duration
 }

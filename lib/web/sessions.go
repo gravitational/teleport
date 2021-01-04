@@ -29,10 +29,12 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -548,7 +550,9 @@ func (s *sessionCache) invalidateSession(ctx *SessionContext) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = clt.DeleteWebSession(ctx.GetUser(), ctx.session.GetName())
+	err = clt.WebSessions().Delete(context.TODO(), services.DeleteWebSessionRequest{
+		SessionID: ctx.session.GetName(),
+	})
 	return trace.Wrap(err)
 }
 

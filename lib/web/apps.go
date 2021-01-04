@@ -21,7 +21,6 @@ package web
 import (
 	"context"
 	"net/http"
-	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/backend"

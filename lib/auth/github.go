@@ -310,11 +310,10 @@ func (a *Server) createWebSession(ctx context.Context, req services.NewWebSessio
 		return nil, trace.Wrap(err)
 	}
 
-	err = a.UpsertWebSession(req.User, session)
+	err = a.upsertWebSession(ctx, req.User, session)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// FIXME(dmitri): upsert web token for the bearer token
 
 	return session, nil
 }

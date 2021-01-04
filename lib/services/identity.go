@@ -247,7 +247,7 @@ type AppSession interface {
 	DeleteAllAppSessions(context.Context) error
 }
 
-// TokensGetter provides access to tokens
+// WebTokensGetter provides access to web tokens
 type WebTokensGetter interface {
 	// WebTokens returns the tokens manager
 	WebTokens() WebTokenInterface
@@ -261,7 +261,7 @@ type WebTokenInterface interface {
 	// List gets all web tokens.
 	List(context.Context) ([]WebToken, error)
 
-	// Upsert updates existing or inserts a new web token
+	// Upsert updates existing or inserts a new web token.
 	Upsert(ctx context.Context, token WebToken) error
 
 	// Delete deletes the web token described by req.
@@ -279,13 +279,13 @@ type WebSessionsGetter interface {
 
 // WebSessionInterface defines interface to regular web sessions
 type WebSessionInterface interface {
-	// Get returns a web session state for the given request
+	// Get returns a web session state for the given request.
 	Get(ctx context.Context, req GetWebSessionRequest) (WebSession, error)
 
 	// List gets all regular web sessions.
 	List(context.Context) ([]WebSession, error)
 
-	// Upsert updates existing or inserts a new web session
+	// Upsert updates existing or inserts a new web session.
 	Upsert(ctx context.Context, session WebSession) error
 
 	// Delete deletes the web session described by req.

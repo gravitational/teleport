@@ -73,6 +73,8 @@ message Event {
             [ (gogoproto.jsontag) = "database_server,omitempty" ];
         // WebSession is a regular web session.
         types.WebSessionV2 WebSession = 18 [ (gogoproto.jsontag) = "web_session,omitempty" ];
+        // WebToken is a web token.
+        types.WebTokenV1 WebToken = 19 [ (gogoproto.jsontag) = "web_token,omitempty" ];
     }
 }
 
