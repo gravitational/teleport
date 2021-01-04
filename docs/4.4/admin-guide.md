@@ -1853,7 +1853,7 @@ When migrating backends, you should back up your auth server's `data_dir/storage
 
 ``` bash
 # export dynamic configuration state from old cluster
-$ tctl get all > state.yaml
+$ tctl get all --with-secrets > state.yaml
 
 # prepare a new uninitialized backend (make sure to port
 # any non-default config values from the old config file)
@@ -1875,6 +1875,7 @@ by auth server on first start), so it is safe for use in supervised/HA contexts.
 
 **Limitations**
 
+- The `--bootstrap` flag doesn't re-trigger trusted cluster handshakes, so trusted cluster resources need to be recreated manually.
 - All the same limitations around modifying the config file of an existing cluster also apply to a new cluster being bootstrapped from the state of an old cluster. Of particular note:
     - Changing cluster name will break your CAs (this will be caught and teleport will refuse to start).
     - Some user authentication mechanisms (e.g. u2f) require that the public endpoint of the web ui remains the same (this can't be caught by teleport, be careful!).
