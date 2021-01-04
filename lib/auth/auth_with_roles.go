@@ -41,11 +41,9 @@ import (
 // ServerWithRoles is a wrapper around auth service
 // methods that focuses on authorizing every request
 type ServerWithRoles struct {
-	authServer  *Server
-	webSessions *webSessionsWithRoles
-	webTokens   *webTokensWithRoles
-	sessions    session.Service
-	alog        events.IAuditLog
+	authServer *Server
+	sessions   session.Service
+	alog       events.IAuditLog
 	// context holds authorization context
 	context Context
 }
@@ -824,7 +822,8 @@ func (a *ServerWithRoles) DeleteWebSession(user string, sid string) error {
 // GetWebSession returns the web session specified with req.
 // Implements auth.ReadAccessPoint.
 func (a *ServerWithRoles) GetWebSession(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
-	return a.webSessions.Get(ctx, req)
+	ws := &webSessionsWithRoles{c: a, ws: a.authServer.WebSessions()}
+	return ws.Get(ctx, req)
 }
 
 // WebSessions returns the web session manager.
@@ -876,6 +875,13 @@ func (r *webSessionsWithRoles) DeleteAll(ctx context.Context) error {
 	return r.ws.DeleteAll(ctx)
 }
 
+// GetWebToken returns the web token specified with req.
+// Implements auth.ReadAccessPoint.
+func (a *ServerWithRoles) GetWebToken(ctx context.Context, req services.GetWebTokenRequest) (services.WebToken, error) {
+	t := &webTokensWithRoles{c: a, t: a.authServer.WebTokens()}
+	return t.Get(ctx, req)
+}
+
 type webSessionsWithRoles struct {
 	c  accessChecker
 	ws services.WebSessionInterface
@@ -884,7 +890,7 @@ type webSessionsWithRoles struct {
 // WebTokens returns the web tokenmanager.
 // Implements services.WebTokensGetter.
 func (a *ServerWithRoles) WebTokens() services.WebTokenInterface {
-	return a.webTokens
+	return a.authServer.WebTokens()
 }
 
 // Get returns the web token specified with req.
@@ -2484,7 +2490,5 @@ func NewAdminAuthServer(authServer *Server, sessions session.Service, alog event
 		alog:       alog,
 		sessions:   sessions,
 	}
-	s.webSessions = &webSessionsWithRoles{c: s, ws: authServer.WebSessions()}
-	s.webTokens = &webTokensWithRoles{c: s, t: authServer.WebTokens()}
 	return s, nil
 }

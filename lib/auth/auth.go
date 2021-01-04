@@ -164,6 +164,12 @@ func (r Services) GetWebSession(ctx context.Context, req services.GetWebSessionR
 	return r.Identity.WebSessions().Get(ctx, req)
 }
 
+// GetWebToken returns existing web token described by req.
+// Implements ReadAccessPoint
+func (r Services) GetWebToken(ctx context.Context, req services.GetWebTokenRequest) (services.WebToken, error) {
+	return r.Identity.WebTokens().Get(ctx, req)
+}
+
 var (
 	generateRequestsCount = prometheus.NewCounter(
 		prometheus.CounterOpts{
@@ -805,7 +811,11 @@ func (a *Server) PreAuthenticatedSignIn(user string, identity tlsca.Identity) (s
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := a.NewWebSession(user, roles, traits)
+	sess, err := a.NewWebSession(services.NewWebSessionRequest{
+		User:   user,
+		Roles:  roles,
+		Traits: traits,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -894,7 +904,11 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 		}
 	}
 
-	sess, err := a.NewWebSession(user, roles, traits)
+	sess, err := a.NewWebSession(services.NewWebSessionRequest{
+		User:   user,
+		Roles:  roles,
+		Traits: traits,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -979,7 +993,11 @@ func (a *Server) CreateWebSession(user string) (services.WebSession, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, err := a.NewWebSession(user, u.GetRoles(), u.GetTraits())
+	sess, err := a.NewWebSession(services.NewWebSessionRequest{
+		User:   user,
+		Roles:  u.GetRoles(),
+		Traits: u.GetTraits(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1493,12 +1511,12 @@ func (a *Server) GetTokens(opts ...services.MarshalOption) (tokens []services.Pr
 }
 
 // NewWebSession creates and returns a new web session for the specified user, given role and traits
-func (a *Server) NewWebSession(username string, roles []string, traits wrappers.Traits) (services.WebSession, error) {
-	user, err := a.GetUser(username, false)
+func (a *Server) NewWebSession(req services.NewWebSessionRequest) (services.WebSession, error) {
+	user, err := a.GetUser(req.User, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	checker, err := services.FetchRoles(roles, a.Access, traits)
+	checker, err := services.FetchRoles(req.Roles, a.Access, req.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1506,13 +1524,17 @@ func (a *Server) NewWebSession(username string, roles []string, traits wrappers.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sessionTTL := checker.AdjustSessionTTL(defaults.CertDuration)
+	// FIXME(dmitri): move to req.CheckAndSetDefaults
+	sessionTTL := req.SessionTTL
+	if sessionTTL == 0 {
+		sessionTTL = checker.AdjustSessionTTL(defaults.CertDuration)
+	}
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
 		ttl:       sessionTTL,
 		publicKey: pub,
 		checker:   checker,
-		traits:    traits,
+		traits:    req.Traits,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1527,7 +1549,7 @@ func (a *Server) NewWebSession(username string, roles []string, traits wrappers.
 	}
 	bearerTokenTTL := utils.MinTTL(sessionTTL, BearerTokenTTL)
 	return services.NewWebSession(token, services.KindWebSession, services.KindWebSession, services.WebSessionSpecV2{
-		User:               user.GetName(),
+		User:               req.User,
 		Priv:               priv,
 		Pub:                certs.ssh,
 		TLSCert:            certs.tls,

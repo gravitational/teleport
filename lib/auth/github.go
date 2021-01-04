@@ -259,7 +259,12 @@ func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, 
 
 	// If the request is coming from a browser, create a web session.
 	if req.CreateWebSession {
-		session, err := a.createWebSession(user, params.sessionTTL)
+		session, err := a.createWebSession(context.TODO(), services.NewWebSessionRequest{
+			User:       user.GetName(),
+			Roles:      user.GetRoles(),
+			Traits:     user.GetTraits(),
+			SessionTTL: params.sessionTTL,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -296,27 +301,20 @@ func (a *Server) validateGithubAuthCallback(q url.Values) (*githubAuthResponse, 
 	return re, nil
 }
 
-func (a *Server) createWebSession(user services.User, sessionTTL time.Duration) (services.WebSession, error) {
+func (a *Server) createWebSession(ctx context.Context, req services.NewWebSessionRequest) (services.WebSession, error) {
 	// It's safe to extract the roles and traits directly from services.User
 	// because this occurs during the user creation process and services.User
 	// is not fetched from the backend.
-	session, err := a.NewWebSession(user.GetName(), user.GetRoles(), user.GetTraits())
+	session, err := a.NewWebSession(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Session expiry time is the same as the user expiry time.
-	session.SetExpiryTime(a.clock.Now().UTC().Add(sessionTTL))
-
-	// FIXME(dmitri)
-	// Bearer tokens expire quicker than the overall session time and need to be refreshed.
-	// bearerTTL := utils.MinTTL(BearerTokenTTL, sessionTTL)
-	// session.SetBearerTokenExpiryTime(a.clock.Now().UTC().Add(bearerTTL))
-
-	err = a.UpsertWebSession(user.GetName(), session)
+	err = a.UpsertWebSession(req.User, session)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	// FIXME(dmitri): upsert web token for the bearer token
 
 	return session, nil
 }

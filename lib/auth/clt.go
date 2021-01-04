@@ -2402,6 +2402,7 @@ type ClientI interface {
 	services.ClusterConfiguration
 	services.Events
 	services.WebSessionsGetter
+	services.WebTokensGetter
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
@@ -2453,4 +2454,8 @@ type ClientI interface {
 	// GetWebSession queries the existing web session described with req.
 	// Implements ReadAccessPoint.
 	GetWebSession(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error)
+
+	// GetWebToken queries the existing web token described with req.
+	// Implements ReadAccessPoint.
+	GetWebToken(ctx context.Context, req services.GetWebTokenRequest) (services.WebToken, error)
 }

@@ -28,4 +28,5 @@ type Services interface {
 	Presence
 	AppSession
 	WebSessionsGetter
+	WebTokensGetter
 }

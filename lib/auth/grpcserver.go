@@ -1237,14 +1237,6 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 		sessions:   g.SessionService,
 		alog:       g.AuthServer.IAuditLog,
 	}
-	srv.webSessions = &webSessionsWithRoles{
-		c:  srv,
-		ws: g.AuthServer.WebSessions(),
-	}
-	srv.webTokens = &webTokensWithRoles{
-		c: srv,
-		t: g.AuthServer.WebTokens(),
-	}
 	return &grpcContext{
 		Context:         authContext,
 		ServerWithRoles: srv,

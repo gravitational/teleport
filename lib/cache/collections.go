@@ -142,13 +142,12 @@ func setupCollections(c *Cache, watches []services.WatchKind) (map[resourceKind]
 					return nil, trace.BadParameter("missing parameter WebSession")
 				}
 				collections[resourceKind] = &webSession{watch: watch, Cache: c}
-			case services.KindWebToken:
-				// FIXME(dmitri): move this to a dedicated kind
-				if c.WebToken == nil {
-					return nil, trace.BadParameter("missing parameter WebToken")
-				}
-				collections[resourceKind] = &webToken{watch: watch, Cache: c}
 			}
+		case services.KindWebToken:
+			if c.WebToken == nil {
+				return nil, trace.BadParameter("missing parameter WebToken")
+			}
+			collections[resourceKind] = &webToken{watch: watch, Cache: c}
 		case services.KindKubeService:
 			if c.Presence == nil {
 				return nil, trace.BadParameter("missing parameter Presence")
@@ -1578,7 +1577,6 @@ func (r *webToken) processEvent(ctx context.Context, event services.Event) error
 	case backend.OpDelete:
 		r.WithField("token", event.Resource.GetName()).Info("Delete web token.")
 		err := r.webTokenCache.Delete(ctx, services.DeleteWebTokenRequest{
-			// FIXME(dmitri)
 			Token: event.Resource.GetName(),
 		})
 		if err != nil {

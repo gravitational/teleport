@@ -387,16 +387,11 @@ func (s *Server) emitNoLocalAuthEvent(username string) {
 func (s *Server) createUserWebSession(ctx context.Context, user services.User) (services.WebSession, error) {
 	// It's safe to extract the roles and traits directly from services.User as this method
 	// is only used for local accounts.
-	sess, err := s.NewWebSession(user.GetName(), user.GetRoles(), user.GetTraits())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	err = s.UpsertWebSession(user.GetName(), sess)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return sess, nil
+	return s.createWebSession(ctx, services.NewWebSessionRequest{
+		User:   user.GetName(),
+		Roles:  user.GetRoles(),
+		Traits: user.GetTraits(),
+	})
 }
 
 const noLocalAuth = "local auth disabled"
