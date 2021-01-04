@@ -134,7 +134,7 @@ func Register(params RegisterParams) (*Identity, error) {
 		if err != nil {
 			collectedErrs = append(collectedErrs, err)
 			log.WithError(err).Debugf("Registration %s failed.", method.desc)
-			if i < len(registerMethods)-1 {
+			if i+1 < len(registerMethods) {
 				log.Infof("Unable to register %s, falling back to registration %s.",
 					method.desc, registerMethods[i+1].desc)
 			}
