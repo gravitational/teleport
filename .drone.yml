@@ -1991,7 +1991,7 @@ steps:
       - GIT_SSH_COMMAND='ssh -i $$WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true
       - rm -rf $$WORKSPACE_DIR/.ssh
       - mkdir -p $$WORKSPACE_DIR/go/artifacts $$WORKSPACE_DIR/go/cache
-      - echo "${DRONE_TAG##v:-unknown}" > $$WORKSPACE_DIR/go/.version.txt
+      - echo "${DRONE_TAG##v}" > $$WORKSPACE_DIR/go/.version.txt
       - cat $$WORKSPACE_DIR/go/.version.txt
 
   - name: Build Mac release artifacts
@@ -2097,7 +2097,7 @@ steps:
       - GIT_SSH_COMMAND='ssh -i $$WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true
       - rm -rf $$WORKSPACE_DIR/.ssh
       - mkdir -p $$WORKSPACE_DIR/go/artifacts $$WORKSPACE_DIR/go/cache
-      - echo "${DRONE_TAG##v:-unknown}" > $$WORKSPACE_DIR/go/.version.txt
+      - echo "${DRONE_TAG##v}" > $$WORKSPACE_DIR/go/.version.txt
       - cat $$WORKSPACE_DIR/go/.version.txt
 
   - name: Download built tarball artifacts from S3
@@ -2222,7 +2222,7 @@ steps:
       - GIT_SSH_COMMAND='ssh -i $$WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true
       - rm -rf $$WORKSPACE_DIR/.ssh
       - mkdir -p $$WORKSPACE_DIR/go/artifacts $$WORKSPACE_DIR/go/cache
-      - echo "${DRONE_TAG##v:-unknown}" > $$WORKSPACE_DIR/go/.version.txt
+      - echo "${DRONE_TAG##v}" > $$WORKSPACE_DIR/go/.version.txt
       - cat $$WORKSPACE_DIR/go/.version.txt
 
   - name: Download built tarball artifact from S3
@@ -2357,7 +2357,7 @@ steps:
       - GIT_SSH_COMMAND='ssh -i $$WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true
       - rm -rf $$WORKSPACE_DIR/.ssh
       - mkdir -p $$WORKSPACE_DIR/go/artifacts $$WORKSPACE_DIR/go/cache
-      - echo "${DRONE_TAG##v:-unknown}" > $$WORKSPACE_DIR/go/.version.txt
+      - echo "${DRONE_TAG##v}" > $$WORKSPACE_DIR/go/.version.txt
       - cat $$WORKSPACE_DIR/go/.version.txt
 
   - name: Build ARM release artifacts
@@ -2462,7 +2462,7 @@ steps:
       - GIT_SSH_COMMAND='ssh -i $$WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init --recursive webassets || true
       - rm -rf $$WORKSPACE_DIR/.ssh
       - mkdir -p $$WORKSPACE_DIR/go/artifacts $$WORKSPACE_DIR/go/cache
-      - echo "${DRONE_TAG##v:-unknown}" > $$WORKSPACE_DIR/go/.version.txt
+      - echo "${DRONE_TAG##v}" > $$WORKSPACE_DIR/go/.version.txt
       - cat $$WORKSPACE_DIR/go/.version.txt
 
   - name: Build ARM64 release artifacts
@@ -3355,6 +3355,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 7b4b2c8fb047134f4066f629f2a3aea9921e391dfdd5cde3eeb831ccda960835
+hmac: 77fd7c0038f2efb91017eca88a0469783029712598ddc3f69607a7f1f767f9c3
 
 ...
