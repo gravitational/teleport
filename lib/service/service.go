@@ -1041,7 +1041,7 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 
 		auditConfig := cfg.Auth.ClusterConfig.GetAuditConfig()
-		uploadHandler, err := initUploadHandler(
+		uploadHandler, err = initUploadHandler(
 			auditConfig, filepath.Join(cfg.DataDir, teleport.LogsDir))
 		if err != nil {
 			if !trace.IsNotFound(err) {
@@ -1099,6 +1099,7 @@ func (process *TeleportProcess) initAuthService() error {
 		uploadCompleter, err = events.NewUploadCompleter(events.UploadCompleterConfig{
 			Uploader:  uploadHandler,
 			Component: teleport.ComponentAuth,
+			AuditLog:  process.auditLog,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -1179,6 +1180,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Authorizer:     authorizer,
 		AuditLog:       process.auditLog,
 		Emitter:        checkingEmitter,
+		MetadataGetter: streamer,
 	}
 
 	var authCache auth.Cache
@@ -1932,6 +1934,7 @@ func (process *TeleportProcess) initUploaderService(accessPoint auth.AccessPoint
 	fileUploader, err := filesessions.NewUploader(filesessions.UploaderConfig{
 		ScanDir:  filepath.Join(streamingDir...),
 		Streamer: accessPoint,
+		AuditLog: auditLog,
 		EventsC:  process.Config.UploadEventsC,
 	})
 	if err != nil {

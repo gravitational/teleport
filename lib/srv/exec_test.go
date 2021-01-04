@@ -502,11 +502,19 @@ func (f *fakeServer) GetBPF() bpf.BPF {
 	return &bpf.NOP{}
 }
 
+func (f *fakeServer) GetUploadMetadata(sid rsession.ID) events.UploadMetadata {
+	return events.UploadMetadata{}
+}
+
 // fakeLog is used in tests to obtain the last event emit to the Audit Log.
 type fakeLog struct {
 }
 
 func (a *fakeLog) EmitAuditEventLegacy(e events.Event, f events.EventFields) error {
+	return trace.NotImplemented("not implemented")
+}
+
+func (a *fakeLog) EmitAuditEvent(ctx context.Context, e events.AuditEvent) error {
 	return trace.NotImplemented("not implemented")
 }
 

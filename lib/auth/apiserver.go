@@ -56,6 +56,8 @@ type APIConfig struct {
 	// KeepAliveCount specifies amount of missed keep alives
 	// to wait for until declaring connection as broken
 	KeepAliveCount int
+	// metadataGetter gets upload metadata
+	MetadataGetter events.UploadMetadataGetter
 }
 
 // CheckAndSetDefaults checks and sets default values

@@ -35,7 +35,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -174,7 +173,7 @@ type AuditLogConfig struct {
 
 	// UploadHandler is a pluggable external upload handler,
 	// used to fetch sessions from external sources
-	UploadHandler UploadHandler
+	UploadHandler MultipartHandler
 
 	// ExternalLog is a pluggable external log service
 	ExternalLog IAuditLog
@@ -233,7 +232,7 @@ func (a *AuditLogConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Creates and returns a new Audit Log object whish will store its logfiles in
+// NewAuditLog creates and returns a new Audit Log object whish will store its logfiles in
 // a given directory. Session recording can be disabled by setting
 // recordSessions to false.
 func NewAuditLog(cfg AuditLogConfig) (*AuditLog, error) {
@@ -957,7 +956,16 @@ func (l *AuditLog) fetchSessionEvents(fileName string, afterN int) ([]EventField
 
 // EmitAuditEvent adds a new event to the local file log
 func (l *AuditLog) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
-	err := l.localLog.EmitAuditEvent(ctx, event)
+	// If an external logger has been set, use it as the emitter, otherwise
+	// fallback to the local disk based emitter.
+	var emitAuditEvent func(ctx context.Context, event AuditEvent) error
+
+	if l.ExternalLog != nil {
+		emitAuditEvent = l.ExternalLog.EmitAuditEvent
+	} else {
+		emitAuditEvent = l.localLog.EmitAuditEvent
+	}
+	err := emitAuditEvent(ctx, event)
 	if err != nil {
 		auditFailedEmit.Inc()
 		return trace.Wrap(err)
