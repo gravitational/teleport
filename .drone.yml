@@ -1969,7 +1969,7 @@ steps:
     commands:
       - mkdir -p $$WORKSPACE_DIR
       - chmod -R u+rw $$WORKSPACE_DIR
-      - rm -rf $$WORKSPACE_DIR/go
+      - rm -rf $$WORKSPACE_DIR/go $$WORKSPACE_DIR/.ssh
 
   - name: Check out code
     environment:
@@ -2035,7 +2035,7 @@ steps:
       WORKSPACE_DIR: /tmp/build-darwin-amd64
     commands:
       - chmod -R u+rw $$WORKSPACE_DIR
-      - rm -rf $$WORKSPACE_DIR/go
+      - rm -rf $$WORKSPACE_DIR/go $$WORKSPACE_DIR/.ssh
 
 ---
 kind: pipeline
@@ -2075,7 +2075,7 @@ steps:
     commands:
       - mkdir -p $$WORKSPACE_DIR
       - chmod -R u+rw $$WORKSPACE_DIR
-      - rm -rf $$WORKSPACE_DIR/go
+      - rm -rf $$WORKSPACE_DIR/go $$WORKSPACE_DIR/.ssh
 
   - name: Check out code
     environment:
@@ -2160,7 +2160,7 @@ steps:
       WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
     commands:
       - chmod -R u+rw $$WORKSPACE_DIR
-      - rm -rf $$WORKSPACE_DIR/go
+      - rm -rf $$WORKSPACE_DIR/go $$WORKSPACE_DIR/.ssh
 
 ---
 kind: pipeline
@@ -2200,7 +2200,7 @@ steps:
     commands:
       - mkdir -p $$WORKSPACE_DIR
       - chmod -R u+rw $$WORKSPACE_DIR
-      - rm -rf $$WORKSPACE_DIR/go
+      - rm -rf $$WORKSPACE_DIR/go $$WORKSPACE_DIR/.ssh
 
   - name: Check out code
     environment:
@@ -3355,6 +3355,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 77fd7c0038f2efb91017eca88a0469783029712598ddc3f69607a7f1f767f9c3
+hmac: 42e2b39535942fc309d569f7ecf0920abbf2fef62031da74d4e3ad7f342618de
 
 ...
