@@ -46,26 +46,29 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// SessionContext is a context associated with users'
-// web session, it stores connected client that persists
-// between requests for example to avoid connecting
-// to the auth server on every page hit
+// SessionContext is a context associated with a user's
+// web session. An instance of the context is created for
+// each web session generated for the user and provides
+// a basic client cache for remote auth server connections.
 type SessionContext struct {
 	log    logrus.FieldLogger
 	user   string
 	clt    auth.ClientI
 	parent *sessionCache
+	// ctx is a persistent session context this context is bound to.
+	// We need a persistent context to be able to maintain a list of resources
+	// between session renewals
+	ctx *sessionContext
 	// session refers the web session created for the user.
 	session services.WebSession
 
 	mu        sync.Mutex
 	remoteClt map[string]auth.ClientI
-	closers   []io.Closer
 }
 
 // String returns the text representation of this context
 func (c *SessionContext) String() string {
-	return fmt.Sprintf("session(user=%v,id=%v,ttl=%v)",
+	return fmt.Sprintf("WebSession(user=%v,id=%v,ttl=%v)",
 		c.user,
 		c.session.GetName(),
 		c.session.GetExpiryTime(),
@@ -74,21 +77,12 @@ func (c *SessionContext) String() string {
 
 // AddClosers adds the specified closers to this context
 func (c *SessionContext) AddClosers(closers ...io.Closer) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.closers = append(c.closers, closers...)
+	c.ctx.addClosers(closers...)
 }
 
 // RemoevCloser removes the specified closer from this context
 func (c *SessionContext) RemoveCloser(closer io.Closer) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	for i, cls := range c.closers {
-		if cls == closer {
-			c.closers = append(c.closers[:i], c.closers[i+1:]...)
-			return
-		}
-	}
+	c.ctx.removeCloser(closer)
 }
 
 // Invalidate invalidates this context by removing the underlying session
@@ -97,8 +91,8 @@ func (c *SessionContext) Invalidate() error {
 	return c.parent.invalidateSession(c)
 }
 
-func (c *SessionContext) validateBearerToken(token string) error {
-	_, err := readBearerToken(ctx, c.parent.accessPoint, services.GetTokenRequest{
+func (c *SessionContext) validateBearerToken(ctx context.Context, token string) error {
+	_, err := readBearerToken(ctx, c.parent.accessPoint, services.GetWebTokenRequest{
 		User:  c.user,
 		Token: token,
 	})
@@ -139,7 +133,7 @@ func (c *SessionContext) GetUserClient(site reversetunnel.RemoteSite) (auth.Clie
 		return c.clt, nil
 	}
 
-	// look to see if we already have a connection to this cluster
+	// check if we already have a connection to this cluster
 	remoteClt, ok := c.getRemoteClient(site.GetName())
 	if !ok {
 		rClt, err := c.newRemoteClient(site)
@@ -240,14 +234,9 @@ func (c *SessionContext) GetUser() string {
 	return c.user
 }
 
-// GetWebSession returns a web session
-func (c *SessionContext) GetWebSession() services.WebSession {
-	return c.session
-}
-
-// ExtendWebSession creates a new web session for this user
+// extendWebSession creates a new web session for this user
 // based on the previous session
-func (c *SessionContext) ExtendWebSession(accessRequestID string) (services.WebSession, error) {
+func (c *SessionContext) extendWebSession(accessRequestID string) (services.WebSession, error) {
 	session, err := c.clt.ExtendWebSession(c.user, c.session.GetName(), accessRequestID)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -312,34 +301,30 @@ func (c *SessionContext) GetSessionID() string {
 // Close cleans up resources associated with this context and removes it
 // from the user context
 func (c *SessionContext) Close() error {
-	closers := c.transferClosers()
-	for _, closer := range closers {
-		c.log.Debugf("Closing %v.", closer)
-		closer.Close()
-	}
-	if c.clt != nil {
-		return trace.Wrap(c.clt.Close())
-	}
-	return nil
-}
-
-func (c *SessionContext) transferClosers() []io.Closer {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	closers := c.closers
-	c.closers = nil
-	return closers
+	var errors []error
+	for _, clt := range c.remoteClt {
+		if err := clt.Close(); err != nil {
+			errors = append(errors, err)
+		}
+	}
+	if err := c.clt.Close(); err != nil {
+		errors = append(errors, err)
+	}
+	return trace.NewAggregate(errors...)
 }
 
 func (c *SessionContext) validateSession(ctx context.Context, session services.WebSession) (*SessionContext, error) {
-	return c.parent.ValidateSession(ctx, session.GetUser(), session.GetName())
+	return c.parent.validateSession(ctx, session.GetUser(), session.GetName())
 }
 
-func (c *SessionContext) getToken() services.Token {
-	return services.Token{
-		Token:   c.session.GetBearerToken(),
-		Expires: c.session.GetBearerTokenExpiryTime(),
-	}
+func (c *SessionContext) getToken() services.WebToken {
+	return services.NewWebToken(c.session.GetBearerToken(),
+		services.WebTokenSpecV1{
+			Token:   c.session.GetBearerToken(),
+			Expires: c.session.GetBearerTokenExpiryTime(),
+		})
 }
 
 // expired returns whether this context has expired.
@@ -367,7 +352,8 @@ func newSessionCache(config *sessionCache) (*sessionCache, error) {
 		clusterName:  clusterName.GetClusterName(),
 		proxyClient:  config.proxyClient,
 		accessPoint:  config.accessPoint,
-		contexts:     make(map[string]*SessionContext),
+		sessions:     make(map[string]*SessionContext),
+		contexts:     make(map[string]*sessionContext),
 		authServers:  config.authServers,
 		closer:       utils.NewCloseBroadcaster(),
 		cipherSuites: config.cipherSuites,
@@ -393,8 +379,10 @@ type sessionCache struct {
 	clock        clockwork.Clock
 
 	mu sync.Mutex
-	// contexts maps user and session ID to an active web session
-	contexts map[string]*SessionContext
+	// sessions maps user/sessionID to an active web session.
+	sessions map[string]*SessionContext
+	// contexts maps user to an active user web session.
+	contexts map[string]*sessionContext
 }
 
 // Close closes all allocated resources and stops goroutines
@@ -420,12 +408,11 @@ func (s *sessionCache) expireSessions() {
 func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for id, c := range s.contexts {
+	for _, c := range s.sessions {
 		if !c.expired(ctx) {
 			continue
 		}
-		delete(s.contexts, id)
-		c.Close()
+		s.resetContext(c.session.GetUser(), c.session.GetName())
 		s.log.WithField("ctx", c.String()).Info("Context expired.")
 	}
 }
@@ -531,14 +518,9 @@ func (s *sessionCache) ValidateTrustedCluster(validateRequest *auth.ValidateTrus
 	return s.proxyClient.ValidateTrustedCluster(validateRequest)
 }
 
-// NewSession creates a new session for the specified user/session ID
-func (s *sessionCache) NewSession(user, sessionID string) (*SessionContext, error) {
-	return s.newSessionContext(user, sessionID)
-}
-
-// ValidateSession validates whether the session for the given user and session ID is valid.
-// It will be added it to the internal session cache if necessary
-func (s *sessionCache) ValidateSession(ctx context.Context, user, sessionID string) (*SessionContext, error) {
+// validateSession validates the session given with user and session ID.
+// Returns a new or existing session context.
+func (s *sessionCache) validateSession(ctx context.Context, user, sessionID string) (*SessionContext, error) {
 	sessionCtx, err := s.getContext(user, sessionID)
 	if err == nil {
 		return sessionCtx, nil
@@ -554,7 +536,7 @@ func (s *sessionCache) ValidateSession(ctx context.Context, user, sessionID stri
 		// Session must be a valid web sesssion - otherwise bail out with an error
 		return nil, trace.Wrap(err)
 	}
-	return s.newSessionContextFromSession(user, session)
+	return s.newSessionContextFromSession(session)
 }
 
 func (s *sessionCache) invalidateSession(ctx *SessionContext) error {
@@ -566,28 +548,29 @@ func (s *sessionCache) invalidateSession(ctx *SessionContext) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = clt.DeleteWebSession(ctx.GetUser(), ctx.GetWebSession().GetName())
+	err = clt.DeleteWebSession(ctx.GetUser(), ctx.session.GetName())
 	return trace.Wrap(err)
 }
 
 func (s *sessionCache) getContext(user, sessionID string) (*SessionContext, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	ctx, ok := s.contexts[user+sessionID]
+	ctx, ok := s.sessions[user+sessionID]
 	if ok {
 		return ctx, nil
 	}
-	return nil, trace.NotFound("no session context for user %v and session %v",
+	return nil, trace.NotFound("no context for user %v and session %v",
 		user, sessionID)
 }
 
-func (s *sessionCache) insertContext(user, sessionID string, ctx *SessionContext) (exists bool) {
+func (s *sessionCache) insertContext(user string, ctx *SessionContext) (exists bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, exists := s.contexts[user]; exists {
+	id := user + ctx.session.GetName()
+	if _, exists := s.sessions[id]; exists {
 		return true
 	}
-	s.contexts[user+sessionID] = ctx
+	s.sessions[id] = ctx
 	return false
 }
 
@@ -595,20 +578,39 @@ func (s *sessionCache) resetContext(user, sessionID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	id := user + sessionID
-	ctx, ok := s.contexts[id]
+	ctx, ok := s.sessions[id]
 	if !ok {
 		return nil
 	}
-	delete(s.contexts, id)
+	delete(s.sessions, id)
+	delete(s.contexts, user)
+	logger := s.log.WithField("ctx", ctx.String())
+	if err := ctx.ctx.Close(); err != nil {
+		logger.WithError(err).Warn("Failed to clean up session context.")
+	}
 	if err := ctx.Close(); err != nil {
-		s.log.WithFields(logrus.Fields{
-			logrus.ErrorKey: err,
-			"ctx":           ctx.String(),
-		}).Debug("Failed to close session context.")
+		logger.WithError(err).Warn("Failed to close session context.")
 	}
 	return nil
 }
 
+func (s *sessionCache) upsertSessionContext(user string) *sessionContext {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if ctx, exists := s.contexts[user]; exists {
+		return ctx
+	}
+	ctx := &sessionContext{
+		log: s.log.WithFields(logrus.Fields{
+			trace.Component: "user-session",
+			"user":          user,
+		}),
+	}
+	s.contexts[user] = ctx
+	return ctx
+}
+
+// newSessionContext creates a new web session context for the specified user/session ID
 func (s *sessionCache) newSessionContext(user, sessionID string) (*SessionContext, error) {
 	session, err := s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
 		Username: user,
@@ -620,10 +622,10 @@ func (s *sessionCache) newSessionContext(user, sessionID string) (*SessionContex
 		// This will fail if the session has expired and was removed
 		return nil, trace.Wrap(err)
 	}
-	return s.newSessionContextFromSession(user, session)
+	return s.newSessionContextFromSession(session)
 }
 
-func (s *sessionCache) newSessionContextFromSession(user string, session services.WebSession) (*SessionContext, error) {
+func (s *sessionCache) newSessionContextFromSession(session services.WebSession) (*SessionContext, error) {
 	tlsConfig, err := s.tlsConfig(session.GetTLSCert(), session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -638,18 +640,19 @@ func (s *sessionCache) newSessionContextFromSession(user string, session service
 	ctx := &SessionContext{
 		clt:       userClient,
 		remoteClt: make(map[string]auth.ClientI),
-		user:      user,
+		user:      session.GetUser(),
 		session:   session,
 		parent:    s,
+		ctx:       s.upsertSessionContext(session.GetUser()),
 		log: s.log.WithFields(logrus.Fields{
-			"user":    user,
+			"user":    session.GetUser(),
 			"session": session.GetShortName(),
 		}),
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if exists := s.insertContext(user, session.GetName(), ctx); exists {
+	if exists := s.insertContext(session.GetUser(), ctx); exists {
 		// this means that someone has just inserted the context, so
 		// close our extra context and return
 		ctx.Close()
@@ -714,6 +717,49 @@ func (s *sessionCache) tlsConfig(cert, privKey []byte) (*tls.Config, error) {
 	tlsConfig.RootCAs = certPool
 	tlsConfig.ServerName = auth.EncodeClusterName(s.clusterName)
 	return tlsConfig, nil
+}
+
+func (c *sessionContext) Close() error {
+	closers := c.transferClosers()
+	for _, closer := range closers {
+		c.log.Debugf("Closing %v.", closer)
+		closer.Close()
+	}
+	return nil
+}
+
+type sessionContext struct {
+	log logrus.FieldLogger
+
+	mu      sync.Mutex
+	closers []io.Closer
+}
+
+// addClosers adds the specified closers to this context
+func (c *sessionContext) addClosers(closers ...io.Closer) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.closers = append(c.closers, closers...)
+}
+
+// remoevCloser removes the specified closer from this context
+func (c *sessionContext) removeCloser(closer io.Closer) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for i, cls := range c.closers {
+		if cls == closer {
+			c.closers = append(c.closers[:i], c.closers[i+1:]...)
+			return
+		}
+	}
+}
+
+func (c *sessionContext) transferClosers() []io.Closer {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	closers := c.closers
+	c.closers = nil
+	return closers
 }
 
 // waitForWebSession will block until the requested web session shows up in the

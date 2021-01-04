@@ -412,7 +412,7 @@ type Config struct {
 	AppSession services.AppSession
 	// WebSession holds regular web sessions.
 	WebSession services.WebSessionInterface
-	// WebToken holds regular web sessions.
+	// WebToken holds web tokens.
 	WebToken services.WebTokenInterface
 	// Backend is a backend for local cache
 	Backend backend.Backend
@@ -1247,4 +1247,14 @@ func (c *Cache) GetWebSession(ctx context.Context, req services.GetWebSessionReq
 	}
 	defer rg.Release()
 	return rg.webSession.Get(ctx, req)
+}
+
+// GetWebToken gets a web token.
+func (c *Cache) GetWebToken(ctx context.Context, req services.GetWebTokenRequest) (services.WebToken, error) {
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.webToken.Get(ctx, req)
 }
