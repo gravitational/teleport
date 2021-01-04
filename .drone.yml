@@ -1982,7 +1982,8 @@ steps:
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
-      - mkdir -m 0700 $$WORKSPACE_DIR/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > $$WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $$WORKSPACE_DIR/.ssh/id_rsa
+      # suppressing the newline on the end of the private key makes git operations fail on MacOS
+      - mkdir -m 0700 $$WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $$WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $$WORKSPACE_DIR/.ssh/id_rsa
       - ssh-keyscan -H github.com > $$WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
       - chmod 600 $$WORKSPACE_DIR/.ssh/known_hosts
       - GIT_SSH_COMMAND='ssh -i $$WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init e
@@ -2087,7 +2088,8 @@ steps:
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
-      - mkdir -m 0700 $$WORKSPACE_DIR/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > $$WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $$WORKSPACE_DIR/.ssh/id_rsa
+      # suppressing the newline on the end of the private key makes git operations fail on MacOS
+      - mkdir -m 0700 $$WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $$WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $$WORKSPACE_DIR/.ssh/id_rsa
       - ssh-keyscan -H github.com > $$WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
       - chmod 600 $$WORKSPACE_DIR/.ssh/known_hosts
       - GIT_SSH_COMMAND='ssh -i $$WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init e
@@ -2110,7 +2112,7 @@ steps:
       WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
     commands:
       - export VERSION=$(cat $$WORKSPACE_DIR/go/.version.txt)
-      - export S3_PATH="tag/$${DRONE_TAG##v:-}/"
+      - export S3_PATH="tag/$${DRONE_TAG##v}/"
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-darwin-amd64-bin.tar.gz $$WORKSPACE_DIR/go/artifacts/
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-darwin-amd64-bin.tar.gz $$WORKSPACE_DIR/go/artifacts/
 
@@ -2211,7 +2213,8 @@ steps:
       - git clone https://github.com/gravitational/teleport.git .
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
-      - mkdir -m 0700 $$WORKSPACE_DIR/.ssh && echo -n "$GITHUB_PRIVATE_KEY" > $$WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $$WORKSPACE_DIR/.ssh/id_rsa
+      # suppressing the newline on the end of the private key makes git operations fail on MacOS
+      - mkdir -m 0700 $$WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $$WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $$WORKSPACE_DIR/.ssh/id_rsa
       - ssh-keyscan -H github.com > $$WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
       - chmod 600 $$WORKSPACE_DIR/.ssh/known_hosts
       - GIT_SSH_COMMAND='ssh -i $$WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$$WORKSPACE_DIR/.ssh/known_hosts -F /dev/null' git submodule update --init e
@@ -2234,7 +2237,7 @@ steps:
       WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
     commands:
       - export VERSION=$(cat $$WORKSPACE_DIR/go/.version.txt)
-      - if [[ "${DRONE_TAG}" != "" ]]; then export S3_PATH="tag/$${DRONE_TAG##v}/"; else export S3_PATH="tag/"; fi
+      - export S3_PATH="tag/$${DRONE_TAG##v}/"
       - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-darwin-amd64-bin.tar.gz $$WORKSPACE_DIR/go/artifacts/
 
   - name: Build Mac tsh pkg release artifacts
@@ -3352,6 +3355,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 7ea9d3d2d83e4c0b71a25bae69077bf6c7031350427333dab4c6c4d80def2d64
+hmac: 7b4b2c8fb047134f4066f629f2a3aea9921e391dfdd5cde3eeb831ccda960835
 
 ...
