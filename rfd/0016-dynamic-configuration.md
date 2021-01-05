@@ -147,16 +147,14 @@ configuration or via `tctl create`.
 ### Scenario 6: static specified & `tctl create` attempt
 
 1. The `authentication` section is specified in `teleport.yaml`.
-   The auth server is running with dynamic configuration derived from static
-   configuration as in Scenario 1.
+   The auth server is running with static configuration as in Scenario 1.
 
-2. `tctl create authpref.yaml` returns with an error indicating that the
-   respective static configuration has been specified and that its derived
-   dynamic configuration is fixed.
+2. `tctl create authpref.yaml` returns with an error since the command
+   cannot be used to overwrite non-default configuration.
 
 #### Choice 6.A
 
-3. `tctl create -f authpref.yaml` allows the user to temporarily overwrite the
+3. `tctl create -f authpref.yaml` allows the user to temporarily set the
    dynamic configuration until it gets replaced by the static configuration
    during a restart as in Scenario 1.  In case the static configuration section
    is removed before the restart, the dynamic configuration corresponding to
