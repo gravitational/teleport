@@ -215,11 +215,11 @@ cease to be representative of the actual origin or values of a resource.
 
 2. If `teleport.yaml` section is not specified, attempt to fetch the resource
    currently stored in the backend.
-   a) If the fetching attempt failed for whatever reason, store the default
-      resource in the backend with `origin: defaults`.
-   b) If the fetched resource has `origin: config-file` or `origin: defaults`,
-      store the default resource in the backend with `origin: defaults`.
-   c) If the fetched resource has another `origin` value, keep the backend as-is.
+   - If the fetching attempt failed for whatever reason, store the default
+     resource in the backend with `origin: defaults`.
+   - If the fetched resource has `origin: config-file` or `origin: defaults`,
+     store the default resource in the backend with `origin: defaults`.
+   - If the fetched resource has another `origin` value, keep the backend as-is.
 
 This logic implies Choices 2.B and 3.B.
 
