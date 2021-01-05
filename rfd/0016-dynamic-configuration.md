@@ -200,8 +200,8 @@ desired/target `origin` value:
 |    *from \ to*    |        **`defaults`**       |           **`config-file`**          |           **(other)**           |
 |       :---:       |            :---:            |                 :---:                |              :---:              |
 |   **`defaults`**  |             n/a             | specify in `teleport.yaml` & restart |          `tctl create`          |
-| **`config-file`** | remove from `teleport.yalm` |                  n/a                 | `tctl create --force --confirm` |
-|    **(other)**    |        `tctl rm` [?]        | specify in `teleport.yaml` & restart |               n/a               |
+| **`config-file`** | remove from `teleport.yalm` |  change in `teleport.yaml` & restart | `tctl create --force --confirm` |
+|    **(other)**    |        `tctl rm` [?]        | specify in `teleport.yaml` & restart |      `tctl create --force`      |
 
 Note that the `origin` label is not reserved or protected in any special way
 by the system and so it can be modified by the same means as other labels.
