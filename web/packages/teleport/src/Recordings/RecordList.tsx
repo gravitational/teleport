@@ -125,6 +125,12 @@ const makeRows = (clusterId: string) => (event: SessionEnd) => {
     durationText = moment.duration(duration).humanize();
   }
 
+  let hostname = raw.server_hostname;
+  // For Kubernetes sessions, put the full pod name as 'hostname'.
+  if (raw.proto === 'kube') {
+    hostname = raw.kubernetes_cluster + '/' + raw.kubernetes_pod_namespace + '/' + raw.kubernetes_pod_name;
+  }
+
   return {
     clusterId,
     duration,
@@ -133,7 +139,7 @@ const makeRows = (clusterId: string) => (event: SessionEnd) => {
     created: time,
     createdText: displayDateTime(time),
     users: users.join(', '),
-    hostname: raw.server_hostname,
+    hostname: hostname,
   };
 };
 

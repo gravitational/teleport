@@ -177,6 +177,8 @@ export type RawEvents = {
       interactive: boolean;
       proto: string;
       kubernetes_cluster: string;
+      kubernetes_pod_namespace: string;
+      kubernetes_pod_name: string;
     }
   >;
   [CodeEnum.SESSION_LEAVE]: RawEvent<
