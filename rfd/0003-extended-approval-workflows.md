@@ -1,6 +1,6 @@
 ---
-authors: Alexander Klizhentas (sasha@gravitational.com), Ben Arent (ben@gravitational.com)
-state: discussion
+authors: Alexander Klizhentas (sasha@goteleport.com), Ben Arent (ben@goteleport.com)
+state: implemented
 ---
 
 # RFD 3 - Extended approval workflows
