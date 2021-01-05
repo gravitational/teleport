@@ -688,16 +688,14 @@ environment:
   RUNTIME: go1.15.5
 
 trigger:
-  # event:
-  #   - tag
-  # ref:
-  #   include:
-  #     - refs/tags/v*
-  # repo:
-  #   include:
-  #     - gravitational/*
-  cron:
-    - none
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go
@@ -793,16 +791,14 @@ environment:
   RUNTIME: go1.15.5
 
 trigger:
-  # event:
-  #   - tag
-  # ref:
-  #   include:
-  #     - refs/tags/v*
-  # repo:
-  #   include:
-  #     - gravitational/*
-  cron:
-    - none
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go
@@ -899,16 +895,14 @@ environment:
   RUNTIME: go1.15.5
 
 trigger:
-  # event:
-  #   - tag
-  # ref:
-  #   include:
-  #     - refs/tags/v*
-  # repo:
-  #   include:
-  #     - gravitational/*
-  cron:
-    - none
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go
@@ -1005,16 +999,14 @@ environment:
   RUNTIME: go1.15.5
 
 trigger:
-  # event:
-  #   - tag
-  # ref:
-  #   include:
-  #     - refs/tags/v*
-  # repo:
-  #   include:
-  #     - gravitational/*
-  cron:
-    - none
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go
@@ -1107,16 +1099,15 @@ type: kubernetes
 name: build-linux-amd64-rpm
 
 trigger:
-  # event:
-  #   - tag
-  # ref:
-  #   include:
-  #     - refs/tags/v*
-  # repo:
-  #   include:
-  #     - gravitational/*
-  cron:
-    - none
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
+
 depends_on:
   - build-linux-amd64
 
@@ -1234,16 +1225,14 @@ type: kubernetes
 name: build-linux-amd64-fips-rpm
 
 trigger:
-  # event:
-  #   - tag
-  # ref:
-  #   include:
-  #     - refs/tags/v*
-  # repo:
-  #   include:
-  #     - gravitational/*
-  cron:
-    - none
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-linux-amd64-fips
@@ -1363,16 +1352,14 @@ type: kubernetes
 name: build-linux-amd64-deb
 
 trigger:
-  # event:
-  #   - tag
-  # ref:
-  #   include:
-  #     - refs/tags/v*
-  # repo:
-  #   include:
-  #     - gravitational/*
-  cron:
-    - none
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-linux-amd64
@@ -1477,16 +1464,14 @@ type: kubernetes
 name: build-linux-amd64-fips-deb
 
 trigger:
-  # event:
-  #   - tag
-  # ref:
-  #   include:
-  #     - refs/tags/v*
-  # repo:
-  #   include:
-  #     - gravitational/*
-  cron:
-    - none
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-linux-amd64-fips
@@ -1596,16 +1581,14 @@ environment:
   RUNTIME: go1.15.5
 
 trigger:
-  # event:
-  #   - tag
-  # ref:
-  #   include:
-  #     - refs/tags/v*
-  # repo:
-  #   include:
-  #     - gravitational/*
-  cron:
-    - none
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go
@@ -1698,16 +1681,14 @@ type: kubernetes
 name: build-linux-i386-rpm
 
 trigger:
-  # event:
-  #   - tag
-  # ref:
-  #   include:
-  #     - refs/tags/v*
-  # repo:
-  #   include:
-  #     - gravitational/*
-  cron:
-    - none
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-linux-i386
@@ -1826,16 +1807,14 @@ type: kubernetes
 name: build-linux-i386-deb
 
 trigger:
-  # event:
-  #   - tag
-  # ref:
-  #   include:
-  #     - refs/tags/v*
-  # repo:
-  #   include:
-  #     - gravitational/*
-  cron:
-    - none
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-linux-i386
@@ -1983,6 +1962,7 @@ steps:
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       # suppressing the newline on the end of the private key makes git operations fail on MacOS
+      # with an error like 'Load key "/path/.ssh/id_rsa": invalid format'
       - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
       - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
       - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
@@ -2089,6 +2069,7 @@ steps:
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       # suppressing the newline on the end of the private key makes git operations fail on MacOS
+      # with an error like 'Load key "/path/.ssh/id_rsa": invalid format'
       - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
       - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
       - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
@@ -2214,6 +2195,7 @@ steps:
       - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
       # fetch enterprise submodules
       # suppressing the newline on the end of the private key makes git operations fail on MacOS
+      # with an error like 'Load key "/path/.ssh/id_rsa": invalid format'
       - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
       - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
       - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
@@ -2322,8 +2304,11 @@ trigger:
 workspace:
   path: /dev/shm/tmp
 
-# use ramfs for go build cache
-# saves wear and tear on the SD card, plus it's faster
+# use ramfs for go build cache - saves wear and tear on the SD card, plus it's faster
+# note: declaring the WORKSPACE_DIR variable once in this block and then trying to
+# quote it in commands below doesn't seem to work; it has to be redeclared as part of
+# the environment inside every individual step. per-pipeline environments seem to be
+# inconsistently implemented across different drone runners and may well be deprecated
 environment:
   TMPDIR: /dev/shm
 
@@ -2429,6 +2414,10 @@ workspace:
   path: /dev/shm/tmp
 
 # use ramfs for go build cache
+# note: declaring the WORKSPACE_DIR variable once in this block and then trying to
+# quote it in commands below doesn't seem to work; it has to be redeclared as part of
+# the environment inside every individual step. per-pipeline environments seem to be
+# inconsistently implemented across different drone runners and may well be deprecated
 environment:
   TMPDIR: /dev/shm
 
@@ -2517,16 +2506,14 @@ environment:
   RUNTIME: go1.15.5
 
 trigger:
-  # event:
-  #   - tag
-  # ref:
-  #   include:
-  #     - refs/tags/v*
-  # repo:
-  #   include:
-  #     - gravitational/*
-  cron:
-    - none
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go
@@ -2624,16 +2611,14 @@ environment:
   RUNTIME: go1.15.5
 
 trigger:
-  # event:
-  #   - tag
-  # ref:
-  #   include:
-  #     - refs/tags/v*
-  # repo:
-  #   include:
-  #     - gravitational/*
-  cron:
-    - none
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 workspace:
   path: /go
@@ -2733,16 +2718,14 @@ type: kubernetes
 name: build-oss-amis
 
 trigger:
-  # event:
-  #   - tag
-  # ref:
-  #   include:
-  #     - refs/tags/v*
-  # repo:
-  #   include:
-  #     - gravitational/*
-  cron:
-    - none
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-linux-amd64
@@ -2835,16 +2818,14 @@ type: kubernetes
 name: build-ent-amis
 
 trigger:
-  # event:
-  #   - tag
-  # ref:
-  #   include:
-  #     - refs/tags/v*
-  # repo:
-  #   include:
-  #     - gravitational/*
-  cron:
-    - none
+  event:
+    - tag
+  ref:
+    include:
+      - refs/tags/v*
+  repo:
+    include:
+      - gravitational/*
 
 depends_on:
   - build-linux-amd64
@@ -3355,6 +3336,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 077b5ad4b0a014a295f8cf23d1bf50b1c13354121212f9f8635d03c8a1211c8b
+hmac: c6190f3f862337a6c033f74a3165d6f20f7f7f0fc66f8536bee1e0c195ceb86a
 
 ...
