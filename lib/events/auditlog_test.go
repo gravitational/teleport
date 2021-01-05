@@ -81,7 +81,7 @@ func (a *AuditTestSuite) makeLogWithClock(c *check.C, dataDir string, recordSess
 }
 
 func (a *AuditTestSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	utils.InitLoggerForTests(testing.Verbose())
 }
 
 func (a *AuditTestSuite) SetUpTest(c *check.C) {

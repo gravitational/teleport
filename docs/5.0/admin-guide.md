@@ -412,7 +412,7 @@ $ tsh --proxy <proxy-addr> ssh <hostname>
 
     External user identities are only supported in [Teleport Enterprise](enterprise/introduction.md).
 
-    Please reach out to [sales@gravitational.com](mailto:sales@gravitational.com) for more information.
+    Please reach out to [sales@goteleport.com](mailto:sales@goteleport.com) for more information.
 
 ## Adding and Deleting Users
 
@@ -695,6 +695,7 @@ Token 696c0471453e75882ff70a761c1a8bfa has been deleted
 ## Adding a node located behind NAT
 
 !!! note
+
     This feature is sometimes called "Teleport IoT" or node tunneling.
 
 With the current setup, you've only been able to add nodes that have direct access to the
@@ -1068,6 +1069,7 @@ $ tctl rm users/admin
 ```
 
 !!! note
+
     Although `tctl get connectors` will show you every connector, when working with an individual
     connector you must use the correct `kind`, such as `saml` or `oidc`. You can see each
     connector's `kind` at the top of its YAML output from `tctl get connectors`.
@@ -1595,6 +1597,69 @@ teleport:
 }
 ```
 
+#### DynamoDB Autoscaling
+
+When setting up DynamoDB it's important to setup backup and autoscaling. We make
+setup simpler by allowing AWS DynamoDB settings to be set automatically
+during Teleport startup.
+
+**DynamoDB Continuous Backups**
+- [AWS Blog Post - Amazon DynamoDB Continuous Backup](https://aws.amazon.com/blogs/aws/new-amazon-dynamodb-continuous-backups-and-point-in-time-recovery-pitr/)
+
+**DynamoDB Autoscaling Options**
+- [AWS Docs - Managing Throughput Capacity Automatically with DynamoDB Auto Scaling](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/AutoScaling.html)
+
+```yaml
+# ...
+teleport:
+  storage:
+    type: "dynamodb"
+    [...]
+
+    # continuous_backups is used to optionally enable continuous backups.
+    # default: false
+    continuous_backups: [true|false]
+
+    # auto_scaling is used to optionally enable (and define settings for) auto scaling.
+    # default: false
+    auto_scaling:  [true|false]
+    # minimum/maximum read capacity in units
+    read_min_capacity: int
+    read_max_capacity: int
+    read_target_value: float
+    # minimum/maximum write capacity in units
+    write_min_capacity: int
+    write_max_capacity: int
+    write_target_value: float
+```
+
+To enable these options you will need to update the [IAM Role for Teleport](aws-oss-guide.md#iam)
+
+```json
+{
+    "Action": [
+        "application-autoscaling:PutScalingPolicy",
+        "application-autoscaling:RegisterScalableTarget"
+    ],
+    "Effect": "Allow",
+    "Resource": "*"
+},
+{
+    "Action": [
+        "iam:CreateServiceLinkedRole"
+    ],
+    "Condition": {
+        "StringEquals": {
+            "iam:AWSServiceName": [
+                "dynamodb.application-autoscaling.amazonaws.com"
+            ]
+        }
+    },
+    "Effect": "Allow",
+    "Resource": "*"
+}
+```
+
 ### Using GCS
 
 !!! tip "Tip"
@@ -1708,12 +1773,26 @@ version is recommended for production use.
 When running multiple binaries of Teleport within a cluster (nodes, proxies,
 clients, etc), the following rules apply:
 
-* Patch versions are always compatible, for example any 4.0.1 component will
-  work with any 4.0.3 component.
+**Before 5.0.0**
 
-* Other versions are always compatible with their **previous** release. This
-  means you must not attempt to upgrade from 4.1 straight to 4.3. You must
-  upgrade to 4.2 first.
+* **Only patch** versions are always compatible, for example any 4.0.1 component will
+work with any 4.0.3 component.
+
+* Minor versions are always compatible with the **previous** minor release. This
+  means you must not attempt to upgrade from 4.1.x straight to 4.3.x. You must
+  upgrade to 4.2.x first.
+
+* Teleport clients [`tsh`](cli-docs.md#tsh) for users and [`tctl`](cli-docs.md#tctl) for admins
+  may not be compatible with different versions of the `teleport` service.
+
+**After 5.0.0**
+
+* **Patch and minor** versions are always compatible, for example any 5.0.1 component will
+work with any 5.0.3 component and 6.1.0 component will work with any 6.7.0 component.
+
+* Major versions are always compatible with the **previous** major release. This
+  means you must not attempt to upgrade from 5.x.x straight to 7.x.x. You must
+  upgrade to 6.x.x first.
 
 * Teleport clients [`tsh`](cli-docs.md#tsh) for users and [`tctl`](cli-docs.md#tctl) for admins
   may not be compatible with different versions of the `teleport` service.
@@ -1804,7 +1883,7 @@ the audit log, logged events have a TTL of 1 year.
 
 | Backend | Recommended backup strategy  |
 |-|-|
-| dir ( local filesystem )   | Backup `/var/lib/teleport/storage` directory and the output of `tctl get all`. |
+| dir ( local filesystem )   | Backup `/var/lib/teleport/storage` directory and the output of `tctl get all --with-secrets`. |
 | DynamoDB | [Follow AWS Guidelines for Backup & Restore](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/BackupRestore.html) |
 | etcd | [Follow etcD Guidleines for Disaster Recovery ](https://etcd.io/docs/v2/admin_guide) |
 | Firestore | [Follow GCP Guidlines for Automated Backups](https://firebase.google.com/docs/database/backups) |
@@ -1830,7 +1909,7 @@ As of version v4.1 you can now quickly export a collection of resources from
 Teleport. This feature was designed to help customers migrate from local storage
 to etcd.
 
-Using `tctl get all` will retrieve the below items:
+Using `tctl get all --with-secrets` will retrieve the below items:
 
 - Users
 - Certificate Authorities
@@ -1847,7 +1926,7 @@ When migrating backends, you should back up your auth server's `data_dir/storage
 
 ``` bash
 # export dynamic configuration state from old cluster
-$ tctl get all > state.yaml
+$ tctl get all --with-secrets > state.yaml
 
 # prepare a new uninitialized backend (make sure to port
 # any non-default config values from the old config file)
@@ -1869,6 +1948,7 @@ by auth server on first start), so it is safe for use in supervised/HA contexts.
 
 **Limitations**
 
+- The `--bootstrap` flag doesn't re-trigger trusted cluster handshakes, so trusted cluster resources need to be recreated manually.
 - All the same limitations around modifying the config file of an existing cluster also apply to a new cluster being bootstrapped from the state of an old cluster. Of particular note:
     - Changing cluster name will break your CAs (this will be caught and teleport will refuse to start).
     - Some user authentication mechanisms (e.g. u2f) require that the public endpoint of the web ui remains the same (this can't be caught by teleport, be careful!).
@@ -1958,4 +2038,4 @@ If you need help, please ask on our [community forum](https://community.gravitat
 
 For commercial support, you can create a ticket through the [customer dashboard](https://dashboard.gravitational.com/web/login).
 
-For more information about custom features, or to try our [Enterprise edition](enterprise/introduction.md) of Teleport, please reach out to us at [sales@gravitational.com](mailto:sales@gravitational.com).
+For more information about custom features, or to try our [Enterprise edition](enterprise/introduction.md) of Teleport, please reach out to us at [sales@goteleport.com](mailto:sales@goteleport.com).

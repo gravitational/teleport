@@ -3096,18 +3096,18 @@ steps:
   #
   # this step exits early and skips all remanining steps in the pipeline if the
   # tag looks like a pre-release, to avoid publishing RPMs for pre-release builds.
-  - name: Determine whether RPMs should be published
+  - name: Determine whether RPM/DEB packages should be published to repos
     image: docker
     commands:
       - |
         # length will be 0 after filtering if this is a pre-release, >0 otherwise
         FILTERED_TAG_LENGTH=$(echo ${DRONE_TAG} | egrep -v '(alpha|beta|dev|rc)' | wc -c)
         if [ $$FILTERED_TAG_LENGTH -eq 0 ]; then
-          echo "---> ${DRONE_TAG} looks like a pre-release, not publishing RPMs"
+          echo "---> ${DRONE_TAG} looks like a pre-release, not publishing packages to repos"
           # exit pipeline early with success status
           exit 78
         else
-          echo "---> Publishing RPMs for ${DRONE_TAG}"
+          echo "---> Publishing packages to repos for ${DRONE_TAG}"
         fi
 
   - name: Download RPM repo contents
@@ -3246,18 +3246,26 @@ services:
     volumes:
       - name: dockersock
         path: /var/run
+      - name: tmpfs
+        path: /tmpfs
 
 volumes:
   - name: dockersock
     temp: {}
-  # this persistent volume caches RPMs near Drone so that we don't need to download the
+  - name: tmpfs
+    temp:
+      medium: memory
+  # these persistent volumes cache RPMs/DEBs near Drone so that we don't need to download the
   # entire repo contents from S3 every time to build the repo, we just sync any differences
   - name: rpmrepo
     claim:
       name: drone-s3-rpmrepo-pvc
+  - name: debrepo
+    claim:
+      name: drone-s3-debrepo-pvc
 
 ---
 kind: signature
-hmac: 2201a4e263cb7a95baa71311c710228c4ba6dcc4e6034d8011fcc0dc2d2b323b
+hmac: 94562d41f7ac7570afd862e945db6caf5b08462a6a4b888ea5421a5346e1788d
 
 ...

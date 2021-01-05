@@ -1,9 +1,9 @@
-site_name: Gravitational Teleport
-site_url: https://gravitational.com/teleport/docs
+site_name: Teleport
+site_url: https://goteleport.com/teleport/docs
 repo_url: https://github.com/gravitational/teleport
-site_description: "Teleport Documentation: Remote Access via SSH and Kubernetes"
-site_author: Gravitational Inc
-copyright: Gravitational Inc, 2016-20
+site_description: "Teleport Documentation: Teleport Unified Access Plane enables engineers to quickly access any computing resource anywhere"
+site_author: Teleport
+copyright: Gravitational Inc, 2016-21
 
 # output directory:
 site_dir: ../build/docs/4.4
@@ -68,7 +68,7 @@ nav:
         #    - OneLogin:  enterprise/sso/ssh-one-login.md
         #    - OIDC:  enterprise/sso/oidc.md
         #    - Okta:  enterprise/sso/ssh-okta.md
-        - Approval Workflow: enterprise/workflow/index.md
+        - Access Workflows: enterprise/workflow/index.md
         #- Teleport Plugins:
         #    - Teleport  Plugin Setup: enterprise/workflow/ssh-approval-jira-cloud.md
         #    - Teleport Jira Server Plugin Setup: enterprise/workflow/ssh-approval-jira-server.md

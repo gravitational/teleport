@@ -26,7 +26,6 @@ require (
 	github.com/fsouza/fake-gcs-server v1.11.6
 	github.com/ghodss/yaml v1.0.0
 	github.com/gizak/termui v0.0.0-20190224181052-63c2a0d70943
-	github.com/go-sql-driver/mysql v1.5.0 // indirect
 	github.com/gogo/protobuf v1.3.1
 	github.com/gokyle/hotp v0.0.0-20160218004637-c180d57d286b
 	github.com/golang/protobuf v1.4.2
@@ -40,7 +39,7 @@ require (
 	github.com/gravitational/oxy v0.0.0-20200916204440-3eb06d921a1d
 	github.com/gravitational/reporting v0.0.0-20180907002058-ac7b85c75c4c
 	github.com/gravitational/roundtrip v1.0.0
-	github.com/gravitational/trace v1.1.6
+	github.com/gravitational/trace v1.1.13
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/iovisor/gobpf v0.0.1
@@ -66,9 +65,8 @@ require (
 	github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4
 	github.com/prometheus/common v0.6.0
 	github.com/prometheus/procfs v0.0.4 // indirect
-	github.com/russellhaering/gosaml2 v0.0.0-20170515204909-8908227c114a
+	github.com/russellhaering/gosaml2 v0.6.0
 	github.com/russellhaering/goxmldsig v1.1.0
-	github.com/satori/go.uuid v1.1.1-0.20170321230731-5bf94b69c6b6 // indirect
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
 	github.com/sirupsen/logrus v1.6.0
@@ -105,6 +103,6 @@ require (
 
 replace (
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.3
+	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 	github.com/iovisor/gobpf => github.com/gravitational/gobpf v0.0.1
-	github.com/sirupsen/logrus => github.com/gravitational/logrus v0.10.1-0.20171120195323-8ab1e1b91d5f
 )

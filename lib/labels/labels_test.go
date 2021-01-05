@@ -40,10 +40,6 @@ func (s *LabelSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())
 }
 
-func (s *LabelSuite) TearDownSuite(c *check.C) {}
-func (s *LabelSuite) SetUpTest(c *check.C)     {}
-func (s *LabelSuite) TearDownTest(c *check.C)  {}
-
 func (s *LabelSuite) TestSync(c *check.C) {
 	// Create dynamic labels and sync right away.
 	l, err := NewDynamic(context.Background(), &DynamicConfig{

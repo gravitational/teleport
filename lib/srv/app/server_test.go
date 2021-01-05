@@ -29,6 +29,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -71,13 +72,12 @@ var _ = check.Suite(&Suite{})
 func TestApp(t *testing.T) { check.TestingT(t) }
 
 func (s *Suite) SetUpSuite(c *check.C) {
-	var err error
-
 	utils.InitLoggerForTests(testing.Verbose())
 
 	s.clock = clockwork.NewFakeClockAt(time.Now())
 	s.dataDir = c.MkDir()
 
+	var err error
 	// Create Auth Server.
 	s.authServer, err = auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		ClusterName: "root.example.com",
@@ -290,8 +290,14 @@ func (s *Suite) TestHandleConnection(c *check.C) {
 		},
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(1)
+
 	// Handle the connection in another goroutine.
-	go s.appServer.HandleConnection(pw)
+	go func() {
+		s.appServer.HandleConnection(pw)
+		wg.Done()
+	}()
 
 	// Issue request.
 	resp, err := httpClient.Get("https://" + teleport.APIDomain)
@@ -308,6 +314,10 @@ func (s *Suite) TestHandleConnection(c *check.C) {
 	// error here.
 	err = s.appServer.Close()
 	c.Assert(err, check.NotNil)
+
+	// Wait for the application server to actually stop serving before
+	// closing the test. This will make sure the server removes the listeners
+	wg.Wait()
 }
 
 // TestAuthorize verifies that only authorized requests are handled.

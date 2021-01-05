@@ -672,6 +672,24 @@ message AccessRequestFilter {
     RequestState State = 3 [ (gogoproto.jsontag) = "state" ];
 }
 
+// AccessCapabilities is a summary of capabilities that a user
+// is granted via their dynamic access privileges which may not be
+// calculable by directly examining the user's own static roles.
+message AccessCapabilities {
+    // RequestableRoles is a list of existent roles which the user is allowed to request.
+    repeated string RequestableRoles = 1 [ (gogoproto.jsontag) = "requestable_roles,omitempty" ];
+}
+
+// AccessCapabilitiesRequest encodes parameters for the GetAccessCapabilities method.
+message AccessCapabilitiesRequest {
+    // User is the name of the user whose capabilities we are interested in (defaults to
+    // the caller's own username).
+    string User = 1 [ (gogoproto.jsontag) = "user,omitempty" ];
+    // RequestableRoles is a flag indicating that we would like to view the list of roles
+    // that the user is able to request.
+    bool RequestableRoles = 2 [ (gogoproto.jsontag) = "requestable_roles,omitempty" ];
+}
+
 // PluginData stores a collection of values associated with a specific resource.
 message PluginDataV3 {
     option (gogoproto.goproto_stringer) = false;

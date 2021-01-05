@@ -21,7 +21,6 @@ package web
 import (
 	"context"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -146,8 +145,9 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	// for all events associated with this certificate.
 	appSessionStartEvent := &events.AppSessionStart{
 		Metadata: events.Metadata{
-			Type: events.AppSessionStartEvent,
-			Code: events.AppSessionStartCode,
+			Type:        events.AppSessionStartEvent,
+			Code:        events.AppSessionStartCode,
+			ClusterName: identity.RouteToApp.ClusterName,
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        h.cfg.HostUUID,
@@ -299,52 +299,6 @@ func (h *Handler) resolveDirect(ctx context.Context, publicAddr string, clusterN
 
 // resolveFQDN makes a best effort attempt to resolve FQDN to an application
 // running a root or leaf cluster.
-//
-// Note: This function can incorrectly resolve application names. For example,
-// if you have an application named "acme" within both the root and leaf
-// cluster, this method will always return "acme" running within the root
-// cluster. Always supply public address and cluster name to deterministically
-// resolve an application.
 func (h *Handler) resolveFQDN(ctx context.Context, fqdn string) (*services.App, services.Server, string, error) {
-	// Parse the address to remove the port if it's set.
-	addr, err := utils.ParseAddr(fqdn)
-	if err != nil {
-		return nil, nil, "", trace.Wrap(err)
-	}
-
-	// Try and match FQDN to public address of application within cluster.
-	application, server, err := app.Match(ctx, h.cfg.ProxyClient, app.MatchPublicAddr(addr.Host()))
-	if err == nil {
-		return application, server, h.auth.clusterName, nil
-	}
-
-	// Extract the first subdomain from the FQDN and attempt to use this as the
-	// application name.
-	appName := strings.Split(addr.Host(), ".")[0]
-
-	// Try and match application name to an application within the cluster.
-	application, server, err = app.Match(ctx, h.cfg.ProxyClient, app.MatchName(appName))
-	if err == nil {
-		return application, server, h.auth.clusterName, nil
-	}
-
-	// Loop over all clusters and try and match application name to an
-	// application with the cluster.
-	remoteClients, err := h.cfg.Proxy.GetSites()
-	if err != nil {
-		return nil, nil, "", trace.Wrap(err)
-	}
-	for _, remoteClient := range remoteClients {
-		authClient, err := remoteClient.CachingAccessPoint()
-		if err != nil {
-			return nil, nil, "", trace.Wrap(err)
-		}
-
-		application, server, err = app.Match(ctx, authClient, app.MatchName(appName))
-		if err == nil {
-			return application, server, remoteClient.GetName(), nil
-		}
-	}
-
-	return nil, nil, "", trace.NotFound("failed to resolve %v to any application within any cluster", fqdn)
+	return app.ResolveFQDN(ctx, h.cfg.ProxyClient, h.cfg.Proxy, h.auth.clusterName, fqdn)
 }

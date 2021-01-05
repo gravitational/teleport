@@ -17,9 +17,9 @@ You can secure any web application using application access:
 
 ## Demo
 
-<video autoplay loop muted playsinline controls style="width:100%">
-  <source src="https://goteleport.com/teleport/videos/k8s-application-access/k8s-taa.mp4" type="video/mp4">
-  <source src="https://goteleport.com/teleport/videos/k8s-application-access/k8s-taa.webm" type="video/webm">
+<video autoplay loop muted playsinline controls>
+  <source src="https://goteleport.com/teleport/videos/k8s-application-access/k8s-taa.mp4" type="video/mp4" />
+  <source src="https://goteleport.com/teleport/videos/k8s-application-access/k8s-taa.webm" type="video/webm" />
 Your browser does not support the video tag.
 </video>
 
@@ -33,12 +33,12 @@ Your browser does not support the video tag.
 
     Teleport uses SSH reverse tunnels to connect applications to the proxy. This is why the configuration below mentions SSH ports.
 
-|Port      .| Service    | Description
+|Port      | Service    | Description
 |----------|------------|-------------------------------------------
-| 3023      | Proxy      | SSH port for clients who need tsh login
-| 3024      | Proxy      | SSH port used to create reverse SSH tunnels from behind-firewall environments into a trusted proxy server.
-| 3025      | Auth       | TLS port used by the Auth Service to serve its API to other nodes in a cluster.
-| 3080      | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Teleport UI.
+| 3023     | Proxy      | SSH port for clients who need tsh login
+| 3024     | Proxy      | SSH port used to create reverse SSH tunnels from behind-firewall environments into a trusted proxy server.
+| 3025     | Auth       | TLS port used by the Auth Service to serve its API to other nodes in a cluster.
+| 3080     | Proxy      | HTTPS connection to authenticate `tsh` users and web users into the cluster. The same connection is used to serve a Teleport UI.
 
 #### TLS Requirements
 
@@ -185,6 +185,16 @@ app_service:
      uri: "https://localhost:8001"
      public_addr: "jira.example.com"
 ```
+### Skip TLS certificate verification
+
+  Corporations often use self-signed certificates for internal applications. Teleport attempts to check if the certificates are signed by a trusted CA (Certificate Authority). If using self-signed certificates use `insecure_skip_verify: true` to skip this verification step.
+
+```yaml
+   - name: "app"
+     uri: "https://localhost:8443"
+     public_addr: "app.example.com"
+     insecure_skip_verify: true
+```
 
 ### Deeplink to Subdirectory
 
@@ -293,7 +303,7 @@ _Example jwks.json_
 
 As outlined in our introduction, Application Access has been designed to support two types of applications.
 
-**Example Legacy App**</br>
+**Example Legacy App**<br />
 A device such as a load balancer might come with a control panel, but it doesn't have any authentication and can only be access via a privileged network. These applications are supported and can extend access beyond your network.
 
 Other example legacy apps:
@@ -301,7 +311,7 @@ Other example legacy apps:
 + An internal admin tool
 + Control panel for networking devices
 
-**Example Modern App**</br>
+**Example Modern App**<br />
 Teleport Application Access supports all modern applications, these could be built in-house or off-the-shelf software such as Jenkins, Kubernetes Dashboard and Jupyter workbooks.
 
 + Kubernetes Internal Dashboard

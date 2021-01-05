@@ -19,6 +19,11 @@ teleportVersionOverride: ""
 # certificate.
 insecureSkipProxyTLSVerify: false
 
+# If true, create & use Pod Security Policy resources
+# https://kubernetes.io/docs/concepts/policy/pod-security-policy/
+podSecurityPolicy:
+  enabled: false
+
 ##################################################
 # Values that you shouldn't need to change.
 ##################################################

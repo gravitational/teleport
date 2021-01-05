@@ -161,7 +161,8 @@ storage:
     ...
 ```
 
-!!!tip
+!!! tip
+
     When starting with `teleport start --config=/etc/teleport.yaml -d` you can confirm that the
     bucket has been created.
 

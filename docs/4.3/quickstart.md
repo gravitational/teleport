@@ -44,12 +44,14 @@ $ teleport start # if you are not `root` you may need `sudo`
 ```
 
 !!! tip "Background Process"
+
     Avoid suspending your current shell session by
     running the process in the background like so:
     `teleport start > teleport.log 2>&1 &`.
     Access the process logs with `less teleport.log`.
 
 !!! tip "Debugging/Verbose Output"
+
     If you encounter errors with any `teleport`, `tsh` or `tctl`
     command you can enable verbose logging with the `-d, --debug`
     flag.

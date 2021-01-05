@@ -193,6 +193,9 @@ type Config struct {
 
 	// Kube is a Kubernetes API gateway using Teleport client identities.
 	Kube KubeConfig
+
+	// Log optionally specifies the logger
+	Log utils.Logger
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -349,6 +352,19 @@ type ProxyConfig struct {
 
 	// KeyPairs are the key and certificate pairs that the proxy will load.
 	KeyPairs []KeyPairPath
+
+	// ACME is ACME protocol support config
+	ACME ACME
+}
+
+// ACME configures ACME automatic certificate renewal
+type ACME struct {
+	// Enabled enables or disables ACME support
+	Enabled bool
+	// Email receives notifications from ACME server
+	Email string
+	// URI is ACME server URI
+	URI string
 }
 
 // KeyPairPath are paths to a key and certificate file.
@@ -594,6 +610,10 @@ func ApplyDefaults(cfg *Config) {
 	var sc ssh.Config
 	sc.SetDefaults()
 
+	if cfg.Log == nil {
+		cfg.Log = utils.NewLogger()
+	}
+
 	// Remove insecure and (borderline insecure) cryptographic primitives from
 	// default configuration. These can still be added back in file configuration by
 	// users, but not supported by default by Teleport. See #1856 for more
@@ -608,7 +628,7 @@ func ApplyDefaults(cfg *Config) {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "localhost"
-		log.Errorf("Failed to determine hostname: %v.", err)
+		cfg.Log.Errorf("Failed to determine hostname: %v.", err)
 	}
 
 	// Global defaults.
