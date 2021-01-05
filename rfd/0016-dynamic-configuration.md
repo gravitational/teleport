@@ -193,8 +193,8 @@ The label can be associated with three classes of values:
    "dynamically" by the user.
 
 The following table captures the ordinary means of performing the "fastest"
-transition between a pair of `origin` values.  The leftmost column
-is the current/source `origin` value of a resource while the top row is the
+transition between a pair of `origin` values.  The leftmost column is the
+current/source `origin` value of a resource while the top row is the
 desired/target `origin` value:
 
 |    *from \ to*    |        **`defaults`**       |           **`config-file`**          |           **(other)**           |
@@ -251,7 +251,7 @@ This logic implies Choices 2.B and 3.B.
    ```
 
    This requires adding support for `--confirm` flag (that works only in
-   conjunction with `--force`).  Invokation with `--force` and `--confirm`
+   conjunction with `--force`).  Invocation with both `--force` and `--confirm`
    always commits the YAML resource.
 
 This logic implies Choice 5.A and an adaptation of Choice 6.A.
