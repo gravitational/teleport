@@ -1987,7 +1987,7 @@ steps:
     commands:
       - set -u
       - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - make clean release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+      - make clean release OS=$OS ARCH=$ARCH
 
   - name: Copy Mac artifacts
     environment:
@@ -2381,7 +2381,7 @@ steps:
     commands:
       - set -u
       - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - make clean release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+      - make clean release OS=$OS ARCH=$ARCH
 
   - name: Copy ARM artifacts
     environment:
@@ -2497,7 +2497,7 @@ steps:
     commands:
       - set -u
       - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-      - make clean release OS=$OS ARCH=$ARCH RUNTIME=$RUNTIME
+      - make clean release OS=$OS ARCH=$ARCH
 
   - name: Copy ARM64 artifacts
     environment:
@@ -3373,6 +3373,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 5fe6d36ac7e3333d0255948f5822810238c1f919e67383210883387ddae169c5
+hmac: 8e61d6a28701befe7b588bd1019914cb37729fc7b056132c3f336ed456d965ba
 
 ...
