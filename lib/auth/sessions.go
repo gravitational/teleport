@@ -85,6 +85,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req services.CreateAppSes
 		TLSCert: certs.tls,
 		Expires: s.clock.Now().Add(ttl),
 	})
+	// FIXME(dmitri): careful, does this also need the bearer token resource?
 	if err = s.Identity.UpsertAppSession(ctx, session); err != nil {
 		return nil, trace.Wrap(err)
 	}

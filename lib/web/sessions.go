@@ -70,10 +70,12 @@ type SessionContext struct {
 
 // String returns the text representation of this context
 func (c *SessionContext) String() string {
-	return fmt.Sprintf("WebSession(user=%v,id=%v,ttl=%v)",
+	return fmt.Sprintf("WebSession(user=%v,id=%v,expires=%v,bearer=%v,bearer_expires=%v)",
 		c.user,
 		c.session.GetName(),
 		c.session.GetExpiryTime(),
+		c.session.GetBearerToken(),
+		c.session.GetBearerTokenExpiryTime(),
 	)
 }
 
@@ -322,11 +324,10 @@ func (c *SessionContext) validateSession(ctx context.Context, session services.W
 }
 
 func (c *SessionContext) getToken() services.WebToken {
-	return services.NewWebToken(c.session.GetBearerToken(),
-		services.WebTokenSpecV1{
-			Token:   c.session.GetBearerToken(),
-			Expires: c.session.GetBearerTokenExpiryTime(),
-		})
+	return services.NewWebToken(services.WebTokenSpecV1{
+		Token:   c.session.GetBearerToken(),
+		Expires: c.session.GetBearerTokenExpiryTime(),
+	})
 }
 
 // expired returns whether this context has expired.
@@ -543,9 +544,6 @@ func (s *sessionCache) validateSession(ctx context.Context, user, sessionID stri
 
 func (s *sessionCache) invalidateSession(ctx *SessionContext) error {
 	defer ctx.Close()
-	if err := s.resetContext(ctx.GetUser(), ctx.session.GetName()); err != nil {
-		return trace.Wrap(err)
-	}
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return trace.Wrap(err)
@@ -553,7 +551,13 @@ func (s *sessionCache) invalidateSession(ctx *SessionContext) error {
 	err = clt.WebSessions().Delete(context.TODO(), services.DeleteWebSessionRequest{
 		SessionID: ctx.session.GetName(),
 	})
-	return trace.Wrap(err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := s.resetContext(ctx.GetUser(), ctx.session.GetName()); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func (s *sessionCache) getContext(user, sessionID string) (*SessionContext, error) {
@@ -780,14 +784,12 @@ func (h *Handler) waitForWebSession(ctx context.Context, req services.GetWebSess
 			{
 				Kind:    services.KindWebSession,
 				SubKind: services.KindWebSession,
-				Name:    req.SessionID,
 			},
 		},
 		MetricComponent: teleport.ComponentWebProxy,
 	})
 	defer watcher.Close()
 	matchEvent := func(event services.Event) bool {
-		// TODO(dmitri): remove comparison against sessionID if watcher accepts the ID (see above)
 		return event.Type == backend.OpPut && event.Resource.GetName() == req.SessionID
 	}
 	_, err = waitForSession(ctx, watcher, eventMatcherFunc(matchEvent))
@@ -799,8 +801,28 @@ func readBearerToken(ctx context.Context, accessPoint auth.ReadAccessPoint, req 
 	if err == nil {
 		return token, nil
 	}
-	return nil, trace.Wrap(err)
-	// TODO(dmitri): wait for token to appear in cache if not found
+	// Establish a watch.
+	watcher, err := accessPoint.NewWatcher(ctx, services.Watch{
+		Name: teleport.ComponentWebProxy,
+		Kinds: []services.WatchKind{
+			{
+				Kind: services.KindWebToken,
+			},
+		},
+		MetricComponent: teleport.ComponentWebProxy,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer watcher.Close()
+	matchEvent := func(event services.Event) bool {
+		return event.Resource.GetName() == req.Token
+	}
+	token, err = waitForToken(ctx, watcher, eventMatcherFunc(matchEvent))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return token, nil
 }
 
 func readSession(ctx context.Context, accessPoint auth.ReadAccessPoint, req services.GetWebSessionRequest) (services.WebSession, error) {
@@ -808,18 +830,20 @@ func readSession(ctx context.Context, accessPoint auth.ReadAccessPoint, req serv
 	if err == nil {
 		return session, nil
 	}
-	// Establish a watch on application session.
+	// Establish a watch.
 	watcher, err := accessPoint.NewWatcher(ctx, services.Watch{
 		Name: teleport.ComponentWebProxy,
 		Kinds: []services.WatchKind{
 			{
 				Kind:    services.KindWebSession,
 				SubKind: services.KindWebSession,
-				Name:    req.SessionID,
 			},
 		},
 		MetricComponent: teleport.ComponentWebProxy,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	defer watcher.Close()
 	matchEvent := func(event services.Event) bool {
 		return event.Resource.GetName() == req.SessionID
@@ -829,6 +853,41 @@ func readSession(ctx context.Context, accessPoint auth.ReadAccessPoint, req serv
 		return nil, trace.Wrap(err)
 	}
 	return session, nil
+}
+
+// FIXME(dmitri): combine with waitForSession
+func waitForToken(ctx context.Context, watcher services.Watcher, m eventMatcher) (services.WebToken, error) {
+	timeout := time.NewTimer(defaults.WebHeadersTimeout)
+	defer timeout.Stop()
+
+	select {
+	case event := <-watcher.Events():
+		if event.Type != backend.OpInit {
+			return nil, trace.BadParameter("expected init event, got %v instead", event.Type)
+		}
+	case <-watcher.Done():
+		// Watcher closed, probably due to a network error.
+		return nil, trace.ConnectionProblem(watcher.Error(), "watcher is closed (%T)", watcher)
+	case <-timeout.C:
+		return nil, trace.LimitExceeded("timed out waiting for initialize event")
+	}
+
+	for {
+		select {
+		case event := <-watcher.Events():
+			if event.Resource.GetKind() != services.KindWebToken {
+				return nil, trace.BadParameter("unexpected event: %v.", event.Resource.GetKind())
+			}
+			if m.match(event) {
+				return event.Resource.(services.WebToken), nil
+			}
+		case <-watcher.Done():
+			// Watcher closed, probably due to a network error.
+			return nil, trace.ConnectionProblem(watcher.Error(), "watcher is closed")
+		case <-timeout.C:
+			return nil, trace.LimitExceeded("timed out waiting for token")
+		}
+	}
 }
 
 func waitForSession(ctx context.Context, watcher services.Watcher, m eventMatcher) (services.WebSession, error) {

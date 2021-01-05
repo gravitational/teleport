@@ -176,7 +176,7 @@ func (r *webSessions) Upsert(ctx context.Context, session services.WebSession) e
 	item := backend.Item{
 		Key:     webSessionKey(session.GetName()),
 		Value:   value,
-		Expires: sessionMetadata.Expiry(),
+		Expires: backend.EarliestExpiry(session.GetBearerTokenExpiryTime(), sessionMetadata.Expiry()),
 	}
 	_, err = r.backend.Put(ctx, item)
 	if err != nil {
@@ -270,7 +270,7 @@ func (r *webTokens) List(ctx context.Context) (out []services.WebToken, err erro
 
 // Upsert updates the existing or inserts a new web token.
 func (r *webTokens) Upsert(ctx context.Context, token services.WebToken) error {
-	bytes, err := services.MarshalWebToken(token)
+	bytes, err := services.MarshalWebToken(token, services.WithVersion(services.V1))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -309,6 +309,9 @@ type webTokens struct {
 	log     logrus.FieldLogger
 }
 
+// DELETE in 6.x.
+// getLegacySession returns the web session for the specified user/sessionID
+// under a legacy path /web/users/<user>/sessions/<id>
 func getLegacyWebSession(ctx context.Context, backend backend.Backend, user, sessionID string) (services.WebSession, error) {
 	item, err := backend.Get(ctx, legacyWebSessionKey(user, sessionID))
 	if err != nil {
@@ -318,7 +321,6 @@ func getLegacyWebSession(ctx context.Context, backend backend.Backend, user, ses
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// DELETE in 6.x.
 	// this is for backwards compatibility to ensure we
 	// always have these values
 	session.SetUser(user)

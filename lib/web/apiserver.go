@@ -1186,7 +1186,7 @@ func newSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 		return nil, trace.Wrap(err)
 	}
 	token := ctx.getToken()
-	user, err := clt.GetUser(token.GetUser(), false)
+	user, err := clt.GetUser(ctx.GetUser(), false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1269,13 +1269,14 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.AccessDenied("need auth")
 	}
 
+	// FIXME(dmitri): debugging
+	// return newSessionResponse(ctx)
 	resp, err := newSessionResponse(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	h.log.WithField("resp", resp).Info("Create new web session.")
 	return resp, nil
-	// return newSessionResponse(ctx, webSession)
 }
 
 // deleteSession is called to sign out user

@@ -636,8 +636,6 @@ func (s *WebSuite) TestWebSessionsRenew(c *C) {
 	// make sure the previous session expires
 	s.clock.Advance(auth.BearerTokenTTL)
 	_, err = oldClt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
-	// FIXME(dmitri): error response
-	// c.Assert(err, ErrorMatches, ".*bad bearer token.*")
 
 	// now delete session
 	_, err = newPack.clt.Delete(
