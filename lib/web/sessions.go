@@ -323,6 +323,10 @@ func (c *SessionContext) validateSession(ctx context.Context, session services.W
 	return c.parent.validateSession(ctx, session.GetUser(), session.GetName())
 }
 
+// getToken returns the bearer token associated with the underlying
+// session. Note that sessions are separate from bearer tokens and this
+// is only useful immediately after a session has been created to query
+// the token.
 func (c *SessionContext) getToken() services.WebToken {
 	return services.NewWebToken(services.WebTokenSpecV1{
 		Token:   c.session.GetBearerToken(),
@@ -383,8 +387,11 @@ type sessionCache struct {
 
 	mu sync.Mutex
 	// sessions maps user/sessionID to an active web session.
+	// This is the client-facing session handle
 	sessions map[string]*SessionContext
 	// contexts maps user to an active user web session.
+	// These are used to maintain session state that would otherwise
+	// not survive renewal of the session
 	contexts map[string]*sessionContext
 }
 
@@ -750,7 +757,7 @@ func (c *sessionContext) addClosers(closers ...io.Closer) {
 	c.closers = append(c.closers, closers...)
 }
 
-// remoevCloser removes the specified closer from this context
+// removeCloser removes the specified closer from this context
 func (c *sessionContext) removeCloser(closer io.Closer) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -781,6 +788,12 @@ func readBearerToken(ctx context.Context, accessPoint auth.ReadAccessPoint, req 
 	token, err := accessPoint.GetWebToken(ctx, req)
 	if err == nil {
 		return token, nil
+	}
+	if !trace.IsNotFound(err) {
+		log.WithFields(logrus.Fields{
+			"req":           req,
+			logrus.ErrorKey: err,
+		}).Debug("Failed to query web token.")
 	}
 	// Establish a watch.
 	watcher, err := accessPoint.NewWatcher(ctx, services.Watch{
@@ -815,6 +828,12 @@ func readSession(ctx context.Context, accessPoint auth.ReadAccessPoint, req serv
 	session, err := accessPoint.GetWebSession(ctx, req)
 	if err == nil {
 		return session, nil
+	}
+	if !trace.IsNotFound(err) {
+		log.WithFields(logrus.Fields{
+			"req":           req,
+			logrus.ErrorKey: err,
+		}).Debug("Failed to query web session.")
 	}
 	// Establish a watch.
 	watcher, err := accessPoint.NewWatcher(ctx, services.Watch{

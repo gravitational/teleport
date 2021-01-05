@@ -1231,15 +1231,14 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 		}
 		return nil, trace.AccessDenied("[10] access denied")
 	}
-	srv := &ServerWithRoles{
-		authServer: g.AuthServer,
-		context:    *authContext,
-		sessions:   g.SessionService,
-		alog:       g.AuthServer.IAuditLog,
-	}
 	return &grpcContext{
-		Context:         authContext,
-		ServerWithRoles: srv,
+		Context: authContext,
+		ServerWithRoles: &ServerWithRoles{
+			authServer: g.AuthServer,
+			context:    *authContext,
+			sessions:   g.SessionService,
+			alog:       g.AuthServer.IAuditLog,
+		},
 	}, nil
 }
 

@@ -156,7 +156,10 @@ func (s *AuthSuite) TestSessions(c *C) {
 	err = s.a.DeleteWebSession(user, ws.GetName())
 	c.Assert(err, IsNil)
 
-	_, err = s.a.GetWebSessionByUser(user, ws.GetName())
+	_, err = s.a.GetWebSession(context.TODO(), services.GetWebSessionRequest{
+		User:      user,
+		SessionID: ws.GetName(),
+	})
 	c.Assert(trace.IsNotFound(err), Equals, true, Commentf("%#v", err))
 }
 

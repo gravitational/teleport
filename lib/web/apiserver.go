@@ -1322,14 +1322,14 @@ func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params ht
 	if err := SetSessionCookie(w, newSession.GetUser(), newSession.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// TODO(dmitri): remove me; debugging
+	// FIXME(dmitri): debugging
+	// return newSessionResponse(newContext)
 	resp, err := newSessionResponse(newContext)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	h.log.WithField("resp", resp).Info("Renew web session.")
 	return resp, nil
-	// return newSessionResponse(newContext, newContext.getToken())
 }
 
 func (h *Handler) changePasswordWithToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -2274,7 +2274,7 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 		}
 		if err := ctx.validateBearerToken(r.Context(), creds.Password); err != nil {
 			logger.Warn("Request failed: bad bearer token.")
-			return nil, trace.Wrap(err)
+			return nil, trace.AccessDenied("bad bearer token")
 		}
 	}
 	return ctx, nil

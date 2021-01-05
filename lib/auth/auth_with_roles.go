@@ -797,7 +797,9 @@ func (a *ServerWithRoles) CreateWebSession(user string) (services.WebSession, er
 	return a.authServer.CreateWebSession(user)
 }
 
-// ExtendWebSession returns a copy of the web session specified with prevSessionID
+// ExtendWebSession creates a new web session for a user based on a valid previous session.
+// Additional roles are appended to initial roles if there is an approved access request.
+// The new session expiration time will not exceed the expiration time of the old session.
 func (a *ServerWithRoles) ExtendWebSession(user, prevSessionID, accessRequestID string) (services.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
@@ -833,6 +835,8 @@ func (a *ServerWithRoles) GetWebSession(ctx context.Context, req services.GetWeb
 // WebSessions returns the web session manager.
 // Implements services.WebSessionsGetter.
 func (a *ServerWithRoles) WebSessions() services.WebSessionInterface {
+	// FIXME(dmitri): is this correct? Shouldn't this create the webSessions value
+	// from a?
 	return a.authServer.WebSessions()
 }
 
@@ -856,6 +860,7 @@ func (r *webSessionsWithRoles) List(ctx context.Context) ([]services.WebSession,
 }
 
 // Upsert creates a new or updates the existing web session from the specified session.
+// FIXME(dmitri): is this correctly unimplemented?
 func (*webSessionsWithRoles) Upsert(ctx context.Context, session services.WebSession) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
@@ -891,7 +896,7 @@ type webSessionsWithRoles struct {
 	ws services.WebSessionInterface
 }
 
-// WebTokens returns the web tokenmanager.
+// WebTokens returns the web token manager.
 // Implements services.WebTokensGetter.
 func (a *ServerWithRoles) WebTokens() services.WebTokenInterface {
 	return a.authServer.WebTokens()
@@ -910,13 +915,11 @@ func (r *webTokensWithRoles) List(ctx context.Context) ([]services.WebToken, err
 	if err := r.c.action(defaults.Namespace, services.KindWebToken, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return r.t.List(ctx)
 }
 
 // Upsert creates a new or updates the existing web token from the specified token.
+// FIXME(dmitri): is this correctly unimplemented?
 func (*webTokensWithRoles) Upsert(ctx context.Context, session services.WebToken) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
@@ -2487,11 +2490,10 @@ func NewAdminAuthServer(authServer *Server, sessions session.Service, alog event
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	s := &ServerWithRoles{
+	return &ServerWithRoles{
 		authServer: authServer,
 		context:    *ctx,
 		alog:       alog,
 		sessions:   sessions,
-	}
-	return s, nil
+	}, nil
 }

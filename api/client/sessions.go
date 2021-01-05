@@ -142,5 +142,4 @@ type webTokens struct {
 	c *Client
 }
 
-// TODO(dmitri)
 const notImplementedMessage = "not implemented: can only be called by auth locally"
