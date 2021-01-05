@@ -1167,13 +1167,9 @@ message SessionUpload {
     SessionMetadata SessionMetadata = 2
         [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
 
-    // Time is the time of the upload
-    google.protobuf.Timestamp SessionUploadTime = 3
-        [ (gogoproto.stdtime) = true, (gogoproto.nullable) = false ];
-
     // ID is a unique event identifier
     string UID = 4 [ (gogoproto.jsontag) = "uid,omitempty" ];
 
     // URL is where the url the session event data upload is at
-    string SessionURL = 5;
+    string SessionURL = 5 [ (gogoproto.jsontag) = "url" ];
 }

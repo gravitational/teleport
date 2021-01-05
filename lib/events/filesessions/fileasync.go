@@ -56,7 +56,7 @@ type UploaderConfig struct {
 	EventsC chan events.UploadEvent
 	// Component is used for logging purposes
 	Component string
-	//
+	// AuditLog is used for storing logs
 	AuditLog events.IAuditLog
 }
 
@@ -444,10 +444,9 @@ func (u *Uploader) startUpload(fileName string) error {
 				Code: events.SessionUploadCode,
 			},
 			SessionMetadata: events.SessionMetadata{
-				SessionID: string(sessionID),
+				SessionID: string(upload.sessionID),
 			},
-			SessionUploadTime: start,
-			SessionURL:        fileName,
+			SessionURL: u.cfg.ScanDir,
 		}
 		u.log.WithFields(log.Fields{"duration": time.Since(start), "session-id": sessionID}).Debugf("Session upload completed.")
 		if err := u.auditLog.EmitAuditEvent(u.ctx, session); err != nil {
