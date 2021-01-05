@@ -773,26 +773,7 @@ func (c *sessionContext) transferClosers() []io.Closer {
 // waitForWebSession will block until the requested web session shows up in the
 // cache or a timeout occurs.
 func (h *Handler) waitForWebSession(ctx context.Context, req services.GetWebSessionRequest) error {
-	_, err := h.cfg.AccessPoint.GetWebSession(ctx, req)
-	if err == nil {
-		return nil
-	}
-	// Establish a watch on the session.
-	watcher, err := h.cfg.AccessPoint.NewWatcher(ctx, services.Watch{
-		Name: teleport.ComponentWebProxy,
-		Kinds: []services.WatchKind{
-			{
-				Kind:    services.KindWebSession,
-				SubKind: services.KindWebSession,
-			},
-		},
-		MetricComponent: teleport.ComponentWebProxy,
-	})
-	defer watcher.Close()
-	matchEvent := func(event services.Event) bool {
-		return event.Type == backend.OpPut && event.Resource.GetName() == req.SessionID
-	}
-	_, err = waitForSession(ctx, watcher, eventMatcherFunc(matchEvent))
+	_, err := readSession(ctx, h.cfg.AccessPoint, req)
 	return trace.Wrap(err)
 }
 
@@ -815,14 +796,19 @@ func readBearerToken(ctx context.Context, accessPoint auth.ReadAccessPoint, req 
 		return nil, trace.Wrap(err)
 	}
 	defer watcher.Close()
-	matchEvent := func(event services.Event) bool {
-		return event.Resource.GetName() == req.Token
+	matchEvent := func(event services.Event) (services.Resource, error) {
+		if event.Type == backend.OpPut &&
+			event.Resource.GetKind() == services.KindWebToken &&
+			event.Resource.GetName() == req.Token {
+			return event.Resource, nil
+		}
+		return nil, trace.CompareFailed("no match")
 	}
-	token, err = waitForToken(ctx, watcher, eventMatcherFunc(matchEvent))
+	res, err := waitForResource(ctx, watcher, eventMatcherFunc(matchEvent))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return token, nil
+	return res.(services.WebToken), nil
 }
 
 func readSession(ctx context.Context, accessPoint auth.ReadAccessPoint, req services.GetWebSessionRequest) (services.WebSession, error) {
@@ -845,52 +831,22 @@ func readSession(ctx context.Context, accessPoint auth.ReadAccessPoint, req serv
 		return nil, trace.Wrap(err)
 	}
 	defer watcher.Close()
-	matchEvent := func(event services.Event) bool {
-		return event.Resource.GetName() == req.SessionID
+	matchEvent := func(event services.Event) (services.Resource, error) {
+		if event.Type == backend.OpPut &&
+			event.Resource.GetKind() == services.KindWebSession &&
+			event.Resource.GetName() == req.SessionID {
+			return event.Resource, nil
+		}
+		return nil, trace.CompareFailed("not match")
 	}
-	session, err = waitForSession(ctx, watcher, eventMatcherFunc(matchEvent))
+	res, err := waitForResource(ctx, watcher, eventMatcherFunc(matchEvent))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return session, nil
+	return res.(services.WebSession), nil
 }
 
-// FIXME(dmitri): combine with waitForSession
-func waitForToken(ctx context.Context, watcher services.Watcher, m eventMatcher) (services.WebToken, error) {
-	timeout := time.NewTimer(defaults.WebHeadersTimeout)
-	defer timeout.Stop()
-
-	select {
-	case event := <-watcher.Events():
-		if event.Type != backend.OpInit {
-			return nil, trace.BadParameter("expected init event, got %v instead", event.Type)
-		}
-	case <-watcher.Done():
-		// Watcher closed, probably due to a network error.
-		return nil, trace.ConnectionProblem(watcher.Error(), "watcher is closed (%T)", watcher)
-	case <-timeout.C:
-		return nil, trace.LimitExceeded("timed out waiting for initialize event")
-	}
-
-	for {
-		select {
-		case event := <-watcher.Events():
-			if event.Resource.GetKind() != services.KindWebToken {
-				return nil, trace.BadParameter("unexpected event: %v.", event.Resource.GetKind())
-			}
-			if m.match(event) {
-				return event.Resource.(services.WebToken), nil
-			}
-		case <-watcher.Done():
-			// Watcher closed, probably due to a network error.
-			return nil, trace.ConnectionProblem(watcher.Error(), "watcher is closed")
-		case <-timeout.C:
-			return nil, trace.LimitExceeded("timed out waiting for token")
-		}
-	}
-}
-
-func waitForSession(ctx context.Context, watcher services.Watcher, m eventMatcher) (services.WebSession, error) {
+func waitForResource(ctx context.Context, watcher services.Watcher, m eventMatcher) (services.Resource, error) {
 	timeout := time.NewTimer(defaults.WebHeadersTimeout)
 	defer timeout.Stop()
 
@@ -909,27 +865,28 @@ func waitForSession(ctx context.Context, watcher services.Watcher, m eventMatche
 	for {
 		select {
 		case event := <-watcher.Events():
-			if event.Resource.GetKind() != services.KindWebSession {
-				return nil, trace.BadParameter("unexpected event: %v.", event.Resource.GetKind())
-			}
-			if m.match(event) {
-				return event.Resource.(services.WebSession), nil
+			res, err := m.match(event)
+			if err == nil {
+				return res, nil
 			}
 		case <-watcher.Done():
 			// Watcher closed, probably due to a network error.
 			return nil, trace.ConnectionProblem(watcher.Error(), "watcher is closed")
 		case <-timeout.C:
-			return nil, trace.LimitExceeded("timed out waiting for session")
+			return nil, trace.LimitExceeded("timed out waiting for resource")
 		}
 	}
 }
 
-func (r eventMatcherFunc) match(event services.Event) bool {
+func (r eventMatcherFunc) match(event services.Event) (services.Resource, error) {
 	return r(event)
 }
 
-type eventMatcherFunc func(services.Event) bool
+type eventMatcherFunc func(services.Event) (services.Resource, error)
 
 type eventMatcher interface {
-	match(services.Event) bool
+	// match matches the specified event.
+	// Returns the matched resource if successful.
+	// Returns trace.CompareFailedError for no match.
+	match(services.Event) (services.Resource, error)
 }
