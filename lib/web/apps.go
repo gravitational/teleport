@@ -196,10 +196,15 @@ func (h *Handler) waitForAppSession(ctx context.Context, sessionID string) error
 		return trace.Wrap(err)
 	}
 	defer watcher.Close()
-	matchEvent := func(event services.Event) bool {
-		return event.Type == backend.OpPut && event.Resource.GetName() == sessionID
+	matchEvent := func(event services.Event) (services.Resource, error) {
+		if event.Type == backend.OpPut &&
+			event.Resource.GetKind() == services.KindWebSession &&
+			event.Resource.GetName() == sessionID {
+			return event.Resource, nil
+		}
+		return nil, trace.CompareFailed("no match")
 	}
-	_, err = waitForSession(ctx, watcher, eventMatcherFunc(matchEvent))
+	_, err = waitForResource(ctx, watcher, eventMatcherFunc(matchEvent))
 	return trace.Wrap(err)
 }
 
