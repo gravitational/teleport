@@ -496,7 +496,7 @@ func readProfile(profileDir string, profileName string) (*ProfileStatus, error) 
 		Cluster:        clusterName,
 		Traits:         traits,
 		ActiveRequests: activeRequests,
-		KubeEnabled:    tlsID.KubernetesCluster != "" && (len(tlsID.KubernetesUsers) > 0 || len(tlsID.KubernetesGroups) > 0),
+		KubeEnabled:    profile.KubeProxyAddr != "",
 		KubeCluster:    tlsID.KubernetesCluster,
 		KubeUsers:      tlsID.KubernetesUsers,
 		KubeGroups:     tlsID.KubernetesGroups,
@@ -2023,6 +2023,10 @@ func (tc *TeleportClient) applyProxySettings(proxySettings ProxySettings) error 
 			webProxyHost, _ := tc.WebProxyHostPort()
 			tc.KubeProxyAddr = net.JoinHostPort(webProxyHost, strconv.Itoa(defaults.KubeListenPort))
 		}
+	} else {
+		// Zero the field, in case there was a previous value set (e.g. loaded
+		// from profile directory).
+		tc.KubeProxyAddr = ""
 	}
 
 	// Read in settings for HTTP endpoint of the proxy.
