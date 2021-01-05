@@ -174,6 +174,84 @@ auth server initialization procedure:
 |                        | **dynamic updated by user** | **dynamic not updated by user** |
 |          :---:         |            :---:            |              :---:              |
 |  **static specified**  |            static           |              static             |
-| **static unspecified** |           dynamic           |  defaults OR last static [???]  |
+| **static unspecified** |           dynamic           |   defaults OR last static [?]   |
 
-(The state marked [???] is unclear and needs decision, see Scenario 3.)
+(The state marked [?] depends on the resolution of Scenario 3.)
+
+## Implementation
+
+The resource label `origin` is to be used as the key indicator when determining
+the configuration sources and their precedence.
+
+The label can be associated with three classes of values:
+
+1. `defaults`: for hard-coded resource objects supplied in lieu of
+   configuration not provided by the user;
+2. `config-file`: for resource objects derived from static configuration
+   provided by the user;
+3. any other string (incl. empty): for resource objects created
+   "dynamically" by the user.
+
+The following table captures the ordinary means of performing the "fastest"
+transition between a pair of `origin` values.  The leftmost column
+is the current/source `origin` value of a resource while the top row is the
+desired/target `origin` value:
+
+|    *from \ to*    |        **`defaults`**       |           **`config-file`**          |           **(other)**           |
+|       :---:       |            :---:            |                 :---:                |              :---:              |
+|   **`defaults`**  |             n/a             | specify in `teleport.yaml` & restart |          `tctl create`          |
+| **`config-file`** | remove from `teleport.yalm` |                  n/a                 | `tctl create --force --confirm` |
+|    **(other)**    |        `tctl rm` [?]        | specify in `teleport.yaml` & restart |               n/a               |
+
+Note that the `origin` label is not reserved or protected in any special way
+by the system and so it can be modified by the same means as other labels.
+User activity can disrupt the intended semantics and cause the label's value to
+cease to be representative of the actual origin or values of a resource.
+
+### Auth server initialization
+
+1. If `teleport.yaml` section is specified, store it as a resource in the
+   backend with `origin: config-file`.
+
+2. If `teleport.yaml` section is not specified, attempt to fetch the resource
+   currently stored in the backend.
+   a) If the fetching attempt failed for whatever reason, store the default
+      resource in the backend with `origin: defaults`.
+   b) If the fetched resource has `origin: config-file` or `origin: defaults`,
+      store the default resource in the backend with `origin: defaults`.
+   c) If the fetched resource has another `origin` value, keep the backend as-is.
+
+This logic implies Choices 2.B and 3.B.
+
+### `tctl create`
+
+1. Fetch the resource currently stored in the backend; on error return
+   immediately.
+
+2. If called without `--force` and the fetched resource does not have
+   `origin:defaults` then print
+   ```
+   error: non-default cluster auth preference already exists, use -f or --force
+   flag to overwrite
+   ```
+
+3. If called with `--force` and the fetched resource does not have `origin:
+   config-file` then store the resource specified in the provided YAML file
+   in the backend.
+
+4. If called with `--force` and the fetched resource has `origin: config-file`
+   then print
+   ```
+   error: This resource is managed by static configuration. We recommend
+   removing configuration from teleport.yaml, restarting the servers and trying
+   this command again.
+
+   If you would still like to proceed, re-run the comand with both --force and
+   --confirm flags.
+   ```
+
+   This requires adding support for `--confirm` flag (that works only in
+   conjunction with `--force`).  Invokation with `--force` and `--confirm`
+   always commits the YAML resource.
+
+This logic implies Choice 5.A and an adaptation of Choice 6.A.
