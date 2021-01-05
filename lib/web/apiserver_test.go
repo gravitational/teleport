@@ -634,6 +634,7 @@ func (s *WebSuite) TestWebSessionsRenew(c *C) {
 	c.Assert(err, IsNil)
 
 	// make sure the previous session expires
+	// TODO(dmitri): complete
 	s.clock.Advance(auth.BearerTokenTTL)
 	_, err = oldClt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 
