@@ -96,11 +96,12 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch services.Watch) (s
 			case services.KindAppSession:
 				parser = newAppSessionParser()
 			case services.KindWebSession:
-				// TODO(dmitri): newWebSessionParser(kind.Name) to pass the session ID
 				parser = newWebSessionParser()
 			default:
 				return nil, trace.BadParameter("watcher on object subkind %q is not supported", kind.SubKind)
 			}
+		case services.KindWebToken:
+			parser = newWebTokenParser()
 		case services.KindRemoteCluster:
 			parser = newRemoteClusterParser()
 		case services.KindKubeService:
@@ -712,6 +713,34 @@ func (p *webSessionParser) parse(event backend.Event) (services.Resource, error)
 		return resourceHeader(event, services.KindWebSession, services.V2, 0)
 	case backend.OpPut:
 		resource, err := services.GetWebSessionMarshaler().UnmarshalWebSession(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resource, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newWebTokenParser() *webTokenParser {
+	return &webTokenParser{
+		baseParser: baseParser{matchPrefix: backend.Key(webPrefix, tokensPrefix)},
+	}
+}
+
+type webTokenParser struct {
+	baseParser
+}
+
+func (p *webTokenParser) parse(event backend.Event) (services.Resource, error) {
+	switch event.Type {
+	case backend.OpDelete:
+		return resourceHeader(event, services.KindWebToken, services.V1, 0)
+	case backend.OpPut:
+		resource, err := services.UnmarshalWebToken(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)

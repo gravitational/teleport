@@ -489,6 +489,10 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch services.Watch) 
 			if err := a.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
+		case services.KindWebToken:
+			if err := a.action(defaults.Namespace, services.KindWebToken, services.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		case services.KindRemoteCluster:
 			if err := a.action(defaults.Namespace, services.KindRemoteCluster, services.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
@@ -895,8 +899,7 @@ func (a *ServerWithRoles) WebTokens() services.WebTokenInterface {
 
 // Get returns the web token specified with req.
 func (r *webTokensWithRoles) Get(ctx context.Context, req services.GetWebTokenRequest) (services.WebToken, error) {
-	// TODO(dmitri): check token resource kind?
-	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
+	if err := r.c.action(defaults.Namespace, services.KindWebToken, services.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return r.t.Get(ctx, req)
@@ -904,7 +907,7 @@ func (r *webTokensWithRoles) Get(ctx context.Context, req services.GetWebTokenRe
 
 // List returns the list of all web tokens.
 func (r *webTokensWithRoles) List(ctx context.Context) ([]services.WebToken, error) {
-	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbList); err != nil {
+	if err := r.c.action(defaults.Namespace, services.KindWebToken, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
@@ -920,7 +923,7 @@ func (*webTokensWithRoles) Upsert(ctx context.Context, session services.WebToken
 
 // Delete removes the web token specified with req.
 func (r *webTokensWithRoles) Delete(ctx context.Context, req services.DeleteWebTokenRequest) error {
-	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
+	if err := r.c.action(defaults.Namespace, services.KindWebToken, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	return r.t.Delete(ctx, req)
@@ -928,10 +931,10 @@ func (r *webTokensWithRoles) Delete(ctx context.Context, req services.DeleteWebT
 
 // DeleteAll removes all web tokens.
 func (r *webTokensWithRoles) DeleteAll(ctx context.Context) error {
-	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbList); err != nil {
+	if err := r.c.action(defaults.Namespace, services.KindWebToken, services.VerbList); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
+	if err := r.c.action(defaults.Namespace, services.KindWebToken, services.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
 	return r.t.DeleteAll(ctx)

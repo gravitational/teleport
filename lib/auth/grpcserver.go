@@ -1216,7 +1216,7 @@ type grpcContext struct {
 
 // authenticate extracts authentication context and returns initialized auth server
 func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
-	// HTTPS server expects auth  context to be set by the auth middleware
+	// HTTPS server expects auth context to be set by the auth middleware
 	authContext, err := g.Authorizer.Authorize(ctx)
 	if err != nil {
 		// propagate connection problem error so we can differentiate

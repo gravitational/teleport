@@ -576,6 +576,7 @@ func (c *Client) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
+
 	return resp.GetSession(), nil
 }
 
@@ -604,6 +605,7 @@ func (c *Client) GenerateAppToken(ctx context.Context, req types.GenerateAppToke
 	if err != nil {
 		return "", trail.FromGRPC(err)
 	}
+
 	return resp.GetToken(), nil
 }
 
