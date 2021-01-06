@@ -865,17 +865,18 @@ func (c *NodeClient) ExecuteSCP(cmd scp.Command) error {
 		&net.IPAddr{},
 	)
 
-	closeC := make(chan interface{}, 1)
+	closeC := make(chan error, 1)
 	go func() {
-		if err = cmd.Execute(ch); err != nil {
+		err := cmd.Execute(ch)
+		if err != nil {
 			log.Error(err)
 		}
 		stdin.Close()
-		close(closeC)
+		closeC <- err
 	}()
 
 	runErr := s.Run(shellCmd)
-	<-closeC
+	err = <-closeC
 
 	if runErr != nil && (err == nil || trace.IsEOF(err)) {
 		err = runErr
