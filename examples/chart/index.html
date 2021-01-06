@@ -7,9 +7,9 @@
     <h3>Add the repo</h3>
     <pre>helm repo add teleport https://charts.releases.teleport.dev</pre>
     <h3>Install a chart</h3>
-    <pre><b><a href="https://github.com/gravitational/teleport/tree/master/examples/chart/teleport">teleport:</a></b> helm install [release-name] teleport/teleport</pre>
+    <pre><b><a href="https://github.com/gravitational/teleport/tree/master/examples/chart/teleport">teleport:</a></b> helm install ${RELEASE_NAME?} teleport/teleport</pre>
     <pre><b><a href="https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-kube-agent">teleport-kube-agent:</a></b>
-    helm install [release-name] teleport/teleport-kube-agent \
+    helm install ${RELEASE_NAME?} teleport/teleport-kube-agent \
     --create-namespace \
     --namespace ${NAMESPACE?} \
     --set proxyAddr=${PROXY_ENDPOINT?} \
