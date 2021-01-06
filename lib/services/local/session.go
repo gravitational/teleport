@@ -115,6 +115,7 @@ func (s *IdentityService) UpsertWebSession(user, sessionID string, session servi
 // DeleteWebSession deletes web session from the storage.
 func (s *IdentityService) DeleteWebSession(user, sessionID string) error {
 	return trace.Wrap(s.WebSessions().Delete(context.TODO(), services.DeleteWebSessionRequest{
+		User:      user,
 		SessionID: sessionID,
 	}))
 }

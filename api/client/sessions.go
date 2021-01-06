@@ -3,7 +3,6 @@ package client
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
@@ -25,10 +24,7 @@ func (c *Client) WebSessions() services.WebSessionInterface {
 
 // Get returns the web session for the specified request
 func (r *webSessions) Get(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
-	resp, err := r.c.grpc.GetWebSession(ctx, &proto.GetWebSessionRequest{
-		User:      req.User,
-		SessionID: req.SessionID,
-	})
+	resp, err := r.c.grpc.GetWebSession(ctx, &req)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -55,9 +51,7 @@ func (r *webSessions) Upsert(ctx context.Context, session services.WebSession) e
 
 // Delete deletes the web session specified with the request
 func (r *webSessions) Delete(ctx context.Context, req services.DeleteWebSessionRequest) error {
-	_, err := r.c.grpc.DeleteWebSession(ctx, &proto.DeleteWebSessionRequest{
-		SessionID: req.SessionID,
-	})
+	_, err := r.c.grpc.DeleteWebSession(ctx, &req)
 	if err != nil {
 		return trail.FromGRPC(err)
 	}
@@ -90,10 +84,7 @@ func (c *Client) WebTokens() services.WebTokenInterface {
 
 // Get returns the web token for the specified request
 func (r *webTokens) Get(ctx context.Context, req services.GetWebTokenRequest) (services.WebToken, error) {
-	resp, err := r.c.grpc.GetWebToken(ctx, &proto.GetWebTokenRequest{
-		User:  req.User,
-		Token: req.Token,
-	})
+	resp, err := r.c.grpc.GetWebToken(ctx, &req)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -120,9 +111,7 @@ func (r *webTokens) Upsert(ctx context.Context, token services.WebToken) error {
 
 // Delete deletes the web token specified with the request
 func (r *webTokens) Delete(ctx context.Context, req services.DeleteWebTokenRequest) error {
-	_, err := r.c.grpc.DeleteWebToken(ctx, &proto.DeleteWebTokenRequest{
-		Token: req.Token,
-	})
+	_, err := r.c.grpc.DeleteWebToken(ctx, &req)
 	if err != nil {
 		return trail.FromGRPC(err)
 	}

@@ -344,7 +344,7 @@ func GetCheckerForBuiltinRole(clusterName string, clusterConfig services.Cluster
 							services.NewRule(services.KindSemaphore, services.RW()),
 							services.NewRule(services.KindAppServer, services.RO()),
 							services.NewRule(services.KindWebSession, services.RW()),
-							services.NewRule(services.KindWebToken, services.RO()),
+							services.NewRule(services.KindWebToken, services.RW()),
 							services.NewRule(services.KindKubeService, services.RW()),
 							services.NewRule(types.KindDatabaseServer, services.RO()),
 							// this rule allows local proxy to update the remote cluster's host certificate authorities
