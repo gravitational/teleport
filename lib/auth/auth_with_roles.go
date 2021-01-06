@@ -840,8 +840,10 @@ func (a *ServerWithRoles) WebSessions() services.WebSessionInterface {
 
 // Get returns the web session specified with req.
 func (r *webSessionsWithRoles) Get(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
-	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+	if err := r.c.currentUserAction(req.User); err != nil {
+		if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return r.ws.Get(ctx, req)
 }
@@ -858,15 +860,18 @@ func (r *webSessionsWithRoles) List(ctx context.Context) ([]services.WebSession,
 }
 
 // Upsert creates a new or updates the existing web session from the specified session.
-// FIXME(dmitri): is this correctly unimplemented?
+// TODO(dmitri): this is currently only implemented for local invocations. This needs to be
+// moved into a more appropriate API
 func (*webSessionsWithRoles) Upsert(ctx context.Context, session services.WebSession) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
 // Delete removes the web session specified with req.
 func (r *webSessionsWithRoles) Delete(ctx context.Context, req services.DeleteWebSessionRequest) error {
-	if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
-		return trace.Wrap(err)
+	if err := r.c.currentUserAction(req.User); err != nil {
+		if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return r.ws.Delete(ctx, req)
 }
@@ -902,8 +907,10 @@ func (a *ServerWithRoles) WebTokens() services.WebTokenInterface {
 
 // Get returns the web token specified with req.
 func (r *webTokensWithRoles) Get(ctx context.Context, req services.GetWebTokenRequest) (services.WebToken, error) {
-	if err := r.c.action(defaults.Namespace, services.KindWebToken, services.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+	if err := r.c.currentUserAction(req.User); err != nil {
+		if err := r.c.action(defaults.Namespace, services.KindWebToken, services.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	return r.t.Get(ctx, req)
 }
@@ -917,15 +924,18 @@ func (r *webTokensWithRoles) List(ctx context.Context) ([]services.WebToken, err
 }
 
 // Upsert creates a new or updates the existing web token from the specified token.
-// FIXME(dmitri): is this correctly unimplemented?
+// TODO(dmitri): this is currently only implemented for local invocations. This needs to be
+// moved into a more appropriate API
 func (*webTokensWithRoles) Upsert(ctx context.Context, session services.WebToken) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
 // Delete removes the web token specified with req.
 func (r *webTokensWithRoles) Delete(ctx context.Context, req services.DeleteWebTokenRequest) error {
-	if err := r.c.action(defaults.Namespace, services.KindWebToken, services.VerbDelete); err != nil {
-		return trace.Wrap(err)
+	if err := r.c.currentUserAction(req.User); err != nil {
+		if err := r.c.action(defaults.Namespace, services.KindWebToken, services.VerbDelete); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return r.t.Delete(ctx, req)
 }
@@ -947,8 +957,8 @@ type webTokensWithRoles struct {
 }
 
 type accessChecker interface {
-	actionWithContext(ctx *services.Context, namespace, resource, action string) error
 	action(namespace, resource, action string) error
+	currentUserAction(user string) error
 }
 
 func (a *ServerWithRoles) GetAccessRequests(ctx context.Context, filter services.AccessRequestFilter) ([]services.AccessRequest, error) {

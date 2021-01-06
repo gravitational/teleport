@@ -955,16 +955,13 @@ func (g GRPCServer) GenerateAppToken(ctx context.Context, req *proto.GenerateApp
 }
 
 // GetWebSession gets a web session.
-func (g *GRPCServer) GetWebSession(ctx context.Context, req *proto.GetWebSessionRequest) (*proto.GetWebSessionResponse, error) {
+func (g *GRPCServer) GetWebSession(ctx context.Context, req *services.GetWebSessionRequest) (*proto.GetWebSessionResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
-	session, err := auth.WebSessions().Get(ctx, services.GetWebSessionRequest{
-		User:      req.GetUser(),
-		SessionID: req.GetSessionID(),
-	})
+	session, err := auth.WebSessions().Get(ctx, *req)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -1005,15 +1002,13 @@ func (g *GRPCServer) GetWebSessions(ctx context.Context, _ *empty.Empty) (*proto
 }
 
 // DeleteWebSession removes the web session given with req.
-func (g *GRPCServer) DeleteWebSession(ctx context.Context, req *proto.DeleteWebSessionRequest) (*empty.Empty, error) {
+func (g *GRPCServer) DeleteWebSession(ctx context.Context, req *services.DeleteWebSessionRequest) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
-	if err := auth.WebSessions().Delete(ctx, services.DeleteWebSessionRequest{
-		SessionID: req.GetSessionID(),
-	}); err != nil {
+	if err := auth.WebSessions().Delete(ctx, *req); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
@@ -1035,16 +1030,13 @@ func (g *GRPCServer) DeleteAllWebSessions(ctx context.Context, _ *empty.Empty) (
 }
 
 // GetWebToken gets a web token.
-func (g *GRPCServer) GetWebToken(ctx context.Context, req *proto.GetWebTokenRequest) (*proto.GetWebTokenResponse, error) {
+func (g *GRPCServer) GetWebToken(ctx context.Context, req *services.GetWebTokenRequest) (*proto.GetWebTokenResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
-	resp, err := auth.WebTokens().Get(ctx, services.GetWebTokenRequest{
-		User:  req.GetUser(),
-		Token: req.GetToken(),
-	})
+	resp, err := auth.WebTokens().Get(ctx, *req)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -1085,15 +1077,13 @@ func (g *GRPCServer) GetWebTokens(ctx context.Context, _ *empty.Empty) (*proto.G
 }
 
 // DeleteWebToken removes the web token given with req.
-func (g *GRPCServer) DeleteWebToken(ctx context.Context, req *proto.DeleteWebTokenRequest) (*empty.Empty, error) {
+func (g *GRPCServer) DeleteWebToken(ctx context.Context, req *services.DeleteWebTokenRequest) (*empty.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
-	if err := auth.WebTokens().Delete(ctx, services.DeleteWebTokenRequest{
-		Token: req.GetToken(),
-	}); err != nil {
+	if err := auth.WebTokens().Delete(ctx, *req); err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 

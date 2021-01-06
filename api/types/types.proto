@@ -1415,15 +1415,17 @@ message KubernetesCluster {
 // GetWebSessionRequest describes a request to query a web session
 message GetWebSessionRequest {
     // User specifies the user the web session is for.
-    string User = 2 [ (gogoproto.jsontag) = "user" ];
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
     // SessionID specifies the web session ID.
-    string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ];
+    string SessionID = 2 [ (gogoproto.jsontag) = "session_id" ];
 }
 
 // DeleteWebSessionRequest describes a request to delete a web session
 message DeleteWebSessionRequest {
+    // User specifies the user the session is bound to
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
     // SessionID specifies the web session ID to delete.
-    string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ];
+    string SessionID = 2 [ (gogoproto.jsontag) = "session_id" ];
 }
 
 // WebTokenV1 describes a web token
@@ -1445,10 +1447,10 @@ message WebTokenV1 {
 
 // WebTokenSpecV1 is a unique time-limited token bound to a user's web session
 message WebTokenSpecV1 {
-    // Token specifies the token's value.
-    string Token = 1 [ (gogoproto.jsontag) = "token" ];
     // User specifies the user the token is bound to.
-    string User = 2 [ (gogoproto.jsontag) = "user" ];
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
+    // Token specifies the token's value.
+    string Token = 2 [ (gogoproto.jsontag) = "token" ];
     // Expires specifies the token's expiration time.
     google.protobuf.Timestamp Expires = 3 [
         (gogoproto.stdtime) = true,
@@ -1459,16 +1461,16 @@ message WebTokenSpecV1 {
 
 // GetWebTokenRequest describes a request to query a web token
 message GetWebTokenRequest {
-    // Token specifies the token to get.
-    string Token = 1 [ (gogoproto.jsontag) = "token" ];
     // User specifies the user the token is for.
-    string User = 2 [ (gogoproto.jsontag) = "user" ];
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
+    // Token specifies the token to get.
+    string Token = 2 [ (gogoproto.jsontag) = "token" ];
 }
 
 // DeleteWebTokenRequest describes a request to delete a web token
 message DeleteWebTokenRequest {
-    // Token specifies the token to delete.
-    string Token = 1 [ (gogoproto.jsontag) = "token" ];
     // User specifies the user the token is for.
-    string User = 2 [ (gogoproto.jsontag) = "user" ];
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
+    // Token specifies the token to delete.
+    string Token = 2 [ (gogoproto.jsontag) = "token" ];
 }
