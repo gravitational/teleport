@@ -15,7 +15,7 @@ using [Mattermost](https://mattermost.com/) an open source messaging platform.
 
 #### Example Mattermost Request
 
-<video controls />
+<video controls>
   <source src="../../../img/enterprise/plugins/mattermost/mattermost.mp4" type="video/mp4" />
   <source src="../../../img/enterprise/plugins/mattermost/mattermost.webm" type="video/webm" />
 Your browser does not support the video tag.

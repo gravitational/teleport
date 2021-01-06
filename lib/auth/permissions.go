@@ -22,7 +22,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 
@@ -525,10 +525,10 @@ const (
 	ContextUser contextKey = "teleport-user"
 	// ContextClientAddr is a client address set in the context of the request
 	ContextClientAddr contextKey = "client-addr"
-	// ContextDelegator is a delegator for access requests set in the context
-	// of the request
-	ContextDelegator contextKey = events.AccessRequestDelegator
 )
+
+// WithDelegator alias for backwards compatibility
+var WithDelegator = client.WithDelegator
 
 // clientUsername returns the username of a remote HTTP client making the call.
 // If ctx didn't pass through auth middleware or did not come from an HTTP

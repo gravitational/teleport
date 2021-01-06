@@ -352,6 +352,19 @@ type ProxyConfig struct {
 
 	// KeyPairs are the key and certificate pairs that the proxy will load.
 	KeyPairs []KeyPairPath
+
+	// ACME is ACME protocol support config
+	ACME ACME
+}
+
+// ACME configures ACME automatic certificate renewal
+type ACME struct {
+	// Enabled enables or disables ACME support
+	Enabled bool
+	// Email receives notifications from ACME server
+	Email string
+	// URI is ACME server URI
+	URI string
 }
 
 // KeyPairPath are paths to a key and certificate file.

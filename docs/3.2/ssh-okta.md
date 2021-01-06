@@ -67,7 +67,8 @@ GROUP ATTRIBUTE STATEMENTS
 
 ![Configure APP](img/okta-saml-3.png)
 
-!!! tip "Important":
+!!! tip "Important"
+
     Notice that we have set "NameID" to the email format and mappped the groups with
     a wildcard regex in the Group Attribute statements. We have also set the "Audience"
     and SSO URL to the same value.

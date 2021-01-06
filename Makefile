@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=5.0.0-dev
+VERSION=6.0.0-dev
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -404,6 +404,7 @@ buildbox-grpc:
 # standard GRPC output
 	echo $$PROTO_INCLUDE
 	find lib/ -iname *.proto | xargs clang-format -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
+	find api/ -iname *.proto | xargs clang-format -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 
 	cd lib/events && protoc -I=.:$$PROTO_INCLUDE \
 	  --gofast_out=plugins=grpc:.\
@@ -413,9 +414,10 @@ buildbox-grpc:
 	  --gofast_out=plugins=grpc:.\
     *.proto
 
-	cd lib/auth/proto && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
-    *.proto
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/client/proto \
+		--gofast_out=plugins=grpc:api/client/proto \
+		authservice.proto
 
 	cd lib/wrappers && protoc -I=.:$$PROTO_INCLUDE \
 	  --gofast_out=plugins=grpc:.\

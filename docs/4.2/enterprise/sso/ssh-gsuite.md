@@ -69,13 +69,13 @@ the OIDC Connector, under `google_service_account_uri`.
     Teleport requires the service account JSON to be uploaded to all Teleport authentication servers when setting
     up in a HA config.
 
-!!! Warning
+!!! warning
 
     Do not use the email of the service account. The configuration display will look the same but the service account will not have the domain-wide delegation required. The `client_id` field must be the unique ID number captured from the admin UI. An indicator that this is misconfigured is if you see "Client is unauthorized to retrieve access tokens using this method, or client not authorized for any of the scopes requested." in your log.
 
-!!! Note
+!!! note
 
-   The email that you set for `google_admin_email` **must** be the email address of a user that has permission to list all groups, users, and group membership in your G Suite account. This user will generally need super admin privileges.
+    The email that you set for `google_admin_email` **must** be the email address of a user that has permission to list all groups, users, and group membership in your G Suite account. This user will generally need super admin privileges.
 
 ## API Scopes:
 Before setting the Manage API client access capture the client ID of the service account.

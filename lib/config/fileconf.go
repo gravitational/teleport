@@ -19,13 +19,16 @@ package config
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/acme"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -39,6 +42,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 )
 
@@ -177,6 +181,8 @@ var (
 		"rewrite":                 false,
 		"redirect":                false,
 		"debug_app":               false,
+		"acme":                    true,
+		"email":                   false,
 	}
 )
 
@@ -233,8 +239,35 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 		return nil, trace.Wrap(err, "failed reading Teleport configuration")
 	}
 	var fc FileConfig
+
+	// New validation in 6.0:
+	//
+	// Try strict unmarshal first (fails if any yaml entry doesn't map to a
+	// FileConfig field).
+	//
+	// If strict unmarshal failed, there may be some innocent mis-placed config
+	// fields. Fall back to the old validation first.
+	//
+	// If the old validation fails too, then we'll report the above error
+	// because the config is definitely invalid.
+	//
+	// If the old validation succeeds, we'll log the above error, but won't
+	// enforce it yet to let users fix the problem
+	strictUnmarshalErr := yaml.UnmarshalStrict(bytes, &fc)
+	if strictUnmarshalErr == nil {
+		// don't start Teleport with invalid ciphers, kex algorithms, or mac algorithms.
+		if err = fc.CheckAndSetDefaults(); err != nil {
+			return nil, trace.BadParameter("failed to parse Teleport configuration: %v", err)
+		}
+		return &fc, nil
+	}
+	// Remove all newlines in the YAML error, to avoid escaping when printing.
+	strictUnmarshalErr = errors.New(strings.Replace(strictUnmarshalErr.Error(), "\n", "", -1))
+	// DELETE IN 7.0: during 6.0, users should notice any issues that passed
+	// old validation but not the new strict one. With 7.0, we should always
+	// enforce the strict validation.
 	if err = yaml.Unmarshal(bytes, &fc); err != nil {
-		return nil, trace.BadParameter("failed to parse Teleport configuration: %v", err)
+		return nil, trace.BadParameter("failed to parse Teleport configuration: %v", strictUnmarshalErr)
 	}
 	// don't start Teleport with invalid ciphers, kex algorithms, or mac algorithms.
 	err = fc.CheckAndSetDefaults()
@@ -265,11 +298,20 @@ func ReadConfig(reader io.Reader) (*FileConfig, error) {
 	// validate configuration keys:
 	var tmp YAMLMap
 	if err = yaml.Unmarshal(bytes, &tmp); err != nil {
-		return nil, trace.BadParameter("error parsing YAML config")
+		return nil, trace.BadParameter("error parsing YAML config: %v", err)
 	}
 	if err = validateKeys(tmp); err != nil {
-		return nil, trace.Wrap(err)
+		// Both old an new validations failed. Report the new strict validation
+		// error.
+		return nil, trace.Wrap(strictUnmarshalErr)
 	}
+	// New strict validation failed but old one succeeded. There's something
+	// wrong with the config, but don't prevent it from starting up.
+	logrus.Errorf("Teleport configuration is invalid: %v.", strictUnmarshalErr)
+	logrus.Error("This error will be enforced in the next Teleport release.")
+	// Also add a short but noticeable sleep, to nudge users to pay attention
+	// to logs.
+	time.Sleep(5 * time.Second)
 	return &fc, nil
 }
 
@@ -903,6 +945,44 @@ type Proxy struct {
 
 	// KeyPairs is a list of x509 key pairs the proxy will load.
 	KeyPairs []KeyPair `yaml:"https_keypairs"`
+
+	// ACME configures ACME protocol support
+	ACME ACME `yaml:"acme"`
+}
+
+// ACME configures ACME protocol - automatic X.509 certificates
+type ACME struct {
+	// EnabledFlag is whether ACME should be enabled
+	EnabledFlag string `yaml:"enabled,omitempty"`
+	// Email is the email that will receive problems with certificate renewals
+	Email string `yaml:"email,omitempty"`
+	// URI is ACME server URI
+	URI string `yaml:"uri,omitempty"`
+}
+
+// Parse parses ACME section values
+func (a ACME) Parse() (*service.ACME, error) {
+	// ACME is disabled by default
+	out := service.ACME{}
+	if a.EnabledFlag == "" {
+		return &out, nil
+	}
+
+	var err error
+	out.Enabled, err = utils.ParseBool(a.EnabledFlag)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out.Email = a.Email
+	if a.URI != "" {
+		_, err := url.Parse(a.URI)
+		if err != nil {
+			return nil, trace.Wrap(err, "acme.uri should be a valid URI, for example %v", acme.LetsEncryptURL)
+		}
+	}
+	out.URI = a.URI
+
+	return &out, nil
 }
 
 // KeyPair represents a path on disk to a private key and certificate.

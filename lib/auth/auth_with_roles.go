@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth/proto"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -826,6 +826,28 @@ func (a *ServerWithRoles) SetAccessRequestState(ctx context.Context, params serv
 	return a.authServer.SetAccessRequestState(ctx, params)
 }
 
+func (a *ServerWithRoles) GetAccessCapabilities(ctx context.Context, req services.AccessCapabilitiesRequest) (*services.AccessCapabilities, error) {
+	// default to checking the capabilities of the caller
+	if req.User == "" {
+		req.User = a.context.User.GetName()
+	}
+
+	// all users can check their own capabilities
+	if a.currentUserAction(req.User) != nil {
+		if err := a.action(defaults.Namespace, services.KindUser, services.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := a.action(defaults.Namespace, services.KindRole, services.VerbList); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := a.action(defaults.Namespace, services.KindRole, services.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return a.authServer.GetAccessCapabilities(ctx, req)
+}
+
 // GetPluginData loads all plugin data matching the supplied filter.
 func (a *ServerWithRoles) GetPluginData(ctx context.Context, filter services.PluginDataFilter) ([]services.PluginData, error) {
 	switch filter.Kind {
@@ -868,23 +890,6 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 		ClusterName:   cn.GetClusterName(),
 		ServerVersion: teleport.Version,
 	}, nil
-}
-
-// WithDelegator creates a child context with the AccessRequestDelegator
-// value set.  Optionally used by AuthServer.SetAccessRequestState to log
-// a delegating identity.
-func WithDelegator(ctx context.Context, delegator string) context.Context {
-	return context.WithValue(ctx, ContextDelegator, delegator)
-}
-
-// getDelegator attempts to load the context value AccessRequestDelegator,
-// returning the empty string if no value was found.
-func getDelegator(ctx context.Context) string {
-	delegator, ok := ctx.Value(ContextDelegator).(string)
-	if !ok {
-		return ""
-	}
-	return delegator
 }
 
 func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) error {

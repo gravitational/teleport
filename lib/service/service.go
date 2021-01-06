@@ -40,6 +40,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"golang.org/x/crypto/acme"
+	"golang.org/x/crypto/acme/autocert"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -197,10 +199,10 @@ type Connector struct {
 // TunnelProxy if non-empty, indicates that the client is connected to the Auth Server
 // through the reverse SSH tunnel proxy
 func (c *Connector) TunnelProxy() string {
-	if c.Client == nil || c.Client.Dialer == nil {
+	if c.Client == nil || c.Client.Dialer() == nil {
 		return ""
 	}
-	tun, ok := c.Client.Dialer.(*reversetunnel.TunnelAuthDialer)
+	tun, ok := c.Client.Dialer().(*reversetunnel.TunnelAuthDialer)
 	if !ok {
 		return ""
 	}
@@ -2122,7 +2124,8 @@ func (process *TeleportProcess) initProxy() error {
 	// If no TLS key was provided for the web UI, generate a self signed cert
 	if len(process.Config.Proxy.KeyPairs) == 0 &&
 		!process.Config.Proxy.DisableTLS &&
-		!process.Config.Proxy.DisableWebService {
+		!process.Config.Proxy.DisableWebService &&
+		!process.Config.Proxy.ACME.Enabled {
 		err := initSelfSignedHTTPSCert(process.Config)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2428,7 +2431,38 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 		proxyLimiter.WrapHandle(webHandler)
 		if !process.Config.Proxy.DisableTLS {
-			tlsConfig := utils.TLSConfig(cfg.CipherSuites)
+			var tlsConfig *tls.Config
+			acmeCfg := process.Config.Proxy.ACME
+			if !acmeCfg.Enabled {
+				tlsConfig = utils.TLSConfig(cfg.CipherSuites)
+			} else {
+				log.Infof("Managing certs using ACME https://datatracker.ietf.org/doc/rfc8555/.")
+
+				acmePath := filepath.Join(process.Config.DataDir, teleport.ComponentACME)
+				if err := os.MkdirAll(acmePath, teleport.PrivateDirMode); err != nil {
+					return trace.ConvertSystemError(err)
+				}
+				hostChecker, err := newHostPolicyChecker(hostPolicyCheckerConfig{
+					publicAddrs: process.Config.Proxy.PublicAddrs,
+					clt:         conn.Client,
+					tun:         tsrv,
+					clusterName: conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority],
+				})
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				m := &autocert.Manager{
+					Cache:      autocert.DirCache(acmePath),
+					Prompt:     autocert.AcceptTOS,
+					HostPolicy: hostChecker.checkHost,
+					Email:      acmeCfg.Email,
+				}
+				if acmeCfg.URI != "" {
+					m.Client = &acme.Client{DirectoryURL: acmeCfg.URI}
+				}
+				tlsConfig = m.TLSConfig()
+				utils.SetupTLSConfig(tlsConfig, cfg.CipherSuites)
+			}
 
 			for _, pair := range process.Config.Proxy.KeyPairs {
 				log.Infof("Loading TLS certificate %v and key %v.", pair.Certificate, pair.PrivateKey)

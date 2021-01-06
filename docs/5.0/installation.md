@@ -117,7 +117,7 @@ $ helm install teleport teleport/teleport
 
 === "Download"
 
-      [Download MacOS .pkg installer](https://goteleport.com/teleport/download?os=macos) (tsh client only, signed) file, double-click to run the Installer.
+    [Download MacOS .pkg installer](https://goteleport.com/teleport/download?os=macos) (tsh client only, signed) file, double-click to run the Installer.
 
     !!! note
 
