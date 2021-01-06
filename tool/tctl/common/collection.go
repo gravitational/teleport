@@ -490,16 +490,9 @@ func (c *authPrefCollection) resources() (r []services.Resource) {
 }
 
 func (c *authPrefCollection) writeText(w io.Writer) error {
-	t := asciitable.MakeTable([]string{"Type", "Second Factor", "U2F"})
+	t := asciitable.MakeTable([]string{"Type", "Second Factor"})
 	for _, authPref := range c.authPrefs {
-		u2f, err := authPref.GetU2F()
-		u2fDesc := "(none)"
-		if err == nil && u2f.AppID != "" {
-			u2fDesc = u2f.AppID
-		}
-		t.AddRow([]string{
-			authPref.GetType(), authPref.GetSecondFactor(), u2fDesc,
-		})
+		t.AddRow([]string{authPref.GetType(), authPref.GetSecondFactor()})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
