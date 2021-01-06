@@ -1022,7 +1022,7 @@ type proxyServer struct {
 func (p *proxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Validate http connect parameters.
 	if r.Method != http.MethodConnect {
-		trace.WriteError(w, trace.Unwrap(trace.BadParameter("%v not supported", r.Method)))
+		trace.WriteError(w, trace.BadParameter("%v not supported", r.Method))
 		return
 	}
 	if r.Host == "" {
