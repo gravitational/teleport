@@ -555,6 +555,14 @@ func (cmd *command) sendDirMode(r *reader, ch io.Writer, fileInfo FileInfo) erro
 }
 
 func (cmd *command) sendFileTimes(r *reader, ch io.Writer, fileInfo FileInfo) error {
+	// OpenSSH handles nanoseconds to a certain precision
+	// which is not sufficient to keep the exact timestamps:
+	// See these for details:
+	// https://github.com/openssh/openssh-portable/blob/279261e1ea8150c7c64ab5fe7cb4a4ea17acbb29/scp.c#L619-L621
+	// https://github.com/openssh/openssh-portable/blob/279261e1ea8150c7c64ab5fe7cb4a4ea17acbb29/scp.c#L1332
+	// https://github.com/openssh/openssh-portable/blob/279261e1ea8150c7c64ab5fe7cb4a4ea17acbb29/scp.c#L1344
+	//
+	// Se we copy its behavior and drop nanoseconds entirely
 	out := fmt.Sprintf("T%d 0 %d 0\n",
 		fileInfo.GetModTime().Unix(),
 		fileInfo.GetAccessTime().Unix(),
