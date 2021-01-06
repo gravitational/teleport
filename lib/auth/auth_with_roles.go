@@ -835,9 +835,7 @@ func (a *ServerWithRoles) GetWebSession(ctx context.Context, req services.GetWeb
 // WebSessions returns the web session manager.
 // Implements services.WebSessionsGetter.
 func (a *ServerWithRoles) WebSessions() services.WebSessionInterface {
-	// FIXME(dmitri): is this correct? Shouldn't this create the webSessions value
-	// from a?
-	return a.authServer.WebSessions()
+	return &webSessionsWithRoles{c: a, ws: a.authServer.WebSessions()}
 }
 
 // Get returns the web session specified with req.
@@ -899,7 +897,7 @@ type webSessionsWithRoles struct {
 // WebTokens returns the web token manager.
 // Implements services.WebTokensGetter.
 func (a *ServerWithRoles) WebTokens() services.WebTokenInterface {
-	return a.authServer.WebTokens()
+	return &webTokensWithRoles{c: a, t: a.authServer.WebTokens()}
 }
 
 // Get returns the web token specified with req.
