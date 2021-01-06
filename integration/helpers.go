@@ -1026,7 +1026,7 @@ func (p *proxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Host == "" {
-		trace.WriteError(w, trace.Unwrap(trace.BadParameter("host not set")))
+		trace.WriteError(w, trace.BadParameter("host not set"))
 		return
 	}
 
@@ -1038,7 +1038,7 @@ func (p *proxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			log.ErrorKey: err,
 			"addr": r.Host,
 		}).Warn("Failed to dial.")
-		trace.WriteError(w, trace.Unwrap(err))
+		trace.WriteError(w, err)
 		return
 	}
 	defer dconn.Close()
@@ -1050,13 +1050,12 @@ func (p *proxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Hijack request so we can get underlying connection.
 	hj, ok := w.(http.Hijacker)
 	if !ok {
-		trace.WriteError(w, trace.Unwrap(trace.AccessDenied("unable to hijack connection")))
+		trace.WriteError(w, trace.AccessDenied("unable to hijack connection"))
 		return
 	}
 	sconn, _, err := hj.Hijack()
 	if err != nil {
-		log.WithError(err).Warn(err.Error())
-		trace.WriteError(w, trace.Unwrap(err))
+		trace.WriteError(w, err)
 		return
 	}
 	defer sconn.Close()
