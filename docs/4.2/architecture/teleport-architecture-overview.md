@@ -1,4 +1,4 @@
-## Architecture Introduction
+# Architecture Introduction
 
 This guide is for those looking for a deeper understanding of Teleport. If you
 are looking for hands-on instructions on how to set up Teleport for your team,
