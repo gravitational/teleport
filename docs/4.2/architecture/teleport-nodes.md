@@ -1,4 +1,4 @@
-## Teleport Nodes
+# Teleport Nodes
 
 **Table of Contents**
 
