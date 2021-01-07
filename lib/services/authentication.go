@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"github.com/tstranex/u2f"
 )
@@ -40,15 +41,8 @@ import (
 // AuthPreference is a configuration resource, never create more than one instance
 // of it.
 type AuthPreference interface {
-	// Expiry returns object expiry setting
-	Expiry() time.Time
-	// SetExpiry sets object expiry
-	SetExpiry(time.Time)
-
-	// GetResourceID returns resource ID
-	GetResourceID() int64
-	// SetResourceID sets resource ID
-	SetResourceID(int64)
+	// Resource provides common resource properties.
+	Resource
 
 	// GetType gets the type of authentication: local, saml, or oidc.
 	GetType() string
@@ -63,7 +57,7 @@ type AuthPreference interface {
 	// GetConnectorName gets the name of the OIDC or SAML connector to use. If
 	// this value is empty, we fall back to the first connector in the backend.
 	GetConnectorName() string
-	// GetConnectorName sets the name of the OIDC or SAML connector to use. If
+	// SetConnectorName sets the name of the OIDC or SAML connector to use. If
 	// this value is empty, we fall back to the first connector in the backend.
 	SetConnectorName(string)
 
@@ -82,7 +76,7 @@ type AuthPreference interface {
 
 // NewAuthPreference is a convenience method to to create AuthPreferenceV2.
 func NewAuthPreference(spec AuthPreferenceSpecV2) (AuthPreference, error) {
-	return &AuthPreferenceV2{
+	pref := AuthPreferenceV2{
 		Kind:    KindClusterAuthPreference,
 		Version: V2,
 		Metadata: Metadata{
@@ -90,7 +84,28 @@ func NewAuthPreference(spec AuthPreferenceSpecV2) (AuthPreference, error) {
 			Namespace: defaults.Namespace,
 		},
 		Spec: spec,
-	}, nil
+	}
+
+	if err := pref.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &pref, nil
+}
+
+// DefaultAuthPreference returns the default authentication preferences.
+func DefaultAuthPreference() AuthPreference {
+	return &AuthPreferenceV2{
+		Kind:    KindClusterAuthPreference,
+		Version: V2,
+		Metadata: Metadata{
+			Name:      MetaNameClusterAuthPreference,
+			Namespace: defaults.Namespace,
+		},
+		Spec: AuthPreferenceSpecV2{
+			Type:         teleport.Local,
+			SecondFactor: teleport.OTP,
+		},
+	}
 }
 
 // AuthPreferenceV2 implements AuthPreference.
@@ -98,7 +113,7 @@ type AuthPreferenceV2 struct {
 	// Kind is a resource kind - always resource.
 	Kind string `json:"kind"`
 
-	// SubKind is a resource sub kind
+	// SubKind is a resource sub kind.
 	SubKind string `json:"sub_kind,omitempty"`
 
 	// Version is a resource version.
@@ -111,37 +126,62 @@ type AuthPreferenceV2 struct {
 	Spec AuthPreferenceSpecV2 `json:"spec"`
 }
 
-// SetExpiry sets expiry time for the object
+// GetVersion returns resource version.
+func (c *AuthPreferenceV2) GetVersion() string {
+	return c.Version
+}
+
+// GetName returns the name of the resource.
+func (c *AuthPreferenceV2) GetName() string {
+	return c.Metadata.Name
+}
+
+// SetName sets the name of the resource.
+func (c *AuthPreferenceV2) SetName(e string) {
+	c.Metadata.Name = e
+}
+
+// SetExpiry sets expiry time for the object.
 func (c *AuthPreferenceV2) SetExpiry(expires time.Time) {
 	c.Metadata.SetExpiry(expires)
 }
 
-// Expirey returns object expiry setting
+// Expiry returns object expiry setting.
 func (c *AuthPreferenceV2) Expiry() time.Time {
 	return c.Metadata.Expiry()
 }
 
-// GetResourceID returns resource ID
+// SetTTL sets Expires header using the provided clock.
+func (c *AuthPreferenceV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+	c.Metadata.SetTTL(clock, ttl)
+}
+
+// GetMetadata returns object metadata.
+func (c *AuthPreferenceV2) GetMetadata() Metadata {
+	return c.Metadata
+}
+
+// GetResourceID returns resource ID.
 func (c *AuthPreferenceV2) GetResourceID() int64 {
 	return c.Metadata.ID
 }
 
-// SetResourceID sets resource ID
+// SetResourceID sets resource ID.
 func (c *AuthPreferenceV2) SetResourceID(id int64) {
 	c.Metadata.ID = id
 }
 
-// GetKind returns resource kind
+// GetKind returns resource kind.
 func (c *AuthPreferenceV2) GetKind() string {
 	return c.Kind
 }
 
-// GetSubKind returns resource subkind
+// GetSubKind returns resource subkind.
 func (c *AuthPreferenceV2) GetSubKind() string {
 	return c.SubKind
 }
 
-// SetSubKind sets resource subkind
+// SetSubKind sets resource subkind.
 func (c *AuthPreferenceV2) SetSubKind(sk string) {
 	c.SubKind = sk
 }
@@ -193,6 +233,12 @@ func (c *AuthPreferenceV2) SetU2F(u2f *U2F) {
 
 // CheckAndSetDefaults verifies the constraints for AuthPreference.
 func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
+	// make sure we have defaults for all metadata fields
+	err := c.Metadata.CheckAndSetDefaults()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// if nothing is passed in, set defaults
 	if c.Spec.Type == "" {
 		c.Spec.Type = teleport.Local
