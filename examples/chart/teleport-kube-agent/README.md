@@ -21,9 +21,9 @@ To install the agent, run:
 $ helm install teleport-kube-agent . \
   --create-namespace \
   --namespace teleport \
-  --set proxyAddr=$PROXY_ENDPOINT \
-  --set authToken=$JOIN_TOKEN \
-  --set kubeClusterName=$KUBERNETES_CLUSTER_NAME
+  --set proxyAddr=${PROXY_ENDPOINT?} \
+  --set authToken=${JOIN_TOKEN?} \
+  --set kubeClusterName=${KUBERNETES_CLUSTER_NAME?}
 ```
 
 Set the values in the above command as appropriate for your setup.

@@ -31,8 +31,9 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -111,8 +112,8 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	return sites, nil
 }
 
-// GetAllClusters returns local and remote clusters
-func (proxy *ProxyClient) GetAllClusters(ctx context.Context) ([]services.RemoteCluster, error) {
+// GetLeafClusters returns the leaf/remote clusters.
+func (proxy *ProxyClient) GetLeafClusters(ctx context.Context) ([]services.RemoteCluster, error) {
 	rootClusterName, err := proxy.RootClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -126,18 +127,7 @@ func (proxy *ProxyClient) GetAllClusters(ctx context.Context) ([]services.Remote
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	rc, err := services.NewRemoteCluster(rootClusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	rc.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
-	rc.SetLastHeartbeat(time.Now().UTC())
-
-	// Local cluster should always be first in the list.
-	out := []services.RemoteCluster{rc}
-	out = append(out, remoteClusters...)
-	return out, nil
+	return remoteClusters, nil
 }
 
 // ReissueParams encodes optional parameters for
@@ -383,7 +373,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 	})
 
 	if proxy.teleportClient.SkipLocalAuth {
-		return auth.NewTLSClient(auth.ClientConfig{
+		return auth.NewClient(client.Config{
 			Dialer: dialer,
 			TLS:    proxy.teleportClient.TLS,
 		})
@@ -398,7 +388,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to generate client TLS config")
 	}
-	clt, err := auth.NewTLSClient(auth.ClientConfig{
+	clt, err := auth.NewClient(client.Config{
 		Dialer: dialer,
 		TLS:    tlsConfig,
 	})
@@ -875,17 +865,18 @@ func (c *NodeClient) ExecuteSCP(cmd scp.Command) error {
 		&net.IPAddr{},
 	)
 
-	closeC := make(chan interface{}, 1)
+	closeC := make(chan error, 1)
 	go func() {
-		if err = cmd.Execute(ch); err != nil {
+		err := cmd.Execute(ch)
+		if err != nil {
 			log.Error(err)
 		}
 		stdin.Close()
-		close(closeC)
+		closeC <- err
 	}()
 
 	runErr := s.Run(shellCmd)
-	<-closeC
+	err = <-closeC
 
 	if runErr != nil && (err == nil || trace.IsEOF(err)) {
 		err = runErr
