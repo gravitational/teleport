@@ -172,7 +172,7 @@ EOF
     echo "    listen_addr: 0.0.0.0:3026" >> /etc/teleport.yaml
     # when using ACM, we have to explicitly give the proxy NLB as a public_addr
     if [[ "${USE_ACM}" == "true" && "${TELEPORT_PROXY_SERVER_LB}" != "" ]]; then
-        echo "    public_addr: ${TELEPORT_PROXY_SERVER_LB}:3026" >> /etc/teleport.yaml
+        echo "    public_addr: ['${TELEPORT_PROXY_SERVER_LB}:3026', '${TELEPORT_PROXY_SERVER_NLB_ALIAS}:3026']" >> /etc/teleport.yaml
     else
         echo "    public_addr: ${TELEPORT_EXTERNAL_HOSTNAME:-$PUBLIC_IP}:3026" >> /etc/teleport.yaml
     fi
