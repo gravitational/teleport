@@ -112,8 +112,8 @@ func (proxy *ProxyClient) GetSites() ([]services.Site, error) {
 	return sites, nil
 }
 
-// GetAllClusters returns local and remote clusters
-func (proxy *ProxyClient) GetAllClusters(ctx context.Context) ([]services.RemoteCluster, error) {
+// GetLeafClusters returns the leaf/remote clusters.
+func (proxy *ProxyClient) GetLeafClusters(ctx context.Context) ([]services.RemoteCluster, error) {
 	rootClusterName, err := proxy.RootClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -127,18 +127,7 @@ func (proxy *ProxyClient) GetAllClusters(ctx context.Context) ([]services.Remote
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	rc, err := services.NewRemoteCluster(rootClusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	rc.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
-	rc.SetLastHeartbeat(time.Now().UTC())
-
-	// Local cluster should always be first in the list.
-	out := []services.RemoteCluster{rc}
-	out = append(out, remoteClusters...)
-	return out, nil
+	return remoteClusters, nil
 }
 
 // ReissueParams encodes optional parameters for
