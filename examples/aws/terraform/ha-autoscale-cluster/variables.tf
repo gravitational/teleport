@@ -55,6 +55,17 @@ variable "route53_domain" {
   type = string
 }
 
+# Optional domain name to use for Teleport proxy NLB alias
+# When using ACM we have one ALB (for port 443 with TLS termination) and one NLB
+# (for all other traffic - 3023/3024/3026 etc)
+# As this NLB is at a different address, we add an alias record in Route 53 so that
+# it can be used by applications which connect to it directly (like kubectl) rather
+# than discovering the NLB's address through the Teleport API (like tsh does)
+variable "route53_domain_acm_nlb_alias" {
+  type = string
+  default = ""
+}
+
 # Email for LetsEncrypt domain registration
 variable "email" {
   type = string
