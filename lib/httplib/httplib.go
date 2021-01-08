@@ -50,7 +50,10 @@ func MakeHandler(fn HandlerFunc) httprouter.Handle {
 
 		out, err := fn(w, r, p)
 		if err != nil {
-			log.WithError(err).Warn(fmt.Sprintf("Failed to invoke handler for request URL: %v", r.URL))
+			log.WithFields(log.Fields{
+				log.ErrorKey: err,
+				"url":        r.URL,
+			}).Warn("Failed to invoke handler.")
 			trace.WriteError(w, trace.Unwrap(err))
 			return
 		}
@@ -68,7 +71,10 @@ func MakeStdHandler(fn StdHandlerFunc) http.HandlerFunc {
 
 		out, err := fn(w, r)
 		if err != nil {
-			log.WithError(err).Warn(fmt.Sprintf("Failed to invoke std handler for request URL: %v", r.URL))
+			log.WithFields(log.Fields{
+				log.ErrorKey: err,
+				"url":           r.URL,
+			}).Warn("Failed to invoke std handler.")
 			trace.WriteError(w, trace.Unwrap(err))
 			return
 		}
@@ -84,7 +90,7 @@ func WithCSRFProtection(fn HandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		err := csrf.VerifyHTTPHeader(r)
 		if err != nil {
-			log.WithError(err).Warn("unable to validate CSRF token")
+			log.WithError(err).Warn("Unable to validate CSRF token.")
 			trace.WriteError(w, trace.Unwrap(trace.AccessDenied("access denied")))
 			return
 		}
