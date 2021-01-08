@@ -52,6 +52,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
 	. "gopkg.in/check.v1"
@@ -76,6 +77,7 @@ type SrvSuite struct {
 	nodeID      string
 	adminClient *auth.Client
 	testServer  *auth.TestAuthServer
+	clock       clockwork.FakeClock
 }
 
 // teleportTestUser is additional user used for tests
@@ -112,9 +114,12 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.user = u.Username
 
+	s.clock = clockwork.NewFakeClock()
+
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		ClusterName: "localhost",
 		Dir:         c.MkDir(),
+		Clock:       s.clock,
 	})
 	c.Assert(err, IsNil)
 	s.server, err = authServer.NewTestTLSServer()
@@ -184,6 +189,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 			},
 		),
 		SetBPF(&bpf.NOP{}),
+		WithClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	s.srv = srv
@@ -215,7 +221,6 @@ func (s *SrvSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(agent.ForwardToAgent(client, keyring), IsNil)
 	s.clt = client
-
 }
 
 func (s *SrvSuite) TearDownTest(c *C) {
@@ -736,6 +741,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
+		WithClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -813,8 +819,8 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetEmitter(s.nodeClient),
+		WithClock(s.clock),
 	)
-	c.Assert(err, IsNil)
 	c.Assert(err, IsNil)
 	c.Assert(srv2.Start(), IsNil)
 	c.Assert(srv2.heartbeat.ForceSend(time.Second), IsNil)
@@ -903,6 +909,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
+		WithClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -1008,6 +1015,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
+		WithClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -1087,12 +1095,12 @@ func (s *SrvSuite) TestLimiter(c *C) {
 		limiter.Config{
 			MaxConnections: 2,
 			Rates: []limiter.Rate{
-				limiter.Rate{
+				{
 					Period:  10 * time.Second,
 					Average: 1,
 					Burst:   3,
 				},
-				limiter.Rate{
+				{
 					Period:  40 * time.Millisecond,
 					Average: 10,
 					Burst:   30,
@@ -1118,6 +1126,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
+		WithClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(srv.Start(), IsNil)

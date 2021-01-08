@@ -107,7 +107,7 @@ func (s *Server) generateAppToken(username string, roles []string, uri string, e
 	}
 
 	// Extract the JWT signing key and sign the claims.
-	privateKey, err := ca.JWTSigner()
+	privateKey, err := ca.JWTSigner(jwt.Config{Clock: s.clock})
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

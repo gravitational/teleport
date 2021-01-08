@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"crypto/x509"
+	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -91,6 +92,10 @@ type RegisterParams struct {
 	CAPath string
 	// GetHostCredentials is a client that can fetch host credentials.
 	GetHostCredentials HostCredentials
+	// Time specifies the time as number of seconds since epoch to use in
+	// client for verifying TLS certificates.
+	// If unspecified, time.Now() will be used
+	Time func() time.Time
 }
 
 // CredGetter is an interface for a client that can be used to get host
@@ -219,6 +224,7 @@ func registerThroughAuth(token string, params RegisterParams) (*Identity, error)
 // Server it is connecting to.
 func insecureRegisterClient(params RegisterParams) (*Client, error) {
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
+	tlsConfig.Time = params.Time
 
 	cert, err := readCA(params)
 	if err != nil && !trace.IsNotFound(err) {
@@ -275,6 +281,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	// an attacker were to MITM this connection the CA pin will not match below.
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.InsecureSkipVerify = true
+	tlsConfig.Time = params.Time
 	authClient, err := NewClient(client.Config{Addrs: utils.NetAddrsToStrings(params.Servers), TLS: tlsConfig})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -305,6 +312,7 @@ func pinRegisterClient(params RegisterParams) (*Client, error) {
 	// Create another client, but this time with the CA provided to validate
 	// that the Auth Server was issued a certificate by the same CA.
 	tlsConfig = utils.TLSConfig(params.CipherSuites)
+	tlsConfig.Time = params.Time
 	certPool := x509.NewCertPool()
 	certPool.AddCert(tlsCA)
 	tlsConfig.RootCAs = certPool

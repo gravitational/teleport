@@ -54,6 +54,10 @@ type AuthHandlers struct {
 	// FIPS mode means Teleport started in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
 	FIPS bool
+
+	// Time is used for verifying time stamps. If unspecified, defaults
+	// to time.Now
+	Time func() time.Time
 }
 
 // CreateIdentityContext returns an IdentityContext populated with information
@@ -201,6 +205,7 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	certChecker := utils.CertChecker{
 		CertChecker: ssh.CertChecker{
 			IsUserAuthority: h.IsUserAuthority,
+			Clock:           h.Time,
 		},
 		FIPS: h.FIPS,
 	}

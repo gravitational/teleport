@@ -99,12 +99,10 @@ type WebSuite struct {
 	mockU2F     *mocku2f.Key
 	server      *auth.TestTLSServer
 	proxyClient *auth.Client
-	clock       clockwork.Clock
+	clock       clockwork.FakeClock
 }
 
-var _ = Suite(&WebSuite{
-	clock: clockwork.NewFakeClock(),
-})
+var _ = Suite(&WebSuite{})
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.
@@ -144,11 +142,12 @@ func (s *WebSuite) SetUpTest(c *C) {
 	u, err := user.Current()
 	c.Assert(err, IsNil)
 	s.user = u.Username
+	s.clock = clockwork.NewFakeClock()
 
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		ClusterName: "localhost",
 		Dir:         c.MkDir(),
-		Clock:       clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC)),
+		Clock:       s.clock,
 	})
 	c.Assert(err, IsNil)
 	s.server, err = authServer.NewTestTLSServer()
@@ -191,6 +190,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
+		regular.WithClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	s.node = node
@@ -243,6 +243,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(defaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
+		regular.WithClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 
@@ -256,7 +257,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		Context:      context.Background(),
 		HostUUID:     proxyID,
 		Emitter:      s.proxyClient,
-	}, SetSessionStreamPollPeriod(200*time.Millisecond))
+	}, SetSessionStreamPollPeriod(200*time.Millisecond), WithClock(s.clock))
 	c.Assert(err, IsNil)
 
 	s.webServer = httptest.NewUnstartedServer(handler)
@@ -314,9 +315,7 @@ func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack 
 	jar.SetCookies(s.url(), re.Cookies())
 
 	session, err := sess.response()
-	if err != nil {
-		panic(err)
-	}
+	c.Assert(err, IsNil)
 	if session.ExpiresIn < 0 {
 		c.Errorf("expected expiry time to be in the future but got %v", session.ExpiresIn)
 	}
@@ -346,7 +345,7 @@ func (s *WebSuite) authPack(c *C, user string) *authPack {
 	s.createUser(c, user, login, pass, otpSecret)
 
 	// create a valid otp token
-	validToken, err := totp.GenerateCode(otpSecret, time.Now())
+	validToken, err := totp.GenerateCode(otpSecret, s.clock.Now())
 	c.Assert(err, IsNil)
 
 	clt := s.client()
@@ -590,10 +589,10 @@ func (s *WebSuite) TestCSRF(c *C) {
 
 func (s *WebSuite) TestPasswordChange(c *C) {
 	pack := s.authPack(c, "foo")
-	fakeClock := clockwork.NewFakeClock()
-	s.server.AuthServer.AuthServer.SetClock(fakeClock)
 
-	validToken, err := totp.GenerateCode(pack.otpSecret, fakeClock.Now())
+	// invalidate the token
+	s.clock.Advance(1 * time.Minute)
+	validToken, err := totp.GenerateCode(pack.otpSecret, s.clock.Now())
 	c.Assert(err, IsNil)
 
 	req := changePasswordReq{
@@ -1345,7 +1344,9 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 	secrets, err := s.server.Auth().RotateResetPasswordTokenSecrets(context.TODO(), token.GetName())
 	c.Assert(err, IsNil)
 
-	secondFactorToken, err := totp.GenerateCode(secrets.GetOTPKey(), time.Now())
+	// Advance the clock to invalidate the TOTP token
+	s.clock.Advance(1 * time.Minute)
+	secondFactorToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.clock.Now())
 	c.Assert(err, IsNil)
 
 	data, err := json.Marshal(auth.ChangePasswordWithTokenRequest{
@@ -1815,7 +1816,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		Spec: services.ServerSpecV2{
 			Version: teleport.Version,
 			Apps: []*services.App{
-				&services.App{
+				{
 					Name:       "panel",
 					PublicAddr: "panel.example.com",
 					URI:        "http://127.0.0.1:8080",
@@ -1900,11 +1901,6 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 		c.Assert(session.GetUser(), check.Equals, tt.outUsername)
 		c.Assert(session.GetName(), check.Equals, response.CookieValue)
 	}
-}
-
-// TestAppRouting verifies requests get routed correctly: either to the Web UI
-// or an application.
-func (s *WebSuite) TestRouting(c *C) {
 }
 
 type authProviderMock struct {

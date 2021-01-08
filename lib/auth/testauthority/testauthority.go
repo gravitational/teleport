@@ -19,7 +19,6 @@ package testauthority
 import (
 	"crypto/rand"
 	random "math/rand"
-	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/native"
@@ -29,14 +28,22 @@ import (
 	"github.com/gravitational/teleport/lib/wrappers"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
 )
 
 type Keygen struct {
+	clock clockwork.Clock
 }
 
+// New creates a new key generator with defaults
 func New() *Keygen {
-	return &Keygen{}
+	return &Keygen{clock: clockwork.NewRealClock()}
+}
+
+// NewWithConfig creates a new key generator with the specified configuration
+func NewWithConfig(clock clockwork.Clock) *Keygen {
+	return &Keygen{clock: clock}
 }
 
 func (n *Keygen) Close() {
@@ -57,7 +64,7 @@ func (n *Keygen) GenerateHostCert(c services.HostCertParams) ([]byte, error) {
 	}
 	validBefore := uint64(ssh.CertTimeInfinity)
 	if c.TTL != 0 {
-		b := time.Now().Add(c.TTL)
+		b := n.clock.Now().Add(c.TTL)
 		validBefore = uint64(b.Unix())
 	}
 	principals := native.BuildPrincipals(c.HostID, c.NodeName, c.ClusterName, c.Roles)
@@ -89,7 +96,7 @@ func (n *Keygen) GenerateUserCert(c services.UserCertParams) ([]byte, error) {
 	}
 	validBefore := uint64(ssh.CertTimeInfinity)
 	if c.TTL != 0 {
-		b := time.Now().Add(c.TTL)
+		b := n.clock.Now().Add(c.TTL)
 		validBefore = uint64(b.Unix())
 	}
 	cert := &ssh.Certificate{

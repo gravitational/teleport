@@ -67,7 +67,7 @@ func (cfg *TestAuthServerConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter Dir")
 	}
 	if cfg.Clock == nil {
-		cfg.Clock = clockwork.NewFakeClockAt(time.Now())
+		cfg.Clock = clockwork.NewFakeClock()
 	}
 	if len(cfg.CipherSuites) == 0 {
 		cfg.CipherSuites = utils.DefaultCipherSuites()
@@ -160,13 +160,13 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	srv.AuthServer, err = NewServer(&InitConfig{
 		Backend:                srv.Backend,
-		Authority:              authority.New(),
+		Authority:              authority.NewWithConfig(cfg.Clock),
 		Access:                 access,
 		Identity:               identity,
 		AuditLog:               srv.AuditLog,
 		SkipPeriodicOperations: true,
 		Emitter:                localLog,
-	})
+	}, WithClock(cfg.Clock))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -214,13 +214,25 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 
 	// Setup certificate and signing authorities.
-	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCA(services.HostCA, srv.ClusterName)); err != nil {
+	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
+		Type:        services.HostCA,
+		ClusterName: srv.ClusterName,
+		Clock:       cfg.Clock,
+	})); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCA(services.UserCA, srv.ClusterName)); err != nil {
+	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
+		Type:        services.UserCA,
+		ClusterName: srv.ClusterName,
+		Clock:       cfg.Clock,
+	})); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCA(services.JWTSigner, srv.ClusterName)); err != nil {
+	if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
+		Type:        services.JWTSigner,
+		ClusterName: srv.ClusterName,
+		Clock:       cfg.Clock,
+	})); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -381,6 +393,7 @@ func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, p
 	tlsConfig.Certificates = []tls.Certificate{*cert}
 	tlsConfig.RootCAs = pool
 	tlsConfig.ServerName = EncodeClusterName(a.ClusterName)
+	tlsConfig.Time = a.AuthServer.clock.Now
 	addrs := []string{addr.String()}
 	return NewClient(client.Config{Addrs: addrs, TLS: tlsConfig})
 }
@@ -461,6 +474,7 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	tlsConfig.Time = cfg.AuthServer.Clock().Now
 
 	accessPoint, err := NewAdminAuthServer(srv.AuthServer.AuthServer, srv.AuthServer.SessionServer, srv.AuthServer.AuditLog)
 	if err != nil {
@@ -549,6 +563,7 @@ func (t *TestTLSServer) NewClientFromWebSession(sess services.WebSession) (*Clie
 		return nil, trace.Wrap(err, "failed to parse TLS cert and key")
 	}
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
+	tlsConfig.Time = t.AuthServer.AuthServer.clock.Now
 	addrs := []string{t.Addr().String()}
 	return NewClient(client.Config{Addrs: addrs, TLS: tlsConfig})
 }
@@ -579,6 +594,7 @@ func (t *TestTLSServer) ClientTLSConfig(identity TestIdentity) (*tls.Config, err
 		// server should apply Nop builtin role
 		tlsConfig.Certificates = nil
 	}
+	tlsConfig.Time = t.AuthServer.AuthServer.clock.Now
 	return tlsConfig, nil
 }
 

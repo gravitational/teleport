@@ -57,6 +57,7 @@ import (
 type TLSSuite struct {
 	dataDir string
 	server  *TestTLSServer
+	clock   clockwork.FakeClock
 }
 
 var _ = check.Suite(&TLSSuite{})
@@ -69,9 +70,11 @@ func (s *TLSSuite) SetUpSuite(c *check.C) {
 
 func (s *TLSSuite) SetUpTest(c *check.C) {
 	s.dataDir = c.MkDir()
+	s.clock = clockwork.NewFakeClock()
 
 	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
-		Dir: s.dataDir,
+		Dir:   s.dataDir,
+		Clock: s.clock,
 	})
 	c.Assert(err, check.IsNil)
 	s.server, err = testAuthServer.NewTestTLSServer()
@@ -90,6 +93,7 @@ func (s *TLSSuite) TestRemoteBuiltinRole(c *check.C) {
 	remoteServer, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:         c.MkDir(),
 		ClusterName: "remote",
+		Clock:       s.clock,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -131,6 +135,7 @@ func (s *TLSSuite) TestAcceptedUsage(c *check.C) {
 		Dir:           c.MkDir(),
 		ClusterName:   "remote",
 		AcceptedUsage: []string{"usage:k8s"},
+		Clock:         s.clock,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -188,6 +193,7 @@ func (s *TLSSuite) TestRemoteRotation(c *check.C) {
 	remoteServer, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:         c.MkDir(),
 		ClusterName: "remote",
+		Clock:       s.clock,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -287,6 +293,7 @@ func (s *TLSSuite) TestLocalProxyPermissions(c *check.C) {
 	remoteServer, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:         c.MkDir(),
 		ClusterName: "remote",
+		Clock:       s.clock,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -322,9 +329,6 @@ func (s *TLSSuite) TestLocalProxyPermissions(c *check.C) {
 func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	var ok bool
 
-	clock := clockwork.NewFakeClockAt(time.Now().Add(-2 * time.Hour))
-	s.server.Auth().SetClock(clock)
-
 	// create proxy client
 	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
 	c.Assert(err, check.IsNil)
@@ -345,7 +349,7 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// advance rotation by clock
-	clock.Advance(gracePeriod/3 + time.Minute)
+	s.clock.Advance(gracePeriod/3 + time.Minute)
 	err = s.server.Auth().autoRotateCertAuthorities()
 	c.Assert(err, check.IsNil)
 
@@ -365,7 +369,7 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// advance rotation by clock
-	clock.Advance((gracePeriod*2)/3 + time.Minute)
+	s.clock.Advance((gracePeriod*2)/3 + time.Minute)
 	err = s.server.Auth().autoRotateCertAuthorities()
 	c.Assert(err, check.IsNil)
 
@@ -388,7 +392,7 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// complete rotation - advance rotation by clock
-	clock.Advance(gracePeriod/3 + time.Minute)
+	s.clock.Advance(gracePeriod/3 + time.Minute)
 	err = s.server.Auth().autoRotateCertAuthorities()
 	c.Assert(err, check.IsNil)
 	ca, err = s.server.Auth().GetCertAuthority(services.CertAuthID{
@@ -418,9 +422,6 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 func (s *TLSSuite) TestAutoFallback(c *check.C) {
 	var ok bool
 
-	clock := clockwork.NewFakeClockAt(time.Now().Add(-2 * time.Hour))
-	s.server.Auth().SetClock(clock)
-
 	// create proxy client just for test purposes
 	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
 	c.Assert(err, check.IsNil)
@@ -441,7 +442,7 @@ func (s *TLSSuite) TestAutoFallback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// advance rotation by clock
-	clock.Advance(gracePeriod/3 + time.Minute)
+	s.clock.Advance(gracePeriod/3 + time.Minute)
 	err = s.server.Auth().autoRotateCertAuthorities()
 	c.Assert(err, check.IsNil)
 
@@ -670,9 +671,6 @@ func (s *TLSSuite) TestRollback(c *check.C) {
 // TestAppTokenRotation checks that JWT tokens can be rotated and tokens can or
 // can not be validated at the appropriate phase.
 func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
-	clock := clockwork.NewFakeClockAt(time.Now())
-	s.server.Auth().SetClock(clock)
-
 	client, err := s.server.NewClient(TestBuiltin(teleport.RoleApp))
 	c.Assert(err, check.IsNil)
 
@@ -683,7 +681,7 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 			Username: "foo",
 			Roles:    []string{"bar", "baz"},
 			URI:      "http://localhost:8080",
-			Expires:  clock.Now().Add(1 * time.Minute),
+			Expires:  s.clock.Now().Add(1 * time.Minute),
 		})
 	c.Assert(err, check.IsNil)
 
@@ -696,7 +694,7 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 	c.Assert(oldCA.GetJWTKeyPairs(), check.HasLen, 1)
 
 	// Verify that the JWT token validates with the JWT authority.
-	_, err = s.verifyJWT(clock, s.server.ClusterName(), oldCA.GetJWTKeyPairs(), oldJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), oldCA.GetJWTKeyPairs(), oldJWT)
 	c.Assert(err, check.IsNil)
 
 	// Start rotation and move to initial phase. A new CA will be added (for
@@ -720,7 +718,7 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 	c.Assert(oldCA.GetJWTKeyPairs(), check.HasLen, 2)
 
 	// Verify that the JWT token validates with the JWT authority.
-	_, err = s.verifyJWT(clock, s.server.ClusterName(), oldCA.GetJWTKeyPairs(), oldJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), oldCA.GetJWTKeyPairs(), oldJWT)
 	c.Assert(err, check.IsNil)
 
 	// Move rotation into the update client phase. In this phase, requests will
@@ -739,7 +737,7 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 			Username: "foo",
 			Roles:    []string{"bar", "baz"},
 			URI:      "http://localhost:8080",
-			Expires:  clock.Now().Add(1 * time.Minute),
+			Expires:  s.clock.Now().Add(1 * time.Minute),
 		})
 	c.Assert(err, check.IsNil)
 
@@ -753,9 +751,9 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 	c.Assert(newCA.GetRotation().Phase, check.Equals, services.RotationPhaseUpdateClients)
 
 	// Both JWT should now validate.
-	_, err = s.verifyJWT(clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), oldJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), oldJWT)
 	c.Assert(err, check.IsNil)
-	_, err = s.verifyJWT(clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), newJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), newJWT)
 	c.Assert(err, check.IsNil)
 
 	// Move rotation into update servers phase.
@@ -777,9 +775,9 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 	c.Assert(newCA.GetRotation().Phase, check.Equals, services.RotationPhaseUpdateServers)
 
 	// Both JWT should continue to validate.
-	_, err = s.verifyJWT(clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), oldJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), oldJWT)
 	c.Assert(err, check.IsNil)
-	_, err = s.verifyJWT(clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), newJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), newJWT)
 	c.Assert(err, check.IsNil)
 
 	// Complete rotation. The old CA will be removed.
@@ -801,9 +799,9 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 	c.Assert(newCA.GetRotation().Phase, check.Equals, services.RotationPhaseStandby)
 
 	// Old token should no longer validate.
-	_, err = s.verifyJWT(clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), oldJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), oldJWT)
 	c.Assert(err, check.NotNil)
-	_, err = s.verifyJWT(clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), newJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), newJWT)
 	c.Assert(err, check.IsNil)
 }
 
@@ -813,6 +811,7 @@ func (s *TLSSuite) TestRemoteUser(c *check.C) {
 	remoteServer, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:         c.MkDir(),
 		ClusterName: "remote",
+		Clock:       s.clock,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -924,6 +923,7 @@ func (s *TLSSuite) TestTunnelConnectionsCRUD(c *check.C) {
 
 	suite := &suite.ServicesTestSuite{
 		PresenceS: clt,
+		Clock:     clockwork.NewFakeClock(),
 	}
 	suite.TunnelConnectionsCRUD(c)
 }
@@ -1178,7 +1178,7 @@ func (s *TLSSuite) TestValidatePostSessionSlice(c *check.C) {
 			Namespace: defaults.Namespace,
 			SessionID: string(sess.ID),
 			Chunks: []*events.SessionChunk{
-				&events.SessionChunk{
+				{
 					Time:       time.Now().UTC().UnixNano(),
 					EventIndex: 0,
 					EventType:  events.SessionStartEvent,
@@ -1244,13 +1244,13 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 		Namespace: defaults.Namespace,
 		SessionID: string(sess.ID),
 		Chunks: []*events.SessionChunk{
-			&events.SessionChunk{
+			{
 				Time:       time.Now().UTC().UnixNano(),
 				EventIndex: 0,
 				EventType:  events.SessionStartEvent,
 				Data:       marshal(events.EventFields{events.EventLogin: "bob", "val": "one"}),
 			},
-			&events.SessionChunk{
+			{
 				Time:       time.Now().UTC().UnixNano(),
 				EventIndex: 1,
 				EventType:  events.SessionEndEvent,
@@ -1276,13 +1276,13 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 		Namespace: defaults.Namespace,
 		SessionID: string(anotherSessionID),
 		Chunks: []*events.SessionChunk{
-			&events.SessionChunk{
+			{
 				Time:       time.Now().UTC().UnixNano(),
 				EventIndex: 0,
 				EventType:  events.SessionStartEvent,
 				Data:       marshal(events.EventFields{events.EventLogin: "alice", "val": "three"}),
 			},
-			&events.SessionChunk{
+			{
 				Time:       time.Now().UTC().UnixNano(),
 				EventIndex: 1,
 				EventType:  events.SessionEndEvent,
@@ -2008,9 +2008,6 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 // TestGenerateAppToken checks the identity of the caller and makes sure only
 // certain roles can request JWT tokens.
 func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
-	clock := clockwork.NewFakeClockAt(time.Now())
-	s.server.Auth().SetClock(clock)
-
 	authClient, err := s.server.NewClient(TestBuiltin(teleport.RoleAdmin))
 	c.Assert(err, check.IsNil)
 
@@ -2020,7 +2017,7 @@ func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
 	}, true)
 	c.Assert(err, check.IsNil)
 
-	key, err := ca.JWTSigner()
+	key, err := ca.JWTSigner(jwt.Config{Clock: s.clock})
 	c.Assert(err, check.IsNil)
 
 	var tests = []struct {
@@ -2054,7 +2051,7 @@ func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
 				Username: "foo@example.com",
 				Roles:    []string{"bar", "baz"},
 				URI:      "http://localhost:8080",
-				Expires:  clock.Now().Add(1 * time.Minute),
+				Expires:  s.clock.Now().Add(1 * time.Minute),
 			})
 		c.Assert(err != nil, check.Equals, tt.outError, tt.inComment)
 		if !tt.outError {
@@ -2195,7 +2192,7 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// create a valid otp token
-	validToken, err := totp.GenerateCode(otpSecret, s.server.Clock().Now())
+	validToken, err := totp.GenerateCode(otpSecret, s.clock.Now())
 	c.Assert(err, check.IsNil)
 
 	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
@@ -2496,6 +2493,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		CAPin:                caPin,
+		Time:                 s.clock.Now,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -2513,6 +2511,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		CAPin:                "sha256:123",
+		Time:                 s.clock.Now,
 	})
 	c.Assert(err, check.NotNil)
 }
@@ -2551,6 +2550,7 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 		PrivateKey:           priv,
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
+		Time:                 s.clock.Now,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -2582,6 +2582,7 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		CAPath:               caPath,
+		Time:                 s.clock.Now,
 	})
 	c.Assert(err, check.IsNil)
 }

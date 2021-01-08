@@ -92,6 +92,14 @@ func SetSessionStreamPollPeriod(period time.Duration) HandlerOption {
 	}
 }
 
+// WithClock sets the clock on a handler
+func WithClock(clock clockwork.Clock) HandlerOption {
+	return func(h *Handler) error {
+		h.clock = clock
+		return nil
+	}
+}
+
 // Config represents web handler configuration parameters
 type Config struct {
 	// Proxy is a reverse tunnel proxy that handles connections
@@ -171,15 +179,10 @@ func (h *RewritingHandler) Close() error {
 // NewHandler returns a new instance of web proxy handler
 func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
-	lauth, err := newSessionCache(cfg.ProxyClient, []utils.NetAddr{cfg.AuthServers}, cfg.CipherSuites)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	h := &Handler{
-		cfg:  cfg,
-		auth: lauth,
-		log:  newPackageLogger(),
+		cfg:   cfg,
+		log:   newPackageLogger(),
+		clock: clockwork.NewRealClock(),
 	}
 
 	for _, o := range opts {
@@ -188,6 +191,17 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		}
 	}
 
+	auth, err := newSessionCache(&sessionCache{
+		proxyClient:  cfg.ProxyClient,
+		authServers:  []utils.NetAddr{cfg.AuthServers},
+		cipherSuites: cfg.CipherSuites,
+		clock:        h.clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	h.auth = auth
+
 	_, sshPort, err := net.SplitHostPort(cfg.ProxySSHAddr.String())
 	if err != nil {
 		h.log.WithError(err).Warnf("Invalid SSH proxy address %q, will use default port %v.",
@@ -195,10 +209,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		sshPort = strconv.Itoa(defaults.SSHProxyListenPort)
 	}
 	h.sshPort = sshPort
-
-	if h.clock == nil {
-		h.clock = clockwork.NewRealClock()
-	}
 
 	// ping endpoint is used to check if the server is up. the /webapi/ping
 	// endpoint returns the default authentication method and configuration that
@@ -1190,7 +1200,7 @@ func NewSessionResponse(ctx *SessionContext) (*CreateSessionResponse, error) {
 	return &CreateSessionResponse{
 		Type:      roundtrip.AuthBearer,
 		Token:     webSession.GetBearerToken(),
-		ExpiresIn: int(time.Until(webSession.GetBearerTokenExpiryTime()) / time.Second),
+		ExpiresIn: int(webSession.GetBearerTokenExpiryTime().Sub(ctx.parent.clock.Now()) / time.Second),
 	}, nil
 }
 
