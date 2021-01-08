@@ -163,55 +163,6 @@ func TestRoleParse(t *testing.T) {
 			matchMessage: "missing verbs",
 		},
 		{
-			name: "validation error, unsupported function in where",
-			in: `{
-							   		      "kind": "role",
-							   		      "version": "v3",
-							   		      "metadata": {"name": "name1"},
-							   		      "spec": {
-							                    "allow": {
-							                      "node_labels": {"a": "b"},
-							                      "namespaces": ["default"],
-							                      "rules": [
-							                        {
-							                          "resources": ["role"],
-							                          "verbs": ["read", "list"],
-							                          "where": "containz(user.spec.traits[\"groups\"], \"prod\")"
-							                        }
-							                      ]
-							                    }
-							   		      }
-							   		    }`,
-			error:        trace.BadParameter(""),
-			matchMessage: "unsupported function: containz",
-		},
-		{
-			name: "validation error, unsupported function in actions",
-			in: `{
-							   		      "kind": "role",
-							   		      "version": "v3",
-							   		      "metadata": {"name": "name1"},
-							   		      "spec": {
-							                    "allow": {
-							                      "node_labels": {"a": "b"},
-							                      "namespaces": ["default"],
-							                      "rules": [
-							                        {
-							                          "resources": ["role"],
-							                          "verbs": ["read", "list"],
-							                          "where": "contains(user.spec.traits[\"groups\"], \"prod\")",
-							                          "actions": [
-							                             "zzz(\"info\", \"log entry\")"
-							                          ]
-							                        }
-							                      ]
-							                    }
-							   		      }
-							   		    }`,
-			error:        trace.BadParameter(""),
-			matchMessage: "unsupported function: zzz",
-		},
-		{
 			name: "role with no spec still gets defaults",
 			in:   `{"kind": "role", "version": "v3", "metadata": {"name": "defrole"}, "spec": {}}`,
 			role: RoleV3{
@@ -1730,57 +1681,6 @@ func TestApplyTraits(t *testing.T) {
 		require.Equal(t, outRole.GetClusterLabels(Deny), tt.deny.outLabels, comment)
 		require.Equal(t, outRole.GetKubeGroups(Deny), tt.deny.outKubeGroups, comment)
 		require.Equal(t, outRole.GetKubeUsers(Deny), tt.deny.outKubeUsers, comment)
-	}
-}
-
-func TestCheckAndSetDefaults(t *testing.T) {
-	var tests = []struct {
-		inLogins []string
-		outError bool
-	}{
-		// 0 - invalid syntax
-		{
-			[]string{"{{foo"},
-			true,
-		},
-		// 1 - invalid syntax
-		{
-			[]string{"bar}}"},
-			true,
-		},
-		// 2 - valid syntax
-		{
-			[]string{"{{foo.bar}}"},
-			false,
-		},
-		// 3 - valid syntax
-		{
-			[]string{`{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}`},
-			false,
-		},
-	}
-
-	for i, tt := range tests {
-		comment := fmt.Sprintf("Test %v", i)
-
-		role := &RoleV3{
-			Kind:    KindRole,
-			Version: V3,
-			Metadata: Metadata{
-				Name:      "name1",
-				Namespace: defaults.Namespace,
-			},
-			Spec: RoleSpecV3{
-				Allow: RoleConditions{
-					Logins: tt.inLogins,
-				},
-			},
-		}
-		if tt.outError {
-			require.Error(t, role.CheckAndSetDefaults(), comment)
-		} else {
-			require.NoError(t, role.CheckAndSetDefaults(), comment)
-		}
 	}
 }
 

@@ -1303,11 +1303,11 @@ func (set RoleSet) String() string {
 // namespace to the specified resource and verb.
 // silent controls whether the access violations are logged.
 func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
-	whereParser, err := GetWhereParserFn()(ctx)
+	whereParser, err := NewWhereParser(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	actionsParser, err := GetActionsParserFn()(ctx)
+	actionsParser, err := NewActionsParser(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
