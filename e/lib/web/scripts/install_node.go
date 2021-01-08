@@ -34,6 +34,7 @@ ALIVE_CHECK_DELAY=3
 CONNECTIVITY_TEST_METHOD=""
 COPY_COMMAND="cp"
 DISTRO_TYPE=""
+IGNORE_CONNECTIVITY_CHECK="${TELEPORT_IGNORE_CONNECTIVITY_CHECK:-false}"
 LAUNCHD_CONFIG_PATH="/Library/LaunchDaemons"
 LOG_FILENAME="${TMPDIR:-/tmp}/${SCRIPT_NAME}.log"
 MACOS_STDERR_LOG="/var/log/teleport-stderr.log"
@@ -260,7 +261,7 @@ check_connectivity() {
     # if there's no nc, check with telnet
     elif check_exists telnet; then
         CONNECTIVITY_TEST_METHOD="telnet"
-        if telnet -c "${HOST}" "${PORT}" </dev/null >/dev/null 2>&1 | grep -q Connected; then return 0; else return 1; fi
+        if echo -e '\x1dclose\x0d' | telnet "${HOST}" "${PORT}" >/dev/null 2>&1; then return 0; else return 1; fi
     # if there's no nc or telnet, try and use /dev/tcp
     elif [ -f /dev/tcp ]; then
         CONNECTIVITY_TEST_METHOD="/dev/tcp"
@@ -412,12 +413,14 @@ auth_service:
   enabled: no
 ssh_service:
   enabled: yes
+  labels:
+    serving_app: "${APP_NAME}"
 proxy_service:
   enabled: no
 app_service:
   enabled: yes
   apps:
-  - name: ${APP_NAME}
+  - name: "${APP_NAME}"
     uri: "${APP_URI}"
     public_addr: ${APP_PUBLIC_ADDR}
 EOF
@@ -547,19 +550,24 @@ fi
 # main script starts here
 ###
 # check connectivity to teleport server/port
-log "Checking TCP connectivity to Teleport server (${TARGET_HOSTNAME}:${TARGET_PORT})"
-if ! check_connectivity "${TARGET_HOSTNAME}" "${TARGET_PORT}"; then
-    # if we don't have a connectivity test method assigned, we know we couldn't run the test
-    if [[ ${CONNECTIVITY_TEST_METHOD} == "" ]]; then
-        log "Couldn't find nc, telnet or /dev/tcp to do a connection test"
-        log "Going to blindly continue without testing connectivity"
-    else
-        log_important "Couldn't open a connection to the Teleport server (${TARGET_HOSTNAME}:${TARGET_PORT})"
-        log_important "This issue will need to be fixed before the script can continue."
-        exit 1
-    fi
+if [[ "${IGNORE_CONNECTIVITY_CHECK}" == "true" ]]; then
+    log "TELEPORT_IGNORE_CONNECTIVITY_CHECK=true, not running connectivity check"
 else
-    log "Connectivity to Teleport server (via ${CONNECTIVITY_TEST_METHOD}) looks good"
+    log "Checking TCP connectivity to Teleport server (${TARGET_HOSTNAME}:${TARGET_PORT})"
+    if ! check_connectivity "${TARGET_HOSTNAME}" "${TARGET_PORT}"; then
+        # if we don't have a connectivity test method assigned, we know we couldn't run the test
+        if [[ ${CONNECTIVITY_TEST_METHOD} == "" ]]; then
+            log "Couldn't find nc, telnet or /dev/tcp to do a connection test"
+            log "Going to blindly continue without testing connectivity"
+        else
+            log_important "Couldn't open a connection to the Teleport server (${TARGET_HOSTNAME}:${TARGET_PORT}) via ${CONNECTIVITY_TEST_METHOD}"
+            log_important "This issue will need to be fixed before the script can continue."
+            log_important "If you think this is an error, add 'export TELEPORT_IGNORE_CONNECTIVITY_CHECK=false && ' before the curl command which runs the script."
+            exit 1
+        fi
+    else
+        log "Connectivity to Teleport server (via ${CONNECTIVITY_TEST_METHOD}) looks good"
+    fi
 fi
 
 # use OSTYPE variable to figure out host type/arch
