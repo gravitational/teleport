@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate"
 	"github.com/vulcand/predicate/builder"
@@ -283,7 +282,7 @@ func (r *EmptyResource) Expiry() time.Time {
 }
 
 // SetTTL sets TTL header using realtime clock.
-func (r *EmptyResource) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+func (r *EmptyResource) SetTTL(clock Clock, ttl time.Duration) {
 	r.Metadata.SetTTL(clock, ttl)
 }
 

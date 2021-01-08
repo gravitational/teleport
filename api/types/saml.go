@@ -309,7 +309,7 @@ func (o *SAMLConnectorV2) Expiry() time.Time {
 }
 
 // SetTTL sets Expires header using realtime clock
-func (o *SAMLConnectorV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+func (o *SAMLConnectorV2) SetTTL(clock Clock, ttl time.Duration) {
 	o.Metadata.SetTTL(clock, ttl)
 }
 

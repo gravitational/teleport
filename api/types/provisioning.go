@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // Provisioner governs adding new nodes to the cluster
@@ -188,7 +187,7 @@ func (p *ProvisionTokenV2) Expiry() time.Time {
 }
 
 // SetTTL sets Expires header using realtime clock
-func (p *ProvisionTokenV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+func (p *ProvisionTokenV2) SetTTL(clock Clock, ttl time.Duration) {
 	p.Metadata.SetTTL(clock, ttl)
 }
 

@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // NewNamespace returns new namespace
@@ -102,7 +101,7 @@ func (n *Namespace) SetExpiry(expires time.Time) {
 }
 
 // SetTTL sets Expires header using realtime clock
-func (n *Namespace) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+func (n *Namespace) SetTTL(clock Clock, ttl time.Duration) {
 	n.Metadata.SetTTL(clock, ttl)
 }
 

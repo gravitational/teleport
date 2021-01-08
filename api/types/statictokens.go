@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // StaticTokens define a list of static []ProvisionToken used to provision a
@@ -126,7 +125,7 @@ func (c *StaticTokensV2) SetExpiry(expires time.Time) {
 }
 
 // SetTTL sets Expires header using realtime clock
-func (c *StaticTokensV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+func (c *StaticTokensV2) SetTTL(clock Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
 }
 
