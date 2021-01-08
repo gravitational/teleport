@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // RemoteCluster represents a remote cluster that has connected via reverse tunnel
@@ -137,7 +136,7 @@ func (c *RemoteClusterV3) Expiry() time.Time {
 }
 
 // SetTTL sets Expires header using realtime clock
-func (c *RemoteClusterV3) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+func (c *RemoteClusterV3) SetTTL(clock Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
 }
 
