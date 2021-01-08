@@ -410,9 +410,10 @@ buildbox-grpc:
 	  --gofast_out=plugins=grpc:.\
     *.proto
 
-	cd lib/services && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
-    *.proto
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/types \
+		--gofast_out=plugins=grpc:api/types \
+		types.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/client/proto \

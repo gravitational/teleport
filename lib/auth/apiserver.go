@@ -685,35 +685,11 @@ func (s *APIServer) deleteWebSession(auth ClientI, w http.ResponseWriter, r *htt
 	return message(fmt.Sprintf("session '%v' for user '%v' deleted", sid, user)), nil
 }
 
-// sessionV1 is a V1 style web session, used in legacy v1 API
-type sessionV1 struct {
-	// ID is a session ID
-	ID string `json:"id"`
-	// Username is a user this session belongs to
-	Username string `json:"username"`
-	// ExpiresAt is an optional expiry time, if set
-	// that means this web session and all derived web sessions
-	// can not continue after this time, used in OIDC use case
-	// when expiry is set by external identity provider, so user
-	// has to relogin (or later on we'd need to refresh the token)
-	ExpiresAt time.Time `json:"expires_at"`
-	// WS is a private keypair used for signing requests
-	WS services.WebSessionV1 `json:"web"`
-}
-
 func (s *APIServer) getWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	user, sid := p.ByName("user"), p.ByName("sid")
 	sess, err := auth.GetWebSessionInfo(user, sid)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if version == services.V1 {
-		return &sessionV1{
-			ID:        sess.GetName(),
-			Username:  sess.GetUser(),
-			ExpiresAt: sess.GetExpiryTime(),
-			WS:        *(sess.V1()),
-		}, nil
 	}
 	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
 }
