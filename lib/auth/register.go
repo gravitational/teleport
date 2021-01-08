@@ -109,6 +109,8 @@ func Register(params RegisterParams) (*Identity, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	log.WithField("auth-servers", params.Servers).Debugf("Registering node to the cluster.")
+
 	type registerMethod struct {
 		call func(token string, params RegisterParams) (*Identity, error)
 		desc string
@@ -116,40 +118,34 @@ func Register(params RegisterParams) (*Identity, error) {
 	registerThroughAuth := registerMethod{registerThroughAuth, "with auth server"}
 	registerThroughProxy := registerMethod{registerThroughProxy, "via proxy server"}
 
-	var registerMethods []registerMethod
+	registerMethods := []registerMethod{registerThroughAuth, registerThroughProxy}
 	if params.GetHostCredentials == nil {
 		log.Debugf("Missing client, it is not possible to register through proxy.")
 		registerMethods = []registerMethod{registerThroughAuth}
-	} else if authServerIsProxy(params) {
+	} else if authServerIsProxy(params.Servers) {
 		log.Debugf("The first specified auth server appears to be a proxy.")
 		registerMethods = []registerMethod{registerThroughProxy, registerThroughAuth}
-	} else {
-		registerMethods = []registerMethod{registerThroughAuth, registerThroughProxy}
 	}
 
 	var collectedErrs []error
-	for i, method := range registerMethods {
-		log.Debugf("Attempting registration %s.", method.desc)
+	for _, method := range registerMethods {
+		log.Infof("Attempting registration %s.", method.desc)
 		ident, err := method.call(token, params)
 		if err != nil {
 			collectedErrs = append(collectedErrs, err)
 			log.WithError(err).Debugf("Registration %s failed.", method.desc)
-			if i+1 < len(registerMethods) {
-				log.Infof("Unable to register %s, falling back to registration %s.",
-					method.desc, registerMethods[i+1].desc)
-			}
-		} else {
-			log.Infof("Successfully registered %s.", method.desc)
-			return ident, nil
+			continue
 		}
+		log.Infof("Successfully registered %s.", method.desc)
+		return ident, nil
 	}
 	return nil, trace.NewAggregate(collectedErrs...)
 }
 
 // authServerIsProxy returns true if the first specified auth server
 // to register with appears to be a proxy.
-func authServerIsProxy(params RegisterParams) bool {
-	return len(params.Servers) > 0 && params.Servers[0].Port(0) == defaults.HTTPListenPort
+func authServerIsProxy(servers []utils.NetAddr) bool {
+	return len(servers) > 0 && servers[0].Port(0) == defaults.HTTPListenPort
 }
 
 // registerThroughProxy is used to register through the proxy server.
