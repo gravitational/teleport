@@ -192,7 +192,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	}
 	streamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
 		Inner: conn.Client,
-		Clock: process.Clock,
+		Clock: process.GetClock(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
