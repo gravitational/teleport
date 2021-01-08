@@ -170,7 +170,7 @@ func (s *DynamicAccessService) GetAccessRequests(ctx context.Context, filter ser
 			// same namespace.
 			continue
 		}
-		req, err := itemToAccessRequest(item)
+		req, err := itemToAccessRequest(item, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -379,11 +379,15 @@ func itemFromAccessRequest(req services.AccessRequest) (backend.Item, error) {
 	}, nil
 }
 
-func itemToAccessRequest(item backend.Item) (services.AccessRequest, error) {
-	req, err := services.GetAccessRequestMarshaler().UnmarshalAccessRequest(
-		item.Value,
+func itemToAccessRequest(item backend.Item, opts ...services.MarshalOption) (services.AccessRequest, error) {
+	opts = append(
+		opts,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
+	)
+	req, err := services.GetAccessRequestMarshaler().UnmarshalAccessRequest(
+		item.Value,
+		opts...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

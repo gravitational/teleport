@@ -682,6 +682,13 @@ func (rc *ResourceCommand) getCollection(client auth.ClientI) (c ResourceCollect
 			return nil, trace.Wrap(err)
 		}
 		return &serverCollection{servers: servers}, nil
+	case services.KindClusterAuthPreference:
+		authPref, err := client.GetAuthPreference()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		authPrefs := []services.AuthPreference{authPref}
+		return &authPrefCollection{authPrefs: authPrefs}, nil
 	}
 	return nil, trace.BadParameter("'%v' is not supported", rc.ref.Kind)
 }

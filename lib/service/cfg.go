@@ -352,6 +352,19 @@ type ProxyConfig struct {
 
 	// KeyPairs are the key and certificate pairs that the proxy will load.
 	KeyPairs []KeyPairPath
+
+	// ACME is ACME protocol support config
+	ACME ACME
+}
+
+// ACME configures ACME automatic certificate renewal
+type ACME struct {
+	// Enabled enables or disables ACME support
+	Enabled bool
+	// Email receives notifications from ACME server
+	Email string
+	// URI is ACME server URI
+	URI string
 }
 
 // KeyPairPath are paths to a key and certificate file.
@@ -634,11 +647,8 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens = services.DefaultStaticTokens()
 	cfg.Auth.ClusterConfig = services.DefaultClusterConfig()
+	cfg.Auth.Preference = services.DefaultAuthPreference()
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
-	// set new style default auth preferences
-	ap := &services.AuthPreferenceV2{}
-	ap.CheckAndSetDefaults()
-	cfg.Auth.Preference = ap
 	cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, defaults.LicenseFile)
 
 	// Proxy service defaults.

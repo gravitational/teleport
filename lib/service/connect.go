@@ -25,6 +25,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -884,7 +885,7 @@ func (process *TeleportProcess) newClientThroughTunnel(servers []utils.NetAddr, 
 		return nil, trace.Wrap(err)
 	}
 
-	clt, err := auth.NewTLSClient(auth.ClientConfig{
+	clt, err := auth.NewClient(apiclient.Config{
 		Dialer: &reversetunnel.TunnelAuthDialer{
 			ProxyAddr:    proxyAddr,
 			ClientConfig: identity.SSHClientConfig(),
@@ -911,9 +912,9 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, ide
 		return nil, trace.Wrap(err)
 	}
 	if process.Config.ClientTimeout != 0 {
-		return auth.NewTLSClient(auth.ClientConfig{
-			Addrs: authServers,
+		return auth.NewClient(apiclient.Config{
+			Addrs: utils.NetAddrsToStrings(authServers),
 			TLS:   tlsConfig}, auth.ClientTimeout(process.Config.ClientTimeout))
 	}
-	return auth.NewTLSClient(auth.ClientConfig{Addrs: authServers, TLS: tlsConfig})
+	return auth.NewClient(apiclient.Config{Addrs: utils.NetAddrsToStrings(authServers), TLS: tlsConfig})
 }

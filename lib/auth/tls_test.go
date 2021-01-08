@@ -33,11 +33,10 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/grpc"
 
-	empty "github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth/proto"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -48,34 +47,12 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace/trail"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"gopkg.in/check.v1"
 )
-
-// MockAuthServiceClient stubs grpc AuthServiceClient interface.
-type mockAuthServiceClient struct {
-	proto.AuthServiceClient
-	err error
-}
-
-// newMockAuthServiceClient returns a new instace of mockAuthServiceClient
-func newMockAuthServiceClient() *mockAuthServiceClient {
-	return &mockAuthServiceClient{}
-}
-
-// DeleteUser returns a dynamically defined method.
-func (m *mockAuthServiceClient) DeleteUser(ctx context.Context, in *proto.DeleteUserRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	return nil, trail.ToGRPC(m.err)
-}
-
-// reset resets states to its zero values.
-func (m *mockAuthServiceClient) reset() {
-	m.err = nil
-}
 
 type TLSSuite struct {
 	dataDir string
@@ -1616,6 +1593,7 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 	_, _, _, _, err = ssh.ParseAuthorizedKey(pub)
 	c.Assert(err, check.IsNil)
 
+	// create a user with one requestable role
 	user := "user1"
 	role := "some-role"
 	_, err = CreateUserRoleAndRequestable(s.server.Auth(), user, role)
@@ -1626,6 +1604,30 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 	userClient, err := s.server.NewClient(testUser)
 	c.Assert(err, check.IsNil)
 
+	// Verify that user has correct requestable roles
+	caps, err := userClient.GetAccessCapabilities(context.TODO(), services.AccessCapabilitiesRequest{
+		RequestableRoles: true,
+	})
+	c.Assert(err, check.IsNil)
+	c.Assert(caps.RequestableRoles, check.DeepEquals, []string{role})
+
+	// create a user with no requestable roles
+	user2, _, err := CreateUserAndRole(s.server.Auth(), "user2", []string{"user2"})
+	c.Assert(err, check.IsNil)
+
+	testUser2 := TestUser(user2.GetName())
+	testUser2.TTL = time.Hour
+	userClient2, err := s.server.NewClient(testUser2)
+	c.Assert(err, check.IsNil)
+
+	// verify that no requestable roles are shown for user2
+	caps2, err := userClient2.GetAccessCapabilities(context.TODO(), services.AccessCapabilitiesRequest{
+		RequestableRoles: true,
+	})
+	c.Assert(err, check.IsNil)
+	c.Assert(caps2.RequestableRoles, check.HasLen, 0)
+
+	// create an allowable access request for user1
 	req, err := services.NewAccessRequest(user, role)
 	c.Assert(err, check.IsNil)
 
@@ -2401,11 +2403,11 @@ func (s *TLSSuite) TestCipherSuites(c *check.C) {
 		tls.TLS_RSA_WITH_AES_256_CBC_SHA,
 	}
 
-	addrs := []utils.NetAddr{
-		utils.FromAddr(otherServer.Listener.Addr()),
-		utils.FromAddr(s.server.Listener.Addr()),
+	addrs := []string{
+		otherServer.Addr().String(),
+		s.server.Addr().String(),
 	}
-	client, err := NewTLSClient(ClientConfig{
+	client, err := NewClient(client.Config{
 		Addrs: addrs,
 		TLS:   tlsConfig,
 	})
@@ -2425,11 +2427,11 @@ func (s *TLSSuite) TestTLSFailover(c *check.C) {
 	tlsConfig, err := s.server.ClientTLSConfig(TestNop())
 	c.Assert(err, check.IsNil)
 
-	addrs := []utils.NetAddr{
-		utils.FromAddr(otherServer.Listener.Addr()),
-		utils.FromAddr(s.server.Listener.Addr()),
+	addrs := []string{
+		otherServer.Addr().String(),
+		s.server.Addr().String(),
 	}
-	client, err := NewTLSClient(ClientConfig{Addrs: addrs, TLS: tlsConfig})
+	client, err := NewClient(client.Config{Addrs: addrs, TLS: tlsConfig})
 	c.Assert(err, check.IsNil)
 
 	// couple of runs to get enough connections
@@ -2912,26 +2914,6 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 	clusterNameResource, err = s.server.Auth().ClusterConfiguration.GetClusterName()
 	c.Assert(err, check.IsNil)
 	suite.ExpectResource(c, w, 3*time.Second, clusterNameResource)
-}
-
-func (s *TLSSuite) TestAPIBackwardsCompatibilityLogic(c *check.C) {
-	clt, err := s.server.NewClient(TestAdmin())
-	c.Assert(err, check.IsNil)
-
-	grpcMock := newMockAuthServiceClient()
-	clt.grpcClient = grpcMock
-
-	// check the REST endpoint gets called
-	grpcMock.err = trace.NotImplemented("")
-	err = clt.DeleteUser(context.TODO(), "not-existing-user")
-	c.Assert(trace.IsNotFound(err), check.Equals, true)
-	grpcMock.reset()
-
-	// check that any other error than "NotImplemented" returns right away
-	grpcMock.err = trace.BadParameter("test-other-error")
-	err = clt.DeleteUser(context.TODO(), "not-existing-user")
-	c.Assert(trace.IsBadParameter(err), check.Equals, true)
-	c.Assert(err, check.ErrorMatches, `test-other-error`)
 }
 
 // verifyJWT verifies that the token was signed by one the passed in key pair.

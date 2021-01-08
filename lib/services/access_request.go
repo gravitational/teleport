@@ -231,6 +231,31 @@ type DynamicAccess interface {
 	UpdatePluginData(ctx context.Context, params PluginDataUpdateParams) error
 }
 
+// DynamicAccessOracle is a service capable of answering questions related
+// to the dynamic access API.  Necessary because some information (e.g. the
+// list of roles a user is allowed to request) can not be calculated by
+// actors with limited privileges.
+type DynamicAccessOracle interface {
+	GetAccessCapabilities(ctx context.Context, req AccessCapabilitiesRequest) (*AccessCapabilities, error)
+}
+
+// CalculateAccessCapabilities aggregates the requested capabilities using the supplied getter
+// to load relevant resources.
+func CalculateAccessCapabilities(ctx context.Context, clt UserAndRoleGetter, req AccessCapabilitiesRequest) (*AccessCapabilities, error) {
+	var caps AccessCapabilities
+	if req.RequestableRoles {
+		v, err := NewRequestValidator(clt, req.User)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		caps.RequestableRoles, err = v.GetRequestableRoles()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return &caps, nil
+}
+
 // DynamicAccessExt is an extended dynamic access interface
 // used to implement some auth server internals.
 type DynamicAccessExt interface {
@@ -408,14 +433,15 @@ func insertAnnotations(annotations map[string][]string, conditions AccessRequest
 	}
 }
 
-// requestValidator a helper for validating access requests.
+// RequestValidator a helper for validating access requests.
 // a user's statically assigned roles are are "added" to the
 // validator via the push() method, which extracts all the
 // relevant rules, peforms variable substitutions, and builds
 // a set of simple Allow/Deny datastructures.  These, in turn,
 // are used to validate and expand the access request.
-type requestValidator struct {
-	traits        map[string][]string
+type RequestValidator struct {
+	getter        UserAndRoleGetter
+	user          User
 	requireReason bool
 	opts          struct {
 		expandRoles, annotate bool
@@ -428,9 +454,16 @@ type requestValidator struct {
 	}
 }
 
-func newRequestValidator(traits map[string][]string, opts ...ValidateRequestOption) requestValidator {
-	m := requestValidator{
-		traits: traits,
+// NewRequestValidator configures a new RequestValidor for the specified user.
+func NewRequestValidator(getter UserAndRoleGetter, username string, opts ...ValidateRequestOption) (RequestValidator, error) {
+	user, err := getter.GetUser(username, false)
+	if err != nil {
+		return RequestValidator{}, trace.Wrap(err)
+	}
+
+	m := RequestValidator{
+		getter: getter,
+		user:   user,
 	}
 	for _, opt := range opts {
 		opt(&m)
@@ -442,25 +475,113 @@ func newRequestValidator(traits map[string][]string, opts ...ValidateRequestOpti
 		m.Annotations.Allow = make(map[string][]string)
 		m.Annotations.Deny = make(map[string][]string)
 	}
-	return m
+
+	// load all statically assigned roles for the user and
+	// use them to build our validation state.
+	for _, roleName := range m.user.GetRoles() {
+		role, err := m.getter.GetRole(roleName)
+		if err != nil {
+			return RequestValidator{}, trace.Wrap(err)
+		}
+		if err := m.push(role); err != nil {
+			return RequestValidator{}, trace.Wrap(err)
+		}
+	}
+	return m, nil
+}
+
+// Validate validates an access request and potentially modifies it depending on how
+// the validator was configured.
+func (m *RequestValidator) Validate(req AccessRequest) error {
+	if m.user.GetName() != req.GetUser() {
+		return trace.BadParameter("request validator configured for different user (this is a bug)")
+	}
+
+	if m.requireReason && req.GetRequestReason() == "" {
+		return trace.BadParameter("request reason must be specified (required by static role configuration)")
+	}
+
+	// check for "wildcard request" (`roles=*`).  wildcard requests
+	// need to be expanded into a list consisting of all existing roles
+	// that the user does not hold and is allowed to request.
+	if r := req.GetRoles(); len(r) == 1 && r[0] == Wildcard {
+
+		if !req.GetState().IsPending() {
+			// expansion is only permitted in pending requests.  once resolved,
+			// a request's role list must be immutable.
+			return trace.BadParameter("wildcard requests are not permitted in state %s", req.GetState())
+		}
+
+		if !m.opts.expandRoles {
+			// teleport always validates new incoming pending access requests
+			// with ExpandRoles(true). after that, it should be impossible to
+			// add new values to the role list.
+			return trace.BadParameter("unexpected wildcard request (this is a bug)")
+		}
+
+		requestable, err := m.GetRequestableRoles()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if len(requestable) == 0 {
+			return trace.BadParameter("no requestable roles, please verify static RBAC configuration")
+		}
+		req.SetRoles(requestable)
+	}
+
+	// verify that all requested roles are permissible
+	for _, roleName := range req.GetRoles() {
+		if !m.CanRequestRole(roleName) {
+			return trace.BadParameter("user %q can not request role %q", req.GetUser(), roleName)
+		}
+	}
+
+	if m.opts.annotate {
+		// incoming requests must have system annotations attached
+		// before being inserted into the backend. this is how the
+		// RBAC system propagates sideband information to plugins.
+		req.SetSystemAnnotations(m.SystemAnnotations())
+	}
+	return nil
+}
+
+// GetRequestableRoles gets the list of all existent roles which the user is
+// able to request.  This operation is expensive since it loads all existent
+// roles in order to determine the role list.  Prefer calling CanRequestRole
+// when checking againt a known role list.
+func (m *RequestValidator) GetRequestableRoles() ([]string, error) {
+	allRoles, err := m.getter.GetRoles()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var expanded []string
+	for _, role := range allRoles {
+		if n := role.GetName(); !utils.SliceContainsStr(m.user.GetRoles(), n) && m.CanRequestRole(n) {
+			// user does not currently hold this role, and is allowed to request it.
+			expanded = append(expanded, n)
+		}
+	}
+	return expanded, nil
 }
 
 // push compiles a role's configuration into the request validator.
 // All of the requesint user's statically assigned roles must be pushed
 // before validation begins.
-func (m *requestValidator) push(role Role) error {
+func (m *RequestValidator) push(role Role) error {
 	var err error
 
 	m.requireReason = m.requireReason || role.GetOptions().RequestAccess.RequireReason()
 
 	allow, deny := role.GetAccessRequestConditions(Allow), role.GetAccessRequestConditions(Deny)
 
-	m.Roles.Deny, err = appendRoleMatchers(m.Roles.Deny, deny, m.traits)
+	m.Roles.Deny, err = appendRoleMatchers(m.Roles.Deny, deny, m.user.GetTraits())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	m.Roles.Allow, err = appendRoleMatchers(m.Roles.Allow, allow, m.traits)
+	m.Roles.Allow, err = appendRoleMatchers(m.Roles.Allow, allow, m.user.GetTraits())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -469,14 +590,14 @@ func (m *requestValidator) push(role Role) error {
 		// validation process for incoming access requests requires
 		// generating system annotations to be attached to the request
 		// before it is inserted into the backend.
-		insertAnnotations(m.Annotations.Deny, deny, m.traits)
-		insertAnnotations(m.Annotations.Allow, allow, m.traits)
+		insertAnnotations(m.Annotations.Deny, deny, m.user.GetTraits())
+		insertAnnotations(m.Annotations.Allow, allow, m.user.GetTraits())
 	}
 	return nil
 }
 
 // CanRequestRole checks if a given role can be requested.
-func (m *requestValidator) CanRequestRole(name string) bool {
+func (m *RequestValidator) CanRequestRole(name string) bool {
 	for _, deny := range m.Roles.Deny {
 		if deny.Match(name) {
 			return false
@@ -492,7 +613,7 @@ func (m *requestValidator) CanRequestRole(name string) bool {
 
 // SystemAnnotations calculates the system annotations for a pending
 // access request.
-func (m *requestValidator) SystemAnnotations() map[string][]string {
+func (m *RequestValidator) SystemAnnotations() map[string][]string {
 	annotations := make(map[string][]string)
 	for k, va := range m.Annotations.Allow {
 		var filtered []string
@@ -509,12 +630,12 @@ func (m *requestValidator) SystemAnnotations() map[string][]string {
 	return annotations
 }
 
-type ValidateRequestOption func(*requestValidator)
+type ValidateRequestOption func(*RequestValidator)
 
 // ExpandRoles activates expansion of wildcard role lists
 // (`[]string{"*"}`) when true.
 func ExpandRoles(expand bool) ValidateRequestOption {
-	return func(v *requestValidator) {
+	return func(v *RequestValidator) {
 		v.opts.expandRoles = expand
 	}
 }
@@ -522,7 +643,7 @@ func ExpandRoles(expand bool) ValidateRequestOption {
 // ApplySystemAnnotations causes system annotations to be computed
 // and attached during validation when true.
 func ApplySystemAnnotations(annotate bool) ValidateRequestOption {
-	return func(v *requestValidator) {
+	return func(v *RequestValidator) {
 		v.opts.annotate = annotate
 	}
 }
@@ -532,80 +653,11 @@ func ApplySystemAnnotations(annotate bool) ValidateRequestOption {
 // requests, setting their role list to include all roles the user is allowed to request.
 // Expansion should be performed before an access request is initially placed in the backend.
 func ValidateAccessRequest(getter UserAndRoleGetter, req AccessRequest, opts ...ValidateRequestOption) error {
-	user, err := getter.GetUser(req.GetUser(), false)
+	v, err := NewRequestValidator(getter, req.GetUser(), opts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	validator := newRequestValidator(user.GetTraits(), opts...)
-
-	// load all statically assigned roles for the user and
-	// use them to build our validation state.
-	for _, roleName := range user.GetRoles() {
-		role, err := getter.GetRole(roleName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := validator.push(role); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	if validator.requireReason && req.GetRequestReason() == "" {
-		return trace.BadParameter("request reason must be specified (required by static role configuration)")
-	}
-
-	// check for "wildcard request" (`roles=*`).  wildcard requests
-	// need to be expanded into a list consisting of all existing roles
-	// that the user does not hold and is allowed to request.
-	if r := req.GetRoles(); len(r) == 1 && r[0] == Wildcard {
-
-		if !req.GetState().IsPending() {
-			// expansion is only permitted in pending requests.  once resolved,
-			// a request's role list must be immutable.
-			return trace.BadParameter("wildcard requests are not permitted in state %s", req.GetState())
-		}
-
-		if !validator.opts.expandRoles {
-			// teleport always validates new incoming pending access requests
-			// with ExpandRoles(true). after that, it should be impossible to
-			// add new values to the role list.
-			return trace.BadParameter("unexpected wildcard request (this is a bug)")
-		}
-
-		allRoles, err := getter.GetRoles()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		var expanded []string
-		for _, role := range allRoles {
-			if n := role.GetName(); !utils.SliceContainsStr(user.GetRoles(), n) && validator.CanRequestRole(n) {
-				// user does not currently hold this role, and is allowed to request it.
-				expanded = append(expanded, n)
-			}
-		}
-		if len(expanded) == 0 {
-			return trace.BadParameter("no requestable roles, please verify static RBAC configuration")
-		}
-		req.SetRoles(expanded)
-	}
-
-	// verify that all requested roles are permissible
-	for _, roleName := range req.GetRoles() {
-		if !validator.CanRequestRole(roleName) {
-			return trace.BadParameter("user %q can not request role %q", req.GetUser(), roleName)
-		}
-	}
-
-	if validator.opts.annotate {
-		// incoming requests must have system annotations attached before
-		// before being inserted into the backend. this is how the
-		// RBAC system propagates sideband information to plugins.
-		req.SetSystemAnnotations(validator.SystemAnnotations())
-	}
-
-	return nil
+	return trace.Wrap(v.Validate(req))
 }
 
 func (r *AccessRequestV3) GetUser() string {
