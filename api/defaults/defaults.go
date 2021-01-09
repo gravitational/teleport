@@ -20,8 +20,7 @@ package defaults
 import (
 	"time"
 
-	"github.com/gravitational/teleport"
-
+	"github.com/gravitational/teleport/api/constants"
 	"gopkg.in/square/go-jose.v2"
 )
 
@@ -59,7 +58,7 @@ const (
 // EnhancedEvents returns the default list of enhanced events.
 func EnhancedEvents() []string {
 	return []string{
-		teleport.EnhancedRecordingCommand,
-		teleport.EnhancedRecordingNetwork,
+		constants.EnhancedRecordingCommand,
+		constants.EnhancedRecordingNetwork,
 	}
 }

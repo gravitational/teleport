@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -388,8 +388,8 @@ func (o *SAMLConnectorV2) GetServiceProvider(clock clockwork.Clock) (*saml2.SAML
 	if o.Metadata.Name == "" {
 		return nil, trace.BadParameter("ID: missing connector name, name your connector to refer to internally e.g. okta1")
 	}
-	if o.Metadata.Name == teleport.Local {
-		return nil, trace.BadParameter("ID: invalid connector name %v is a reserved name", teleport.Local)
+	if o.Metadata.Name == constants.Local {
+		return nil, trace.BadParameter("ID: invalid connector name %v is a reserved name", constants.Local)
 	}
 	if o.Spec.AssertionConsumerService == "" {
 		return nil, trace.BadParameter("missing acs - assertion consumer service parameter, set service URL that will receive POST requests from SAML")
@@ -465,7 +465,7 @@ func (o *SAMLConnectorV2) GetServiceProvider(clock clockwork.Clock) (*saml2.SAML
 	if o.Spec.SigningKeyPair == nil {
 		keyPEM, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
 			Organization: []string{"Teleport OSS"},
-			CommonName:   "teleport.localhost.localdomain",
+			CommonName:   "constants.Localhost.localdomain",
 		}, nil, 10*365*24*time.Hour)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -504,7 +504,7 @@ func (o *SAMLConnectorV2) GetServiceProvider(clock clockwork.Clock) (*saml2.SAML
 	}
 
 	// adfs specific settings
-	if o.Spec.Provider == teleport.ADFS {
+	if o.Spec.Provider == constants.ADFS {
 		if sp.SignAuthnRequests {
 			// adfs does not support C14N11, we have to use the C14N10 canonicalizer
 			sp.SignAuthnRequestsCanonicalizer = dsig.MakeC14N10ExclusiveCanonicalizerWithPrefixList(dsig.DefaultPrefix)
