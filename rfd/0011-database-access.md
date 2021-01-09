@@ -1,9 +1,9 @@
 ---
-authors: Roman Tkachenko (roman@gravitational.com)
-state: proposal
+authors: Roman Tkachenko (roman@goteleport.com)
+state: draft
 ---
 
-# RFD 0011 - Teleport Database Access (Preview)
+# RFD 11 - Teleport Database Access (Preview)
 
 ## What
 
@@ -412,7 +412,7 @@ we will extend `teams_to_logins` mapping:
 spec:
   teams_to_logins:
   - organization: octocats
-    team: admins 
+    team: admins
     db_names: ["test"]
     db_users: ["alice"]
 ```
@@ -535,7 +535,7 @@ $ psql
 ```
 
 Users can still choose to specify a user/database explicitly when connecting,
-for example to use a different database user or connect to a different 
+for example to use a different database user or connect to a different
 database (subject to RBAC checks).
 
 ### Connecting to PostgreSQL / service file
@@ -555,7 +555,7 @@ avoid conflicts in situations where multiple trusted clusters have database
 services with the same name.
 
 If a service file is already present, a new section will be added or existing
-section with the same name overwritten. 
+section with the same name overwritten.
 
 An added section may look like this:
 
