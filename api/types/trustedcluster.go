@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
@@ -142,8 +142,8 @@ func (c *TrustedClusterV2) CheckAndSetDefaults() error {
 		// OSS teleport uses 'admin' by default:
 		c.Spec.RoleMap = RoleMap{
 			RoleMapping{
-				Remote: teleport.AdminRoleName,
-				Local:  []string{teleport.AdminRoleName},
+				Remote: constants.AdminRoleName,
+				Local:  []string{constants.AdminRoleName},
 			},
 		}
 	}
@@ -412,7 +412,7 @@ func (r RoleMap) Map(remoteRoles []string) ([]string, error) {
 		for _, remoteRole := range remoteRoles {
 			// never map default implicit role, it is always
 			// added by default
-			if remoteRole == teleport.DefaultImplicitRole {
+			if remoteRole == constants.DefaultImplicitRole {
 				continue
 			}
 			for _, replacementRole := range mapping.Local {

@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -427,7 +427,7 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 
 	// Make sure all fields have defaults.
 	if r.Spec.Options.CertificateFormat == "" {
-		r.Spec.Options.CertificateFormat = teleport.CertificateFormatStandard
+		r.Spec.Options.CertificateFormat = constants.CertificateFormatStandard
 	}
 	if r.Spec.Options.MaxSessionTTL.Value() == 0 {
 		r.Spec.Options.MaxSessionTTL = NewDuration(defaults.MaxCertDuration)
@@ -464,9 +464,9 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 
 	// Validate that enhanced recording options are all valid.
 	for _, opt := range r.Spec.Options.BPF {
-		if opt == teleport.EnhancedRecordingCommand ||
-			opt == teleport.EnhancedRecordingDisk ||
-			opt == teleport.EnhancedRecordingNetwork {
+		if opt == constants.EnhancedRecordingCommand ||
+			opt == constants.EnhancedRecordingDisk ||
+			opt == constants.EnhancedRecordingNetwork {
 			continue
 		}
 		return trace.BadParameter("found invalid option in session_recording: %v", opt)

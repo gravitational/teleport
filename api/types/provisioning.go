@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -54,9 +53,9 @@ type ProvisionToken interface {
 	// GetRoles returns a list of teleport roles
 	// that will be granted to the user of the token
 	// in the crendentials
-	GetRoles() teleport.Roles
+	GetRoles() SSHRoles
 	// SetRoles sets teleport roles
-	SetRoles(teleport.Roles)
+	SetRoles(SSHRoles)
 	// V1 returns V1 version of the resource
 	V1() *ProvisionTokenV1
 	// String returns user friendly representation of the resource
@@ -66,7 +65,7 @@ type ProvisionToken interface {
 }
 
 // NewProvisionToken returns a new instance of provision token resource
-func NewProvisionToken(token string, roles teleport.Roles, expires time.Time) (ProvisionToken, error) {
+func NewProvisionToken(token string, roles SSHRoles, expires time.Time) (ProvisionToken, error) {
 	t := &ProvisionTokenV2{
 		Kind:    KindToken,
 		Version: V2,
@@ -87,7 +86,7 @@ func NewProvisionToken(token string, roles teleport.Roles, expires time.Time) (P
 
 // MustCreateProvisionToken returns a new valid provision token
 // or panics, used in testes
-func MustCreateProvisionToken(token string, roles teleport.Roles, expires time.Time) ProvisionToken {
+func MustCreateProvisionToken(token string, roles SSHRoles, expires time.Time) ProvisionToken {
 	t, err := NewProvisionToken(token, roles, expires)
 	if err != nil {
 		panic(err)
@@ -105,7 +104,7 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 	if len(p.Spec.Roles) == 0 {
 		return trace.BadParameter("provisioning token is missing roles")
 	}
-	if err := teleport.Roles(p.Spec.Roles).Check(); err != nil {
+	if err := SSHRoles(p.Spec.Roles).Check(); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -119,12 +118,12 @@ func (p *ProvisionTokenV2) GetVersion() string {
 // GetRoles returns a list of teleport roles
 // that will be granted to the user of the token
 // in the crendentials
-func (p *ProvisionTokenV2) GetRoles() teleport.Roles {
+func (p *ProvisionTokenV2) GetRoles() SSHRoles {
 	return p.Spec.Roles
 }
 
 // SetRoles sets teleport roles
-func (p *ProvisionTokenV2) SetRoles(r teleport.Roles) {
+func (p *ProvisionTokenV2) SetRoles(r SSHRoles) {
 	p.Spec.Roles = r
 }
 

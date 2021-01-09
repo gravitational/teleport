@@ -21,8 +21,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport"
-
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 )
 
@@ -53,7 +52,7 @@ func (d *Duration) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &stringVar); err != nil {
 		return trace.Wrap(err)
 	}
-	if stringVar == teleport.DurationNever {
+	if stringVar == constants.DurationNever {
 		*d = Duration(0)
 		return nil
 	}
@@ -77,7 +76,7 @@ func (d *Duration) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&stringVar); err != nil {
 		return trace.Wrap(err)
 	}
-	if stringVar == teleport.DurationNever {
+	if stringVar == constants.DurationNever {
 		*d = Duration(0)
 		return nil
 	}

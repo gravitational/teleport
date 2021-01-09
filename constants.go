@@ -19,6 +19,8 @@ package teleport
 import (
 	"strings"
 	"time"
+
+	"github.com/gravitational/teleport/api/constants"
 )
 
 // WebAPIVersion is a current webapi version
@@ -253,13 +255,13 @@ const (
 	SafeTerminalType = "xterm"
 
 	// ConnectorOIDC means connector type OIDC
-	ConnectorOIDC = "oidc"
+	ConnectorOIDC = constants.ConnectorOIDC
 
 	// ConnectorSAML means connector type SAML
-	ConnectorSAML = "saml"
+	ConnectorSAML = constants.ConnectorSAML
 
 	// ConnectorGithub means connector type Github
-	ConnectorGithub = "github"
+	ConnectorGithub = constants.ConnectorGithub
 
 	// DataDirParameterName is the name of the data dir configuration parameter passed
 	// to all backends during initialization
@@ -274,7 +276,7 @@ const (
 	RecordingProxyReqType = "recording-proxy@teleport.com"
 
 	// OTP means One-time Password Algorithm for Two-Factor Authentication.
-	OTP = "otp"
+	OTP = constants.OTP
 
 	// TOTP means Time-based One-time Password Algorithm. for Two-Factor Authentication.
 	TOTP = "totp"
@@ -283,25 +285,25 @@ const (
 	HOTP = "hotp"
 
 	// U2F means Universal 2nd Factor.for Two-Factor Authentication.
-	U2F = "u2f"
+	U2F = constants.U2F
 
 	// OFF means no second factor.for Two-Factor Authentication.
-	OFF = "off"
+	OFF = constants.OFF
 
 	// Local means authentication will happen locally within the Teleport cluster.
-	Local = "local"
+	Local = constants.Local
 
 	// OIDC means authentication will happen remotely using an OIDC connector.
-	OIDC = ConnectorOIDC
+	OIDC = constants.OIDC
 
 	// SAML means authentication will happen remotely using a SAML connector.
-	SAML = ConnectorSAML
+	SAML = constants.SAML
 
 	// Github means authentication will happen remotely using a Github connector.
-	Github = ConnectorGithub
+	Github = constants.Github
 
 	// JSON means JSON serialization format
-	JSON = "json"
+	JSON = constants.JSON
 
 	// YAML means YAML serialization format
 	YAML = "yaml"
@@ -383,7 +385,7 @@ const (
 	HumanDateFormat = "Jan _2 15:04 UTC"
 
 	// HumanDateFormatSeconds is a human readable date formatting with seconds
-	HumanDateFormatSeconds = "Jan _2 15:04:05 UTC"
+	HumanDateFormatSeconds = constants.HumanDateFormatSeconds
 
 	// HumanDateFormatMilli is a human readable date formatting with milliseconds
 	HumanDateFormatMilli = "Jan _2 15:04:05.000 UTC"
@@ -445,7 +447,7 @@ const (
 	// NetIQ is an identity provider.
 	NetIQ = "netiq"
 	// ADFS is Microsoft Active Directory Federation Services
-	ADFS = "adfs"
+	ADFS = constants.ADFS
 )
 
 const (
@@ -470,14 +472,14 @@ const (
 
 	// CertificateFormatStandard is used for normal Teleport operation without any
 	// compatibility modes.
-	CertificateFormatStandard = "standard"
+	CertificateFormatStandard = constants.CertificateFormatStandard
 
 	// CertificateFormatUnspecified is used to check if the format was specified
 	// or not.
 	CertificateFormatUnspecified = ""
 
 	// DurationNever is human friendly shortcut that is interpreted as a Duration of 0
-	DurationNever = "never"
+	DurationNever = constants.DurationNever
 )
 
 const (
@@ -529,14 +531,14 @@ const Root = "root"
 
 // DefaultRole is the name of the default admin role for all local users if
 // another role is not explicitly assigned (Enterprise only).
-const AdminRoleName = "admin"
+const AdminRoleName = constants.AdminRoleName
 
 // DefaultImplicitRole is implicit role that gets added to all service.RoleSet
 // objects.
-const DefaultImplicitRole = "default-implicit-role"
+const DefaultImplicitRole = constants.DefaultImplicitRole
 
 // APIDomain is a default domain name for Auth server API
-const APIDomain = "teleport.cluster.local"
+const APIDomain = constants.APIDomain
 
 // MinClientVersion is the minimum client version required by the server.
 const MinClientVersion = "3.0.0"
@@ -637,18 +639,18 @@ const (
 const (
 	// EnhancedRecordingMinKernel is the minimum kernel version for the enhanced
 	// recording feature.
-	EnhancedRecordingMinKernel = "4.18.0"
+	EnhancedRecordingMinKernel = constants.EnhancedRecordingMinKernel
 
 	// EnhancedRecordingCommand is a role option that implies command events are
 	// captured.
-	EnhancedRecordingCommand = "command"
+	EnhancedRecordingCommand = constants.EnhancedRecordingCommand
 
 	// EnhancedRecordingDisk is a role option that implies disk events are captured.
-	EnhancedRecordingDisk = "disk"
+	EnhancedRecordingDisk = constants.EnhancedRecordingDisk
 
 	// EnhancedRecordingNetwork is a role option that implies network events
 	// are captured.
-	EnhancedRecordingNetwork = "network"
+	EnhancedRecordingNetwork = constants.EnhancedRecordingNetwork
 )
 
 const (
@@ -692,9 +694,9 @@ const UserSystem = "system"
 
 const (
 	// KeepAliveNode is the keep alive type for SSH servers.
-	KeepAliveNode = "node"
+	KeepAliveNode = constants.KeepAliveNode
 	// KeepAliveApp is the keep alive type for application server.
-	KeepAliveApp = "app"
+	KeepAliveApp = constants.KeepAliveApp
 )
 
 const (
