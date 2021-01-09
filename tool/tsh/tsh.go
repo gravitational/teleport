@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tsh/common"
 
@@ -187,6 +188,9 @@ type CLIConf struct {
 	// terminal.
 	EnableEscapeSequences bool
 
+	// PreserveAttrs preserves access/modification times from the original file.
+	PreserveAttrs bool
+
 	// executablePath is the absolute path to the current executable.
 	executablePath string
 }
@@ -291,6 +295,7 @@ func Run(args []string) {
 	scp.Arg("from, to", "Source and destination to copy").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
 	scp.Flag("port", "Port to connect to on the remote host").Short('P').Int32Var(&cf.NodePort)
+	scp.Flag("preserve", "Preserves access and modification times from the original file").Short('p').BoolVar(&cf.PreserveAttrs)
 	scp.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 	// ls
 	ls := app.Command("ls", "List remote SSH nodes")
@@ -888,7 +893,12 @@ func executeAccessRequest(cf *CLIConf) error {
 	req.SetRequestReason(cf.RequestReason)
 	fmt.Fprintf(os.Stderr, "Seeking request approval... (id: %s)\n", req.GetName())
 
-	res, err := getRequestResolution(cf, tc, req)
+	var res services.AccessRequest
+	// always create access request against the root cluster
+	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+		res, err = getRequestResolution(cf, clt, req)
+		return trace.Wrap(err)
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1034,7 +1044,8 @@ func onListClusters(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 
-	var clusters []services.RemoteCluster
+	var rootClusterName string
+	var leafClusters []services.RemoteCluster
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		proxyClient, err := tc.ConnectToProxy(cf.Context)
 		if err != nil {
@@ -1042,23 +1053,40 @@ func onListClusters(cf *CLIConf) {
 		}
 		defer proxyClient.Close()
 
-		clusters, err = proxyClient.GetAllClusters(cf.Context)
-		return err
+		var rootErr, leafErr error
+		rootClusterName, rootErr = proxyClient.RootClusterName()
+		leafClusters, leafErr = proxyClient.GetLeafClusters(cf.Context)
+		return trace.NewAggregate(rootErr, leafErr)
 	})
 	if err != nil {
 		utils.FatalError(err)
 	}
+
+	profile, _, err := client.Status("", cf.Proxy)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	showSelected := func(clusterName string) string {
+		if profile != nil && clusterName == profile.Cluster {
+			return "*"
+		}
+		return ""
+	}
+
 	var t asciitable.Table
 	if cf.Quiet {
-		t = asciitable.MakeHeadlessTable(2)
+		t = asciitable.MakeHeadlessTable(4)
 	} else {
-		t = asciitable.MakeTable([]string{"Cluster Name", "Status"})
+		t = asciitable.MakeTable([]string{"Cluster Name", "Status", "Cluster Type", "Selected"})
 	}
-	if len(clusters) == 0 {
-		return
-	}
-	for _, cluster := range clusters {
-		t.AddRow([]string{cluster.GetName(), cluster.GetConnectionStatus()})
+
+	t.AddRow([]string{
+		rootClusterName, teleport.RemoteClusterStatusOnline, "root", showSelected(rootClusterName),
+	})
+	for _, cluster := range leafClusters {
+		t.AddRow([]string{
+			cluster.GetName(), cluster.GetConnectionStatus(), "leaf", showSelected(cluster.GetName()),
+		})
 	}
 	fmt.Println(t.AsBuffer().String())
 }
@@ -1170,8 +1198,12 @@ func onSCP(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
+	flags := scp.Flags{
+		Recursive:     cf.RecursiveCopy,
+		PreserveAttrs: cf.PreserveAttrs,
+	}
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.SCP(context.TODO(), cf.CopySpec, int(cf.NodePort), cf.RecursiveCopy, cf.Quiet)
+		return tc.SCP(context.TODO(), cf.CopySpec, int(cf.NodePort), flags, cf.Quiet)
 	})
 	if err != nil {
 		// exit with the same exit status as the failed command:
@@ -1586,13 +1618,13 @@ func host(in string) string {
 }
 
 // getRequestResolution registers an access request with the auth server and waits for it to be resolved.
-func getRequestResolution(cf *CLIConf, tc *client.TeleportClient, req services.AccessRequest) (services.AccessRequest, error) {
+func getRequestResolution(cf *CLIConf, clt auth.ClientI, req services.AccessRequest) (services.AccessRequest, error) {
 	// set up request watcher before submitting the request to the admin server
 	// in order to avoid potential race.
 	filter := services.AccessRequestFilter{
-		User: tc.Username,
+		User: req.GetUser(),
 	}
-	watcher, err := tc.NewWatcher(cf.Context, services.Watch{
+	watcher, err := clt.NewWatcher(cf.Context, services.Watch{
 		Name: "await-request-approval",
 		Kinds: []services.WatchKind{
 			services.WatchKind{
@@ -1605,7 +1637,7 @@ func getRequestResolution(cf *CLIConf, tc *client.TeleportClient, req services.A
 		return nil, trace.Wrap(err)
 	}
 	defer watcher.Close()
-	if err := tc.CreateAccessRequest(cf.Context, req); err != nil {
+	if err := clt.CreateAccessRequest(cf.Context, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 Loop:
