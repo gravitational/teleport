@@ -163,8 +163,8 @@ func (ws *WebSessionV2) CheckAndSetDefaults() error {
 
 // String returns string representation of the session.
 func (ws *WebSessionV2) String() string {
-	return fmt.Sprintf("WebSession(kind=%v,user=%v,id=%v,expires=%v)",
-		ws.GetKind(), ws.GetUser(), ws.GetName(), ws.GetExpiryTime())
+	return fmt.Sprintf("WebSession(kind=%v/%v,user=%v,id=%v,expires=%v)",
+		ws.GetKind(), ws.GetSubKind(), ws.GetUser(), ws.GetName(), ws.GetExpiryTime())
 }
 
 // SetUser sets user associated with this session
