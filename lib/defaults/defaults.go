@@ -24,14 +24,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 
 	"golang.org/x/crypto/ssh"
-
-	"gopkg.in/square/go-jose.v2"
 )
 
 // Default port numbers used by all teleport tools
@@ -90,7 +88,7 @@ const (
 
 	// DefaultDialTimeout is a default TCP dial timeout we set for our
 	// connection attempts
-	DefaultDialTimeout = 30 * time.Second
+	DefaultDialTimeout = defaults.DefaultDialTimeout
 
 	// HTTPMaxIdleConns is the max idle connections across all hosts.
 	HTTPMaxIdleConns = 2000
@@ -212,7 +210,7 @@ const (
 	AccountLockInterval = 20 * time.Minute
 
 	// Namespace is default namespace
-	Namespace = "default"
+	Namespace = defaults.Namespace
 
 	// AttemptTTL is TTL for login attempt
 	AttemptTTL = time.Minute * 30
@@ -283,7 +281,7 @@ var (
 
 	// ServerKeepAliveTTL is a period between server keep alives,
 	// when servers announce only presence withough sending full data
-	ServerKeepAliveTTL = 60 * time.Second
+	ServerKeepAliveTTL = defaults.ServerKeepAliveTTL
 
 	// AuthServersRefreshPeriod is a period for clients to refresh their
 	// their stored list of auth servers
@@ -340,12 +338,12 @@ var (
 	// messages to the client. The default interval of 5 minutes (300 seconds) is
 	// set to help keep connections alive when using AWS NLBs (which have a default
 	// timeout of 350 seconds)
-	KeepAliveInterval = 5 * time.Minute
+	KeepAliveInterval = defaults.KeepAliveInterval
 
 	// KeepAliveCountMax is the number of keep-alive messages that can be sent
 	// without receiving a response from the client before the client is
 	// disconnected. The max count mirrors ClientAliveCountMax of sshd.
-	KeepAliveCountMax = 3
+	KeepAliveCountMax = defaults.KeepAliveCountMax
 
 	// DiskAlertThreshold is the disk space alerting threshold.
 	DiskAlertThreshold = 90
@@ -422,7 +420,7 @@ const (
 	// MinCertDuration specifies minimum duration of validity of issued cert
 	MinCertDuration = time.Minute
 	// MaxCertDuration limits maximum duration of validity of issued cert
-	MaxCertDuration = 30 * time.Hour
+	MaxCertDuration = defaults.MaxCertDuration
 	// CertDuration is a default certificate duration
 	// 12 is default as it' longer than average working day (I hope so)
 	CertDuration = 12 * time.Hour
@@ -469,12 +467,7 @@ const (
 )
 
 // EnhancedEvents returns the default list of enhanced events.
-func EnhancedEvents() []string {
-	return []string{
-		teleport.EnhancedRecordingCommand,
-		teleport.EnhancedRecordingNetwork,
-	}
-}
+var EnhancedEvents = defaults.EnhancedEvents
 
 var (
 	// ConfigFilePath is default path to teleport config file
@@ -619,7 +612,7 @@ const (
 	ApplicationTokenKeyType = "RSA"
 	// ApplicationTokenAlgorithm is the default algorithm used to sign
 	// application access tokens.
-	ApplicationTokenAlgorithm = jose.RS256
+	ApplicationTokenAlgorithm = defaults.ApplicationTokenAlgorithm
 )
 
 // WindowsOpenSSHNamedPipe is the address of the named pipe that the
