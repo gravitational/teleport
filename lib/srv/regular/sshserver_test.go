@@ -189,7 +189,7 @@ func (s *SrvSuite) SetUpTest(c *C) {
 			},
 		),
 		SetBPF(&bpf.NOP{}),
-		WithClock(s.clock),
+		SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	s.srv = srv
@@ -741,7 +741,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
-		WithClock(s.clock),
+		SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -819,7 +819,7 @@ func (s *SrvSuite) TestProxyReverseTunnel(c *C) {
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetEmitter(s.nodeClient),
-		WithClock(s.clock),
+		SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(srv2.Start(), IsNil)
@@ -909,7 +909,7 @@ func (s *SrvSuite) TestProxyRoundRobin(c *C) {
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
-		WithClock(s.clock),
+		SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -1015,7 +1015,7 @@ func (s *SrvSuite) TestProxyDirectAccess(c *C) {
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
-		WithClock(s.clock),
+		SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(proxy.Start(), IsNil)
@@ -1126,7 +1126,7 @@ func (s *SrvSuite) TestLimiter(c *C) {
 		SetNamespace(defaults.Namespace),
 		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
-		WithClock(s.clock),
+		SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	c.Assert(srv.Start(), IsNil)
