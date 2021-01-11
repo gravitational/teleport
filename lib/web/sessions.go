@@ -815,21 +815,16 @@ func (c *sessionContext) transferClosers() []io.Closer {
 // waitForWebSession will block until the requested web session shows up in the
 // cache or a timeout occurs.
 func (h *Handler) waitForWebSession(ctx context.Context, req services.GetWebSessionRequest) error {
-	_, err := readSessionWithCache(ctx, h.cfg.AccessPoint, req, h.clock)
-	return trace.Wrap(err)
-}
-
-func readSessionWithCache(ctx context.Context, accessPoint auth.ReadAccessPoint, req services.GetWebSessionRequest, clock clockwork.Clock) (services.WebSession, error) {
-	session, err := accessPoint.GetWebSession(ctx, req)
+	_, err := h.cfg.AccessPoint.GetWebSession(ctx, req)
 	if err == nil {
-		return session, nil
+		return nil
 	}
-	logger := log.WithField("req", req)
+	logger := h.log.WithField("req", req)
 	if !trace.IsNotFound(err) {
 		logger.WithError(err).Debug("Failed to query web session.")
 	}
 	// Establish a watch.
-	watcher, err := accessPoint.NewWatcher(ctx, services.Watch{
+	watcher, err := h.cfg.AccessPoint.NewWatcher(ctx, services.Watch{
 		Name: teleport.ComponentWebProxy,
 		Kinds: []services.WatchKind{
 			{
@@ -840,7 +835,7 @@ func readSessionWithCache(ctx context.Context, accessPoint auth.ReadAccessPoint,
 		MetricComponent: teleport.ComponentWebProxy,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	defer watcher.Close()
 	matchEvent := func(event services.Event) (services.Resource, error) {
@@ -851,12 +846,11 @@ func readSessionWithCache(ctx context.Context, accessPoint auth.ReadAccessPoint,
 		}
 		return nil, trace.CompareFailed("not match")
 	}
-	res, err := waitForResource(ctx, watcher, eventMatcherFunc(matchEvent), clock)
+	_, err = waitForResource(ctx, watcher, eventMatcherFunc(matchEvent), h.clock)
 	if err != nil {
 		logger.WithError(err).Warn("Failed to wait for web session.")
-		return nil, trace.Wrap(err)
 	}
-	return res.(services.WebSession), nil
+	return trace.Wrap(err)
 }
 
 func waitForResource(ctx context.Context, watcher services.Watcher, m eventMatcher, clock clockwork.Clock) (services.Resource, error) {

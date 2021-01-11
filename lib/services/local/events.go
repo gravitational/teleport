@@ -694,23 +694,34 @@ func (p *appServerParser) parse(event backend.Event) (services.Resource, error) 
 func newAppSessionParser() *webSessionParser {
 	return &webSessionParser{
 		baseParser: baseParser{matchPrefix: backend.Key(appsPrefix, sessionsPrefix)},
+		hdr: services.ResourceHeader{
+			Kind:    services.KindWebSession,
+			SubKind: services.KindAppSession,
+			Version: services.V2,
+		},
 	}
 }
 
 func newWebSessionParser() *webSessionParser {
 	return &webSessionParser{
 		baseParser: baseParser{matchPrefix: backend.Key(webPrefix, sessionsPrefix)},
+		hdr: services.ResourceHeader{
+			Kind:    services.KindWebSession,
+			SubKind: services.KindWebSession,
+			Version: services.V2,
+		},
 	}
 }
 
 type webSessionParser struct {
 	baseParser
+	hdr services.ResourceHeader
 }
 
 func (p *webSessionParser) parse(event backend.Event) (services.Resource, error) {
 	switch event.Type {
 	case backend.OpDelete:
-		return resourceHeader(event, services.KindWebSession, services.V2, 0)
+		return resourceHeaderWithTemplate(event, p.hdr, 0)
 	case backend.OpPut:
 		resource, err := services.GetWebSessionMarshaler().UnmarshalWebSession(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
@@ -868,6 +879,22 @@ func resourceHeader(event backend.Event, kind, version string, offset int) (serv
 	return &services.ResourceHeader{
 		Kind:    kind,
 		Version: version,
+		Metadata: services.Metadata{
+			Name:      string(name),
+			Namespace: defaults.Namespace,
+		},
+	}, nil
+}
+
+func resourceHeaderWithTemplate(event backend.Event, hdr services.ResourceHeader, offset int) (services.Resource, error) {
+	name, err := base(event.Item.Key, offset)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &services.ResourceHeader{
+		Kind:    hdr.Kind,
+		SubKind: hdr.SubKind,
+		Version: hdr.Version,
 		Metadata: services.Metadata{
 			Name:      string(name),
 			Namespace: defaults.Namespace,

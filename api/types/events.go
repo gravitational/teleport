@@ -22,6 +22,14 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// String returns text description of this event
+func (r Event) String() string {
+	if r.Type == backend.OpDelete {
+		return fmt.Sprintf("%v(%v/%v)", r.Type, r.Resource.GetKind(), r.Resource.GetSubKind())
+	}
+	return fmt.Sprintf("%v(%v)", r.Type, r.Resource)
+}
+
 // Event represents an event that happened in the backend
 type Event struct {
 	// Type is the event type

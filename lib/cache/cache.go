@@ -914,7 +914,8 @@ func (c *Cache) processEvent(ctx context.Context, event services.Event) error {
 	resourceKind := resourceKindFromResource(event.Resource)
 	collection, ok := c.collections[resourceKind]
 	if !ok {
-		c.Warningf("Skipping unsupported event %v.", event.Resource.GetKind())
+		c.Warningf("Skipping unsupported event %v/%v",
+			event.Resource.GetKind(), event.Resource.GetSubKind())
 		return nil
 	}
 	if err := collection.processEvent(ctx, event); err != nil {

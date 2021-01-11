@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/julienschmidt/httprouter"
+	"github.com/sirupsen/logrus"
 )
 
 // siteAppsGet returns a list of applications in a form the UI can present.
@@ -180,7 +181,6 @@ func (h *Handler) waitForAppSession(ctx context.Context, sessionID string) error
 	if err == nil {
 		return nil
 	}
-
 	// Establish a watch on application session.
 	watcher, err := h.cfg.AccessPoint.NewWatcher(ctx, services.Watch{
 		Name: teleport.ComponentAppProxy,
@@ -205,6 +205,12 @@ func (h *Handler) waitForAppSession(ctx context.Context, sessionID string) error
 		return nil, trace.CompareFailed("no match")
 	}
 	_, err = waitForResource(ctx, watcher, eventMatcherFunc(matchEvent), h.clock)
+	if err != nil {
+		h.log.WithFields(logrus.Fields{
+			"session":       sessionID,
+			logrus.ErrorKey: err,
+		}).Warn("Failed to wait for application session.")
+	}
 	return trace.Wrap(err)
 }
 
