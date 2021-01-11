@@ -477,3 +477,23 @@ func (a *appCollection) toMarshal() interface{} {
 func (a *appCollection) writeYAML(w io.Writer) error {
 	return utils.WriteYAML(w, a.toMarshal())
 }
+
+type authPrefCollection struct {
+	authPrefs []services.AuthPreference
+}
+
+func (c *authPrefCollection) resources() (r []services.Resource) {
+	for _, resource := range c.authPrefs {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *authPrefCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Type", "Second Factor"})
+	for _, authPref := range c.authPrefs {
+		t.AddRow([]string{authPref.GetType(), authPref.GetSecondFactor()})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
