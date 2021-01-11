@@ -90,7 +90,7 @@ type CertAuthority interface {
 	// GetTLSKeyPairs returns first PEM encoded TLS cert
 	GetTLSKeyPairs() []TLSKeyPair
 	// JWTSigner returns the active JWT key used to sign tokens.
-	JWTSigner() (*jwt.Key, error)
+	JWTSigner(jwt.Config) (*jwt.Key, error)
 	// GetJWTKeyPairs gets all JWT key pairs.
 	GetJWTKeyPairs() []JWTKeyPair
 	// SetJWTKeyPairs sets all JWT key pairs.
@@ -221,7 +221,7 @@ func (ca *CertAuthorityV2) GetTLSKeyPairs() []TLSKeyPair {
 }
 
 // JWTSigner returns the active JWT key used to sign tokens.
-func (ca *CertAuthorityV2) JWTSigner() (*jwt.Key, error) {
+func (ca *CertAuthorityV2) JWTSigner(config jwt.Config) (*jwt.Key, error) {
 	if len(ca.Spec.JWTKeyPairs) == 0 {
 		return nil, trace.BadParameter("no JWT keypairs found")
 	}
@@ -229,11 +229,10 @@ func (ca *CertAuthorityV2) JWTSigner() (*jwt.Key, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	key, err := jwt.New(&jwt.Config{
-		Algorithm:   defaults.ApplicationTokenAlgorithm,
-		ClusterName: ca.Spec.ClusterName,
-		PrivateKey:  privateKey,
-	})
+	config.Algorithm = defaults.ApplicationTokenAlgorithm
+	config.ClusterName = ca.Spec.ClusterName
+	config.PrivateKey = privateKey
+	key, err := jwt.New(&config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

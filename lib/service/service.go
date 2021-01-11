@@ -226,11 +226,10 @@ func (c *Connector) Close() error {
 // TeleportProcess structure holds the state of the Teleport daemon, controlling
 // execution and configuration of the teleport services: ssh, auth and proxy.
 type TeleportProcess struct {
+	Clock clockwork.Clock
 	sync.Mutex
 	Supervisor
 	Config *Config
-
-	clock clockwork.Clock
 
 	// localAuth has local auth server listed in case if this process
 	// has started with auth server role enabled
@@ -309,11 +308,6 @@ func (process *TeleportProcess) GetAuditLog() events.IAuditLog {
 // GetBackend returns the process' backend
 func (process *TeleportProcess) GetBackend() backend.Backend {
 	return process.backend
-}
-
-// GetClock returns the process' clock
-func (process *TeleportProcess) GetClock() clockwork.Clock {
-	return process.clock
 }
 
 func (process *TeleportProcess) findStaticIdentity(id auth.IdentityID) (*auth.Identity, error) {
@@ -624,10 +618,10 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	}
 
 	process := &TeleportProcess{
+		Clock:               cfg.Clock,
 		Supervisor:          supervisor,
 		Config:              cfg,
 		Identities:          make(map[teleport.Role]*auth.Identity),
-		clock:               cfg.Clock,
 		connectors:          make(map[teleport.Role]*Connector),
 		importedDescriptors: cfg.FileDescriptors,
 		storage:             storage,
@@ -1100,7 +1094,7 @@ func (process *TeleportProcess) initAuthService() error {
 
 	checkingEmitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
 		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(), emitter),
-		Clock: process.GetClock(),
+		Clock: process.Clock,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1108,7 +1102,7 @@ func (process *TeleportProcess) initAuthService() error {
 
 	checkingStreamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
 		Inner: streamer,
-		Clock: process.GetClock(),
+		Clock: process.Clock,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1321,7 +1315,7 @@ func (process *TeleportProcess) initAuthService() error {
 			} else {
 				srv.Spec.Rotation = state.Spec.Rotation
 			}
-			srv.SetTTL(process.GetClock(), defaults.ServerAnnounceTTL)
+			srv.SetTTL(process.Clock, defaults.ServerAnnounceTTL)
 			return &srv, nil
 		},
 		KeepAlivePeriod: defaults.ServerKeepAliveTTL,
@@ -1559,7 +1553,7 @@ func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
 func (process *TeleportProcess) newAsyncEmitter(clt events.Emitter) (*events.AsyncEmitter, error) {
 	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
 		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(), clt),
-		Clock: process.GetClock(),
+		Clock: process.Clock,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1684,7 +1678,7 @@ func (process *TeleportProcess) initSSH() error {
 
 		streamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
 			Inner: conn.Client,
-			Clock: process.GetClock(),
+			Clock: process.Clock,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -2327,7 +2321,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 	streamer, err := events.NewCheckingStreamer(events.CheckingStreamerConfig{
 		Inner: conn.Client,
-		Clock: process.GetClock(),
+		Clock: process.Clock,
 	})
 	if err != nil {
 		return trace.Wrap(err)

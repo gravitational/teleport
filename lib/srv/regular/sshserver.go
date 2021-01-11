@@ -551,7 +551,7 @@ func New(addr utils.NetAddr,
 		AccessPoint: s.authService,
 		FIPS:        s.fips,
 		Emitter:     s.StreamEmitter,
-		Time:        s.clock.Now,
+		Clock:       s.clock,
 	}
 
 	// common term handlers

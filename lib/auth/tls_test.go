@@ -2493,7 +2493,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		CAPin:                caPin,
-		Time:                 s.clock.Now,
+		Clock:                s.clock,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -2511,7 +2511,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		CAPin:                "sha256:123",
-		Time:                 s.clock.Now,
+		Clock:                s.clock,
 	})
 	c.Assert(err, check.NotNil)
 }
@@ -2550,7 +2550,7 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 		PrivateKey:           priv,
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
-		Time:                 s.clock.Now,
+		Clock:                s.clock,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -2582,7 +2582,7 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		CAPath:               caPath,
-		Time:                 s.clock.Now,
+		Clock:                s.clock,
 	})
 	c.Assert(err, check.IsNil)
 }

@@ -190,7 +190,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
-		regular.WithClock(s.clock),
+		regular.SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	s.node = node
@@ -243,7 +243,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(defaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
-		regular.WithClock(s.clock),
+		regular.SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 

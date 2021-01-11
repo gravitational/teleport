@@ -29,8 +29,10 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 
+	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -55,9 +57,10 @@ type AuthHandlers struct {
 	// configuration.
 	FIPS bool
 
-	// Time is used for verifying time stamps. If unspecified, defaults
-	// to time.Now
-	Time func() time.Time
+	// Clock specifies the time provider. Will be used to override the time anchor
+	// for TLS certificate verification.
+	// Defaults to real clock if unspecified
+	Clock clockwork.Clock
 }
 
 // CreateIdentityContext returns an IdentityContext populated with information
@@ -202,10 +205,14 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	// Check that the user certificate uses supported public key algorithms, was
 	// issued by Teleport, and check the certificate metadata (principals,
 	// timestamp, etc). Fallback to keys is not supported.
+	clock := h.Clock.Now
+	if clock == nil {
+		clock = time.Now
+	}
 	certChecker := utils.CertChecker{
 		CertChecker: ssh.CertChecker{
 			IsUserAuthority: h.IsUserAuthority,
-			Clock:           h.Time,
+			Clock:           clock,
 		},
 		FIPS: h.FIPS,
 	}

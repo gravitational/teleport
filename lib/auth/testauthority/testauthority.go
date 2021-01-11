@@ -41,8 +41,8 @@ func New() *Keygen {
 	return &Keygen{clock: clockwork.NewRealClock()}
 }
 
-// NewWithConfig creates a new key generator with the specified configuration
-func NewWithConfig(clock clockwork.Clock) *Keygen {
+// NewWithClock creates a new key generator with the specified configuration
+func NewWithClock(clock clockwork.Clock) *Keygen {
 	return &Keygen{clock: clock}
 }
 

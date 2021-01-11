@@ -160,7 +160,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	srv.AuthServer, err = NewServer(&InitConfig{
 		Backend:                srv.Backend,
-		Authority:              authority.NewWithConfig(cfg.Clock),
+		Authority:              authority.NewWithClock(cfg.Clock),
 		Access:                 access,
 		Identity:               identity,
 		AuditLog:               srv.AuditLog,
