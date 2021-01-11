@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package auth holds the protobuff api specification
+// Package proto holds the protobuff api specification
 // for Teleport Auth servers and clients
 package proto
 

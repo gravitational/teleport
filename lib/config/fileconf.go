@@ -32,6 +32,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1076,22 +1077,26 @@ type Authority struct {
 
 // Parse reads values and returns parsed CertAuthority
 func (a *Authority) Parse() (services.CertAuthority, services.Role, error) {
-	ca := &services.CertAuthorityV1{
-		AllowedLogins: a.AllowedLogins,
-		DomainName:    a.DomainName,
-		Type:          a.Type,
-	}
+	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        a.Type,
+		ClusterName: a.DomainName,
+	})
+
+	// transform old allowed logins into roles
+	role := services.RoleForCertAuthority(ca)
+	role.SetLogins(services.Allow, a.AllowedLogins)
+	ca.AddRole(role.GetName())
 
 	for _, path := range a.CheckingKeyFiles {
 		keyBytes, err := utils.ReadPath(path)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		ca.CheckingKeys = append(ca.CheckingKeys, keyBytes)
+		ca.SetCheckingKeys(append(ca.GetCheckingKeys(), keyBytes))
 	}
 
 	for _, val := range a.CheckingKeys {
-		ca.CheckingKeys = append(ca.CheckingKeys, []byte(val))
+		ca.SetCheckingKeys(append(ca.GetCheckingKeys(), []byte(val)))
 	}
 
 	for _, path := range a.SigningKeyFiles {
@@ -1099,15 +1104,14 @@ func (a *Authority) Parse() (services.CertAuthority, services.Role, error) {
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		ca.SigningKeys = append(ca.SigningKeys, keyBytes)
+		ca.SetSigningKeys(append(ca.GetSigningKeys(), keyBytes))
 	}
 
 	for _, val := range a.SigningKeys {
-		ca.SigningKeys = append(ca.SigningKeys, []byte(val))
+		ca.SetSigningKeys(append(ca.GetSigningKeys(), []byte(val)))
 	}
 
-	new, role := services.ConvertV1CertAuthority(ca)
-	return new, role, nil
+	return ca, role, nil
 }
 
 // ClaimMapping is OIDC claim mapping that maps
@@ -1171,17 +1175,16 @@ func (o *OIDCConnector) Parse() (services.OIDCConnector, error) {
 		})
 	}
 
-	other := &services.OIDCConnectorV1{
-		ID:            o.ID,
-		Display:       o.Display,
+	v2 := services.NewOIDCConnector(o.ID, services.OIDCConnectorSpecV2{
 		IssuerURL:     o.IssuerURL,
 		ClientID:      o.ClientID,
 		ClientSecret:  o.ClientSecret,
 		RedirectURL:   o.RedirectURL,
+		Display:       o.Display,
 		Scope:         o.Scope,
 		ClaimsToRoles: mappings,
-	}
-	v2 := other.V2()
+	})
+
 	v2.SetACR(o.ACR)
 	v2.SetProvider(o.Provider)
 	if err := v2.Check(); err != nil {
