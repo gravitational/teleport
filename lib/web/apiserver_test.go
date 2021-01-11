@@ -609,7 +609,14 @@ func (s *WebSuite) TestPasswordChange(c *C) {
 }
 
 func (s *WebSuite) TestWebSessionsRenew(c *C) {
+	// Login to implicitly create a new web session
 	pack := s.authPack(c, "foo")
+
+	delta := 1 * time.Minute
+	// Advance the time before renewing the session.
+	// This will allow the new session to have a more plausible
+	// expiration
+	s.clock.Advance(auth.BearerTokenTTL - delta)
 
 	// make sure we can use client to make authenticated requests
 	// before we issue this request, we will recover session id and bearer token
@@ -625,6 +632,14 @@ func (s *WebSuite) TestWebSessionsRenew(c *C) {
 	_, err = newPack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, IsNil)
 
+	sessionCookie := *newPack.cookies[0]
+	bearerToken := newPack.session.Token
+	c.Assert(bearerToken, Not(Equals), "")
+	c.Assert(bearerToken, Not(Equals), prevBearerToken)
+	prevSessionID := decodeSessionCookie(c, prevSessionCookie.Value)
+	activeSessionID := decodeSessionCookie(c, sessionCookie.Value)
+	c.Assert(prevSessionID, Not(Equals), activeSessionID)
+
 	// old session is still valid too (until it expires)
 	jar, err := cookiejar.New(nil)
 	c.Assert(err, IsNil)
@@ -633,10 +648,14 @@ func (s *WebSuite) TestWebSessionsRenew(c *C) {
 	_, err = oldClt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
 	c.Assert(err, IsNil)
 
-	// make sure the previous session expires
-	// TODO(dmitri): complete
-	s.clock.Advance(auth.BearerTokenTTL)
-	_, err = oldClt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	// now expire the old session and make sure it has been removed
+	s.clock.Advance(delta)
+
+	_, err = s.proxyClient.GetWebSession(context.TODO(), services.GetWebSessionRequest{
+		User:      "foo",
+		SessionID: prevSessionID,
+	})
+	c.Assert(err, ErrorMatches, "key.*not found$")
 
 	// now delete session
 	_, err = newPack.clt.Delete(
@@ -2154,6 +2173,17 @@ func newTerminalHandler() TerminalHandler {
 		encoder: unicode.UTF8.NewEncoder(),
 		decoder: unicode.UTF8.NewDecoder(),
 	}
+}
+
+func decodeSessionCookie(c *C, value string) (sessionID string) {
+	sessionBytes, err := hex.DecodeString(value)
+	c.Assert(err, IsNil)
+	var cookie struct {
+		User      string `json:"user"`
+		SessionID string `json:"sid"`
+	}
+	c.Assert(json.Unmarshal(sessionBytes, &cookie), IsNil)
+	return cookie.SessionID
 }
 
 func (r CreateSessionResponse) response() (*CreateSessionResponse, error) {

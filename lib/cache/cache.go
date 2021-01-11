@@ -17,9 +17,7 @@ limitations under the License.
 package cache
 
 import (
-	"bytes"
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -852,23 +850,12 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry utils.Retry, timer *tim
 			return trace.ConnectionProblem(c.ctx.Err(), "context is closing")
 		case event := <-watcher.Events():
 			err = c.processEvent(ctx, event)
-			c.WithError(err).WithField("event", describeEvent(event)).Info("New cache event.")
 			if err != nil {
 				return trace.Wrap(err)
 			}
 			c.notify(c.ctx, Event{Event: event, Type: EventProcessed})
 		}
 	}
-}
-
-func describeEvent(event services.Event) string {
-	var buf bytes.Buffer
-	fmt.Fprint(&buf, "event(type=", event.Type)
-	if event.Resource != nil {
-		fmt.Fprintf(&buf, ",resource=%v/%v", event.Resource.GetKind(), event.Resource.GetSubKind())
-	}
-	fmt.Fprint(&buf, ")")
-	return buf.String()
 }
 
 func (c *Cache) watchKinds() []services.WatchKind {

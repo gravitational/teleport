@@ -204,7 +204,7 @@ func (h *Handler) waitForAppSession(ctx context.Context, sessionID string) error
 		}
 		return nil, trace.CompareFailed("no match")
 	}
-	_, err = waitForResource(ctx, watcher, eventMatcherFunc(matchEvent))
+	_, err = waitForResource(ctx, watcher, eventMatcherFunc(matchEvent), h.clock)
 	return trace.Wrap(err)
 }
 

@@ -84,7 +84,7 @@ func (c *SessionContext) AddClosers(closers ...io.Closer) {
 	c.ctx.addClosers(closers...)
 }
 
-// RemoevCloser removes the specified closer from this context
+// RemoveCloser removes the specified closer from this context
 func (c *SessionContext) RemoveCloser(closer io.Closer) {
 	c.ctx.removeCloser(closer)
 }
@@ -96,7 +96,7 @@ func (c *SessionContext) Invalidate() error {
 }
 
 func (c *SessionContext) validateBearerToken(ctx context.Context, token string) error {
-	_, err := readBearerToken(ctx, c.parent.accessPoint, services.GetWebTokenRequest{
+	_, err := c.parent.readBearerToken(ctx, services.GetWebTokenRequest{
 		User:  c.user,
 		Token: token,
 	})
@@ -338,7 +338,7 @@ func (c *SessionContext) getToken() services.WebToken {
 // The context is considered expired when its bearer token TTL
 // is in the past
 func (c *SessionContext) expired(ctx context.Context) bool {
-	_, err := readSession(ctx, c.parent.accessPoint, services.GetWebSessionRequest{
+	_, err := c.parent.readSession(ctx, services.GetWebSessionRequest{
 		User:      c.user,
 		SessionID: c.session.GetName(),
 	})
@@ -349,11 +349,22 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 	return true
 }
 
+type sessionCacheOptions struct {
+	proxyClient  auth.ClientI
+	accessPoint  auth.ReadAccessPoint
+	servers      []utils.NetAddr
+	cipherSuites []uint16
+	clock        clockwork.Clock
+}
+
 // newSessionCache returns new instance of the session cache
-func newSessionCache(config *sessionCache) (*sessionCache, error) {
-	clusterName, err := proxyClient.GetClusterName()
+func newSessionCache(config sessionCacheOptions) (*sessionCache, error) {
+	clusterName, err := config.proxyClient.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if config.clock == nil {
+		config.clock = clockwork.NewRealClock()
 	}
 	cache := &sessionCache{
 		clusterName:  clusterName.GetClusterName(),
@@ -361,7 +372,7 @@ func newSessionCache(config *sessionCache) (*sessionCache, error) {
 		accessPoint:  config.accessPoint,
 		sessions:     make(map[string]*SessionContext),
 		contexts:     make(map[string]*sessionContext),
-		authServers:  config.authServers,
+		authServers:  config.servers,
 		closer:       utils.NewCloseBroadcaster(),
 		cipherSuites: config.cipherSuites,
 		log:          newPackageLogger(),
@@ -381,9 +392,9 @@ type sessionCache struct {
 	accessPoint auth.ReadAccessPoint
 	closer      *utils.CloseBroadcaster
 	clusterName string
+	clock       clockwork.Clock
 	// cipherSuites is the list of supported TLS cipher suites.
 	cipherSuites []uint16
-	clock        clockwork.Clock
 
 	mu sync.Mutex
 	// sessions maps user/sessionID to an active web session.
@@ -422,8 +433,8 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 		if !c.expired(ctx) {
 			continue
 		}
-		s.resetContext(c.session.GetUser(), c.session.GetName())
-		s.log.WithField("ctx", c.String()).Info("Context expired.")
+		s.resetContextLocked(c.session.GetUser(), c.session.GetName())
+		s.log.WithField("ctx", c.String()).Debug("Context expired.")
 	}
 }
 
@@ -538,15 +549,7 @@ func (s *sessionCache) validateSession(ctx context.Context, user, sessionID stri
 	if !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
-	session, err := readSession(ctx, s.accessPoint, services.GetWebSessionRequest{
-		User:      user,
-		SessionID: sessionID,
-	})
-	if err != nil {
-		// Session must be a valid web sesssion - otherwise bail out with an error
-		return nil, trace.Wrap(err)
-	}
-	return s.newSessionContextFromSession(session)
+	return s.newSessionContext(user, sessionID)
 }
 
 func (s *sessionCache) invalidateSession(ctx *SessionContext) error {
@@ -561,7 +564,7 @@ func (s *sessionCache) invalidateSession(ctx *SessionContext) error {
 		User:      ctx.user,
 		SessionID: ctx.session.GetName(),
 	})
-	if err != nil {
+	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
 	if err := s.resetContext(ctx.GetUser(), ctx.session.GetName()); err != nil {
@@ -595,6 +598,10 @@ func (s *sessionCache) insertContext(user string, ctx *SessionContext) (exists b
 func (s *sessionCache) resetContext(user, sessionID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.resetContextLocked(user, sessionID)
+}
+
+func (s *sessionCache) resetContextLocked(user, sessionID string) error {
 	id := user + sessionID
 	ctx, ok := s.sessions[id]
 	if !ok {
@@ -603,13 +610,16 @@ func (s *sessionCache) resetContext(user, sessionID string) error {
 	delete(s.sessions, id)
 	delete(s.contexts, user)
 	logger := s.log.WithField("ctx", ctx.String())
+	var errors []error
 	if err := ctx.ctx.Close(); err != nil {
 		logger.WithError(err).Warn("Failed to clean up session context.")
+		errors = append(errors, err)
 	}
 	if err := ctx.Close(); err != nil {
 		logger.WithError(err).Warn("Failed to close session context.")
+		errors = append(errors, err)
 	}
-	return nil
+	return trace.NewAggregate(errors...)
 }
 
 func (s *sessionCache) upsertSessionContext(user string) *sessionContext {
@@ -711,6 +721,7 @@ func (s *sessionCache) clientTLSConfig(cert, privKey []byte, clusterName ...stri
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
 	tlsConfig.ServerName = auth.EncodeClusterName(s.clusterName)
+	tlsConfig.Time = s.clock.Now
 	return tlsConfig, nil
 }
 
@@ -734,7 +745,28 @@ func (s *sessionCache) tlsConfig(cert, privKey []byte) (*tls.Config, error) {
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
 	tlsConfig.ServerName = auth.EncodeClusterName(s.clusterName)
+	tlsConfig.Time = s.clock.Now
 	return tlsConfig, nil
+}
+
+func (s *sessionCache) readSession(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
+	// Read session from the cache first
+	session, err := s.accessPoint.GetWebSession(ctx, req)
+	if err == nil {
+		return session, nil
+	}
+	// Fallback to proxy otherwise
+	return s.proxyClient.GetWebSession(ctx, req)
+}
+
+func (s *sessionCache) readBearerToken(ctx context.Context, req services.GetWebTokenRequest) (services.WebToken, error) {
+	// Read token from the cache first
+	token, err := s.accessPoint.GetWebToken(ctx, req)
+	if err == nil {
+		return token, nil
+	}
+	// Fallback to proxy otherwise
+	return s.proxyClient.GetWebToken(ctx, req)
 }
 
 func (c *sessionContext) Close() error {
@@ -783,60 +815,18 @@ func (c *sessionContext) transferClosers() []io.Closer {
 // waitForWebSession will block until the requested web session shows up in the
 // cache or a timeout occurs.
 func (h *Handler) waitForWebSession(ctx context.Context, req services.GetWebSessionRequest) error {
-	_, err := readSession(ctx, h.cfg.AccessPoint, req)
+	_, err := readSessionWithCache(ctx, h.cfg.AccessPoint, req, h.clock)
 	return trace.Wrap(err)
 }
 
-func readBearerToken(ctx context.Context, accessPoint auth.ReadAccessPoint, req services.GetWebTokenRequest) (services.WebToken, error) {
-	token, err := accessPoint.GetWebToken(ctx, req)
-	if err == nil {
-		return token, nil
-	}
-	if !trace.IsNotFound(err) {
-		log.WithFields(logrus.Fields{
-			"req":           req,
-			logrus.ErrorKey: err,
-		}).Debug("Failed to query web token.")
-	}
-	// Establish a watch.
-	watcher, err := accessPoint.NewWatcher(ctx, services.Watch{
-		Name: teleport.ComponentWebProxy,
-		Kinds: []services.WatchKind{
-			{
-				Kind: services.KindWebToken,
-			},
-		},
-		MetricComponent: teleport.ComponentWebProxy,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer watcher.Close()
-	matchEvent := func(event services.Event) (services.Resource, error) {
-		if event.Type == backend.OpPut &&
-			event.Resource.GetKind() == services.KindWebToken &&
-			event.Resource.GetName() == req.Token {
-			return event.Resource, nil
-		}
-		return nil, trace.CompareFailed("no match")
-	}
-	res, err := waitForResource(ctx, watcher, eventMatcherFunc(matchEvent))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return res.(services.WebToken), nil
-}
-
-func readSession(ctx context.Context, accessPoint auth.ReadAccessPoint, req services.GetWebSessionRequest) (services.WebSession, error) {
+func readSessionWithCache(ctx context.Context, accessPoint auth.ReadAccessPoint, req services.GetWebSessionRequest, clock clockwork.Clock) (services.WebSession, error) {
 	session, err := accessPoint.GetWebSession(ctx, req)
 	if err == nil {
 		return session, nil
 	}
+	logger := log.WithField("req", req)
 	if !trace.IsNotFound(err) {
-		log.WithFields(logrus.Fields{
-			"req":           req,
-			logrus.ErrorKey: err,
-		}).Debug("Failed to query web session.")
+		logger.WithError(err).Debug("Failed to query web session.")
 	}
 	// Establish a watch.
 	watcher, err := accessPoint.NewWatcher(ctx, services.Watch{
@@ -861,16 +851,17 @@ func readSession(ctx context.Context, accessPoint auth.ReadAccessPoint, req serv
 		}
 		return nil, trace.CompareFailed("not match")
 	}
-	res, err := waitForResource(ctx, watcher, eventMatcherFunc(matchEvent))
+	res, err := waitForResource(ctx, watcher, eventMatcherFunc(matchEvent), clock)
 	if err != nil {
+		logger.WithError(err).Warn("Failed to wait for web session.")
 		return nil, trace.Wrap(err)
 	}
 	return res.(services.WebSession), nil
 }
 
-func waitForResource(ctx context.Context, watcher services.Watcher, m eventMatcher) (services.Resource, error) {
-	timeout := time.NewTimer(defaults.WebHeadersTimeout)
-	defer timeout.Stop()
+func waitForResource(ctx context.Context, watcher services.Watcher, m eventMatcher, clock clockwork.Clock) (services.Resource, error) {
+	tick := clock.NewTicker(defaults.WebHeadersTimeout)
+	defer tick.Stop()
 
 	select {
 	case event := <-watcher.Events():
@@ -880,7 +871,7 @@ func waitForResource(ctx context.Context, watcher services.Watcher, m eventMatch
 	case <-watcher.Done():
 		// Watcher closed, probably due to a network error.
 		return nil, trace.ConnectionProblem(watcher.Error(), "watcher is closed")
-	case <-timeout.C:
+	case <-tick.Chan():
 		return nil, trace.LimitExceeded("timed out waiting for initialize event")
 	}
 
@@ -894,7 +885,7 @@ func waitForResource(ctx context.Context, watcher services.Watcher, m eventMatch
 		case <-watcher.Done():
 			// Watcher closed, probably due to a network error.
 			return nil, trace.ConnectionProblem(watcher.Error(), "watcher is closed")
-		case <-timeout.C:
+		case <-tick.Chan():
 			return nil, trace.LimitExceeded("timed out waiting for resource")
 		}
 	}

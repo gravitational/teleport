@@ -190,10 +190,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		}
 	}
 
-	auth, err := newSessionCache(&sessionCache{
+	auth, err := newSessionCache(sessionCacheOptions{
 		proxyClient:  cfg.ProxyClient,
 		accessPoint:  cfg.AccessPoint,
-		authServers:  []utils.NetAddr{cfg.AuthServers},
+		servers:      []utils.NetAddr{cfg.AuthServers},
 		cipherSuites: cfg.CipherSuites,
 		clock:        h.clock,
 	})
@@ -375,7 +375,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 			ctx, err := h.AuthenticateRequest(w, r, false)
 			if err == nil {
 				resp, err := newSessionResponse(ctx)
-				h.log.WithField("resp", resp).Info("New session.")
 				if err == nil {
 					out, err := json.Marshal(resp)
 					if err == nil {
@@ -1164,6 +1163,7 @@ type CreateSessionReq struct {
 	SecondFactorToken string `json:"second_factor_token"`
 }
 
+// String returns text description of this response
 func (r *CreateSessionResponse) String() string {
 	return fmt.Sprintf("WebSession(type=%v,token=%v,expires=%vs)",
 		r.Type, r.Token, r.ExpiresIn)
@@ -1269,14 +1269,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.AccessDenied("need auth")
 	}
 
-	// FIXME(dmitri): debugging
-	// return newSessionResponse(ctx)
-	resp, err := newSessionResponse(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	h.log.WithField("resp", resp).Info("Create new web session.")
-	return resp, nil
+	return newSessionResponse(ctx)
 }
 
 // deleteSession is called to sign out user
@@ -1315,21 +1308,14 @@ func (h *Handler) renewSession(w http.ResponseWriter, r *http.Request, params ht
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	newContext, err := ctx.validateSession(r.Context(), newSession)
+	newContext, err := h.auth.newSessionContextFromSession(newSession)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := SetSessionCookie(w, newSession.GetUser(), newSession.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// FIXME(dmitri): debugging
-	// return newSessionResponse(newContext)
-	resp, err := newSessionResponse(newContext)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	h.log.WithField("resp", resp).Info("Renew web session.")
-	return resp, nil
+	return newSessionResponse(newContext)
 }
 
 func (h *Handler) changePasswordWithToken(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -2247,7 +2233,6 @@ func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, checkBearerToken bool) (*SessionContext, error) {
 	const missingCookieMsg = "missing session cookie"
 	logger := h.log.WithField("request", fmt.Sprintf("%v %v", r.Method, r.URL.Path))
-	logger.Info("Request recv.")
 	cookie, err := r.Cookie(CookieName)
 	if err != nil || (cookie != nil && cookie.Value == "") {
 		if err != nil {

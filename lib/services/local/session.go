@@ -141,6 +141,8 @@ func (r *webSessions) Get(ctx context.Context, req services.GetWebSessionRequest
 	if session != nil {
 		return session, nil
 	}
+	// DELETE IN 6.x:
+	// Return web sessions from a legacy path under /web/users/<user>/sessions/<id>
 	return getLegacyWebSession(ctx, r.backend, req.User, req.SessionID)
 }
 
