@@ -506,6 +506,9 @@ func startNewRotation(req rotationReq, ca services.CertAuthority) error {
 			TTL:   defaults.CATTL,
 			Clock: req.clock,
 		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
 		jwtPublicKey, jwtPrivateKey, err = utils.MarshalPrivateKey(rsaKey.(*rsa.PrivateKey))
 		if err != nil {
