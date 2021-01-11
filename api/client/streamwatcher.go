@@ -21,14 +21,14 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 )
 
 // NewWatcher returns a new streamWatcher
-func (c *Client) NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error) {
+func (c *Client) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
 	cancelCtx, cancel := context.WithCancel(ctx)
 	var protoWatch proto.Watch
 	for _, k := range watch.Kinds {
@@ -48,7 +48,7 @@ func (c *Client) NewWatcher(ctx context.Context, watch services.Watch) (services
 		stream:  stream,
 		ctx:     cancelCtx,
 		cancel:  cancel,
-		eventsC: make(chan services.Event),
+		eventsC: make(chan types.Event),
 	}
 	go w.receiveEvents()
 	return w, nil
@@ -59,7 +59,7 @@ type streamWatcher struct {
 	stream  proto.AuthService_WatchEventsClient
 	ctx     context.Context
 	cancel  context.CancelFunc
-	eventsC chan services.Event
+	eventsC chan types.Event
 	err     error
 }
 
@@ -81,7 +81,7 @@ func (w *streamWatcher) closeWithError(err error) {
 }
 
 // Events returns the streamWatcher's events channel
-func (w *streamWatcher) Events() <-chan services.Event {
+func (w *streamWatcher) Events() <-chan types.Event {
 	return w.eventsC
 }
 

@@ -4,7 +4,7 @@ package proto;
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
-import "github.com/gravitational/teleport/lib/services/types.proto";
+import "github.com/gravitational/teleport/api/types/types.proto";
 import "github.com/gravitational/teleport/lib/events/events.proto";
 import "github.com/gravitational/teleport/lib/wrappers/wrappers.proto";
 
@@ -32,42 +32,41 @@ message Event {
         // ResourceHeader is specified in delete events,
         // the full object is not available, so resource
         // header is used to provide information about object type
-        services.ResourceHeader ResourceHeader = 2 [ (gogoproto.jsontag) = "resource,omitempty" ];
+        types.ResourceHeader ResourceHeader = 2 [ (gogoproto.jsontag) = "resource,omitempty" ];
         // CertAuthority is filled in certificate-authority related events
-        services.CertAuthorityV2 CertAuthority = 3
+        types.CertAuthorityV2 CertAuthority = 3
             [ (gogoproto.jsontag) = "cert_authority,omitempty" ];
         // StaticTokens is filled in static-tokens related events
-        services.StaticTokensV2 StaticTokens = 4
-            [ (gogoproto.jsontag) = "static_tokens,omitempty" ];
+        types.StaticTokensV2 StaticTokens = 4 [ (gogoproto.jsontag) = "static_tokens,omitempty" ];
         // ProvisionToken is filled in provision-token related events
-        services.ProvisionTokenV2 ProvisionToken = 5
+        types.ProvisionTokenV2 ProvisionToken = 5
             [ (gogoproto.jsontag) = "provision_token,omitempty" ];
         // ClusterNameV2 is a cluster name resource
-        services.ClusterNameV2 ClusterName = 6 [ (gogoproto.jsontag) = "cluster_name,omitempty" ];
+        types.ClusterNameV2 ClusterName = 6 [ (gogoproto.jsontag) = "cluster_name,omitempty" ];
         // ClusterConfig is a cluster configuration resource
-        services.ClusterConfigV3 ClusterConfig = 7
+        types.ClusterConfigV3 ClusterConfig = 7
             [ (gogoproto.jsontag) = "cluster_config,omitempty" ];
         // User is a user resource
-        services.UserV2 User = 8 [ (gogoproto.jsontag) = "user,omitempty" ];
+        types.UserV2 User = 8 [ (gogoproto.jsontag) = "user,omitempty" ];
         // Role is a role resource
-        services.RoleV3 Role = 9 [ (gogoproto.jsontag) = "role,omitempty" ];
+        types.RoleV3 Role = 9 [ (gogoproto.jsontag) = "role,omitempty" ];
         // Namespace is a namespace resource
-        services.Namespace Namespace = 10 [ (gogoproto.jsontag) = "namespace,omitempty" ];
+        types.Namespace Namespace = 10 [ (gogoproto.jsontag) = "namespace,omitempty" ];
         // Server is a node or proxy resource
-        services.ServerV2 Server = 11 [ (gogoproto.jsontag) = "server,omitempty" ];
+        types.ServerV2 Server = 11 [ (gogoproto.jsontag) = "server,omitempty" ];
         // ReverseTunnel is a resource with reverse tunnel
-        services.ReverseTunnelV2 ReverseTunnel = 12
+        types.ReverseTunnelV2 ReverseTunnel = 12
             [ (gogoproto.jsontag) = "reverse_tunnel,omitempty" ];
         // TunnelConnection is a resource for tunnel connnections
-        services.TunnelConnectionV2 TunnelConnection = 13
+        types.TunnelConnectionV2 TunnelConnection = 13
             [ (gogoproto.jsontag) = "tunnel_connection,omitempty" ];
         // AccessRequest is a resource for access requests
-        services.AccessRequestV3 AccessRequest = 14
+        types.AccessRequestV3 AccessRequest = 14
             [ (gogoproto.jsontag) = "access_request,omitempty" ];
         // AppSession is an application web session.
-        services.WebSessionV2 AppSession = 15 [ (gogoproto.jsontag) = "app_session,omitempty" ];
+        types.WebSessionV2 AppSession = 15 [ (gogoproto.jsontag) = "app_session,omitempty" ];
         // RemoteCluster is a resource for remote clusters
-        services.RemoteClusterV3 RemoteCluster = 16
+        types.RemoteClusterV3 RemoteCluster = 16
             [ (gogoproto.jsontag) = "remote_cluster,omitempty" ];
     }
 }
@@ -149,13 +148,12 @@ message GetUsersRequest {
 
 // AccessRequests is a collection of AccessRequest values.
 message AccessRequests {
-    repeated services.AccessRequestV3 AccessRequests = 1
-        [ (gogoproto.jsontag) = "access_requests" ];
+    repeated types.AccessRequestV3 AccessRequests = 1 [ (gogoproto.jsontag) = "access_requests" ];
 }
 
 // PluginDataSeq is a sequence of plugin data.
 message PluginDataSeq {
-    repeated services.PluginDataV3 PluginData = 1 [ (gogoproto.jsontag) = "plugin_data" ];
+    repeated types.PluginDataV3 PluginData = 1 [ (gogoproto.jsontag) = "plugin_data" ];
 }
 
 // RequestStateSetter encodes the paramters necessary to update the
@@ -164,7 +162,7 @@ message RequestStateSetter {
     // ID is the request ID being targeted
     string ID = 1 [ (gogoproto.jsontag) = "id" ];
     // State is the desired state to be set
-    services.RequestState State = 2 [ (gogoproto.jsontag) = "state" ];
+    types.RequestState State = 2 [ (gogoproto.jsontag) = "state" ];
     // Delegator is an optional indicator of who delegated this
     // state update (used by plugins to indicate which user approved
     // or denied the request).
@@ -228,7 +226,7 @@ message DeleteUserRequest {
 
 // Semaphores is a sequence of Semaphore resources.
 message Semaphores {
-    repeated services.SemaphoreV3 Semaphores = 1 [ (gogoproto.jsontag) = "semaphores" ];
+    repeated types.SemaphoreV3 Semaphores = 1 [ (gogoproto.jsontag) = "semaphores" ];
 }
 
 // AuditStreamRequest contains stream request - event or stream control request
@@ -287,12 +285,12 @@ message GetAppServersRequest {
 
 // GetAppServersResponse contains all requested application servers.
 message GetAppServersResponse {
-    // Servers is a slice of services.Server that represent applications.
-    repeated services.ServerV2 Servers = 1 [ (gogoproto.jsontag) = "servers" ];
+    // Servers is a slice of types.Server that represent applications.
+    repeated types.ServerV2 Servers = 1 [ (gogoproto.jsontag) = "servers" ];
 }
 
 // UpsertAppServerRequest are the parameters used to add an application.
-message UpsertAppServerRequest { services.ServerV2 Server = 1 [ (gogoproto.jsontag) = "server" ]; }
+message UpsertAppServerRequest { types.ServerV2 Server = 1 [ (gogoproto.jsontag) = "server" ]; }
 
 // DeleteAppServerRequest are the parameters used to remove an application.
 message DeleteAppServerRequest {
@@ -337,13 +335,13 @@ message GetAppSessionRequest {
 // GetAppSessionResponse contains the requested application web session.
 message GetAppSessionResponse {
     // Session is the application web session.
-    services.WebSessionV2 Session = 1 [ (gogoproto.jsontag) = "session" ];
+    types.WebSessionV2 Session = 1 [ (gogoproto.jsontag) = "session" ];
 }
 
 // GetAppSessionsResponse contains all the requested application web sessions.
 message GetAppSessionsResponse {
     // Sessions is a list of application web sessions.
-    repeated services.WebSessionV2 Sessions = 1 [ (gogoproto.jsontag) = "sessions" ];
+    repeated types.WebSessionV2 Sessions = 1 [ (gogoproto.jsontag) = "sessions" ];
 }
 
 // CreateAppSessionRequest contains the parameters to request a application web session.
@@ -361,7 +359,7 @@ message CreateAppSessionRequest {
 // CreateAppSessionResponse contains the requested application web session.
 message CreateAppSessionResponse {
     // Session is the application web session.
-    services.WebSessionV2 Session = 1 [ (gogoproto.jsontag) = "session" ];
+    types.WebSessionV2 Session = 1 [ (gogoproto.jsontag) = "session" ];
 }
 
 // DeleteAppSessionRequest contains the parameters used to remove an application web session.
@@ -372,16 +370,14 @@ message GetKubeServicesRequest {}
 
 // GetKubeServicesResponse contains all requested kubernetes services.
 message GetKubeServicesResponse {
-    // Servers is a slice of services.Server that represent kubernetes
+    // Servers is a slice of types.Server that represent kubernetes
     // services.
-    repeated services.ServerV2 Servers = 1 [ (gogoproto.jsontag) = "servers" ];
+    repeated types.ServerV2 Servers = 1 [ (gogoproto.jsontag) = "servers" ];
 }
 
 // UpsertKubeServiceRequest are the parameters used to add or update a
 // kubernetes service.
-message UpsertKubeServiceRequest {
-    services.ServerV2 Server = 1 [ (gogoproto.jsontag) = "server" ];
-}
+message UpsertKubeServiceRequest { types.ServerV2 Server = 1 [ (gogoproto.jsontag) = "server" ]; }
 
 // DeleteKubeServiceRequest are the parameters used to remove a kubernetes service.
 message DeleteKubeServiceRequest {
@@ -395,64 +391,62 @@ message DeleteAllKubeServicesRequest {}
 // AuthService is authentication/authorization service implementation
 service AuthService {
     // SendKeepAlives allows node to send a stream of keep alive requests
-    rpc SendKeepAlives(stream services.KeepAlive) returns (google.protobuf.Empty);
+    rpc SendKeepAlives(stream types.KeepAlive) returns (google.protobuf.Empty);
     // WatchEvents returns a new stream of cluster events
     rpc WatchEvents(Watch) returns (stream Event);
     // UpsertNode upserts node
-    rpc UpsertNode(services.ServerV2) returns (services.KeepAlive);
+    rpc UpsertNode(types.ServerV2) returns (types.KeepAlive);
     // GenerateUserCerts generates a set of user certificates for use by `tctl
     // auth sign`.
     rpc GenerateUserCerts(UserCertsRequest) returns (Certs);
     // GetUser gets a user resource by name.
-    rpc GetUser(GetUserRequest) returns (services.UserV2);
+    rpc GetUser(GetUserRequest) returns (types.UserV2);
     // GetUsers gets all current user resources.
-    rpc GetUsers(GetUsersRequest) returns (stream services.UserV2);
-
+    rpc GetUsers(GetUsersRequest) returns (stream types.UserV2);
     // GetAccessRequests gets all pending access requests.
-    rpc GetAccessRequests(services.AccessRequestFilter) returns (AccessRequests);
+    rpc GetAccessRequests(types.AccessRequestFilter) returns (AccessRequests);
     // CreateAccessRequest creates a new access request.
-    rpc CreateAccessRequest(services.AccessRequestV3) returns (google.protobuf.Empty);
+    rpc CreateAccessRequest(types.AccessRequestV3) returns (google.protobuf.Empty);
     // DeleteAccessRequest deletes an access request.
     rpc DeleteAccessRequest(RequestID) returns (google.protobuf.Empty);
     // SetAccessRequestState sets the state of an access request.
     rpc SetAccessRequestState(RequestStateSetter) returns (google.protobuf.Empty);
     // GetAccessCapabilities requests the access capabilites of a user.
-    rpc GetAccessCapabilities(services.AccessCapabilitiesRequest)
-        returns (services.AccessCapabilities);
+    rpc GetAccessCapabilities(types.AccessCapabilitiesRequest) returns (types.AccessCapabilities);
 
     // GetPluginData gets all plugin data matching the supplied filter.
-    rpc GetPluginData(services.PluginDataFilter) returns (PluginDataSeq);
+    rpc GetPluginData(types.PluginDataFilter) returns (PluginDataSeq);
     // UpdatePluginData updates a plugin's resource-specific datastore.
-    rpc UpdatePluginData(services.PluginDataUpdateParams) returns (google.protobuf.Empty);
+    rpc UpdatePluginData(types.PluginDataUpdateParams) returns (google.protobuf.Empty);
     // Ping gets basic info about the auth server. This method is intended
     // to mimic the behavior of the proxy's Ping method, and may be used by
     // clients for verification or configuration on startup.
     rpc Ping(PingRequest) returns (PingResponse);
     // RotateResetPasswordTokenSecrets rotates token secrets for a given tokenID.
     rpc RotateResetPasswordTokenSecrets(RotateResetPasswordTokenSecretsRequest)
-        returns (services.ResetPasswordTokenSecretsV3);
+        returns (types.ResetPasswordTokenSecretsV3);
     // GetResetPasswordToken returns a token.
-    rpc GetResetPasswordToken(GetResetPasswordTokenRequest) returns (services.ResetPasswordTokenV3);
+    rpc GetResetPasswordToken(GetResetPasswordTokenRequest) returns (types.ResetPasswordTokenV3);
     // CreateResetPasswordToken creates ResetPasswordToken.
     rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest)
-        returns (services.ResetPasswordTokenV3);
+        returns (types.ResetPasswordTokenV3);
     // CreateUser inserts a new user entry to a backend.
-    rpc CreateUser(services.UserV2) returns (google.protobuf.Empty);
+    rpc CreateUser(types.UserV2) returns (google.protobuf.Empty);
     // UpdateUser updates an existing user in a backend.
-    rpc UpdateUser(services.UserV2) returns (google.protobuf.Empty);
+    rpc UpdateUser(types.UserV2) returns (google.protobuf.Empty);
     // DeleteUser deletes an existing user in a backend by username.
     rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
 
     // AcquireSemaphore acquires lease with requested resources from semaphore.
-    rpc AcquireSemaphore(services.AcquireSemaphoreRequest) returns (services.SemaphoreLease);
+    rpc AcquireSemaphore(types.AcquireSemaphoreRequest) returns (types.SemaphoreLease);
     // KeepAliveSemaphoreLease updates semaphore lease.
-    rpc KeepAliveSemaphoreLease(services.SemaphoreLease) returns (google.protobuf.Empty);
+    rpc KeepAliveSemaphoreLease(types.SemaphoreLease) returns (google.protobuf.Empty);
     // CancelSemaphoreLease cancels semaphore lease early.
-    rpc CancelSemaphoreLease(services.SemaphoreLease) returns (google.protobuf.Empty);
+    rpc CancelSemaphoreLease(types.SemaphoreLease) returns (google.protobuf.Empty);
     // GetSemaphores returns a list of all semaphores matching the supplied filter.
-    rpc GetSemaphores(services.SemaphoreFilter) returns (Semaphores);
+    rpc GetSemaphores(types.SemaphoreFilter) returns (Semaphores);
     // DeleteSemaphore deletes a semaphore matching the supplied filter.
-    rpc DeleteSemaphore(services.SemaphoreFilter) returns (google.protobuf.Empty);
+    rpc DeleteSemaphore(types.SemaphoreFilter) returns (google.protobuf.Empty);
 
     // EmitAuditEvent emits audit event
     rpc EmitAuditEvent(events.OneOf) returns (google.protobuf.Empty);
@@ -462,7 +456,7 @@ service AuthService {
     // GetAppServers gets all application servers.
     rpc GetAppServers(GetAppServersRequest) returns (GetAppServersResponse);
     // UpsertAppServer adds an application server.
-    rpc UpsertAppServer(UpsertAppServerRequest) returns (services.KeepAlive);
+    rpc UpsertAppServer(UpsertAppServerRequest) returns (types.KeepAlive);
     // DeleteAppServer removes an application server.
     rpc DeleteAppServer(DeleteAppServerRequest) returns (google.protobuf.Empty);
     // DeleteAllAppServers removes all application servers.
@@ -484,7 +478,7 @@ service AuthService {
     rpc DeleteAllAppSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
 
     // UpdateRemoteCluster updates remote cluster
-    rpc UpdateRemoteCluster(services.RemoteClusterV3) returns (google.protobuf.Empty);
+    rpc UpdateRemoteCluster(types.RemoteClusterV3) returns (google.protobuf.Empty);
 
     // GetKubeServices gets all kubernetes services.
     rpc GetKubeServices(GetKubeServicesRequest) returns (GetKubeServicesResponse);

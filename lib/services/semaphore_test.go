@@ -25,8 +25,7 @@ import (
 	"gopkg.in/check.v1"
 )
 
-type SemaphoreSuite struct {
-}
+type SemaphoreSuite struct{}
 
 var _ = check.Suite(&SemaphoreSuite{})
 
