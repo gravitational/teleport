@@ -19,18 +19,52 @@ package types
 import (
 	"context"
 
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/trace"
 )
 
 // Event represents an event that happened in the backend
 type Event struct {
 	// Type is the event type
-	Type backend.OpType
+	Type OpType
 	// Resource is a modified or deleted resource
 	// in case of deleted resources, only resource header
 	// will be provided
 	Resource Resource
+}
+
+// OpType specifies operation type
+type OpType int
+
+const (
+	// OpInvalid is returned for invalid operations
+	OpInvalid OpType = iota - 1
+	// OpInit is returned by the system whenever the system
+	// is initialized, init operation is always sent
+	// as a first event over the channel, so the client
+	// can verify that watch has been established.
+	OpInit
+	// OpPut is returned for Put events
+	OpPut
+	// OpDelete is returned for Delete events
+	OpDelete
+	// OpGet is used for tracking, not present in the event stream
+	OpGet
+)
+
+// String returns user-friendly description of the operation
+func (o OpType) String() string {
+	switch o {
+	case OpInit:
+		return "Init"
+	case OpPut:
+		return "Put"
+	case OpDelete:
+		return "Delete"
+	case OpGet:
+		return "Get"
+	default:
+		return "unknown"
+	}
 }
 
 // Watch sets up watch on the event
@@ -76,7 +110,7 @@ func (kind WatchKind) Matches(e Event) (bool, error) {
 	}
 	// we don't have a good model for filtering non-put events,
 	// so only apply filters to OpPut events.
-	if len(kind.Filter) > 0 && e.Type == backend.OpPut {
+	if len(kind.Filter) > 0 && e.Type == OpPut {
 		// Currently only access request make use of filters,
 		// so expect the resource to be an access request.
 		req, ok := e.Resource.(AccessRequest)
