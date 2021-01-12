@@ -751,7 +751,7 @@ func (p *webTokenParser) parse(event backend.Event) (services.Resource, error) {
 	case backend.OpDelete:
 		return resourceHeader(event, services.KindWebToken, services.V1, 0)
 	case backend.OpPut:
-		resource, err := services.UnmarshalWebToken(event.Item.Value,
+		resource, err := types.UnmarshalWebToken(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)

@@ -461,8 +461,6 @@ type WebToken interface {
 	SetUser(user string)
 	// String returns the text representation of this token
 	String() string
-	// V1 returns the current version of the resource
-	V1() *WebTokenV1
 }
 
 var _ WebToken = &WebTokenV1{}
@@ -552,11 +550,6 @@ func (r *WebTokenV1) CheckAndSetDefaults() error {
 	return r.Metadata.CheckAndSetDefaults()
 }
 
-// V1 returns the current version of this token.
-func (r *WebTokenV1) V1() *WebTokenV1 {
-	return r
-}
-
 // String returns string representation of the token.
 func (r *WebTokenV1) String() string {
 	return fmt.Sprintf("WebToken(kind=%v,user=%v,token=%v,expires=%v)",
@@ -565,29 +558,25 @@ func (r *WebTokenV1) String() string {
 
 // MarshalWebToken serializes the web token as JSON-encoded payload
 func MarshalWebToken(token WebToken, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := collectOptions(opts)
+	cfg, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	type tokenV1 interface {
-		V1() *WebTokenV1
 	}
 	version := cfg.GetVersion()
 	switch version {
 	case V1:
-		value, ok := token.(tokenV1)
+		value, ok := token.(*WebTokenV1)
 		if !ok {
 			return nil, trace.BadParameter("don't know how to marshal web token %v", V1)
 		}
-		v1 := value.V1()
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
 			// to prevent unexpected data races
-			copy := *v1
-			copy.Metadata.ID = 0
-			v1 = &copy
+			copy := *value
+			copy.SetResourceID(0)
+			value = &copy
 		}
-		return utils.FastMarshal(v1)
+		return utils.FastMarshal(value)
 	default:
 		return nil, trace.BadParameter("version %v is not supported", version)
 	}
@@ -595,7 +584,7 @@ func MarshalWebToken(token WebToken, opts ...MarshalOption) ([]byte, error) {
 
 // UnmarshalWebToken interprets web token from on-disk byte format
 func UnmarshalWebToken(bytes []byte, opts ...MarshalOption) (WebToken, error) {
-	config, err := collectOptions(opts)
+	config, err := CollectOptions(opts)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
@@ -96,7 +97,7 @@ func (c *SessionContext) Invalidate() error {
 }
 
 func (c *SessionContext) validateBearerToken(ctx context.Context, token string) error {
-	_, err := c.parent.readBearerToken(ctx, services.GetWebTokenRequest{
+	_, err := c.parent.readBearerToken(ctx, types.GetWebTokenRequest{
 		User:  c.user,
 		Token: token,
 	})
@@ -327,8 +328,8 @@ func (c *SessionContext) validateSession(ctx context.Context, session services.W
 // session. Note that sessions are separate from bearer tokens and this
 // is only useful immediately after a session has been created to query
 // the token.
-func (c *SessionContext) getToken() services.WebToken {
-	return services.NewWebToken(services.WebTokenSpecV1{
+func (c *SessionContext) getToken() types.WebToken {
+	return types.NewWebToken(types.WebTokenSpecV1{
 		Token:   c.session.GetBearerToken(),
 		Expires: c.session.GetBearerTokenExpiryTime(),
 	})
@@ -338,7 +339,7 @@ func (c *SessionContext) getToken() services.WebToken {
 // The context is considered expired when its bearer token TTL
 // is in the past
 func (c *SessionContext) expired(ctx context.Context) bool {
-	_, err := c.parent.readSession(ctx, services.GetWebSessionRequest{
+	_, err := c.parent.readSession(ctx, types.GetWebSessionRequest{
 		User:      c.user,
 		SessionID: c.session.GetName(),
 	})
@@ -560,7 +561,7 @@ func (s *sessionCache) invalidateSession(ctx *SessionContext) error {
 	}
 	// Delete just the session - leave the bearer token to linger to avoid
 	// failing a client query still using the old token.
-	err = clt.WebSessions().Delete(context.TODO(), services.DeleteWebSessionRequest{
+	err = clt.WebSessions().Delete(context.TODO(), types.DeleteWebSessionRequest{
 		User:      ctx.user,
 		SessionID: ctx.session.GetName(),
 	})
@@ -749,7 +750,7 @@ func (s *sessionCache) tlsConfig(cert, privKey []byte) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-func (s *sessionCache) readSession(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
+func (s *sessionCache) readSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
 	// Read session from the cache first
 	session, err := s.accessPoint.GetWebSession(ctx, req)
 	if err == nil {
@@ -759,7 +760,7 @@ func (s *sessionCache) readSession(ctx context.Context, req services.GetWebSessi
 	return s.proxyClient.GetWebSession(ctx, req)
 }
 
-func (s *sessionCache) readBearerToken(ctx context.Context, req services.GetWebTokenRequest) (services.WebToken, error) {
+func (s *sessionCache) readBearerToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
 	// Read token from the cache first
 	token, err := s.accessPoint.GetWebToken(ctx, req)
 	if err == nil {
@@ -814,7 +815,7 @@ func (c *sessionContext) transferClosers() []io.Closer {
 
 // waitForWebSession will block until the requested web session shows up in the
 // cache or a timeout occurs.
-func (h *Handler) waitForWebSession(ctx context.Context, req services.GetWebSessionRequest) error {
+func (h *Handler) waitForWebSession(ctx context.Context, req types.GetWebSessionRequest) error {
 	_, err := h.cfg.AccessPoint.GetWebSession(ctx, req)
 	if err == nil {
 		return nil

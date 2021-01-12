@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
@@ -1251,7 +1252,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	// Block and wait a few seconds for the session that was created to show up
 	// in the cache. If this request is not blocked here, it can get stuck in a
 	// racy session creation loop.
-	err = h.waitForWebSession(r.Context(), services.GetWebSessionRequest{
+	err = h.waitForWebSession(r.Context(), types.GetWebSessionRequest{
 		User:      req.User,
 		SessionID: webSession.GetName(),
 	})

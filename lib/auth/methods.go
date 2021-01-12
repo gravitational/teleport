@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/u2f"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -186,7 +187,7 @@ func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebS
 	}
 
 	if req.Session != nil {
-		session, err := s.GetWebSession(context.TODO(), services.GetWebSessionRequest{
+		session, err := s.GetWebSession(context.TODO(), types.GetWebSessionRequest{
 			User:      req.Username,
 			SessionID: req.Session.ID,
 		})
@@ -390,7 +391,7 @@ func (s *Server) emitNoLocalAuthEvent(username string) {
 func (s *Server) createUserWebSession(ctx context.Context, user services.User) (services.WebSession, error) {
 	// It's safe to extract the roles and traits directly from services.User as this method
 	// is only used for local accounts.
-	return s.createWebSession(ctx, services.NewWebSessionRequest{
+	return s.createWebSession(ctx, types.NewWebSessionRequest{
 		User:   user.GetName(),
 		Roles:  user.GetRoles(),
 		Traits: user.GetTraits(),

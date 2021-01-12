@@ -827,7 +827,7 @@ func (a *ServerWithRoles) DeleteWebSession(user string, sid string) error {
 
 // GetWebSession returns the web session specified with req.
 // Implements auth.ReadAccessPoint.
-func (a *ServerWithRoles) GetWebSession(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
+func (a *ServerWithRoles) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
 	ws := &webSessionsWithRoles{c: a, ws: a.authServer.WebSessions()}
 	return ws.Get(ctx, req)
 }
@@ -839,7 +839,7 @@ func (a *ServerWithRoles) WebSessions() services.WebSessionInterface {
 }
 
 // Get returns the web session specified with req.
-func (r *webSessionsWithRoles) Get(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
+func (r *webSessionsWithRoles) Get(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
 	if err := r.c.currentUserAction(req.User); err != nil {
 		if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
@@ -867,7 +867,7 @@ func (*webSessionsWithRoles) Upsert(ctx context.Context, session services.WebSes
 }
 
 // Delete removes the web session specified with req.
-func (r *webSessionsWithRoles) Delete(ctx context.Context, req services.DeleteWebSessionRequest) error {
+func (r *webSessionsWithRoles) Delete(ctx context.Context, req types.DeleteWebSessionRequest) error {
 	if err := r.c.currentUserAction(req.User); err != nil {
 		if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
 			return trace.Wrap(err)
@@ -889,7 +889,7 @@ func (r *webSessionsWithRoles) DeleteAll(ctx context.Context) error {
 
 // GetWebToken returns the web token specified with req.
 // Implements auth.ReadAccessPoint.
-func (a *ServerWithRoles) GetWebToken(ctx context.Context, req services.GetWebTokenRequest) (services.WebToken, error) {
+func (a *ServerWithRoles) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
 	t := &webTokensWithRoles{c: a, t: a.authServer.WebTokens()}
 	return t.Get(ctx, req)
 }
@@ -906,7 +906,7 @@ func (a *ServerWithRoles) WebTokens() services.WebTokenInterface {
 }
 
 // Get returns the web token specified with req.
-func (r *webTokensWithRoles) Get(ctx context.Context, req services.GetWebTokenRequest) (services.WebToken, error) {
+func (r *webTokensWithRoles) Get(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
 	if err := r.c.currentUserAction(req.User); err != nil {
 		if err := r.c.action(defaults.Namespace, services.KindWebToken, services.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
@@ -916,7 +916,7 @@ func (r *webTokensWithRoles) Get(ctx context.Context, req services.GetWebTokenRe
 }
 
 // List returns the list of all web tokens.
-func (r *webTokensWithRoles) List(ctx context.Context) ([]services.WebToken, error) {
+func (r *webTokensWithRoles) List(ctx context.Context) ([]types.WebToken, error) {
 	if err := r.c.action(defaults.Namespace, services.KindWebToken, services.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -926,12 +926,12 @@ func (r *webTokensWithRoles) List(ctx context.Context) ([]services.WebToken, err
 // Upsert creates a new or updates the existing web token from the specified token.
 // TODO(dmitri): this is currently only implemented for local invocations. This needs to be
 // moved into a more appropriate API
-func (*webTokensWithRoles) Upsert(ctx context.Context, session services.WebToken) error {
+func (*webTokensWithRoles) Upsert(ctx context.Context, session types.WebToken) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
 // Delete removes the web token specified with req.
-func (r *webTokensWithRoles) Delete(ctx context.Context, req services.DeleteWebTokenRequest) error {
+func (r *webTokensWithRoles) Delete(ctx context.Context, req types.DeleteWebTokenRequest) error {
 	if err := r.c.currentUserAction(req.User); err != nil {
 		if err := r.c.action(defaults.Namespace, services.KindWebToken, services.VerbDelete); err != nil {
 			return trace.Wrap(err)

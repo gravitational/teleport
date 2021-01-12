@@ -19,7 +19,6 @@ package auth
 import (
 	"context"
 	"crypto/x509"
-	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"

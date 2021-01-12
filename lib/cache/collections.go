@@ -1508,7 +1508,7 @@ func (r *webSession) fetch(ctx context.Context) (apply func(ctx context.Context)
 func (r *webSession) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
-		err := r.webSessionCache.Delete(ctx, services.DeleteWebSessionRequest{
+		err := r.webSessionCache.Delete(ctx, types.DeleteWebSessionRequest{
 			SessionID: event.Resource.GetName(),
 		})
 		if err != nil {
@@ -1573,7 +1573,7 @@ func (r *webToken) fetch(ctx context.Context) (apply func(ctx context.Context) e
 func (r *webToken) processEvent(ctx context.Context, event services.Event) error {
 	switch event.Type {
 	case backend.OpDelete:
-		err := r.webTokenCache.Delete(ctx, services.DeleteWebTokenRequest{
+		err := r.webTokenCache.Delete(ctx, types.DeleteWebTokenRequest{
 			Token: event.Resource.GetName(),
 		})
 		if err != nil {
@@ -1585,7 +1585,7 @@ func (r *webToken) processEvent(ctx context.Context, event services.Event) error
 			}
 		}
 	case backend.OpPut:
-		resource, ok := event.Resource.(services.WebToken)
+		resource, ok := event.Resource.(types.WebToken)
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}

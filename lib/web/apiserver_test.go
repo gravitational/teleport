@@ -44,6 +44,7 @@ import (
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -647,7 +648,7 @@ func (s *WebSuite) TestWebSessionsRenew(c *C) {
 	// now expire the old session and make sure it has been removed
 	s.clock.Advance(delta)
 
-	_, err = s.proxyClient.GetWebSession(context.TODO(), services.GetWebSessionRequest{
+	_, err = s.proxyClient.GetWebSession(context.TODO(), types.GetWebSessionRequest{
 		User:      "foo",
 		SessionID: prevSessionID,
 	})

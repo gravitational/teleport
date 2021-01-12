@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -406,7 +407,7 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 
 	// If the request is coming from a browser, create a web session.
 	if request.CreateWebSession {
-		session, err := a.createWebSession(context.TODO(), services.NewWebSessionRequest{
+		session, err := a.createWebSession(context.TODO(), types.NewWebSessionRequest{
 			User:       user.GetName(),
 			Roles:      user.GetRoles(),
 			Traits:     user.GetTraits(),
