@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -353,11 +352,11 @@ func (*teleportWebSessionMarshaler) UnmarshalWebSession(bytes []byte, opts ...Ma
 	switch h.Version {
 	case V2:
 		var ws WebSessionV2
-		if err := utils.UnmarshalWithSchema(GetWebSessionSchema(), &ws, bytes); err != nil {
+		if err := UnmarshalWithSchema(GetWebSessionSchema(), &ws, bytes); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
-		utils.UTC(&ws.Spec.BearerTokenExpires)
-		utils.UTC(&ws.Spec.Expires)
+		UTC(&ws.Spec.BearerTokenExpires)
+		UTC(&ws.Spec.Expires)
 
 		if err := ws.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
@@ -391,7 +390,7 @@ func (*teleportWebSessionMarshaler) MarshalWebSession(ws WebSession, opts ...Mar
 			copy.SetResourceID(0)
 			webSession = &copy
 		}
-		return utils.FastMarshal(webSession)
+		return FastMarshal(webSession)
 	default:
 		return nil, trace.BadParameter("unrecognized web session version %T", ws)
 	}

@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/check.v1"
@@ -35,7 +34,7 @@ var _ = testing.Verbose
 var _ = fmt.Printf
 
 func (s *LicenseSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	InitLoggerForTests(testing.Verbose())
 }
 
 func (s *LicenseSuite) TestUnmarshal(c *check.C) {

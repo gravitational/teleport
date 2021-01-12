@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -498,11 +497,11 @@ func (t *teleportAuthPreferenceMarshaler) Unmarshal(bytes []byte, opts ...Marsha
 	}
 
 	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(bytes, &authPreference); err != nil {
+		if err := FastUnmarshal(bytes, &authPreference); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
 	} else {
-		err := utils.UnmarshalWithSchema(GetAuthPreferenceSchema(""), &authPreference, bytes)
+		err := UnmarshalWithSchema(GetAuthPreferenceSchema(""), &authPreference, bytes)
 		if err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}

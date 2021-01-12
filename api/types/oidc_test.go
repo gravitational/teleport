@@ -19,7 +19,6 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/coreos/go-oidc/jose"
 	"github.com/stretchr/testify/require"
@@ -27,7 +26,7 @@ import (
 
 // TestOIDCUnmarshal tests unmarshal of OIDC connector
 func TestOIDCUnmarshal(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
+	InitLoggerForTests(testing.Verbose())
 	input := `
       {
         "kind": "oidc",

@@ -27,9 +27,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
@@ -171,21 +169,21 @@ func (ca *CertAuthorityV2) SetSubKind(s string) {
 // Clone returns a copy of the cert authority object.
 func (ca *CertAuthorityV2) Clone() CertAuthority {
 	out := *ca
-	out.Spec.CheckingKeys = utils.CopyByteSlices(ca.Spec.CheckingKeys)
-	out.Spec.SigningKeys = utils.CopyByteSlices(ca.Spec.SigningKeys)
+	out.Spec.CheckingKeys = CopyByteSlices(ca.Spec.CheckingKeys)
+	out.Spec.SigningKeys = CopyByteSlices(ca.Spec.SigningKeys)
 	for i, kp := range ca.Spec.TLSKeyPairs {
 		out.Spec.TLSKeyPairs[i] = TLSKeyPair{
-			Key:  utils.CopyByteSlice(kp.Key),
-			Cert: utils.CopyByteSlice(kp.Cert),
+			Key:  CopyByteSlice(kp.Key),
+			Cert: CopyByteSlice(kp.Cert),
 		}
 	}
 	for i, kp := range ca.Spec.JWTKeyPairs {
 		out.Spec.JWTKeyPairs[i] = JWTKeyPair{
-			PublicKey:  utils.CopyByteSlice(kp.PublicKey),
-			PrivateKey: utils.CopyByteSlice(kp.PrivateKey),
+			PublicKey:  CopyByteSlice(kp.PublicKey),
+			PrivateKey: CopyByteSlice(kp.PrivateKey),
 		}
 	}
-	out.Spec.Roles = utils.CopyStrings(ca.Spec.Roles)
+	out.Spec.Roles = CopyStrings(ca.Spec.Roles)
 	return &out
 }
 
@@ -225,7 +223,7 @@ func (ca *CertAuthorityV2) JWTSigner(config jwt.Config) (*jwt.Key, error) {
 	if len(ca.Spec.JWTKeyPairs) == 0 {
 		return nil, trace.BadParameter("no JWT keypairs found")
 	}
-	privateKey, err := utils.ParsePrivateKey(ca.Spec.JWTKeyPairs[0].PrivateKey)
+	privateKey, err := ParsePrivateKey(ca.Spec.JWTKeyPairs[0].PrivateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -433,7 +431,7 @@ func (ca *CertAuthorityV2) Signers() ([]ssh.Signer, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		signer = sshutils.AlgSigner(signer, ca.GetSigningAlg())
+		signer = AlgSigner(signer, ca.GetSigningAlg())
 		out = append(out, signer)
 	}
 	return out, nil
@@ -539,12 +537,12 @@ func (ca *CertAuthorityV2) checkJWTKeys() error {
 	// Check that the JWT keys set are valid.
 	for _, pair := range ca.Spec.JWTKeyPairs {
 		if len(pair.PrivateKey) > 0 {
-			privateKey, err = utils.ParsePrivateKey(pair.PrivateKey)
+			privateKey, err = ParsePrivateKey(pair.PrivateKey)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 		}
-		publicKey, err := utils.ParsePublicKey(pair.PublicKey)
+		publicKey, err := ParsePublicKey(pair.PublicKey)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -790,7 +788,7 @@ func MarshalCertRoles(roles []string) (string, error) {
 // UnmarshalCertRoles marshals roles list to OpenSSH
 func UnmarshalCertRoles(data string) ([]string, error) {
 	var certRoles CertRoles
-	if err := utils.UnmarshalWithSchema(CertRolesSchema, &certRoles, []byte(data)); err != nil {
+	if err := UnmarshalWithSchema(CertRolesSchema, &certRoles, []byte(data)); err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
 	return certRoles.Roles, nil
@@ -907,7 +905,7 @@ func (*teleportCertAuthorityMarshaler) UnmarshalCertAuthority(bytes []byte, opts
 		return nil, trace.Wrap(err)
 	}
 	var h ResourceHeader
-	err = utils.FastUnmarshal(bytes, &h)
+	err = FastUnmarshal(bytes, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -915,11 +913,11 @@ func (*teleportCertAuthorityMarshaler) UnmarshalCertAuthority(bytes []byte, opts
 	case V2:
 		var ca CertAuthorityV2
 		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(bytes, &ca); err != nil {
+			if err := FastUnmarshal(bytes, &ca); err != nil {
 				return nil, trace.BadParameter(err.Error())
 			}
 		} else {
-			if err := utils.UnmarshalWithSchema(GetCertAuthoritySchema(), &ca, bytes); err != nil {
+			if err := UnmarshalWithSchema(GetCertAuthoritySchema(), &ca, bytes); err != nil {
 				return nil, trace.BadParameter(err.Error())
 			}
 		}
@@ -951,7 +949,7 @@ func (*teleportCertAuthorityMarshaler) MarshalCertAuthority(ca CertAuthority, op
 			copy.SetResourceID(0)
 			authority = &copy
 		}
-		return utils.FastMarshal(authority)
+		return FastMarshal(authority)
 	default:
 		return nil, trace.BadParameter("unrecognized certificate authority version %T", ca)
 	}

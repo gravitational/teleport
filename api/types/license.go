@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -321,7 +320,7 @@ func UnmarshalLicense(bytes []byte) (License, error) {
 	schema := fmt.Sprintf(V2SchemaTemplate, MetadataSchema, LicenseSpecV3Template, DefaultDefinitions)
 
 	var license LicenseV3
-	err := utils.UnmarshalWithSchema(schema, &license, bytes)
+	err := UnmarshalWithSchema(schema, &license, bytes)
 	if err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
@@ -352,7 +351,7 @@ func MarshalLicense(license License, opts ...MarshalOption) ([]byte, error) {
 			copy.SetResourceID(0)
 			resource = &copy
 		}
-		return utils.FastMarshal(resource)
+		return FastMarshal(resource)
 	default:
 		return nil, trace.BadParameter("unrecognized resource version %T", license)
 	}

@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -196,11 +195,11 @@ func (t *teleportClusterNameMarshaler) Unmarshal(bytes []byte, opts ...MarshalOp
 	}
 
 	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(bytes, &clusterName); err != nil {
+		if err := FastUnmarshal(bytes, &clusterName); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
 	} else {
-		err = utils.UnmarshalWithSchema(GetClusterNameSchema(""), &clusterName, bytes)
+		err = UnmarshalWithSchema(GetClusterNameSchema(""), &clusterName, bytes)
 		if err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -236,7 +235,7 @@ func (t *teleportClusterNameMarshaler) Marshal(c ClusterName, opts ...MarshalOpt
 			copy.SetResourceID(0)
 			resource = &copy
 		}
-		return utils.FastMarshal(resource)
+		return FastMarshal(resource)
 	default:
 		return nil, trace.BadParameter("unrecognized resource version %T", c)
 	}

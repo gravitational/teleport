@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -270,7 +269,7 @@ func (c *GithubConnectorV3) MapClaims(claims GithubClaims) ([]string, []string, 
 			}
 		}
 	}
-	return utils.Deduplicate(logins), utils.Deduplicate(kubeGroups), utils.Deduplicate(kubeUsers)
+	return Deduplicate(logins), Deduplicate(kubeGroups), Deduplicate(kubeUsers)
 }
 
 // GithubConnectorV3SchemaTemplate is the JSON schema for a Github connector
@@ -350,7 +349,7 @@ func (*teleportGithubConnectorMarshaler) Unmarshal(bytes []byte) (GithubConnecto
 	switch h.Version {
 	case V3:
 		var c GithubConnectorV3
-		if err := utils.UnmarshalWithSchema(GetGithubConnectorSchema(), &c, bytes); err != nil {
+		if err := UnmarshalWithSchema(GetGithubConnectorSchema(), &c, bytes); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if err := c.CheckAndSetDefaults(); err != nil {
@@ -377,7 +376,7 @@ func (*teleportGithubConnectorMarshaler) Marshal(c GithubConnector, opts ...Mars
 			copy.SetResourceID(0)
 			resource = &copy
 		}
-		return utils.FastMarshal(resource)
+		return FastMarshal(resource)
 	default:
 		return nil, trace.BadParameter("unrecognized resource version %T", c)
 	}

@@ -22,7 +22,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -296,7 +295,7 @@ func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (ProvisionToken
 	}
 
 	var h ResourceHeader
-	err = utils.FastUnmarshal(data, &h)
+	err = FastUnmarshal(data, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -304,7 +303,7 @@ func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (ProvisionToken
 	switch h.Version {
 	case "":
 		var p ProvisionTokenV1
-		err := utils.FastUnmarshal(data, &p)
+		err := FastUnmarshal(data, &p)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -316,11 +315,11 @@ func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (ProvisionToken
 	case V2:
 		var p ProvisionTokenV2
 		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(data, &p); err != nil {
+			if err := FastUnmarshal(data, &p); err != nil {
 				return nil, trace.BadParameter(err.Error())
 			}
 		} else {
-			if err := utils.UnmarshalWithSchema(GetProvisionTokenSchema(), &p, data); err != nil {
+			if err := UnmarshalWithSchema(GetProvisionTokenSchema(), &p, data); err != nil {
 				return nil, trace.BadParameter(err.Error())
 			}
 		}
@@ -355,13 +354,13 @@ func MarshalProvisionToken(t ProvisionToken, opts ...MarshalOption) ([]byte, err
 		if !ok {
 			return nil, trace.BadParameter("don't know how to marshal %v", V1)
 		}
-		return utils.FastMarshal(v.V1())
+		return FastMarshal(v.V1())
 	case V2:
 		v, ok := t.(token2)
 		if !ok {
 			return nil, trace.BadParameter("don't know how to marshal %v", V2)
 		}
-		return utils.FastMarshal(v.V2())
+		return FastMarshal(v.V2())
 	default:
 		return nil, trace.BadParameter("version %v is not supported", version)
 	}

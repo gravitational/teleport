@@ -17,7 +17,6 @@ limitations under the License.
 package types
 
 import (
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 
 	"github.com/gravitational/trace"
@@ -44,7 +43,7 @@ func (ms TraitMappingSet) TraitsToRoles(traits map[string][]string) []string {
 	ms.traitsToRoles(traits, func(role string, expanded bool) {
 		roles = append(roles, role)
 	})
-	return utils.Deduplicate(roles)
+	return Deduplicate(roles)
 }
 
 // TraitsToRoleMatchers maps the supplied traits to a list of role matchers. Prefer calling
@@ -55,7 +54,7 @@ func (ms TraitMappingSet) TraitsToRoleMatchers(traits map[string][]string) ([]pa
 	var matchers []parse.Matcher
 	var firstErr error
 	ms.traitsToRoles(traits, func(role string, expanded bool) {
-		if expanded || utils.ContainsExpansion(role) {
+		if expanded || ContainsExpansion(role) {
 			// mapping process included variable expansion; we therefore
 			// "escape" normal matcher syntax and look only for exact matches.
 			// (note: this isn't about combatting maliciously constructed traits,
@@ -91,7 +90,7 @@ func (ms TraitMappingSet) traitsToRoles(traits map[string][]string, collect func
 		TraitLoop:
 			for _, traitValue := range traitValues {
 				for _, role := range mapping.Roles {
-					outRole, err := utils.ReplaceRegexp(mapping.Value, role, traitValue)
+					outRole, err := ReplaceRegexp(mapping.Value, role, traitValue)
 					switch {
 					case err != nil:
 						if trace.IsNotFound(err) {

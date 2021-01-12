@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -373,11 +372,11 @@ func (t *teleportSemaphoreMarshaler) Unmarshal(bytes []byte, opts ...MarshalOpti
 	}
 
 	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(bytes, &semaphore); err != nil {
+		if err := FastUnmarshal(bytes, &semaphore); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
 	} else {
-		err = utils.UnmarshalWithSchema(GetSemaphoreSchema(), &semaphore, bytes)
+		err = UnmarshalWithSchema(GetSemaphoreSchema(), &semaphore, bytes)
 		if err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -412,7 +411,7 @@ func (t *teleportSemaphoreMarshaler) Marshal(c Semaphore, opts ...MarshalOption)
 			copy.SetResourceID(0)
 			resource = &copy
 		}
-		return utils.FastMarshal(resource)
+		return FastMarshal(resource)
 	default:
 		return nil, trace.BadParameter("unrecognized resource version %T", c)
 	}

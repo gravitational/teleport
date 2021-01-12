@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -281,7 +280,7 @@ func (o *SAMLConnectorV2) Equals(other SAMLConnector) bool {
 	}
 	for i := range mappings {
 		a, b := mappings[i], otherMappings[i]
-		if a.Name != b.Name || a.Value != b.Value || !utils.StringSlicesEqual(a.Roles, b.Roles) {
+		if a.Name != b.Name || a.Value != b.Value || !StringSlicesEqual(a.Roles, b.Roles) {
 			return false
 		}
 	}
@@ -367,7 +366,7 @@ func (o *SAMLConnectorV2) GetAttributes() []string {
 	for _, mapping := range o.Spec.AttributesToRoles {
 		out = append(out, mapping.Name)
 	}
-	return utils.Deduplicate(out)
+	return Deduplicate(out)
 }
 
 // GetTraitMappings returns the SAMLConnector's TraitMappingSet
@@ -463,7 +462,7 @@ func (o *SAMLConnectorV2) GetServiceProvider(clock clockwork.Clock) (*saml2.SAML
 			"no identity provider certificate provided, either set certificate as a parameter or via entity_descriptor")
 	}
 	if o.Spec.SigningKeyPair == nil {
-		keyPEM, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
+		keyPEM, certPEM, err := GenerateSelfSignedSigningCert(pkix.Name{
 			Organization: []string{"Teleport OSS"},
 			CommonName:   "teleport.localhost.localdomain",
 		}, nil, 10*365*24*time.Hour)
@@ -475,7 +474,7 @@ func (o *SAMLConnectorV2) GetServiceProvider(clock clockwork.Clock) (*saml2.SAML
 			Cert:       string(certPEM),
 		}
 	}
-	keyStore, err := utils.ParseSigningKeyStorePEM(o.Spec.SigningKeyPair.PrivateKey, o.Spec.SigningKeyPair.Cert)
+	keyStore, err := ParseSigningKeyStorePEM(o.Spec.SigningKeyPair.PrivateKey, o.Spec.SigningKeyPair.Cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -707,7 +706,7 @@ func (*teleportSAMLConnectorMarshaler) UnmarshalSAMLConnector(bytes []byte, opts
 		return nil, trace.Wrap(err)
 	}
 	var h ResourceHeader
-	err = utils.FastUnmarshal(bytes, &h)
+	err = FastUnmarshal(bytes, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -715,11 +714,11 @@ func (*teleportSAMLConnectorMarshaler) UnmarshalSAMLConnector(bytes []byte, opts
 	case V2:
 		var c SAMLConnectorV2
 		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(bytes, &c); err != nil {
+			if err := FastUnmarshal(bytes, &c); err != nil {
 				return nil, trace.BadParameter(err.Error())
 			}
 		} else {
-			if err := utils.UnmarshalWithSchema(GetSAMLConnectorSchema(), &c, bytes); err != nil {
+			if err := UnmarshalWithSchema(GetSAMLConnectorSchema(), &c, bytes); err != nil {
 				return nil, trace.BadParameter(err.Error())
 			}
 		}
@@ -757,7 +756,7 @@ func (*teleportSAMLConnectorMarshaler) MarshalSAMLConnector(c SAMLConnector, opt
 			copy.SetResourceID(0)
 			connector = &copy
 		}
-		return utils.FastMarshal(connector)
+		return FastMarshal(connector)
 	default:
 		return nil, trace.BadParameter("unrecognized SAMLConnector version %T", c)
 	}

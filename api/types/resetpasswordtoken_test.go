@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"gopkg.in/check.v1"
 )
@@ -32,7 +31,7 @@ var _ = check.Suite(&ResetPasswordTokenSuite{})
 var _ = fmt.Printf
 
 func (s *ResetPasswordTokenSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	InitLoggerForTests(testing.Verbose())
 }
 
 func (s *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {

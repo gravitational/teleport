@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pborman/uuid"
@@ -563,7 +561,7 @@ func (r *accessRequestMarshaler) MarshalAccessRequest(req AccessRequest, opts ..
 			cp.SetResourceID(0)
 			r = &cp
 		}
-		return utils.FastMarshal(r)
+		return FastMarshal(r)
 	default:
 		return nil, trace.BadParameter("unrecognized access request type: %T", req)
 	}
@@ -576,11 +574,11 @@ func (r *accessRequestMarshaler) UnmarshalAccessRequest(data []byte, opts ...Mar
 	}
 	var req AccessRequestV3
 	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(data, &req); err != nil {
+		if err := FastUnmarshal(data, &req); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		if err := utils.UnmarshalWithSchema(GetAccessRequestSchema(), &req, data); err != nil {
+		if err := UnmarshalWithSchema(GetAccessRequestSchema(), &req, data); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

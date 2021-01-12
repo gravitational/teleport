@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/trace"
@@ -325,7 +324,7 @@ func (o *OIDCConnectorV2) GetClaims() []string {
 	for _, mapping := range o.Spec.ClaimsToRoles {
 		out = append(out, mapping.Claim)
 	}
-	return utils.Deduplicate(out)
+	return Deduplicate(out)
 }
 
 // GetTraitMappings returns the OIDCConnector's TraitMappingSet
@@ -367,7 +366,7 @@ func (o *OIDCConnectorV2) Check() error {
 	}
 
 	if o.Spec.GoogleServiceAccountURI != "" {
-		uri, err := utils.ParseSessionsURI(o.Spec.GoogleServiceAccountURI)
+		uri, err := ParseSessionsURI(o.Spec.GoogleServiceAccountURI)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -395,6 +394,22 @@ func (o *OIDCConnectorV2) CheckAndSetDefaults() error {
 	}
 
 	return nil
+}
+
+// ParseSessionsURI parses uri per convention of session upload URIs
+// file is a default scheme
+func ParseSessionsURI(in string) (*url.URL, error) {
+	if in == "" {
+		return nil, trace.BadParameter("uri is empty")
+	}
+	u, err := url.Parse(in)
+	if err != nil {
+		return nil, trace.BadParameter("failed to parse URI %q: %v", in, err)
+	}
+	if u.Scheme == "" {
+		u.Scheme = teleport.SchemeFile
+	}
+	return u, nil
 }
 
 // OIDCConnectorSpecV2 specifies configuration for Open ID Connect compatible external
@@ -572,7 +587,7 @@ func (*teleportOIDCConnectorMarshaler) UnmarshalOIDCConnector(bytes []byte, opts
 		return nil, trace.Wrap(err)
 	}
 	var h ResourceHeader
-	err = utils.FastUnmarshal(bytes, &h)
+	err = FastUnmarshal(bytes, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -580,11 +595,11 @@ func (*teleportOIDCConnectorMarshaler) UnmarshalOIDCConnector(bytes []byte, opts
 	case V2:
 		var c OIDCConnectorV2
 		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(bytes, &c); err != nil {
+			if err := FastUnmarshal(bytes, &c); err != nil {
 				return nil, trace.BadParameter(err.Error())
 			}
 		} else {
-			if err := utils.UnmarshalWithSchema(GetOIDCConnectorSchema(), &c, bytes); err != nil {
+			if err := UnmarshalWithSchema(GetOIDCConnectorSchema(), &c, bytes); err != nil {
 				return nil, trace.BadParameter(err.Error())
 			}
 		}
@@ -620,7 +635,7 @@ func (*teleportOIDCConnectorMarshaler) MarshalOIDCConnector(c OIDCConnector, opt
 			copy.SetResourceID(0)
 			oidcConnector = &copy
 		}
-		return utils.FastMarshal(oidcConnector)
+		return FastMarshal(oidcConnector)
 	default:
 		return nil, trace.BadParameter("unrecognized OIDC connector version %T", c)
 	}

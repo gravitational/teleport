@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -195,7 +194,7 @@ func (t *teleportResetPasswordTokenMarshaler) Unmarshal(bytes []byte, opts ...Ma
 
 	var token ResetPasswordTokenV3
 	schema := fmt.Sprintf(V2SchemaTemplate, MetadataSchema, ResetPasswordTokenSpecV3Template, DefaultDefinitions)
-	err := utils.UnmarshalWithSchema(schema, &token, bytes)
+	err := UnmarshalWithSchema(schema, &token, bytes)
 	if err != nil {
 		return nil, trace.BadParameter(err.Error())
 	}
@@ -205,7 +204,7 @@ func (t *teleportResetPasswordTokenMarshaler) Unmarshal(bytes []byte, opts ...Ma
 
 // Marshal marshals role to JSON or YAML.
 func (t *teleportResetPasswordTokenMarshaler) Marshal(token ResetPasswordToken, opts ...MarshalOption) ([]byte, error) {
-	return utils.FastMarshal(token)
+	return FastMarshal(token)
 }
 
 var resetPasswordTokenMarshaler ResetPasswordTokenMarshaler = &teleportResetPasswordTokenMarshaler{}

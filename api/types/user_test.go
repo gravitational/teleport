@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/coreos/go-oidc/jose"
 	saml2 "github.com/russellhaering/gosaml2"
@@ -36,7 +35,7 @@ type UserSuite struct {
 var _ = check.Suite(&UserSuite{})
 
 func (s *UserSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
+	InitLoggerForTests(testing.Verbose())
 }
 
 func (s *UserSuite) TestTraits(c *check.C) {

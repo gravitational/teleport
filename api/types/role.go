@@ -24,7 +24,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/lib/wrappers"
 
@@ -138,10 +137,10 @@ func (r *RoleV3) Equals(other Role) bool {
 	}
 
 	for _, condition := range []RoleConditionType{Allow, Deny} {
-		if !utils.StringSlicesEqual(r.GetLogins(condition), other.GetLogins(condition)) {
+		if !StringSlicesEqual(r.GetLogins(condition), other.GetLogins(condition)) {
 			return false
 		}
-		if !utils.StringSlicesEqual(r.GetNamespaces(condition), other.GetNamespaces(condition)) {
+		if !StringSlicesEqual(r.GetNamespaces(condition), other.GetNamespaces(condition)) {
 			return false
 		}
 		if !r.GetNodeLabels(condition).Equals(other.GetNodeLabels(condition)) {
@@ -244,7 +243,7 @@ func (r *RoleV3) GetLogins(rct RoleConditionType) []string {
 
 // SetLogins sets system logins for allow or deny condition.
 func (r *RoleV3) SetLogins(rct RoleConditionType, logins []string) {
-	lcopy := utils.CopyStrings(logins)
+	lcopy := CopyStrings(logins)
 
 	if rct == Allow {
 		r.Spec.Allow.Logins = lcopy
@@ -263,7 +262,7 @@ func (r *RoleV3) GetKubeGroups(rct RoleConditionType) []string {
 
 // SetKubeGroups sets kubernetes groups for allow or deny condition.
 func (r *RoleV3) SetKubeGroups(rct RoleConditionType, groups []string) {
-	lcopy := utils.CopyStrings(groups)
+	lcopy := CopyStrings(groups)
 
 	if rct == Allow {
 		r.Spec.Allow.KubeGroups = lcopy
@@ -282,7 +281,7 @@ func (r *RoleV3) GetKubeUsers(rct RoleConditionType) []string {
 
 // SetKubeUsers sets kubernetes user for allow or deny condition.
 func (r *RoleV3) SetKubeUsers(rct RoleConditionType, users []string) {
-	lcopy := utils.CopyStrings(users)
+	lcopy := CopyStrings(users)
 
 	if rct == Allow {
 		r.Spec.Allow.KubeUsers = lcopy
@@ -322,7 +321,7 @@ func (r *RoleV3) GetNamespaces(rct RoleConditionType) []string {
 
 // SetNamespaces sets a list of namespaces this role is allowed or denied access to.
 func (r *RoleV3) SetNamespaces(rct RoleConditionType, namespaces []string) {
-	ncopy := utils.CopyStrings(namespaces)
+	ncopy := CopyStrings(namespaces)
 
 	if rct == Allow {
 		r.Spec.Allow.Namespaces = ncopy
@@ -540,16 +539,16 @@ func (o RoleOptions) Equals(other RoleOptions) bool {
 		o.CertificateFormat == other.CertificateFormat &&
 		o.ClientIdleTimeout.Value() == other.ClientIdleTimeout.Value() &&
 		o.DisconnectExpiredCert.Value() == other.DisconnectExpiredCert.Value() &&
-		utils.StringSlicesEqual(o.BPF, other.BPF))
+		StringSlicesEqual(o.BPF, other.BPF))
 }
 
 // Equals returns true if the role conditions (logins, namespaces, labels,
 // and rules) are equal and false if they are not.
 func (r *RoleConditions) Equals(o RoleConditions) bool {
-	if !utils.StringSlicesEqual(r.Logins, o.Logins) {
+	if !StringSlicesEqual(r.Logins, o.Logins) {
 		return false
 	}
-	if !utils.StringSlicesEqual(r.Namespaces, o.Namespaces) {
+	if !StringSlicesEqual(r.Namespaces, o.Namespaces) {
 		return false
 	}
 	if !r.NodeLabels.Equals(o.NodeLabels) {
@@ -611,50 +610,6 @@ func (r *Rule) CheckAndSetDefaults() error {
 		}
 	}
 	return nil
-}
-
-// score is a sorting score of the rule, the larger the score, the more
-// specific the rule is
-func (r *Rule) score() int {
-	score := 0
-	// wildcard rules are less specific
-	if utils.SliceContainsStr(r.Resources, Wildcard) {
-		score -= 4
-	} else if len(r.Resources) == 1 {
-		// rules that match specific resource are more specific than
-		// fields that match several resources
-		score += 2
-	}
-	// rules that have wildcard verbs are less specific
-	if utils.SliceContainsStr(r.Verbs, Wildcard) {
-		score -= 2
-	}
-	// rules that supply 'where' or 'actions' are more specific
-	// having 'where' or 'actions' is more important than
-	// whether the rules are wildcard or not, so here we have +8 vs
-	// -4 and -2 score penalty for wildcards in resources and verbs
-	if len(r.Where) > 0 {
-		score += 8
-	}
-	// rules featuring actions are more specific
-	if len(r.Actions) > 0 {
-		score += 8
-	}
-	return score
-}
-
-// IsMoreSpecificThan returns true if the rule is more specific than the other.
-//
-// * nRule matching wildcard resource is less specific
-// than same rule matching specific resource.
-// * Rule that has wildcard verbs is less specific
-// than the same rules matching specific verb.
-// * Rule that has where section is more specific
-// than the same rule without where section.
-// * Rule that has actions list is more specific than
-// rule without actions list.
-func (r *Rule) IsMoreSpecificThan(o Rule) bool {
-	return r.score() > o.score()
 }
 
 // MatchesWhere returns true if Where rule matches
@@ -720,13 +675,13 @@ func (r *Rule) HasVerb(verb string) bool {
 
 // Equals returns true if the rule equals to another
 func (r *Rule) Equals(other Rule) bool {
-	if !utils.StringSlicesEqual(r.Resources, other.Resources) {
+	if !StringSlicesEqual(r.Resources, other.Resources) {
 		return false
 	}
-	if !utils.StringSlicesEqual(r.Verbs, other.Verbs) {
+	if !StringSlicesEqual(r.Verbs, other.Verbs) {
 		return false
 	}
-	if !utils.StringSlicesEqual(r.Actions, other.Actions) {
+	if !StringSlicesEqual(r.Actions, other.Actions) {
 		return false
 	}
 	if r.Where != other.Where {
@@ -758,7 +713,7 @@ func RuleSlicesEqual(a, b []Rule) bool {
 // Labels is a wrapper around map
 // that can marshal and unmarshal itself
 // from scalar and list values
-type Labels map[string]utils.Strings
+type Labels map[string]Strings
 
 func (l Labels) protoType() *wrappers.LabelValues {
 	v := &wrappers.LabelValues{
@@ -794,7 +749,7 @@ func (l *Labels) Unmarshal(data []byte) error {
 	if protoValues.Values == nil {
 		return nil
 	}
-	*l = make(map[string]utils.Strings, len(protoValues.Values))
+	*l = make(map[string]Strings, len(protoValues.Values))
 	for key := range protoValues.Values {
 		(*l)[key] = protoValues.Values[key].Values
 	}
@@ -826,7 +781,7 @@ func (l Labels) Equals(o Labels) bool {
 		return false
 	}
 	for key := range l {
-		if !utils.StringSlicesEqual(l[key], o[key]) {
+		if !StringSlicesEqual(l[key], o[key]) {
 			return false
 		}
 	}
@@ -868,7 +823,7 @@ func (b *Bool) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &stringVar); err != nil {
 		return trace.Wrap(err)
 	}
-	v, err := utils.ParseBool(stringVar)
+	v, err := ParseBool(stringVar)
 	if err != nil {
 		*b = false
 		return nil
@@ -893,7 +848,7 @@ func (b *Bool) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := unmarshal(&stringVar); err != nil {
 		return trace.Wrap(err)
 	}
-	v, err := utils.ParseBool(stringVar)
+	v, err := ParseBool(stringVar)
 	if err != nil {
 		*b = Bool(v)
 		return nil
@@ -1142,11 +1097,11 @@ func UnmarshalRole(data []byte, opts ...MarshalOption) (*RoleV3, error) {
 	case V3:
 		var role RoleV3
 		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(data, &role); err != nil {
+			if err := FastUnmarshal(data, &role); err != nil {
 				return nil, trace.BadParameter(err.Error())
 			}
 		} else {
-			if err := utils.UnmarshalWithSchema(GetRoleSchema(V3, ""), &role, data); err != nil {
+			if err := UnmarshalWithSchema(GetRoleSchema(V3, ""), &role, data); err != nil {
 				return nil, trace.BadParameter(err.Error())
 			}
 		}
@@ -1198,7 +1153,7 @@ func (*teleportRoleMarshaler) MarshalRole(r Role, opts ...MarshalOption) ([]byte
 			copy.SetResourceID(0)
 			role = &copy
 		}
-		return utils.FastMarshal(role)
+		return FastMarshal(role)
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", r)
 	}

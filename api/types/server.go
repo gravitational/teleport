@@ -23,8 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -365,7 +363,7 @@ func (c *CommandLabelV2) Equals(other CommandLabel) bool {
 	if c.GetResult() != other.GetResult() {
 		return false
 	}
-	if !utils.StringSlicesEqual(c.GetCommand(), other.GetCommand()) {
+	if !StringSlicesEqual(c.GetCommand(), other.GetCommand()) {
 		return false
 	}
 	return true
@@ -558,7 +556,7 @@ func UnmarshalServerResource(data []byte, kind string, cfg *MarshalConfig) (Serv
 	}
 
 	var h ResourceHeader
-	err := utils.FastUnmarshal(data, &h)
+	err := FastUnmarshal(data, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -568,11 +566,11 @@ func UnmarshalServerResource(data []byte, kind string, cfg *MarshalConfig) (Serv
 		var s ServerV2
 
 		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(data, &s); err != nil {
+			if err := FastUnmarshal(data, &s); err != nil {
 				return nil, trace.BadParameter(err.Error())
 			}
 		} else {
-			if err := utils.UnmarshalWithSchema(GetServerSchema(), &s, data); err != nil {
+			if err := UnmarshalWithSchema(GetServerSchema(), &s, data); err != nil {
 				return nil, trace.BadParameter(err.Error())
 			}
 		}
@@ -640,7 +638,7 @@ func (*teleportServerMarshaler) MarshalServer(s Server, opts ...MarshalOption) (
 			copy.SetResourceID(0)
 			server = &copy
 		}
-		return utils.FastMarshal(server)
+		return FastMarshal(server)
 	default:
 		return nil, trace.BadParameter("unrecognized server version %T", s)
 	}
@@ -651,7 +649,7 @@ func (*teleportServerMarshaler) MarshalServer(s Server, opts ...MarshalOption) (
 func (*teleportServerMarshaler) UnmarshalServers(bytes []byte) ([]Server, error) {
 	var servers []ServerV2
 
-	err := utils.FastUnmarshal(bytes, &servers)
+	err := FastUnmarshal(bytes, &servers)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -666,7 +664,7 @@ func (*teleportServerMarshaler) UnmarshalServers(bytes []byte) ([]Server, error)
 // MarshalServers is used to marshal multiple servers to their binary
 // representation.
 func (*teleportServerMarshaler) MarshalServers(s []Server) ([]byte, error) {
-	bytes, err := utils.FastMarshal(s)
+	bytes, err := FastMarshal(s)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

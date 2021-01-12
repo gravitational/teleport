@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -238,7 +237,7 @@ func (u *UserV2) Expiry() time.Time {
 
 // SetRoles sets a list of roles for user
 func (u *UserV2) SetRoles(roles []string) {
-	u.Spec.Roles = utils.Deduplicate(roles)
+	u.Spec.Roles = Deduplicate(roles)
 }
 
 // GetStatus returns login status of the user
@@ -333,7 +332,7 @@ func (c CreatedBy) String() string {
 	}
 	if c.Connector != nil {
 		return fmt.Sprintf("%v connector %v for user %v at %v",
-			c.Connector.Type, c.Connector.ID, c.Connector.Identity, utils.HumanTimeFormat(c.Time))
+			c.Connector.Type, c.Connector.ID, c.Connector.Identity, HumanTimeFormat(c.Time))
 	}
 	return fmt.Sprintf("%v at %v", c.User.Name, c.Time)
 }
@@ -490,11 +489,11 @@ func (*teleportUserMarshaler) UnmarshalUser(bytes []byte, opts ...MarshalOption)
 	case V2:
 		var u UserV2
 		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(bytes, &u); err != nil {
+			if err := FastUnmarshal(bytes, &u); err != nil {
 				return nil, trace.BadParameter(err.Error())
 			}
 		} else {
-			if err := utils.UnmarshalWithSchema(GetUserSchema(""), &u, bytes); err != nil {
+			if err := UnmarshalWithSchema(GetUserSchema(""), &u, bytes); err != nil {
 				return nil, trace.BadParameter(err.Error())
 			}
 		}
@@ -530,7 +529,7 @@ func (*teleportUserMarshaler) MarshalUser(u User, opts ...MarshalOption) ([]byte
 			copy.SetResourceID(0)
 			user = &copy
 		}
-		return utils.FastMarshal(user)
+		return FastMarshal(user)
 	default:
 		return nil, trace.BadParameter("unrecognized user version %T", u)
 	}

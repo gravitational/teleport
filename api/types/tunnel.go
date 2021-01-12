@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -183,12 +182,6 @@ func (r *ReverseTunnelV2) Check() error {
 		return trace.BadParameter("Invalid dial address for reverse tunnel '%v'", r.Spec.ClusterName)
 	}
 
-	for _, addr := range r.Spec.DialAddrs {
-		if _, err := utils.ParseAddr(addr); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	return nil
 }
 
@@ -252,11 +245,11 @@ func UnmarshalReverseTunnel(data []byte, opts ...MarshalOption) (ReverseTunnel, 
 	case V2:
 		var r ReverseTunnelV2
 		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(data, &r); err != nil {
+			if err := FastUnmarshal(data, &r); err != nil {
 				return nil, trace.BadParameter(err.Error())
 			}
 		} else {
-			if err := utils.UnmarshalWithSchema(GetReverseTunnelSchema(), &r, data); err != nil {
+			if err := UnmarshalWithSchema(GetReverseTunnelSchema(), &r, data); err != nil {
 				return nil, trace.BadParameter(err.Error())
 			}
 		}
@@ -306,7 +299,7 @@ func (*teleportTunnelMarshaler) MarshalReverseTunnel(rt ReverseTunnel, opts ...M
 			copy.SetResourceID(0)
 			reverseTunnel = &copy
 		}
-		return utils.FastMarshal(reverseTunnel)
+		return FastMarshal(reverseTunnel)
 	default:
 		return nil, trace.BadParameter("unrecognized reversetunnel version %T", rt)
 	}

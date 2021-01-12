@@ -17,15 +17,9 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/ecdsa"
-	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/pem"
-	"math/big"
-	"time"
-
-	"github.com/gravitational/teleport"
 
 	"github.com/gravitational/trace"
 
@@ -61,44 +55,6 @@ type SigningKeyStore struct {
 
 func (ks *SigningKeyStore) GetKeyPair() (*rsa.PrivateKey, []byte, error) {
 	return ks.privateKey, ks.cert, nil
-}
-
-// GenerateSelfSignedSigningCert generates self-signed certificate used for digital signatures
-func GenerateSelfSignedSigningCert(entity pkix.Name, dnsNames []string, ttl time.Duration) ([]byte, []byte, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	// to account for clock skew
-	notBefore := time.Now().Add(-2 * time.Minute)
-	notAfter := notBefore.Add(ttl)
-
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	template := x509.Certificate{
-		SerialNumber:          serialNumber,
-		Issuer:                entity,
-		Subject:               entity,
-		NotBefore:             notBefore,
-		NotAfter:              notAfter,
-		KeyUsage:              x509.KeyUsageDigitalSignature,
-		BasicConstraintsValid: true,
-		DNSNames:              dnsNames,
-	}
-
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
-	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
-
-	return keyPEM, certPEM, nil
 }
 
 // ParseCertificatePEM parses PEM-encoded certificate

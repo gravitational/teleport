@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -245,7 +244,7 @@ func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (TunnelConnec
 		return nil, trace.Wrap(err)
 	}
 	var h ResourceHeader
-	err = utils.FastUnmarshal(data, &h)
+	err = FastUnmarshal(data, &h)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -254,11 +253,11 @@ func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (TunnelConnec
 		var r TunnelConnectionV2
 
 		if cfg.SkipValidation {
-			if err := utils.FastUnmarshal(data, &r); err != nil {
+			if err := FastUnmarshal(data, &r); err != nil {
 				return nil, trace.BadParameter(err.Error())
 			}
 		} else {
-			if err := utils.UnmarshalWithSchema(GetTunnelConnectionSchema(), &r, data); err != nil {
+			if err := UnmarshalWithSchema(GetTunnelConnectionSchema(), &r, data); err != nil {
 				return nil, trace.BadParameter(err.Error())
 			}
 		}
@@ -292,7 +291,7 @@ func MarshalTunnelConnection(rt TunnelConnection, opts ...MarshalOption) ([]byte
 			copy.SetResourceID(0)
 			resource = &copy
 		}
-		return utils.FastMarshal(resource)
+		return FastMarshal(resource)
 	default:
 		return nil, trace.BadParameter("unrecognized resource version %T", rt)
 	}

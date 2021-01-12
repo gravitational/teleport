@@ -68,20 +68,6 @@ func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
 	}
 }
 
-// InitLoggerForTests initializes the standard logger for tests with verbosity
-func InitLoggerForTests(verbose bool) {
-	logger := log.StandardLogger()
-	logger.ReplaceHooks(make(log.LevelHooks))
-	logger.SetFormatter(&trace.TextFormatter{})
-	logger.SetLevel(log.DebugLevel)
-	logger.SetOutput(os.Stderr)
-	if verbose {
-		return
-	}
-	logger.SetLevel(log.WarnLevel)
-	logger.SetOutput(ioutil.Discard)
-}
-
 // NewLoggerForTests creates a new logger for test environment
 func NewLoggerForTests() *log.Logger {
 	logger := log.New()

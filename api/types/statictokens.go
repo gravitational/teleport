@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -225,11 +224,11 @@ func (t *teleportStaticTokensMarshaler) Unmarshal(bytes []byte, opts ...MarshalO
 	}
 
 	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(bytes, &staticTokens); err != nil {
+		if err := FastUnmarshal(bytes, &staticTokens); err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
 	} else {
-		err = utils.UnmarshalWithSchema(GetStaticTokensSchema(""), &staticTokens, bytes)
+		err = UnmarshalWithSchema(GetStaticTokensSchema(""), &staticTokens, bytes)
 		if err != nil {
 			return nil, trace.BadParameter(err.Error())
 		}
@@ -264,7 +263,7 @@ func (t *teleportStaticTokensMarshaler) Marshal(c StaticTokens, opts ...MarshalO
 			copy.SetResourceID(0)
 			resource = &copy
 		}
-		return utils.FastMarshal(resource)
+		return FastMarshal(resource)
 	default:
 		return nil, trace.BadParameter("unrecognized resource version %T", c)
 	}

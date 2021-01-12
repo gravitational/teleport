@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
@@ -182,9 +181,9 @@ func (m *Metadata) CheckAndSetDefaults() error {
 		m.Namespace = defaults.Namespace
 	}
 
-	// adjust expires time to utils.UTC if it's set
+	// adjust expires time to UTC if it's set
 	if m.Expires != nil {
-		utils.UTC(m.Expires)
+		UTC(m.Expires)
 	}
 
 	for key := range m.Labels {
