@@ -44,6 +44,9 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/gravitational/trace/trail"
+
+	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -2493,9 +2496,9 @@ type ClientI interface {
 
 	// GetWebSession queries the existing web session described with req.
 	// Implements ReadAccessPoint.
-	GetWebSession(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error)
+	GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error)
 
 	// GetWebToken queries the existing web token described with req.
 	// Implements ReadAccessPoint.
-	GetWebToken(ctx context.Context, req services.GetWebTokenRequest) (services.WebToken, error)
+	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
 }

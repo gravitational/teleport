@@ -1230,7 +1230,7 @@ func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts .
 }
 
 // GetWebSession gets a regular web session.
-func (c *Cache) GetWebSession(ctx context.Context, req services.GetWebSessionRequest) (services.WebSession, error) {
+func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1240,7 +1240,7 @@ func (c *Cache) GetWebSession(ctx context.Context, req services.GetWebSessionReq
 }
 
 // GetWebToken gets a web token.
-func (c *Cache) GetWebToken(ctx context.Context, req services.GetWebTokenRequest) (services.WebToken, error) {
+func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)

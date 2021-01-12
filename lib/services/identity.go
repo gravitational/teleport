@@ -244,16 +244,16 @@ type WebTokensGetter interface {
 // WebTokenInterface defines interface for managing web tokens
 type WebTokenInterface interface {
 	// Get returns a token specified by the request.
-	Get(ctx context.Context, req GetWebTokenRequest) (WebToken, error)
+	Get(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
 
 	// List gets all web tokens.
-	List(context.Context) ([]WebToken, error)
+	List(context.Context) ([]types.WebToken, error)
 
 	// Upsert updates existing or inserts a new web token.
-	Upsert(ctx context.Context, token WebToken) error
+	Upsert(ctx context.Context, token types.WebToken) error
 
 	// Delete deletes the web token described by req.
-	Delete(ctx context.Context, req DeleteWebTokenRequest) error
+	Delete(ctx context.Context, req types.DeleteWebTokenRequest) error
 
 	// DeleteAll removes all web tokens.
 	DeleteAll(context.Context) error
@@ -268,7 +268,7 @@ type WebSessionsGetter interface {
 // WebSessionInterface defines interface to regular web sessions
 type WebSessionInterface interface {
 	// Get returns a web session state for the given request.
-	Get(ctx context.Context, req GetWebSessionRequest) (WebSession, error)
+	Get(ctx context.Context, req types.GetWebSessionRequest) (WebSession, error)
 
 	// List gets all regular web sessions.
 	List(context.Context) ([]WebSession, error)
@@ -277,7 +277,7 @@ type WebSessionInterface interface {
 	Upsert(ctx context.Context, session WebSession) error
 
 	// Delete deletes the web session described by req.
-	Delete(ctx context.Context, req DeleteWebSessionRequest) error
+	Delete(ctx context.Context, req types.DeleteWebSessionRequest) error
 
 	// DeleteAll removes all web sessions.
 	DeleteAll(context.Context) error
