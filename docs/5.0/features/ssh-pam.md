@@ -265,12 +265,15 @@ not, it will create it. Any error from `useradd` will be written to
 to write richer scripts that may change the system in other ways based on
 identity information.
 
+!!! note
+    The `useradd` location can have a different path then the example below depending on your linux flavor.  Adjust to your particular system as needed from `which useradd` (Ex: `/usr/sbin/useradd` instead of the below example).
+
 ```bash
 mkdir -p /etc/pam-exec.d
 cat > /etc/pam-exec.d/teleport_acct <<EOF
 #!/bin/sh
-COMMENT="User ${TELEPORT_USERNAME} with roles ${TELEPORT_ROLES} created by Teleport."
-id -u "${TELEPORT_LOGIN}" &>/dev/null  || /sbin/useradd -m -c "${COMMENT}" "${TELEPORT_LOGIN}" 2> /tmp/pam.error
+COMMENT="User \${TELEPORT_USERNAME} with roles \${TELEPORT_ROLES} created by Teleport."
+id -u "\${TELEPORT_LOGIN}" &>/dev/null  || /sbin/useradd -m -c "\${COMMENT}" "\${TELEPORT_LOGIN}" 2> /tmp/pam.error
 exit 0
 EOF
 chmod +x /etc/pam-exec.d/teleport_acct
@@ -288,6 +291,8 @@ ssh_service:
 
 Now attempting to login as an existing user should result in the creation of the
 user and a successful login.
+
+The `/etc/pam-exec.d/teleport_acct script`  can also set the user's groups as an option to auto populate user's permissions.  The user's roles are populated as space delimited in the `TELEPORT_ROLES` varaible so these could be used to map to a particular `sudo` group with additional scripting.
 
 ## Additional authentication steps
 
