@@ -45,23 +45,25 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 		Roots: []*x509.Certificate{},
 	}
 
-	metadata := &types.EntityDescriptor{}
-	err := xml.Unmarshal([]byte(sc.GetEntityDescriptor()), metadata)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse entity_descriptor")
-	}
+	if sc.GetEntityDescriptor() != "" {
+		metadata := &types.EntityDescriptor{}
+		err := xml.Unmarshal([]byte(sc.GetEntityDescriptor()), metadata)
+		if err != nil {
+			return nil, trace.Wrap(err, "failed to parse entity_descriptor")
+		}
 
-	for _, kd := range metadata.IDPSSODescriptor.KeyDescriptors {
-		for _, samlCert := range kd.KeyInfo.X509Data.X509Certificates {
-			certData, err := base64.StdEncoding.DecodeString(strings.TrimSpace(samlCert.Data))
-			if err != nil {
-				return nil, trace.Wrap(err)
+		for _, kd := range metadata.IDPSSODescriptor.KeyDescriptors {
+			for _, samlCert := range kd.KeyInfo.X509Data.X509Certificates {
+				certData, err := base64.StdEncoding.DecodeString(strings.TrimSpace(samlCert.Data))
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				cert, err := x509.ParseCertificate(certData)
+				if err != nil {
+					return nil, trace.Wrap(err, "failed to parse certificate in metadata")
+				}
+				certStore.Roots = append(certStore.Roots, cert)
 			}
-			cert, err := x509.ParseCertificate(certData)
-			if err != nil {
-				return nil, trace.Wrap(err, "failed to parse certificate in metadata")
-			}
-			certStore.Roots = append(certStore.Roots, cert)
 		}
 	}
 
@@ -72,6 +74,7 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 		}
 		certStore.Roots = append(certStore.Roots, cert)
 	}
+
 	if len(certStore.Roots) == 0 {
 		return nil, trace.BadParameter("no identity provider certificate provided, either set certificate as a parameter or via entity_descriptor")
 	}
