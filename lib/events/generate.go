@@ -36,6 +36,8 @@ type SessionParams struct {
 	ServerID string
 	// SessionID is an optional session ID to set
 	SessionID string
+	// ClusterName is an optional originating cluster name
+	ClusterName string
 }
 
 // SetDefaults sets parameters defaults
@@ -58,11 +60,12 @@ func GenerateTestSession(params SessionParams) []AuditEvent {
 	params.SetDefaults()
 	sessionStart := SessionStart{
 		Metadata: Metadata{
-			Index: 0,
-			Type:  SessionStartEvent,
-			ID:    "36cee9e9-9a80-4c32-9163-3d9241cdac7a",
-			Code:  SessionStartCode,
-			Time:  params.Clock.Now().UTC(),
+			Index:       0,
+			Type:        SessionStartEvent,
+			ID:          "36cee9e9-9a80-4c32-9163-3d9241cdac7a",
+			Code:        SessionStartCode,
+			Time:        params.Clock.Now().UTC(),
+			ClusterName: params.ClusterName,
 		},
 		ServerMetadata: ServerMetadata{
 			ServerID: params.ServerID,
