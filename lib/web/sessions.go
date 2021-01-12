@@ -314,23 +314,27 @@ func (c *SessionContext) Close() error {
 }
 
 // newSessionCache returns new instance of the session cache
-func newSessionCache(proxyClient auth.ClientI, servers []utils.NetAddr, cipherSuites []uint16) (*sessionCache, error) {
-	clusterName, err := proxyClient.GetClusterName()
+func newSessionCache(config *sessionCache) (*sessionCache, error) {
+	clusterName, err := config.proxyClient.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	m, err := ttlmap.New(1024, ttlmap.CallOnExpire(closeContext))
+	if config.clock == nil {
+		config.clock = clockwork.NewRealClock()
+	}
+	m, err := ttlmap.New(1024, ttlmap.CallOnExpire(closeContext), ttlmap.Clock(config.clock))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	cache := &sessionCache{
 		clusterName:  clusterName.GetClusterName(),
-		proxyClient:  proxyClient,
+		proxyClient:  config.proxyClient,
 		contexts:     m,
-		authServers:  servers,
+		authServers:  config.authServers,
 		closer:       utils.NewCloseBroadcaster(),
-		cipherSuites: cipherSuites,
+		cipherSuites: config.cipherSuites,
 		log:          newPackageLogger(),
+		clock:        config.clock,
 	}
 	// periodically close expired and unused sessions
 	go cache.expireSessions()
@@ -347,6 +351,7 @@ type sessionCache struct {
 	authServers []utils.NetAddr
 	closer      *utils.CloseBroadcaster
 	clusterName string
+	clock       clockwork.Clock
 
 	// cipherSuites is the list of supported TLS cipher suites.
 	cipherSuites []uint16
@@ -576,6 +581,7 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
 	tlsConfig.ServerName = auth.EncodeClusterName(s.clusterName)
+	tlsConfig.Time = s.clock.Now
 
 	userClient, err := auth.NewClient(apiclient.Config{
 		Addrs: utils.NetAddrsToStrings(s.authServers),
@@ -597,7 +603,7 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 		}),
 	}
 
-	ttl := utils.ToTTL(clockwork.NewRealClock(), sess.GetBearerTokenExpiryTime())
+	ttl := utils.ToTTL(s.clock, sess.GetBearerTokenExpiryTime())
 	out, err := s.insertContext(user, sid, c, ttl)
 	if err != nil {
 		// this means that someone has just inserted the context, so

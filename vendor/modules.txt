@@ -274,7 +274,7 @@ github.com/johannesboyne/gofakes3
 github.com/johannesboyne/gofakes3/backend/s3mem
 github.com/johannesboyne/gofakes3/internal/goskipiter
 github.com/johannesboyne/gofakes3/internal/s3io
-# github.com/jonboulle/clockwork v0.2.1
+# github.com/jonboulle/clockwork v0.2.2
 ## explicit
 github.com/jonboulle/clockwork
 # github.com/json-iterator/go v1.1.10
