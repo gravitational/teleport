@@ -19,7 +19,6 @@ package client
 import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
 
 	"github.com/gravitational/trace"
 )
@@ -33,7 +32,7 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	out := proto.Event{
 		Type: eventType,
 	}
-	if in.Type == backend.OpInit {
+	if in.Type == types.OpInit {
 		return &out, nil
 	}
 	switch r := in.Resource.(type) {
@@ -106,13 +105,13 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	return &out, nil
 }
 
-func eventTypeToGRPC(in backend.OpType) (proto.Operation, error) {
+func eventTypeToGRPC(in types.OpType) (proto.Operation, error) {
 	switch in {
-	case backend.OpInit:
+	case types.OpInit:
 		return proto.Operation_INIT, nil
-	case backend.OpPut:
+	case types.OpPut:
 		return proto.Operation_PUT, nil
-	case backend.OpDelete:
+	case types.OpDelete:
 		return proto.Operation_DELETE, nil
 	default:
 		return -1, trace.BadParameter("event type %v is not supported", in)
@@ -128,7 +127,7 @@ func EventFromGRPC(in proto.Event) (*types.Event, error) {
 	out := types.Event{
 		Type: eventType,
 	}
-	if eventType == backend.OpInit {
+	if eventType == types.OpInit {
 		return &out, nil
 	}
 	if r := in.GetResourceHeader(); r != nil {
@@ -181,15 +180,15 @@ func EventFromGRPC(in proto.Event) (*types.Event, error) {
 	}
 }
 
-func eventTypeFromGRPC(in proto.Operation) (backend.OpType, error) {
+func eventTypeFromGRPC(in proto.Operation) (types.OpType, error) {
 	switch in {
 	case proto.Operation_INIT:
-		return backend.OpInit, nil
+		return types.OpInit, nil
 	case proto.Operation_PUT:
-		return backend.OpPut, nil
+		return types.OpPut, nil
 	case proto.Operation_DELETE:
-		return backend.OpDelete, nil
+		return types.OpDelete, nil
 	default:
-		return backend.OpInvalid, trace.BadParameter("unsupported operation type: %v", in)
+		return types.OpInvalid, trace.BadParameter("unsupported operation type: %v", in)
 	}
 }
