@@ -656,7 +656,7 @@ type mockCSRClient struct {
 }
 
 func newMockCSRClient() (*mockCSRClient, error) {
-	ca, err := tlsca.New([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
+	ca, err := tlsca.FromKeys([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
 	if err != nil {
 		return nil, err
 	}

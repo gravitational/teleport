@@ -155,14 +155,6 @@ func (c UserCertParams) Check() error {
 	return nil
 }
 
-// GetTLSCA returns the CertificateAutority's TLS certificate authority from TLS key pairs.
-func GetTLSCA(ca CertAuthority) (*tlsca.CertAuthority, error) {
-	if len(ca.GetTLSKeyPairs()) == 0 {
-		return nil, trace.BadParameter("no TLS key pairs found for certificate authority")
-	}
-	return tlsca.New(ca.GetTLSKeyPairs()[0].Cert, ca.GetTLSKeyPairs()[0].Key)
-}
-
 // CertPoolFromCertAuthorities returns certificate pools from TLS certificates
 // set up in the certificate authorities list
 func CertPoolFromCertAuthorities(cas []CertAuthority) (*x509.CertPool, error) {
