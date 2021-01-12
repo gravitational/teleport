@@ -2,9 +2,9 @@ package proto
 
 import services "github.com/gravitational/teleport/lib/services"
 
-// WatchKindToProto converts the watch kind value between internal
+// FromWatchKind converts the watch kind value between internal
 // and the protobuf format
-func WatchKindToProto(wk services.WatchKind) WatchKind {
+func FromWatchKind(wk services.WatchKind) WatchKind {
 	return WatchKind{
 		Name:        wk.Name,
 		Kind:        wk.Kind,
@@ -14,9 +14,9 @@ func WatchKindToProto(wk services.WatchKind) WatchKind {
 	}
 }
 
-// ProtoToWatchKind converts the watch kind value between the protobuf
+// ToWatchKind converts the watch kind value between the protobuf
 // and the internal format
-func ProtoToWatchKind(wk WatchKind) services.WatchKind {
+func ToWatchKind(wk WatchKind) services.WatchKind {
 	return services.WatchKind{
 		Name:        wk.Name,
 		Kind:        wk.Kind,

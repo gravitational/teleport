@@ -223,6 +223,7 @@ func (c *SessionContext) ClientTLSConfig(clusterName ...string) (*tls.Config, er
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
 	tlsConfig.ServerName = auth.EncodeClusterName(c.parent.clusterName)
+	tlsConfig.Time = c.parent.clock.Now
 	return tlsConfig, nil
 }
 
@@ -318,10 +319,6 @@ func (c *SessionContext) Close() error {
 		errors = append(errors, err)
 	}
 	return trace.NewAggregate(errors...)
-}
-
-func (c *SessionContext) validateSession(ctx context.Context, session services.WebSession) (*SessionContext, error) {
-	return c.parent.validateSession(ctx, session.GetUser(), session.GetName())
 }
 
 // getToken returns the bearer token associated with the underlying
@@ -687,43 +684,6 @@ func (s *sessionCache) newSessionContextFromSession(session services.WebSession)
 		ctx.Close()
 	}
 	return ctx, nil
-}
-
-func (s *sessionCache) clientTLSConfig(cert, privKey []byte, clusterName ...string) (*tls.Config, error) {
-	var certPool *x509.CertPool
-	if len(clusterName) == 0 {
-		certAuthorities, err := s.proxyClient.GetCertAuthorities(services.HostCA, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		certPool, err = services.CertPoolFromCertAuthorities(certAuthorities)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		certAuthority, err := s.proxyClient.GetCertAuthority(services.CertAuthID{
-			Type:       services.HostCA,
-			DomainName: clusterName[0],
-		}, false)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		certPool, err = services.CertPool(certAuthority)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	tlsConfig := utils.TLSConfig(s.cipherSuites)
-	tlsCert, err := tls.X509KeyPair(cert, privKey)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse TLS certificate and key")
-	}
-	tlsConfig.Certificates = []tls.Certificate{tlsCert}
-	tlsConfig.RootCAs = certPool
-	tlsConfig.ServerName = auth.EncodeClusterName(s.clusterName)
-	tlsConfig.Time = s.clock.Now
-	return tlsConfig, nil
 }
 
 func (s *sessionCache) tlsConfig(cert, privKey []byte) (*tls.Config, error) {
