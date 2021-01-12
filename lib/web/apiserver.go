@@ -92,8 +92,8 @@ func SetSessionStreamPollPeriod(period time.Duration) HandlerOption {
 	}
 }
 
-// WithClock sets the clock on a handler
-func WithClock(clock clockwork.Clock) HandlerOption {
+// SetClock sets the clock on a handler
+func SetClock(clock clockwork.Clock) HandlerOption {
 	return func(h *Handler) error {
 		h.clock = clock
 		return nil

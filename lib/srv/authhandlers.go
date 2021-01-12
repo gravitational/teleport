@@ -205,9 +205,9 @@ func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (*s
 	// Check that the user certificate uses supported public key algorithms, was
 	// issued by Teleport, and check the certificate metadata (principals,
 	// timestamp, etc). Fallback to keys is not supported.
-	clock := h.Clock.Now
-	if clock == nil {
-		clock = time.Now
+	clock := time.Now
+	if h.Clock != nil {
+		clock = h.Clock.Now
 	}
 	certChecker := utils.CertChecker{
 		CertChecker: ssh.CertChecker{

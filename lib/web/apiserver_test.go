@@ -257,7 +257,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		Context:      context.Background(),
 		HostUUID:     proxyID,
 		Emitter:      s.proxyClient,
-	}, SetSessionStreamPollPeriod(200*time.Millisecond), WithClock(s.clock))
+	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
 	c.Assert(err, IsNil)
 
 	s.webServer = httptest.NewUnstartedServer(handler)
