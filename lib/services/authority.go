@@ -141,7 +141,7 @@ type UserCertParams struct {
 	ActiveRequests RequestIDs
 }
 
-// Check checks the user cert parameters
+// Check checks the user certificate parameters
 func (c UserCertParams) Check() error {
 	if len(c.PrivateCASigningKey) == 0 || c.CASigningAlg == "" {
 		return trace.BadParameter("PrivateCASigningKey and CASigningAlg are required")
