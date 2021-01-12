@@ -2105,6 +2105,16 @@ func (c *Client) UpsertAppSession(ctx context.Context, session services.WebSessi
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// ResumeAuditStream resumes existing audit stream.
+func (c *Client) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (events.Stream, error) {
+	return c.APIClient.ResumeAuditStream(ctx, string(sid), uploadID)
+}
+
+// CreateAuditStream creates new audit stream.
+func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
+	return c.APIClient.CreateAuditStream(ctx, string(sid))
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
