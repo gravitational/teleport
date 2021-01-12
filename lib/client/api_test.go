@@ -20,6 +20,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -350,8 +351,16 @@ func (t *testCertGetter) GetTrustedCA(ctx context.Context, clusterName string) (
 	var cas []services.CertAuthority
 
 	for _, clusterName := range t.clusterNames {
-		// Only the cluster name is checked in tests, pass in nil for the keys.
-		cas = append(cas, services.NewCertAuthority(services.HostCA, clusterName, nil, nil, nil, services.CertAuthoritySpecV2_UNKNOWN))
+		// Only the cluster name is checked in tests, pass in nil for the keys.\
+		ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
+			Type:         services.HostCA,
+			ClusterName:  clusterName,
+			SigningKeys:  nil,
+			CheckingKeys: nil,
+			Roles:        nil,
+			SigningAlg:   services.CertAuthoritySpecV2_UNKNOWN,
+		})
+		cas = append(cas, ca)
 	}
 
 	return cas, nil

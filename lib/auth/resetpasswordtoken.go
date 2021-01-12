@@ -216,14 +216,14 @@ func (s *Server) RotateResetPasswordTokenSecrets(ctx context.Context, tokenID st
 		return nil, trace.Wrap(err)
 	}
 
-	secrets.Spec.OTPKey = key
-	secrets.Spec.QRCode = string(qr)
-	err = s.UpsertResetPasswordTokenSecrets(ctx, &secrets)
+	secrets.SetOTPKey(key)
+	secrets.SetQRCode(qr)
+	err = s.UpsertResetPasswordTokenSecrets(ctx, secrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &secrets, nil
+	return secrets, nil
 }
 
 func (s *Server) newResetPasswordToken(req CreateResetPasswordTokenRequest) (services.ResetPasswordToken, error) {
@@ -256,11 +256,11 @@ func (s *Server) newResetPasswordToken(req CreateResetPasswordTokenRequest) (ser
 	}
 
 	token := services.NewResetPasswordToken(tokenID)
-	token.Metadata.SetExpiry(s.clock.Now().UTC().Add(req.TTL))
-	token.Spec.User = req.Name
-	token.Spec.Created = s.clock.Now().UTC()
-	token.Spec.URL = url
-	return &token, nil
+	token.SetExpiry(s.clock.Now().UTC().Add(req.TTL))
+	token.SetUser(req.Name)
+	token.SetCreated(s.clock.Now().UTC())
+	token.SetURL(url)
+	return token, nil
 }
 
 func formatResetPasswordTokenURL(proxyHost string, tokenID string, reqType string) (string, error) {

@@ -21,7 +21,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/api/types"
 
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/trace/trail"
@@ -30,7 +30,7 @@ import (
 // NewKeepAliver returns a new instance of keep aliver.
 // It is the caller's responsibility to invoke Close on the
 // returned value to release the keepAliver resources.
-func (c *Client) NewKeepAliver(ctx context.Context) (services.KeepAliver, error) {
+func (c *Client) NewKeepAliver(ctx context.Context) (types.KeepAliver, error) {
 	cancelCtx, cancel := context.WithCancel(ctx)
 	stream, err := c.grpc.SendKeepAlives(cancelCtx)
 	if err != nil {
@@ -41,7 +41,7 @@ func (c *Client) NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
 		stream:      stream,
 		ctx:         cancelCtx,
 		cancel:      cancel,
-		keepAlivesC: make(chan services.KeepAlive),
+		keepAlivesC: make(chan types.KeepAlive),
 	}
 	go k.forwardKeepAlives()
 	go k.recv()
@@ -53,12 +53,12 @@ type streamKeepAliver struct {
 	stream      proto.AuthService_SendKeepAlivesClient
 	ctx         context.Context
 	cancel      context.CancelFunc
-	keepAlivesC chan services.KeepAlive
+	keepAlivesC chan types.KeepAlive
 	err         error
 }
 
 // KeepAlives returns the streamKeepAliver's channel of KeepAlives
-func (k *streamKeepAliver) KeepAlives() chan<- services.KeepAlive {
+func (k *streamKeepAliver) KeepAlives() chan<- types.KeepAlive {
 	return k.keepAlivesC
 }
 
