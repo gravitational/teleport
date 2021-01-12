@@ -26,6 +26,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -251,6 +252,58 @@ const (
 	// Deny is the set of conditions that prevent access.
 	Deny RoleConditionType = false
 )
+
+// ParseAndCheckRole parses role conditions and rules to validate the role.
+func ParseAndCheckRole(r Role) error {
+	// if we find {{ or }} but the syntax is invalid, the role is invalid
+	for _, condition := range []RoleConditionType{Allow, Deny} {
+		for _, login := range r.GetLogins(condition) {
+			if strings.Contains(login, "{{") || strings.Contains(login, "}}") {
+				_, err := parse.NewExpression(login)
+				if err != nil {
+					return trace.BadParameter("invalid login found: %v", login)
+				}
+			}
+		}
+	}
+
+	rules := append(r.GetRules(types.Allow), r.GetRules(types.Deny)...)
+	for _, rule := range rules {
+		if err := parseAndCheckRule(rule); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// parseAndCheckRule parses the where and action fields to validate the rule.
+func parseAndCheckRule(r Rule) error {
+	if len(r.Where) != 0 {
+		parser, err := NewWhereParser(&Context{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		_, err = parser.Parse(r.Where)
+		if err != nil {
+			return trace.BadParameter("could not parse 'where' rule: %q, error: %v", r.Where, err)
+		}
+	}
+
+	if len(r.Actions) != 0 {
+		parser, err := NewActionsParser(&Context{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for i, action := range r.Actions {
+			_, err = parser.Parse(action)
+			if err != nil {
+				return trace.BadParameter("could not parse action %v %q, error: %v", i, action, err)
+			}
+		}
+	}
+	return nil
+}
 
 // ApplyTraits applies the passed in traits to any variables within the role
 // and returns itself.
