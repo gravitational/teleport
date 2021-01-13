@@ -67,10 +67,10 @@ $ tsh login --login=sso-user --auth=oidc
 
 ```sh
 $ tsh mfa ls
-MFA deivice name   Type   ID                                     Last used
-----------------   ----   ------------------------------------   -------------------------------
-android OTP        OTP    fa004bf4-acc7-435d-8965-5f5a0a4552e8   Tue 15 Dec 2020 01:29:42 PM PST
-yubikey            U2F    c8fbb126-3a29-4a9c-bfe9-ebaed31d8585   Wed 16 Dec 2020 02:00:13 PM PST
+MFA deivice name   Type   ID                                     Added at                          Last used
+----------------   ----   ------------------------------------   -------------------------------   -------------------------------
+android OTP        OTP    fa004bf4-acc7-435d-8965-5f5a0a4552e8   Tue 08 Dec 2020 01:29:42 PM PST   Tue 15 Dec 2020 01:29:42 PM PST
+yubikey            U2F    c8fbb126-3a29-4a9c-bfe9-ebaed31d8585   Wed 09 Dec 2020 02:00:13 PM PST   Wed 16 Dec 2020 02:00:13 PM PST
 
 $ tsh mfa add
 Adding a new MFA device.
@@ -81,11 +81,11 @@ Tap your *new* security key... <tap>
 MFA device "solokey" added.
 
 $ tsh mfa ls
-MFA deivice name   Type   ID                                     Last used
-----------------   ----   ------------------------------------   -------------------------------
-android OTP        OTP    fa004bf4-acc7-435d-8965-5f5a0a4552e8   Tue 15 Dec 2020 01:29:42 PM PST
-yubikey            U2F    c8fbb126-3a29-4a9c-bfe9-ebaed31d8585   Wed 16 Dec 2020 02:00:13 PM PST
-solokey            U2F    87d4fb03-012c-451c-ab0d-5f2a681c119a   Wed 16 Dec 2020 02:05:46 PM PST
+MFA deivice name   Type   ID                                     Added at                          Last used
+----------------   ----   ------------------------------------   -------------------------------   -------------------------------
+android OTP        OTP    fa004bf4-acc7-435d-8965-5f5a0a4552e8   Tue 08 Dec 2020 01:29:42 PM PST   Tue 15 Dec 2020 01:29:42 PM PST
+yubikey            U2F    c8fbb126-3a29-4a9c-bfe9-ebaed31d8585   Wed 09 Dec 2020 02:00:13 PM PST   Wed 16 Dec 2020 02:00:13 PM PST
+solokey            U2F    87d4fb03-012c-451c-ab0d-5f2a681c119a   Wed 16 Dec 2020 02:05:46 PM PST   Wed 16 Dec 2020 02:05:46 PM PST
 
 # remove by name
 $ tsh mfa rm yubikey
@@ -98,9 +98,9 @@ Tap any *registered* security key... <tap>
 MFA device "android OTP" removed.
 
 $ tsh mfa ls
-MFA deivice name   Type   ID                                     Last used
-----------------   ----   ------------------------------------   -------------------------------
-solokey            U2F    87d4fb03-012c-451c-ab0d-5f2a681c119a   Wed 16 Dec 2020 02:05:46 PM PST
+MFA deivice name   Type   ID                                     Added at                          Last used
+----------------   ----   ------------------------------------   -------------------------------   -------------------------------
+solokey            U2F    87d4fb03-012c-451c-ab0d-5f2a681c119a   Wed 16 Dec 2020 02:05:46 PM PST   Wed 16 Dec 2020 02:05:46 PM PST
 
 # If 2FA is optional:
 $ tsh mfa rm solokey
@@ -155,10 +155,38 @@ New values for `auth_service.authentication.second_factor` for this:
   for all local users
 - `optional` (new) - users can enroll both OTP and U2F devices, and 2FA is
   required only for users with 2FA enrolled
-- `session_only` (new) - users can enroll both OTP and U2F devices, and 2FA is
-  required only for [sessions](0014-session-2fa.md) but **not** for logins
-  - this mode is for users with SSO integration that want 2FA per session, but
-    not when logging in because their SSO already performs a 2FA check
+
+#### restricted device vendors
+
+Another new option is restrictions on U2F device manufacturers. This is done
+using attestation certificates presented by the device during enrollment. See
+[FIDO
+docs](https://fidoalliance.org/specs/fido-u2f-v1.2-ps-20170411/fido-u2f-overview-v1.2-ps-20170411.html#verifying-that-a-u2f-device-is-genuine)
+about attestation.
+
+On the Teleport side, users can pass the trusted attestation CAs as so:
+
+```yaml
+# teleport.yaml
+auth_service:
+  authentication:
+    second_factor: "on" # or "u2f" or "optional"
+    u2f_device_attestation_cas:
+      - "/var/lib/teleport/u2f_ca1.pem"
+      - "/var/lib/teleport/u2f_ca2.pem"
+```
+
+For example, to restrict users to [only use
+Yubikeys](https://developers.yubico.com/U2F/Attestation_and_Metadata/), you can
+download their [attestation
+CA](https://developers.yubico.com/U2F/yubico-u2f-ca-certs.txt), write it into a
+file and set `u2f_device_attestation_cas: ["/path/to/yubikey_ca.pem"]` and
+restart the auth server.  After this, users will only be able to enroll Yubikey
+devices.
+
+Note that existing enrolled keys will remain, even if they aren't Yubikeys.
+This is to avoid storing an attestation cert of every key in our backend, which
+we would need in order to re-check existing keys when a new CA gets added.
 
 ### backend storage
 
@@ -190,10 +218,11 @@ message LocalAuthSecrets {
 message MFADevice {
     string ID = 1;
     string Name = 2;
-    google.protobuf.Timestamp LastUsed = 3;
+    google.protobuf.Timestamp AddedAt = 3;
+    google.protobuf.Timestamp LastUsed = 4;
     oneof Device {
-        TOTPDevice TOTP = 4;
-        U2FDevice U2F = 5;
+        TOTPDevice TOTP = 5;
+        U2FDevice U2F = 6;
     }
 }
 
