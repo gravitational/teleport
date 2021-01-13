@@ -1036,7 +1036,7 @@ steps:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
     commands:
       - |
-        export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}/${DRONE_STAGE_NUMBER}/${DRONE_STEP_NUMBER}"
+        export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}"
         export GOOS=$(go env GOOS)
         export GOARCH=$(go env GOARCH)
         curl -sL -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`$GOOS-$GOARCH\` artifact build failed - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
@@ -4097,6 +4097,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 503314b12622456065fb695ffb3c3be6af8aa0f3974e6f99723fd7711451f88f
+hmac: 37ad0d2179f7a380a25490b0fa53392ad1eb6c0e06e2ecd587bfa62c2139b166
 
 ...
