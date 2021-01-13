@@ -201,18 +201,9 @@ func (s *IntSuite) newTeleportIoT(c *check.C, logins []string) *TeleInstance {
 	nodeConfig := func() *service.Config {
 		tconf := s.defaultServiceConfig()
 		tconf.Hostname = Host
-		tconf.Token = "token"
-		tconf.AuthServers = []utils.NetAddr{
-			{
-				AddrNetwork: "tcp",
-				Addr:        net.JoinHostPort(Loopback, main.GetPortWeb()),
-			},
-		}
 
 		tconf.Auth.Enabled = false
-
 		tconf.Proxy.Enabled = false
-
 		tconf.SSH.Enabled = true
 
 		return tconf
@@ -811,7 +802,6 @@ func (s *IntSuite) verifySessionJoin(c *check.C, t *TeleInstance) {
 		err = cl.SSH(context.TODO(), []string{}, false)
 		c.Assert(err, check.IsNil)
 		sessionEndC <- true
-
 	}
 
 	// PersonB: wait for a session to become available, then join:
@@ -2235,19 +2225,14 @@ func (s *IntSuite) TestTrustedTunnelNode(c *check.C) {
 	nodeConfig := func() *service.Config {
 		tconf := s.defaultServiceConfig()
 		tconf.Hostname = tunnelNodeHostname
-		tconf.Token = "token"
-		tconf.AuthServers = []utils.NetAddr{
-			{
-				AddrNetwork: "tcp",
-				Addr:        net.JoinHostPort(Loopback, aux.GetPortWeb()),
-			},
-		}
+
 		tconf.Auth.Enabled = false
 		tconf.Proxy.Enabled = false
 		tconf.SSH.Enabled = true
+
 		return tconf
 	}
-	_, err = aux.StartNode(nodeConfig())
+	_, err = aux.StartReverseTunnelNode(nodeConfig())
 	c.Assert(err, check.IsNil)
 
 	// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
@@ -2647,23 +2632,14 @@ func (s *IntSuite) TestDiscoveryNode(c *check.C) {
 	nodeConfig := func() *service.Config {
 		tconf := s.defaultServiceConfig()
 		tconf.Hostname = "cluster-main-node"
-		tconf.Token = "token"
-		tconf.AuthServers = []utils.NetAddr{
-			{
-				AddrNetwork: "tcp",
-				Addr:        net.JoinHostPort(Loopback, main.GetPortWeb()),
-			},
-		}
 
 		tconf.Auth.Enabled = false
-
 		tconf.Proxy.Enabled = false
-
 		tconf.SSH.Enabled = true
 
 		return tconf
 	}
-	_, err = main.StartNode(nodeConfig())
+	_, err = main.StartReverseTunnelNode(nodeConfig())
 	c.Assert(err, check.IsNil)
 
 	// Wait for active tunnel connections to be established.
