@@ -377,16 +377,29 @@ environment:
   UID: 1000
   GID: 1000
 
+# TODO(gus): uncomment after testing
+# trigger:
+#   event:
+#     include:
+#       - push
+#     exclude:
+#       - pull_request
+#   branch:
+#     include:
+#       - master
+#       - branch/*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
   event:
     include:
       - push
-    exclude:
-      - pull_request
   branch:
     include:
       - master
       - branch/*
+      - gus/builds-on-push
   repo:
     include:
       - gravitational/*
@@ -475,16 +488,29 @@ environment:
   UID: 1000
   GID: 1000
 
+# TODO(gus): uncomment after testing
+# trigger:
+#   event:
+#     include:
+#       - push
+#     exclude:
+#       - pull_request
+#   branch:
+#     include:
+#       - master
+#       - branch/*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
   event:
     include:
       - push
-    exclude:
-      - pull_request
   branch:
     include:
       - master
       - branch/*
+      - gus/builds-on-push
   repo:
     include:
       - gravitational/*
@@ -573,16 +599,29 @@ environment:
   UID: 1000
   GID: 1000
 
+# TODO(gus): uncomment after testing
+# trigger:
+#   event:
+#     include:
+#       - push
+#     exclude:
+#       - pull_request
+#   branch:
+#     include:
+#       - master
+#       - branch/*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
   event:
     include:
       - push
-    exclude:
-      - pull_request
   branch:
     include:
       - master
       - branch/*
+      - gus/builds-on-push
   repo:
     include:
       - gravitational/*
@@ -675,16 +714,29 @@ environment:
   UID: 1000
   GID: 1000
 
+# TODO(gus): uncomment after testing
+# trigger:
+#   event:
+#     include:
+#       - push
+#     exclude:
+#       - pull_request
+#   branch:
+#     include:
+#       - master
+#       - branch/*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
   event:
     include:
       - push
-    exclude:
-      - pull_request
   branch:
     include:
       - master
       - branch/*
+      - gus/builds-on-push
   repo:
     include:
       - gravitational/*
@@ -775,16 +827,29 @@ platform:
   os: darwin
   arch: amd64
 
+# TODO(gus): uncomment after testing
+# trigger:
+#   event:
+#     include:
+#       - push
+#     exclude:
+#       - pull_request
+#   branch:
+#     include:
+#       - master
+#       - branch/*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
   event:
     include:
       - push
-    exclude:
-      - pull_request
   branch:
     include:
       - master
       - branch/*
+      - gus/builds-on-push
   repo:
     include:
       - gravitational/*
@@ -877,16 +942,29 @@ platform:
   os: linux
   arch: arm
 
+# TODO(gus): uncomment after testing
+# trigger:
+#   event:
+#     include:
+#       - push
+#     exclude:
+#       - pull_request
+#   branch:
+#     include:
+#       - master
+#       - branch/*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
   event:
     include:
       - push
-    exclude:
-      - pull_request
   branch:
     include:
       - master
       - branch/*
+      - gus/builds-on-push
   repo:
     include:
       - gravitational/*
@@ -984,16 +1062,29 @@ platform:
   os: linux
   arch: arm64
 
+# TODO(gus): uncomment after testing
+# trigger:
+#   event:
+#     include:
+#       - push
+#     exclude:
+#       - pull_request
+#   branch:
+#     include:
+#       - master
+#       - branch/*
+#   repo:
+#     include:
+#       - gravitational/*
 trigger:
   event:
     include:
       - push
-    exclude:
-      - pull_request
   branch:
     include:
       - master
       - branch/*
+      - gus/builds-on-push
   repo:
     include:
       - gravitational/*
@@ -4016,6 +4107,6 @@ volumes:
 
 ---
 kind: signature
-hmac: f8e437ff5df261e34c47c27038b94038c7b31ed8107de681baa9c044cf8542b2
+hmac: e1c81d8d65f6058dfc482b94985a2010ba1388e4fe6b198d39d7391dce897a16
 
 ...
