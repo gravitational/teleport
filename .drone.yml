@@ -919,10 +919,10 @@ steps:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
     commands:
       - |
-        export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}/${DRONE_STAGE_NUMBER}/${DRONE_STEP_NUMBER}"
+        export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}"
         export GOOS=$(go env GOOS)
         export GOARCH=$(go env GOARCH)
-        curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`$GOOS-$GOARCH\` artifact build failed - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
+        curl -sL -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`$GOOS-$GOARCH\` artifact build failed - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
     when:
       status: [failure]
 
@@ -966,7 +966,7 @@ trigger:
       - gravitational/*
 
 workspace:
-  path: /dev/shm/tmp
+  path: /dev/shm/push-build-arm
 
 # use ramfs for go build cache - saves wear and tear on the SD card, plus it's faster
 # note: declaring the WORKSPACE_DIR variable once in this block and then trying to
@@ -974,7 +974,7 @@ workspace:
 # the environment inside every individual step. per-pipeline environments seem to be
 # inconsistently implemented across different drone runners and may well be deprecated
 environment:
-  TMPDIR: /dev/shm/push-build-arm
+  TMPDIR: /dev/shm/push-build-arm/tmp
 
 clone:
   disable: true
@@ -1012,8 +1012,8 @@ steps:
 
   - name: Build ARM artifacts
     environment:
-      GOPATH:  /dev/shm/push-build-arm/tmp/go
-      GOCACHE:  /dev/shm/push-build-arm/tmp/go/cache
+      GOPATH: /dev/shm/push-build-arm/tmp/go
+      GOCACHE: /dev/shm/push-build-arm/tmp/go/cache
       OS: linux
       ARCH: arm
       WORKSPACE_DIR: /dev/shm/push-build-arm/tmp
@@ -1024,7 +1024,7 @@ steps:
 
   - name: Clean up exec runner storage (post)
     environment:
-      WORKSPACE_DIR: /dev/shm/tmp
+      WORKSPACE_DIR: /dev/shm/push-build-arm/tmp
     commands:
       - set -u
       - chmod -R u+rw $WORKSPACE_DIR
@@ -1039,7 +1039,7 @@ steps:
         export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}"
         export GOOS=$(go env GOOS)
         export GOARCH=$(go env GOARCH)
-        curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`$GOOS-$GOARCH\` artifact build failed - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
+        curl -sL -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`$GOOS-$GOARCH\` artifact build failed - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
     when:
       status: [failure]
 
@@ -1133,7 +1133,7 @@ steps:
       GOCACHE: /dev/shm/push-build-arm64/tmp/go/cache
       OS: linux
       ARCH: arm64
-      WORKSPACE_DIR: /dev/shm/tmp
+      WORKSPACE_DIR: /dev/shm/push-build-arm64/tmp
     commands:
       - set -u
       - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
@@ -1153,10 +1153,10 @@ steps:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
     commands:
       - |
-        export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}"
+        export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}/${DRONE_STAGE_NUMBER}/${DRONE_STEP_NUMBER}"
         export GOOS=$(go env GOOS)
         export GOARCH=$(go env GOARCH)
-        curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`$GOOS-$GOARCH\` artifact build failed - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
+        curl -sL -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`$GOOS-$GOARCH\` artifact build failed - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
     when:
       status: [failure]
 
@@ -4097,6 +4097,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 4042434591301a3f114312ed9ea0096e2a0c962f6d2db9d10709c67defd86021
+hmac: 6f405f83a7c74034ddd012f6853521d11f36383a09e83a9af6e14ca9011559fd
 
 ...
