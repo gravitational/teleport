@@ -142,7 +142,7 @@ func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (
 	if session != nil {
 		return session, nil
 	}
-	// DELETE IN 6.x:
+	// DELETE IN 7.x:
 	// Return web sessions from a legacy path under /web/users/<user>/sessions/<id>
 	return getLegacyWebSession(ctx, r.backend, req.User, req.SessionID)
 }
@@ -161,7 +161,7 @@ func (r *webSessions) List(ctx context.Context) (out []services.WebSession, err 
 		}
 		out = append(out, session)
 	}
-	// DELETE IN 6.x:
+	// DELETE IN 7.x:
 	// Return web sessions from a legacy path under /web/users/<user>/sessions/<id>
 	legacySessions, err := r.listLegacySessions(ctx)
 	if err != nil {
@@ -203,7 +203,7 @@ func (r *webSessions) DeleteAll(ctx context.Context) error {
 	return trace.Wrap(r.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)))
 }
 
-// DELETE IN 6.x.
+// DELETE IN 7.x.
 // listLegacySessions lists web sessions under a legacy path /web/users/<user>/sessions/<id>
 func (r *webSessions) listLegacySessions(ctx context.Context) ([]services.WebSession, error) {
 	startKey := backend.Key(webPrefix, usersPrefix)
@@ -313,7 +313,7 @@ type webTokens struct {
 	log     logrus.FieldLogger
 }
 
-// DELETE in 6.x.
+// DELETE in 7.x.
 // getLegacySession returns the web session for the specified user/sessionID
 // under a legacy path /web/users/<user>/sessions/<id>
 func getLegacyWebSession(ctx context.Context, backend backend.Backend, user, sessionID string) (services.WebSession, error) {

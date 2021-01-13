@@ -25,7 +25,7 @@ import (
 
 // String returns text description of this event
 func (r Event) String() string {
-	if r.Type == backend.OpDelete {
+	if r.Type == OpDelete {
 		return fmt.Sprintf("%v(%v/%v)", r.Type, r.Resource.GetKind(), r.Resource.GetSubKind())
 	}
 	return fmt.Sprintf("%v(%v)", r.Type, r.Resource)
