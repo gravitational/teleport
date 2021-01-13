@@ -28,7 +28,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // Resource represents common properties for all resources.
@@ -50,7 +49,7 @@ type Resource interface {
 	// SetExpiry sets object expiry
 	SetExpiry(time.Time)
 	// SetTTL sets Expires header using current clock
-	SetTTL(clock clockwork.Clock, ttl time.Duration)
+	SetTTL(clock Clock, ttl time.Duration)
 	// GetMetadata returns object metadata
 	GetMetadata() Metadata
 	// GetResourceID returns resource ID
@@ -67,6 +66,11 @@ type ResourceWithSecrets interface {
 	// has had all secrets removed.  If the current resource has
 	// already had its secrets removed, this may be a no-op.
 	WithoutSecrets() Resource
+}
+
+// Clock is used to track TTL of resources
+type Clock interface {
+	Now() time.Time
 }
 
 // GetVersion returns resource version
@@ -105,7 +109,7 @@ func (h *ResourceHeader) SetExpiry(t time.Time) {
 }
 
 // SetTTL sets Expires header using current clock
-func (h *ResourceHeader) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+func (h *ResourceHeader) SetTTL(clock Clock, ttl time.Duration) {
 	h.Metadata.SetTTL(clock, ttl)
 }
 
@@ -168,7 +172,7 @@ func (m *Metadata) Expiry() time.Time {
 }
 
 // SetTTL sets Expires header using realtime clock
-func (m *Metadata) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+func (m *Metadata) SetTTL(clock Clock, ttl time.Duration) {
 	expireTime := clock.Now().UTC().Add(ttl)
 	m.Expires = &expireTime
 }

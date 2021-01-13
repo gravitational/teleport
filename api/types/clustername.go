@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // ClusterName defines the name of the cluster. This is a configuration
@@ -111,7 +110,7 @@ func (c *ClusterNameV2) SetExpiry(expires time.Time) {
 }
 
 // SetTTL sets Expires header using realtime clock
-func (c *ClusterNameV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+func (c *ClusterNameV2) SetTTL(clock Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
 }
 

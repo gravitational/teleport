@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // ReverseTunnel is SSH reverse tunnel established between a local Proxy
@@ -113,7 +112,7 @@ func (r *ReverseTunnelV2) Expiry() time.Time {
 }
 
 // SetTTL sets Expires header using realtime clock
-func (r *ReverseTunnelV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+func (r *ReverseTunnelV2) SetTTL(clock Clock, ttl time.Duration) {
 	r.Metadata.SetTTL(clock, ttl)
 }
 

@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // User represents teleport embedded user or external user
@@ -133,7 +132,7 @@ func (u *UserV2) SetExpiry(expires time.Time) {
 }
 
 // SetTTL sets Expires header using realtime clock
-func (u *UserV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+func (u *UserV2) SetTTL(clock Clock, ttl time.Duration) {
 	u.Metadata.SetTTL(clock, ttl)
 }
 

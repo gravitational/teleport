@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // SemaphoreKindConnection is the semaphore kind used by
@@ -265,7 +264,7 @@ func (c *SemaphoreV3) SetExpiry(expires time.Time) {
 }
 
 // SetTTL sets Expires header using realtime clock
-func (c *SemaphoreV3) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+func (c *SemaphoreV3) SetTTL(clock Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
 }
 

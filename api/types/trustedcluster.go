@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // TrustedCluster holds information needed for a cluster that can not be directly
@@ -209,7 +208,7 @@ func (c *TrustedClusterV2) Expiry() time.Time {
 }
 
 // SetTTL sets Expires header using realtime clock
-func (c *TrustedClusterV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+func (c *TrustedClusterV2) SetTTL(clock Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
 }
 

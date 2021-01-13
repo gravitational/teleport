@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // TunnelConnection is SSH reverse tunnel connection
@@ -132,7 +131,7 @@ func (r *TunnelConnectionV2) Expiry() time.Time {
 }
 
 // SetTTL sets Expires header using realtime clock
-func (r *TunnelConnectionV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+func (r *TunnelConnectionV2) SetTTL(clock Clock, ttl time.Duration) {
 	r.Metadata.SetTTL(clock, ttl)
 }
 

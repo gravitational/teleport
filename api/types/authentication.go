@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"github.com/tstranex/u2f"
 )
@@ -152,7 +151,7 @@ func (c *AuthPreferenceV2) Expiry() time.Time {
 }
 
 // SetTTL sets Expires header using the provided clock.
-func (c *AuthPreferenceV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+func (c *AuthPreferenceV2) SetTTL(clock Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
 }
 
