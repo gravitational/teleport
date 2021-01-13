@@ -26,9 +26,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/stretchr/testify/require"
-
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 	check "gopkg.in/check.v1"
 )
 
@@ -46,7 +45,7 @@ var _ = check.Suite(&TLSCASuite{
 // correctly set with DNS names and IP addresses based on the provided
 // principals.
 func (s *TLSCASuite) TestPrincipals(c *check.C) {
-	ca, err := New([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
+	ca, err := FromKeys([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
 	c.Assert(err, check.IsNil)
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
@@ -77,7 +76,7 @@ func (s *TLSCASuite) TestPrincipals(c *check.C) {
 // TestKubeExtensions test ASN1 subject kubernetes extensions
 func TestKubeExtensions(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	ca, err := New([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
+	ca, err := FromKeys([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
 	require.NoError(t, err)
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
