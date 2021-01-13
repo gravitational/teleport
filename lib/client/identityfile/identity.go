@@ -24,6 +24,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
@@ -59,48 +60,64 @@ const (
 	DefaultFormat = FormatFile
 )
 
-// Write takes a username + their credentials and saves them to disk
-// in a specified format.
-//
-// clusterAddr is only used with FormatKubernetes.
-//
-// filePath is used as a base to generate output file names; these names are
-// returned in filesWritten.
-func Write(filePath string, key *client.Key, format Format, clusterAddr string) (filesWritten []string, err error) {
-	const (
-		// the files and the dir will be created with these permissions:
-		fileMode = 0600
-		dirMode  = 0700
-	)
+const (
+	// The files created by Write will have these permissions.
+	writeFileMode = 0600
+)
 
-	if filePath == "" {
+// WriteConfig holds the necessary information to write an identity file.
+type WriteConfig struct {
+	// OutputPath is the output path for the identity file. Note that some
+	// formats (like FormatOpenSSH and FormatTLS) write multiple output files
+	// and use OutputPath as a prefix.
+	OutputPath string
+	// Key contains the credentials to write to the identity file.
+	Key *client.Key
+	// Format is the output format for the identity file.
+	Format Format
+	// KubeProxyAddr is the public address of the proxy with its kubernetes
+	// port. KubeProxyAddr is only used when Format is FormatKubernetes.
+	KubeProxyAddr string
+	// OverwriteDestination forces all existing destination files to be
+	// overwritten. When false, user will be prompted for confirmation of
+	// overwite first.
+	OverwriteDestination bool
+}
+
+// Write writes user credentials to disk in a specified format.
+// It returns the names of the files successfully written.
+func Write(cfg WriteConfig) (filesWritten []string, err error) {
+	if cfg.OutputPath == "" {
 		return nil, trace.BadParameter("identity output path is not specified")
 	}
 
-	switch format {
+	switch cfg.Format {
 	// dump user identity into a single file:
 	case FormatFile:
-		filesWritten = append(filesWritten, filePath)
-		f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fileMode)
+		if err := checkOverwrite(cfg.OutputPath, cfg.OverwriteDestination); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		filesWritten = append(filesWritten, cfg.OutputPath)
+		f, err := os.OpenFile(cfg.OutputPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, writeFileMode)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		defer f.Close()
 
 		// write key:
-		if err := writeWithNewline(f, key.Priv); err != nil {
+		if err := writeWithNewline(f, cfg.Key.Priv); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// append ssh cert:
-		if err := writeWithNewline(f, key.Cert); err != nil {
+		if err := writeWithNewline(f, cfg.Key.Cert); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// append tls cert:
-		if err := writeWithNewline(f, key.TLSCert); err != nil {
+		if err := writeWithNewline(f, cfg.Key.TLSCert); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// append trusted host certificate authorities
-		for _, ca := range key.TrustedCA {
+		for _, ca := range cfg.Key.TrustedCA {
 			// append ssh ca certificates
 			for _, publicKey := range ca.HostCertificates {
 				data, err := sshutils.MarshalAuthorizedHostsFormat(ca.ClusterName, publicKey, nil)
@@ -121,59 +138,70 @@ func Write(filePath string, key *client.Key, format Format, clusterAddr string) 
 
 	// dump user identity into separate files:
 	case FormatOpenSSH:
-		keyPath := filePath
+		keyPath := cfg.OutputPath
 		certPath := keyPath + "-cert.pub"
 		filesWritten = append(filesWritten, keyPath, certPath)
 
-		err = ioutil.WriteFile(certPath, key.Cert, fileMode)
+		err = writeFile(certPath, cfg.Key.Cert, cfg.OverwriteDestination)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = ioutil.WriteFile(keyPath, key.Priv, fileMode)
+		err = writeFile(keyPath, cfg.Key.Priv, cfg.OverwriteDestination)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 	case FormatTLS, FormatDatabase:
-		keyPath := filePath + ".key"
-		certPath := filePath + ".crt"
-		casPath := filePath + ".cas"
+		keyPath := cfg.OutputPath + ".key"
+		certPath := cfg.OutputPath + ".crt"
+		casPath := cfg.OutputPath + ".cas"
 		filesWritten = append(filesWritten, keyPath, certPath, casPath)
 
-		err = ioutil.WriteFile(certPath, key.TLSCert, fileMode)
+		err = writeFile(certPath, cfg.Key.TLSCert, cfg.OverwriteDestination)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = ioutil.WriteFile(keyPath, key.Priv, fileMode)
+		err = writeFile(keyPath, cfg.Key.Priv, cfg.OverwriteDestination)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		var caCerts []byte
-		for _, ca := range key.TrustedCA {
+		for _, ca := range cfg.Key.TrustedCA {
 			for _, cert := range ca.TLSCertificates {
 				caCerts = append(caCerts, cert...)
 			}
 		}
-		err = ioutil.WriteFile(casPath, caCerts, fileMode)
+		err = writeFile(casPath, caCerts, cfg.OverwriteDestination)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 	case FormatKubernetes:
-		filesWritten = append(filesWritten, filePath)
-		if err := kubeconfig.Update(filePath, kubeconfig.Values{
-			TeleportClusterName: key.ClusterName,
-			ClusterAddr:         clusterAddr,
-			Credentials:         key,
+		if err := checkOverwrite(cfg.OutputPath, cfg.OverwriteDestination); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Clean up the existing file, if it exists.
+		//
+		// kubeconfig.Update would try to parse it and merge in new
+		// credentials, which is now what we want.
+		if err := os.Remove(cfg.OutputPath); err != nil && !os.IsNotExist(err) {
+			return nil, trace.Wrap(err)
+		}
+
+		filesWritten = append(filesWritten, cfg.OutputPath)
+		if err := kubeconfig.Update(cfg.OutputPath, kubeconfig.Values{
+			TeleportClusterName: cfg.Key.ClusterName,
+			ClusterAddr:         cfg.KubeProxyAddr,
+			Credentials:         cfg.Key,
 		}); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 	default:
 		return nil, trace.BadParameter("unsupported identity format: %q, use one of %q, %q, %q, %q or %q",
-			format, FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase)
+			cfg.Format, FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase)
 	}
 	return filesWritten, nil
 }
@@ -188,6 +216,44 @@ func writeWithNewline(w io.Writer, data []byte) error {
 		}
 	}
 	return nil
+}
+
+func writeFile(path string, data []byte, forceOverwrite bool) error {
+	if err := checkOverwrite(path, forceOverwrite); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := ioutil.WriteFile(path, data, writeFileMode); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func checkOverwrite(path string, force bool) error {
+	// Check if destination file exists.
+	_, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		// File doesn't exist, proceed.
+		return nil
+	}
+	if err != nil {
+		// Something else went wrong, fail.
+		return trace.Wrap(err)
+	}
+	if force {
+		// File exists but we're asked not to prompt, proceed.
+		return nil
+	}
+
+	// File exists, prompt user whether to overwrite.
+	fmt.Fprintf(os.Stderr, "Destination file %q exists. Overwrite it? [y/N]: ", path)
+	scan := bufio.NewScanner(os.Stdin)
+	if !scan.Scan() {
+		return trace.WrapWithMessage(scan.Err(), "failed reading prompt response")
+	}
+	if strings.ToLower(strings.TrimSpace(scan.Text())) == "y" {
+		return nil
+	}
+	return trace.Errorf("NOT overwriting destination file %q", path)
 }
 
 // IdentityFile represents the basic components of an identity file.
