@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/jwt"
 
 	"github.com/golang/protobuf/ptypes/empty"
