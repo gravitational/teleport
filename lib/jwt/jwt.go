@@ -35,7 +35,8 @@ import (
 	josejwt "gopkg.in/square/go-jose.v2/jwt"
 )
 
-// GenerateAppTokenRequest moved to /api/types/jwt.go, alisaed here for backwards compatibility
+// GenerateAppTokenRequest are the parameters used to generate an application token.
+// Moved to /api/types/jwt.go, aliased here for backwards compatibility.
 // DELETE IN 7.0.0
 type GenerateAppTokenRequest = types.GenerateAppTokenRequest
 
