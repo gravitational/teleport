@@ -154,7 +154,6 @@ type (
 )
 
 var (
-	NewJWTAuthority           = types.NewJWTAuthority
 	SetCertAuthorityMarshaler = types.SetCertAuthorityMarshaler
 	GetCertAuthorityMarshaler = types.GetCertAuthorityMarshaler
 	GenerateSchedule          = types.GenerateSchedule
