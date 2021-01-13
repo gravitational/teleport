@@ -598,7 +598,9 @@ func (s *APIServer) upsertTrustedCluster(auth ClientI, w http.ResponseWriter, r 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	if err := services.CheckAndSetTrustedClusterDefaults(trustedCluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	out, err := auth.UpsertTrustedCluster(r.Context(), trustedCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
