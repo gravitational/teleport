@@ -445,7 +445,7 @@ steps:
       channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `linux-amd64` build failed.
+        `linux-amd64` artifact build failed.
         *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
         Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
@@ -543,7 +543,7 @@ steps:
       channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `linux-386` build failed.
+        `linux-386` artifact build failed.
         *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
         Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
@@ -645,7 +645,7 @@ steps:
       channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `linux-amd64-fips` build failed.
+        `linux-amd64-fips` artifact build failed.
         *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
         Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
@@ -743,7 +743,7 @@ steps:
       channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `windows-amd64` build failed.
+        `windows-amd64` artifact build failed.
         *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
         Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
@@ -4006,6 +4006,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 259b3fe33024033f6434d32fed956c182fc3cdc1e991de9cfd9e29f722b2d3cd
+hmac: 34551aaf44c06c35f5a045b116b65249336781b6a24367afd069040e646a073c
 
 ...
