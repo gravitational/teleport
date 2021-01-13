@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package types
+package services
 
 import (
 	"fmt"
@@ -300,43 +300,4 @@ func (r *EmptyResource) GetName() string {
 // GetMetadata returns role metadata.
 func (r *EmptyResource) GetMetadata() Metadata {
 	return r.Metadata
-}
-
-// NewParserFn returns function that creates parser of 'where' section
-// in access rules
-type NewParserFn func(ctx RuleContext) (predicate.Parser, error)
-
-var whereParser = NewWhereParser
-var actionsParser = NewActionsParser
-
-// GetWhereParserFn returns the global function that constructs WHERE predicate parsers
-// this function is used in external tools to override and extend 'where' in rules
-func GetWhereParserFn() NewParserFn {
-	marshalerMutex.RLock()
-	defer marshalerMutex.RUnlock()
-	return whereParser
-}
-
-// SetWhereParserFn sets the global function that creates WHERE predicate parsers
-// this function is used in external tools to override and extend 'where' in rules
-func SetWhereParserFn(fn NewParserFn) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	whereParser = fn
-}
-
-// GetActionsParserFn returns global function that creates where parsers
-// this function is used in external tools to override and extend actions in rules
-func GetActionsParserFn() NewParserFn {
-	marshalerMutex.RLock()
-	defer marshalerMutex.RUnlock()
-	return actionsParser
-}
-
-// SetActionsParserFn sets global function that creates actions  parsers
-// this function is used in external tools to override and extend actions in rules
-func SetActionsParserFn(fn NewParserFn) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	actionsParser = fn
 }

@@ -19,14 +19,12 @@ package types
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/parse"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
@@ -472,18 +470,6 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		return trace.BadParameter("found invalid option in session_recording: %v", opt)
 	}
 
-	// if we find {{ or }} but the syntax is invalid, the role is invalid
-	for _, condition := range []RoleConditionType{Allow, Deny} {
-		for _, login := range r.GetLogins(condition) {
-			if strings.Contains(login, "{{") || strings.Contains(login, "}}") {
-				_, err := parse.NewExpression(login)
-				if err != nil {
-					return trace.BadParameter("invalid login found: %v", login)
-				}
-			}
-		}
-	}
-
 	// check and correct the session ttl
 	if r.Spec.Options.MaxSessionTTL.Value() <= 0 {
 		r.Spec.Options.MaxSessionTTL = NewDuration(defaults.MaxCertDuration)
@@ -587,28 +573,6 @@ func (r *Rule) CheckAndSetDefaults() error {
 	}
 	if len(r.Verbs) == 0 {
 		return trace.BadParameter("missing verbs")
-	}
-	if len(r.Where) != 0 {
-		parser, err := GetWhereParserFn()(&Context{})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		_, err = parser.Parse(r.Where)
-		if err != nil {
-			return trace.BadParameter("could not parse 'where' rule: %q, error: %v", r.Where, err)
-		}
-	}
-	if len(r.Actions) != 0 {
-		parser, err := GetActionsParserFn()(&Context{})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for i, action := range r.Actions {
-			_, err = parser.Parse(action)
-			if err != nil {
-				return trace.BadParameter("could not parse action %v %q, error: %v", i, action, err)
-			}
-		}
 	}
 	return nil
 }
