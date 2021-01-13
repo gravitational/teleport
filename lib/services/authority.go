@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"crypto"
 	"crypto/x509"
 	"time"
 
@@ -24,13 +25,31 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"github.com/tstranex/u2f"
 )
 
-// NewCertAuthority returns new cert authority
+// NewJWTAuthority creates and returns a services.CertAuthority with a new
+// key pair.
+func NewJWTAuthority(clusterName string) (CertAuthority, error) {
+	var err error
+	var keyPair JWTKeyPair
+	if keyPair.PublicKey, keyPair.PrivateKey, err = jwt.GenerateKeyPair(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.JWTSigner,
+		ClusterName: clusterName,
+		JWTKeyPairs: []JWTKeyPair{keyPair},
+	}), nil
+}
+
+// NewCertAuthority returns new cert authority.
+// Replaced by types.NewCertAuthority.
 // DELETE in 7.0.0
 func NewCertAuthority(
 	caType CertAuthType,
@@ -48,6 +67,105 @@ func NewCertAuthority(
 		Roles:        roles,
 		SigningAlg:   signingAlg,
 	})
+}
+
+// ValidateCertAuthority validates the CertAuthority
+func ValidateCertAuthority(ca CertAuthority) (err error) {
+	if err = ca.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	switch ca.GetType() {
+	case UserCA, HostCA:
+		err = checkUserOrHostCA(ca)
+	case types.JWTSigner:
+		err = checkJWTKeys(ca)
+	}
+	return trace.Wrap(err)
+}
+
+func checkUserOrHostCA(ca CertAuthority) error {
+	if len(ca.GetCheckingKeys()) == 0 {
+		return trace.BadParameter("certificate authority missing SSH public keys")
+	}
+	if len(ca.GetTLSKeyPairs()) == 0 {
+		return trace.BadParameter("certificate authority missing TLS key pairs")
+	}
+	if _, err := ca.Checkers(); err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := ca.Signers(); err != nil {
+		return trace.Wrap(err)
+	}
+	// This is to force users to migrate
+	if len(ca.GetRoles()) != 0 && len(ca.GetRoleMap()) != 0 {
+		return trace.BadParameter("should set either 'roles' or 'role_map', not both")
+	}
+	err := ca.GetRoleMap().Check()
+	return trace.Wrap(err)
+}
+
+func checkJWTKeys(ca CertAuthority) error {
+	// Check that some JWT keys have been set on the CA.
+	if len(ca.GetJWTKeyPairs()) == 0 {
+		return trace.BadParameter("missing JWT CA")
+	}
+
+	var err error
+	var privateKey crypto.Signer
+
+	// Check that the JWT keys set are valid.
+	for _, pair := range ca.GetJWTKeyPairs() {
+		if len(pair.PrivateKey) > 0 {
+			privateKey, err = utils.ParsePrivateKey(pair.PrivateKey)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		publicKey, err := utils.ParsePublicKey(pair.PublicKey)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		cfg := &jwt.Config{
+			Algorithm:   defaults.ApplicationTokenAlgorithm,
+			ClusterName: ca.GetClusterName(),
+			PrivateKey:  privateKey,
+			PublicKey:   publicKey,
+		}
+		if _, err = jwt.New(cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// GetJWTSigner returns the active JWT key used to sign tokens.
+func GetJWTSigner(ca CertAuthority, config jwt.Config) (*jwt.Key, error) {
+	if len(ca.GetJWTKeyPairs()) == 0 {
+		return nil, trace.BadParameter("no JWT keypairs found")
+	}
+	privateKey, err := utils.ParsePrivateKey(ca.GetJWTKeyPairs()[0].PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	config.Algorithm = defaults.ApplicationTokenAlgorithm
+	config.ClusterName = ca.GetClusterName()
+	config.PrivateKey = privateKey
+	key, err := jwt.New(&config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return key, nil
+}
+
+// GetTLSCerts returns TLS certificates from CA
+func GetTLSCerts(ca CertAuthority) [][]byte {
+	pairs := ca.GetTLSKeyPairs()
+	out := make([][]byte, len(pairs))
+	for i, pair := range pairs {
+		out[i] = append([]byte{}, pair.Cert...)
+	}
+	return out
 }
 
 // HostCertParams defines all parameters needed to generate a host certificate
@@ -192,14 +310,4 @@ func CertPool(ca CertAuthority) (*x509.CertPool, error) {
 		certPool.AddCert(cert)
 	}
 	return certPool, nil
-}
-
-// TLSCerts returns TLS certificates from CA
-func TLSCerts(ca CertAuthority) [][]byte {
-	pairs := ca.GetTLSKeyPairs()
-	out := make([][]byte, len(pairs))
-	for i, pair := range pairs {
-		out[i] = append([]byte{}, pair.Cert...)
-	}
-	return out
 }
