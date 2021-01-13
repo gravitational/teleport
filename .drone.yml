@@ -922,7 +922,7 @@ steps:
         export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}/${DRONE_STAGE_NUMBER}/${DRONE_STEP_NUMBER}"
         export GOOS=$(go env GOOS)
         export GOARCH=$(go env GOARCH)
-        curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"\`$GOOS-$GOARCH\` exec build failed - please investigate.\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
+        curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`$GOOS-$GOARCH\` artifact build failed - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
     when:
       status: [failure]
 
@@ -1039,7 +1039,7 @@ steps:
         export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}"
         export GOOS=$(go env GOOS)
         export GOARCH=$(go env GOARCH)
-        curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"\`$GOOS-$GOARCH\` exec build failed - please investigate.\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\n$DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
+        curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`$GOOS-$GOARCH\` artifact build failed - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
     when:
       status: [failure]
 
@@ -1083,7 +1083,7 @@ trigger:
       - gravitational/*
 
 workspace:
-  path: /dev/shm/tmp
+  path: /dev/shm/push-build-arm64
 
 # use ramfs for go build cache
 # note: declaring the WORKSPACE_DIR variable once in this block and then trying to
@@ -1141,7 +1141,7 @@ steps:
 
   - name: Clean up exec runner storage (post)
     environment:
-      WORKSPACE_DIR: /dev/shm/tmp
+      WORKSPACE_DIR: /dev/shm/push-build-arm64/tmp
     commands:
       - set -u
       - chmod -R u+rw $WORKSPACE_DIR
@@ -1156,7 +1156,7 @@ steps:
         export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}"
         export GOOS=$(go env GOOS)
         export GOARCH=$(go env GOARCH)
-        curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"\`$GOOS-$GOARCH\` exec build failed - please investigate.\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\n$DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
+        curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`$GOOS-$GOARCH\` artifact build failed - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
     when:
       status: [failure]
 
@@ -4097,6 +4097,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 1567b69e7e27b1a477b2712aac07f085f61998bf66c72061aeda8f1e41d9ae57
+hmac: 4042434591301a3f114312ed9ea0096e2a0c962f6d2db9d10709c67defd86021
 
 ...
