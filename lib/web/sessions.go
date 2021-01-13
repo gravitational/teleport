@@ -344,7 +344,18 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 		return false
 	}
 	c.log.WithError(err).Warn("Failed to query web session.")
-	return true
+	expiry := c.session.Expiry()
+	if expiry.IsZero() {
+		return false
+	}
+	// Give the session some time to linger so existing users of the context
+	// have successfully disposed of them.
+	// If we remove the session immediately, a stale copy might still use the
+	// cached site clients.
+	// This is a cheaper way to avoid race without introducing object
+	// reference counters.
+	// TODO(dmitri): this leaks the implementation detail about the session TTL
+	return c.parent.clock.Since(expiry) > 2*auth.BearerTokenTTL
 }
 
 type sessionCacheOptions struct {
@@ -431,7 +442,7 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 		if !c.expired(ctx) {
 			continue
 		}
-		s.resetContextLocked(c.session.GetUser(), c.session.GetName())
+		s.resetSessionContextLocked(c.session.GetUser(), c.session.GetName())
 		s.log.WithField("ctx", c.String()).Debug("Context expired.")
 	}
 }
@@ -599,23 +610,36 @@ func (s *sessionCache) resetContext(user, sessionID string) error {
 	return s.resetContextLocked(user, sessionID)
 }
 
-func (s *sessionCache) resetContextLocked(user, sessionID string) error {
+func (s *sessionCache) resetSessionContextLocked(user, sessionID string) error {
 	id := user + sessionID
 	ctx, ok := s.sessions[id]
 	if !ok {
 		return nil
 	}
 	delete(s.sessions, id)
-	delete(s.contexts, user)
-	logger := s.log.WithField("ctx", ctx.String())
+	err := ctx.Close()
+	if err != nil {
+		s.log.WithFields(logrus.Fields{
+			"ctx":           ctx.String(),
+			logrus.ErrorKey: err,
+		}).Warn("Failed to close session context.")
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (s *sessionCache) resetContextLocked(user, sessionID string) error {
 	var errors []error
-	if err := ctx.ctx.Close(); err != nil {
-		logger.WithError(err).Warn("Failed to clean up session context.")
+	err := s.resetSessionContextLocked(user, sessionID)
+	if err != nil {
 		errors = append(errors, err)
 	}
-	if err := ctx.Close(); err != nil {
-		logger.WithError(err).Warn("Failed to close session context.")
-		errors = append(errors, err)
+	if ctx, ok := s.contexts[user]; ok {
+		delete(s.contexts, user)
+		if err := ctx.Close(); err != nil {
+			s.log.WithError(err).Warn("Failed to clean up session context.")
+			errors = append(errors, err)
+		}
 	}
 	return trace.NewAggregate(errors...)
 }
