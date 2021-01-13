@@ -5,9 +5,6 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Release.Name }}
-  annotations:
-    # ConfigMap checksum, to recreate deployment on config changes.
-    checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -15,6 +12,9 @@ spec:
       app: {{ .Release.Name }}
   template:
     metadata:
+      annotations:
+        # ConfigMap checksum, to recreate the pod on config changes.
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
       labels:
         app: {{ .Release.Name }}
     spec:
