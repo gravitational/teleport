@@ -100,7 +100,7 @@ func checkUserOrHostCA(ca CertAuthority) error {
 	if len(ca.GetRoles()) != 0 && len(ca.GetRoleMap()) != 0 {
 		return trace.BadParameter("should set either 'roles' or 'role_map', not both")
 	}
-	err := RoleMap(ca.GetRoleMap()).Check()
+	err := ca.GetRoleMap().Check()
 	return trace.Wrap(err)
 }
 
