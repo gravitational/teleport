@@ -123,3 +123,6 @@ const (
 	// KeepAliveApp is the keep alive type for application server.
 	KeepAliveApp = "app"
 )
+
+// RSAKeySize is the size of the RSA key.
+const RSAKeySize = 2048

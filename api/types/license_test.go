@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/check.v1"

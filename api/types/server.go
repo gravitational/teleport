@@ -23,9 +23,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gogo/protobuf/proto"
+	"github.com/gravitational/teleport/api/utils"
+
 	"github.com/gravitational/trace"
 )
 

@@ -19,7 +19,7 @@ package types
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils"
 
 	check "gopkg.in/check.v1"
 )

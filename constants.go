@@ -50,6 +50,8 @@ const (
 	EnhancedRecordingNetwork   = constants.EnhancedRecordingNetwork
 	KeepAliveNode              = constants.KeepAliveNode
 	KeepAliveApp               = constants.KeepAliveApp
+	RSAKeySize                 = constants.RSAKeySize
+	SchemeFile                 = constants.SchemeFile
 )
 
 // WebAPIVersion is a current webapi version
@@ -365,9 +367,6 @@ const (
 	// DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption = "disablesse"
 
-	// SchemeFile is a local disk file storage
-	SchemeFile = "file"
-
 	// SchemeStdout outputs audit log entries to stdout
 	SchemeStdout = "stdout"
 
@@ -626,9 +625,6 @@ const (
 	// ChanSession is a SSH channel of type "session".
 	ChanSession = "session"
 )
-
-// RSAKeySize is the size of the RSA key.
-const RSAKeySize = 2048
 
 // A principal name for use in SSH certificates.
 type Principal string

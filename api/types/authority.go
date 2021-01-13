@@ -25,8 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
@@ -368,7 +367,7 @@ func (ca *CertAuthorityV2) Signers() ([]ssh.Signer, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		signer = sshutils.AlgSigner(signer, ca.GetSigningAlg())
+		signer = utils.AlgSigner(signer, ca.GetSigningAlg())
 		out = append(out, signer)
 	}
 	return out, nil

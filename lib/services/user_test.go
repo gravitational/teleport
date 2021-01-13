@@ -21,9 +21,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/coreos/go-oidc/jose"
 	saml2 "github.com/russellhaering/gosaml2"
 	"github.com/russellhaering/gosaml2/types"
 	"gopkg.in/check.v1"

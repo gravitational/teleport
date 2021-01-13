@@ -1,5 +1,5 @@
 /*
-Copyright 2017-2019 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -121,84 +121,6 @@ func NewClusterConfig(spec ClusterConfigSpecV3) (ClusterConfig, error) {
 
 	return &cc, nil
 }
-
-// DefaultClusterConfig is used as the default cluster configuration when
-// one is not specified (record at node).
-func DefaultClusterConfig() ClusterConfig {
-	return &ClusterConfigV3{
-		Kind:    KindClusterConfig,
-		Version: V3,
-		Metadata: Metadata{
-			Name:      MetaNameClusterConfig,
-			Namespace: defaults.Namespace,
-		},
-		Spec: ClusterConfigSpecV3{
-			SessionRecording:    RecordAtNode,
-			ProxyChecksHostKeys: HostKeyCheckYes,
-			KeepAliveInterval:   NewDuration(defaults.KeepAliveInterval),
-			KeepAliveCountMax:   int64(defaults.KeepAliveCountMax),
-			LocalAuth:           NewBool(true),
-		},
-	}
-}
-
-// ShouldUploadSessions returns whether audit config
-// instructs server to upload sessions
-func (a AuditConfig) ShouldUploadSessions() bool {
-	return a.AuditSessionsURI != ""
-}
-
-// AuditConfigFromObject returns audit config from interface object
-func AuditConfigFromObject(in interface{}) (*AuditConfig, error) {
-	var cfg AuditConfig
-	if in == nil {
-		return &cfg, nil
-	}
-	if err := utils.ObjectToStruct(in, &cfg); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &cfg, nil
-}
-
-const (
-	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.
-	RecordAtNode string = "node"
-
-	// RecordAtProxy enables the recording proxy which intercepts and records
-	// all sessions.
-	RecordAtProxy string = "proxy"
-
-	// RecordOff is used to disable session recording completely.
-	RecordOff string = "off"
-
-	// RecordAtNodeSync enables the nodes to stream sessions in sync mode
-	// to the auth server
-	RecordAtNodeSync string = "node-sync"
-
-	// RecordAtProxySync enables the recording proxy which intercepts and records
-	// all sessions, streams the records synchronously
-	RecordAtProxySync string = "proxy-sync"
-)
-
-// IsRecordAtProxy returns true if recording is sync or async at proxy
-func IsRecordAtProxy(mode string) bool {
-	return mode == RecordAtProxy || mode == RecordAtProxySync
-}
-
-// IsRecordSync returns true if recording is sync or async for proxy or node
-func IsRecordSync(mode string) bool {
-	return mode == RecordAtProxySync || mode == RecordAtNodeSync
-}
-
-const (
-	// HostKeyCheckYes is the default. The proxy will check the host key of the
-	// target node it connects to.
-	HostKeyCheckYes string = "yes"
-
-	// HostKeyCheckNo is used to disable host key checking. This is a insecure
-	// settings which makes MITM possible with no indications, use with caution.
-	HostKeyCheckNo string = "no"
-)
 
 // GetVersion returns resource version
 func (c *ClusterConfigV3) GetVersion() string {
@@ -379,15 +301,13 @@ func (c *ClusterConfigV3) CheckAndSetDefaults() error {
 
 	// check if the recording type is valid
 	all := []string{RecordAtNode, RecordAtProxy, RecordAtNodeSync, RecordAtProxySync, RecordOff}
-	ok := utils.SliceContainsStr(all, c.Spec.SessionRecording)
-	if !ok {
+	if !utils.SliceContainsStr(all, c.Spec.SessionRecording) {
 		return trace.BadParameter("session_recording must either be: %v", strings.Join(all, ","))
 	}
 
 	// check if host key checking mode is valid
 	all = []string{HostKeyCheckYes, HostKeyCheckNo}
-	ok = utils.SliceContainsStr(all, c.Spec.ProxyChecksHostKeys)
-	if !ok {
+	if !utils.SliceContainsStr(all, c.Spec.ProxyChecksHostKeys) {
 		return trace.BadParameter("proxy_checks_host_keys must be one of: %v", strings.Join(all, ","))
 	}
 
@@ -413,6 +333,42 @@ func (c *ClusterConfigV3) Copy() ClusterConfig {
 func (c *ClusterConfigV3) String() string {
 	return fmt.Sprintf("ClusterConfig(SessionRecording=%v, ClusterID=%v, ProxyChecksHostKeys=%v)",
 		c.Spec.SessionRecording, c.Spec.ClusterID, c.Spec.ProxyChecksHostKeys)
+}
+
+const (
+	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.
+	RecordAtNode string = "node"
+
+	// RecordAtProxy enables the recording proxy which intercepts and records
+	// all sessions.
+	RecordAtProxy string = "proxy"
+
+	// RecordOff is used to disable session recording completely.
+	RecordOff string = "off"
+
+	// RecordAtNodeSync enables the nodes to stream sessions in sync mode
+	// to the auth server
+	RecordAtNodeSync string = "node-sync"
+
+	// RecordAtProxySync enables the recording proxy which intercepts and records
+	// all sessions, streams the records synchronously
+	RecordAtProxySync string = "proxy-sync"
+)
+
+const (
+	// HostKeyCheckYes is the default. The proxy will check the host key of the
+	// target node it connects to.
+	HostKeyCheckYes string = "yes"
+
+	// HostKeyCheckNo is used to disable host key checking. This is a insecure
+	// settings which makes MITM possible with no indications, use with caution.
+	HostKeyCheckNo string = "no"
+)
+
+// ShouldUploadSessions returns whether audit config
+// instructs server to upload sessions
+func (a AuditConfig) ShouldUploadSessions() bool {
+	return a.AuditSessionsURI != ""
 }
 
 // ClusterConfigSpecSchemaTemplate is a template for ClusterConfig schema.

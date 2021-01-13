@@ -26,7 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -456,7 +456,7 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 	if o.Spec.SigningKeyPair == nil {
 		keyPEM, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
 			Organization: []string{"Teleport OSS"},
-			CommonName:   "constants.Localhost.localdomain",
+			CommonName:   "constants.localhost.localdomain",
 		}, nil, 10*365*24*time.Hour)
 		if err != nil {
 			return trace.Wrap(err)
@@ -466,7 +466,6 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 			Cert:       string(certPEM),
 		}
 	}
-
 	// make sure claim mappings have either roles or a role template
 	for _, v := range o.Spec.AttributesToRoles {
 		if len(v.Roles) == 0 {
@@ -476,63 +475,6 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 	log.Debugf("[SAML] SSO: %v", o.Spec.SSO)
 	log.Debugf("[SAML] Issuer: %v", o.Spec.Issuer)
 	log.Debugf("[SAML] ACS: %v", o.Spec.AssertionConsumerService)
-<<<<<<< HEAD
-=======
-
-	sp := &saml2.SAMLServiceProvider{
-		IdentityProviderSSOURL:         o.Spec.SSO,
-		IdentityProviderIssuer:         o.Spec.Issuer,
-		ServiceProviderIssuer:          o.Spec.ServiceProviderIssuer,
-		AssertionConsumerServiceURL:    o.Spec.AssertionConsumerService,
-		SignAuthnRequests:              true,
-		SignAuthnRequestsCanonicalizer: dsig.MakeC14N11Canonicalizer(),
-		AudienceURI:                    o.Spec.Audience,
-		IDPCertificateStore:            &certStore,
-		SPKeyStore:                     keyStore,
-		Clock:                          dsig.NewFakeClock(clock),
-		NameIdFormat:                   "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified",
-	}
-
-	// adfs specific settings
-	if o.Spec.Provider == constants.ADFS {
-		if sp.SignAuthnRequests {
-			// adfs does not support C14N11, we have to use the C14N10 canonicalizer
-			sp.SignAuthnRequestsCanonicalizer = dsig.MakeC14N10ExclusiveCanonicalizerWithPrefixList(dsig.DefaultPrefix)
-
-			// at a minimum we require password protected transport
-			sp.RequestedAuthnContext = &saml2.RequestedAuthnContext{
-				Comparison: "minimum",
-				Contexts:   []string{"urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport"},
-			}
-		}
-	}
-
-	return sp, nil
-}
-
-// GetSigningKeyPair returns signing key pair
-func (o *SAMLConnectorV2) GetSigningKeyPair() *SigningKeyPair {
-	return o.Spec.SigningKeyPair
-}
-
-// SetSigningKeyPair sets signing key pair
-func (o *SAMLConnectorV2) SetSigningKeyPair(k *SigningKeyPair) {
-	o.Spec.SigningKeyPair = k
-}
-
-// CheckAndSetDefaults checks and sets default values
-func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
-	err := o.Metadata.CheckAndSetDefaults()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	_, err = o.GetServiceProvider(clockwork.NewRealClock())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
->>>>>>> joerger/api-refactor-teleport-constants
 	return nil
 }
 

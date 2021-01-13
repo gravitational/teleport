@@ -19,7 +19,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/stretchr/testify/require"
 )

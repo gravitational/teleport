@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -180,12 +180,6 @@ func (r *ReverseTunnelV2) Check() error {
 
 	if len(r.Spec.DialAddrs) == 0 {
 		return trace.BadParameter("Invalid dial address for reverse tunnel '%v'", r.Spec.ClusterName)
-	}
-
-	for _, addr := range r.Spec.DialAddrs {
-		if _, err := utils.ParseAddr(addr); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 
 	return nil
