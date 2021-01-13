@@ -253,8 +253,8 @@ const (
 	Deny RoleConditionType = false
 )
 
-// CheckAndSetRoleDefaults parses role conditions and rules to validate the role.
-func CheckAndSetRoleDefaults(r Role) error {
+// ValidateRole parses validates the role, and sets default values.
+func ValidateRole(r Role) error {
 	if err := r.CheckAndSetDefaults(); err != nil {
 		return err
 	}
@@ -273,7 +273,7 @@ func CheckAndSetRoleDefaults(r Role) error {
 
 	rules := append(r.GetRules(types.Allow), r.GetRules(types.Deny)...)
 	for _, rule := range rules {
-		if err := parseAndCheckRule(rule); err != nil {
+		if err := validateRule(rule); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -281,8 +281,8 @@ func CheckAndSetRoleDefaults(r Role) error {
 	return nil
 }
 
-// parseAndCheckRule parses the where and action fields to validate the rule.
-func parseAndCheckRule(r Rule) error {
+// validateRule parses the where and action fields to validate the rule.
+func validateRule(r Rule) error {
 	if len(r.Where) != 0 {
 		parser, err := NewWhereParser(&Context{})
 		if err != nil {

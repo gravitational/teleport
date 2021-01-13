@@ -67,7 +67,7 @@ func TraitsToRoleMatchers(ms TraitMappingSet, traits map[string][]string) ([]par
 	return matchers, nil
 }
 
-// TraitsToRoles maps the supplied traits to teleport role names and passes them to a collector.
+// traitsToRoles maps the supplied traits to teleport role names and passes them to a collector.
 func traitsToRoles(ms TraitMappingSet, traits map[string][]string, collect func(role string, expanded bool)) {
 	for _, mapping := range ms {
 		for traitName, traitValues := range traits {
@@ -85,9 +85,9 @@ func traitsToRoles(ms TraitMappingSet, traits map[string][]string, collect func(
 						}
 						// this trait value clearly did not match, move on to another
 						continue TraitLoop
-						// skip empty replacement or empty role
 					case outRole == "":
 					case outRole != "":
+						// skip empty replacement or empty role
 						collect(outRole, outRole != role)
 					}
 				}
