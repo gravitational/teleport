@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/constants"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -209,7 +210,7 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 		} else {
 			user = ctx.User
 		}
-		return predicate.GetFieldByTag(user, teleport.JSON, fields[1:])
+		return predicate.GetFieldByTag(user, constants.JSON, fields[1:])
 	case ResourceIdentifier:
 		var resource Resource
 		if ctx.Resource == nil {

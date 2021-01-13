@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -131,7 +131,7 @@ func (c *SemaphoreV3) Acquire(leaseID string, params AcquireSemaphoreRequest) (*
 		return nil, trace.LimitExceeded("cannot acquire semaphore %s/%s (%s)",
 			c.GetSubKind(),
 			c.GetName(),
-			teleport.MaxLeases,
+			constants.MaxLeases,
 		)
 	}
 
