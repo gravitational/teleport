@@ -985,6 +985,7 @@ steps:
       WORKSPACE_DIR: /dev/shm/push-build-arm/tmp
     commands:
       - set -u
+      - mkdir -p $WORKSPACE_DIR
       - chmod -R u+rw $WORKSPACE_DIR
       - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
 
@@ -1101,6 +1102,7 @@ steps:
       WORKSPACE_DIR: /dev/shm/push-build-arm64/tmp
     commands:
       - set -u
+      - mkdir -p $WORKSPACE_DIR
       - chmod -R u+rw $WORKSPACE_DIR
       - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
 
@@ -4095,6 +4097,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 32ef3c3aa84b38ef6b8ccdae9ee5e78b8c5988de26820b289d64426d4d828b59
+hmac: 1567b69e7e27b1a477b2712aac07f085f61998bf66c72061aeda8f1e41d9ae57
 
 ...
