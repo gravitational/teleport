@@ -52,6 +52,8 @@ func (c *Client) createOrResumeAuditStream(ctx context.Context, request proto.Au
 }
 
 // ResumeAuditStream resumes existing audit stream.
+// This is a wrapper on the grpc endpoint and is deprecated.
+// DELETE IN 7.0.0
 func (c *Client) ResumeAuditStream(ctx context.Context, sessionID, uploadID string) (events.Stream, error) {
 	return c.createOrResumeAuditStream(ctx, proto.AuditStreamRequest{
 		Request: &proto.AuditStreamRequest_ResumeStream{
@@ -63,6 +65,8 @@ func (c *Client) ResumeAuditStream(ctx context.Context, sessionID, uploadID stri
 }
 
 // CreateAuditStream creates new audit stream.
+// This is a wrapper on the grpc endpoint and is deprecated.
+// DELETE IN 7.0.0
 func (c *Client) CreateAuditStream(ctx context.Context, sessionID string) (events.Stream, error) {
 	return c.createOrResumeAuditStream(ctx, proto.AuditStreamRequest{
 		Request: &proto.AuditStreamRequest_CreateStream{
