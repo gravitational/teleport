@@ -4854,6 +4854,86 @@ func (s *IntSuite) TestBPFSessionDifferentiation(c *check.C) {
 	c.Fatalf("Failed to find command events from two different sessions.")
 }
 
+// TestNodeRegistrationMethods tests registration of a node
+// with auth server and via proxy.
+func (s *IntSuite) TestNodeRegistrationMethods(c *check.C) {
+	tr := utils.NewTracer(utils.ThisFunction()).Start()
+	defer tr.Stop()
+
+	var testCases = []struct {
+		comment         string
+		getRegisterPort func(i *TeleInstance) string
+		logPattern      string
+	}{
+		{
+			"successful registration with auth server",
+			func(i *TeleInstance) string {
+				return i.GetPortAuth()
+			},
+			`(?s)Registering node to the cluster(.*)Attempting registration with auth server(.*)Successfully registered with auth server`,
+		},
+		{
+			"successful registration via proxy server",
+			func(i *TeleInstance) string {
+				return i.GetPortWeb()
+			},
+			`(?s)Registering node to the cluster(.*)Attempting registration with auth server(.*)Registration with auth server failed(.*)Attempting registration via proxy server(.*)Successfully registered via proxy server`,
+		},
+		{
+			"failed registration",
+			func(i *TeleInstance) string {
+				return i.GetPortSSH()
+			},
+			`(?s)Registering node to the cluster(.*)Attempting registration with auth server(.*)Registration with auth server failed(.*)Attempting registration via proxy server(.*)Registration via proxy server failed`,
+		},
+		{
+			"registration via proxy is preferred over auth when proxy default port is specified",
+			func(i *TeleInstance) string {
+				return fmt.Sprintf("%v", defaults.HTTPListenPort)
+			},
+			`(?s)Registering node to the cluster(.*)Attempting registration via proxy server(.*)Attempting registration with auth server`,
+		},
+	}
+
+	for i, tc := range testCases {
+		s.setUpTest(c)
+
+		// Create a Teleport instance with Auth/Proxy.
+		mainConfig := func() *service.Config {
+			tconf := s.defaultServiceConfig()
+
+			tconf.Auth.Enabled = true
+			tconf.Proxy.Enabled = true
+			tconf.Proxy.DisableWebService = false
+			tconf.Proxy.DisableWebInterface = true
+			tconf.SSH.Enabled = false
+
+			return tconf
+		}
+		t := s.newTeleportWithConfig(c, nil, nil, mainConfig())
+
+		// Create a Teleport instance with a Node.
+		nodeConfig := func() *service.Config {
+			tconf := s.defaultServiceConfig()
+
+			tconf.Auth.Enabled = false
+			tconf.Proxy.Enabled = false
+			tconf.SSH.Enabled = true
+
+			return tconf
+		}
+		t.StartNodeAndRegisterOnPort(nodeConfig(), tc.getRegisterPort(t))
+		c.Assert(t.StopAll(), check.IsNil)
+
+		capturedLog := s.w.LogBuf.String()
+		c.Logf("Test Case %d - %s", i, tc.comment)
+		c.Log(capturedLog)
+		matched, _ := regexp.MatchString(tc.logPattern, capturedLog)
+		c.Assert(matched, check.Equals, true,
+			check.Commentf("captured log does not match pattern %q", tc.logPattern))
+	}
+}
+
 // findEventInLog polls the event log looking for an event of a particular type.
 func findEventInLog(t *TeleInstance, eventName string) (events.EventFields, error) {
 	for i := 0; i < 10; i++ {
@@ -4981,15 +5061,7 @@ func (s *IntSuite) getPorts(num int) []int {
 }
 
 func (s *IntSuite) newTeleportInstance(c *check.C) *TeleInstance {
-	return NewInstance(InstanceConfig{
-		ClusterName: Site,
-		HostID:      HostID,
-		NodeName:    Host,
-		Ports:       s.getPorts(5),
-		Priv:        s.priv,
-		Pub:         s.pub,
-		log:         s.log,
-	})
+	return s.newNamedTeleportInstance(c, Site)
 }
 
 func (s *IntSuite) newNamedTeleportInstance(c *check.C, clusterName string) *TeleInstance {

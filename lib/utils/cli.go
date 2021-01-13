@@ -83,12 +83,12 @@ func InitLoggerForTests(verbose bool) {
 }
 
 // NewLoggerForTests creates a new logger for test environment
-func NewLoggerForTests() *log.Logger {
+func NewLoggerForTests(output io.Writer) *log.Logger {
 	logger := log.New()
 	logger.ReplaceHooks(make(log.LevelHooks))
 	logger.SetFormatter(&trace.TextFormatter{})
 	logger.SetLevel(log.DebugLevel)
-	logger.SetOutput(os.Stderr)
+	logger.SetOutput(output)
 	return logger
 }
 

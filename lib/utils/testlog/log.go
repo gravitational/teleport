@@ -29,10 +29,14 @@ import (
 // FailureOnly returns a logger that only prints the logs to STDERR when the
 // test fails.
 func FailureOnly(t TestingInterface) utils.Logger {
-	// Collect all output into buf.
 	buf := utils.NewSyncBuffer()
-	logger := utils.NewLoggerForTests()
-	logger.SetOutput(buf)
+	return FailureOnlyWithBuffer(t, buf)
+}
+
+// FailureOnlyWithBuffer returns a logger that only prints the logs to STDERR
+// when the test fails, capturing the logs in the given buffer.
+func FailureOnlyWithBuffer(t TestingInterface, buf *utils.SyncBuffer) utils.Logger {
+	logger := utils.NewLoggerForTests(buf)
 
 	// Register a cleanup callback which prints buf iff t has failed.
 	t.Cleanup(func() {
@@ -53,9 +57,10 @@ func FailureOnly(t TestingInterface) utils.Logger {
 // Close after the test has completed.
 func NewCheckTestWrapper(c *check.C) *TestWrapper {
 	w := &TestWrapper{
-		c: c,
+		LogBuf: utils.NewSyncBuffer(),
+		c:      c,
 	}
-	w.Log = FailureOnly(w)
+	w.Log = FailureOnlyWithBuffer(w, w.LogBuf)
 	return w
 }
 
@@ -88,6 +93,8 @@ type TestWrapper struct {
 	// Log specifies the logger that can be used to emit
 	// test-specific messages
 	Log utils.Logger
+	// LogBuf is the underlying buffer storing log messages
+	LogBuf *utils.SyncBuffer
 
 	c        *check.C
 	cleanups []func()

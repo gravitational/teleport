@@ -353,7 +353,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 			return nil, trace.Wrap(err)
 		}
 
-		identity, err = auth.Register(auth.RegisterParams{
+		identity, err = auth.RegisterWithLogger(auth.RegisterParams{
 			DataDir:              process.Config.DataDir,
 			Token:                process.Config.Token,
 			ID:                   id,
@@ -367,7 +367,7 @@ func (process *TeleportProcess) firstTimeConnect(role teleport.Role) (*Connector
 			CAPin:                process.Config.CAPin,
 			CAPath:               filepath.Join(defaults.DataDir, defaults.CACertFile),
 			GetHostCredentials:   client.HostCredentials,
-		})
+		}, process.log)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

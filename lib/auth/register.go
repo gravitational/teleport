@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 )
 
 // LocalRegister is used to generate host keys when a node or proxy is running
@@ -114,6 +115,14 @@ type HostCredentials func(context.Context, string, bool, RegisterUsingTokenReque
 // tokens to prove a valid auth server was used to issue the joining request
 // as well as a method for the node to validate the auth server.
 func Register(params RegisterParams) (*Identity, error) {
+	return RegisterWithLogger(params, log)
+}
+
+// RegisterWithLogger allows to specify a custom logger and capture logs
+// written during the registration process, primarily for testing purposes.
+func RegisterWithLogger(params RegisterParams, logger logrus.FieldLogger) (*Identity, error) {
+	log := logger.WithField(trace.Component, teleport.ComponentAuth)
+
 	params.setDefaults()
 	// Read in the token. The token can either be passed in or come from a file
 	// on disk.
