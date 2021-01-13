@@ -13,7 +13,7 @@ spec:
   template:
     metadata:
       annotations:
-        # ConfigMap checksum, to recreate deployment on config changes.
+        # ConfigMap checksum, to recreate the pod on config changes.
         checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
       labels:
         app: {{ .Release.Name }}
