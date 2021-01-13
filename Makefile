@@ -411,6 +411,11 @@ buildbox-grpc:
     *.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/types/wrappers \
+		--gofast_out=plugins=grpc:api/types/wrappers \
+		wrappers.proto
+
+	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types \
 		--gofast_out=plugins=grpc:api/types \
 		types.proto
@@ -419,10 +424,6 @@ buildbox-grpc:
 		--proto_path=api/client/proto \
 		--gofast_out=plugins=grpc:api/client/proto \
 		authservice.proto
-
-	cd lib/wrappers && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
-    *.proto
 
 	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
 	  --gofast_out=plugins=grpc:.\
