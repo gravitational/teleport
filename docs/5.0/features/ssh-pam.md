@@ -292,7 +292,7 @@ ssh_service:
 Now attempting to login as an existing user should result in the creation of the
 user and a successful login.
 
-The `/etc/pam-exec.d/teleport_acct script`  can also set the user's groups as an option to auto populate user's permissions.  The user's roles are populated as space delimited in the `TELEPORT_ROLES` varaible so these could be used to map to a particular `sudo` group with additional scripting.
+The `/etc/pam-exec.d/teleport_acct script` can set the user's groups as an option to auto populate user's permissions.  The user's roles are populated as space delimited `TELEPORT_ROLES` variables. These could be used to map to a particular `sudo` group with additional scripting.
 
 ## Additional authentication steps
 
