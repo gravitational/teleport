@@ -213,9 +213,6 @@ func (s *CA) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, opts
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := ca.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	setSigningKeys(ca, loadSigningKeys)
 	return ca, nil
 }
@@ -249,9 +246,6 @@ func (s *CA) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys bo
 				services.WithResourceID(item.ID),
 				services.WithExpires(item.Expires))...)
 		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if err := ca.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		setSigningKeys(ca, loadSigningKeys)
