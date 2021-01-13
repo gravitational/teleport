@@ -458,12 +458,12 @@ steps:
       channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+        `linux-amd64` build failed.
+        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
         Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
         Author: <https://github.com/{{ build.author }}|{{ build.author }}>
         <{{ build.link }}|Visit Drone build page ↗>
-        `linux-amd64` build failed.
-        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
     when:
       status: [failure]
 
@@ -569,12 +569,12 @@ steps:
       channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+        `linux-386` build failed.
+        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
         Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
         Author: <https://github.com/{{ build.author }}|{{ build.author }}>
         <{{ build.link }}|Visit Drone build page ↗>
-        `linux-386` build failed.
-        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
     when:
       status: [failure]
 
@@ -684,12 +684,12 @@ steps:
       channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+        `linux-amd64-fips` build failed.
+        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
         Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
         Author: <https://github.com/{{ build.author }}|{{ build.author }}>
         <{{ build.link }}|Visit Drone build page ↗>
-        `linux-amd64-fips` build failed.
-        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
     when:
       status: [failure]
 
@@ -795,12 +795,12 @@ steps:
       channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+        `windows-amd64` build failed.
+        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
         Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
         Author: <https://github.com/{{ build.author }}|{{ build.author }}>
         <{{ build.link }}|Visit Drone build page ↗>
-        `windows-amd64` build failed.
-        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
     when:
       status: [failure]
 
@@ -919,10 +919,10 @@ steps:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
     commands:
       - |
-        export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}"
+        export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}/${DRONE_STAGE_NUMBER}/${DRONE_STEP_NUMBER}"
         export GOOS=$(go env GOOS)
         export GOARCH=$(go env GOARCH)
-        curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"\`$GOOS-$GOARCH\` exec build failed - please investigate.\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\n$DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
+        curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"\`$GOOS-$GOARCH\` exec build failed - please investigate.\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
     when:
       status: [failure]
 
@@ -1398,11 +1398,11 @@ steps:
       channel: dev-teleport
       template: |
         *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+        Details: The `teleport-helm-cron` job in Drone failed to publish Helm charts to S3. This is unusual and should be investigated.
         Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
         Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
         Author: <https://github.com/{{ build.author }}|{{ build.author }}>
         <{{ build.link }}|Visit Drone build page ↗>
-        Details: The `teleport-helm-cron` job in Drone failed to publish Helm charts to S3. This is unusual and should be investigated.
     when:
       status: [failure]
 
@@ -4095,6 +4095,6 @@ volumes:
 
 ---
 kind: signature
-hmac: e5da0c53ffdb72330fd996516f203d50c855d63b9ba1db97123d2c199089283d
+hmac: 32ef3c3aa84b38ef6b8ccdae9ee5e78b8c5988de26820b289d64426d4d828b59
 
 ...
