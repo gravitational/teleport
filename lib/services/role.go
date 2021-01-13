@@ -253,8 +253,12 @@ const (
 	Deny RoleConditionType = false
 )
 
-// ParseAndCheckRole parses role conditions and rules to validate the role.
-func ParseAndCheckRole(r Role) error {
+// CheckAndSetRoleDefaults parses role conditions and rules to validate the role.
+func CheckAndSetRoleDefaults(r Role) error {
+	if err := r.CheckAndSetDefaults(); err != nil {
+		return err
+	}
+
 	// if we find {{ or }} but the syntax is invalid, the role is invalid
 	for _, condition := range []RoleConditionType{Allow, Deny} {
 		for _, login := range r.GetLogins(condition) {
