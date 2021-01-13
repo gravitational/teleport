@@ -913,20 +913,16 @@ steps:
       - chmod -R u+rw $WORKSPACE_DIR
       - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
 
-  - name: Send Slack notification
-    image: plugins/slack
-    settings:
-      webhook:
+  - name: Send Slack notification (exec)
+    environment:
+      SLACK_WEBHOOK:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      channel: dev-teleport
-      template: |
-        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
-        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-        <{{ build.link }}|Visit Drone build page ↗>
-        `darwin-amd64` build failed.
-        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+    commands:
+      - |
+        export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}"
+        export GOOS=$(go env GOOS)
+        export GOARCH=$(go env GOARCH)
+        curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"\`$GOOS-$GOARCH\` exec build failed - please investigate.\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\n$DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
     when:
       status: [failure]
 
@@ -1033,20 +1029,16 @@ steps:
       - chmod -R u+rw $WORKSPACE_DIR
       - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
 
-  - name: Send Slack notification
-    image: plugins/slack
-    settings:
-      webhook:
+  - name: Send Slack notification (exec)
+    environment:
+      SLACK_WEBHOOK:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      channel: dev-teleport
-      template: |
-        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
-        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-        <{{ build.link }}|Visit Drone build page ↗>
-        `linux-arm` build failed.
-        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+    commands:
+      - |
+        export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}"
+        export GOOS=$(go env GOOS)
+        export GOARCH=$(go env GOARCH)
+        curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"\`$GOOS-$GOARCH\` exec build failed - please investigate.\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\n$DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
     when:
       status: [failure]
 
@@ -1153,20 +1145,16 @@ steps:
       - chmod -R u+rw $WORKSPACE_DIR
       - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
 
-  - name: Send Slack notification
-    image: plugins/slack
-    settings:
-      webhook:
+  - name: Send Slack notification (exec)
+    environment:
+      SLACK_WEBHOOK:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      channel: dev-teleport
-      template: |
-        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}>
-        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-        <{{ build.link }}|Visit Drone build page ↗>
-        `linux-arm64` build failed.
-        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+    commands:
+      - |
+        export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}"
+        export GOOS=$(go env GOOS)
+        export GOARCH=$(go env GOARCH)
+        curl -X POST -H 'Content-type: application/json' --data "{\"text\":\"\`$GOOS-$GOARCH\` exec build failed - please investigate.\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\n$DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK
     when:
       status: [failure]
 
@@ -4107,6 +4095,6 @@ volumes:
 
 ---
 kind: signature
-hmac: e1c81d8d65f6058dfc482b94985a2010ba1388e4fe6b198d39d7391dce897a16
+hmac: e5da0c53ffdb72330fd996516f203d50c855d63b9ba1db97123d2c199089283d
 
 ...
