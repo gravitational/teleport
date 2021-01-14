@@ -34,8 +34,10 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tsh/common"
+	"github.com/stretchr/testify/require"
 
 	"gopkg.in/check.v1"
 )
@@ -348,5 +350,64 @@ func (s *MainTestSuite) TestOptions(c *check.C) {
 		c.Assert(options.ForwardAgent, check.Equals, tt.outOptions.ForwardAgent)
 		c.Assert(options.RequestTTY, check.Equals, tt.outOptions.RequestTTY)
 		c.Assert(options.StrictHostKeyChecking, check.Equals, tt.outOptions.StrictHostKeyChecking)
+	}
+}
+
+func TestFormatConnectCommand(t *testing.T) {
+	cluster := "root"
+	tests := []struct {
+		comment string
+		db      tlsca.RouteToDatabase
+		command string
+	}{
+		{
+			comment: "no default user/database are specified",
+			db: tlsca.RouteToDatabase{
+				ServiceName: "test",
+				Protocol:    defaults.ProtocolPostgres,
+			},
+			command: `psql "service=root-test user= dbname="`,
+		},
+		{
+			comment: "default user is specified",
+			db: tlsca.RouteToDatabase{
+				ServiceName: "test",
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "postgres",
+			},
+			command: `psql "service=root-test dbname="`,
+		},
+		{
+			comment: "default database is specified",
+			db: tlsca.RouteToDatabase{
+				ServiceName: "test",
+				Protocol:    defaults.ProtocolPostgres,
+				Database:    "postgres",
+			},
+			command: `psql "service=root-test user="`,
+		},
+		{
+			comment: "default user/database are specified",
+			db: tlsca.RouteToDatabase{
+				ServiceName: "test",
+				Protocol:    defaults.ProtocolPostgres,
+				Username:    "postgres",
+				Database:    "postgres",
+			},
+			command: `psql "service=root-test"`,
+		},
+		{
+			comment: "unsupported database protocol",
+			db: tlsca.RouteToDatabase{
+				ServiceName: "test",
+				Protocol:    "mongodb",
+			},
+			command: "",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.comment, func(t *testing.T) {
+			require.Equal(t, test.command, formatConnectCommand(cluster, test.db))
+		})
 	}
 }
