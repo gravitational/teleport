@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	dbauth "github.com/gravitational/teleport/lib/srv/db/auth"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -318,7 +319,8 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// service.
 	err = s.handleConnection(ctx, tlsConn)
 	if err != nil {
-		log.WithError(err).Error("Failed to handle connection.")
+		log.WithError(err).Errorf("Failed to handle connection: %v.",
+			trace.DebugReport(err))
 		return
 	}
 }
@@ -367,12 +369,19 @@ type DatabaseEngine interface {
 
 // dispatch returns an appropriate database engine for the session.
 func (s *Server) dispatch(sessionCtx *session.Context, streamWriter events.StreamWriter) (DatabaseEngine, error) {
+	auth, err := dbauth.NewAuthenticator(dbauth.AuthenticatorConfig{
+		AuthClient:  s.cfg.AuthClient,
+		Credentials: s.cfg.Credentials,
+		RDSCACerts:  s.rdsCACerts,
+		Clock:       s.cfg.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	switch sessionCtx.Server.GetProtocol() {
 	case defaults.ProtocolPostgres:
 		return &postgres.Engine{
-			AuthClient:     s.cfg.AuthClient,
-			Credentials:    s.cfg.Credentials,
-			RDSCACerts:     s.rdsCACerts,
+			Auth:           auth,
 			OnSessionStart: s.emitSessionStartEventFn(streamWriter),
 			OnSessionEnd:   s.emitSessionEndEventFn(streamWriter),
 			OnQuery:        s.emitQueryEventFn(streamWriter),
@@ -413,6 +422,8 @@ func (s *Server) authorize(ctx context.Context) (*session.Context, error) {
 		ID:                id,
 		Server:            server,
 		Identity:          identity,
+		DatabaseUser:      identity.RouteToDatabase.Username,
+		DatabaseName:      identity.RouteToDatabase.Database,
 		Checker:           authContext.Checker,
 		StartupParameters: make(map[string]string),
 		Log: s.log.WithFields(logrus.Fields{

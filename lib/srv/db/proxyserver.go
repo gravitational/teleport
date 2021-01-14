@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,8 +21,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"io"
 	"net"
+	"strings"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -129,7 +132,8 @@ func (s *ProxyServer) Serve(listener net.Listener) error {
 			defer clientConn.Close()
 			err := proxy.HandleConnection(s.closeCtx, clientConn)
 			if err != nil {
-				s.log.WithError(err).Error("Failed to handle client connection.")
+				s.log.Errorf("Failed to handle client connection: %v.",
+					trace.DebugReport(err))
 			}
 		}()
 	}
@@ -151,15 +155,21 @@ func (s *ProxyServer) dispatch(clientConn net.Conn) (DatabaseProxy, error) {
 	switch muxConn.Protocol() {
 	case multiplexer.ProtoPostgres:
 		s.log.Debugf("Accepted Postgres connection from %v.", muxConn.RemoteAddr())
-		return &postgres.Proxy{
-			TLSConfig:     s.cfg.TLSConfig,
-			Middleware:    s.middleware,
-			ConnectToSite: s.connectToSite,
-			Log:           s.log,
-		}, nil
+		return s.postgresProxy(), nil
 	}
 	return nil, trace.BadParameter("unsupported database protocol %q",
 		muxConn.Protocol())
+}
+
+// postgresProxy returns a new instance of the Postgres protocol aware proxy.
+func (s *ProxyServer) postgresProxy() *postgres.Proxy {
+	return &postgres.Proxy{
+		TLSConfig:     s.cfg.TLSConfig,
+		Middleware:    s.middleware,
+		ConnectToSite: s.connectToSite,
+		ProxyToSite:   s.proxyToSite,
+		Log:           s.log,
+	}
 }
 
 // connectToSite connects to the database server running on a remote site
@@ -191,6 +201,39 @@ func (s *ProxyServer) connectToSite(ctx context.Context) (net.Conn, error) {
 	// received from the reverse tunnel will be handled by tls.Server.
 	siteConn = tls.Client(siteConn, tlsConfig)
 	return siteConn, nil
+}
+
+// proxyToSite starts proxying all traffic received from Postgres client
+// between this proxy and Teleport database service over reverse tunnel.
+func (s *ProxyServer) proxyToSite(ctx context.Context, clientConn, siteConn io.ReadWriteCloser) (retErr error) {
+	errCh := make(chan error, 2)
+	go func() {
+		defer s.log.Debug("Stop proxying from client to site.")
+		defer siteConn.Close()
+		defer clientConn.Close()
+		_, err := io.Copy(siteConn, clientConn)
+		errCh <- err
+	}()
+	go func() {
+		defer s.log.Debug("Stop proxying from site to client.")
+		defer siteConn.Close()
+		defer clientConn.Close()
+		_, err := io.Copy(clientConn, siteConn)
+		errCh <- err
+	}()
+	var errs []error
+	for i := 0; i < 2; i++ {
+		select {
+		case err := <-errCh:
+			if err != nil && err != io.EOF && !strings.Contains(err.Error(), teleport.UseOfClosedNetworkConnection) {
+				s.log.WithError(err).Warn("Connection problem.")
+				errs = append(errs, err)
+			}
+		case <-ctx.Done():
+			return trace.ConnectionProblem(nil, "context is closing")
+		}
+	}
+	return trace.NewAggregate(errs...)
 }
 
 // proxyContext contains parameters for a database session being proxied.
