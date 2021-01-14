@@ -28,5 +28,5 @@ func atime(fi os.FileInfo) time.Time {
 }
 
 func timespecToTime(ts syscall.Timespec) time.Time {
-	return time.Unix(int64(ts.Sec), int64(ts.Nsec))
+	return time.Unix(int64(ts.Sec), int64(ts.Nsec)) //nolint:unconvert
 }
