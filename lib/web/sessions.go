@@ -37,9 +37,9 @@ import (
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -58,10 +58,9 @@ type SessionContext struct {
 	user   string
 	clt    auth.ClientI
 	parent *sessionCache
-	// ctx is a persistent session context this context is bound to.
-	// We need a persistent context to be able to maintain a list of resources
-	// between session renewals
-	ctx *sessionContext
+	// resources is persistent resource store this context is bound to.
+	// The store maintains a list of resources between session renewals
+	resources *sessionResources
 	// session refers the web session created for the user.
 	session services.WebSession
 
@@ -82,12 +81,12 @@ func (c *SessionContext) String() string {
 
 // AddClosers adds the specified closers to this context
 func (c *SessionContext) AddClosers(closers ...io.Closer) {
-	c.ctx.addClosers(closers...)
+	c.resources.addClosers(closers...)
 }
 
 // RemoveCloser removes the specified closer from this context
 func (c *SessionContext) RemoveCloser(closer io.Closer) {
-	c.ctx.removeCloser(closer)
+	c.resources.removeCloser(closer)
 }
 
 // Invalidate invalidates this context by removing the underlying session
@@ -326,7 +325,7 @@ func (c *SessionContext) Close() error {
 // is only useful immediately after a session has been created to query
 // the token.
 func (c *SessionContext) getToken() types.WebToken {
-	return types.NewWebToken(types.WebTokenSpecV1{
+	return types.NewWebToken(types.WebTokenSpecV3{
 		Token:   c.session.GetBearerToken(),
 		Expires: c.session.GetBearerTokenExpiryTime(),
 	})
@@ -380,7 +379,7 @@ func newSessionCache(config sessionCacheOptions) (*sessionCache, error) {
 		proxyClient:  config.proxyClient,
 		accessPoint:  config.accessPoint,
 		sessions:     make(map[string]*SessionContext),
-		contexts:     make(map[string]*sessionContext),
+		resources:    make(map[string]*sessionResources),
 		authServers:  config.servers,
 		closer:       utils.NewCloseBroadcaster(),
 		cipherSuites: config.cipherSuites,
@@ -406,13 +405,17 @@ type sessionCache struct {
 	cipherSuites []uint16
 
 	mu sync.Mutex
-	// sessions maps user/sessionID to an active web session.
+	// sessions maps user/sessionID to an active web session value between renewals.
 	// This is the client-facing session handle
 	sessions map[string]*SessionContext
-	// contexts maps user to an active user web session.
-	// These are used to maintain session state that would otherwise
-	// not survive renewal of the session
-	contexts map[string]*sessionContext
+
+	// session cache maintains a list of resources per-user as long
+	// as the user session is active even though individual session values
+	// are periodically recycled.
+	// Resources are disposed of when the corresponding session
+	// is either explicitly invalidated (e.g. during logout) or the
+	// resources are themselves closing
+	resources map[string]*sessionResources
 }
 
 // Close closes all allocated resources and stops goroutines
@@ -442,7 +445,7 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 		if !c.expired(ctx) {
 			continue
 		}
-		s.resetSessionContextLocked(c.session.GetUser(), c.session.GetName())
+		s.removeSessionContextLocked(c.session.GetUser(), c.session.GetName())
 		s.log.WithField("ctx", c.String()).Debug("Context expired.")
 	}
 }
@@ -576,7 +579,7 @@ func (s *sessionCache) invalidateSession(ctx *SessionContext) error {
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
-	if err := s.resetContext(ctx.GetUser(), ctx.session.GetName()); err != nil {
+	if err := s.releaseResources(ctx.GetUser(), ctx.session.GetName()); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -596,7 +599,7 @@ func (s *sessionCache) getContext(user, sessionID string) (*SessionContext, erro
 func (s *sessionCache) insertContext(user string, ctx *SessionContext) (exists bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	id := user + ctx.session.GetName()
+	id := sessionKey(user, ctx.session.GetName())
 	if _, exists := s.sessions[id]; exists {
 		return true
 	}
@@ -604,14 +607,14 @@ func (s *sessionCache) insertContext(user string, ctx *SessionContext) (exists b
 	return false
 }
 
-func (s *sessionCache) resetContext(user, sessionID string) error {
+func (s *sessionCache) releaseResources(user, sessionID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.resetContextLocked(user, sessionID)
+	return s.releaseResourcesLocked(user, sessionID)
 }
 
-func (s *sessionCache) resetSessionContextLocked(user, sessionID string) error {
-	id := user + sessionID
+func (s *sessionCache) removeSessionContextLocked(user, sessionID string) error {
+	id := sessionKey(user, sessionID)
 	ctx, ok := s.sessions[id]
 	if !ok {
 		return nil
@@ -628,14 +631,14 @@ func (s *sessionCache) resetSessionContextLocked(user, sessionID string) error {
 	return nil
 }
 
-func (s *sessionCache) resetContextLocked(user, sessionID string) error {
+func (s *sessionCache) releaseResourcesLocked(user, sessionID string) error {
 	var errors []error
-	err := s.resetSessionContextLocked(user, sessionID)
+	err := s.removeSessionContextLocked(user, sessionID)
 	if err != nil {
 		errors = append(errors, err)
 	}
-	if ctx, ok := s.contexts[user]; ok {
-		delete(s.contexts, user)
+	if ctx, ok := s.resources[user]; ok {
+		delete(s.resources, user)
 		if err := ctx.Close(); err != nil {
 			s.log.WithError(err).Warn("Failed to clean up session context.")
 			errors = append(errors, err)
@@ -644,19 +647,19 @@ func (s *sessionCache) resetContextLocked(user, sessionID string) error {
 	return trace.NewAggregate(errors...)
 }
 
-func (s *sessionCache) upsertSessionContext(user string) *sessionContext {
+func (s *sessionCache) upsertSessionContext(user string) *sessionResources {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if ctx, exists := s.contexts[user]; exists {
+	if ctx, exists := s.resources[user]; exists {
 		return ctx
 	}
-	ctx := &sessionContext{
+	ctx := &sessionResources{
 		log: s.log.WithFields(logrus.Fields{
 			trace.Component: "user-session",
 			"user":          user,
 		}),
 	}
-	s.contexts[user] = ctx
+	s.resources[user] = ctx
 	return ctx
 }
 
@@ -693,7 +696,7 @@ func (s *sessionCache) newSessionContextFromSession(session services.WebSession)
 		user:      session.GetUser(),
 		session:   session,
 		parent:    s,
-		ctx:       s.upsertSessionContext(session.GetUser()),
+		resources: s.upsertSessionContext(session.GetUser()),
 		log: s.log.WithFields(logrus.Fields{
 			"user":    session.GetUser(),
 			"session": session.GetShortName(),
@@ -754,16 +757,22 @@ func (s *sessionCache) readBearerToken(ctx context.Context, req types.GetWebToke
 	return s.proxyClient.GetWebToken(ctx, req)
 }
 
-func (c *sessionContext) Close() error {
+// Close releases all underlying resources for the user session.
+func (c *sessionResources) Close() error {
 	closers := c.transferClosers()
+	var errors []error
 	for _, closer := range closers {
 		c.log.Debugf("Closing %v.", closer)
-		closer.Close()
+		if err := closer.Close(); err != nil {
+			errors = append(errors, err)
+		}
 	}
-	return nil
+	return trace.NewAggregate(errors...)
 }
 
-type sessionContext struct {
+// sessionResources persists resources initiated by a web session
+// but which might outlive the session.
+type sessionResources struct {
 	log logrus.FieldLogger
 
 	mu      sync.Mutex
@@ -771,14 +780,14 @@ type sessionContext struct {
 }
 
 // addClosers adds the specified closers to this context
-func (c *sessionContext) addClosers(closers ...io.Closer) {
+func (c *sessionResources) addClosers(closers ...io.Closer) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.closers = append(c.closers, closers...)
 }
 
 // removeCloser removes the specified closer from this context
-func (c *sessionContext) removeCloser(closer io.Closer) {
+func (c *sessionResources) removeCloser(closer io.Closer) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for i, cls := range c.closers {
@@ -789,12 +798,16 @@ func (c *sessionContext) removeCloser(closer io.Closer) {
 	}
 }
 
-func (c *sessionContext) transferClosers() []io.Closer {
+func (c *sessionResources) transferClosers() []io.Closer {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	closers := c.closers
 	c.closers = nil
 	return closers
+}
+
+func sessionKey(user, sessionID string) string {
+	return user + sessionID
 }
 
 // waitForWebSession will block until the requested web session shows up in the
@@ -831,54 +844,9 @@ func (h *Handler) waitForWebSession(ctx context.Context, req types.GetWebSession
 		}
 		return nil, trace.CompareFailed("not match")
 	}
-	_, err = waitForResource(ctx, watcher, eventMatcherFunc(matchEvent), h.clock)
+	_, err = local.WaitForEvent(ctx, watcher, local.EventMatcherFunc(matchEvent), h.clock)
 	if err != nil {
 		logger.WithError(err).Warn("Failed to wait for web session.")
 	}
 	return trace.Wrap(err)
-}
-
-func waitForResource(ctx context.Context, watcher services.Watcher, m eventMatcher, clock clockwork.Clock) (services.Resource, error) {
-	tick := clock.NewTicker(defaults.WebHeadersTimeout)
-	defer tick.Stop()
-
-	select {
-	case event := <-watcher.Events():
-		if event.Type != backend.OpInit {
-			return nil, trace.BadParameter("expected init event, got %v instead", event.Type)
-		}
-	case <-watcher.Done():
-		// Watcher closed, probably due to a network error.
-		return nil, trace.ConnectionProblem(watcher.Error(), "watcher is closed")
-	case <-tick.Chan():
-		return nil, trace.LimitExceeded("timed out waiting for initialize event")
-	}
-
-	for {
-		select {
-		case event := <-watcher.Events():
-			res, err := m.match(event)
-			if err == nil {
-				return res, nil
-			}
-		case <-watcher.Done():
-			// Watcher closed, probably due to a network error.
-			return nil, trace.ConnectionProblem(watcher.Error(), "watcher is closed")
-		case <-tick.Chan():
-			return nil, trace.LimitExceeded("timed out waiting for resource")
-		}
-	}
-}
-
-func (r eventMatcherFunc) match(event services.Event) (services.Resource, error) {
-	return r(event)
-}
-
-type eventMatcherFunc func(services.Event) (services.Resource, error)
-
-type eventMatcher interface {
-	// match matches the specified event.
-	// Returns the matched resource if successful.
-	// Returns trace.CompareFailedError for no match.
-	match(services.Event) (services.Resource, error)
 }

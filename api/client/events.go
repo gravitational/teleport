@@ -101,7 +101,7 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		default:
 			return nil, trace.BadParameter("only %q supported", types.WebSessionSubKinds)
 		}
-	case *types.WebTokenV1:
+	case *types.WebTokenV3:
 		out.Resource = &proto.Event_WebToken{
 			WebToken: r,
 		}

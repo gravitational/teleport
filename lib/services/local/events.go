@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
 
@@ -900,6 +901,56 @@ func resourceHeaderWithTemplate(event backend.Event, hdr services.ResourceHeader
 			Namespace: defaults.Namespace,
 		},
 	}, nil
+}
+
+// WaitForEvent waits for the event matched by the specified event matcher in the given watcher.
+func WaitForEvent(ctx context.Context, watcher services.Watcher, m EventMatcher, clock clockwork.Clock) (services.Resource, error) {
+	tick := clock.NewTicker(defaults.WebHeadersTimeout)
+	defer tick.Stop()
+
+	select {
+	case event := <-watcher.Events():
+		if event.Type != backend.OpInit {
+			return nil, trace.BadParameter("expected init event, got %v instead", event.Type)
+		}
+	case <-watcher.Done():
+		// Watcher closed, probably due to a network error.
+		return nil, trace.ConnectionProblem(watcher.Error(), "watcher is closed")
+	case <-tick.Chan():
+		return nil, trace.LimitExceeded("timed out waiting for initialize event")
+	}
+
+	for {
+		select {
+		case event := <-watcher.Events():
+			res, err := m.Match(event)
+			if err == nil {
+				return res, nil
+			}
+		case <-watcher.Done():
+			// Watcher closed, probably due to a network error.
+			return nil, trace.ConnectionProblem(watcher.Error(), "watcher is closed")
+		case <-tick.Chan():
+			return nil, trace.LimitExceeded("timed out waiting for event")
+		}
+	}
+}
+
+// Match matches the specified resource event by applying itself
+func (r EventMatcherFunc) Match(event services.Event) (services.Resource, error) {
+	return r(event)
+}
+
+// EventMatcherFunc matches the specified resource event.
+// Implements EventMatcher
+type EventMatcherFunc func(services.Event) (services.Resource, error)
+
+// EventMatcher matches a specific resource event
+type EventMatcher interface {
+	// Match matches the specified event.
+	// Returns the matched resource if successful.
+	// Returns trace.CompareFailedError for no match.
+	Match(services.Event) (services.Resource, error)
 }
 
 // base returns last element delimited by separator, index is
