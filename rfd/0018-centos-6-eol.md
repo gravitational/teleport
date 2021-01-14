@@ -58,6 +58,6 @@ Teleport 6.0+
   be available for Teleport 6.0+, to give them as much notice of this change as possible.
   
 Teleport 5.x
-- We wil continue to build CentOS 6 binaries with security fixes for all released Teleport 5.x versions.
+- We will continue to build CentOS 6 binaries with security fixes for all released Teleport 5.x versions.
 - We will continue to support Teleport 5.x on CentOS 6 [until November 2021
   as per our FAQ](https://goteleport.com/teleport/docs/faq/).
