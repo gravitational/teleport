@@ -2125,25 +2125,19 @@ func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (events.
 
 // WebService implements features used by Web UI clients
 type WebService interface {
-	// WebUIService implements web session support for UI clients
-	WebUIService
+	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
+	// it is valid, or error otherwise.
+	GetWebSessionInfo(user, sessionID string) (types.WebSession, error)
+	// ExtendWebSession creates a new web session for a user based on another
+	// valid web session
+	ExtendWebSession(user, prevSessionID, accessRequestID string) (types.WebSession, error)
+	// CreateWebSession creates a new web session for a user
+	CreateWebSession(user string) (types.WebSession, error)
+	// DeleteWebSession deletes a web session for this user by id
+	DeleteWebSession(user, sessionID string) error
 
 	// AppSession defines application session features.
 	services.AppSession
-}
-
-// WebUIService implements features used by Web UI clients
-type WebUIService interface {
-	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
-	// it is valid, or error otherwise.
-	GetWebSessionInfo(user string, sid string) (services.WebSession, error)
-	// ExtendWebSession creates a new web session for a user based on another
-	// valid web session
-	ExtendWebSession(user string, prevSessionID string, accessRequestID string) (services.WebSession, error)
-	// CreateWebSession creates a new web session for a user
-	CreateWebSession(user string) (services.WebSession, error)
-	// DeleteWebSession deletes a web session for this user by id
-	DeleteWebSession(user string, sid string) error
 }
 
 // IdentityService manages identities and users

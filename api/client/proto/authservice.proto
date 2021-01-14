@@ -74,7 +74,7 @@ message Event {
         // WebSession is a regular web session.
         types.WebSessionV2 WebSession = 18 [ (gogoproto.jsontag) = "web_session,omitempty" ];
         // WebToken is a web token.
-        types.WebTokenV1 WebToken = 19 [ (gogoproto.jsontag) = "web_token,omitempty" ];
+        types.WebTokenV3 WebToken = 19 [ (gogoproto.jsontag) = "web_token,omitempty" ];
     }
 }
 
@@ -99,7 +99,7 @@ message WatchKind {
     // Valid values vary by resource kind.
     map<string, string> Filter = 4 [ (gogoproto.jsontag) = "filter,omitempty" ];
     // SubKind is a resource subkind to watch
-    string SubKind = 5 [ (gogoproto.jsontag) = "sub_kind" ];
+    string SubKind = 5 [ (gogoproto.jsontag) = "sub_kind,omitempty" ];
 }
 
 // Set of certificates corresponding to a single public key.
@@ -405,13 +405,13 @@ message GetWebSessionsResponse {
 // GetWebTokenResponse contains the requested web token.
 message GetWebTokenResponse {
     // Token is the web token being requested.
-    types.WebTokenV1 Token = 1 [ (gogoproto.jsontag) = "token" ];
+    types.WebTokenV3 Token = 1 [ (gogoproto.jsontag) = "token" ];
 }
 
 // GetWebTokensResponse contains all the requested web tokens.
 message GetWebTokensResponse {
     // Tokens is a list of web tokens.
-    repeated types.WebTokenV1 Tokens = 1 [ (gogoproto.jsontag) = "tokens" ];
+    repeated types.WebTokenV3 Tokens = 1 [ (gogoproto.jsontag) = "tokens" ];
 }
 
 // GetKubeServicesRequest are the parameters used to request kubernetes services.

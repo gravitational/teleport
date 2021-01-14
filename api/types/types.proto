@@ -1428,8 +1428,8 @@ message DeleteWebSessionRequest {
     string SessionID = 2 [ (gogoproto.jsontag) = "session_id" ];
 }
 
-// WebTokenV1 describes a web token
-message WebTokenV1 {
+// WebTokenV3 describes a web token
+message WebTokenV3 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;
 
@@ -1442,11 +1442,11 @@ message WebTokenV1 {
     // Metadata is resource metadata
     Metadata Metadata = 4 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "metadata" ];
     // Spec defines the web token
-    WebTokenSpecV1 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
+    WebTokenSpecV3 Spec = 5 [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "spec" ];
 }
 
 // WebTokenSpecV1 is a unique time-limited token bound to a user's web session
-message WebTokenSpecV1 {
+message WebTokenSpecV3 {
     // User specifies the user the token is bound to.
     string User = 1 [ (gogoproto.jsontag) = "user" ];
     // Token specifies the token's value.

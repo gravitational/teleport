@@ -1040,7 +1040,7 @@ func (g *GRPCServer) GetWebToken(ctx context.Context, req *types.GetWebTokenRequ
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	token, ok := resp.(*types.WebTokenV1)
+	token, ok := resp.(*types.WebTokenV3)
 	if !ok {
 		return nil, trail.ToGRPC(trace.BadParameter("unexpected web token type %T", resp))
 	}
@@ -1062,9 +1062,9 @@ func (g *GRPCServer) GetWebTokens(ctx context.Context, _ *empty.Empty) (*proto.G
 		return nil, trail.ToGRPC(err)
 	}
 
-	var out []*types.WebTokenV1
+	var out []*types.WebTokenV3
 	for _, t := range tokens {
-		token, ok := t.(*types.WebTokenV1)
+		token, ok := t.(*types.WebTokenV3)
 		if !ok {
 			return nil, trail.ToGRPC(trace.BadParameter("unexpected type %T", t))
 		}

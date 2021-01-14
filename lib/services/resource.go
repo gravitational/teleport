@@ -51,7 +51,7 @@ func WithExpires(expires time.Time) MarshalOption {
 func WithVersion(v string) MarshalOption {
 	return func(c *MarshalConfig) error {
 		switch v {
-		case V1, V2:
+		case V1, V2, V3:
 			c.Version = v
 			return nil
 		default:

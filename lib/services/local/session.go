@@ -28,7 +28,7 @@ import (
 )
 
 // GetAppSession gets an application web session.
-func (s *IdentityService) GetAppSession(ctx context.Context, req services.GetAppSessionRequest) (services.WebSession, error) {
+func (s *IdentityService) GetAppSession(ctx context.Context, req types.GetAppSessionRequest) (types.WebSession, error) {
 	if err := req.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -45,14 +45,14 @@ func (s *IdentityService) GetAppSession(ctx context.Context, req services.GetApp
 }
 
 // GetAppSessions gets all application web sessions.
-func (s *IdentityService) GetAppSessions(ctx context.Context) ([]services.WebSession, error) {
+func (s *IdentityService) GetAppSessions(ctx context.Context) ([]types.WebSession, error) {
 	startKey := backend.Key(appsPrefix, sessionsPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	out := make([]services.WebSession, len(result.Items))
+	out := make([]types.WebSession, len(result.Items))
 	for i, item := range result.Items {
 		session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(item.Value, services.SkipValidation())
 		if err != nil {
@@ -64,7 +64,7 @@ func (s *IdentityService) GetAppSessions(ctx context.Context) ([]services.WebSes
 }
 
 // UpsertAppSession creates an application web session.
-func (s *IdentityService) UpsertAppSession(ctx context.Context, session services.WebSession) error {
+func (s *IdentityService) UpsertAppSession(ctx context.Context, session types.WebSession) error {
 	value, err := services.GetWebSessionMarshaler().MarshalWebSession(session)
 	if err != nil {
 		return trace.Wrap(err)
@@ -99,7 +99,7 @@ func (s *IdentityService) DeleteAllAppSessions(ctx context.Context) error {
 }
 
 // GetWebSession returns a web session state for the given user and session id
-func (s *IdentityService) GetWebSession(user, sessionID string) (services.WebSession, error) {
+func (s *IdentityService) GetWebSession(user, sessionID string) (types.WebSession, error) {
 	return s.WebSessions().Get(context.TODO(), types.GetWebSessionRequest{
 		User:      user,
 		SessionID: sessionID,
@@ -107,7 +107,7 @@ func (s *IdentityService) GetWebSession(user, sessionID string) (services.WebSes
 }
 
 // UpsertWebSession updates or inserts a web session for the user and the session ID
-func (s *IdentityService) UpsertWebSession(user, sessionID string, session services.WebSession) error {
+func (s *IdentityService) UpsertWebSession(user, sessionID string, session types.WebSession) error {
 	session.SetUser(user)
 	session.SetName(sessionID)
 	return s.WebSessions().Upsert(context.TODO(), session)
@@ -127,7 +127,7 @@ func (s *IdentityService) WebSessions() services.WebSessionInterface {
 }
 
 // Get returns the web session state described with req.
-func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (services.WebSession, error) {
+func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
 	if err := req.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -148,7 +148,7 @@ func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (
 }
 
 // List gets all regular web sessions.
-func (r *webSessions) List(ctx context.Context) (out []services.WebSession, err error) {
+func (r *webSessions) List(ctx context.Context) (out []types.WebSession, err error) {
 	key := backend.Key(webPrefix, sessionsPrefix)
 	result, err := r.backend.GetRange(ctx, key, backend.RangeEnd(key), backend.NoLimit)
 	if err != nil {
@@ -171,7 +171,7 @@ func (r *webSessions) List(ctx context.Context) (out []services.WebSession, err 
 }
 
 // Upsert updates the existing or inserts a new web session.
-func (r *webSessions) Upsert(ctx context.Context, session services.WebSession) error {
+func (r *webSessions) Upsert(ctx context.Context, session types.WebSession) error {
 	value, err := services.GetWebSessionMarshaler().MarshalWebSession(session)
 	if err != nil {
 		return trace.Wrap(err)
@@ -205,13 +205,13 @@ func (r *webSessions) DeleteAll(ctx context.Context) error {
 
 // DELETE IN 7.x.
 // listLegacySessions lists web sessions under a legacy path /web/users/<user>/sessions/<id>
-func (r *webSessions) listLegacySessions(ctx context.Context) ([]services.WebSession, error) {
+func (r *webSessions) listLegacySessions(ctx context.Context) ([]types.WebSession, error) {
 	startKey := backend.Key(webPrefix, usersPrefix)
 	result, err := r.backend.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out := make([]services.WebSession, 0, len(result.Items))
+	out := make([]types.WebSession, 0, len(result.Items))
 	for _, item := range result.Items {
 		suffix, _, err := baseTwoKeys(item.Key)
 		if err != nil && trace.IsNotFound(err) {
@@ -274,7 +274,7 @@ func (r *webTokens) List(ctx context.Context) (out []types.WebToken, err error) 
 
 // Upsert updates the existing or inserts a new web token.
 func (r *webTokens) Upsert(ctx context.Context, token types.WebToken) error {
-	bytes, err := types.MarshalWebToken(token, services.WithVersion(services.V1))
+	bytes, err := types.MarshalWebToken(token, services.WithVersion(services.V3))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -316,7 +316,7 @@ type webTokens struct {
 // DELETE in 7.x.
 // getLegacySession returns the web session for the specified user/sessionID
 // under a legacy path /web/users/<user>/sessions/<id>
-func getLegacyWebSession(ctx context.Context, backend backend.Backend, user, sessionID string) (services.WebSession, error) {
+func getLegacyWebSession(ctx context.Context, backend backend.Backend, user, sessionID string) (types.WebSession, error) {
 	item, err := backend.Get(ctx, legacyWebSessionKey(user, sessionID))
 	if err != nil {
 		return nil, trace.Wrap(err)

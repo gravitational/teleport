@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
@@ -204,7 +205,7 @@ func (h *Handler) waitForAppSession(ctx context.Context, sessionID string) error
 		}
 		return nil, trace.CompareFailed("no match")
 	}
-	_, err = waitForResource(ctx, watcher, eventMatcherFunc(matchEvent), h.clock)
+	_, err = local.WaitForEvent(ctx, watcher, local.EventMatcherFunc(matchEvent), h.clock)
 	if err != nil {
 		h.log.WithFields(logrus.Fields{
 			"session":       sessionID,

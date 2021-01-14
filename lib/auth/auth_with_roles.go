@@ -828,8 +828,7 @@ func (a *ServerWithRoles) DeleteWebSession(user string, sid string) error {
 // GetWebSession returns the web session specified with req.
 // Implements auth.ReadAccessPoint.
 func (a *ServerWithRoles) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
-	ws := &webSessionsWithRoles{c: a, ws: a.authServer.WebSessions()}
-	return ws.Get(ctx, req)
+	return a.WebSessions().Get(ctx, req)
 }
 
 // WebSessions returns the web session manager.
@@ -890,8 +889,7 @@ func (r *webSessionsWithRoles) DeleteAll(ctx context.Context) error {
 // GetWebToken returns the web token specified with req.
 // Implements auth.ReadAccessPoint.
 func (a *ServerWithRoles) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
-	t := &webTokensWithRoles{c: a, t: a.authServer.WebTokens()}
-	return t.Get(ctx, req)
+	return a.WebTokens().Get(ctx, req)
 }
 
 type webSessionsWithRoles struct {

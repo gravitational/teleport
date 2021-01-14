@@ -159,7 +159,9 @@ func (ws *WebSessionV2) CheckAndSetDefaults() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
+	if ws.Spec.User == "" {
+		return trace.BadParameter("missing User")
+	}
 	return nil
 }
 
@@ -430,10 +432,10 @@ func (r *DeleteWebSessionRequest) Check() error {
 }
 
 // NewWebToken returns a new web token with the given value and spec
-func NewWebToken(spec WebTokenSpecV1) WebToken {
-	token := &WebTokenV1{
+func NewWebToken(spec WebTokenSpecV3) WebToken {
+	token := &WebTokenV3{
 		Kind:    KindWebToken,
-		Version: V1,
+		Version: V3,
 		Metadata: Metadata{
 			Name:      spec.Token,
 			Namespace: defaults.Namespace,
@@ -463,95 +465,104 @@ type WebToken interface {
 	String() string
 }
 
-var _ WebToken = &WebTokenV1{}
+var _ WebToken = &WebTokenV3{}
 
 // GetMetadata returns the token metadata
-func (r *WebTokenV1) GetMetadata() Metadata {
+func (r *WebTokenV3) GetMetadata() Metadata {
 	return r.Metadata
 }
 
 // GetKind returns the token resource kind
-func (r *WebTokenV1) GetKind() string {
+func (r *WebTokenV3) GetKind() string {
 	return r.Kind
 }
 
 // GetSubKind returns the token resource subkind
-func (r *WebTokenV1) GetSubKind() string {
+func (r *WebTokenV3) GetSubKind() string {
 	return r.SubKind
 }
 
 // SetSubKind sets the token resource subkind
-func (r *WebTokenV1) SetSubKind(subKind string) {
+func (r *WebTokenV3) SetSubKind(subKind string) {
 	r.SubKind = subKind
 }
 
 // GetVersion returns the token resource version
-func (r *WebTokenV1) GetVersion() string {
+func (r *WebTokenV3) GetVersion() string {
 	return r.Version
 }
 
 // GetName returns the token value
-func (r *WebTokenV1) GetName() string {
+func (r *WebTokenV3) GetName() string {
 	return r.Metadata.Name
 }
 
 // SetName sets the token value
-func (r *WebTokenV1) SetName(name string) {
+func (r *WebTokenV3) SetName(name string) {
 	r.Metadata.Name = name
 }
 
 // GetResourceID returns the token resource ID
-func (r *WebTokenV1) GetResourceID() int64 {
+func (r *WebTokenV3) GetResourceID() int64 {
 	return r.Metadata.GetID()
 }
 
 // SetResourceID sets the token resource ID
-func (r *WebTokenV1) SetResourceID(id int64) {
+func (r *WebTokenV3) SetResourceID(id int64) {
 	r.Metadata.SetID(id)
 }
 
 // SetTTL sets the token resource TTL (time-to-live) value
-func (r *WebTokenV1) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+func (r *WebTokenV3) SetTTL(clock clockwork.Clock, ttl time.Duration) {
 	r.Metadata.SetTTL(clock, ttl)
 }
 
 // GetToken returns the token value
-func (r *WebTokenV1) GetToken() string {
+func (r *WebTokenV3) GetToken() string {
 	return r.Spec.Token
 }
 
 // SetToken sets the token value
-func (r *WebTokenV1) SetToken(token string) {
+func (r *WebTokenV3) SetToken(token string) {
 	r.Spec.Token = token
 }
 
 // GetUser returns the user this token is bound to
-func (r *WebTokenV1) GetUser() string {
+func (r *WebTokenV3) GetUser() string {
 	return r.Spec.User
 }
 
 // SetUser sets the user this token is bound to
-func (r *WebTokenV1) SetUser(user string) {
+func (r *WebTokenV3) SetUser(user string) {
 	r.Spec.User = user
 }
 
 // Expiry returns the token absolute expiration time
-func (r *WebTokenV1) Expiry() time.Time {
+func (r *WebTokenV3) Expiry() time.Time {
 	return r.Spec.Expires
 }
 
 // SetExpiry sets the token absolute expiration time
-func (r *WebTokenV1) SetExpiry(t time.Time) {
+func (r *WebTokenV3) SetExpiry(t time.Time) {
 	r.Spec.Expires = t
 }
 
 // CheckAndSetDefaults validates this token value and sets defaults
-func (r *WebTokenV1) CheckAndSetDefaults() error {
-	return r.Metadata.CheckAndSetDefaults()
+func (r *WebTokenV3) CheckAndSetDefaults() error {
+	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if r.Spec.User == "" {
+		return trace.BadParameter("User required")
+	}
+	if r.Spec.Token == "" {
+		return trace.BadParameter("Token required")
+	}
+	return nil
 }
 
 // String returns string representation of the token.
-func (r *WebTokenV1) String() string {
+func (r *WebTokenV3) String() string {
 	return fmt.Sprintf("WebToken(kind=%v,user=%v,token=%v,expires=%v)",
 		r.GetKind(), r.GetUser(), r.GetToken(), r.Expiry())
 }
@@ -564,10 +575,10 @@ func MarshalWebToken(token WebToken, opts ...MarshalOption) ([]byte, error) {
 	}
 	version := cfg.GetVersion()
 	switch version {
-	case V1:
-		value, ok := token.(*WebTokenV1)
+	case V3:
+		value, ok := token.(*WebTokenV3)
 		if !ok {
-			return nil, trace.BadParameter("don't know how to marshal web token %v", V1)
+			return nil, trace.BadParameter("don't know how to marshal web token %v", token)
 		}
 		if !cfg.PreserveResourceID {
 			// avoid modifying the original object
@@ -594,8 +605,8 @@ func UnmarshalWebToken(bytes []byte, opts ...MarshalOption) (WebToken, error) {
 		return nil, trace.Wrap(err)
 	}
 	switch hdr.Version {
-	case V1:
-		var token WebTokenV1
+	case V3:
+		var token WebTokenV3
 		if err := utils.UnmarshalWithSchema(GetWebTokenSchema(), &token, bytes); err != nil {
 			return nil, trace.BadParameter("invalid web token: %v", err.Error())
 		}
@@ -616,11 +627,11 @@ func UnmarshalWebToken(bytes []byte, opts ...MarshalOption) (WebToken, error) {
 
 // GetWebTokenSchema returns JSON schema for the web token resource
 func GetWebTokenSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, WebTokenSpecV1Schema, "")
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, WebTokenSpecV3Schema, "")
 }
 
-// WebTokenSpecV1Schema is JSON schema for the web token V1
-const WebTokenSpecV1Schema = `{
+// WebTokenSpecV3Schema is JSON schema for the web token V3
+const WebTokenSpecV3Schema = `{
   "type": "object",
   "additionalProperties": false,
   "required": ["token", "user", "expires"],
