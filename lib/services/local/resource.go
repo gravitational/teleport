@@ -375,7 +375,7 @@ func itemToOIDCConnector(item backend.Item) (services.OIDCConnector, error) {
 // itemFromSAMLConnector attempts to encode the supplied connector as an
 // instance of `backend.Item` suitable for storage.
 func itemFromSAMLConnector(connector services.SAMLConnector) (*backend.Item, error) {
-	if err := connector.CheckAndSetDefaults(); err != nil {
+	if err := services.ValidateSAMLConnector(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)

@@ -17,11 +17,7 @@ limitations under the License.
 package types
 
 import (
-	"crypto/x509/pkix"
-	"encoding/xml"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -30,7 +26,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
 )
 
 // SAMLConnector specifies configuration for SAML 2.0 identity providers
@@ -386,12 +381,8 @@ func (o *SAMLConnectorV2) SetSigningKeyPair(k *SigningKeyPair) {
 
 // CheckAndSetDefaults checks and sets default values
 func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
-	err := o.Metadata.CheckAndSetDefaults()
-	if err != nil {
+	if err := o.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
-	}
-	if o.Metadata.Name == "" {
-		return trace.BadParameter("ID: missing connector name, name your connector to refer to internally e.g. okta1")
 	}
 	if o.Metadata.Name == teleport.Local {
 		return trace.BadParameter("ID: invalid connector name %v is a reserved name", teleport.Local)
@@ -405,78 +396,21 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 	if o.Spec.Audience == "" {
 		o.Spec.Audience = o.Spec.AssertionConsumerService
 	}
-
-	// if we have a entity descriptor url, fetch it first
-	if o.Spec.EntityDescriptorURL != "" {
-		resp, err := http.Get(o.Spec.EntityDescriptorURL)
-		if err != nil {
-			return trace.Wrap(err)
+	// Issuer and SSO can be automatically set later if EntityDescriptor is provided
+	if o.Spec.EntityDescriptorURL == "" && o.Spec.EntityDescriptor == "" {
+		if o.Spec.Issuer == "" {
+			return trace.BadParameter("no issuer or entityID set, either set issuer as a parameter or via entity_descriptor spec")
 		}
-		if resp.StatusCode != http.StatusOK {
-			return trace.BadParameter("status code %v when fetching from %q", resp.StatusCode, o.Spec.EntityDescriptorURL)
-		}
-		defer resp.Body.Close()
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		o.Spec.EntityDescriptor = string(body)
-		log.Debugf("[SAML] Successfully fetched entity descriptor from %q", o.Spec.EntityDescriptorURL)
-	}
-	if o.Spec.EntityDescriptor != "" {
-		// metadata is a slimmed down anonymous struct of
-		// github.com/russellhaering/gosaml2/types.EntityDescriptor
-		// to avoid unnecessary imports.
-		metadata := &struct {
-			EntityID         string `xml:"entityID,attr"`
-			IDPSSODescriptor *struct {
-				SingleSignOnServices []struct {
-					XMLName  xml.Name `xml:"urn:oasis:names:tc:SAML:2.0:metadata SingleSignOnService"`
-					Location string   `xml:"Location,attr"`
-				} `xml:"SingleSignOnService"`
-			} `xml:"IDPSSODescriptor,omitempty"`
-		}{}
-
-		err := xml.Unmarshal([]byte(o.Spec.EntityDescriptor), metadata)
-		if err != nil {
-			return trace.Wrap(err, "failed to parse entity_descriptor")
-		}
-
-		o.Spec.Issuer = metadata.EntityID
-		if len(metadata.IDPSSODescriptor.SingleSignOnServices) > 0 {
-			o.Spec.SSO = metadata.IDPSSODescriptor.SingleSignOnServices[0].Location
+		if o.Spec.SSO == "" {
+			return trace.BadParameter("no SSO set either explicitly or via entity_descriptor spec")
 		}
 	}
-	if o.Spec.Issuer == "" {
-		return trace.BadParameter("no issuer or entityID set, either set issuer as a parameter or via entity_descriptor spec")
-	}
-	if o.Spec.SSO == "" {
-		return trace.BadParameter("no SSO set either explicitly or via entity_descriptor spec")
-	}
-
-	if o.Spec.SigningKeyPair == nil {
-		keyPEM, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
-			Organization: []string{"Teleport OSS"},
-			CommonName:   "teleport.localhost.localdomain",
-		}, nil, 10*365*24*time.Hour)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		o.Spec.SigningKeyPair = &SigningKeyPair{
-			PrivateKey: string(keyPEM),
-			Cert:       string(certPEM),
-		}
-	}
-
 	// make sure claim mappings have either roles or a role template
 	for _, v := range o.Spec.AttributesToRoles {
 		if len(v.Roles) == 0 {
 			return trace.BadParameter("need roles field in attributes_to_roles")
 		}
 	}
-	log.Debugf("[SAML] SSO: %v", o.Spec.SSO)
-	log.Debugf("[SAML] Issuer: %v", o.Spec.Issuer)
-	log.Debugf("[SAML] ACS: %v", o.Spec.AssertionConsumerService)
 	return nil
 }
 
@@ -635,7 +569,7 @@ func (*teleportSAMLConnectorMarshaler) UnmarshalSAMLConnector(bytes []byte, opts
 			}
 		}
 
-		if err := c.Metadata.CheckAndSetDefaults(); err != nil {
+		if err := c.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 

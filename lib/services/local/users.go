@@ -931,7 +931,7 @@ func (s *IdentityService) GetOIDCAuthRequest(stateToken string) (*services.OIDCA
 
 // CreateSAMLConnector creates SAML Connector
 func (s *IdentityService) CreateSAMLConnector(connector services.SAMLConnector) error {
-	if err := connector.CheckAndSetDefaults(); err != nil {
+	if err := services.ValidateSAMLConnector(connector); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)
@@ -952,7 +952,7 @@ func (s *IdentityService) CreateSAMLConnector(connector services.SAMLConnector) 
 
 // UpsertSAMLConnector upserts SAML Connector
 func (s *IdentityService) UpsertSAMLConnector(connector services.SAMLConnector) error {
-	if err := connector.CheckAndSetDefaults(); err != nil {
+	if err := services.ValidateSAMLConnector(connector); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)
