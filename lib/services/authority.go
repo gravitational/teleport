@@ -22,9 +22,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/wrappers"
 
 	"github.com/gravitational/trace"
 	"github.com/tstranex/u2f"
@@ -141,7 +141,7 @@ type UserCertParams struct {
 	ActiveRequests RequestIDs
 }
 
-// Check checks the user cert parameters
+// Check checks the user certificate parameters
 func (c UserCertParams) Check() error {
 	if len(c.PrivateCASigningKey) == 0 || c.CASigningAlg == "" {
 		return trace.BadParameter("PrivateCASigningKey and CASigningAlg are required")

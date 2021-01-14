@@ -46,7 +46,7 @@ import (
 )
 
 type Suite struct {
-	clock        clockwork.Clock
+	clock        clockwork.FakeClock
 	dataDir      string
 	authServer   *auth.TestAuthServer
 	tlsServer    *auth.TestTLSServer
@@ -74,7 +74,7 @@ func TestApp(t *testing.T) { check.TestingT(t) }
 func (s *Suite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())
 
-	s.clock = clockwork.NewFakeClockAt(time.Now())
+	s.clock = clockwork.NewFakeClock()
 	s.dataDir = c.MkDir()
 
 	var err error
@@ -82,6 +82,7 @@ func (s *Suite) SetUpSuite(c *check.C) {
 	s.authServer, err = auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		ClusterName: "root.example.com",
 		Dir:         s.dataDir,
+		Clock:       s.clock,
 	})
 	c.Assert(err, check.IsNil)
 	s.tlsServer, err = s.authServer.NewTestTLSServer()
@@ -116,10 +117,13 @@ func (s *Suite) SetUpTest(c *check.C) {
 	// Create a in-memory HTTP server that will respond with a UUID. This value
 	// will be checked in the client later to ensure a connection was made.
 	s.message = uuid.New()
-	s.testhttp = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+	s.testhttp = httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, s.message)
 		s.closeFunc()
 	}))
+	s.testhttp.Config.TLSConfig = &tls.Config{Time: s.clock.Now}
+	s.testhttp.Start()
 
 	// Extract the hostport that the in-memory HTTP server is running on.
 	u, err := url.Parse(s.testhttp.URL)
@@ -147,7 +151,7 @@ func (s *Suite) SetUpTest(c *check.C) {
 		Spec: services.ServerSpecV2{
 			Version: teleport.Version,
 			Apps: []*services.App{
-				&services.App{
+				{
 					Name:          "foo",
 					URI:           s.testhttp.URL,
 					PublicAddr:    "foo.example.com",
@@ -166,6 +170,7 @@ func (s *Suite) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 	tlsConfig, err := serverIdentity.TLSConfig(nil)
 	c.Assert(err, check.IsNil)
+	tlsConfig.Time = s.clock.Now
 
 	// Generate certificate for user.
 	privateKey, publicKey, err := s.tlsServer.Auth().GenerateKeyPair("")
@@ -286,6 +291,8 @@ func (s *Suite) TestHandleConnection(c *check.C) {
 				RootCAs: s.hostCertPool,
 				// Certificates is the user's application specific certificate.
 				Certificates: []tls.Certificate{s.clientCertificate},
+				// Time defines the time anchor for certificate validation
+				Time: s.clock.Now,
 			},
 		},
 	}

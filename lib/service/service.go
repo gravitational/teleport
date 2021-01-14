@@ -226,10 +226,11 @@ func (c *Connector) Close() error {
 // TeleportProcess structure holds the state of the Teleport daemon, controlling
 // execution and configuration of the teleport services: ssh, auth and proxy.
 type TeleportProcess struct {
-	clockwork.Clock
+	Clock clockwork.Clock
 	sync.Mutex
 	Supervisor
 	Config *Config
+
 	// localAuth has local auth server listed in case if this process
 	// has started with auth server role enabled
 	localAuth *auth.Server
@@ -1314,7 +1315,7 @@ func (process *TeleportProcess) initAuthService() error {
 			} else {
 				srv.Spec.Rotation = state.Spec.Rotation
 			}
-			srv.SetTTL(process, defaults.ServerAnnounceTTL)
+			srv.SetTTL(process.Clock, defaults.ServerAnnounceTTL)
 			return &srv, nil
 		},
 		KeepAlivePeriod: defaults.ServerKeepAliveTTL,

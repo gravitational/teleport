@@ -55,6 +55,12 @@ GENERAL
 - Name ID format `EmailAddress`
 - Application username `Okta username`
 
+
+SINGLE ATTRIBUTE STATEMENTS
+
+ - Name: `username`  | Name format: `Unspecified` | Value: `user.login`
+
+
 GROUP ATTRIBUTE STATEMENTS
 
 - Name: `groups` | Name format: `Unspecified`
@@ -140,7 +146,7 @@ spec:
   options:
     max_session_ttl: 24h
   allow:
-    logins: [ "{% raw %}{{external.username}}{% endraw %}", ubuntu ]
+    logins: [ "{% raw %}{{email.local(external.username)}}{% endraw %}", ubuntu ]
     node_labels:
       access: relaxed
 ```
@@ -148,7 +154,7 @@ spec:
 * Devs are only allowed to login to nodes labelled with `access: relaxed` label.
 * Developers can log in as `ubuntu` user
 * Notice `{% raw %}{{external.username}}{% endraw %}` login. It configures Teleport to look at
-  _"username"_ Okta claim and use that field as an allowed login for each user.
+  _"username"_ Okta claim and use that field as an allowed login for each user.  This example uses email as the username format.  The `email.local(external.trait)` function will remove the `@domain` and just have the username prefix.
 * Developers also do not have any "allow rules" i.e. they will not be able to
   see/replay past sessions or re-configure the Teleport cluster.
 

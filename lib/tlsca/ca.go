@@ -29,7 +29,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/wrappers"
+	"github.com/gravitational/teleport/api/types/wrappers"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"

@@ -351,18 +351,16 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 	}
 	assertionInfo, err := provider.RetrieveAssertionInfo(samlResponse)
 	if err != nil {
-		log.Warnf("Received response with incorrect or no claims/attribute statements. Please check the identity provider configuration to make sure that mappings for claims/attribute statements are set up correctly. <See: https://goteleport.com/teleport/docs/enterprise/sso/ssh-sso/>. Failed to retrieve SAML AssertionInfo from response: %v.", err)
-		return nil, trace.AccessDenied("bad SAML response")
+		return nil, trace.AccessDenied(
+			"received response with incorrect or missing attribute statements, please check the identity provider configuration to make sure that mappings for claims/attribute statements are set up correctly. <See: https://goteleport.com/teleport/docs/enterprise/sso/ssh-sso/>, failed to retrieve SAML assertion info from response: %v.", err)
 	}
 
 	if assertionInfo.WarningInfo.InvalidTime {
-		log.Warnf("Invalid time in SAML AssertionInfo.")
-		return nil, trace.AccessDenied("bad SAML response")
+		return nil, trace.AccessDenied("invalid time in SAML assertion info")
 	}
 
 	if assertionInfo.WarningInfo.NotInAudience {
-		log.Warnf("No audience in SAML AssertionInfo.")
-		return nil, trace.AccessDenied("bad SAML response")
+		return nil, trace.AccessDenied("no audience in SAML assertion info")
 	}
 
 	log.Debugf("Obtained SAML assertions for %q.", assertionInfo.NameID)
