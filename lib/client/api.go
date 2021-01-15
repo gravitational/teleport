@@ -45,6 +45,7 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -56,7 +57,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/agentconn"
-	"github.com/gravitational/teleport/lib/wrappers"
 
 	"github.com/gravitational/trace"
 

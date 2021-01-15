@@ -24,9 +24,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
-	"github.com/gravitational/teleport/lib/wrappers"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"

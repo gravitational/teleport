@@ -406,9 +406,15 @@ buildbox-grpc:
 	find lib/ -iname *.proto | xargs clang-format -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 	find api/ -iname *.proto | xargs clang-format -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 
-	cd lib/events && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
-    *.proto
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/types/events \
+		--gofast_out=plugins=grpc:api/types/events \
+		events.proto
+
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/types/wrappers \
+		--gofast_out=plugins=grpc:api/types/wrappers \
+		wrappers.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types \
@@ -419,10 +425,6 @@ buildbox-grpc:
 		--proto_path=api/client/proto \
 		--gofast_out=plugins=grpc:api/client/proto \
 		authservice.proto
-
-	cd lib/wrappers && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
-    *.proto
 
 	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
 	  --gofast_out=plugins=grpc:.\

@@ -3,7 +3,7 @@ package types;
 
 import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
-import "github.com/gravitational/teleport/lib/wrappers/wrappers.proto";
+import "github.com/gravitational/teleport/api/types/wrappers/wrappers.proto";
 
 option (gogoproto.marshaler_all) = true;
 option (gogoproto.unmarshaler_all) = true;
@@ -475,7 +475,7 @@ message AuditConfig {
     wrappers.StringValues AuditEventsURI = 4 [
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "audit_events_uri,omitempty",
-        (gogoproto.customtype) = "github.com/gravitational/teleport/lib/wrappers.Strings"
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Strings"
     ];
     // AuditTableName is a DB table name used for audits
     // Deprecated in favor of AuditEventsURI
@@ -647,7 +647,7 @@ message AccessRequestSpecV3 {
     wrappers.LabelValues ResolveAnnotations = 8 [
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "resolve_annotations,omitempty",
-        (gogoproto.customtype) = "github.com/gravitational/teleport/lib/wrappers.Traits"
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
     ];
 
     // SystemAnnotations is a set of programmatically generated annotations attached
@@ -658,7 +658,7 @@ message AccessRequestSpecV3 {
     wrappers.LabelValues SystemAnnotations = 9 [
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "system_annotations,omitempty",
-        (gogoproto.customtype) = "github.com/gravitational/teleport/lib/wrappers.Traits"
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
     ];
 }
 
@@ -923,7 +923,7 @@ message AccessRequestConditions {
     wrappers.LabelValues Annotations = 3 [
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "annotations,omitempty",
-        (gogoproto.customtype) = "github.com/gravitational/teleport/lib/wrappers.Traits"
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
     ];
 }
 
@@ -1001,7 +1001,7 @@ message UserSpecV2 {
     wrappers.LabelValues Traits = 5 [
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "traits,omitempty",
-        (gogoproto.customtype) = "github.com/gravitational/teleport/lib/wrappers.Traits"
+        (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
     ];
 
     // Status is a login status of the user
