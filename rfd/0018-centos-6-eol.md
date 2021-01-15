@@ -49,6 +49,7 @@ Removing CentOS 6 builds will:
   - Make writing documentation and examples easier, due to increased commonality between environments
     (for example: CentOS 6 does not use systemd, whereas CentOS 7+, Amazon Linux, Fedora, SuSE and other
     RHEL variants do)
+  - Incentivize users to use a maintained software stack without known unpatched vulnerabilities
 
 ## Details
 
