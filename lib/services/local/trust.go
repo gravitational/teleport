@@ -80,7 +80,7 @@ func (s *CA) UpsertCertAuthority(ca services.CertAuthority) error {
 // if the existing value matches existing parameter, returns nil if succeeds,
 // trace.CompareFailed otherwise.
 func (s *CA) CompareAndSwapCertAuthority(new, existing services.CertAuthority) error {
-	if err := new.CheckAndSetDefaults(); err != nil {
+	if err := services.ValidateCertAuthority(new); err != nil {
 		return trace.Wrap(err)
 	}
 	newValue, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(new)
@@ -213,6 +213,9 @@ func (s *CA) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, opts
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := ca.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	setSigningKeys(ca, loadSigningKeys)
 	return ca, nil
 }
@@ -246,6 +249,9 @@ func (s *CA) GetCertAuthorities(caType services.CertAuthType, loadSigningKeys bo
 				services.WithResourceID(item.ID),
 				services.WithExpires(item.Expires))...)
 		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := ca.Check(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		setSigningKeys(ca, loadSigningKeys)
