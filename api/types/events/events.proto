@@ -1100,6 +1100,79 @@ message AppSessionRequest {
     string Method = 5 [ (gogoproto.jsontag) = "method" ];
 }
 
+// DatabaseMetadata contains common database information.
+message DatabaseMetadata {
+    // DatabaseService is the name of the database service proxying the database.
+    string DatabaseService = 1 [ (gogoproto.jsontag) = "db_service" ];
+    // DatabaseProtocol is the database type, e.g. postgres or mysql.
+    string DatabaseProtocol = 2 [ (gogoproto.jsontag) = "db_protocol" ];
+    // DatabaseURI is the database URI to connect to.
+    string DatabaseURI = 3 [ (gogoproto.jsontag) = "db_uri" ];
+    // DatabaseName is the name of the database a user is connecting to.
+    string DatabaseName = 4 [ (gogoproto.jsontag) = "db_name" ];
+    // DatabaseUser is the database username used to connect.
+    string DatabaseUser = 5 [ (gogoproto.jsontag) = "db_user" ];
+}
+
+// DatabaseSessionStart is emitted when a user connects to a database.
+message DatabaseSessionStart {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Session is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Server is a common server metadata.
+    ServerMetadata Server = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Connection holds information about the connection.
+    ConnectionMetadata Connection = 5
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Status indicates whether the connection was successful or denied.
+    Status Status = 6
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 7
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
+// DatabaseSessionQuery is emitted when a user executes a database query.
+message DatabaseSessionQuery {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // SessionMetadata is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // DatabaseQuery is the executed query string.
+    string DatabaseQuery = 5 [ (gogoproto.jsontag) = "db_query" ];
+}
+
+// DatabaseSessionEnd is emitted when a user ends the database session.
+message DatabaseSessionEnd {
+    // Metadata is a common event metadata.
+    Metadata Metadata = 1
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // User is a common user event metadata.
+    UserMetadata User = 2
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Session is a common event session metadata.
+    SessionMetadata Session = 3
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+    // Database contains database related metadata.
+    DatabaseMetadata Database = 4
+        [ (gogoproto.nullable) = false, (gogoproto.embed) = true, (gogoproto.jsontag) = "" ];
+}
+
 // OneOf is a union of one of audit events submitted to the auth service
 message OneOf {
     // Event is one of the audit events
@@ -1143,6 +1216,9 @@ message OneOf {
         events.AppSessionStart AppSessionStart = 37;
         events.AppSessionChunk AppSessionChunk = 38;
         events.AppSessionRequest AppSessionRequest = 39;
+        events.DatabaseSessionStart DatabaseSessionStart = 40;
+        events.DatabaseSessionEnd DatabaseSessionEnd = 41;
+        events.DatabaseSessionQuery DatabaseSessionQuery = 42;
     }
 }
 
