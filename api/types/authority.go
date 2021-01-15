@@ -17,7 +17,6 @@ limitations under the License.
 package types
 
 import (
-	"crypto"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -26,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -67,8 +65,6 @@ type CertAuthority interface {
 	// FirstSigningKey returns first signing key or returns error if it's not here
 	// The first key is returned because multiple keys can exist during key rotation.
 	FirstSigningKey() ([]byte, error)
-	// Check checks object for errors
-	Check() error
 	// CheckAndSetDefaults checks and set default values for any missing fields.
 	CheckAndSetDefaults() error
 	// SetSigningKeys sets signing keys
@@ -89,8 +85,6 @@ type CertAuthority interface {
 	SetTLSKeyPairs(keyPairs []TLSKeyPair)
 	// GetTLSKeyPairs returns first PEM encoded TLS cert
 	GetTLSKeyPairs() []TLSKeyPair
-	// JWTSigner returns the active JWT key used to sign tokens.
-	JWTSigner(jwt.Config) (*jwt.Key, error)
 	// GetJWTKeyPairs gets all JWT key pairs.
 	GetJWTKeyPairs() []JWTKeyPair
 	// SetJWTKeyPairs sets all JWT key pairs.
@@ -119,33 +113,6 @@ func NewCertAuthority(spec CertAuthoritySpecV2) CertAuthority {
 		},
 		Spec: spec,
 	}
-}
-
-// NewJWTAuthority creates and returns a services.CertAuthority with a new
-// key pair.
-func NewJWTAuthority(clusterName string) (CertAuthority, error) {
-	publicKey, privateKey, err := jwt.GenerateKeyPair()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &CertAuthorityV2{
-		Kind:    KindCertAuthority,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      clusterName,
-			Namespace: defaults.Namespace,
-		},
-		Spec: CertAuthoritySpecV2{
-			ClusterName: clusterName,
-			Type:        JWTSigner,
-			JWTKeyPairs: []JWTKeyPair{
-				{
-					PublicKey:  publicKey,
-					PrivateKey: privateKey,
-				},
-			},
-		},
-	}, nil
 }
 
 // GetVersion returns resource version
@@ -218,26 +185,6 @@ func (ca *CertAuthorityV2) SetTLSKeyPairs(pairs []TLSKeyPair) {
 // GetTLSKeyPairs returns TLS key pairs
 func (ca *CertAuthorityV2) GetTLSKeyPairs() []TLSKeyPair {
 	return ca.Spec.TLSKeyPairs
-}
-
-// JWTSigner returns the active JWT key used to sign tokens.
-func (ca *CertAuthorityV2) JWTSigner(config jwt.Config) (*jwt.Key, error) {
-	if len(ca.Spec.JWTKeyPairs) == 0 {
-		return nil, trace.BadParameter("no JWT keypairs found")
-	}
-	privateKey, err := utils.ParsePrivateKey(ca.Spec.JWTKeyPairs[0].PrivateKey)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	config.Algorithm = defaults.ApplicationTokenAlgorithm
-	config.ClusterName = ca.Spec.ClusterName
-	config.PrivateKey = privateKey
-	key, err := jwt.New(&config)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return key, nil
 }
 
 // GetJWTKeyPairs gets all JWT keypairs used to sign a JWT.
@@ -479,89 +426,6 @@ func (ca *CertAuthorityV2) SetSigningAlg(alg string) {
 	ca.Spec.SigningAlg = ParseSigningAlg(alg)
 }
 
-// Check checks if all passed parameters are valid
-func (ca *CertAuthorityV2) Check() error {
-	err := ca.ID().Check()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	switch ca.GetType() {
-	case UserCA, HostCA:
-		err = ca.checkUserOrHostCA()
-	case JWTSigner:
-		err = ca.checkJWTKeys()
-	default:
-		err = trace.BadParameter("invalid CA type %q", ca.GetType())
-	}
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func (ca *CertAuthorityV2) checkUserOrHostCA() error {
-	if len(ca.Spec.CheckingKeys) == 0 {
-		return trace.BadParameter("certificate authority missing SSH public keys")
-	}
-	if len(ca.Spec.TLSKeyPairs) == 0 {
-		return trace.BadParameter("certificate authority missing TLS key pairs")
-	}
-
-	_, err := ca.Checkers()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	_, err = ca.Signers()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// This is to force users to migrate
-	if len(ca.Spec.Roles) != 0 && len(ca.Spec.RoleMap) != 0 {
-		return trace.BadParameter("should set either 'roles' or 'role_map', not both")
-	}
-	if err := RoleMap(ca.Spec.RoleMap).Check(); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
-func (ca *CertAuthorityV2) checkJWTKeys() error {
-	// Check that some JWT keys have been set on the CA.
-	if len(ca.Spec.JWTKeyPairs) == 0 {
-		return trace.BadParameter("missing JWT CA")
-	}
-
-	var err error
-	var privateKey crypto.Signer
-
-	// Check that the JWT keys set are valid.
-	for _, pair := range ca.Spec.JWTKeyPairs {
-		if len(pair.PrivateKey) > 0 {
-			privateKey, err = utils.ParsePrivateKey(pair.PrivateKey)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		publicKey, err := utils.ParsePublicKey(pair.PublicKey)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		_, err = jwt.New(&jwt.Config{
-			Algorithm:   defaults.ApplicationTokenAlgorithm,
-			ClusterName: ca.Spec.ClusterName,
-			PrivateKey:  privateKey,
-			PublicKey:   publicKey,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
-}
-
 // CheckAndSetDefaults checks and set default values for any missing fields.
 func (ca *CertAuthorityV2) CheckAndSetDefaults() error {
 	err := ca.Metadata.CheckAndSetDefaults()
@@ -569,12 +433,16 @@ func (ca *CertAuthorityV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	err = ca.Check()
-	if err != nil {
+	if err = ca.ID().Check(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	return nil
+	switch ca.GetType() {
+	case UserCA, HostCA, JWTSigner:
+		return nil
+	default:
+		return trace.BadParameter("invalid CA type %q", ca.GetType())
+	}
 }
 
 const (
