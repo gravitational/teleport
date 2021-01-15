@@ -48,7 +48,7 @@ ffmpeg -i input.mov -c vp9 -b:v 0 -crf 41 output.webm
 **Embed videos**
 
 ```html
-<video autoplay loop muted playsinline>
+<video autoPlay loop muted playsInline>
   <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.mp4" type="video/mp4" />
   <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.webm" type="video/webm" />
 Your browser does not support the video tag.
