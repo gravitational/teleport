@@ -2097,6 +2097,9 @@ func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err = services.ValidateRole(role); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	err = auth.UpsertRole(r.Context(), role)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -259,6 +259,62 @@ const (
 	Deny RoleConditionType = false
 )
 
+// ValidateRole parses validates the role, and sets default values.
+func ValidateRole(r Role) error {
+	if err := r.CheckAndSetDefaults(); err != nil {
+		return err
+	}
+
+	// if we find {{ or }} but the syntax is invalid, the role is invalid
+	for _, condition := range []RoleConditionType{Allow, Deny} {
+		for _, login := range r.GetLogins(condition) {
+			if strings.Contains(login, "{{") || strings.Contains(login, "}}") {
+				_, err := parse.NewExpression(login)
+				if err != nil {
+					return trace.BadParameter("invalid login found: %v", login)
+				}
+			}
+		}
+	}
+
+	rules := append(r.GetRules(types.Allow), r.GetRules(types.Deny)...)
+	for _, rule := range rules {
+		if err := validateRule(rule); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// validateRule parses the where and action fields to validate the rule.
+func validateRule(r Rule) error {
+	if len(r.Where) != 0 {
+		parser, err := NewWhereParser(&Context{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		_, err = parser.Parse(r.Where)
+		if err != nil {
+			return trace.BadParameter("could not parse 'where' rule: %q, error: %v", r.Where, err)
+		}
+	}
+
+	if len(r.Actions) != 0 {
+		parser, err := NewActionsParser(&Context{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for i, action := range r.Actions {
+			_, err = parser.Parse(action)
+			if err != nil {
+				return trace.BadParameter("could not parse action %v %q, error: %v", i, action, err)
+			}
+		}
+	}
+	return nil
+}
+
 // ApplyTraits applies the passed in traits to any variables within the role
 // and returns itself.
 func ApplyTraits(r Role, traits map[string][]string) Role {
@@ -1499,11 +1555,11 @@ func (set RoleSet) String() string {
 // namespace to the specified resource and verb.
 // silent controls whether the access violations are logged.
 func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
-	whereParser, err := GetWhereParserFn()(ctx)
+	whereParser, err := NewWhereParser(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	actionsParser, err := GetActionsParserFn()(ctx)
+	actionsParser, err := NewActionsParser(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

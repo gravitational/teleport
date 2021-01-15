@@ -21,7 +21,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/coreos/go-oidc/jose"
 	"github.com/stretchr/testify/require"
 )
 
@@ -153,64 +152,4 @@ func TestOIDCUnmarshalInvalid(t *testing.T) {
 
 	_, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
 	require.Error(t, err)
-}
-
-// Verify that an OIDC connector with no mappings produces no roles.
-func TestOIDCRoleMappingEmpty(t *testing.T) {
-	// create a connector
-	oidcConnector := NewOIDCConnector("example", OIDCConnectorSpecV2{
-		IssuerURL:    "https://www.exmaple.com",
-		ClientID:     "example-client-id",
-		ClientSecret: "example-client-secret",
-		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
-		Display:      "sign in with example.com",
-		Scope:        []string{"foo", "bar"},
-	})
-
-	// create some claims
-	var claims = make(jose.Claims)
-	claims.Add("roles", "teleport-user")
-	claims.Add("email", "foo@example.com")
-	claims.Add("nickname", "foo")
-	claims.Add("full_name", "foo bar")
-
-	traits := OIDCClaimsToTraits(claims)
-	require.Len(t, traits, 4)
-
-	roles := oidcConnector.GetTraitMappings().TraitsToRoles(traits)
-	require.Len(t, roles, 0)
-}
-
-// TestOIDCRoleMapping verifies basic mapping from OIDC claims to roles.
-func TestOIDCRoleMapping(t *testing.T) {
-	// create a connector
-	oidcConnector := NewOIDCConnector("example", OIDCConnectorSpecV2{
-		IssuerURL:    "https://www.exmaple.com",
-		ClientID:     "example-client-id",
-		ClientSecret: "example-client-secret",
-		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
-		Display:      "sign in with example.com",
-		Scope:        []string{"foo", "bar"},
-		ClaimsToRoles: []ClaimMapping{
-			{
-				Claim: "roles",
-				Value: "teleport-user",
-				Roles: []string{"user"},
-			},
-		},
-	})
-
-	// create some claims
-	var claims = make(jose.Claims)
-	claims.Add("roles", "teleport-user")
-	claims.Add("email", "foo@example.com")
-	claims.Add("nickname", "foo")
-	claims.Add("full_name", "foo bar")
-
-	traits := OIDCClaimsToTraits(claims)
-	require.Len(t, traits, 4)
-
-	roles := oidcConnector.GetTraitMappings().TraitsToRoles(traits)
-	require.Len(t, roles, 1)
-	require.Equal(t, "user", roles[0])
 }
