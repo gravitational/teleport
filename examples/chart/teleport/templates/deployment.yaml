@@ -97,7 +97,7 @@ spec:
         secret:
           secretName: {{ .Values.license.secretName }}
 {{- end }}
-      - name: {{ template "teleport.fullname" . }}-config
+      - name: {{ .Values.config.existingConfig | default (printf "%s-config" (include "teleport.fullname" .)) }}
         configMap:
           name: {{ template "teleport.fullname" . }}
       - name: {{ template "teleport.fullname" . }}-storage

@@ -40,6 +40,9 @@ proxy:
 # configuration
 #
 config:
+  # Inject your own configmap mounted by teleport. This is useful for things like
+  # hydrating a configmap outside of the chart and mounting it into teleport pod.
+  existingConfig: ""
   # used for cluster name, advertise_ip, and public addresses
   # If high availability is set it is only used for the proxy
   public_address: teleport.example.com
@@ -343,4 +346,3 @@ tolerations: []
 #   operator: "Equal"
 #   value: "teleport"
 #   effect: "NoSchedule"
-
