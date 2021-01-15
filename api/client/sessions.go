@@ -19,6 +19,7 @@ package client
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -30,7 +31,7 @@ import (
 
 // GetWebSession returns the web session for the specified request.
 // Implements ReadAccessPoint
-func (c *Client) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (services.WebSession, error) {
+func (c *Client) GetWebSession(ctx context.Context, req proto.GetWebSessionRequest) (services.WebSession, error) {
 	return c.WebSessions().Get(ctx, req)
 }
 
@@ -40,7 +41,7 @@ func (c *Client) WebSessions() services.WebSessionInterface {
 }
 
 // Get returns the web session for the specified request
-func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (services.WebSession, error) {
+func (r *webSessions) Get(ctx context.Context, req proto.GetWebSessionRequest) (services.WebSession, error) {
 	resp, err := r.c.grpc.GetWebSession(ctx, &req)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -67,7 +68,7 @@ func (r *webSessions) Upsert(ctx context.Context, session services.WebSession) e
 }
 
 // Delete deletes the web session specified with the request
-func (r *webSessions) Delete(ctx context.Context, req types.DeleteWebSessionRequest) error {
+func (r *webSessions) Delete(ctx context.Context, req proto.DeleteWebSessionRequest) error {
 	_, err := r.c.grpc.DeleteWebSession(ctx, &req)
 	if err != nil {
 		return trail.FromGRPC(err)
@@ -90,7 +91,7 @@ type webSessions struct {
 
 // GetWebToken returns the web token for the specified request.
 // Implements ReadAccessPoint
-func (c *Client) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
+func (c *Client) GetWebToken(ctx context.Context, req proto.GetWebTokenRequest) (types.WebToken, error) {
 	return c.WebTokens().Get(ctx, req)
 }
 
@@ -100,7 +101,7 @@ func (c *Client) WebTokens() services.WebTokenInterface {
 }
 
 // Get returns the web token for the specified request
-func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
+func (r *webTokens) Get(ctx context.Context, req proto.GetWebTokenRequest) (types.WebToken, error) {
 	resp, err := r.c.grpc.GetWebToken(ctx, &req)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -127,7 +128,7 @@ func (r *webTokens) Upsert(ctx context.Context, token types.WebToken) error {
 }
 
 // Delete deletes the web token specified with the request
-func (r *webTokens) Delete(ctx context.Context, req types.DeleteWebTokenRequest) error {
+func (r *webTokens) Delete(ctx context.Context, req proto.DeleteWebTokenRequest) error {
 	_, err := r.c.grpc.DeleteWebToken(ctx, &req)
 	if err != nil {
 		return trail.FromGRPC(err)

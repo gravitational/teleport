@@ -2404,9 +2404,9 @@ type ClientI interface {
 
 	// GetWebSession queries the existing web session described with req.
 	// Implements ReadAccessPoint.
-	GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error)
+	GetWebSession(ctx context.Context, req proto.GetWebSessionRequest) (types.WebSession, error)
 
 	// GetWebToken queries the existing web token described with req.
 	// Implements ReadAccessPoint.
-	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
+	GetWebToken(ctx context.Context, req proto.GetWebTokenRequest) (types.WebToken, error)
 }

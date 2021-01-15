@@ -161,13 +161,13 @@ type Services struct {
 
 // GetWebSession returns existing web session described by req.
 // Implements ReadAccessPoint
-func (r Services) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
+func (r Services) GetWebSession(ctx context.Context, req proto.GetWebSessionRequest) (types.WebSession, error) {
 	return r.Identity.WebSessions().Get(ctx, req)
 }
 
 // GetWebToken returns existing web token described by req.
 // Implements ReadAccessPoint
-func (r Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
+func (r Services) GetWebToken(ctx context.Context, req proto.GetWebTokenRequest) (types.WebToken, error) {
 	return r.Identity.WebTokens().Get(ctx, req)
 }
 
@@ -882,7 +882,7 @@ func (a *Server) CheckU2FSignResponse(ctx context.Context, user string, response
 // Additional roles are appended to initial roles if there is an approved access request.
 // The new session expiration time will not exceed the expiration time of the old session.
 func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, identity tlsca.Identity) (services.WebSession, error) {
-	prevSession, err := a.GetWebSession(context.TODO(), types.GetWebSessionRequest{
+	prevSession, err := a.GetWebSession(context.TODO(), proto.GetWebSessionRequest{
 		User:      user,
 		SessionID: prevSessionID,
 	})

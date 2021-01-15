@@ -1445,22 +1445,6 @@ message KubernetesCluster {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
 }
 
-// GetWebSessionRequest describes a request to query a web session
-message GetWebSessionRequest {
-    // User specifies the user the web session is for.
-    string User = 1 [ (gogoproto.jsontag) = "user" ];
-    // SessionID specifies the web session ID.
-    string SessionID = 2 [ (gogoproto.jsontag) = "session_id" ];
-}
-
-// DeleteWebSessionRequest describes a request to delete a web session
-message DeleteWebSessionRequest {
-    // User specifies the user the session is bound to
-    string User = 1 [ (gogoproto.jsontag) = "user" ];
-    // SessionID specifies the web session ID to delete.
-    string SessionID = 2 [ (gogoproto.jsontag) = "session_id" ];
-}
-
 // WebTokenV3 describes a web token
 message WebTokenV3 {
     option (gogoproto.goproto_stringer) = false;
@@ -1490,20 +1474,4 @@ message WebTokenSpecV3 {
         (gogoproto.nullable) = false,
         (gogoproto.jsontag) = "expires"
     ];
-}
-
-// GetWebTokenRequest describes a request to query a web token
-message GetWebTokenRequest {
-    // User specifies the user the token is for.
-    string User = 1 [ (gogoproto.jsontag) = "user" ];
-    // Token specifies the token to get.
-    string Token = 2 [ (gogoproto.jsontag) = "token" ];
-}
-
-// DeleteWebTokenRequest describes a request to delete a web token
-message DeleteWebTokenRequest {
-    // User specifies the user the token is for.
-    string User = 1 [ (gogoproto.jsontag) = "user" ];
-    // Token specifies the token to delete.
-    string Token = 2 [ (gogoproto.jsontag) = "token" ];
 }

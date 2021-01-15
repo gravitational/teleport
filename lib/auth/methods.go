@@ -23,8 +23,9 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth/u2f"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -187,7 +188,7 @@ func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebS
 	}
 
 	if req.Session != nil {
-		session, err := s.GetWebSession(context.TODO(), types.GetWebSessionRequest{
+		session, err := s.GetWebSession(context.TODO(), proto.GetWebSessionRequest{
 			User:      req.Username,
 			SessionID: req.Session.ID,
 		})
