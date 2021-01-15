@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -136,6 +137,7 @@ type ReissueParams struct {
 	RouteToCluster    string
 	KubernetesCluster string
 	AccessRequests    []string
+	RouteToDatabase   proto.RouteToDatabase
 }
 
 // ReissueUserCerts generates certificates for the user
@@ -181,6 +183,7 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 		RouteToCluster:    params.RouteToCluster,
 		KubernetesCluster: params.KubernetesCluster,
 		AccessRequests:    params.AccessRequests,
+		RouteToDatabase:   params.RouteToDatabase,
 	}
 	if _, ok := cert.Permissions.Extensions[teleport.CertExtensionTeleportRoles]; !ok {
 		req.Format = teleport.CertificateFormatOldSSH
@@ -194,6 +197,9 @@ func (proxy *ProxyClient) ReissueUserCerts(ctx context.Context, params ReissuePa
 	key.TLSCert = certs.TLS
 	if params.KubernetesCluster != "" {
 		key.KubeTLSCerts[params.KubernetesCluster] = certs.TLS
+	}
+	if params.RouteToDatabase.ServiceName != "" {
+		key.DBTLSCerts[params.RouteToDatabase.ServiceName] = certs.TLS
 	}
 
 	// save the cert to the local storage (~/.tsh usually):
@@ -308,6 +314,19 @@ func (proxy *ProxyClient) GetAppServers(ctx context.Context, namespace string) (
 		return nil, trace.Wrap(err)
 	}
 
+	return servers, nil
+}
+
+// GetDatabaseServers returns all registered database proxy servers.
+func (proxy *ProxyClient) GetDatabaseServers(ctx context.Context, namespace string) ([]types.DatabaseServer, error) {
+	authClient, err := proxy.CurrentClusterAccessPoint(ctx, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	servers, err := authClient.GetDatabaseServers(ctx, namespace, services.SkipValidation())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return servers, nil
 }
 

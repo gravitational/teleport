@@ -207,6 +207,9 @@ const (
 
 	// KubeTunnel is a tunnel where the kubernetes service dials back to the proxy.
 	KubeTunnel TunnelType = "kube"
+
+	// DatabaseTunnel is a tunnel where a database proxy dials back to the proxy.
+	DatabaseTunnel TunnelType = "db"
 )
 
 // GetReverseTunnelSchema returns role schema with optionally injected

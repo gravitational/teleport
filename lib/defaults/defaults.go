@@ -375,6 +375,9 @@ var (
 	// AppsQueueSize is apps service queue size.
 	AppsQueueSize = 128
 
+	// DatabasesQueueSize is db service queue size.
+	DatabasesQueueSize = 128
+
 	// CASignatureAlgorithm is the default signing algorithm to use when
 	// creating new SSH CAs.
 	CASignatureAlgorithm = ssh.SigAlgoRSASHA2512
@@ -446,7 +449,19 @@ const (
 	RoleAuthService = "auth"
 	// RoleApp is an application proxy.
 	RoleApp = "app"
+	// RoleDatabase is a database proxy role.
+	RoleDatabase = "database"
 )
+
+const (
+	// ProtocolPostgres is the PostgreSQL database protocol.
+	ProtocolPostgres = "postgres"
+)
+
+// DatabaseProtocols is a list of all supported database protocols.
+var DatabaseProtocols = []string{
+	ProtocolPostgres,
+}
 
 const (
 	// PerfBufferPageCount is the size of the perf ring buffer in number of pages.
