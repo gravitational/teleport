@@ -24,6 +24,7 @@ func main() {
 		&ResourceCommandE{},
 		&SAMLCommand{},
 		&common.AppsCommand{},
+		&common.DBCommand{},
 	}
 	common.Run(commands, loadConfigFromProfile)
 }
