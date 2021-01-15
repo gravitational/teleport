@@ -10,16 +10,16 @@ state: draft
 The Teleport build pipeline currently builds special CentOS 6 binaries (which are linked
 against glibc 2.12) for customers who have not yet upgraded from CentOS 6.
 
+We will no longer produce CentOS 6 binaries for the next major version of Teleport (6.0).
+
+## Why
+
 CentOS 6 was originally released in July 2011. Full updates for all its packages stopped
 in May 2017, and [CentOS 6 has been officially declared EOL](https://wiki.centos.org/FAQ/General#What_is_the_support_.27.27end_of_life.27.27_for_each_CentOS_release.3F)
 as of November 2020.
 
 The [CentOS 6 official package mirrors have been taken down](http://mirror.centos.org/centos-6/6/readme)
 and the message being shared here by the maintainers could not be clearer - `"The whole CentOS 6 is *dead* and *shouldn't* be used anywhere at *all*"`
-
-As such, we will no longer produce CentOS 6 binaries for the next major version of Teleport (6.0).
-
-## Why
 
 Using EOL distros is unsafe and even dangerous for many reasons. CVEs and security bugs are regularly found
 and never fixed, leaving servers insecure and easily pwned by trivial exploits.
