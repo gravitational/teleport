@@ -2106,11 +2106,15 @@ func (c *Client) UpsertAppSession(ctx context.Context, session services.WebSessi
 }
 
 // ResumeAuditStream resumes existing audit stream.
+// This is a wrapper on the grpc endpoint and is deprecated.
+// DELETE IN 7.0.0
 func (c *Client) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (events.Stream, error) {
 	return c.APIClient.ResumeAuditStream(ctx, string(sid), uploadID)
 }
 
 // CreateAuditStream creates new audit stream.
+// This is a wrapper on the grpc endpoint and is deprecated.
+// DELETE IN 7.0.0
 func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
 	return c.APIClient.CreateAuditStream(ctx, string(sid))
 }
