@@ -578,6 +578,10 @@ func onLogin(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 
+	// the login operation may update the username and should be considered the more
+	// "authoritative" source.
+	cf.Username = tc.Username
+
 	// TODO(fspmarshall): Refactor access request & cert reissue logic to allow
 	// access requests to be applied to identity files.
 
