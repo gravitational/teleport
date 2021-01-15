@@ -390,6 +390,14 @@ message CreateAppSessionResponse {
 // DeleteAppSessionRequest contains the parameters used to remove an application web session.
 message DeleteAppSessionRequest { string SessionID = 1 [ (gogoproto.jsontag) = "session_id" ]; }
 
+// GetWebSessionRequest describes a request to query a web session
+message GetWebSessionRequest {
+    // User specifies the user the web session is for.
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
+    // SessionID specifies the web session ID.
+    string SessionID = 2 [ (gogoproto.jsontag) = "session_id" ];
+}
+
 // GetWebSessionResponse contains the requested web session.
 message GetWebSessionResponse {
     // Session is the web session.
@@ -402,6 +410,22 @@ message GetWebSessionsResponse {
     repeated types.WebSessionV2 Sessions = 1 [ (gogoproto.jsontag) = "sessions" ];
 }
 
+// DeleteWebSessionRequest describes a request to delete a web session
+message DeleteWebSessionRequest {
+    // User specifies the user the session is bound to
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
+    // SessionID specifies the web session ID to delete.
+    string SessionID = 2 [ (gogoproto.jsontag) = "session_id" ];
+}
+
+// GetWebTokenRequest describes a request to query a web token
+message GetWebTokenRequest {
+    // User specifies the user the token is for.
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
+    // Token specifies the token to get.
+    string Token = 2 [ (gogoproto.jsontag) = "token" ];
+}
+
 // GetWebTokenResponse contains the requested web token.
 message GetWebTokenResponse {
     // Token is the web token being requested.
@@ -412,6 +436,14 @@ message GetWebTokenResponse {
 message GetWebTokensResponse {
     // Tokens is a list of web tokens.
     repeated types.WebTokenV3 Tokens = 1 [ (gogoproto.jsontag) = "tokens" ];
+}
+
+// DeleteWebTokenRequest describes a request to delete a web token
+message DeleteWebTokenRequest {
+    // User specifies the user the token is for.
+    string User = 1 [ (gogoproto.jsontag) = "user" ];
+    // Token specifies the token to delete.
+    string Token = 2 [ (gogoproto.jsontag) = "token" ];
 }
 
 // GetKubeServicesRequest are the parameters used to request kubernetes services.
@@ -599,20 +631,20 @@ service AuthService {
     rpc DeleteAllAppSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
 
     // GetWebSession gets a web session.
-    rpc GetWebSession(types.GetWebSessionRequest) returns (GetWebSessionResponse);
+    rpc GetWebSession(GetWebSessionRequest) returns (GetWebSessionResponse);
     // GetWebSessions gets all web sessions.
     rpc GetWebSessions(google.protobuf.Empty) returns (GetWebSessionsResponse);
     // DeleteWebSession deletes a web session.
-    rpc DeleteWebSession(types.DeleteWebSessionRequest) returns (google.protobuf.Empty);
+    rpc DeleteWebSession(DeleteWebSessionRequest) returns (google.protobuf.Empty);
     // DeleteAllWebSessions deletes all web sessions.
     rpc DeleteAllWebSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
 
     // GetWebToken gets a web token.
-    rpc GetWebToken(types.GetWebTokenRequest) returns (GetWebTokenResponse);
+    rpc GetWebToken(GetWebTokenRequest) returns (GetWebTokenResponse);
     // GetWebTokens gets all web tokens.
     rpc GetWebTokens(google.protobuf.Empty) returns (GetWebTokensResponse);
     // DeleteWebToken deletes a web token.
-    rpc DeleteWebToken(types.DeleteWebTokenRequest) returns (google.protobuf.Empty);
+    rpc DeleteWebToken(DeleteWebTokenRequest) returns (google.protobuf.Empty);
     // DeleteAllWebTokens deletes all web tokens.
     rpc DeleteAllWebTokens(google.protobuf.Empty) returns (google.protobuf.Empty);
 

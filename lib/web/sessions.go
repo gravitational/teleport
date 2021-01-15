@@ -96,7 +96,7 @@ func (c *SessionContext) Invalidate() error {
 }
 
 func (c *SessionContext) validateBearerToken(ctx context.Context, token string) error {
-	_, err := c.parent.readBearerToken(ctx, types.GetWebTokenRequest{
+	_, err := c.parent.readBearerToken(ctx, proto.GetWebTokenRequest{
 		User:  c.user,
 		Token: token,
 	})
@@ -335,7 +335,7 @@ func (c *SessionContext) getToken() types.WebToken {
 // The context is considered expired when its bearer token TTL
 // is in the past
 func (c *SessionContext) expired(ctx context.Context) bool {
-	_, err := c.parent.readSession(ctx, types.GetWebSessionRequest{
+	_, err := c.parent.readSession(ctx, proto.GetWebSessionRequest{
 		User:      c.user,
 		SessionID: c.session.GetName(),
 	})
@@ -572,7 +572,7 @@ func (s *sessionCache) invalidateSession(ctx *SessionContext) error {
 	}
 	// Delete just the session - leave the bearer token to linger to avoid
 	// failing a client query still using the old token.
-	err = clt.WebSessions().Delete(context.TODO(), types.DeleteWebSessionRequest{
+	err = clt.WebSessions().Delete(context.TODO(), proto.DeleteWebSessionRequest{
 		User:      ctx.user,
 		SessionID: ctx.session.GetName(),
 	})
@@ -737,7 +737,7 @@ func (s *sessionCache) tlsConfig(cert, privKey []byte) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-func (s *sessionCache) readSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
+func (s *sessionCache) readSession(ctx context.Context, req proto.GetWebSessionRequest) (types.WebSession, error) {
 	// Read session from the cache first
 	session, err := s.accessPoint.GetWebSession(ctx, req)
 	if err == nil {
@@ -747,7 +747,7 @@ func (s *sessionCache) readSession(ctx context.Context, req types.GetWebSessionR
 	return s.proxyClient.GetWebSession(ctx, req)
 }
 
-func (s *sessionCache) readBearerToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
+func (s *sessionCache) readBearerToken(ctx context.Context, req proto.GetWebTokenRequest) (types.WebToken, error) {
 	// Read token from the cache first
 	token, err := s.accessPoint.GetWebToken(ctx, req)
 	if err == nil {
@@ -812,7 +812,7 @@ func sessionKey(user, sessionID string) string {
 
 // waitForWebSession will block until the requested web session shows up in the
 // cache or a timeout occurs.
-func (h *Handler) waitForWebSession(ctx context.Context, req types.GetWebSessionRequest) error {
+func (h *Handler) waitForWebSession(ctx context.Context, req proto.GetWebSessionRequest) error {
 	_, err := h.cfg.AccessPoint.GetWebSession(ctx, req)
 	if err == nil {
 		return nil

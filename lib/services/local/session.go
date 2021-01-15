@@ -19,6 +19,7 @@ package local
 import (
 	"context"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -100,7 +101,7 @@ func (s *IdentityService) DeleteAllAppSessions(ctx context.Context) error {
 
 // GetWebSession returns a web session state for the given user and session id
 func (s *IdentityService) GetWebSession(user, sessionID string) (types.WebSession, error) {
-	return s.WebSessions().Get(context.TODO(), types.GetWebSessionRequest{
+	return s.WebSessions().Get(context.TODO(), proto.GetWebSessionRequest{
 		User:      user,
 		SessionID: sessionID,
 	})
@@ -115,7 +116,7 @@ func (s *IdentityService) UpsertWebSession(user, sessionID string, session types
 
 // DeleteWebSession deletes web session from the storage.
 func (s *IdentityService) DeleteWebSession(user, sessionID string) error {
-	return trace.Wrap(s.WebSessions().Delete(context.TODO(), types.DeleteWebSessionRequest{
+	return trace.Wrap(s.WebSessions().Delete(context.TODO(), proto.DeleteWebSessionRequest{
 		User:      user,
 		SessionID: sessionID,
 	}))
@@ -127,7 +128,7 @@ func (s *IdentityService) WebSessions() services.WebSessionInterface {
 }
 
 // Get returns the web session state described with req.
-func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
+func (r *webSessions) Get(ctx context.Context, req proto.GetWebSessionRequest) (types.WebSession, error) {
 	if err := req.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -190,7 +191,7 @@ func (r *webSessions) Upsert(ctx context.Context, session types.WebSession) erro
 }
 
 // Delete deletes the web session specified with req from the storage.
-func (r *webSessions) Delete(ctx context.Context, req types.DeleteWebSessionRequest) error {
+func (r *webSessions) Delete(ctx context.Context, req proto.DeleteWebSessionRequest) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -240,7 +241,7 @@ func (s *IdentityService) WebTokens() services.WebTokenInterface {
 }
 
 // Get returns the web token described with req.
-func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
+func (r *webTokens) Get(ctx context.Context, req proto.GetWebTokenRequest) (types.WebToken, error) {
 	if err := req.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -292,7 +293,7 @@ func (r *webTokens) Upsert(ctx context.Context, token types.WebToken) error {
 }
 
 // Delete deletes the web token specified with req from the storage.
-func (r *webTokens) Delete(ctx context.Context, req types.DeleteWebTokenRequest) error {
+func (r *webTokens) Delete(ctx context.Context, req proto.DeleteWebTokenRequest) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}

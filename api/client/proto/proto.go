@@ -16,11 +16,15 @@ limitations under the License.
 
 package proto
 
-import "github.com/gravitational/teleport/lib/services"
+import (
+	"github.com/gravitational/teleport/api/types"
+
+	"github.com/gravitational/trace"
+)
 
 // FromWatchKind converts the watch kind value between internal
 // and the protobuf format
-func FromWatchKind(wk services.WatchKind) WatchKind {
+func FromWatchKind(wk types.WatchKind) WatchKind {
 	return WatchKind{
 		Name:        wk.Name,
 		Kind:        wk.Kind,
@@ -32,12 +36,50 @@ func FromWatchKind(wk services.WatchKind) WatchKind {
 
 // ToWatchKind converts the watch kind value between the protobuf
 // and the internal format
-func ToWatchKind(wk WatchKind) services.WatchKind {
-	return services.WatchKind{
+func ToWatchKind(wk WatchKind) types.WatchKind {
+	return types.WatchKind{
 		Name:        wk.Name,
 		Kind:        wk.Kind,
 		SubKind:     wk.SubKind,
 		LoadSecrets: wk.LoadSecrets,
 		Filter:      wk.Filter,
 	}
+}
+
+// Check validates the request.
+func (r *GetWebSessionRequest) Check() error {
+	if r.User == "" {
+		return trace.BadParameter("user name missing")
+	}
+	if r.SessionID == "" {
+		return trace.BadParameter("session ID missing")
+	}
+	return nil
+}
+
+// Check validates the request.
+func (r *DeleteWebSessionRequest) Check() error {
+	if r.SessionID == "" {
+		return trace.BadParameter("session ID missing")
+	}
+	return nil
+}
+
+// Check validates the request.
+func (r *GetWebTokenRequest) Check() error {
+	if r.User == "" {
+		return trace.BadParameter("user name is missing")
+	}
+	if r.Token == "" {
+		return trace.BadParameter("token is missing")
+	}
+	return nil
+}
+
+// Check validates the request.
+func (r *DeleteWebTokenRequest) Check() error {
+	if r.Token == "" {
+		return trace.BadParameter("token is missing")
+	}
+	return nil
 }

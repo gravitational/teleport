@@ -412,25 +412,6 @@ func GetWebSessionMarshaler() WebSessionMarshaler {
 	return webSessionMarshaler
 }
 
-// Check validates the request.
-func (r *GetWebSessionRequest) Check() error {
-	if r.User == "" {
-		return trace.BadParameter("user name missing")
-	}
-	if r.SessionID == "" {
-		return trace.BadParameter("session ID missing")
-	}
-	return nil
-}
-
-// Check validates the request.
-func (r *DeleteWebSessionRequest) Check() error {
-	if r.SessionID == "" {
-		return trace.BadParameter("session ID missing")
-	}
-	return nil
-}
-
 // NewWebToken returns a new web token with the given value and spec
 func NewWebToken(spec WebTokenSpecV3) WebToken {
 	token := &WebTokenV3{
@@ -641,25 +622,6 @@ const WebTokenSpecV3Schema = `{
     "expires": {"type": "string"}
   }
 }`
-
-// Check validates the request.
-func (r *GetWebTokenRequest) Check() error {
-	if r.User == "" {
-		return trace.BadParameter("user name is missing")
-	}
-	if r.Token == "" {
-		return trace.BadParameter("token is missing")
-	}
-	return nil
-}
-
-// Check validates the request.
-func (r *DeleteWebTokenRequest) Check() error {
-	if r.Token == "" {
-		return trace.BadParameter("token is missing")
-	}
-	return nil
-}
 
 // CheckAndSetDefaults validates the request and sets defaults.
 func (r *NewWebSessionRequest) CheckAndSetDefaults() error {
