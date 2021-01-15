@@ -56,6 +56,11 @@ func (c *Conn) RemoteAddr() net.Addr {
 	return c.Conn.RemoteAddr()
 }
 
+// Protocol returns the detected connection protocol
+func (c *Conn) Protocol() int {
+	return c.protocol
+}
+
 func newListener(parent context.Context, addr net.Addr) *Listener {
 	context, cancel := context.WithCancel(parent)
 	return &Listener{

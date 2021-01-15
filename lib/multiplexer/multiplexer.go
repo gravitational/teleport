@@ -58,6 +58,8 @@ type Config struct {
 	DisableSSH bool
 	// DisableTLS disables TLS socket
 	DisableTLS bool
+	// DisableDB disables database access proxy listener
+	DisableDB bool
 	// ID is an identifier used for debugging purposes
 	ID string
 }
@@ -96,6 +98,7 @@ func New(cfg Config) (*Mux, error) {
 		cancel:      cancel,
 		sshListener: newListener(ctx, cfg.Listener.Addr()),
 		tlsListener: newListener(ctx, cfg.Listener.Addr()),
+		dbListener:  newListener(ctx, cfg.Listener.Addr()),
 		waitContext: waitContext,
 		waitCancel:  waitCancel,
 	}, nil
@@ -109,6 +112,7 @@ type Mux struct {
 	listenerClosed bool
 	sshListener    *Listener
 	tlsListener    *Listener
+	dbListener     *Listener
 	context        context.Context
 	cancel         context.CancelFunc
 	waitContext    context.Context
@@ -123,6 +127,11 @@ func (m *Mux) SSH() net.Listener {
 // TLS returns listener that receives TLS connections
 func (m *Mux) TLS() net.Listener {
 	return m.tlsListener
+}
+
+// DB returns listener that receives database connections
+func (m *Mux) DB() net.Listener {
+	return m.dbListener
 }
 
 func (m *Mux) isClosed() bool {
@@ -238,6 +247,19 @@ func (m *Mux) detectAndForward(conn net.Conn) {
 	case ProtoHTTP:
 		m.Debug("Detected an HTTP request. If this is for a health check, use an HTTPS request instead.")
 		conn.Close()
+	case ProtoPostgres:
+		m.WithField("protocol", connWrapper.protocol).Debug("Detected Postgres client connection.")
+		if m.DisableDB {
+			m.Debug("Closing Postgres client connection: db proxy listener is disabled.")
+			conn.Close()
+			return
+		}
+		select {
+		case m.dbListener.connC <- connWrapper:
+		case <-m.context.Done():
+			connWrapper.Close()
+			return
+		}
 	default:
 		// should not get here, handle this just in case
 		connWrapper.Close()
@@ -255,7 +277,7 @@ func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {
 	// goes to the second pass to do protocol detection
 	var proxyLine *ProxyLine
 	for i := 0; i < 2; i++ {
-		bytes, err := reader.Peek(3)
+		bytes, err := reader.Peek(8)
 		if err != nil {
 			return nil, trace.Wrap(err, "failed to peek connection")
 		}
@@ -285,6 +307,12 @@ func detect(conn net.Conn, enableProxyProtocol bool) (*Conn, error) {
 				reader:    reader,
 				proxyLine: proxyLine,
 			}, nil
+		case ProtoPostgres:
+			return &Conn{
+				protocol: proto,
+				Conn:     conn,
+				reader:   reader,
+			}, nil
 		}
 	}
 	// if code ended here after two attempts, something is wrong
@@ -302,12 +330,30 @@ const (
 	ProtoProxy
 	// ProtoHTTP is HTTP protocol
 	ProtoHTTP
+	// ProtoPostgres is PostgreSQL wire protocol
+	ProtoPostgres
 )
 
 var (
 	proxyPrefix = []byte{'P', 'R', 'O', 'X', 'Y'}
 	sshPrefix   = []byte{'S', 'S', 'H'}
 	tlsPrefix   = []byte{0x16}
+)
+
+// This section defines Postgres wire protocol messages detected by Teleport:
+//
+// https://www.postgresql.org/docs/13/protocol-message-formats.html
+var (
+	// postgresSSLRequest is always sent first by a Postgres client (e.g. psql)
+	// to check whether the server supports TLS.
+	postgresSSLRequest = []byte{0x0, 0x0, 0x0, 0x8, 0x4, 0xd2, 0x16, 0x2f}
+	// postgresCancelRequest is sent when a Postgres client requests
+	// cancellation of a long-running query.
+	//
+	// TODO(r0mant): It is currently unsupported because it is sent over a
+	// separate plain connection, but we're detecting it anyway so it at
+	// least appears in the logs as "unsupported" for debugging.
+	postgresCancelRequest = []byte{0x0, 0x0, 0x0, 0x10, 0x4, 0xd2, 0x16, 0x2e}
 )
 
 // isHTTP returns true if the first 3 bytes of the prefix indicate
@@ -344,7 +390,9 @@ func detectProto(in []byte) (int, error) {
 		return ProtoTLS, nil
 	case isHTTP(in):
 		return ProtoHTTP, nil
+	case bytes.HasPrefix(in, postgresSSLRequest), bytes.HasPrefix(in, postgresCancelRequest):
+		return ProtoPostgres, nil
 	default:
-		return ProtoUnknown, trace.BadParameter("failed to detect protocol by prefix: %v", in)
+		return ProtoUnknown, trace.BadParameter("unknown protocol prefix: %#v", in)
 	}
 }

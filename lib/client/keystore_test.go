@@ -66,7 +66,7 @@ func TestListKeys(t *testing.T) {
 	// read all bob keys:
 	for i := 0; i < keyNum; i++ {
 		host := fmt.Sprintf("host-%v", i)
-		keys2, err := s.store.GetKey(host, "bob")
+		keys2, err := s.store.GetKey(host, "bob", WithDBCerts(samKey.ClusterName, ""))
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(*keys2, keys[i], cmpopts.EquateEmpty()))
 	}
@@ -89,9 +89,17 @@ func TestKeyCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// load back and compare:
-	keyCopy, err := s.store.GetKey("host.a", "bob")
+	keyCopy, err := s.store.GetKey("host.a", "bob", WithDBCerts(key.ClusterName, ""))
 	require.NoError(t, err)
 	key.ProxyHost = keyCopy.ProxyHost
+	require.Empty(t, cmp.Diff(key, keyCopy, cmpopts.EquateEmpty()))
+
+	// Delete just the db cert, reload & verify it's gone
+	err = s.store.DeleteKeyOption("host.a", "bob", WithDBCerts(key.ClusterName, ""))
+	require.NoError(t, err)
+	keyCopy, err = s.store.GetKey("host.a", "bob", WithDBCerts(key.ClusterName, ""))
+	require.NoError(t, err)
+	key.DBTLSCerts = nil
 	require.Empty(t, cmp.Diff(key, keyCopy, cmpopts.EquateEmpty()))
 
 	// Delete & verify that it's gone
@@ -356,11 +364,13 @@ func (s *keyStoreTest) makeSignedKey(t *testing.T, makeExpired bool) *Key {
 	})
 	require.NoError(t, err)
 	return &Key{
-		Priv:      priv,
-		Pub:       pub,
-		Cert:      cert,
-		TLSCert:   tlsCert,
-		TrustedCA: []auth.TrustedCerts{s.tlsCACert},
+		Priv:        priv,
+		Pub:         pub,
+		Cert:        cert,
+		TLSCert:     tlsCert,
+		TrustedCA:   []auth.TrustedCerts{s.tlsCACert},
+		DBTLSCerts:  map[string][]byte{"example-db": tlsCert},
+		ClusterName: "root",
 	}
 }
 

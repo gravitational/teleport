@@ -27,6 +27,7 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -633,6 +634,9 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 	// Kubernetes service is dialing back.
 	case teleport.RoleKube:
 		s.handleNewService(role, conn, sconn, nch, services.KubeTunnel)
+	// Database proxy is dialing back.
+	case teleport.RoleDatabase:
+		s.handleNewService(role, conn, sconn, nch, types.DatabaseTunnel)
 	// Proxy is dialing back.
 	case teleport.RoleProxy:
 		s.handleNewCluster(conn, sconn, nch)

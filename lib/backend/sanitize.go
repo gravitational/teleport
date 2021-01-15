@@ -27,7 +27,7 @@ import (
 )
 
 // errorMessage is the error message to return when invalid input is provided by the caller.
-const errorMessage = "special characters are not allowed in resource names, please use name composed only from characters, hyphens and dots"
+const errorMessage = "special characters are not allowed in resource names, please use name composed only from characters, hyphens and dots: %q"
 
 // whitelistPattern is the pattern of allowed characters for each key within
 // the path.
@@ -57,7 +57,7 @@ func NewSanitizer(backend Backend) *Sanitizer {
 // GetRange returns query range
 func (s *Sanitizer) GetRange(ctx context.Context, startKey []byte, endKey []byte, limit int) (*GetResult, error) {
 	if !isKeySafe(startKey) {
-		return nil, trace.BadParameter(errorMessage)
+		return nil, trace.BadParameter(errorMessage, startKey)
 	}
 	return s.backend.GetRange(ctx, startKey, endKey, limit)
 }
@@ -65,7 +65,7 @@ func (s *Sanitizer) GetRange(ctx context.Context, startKey []byte, endKey []byte
 // Create creates item if it does not exist
 func (s *Sanitizer) Create(ctx context.Context, i Item) (*Lease, error) {
 	if !isKeySafe(i.Key) {
-		return nil, trace.BadParameter(errorMessage)
+		return nil, trace.BadParameter(errorMessage, i.Key)
 	}
 	return s.backend.Create(ctx, i)
 }
@@ -74,7 +74,7 @@ func (s *Sanitizer) Create(ctx context.Context, i Item) (*Lease, error) {
 // exists, updates it otherwise)
 func (s *Sanitizer) Put(ctx context.Context, i Item) (*Lease, error) {
 	if !isKeySafe(i.Key) {
-		return nil, trace.BadParameter(errorMessage)
+		return nil, trace.BadParameter(errorMessage, i.Key)
 	}
 
 	return s.backend.Put(ctx, i)
@@ -83,7 +83,7 @@ func (s *Sanitizer) Put(ctx context.Context, i Item) (*Lease, error) {
 // Update updates value in the backend
 func (s *Sanitizer) Update(ctx context.Context, i Item) (*Lease, error) {
 	if !isKeySafe(i.Key) {
-		return nil, trace.BadParameter(errorMessage)
+		return nil, trace.BadParameter(errorMessage, i.Key)
 	}
 
 	return s.backend.Update(ctx, i)
@@ -92,7 +92,7 @@ func (s *Sanitizer) Update(ctx context.Context, i Item) (*Lease, error) {
 // Get returns a single item or not found error
 func (s *Sanitizer) Get(ctx context.Context, key []byte) (*Item, error) {
 	if !isKeySafe(key) {
-		return nil, trace.BadParameter(errorMessage)
+		return nil, trace.BadParameter(errorMessage, key)
 	}
 	return s.backend.Get(ctx, key)
 }
@@ -101,7 +101,7 @@ func (s *Sanitizer) Get(ctx context.Context, key []byte) (*Item, error) {
 // and replaces is with replaceWith item
 func (s *Sanitizer) CompareAndSwap(ctx context.Context, expected Item, replaceWith Item) (*Lease, error) {
 	if !isKeySafe(expected.Key) {
-		return nil, trace.BadParameter(errorMessage)
+		return nil, trace.BadParameter(errorMessage, expected.Key)
 	}
 
 	return s.backend.CompareAndSwap(ctx, expected, replaceWith)
@@ -110,7 +110,7 @@ func (s *Sanitizer) CompareAndSwap(ctx context.Context, expected Item, replaceWi
 // Delete deletes item by key
 func (s *Sanitizer) Delete(ctx context.Context, key []byte) error {
 	if !isKeySafe(key) {
-		return trace.BadParameter(errorMessage)
+		return trace.BadParameter(errorMessage, key)
 	}
 	return s.backend.Delete(ctx, key)
 }
@@ -118,10 +118,10 @@ func (s *Sanitizer) Delete(ctx context.Context, key []byte) error {
 // DeleteRange deletes range of items
 func (s *Sanitizer) DeleteRange(ctx context.Context, startKey []byte, endKey []byte) error {
 	if !isKeySafe(startKey) {
-		return trace.BadParameter(errorMessage)
+		return trace.BadParameter(errorMessage, startKey)
 	}
 	if !isKeySafe(endKey) {
-		return trace.BadParameter(errorMessage)
+		return trace.BadParameter(errorMessage, endKey)
 	}
 	return s.backend.DeleteRange(ctx, startKey, endKey)
 }
@@ -132,7 +132,7 @@ func (s *Sanitizer) DeleteRange(ctx context.Context, startKey []byte, endKey []b
 // in case if the lease managed server side
 func (s *Sanitizer) KeepAlive(ctx context.Context, lease Lease, expires time.Time) error {
 	if !isKeySafe(lease.Key) {
-		return trace.BadParameter(errorMessage)
+		return trace.BadParameter(errorMessage, lease.Key)
 	}
 	return s.backend.KeepAlive(ctx, lease, expires)
 }
@@ -141,7 +141,7 @@ func (s *Sanitizer) KeepAlive(ctx context.Context, lease Lease, expires time.Tim
 func (s *Sanitizer) NewWatcher(ctx context.Context, watch Watch) (Watcher, error) {
 	for _, prefix := range watch.Prefixes {
 		if !isKeySafe(prefix) {
-			return nil, trace.BadParameter(errorMessage)
+			return nil, trace.BadParameter(errorMessage, prefix)
 		}
 	}
 	return s.backend.NewWatcher(ctx, watch)
