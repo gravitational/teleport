@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 )
 
@@ -141,5 +142,78 @@ func (s *ConfigSuite) TestAppName(c *check.C) {
 		}
 		err := a.Check()
 		c.Assert(err == nil, check.Equals, tt.outValid, tt.desc)
+	}
+}
+
+func TestCheckDatabase(t *testing.T) {
+	tests := []struct {
+		desc       string
+		inDatabase Database
+		outErr     bool
+	}{
+		{
+			desc: "ok",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			},
+			outErr: false,
+		},
+		{
+			desc: "empty database name",
+			inDatabase: Database{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			},
+			outErr: true,
+		},
+		{
+			desc: "invalid database name",
+			inDatabase: Database{
+				Name:     "??--++",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			},
+			outErr: true,
+		},
+		{
+			desc: "invalid database protocol",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: "unknown",
+				URI:      "localhost:5432",
+			},
+			outErr: true,
+		},
+		{
+			desc: "invalid database uri",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost",
+			},
+			outErr: true,
+		},
+		{
+			desc: "invalid database CA cert",
+			inDatabase: Database{
+				Name:     "example",
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				CACert:   []byte("cert"),
+			},
+			outErr: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			err := test.inDatabase.Check()
+			if test.outErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
 	}
 }

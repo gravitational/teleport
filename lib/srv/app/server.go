@@ -228,7 +228,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 
 // GetServerInfo returns a services.Server representing the application. Used
 // in heartbeat code.
-func (s *Server) GetServerInfo() (services.Server, error) {
+func (s *Server) GetServerInfo() (services.Resource, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

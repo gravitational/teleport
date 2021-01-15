@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -496,4 +497,43 @@ func (c *authPrefCollection) writeText(w io.Writer) error {
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
+}
+
+type dbCollection struct {
+	servers []types.DatabaseServer
+}
+
+func (c *dbCollection) resources() (r []services.Resource) {
+	for _, resource := range c.servers {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *dbCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name", "Protocol", "Address", "Labels"})
+	for _, server := range c.servers {
+		t.AddRow([]string{
+			server.GetName(), server.GetProtocol(), server.GetURI(), server.LabelsString(),
+		})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+func (c *dbCollection) writeJSON(w io.Writer) error {
+	data, err := json.MarshalIndent(c.toMarshal(), "", "    ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}
+
+func (c *dbCollection) toMarshal() interface{} {
+	return c.servers
+}
+
+func (c *dbCollection) writeYAML(w io.Writer) error {
+	return utils.WriteYAML(w, c.toMarshal())
 }
