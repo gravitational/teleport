@@ -2105,6 +2105,20 @@ func (c *Client) UpsertAppSession(ctx context.Context, session services.WebSessi
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// ResumeAuditStream resumes existing audit stream.
+// This is a wrapper on the grpc endpoint and is deprecated.
+// DELETE IN 7.0.0
+func (c *Client) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (events.Stream, error) {
+	return c.APIClient.ResumeAuditStream(ctx, string(sid), uploadID)
+}
+
+// CreateAuditStream creates new audit stream.
+// This is a wrapper on the grpc endpoint and is deprecated.
+// DELETE IN 7.0.0
+func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
+	return c.APIClient.CreateAuditStream(ctx, string(sid))
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
@@ -2338,4 +2352,8 @@ type ClientI interface {
 	// CreateAppSession creates an application web session. Application web
 	// sessions represent a browser session the client holds.
 	CreateAppSession(context.Context, services.CreateAppSessionRequest) (services.WebSession, error)
+
+	// GenerateDatabaseCert generates client certificate used by a database
+	// service to authenticate with the database instance.
+	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
 }

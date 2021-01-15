@@ -18,14 +18,13 @@ package client
 
 import (
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/api/types"
 
 	"github.com/gravitational/trace"
 )
 
-// EventToGRPC converts a services.Event to an proto.Event
-func EventToGRPC(in services.Event) (*proto.Event, error) {
+// EventToGRPC converts a types.Event to an proto.Event
+func EventToGRPC(in types.Event) (*proto.Event, error) {
 	eventType, err := eventTypeToGRPC(in.Type)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -33,72 +32,76 @@ func EventToGRPC(in services.Event) (*proto.Event, error) {
 	out := proto.Event{
 		Type: eventType,
 	}
-	if in.Type == backend.OpInit {
+	if in.Type == types.OpInit {
 		return &out, nil
 	}
 	switch r := in.Resource.(type) {
-	case *services.ResourceHeader:
+	case *types.ResourceHeader:
 		out.Resource = &proto.Event_ResourceHeader{
 			ResourceHeader: r,
 		}
-	case *services.CertAuthorityV2:
+	case *types.CertAuthorityV2:
 		out.Resource = &proto.Event_CertAuthority{
 			CertAuthority: r,
 		}
-	case *services.StaticTokensV2:
+	case *types.StaticTokensV2:
 		out.Resource = &proto.Event_StaticTokens{
 			StaticTokens: r,
 		}
-	case *services.ProvisionTokenV2:
+	case *types.ProvisionTokenV2:
 		out.Resource = &proto.Event_ProvisionToken{
 			ProvisionToken: r,
 		}
-	case *services.ClusterNameV2:
+	case *types.ClusterNameV2:
 		out.Resource = &proto.Event_ClusterName{
 			ClusterName: r,
 		}
-	case *services.ClusterConfigV3:
+	case *types.ClusterConfigV3:
 		out.Resource = &proto.Event_ClusterConfig{
 			ClusterConfig: r,
 		}
-	case *services.UserV2:
+	case *types.UserV2:
 		out.Resource = &proto.Event_User{
 			User: r,
 		}
-	case *services.RoleV3:
+	case *types.RoleV3:
 		out.Resource = &proto.Event_Role{
 			Role: r,
 		}
-	case *services.Namespace:
+	case *types.Namespace:
 		out.Resource = &proto.Event_Namespace{
 			Namespace: r,
 		}
-	case *services.ServerV2:
+	case *types.ServerV2:
 		out.Resource = &proto.Event_Server{
 			Server: r,
 		}
-	case *services.ReverseTunnelV2:
+	case *types.ReverseTunnelV2:
 		out.Resource = &proto.Event_ReverseTunnel{
 			ReverseTunnel: r,
 		}
-	case *services.TunnelConnectionV2:
+	case *types.TunnelConnectionV2:
 		out.Resource = &proto.Event_TunnelConnection{
 			TunnelConnection: r,
 		}
-	case *services.AccessRequestV3:
+	case *types.AccessRequestV3:
 		out.Resource = &proto.Event_AccessRequest{
 			AccessRequest: r,
 		}
-	case *services.WebSessionV2:
-		if r.GetSubKind() != services.KindAppSession {
-			return nil, trace.BadParameter("only %v supported", services.KindAppSession)
+	case *types.WebSessionV2:
+		if r.GetSubKind() != types.KindAppSession {
+			return nil, trace.BadParameter("only %v supported", types.KindAppSession)
 		}
 		out.Resource = &proto.Event_AppSession{
 			AppSession: r,
 		}
-	case *services.RemoteClusterV3:
+	case *types.RemoteClusterV3:
 		out.Resource = &proto.Event_RemoteCluster{
 			RemoteCluster: r,
+		}
+	case *types.DatabaseServerV3:
+		out.Resource = &proto.Event_DatabaseServer{
+			DatabaseServer: r,
 		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
@@ -106,29 +109,29 @@ func EventToGRPC(in services.Event) (*proto.Event, error) {
 	return &out, nil
 }
 
-func eventTypeToGRPC(in backend.OpType) (proto.Operation, error) {
+func eventTypeToGRPC(in types.OpType) (proto.Operation, error) {
 	switch in {
-	case backend.OpInit:
+	case types.OpInit:
 		return proto.Operation_INIT, nil
-	case backend.OpPut:
+	case types.OpPut:
 		return proto.Operation_PUT, nil
-	case backend.OpDelete:
+	case types.OpDelete:
 		return proto.Operation_DELETE, nil
 	default:
 		return -1, trace.BadParameter("event type %v is not supported", in)
 	}
 }
 
-// EventFromGRPC converts an proto.Event to a services.Event
-func EventFromGRPC(in proto.Event) (*services.Event, error) {
+// EventFromGRPC converts an proto.Event to a types.Event
+func EventFromGRPC(in proto.Event) (*types.Event, error) {
 	eventType, err := eventTypeFromGRPC(in.Type)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	out := services.Event{
+	out := types.Event{
 		Type: eventType,
 	}
-	if eventType == backend.OpInit {
+	if eventType == types.OpInit {
 		return &out, nil
 	}
 	if r := in.GetResourceHeader(); r != nil {
@@ -176,20 +179,23 @@ func EventFromGRPC(in proto.Event) (*services.Event, error) {
 	} else if r := in.GetRemoteCluster(); r != nil {
 		out.Resource = r
 		return &out, nil
+	} else if r := in.GetDatabaseServer(); r != nil {
+		out.Resource = r
+		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)
 	}
 }
 
-func eventTypeFromGRPC(in proto.Operation) (backend.OpType, error) {
+func eventTypeFromGRPC(in proto.Operation) (types.OpType, error) {
 	switch in {
 	case proto.Operation_INIT:
-		return backend.OpInit, nil
+		return types.OpInit, nil
 	case proto.Operation_PUT:
-		return backend.OpPut, nil
+		return types.OpPut, nil
 	case proto.Operation_DELETE:
-		return backend.OpDelete, nil
+		return types.OpDelete, nil
 	default:
-		return backend.OpInvalid, trace.BadParameter("unsupported operation type: %v", in)
+		return types.OpInvalid, trace.BadParameter("unsupported operation type: %v", in)
 	}
 }

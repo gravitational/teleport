@@ -35,6 +35,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -110,6 +111,17 @@ type CommandLineFlags struct {
 
 	// AppPublicAddr is the public address of the application to proxy.
 	AppPublicAddr string
+
+	// DatabaseName is the name of the database to proxy.
+	DatabaseName string
+	// DatabaseProtocol is the type of the proxied database e.g. postgres or mysql.
+	DatabaseProtocol string
+	// DatabaseURI is the address to connect to the proxied database.
+	DatabaseURI string
+	// DatabaseCACertFile is the database CA cert path.
+	DatabaseCACertFile string
+	// DatabaseAWSRegion is an optional database cloud region e.g. when using AWS RDS.
+	DatabaseAWSRegion string
 }
 
 // readConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -183,6 +195,9 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	if fc.Apps.Disabled() {
 		cfg.Apps.Enabled = false
+	}
+	if fc.Databases.Disabled() {
+		cfg.Databases.Enabled = false
 	}
 	applyString(fc.NodeName, &cfg.Hostname)
 
@@ -338,6 +353,11 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 	if fc.Apps.Enabled() {
 		if err := applyAppsConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if fc.Databases.Enabled() {
+		if err := applyDatabasesConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -764,6 +784,52 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 	return nil
 }
 
+// applyDatabasesConfig applies file configuration for the "db_service" section.
+func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
+	cfg.Databases.Enabled = true
+	for _, database := range fc.Databases.Databases {
+		staticLabels := make(map[string]string)
+		if database.StaticLabels != nil {
+			staticLabels = database.StaticLabels
+		}
+		dynamicLabels := make(services.CommandLabels)
+		if database.DynamicLabels != nil {
+			for _, v := range database.DynamicLabels {
+				dynamicLabels[v.Name] = &services.CommandLabelV2{
+					Period:  services.NewDuration(v.Period),
+					Command: v.Command,
+					Result:  "",
+				}
+			}
+		}
+		var caBytes []byte
+		var err error
+		if database.CACertFile != "" {
+			caBytes, err = ioutil.ReadFile(database.CACertFile)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		db := service.Database{
+			Name:          database.Name,
+			Description:   database.Description,
+			Protocol:      database.Protocol,
+			URI:           database.URI,
+			StaticLabels:  staticLabels,
+			DynamicLabels: dynamicLabels,
+			CACert:        caBytes,
+			AWS: service.DatabaseAWS{
+				Region: database.AWS.Region,
+			},
+		}
+		if err := db.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Databases.Databases = append(cfg.Databases.Databases, db)
+	}
+	return nil
+}
+
 // applyAppsConfig applies file configuration for the "app_service" section.
 func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
 	// Apps are enabled.
@@ -832,14 +898,14 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (services.CertAut
 	}
 
 	// create a new certificate authority
-	ca := services.NewCertAuthority(
-		services.UserCA,
-		clusterName,
-		nil,
-		[][]byte{ssh.MarshalAuthorizedKey(pubkey)},
-		nil,
-		services.CertAuthoritySpecV2_UNKNOWN,
-	)
+	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:         services.UserCA,
+		ClusterName:  clusterName,
+		SigningKeys:  nil,
+		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubkey)},
+		Roles:        nil,
+		SigningAlg:   services.CertAuthoritySpecV2_UNKNOWN,
+	})
 
 	// transform old allowed logins into roles
 	role := services.RoleForCertAuthority(ca)
@@ -873,13 +939,17 @@ func parseKnownHosts(bytes []byte, allowedLogins []string) (services.CertAuthori
 	const prefix = "*."
 	domainName := strings.TrimPrefix(options[0], prefix)
 
-	v1 := &services.CertAuthorityV1{
-		AllowedLogins: utils.CopyStrings(allowedLogins),
-		DomainName:    domainName,
-		Type:          authType,
-		CheckingKeys:  [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
-	}
-	ca, role := services.ConvertV1CertAuthority(v1)
+	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:         authType,
+		ClusterName:  domainName,
+		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
+	})
+
+	// transform old allowed logins into roles
+	role := services.RoleForCertAuthority(ca)
+	role.SetLogins(services.Allow, utils.CopyStrings(allowedLogins))
+	ca.AddRole(role.GetName())
+
 	return ca, role, nil
 }
 
@@ -1068,6 +1138,37 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		cfg.Apps.Apps = append(cfg.Apps.Apps, app)
 	}
 
+	// If database name was specified on the command line, add to configuration.
+	if clf.DatabaseName != "" {
+		cfg.Databases.Enabled = true
+		staticLabels, dynamicLabels, err := parseLabels(clf.Labels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		var caBytes []byte
+		if clf.DatabaseCACertFile != "" {
+			caBytes, err = ioutil.ReadFile(clf.DatabaseCACertFile)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		db := service.Database{
+			Name:          clf.DatabaseName,
+			Protocol:      clf.DatabaseProtocol,
+			URI:           clf.DatabaseURI,
+			StaticLabels:  staticLabels,
+			DynamicLabels: dynamicLabels,
+			CACert:        caBytes,
+			AWS: service.DatabaseAWS{
+				Region: clf.DatabaseAWSRegion,
+			},
+		}
+		if err := db.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Databases.Databases = append(cfg.Databases.Databases, db)
+	}
+
 	if err = ApplyFileConfig(fileConf, cfg); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1141,6 +1242,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		cfg.Auth.Enabled = strings.Contains(clf.Roles, defaults.RoleAuthService)
 		cfg.Proxy.Enabled = strings.Contains(clf.Roles, defaults.RoleProxy)
 		cfg.Apps.Enabled = strings.Contains(clf.Roles, defaults.RoleApp)
+		cfg.Databases.Enabled = strings.Contains(clf.Roles, defaults.RoleDatabase)
 	}
 
 	// apply --auth-server flag:
@@ -1348,7 +1450,8 @@ func validateRoles(roles string) error {
 		case defaults.RoleAuthService,
 			defaults.RoleNode,
 			defaults.RoleProxy,
-			defaults.RoleApp:
+			defaults.RoleApp,
+			defaults.RoleDatabase:
 			break
 		default:
 			return trace.Errorf("unknown role: '%s'", role)

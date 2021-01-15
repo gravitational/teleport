@@ -1,4 +1,4 @@
-## The Proxy Service
+# The Proxy Service
 
 **Table of Contents**
 

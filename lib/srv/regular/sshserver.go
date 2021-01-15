@@ -297,6 +297,15 @@ func (s *Server) HandleConnection(conn net.Conn) {
 // RotationGetter returns rotation state
 type RotationGetter func(role teleport.Role) (*services.Rotation, error)
 
+// SetClock is a functional server option to override the internal
+// clock
+func SetClock(clock clockwork.Clock) ServerOption {
+	return func(s *Server) error {
+		s.clock = clock
+		return nil
+	}
+}
+
 // SetRotationGetter sets rotation state getter
 func SetRotationGetter(getter RotationGetter) ServerOption {
 	return func(s *Server) error {
@@ -542,6 +551,7 @@ func New(addr utils.NetAddr,
 		AccessPoint: s.authService,
 		FIPS:        s.fips,
 		Emitter:     s.StreamEmitter,
+		Clock:       s.clock,
 	}
 
 	// common term handlers
@@ -710,7 +720,7 @@ func (s *Server) GetInfo() services.Server {
 	}
 }
 
-func (s *Server) getServerInfo() (services.Server, error) {
+func (s *Server) getServerInfo() (services.Resource, error) {
 	server := s.GetInfo()
 	if s.getRotation != nil {
 		rotation, err := s.getRotation(s.getRole())

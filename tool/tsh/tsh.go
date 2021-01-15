@@ -35,18 +35,22 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/benchmark"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
+	"github.com/gravitational/teleport/lib/client/pgservicefile"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/scp"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tsh/common"
 
@@ -106,6 +110,12 @@ type CLIConf struct {
 	SiteName string
 	// KubernetesCluster specifies the kubernetes cluster to login to.
 	KubernetesCluster string
+	// DatabaseService specifies the database proxy server to log into.
+	DatabaseService string
+	// DatabaseUser specifies database user to embed in the certificate.
+	DatabaseUser string
+	// DatabaseName specifies database name to embed in the certificate.
+	DatabaseName string
 	// Interactive, when set to true, launches remote command with the terminal attached
 	Interactive bool
 	// Quiet mode, -q command (disables progress printing)
@@ -186,6 +196,9 @@ type CLIConf struct {
 	// command/shell execution. This also requires stdin to be an interactive
 	// terminal.
 	EnableEscapeSequences bool
+
+	// PreserveAttrs preserves access/modification times from the original file.
+	PreserveAttrs bool
 
 	// executablePath is the absolute path to the current executable.
 	executablePath string
@@ -275,6 +288,20 @@ func Run(args []string) {
 	lsApps.Flag("verbose", "Show extra application fields.").Short('v').BoolVar(&cf.Verbose)
 	lsApps.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
 
+	// Databases.
+	db := app.Command("db", "View and control proxied databases.")
+	dbList := db.Command("ls", "List all available databases.")
+	dbList.Flag("verbose", "Show extra database fields.").Short('v').BoolVar(&cf.Verbose)
+	dbList.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
+	dbLogin := db.Command("login", "Retrieve credentials for a database.")
+	dbLogin.Arg("db", "Database to retrieve credentials for. Can be obtained from 'tsh db ls' output.").Required().StringVar(&cf.DatabaseService)
+	dbLogin.Flag("db-user", "Optional database user to configure as default.").StringVar(&cf.DatabaseUser)
+	dbLogin.Flag("db-name", "Optional database name to configure as default.").StringVar(&cf.DatabaseName)
+	dbLogout := db.Command("logout", "Remove database credentials.")
+	dbLogout.Arg("db", "Database to remove credentials for.").StringVar(&cf.DatabaseService)
+	dbEnv := db.Command("env", "Print environment variables for the configured database.")
+	dbEnv.Flag("db", "Database to print environment for if logged into multiple.").StringVar(&cf.DatabaseService)
+
 	// join
 	join := app.Command("join", "Join the active SSH session")
 	join.Flag("cluster", clusterHelp).Envar(clusterEnvVar).StringVar(&cf.SiteName)
@@ -291,6 +318,7 @@ func Run(args []string) {
 	scp.Arg("from, to", "Source and destination to copy").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
 	scp.Flag("port", "Port to connect to on the remote host").Short('P').Int32Var(&cf.NodePort)
+	scp.Flag("preserve", "Preserves access and modification times from the original file").Short('p').BoolVar(&cf.PreserveAttrs)
 	scp.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 	// ls
 	ls := app.Command("ls", "List remote SSH nodes")
@@ -425,6 +453,14 @@ func Run(args []string) {
 		err = kube.ls.run(&cf)
 	case kube.login.FullCommand():
 		err = kube.login.run(&cf)
+	case dbList.FullCommand():
+		onListDatabases(&cf)
+	case dbLogin.FullCommand():
+		onDatabaseLogin(&cf)
+	case dbLogout.FullCommand():
+		onDatabaseLogout(&cf)
+	case dbEnv.FullCommand():
+		onDatabaseEnv(&cf)
 	default:
 		// This should only happen when there's a missing switch case above.
 		err = trace.BadParameter("command %q not configured", command)
@@ -662,6 +698,12 @@ func onLogin(cf *CLIConf) {
 		}
 	}
 
+	// If the profile is already logged into any database services,
+	// refresh the creds.
+	if err := fetchDatabaseCreds(cf, tc); err != nil {
+		utils.FatalError(err)
+	}
+
 	// Print status to show information of the logged in user. Update the
 	// command line flag (used to print status) for the proxy to make sure any
 	// advertised settings are picked up.
@@ -780,6 +822,25 @@ func onLogout(cf *CLIConf) {
 			return
 		}
 
+		// Load profile for the requested proxy/user.
+		profile, err := client.StatusFor("", proxyHost, cf.Username)
+		if err != nil && !trace.IsNotFound(err) {
+			utils.FatalError(err)
+			return
+		}
+
+		// Log out user from the databases.
+		if profile != nil {
+			for _, db := range profile.Databases {
+				log.Debugf("Logging %v out of database %v.", profile.Name, db)
+				err = pgservicefile.Delete(profile.Cluster, db.ServiceName)
+				if err != nil {
+					utils.FatalError(err)
+					return
+				}
+			}
+		}
+
 		// Remove keys for this user from disk and running agent.
 		err = tc.Logout()
 		if err != nil {
@@ -826,6 +887,19 @@ func onLogout(cf *CLIConf) {
 			if err != nil {
 				utils.FatalError(err)
 				return
+			}
+		}
+
+		// Remove all database access related profiles as well such as Postgres
+		// connection service file.
+		for _, profile := range profiles {
+			for _, db := range profile.Databases {
+				log.Debugf("Logging %v out of database %v.", profile.Name, db)
+				err = pgservicefile.Delete(profile.Cluster, db.ServiceName)
+				if err != nil {
+					utils.FatalError(err)
+					return
+				}
 			}
 		}
 
@@ -888,7 +962,12 @@ func executeAccessRequest(cf *CLIConf) error {
 	req.SetRequestReason(cf.RequestReason)
 	fmt.Fprintf(os.Stderr, "Seeking request approval... (id: %s)\n", req.GetName())
 
-	res, err := getRequestResolution(cf, tc, req)
+	var res services.AccessRequest
+	// always create access request against the root cluster
+	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
+		res, err = getRequestResolution(cf, clt, req)
+		return trace.Wrap(err)
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1007,6 +1086,55 @@ func showApps(servers []services.Server, verbose bool) {
 	}
 }
 
+func showDatabases(servers []types.DatabaseServer, active []tlsca.RouteToDatabase, verbose bool) {
+	if verbose {
+		t := asciitable.MakeTable([]string{"Name", "Description", "URI", "Labels"})
+		for _, server := range servers {
+			name := server.GetName()
+			for _, a := range active {
+				if a.ServiceName == name {
+					name = formatActiveDB(a)
+				}
+			}
+			t.AddRow([]string{
+				name,
+				server.GetDescription(),
+				server.GetURI(),
+				server.LabelsString(),
+			})
+		}
+		fmt.Println(t.AsBuffer().String())
+	} else {
+		t := asciitable.MakeTable([]string{"Name", "Description", "Labels"})
+		for _, server := range servers {
+			name := server.GetName()
+			for _, a := range active {
+				if a.ServiceName == name {
+					name = formatActiveDB(a)
+				}
+			}
+			t.AddRow([]string{
+				name,
+				server.GetDescription(),
+				server.LabelsString(),
+			})
+		}
+		fmt.Println(t.AsBuffer().String())
+	}
+}
+
+func formatActiveDB(active tlsca.RouteToDatabase) string {
+	switch {
+	case active.Username != "" && active.Database != "":
+		return fmt.Sprintf("> %v (user: %v, db: %v)", active.ServiceName, active.Username, active.Database)
+	case active.Username != "":
+		return fmt.Sprintf("> %v (user: %v)", active.ServiceName, active.Username)
+	case active.Database != "":
+		return fmt.Sprintf("> %v (db: %v)", active.ServiceName, active.Database)
+	}
+	return fmt.Sprintf("> %v", active.ServiceName)
+}
+
 // chunkLabels breaks labels into sized chunks. Used to improve readability
 // of "tsh ls".
 func chunkLabels(labels map[string]string, chunkSize int) [][]string {
@@ -1034,7 +1162,8 @@ func onListClusters(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 
-	var clusters []services.RemoteCluster
+	var rootClusterName string
+	var leafClusters []services.RemoteCluster
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		proxyClient, err := tc.ConnectToProxy(cf.Context)
 		if err != nil {
@@ -1042,23 +1171,40 @@ func onListClusters(cf *CLIConf) {
 		}
 		defer proxyClient.Close()
 
-		clusters, err = proxyClient.GetAllClusters(cf.Context)
-		return err
+		var rootErr, leafErr error
+		rootClusterName, rootErr = proxyClient.RootClusterName()
+		leafClusters, leafErr = proxyClient.GetLeafClusters(cf.Context)
+		return trace.NewAggregate(rootErr, leafErr)
 	})
 	if err != nil {
 		utils.FatalError(err)
 	}
+
+	profile, _, err := client.Status("", cf.Proxy)
+	if err != nil {
+		utils.FatalError(err)
+	}
+	showSelected := func(clusterName string) string {
+		if profile != nil && clusterName == profile.Cluster {
+			return "*"
+		}
+		return ""
+	}
+
 	var t asciitable.Table
 	if cf.Quiet {
-		t = asciitable.MakeHeadlessTable(2)
+		t = asciitable.MakeHeadlessTable(4)
 	} else {
-		t = asciitable.MakeTable([]string{"Cluster Name", "Status"})
+		t = asciitable.MakeTable([]string{"Cluster Name", "Status", "Cluster Type", "Selected"})
 	}
-	if len(clusters) == 0 {
-		return
-	}
-	for _, cluster := range clusters {
-		t.AddRow([]string{cluster.GetName(), cluster.GetConnectionStatus()})
+
+	t.AddRow([]string{
+		rootClusterName, teleport.RemoteClusterStatusOnline, "root", showSelected(rootClusterName),
+	})
+	for _, cluster := range leafClusters {
+		t.AddRow([]string{
+			cluster.GetName(), cluster.GetConnectionStatus(), "leaf", showSelected(cluster.GetName()),
+		})
 	}
 	fmt.Println(t.AsBuffer().String())
 }
@@ -1170,8 +1316,12 @@ func onSCP(cf *CLIConf) {
 	if err != nil {
 		utils.FatalError(err)
 	}
+	flags := scp.Flags{
+		Recursive:     cf.RecursiveCopy,
+		PreserveAttrs: cf.PreserveAttrs,
+	}
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.SCP(context.TODO(), cf.CopySpec, int(cf.NodePort), cf.RecursiveCopy, cf.Quiet)
+		return tc.SCP(context.TODO(), cf.CopySpec, int(cf.NodePort), flags, cf.Quiet)
 	})
 	if err != nil {
 		// exit with the same exit status as the failed command:
@@ -1334,6 +1484,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	}
 	if cf.KubernetesCluster != "" {
 		c.KubernetesCluster = cf.KubernetesCluster
+	}
+	if cf.DatabaseService != "" {
+		c.DatabaseService = cf.DatabaseService
 	}
 	// if host logins stored in profiles must be ignored...
 	if !useProfileLogin {
@@ -1533,6 +1686,9 @@ func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
 	} else {
 		fmt.Printf("  Kubernetes:         disabled\n")
 	}
+	if len(p.Databases) != 0 {
+		fmt.Printf("  Databases:          %v\n", strings.Join(p.DatabaseServices(), ", "))
+	}
 	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanDuration)
 	fmt.Printf("  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
 
@@ -1586,13 +1742,13 @@ func host(in string) string {
 }
 
 // getRequestResolution registers an access request with the auth server and waits for it to be resolved.
-func getRequestResolution(cf *CLIConf, tc *client.TeleportClient, req services.AccessRequest) (services.AccessRequest, error) {
+func getRequestResolution(cf *CLIConf, clt auth.ClientI, req services.AccessRequest) (services.AccessRequest, error) {
 	// set up request watcher before submitting the request to the admin server
 	// in order to avoid potential race.
 	filter := services.AccessRequestFilter{
-		User: tc.Username,
+		User: req.GetUser(),
 	}
-	watcher, err := tc.NewWatcher(cf.Context, services.Watch{
+	watcher, err := clt.NewWatcher(cf.Context, services.Watch{
 		Name: "await-request-approval",
 		Kinds: []services.WatchKind{
 			services.WatchKind{
@@ -1605,7 +1761,7 @@ func getRequestResolution(cf *CLIConf, tc *client.TeleportClient, req services.A
 		return nil, trace.Wrap(err)
 	}
 	defer watcher.Close()
-	if err := tc.CreateAccessRequest(cf.Context, req); err != nil {
+	if err := clt.CreateAccessRequest(cf.Context, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 Loop:
