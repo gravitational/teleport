@@ -111,11 +111,11 @@ After Teleport is running, the application will be accessible at `app-name.proxy
 |-|-|
 | `auth_token` & `tokens` | Example static join tokens |
 | `proxy_service: public_addr` | Public URL and Port for Teleport. |
-| `https_keypairs` | HTTPS TLS Certificate key pairs  |
+| `https_keypairs` | HTTPS TLS Certificate key pairs |
 | `-key_file` | LetsEncrypt Key File |
 | `-cert_file` | LetsEncrypt Cert File |
 | `app_service: enabled: yes` | Application Service should be enabled |
-| `apps: name` | Application Name  |
+| `apps: name` | Application Name |
 | `apps: uri` | URL and port of application |
 
 ```yaml
