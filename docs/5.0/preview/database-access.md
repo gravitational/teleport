@@ -32,7 +32,7 @@ With Database Access users can:
 
 ## Demo
 
-<video autoplay loop muted playsinline controls>
+<video autoPlay loop muted playsInline controls>
   <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.mp4" type="video/mp4" />
   <source src="https://goteleport.com/teleport/videos/database-access-preview/dbaccessdemo.webm" type="video/webm" />
 Your browser does not support the video tag.
