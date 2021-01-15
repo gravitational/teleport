@@ -542,7 +542,7 @@ func (r *Rotation) String() string {
 }
 
 // CheckAndSetDefaults checks and sets default rotation parameters.
-func (r *Rotation) CheckAndSetDefaults(clock Clock) error {
+func (r *Rotation) CheckAndSetDefaults() error {
 	switch r.Phase {
 	case "", RotationPhaseRollback, RotationPhaseUpdateClients, RotationPhaseUpdateServers:
 	default:

@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // DatabaseServer represents a database access server.
@@ -157,7 +156,7 @@ func (s *DatabaseServerV3) Expiry() time.Time {
 }
 
 // SetTTL sets the resource TTL.
-func (s *DatabaseServerV3) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+func (s *DatabaseServerV3) SetTTL(clock Clock, ttl time.Duration) {
 	s.Metadata.SetTTL(clock, ttl)
 }
 
