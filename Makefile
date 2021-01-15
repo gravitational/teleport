@@ -406,9 +406,10 @@ buildbox-grpc:
 	find lib/ -iname *.proto | xargs clang-format -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 	find api/ -iname *.proto | xargs clang-format -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 
-	cd lib/events && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
-    *.proto
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/types/events \
+		--gofast_out=plugins=grpc:api/types/events \
+		events.proto
 
 	protoc -I=.:$$PROTO_INCLUDE \
 		--proto_path=api/types/wrappers \
