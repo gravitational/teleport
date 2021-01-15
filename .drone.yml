@@ -1093,27 +1093,32 @@ steps:
     environment:
       # increment these variables when a new major/minor version is released to bump the automatic builds
       # this only needs to be done on the master branch, as that's the branch that the Drone cron is configured for
-      # nornmally we only support the current release plus the two previous releases, but we're temporarily adding an
+      # build major version images which are just teleport:x
+      CURRENT_VERSION_ROOT: v5
+      # normally we only support the current release plus the two previous releases, but we're temporarily adding an
       # extra version here during the migration over from x.y -> x.y-1 support to x -> x-1 support as per RFD 12.
-      CURRENT_VERSION_ROOT: v5.1
-      PREVIOUS_VERSION_ONE_ROOT: v5.0
-      PREVIOUS_VERSION_TWO_ROOT: v4.4
-      PREVIOUS_VERSION_THREE_ROOT: v4.3
+      OLD_CURRENT_VERSION_ROOT: v5.1
+      OLD_PREVIOUS_VERSION_ONE_ROOT: v5.0
+      OLD_PREVIOUS_VERSION_TWO_ROOT: v4.4
+      OLD_PREVIOUS_VERSION_THREE_ROOT: v4.3
     commands:
       - apk --update --no-cache add curl
       - mkdir -p /go/build && cd /go/build
       # CURRENT_VERSION
       - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $CURRENT_VERSION_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /go/build/CURRENT_VERSION_TAG.txt
-      - echo "$(cat /go/build/CURRENT_VERSION_TAG.txt | cut -d. -f1-2 | cut -dv -f2)" > /go/build/CURRENT_VERSION_TAG_GENERIC.txt
-      # PREVIOUS_VERSION_ONE
-      - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $PREVIOUS_VERSION_ONE_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /go/build/PREVIOUS_VERSION_ONE_TAG.txt
-      - echo "$(cat /go/build/PREVIOUS_VERSION_ONE_TAG.txt | cut -d. -f1-2 | cut -dv -f2)" > /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt
-      # PREVIOUS_VERSION_TWO
-      - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $PREVIOUS_VERSION_TWO_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /go/build/PREVIOUS_VERSION_TWO_TAG.txt
-      - echo "$(cat /go/build/PREVIOUS_VERSION_TWO_TAG.txt | cut -d. -f1-2 | cut -dv -f2)" > /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt
-      # PREVIOUS_VERSION_THREE
-      - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $PREVIOUS_VERSION_THREE_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /go/build/PREVIOUS_VERSION_THREE_TAG.txt
-      - echo "$(cat /go/build/PREVIOUS_VERSION_THREE_TAG.txt | cut -d. -f1-2 | cut -dv -f2)" > /go/build/PREVIOUS_VERSION_THREE_TAG_GENERIC.txt
+      - echo "$(cat /go/build/CURRENT_VERSION_TAG.txt | cut -d. -f1 | tr -d '^v')" > /go/build/CURRENT_VERSION_TAG_GENERIC.txt
+      # OLD_CURRENT_VERSION
+      - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $OLD_CURRENT_VERSION_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /go/build/OLD_CURRENT_VERSION_TAG.txt
+      - echo "$(cat /go/build/OLD_CURRENT_VERSION_TAG.txt | cut -d. -f1-2 | cut -dv -f2)" > /go/build/OLD_CURRENT_VERSION_TAG_GENERIC.txt
+      # OLD_PREVIOUS_VERSION_ONE
+      - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $OLD_PREVIOUS_VERSION_ONE_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /go/build/OLD_PREVIOUS_VERSION_ONE_TAG.txt
+      - echo "$(cat /go/build/OLD_PREVIOUS_VERSION_ONE_TAG.txt | cut -d. -f1-2 | cut -dv -f2)" > /go/build/OLD_PREVIOUS_VERSION_ONE_TAG_GENERIC.txt
+      # OLD_PREVIOUS_VERSION_TWO
+      - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $OLD_PREVIOUS_VERSION_TWO_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /go/build/OLD_PREVIOUS_VERSION_TWO_TAG.txt
+      - echo "$(cat /go/build/OLD_PREVIOUS_VERSION_TWO_TAG.txt | cut -d. -f1-2 | cut -dv -f2)" > /go/build/OLD_PREVIOUS_VERSION_TWO_TAG_GENERIC.txt
+      # OLD_PREVIOUS_VERSION_THREE
+      - echo $(git ls-remote --tags https://github.com/gravitational/teleport | cut -d'/' -f3 | grep $OLD_PREVIOUS_VERSION_THREE_ROOT | grep -Ev '(alpha|beta|dev|rc)' | sort -rV | head -n1) > /go/build/OLD_PREVIOUS_VERSION_THREE_TAG.txt
+      - echo "$(cat /go/build/OLD_PREVIOUS_VERSION_THREE_TAG.txt | cut -d. -f1-2 | cut -dv -f2)" > /go/build/OLD_PREVIOUS_VERSION_THREE_TAG_GENERIC.txt
       # list versions
       - for FILE in /go/build/*.txt; do echo $FILE; cat $FILE; done
       # get Dockerfiles
@@ -1150,7 +1155,7 @@ steps:
       - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $ENT_FIPS_IMAGE_NAME
 
-  - name: Build and push Teleport containers (PREVIOUS_VERSION_ONE)
+  - name: Build and push Teleport containers (OLD_CURRENT_VERSION)
     image: docker
     environment:
       OS: linux
@@ -1164,10 +1169,10 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - export VERSION_TAG=$(cat /go/build/PREVIOUS_VERSION_ONE_TAG.txt)
-      - export OSS_IMAGE_NAME="quay.io/gravitational/teleport:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
-      - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
-      - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-fips"
+      - export VERSION_TAG=$(cat /go/build/OLD_CURRENT_VERSION_TAG.txt)
+      - export OSS_IMAGE_NAME="quay.io/gravitational/teleport:$(cat /go/build/OLD_CURRENT_VERSION_TAG_GENERIC.txt)"
+      - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/OLD_CURRENT_VERSION_TAG_GENERIC.txt)"
+      - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/OLD_CURRENT_VERSION_TAG_GENERIC.txt)-fips"
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       # OSS
       - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
@@ -1179,7 +1184,7 @@ steps:
       - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $ENT_FIPS_IMAGE_NAME
 
-  - name: Build and push Teleport containers (PREVIOUS_VERSION_TWO)
+  - name: Build and push Teleport containers (OLD_PREVIOUS_VERSION_ONE)
     image: docker
     environment:
       OS: linux
@@ -1193,10 +1198,10 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - export VERSION_TAG=$(cat /go/build/PREVIOUS_VERSION_TWO_TAG.txt)
-      - export OSS_IMAGE_NAME="quay.io/gravitational/teleport:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
-      - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
-      - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-fips"
+      - export VERSION_TAG=$(cat /go/build/OLD_PREVIOUS_VERSION_ONE_TAG.txt)
+      - export OSS_IMAGE_NAME="quay.io/gravitational/teleport:$(cat /go/build/OLD_PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
+      - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/OLD_PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)"
+      - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/OLD_PREVIOUS_VERSION_ONE_TAG_GENERIC.txt)-fips"
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       # OSS
       - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
@@ -1208,7 +1213,7 @@ steps:
       - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
       - docker push $ENT_FIPS_IMAGE_NAME
 
-  - name: Build and push Teleport containers (PREVIOUS_VERSION_THREE)
+  - name: Build and push Teleport containers (OLD_PREVIOUS_VERSION_TWO)
     image: docker
     environment:
       OS: linux
@@ -1222,10 +1227,39 @@ steps:
       - name: dockersock
         path: /var/run
     commands:
-      - export VERSION_TAG=$(cat /go/build/PREVIOUS_VERSION_THREE_TAG.txt)
-      - export OSS_IMAGE_NAME="quay.io/gravitational/teleport:$(cat /go/build/PREVIOUS_VERSION_THREE_TAG_GENERIC.txt)"
-      - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_THREE_TAG_GENERIC.txt)"
-      - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/PREVIOUS_VERSION_THREE_TAG_GENERIC.txt)-fips"
+      - export VERSION_TAG=$(cat /go/build/OLD_PREVIOUS_VERSION_TWO_TAG.txt)
+      - export OSS_IMAGE_NAME="quay.io/gravitational/teleport:$(cat /go/build/OLD_PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
+      - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/OLD_PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)"
+      - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/OLD_PREVIOUS_VERSION_TWO_TAG_GENERIC.txt)-fips"
+      - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
+      # OSS
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
+      - docker push $OSS_IMAGE_NAME
+      # Enterprise
+      - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH  -t $ENT_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
+      - docker push $ENT_IMAGE_NAME
+      # Enterprise FIPS
+      - docker build --target teleport-fips --build-arg DOWNLOAD_TYPE=teleport-ent --build-arg EXTRA_DOWNLOAD_ARGS="-fips" --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $ENT_FIPS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
+      - docker push $ENT_FIPS_IMAGE_NAME
+
+  - name: Build and push Teleport containers (OLD_PREVIOUS_VERSION_THREE)
+    image: docker
+    environment:
+      OS: linux
+      ARCH: amd64
+    settings:
+      username:
+        from_secret: PRODUCTION_QUAYIO_DOCKER_USERNAME
+      password:
+        from_secret: PRODUCTION_QUAYIO_DOCKER_PASSWORD
+    volumes:
+      - name: dockersock
+        path: /var/run
+    commands:
+      - export VERSION_TAG=$(cat /go/build/OLD_PREVIOUS_VERSION_THREE_TAG.txt)
+      - export OSS_IMAGE_NAME="quay.io/gravitational/teleport:$(cat /go/build/OLD_PREVIOUS_VERSION_THREE_TAG_GENERIC.txt)"
+      - export ENT_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/OLD_PREVIOUS_VERSION_THREE_TAG_GENERIC.txt)"
+      - export ENT_FIPS_IMAGE_NAME="quay.io/gravitational/teleport-ent:$(cat /go/build/OLD_PREVIOUS_VERSION_THREE_TAG_GENERIC.txt)-fips"
       - docker login -u="$PLUGIN_USERNAME" -p="$PLUGIN_PASSWORD" quay.io
       # OSS
       - docker build --target teleport --build-arg DOWNLOAD_TYPE=teleport --build-arg VERSION_TAG=$VERSION_TAG --build-arg OS=$OS --build-arg ARCH=$ARCH -t $OSS_IMAGE_NAME -f /go/build/Dockerfile-cron /go/build
@@ -4006,6 +4040,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 14ba541d0e21b8cb95be6919aec7cb358930af39b331033414df1d0089b276ac
+hmac: a31d345fd4f889f01931451fc8226f87894abd875fdeafd0f4d46085a3c8dc88
 
 ...
