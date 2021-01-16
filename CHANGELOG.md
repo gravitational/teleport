@@ -1,5 +1,16 @@
 # Changelog
 
+### 4.4.7
+
+This release of Teleport contains multiple bug fixes.
+
+* Fixed an issue where the `request_access: reason` role option was triggering
+the reason dialogue when opening new tabs/windows in Firefox.
+
+* Ensure `tsh` always registers access requests against root cluster: [#5226](https://github.com/gravitational/teleport/pull/5226)
+
+* Ensure that `tsh` uses the correct username after login with an external identity provider: [#5323](https://github.com/gravitational/teleport/pull/5323)
+
 ### 4.4.6
 
 This release of teleport contains a security fix and a bug fix.
