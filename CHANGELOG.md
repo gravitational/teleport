@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.1.17
+
+This release of Teleport contains a bug fix.
+
+* Fixed an issue that could cause Teleport to panic when under heavy load. [#5324](https://github.com/gravitational/teleport/pull/5324)
+
 ## 3.1.16
 
 This release of Teleport contains two security fixes.
@@ -9,7 +15,7 @@ This release of Teleport contains two security fixes.
 
 ### Details
 
-Vulnerabilities have been discovered in `github.com/russellhaering/goxmldsig` and `github.com/russellhaering/gosaml2` which are used by Teleport for SSO authentication via the SAML protocol. With a carefully crafted SAML response, an attacker could inject malicious content, bypassing signature validation, permitting full authentication bypass.  
+Vulnerabilities have been discovered in `github.com/russellhaering/goxmldsig` and `github.com/russellhaering/gosaml2` which are used by Teleport for SSO authentication via the SAML protocol. With a carefully crafted SAML response, an attacker could inject malicious content, bypassing signature validation, permitting full authentication bypass.
 
 ### Actions
 
