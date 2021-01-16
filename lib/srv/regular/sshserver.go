@@ -773,7 +773,7 @@ func (s *Server) handleDirectTCPIPRequest(sconn *ssh.ServerConn, identityContext
 	// forwarding is complete.
 	ctx, err := srv.NewServerContext(s, sconn, identityContext)
 	if err != nil {
-		ctx.Errorf("Unable to create connection context: %v.", err)
+		log.Errorf("Unable to create connection context: %v.", err)
 		ch.Stderr().Write([]byte("Unable to create connection context."))
 		return
 	}
@@ -866,7 +866,7 @@ func (s *Server) handleSessionRequests(sconn *ssh.ServerConn, identityContext sr
 	// session request is complete.
 	ctx, err := srv.NewServerContext(s, sconn, identityContext)
 	if err != nil {
-		ctx.Errorf("Unable to create connection context: %v.", err)
+		log.Errorf("Unable to create connection context: %v.", err)
 		ch.Stderr().Write([]byte("Unable to create connection context."))
 		return
 	}
