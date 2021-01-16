@@ -615,7 +615,7 @@ func (s *Server) handleDirectTCPIPRequest(ch ssh.Channel, req *sshutils.DirectTC
 	// forwarding is complete.
 	ctx, err := srv.NewServerContext(s, s.sconn, s.identityContext)
 	if err != nil {
-		ctx.Errorf("Unable to create connection context: %v.", err)
+		s.log.Errorf("Unable to create connection context: %v.", err)
 		ch.Stderr().Write([]byte("Unable to create connection context."))
 		return
 	}
@@ -678,7 +678,7 @@ func (s *Server) handleSessionRequests(ch ssh.Channel, in <-chan *ssh.Request) {
 	// done on the server's terminating side.
 	ctx, err := srv.NewServerContext(s, s.sconn, s.identityContext)
 	if err != nil {
-		ctx.Errorf("Unable to create connection context: %v.", err)
+		s.log.Errorf("Unable to create connection context: %v.", err)
 		ch.Stderr().Write([]byte("Unable to create connection context."))
 		return
 	}
