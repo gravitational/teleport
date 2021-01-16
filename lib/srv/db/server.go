@@ -111,8 +111,8 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Server is an application server. It authenticates requests from the web
-// proxy and forwards them to internal applications.
+// Server is a database server. It accepts database client requests coming over
+// reverse tunnel from Teleport proxy and proxies them to databases.
 type Server struct {
 	// cfg is the database server configuration.
 	cfg Config
@@ -134,7 +134,7 @@ type Server struct {
 	log *logrus.Entry
 }
 
-// New returns a new application server.
+// New returns a new database server.
 func New(ctx context.Context, config Config) (*Server, error) {
 	err := config.CheckAndSetDefaults()
 	if err != nil {

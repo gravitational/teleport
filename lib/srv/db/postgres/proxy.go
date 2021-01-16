@@ -39,10 +39,10 @@ type Proxy struct {
 	TLSConfig *tls.Config
 	// Middleware is the auth middleware.
 	Middleware *auth.Middleware
-	// ConnectToSite is used to connect to remote database server over reverse tunnel.
-	ConnectToSite func(context.Context) (net.Conn, error)
-	// ProxyToSite starts proxying between client and site connections.
-	ProxyToSite func(ctx context.Context, clientConn, siteConn io.ReadWriteCloser) error
+	// ConnectToService is used to connect to remote database server over reverse tunnel.
+	ConnectToService func(context.Context) (net.Conn, error)
+	// ProxyToService starts proxying between client and service connections.
+	ProxyToService func(ctx context.Context, clientConn, serviceConn io.ReadWriteCloser) error
 	// Log is used for logging.
 	Log logrus.FieldLogger
 }
@@ -65,19 +65,19 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	siteConn, err := p.ConnectToSite(ctx)
+	serviceConn, err := p.ConnectToService(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer siteConn.Close()
+	defer serviceConn.Close()
 	// Frontend acts as a client for the Postgres wire protocol.
-	frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(siteConn), siteConn)
+	frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(serviceConn), serviceConn)
 	// Pass the startup message along to the Teleport database server.
 	err = frontend.Send(startupMessage)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = p.ProxyToSite(ctx, tlsConn, siteConn)
+	err = p.ProxyToService(ctx, tlsConn, serviceConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
