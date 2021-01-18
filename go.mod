@@ -6,6 +6,7 @@ require (
 	cloud.google.com/go/firestore v1.1.1
 	cloud.google.com/go/pubsub v1.2.0 // indirect
 	cloud.google.com/go/storage v1.5.0
+	github.com/AlecAivazis/survey/v2 v2.2.7
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
 	github.com/HdrHistogram/hdrhistogram-go v0.9.1-0.20201006155429-aada4ab574ea
 	github.com/Microsoft/go-winio v0.4.9
@@ -35,9 +36,7 @@ require (
 	github.com/gravitational/configure v0.0.0-20160909185025-1db4b84fe9db
 	github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70
 	github.com/gravitational/kingpin v2.1.11-0.20190130013101-742f2714c145+incompatible
-	github.com/gravitational/license v0.0.0-20180912170534-4f189e3bd6e3
 	github.com/gravitational/oxy v0.0.0-20200916204440-3eb06d921a1d
-	github.com/gravitational/reporting v0.0.0-20180907002058-ac7b85c75c4c
 	github.com/gravitational/roundtrip v1.0.0
 	github.com/gravitational/trace v1.1.13
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c

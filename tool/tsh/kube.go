@@ -35,6 +35,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/pkg/apis/clientauthentication"
 	clientauthv1beta1 "k8s.io/client-go/pkg/apis/clientauthentication/v1beta1"
+
+	"github.com/AlecAivazis/survey/v2"
 )
 
 type kubeCommands struct {
@@ -193,8 +195,19 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	c := &kubeLoginCommand{
 		CmdClause: parent.Command("login", "Login to a kubernetes cluster"),
 	}
-	c.Arg("kube-cluster", "Name of the kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").Required().StringVar(&c.kubeCluster)
+	c.Arg("kube-cluster", "Name of the kubernetes cluster to login to. Check 'tsh kube ls' for a list of available clusters.").StringVar(&c.kubeCluster)
 	return c
+}
+
+func choose(clusters []string) (string, error) {
+	choice := ""
+	prompt := &survey.Select{
+		Message: "Select one:",
+		Options: clusters,
+	}
+
+	err := survey.AskOne(prompt, &choice)
+	return choice, err
 }
 
 func (c *kubeLoginCommand) run(cf *CLIConf) error {
@@ -202,11 +215,21 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// Check that this kube cluster exists.
 	currentTeleportCluster, kubeClusters, err := fetchKubeClusters(cf.Context, tc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// If cluster not given, allow selection
+	if c.kubeCluster == "" {
+		choice, err := choose(kubeClusters)
+		if err != nil {
+			return err
+		}
+		c.kubeCluster = choice
+	}
+
+	// Check that this kube cluster exists.
 	if !utils.SliceContainsStr(kubeClusters, c.kubeCluster) {
 		return trace.NotFound("kubernetes cluster %q not found, check 'tsh kube ls' for a list of known clusters", c.kubeCluster)
 	}
