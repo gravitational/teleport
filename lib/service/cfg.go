@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/ghodss/yaml"
@@ -90,6 +91,9 @@ type Config struct {
 
 	// App service configuration. Manages applications running within the cluster.
 	Apps AppsConfig
+
+	// Databases defines database proxy service configuration.
+	Databases DatabasesConfig
 
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
@@ -318,6 +322,9 @@ type ProxyConfig struct {
 	// DisableReverseTunnel disables reverse tunnel on the proxy
 	DisableReverseTunnel bool
 
+	// DisableDatabaseProxy disables database access proxy listener
+	DisableDatabaseProxy bool
+
 	// ReverseTunnelListenAddr is address where reverse tunnel dialers connect to
 	ReverseTunnelListenAddr utils.NetAddr
 
@@ -519,6 +526,68 @@ type KubeConfig struct {
 	Limiter limiter.Config
 }
 
+// DatabasesConfig configures the database proxy service.
+type DatabasesConfig struct {
+	// Enabled enables the database proxy service.
+	Enabled bool
+	// Databases is a list of databases proxied by this service.
+	Databases []Database
+}
+
+// Database represents a single database that's being proxied.
+type Database struct {
+	// Name is the database name, used to refer to in CLI.
+	Name string
+	// Description is a free-form database description.
+	Description string
+	// Protocol is the database type, e.g. postgres or mysql.
+	Protocol string
+	// URI is the database endpoint to connect to.
+	URI string
+	// StaticLabels is a map of database static labels.
+	StaticLabels map[string]string
+	// DynamicLabels is a list of database dynamic labels.
+	DynamicLabels services.CommandLabels
+	// CACert is an optional database CA certificate.
+	CACert []byte
+	// AWS contains AWS specific settings for RDS/Aurora.
+	AWS DatabaseAWS
+}
+
+// DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
+type DatabaseAWS struct {
+	// Region is the cloud region database is running in when using AWS RDS.
+	Region string
+}
+
+// Check validates the database proxy configuration.
+func (d *Database) Check() error {
+	if d.Name == "" {
+		return trace.BadParameter("empty database name")
+	}
+	// Unlike application access proxy, database proxy name doesn't necessarily
+	// need to be a valid subdomain but use the same validation logic for the
+	// simplicity and consistency.
+	if errs := validation.IsDNS1035Label(d.Name); len(errs) > 0 {
+		return trace.BadParameter("invalid database %q name: %v", d.Name, errs)
+	}
+	if !utils.SliceContainsStr(defaults.DatabaseProtocols, d.Protocol) {
+		return trace.BadParameter("unsupported database %q protocol %q, supported are: %v",
+			d.Name, d.Protocol, defaults.DatabaseProtocols)
+	}
+	if _, _, err := net.SplitHostPort(d.URI); err != nil {
+		return trace.BadParameter("invalid database %q address %q: %v",
+			d.Name, d.URI, err)
+	}
+	if len(d.CACert) != 0 {
+		if _, err := tlsca.ParseCertificatePEM(d.CACert); err != nil {
+			return trace.BadParameter("provided database %q CA doesn't appear to be a valid x509 certificate: %v",
+				d.Name, err)
+		}
+	}
+	return nil
+}
+
 // AppsConfig configures application proxy service.
 type AppsConfig struct {
 	// Enabled enables application proxying service.
@@ -675,6 +744,9 @@ func ApplyDefaults(cfg *Config) {
 
 	// Apps service defaults. It's disabled by default.
 	cfg.Apps.Enabled = false
+
+	// Databases proxy service is disabled by default.
+	cfg.Databases.Enabled = false
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

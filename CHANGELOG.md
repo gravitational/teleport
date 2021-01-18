@@ -1,5 +1,13 @@
 # Changelog
 
+## 6.0.0-alpha.1
+
+This release of Teleport introduces Database Access with PostgreSQL support.
+
+**Note:** This version is a pre-release and is not recommended for production usage.
+
+See [Database Access Preview](https://goteleport.com/teleport/docs/preview/database-access/) docs for more information.
+
 ## 5.1.0
 
 This release of Teleport adds a new feature.

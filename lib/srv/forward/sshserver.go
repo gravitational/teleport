@@ -669,7 +669,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	// forwarding is complete.
 	ctx, scx, err := srv.NewServerContext(ctx, s.connectionContext, s, s.identityContext)
 	if err != nil {
-		scx.Errorf("Unable to create connection context: %v.", err)
+		s.log.Errorf("Unable to create connection context: %v.", err)
 		s.stderrWrite(ch, "Unable to create connection context.")
 		return
 	}
