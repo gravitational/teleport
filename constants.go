@@ -19,6 +19,40 @@ package teleport
 import (
 	"strings"
 	"time"
+
+	"github.com/gravitational/teleport/api/constants"
+)
+
+// The following constants have been moved to /api/constants/constants.go, and are now
+// imported here for backwards compatibility. DELETE IN 7.0.0
+const (
+	OTP                        = constants.OTP
+	U2F                        = constants.U2F
+	OFF                        = constants.OFF
+	Local                      = constants.Local
+	OIDC                       = constants.OIDC
+	SAML                       = constants.SAML
+	Github                     = constants.Github
+	JSON                       = constants.JSON
+	ConnectorOIDC              = constants.ConnectorOIDC
+	ConnectorSAML              = constants.ConnectorSAML
+	ConnectorGithub            = constants.ConnectorGithub
+	HumanDateFormatSeconds     = constants.HumanDateFormatSeconds
+	ADFS                       = constants.ADFS
+	AdminRoleName              = constants.AdminRoleName
+	DefaultImplicitRole        = constants.DefaultImplicitRole
+	APIDomain                  = constants.APIDomain
+	CertificateFormatStandard  = constants.CertificateFormatStandard
+	DurationNever              = constants.DurationNever
+	EnhancedRecordingMinKernel = constants.EnhancedRecordingMinKernel
+	EnhancedRecordingCommand   = constants.EnhancedRecordingCommand
+	EnhancedRecordingDisk      = constants.EnhancedRecordingDisk
+	EnhancedRecordingNetwork   = constants.EnhancedRecordingNetwork
+	KeepAliveNode              = constants.KeepAliveNode
+	KeepAliveApp               = constants.KeepAliveApp
+	KeepAliveDatabase          = constants.KeepAliveDatabase
+	RSAKeySize                 = constants.RSAKeySize
+	SchemeFile                 = constants.SchemeFile
 )
 
 // WebAPIVersion is a current webapi version
@@ -255,15 +289,6 @@ const (
 	// is not defined)
 	SafeTerminalType = "xterm"
 
-	// ConnectorOIDC means connector type OIDC
-	ConnectorOIDC = "oidc"
-
-	// ConnectorSAML means connector type SAML
-	ConnectorSAML = "saml"
-
-	// ConnectorGithub means connector type Github
-	ConnectorGithub = "github"
-
 	// DataDirParameterName is the name of the data dir configuration parameter passed
 	// to all backends during initialization
 	DataDirParameterName = "data_dir"
@@ -276,35 +301,11 @@ const (
 	// the proxy is recording sessions or not.
 	RecordingProxyReqType = "recording-proxy@teleport.com"
 
-	// OTP means One-time Password Algorithm for Two-Factor Authentication.
-	OTP = "otp"
-
 	// TOTP means Time-based One-time Password Algorithm. for Two-Factor Authentication.
 	TOTP = "totp"
 
 	// HOTP means HMAC-based One-time Password Algorithm.for Two-Factor Authentication.
 	HOTP = "hotp"
-
-	// U2F means Universal 2nd Factor.for Two-Factor Authentication.
-	U2F = "u2f"
-
-	// OFF means no second factor.for Two-Factor Authentication.
-	OFF = "off"
-
-	// Local means authentication will happen locally within the Teleport cluster.
-	Local = "local"
-
-	// OIDC means authentication will happen remotely using an OIDC connector.
-	OIDC = ConnectorOIDC
-
-	// SAML means authentication will happen remotely using a SAML connector.
-	SAML = ConnectorSAML
-
-	// Github means authentication will happen remotely using a Github connector.
-	Github = ConnectorGithub
-
-	// JSON means JSON serialization format
-	JSON = "json"
 
 	// YAML means YAML serialization format
 	YAML = "yaml"
@@ -370,9 +371,6 @@ const (
 	// DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption = "disablesse"
 
-	// SchemeFile is a local disk file storage
-	SchemeFile = "file"
-
 	// SchemeStdout outputs audit log entries to stdout
 	SchemeStdout = "stdout"
 
@@ -384,9 +382,6 @@ const (
 
 	// HumanDateFormat is a human readable date formatting
 	HumanDateFormat = "Jan _2 15:04 UTC"
-
-	// HumanDateFormatSeconds is a human readable date formatting with seconds
-	HumanDateFormatSeconds = "Jan _2 15:04:05 UTC"
 
 	// HumanDateFormatMilli is a human readable date formatting with milliseconds
 	HumanDateFormatMilli = "Jan _2 15:04:05.000 UTC"
@@ -447,8 +442,6 @@ const (
 const (
 	// NetIQ is an identity provider.
 	NetIQ = "netiq"
-	// ADFS is Microsoft Active Directory Federation Services
-	ADFS = "adfs"
 )
 
 const (
@@ -471,16 +464,9 @@ const (
 	// versions of OpenSSH.
 	CertificateFormatOldSSH = "oldssh"
 
-	// CertificateFormatStandard is used for normal Teleport operation without any
-	// compatibility modes.
-	CertificateFormatStandard = "standard"
-
 	// CertificateFormatUnspecified is used to check if the format was specified
 	// or not.
 	CertificateFormatUnspecified = ""
-
-	// DurationNever is human friendly shortcut that is interpreted as a Duration of 0
-	DurationNever = "never"
 )
 
 const (
@@ -545,17 +531,6 @@ const SCP = "scp"
 
 // Root is *nix system administrator account name.
 const Root = "root"
-
-// DefaultRole is the name of the default admin role for all local users if
-// another role is not explicitly assigned (Enterprise only).
-const AdminRoleName = "admin"
-
-// DefaultImplicitRole is implicit role that gets added to all service.RoleSet
-// objects.
-const DefaultImplicitRole = "default-implicit-role"
-
-// APIDomain is a default domain name for Auth server API
-const APIDomain = "teleport.cluster.local"
 
 // MinClientVersion is the minimum client version required by the server.
 const MinClientVersion = "3.0.0"
@@ -658,23 +633,6 @@ const (
 )
 
 const (
-	// EnhancedRecordingMinKernel is the minimum kernel version for the enhanced
-	// recording feature.
-	EnhancedRecordingMinKernel = "4.18.0"
-
-	// EnhancedRecordingCommand is a role option that implies command events are
-	// captured.
-	EnhancedRecordingCommand = "command"
-
-	// EnhancedRecordingDisk is a role option that implies disk events are captured.
-	EnhancedRecordingDisk = "disk"
-
-	// EnhancedRecordingNetwork is a role option that implies network events
-	// are captured.
-	EnhancedRecordingNetwork = "network"
-)
-
-const (
 	// ExecSubCommand is the sub-command Teleport uses to re-exec itself for
 	// command execution (exec and shells).
 	ExecSubCommand = "exec"
@@ -691,9 +649,6 @@ const (
 	// ChanSession is a SSH channel of type "session".
 	ChanSession = "session"
 )
-
-// RSAKeySize is the size of the RSA key.
-const RSAKeySize = 2048
 
 // A principal name for use in SSH certificates.
 type Principal string
@@ -714,16 +669,6 @@ const (
 const UserSystem = "system"
 
 const (
-	// KeepAliveNode is the keep alive type for SSH servers.
-	KeepAliveNode = "node"
-	// KeepAliveApp is the keep alive type for application server.
-	KeepAliveApp = "app"
-	// KeepAliveDatabase is the keep alive type for database server.
-	KeepAliveDatabase = "db"
-)
-
-const (
-	// AppJWTHeader is the JWT header used to pass identity information to the
 	// internal application being proxied.
 	AppJWTHeader = "teleport-jwt-assertion"
 

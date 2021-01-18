@@ -359,10 +359,8 @@ message ProvisionTokenV1 {
     // Roles is a list of roles associated with the token,
     // that will be converted to metadata in the SSH and X509
     // certificates issued to the user of the token
-    repeated string Roles = 1 [
-        (gogoproto.jsontag) = "roles",
-        (gogoproto.casttype) = "github.com/gravitational/teleport.Role"
-    ];
+    repeated string Roles = 1
+        [ (gogoproto.jsontag) = "roles", (gogoproto.casttype) = "TeleportRole" ];
     // Expires is a global expiry time header can be set on any resource in the
     // system.
     google.protobuf.Timestamp Expires = 2 [
@@ -396,10 +394,8 @@ message ProvisionTokenSpecV2 {
     // Roles is a list of roles associated with the token,
     // that will be converted to metadata in the SSH and X509
     // certificates issued to the user of the token
-    repeated string Roles = 1 [
-        (gogoproto.jsontag) = "roles",
-        (gogoproto.casttype) = "github.com/gravitational/teleport.Role"
-    ];
+    repeated string Roles = 1
+        [ (gogoproto.jsontag) = "roles", (gogoproto.casttype) = "TeleportRole" ];
 }
 
 // StaticTokensV2 implements the StaticTokens interface.

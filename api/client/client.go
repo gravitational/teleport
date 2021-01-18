@@ -28,8 +28,8 @@ import (
 
 	"golang.org/x/net/http2"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
@@ -82,7 +82,7 @@ func NewClient(cfg Config) (*Client, error) {
 	})
 
 	var err error
-	if c.conn, err = grpc.Dial(teleport.APIDomain,
+	if c.conn, err = grpc.Dial(constants.APIDomain,
 		dialer,
 		grpc.WithTransportCredentials(credentials.NewTLS(c.c.TLS)),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
@@ -141,7 +141,7 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	c.TLS.NextProtos = []string{http2.NextProtoTLS}
 	if c.TLS.ServerName == "" {
-		c.TLS.ServerName = teleport.APIDomain
+		c.TLS.ServerName = constants.APIDomain
 	}
 
 	return nil

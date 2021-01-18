@@ -18,8 +18,8 @@ package types
 import (
 	"testing"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/stretchr/testify/require"
 )
@@ -58,7 +58,7 @@ func TestOIDCUnmarshal(t *testing.T) {
 	require.Equal(t, "id-from-google.apps.googleusercontent.com", oc.GetClientID())
 	require.Equal(t, "https://localhost:3080/v1/webapi/oidc/callback", oc.GetRedirectURL())
 	require.Equal(t, "whatever", oc.GetDisplay())
-	require.Equal(t, teleport.OIDCPromptSelectAccount, oc.GetPrompt())
+	require.Equal(t, constants.OIDCPromptSelectAccount, oc.GetPrompt())
 }
 
 // TestOIDCUnmarshalEmptyPrompt makes sure that empty prompt value

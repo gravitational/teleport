@@ -445,7 +445,7 @@ func applyAuthConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.ReverseTunnels = append(cfg.ReverseTunnels, tun)
 	}
 	if len(fc.Auth.PublicAddr) != 0 {
-		addrs, err := fc.Auth.PublicAddr.Addrs(defaults.AuthListenPort)
+		addrs, err := utils.AddrsFromStrings(fc.Auth.PublicAddr, defaults.AuthListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -616,7 +616,7 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			cfg.Proxy.Kube.ListenAddr = *addr
 		}
 		if len(fc.Proxy.Kube.PublicAddr) != 0 {
-			addrs, err := fc.Proxy.Kube.PublicAddr.Addrs(defaults.KubeListenPort)
+			addrs, err := utils.AddrsFromStrings(fc.Proxy.Kube.PublicAddr, defaults.KubeListenPort)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -639,21 +639,21 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		// Nothing enabled, this is just for completeness.
 	}
 	if len(fc.Proxy.PublicAddr) != 0 {
-		addrs, err := fc.Proxy.PublicAddr.Addrs(defaults.HTTPListenPort)
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, defaults.HTTPListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.PublicAddrs = addrs
 	}
 	if len(fc.Proxy.SSHPublicAddr) != 0 {
-		addrs, err := fc.Proxy.SSHPublicAddr.Addrs(defaults.SSHProxyListenPort)
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.SSHPublicAddr, defaults.SSHProxyListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Proxy.SSHPublicAddrs = addrs
 	}
 	if len(fc.Proxy.TunnelPublicAddr) != 0 {
-		addrs, err := fc.Proxy.TunnelPublicAddr.Addrs(defaults.SSHProxyTunnelListenPort)
+		addrs, err := utils.AddrsFromStrings(fc.Proxy.TunnelPublicAddr, defaults.SSHProxyTunnelListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -723,7 +723,7 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 	if len(fc.SSH.PublicAddr) != 0 {
-		addrs, err := fc.SSH.PublicAddr.Addrs(defaults.SSHServerListenPort)
+		addrs, err := utils.AddrsFromStrings(fc.SSH.PublicAddr, defaults.SSHServerListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -746,7 +746,7 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Kube.ListenAddr = addr
 	}
 	if len(fc.Kube.PublicAddr) != 0 {
-		addrs, err := fc.Kube.PublicAddr.Addrs(defaults.KubeListenPort)
+		addrs, err := utils.AddrsFromStrings(fc.Kube.PublicAddr, defaults.KubeListenPort)
 		if err != nil {
 			return trace.Wrap(err)
 		}

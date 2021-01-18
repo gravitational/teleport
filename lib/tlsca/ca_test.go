@@ -26,9 +26,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/stretchr/testify/require"
-
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 	check "gopkg.in/check.v1"
 )
 

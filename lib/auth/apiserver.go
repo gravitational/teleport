@@ -548,9 +548,15 @@ func (s *APIServer) upsertReverseTunnel(auth ClientI, w http.ResponseWriter, r *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	for _, addr := range tun.GetDialAddrs() {
+		if _, err := utils.ParseAddr(addr); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	if req.TTL != 0 {
 		tun.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}
+
 	if err := auth.UpsertReverseTunnel(tun); err != nil {
 		return nil, trace.Wrap(err)
 	}

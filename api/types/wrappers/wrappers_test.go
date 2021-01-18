@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils"
 
 	"gopkg.in/check.v1"
 )

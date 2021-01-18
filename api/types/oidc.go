@@ -21,9 +21,9 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/trace"
@@ -132,7 +132,7 @@ func (o *OIDCConnectorV2) SetPrompt(p string) {
 // * and any non empty value, passed as is
 func (o *OIDCConnectorV2) GetPrompt() string {
 	if o.Spec.Prompt == nil {
-		return teleport.OIDCPromptSelectAccount
+		return constants.OIDCPromptSelectAccount
 	}
 	return *o.Spec.Prompt
 }
@@ -347,8 +347,8 @@ func (o *OIDCConnectorV2) Check() error {
 	if o.Metadata.Name == "" {
 		return trace.BadParameter("ID: missing connector name")
 	}
-	if o.Metadata.Name == teleport.Local {
-		return trace.BadParameter("ID: invalid connector name %v is a reserved name", teleport.Local)
+	if o.Metadata.Name == constants.Local {
+		return trace.BadParameter("ID: invalid connector name %v is a reserved name", constants.Local)
 	}
 	if _, err := url.Parse(o.Spec.IssuerURL); err != nil {
 		return trace.BadParameter("IssuerURL: bad url: '%v'", o.Spec.IssuerURL)
@@ -372,8 +372,8 @@ func (o *OIDCConnectorV2) Check() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if uri.Scheme != teleport.SchemeFile {
-			return trace.BadParameter("only %v:// scheme is supported for google_service_account_uri", teleport.SchemeFile)
+		if uri.Scheme != constants.SchemeFile {
+			return trace.BadParameter("only %v:// scheme is supported for google_service_account_uri", constants.SchemeFile)
 		}
 		if o.Spec.GoogleAdminEmail == "" {
 			return trace.BadParameter("whenever google_service_account_uri is specified, google_admin_email should be set as well, read https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority for more details")

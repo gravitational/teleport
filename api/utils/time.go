@@ -1,5 +1,5 @@
 /*
-Copyright 2018 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,25 +17,27 @@ limitations under the License.
 package utils
 
 import (
-	"net/url"
-
-	"github.com/gravitational/teleport"
-
-	"github.com/gravitational/trace"
+	"time"
 )
 
-// ParseSessionsURI parses uri per convention of session upload URIs
-// file is a default scheme
-func ParseSessionsURI(in string) (*url.URL, error) {
-	if in == "" {
-		return nil, trace.BadParameter("uri is empty")
+// UTC converts time to UTC timezone
+func UTC(t *time.Time) {
+	if t == nil {
+		return
 	}
-	u, err := url.Parse(in)
-	if err != nil {
-		return nil, trace.BadParameter("failed to parse URI %q: %v", in, err)
+
+	if t.IsZero() {
+		// to fix issue with timezones for tests
+		*t = time.Time{}
+		return
 	}
-	if u.Scheme == "" {
-		u.Scheme = teleport.SchemeFile
-	}
-	return u, nil
+	*t = t.UTC()
+}
+
+// HumanTimeFormatString is a human readable date formatting
+const HumanTimeFormatString = "Mon Jan _2 15:04 UTC"
+
+// HumanTimeFormat formats time as recognized by humans
+func HumanTimeFormat(d time.Time) string {
+	return d.Format(HumanTimeFormatString)
 }

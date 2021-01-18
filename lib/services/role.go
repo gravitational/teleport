@@ -493,6 +493,50 @@ func applyValueTraits(val string, traits map[string][]string) ([]string, error) 
 	return interpolated, nil
 }
 
+// score is a sorting score of the rule, the larger the score, the more
+// specific the rule is
+func scoreRule(r *Rule) int {
+	score := 0
+	// wildcard rules are less specific
+	if utils.SliceContainsStr(r.Resources, Wildcard) {
+		score -= 4
+	} else if len(r.Resources) == 1 {
+		// rules that match specific resource are more specific than
+		// fields that match several resources
+		score += 2
+	}
+	// rules that have wildcard verbs are less specific
+	if utils.SliceContainsStr(r.Verbs, Wildcard) {
+		score -= 2
+	}
+	// rules that supply 'where' or 'actions' are more specific
+	// having 'where' or 'actions' is more important than
+	// whether the rules are wildcard or not, so here we have +8 vs
+	// -4 and -2 score penalty for wildcards in resources and verbs
+	if len(r.Where) > 0 {
+		score += 8
+	}
+	// rules featuring actions are more specific
+	if len(r.Actions) > 0 {
+		score += 8
+	}
+	return score
+}
+
+// CompareRuleScore returns true if the first rule is more specific than the other.
+//
+// * nRule matching wildcard resource is less specific
+// than same rule matching specific resource.
+// * Rule that has wildcard verbs is less specific
+// than the same rules matching specific verb.
+// * Rule that has where section is more specific
+// than the same rule without where section.
+// * Rule that has actions list is more specific than
+// rule without actions list.
+func CompareRuleScore(r *Rule, o *Rule) bool {
+	return scoreRule(r) > scoreRule(o)
+}
+
 // RuleSet maps resource to a set of rules defined for it
 type RuleSet map[string][]Rule
 
@@ -571,7 +615,7 @@ func MakeRuleSet(rules []Rule) RuleSet {
 		// sort rules by most specific rule, the rule that has actions
 		// is more specific than the one that has no actions
 		sort.Slice(rules, func(i, j int) bool {
-			return rules[i].IsMoreSpecificThan(rules[j])
+			return CompareRuleScore(&rules[i], &rules[j])
 		})
 		set[resource] = rules
 	}
