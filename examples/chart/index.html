@@ -15,5 +15,13 @@
     --set proxyAddr=${PROXY_ENDPOINT?} \
     --set authToken=${JOIN_TOKEN?} \
     --set kubeClusterName=${KUBERNETES_CLUSTER_NAME?}</pre>
+    <pre><b><a href="https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-app-agent">teleport-app-agent:</a></b>
+      helm install ${RELEASE_NAME?} teleport/teleport-app-agent \
+      --create-namespace \
+      --namespace ${NAMESPACE?} \
+      --set proxyAddr=${PROXY_ENDPOINT?} \
+      --set authToken=${JOIN_TOKEN?} \
+      --set "apps[0].name=${APP_NAME?}" \
+      --set "apps[0].uri=${APP_URI?}"</pre>
   </body>
 </html>
