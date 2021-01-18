@@ -99,7 +99,7 @@ func (s *LiteSuite) TestPutRange(c *check.C) {
 }
 
 func (s *LiteSuite) TestLocking(c *check.C) {
-	s.suite.Locking(c)
+	s.suite.Locking(c, s.bk)
 }
 
 // Import tests importing values
