@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package types
+package services
 
 import (
 	"testing"
@@ -117,7 +117,7 @@ func TestTraitsToRoleMatchers(t *testing.T) {
 	}
 
 	for _, tt := range tts {
-		matchers, err := TraitMappingSet([]TraitMapping{tt.tm}).TraitsToRoleMatchers(traits)
+		matchers, err := TraitsToRoleMatchers([]TraitMapping{tt.tm}, traits)
 		require.NoError(t, err, tt.desc)
 
 		// collect all roles which match at least on of the
