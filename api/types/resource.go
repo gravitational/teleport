@@ -70,7 +70,9 @@ type ResourceWithSecrets interface {
 	WithoutSecrets() Resource
 }
 
-// Clock is used to track TTL of resources
+// Clock is used to track TTL of resources.
+// This is only used in SetTTL which is deprecated.
+// DELETE IN 7.0.0
 type Clock interface {
 	Now() time.Time
 }
