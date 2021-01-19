@@ -151,6 +151,8 @@ func (c *AuthPreferenceV2) Expiry() time.Time {
 }
 
 // SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
 func (c *AuthPreferenceV2) SetTTL(clock Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
 }

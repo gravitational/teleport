@@ -233,6 +233,6 @@ func (t *TLSServer) GetServerInfo() (services.Resource, error) {
 			KubernetesClusters: t.fwd.kubeClusters(),
 		},
 	}
-	srv.SetTTL(t.Clock, defaults.ServerAnnounceTTL)
+	srv.SetExpiry(t.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
 	return srv, nil
 }

@@ -171,7 +171,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	require.Equal(t, 0, len(out))
 
 	// Upsert server with TTL.
-	server.SetTTL(clock, time.Hour)
+	server.SetExpiry(clock.Now().UTC().Add(time.Hour))
 	lease, err = presence.UpsertDatabaseServer(ctx, server)
 	require.NoError(t, err)
 	require.Equal(t, &types.KeepAlive{

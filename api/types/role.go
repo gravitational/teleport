@@ -225,7 +225,9 @@ func (r *RoleV3) Expiry() time.Time {
 	return r.Metadata.Expiry()
 }
 
-// SetTTL sets TTL header using realtime clock.
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
 func (r *RoleV3) SetTTL(clock Clock, ttl time.Duration) {
 	r.Metadata.SetTTL(clock, ttl)
 }

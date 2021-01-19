@@ -115,7 +115,7 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 				ServerTTL:       600 * time.Second,
 				Clock:           clock,
 				GetServerInfo: func() (services.Resource, error) {
-					server.SetTTL(clock, defaults.ServerAnnounceTTL)
+					server.SetExpiry(clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
 					return server, nil
 				},
 			})
@@ -232,7 +232,7 @@ func TestHeartbeatAnnounce(t *testing.T) {
 							Hostname: "2",
 						},
 					}
-					srv.SetTTL(clock, defaults.ServerAnnounceTTL)
+					srv.SetExpiry(clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
 					return srv, nil
 				},
 			})

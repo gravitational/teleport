@@ -165,7 +165,9 @@ func (c *LicenseV3) SetExpiry(t time.Time) {
 	c.Metadata.SetExpiry(t)
 }
 
-// SetTTL sets Expires header using current clock
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
 func (c *LicenseV3) SetTTL(clock Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
 }

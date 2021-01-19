@@ -212,7 +212,9 @@ func (o *OIDCConnectorV2) Expiry() time.Time {
 	return o.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using realtime clock
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
 func (o *OIDCConnectorV2) SetTTL(clock Clock, ttl time.Duration) {
 	o.Metadata.SetTTL(clock, ttl)
 }

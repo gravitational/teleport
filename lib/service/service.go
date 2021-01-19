@@ -1331,7 +1331,7 @@ func (process *TeleportProcess) initAuthService() error {
 			} else {
 				srv.Spec.Rotation = state.Spec.Rotation
 			}
-			srv.SetTTL(process.Clock, defaults.ServerAnnounceTTL)
+			srv.SetExpiry(process.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
 			return &srv, nil
 		},
 		KeepAlivePeriod: defaults.ServerKeepAliveTTL,

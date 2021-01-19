@@ -105,7 +105,9 @@ func (r *PluginDataV3) SetExpiry(expiry time.Time) {
 	r.Metadata.SetExpiry(expiry)
 }
 
-// SetTTL sets the resource time to live
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
 func (r *PluginDataV3) SetTTL(clock Clock, ttl time.Duration) {
 	r.Metadata.SetTTL(clock, ttl)
 }

@@ -150,7 +150,9 @@ func (s *ServerV2) Expiry() time.Time {
 	return s.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using realtime clock
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
 func (s *ServerV2) SetTTL(clock Clock, ttl time.Duration) {
 	s.Metadata.SetTTL(clock, ttl)
 }

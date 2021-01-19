@@ -48,7 +48,9 @@ type Resource interface {
 	Expiry() time.Time
 	// SetExpiry sets object expiry
 	SetExpiry(time.Time)
-	// SetTTL sets Expires header using current clock
+	// SetTTL sets Expires header using the provided clock.
+	// Use SetExpiry instead.
+	// DELETE IN 7.0.0
 	SetTTL(clock Clock, ttl time.Duration)
 	// GetMetadata returns object metadata
 	GetMetadata() Metadata
@@ -108,7 +110,9 @@ func (h *ResourceHeader) SetExpiry(t time.Time) {
 	h.Metadata.SetExpiry(t)
 }
 
-// SetTTL sets Expires header using current clock
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
 func (h *ResourceHeader) SetTTL(clock Clock, ttl time.Duration) {
 	h.Metadata.SetTTL(clock, ttl)
 }
@@ -171,7 +175,9 @@ func (m *Metadata) Expiry() time.Time {
 	return *m.Expires
 }
 
-// SetTTL sets Expires header using realtime clock
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
 func (m *Metadata) SetTTL(clock Clock, ttl time.Duration) {
 	expireTime := clock.Now().UTC().Add(ttl)
 	m.Expires = &expireTime

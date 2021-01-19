@@ -211,7 +211,9 @@ func (ca *CertAuthorityV2) Expiry() time.Time {
 	return ca.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using realtime clock
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
 func (ca *CertAuthorityV2) SetTTL(clock Clock, ttl time.Duration) {
 	ca.Metadata.SetTTL(clock, ttl)
 }
@@ -591,19 +593,19 @@ func (r *Rotation) Merge(src proto.Message) {
 
 // GenerateSchedule generates schedule based on the time period, using
 // even time periods between rotation phases.
-func GenerateSchedule(clock Clock, gracePeriod time.Duration) (*RotationSchedule, error) {
+func GenerateSchedule(now time.Time, gracePeriod time.Duration) (*RotationSchedule, error) {
 	if gracePeriod <= 0 {
 		return nil, trace.BadParameter("invalid grace period %q, provide value > 0", gracePeriod)
 	}
 	return &RotationSchedule{
-		UpdateClients: clock.Now().UTC().Add(gracePeriod / 3).UTC(),
-		UpdateServers: clock.Now().UTC().Add((gracePeriod * 2) / 3).UTC(),
-		Standby:       clock.Now().UTC().Add(gracePeriod).UTC(),
+		UpdateClients: now.UTC().Add(gracePeriod / 3).UTC(),
+		UpdateServers: now.UTC().Add((gracePeriod * 2) / 3).UTC(),
+		Standby:       now.UTC().Add(gracePeriod).UTC(),
 	}, nil
 }
 
 // CheckAndSetDefaults checks and sets default values of the rotation schedule.
-func (s *RotationSchedule) CheckAndSetDefaults(clock Clock) error {
+func (s *RotationSchedule) CheckAndSetDefaults(now time.Time) error {
 	if s.UpdateServers.IsZero() {
 		return trace.BadParameter("phase %q has no time switch scheduled", RotationPhaseUpdateServers)
 	}
@@ -613,10 +615,10 @@ func (s *RotationSchedule) CheckAndSetDefaults(clock Clock) error {
 	if s.Standby.Before(s.UpdateServers) {
 		return trace.BadParameter("phase %q can not be scheduled before %q", RotationPhaseStandby, RotationPhaseUpdateServers)
 	}
-	if s.UpdateServers.Before(clock.Now()) {
+	if s.UpdateServers.Before(now) {
 		return trace.BadParameter("phase %q can not be scheduled in the past", RotationPhaseUpdateServers)
 	}
-	if s.Standby.Before(clock.Now()) {
+	if s.Standby.Before(now) {
 		return trace.BadParameter("phase %q can not be scheduled in the past", RotationPhaseStandby)
 	}
 	return nil

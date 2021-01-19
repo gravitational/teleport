@@ -131,7 +131,9 @@ func (u *UserV2) SetExpiry(expires time.Time) {
 	u.Metadata.SetExpiry(expires)
 }
 
-// SetTTL sets Expires header using realtime clock
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
 func (u *UserV2) SetTTL(clock Clock, ttl time.Duration) {
 	u.Metadata.SetTTL(clock, ttl)
 }

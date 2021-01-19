@@ -135,7 +135,9 @@ func (c *RemoteClusterV3) Expiry() time.Time {
 	return c.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using realtime clock
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
 func (c *RemoteClusterV3) SetTTL(clock Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
 }
