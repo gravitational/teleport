@@ -1040,6 +1040,9 @@ func (s *APIServer) upsertCertAuthority(auth ClientI, w http.ResponseWriter, r *
 	if req.TTL != 0 {
 		ca.SetTTL(s, req.TTL)
 	}
+	if err = services.ValidateCertAuthority(ca); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := auth.UpsertCertAuthority(ca); err != nil {
 		return nil, trace.Wrap(err)
 	}
