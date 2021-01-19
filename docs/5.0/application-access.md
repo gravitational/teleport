@@ -17,7 +17,7 @@ You can secure any web application using application access:
 
 ## Demo
 
-<video autoplay loop muted playsinline controls>
+<video autoPlay loop muted playsInline controls>
   <source src="https://goteleport.com/teleport/videos/k8s-application-access/k8s-taa.mp4" type="video/mp4" />
   <source src="https://goteleport.com/teleport/videos/k8s-application-access/k8s-taa.webm" type="video/webm" />
 Your browser does not support the video tag.
