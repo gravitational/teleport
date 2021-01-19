@@ -512,7 +512,13 @@ func (i *TeleInstance) GenerateConfig(trustedSecrets []*InstanceSecrets, tconf *
 	tconf.Auth.StaticTokens, err = services.NewStaticTokens(services.StaticTokensSpecV2{
 		StaticTokens: []services.ProvisionTokenV1{
 			{
-				Roles: []teleport.Role{teleport.RoleNode, teleport.RoleProxy, teleport.RoleTrustedCluster, teleport.RoleApp},
+				Roles: []teleport.Role{
+					teleport.RoleNode,
+					teleport.RoleProxy,
+					teleport.RoleTrustedCluster,
+					teleport.RoleApp,
+					teleport.RoleDatabase,
+				},
 				Token: "token",
 			},
 		},
@@ -772,6 +778,67 @@ func (i *TeleInstance) StartApp(conf *service.Config) (*service.TeleportProcess,
 	log.Debugf("Teleport Application Server (in instance %v) started: %v/%v events received.",
 		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
 	return process, nil
+}
+
+// StartDatabase starts the database access service with the provided config.
+func (i *TeleInstance) StartDatabase(conf *service.Config) (*service.TeleportProcess, *auth.Client, error) {
+	dataDir, err := ioutil.TempDir("", "cluster-"+i.Secrets.SiteName)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	i.tempDirs = append(i.tempDirs, dataDir)
+
+	conf.DataDir = dataDir
+	conf.AuthServers = []utils.NetAddr{
+		{
+			AddrNetwork: "tcp",
+			Addr:        net.JoinHostPort(Loopback, i.GetPortWeb()),
+		},
+	}
+	conf.Token = "token"
+	conf.UploadEventsC = i.UploadEventsC
+	conf.Auth.Enabled = false
+	conf.Proxy.Enabled = false
+
+	// Create a new Teleport process and add it to the list of nodes that
+	// compose this "cluster".
+	process, err := service.NewTeleport(conf)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	i.Nodes = append(i.Nodes, process)
+
+	// Build a list of expected events to wait for before unblocking based off
+	// the configuration passed in.
+	expectedEvents := []string{
+		service.DatabasesIdentityEvent,
+		service.DatabasesReady,
+	}
+
+	// Start the process and block until the expected events have arrived.
+	receivedEvents, err := startAndWait(process, expectedEvents)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Retrieve auth server connector.
+	var client *auth.Client
+	for _, event := range receivedEvents {
+		if event.Name == service.DatabasesIdentityEvent {
+			conn, ok := (event.Payload).(*service.Connector)
+			if !ok {
+				return nil, nil, trace.BadParameter("unsupported event payload type %q", event.Payload)
+			}
+			client = conn.Client
+		}
+	}
+	if client == nil {
+		return nil, nil, trace.BadParameter("failed to retrieve auth client")
+	}
+
+	log.Debugf("Teleport Database Server (in instance %v) started: %v/%v events received.",
+		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
+	return process, client, nil
 }
 
 // StartNodeAndProxy starts a SSH node and a Proxy Server and connects it to

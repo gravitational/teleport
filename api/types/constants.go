@@ -102,6 +102,9 @@ const (
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
 
+	// KindDatabaseServer is a database proxy server resource.
+	KindDatabaseServer = "db_server"
+
 	// KindToken is a provisioning token resource
 	KindToken = "token"
 

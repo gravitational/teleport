@@ -17,7 +17,7 @@ You can secure any web application using application access:
 
 ## Demo
 
-<video autoplay loop muted playsinline controls>
+<video autoPlay loop muted playsInline controls>
   <source src="https://goteleport.com/teleport/videos/k8s-application-access/k8s-taa.mp4" type="video/mp4" />
   <source src="https://goteleport.com/teleport/videos/k8s-application-access/k8s-taa.webm" type="video/webm" />
 Your browser does not support the video tag.
@@ -109,12 +109,14 @@ After Teleport is running, the application will be accessible at `app-name.proxy
 
 | Variable to replace | Description  |
 |-|-|
-| `proxy_service: public_addr` | Public URL and Port for Teleport |
-| `https_keypairs` | LetsEncrypt Key File ( Wildcard Cert )  |
-| `-key_file` | LetsEncrypt Key File ( Wildcard Cert ) |
-| `-cert_file` | LetsEncrypt Key File ( Wildcard Cert ) |
-| `app_service: enabled: yes` | LetsEncrypt Key File ( Wildcard Cert ) |
-| `apps: name` | LetsEncrypt Key File ( Wildcard Cert ) |
+| `auth_token` & `tokens` | Example static join tokens |
+| `proxy_service: public_addr` | Public URL and Port for Teleport. |
+| `https_keypairs` | HTTPS TLS Certificate key pairs |
+| `-key_file` | LetsEncrypt Key File |
+| `-cert_file` | LetsEncrypt Cert File |
+| `app_service: enabled: yes` | Application Service should be enabled |
+| `apps: name` | Application Name |
+| `apps: uri` | URL and port of application |
 
 ```yaml
 teleport:
@@ -137,8 +139,6 @@ app_service:
    - name: "kubernetes-dashboard"
      # URI and port of application.
      uri: "https://localhost:3040"
-     # Optional Public Addr
-     public_addr: "example.com"
      # Optional Label: These can be used in combination with RBAC rules
      # to limit access to applications
      labels:
@@ -162,7 +162,7 @@ proxy_service:
     cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 ```
 #### [ Optional ] Obtain a new App Token
-In the above example we've hard coded a join token `a3aff444e182cf4ee5c2f78ad2a4cc47d8a30c95747a08f8`. You can use this to join apps or create a dynamic token using the tctl command below.
+In the above example we've hard coded a join token `a3aff444e182cf4ee5c2f78ad2a4cc47d8a30c95747a08f8`. You can use this to join apps or create a dynamic token using the `tctl` command below.
 
 ```bash
 $ tctl tokens add --type=app
@@ -198,7 +198,8 @@ app_service:
 
 ### Deeplink to Subdirectory
 
-Some Applications are available on a Subdirectory, examples include Kubernetes Dashboard.
+Some Applications are available on a Subdirectory, examples include the [Kubernetes Dashboard.](https://kubernetes.io/docs/tasks/access-application-cluster/web-ui-dashboard/). The URI should be updated to include
+the subdirectory.
 
 ```yaml
    - name: "k8s"
@@ -206,7 +207,8 @@ Some Applications are available on a Subdirectory, examples include Kubernetes D
      public_addr: "k8s.example.com"
 ```
 ### Rewrite
-We provide simple rewrites. This is helpful for applications
+We provide simple rewrites. This is helpful for applications that provide internal redirect
+headers.
 
 ```yaml
    - name: "jira"
@@ -221,6 +223,10 @@ We provide simple rewrites. This is helpful for applications
 ```
 
 ## View Applications in Teleport
+
+Teleport provides a UI for quickly launching connected applications. They can be
+viewed by navigating to a cluster and selecting Applications. The URL structure is
+below.
 
 `https://[cluster-url:cluster-port]/web/cluster/[cluster-name]/apps`
 
