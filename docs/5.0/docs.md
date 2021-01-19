@@ -17,6 +17,7 @@ Getting started guides should try hard to keep a busy user engaged. It calls out
 is in the sequence, for example "Step 1 out of 3. Adding a local user."
 
 !!! note
+
     "Getting started" is a better term than "Quickstart".
     Google "Getting started with React" vs "React quickstart"
     and compare the search results.

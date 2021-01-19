@@ -211,7 +211,7 @@ $ psql "service=postgres-aurora user=<db-user> database=<db-name>"
 
 <!-- TODO Remove comment when ready ## Demo
 
-<video autoplay loop muted playsinline controls>
+<video autoPlay loop muted playsInline controls>
   <source src="/video/dbaccessdemo.mp4" type="video/mp4" />
   <source src="/video/dbaccessdemo.webm" type="video/webm" />
 Your browser does not support the video tag.
