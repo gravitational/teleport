@@ -158,7 +158,7 @@ func appendRoleMatchers(matchers []parse.Matcher, conditions AccessRequestCondit
 	}
 
 	// build matchers for all role mappings
-	ms, err := GetTraitMappings(conditions).TraitsToRoleMatchers(traits)
+	ms, err := TraitsToRoleMatchers(GetTraitMappings(conditions), traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

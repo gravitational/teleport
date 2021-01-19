@@ -449,7 +449,7 @@ func (a *Server) calculateOIDCUser(connector services.OIDCConnector, claims jose
 
 	p.traits = services.OIDCClaimsToTraits(claims)
 
-	p.roles = connector.GetTraitMappings().TraitsToRoles(p.traits)
+	p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
 	if len(p.roles) == 0 {
 		return nil, trace.AccessDenied("unable to map claims to role for connector: %v", connector.GetName())
 	}

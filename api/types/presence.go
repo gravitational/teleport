@@ -181,6 +181,15 @@ type Presence interface {
 	// DeleteAllAppServers removes all application servers.
 	DeleteAllAppServers(context.Context, string) error
 
+	// GetDatabaseServers returns all registered database proxy servers.
+	GetDatabaseServers(context.Context, string, ...MarshalOption) ([]DatabaseServer, error)
+	// UpsertDatabaseServer creates or updates a new database proxy server.
+	UpsertDatabaseServer(context.Context, DatabaseServer) (*KeepAlive, error)
+	// DeleteDatabaseServer removes the specified database proxy server.
+	DeleteDatabaseServer(context.Context, string, string, string) error
+	// DeleteAllDatabaseServers removes all database proxy servers.
+	DeleteAllDatabaseServers(context.Context, string) error
+
 	// KeepAliveServer updates TTL of the server resource in the backend.
 	KeepAliveServer(ctx context.Context, h KeepAlive) error
 
@@ -224,6 +233,8 @@ func (s *KeepAlive) GetType() string {
 		return teleport.KeepAliveNode
 	case KeepAlive_APP:
 		return teleport.KeepAliveApp
+	case KeepAlive_DATABASE:
+		return teleport.KeepAliveDatabase
 	default:
 		return teleport.KeepAliveNode
 	}

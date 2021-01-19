@@ -23,6 +23,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"net"
 	"time"
@@ -98,6 +99,12 @@ type Identity struct {
 	// originated from. For TLS certs this may not be the same as cert issuer,
 	// in case of multi-hop requests that originate from a remote cluster.
 	TeleportCluster string
+	// RouteToDatabase contains routing information for databases.
+	RouteToDatabase RouteToDatabase
+	// DatabaseNames is a list of allowed database names.
+	DatabaseNames []string
+	// DatabaseUsers is a list of allowed database users.
+	DatabaseUsers []string
 }
 
 // RouteToApp holds routing information for applications.
@@ -116,6 +123,30 @@ type RouteToApp struct {
 	// ClusterName (and PublicAddr) are used to route requests issued with this
 	// certificate to the appropriate application proxy/cluster.
 	ClusterName string
+}
+
+// RouteToDatabase contains routing information for databases.
+type RouteToDatabase struct {
+	// ServiceName is the name of the Teleport database proxy service
+	// to route requests to.
+	ServiceName string
+	// Protocol is the database protocol.
+	//
+	// It is embedded in identity so clients can understand what type
+	// of database this is without contacting server.
+	Protocol string
+	// Username is an optional database username to serve as a default
+	// username to connect as.
+	Username string
+	// Database is an optional database name to serve as a default
+	// database to connect to.
+	Database string
+}
+
+// String returns string representation of the database routing struct.
+func (d RouteToDatabase) String() string {
+	return fmt.Sprintf("Database(Service=%v, Protocol=%v, Username=%v, Database=%v)",
+		d.ServiceName, d.Protocol, d.Username, d.Database)
 }
 
 // GetRouteToApp returns application routing data. If missing, returns an error.
@@ -175,6 +206,30 @@ var (
 	// TeleportClusterASN1ExtensionOID is an extension ID used when encoding/decoding
 	// origin teleport cluster name into certificates.
 	TeleportClusterASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 7}
+
+	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
+	// database service name into certificates.
+	DatabaseServiceNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 1}
+
+	// DatabaseProtocolASN1ExtensionOID is an extension ID used when encoding/decoding
+	// database protocol into certificates.
+	DatabaseProtocolASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 2}
+
+	// DatabaseUsernameASN1ExtensionOID is an extension ID used when encoding/decoding
+	// database username into certificates.
+	DatabaseUsernameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 3}
+
+	// DatabaseNameASN1ExtensionOID is an extension ID used when encoding/decoding
+	// database name into certificates.
+	DatabaseNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 4}
+
+	// DatabaseNamesASN1ExtensionOID is an extension OID used when encoding/decoding
+	// allowed database names into certificates.
+	DatabaseNamesASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 5}
+
+	// DatabaseUsersASN1ExtensionOID is an extension OID used when encoding/decoding
+	// allowed database users into certificates.
+	DatabaseUsersASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 6}
 )
 
 // Subject converts identity to X.509 subject name
@@ -256,6 +311,53 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	// Encode routing metadata for databases.
+	if id.RouteToDatabase.ServiceName != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  DatabaseServiceNameASN1ExtensionOID,
+				Value: id.RouteToDatabase.ServiceName,
+			})
+	}
+	if id.RouteToDatabase.Protocol != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  DatabaseProtocolASN1ExtensionOID,
+				Value: id.RouteToDatabase.Protocol,
+			})
+	}
+	if id.RouteToDatabase.Username != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  DatabaseUsernameASN1ExtensionOID,
+				Value: id.RouteToDatabase.Username,
+			})
+	}
+	if id.RouteToDatabase.Database != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  DatabaseNameASN1ExtensionOID,
+				Value: id.RouteToDatabase.Database,
+			})
+	}
+
+	// Encode allowed database names/users used when passing them
+	// to remote clusters as user traits.
+	for i := range id.DatabaseNames {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  DatabaseNamesASN1ExtensionOID,
+				Value: id.DatabaseNames[i],
+			})
+	}
+	for i := range id.DatabaseUsers {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  DatabaseUsersASN1ExtensionOID,
+				Value: id.DatabaseUsers[i],
+			})
+	}
+
 	return subject, nil
 }
 
@@ -315,6 +417,36 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.TeleportCluster = val
 			}
+		case attr.Type.Equal(DatabaseServiceNameASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToDatabase.ServiceName = val
+			}
+		case attr.Type.Equal(DatabaseProtocolASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToDatabase.Protocol = val
+			}
+		case attr.Type.Equal(DatabaseUsernameASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToDatabase.Username = val
+			}
+		case attr.Type.Equal(DatabaseNameASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToDatabase.Database = val
+			}
+		case attr.Type.Equal(DatabaseNamesASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.DatabaseNames = append(id.DatabaseNames, val)
+			}
+		case attr.Type.Equal(DatabaseUsersASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.DatabaseUsers = append(id.DatabaseUsers, val)
+			}
 		}
 	}
 
@@ -349,7 +481,7 @@ type CertificateRequest struct {
 // CheckAndSetDefaults checks and sets default values
 func (c *CertificateRequest) CheckAndSetDefaults() error {
 	if c.Clock == nil {
-		return trace.BadParameter("missing parameter Clock")
+		c.Clock = clockwork.NewRealClock()
 	}
 	if c.PublicKey == nil {
 		return trace.BadParameter("missing parameter PublicKey")

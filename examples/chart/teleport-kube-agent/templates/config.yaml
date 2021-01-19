@@ -11,7 +11,10 @@ data:
     kubernetes_service:
       enabled: true
       kube_cluster_name: {{ required "kubeClusterName is required in chart values" .Values.kubeClusterName }}
-
+      labels:
+{{- if .Values.labels }}
+{{ toYaml .Values.labels | indent 8 }}
+{{- end }}
     auth_service:
       enabled: false
     ssh_service:
