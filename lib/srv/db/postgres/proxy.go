@@ -19,10 +19,10 @@ package postgres
 import (
 	"context"
 	"crypto/tls"
-	"io"
 	"net"
 
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/jackc/pgproto3/v2"
 
@@ -33,16 +33,14 @@ import (
 // Proxy proxies connections from Postgres clients to database services
 // over reverse tunnel. It runs inside Teleport proxy service.
 //
-// Implements db.DatabaseProxy.
+// Implements common.DatabaseProxy.
 type Proxy struct {
 	// TLSConfig is the proxy TLS configuration.
 	TLSConfig *tls.Config
 	// Middleware is the auth middleware.
 	Middleware *auth.Middleware
-	// ConnectToService is used to connect to remote database server over reverse tunnel.
-	ConnectToService func(context.Context) (net.Conn, error)
-	// ProxyToService starts proxying between client and service connections.
-	ProxyToService func(ctx context.Context, clientConn, serviceConn io.ReadWriteCloser) error
+	// Service is used to connect to a remote database service.
+	Service common.Service
 	// Log is used for logging.
 	Log logrus.FieldLogger
 }
@@ -65,7 +63,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serviceConn, err := p.ConnectToService(ctx)
+	serviceConn, err := p.Service.Connect(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -77,7 +75,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = p.ProxyToService(ctx, tlsConn, serviceConn)
+	err = p.Service.Proxy(ctx, tlsConn, serviceConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}

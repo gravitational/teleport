@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package auth
+package common
 
 import (
 	"context"
@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/srv/db/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -36,8 +35,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// AuthenticatorConfig is the database access authenticator configuration.
-type AuthenticatorConfig struct {
+// AuthConfig is the database access authenticator configuration.
+type AuthConfig struct {
 	// AuthClient is the cluster auth client.
 	AuthClient *auth.Client
 	// Credentials are the AWS credentials used to generate RDS auth tokens.
@@ -46,10 +45,12 @@ type AuthenticatorConfig struct {
 	RDSCACerts map[string][]byte
 	// Clock is the clock implementation.
 	Clock clockwork.Clock
+	// Log is used for logging.
+	Log logrus.FieldLogger
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
-func (c *AuthenticatorConfig) CheckAndSetDefaults() error {
+func (c *AuthConfig) CheckAndSetDefaults() error {
 	if c.AuthClient == nil {
 		return trace.BadParameter("missing AuthClient")
 	}
@@ -59,31 +60,32 @@ func (c *AuthenticatorConfig) CheckAndSetDefaults() error {
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
 	}
+	if c.Log == nil {
+		c.Log = logrus.WithField(trace.Component, "db:auth")
+	}
 	return nil
 }
 
-// Authenticator provides utilities for authenticating and authorizing access
-// to databases.
-type Authenticator struct {
-	cfg AuthenticatorConfig
-	log logrus.FieldLogger
+// Auth provides utilities for creating TLS configurations and
+// generating auth tokens when connecting to databases.
+type Auth struct {
+	cfg AuthConfig
 }
 
-// NewAuthenticator returns a new instance of database access authenticator.
-func NewAuthenticator(config AuthenticatorConfig) (*Authenticator, error) {
+// NewAuth returns a new instance of database access authenticator.
+func NewAuth(config AuthConfig) (*Auth, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &Authenticator{
+	return &Auth{
 		cfg: config,
-		log: logrus.WithField(trace.Component, "db:auth"),
 	}, nil
 }
 
 // GetRDSAuthToken returns authorization token that will be used as a password
 // when connecting to RDS and Aurora databases.
-func (a *Authenticator) GetRDSAuthToken(sessionCtx *session.Context) (string, error) {
-	a.log.Debugf("Generating auth token for %s.", sessionCtx)
+func (a *Auth) GetRDSAuthToken(sessionCtx *Session) (string, error) {
+	a.cfg.Log.Debugf("Generating auth token for %s.", sessionCtx)
 	return rdsutils.BuildAuthToken(
 		sessionCtx.Server.GetURI(),
 		sessionCtx.Server.GetRegion(),
@@ -96,7 +98,7 @@ func (a *Authenticator) GetRDSAuthToken(sessionCtx *session.Context) (string, er
 // For RDS/Aurora, the config must contain RDS root certificate as a trusted
 // authority. For onprem we generate a client certificate signed by the host
 // CA used to authenticate.
-func (a *Authenticator) GetTLSConfig(ctx context.Context, sessionCtx *session.Context) (*tls.Config, error) {
+func (a *Auth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Config, error) {
 	addr, err := utils.ParseAddr(sessionCtx.Server.GetURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -117,7 +119,7 @@ func (a *Authenticator) GetTLSConfig(ctx context.Context, sessionCtx *session.Co
 				return nil, trace.BadParameter("failed to append CA certificate to the pool")
 			}
 		} else {
-			a.log.Warnf("No RDS CA certificate for %v.", sessionCtx.Server)
+			a.cfg.Log.Warnf("No RDS CA certificate for %v.", sessionCtx.Server)
 		}
 	}
 	// RDS/Aurora auth is done via an auth token so don't generate a client
@@ -143,7 +145,7 @@ func (a *Authenticator) GetTLSConfig(ctx context.Context, sessionCtx *session.Co
 
 // getClientCert signs an ephemeral client certificate used by this
 // server to authenticate with the database instance.
-func (a *Authenticator) getClientCert(ctx context.Context, sessionCtx *session.Context) (cert *tls.Certificate, cas [][]byte, err error) {
+func (a *Auth) getClientCert(ctx context.Context, sessionCtx *Session) (cert *tls.Certificate, cas [][]byte, err error) {
 	privateBytes, _, err := native.GenerateKeyPair("")
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -157,7 +159,7 @@ func (a *Authenticator) getClientCert(ctx context.Context, sessionCtx *session.C
 	}
 	// TODO(r0mant): Cache database certificates to avoid expensive generate
 	// operation on each connection.
-	a.log.Debugf("Generating client certificate for %s.", sessionCtx)
+	a.cfg.Log.Debugf("Generating client certificate for %s.", sessionCtx)
 	resp, err := a.cfg.AuthClient.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{
 		CSR: csr,
 		TTL: proto.Duration(sessionCtx.Identity.Expires.Sub(a.cfg.Clock.Now())),

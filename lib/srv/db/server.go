@@ -30,9 +30,8 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
-	dbauth "github.com/gravitational/teleport/lib/srv/db/auth"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
-	"github.com/gravitational/teleport/lib/srv/db/session"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -359,17 +358,9 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 	return nil
 }
 
-// DatabaseEngine defines an interface for specific database protocol engine
-// such as postgres or mysql.
-type DatabaseEngine interface {
-	// HandleConnection takes the connection from the proxy and starts
-	// proxying it to the particular database instance.
-	HandleConnection(context.Context, *session.Context, net.Conn) error
-}
-
 // dispatch returns an appropriate database engine for the session.
-func (s *Server) dispatch(sessionCtx *session.Context, streamWriter events.StreamWriter) (DatabaseEngine, error) {
-	auth, err := dbauth.NewAuthenticator(dbauth.AuthenticatorConfig{
+func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.StreamWriter) (common.Engine, error) {
+	auth, err := common.NewAuth(common.AuthConfig{
 		AuthClient:  s.cfg.AuthClient,
 		Credentials: s.cfg.Credentials,
 		RDSCACerts:  s.rdsCACerts,
@@ -393,7 +384,7 @@ func (s *Server) dispatch(sessionCtx *session.Context, streamWriter events.Strea
 		sessionCtx.Server.GetProtocol())
 }
 
-func (s *Server) authorize(ctx context.Context) (*session.Context, error) {
+func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	// Only allow local and remote identities to proxy to a database.
 	userType := ctx.Value(auth.ContextUser)
 	switch userType.(type) {
@@ -418,7 +409,7 @@ func (s *Server) authorize(ctx context.Context) (*session.Context, error) {
 	s.log.Debugf("Will connect to database %q at %v.", server.GetName(),
 		server.GetURI())
 	id := uuid.New()
-	return &session.Context{
+	return &common.Session{
 		ID:                id,
 		Server:            server,
 		Identity:          identity,

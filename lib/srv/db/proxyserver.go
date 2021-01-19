@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -139,15 +140,8 @@ func (s *ProxyServer) Serve(listener net.Listener) error {
 	}
 }
 
-// DatabaseProxy defines an interface a database proxy should implement.
-type DatabaseProxy interface {
-	// HandleConnection takes the client connection, handles all database
-	// specific startup actions and starts proxying to remote server.
-	HandleConnection(context.Context, net.Conn) error
-}
-
 // dispatch dispatches the connection to appropriate database proxy.
-func (s *ProxyServer) dispatch(clientConn net.Conn) (DatabaseProxy, error) {
+func (s *ProxyServer) dispatch(clientConn net.Conn) (common.Proxy, error) {
 	muxConn, ok := clientConn.(*multiplexer.Conn)
 	if !ok {
 		return nil, trace.BadParameter("expected multiplexer connection, got %T", clientConn)
@@ -164,21 +158,22 @@ func (s *ProxyServer) dispatch(clientConn net.Conn) (DatabaseProxy, error) {
 // postgresProxy returns a new instance of the Postgres protocol aware proxy.
 func (s *ProxyServer) postgresProxy() *postgres.Proxy {
 	return &postgres.Proxy{
-		TLSConfig:        s.cfg.TLSConfig,
-		Middleware:       s.middleware,
-		ConnectToService: s.connectToService,
-		ProxyToService:   s.proxyToService,
-		Log:              s.log,
+		TLSConfig:  s.cfg.TLSConfig,
+		Middleware: s.middleware,
+		Service:    s,
+		Log:        s.log,
 	}
 }
 
-// connectToService connects to the database server running on a remote cluster
+// Connect connects to the database server running on a remote cluster
 // over reverse tunnel and upgrades this end of the connection to TLS so
 // the identity can be passed over it.
 //
 // The passed in context is expected to contain the identity information
 // decoded from the client certificate by auth.Middleware.
-func (s *ProxyServer) connectToService(ctx context.Context) (net.Conn, error) {
+//
+// Implements connect.Service.
+func (s *ProxyServer) Connect(ctx context.Context) (net.Conn, error) {
 	authContext, err := s.authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -203,9 +198,11 @@ func (s *ProxyServer) connectToService(ctx context.Context) (net.Conn, error) {
 	return serviceConn, nil
 }
 
-// proxyToService starts proxying all traffic received from Postgres client
-// between this proxy and Teleport database service over reverse tunnel.
-func (s *ProxyServer) proxyToService(ctx context.Context, clientConn, serviceConn io.ReadWriteCloser) (retErr error) {
+// Proxy starts proxying all traffic received from Postgres client between
+// this proxy and Teleport database service over reverse tunnel.
+//
+// Implements connect.Service.
+func (s *ProxyServer) Proxy(ctx context.Context, clientConn, serviceConn io.ReadWriteCloser) (retErr error) {
 	errCh := make(chan error, 2)
 	go func() {
 		defer s.log.Debug("Stop proxying from client to service.")

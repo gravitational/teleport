@@ -27,8 +27,8 @@ import (
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/services"
-	libsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/srv/db/session"
+	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -36,7 +36,7 @@ import (
 
 // newStreamWriter creates a streamer that will be used to stream the
 // requests that occur within this session to the audit log.
-func (s *Server) newStreamWriter(sessionCtx *session.Context) (libevents.StreamWriter, error) {
+func (s *Server) newStreamWriter(sessionCtx *common.Session) (libevents.StreamWriter, error) {
 	clusterConfig, err := s.cfg.AccessPoint.GetClusterConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -53,7 +53,7 @@ func (s *Server) newStreamWriter(sessionCtx *session.Context) (libevents.StreamW
 		Context:      s.closeContext,
 		Streamer:     streamer,
 		Clock:        s.cfg.Clock,
-		SessionID:    libsession.ID(sessionCtx.ID),
+		SessionID:    session.ID(sessionCtx.ID),
 		Namespace:    defaults.Namespace,
 		ServerID:     sessionCtx.Server.GetHostID(),
 		RecordOutput: clusterConfig.GetSessionRecording() != services.RecordOff,
@@ -95,8 +95,8 @@ func (s *Server) newStreamer(ctx context.Context, sessionID string, clusterConfi
 
 // emitSessionStartEventFn returns function that uses the provided emitter to
 // emit an audit event when database session starts.
-func (s *Server) emitSessionStartEventFn(streamWriter libevents.StreamWriter) func(session.Context, error) error {
-	return func(session session.Context, err error) error {
+func (s *Server) emitSessionStartEventFn(streamWriter libevents.StreamWriter) func(common.Session, error) error {
+	return func(session common.Session, err error) error {
 		event := &events.DatabaseSessionStart{
 			Metadata: events.Metadata{
 				Type: libevents.DatabaseSessionStartEvent,
@@ -137,8 +137,8 @@ func (s *Server) emitSessionStartEventFn(streamWriter libevents.StreamWriter) fu
 
 // emitSessionEndEventFn returns function that uses the provided emitter to
 // emit an audit event when database session ends.
-func (s *Server) emitSessionEndEventFn(streamWriter libevents.StreamWriter) func(session.Context) error {
-	return func(session session.Context) error {
+func (s *Server) emitSessionEndEventFn(streamWriter libevents.StreamWriter) func(common.Session) error {
+	return func(session common.Session) error {
 		return streamWriter.EmitAuditEvent(s.closeContext, &events.DatabaseSessionEnd{
 			Metadata: events.Metadata{
 				Type: libevents.DatabaseSessionEndEvent,
@@ -163,8 +163,8 @@ func (s *Server) emitSessionEndEventFn(streamWriter libevents.StreamWriter) func
 
 // emitQueryEventFn returns function that uses the provided emitter to emit
 // an audit event when a database query is executed.
-func (s *Server) emitQueryEventFn(streamWriter libevents.StreamWriter) func(session.Context, string) error {
-	return func(session session.Context, query string) error {
+func (s *Server) emitQueryEventFn(streamWriter libevents.StreamWriter) func(common.Session, string) error {
+	return func(session common.Session, query string) error {
 		return streamWriter.EmitAuditEvent(s.closeContext, &events.DatabaseSessionQuery{
 			Metadata: events.Metadata{
 				Type: libevents.DatabaseSessionQueryEvent,

@@ -23,8 +23,7 @@ import (
 	"net"
 
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/srv/db/auth"
-	"github.com/gravitational/teleport/lib/srv/db/session"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgproto3/v2"
@@ -38,18 +37,18 @@ import (
 // connections coming over reverse tunnel from the proxy and proxies
 // them between the proxy and the Postgres database instance.
 //
-// Implements db.DatabaseEngine.
+// Implements common.DatabaseEngine.
 type Engine struct {
 	// Auth handles database access authentication.
-	Auth *auth.Authenticator
+	Auth *common.Auth
 	// StreamWriter is the async audit logger.
 	StreamWriter events.StreamWriter
 	// OnSessionStart is called upon successful connection to the database.
-	OnSessionStart func(session.Context, error) error
+	OnSessionStart func(common.Session, error) error
 	// OnSessionEnd is called upon disconnection from the database.
-	OnSessionEnd func(session.Context) error
+	OnSessionEnd func(common.Session) error
 	// OnQuery is called when an SQL query is executed on the connection.
-	OnQuery func(session.Context, string) error
+	OnQuery func(common.Session, string) error
 	// Clock is the clock interface.
 	Clock clockwork.Clock
 	// Log is used for logging.
@@ -80,7 +79,7 @@ func toErrorResponse(err error) *pgproto3.ErrorResponse {
 // It handles all necessary startup actions, authorization and acts as a
 // middleman between the proxy and the database intercepting and interpreting
 // all messages i.e. doing protocol parsing.
-func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *session.Context, clientConn net.Conn) (err error) {
+func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Session, clientConn net.Conn) (err error) {
 	client := pgproto3.NewBackend(pgproto3.NewChunkReader(clientConn), clientConn)
 	defer func() {
 		if err != nil {
@@ -156,7 +155,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *session.Conte
 
 // handleStartup receives a startup message from the proxy and updates
 // the session context with the connection parameters.
-func (e *Engine) handleStartup(client *pgproto3.Backend, sessionCtx *session.Context) error {
+func (e *Engine) handleStartup(client *pgproto3.Backend, sessionCtx *common.Session) error {
 	startupMessageI, err := client.ReceiveStartupMessage()
 	if err != nil {
 		return trace.Wrap(err)
@@ -182,7 +181,7 @@ func (e *Engine) handleStartup(client *pgproto3.Backend, sessionCtx *session.Con
 	return nil
 }
 
-func (e *Engine) checkAccess(sessionCtx *session.Context) error {
+func (e *Engine) checkAccess(sessionCtx *common.Session) error {
 	err := sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Server,
 		sessionCtx.DatabaseName, sessionCtx.DatabaseUser)
 	if err != nil {
@@ -197,7 +196,7 @@ func (e *Engine) checkAccess(sessionCtx *session.Context) error {
 // connect establishes the connection to the database instance and returns
 // the hijacked connection and the frontend, an interface used for message
 // exchange with the database.
-func (e *Engine) connect(ctx context.Context, sessionCtx *session.Context) (*pgproto3.Frontend, *pgconn.HijackedConn, error) {
+func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*pgproto3.Frontend, *pgconn.HijackedConn, error) {
 	connectConfig, err := e.getConnectConfig(ctx, sessionCtx)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -255,7 +254,7 @@ func (e *Engine) makeClientReady(client *pgproto3.Backend, hijackedConn *pgconn.
 // receiveFromClient receives messages from the provided backend (which
 // in turn receives them from psql or other client) and relays them to
 // the frontend connected to the database instance.
-func (e *Engine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Frontend, clientErrCh chan<- error, sessionCtx *session.Context) {
+func (e *Engine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Frontend, clientErrCh chan<- error, sessionCtx *common.Session) {
 	log := e.Log.WithField("from", "client")
 	defer log.Debug("Stop receiving from client.")
 	for {
@@ -288,7 +287,7 @@ func (e *Engine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Fr
 // receiveFromServer receives messages from the provided frontend (which
 // is connected to the database instance) and relays them back to the psql
 // or other client via the provided backend.
-func (e *Engine) receiveFromServer(server *pgproto3.Frontend, client *pgproto3.Backend, serverConn *pgconn.PgConn, serverErrCh chan<- error, sessionCtx *session.Context) {
+func (e *Engine) receiveFromServer(server *pgproto3.Frontend, client *pgproto3.Backend, serverConn *pgconn.PgConn, serverErrCh chan<- error, sessionCtx *common.Session) {
 	log := e.Log.WithField("from", "server")
 	defer log.Debug("Stop receiving from server.")
 	for {
@@ -319,7 +318,7 @@ func (e *Engine) receiveFromServer(server *pgproto3.Frontend, client *pgproto3.B
 
 // getConnectConfig returns config that can be used to connect to the
 // database instance.
-func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *session.Context) (*pgconn.Config, error) {
+func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Session) (*pgconn.Config, error) {
 	// The driver requires the config to be built by parsing the connection
 	// string so parse the basic template and then fill in the rest of
 	// parameters such as TLS configuration.
