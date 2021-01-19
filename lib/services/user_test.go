@@ -14,17 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package types
+package services
 
 import (
 	"encoding/json"
 	"fmt"
 	"testing"
 
+	"github.com/coreos/go-oidc/jose"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/coreos/go-oidc/jose"
 	saml2 "github.com/russellhaering/gosaml2"
 	"github.com/russellhaering/gosaml2/types"
 	"gopkg.in/check.v1"
@@ -204,7 +203,7 @@ func (s *UserSuite) TestOIDCMapping(c *check.C) {
 		}
 		for _, input := range testCase.inputs {
 			comment := check.Commentf("OIDC Test case %v %q, input %q", i, testCase.comment, input.comment)
-			outRoles := conn.GetTraitMappings().TraitsToRoles(OIDCClaimsToTraits(input.claims))
+			outRoles := TraitsToRoles(conn.GetTraitMappings(), OIDCClaimsToTraits(input.claims))
 			c.Assert(outRoles, check.DeepEquals, input.roles, comment)
 		}
 
@@ -215,7 +214,7 @@ func (s *UserSuite) TestOIDCMapping(c *check.C) {
 		}
 		for _, input := range testCase.inputs {
 			comment := check.Commentf("SAML Test case %v %v, input %#v", i, testCase.comment, input)
-			outRoles := samlConn.GetTraitMappings().TraitsToRoles(SAMLAssertionsToTraits(claimsToAttributes(input.claims)))
+			outRoles := TraitsToRoles(samlConn.GetTraitMappings(), SAMLAssertionsToTraits(claimsToAttributes(input.claims)))
 			c.Assert(outRoles, check.DeepEquals, input.roles, comment)
 		}
 	}
