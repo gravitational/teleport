@@ -176,8 +176,14 @@ func (s *ServiceFile) Delete(name string) error {
 
 const (
 	// SSLModeVerifyFull is the Postgres SSL "verify-full" mode.
+	//
+	// See Postgres SSL docs for more info:
+	// https://www.postgresql.org/docs/current/libpq-ssl.html
 	SSLModeVerifyFull = "verify-full"
 	// SSLModeVerifyCA is the Postgres SSL "verify-ca" mode.
+	//
+	// See Postgres SSL docs for more info:
+	// https://www.postgresql.org/docs/current/libpq-ssl.html
 	SSLModeVerifyCA = "verify-ca"
 	// pgServiceFile is the default name of the Postgres service file.
 	pgServiceFile = ".pg_service.conf"

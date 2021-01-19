@@ -1149,11 +1149,11 @@ func formatConnectCommand(cluster string, active tlsca.RouteToDatabase) string {
 		case active.Username != "" && active.Database != "":
 			return fmt.Sprintf(`psql "service=%v"`, service)
 		case active.Username != "":
-			return fmt.Sprintf(`psql "service=%v dbname="`, service)
+			return fmt.Sprintf(`psql "service=%v dbname=<database>"`, service)
 		case active.Database != "":
-			return fmt.Sprintf(`psql "service=%v user="`, service)
+			return fmt.Sprintf(`psql "service=%v user=<user>"`, service)
 		}
-		return fmt.Sprintf(`psql "service=%v user= dbname="`, service)
+		return fmt.Sprintf(`psql "service=%v user=<user> dbname=<database>"`, service)
 	}
 	return ""
 }

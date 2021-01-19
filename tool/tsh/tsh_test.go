@@ -366,7 +366,7 @@ func TestFormatConnectCommand(t *testing.T) {
 				ServiceName: "test",
 				Protocol:    defaults.ProtocolPostgres,
 			},
-			command: `psql "service=root-test user= dbname="`,
+			command: `psql "service=root-test user=<user> dbname=<database>"`,
 		},
 		{
 			comment: "default user is specified",
@@ -375,7 +375,7 @@ func TestFormatConnectCommand(t *testing.T) {
 				Protocol:    defaults.ProtocolPostgres,
 				Username:    "postgres",
 			},
-			command: `psql "service=root-test dbname="`,
+			command: `psql "service=root-test dbname=<database>"`,
 		},
 		{
 			comment: "default database is specified",
@@ -384,7 +384,7 @@ func TestFormatConnectCommand(t *testing.T) {
 				Protocol:    defaults.ProtocolPostgres,
 				Database:    "postgres",
 			},
-			command: `psql "service=root-test user="`,
+			command: `psql "service=root-test user=<user>"`,
 		},
 		{
 			comment: "default user/database are specified",
