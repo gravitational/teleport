@@ -43,9 +43,57 @@ func ValidateSAMLConnector(sc SAMLConnector, clock clockwork.Clock) error {
 	if err := sc.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := GetSAMLServiceProvider(sc, clock); err != nil {
-		return trace.Wrap(err)
+
+	if sc.GetEntityDescriptorURL() != "" {
+		resp, err := http.Get(sc.GetEntityDescriptorURL())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if resp.StatusCode != http.StatusOK {
+			return trace.BadParameter("status code %v when fetching from %q", resp.StatusCode, sc.GetEntityDescriptorURL())
+		}
+		defer resp.Body.Close()
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		sc.SetEntityDescriptor(string(body))
+		log.Debugf("[SAML] Successfully fetched entity descriptor from %q", sc.GetEntityDescriptorURL())
 	}
+
+	if sc.GetEntityDescriptor() != "" {
+		metadata := &types.EntityDescriptor{}
+		if err := xml.Unmarshal([]byte(sc.GetEntityDescriptor()), metadata); err != nil {
+			return trace.Wrap(err, "failed to parse entity_descriptor")
+		}
+
+		sc.SetIssuer(metadata.EntityID)
+		if len(metadata.IDPSSODescriptor.SingleSignOnServices) > 0 {
+			sc.SetSSO(metadata.IDPSSODescriptor.SingleSignOnServices[0].Location)
+		}
+	}
+
+	if sc.GetIssuer() == "" {
+		return trace.BadParameter("no issuer or entityID set, either set issuer as a parameter or via entity_descriptor spec")
+	}
+	if sc.GetSSO() == "" {
+		return trace.BadParameter("no SSO set either explicitly or via entity_descriptor spec")
+	}
+
+	if sc.GetSigningKeyPair() == nil {
+		keyPEM, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
+			Organization: []string{"Teleport OSS"},
+			CommonName:   "teleport.localhost.localdomain",
+		}, nil, 10*365*24*time.Hour)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		sc.SetSigningKeyPair(&SigningKeyPair{
+			PrivateKey: string(keyPEM),
+			Cert:       string(certPEM),
+		})
+	}
+
 	return nil
 }
 
@@ -77,23 +125,6 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 		Roots: []*x509.Certificate{},
 	}
 
-	if sc.GetEntityDescriptorURL() != "" {
-		resp, err := http.Get(sc.GetEntityDescriptorURL())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if resp.StatusCode != http.StatusOK {
-			return nil, trace.BadParameter("status code %v when fetching from %q", resp.StatusCode, sc.GetEntityDescriptorURL())
-		}
-		defer resp.Body.Close()
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		sc.SetEntityDescriptor(string(body))
-		log.Debugf("[SAML] Successfully fetched entity descriptor from %q", sc.GetEntityDescriptorURL())
-	}
-
 	if sc.GetEntityDescriptor() != "" {
 		metadata := &types.EntityDescriptor{}
 		if err := xml.Unmarshal([]byte(sc.GetEntityDescriptor()), metadata); err != nil {
@@ -113,18 +144,8 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 				certStore.Roots = append(certStore.Roots, cert)
 			}
 		}
-		sc.SetIssuer(metadata.EntityID)
-		if len(metadata.IDPSSODescriptor.SingleSignOnServices) > 0 {
-			sc.SetSSO(metadata.IDPSSODescriptor.SingleSignOnServices[0].Location)
-		}
 	}
 
-	if sc.GetIssuer() == "" {
-		return nil, trace.BadParameter("no issuer or entityID set, either set issuer as a parameter or via entity_descriptor spec")
-	}
-	if sc.GetSSO() == "" {
-		return nil, trace.BadParameter("no SSO set either explicitly or via entity_descriptor spec")
-	}
 	if sc.GetCert() != "" {
 		cert, err := tlsca.ParseCertificatePEM([]byte(sc.GetCert()))
 		if err != nil {
@@ -134,20 +155,6 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 	}
 	if len(certStore.Roots) == 0 {
 		return nil, trace.BadParameter("no identity provider certificate provided, either set certificate as a parameter or via entity_descriptor")
-	}
-
-	if sc.GetSigningKeyPair() == nil {
-		keyPEM, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
-			Organization: []string{"Teleport OSS"},
-			CommonName:   "teleport.localhost.localdomain",
-		}, nil, 10*365*24*time.Hour)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		sc.SetSigningKeyPair(&SigningKeyPair{
-			PrivateKey: string(keyPEM),
-			Cert:       string(certPEM),
-		})
 	}
 
 	keyStore, err := utils.ParseSigningKeyStorePEM(sc.GetSigningKeyPair().PrivateKey, sc.GetSigningKeyPair().Cert)
