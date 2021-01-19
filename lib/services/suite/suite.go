@@ -811,7 +811,7 @@ func (s *ServicesTestSuite) SAMLCRUD(c *check.C) {
 			},
 		},
 	}
-	err := services.ValidateSAMLConnector(connector)
+	err := services.ValidateSAMLConnector(connector, clockwork.NewRealClock())
 	c.Assert(err, check.IsNil)
 	err = s.WebS.UpsertSAMLConnector(connector)
 	c.Assert(err, check.IsNil)

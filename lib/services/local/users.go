@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
@@ -931,7 +932,7 @@ func (s *IdentityService) GetOIDCAuthRequest(stateToken string) (*services.OIDCA
 
 // CreateSAMLConnector creates SAML Connector
 func (s *IdentityService) CreateSAMLConnector(connector services.SAMLConnector) error {
-	if err := services.ValidateSAMLConnector(connector); err != nil {
+	if err := services.ValidateSAMLConnector(connector, clockwork.NewRealClock()); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)
@@ -952,7 +953,7 @@ func (s *IdentityService) CreateSAMLConnector(connector services.SAMLConnector) 
 
 // UpsertSAMLConnector upserts SAML Connector
 func (s *IdentityService) UpsertSAMLConnector(connector services.SAMLConnector) error {
-	if err := services.ValidateSAMLConnector(connector); err != nil {
+	if err := services.ValidateSAMLConnector(connector, clockwork.NewRealClock()); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)

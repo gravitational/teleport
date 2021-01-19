@@ -39,11 +39,11 @@ import (
 )
 
 // ValidateSAMLConnector validates the SAMLConnector and sets default values
-func ValidateSAMLConnector(sc SAMLConnector) error {
+func ValidateSAMLConnector(sc SAMLConnector, clock clockwork.Clock) error {
 	if err := sc.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := GetSAMLServiceProvider(sc, clockwork.NewRealClock()); err != nil {
+	if _, err := GetSAMLServiceProvider(sc, clock); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

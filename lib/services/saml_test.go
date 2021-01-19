@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/jonboulle/clockwork"
 
 	"gopkg.in/check.v1"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
@@ -48,7 +49,7 @@ func (s *SAMLSuite) TestParseFromMetadata(c *check.C) {
 
 	oc, err := GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(raw.Raw)
 	c.Assert(err, check.IsNil)
-	err = ValidateSAMLConnector(oc)
+	err = ValidateSAMLConnector(oc, clockwork.NewRealClock())
 	c.Assert(err, check.IsNil)
 	c.Assert(oc.GetIssuer(), check.Equals, "http://www.okta.com/exkafftca6RqPVgyZ0h7")
 	c.Assert(oc.GetSSO(), check.Equals, "https://dev-813354.oktapreview.com/app/gravitationaldev813354_teleportsaml_1/exkafftca6RqPVgyZ0h7/sso/saml")
