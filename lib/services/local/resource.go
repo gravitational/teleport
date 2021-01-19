@@ -237,7 +237,7 @@ func itemToCertAuthority(item backend.Item) (services.CertAuthority, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := ca.Check(); err != nil {
+	if err := services.ValidateCertAuthority(ca); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return ca, nil
