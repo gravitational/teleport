@@ -80,6 +80,8 @@ func ValidateCertAuthority(ca CertAuthority) (err error) {
 		err = checkUserOrHostCA(ca)
 	case types.JWTSigner:
 		err = checkJWTKeys(ca)
+	default:
+		return trace.BadParameter("invalid CA type %q", ca.GetType())
 	}
 	return trace.Wrap(err)
 }
