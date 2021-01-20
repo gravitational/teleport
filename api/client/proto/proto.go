@@ -68,10 +68,10 @@ func (r *DeleteWebSessionRequest) Check() error {
 // Check validates the request.
 func (r *GetWebTokenRequest) Check() error {
 	if r.User == "" {
-		return trace.BadParameter("user name is missing")
+		return trace.BadParameter("user name missing")
 	}
 	if r.Token == "" {
-		return trace.BadParameter("token is missing")
+		return trace.BadParameter("token missing")
 	}
 	return nil
 }
@@ -79,7 +79,7 @@ func (r *GetWebTokenRequest) Check() error {
 // Check validates the request.
 func (r *DeleteWebTokenRequest) Check() error {
 	if r.Token == "" {
-		return trace.BadParameter("token is missing")
+		return trace.BadParameter("token missing")
 	}
 	return nil
 }

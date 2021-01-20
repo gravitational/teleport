@@ -927,6 +927,9 @@ func WaitForEvent(ctx context.Context, watcher services.Watcher, m EventMatcher,
 			if err == nil {
 				return res, nil
 			}
+			if !trace.IsCompareFailed(err) {
+				logrus.WithError(err).Debug("Failed to match event.")
+			}
 		case <-watcher.Done():
 			// Watcher closed, probably due to a network error.
 			return nil, trace.ConnectionProblem(watcher.Error(), "watcher is closed")

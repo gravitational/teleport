@@ -38,7 +38,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/sirupsen/logrus"
 )
 
 // siteAppsGet returns a list of applications in a form the UI can present.
@@ -182,6 +181,10 @@ func (h *Handler) waitForAppSession(ctx context.Context, sessionID string) error
 	if err == nil {
 		return nil
 	}
+	logger := h.log.WithField("session", sessionID)
+	if !trace.IsNotFound(err) {
+		logger.WithError(err).Debug("Failed to query application session.")
+	}
 	// Establish a watch on application session.
 	watcher, err := h.cfg.AccessPoint.NewWatcher(ctx, services.Watch{
 		Name: teleport.ComponentAppProxy,
@@ -200,6 +203,7 @@ func (h *Handler) waitForAppSession(ctx context.Context, sessionID string) error
 	matchEvent := func(event services.Event) (services.Resource, error) {
 		if event.Type == backend.OpPut &&
 			event.Resource.GetKind() == services.KindWebSession &&
+			event.Resource.GetSubKind() == services.KindAppSession &&
 			event.Resource.GetName() == sessionID {
 			return event.Resource, nil
 		}
@@ -207,10 +211,7 @@ func (h *Handler) waitForAppSession(ctx context.Context, sessionID string) error
 	}
 	_, err = local.WaitForEvent(ctx, watcher, local.EventMatcherFunc(matchEvent), h.clock)
 	if err != nil {
-		h.log.WithFields(logrus.Fields{
-			"session":       sessionID,
-			logrus.ErrorKey: err,
-		}).Warn("Failed to wait for application session.")
+		logger.WithError(err).Warn("Failed to wait for application session.")
 	}
 	return trace.Wrap(err)
 }
