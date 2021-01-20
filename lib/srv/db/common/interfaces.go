@@ -40,7 +40,7 @@ type Service interface {
 // Engine defines an interface for specific database protocol engine such
 // as Postgres or MySQL.
 type Engine interface {
-	// HandleConnection takes the connection from the proxy and starts
-	// proxying it to the particular database instance.
+	// HandleConnection proxies the connection received from the proxy to
+	// the particular database instance.
 	HandleConnection(context.Context, *Session, net.Conn) error
 }

@@ -111,12 +111,12 @@ func (a *Auth) GetTLSConfig(ctx context.Context, sessionCtx *Session) (*tls.Conf
 	// connecting to RDS/Aurora which require AWS CA.
 	if len(sessionCtx.Server.GetCA()) != 0 {
 		if !tlsConfig.RootCAs.AppendCertsFromPEM(sessionCtx.Server.GetCA()) {
-			return nil, trace.BadParameter("failed to append CA certificate to the pool")
+			return nil, trace.BadParameter("invalid server CA certificate")
 		}
 	} else if sessionCtx.Server.IsRDS() {
 		if rdsCA, ok := a.cfg.RDSCACerts[sessionCtx.Server.GetRegion()]; ok {
 			if !tlsConfig.RootCAs.AppendCertsFromPEM(rdsCA) {
-				return nil, trace.BadParameter("failed to append CA certificate to the pool")
+				return nil, trace.BadParameter("invalid RDS CA certificate")
 			}
 		} else {
 			a.cfg.Log.Warnf("No RDS CA certificate for %v.", sessionCtx.Server)

@@ -318,8 +318,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	// service.
 	err = s.handleConnection(ctx, tlsConn)
 	if err != nil {
-		log.WithError(err).Errorf("Failed to handle connection: %v.",
-			trace.DebugReport(err))
+		log.WithError(err).Error("Failed to handle connection.")
 		return
 	}
 }

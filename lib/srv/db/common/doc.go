@@ -15,5 +15,5 @@ limitations under the License.
 */
 
 // Package common provides common utilities used by all supported database
-// implementation.
+// implementations.
 package common

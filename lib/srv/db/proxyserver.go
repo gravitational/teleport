@@ -172,7 +172,7 @@ func (s *ProxyServer) postgresProxy() *postgres.Proxy {
 // The passed in context is expected to contain the identity information
 // decoded from the client certificate by auth.Middleware.
 //
-// Implements connect.Service.
+// Implements common.Service.
 func (s *ProxyServer) Connect(ctx context.Context) (net.Conn, error) {
 	authContext, err := s.authorize(ctx)
 	if err != nil {
@@ -201,7 +201,7 @@ func (s *ProxyServer) Connect(ctx context.Context) (net.Conn, error) {
 // Proxy starts proxying all traffic received from Postgres client between
 // this proxy and Teleport database service over reverse tunnel.
 //
-// Implements connect.Service.
+// Implements common.Service.
 func (s *ProxyServer) Proxy(ctx context.Context, clientConn, serviceConn io.ReadWriteCloser) (retErr error) {
 	errCh := make(chan error, 2)
 	go func() {
