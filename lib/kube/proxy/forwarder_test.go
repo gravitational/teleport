@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -23,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/transport"
 
 	"github.com/sirupsen/logrus"
@@ -41,11 +44,11 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 	cl, err := newMockCSRClient()
 	c.Assert(err, check.IsNil)
 	f := &Forwarder{
-		ForwarderConfig: ForwarderConfig{
-			Keygen: testauthority.New(),
-			Client: cl,
+		cfg: ForwarderConfig{
+			Keygen:     testauthority.New(),
+			AuthClient: cl,
 		},
-		Entry: logrus.NewEntry(logrus.New()),
+		log: logrus.New(),
 	}
 	user, err := services.NewUser("bob")
 	c.Assert(err, check.IsNil)
@@ -86,54 +89,18 @@ func (s ForwarderSuite) TestRequestCertificate(c *check.C) {
 	c.Assert(*idFromCSR, check.DeepEquals, ctx.Identity.GetIdentity())
 }
 
-func (s ForwarderSuite) TestGetClusterSession(c *check.C) {
-	clusterSessions, err := ttlmap.New(defaults.ClientCacheSize)
-	c.Assert(err, check.IsNil)
-	f := &Forwarder{
-		clusterSessions: clusterSessions,
-		Entry:           logrus.NewEntry(logrus.New()),
-	}
+func TestAuthenticate(t *testing.T) {
+	t.Parallel()
 
-	user, err := services.NewUser("bob")
-	c.Assert(err, check.IsNil)
-	ctx := authContext{
-		teleportCluster: teleportClusterClient{
-			isRemote:       true,
-			name:           "site a",
-			isRemoteClosed: func() bool { return false },
-		},
-		Context: auth.Context{
-			User: user,
-		},
-	}
-	sess := &clusterSession{authContext: ctx}
-
-	// Initial clusterSessions is empty, no session should be found.
-	c.Assert(f.getClusterSession(ctx), check.IsNil)
-
-	// Add a session to clusterSessions, getClusterSession should find it.
-	clusterSessions.Set(ctx.key(), sess, time.Hour)
-	c.Assert(f.getClusterSession(ctx), check.Equals, sess)
-
-	// Close the RemoteSite out-of-band (like when a remote cluster got removed
-	// via tctl), getClusterSession should notice this and discard the
-	// clusterSession.
-	sess.authContext.teleportCluster.isRemoteClosed = func() bool { return true }
-	c.Assert(f.getClusterSession(ctx), check.IsNil)
-	_, ok := f.clusterSessions.Get(ctx.key())
-	c.Assert(ok, check.Equals, false)
-}
-
-func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 	cc, err := services.NewClusterConfig(services.ClusterConfigSpecV3{
 		ClientIdleTimeout:     services.NewDuration(time.Hour),
 		DisconnectExpiredCert: true,
 	})
-	c.Assert(err, check.IsNil)
-	ap := mockAccessPoint{clusterConfig: cc}
+	require.NoError(t, err)
+	ap := &mockAccessPoint{clusterConfig: cc}
 
 	user, err := services.NewUser("user-a")
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	tun := mockRevTunnel{
 		sites: map[string]reversetunnel.RemoteSite{
@@ -143,27 +110,30 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 	}
 
 	f := &Forwarder{
-		Entry: logrus.NewEntry(logrus.New()),
-		ForwarderConfig: ForwarderConfig{
-			ClusterName: "local",
-			AccessPoint: ap,
+		log: logrus.New(),
+		cfg: ForwarderConfig{
+			ClusterName:       "local",
+			CachingAuthClient: ap,
 		},
 	}
 
-	tests := []struct {
-		desc           string
-		user           auth.IdentityGetter
-		authzErr       bool
-		roleKubeUsers  []string
-		roleKubeGroups []string
-		routeToCluster string
-		haveKubeCreds  bool
-		tunnel         reversetunnel.Server
+	const remoteAddr = "user.example.com"
 
-		wantKubeUsers  []string
-		wantKubeGroups []string
-		wantRemote     bool
-		wantErr        bool
+	tests := []struct {
+		desc              string
+		user              auth.IdentityGetter
+		authzErr          bool
+		roleKubeUsers     []string
+		roleKubeGroups    []string
+		routeToCluster    string
+		kubernetesCluster string
+		haveKubeCreds     bool
+		tunnel            reversetunnel.Server
+		kubeServices      []services.Server
+
+		wantCtx     *authContext
+		wantErr     bool
+		wantAuthErr bool
 	}{
 		{
 			desc:           "local user and cluster",
@@ -173,8 +143,15 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 			haveKubeCreds:  true,
 			tunnel:         tun,
 
-			wantKubeUsers:  []string{"user-a"},
-			wantKubeGroups: []string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated},
+			wantCtx: &authContext{
+				kubeUsers:   utils.StringsSet([]string{"user-a"}),
+				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster: "local",
+				teleportCluster: teleportClusterClient{
+					name:       "local",
+					remoteAddr: *utils.MustParseAddr(remoteAddr),
+				},
+			},
 		},
 		{
 			desc:           "local user and cluster, no kubeconfig",
@@ -184,7 +161,15 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 			haveKubeCreds:  false,
 			tunnel:         tun,
 
-			wantErr: true,
+			wantCtx: &authContext{
+				kubeUsers:   utils.StringsSet([]string{"user-a"}),
+				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster: "local",
+				teleportCluster: teleportClusterClient{
+					name:       "local",
+					remoteAddr: *utils.MustParseAddr(remoteAddr),
+				},
+			},
 		},
 		{
 			desc:           "remote user and local cluster",
@@ -194,8 +179,15 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 			haveKubeCreds:  true,
 			tunnel:         tun,
 
-			wantKubeUsers:  []string{"user-a"},
-			wantKubeGroups: []string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated},
+			wantCtx: &authContext{
+				kubeUsers:   utils.StringsSet([]string{"user-a"}),
+				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster: "local",
+				teleportCluster: teleportClusterClient{
+					name:       "local",
+					remoteAddr: *utils.MustParseAddr(remoteAddr),
+				},
+			},
 		},
 		{
 			desc:           "local user and remote cluster",
@@ -205,9 +197,15 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 			haveKubeCreds:  true,
 			tunnel:         tun,
 
-			wantKubeUsers:  []string{"user-a"},
-			wantKubeGroups: []string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated},
-			wantRemote:     true,
+			wantCtx: &authContext{
+				kubeUsers:  utils.StringsSet([]string{"user-a"}),
+				kubeGroups: utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				teleportCluster: teleportClusterClient{
+					name:       "remote",
+					remoteAddr: *utils.MustParseAddr(remoteAddr),
+					isRemote:   true,
+				},
+			},
 		},
 		{
 			desc:           "local user and remote cluster, no kubeconfig",
@@ -217,9 +215,15 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 			haveKubeCreds:  false,
 			tunnel:         tun,
 
-			wantKubeUsers:  []string{"user-a"},
-			wantKubeGroups: []string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated},
-			wantRemote:     true,
+			wantCtx: &authContext{
+				kubeUsers:  utils.StringsSet([]string{"user-a"}),
+				kubeGroups: utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				teleportCluster: teleportClusterClient{
+					name:       "remote",
+					remoteAddr: *utils.MustParseAddr(remoteAddr),
+					isRemote:   true,
+				},
+			},
 		},
 		{
 			desc:           "remote user and remote cluster",
@@ -229,7 +233,8 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 			haveKubeCreds:  true,
 			tunnel:         tun,
 
-			wantErr: true,
+			wantErr:     true,
+			wantAuthErr: true,
 		},
 		{
 			desc:           "kube users passed in request",
@@ -240,8 +245,15 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 			haveKubeCreds:  true,
 			tunnel:         tun,
 
-			wantKubeUsers:  []string{"kube-user-a", "kube-user-b"},
-			wantKubeGroups: []string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated},
+			wantCtx: &authContext{
+				kubeUsers:   utils.StringsSet([]string{"kube-user-a", "kube-user-b"}),
+				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster: "local",
+				teleportCluster: teleportClusterClient{
+					name:       "local",
+					remoteAddr: *utils.MustParseAddr(remoteAddr),
+				},
+			},
 		},
 		{
 			desc:     "authorization failure",
@@ -249,14 +261,16 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 			authzErr: true,
 			tunnel:   tun,
 
-			wantErr: true,
+			wantErr:     true,
+			wantAuthErr: true,
 		},
 		{
 			desc:   "unsupported user type",
 			user:   auth.BuiltinRole{},
 			tunnel: tun,
 
-			wantErr: true,
+			wantErr:     true,
+			wantAuthErr: true,
 		},
 		{
 			desc:           "local user and cluster, no tunnel",
@@ -265,8 +279,15 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 			routeToCluster: "local",
 			haveKubeCreds:  true,
 
-			wantKubeUsers:  []string{"user-a"},
-			wantKubeGroups: []string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated},
+			wantCtx: &authContext{
+				kubeUsers:   utils.StringsSet([]string{"user-a"}),
+				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster: "local",
+				teleportCluster: teleportClusterClient{
+					name:       "local",
+					remoteAddr: *utils.MustParseAddr(remoteAddr),
+				},
+			},
 		},
 		{
 			desc:           "local user and remote cluster, no tunnel",
@@ -277,62 +298,121 @@ func (s ForwarderSuite) TestAuthenticate(c *check.C) {
 
 			wantErr: true,
 		},
-	}
-	for _, tt := range tests {
-		c.Log(tt.desc)
+		{
+			desc:              "unknown kubernetes cluster in local cluster",
+			user:              auth.LocalUser{},
+			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
+			routeToCluster:    "local",
+			kubernetesCluster: "foo",
+			haveKubeCreds:     true,
+			tunnel:            tun,
 
-		f.Tunnel = tt.tunnel
-		roles, err := services.FromSpec("ops", services.RoleSpecV3{
-			Allow: services.RoleConditions{
-				KubeUsers:  tt.roleKubeUsers,
-				KubeGroups: tt.roleKubeGroups,
-			},
-		})
-		c.Assert(err, check.IsNil)
-		authCtx := auth.Context{
-			User:     user,
-			Checker:  roles,
-			Identity: auth.WrapIdentity(tlsca.Identity{RouteToCluster: tt.routeToCluster}),
-		}
-		authz := mockAuthorizer{ctx: &authCtx}
-		if tt.authzErr {
-			authz.err = trace.AccessDenied("denied!")
-		}
-		f.Auth = authz
+			wantErr: true,
+		},
+		{
+			desc:              "custom kubernetes cluster in local cluster",
+			user:              auth.LocalUser{},
+			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
+			routeToCluster:    "local",
+			kubernetesCluster: "foo",
+			haveKubeCreds:     true,
+			tunnel:            tun,
+			kubeServices: []services.Server{&services.ServerV2{
+				Spec: services.ServerSpecV2{
+					KubernetesClusters: []*services.KubernetesCluster{{
+						Name: "foo",
+					}},
+				},
+			}},
 
-		req := &http.Request{
-			Host:       "example.com",
-			RemoteAddr: "user.example.com",
-			TLS: &tls.ConnectionState{
-				PeerCertificates: []*x509.Certificate{
-					{NotAfter: time.Now().Add(time.Hour)},
+			wantCtx: &authContext{
+				kubeUsers:   utils.StringsSet([]string{"user-a"}),
+				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster: "foo",
+				teleportCluster: teleportClusterClient{
+					name:       "local",
+					remoteAddr: *utils.MustParseAddr(remoteAddr),
 				},
 			},
-		}
-		ctx := context.WithValue(context.Background(), auth.ContextUser, tt.user)
-		req = req.WithContext(ctx)
+		},
+		{
+			desc:              "custom kubernetes cluster in remote cluster",
+			user:              auth.LocalUser{},
+			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
+			routeToCluster:    "remote",
+			kubernetesCluster: "foo",
+			haveKubeCreds:     true,
+			tunnel:            tun,
 
-		if tt.haveKubeCreds {
-			f.creds = &kubeCreds{targetAddr: "k8s.example.com"}
-		} else {
-			f.creds = nil
-		}
+			wantCtx: &authContext{
+				kubeUsers:   utils.StringsSet([]string{"user-a"}),
+				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+				kubeCluster: "foo",
+				teleportCluster: teleportClusterClient{
+					name:       "remote",
+					remoteAddr: *utils.MustParseAddr(remoteAddr),
+					isRemote:   true,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			f.cfg.ReverseTunnelSrv = tt.tunnel
+			ap.kubeServices = tt.kubeServices
+			roles, err := services.FromSpec("ops", services.RoleSpecV3{
+				Allow: services.RoleConditions{
+					KubeUsers:  tt.roleKubeUsers,
+					KubeGroups: tt.roleKubeGroups,
+				},
+			})
+			require.NoError(t, err)
+			authCtx := auth.Context{
+				User:    user,
+				Checker: roles,
+				Identity: auth.WrapIdentity(tlsca.Identity{
+					RouteToCluster:    tt.routeToCluster,
+					KubernetesCluster: tt.kubernetesCluster,
+				}),
+			}
+			authz := mockAuthorizer{ctx: &authCtx}
+			if tt.authzErr {
+				authz.err = trace.AccessDenied("denied!")
+			}
+			f.cfg.Authz = authz
 
-		gotCtx, err := f.authenticate(req)
-		if tt.wantErr {
-			c.Assert(err, check.NotNil)
-			c.Assert(trace.IsAccessDenied(err), check.Equals, true)
-			continue
-		} else {
-			c.Assert(err, check.IsNil)
-		}
+			req := &http.Request{
+				Host:       "example.com",
+				RemoteAddr: remoteAddr,
+				TLS: &tls.ConnectionState{
+					PeerCertificates: []*x509.Certificate{
+						{NotAfter: time.Now().Add(time.Hour)},
+					},
+				},
+			}
+			ctx := context.WithValue(context.Background(), auth.ContextUser, tt.user)
+			req = req.WithContext(ctx)
 
-		c.Assert(gotCtx.kubeUsers, check.DeepEquals, utils.StringsSet(tt.wantKubeUsers))
-		c.Assert(gotCtx.kubeGroups, check.DeepEquals, utils.StringsSet(tt.wantKubeGroups))
-		c.Assert(gotCtx.teleportCluster.isRemote, check.Equals, tt.wantRemote)
-		c.Assert(gotCtx.teleportCluster.name, check.Equals, tt.routeToCluster)
-		c.Assert(gotCtx.teleportCluster.remoteAddr.String(), check.Equals, req.RemoteAddr)
-		c.Assert(gotCtx.disconnectExpiredCert, check.DeepEquals, req.TLS.PeerCertificates[0].NotAfter)
+			if tt.haveKubeCreds {
+				f.creds = map[string]*kubeCreds{tt.routeToCluster: {targetAddr: "k8s.example.com"}}
+			} else {
+				f.creds = nil
+			}
+
+			gotCtx, err := f.authenticate(req)
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Equal(t, trace.IsAccessDenied(err), tt.wantAuthErr)
+				return
+			}
+			require.NoError(t, err)
+
+			require.Empty(t, cmp.Diff(gotCtx, tt.wantCtx,
+				cmp.AllowUnexported(authContext{}, teleportClusterClient{}),
+				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "Context", "clusterConfig", "disconnectExpiredCert"),
+				cmpopts.IgnoreFields(teleportClusterClient{}, "dial", "isRemoteClosed"),
+			))
+		})
 	}
 }
 
@@ -456,17 +536,20 @@ func (s ForwarderSuite) TestSetupImpersonationHeaders(c *check.C) {
 }
 
 func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
-	clusterSessions, err := ttlmap.New(defaults.ClientCacheSize)
+	clientCreds, err := ttlmap.New(defaults.ClientCacheSize)
 	c.Assert(err, check.IsNil)
 	csrClient, err := newMockCSRClient()
 	c.Assert(err, check.IsNil)
 	f := &Forwarder{
-		Entry: logrus.NewEntry(logrus.New()),
-		ForwarderConfig: ForwarderConfig{
-			Keygen: testauthority.New(),
-			Client: csrClient,
+		log: logrus.New(),
+		cfg: ForwarderConfig{
+			Keygen:            testauthority.New(),
+			AuthClient:        csrClient,
+			CachingAuthClient: mockAccessPoint{},
 		},
-		clusterSessions: clusterSessions,
+		clientCredentials: clientCreds,
+		ctx:               context.TODO(),
+		activeRequests:    make(map[string]context.Context),
 	}
 	user, err := services.NewUser("bob")
 	c.Assert(err, check.IsNil)
@@ -492,12 +575,14 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 	_, err = f.newClusterSession(authCtx)
 	c.Assert(err, check.NotNil)
 	c.Assert(trace.IsNotFound(err), check.Equals, true)
-	c.Assert(f.clusterSessions.Len(), check.Equals, 0)
+	c.Assert(f.clientCredentials.Len(), check.Equals, 0)
 
-	f.creds = &kubeCreds{
-		targetAddr:      "k8s.example.com",
-		tlsConfig:       &tls.Config{},
-		transportConfig: &transport.Config{},
+	f.creds = map[string]*kubeCreds{
+		"local": {
+			targetAddr:      "k8s.example.com",
+			tlsConfig:       &tls.Config{},
+			transportConfig: &transport.Config{},
+		},
 	}
 
 	c.Log("newClusterSession for a local cluster")
@@ -516,17 +601,18 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 		teleportCluster: teleportClusterClient{
 			name: "local",
 		},
-		sessionTTL: time.Minute,
+		sessionTTL:  time.Minute,
+		kubeCluster: "local",
 	}
 	sess, err := f.newClusterSession(authCtx)
 	c.Assert(err, check.IsNil)
-	c.Assert(f.clusterSessions.Len(), check.Equals, 1)
-	c.Assert(sess.authContext.teleportCluster.targetAddr, check.Equals, f.creds.targetAddr)
+	c.Assert(sess.authContext.teleportCluster.targetAddr, check.Equals, f.creds["local"].targetAddr)
 	c.Assert(sess.forwarder, check.NotNil)
 	// Make sure newClusterSession used f.creds instead of requesting a
 	// Teleport client cert.
-	c.Assert(sess.tlsConfig, check.Equals, f.creds.tlsConfig)
+	c.Assert(sess.tlsConfig, check.Equals, f.creds["local"].tlsConfig)
 	c.Assert(csrClient.lastCert, check.IsNil)
+	c.Assert(f.clientCredentials.Len(), check.Equals, 0)
 
 	c.Log("newClusterSession for a remote cluster")
 	authCtx = authContext{
@@ -549,14 +635,14 @@ func (s ForwarderSuite) TestNewClusterSession(c *check.C) {
 	}
 	sess, err = f.newClusterSession(authCtx)
 	c.Assert(err, check.IsNil)
-	c.Assert(f.clusterSessions.Len(), check.Equals, 2)
 	c.Assert(sess.authContext.teleportCluster.targetAddr, check.Equals, reversetunnel.LocalKubernetes)
 	c.Assert(sess.forwarder, check.NotNil)
 	// Make sure newClusterSession obtained a new client cert instead of using
 	// f.creds.
-	c.Assert(sess.tlsConfig, check.Not(check.Equals), f.creds.tlsConfig)
+	c.Assert(sess.tlsConfig, check.Not(check.Equals), f.creds["local"].tlsConfig)
 	c.Assert(sess.tlsConfig.Certificates[0].Certificate[0], check.DeepEquals, csrClient.lastCert.Raw)
 	c.Assert(sess.tlsConfig.RootCAs.Subjects(), check.DeepEquals, [][]byte{csrClient.ca.Cert.RawSubject})
+	c.Assert(f.clientCredentials.Len(), check.Equals, 1)
 }
 
 // mockCSRClient to intercept ProcessKubeCSR requests, record them and return a
@@ -620,10 +706,15 @@ type mockAccessPoint struct {
 	auth.AccessPoint
 
 	clusterConfig services.ClusterConfig
+	kubeServices  []services.Server
 }
 
 func (ap mockAccessPoint) GetClusterConfig(...services.MarshalOption) (services.ClusterConfig, error) {
 	return ap.clusterConfig, nil
+}
+
+func (ap mockAccessPoint) GetKubeServices(ctx context.Context) ([]services.Server, error) {
+	return ap.kubeServices, nil
 }
 
 type mockRevTunnel struct {
@@ -640,12 +731,12 @@ func (t mockRevTunnel) GetSite(name string) (reversetunnel.RemoteSite, error) {
 	return s, nil
 }
 
-func (t mockRevTunnel) GetSites() []reversetunnel.RemoteSite {
+func (t mockRevTunnel) GetSites() ([]reversetunnel.RemoteSite, error) {
 	var sites []reversetunnel.RemoteSite
 	for _, s := range t.sites {
 		sites = append(sites, s)
 	}
-	return sites
+	return sites, nil
 }
 
 type mockAuthorizer struct {

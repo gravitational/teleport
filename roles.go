@@ -54,6 +54,10 @@ const (
 	RoleRemoteProxy Role = "RemoteProxy"
 	// RoleKube is a role for a kubernetes service.
 	RoleKube Role = "Kube"
+	// RoleApp is a role for a app proxy in the cluster.
+	RoleApp Role = "App"
+	// RoleDatabase is a role for a database proxy in the cluster.
+	RoleDatabase Role = "Database"
 )
 
 // this constant exists for backwards compatibility reasons, needed to upgrade to 2.3
@@ -167,7 +171,7 @@ func (r *Role) String() string {
 // if it's ok, false otherwise
 func (r *Role) Check() error {
 	switch *r {
-	case RoleAuth, RoleWeb, RoleNode,
+	case RoleAuth, RoleWeb, RoleNode, RoleApp, RoleDatabase,
 		RoleAdmin, RoleProvisionToken,
 		RoleTrustedCluster, LegacyClusterTokenType,
 		RoleSignup, RoleProxy, RoleNop, RoleKube:

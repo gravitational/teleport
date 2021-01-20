@@ -66,6 +66,40 @@ type LocalKeyAgent struct {
 	proxyHost string
 }
 
+// NewKeyStoreCertChecker returns a new certificate checker
+// using trusted certs from key store
+func NewKeyStoreCertChecker(keyStore LocalKeyStore) ssh.HostKeyCallback {
+	// CheckHostSignature checks if the given host key was signed by a Teleport
+	// certificate authority (CA) or a host certificate the user has seen before.
+	return func(addr string, remote net.Addr, key ssh.PublicKey) error {
+		certChecker := utils.CertChecker{
+			CertChecker: ssh.CertChecker{
+				IsHostAuthority: func(key ssh.PublicKey, addr string) bool {
+					keys, err := keyStore.GetKnownHostKeys("")
+					if err != nil {
+						log.Errorf("Unable to fetch certificate authorities: %v.", err)
+						return false
+					}
+					for i := range keys {
+						if sshutils.KeysEqual(key, keys[i]) {
+							return true
+						}
+					}
+					return false
+				},
+			},
+			FIPS: isFIPS(),
+		}
+		err := certChecker.CheckHostKey(addr, remote, key)
+		if err != nil {
+			log.Debugf("Host validation failed: %v.", err)
+			return trace.Wrap(err)
+		}
+		log.Debugf("Validated host %v.", addr)
+		return nil
+	}
+}
+
 // NewLocalAgent reads all Teleport certificates from disk (using FSLocalKeyStore),
 // creates a LocalKeyAgent, loads all certificates into it, and returns the agent.
 func NewLocalAgent(keyDir, proxyHost, username string, useLocalSSHAgent bool) (a *LocalKeyAgent, err error) {
@@ -220,8 +254,11 @@ func (a *LocalKeyAgent) UnloadKeys() error {
 
 // GetKey returns the key for this user in a proxy from the filesystem keystore
 // at ~/.tsh.
-func (a *LocalKeyAgent) GetKey() (*Key, error) {
-	return a.keyStore.GetKey(a.proxyHost, a.username)
+//
+// clusterName is an optional teleport cluster name to load kubernetes
+// certificates for.
+func (a *LocalKeyAgent) GetKey(opts ...KeyOption) (*Key, error) {
+	return a.keyStore.GetKey(a.proxyHost, a.username, opts...)
 }
 
 // AddHostSignersToCache takes a list of CAs whom we trust. This list is added to a database
@@ -383,9 +420,12 @@ func (a *LocalKeyAgent) AddKey(key *Key) (*agent.AddedKey, error) {
 
 // DeleteKey removes the key from the key store as well as unloading the key
 // from the agent.
-func (a *LocalKeyAgent) DeleteKey() error {
+//
+// clusterName is an optional teleport cluster name to delete kubernetes
+// certificates for.
+func (a *LocalKeyAgent) DeleteKey(opts ...KeyOption) error {
 	// remove key from key store
-	err := a.keyStore.DeleteKey(a.proxyHost, a.username)
+	err := a.keyStore.DeleteKey(a.proxyHost, a.username, opts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}

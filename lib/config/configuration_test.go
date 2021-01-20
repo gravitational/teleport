@@ -113,11 +113,8 @@ type ConfigTestSuite struct {
 var _ = check.Suite(&ConfigTestSuite{})
 
 func (s *ConfigTestSuite) SetUpSuite(c *check.C) {
+	utils.InitLoggerForTests(testing.Verbose())
 	s.testConfigFiles = testConfigs
-}
-
-func (s *ConfigTestSuite) SetUpTest(c *check.C) {
-	utils.InitLoggerForTests()
 }
 
 func (s *ConfigTestSuite) TestSampleConfig(c *check.C) {
@@ -262,8 +259,14 @@ func TestConfigReading(t *testing.T) {
 			},
 			KeyFile:  "/etc/teleport/proxy.key",
 			CertFile: "/etc/teleport/proxy.crt",
-			WebAddr:  "tcp://web_addr",
-			TunAddr:  "reverse_tunnel_address:3311",
+			KeyPairs: []KeyPair{
+				KeyPair{
+					PrivateKey:  "/etc/teleport/proxy.key",
+					Certificate: "/etc/teleport/proxy.crt",
+				},
+			},
+			WebAddr: "tcp://web_addr",
+			TunAddr: "reverse_tunnel_address:3311",
 		},
 		Kube: Kube{
 			Service: Service{
@@ -272,6 +275,34 @@ func TestConfigReading(t *testing.T) {
 			},
 			KubeClusterName: "kube-cluster",
 			PublicAddr:      utils.Strings([]string{"kube-host:1234"}),
+		},
+		Apps: Apps{
+			Service: Service{
+				EnabledFlag: "yes",
+			},
+			Apps: []*App{
+				&App{
+					Name:          "foo",
+					URI:           "http://127.0.0.1:8080",
+					PublicAddr:    "foo.example.com",
+					StaticLabels:  Labels,
+					DynamicLabels: CommandLabels,
+				},
+			},
+		},
+		Databases: Databases{
+			Service: Service{
+				EnabledFlag: "yes",
+			},
+			Databases: []*Database{
+				{
+					Name:          "postgres",
+					Protocol:      defaults.ProtocolPostgres,
+					URI:           "localhost:5432",
+					StaticLabels:  Labels,
+					DynamicLabels: CommandLabels,
+				},
+			},
 		},
 	}, cmp.AllowUnexported(Service{})))
 	require.True(t, conf.Auth.Configured())
@@ -282,6 +313,10 @@ func TestConfigReading(t *testing.T) {
 	require.True(t, conf.SSH.Enabled())
 	require.True(t, conf.Kube.Configured())
 	require.True(t, conf.Kube.Enabled())
+	require.True(t, conf.Apps.Configured())
+	require.True(t, conf.Apps.Enabled())
+	require.True(t, conf.Databases.Configured())
+	require.True(t, conf.Databases.Enabled())
 
 	// good config from file
 	conf, err = ReadFromFile(testConfigs.configFileStatic)
@@ -300,13 +335,13 @@ func (s *ConfigTestSuite) TestLabelParsing(c *check.C) {
 	var conf service.SSHConfig
 	var err error
 	// empty spec. no errors, no labels
-	err = parseLabels("", &conf)
+	err = parseLabelsApply("", &conf)
 	c.Assert(err, check.IsNil)
 	c.Assert(conf.CmdLabels, check.IsNil)
 	c.Assert(conf.Labels, check.IsNil)
 
 	// simple static labels
-	err = parseLabels(`key=value,more="much better"`, &conf)
+	err = parseLabelsApply(`key=value,more="much better"`, &conf)
 	c.Assert(err, check.IsNil)
 	c.Assert(conf.CmdLabels, check.NotNil)
 	c.Assert(conf.CmdLabels, check.HasLen, 0)
@@ -316,7 +351,7 @@ func (s *ConfigTestSuite) TestLabelParsing(c *check.C) {
 	})
 
 	// static labels + command labels
-	err = parseLabels(`key=value,more="much better",arch=[5m2s:/bin/uname -m "p1 p2"]`, &conf)
+	err = parseLabelsApply(`key=value,more="much better",arch=[5m2s:/bin/uname -m "p1 p2"]`, &conf)
 	c.Assert(err, check.IsNil)
 	c.Assert(conf.Labels, check.DeepEquals, map[string]string{
 		"key":  "value",
@@ -499,6 +534,8 @@ func (s *ConfigTestSuite) TestApplyConfigNoneEnabled(c *check.C) {
 	c.Assert(cfg.Proxy.PublicAddrs, check.HasLen, 0)
 	c.Assert(cfg.SSH.Enabled, check.Equals, false)
 	c.Assert(cfg.SSH.PublicAddrs, check.HasLen, 0)
+	c.Assert(cfg.Apps.Enabled, check.Equals, false)
+	c.Assert(cfg.Databases.Enabled, check.Equals, false)
 }
 
 func (s *ConfigTestSuite) TestBackendDefaults(c *check.C) {
@@ -774,6 +811,12 @@ func makeConfigFixture() string {
 	conf.Proxy.ListenAddress = "tcp://proxy"
 	conf.Proxy.KeyFile = "/etc/teleport/proxy.key"
 	conf.Proxy.CertFile = "/etc/teleport/proxy.crt"
+	conf.Proxy.KeyPairs = []KeyPair{
+		KeyPair{
+			PrivateKey:  "/etc/teleport/proxy.key",
+			Certificate: "/etc/teleport/proxy.crt",
+		},
+	}
 	conf.Proxy.ListenAddress = "tcp://proxy_ssh_addr"
 	conf.Proxy.WebAddr = "tcp://web_addr"
 	conf.Proxy.TunAddr = "reverse_tunnel_address:3311"
@@ -786,6 +829,30 @@ func makeConfigFixture() string {
 		},
 		KubeClusterName: "kube-cluster",
 		PublicAddr:      utils.Strings([]string{"kube-host:1234"}),
+	}
+
+	// Application service.
+	conf.Apps.EnabledFlag = "yes"
+	conf.Apps.Apps = []*App{
+		&App{
+			Name:          "foo",
+			URI:           "http://127.0.0.1:8080",
+			PublicAddr:    "foo.example.com",
+			StaticLabels:  Labels,
+			DynamicLabels: CommandLabels,
+		},
+	}
+
+	// Database service.
+	conf.Databases.EnabledFlag = "yes"
+	conf.Databases.Databases = []*Database{
+		{
+			Name:          "postgres",
+			Protocol:      defaults.ProtocolPostgres,
+			URI:           "localhost:5432",
+			StaticLabels:  Labels,
+			DynamicLabels: CommandLabels,
+		},
 	}
 
 	return conf.DebugDumpToYAML()
@@ -1018,6 +1085,287 @@ func TestProxyKube(t *testing.T) {
 			err := applyProxyConfig(fc, cfg)
 			tt.checkErr(t, err)
 			require.Empty(t, cmp.Diff(cfg.Proxy.Kube, tt.want))
+		})
+	}
+}
+
+func (s *ConfigTestSuite) TestApps(c *check.C) {
+	tests := []struct {
+		inConfigString string
+		inComment      check.CommentInterface
+		outError       bool
+	}{
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    -
+      name: foo
+      public_addr: "foo.example.com"
+      uri: "http://127.0.0.1:8080"
+`,
+			inComment: check.Commentf("config is valid"),
+			outError:  false,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    -
+      public_addr: "foo.example.com"
+      uri: "http://127.0.0.1:8080"
+`,
+			inComment: check.Commentf("config is missing name"),
+			outError:  true,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    -
+      name: foo
+      uri: "http://127.0.0.1:8080"
+`,
+			inComment: check.Commentf("config is valid"),
+			outError:  false,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    -
+      name: foo
+      public_addr: "foo.example.com"
+`,
+			inComment: check.Commentf("config is missing internal address"),
+			outError:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		clf := CommandLineFlags{
+			ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
+		}
+		cfg := service.MakeDefaultConfig()
+
+		err := Configure(&clf, cfg)
+		c.Assert(err != nil, check.Equals, tt.outError, tt.inComment)
+	}
+}
+
+// TestAppsCLF checks that validation runs on application configuration passed
+// in on the command line.
+func (s *ConfigTestSuite) TestAppsCLF(c *check.C) {
+	tests := []struct {
+		desc      check.CommentInterface
+		inRoles   string
+		inAppName string
+		inAppURI  string
+		outError  error
+	}{
+		{
+			desc:      check.Commentf("role provided, valid name and uri"),
+			inRoles:   defaults.RoleApp,
+			inAppName: "foo",
+			inAppURI:  "http://localhost:8080",
+			outError:  nil,
+		},
+		{
+			desc:      check.Commentf("role provided, name not provided"),
+			inRoles:   defaults.RoleApp,
+			inAppName: "",
+			inAppURI:  "http://localhost:8080",
+			outError:  trace.BadParameter(""),
+		},
+		{
+			desc:      check.Commentf("role provided, uri not provided"),
+			inRoles:   defaults.RoleApp,
+			inAppName: "foo",
+			inAppURI:  "",
+			outError:  trace.BadParameter(""),
+		},
+		{
+			desc:      check.Commentf("valid name and uri"),
+			inAppName: "foo",
+			inAppURI:  "http://localhost:8080",
+			outError:  nil,
+		},
+		{
+			desc:      check.Commentf("invalid name"),
+			inAppName: "-foo",
+			inAppURI:  "http://localhost:8080",
+			outError:  trace.BadParameter(""),
+		},
+		{
+			desc:      check.Commentf("missing uri"),
+			inAppName: "foo",
+			outError:  trace.BadParameter(""),
+		},
+	}
+
+	for _, tt := range tests {
+		clf := CommandLineFlags{
+			Roles:   tt.inRoles,
+			AppName: tt.inAppName,
+			AppURI:  tt.inAppURI,
+		}
+		cfg := service.MakeDefaultConfig()
+		err := Configure(&clf, cfg)
+		if err != nil {
+			c.Assert(err, check.FitsTypeOf, tt.outError)
+		} else {
+			c.Assert(err, check.IsNil)
+		}
+		if tt.outError != nil {
+			continue
+		}
+		c.Assert(cfg.Apps.Enabled, check.Equals, true)
+		c.Assert(cfg.Apps.Apps, check.HasLen, 1)
+	}
+}
+
+func TestDatabaseConfig(t *testing.T) {
+	tests := []struct {
+		inConfigString string
+		desc           string
+		outError       string
+	}{
+		{
+			desc: "valid database config",
+			inConfigString: `
+db_service:
+  enabled: true
+  databases:
+  - name: foo
+    protocol: postgres
+    uri: localhost:5432
+    static_labels:
+      env: test
+    dynamic_labels:
+    - name: arch
+      command: ["uname", "-p"]
+      period: 1h
+`,
+			outError: "",
+		},
+		{
+			desc: "missing database name",
+			inConfigString: `
+db_service:
+  enabled: true
+  databases:
+  - protocol: postgres
+    uri: localhost:5432
+`,
+			outError: "empty database name",
+		},
+		{
+			desc: "unsupported database protocol",
+			inConfigString: `
+db_service:
+  enabled: true
+  databases:
+  - name: foo
+    protocol: unknown
+    uri: localhost:5432
+`,
+			outError: `unsupported database "foo" protocol`,
+		},
+		{
+			desc: "missing database uri",
+			inConfigString: `
+db_service:
+  enabled: true
+  databases:
+  - name: foo
+    protocol: postgres
+`,
+			outError: `invalid database "foo" address`,
+		},
+		{
+			desc: "invalid database uri (missing port)",
+			inConfigString: `
+db_service:
+  enabled: true
+  databases:
+  - name: foo
+    protocol: postgres
+    uri: 192.168.1.1
+`,
+			outError: `invalid database "foo" address`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			clf := CommandLineFlags{
+				ConfigString: base64.StdEncoding.EncodeToString([]byte(tt.inConfigString)),
+			}
+			err := Configure(&clf, service.MakeDefaultConfig())
+			if tt.outError != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.outError)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestDatabaseFlags(t *testing.T) {
+	tests := []struct {
+		inFlags  CommandLineFlags
+		desc     string
+		outError string
+	}{
+		{
+			desc: "valid database config",
+			inFlags: CommandLineFlags{
+				DatabaseName:     "foo",
+				DatabaseProtocol: "postgres",
+				DatabaseURI:      "localhost:5432",
+			},
+			outError: "",
+		},
+		{
+			desc: "unsupported database protocol",
+			inFlags: CommandLineFlags{
+				DatabaseName:     "foo",
+				DatabaseProtocol: "unknown",
+				DatabaseURI:      "localhost:5432",
+			},
+			outError: `unsupported database "foo" protocol`,
+		},
+		{
+			desc: "missing database uri",
+			inFlags: CommandLineFlags{
+				DatabaseName:     "foo",
+				DatabaseProtocol: "postgres",
+			},
+			outError: `invalid database "foo" address`,
+		},
+		{
+			desc: "invalid database uri (missing port)",
+			inFlags: CommandLineFlags{
+				DatabaseName:     "foo",
+				DatabaseProtocol: "postgres",
+				DatabaseURI:      "localhost",
+			},
+			outError: `invalid database "foo" address`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			err := Configure(&tt.inFlags, service.MakeDefaultConfig())
+			if tt.outError != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.outError)
+			} else {
+				require.NoError(t, err)
+			}
 		})
 	}
 }

@@ -133,32 +133,6 @@ func (a *Server) getSAMLProvider(conn services.SAMLConnector) (*saml2.SAMLServic
 	return serviceProvider, nil
 }
 
-// buildSAMLRoles takes a connector and claims and returns a slice of roles.
-func (a *Server) buildSAMLRoles(connector services.SAMLConnector, assertionInfo saml2.AssertionInfo) ([]string, error) {
-	roles := connector.MapAttributes(assertionInfo)
-	if len(roles) == 0 {
-		return nil, trace.AccessDenied("unable to map attributes to role for connector: %v", connector.GetName())
-	}
-
-	return roles, nil
-}
-
-// assertionsToTraitMap extracts all string assertions and creates a map of traits
-// that can be used to populate role variables.
-func assertionsToTraitMap(assertionInfo saml2.AssertionInfo) map[string][]string {
-	traits := make(map[string][]string)
-
-	for _, assr := range assertionInfo.Values {
-		var vals []string
-		for _, value := range assr.Values {
-			vals = append(vals, value.Value)
-		}
-		traits[assr.Name] = vals
-	}
-
-	return traits
-}
-
 func (a *Server) calculateSAMLUser(connector services.SAMLConnector, assertionInfo saml2.AssertionInfo, request *services.SAMLAuthRequest) (*createUserParams, error) {
 	var err error
 
@@ -167,11 +141,12 @@ func (a *Server) calculateSAMLUser(connector services.SAMLConnector, assertionIn
 		username:      assertionInfo.NameID,
 	}
 
-	p.roles, err = a.buildSAMLRoles(connector, assertionInfo)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	p.traits = services.SAMLAssertionsToTraits(assertionInfo)
+
+	p.roles = services.TraitsToRoles(connector.GetTraitMappings(), p.traits)
+	if len(p.roles) == 0 {
+		return nil, trace.AccessDenied("unable to map attributes to role for connector: %v", connector.GetName())
 	}
-	p.traits = assertionsToTraitMap(assertionInfo)
 
 	// Pick smaller for role: session TTL from role or requested TTL.
 	roles, err := services.FetchRoles(p.roles, a.Access, p.traits)
@@ -376,18 +351,16 @@ func (a *Server) validateSAMLResponse(samlResponse string) (*samlAuthResponse, e
 	}
 	assertionInfo, err := provider.RetrieveAssertionInfo(samlResponse)
 	if err != nil {
-		log.Warnf("Received response with incorrect or no claims/attribute statements. Please check the identity provider configuration to make sure that mappings for claims/attribute statements are set up correctly. <See: https://gravitational.com/teleport/docs/enterprise/ssh_sso/>. Failed to retrieve SAML AssertionInfo from response: %v.", err)
-		return nil, trace.AccessDenied("bad SAML response")
+		return nil, trace.AccessDenied(
+			"received response with incorrect or missing attribute statements, please check the identity provider configuration to make sure that mappings for claims/attribute statements are set up correctly. <See: https://goteleport.com/teleport/docs/enterprise/sso/ssh-sso/>, failed to retrieve SAML assertion info from response: %v.", err)
 	}
 
 	if assertionInfo.WarningInfo.InvalidTime {
-		log.Warnf("Invalid time in SAML AssertionInfo.")
-		return nil, trace.AccessDenied("bad SAML response")
+		return nil, trace.AccessDenied("invalid time in SAML assertion info")
 	}
 
 	if assertionInfo.WarningInfo.NotInAudience {
-		log.Warnf("No audience in SAML AssertionInfo.")
-		return nil, trace.AccessDenied("bad SAML response")
+		return nil, trace.AccessDenied("no audience in SAML assertion info")
 	}
 
 	log.Debugf("Obtained SAML assertions for %q.", assertionInfo.NameID)

@@ -130,6 +130,31 @@ interactive sessions the 12 combinations are below.
 * [ ] Deploy Teleport on two EKS clusters and connect them via trusted cluster feature
 * [ ] Deploy Teleport Proxy outside of GKE cluster fronting connections to it (this feature is not yet supported for EKS)
 
+### Teleport with multiple Kubernetes clusters
+
+Note: you can use GKE or EKS or minikube to run Kubernetes clusters.
+Minikube is the only caveat - it's not reachable publicly so don't run a proxy there.
+
+* [ ] Deploy combo auth/proxy/kubernetes_service outside of a Kubernetes cluster, using a kubeconfig
+  * [ ] Login with `tsh login`, check that `tsh kube ls` has your cluster
+  * [ ] Run `kubectl get nodes`, `kubectl exec -it $SOME_POD -- sh`
+  * [ ] Verify that the audit log recorded the above request and session
+* [ ] Deploy combo auth/proxy/kubernetes_service inside of a Kubernetes cluster
+  * [ ] Login with `tsh login`, check that `tsh kube ls` has your cluster
+  * [ ] Run `kubectl get nodes`, `kubectl exec -it $SOME_POD -- sh`
+  * [ ] Verify that the audit log recorded the above request and session
+* [ ] Deploy combo auth/proxy_service outside of the Kubernetes cluster and kubernetes_service inside of a Kubernetes cluster, connected over a reverse tunnel
+  * [ ] Login with `tsh login`, check that `tsh kube ls` has your cluster
+  * [ ] Run `kubectl get nodes`, `kubectl exec -it $SOME_POD -- sh`
+  * [ ] Verify that the audit log recorded the above request and session
+* [ ] Deploy a second kubernetes_service inside of another Kubernetes cluster, connected over a reverse tunnel
+  * [ ] Login with `tsh login`, check that `tsh kube ls` has both clusters
+  * [ ] Switch to a second cluster using `tsh kube login`
+  * [ ] Run `kubectl get nodes`, `kubectl exec -it $SOME_POD -- sh` on the new cluster
+  * [ ] Verify that the audit log recorded the above request and session
+* [ ] Deploy combo auth/proxy/kubernetes_service outside of a Kubernetes cluster, using a kubeconfig with multiple clusters in it
+  * [ ] Login with `tsh login`, check that `tsh kube ls` has all clusters
+
 ### Teleport with FIPS mode
 
 * [ ] Perform trusted clusters, Web and SSH sanity check with all teleport components deployed in FIPS mode.
@@ -200,172 +225,294 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 
 ## WEB UI
 
-### Dashboard
+## Main
+For main, test with admin role that has access to all resources.
 
 #### Top Nav
-- [ ] Verify that user name is displayed.
-- [ ] Verify that user menu shows a logout button.
-
-#### Cluster List
-- [ ] Verify that root cluster is displayed with the proper label.
-- [ ] Verify that "Name", "Version", "Nodes" and "Public URL" shows the correct information.
-- [ ] Verify that column sorting works.
-- [ ] Verify that cluster "View" button works as a hyperlink by opening a new browser tab.
-- [ ] Verify that search works.
-
-### Cluster
-
-#### Top Nav
-- [ ] Verify that user name is displayed.
-- [ ] Verify that Breadcrumb Navigation has a link to dashboard.
-- [ ] Verify that cluster name is displayed.
-- [ ] Verify that clicking on Teleport logo navigates to the Dashboard.
+- [ ] Verify that cluster selector displays all (root + leaf) clusters
+- [ ] Verify that user name is displayed
+- [ ] Verify that user menu shows logout, help&support, and account settings
 
 #### Side Nav
-- [ ] Verify that "Nodes" item is highlighted.
-- [ ] Verify that each item has an icon.
+- [ ] Verify that each item has an icon
+- [ ] Verify that Collapse/Expand works and collapsed has icon `>`, and expand has icon `v`
+- [ ] Verify that it automatically expands and highlights the item on page refresh
 
-#### Nodes
-- [ ] Verify that "Nodes" table shows all joined nodes.
-- [ ] Verify that "Connect" button shows a list of available logins.
-- [ ] Verify that "Hostname", "Address" and "Labels" columns show the current values.
-- [ ] Verify that "Search" works.
-- [ ] Verify that terminal opens when clicking on one of the available logins.
+#### Servers aka Nodes
+- [ ] Verify that "Servers" table shows all joined nodes
+- [ ] Verify that "Connect" button shows a list of available logins
+- [ ] Verify that "Hostname", "Address" and "Labels" columns show the current values
+- [ ] Verify that "Search" by hostname, address, labels works
+- [ ] Verify that terminal opens when clicking on one of the available logins
+- [ ] Verify that clicking on `Add Server` button renders dialogue set to `Automatically` view
+  - [ ] Verify clicking on `Regenerate Script` regenerates token value in the bash command
+  - [ ] Verify using the bash command successfully adds the server (refresh server list)
+  - [ ] Verify that clicking on `Manually` tab renders manual steps
+  - [ ] Verify that clicking back to `Automatically` tab renders bash command
+
+#### Applications
+- [ ] Verify that all apps registered are shown
+- [ ] Verify that clicking on the app icon takes you to another tab
+- [ ] Verify that clicking on `Add Application` button renders dialogue
+  - [ ] Verify input validation (prevent empty value and invalid url)
+  - [ ] Verify after input and clicking on `Generate Script`, bash command is rendered
+  - [ ] Verify clicking on `Regenerate` button regenerates token value in bash command
+  - [ ] Verify using the bash command successfully adds the application (refresh app list)
 
 #### Active Sessions
-- [ ] Verify that "empty" state is handled.
-- [ ] Verify that it displays the session when session is active.
-- [ ] Verify that "Description", "Session ID", "Users", "Nodes" and "Duration" columns show correct values.
-- [ ] Verify that "OPTIONS" button allows to join a session.
+- [ ] Verify that "empty" state is handled
+- [ ] Verify that it displays the session when session is active
+- [ ] Verify that "Description", "Session ID", "Users", "Nodes" and "Duration" columns show correct values
+- [ ] Verify that "OPTIONS" button allows to join a session
 
 #### Audit log
-- [ ] Verify that Audit log has "Sessions" and "Events" tabs where "Sessions" is active by default.
-- [ ] Verify that time range button is shown and works.
+- [ ] Verify that time range button is shown and works
+- [ ] Verify that clicking on `Session Ended` event icon, takes user to session player
+- [ ] Verify event detail dialogue renders when clicking on events `details` button
+- [ ] Verify searching by type, description, created works
 
-#### Audit log (Sessions)
-- [ ] Verify that Sessions table shows the correct session values.
-- [ ] Verify that Play button opens a session player.
-- [ ] Verify that search works (it should do a search on all table cells).
+#### Access Requests
+1. Create a role with limited permissions (defined below as `allow-roles`). This role allows you to see the Role screen and ssh into all nodes.
+1. Create another role with limited permissions (defined below as `allow-users`). This role session expires in 4 minutes, allows you to see Users screen, and denies access to all nodes.
+1. Create another role with no permissions other than being able to create requests (defined below as `default`)
+1. Create a user with role `default` assigned
+1. Create a few requests under this user:
+  - Update requests to at least: one pending, two approved (for each requestable role), and one denied
+```
+kind: role
+metadata:
+  name: allow-roles
+spec:
+  allow:
+    logins:
+    - root
+    node_labels:
+      '*': '*'
+    rules:
+    - resources:
+      - role
+      verbs:
+      - list
+      - read
+  options:
+    max_session_ttl: 8h0m0s
+version: v3
+```
+```
+kind: role
+metadata:
+  name: allow-users
+spec:
+  allow:
+    rules:
+    - resources:
+      - user
+      verbs:
+      - list
+      - read
+  deny:
+    node_labels:
+      '*': '*'
+  options:
+    max_session_ttl: 4m0s
+version: v3
+```
+```
+kind: role
+metadata:
+  name: default
+spec:
+  allow:
+    request:
+      roles:
+      - allow-roles
+      - allow-users
+    rules:
+    - resources:
+      - access_request
+      verbs:
+      - list
+      - read
+      - create
+  options:
+    max_session_ttl: 8h0m0s
+version: v3
+```
+- [ ] Verify that requests are shown and that correct states are applied to each request (pending, approved, denied)
+- [ ] Verify that creating a new request works
+  - [ ] Verify that under requestable roles, only `allow-roles` and `allow-users` are listed
+  - [ ] Verify input validation requires at least one role to be selected
+- [ ] Verify assume buttons are only present for approved request and for logged in user
+  - [ ] Verify that assuming `allow-roles` allows you to see roles screen and ssh into nodes
+  - [ ] Verify that after clicking on the assume button, it is disabled
+  - [ ] After assuming `allow-roles`, verify that assuming `allow-users` allows you to see users screen, and denies access to nodes.
+    - [ ] Verify that after 4 minutes, the user is automatically logged out
+- [ ] Verify that after logging out (or getting logged out automatically) and relogging in, permissions are reset to `default`, and requests that are not expired and are approved are assumable again.
 
-#### Auth Connectors.
-- [ ] Verify that creating OIDC/SAML/GITHUB connectors works.
-- [ ] Verify that editing  OIDC/SAML/GITHUB connectors works.
-- [ ] Verify that error is shown when saving an invalid YAML.
-- [ ] Verify that correct hint text is shown on the right side.
+#### Users
+- [ ] Verify that users are shown
+- [ ] Verify that creating a new user works
+- [ ] Verify that editing user roles works
+- [ ] Verify that removing a user works
+- [ ] Verify resetting a user's password works
+- [ ] Verify search by username, roles, and type works
 
-  Card Icons
-  - [ ] Verify that GITHUB card has github icon
-  - [ ] Verify that SAML card has SAML icon
-  - [ ] Verify that OIDC card has OIDC icon
+#### Auth Connectors
+- [ ] Verify that creating OIDC/SAML/GITHUB connectors works
+- [ ] Verify that editing  OIDC/SAML/GITHUB connectors works
+- [ ] Verify that error is shown when saving an invalid YAML
+- [ ] Verify that correct hint text is shown on the right side
+
+#### Auth Connectors Card Icons
+- [ ] Verify that GITHUB card has github icon
+- [ ] Verify that SAML card has SAML icon
+- [ ] Verify that OIDC card has OIDC icon
+- [ ] Verify when there are no connectors, empty state renders
+
 
 #### Roles
-- [ ] Verify that roles are shown.
-- [ ] Verify that "Create New Role" dialog works.
-- [ ] Verify that deleting and editing works.
-- [ ] Verify that error is shown when saving an invalid YAML.
-- [ ] Verify that correct hint text is shown on the right side.
+- [ ] Verify that roles are shown
+- [ ] Verify that "Create New Role" dialog works
+- [ ] Verify that deleting and editing works
+- [ ] Verify that error is shown when saving an invalid YAML
+- [ ] Verify that correct hint text is shown on the right side
 
-#### Trusted Clusters
-- [ ] Verify that adding/removing a trusted cluster works.
-- [ ] Verify that correct hint text is shown on the right side.
+#### Managed Clusters
+- [ ] Verify that it displays a list of clusters (root + leaf)
+- [ ] Verify that every menu item works: nodes, apps, audit events, session recordings.
 
 #### Help&Support
 - [ ] Verify that all URLs work and correct (no 404)
 
-### Account
+## Access Request Waiting Room
+
+#### Strategy Reason
+Create the following role:
+```
+kind: role
+metadata:
+  name: restrict
+spec:
+  allow:
+    request:
+      roles:
+      - <some other role to assign user after approval>
+  options:
+    max_session_ttl: 8h0m0s
+    request_access: reason
+    request_prompt: <some custom prompt to show in reason dialogue>
+version: v3
+```
+- [ ] Verify after login, reason dialogue is rendered with prompt set to `request_prompt` setting
+- [ ] Verify after clicking `send request`, pending dialogue renders
+- [ ] Verify after `tctl requests approve <request-id>`, dashboard is rendered
+- [ ] Verify the correct role was assigned
+
+#### Strategy Always
+With the previous role you created from `Strategy Reason`, change `request_access` to `always`:
+- [ ] Verify after login, pending dialogue is rendered
+- [ ] Verify after `tctl requests approve <request-id>`, dashboard is rendered
+- [ ] Verify after login, `tctl requests deny <request-id>`, access denied dialogue is rendered
+
+#### Strategy Optional
+With the previous role you created from `Strategy Reason`, change `request_access` to `optional`:
+- [ ] Verify after login, dashboard is rendered
+
+## Account
 - [ ] Verify that Account screen is accessibly from the user menu for local users.
 - [ ] Verify that changing a local password works (OTP, U2F)
 
-### Terminal
-- [ ] Verify that top nav has a user menu (Dashboard and Logout).
-- [ ] Verify that switching between tabs works on alt+[1...9].
+## Terminal
+- [ ] Verify that top nav has a user menu (Main and Logout)
+- [ ] Verify that switching between tabs works on alt+[1...9]
 
 #### Node List Tab
 - [ ] Verify that Cluster selector works (URL should change too)
-- [ ] Verify that Quick access input works. It
-- [ ] Verify that Quick access input handles input errors.
-- [ ] Verify that "Connect" button shows a list of available logins.
-- [ ] Verify that "Hostname", "Address" and "Labels" columns show the current values.
-- [ ] Verify that "Search" works.
-- [ ] Verify that new tab is created when starting a session.
+- [ ] Verify that Quick launcher input works
+- [ ] Verify that Quick launcher input handles input errors
+- [ ] Verify that "Connect" button shows a list of available logins
+- [ ] Verify that "Hostname", "Address" and "Labels" columns show the current values
+- [ ] Verify that "Search" by hostname, address, labels work
+- [ ] Verify that new tab is created when starting a session
 
 #### Session Tab
-- [ ] Verify that session and browser tabs both show the title with login and node name.
-- [ ] Verify that terminal resize works (use midnight commander (sudo apt-get install mc))
-- [ ] Verify that session tab shows a list of participants when a new user joins the session.
-- [ ] Verify that tab automatically closes on "$ exit" command.
-- [ ] Verify that SCP Upload works.
-- [ ] Verify that SCP Upload handles invalid paths and network errors.
-- [ ] Verify that SCP Download works.
-- [ ] Verify that SCP Download handles invalid paths and network errors.
+- [ ] Verify that session and browser tabs both show the title with login and node name
+- [ ] Verify that terminal resize works
+    - Install midnight commander on the node you ssh into: `$ sudo apt-get install mc`
+    - Run the program: `$ mc`
+    - Resize the terminal to see if panels resize with it
+- [ ] Verify that session tab shows/updates number of participants when a new user joins the session
+- [ ] Verify that tab automatically closes on "$ exit" command
+- [ ] Verify that SCP Upload works
+- [ ] Verify that SCP Upload handles invalid paths and network errors
+- [ ] Verify that SCP Download works
+- [ ] Verify that SCP Download handles invalid paths and network errors
 
-### Session Player
-- [ ] Verify that it can replay a session.
-- [ ] Verify that scrolling behavior.
-- [ ] Verify that error message is displayed (use invalid SID)
+## Session Player
+- [ ] Verify that it can replay a session
+- [ ] Verify that when playing, scroller auto scrolls to bottom most content
+- [ ] Verify when resizing player to a small screen, scroller appears and is working
+- [ ] Verify that error message is displayed (enter a invalid SID in the URL)
 
-### Invite Form
-- [ ] Verify that input validation.
-- [ ] Verify that invite works with 2FA disabled.
-- [ ] Verify that invite works with OTP enabled.
-- [ ] Verify that invite works with U2F enabled.
-- [ ] Verify that error message is shown if an invite is expired/invalid.
+## Invite Form
+- [ ] Verify that input validates
+- [ ] Verify that invite works with 2FA disabled
+- [ ] Verify that invite works with OTP enabled
+- [ ] Verify that invite works with U2F enabled
+- [ ] Verify that error message is shown if an invite is expired/invalid
 
-### Login Form
-- [ ] Verify that input validation.
-- [ ] Verify that login works with 2FA disabled.
-- [ ] Verify that login works with OTP enabled.
-- [ ] Verify that login works with U2F enabled.
-- [ ] Verify that login works for Github/SAML/OIDC.
-- [ ] Verify that account is locked after several unsuccessful attempts.
-- [ ] Verify that redirect to original URL works after successful login.
+## Login Form
+- [ ] Verify that input validates
+- [ ] Verify that login works with 2FA disabled
+- [ ] Verify that login works with OTP enabled
+- [ ] Verify that login works with U2F enabled
+- [ ] Verify that login works for Github/SAML/OIDC
+- [ ] Verify that account is locked after several unsuccessful attempts
+- [ ] Verify that redirect to original URL works after successful login
 
-### RBAC
- Create the following role
+## RBAC
+Create a role, with no `allow.rules` defined:
 ```
-  spec:
+kind: role
+metadata:
+  name: test
+spec:
   allow:
+    app_labels:
+      '*': '*'
     logins:
     - root
-    - '{{internal.logins}}'
     node_labels:
       '*': '*'
-  deny:
-    logins: null
   options:
-    cert_format: standard
-    forward_agent: true
-    max_session_ttl: 30h0m0s
-    port_forwarding: true
+    max_session_ttl: 8h0m0s
+version: v3
 ```
-  - [ ] Verify that a user has access only to: "Cluster List", "Nodes", and "Active Sessions".
-  - [ ] Verify that a user is redirected to the login page.
-  - [ ] Verify that after successful login, a user is redirected to the Node List.
+- [ ] Verify that a user has access only to: "Servers", "Applications", "Active Sessions" and "Manage Clusters"
+- [ ] Verify there is no `Add Server` button in Server view
+- [ ] Verify there is no `Add Application` button in Applications view
+- [ ] Verify only `Nodes` and `Apps` are listed under `options` button in `Manage Clusters`
 
-
-Add the following resource to enable read access to the audit log
+Add the following under `spec.allow.rules` to enable read access to the audit log:
 ```
-  rules:
   - resources:
       - event
       verbs:
       - list
 ```
-- [ ] Verify that the audit log is accessible via UI.
-- [ ] Verify that access to recorded sessions is denied (by opening a session player).
+- [ ] Verify that the `Audit Log` and `Session Recordings` is accessible
+- [ ] Verify that playing a recorded session is denied
 
-
-Add the following resource to enable read access to recorded sessions
+Add the following to enable read access to recorded sessions
 ```
-  rules:
   - resources:
       - session
       verbs:
       - read
 ```
-- [ ] Verify that a user can re-play a session (session.end).
+- [ ] Verify that a user can re-play a session (session.end)
 
-Add the following resource to enable read access to the roles
+Add the following to enable read access to the roles
 
 ```
 - resources:
@@ -377,7 +524,7 @@ Add the following resource to enable read access to the roles
 - [ ] Verify that a user can see the roles
 - [ ] Verify that a user cannot create/delete/update a role
 
-Add the following resource to enable read access to the auth connectors
+Add the following to enable read access to the auth connectors
 
 ```
 - resources:
@@ -387,19 +534,41 @@ Add the following resource to enable read access to the auth connectors
       - read
 ```
 - [ ] Verify that a user can see the list of auth connectors.
-- [ ] Verify that a user cannot create/delete/update the connectors.
+- [ ] Verify that a user cannot create/delete/update the connectors
 
-Add the following resource to enable read access to trusted clusters
+Add the following to enable read access to users
+```
+  - resources:
+      - user
+      verbs:
+      - list
+      - read
+```
+- [ ] Verify that a user can access the "Users" screen
+- [ ] Verify that a user cannot create/delete/update a user
+
+Add the following to enable read access to trusted clusters
 ```
   - resources:
       - trusted_cluster
       verbs:
       - list
-      - create
+      - read
 ```
-- [ ] Verify that a user can see the list of trusted clusters.
+- [ ] Verify that a user can access the "Trust" screen
 - [ ] Verify that a user cannot create/delete/update a trusted cluster.
 
+Add the following to enable read access to the access_request resource
+
+```
+- resources:
+      - access_request
+      verbs:
+      - list
+      - read
+```
+- [ ] Verify that a user can see the "Access Request" screen
+* Note: users are always allowed to create their own requests, if they have any requestable roles
 
 ## Performance/Soak Test
 
@@ -419,8 +588,8 @@ Using `tsh bench` tool, perform the soak tests and benchmark tests on the follow
 Run 4hour soak test with a mix of interactive/non-interactive sessions:
 
 ```
-tsh bench --duration=4h --threads=10 user@teleport-monster-6757d7b487-x226b ls
-tsh bench -i --duration=4h --threads=10 user@teleport-monster-6757d7b487-x226b ps uax
+tsh bench --duration=4h user@teleport-monster-6757d7b487-x226b ls
+tsh bench -i --duration=4h user@teleport-monster-6757d7b487-x226b ps uax
 ```
 
 Observe prometheus metrics for goroutines, open files, RAM, CPU, Timers and make sure there are no leaks
@@ -451,3 +620,19 @@ and non interactive tsh bench loads.
 - [ ] Deploy Teleport to IBM Cloud. Using IBM Database for etcd & IBM Object Store
 - [ ] Deploy Teleport to IBM Cloud Kubernetes.
 - [ ] Deploy Teleport Enterprise to IBM Cloud.
+
+## Application Access
+
+- [ ] Run an application within local cluster.
+  - [ ] Verify the debug application `debug_app: true` works.
+  - [ ] Verify an application can be configured with command line flags.
+  - [ ] Verify an application can be configured from file configuration.
+  - [ ] Verify that applications are available at auto-generated addresses `name.rootProxyPublicAddr` and well as `publicAddr`.
+- [ ] Run an application within a trusted cluster.
+  - [ ] Verify that applications are available at auto-generated addresses `name.rootProxyPublicAddr`.
+- [ ] Verify Audit Records.
+  - [ ] `app.session.start` and `app.session.chunk` events are created in the Audit Log.
+  - [ ] `app.session.chunk` points to a 5 minute session archive with multiple `app.session.request` events inside.
+  - [ ] `tsh play <chunk-id>` can fetch and print a session chunk archive.
+- [ ] Verify JWT using [verify-jwt.go](https://github.com/gravitational/teleport/blob/master/examples/jwt/verify-jwt.go).
+- [ ] Verify RBAC.

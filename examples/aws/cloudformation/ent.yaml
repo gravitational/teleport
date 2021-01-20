@@ -97,21 +97,21 @@ Mappings:
     t2.xlarge: {Arch: HVM64}
 
   AWSRegionArch2AMI:
-    # All AMIs from AWS - gravitational-teleport-ami-ent-4.4.1
-    eu-west-1: {HVM64 : ami-045ae9aa52f303a2e}
-    eu-west-2: {HVM64 : ami-08a63756ef0f64056}
-    us-east-1: {HVM64 : ami-040b359e8d0b7224f}
-    us-east-2: {HVM64 : ami-0c904064d40a94ff4}
-    us-west-2: {HVM64 : ami-02507c3024e4a5456}
-    us-west-1: {HVM64 : ami-0725f60aba0cb6253}
-    ap-south-1: {HVM64 : ami-09631b9feb2cafbb5}
-    ap-northeast-2: {HVM64 : ami-05cec66d0ce3fa4af}
-    ap-southeast-1: {HVM64 : ami-0b9c6b14859396077}
-    ap-southeast-2: {HVM64 : ami-0cdaa635e1d236518}
-    ap-northeast-1: {HVM64 : ami-0455ccaef7365431d}
-    ca-central-1: {HVM64 : ami-045bd78864bf97c86}
-    eu-central-1: {HVM64 : ami-0534a46b07ebb790f}
-    sa-east-1: {HVM64 : ami-022322bd9acdcf427}
+    # All AMIs from AWS - gravitational-teleport-ami-ent-5.1.0
+    eu-west-1: {HVM64 : ami-05bb9426379f3dad6}
+    eu-west-2: {HVM64 : ami-0bb256ecbaeff9c30}
+    us-east-1: {HVM64 : ami-0434e41f8b864621a}
+    us-east-2: {HVM64 : ami-0f7e3ffd995315d88}
+    us-west-2: {HVM64 : ami-0a2bf2338d5c8afb7}
+    us-west-1: {HVM64 : ami-073c78d2973da48e1}
+    ap-south-1: {HVM64 : ami-0021ce6e9397de8f2}
+    ap-northeast-2: {HVM64 : ami-082f4b239b2ec7809}
+    ap-southeast-1: {HVM64 : ami-0c080535548b31a13}
+    ap-southeast-2: {HVM64 : ami-06c7826f282bb7723}
+    ap-northeast-1: {HVM64 : ami-04b439bd84f4d0534}
+    ca-central-1: {HVM64 : ami-08148ccb9fd442608}
+    eu-central-1: {HVM64 : ami-0f47a495cbf2c07d0}
+    sa-east-1: {HVM64 : ami-038fea2412b74bbb5}
 
 Resources:
 # Auth server setup
@@ -258,12 +258,12 @@ Resources:
             EOF
 
             # Generate config and start proxy service
-            /usr/bin/teleport-generate-config
+            /usr/local/bin/teleport-generate-config
             systemctl enable teleport-ssm-publish-tokens.service teleport-ssm-publish-tokens.timer teleport-get-cert.service teleport-get-cert.timer teleport-renew-cert.service teleport-renew-cert.timer
             systemctl start --no-block teleport-auth teleport-ssm-publish-tokens.timer teleport-get-cert.timer teleport-renew-cert.timer
 
             # Write out healthcheck script
-            cat >> /usr/bin/teleport-cfn-signal-done <<EOF
+            cat >> /usr/local/bin/teleport-cfn-signal-done <<EOF
             #!/bin/bash
             for i in {1..10}; do systemctl status teleport-auth && break || sleep 10; done
             systemctl status teleport-auth
@@ -271,7 +271,7 @@ Resources:
             EOF
 
             # Make healthcheck script executable
-            chmod +x /usr/bin/teleport-cfn-signal-done
+            chmod +x /usr/local/bin/teleport-cfn-signal-done
 
             # Write out healthcheck systemd unit file
             cat >> /etc/systemd/system/cfn-signal-done.service <<EOF
@@ -283,7 +283,7 @@ Resources:
             User=root
             Group=adm
             Type=oneshot
-            ExecStart=/usr/bin/teleport-cfn-signal-done
+            ExecStart=/usr/local/bin/teleport-cfn-signal-done
             EOF
 
             # Make systemd healthcheck unit run
@@ -462,12 +462,12 @@ Resources:
             EOF
 
             # Generate config and start proxy service
-            /usr/bin/teleport-generate-config
+            /usr/local/bin/teleport-generate-config
             systemctl enable teleport-proxy.service teleport-check-cert.service teleport-check-cert.timer
             systemctl start --no-block teleport-proxy.service teleport-check-cert.timer
 
             # Write out healthcheck script
-            cat >> /usr/bin/teleport-cfn-signal-done <<EOF
+            cat >> /usr/local/bin/teleport-cfn-signal-done <<EOF
             #!/bin/bash
             for i in {1..40}; do systemctl status teleport-proxy && break || sleep 30; done
             systemctl status teleport-proxy
@@ -475,7 +475,7 @@ Resources:
             EOF
 
             # Make healthcheck script executable
-            chmod +x /usr/bin/teleport-cfn-signal-done
+            chmod +x /usr/local/bin/teleport-cfn-signal-done
 
             # Write out healthcheck systemd unit file
             cat >> /etc/systemd/system/cfn-signal-done.service <<EOF
@@ -487,7 +487,7 @@ Resources:
             User=root
             Group=adm
             Type=oneshot
-            ExecStart=/usr/bin/teleport-cfn-signal-done
+            ExecStart=/usr/local/bin/teleport-cfn-signal-done
             EOF
 
             # Make systemd healthcheck unit run
@@ -566,7 +566,7 @@ Resources:
             EOF
 
             # Generate config and start proxy service
-            /usr/bin/teleport-generate-config
+            /usr/local/bin/teleport-generate-config
             systemctl enable teleport-node.service
             systemctl start --no-block teleport-node.service
           - {

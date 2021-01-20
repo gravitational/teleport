@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}
+data:
+  teleport.yaml: |
+    teleport:
+      auth_token: "/etc/teleport-secrets/auth-token"
+      auth_servers: ["{{ required "proxyAddr is required in chart values" .Values.proxyAddr }}"]
+
+    kubernetes_service:
+      enabled: true
+      kube_cluster_name: {{ required "kubeClusterName is required in chart values" .Values.kubeClusterName }}
+      labels:
+{{- if .Values.labels }}
+{{ toYaml .Values.labels | indent 8 }}
+{{- end }}
+    auth_service:
+      enabled: false
+    ssh_service:
+      enabled: false
+    proxy_service:
+      enabled: false

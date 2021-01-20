@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -39,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/ghodss/yaml"
@@ -77,18 +79,24 @@ type Config struct {
 	// in case if they loose connection to auth servers
 	CachePolicy CachePolicy
 
-	// SSH role an SSH endpoint server
+	// Auth service configuration. Manages cluster state and configuration.
+	Auth AuthConfig
+
+	// Proxy service configuration. Manages incoming and outbound
+	// connections to the cluster.
+	Proxy ProxyConfig
+
+	// SSH service configuration. Manages SSH servers running within the cluster.
 	SSH SSHConfig
 
-	// Auth server authentication and authorization server config
-	Auth AuthConfig
+	// App service configuration. Manages applications running within the cluster.
+	Apps AppsConfig
+
+	// Databases defines database proxy service configuration.
+	Databases DatabasesConfig
 
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
-
-	// Proxy is SSH proxy that manages incoming and outbound connections
-	// via multiple reverse tunnels
-	Proxy ProxyConfig
 
 	// HostUUID is a unique UUID of this host (it will be known via this UUID within
 	// a teleport cluster). It's automatically generated on 1st start
@@ -189,6 +197,9 @@ type Config struct {
 
 	// Kube is a Kubernetes API gateway using Teleport client identities.
 	Kube KubeConfig
+
+	// Log optionally specifies the logger
+	Log utils.Logger
 }
 
 // ApplyToken assigns a given token to all internal services but only if token
@@ -311,6 +322,9 @@ type ProxyConfig struct {
 	// DisableReverseTunnel disables reverse tunnel on the proxy
 	DisableReverseTunnel bool
 
+	// DisableDatabaseProxy disables database access proxy listener
+	DisableDatabaseProxy bool
+
 	// ReverseTunnelListenAddr is address where reverse tunnel dialers connect to
 	ReverseTunnelListenAddr utils.NetAddr
 
@@ -322,12 +336,6 @@ type ProxyConfig struct {
 
 	// SSHAddr is address of ssh proxy
 	SSHAddr utils.NetAddr
-
-	// TLSKey is a base64 encoded private key used by web portal
-	TLSKey string
-
-	// TLSCert is a base64 encoded certificate used by web portal
-	TLSCert string
 
 	Limiter limiter.Config
 
@@ -348,6 +356,30 @@ type ProxyConfig struct {
 
 	// Kube specifies kubernetes proxy configuration
 	Kube KubeProxyConfig
+
+	// KeyPairs are the key and certificate pairs that the proxy will load.
+	KeyPairs []KeyPairPath
+
+	// ACME is ACME protocol support config
+	ACME ACME
+}
+
+// ACME configures ACME automatic certificate renewal
+type ACME struct {
+	// Enabled enables or disables ACME support
+	Enabled bool
+	// Email receives notifications from ACME server
+	Email string
+	// URI is ACME server URI
+	URI string
+}
+
+// KeyPairPath are paths to a key and certificate file.
+type KeyPairPath struct {
+	// PrivateKey is the path to a PEM encoded private key.
+	PrivateKey string
+	// Certificate is the path to a PEM encoded certificate.
+	Certificate string
 }
 
 // KubeAddr returns the address for the Kubernetes endpoint on this proxy that
@@ -494,6 +526,145 @@ type KubeConfig struct {
 	Limiter limiter.Config
 }
 
+// DatabasesConfig configures the database proxy service.
+type DatabasesConfig struct {
+	// Enabled enables the database proxy service.
+	Enabled bool
+	// Databases is a list of databases proxied by this service.
+	Databases []Database
+}
+
+// Database represents a single database that's being proxied.
+type Database struct {
+	// Name is the database name, used to refer to in CLI.
+	Name string
+	// Description is a free-form database description.
+	Description string
+	// Protocol is the database type, e.g. postgres or mysql.
+	Protocol string
+	// URI is the database endpoint to connect to.
+	URI string
+	// StaticLabels is a map of database static labels.
+	StaticLabels map[string]string
+	// DynamicLabels is a list of database dynamic labels.
+	DynamicLabels services.CommandLabels
+	// CACert is an optional database CA certificate.
+	CACert []byte
+	// AWS contains AWS specific settings for RDS/Aurora.
+	AWS DatabaseAWS
+}
+
+// DatabaseAWS contains AWS specific settings for RDS/Aurora databases.
+type DatabaseAWS struct {
+	// Region is the cloud region database is running in when using AWS RDS.
+	Region string
+}
+
+// Check validates the database proxy configuration.
+func (d *Database) Check() error {
+	if d.Name == "" {
+		return trace.BadParameter("empty database name")
+	}
+	// Unlike application access proxy, database proxy name doesn't necessarily
+	// need to be a valid subdomain but use the same validation logic for the
+	// simplicity and consistency.
+	if errs := validation.IsDNS1035Label(d.Name); len(errs) > 0 {
+		return trace.BadParameter("invalid database %q name: %v", d.Name, errs)
+	}
+	if !utils.SliceContainsStr(defaults.DatabaseProtocols, d.Protocol) {
+		return trace.BadParameter("unsupported database %q protocol %q, supported are: %v",
+			d.Name, d.Protocol, defaults.DatabaseProtocols)
+	}
+	if _, _, err := net.SplitHostPort(d.URI); err != nil {
+		return trace.BadParameter("invalid database %q address %q: %v",
+			d.Name, d.URI, err)
+	}
+	if len(d.CACert) != 0 {
+		if _, err := tlsca.ParseCertificatePEM(d.CACert); err != nil {
+			return trace.BadParameter("provided database %q CA doesn't appear to be a valid x509 certificate: %v",
+				d.Name, err)
+		}
+	}
+	return nil
+}
+
+// AppsConfig configures application proxy service.
+type AppsConfig struct {
+	// Enabled enables application proxying service.
+	Enabled bool
+
+	// DebugApp enabled a header dumping debugging application.
+	DebugApp bool
+
+	// Apps is the list of applications that are being proxied.
+	Apps []App
+}
+
+// App is the specific application that will be proxied by the application
+// service. This needs to exist because if the "config" package tries to
+// directly create a services.App it will get into circular imports.
+type App struct {
+	// Name of the application.
+	Name string
+
+	// URI is the internal address of the application.
+	URI string
+
+	// Public address of the application. This is the address users will access
+	// the application at.
+	PublicAddr string
+
+	// StaticLabels is a map of static labels to apply to this application.
+	StaticLabels map[string]string
+
+	// DynamicLabels is a list of dynamic labels to apply to this application.
+	DynamicLabels services.CommandLabels
+
+	// InsecureSkipVerify is used to skip validating the server's certificate.
+	InsecureSkipVerify bool
+
+	// Rewrite defines a block that is used to rewrite requests and responses.
+	Rewrite *Rewrite
+}
+
+// Check validates an application.
+func (a App) Check() error {
+	if a.Name == "" {
+		return trace.BadParameter("missing application name")
+	}
+	if a.URI == "" {
+		return trace.BadParameter("missing application URI")
+	}
+	// Check if the application name is a valid subdomain. Don't allow names that
+	// are invalid subdomains because for trusted clusters the name is used to
+	// construct the domain that the application will be available at.
+	if errs := validation.IsDNS1035Label(a.Name); len(errs) > 0 {
+		return trace.BadParameter("application name %q must be a valid DNS subdomain: https://goteleport.com/teleport/docs/application-access/#application-name", a.Name)
+	}
+	// Parse and validate URL.
+	if _, err := url.Parse(a.URI); err != nil {
+		return trace.BadParameter("application URI invalid: %v", err)
+	}
+	// If a port was specified or an IP address was provided for the public
+	// address, return an error.
+	if a.PublicAddr != "" {
+		if _, _, err := net.SplitHostPort(a.PublicAddr); err == nil {
+			return trace.BadParameter("public_addr %q can not contain a port, applications will be available on the same port as the web proxy", a.PublicAddr)
+		}
+		if net.ParseIP(a.PublicAddr) != nil {
+			return trace.BadParameter("public_addr %q can not be an IP address, Teleport Application Access uses DNS names for routing", a.PublicAddr)
+		}
+	}
+
+	return nil
+}
+
+// Rewrite is a list of rewriting rules to apply to requests and responses.
+type Rewrite struct {
+	// Redirect is a list of hosts that should be rewritten to the public address.
+	Redirect []string
+}
+
 // MakeDefaultConfig creates a new Config structure and populates it with defaults
 func MakeDefaultConfig() (config *Config) {
 	config = &Config{}
@@ -507,6 +678,10 @@ func ApplyDefaults(cfg *Config) {
 	// golang.org/x/crypto/ssh default config.
 	var sc ssh.Config
 	sc.SetDefaults()
+
+	if cfg.Log == nil {
+		cfg.Log = utils.NewLogger()
+	}
 
 	// Remove insecure and (borderline insecure) cryptographic primitives from
 	// default configuration. These can still be added back in file configuration by
@@ -522,7 +697,7 @@ func ApplyDefaults(cfg *Config) {
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "localhost"
-		log.Errorf("Failed to determine hostname: %v.", err)
+		cfg.Log.Errorf("Failed to determine hostname: %v.", err)
 	}
 
 	// Global defaults.
@@ -541,11 +716,8 @@ func ApplyDefaults(cfg *Config) {
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens = services.DefaultStaticTokens()
 	cfg.Auth.ClusterConfig = services.DefaultClusterConfig()
+	cfg.Auth.Preference = services.DefaultAuthPreference()
 	defaults.ConfigureLimiter(&cfg.Auth.Limiter)
-	// set new style default auth preferences
-	ap := &services.AuthPreferenceV2{}
-	ap.CheckAndSetDefaults()
-	cfg.Auth.Preference = ap
 	cfg.Auth.LicenseFile = filepath.Join(cfg.DataDir, defaults.LicenseFile)
 
 	// Proxy service defaults.
@@ -569,6 +741,12 @@ func ApplyDefaults(cfg *Config) {
 	// Kubernetes service defaults.
 	cfg.Kube.Enabled = false
 	defaults.ConfigureLimiter(&cfg.Kube.Limiter)
+
+	// Apps service defaults. It's disabled by default.
+	cfg.Apps.Enabled = false
+
+	// Databases proxy service is disabled by default.
+	cfg.Databases.Enabled = false
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS 140-2

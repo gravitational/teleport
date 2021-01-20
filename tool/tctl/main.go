@@ -30,6 +30,8 @@ func main() {
 		&common.StatusCommand{},
 		&common.TopCommand{},
 		&common.AccessRequestCommand{},
+		&common.AppsCommand{},
+		&common.DBCommand{},
 	}
-	common.Run(commands)
+	common.Run(commands, nil)
 }

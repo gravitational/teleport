@@ -51,6 +51,10 @@ const (
 	// stored in a "kubeconfig" file.
 	FormatKubernetes Format = "kubernetes"
 
+	// FormatDatabase produces CA and key pair suitable for configuring a
+	// database instance for mutual TLS.
+	FormatDatabase Format = "db"
+
 	// DefaultFormat is what Teleport uses by default
 	DefaultFormat = FormatFile
 )
@@ -131,7 +135,7 @@ func Write(filePath string, key *client.Key, format Format, clusterAddr string) 
 			return nil, trace.Wrap(err)
 		}
 
-	case FormatTLS:
+	case FormatTLS, FormatDatabase:
 		keyPath := filePath + ".key"
 		certPath := filePath + ".crt"
 		casPath := filePath + ".cas"
@@ -160,16 +164,16 @@ func Write(filePath string, key *client.Key, format Format, clusterAddr string) 
 	case FormatKubernetes:
 		filesWritten = append(filesWritten, filePath)
 		if err := kubeconfig.Update(filePath, kubeconfig.Values{
-			Name:        key.ClusterName,
-			ClusterAddr: clusterAddr,
-			Credentials: key,
+			TeleportClusterName: key.ClusterName,
+			ClusterAddr:         clusterAddr,
+			Credentials:         key,
 		}); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 	default:
-		return nil, trace.BadParameter("unsupported identity format: %q, use one of %q, %q, %q, or %q",
-			format, FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes)
+		return nil, trace.BadParameter("unsupported identity format: %q, use one of %q, %q, %q, %q or %q",
+			format, FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase)
 	}
 	return filesWritten, nil
 }

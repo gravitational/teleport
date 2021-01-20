@@ -47,6 +47,8 @@ const (
 	sessionKeyDir      = "keys"
 	fileNameKnownHosts = "known_hosts"
 	fileNameTLSCerts   = "certs.pem"
+	kubeDirSuffix      = "-kube"
+	dbDirSuffix        = "-db"
 
 	// profileDirPerms is the default permissions applied to the profile
 	// directory (usually ~/.tsh)
@@ -68,10 +70,14 @@ type LocalKeyStore interface {
 	AddKey(proxy string, username string, key *Key) error
 
 	// GetKey returns the session key for the given username and proxy.
-	GetKey(proxy string, username string) (*Key, error)
+	GetKey(proxy, username string, opts ...KeyOption) (*Key, error)
 
 	// DeleteKey removes a specific session key from a proxy.
-	DeleteKey(proxyHost string, username string) error
+	DeleteKey(proxyHost, username string, opts ...KeyOption) error
+
+	// DeleteKeyOption deletes only secrets specified by the provided key
+	// options keeping user's SSH/TLS certificates and private key intact.
+	DeleteKeyOption(proxyHost, username string, opts ...KeyOption) error
 
 	// DeleteKeys removes all session keys from disk.
 	DeleteKeys() error
@@ -98,14 +104,26 @@ type LocalKeyStore interface {
 // Here's the file layout for the FS store:
 //
 // ~/.tsh/
-// ├── known_hosts             --> trusted certificate authorities (their keys) in a format similar to known_hosts
+// ├── known_hosts                   --> trusted certificate authorities (their keys) in a format similar to known_hosts
 // └── keys
-//    ├── one.example.com
-//    │   ├── certs.pem
-//    │   ├── foo              --> RSA Private Key
-//    │   ├── foo-cert.pub     --> SSH certificate for proxies and nodes
-//    │   ├── foo.pub          --> Public Key
-//    │   └── foo-x509.pem     --> TLS client certificate for Auth Server
+//    ├── one.example.com            --> Proxy hostname
+//    │   ├── certs.pem              --> TLS CA certs for the Teleport CA
+//    │   ├── foo                    --> RSA Private Key for user "foo"
+//    │   ├── foo-cert.pub           --> SSH certificate for proxies and nodes
+//    │   ├── foo.pub                --> Public Key
+//    │   ├── foo-x509.pem           --> TLS client certificate for Auth Server
+//    │   ├── foo-kube               --> Kubernetes certs for user "foo"
+//    │   |   ├── root               --> Kubernetes certs for teleport cluster "root"
+//    │   |   │   ├── kubeA-x509.pem --> TLS cert for Kubernetes cluster "kubeA"
+//    │   |   │   └── kubeB-x509.pem --> TLS cert for Kubernetes cluster "kubeB"
+//    │   |   └── leaf               --> Kubernetes certs for teleport cluster "leaf"
+//    │   |       └── kubeC-x509.pem --> TLS cert for Kubernetes cluster "kubeC"
+//    |   └── foo-db                 --> Database access certs for user "foo"
+//    |       ├── root               --> Database access certs for cluster "root"
+//    │       │   ├── dbA-x509.pem   --> TLS cert for database service "dbA"
+//    │       │   └── dbB-x509.pem   --> TLS cert for database service "dbB"
+//    │       └── leaf               --> Database access certs for cluster "leaf"
+//    │           └── dbC-x509.pem   --> TLS cert for database service "dbC"
 //    └── two.example.com
 //        ├── certs.pem
 //        ├── bar
@@ -165,11 +183,42 @@ func (fs *FSLocalKeyStore) AddKey(host, username string, key *Key) error {
 	if err = writeBytes(username, key.Priv); err != nil {
 		return trace.Wrap(err)
 	}
+	// TODO(awly): unit test this.
+	kubeDir := filepath.Join(dirPath, username+kubeDirSuffix, key.ClusterName)
+	// Clean up any old kube certs.
+	if err := os.RemoveAll(kubeDir); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := os.MkdirAll(kubeDir, os.ModeDir|profileDirPerms); err != nil {
+		return trace.Wrap(err)
+	}
+	for kubeCluster, cert := range key.KubeTLSCerts {
+		// Prevent directory traversal via a crafted kubernetes cluster name.
+		//
+		// This will confuse cluster cert loading (GetKey will return
+		// kubernetes cluster names different from the ones stored here), but I
+		// don't expect any well-meaning user to create bad names.
+		kubeCluster = filepath.Clean(kubeCluster)
+
+		fname := filepath.Join(username+kubeDirSuffix, key.ClusterName, kubeCluster+fileExtTLSCert)
+		if err := writeBytes(fname, cert); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	for db, cert := range key.DBTLSCerts {
+		fname := filepath.Join(username+dbDirSuffix, key.ClusterName, filepath.Clean(db)+fileExtTLSCert)
+		if err := os.MkdirAll(filepath.Join(dirPath, filepath.Dir(fname)), os.ModeDir|profileDirPerms); err != nil {
+			return trace.Wrap(err)
+		}
+		if err := writeBytes(fname, cert); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
 
 // DeleteKey deletes a key from the local store
-func (fs *FSLocalKeyStore) DeleteKey(host string, username string) error {
+func (fs *FSLocalKeyStore) DeleteKey(host, username string, opts ...KeyOption) error {
 	dirPath, err := fs.dirFor(host, false)
 	if err != nil {
 		return trace.Wrap(err)
@@ -182,6 +231,29 @@ func (fs *FSLocalKeyStore) DeleteKey(host string, username string) error {
 	}
 	for _, fn := range files {
 		if err = os.Remove(fn); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	for _, o := range opts {
+		if err := o.deleteKey(dirPath, username); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// DeleteKeyOption deletes only secrets specified by the provided key options
+// keeping user's SSH/TLS certificates and private key intact.
+//
+// Useful when needing to log out of a specific service, like a particular
+// database proxy.
+func (fs *FSLocalKeyStore) DeleteKeyOption(host, username string, opts ...KeyOption) error {
+	dirPath, err := fs.dirFor(host, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, o := range opts {
+		if err := o.deleteKey(dirPath, username); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -202,7 +274,7 @@ func (fs *FSLocalKeyStore) DeleteKeys() error {
 
 // GetKey returns a key for a given host. If the key is not found,
 // returns trace.NotFound error.
-func (fs *FSLocalKeyStore) GetKey(proxyHost string, username string) (*Key, error) {
+func (fs *FSLocalKeyStore) GetKey(proxyHost, username string, opts ...KeyOption) (*Key, error) {
 	dirPath, err := fs.dirFor(proxyHost, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -249,6 +321,15 @@ func (fs *FSLocalKeyStore) GetKey(proxyHost string, username string) (*Key, erro
 		TrustedCA: []auth.TrustedCerts{{
 			TLSCertificates: tlsCA,
 		}},
+		KubeTLSCerts: make(map[string][]byte),
+		DBTLSCerts:   make(map[string][]byte),
+	}
+
+	for _, o := range opts {
+		if err := o.getKey(dirPath, username, key); err != nil {
+			fs.log.Error(err)
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	// Validate the key loaded from disk.
@@ -263,7 +344,7 @@ func (fs *FSLocalKeyStore) GetKey(proxyHost string, username string) (*Key, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCertExpiration, err := key.TLSCertValidBefore()
+	tlsCertExpiration, err := key.TeleportTLSCertValidBefore()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -275,6 +356,98 @@ func (fs *FSLocalKeyStore) GetKey(proxyHost string, username string) (*Key, erro
 		certFile, sshCertExpiration, tlsCertFile, tlsCertExpiration)
 
 	return key, nil
+}
+
+// KeyOption is an additional step to run when loading (LocalKeyStore.GetKey)
+// or deleting (LocalKeyStore.DeleteKey) keys. These are the steps skipped by
+// default to reduce the amount of work that Get/DeleteKey performs by default.
+type KeyOption interface {
+	getKey(dirPath, username string, key *Key) error
+	deleteKey(dirPath, username string) error
+}
+
+// WithKubeCerts returns a GetKeyOption to load kubernetes certificates from
+// the store for a given teleport cluster.
+func WithKubeCerts(teleportClusterName string) KeyOption {
+	return withKubeCerts{teleportClusterName: teleportClusterName}
+}
+
+type withKubeCerts struct {
+	teleportClusterName string
+}
+
+// TODO(awly): unit test this.
+func (o withKubeCerts) getKey(dirPath, username string, key *Key) error {
+	kubeDir := filepath.Join(dirPath, username+kubeDirSuffix, o.teleportClusterName)
+	kubeFiles, err := ioutil.ReadDir(kubeDir)
+	if err != nil && !os.IsNotExist(err) {
+		return trace.Wrap(err)
+	}
+	if key.KubeTLSCerts == nil {
+		key.KubeTLSCerts = make(map[string][]byte)
+	}
+	for _, fi := range kubeFiles {
+		data, err := ioutil.ReadFile(filepath.Join(kubeDir, fi.Name()))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		kubeCluster := strings.TrimSuffix(filepath.Base(fi.Name()), fileExtTLSCert)
+		key.KubeTLSCerts[kubeCluster] = data
+	}
+	if key.ClusterName == "" {
+		key.ClusterName = o.teleportClusterName
+	}
+	return nil
+}
+
+func (o withKubeCerts) deleteKey(dirPath, username string) error {
+	kubeCertsDir := filepath.Join(dirPath, username+kubeDirSuffix, o.teleportClusterName)
+	if err := os.RemoveAll(kubeCertsDir); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// WithDBCerts returns a GetKeyOption to load database access certificates
+// from the store for a given Teleport cluster.
+func WithDBCerts(teleportClusterName, dbName string) KeyOption {
+	return withDBCerts{teleportClusterName: teleportClusterName, dbName: dbName}
+}
+
+type withDBCerts struct {
+	teleportClusterName, dbName string
+}
+
+func (o withDBCerts) getKey(dirPath, username string, key *Key) error {
+	dbDir := filepath.Join(dirPath, username+dbDirSuffix, o.teleportClusterName)
+	dbFiles, err := ioutil.ReadDir(dbDir)
+	if err != nil && !os.IsNotExist(err) {
+		return trace.Wrap(err)
+	}
+	if key.DBTLSCerts == nil {
+		key.DBTLSCerts = make(map[string][]byte)
+	}
+	for _, fi := range dbFiles {
+		data, err := ioutil.ReadFile(filepath.Join(dbDir, fi.Name()))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		dbName := strings.TrimSuffix(filepath.Base(fi.Name()), fileExtTLSCert)
+		key.DBTLSCerts[dbName] = data
+	}
+	if key.ClusterName == "" {
+		key.ClusterName = o.teleportClusterName
+	}
+	return nil
+}
+
+func (o withDBCerts) deleteKey(dirPath, username string) error {
+	// If database name is specified, remove only that cert, otherwise remove
+	// certs for all databases a user is logged into.
+	if o.dbName != "" {
+		return os.Remove(filepath.Join(dirPath, username+dbDirSuffix, o.teleportClusterName, o.dbName+fileExtTLSCert))
+	}
+	return os.RemoveAll(filepath.Join(dirPath, username+dbDirSuffix, o.teleportClusterName))
 }
 
 // SaveCerts saves trusted TLS certificates of certificate authorities

@@ -21,13 +21,19 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 )
 
 // TestProtoStreamer tests edge cases of proto streamer implementation
@@ -128,4 +134,182 @@ func TestWriterEmitter(t *testing.T) {
 	for i := 0; scanner.Scan(); i++ {
 		require.Contains(t, scanner.Text(), events[i].GetCode())
 	}
+}
+
+func TestAsyncEmitter(t *testing.T) {
+	clock := clockwork.NewRealClock()
+	events := GenerateTestSession(SessionParams{PrintEvents: 20})
+
+	// Slow tests that async emitter does not block
+	// on slow emitters
+	t.Run("Slow", func(t *testing.T) {
+		emitter, err := NewAsyncEmitter(AsyncEmitterConfig{
+			Inner: &slowEmitter{clock: clock, timeout: time.Hour},
+		})
+		require.NoError(t, err)
+		defer emitter.Close()
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+		defer cancel()
+		for _, event := range events {
+			err := emitter.EmitAuditEvent(ctx, event)
+			require.NoError(t, err)
+		}
+		require.NoError(t, ctx.Err())
+	})
+
+	// Receive makes sure all events are recevied in the same order as they are sent
+	t.Run("Receive", func(t *testing.T) {
+		chanEmitter := &channelEmitter{eventsCh: make(chan AuditEvent, len(events))}
+		emitter, err := NewAsyncEmitter(AsyncEmitterConfig{
+			Inner: chanEmitter,
+		})
+
+		require.NoError(t, err)
+		defer emitter.Close()
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+		defer cancel()
+		for _, event := range events {
+			err := emitter.EmitAuditEvent(ctx, event)
+			require.NoError(t, err)
+		}
+
+		for i := 0; i < len(events); i++ {
+			select {
+			case event := <-chanEmitter.eventsCh:
+				require.Equal(t, events[i], event)
+			case <-time.After(time.Second):
+				t.Fatalf("timeout at event %v", i)
+			}
+		}
+	})
+
+	// Close makes sure that close cancels operations and context
+	t.Run("Close", func(t *testing.T) {
+		counter := &counterEmitter{}
+		emitter, err := NewAsyncEmitter(AsyncEmitterConfig{
+			Inner:      counter,
+			BufferSize: len(events),
+		})
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+		defer cancel()
+
+		emitsDoneC := make(chan struct{}, len(events))
+		for _, e := range events {
+			go func(event AuditEvent) {
+				emitter.EmitAuditEvent(ctx, event)
+				emitsDoneC <- struct{}{}
+			}(e)
+		}
+
+		// context will not wait until all events have been submitted
+		emitter.Close()
+		require.True(t, int(counter.count.Load()) <= len(events))
+
+		// make sure context is done to prevent context leaks
+		select {
+		case <-emitter.ctx.Done():
+		default:
+			t.Fatal("Context leak, should be closed")
+		}
+
+		// make sure all emit calls returned after context is done
+		for range events {
+			select {
+			case <-time.After(time.Second):
+				t.Fatal("Timed out waiting for emit events.")
+			case <-emitsDoneC:
+			}
+		}
+	})
+}
+
+type slowEmitter struct {
+	clock   clockwork.Clock
+	timeout time.Duration
+}
+
+func (s *slowEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+	<-s.clock.After(s.timeout)
+	return nil
+}
+
+type counterEmitter struct {
+	count atomic.Int64
+}
+
+func (c *counterEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+	c.count.Inc()
+	return nil
+}
+
+type channelEmitter struct {
+	eventsCh chan AuditEvent
+}
+
+func (c *channelEmitter) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case c.eventsCh <- event:
+		return nil
+	}
+}
+
+// TestExport tests export to JSON format.
+func TestExport(t *testing.T) {
+	sid := session.NewID()
+	events := GenerateTestSession(SessionParams{PrintEvents: 1, SessionID: sid.String()})
+	uploader := NewMemoryUploader()
+	streamer, err := NewProtoStreamer(ProtoStreamerConfig{
+		Uploader: uploader,
+	})
+	require.NoError(t, err)
+
+	ctx := context.TODO()
+	stream, err := streamer.CreateAuditStream(ctx, sid)
+	require.NoError(t, err)
+
+	for _, event := range events {
+		err := stream.EmitAuditEvent(ctx, event)
+		require.NoError(t, err)
+	}
+	err = stream.Complete(ctx)
+	require.NoError(t, err)
+
+	uploads, err := uploader.ListUploads(ctx)
+	require.NoError(t, err)
+	parts, err := uploader.GetParts(uploads[0].ID)
+	require.NoError(t, err)
+
+	f, err := ioutil.TempFile("", "")
+	require.NoError(t, err)
+	defer os.Remove(f.Name())
+
+	var readers []io.Reader
+	for _, part := range parts {
+		readers = append(readers, bytes.NewReader(part))
+		_, err := f.Write(part)
+		require.NoError(t, err)
+	}
+	reader := NewProtoReader(io.MultiReader(readers...))
+	outEvents, err := reader.ReadAll(ctx)
+	require.NoError(t, err)
+
+	_, err = f.Seek(0, 0)
+	require.NoError(t, err)
+
+	buf := &bytes.Buffer{}
+	err = Export(ctx, f, buf, teleport.JSON)
+	require.NoError(t, err)
+
+	count := 0
+	snl := bufio.NewScanner(buf)
+	for snl.Scan() {
+		require.Contains(t, snl.Text(), outEvents[count].GetCode())
+		count++
+	}
+	require.NoError(t, snl.Err())
+	require.Equal(t, len(outEvents), count)
 }

@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      annotations:
+        # ConfigMap checksum, to recreate the pod on config changes.
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      containers:
+      - name: "teleport"
+        image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ if .Values.teleportVersionOverride }}{{ .Values.teleportVersionOverride }}{{ else }}{{ .Chart.AppVersion }}{{ end }}"
+        args:
+        - "--diag-addr=0.0.0.0:3000"
+        {{- if .Values.insecureSkipProxyTLSVerify }}
+        - "--insecure"
+        {{- end }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 9807
+        ports:
+        - name: diag
+          containerPort: 3000
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: diag
+          initialDelaySeconds: 5 # wait 5s for agent to start
+          periodSeconds: 5 # poll health every 5s
+          failureThreshold: 6 # consider agent unhealthy after 30s (6 * 5s)
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: diag
+          initialDelaySeconds: 5 # wait 5s for agent to register
+          periodSeconds: 5 # poll health every 5s
+          failureThreshold: 12 # consider agent unhealthy after 60s (12 * 5s)
+        volumeMounts:
+        - mountPath: /etc/teleport
+          name: "config"
+          readOnly: true
+        - mountPath: /etc/teleport-secrets
+          name: "auth-token"
+          readOnly: true
+        - mountPath: /var/lib/teleport
+          name: "data"
+      volumes:
+      - name: "config"
+        configMap:
+          name: {{ .Release.Name }}
+      - name: "auth-token"
+        secret:
+          secretName: {{ .Values.secretName }}
+      - name: "data"
+        emptyDir: {}
+      serviceAccountName: {{ .Values.serviceAccountName }}

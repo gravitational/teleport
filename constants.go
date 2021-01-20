@@ -91,6 +91,9 @@ const (
 	// ComponentServer is a server subcomponent of some services
 	ComponentServer = "server"
 
+	// ComponentACME is ACME protocol controller
+	ComponentACME = "acme"
+
 	// ComponentReverseTunnelServer is reverse tunnel server
 	// that together with agent establish a bi-directional SSH revers tunnel
 	// to bypass firewall restrictions
@@ -124,6 +127,15 @@ const (
 
 	// ComponentProxy is SSH proxy (SSH server forwarding connections)
 	ComponentProxy = "proxy"
+
+	// ComponentApp is the application proxy service.
+	ComponentApp = "app:service"
+
+	// ComponentDatabase is the database proxy service.
+	ComponentDatabase = "db:service"
+
+	// ComponentAppProxy is the application handler within the web proxy service.
+	ComponentAppProxy = "app:web"
 
 	// ComponentDiagnostic is a diagnostic service
 	ComponentDiagnostic = "diag"
@@ -299,6 +311,9 @@ const (
 
 	// Text means text serialization format
 	Text = "text"
+
+	// PTY is a raw pty session capture format
+	PTY = "pty"
 
 	// Names is for formatting node names in plain text
 	Names = "names"
@@ -485,6 +500,14 @@ const (
 	// allowed kubernetes users
 	TraitKubeUsers = "kubernetes_users"
 
+	// TraitDBNames is the name of the role variable used to store
+	// allowed database names.
+	TraitDBNames = "db_names"
+
+	// TraitDBUsers is the name of the role variable used to store
+	// allowed database users.
+	TraitDBUsers = "db_users"
+
 	// TraitInternalLoginsVariable is the variable used to store allowed
 	// logins for local accounts.
 	TraitInternalLoginsVariable = "{{internal.logins}}"
@@ -496,6 +519,14 @@ const (
 	// TraitInternalKubeUsersVariable is the variable used to store allowed
 	// kubernetes users for local accounts.
 	TraitInternalKubeUsersVariable = "{{internal.kubernetes_users}}"
+
+	// TraitInternalDBNamesVariable is the variable used to store allowed
+	// database names for local accounts.
+	TraitInternalDBNamesVariable = "{{internal.db_names}}"
+
+	// TraitInternalDBUsersVariable is the variable used to store allowed
+	// database users for local accounts.
+	TraitInternalDBUsersVariable = "{{internal.db_users}}"
 )
 
 const (
@@ -586,6 +617,14 @@ const (
 	// UsageKubeOnly specifies certificate usage metadata
 	// that limits certificate to be only used for kubernetes proxying
 	UsageKubeOnly = "usage:kube"
+
+	// UsageAppOnly specifies a certificate metadata that only allows it to be
+	// used for proxying applications.
+	UsageAppsOnly = "usage:apps"
+
+	// UsageDatabaseOnly specifies certificate usage metadata that only allows
+	// it to be used for proxying database connections.
+	UsageDatabaseOnly = "usage:db"
 )
 
 const (
@@ -673,3 +712,21 @@ const (
 
 // UserSystem defines a user as system.
 const UserSystem = "system"
+
+const (
+	// KeepAliveNode is the keep alive type for SSH servers.
+	KeepAliveNode = "node"
+	// KeepAliveApp is the keep alive type for application server.
+	KeepAliveApp = "app"
+	// KeepAliveDatabase is the keep alive type for database server.
+	KeepAliveDatabase = "db"
+)
+
+const (
+	// AppJWTHeader is the JWT header used to pass identity information to the
+	// internal application being proxied.
+	AppJWTHeader = "teleport-jwt-assertion"
+
+	// AppCFHeader is a compatibility header.
+	AppCFHeader = "cf-access-token"
+)

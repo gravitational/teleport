@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -27,14 +28,14 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
+	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
 )
 
 // TokenCommand implements `tctl token` group of commands
@@ -52,8 +53,24 @@ type TokenCommand struct {
 	// specific value.
 	value string
 
+	// appName is the name of the application to add.
+	appName string
+
+	// appURI is the URI (target address) of the application to add.
+	appURI string
+
+	// dbName is the database name to add.
+	dbName string
+	// dbProtocol is the database protocol.
+	dbProtocol string
+	// dbURI is the address the database is reachable at.
+	dbURI string
+
 	// ttl is how long the token will live for.
 	ttl time.Duration
+
+	// labels is optional token labels
+	labels string
 
 	// tokenAdd is used to add a token.
 	tokenAdd *kingpin.CmdClause
@@ -75,9 +92,15 @@ func (c *TokenCommand) Initialize(app *kingpin.Application, config *service.Conf
 	c.tokenAdd = tokens.Command("add", "Create a invitation token")
 	c.tokenAdd.Flag("type", "Type of token to add").Required().StringVar(&c.tokenType)
 	c.tokenAdd.Flag("value", "Value of token to add").StringVar(&c.value)
+	c.tokenAdd.Flag("labels", "Set token labels, e.g. env=prod,region=us-west").StringVar(&c.labels)
 	c.tokenAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v hour, maximum is %v hours",
 		int(defaults.SignupTokenTTL/time.Hour), int(defaults.MaxSignupTokenTTL/time.Hour))).
 		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).DurationVar(&c.ttl)
+	c.tokenAdd.Flag("app-name", "Name of the application to add").Default("example-app").StringVar(&c.appName)
+	c.tokenAdd.Flag("app-uri", "URI of the application to add").Default("http://localhost:8080").StringVar(&c.appURI)
+	c.tokenAdd.Flag("db-name", "Name of the database to add").StringVar(&c.dbName)
+	c.tokenAdd.Flag("db-protocol", fmt.Sprintf("Database protocol to use. Supported are: %v", defaults.DatabaseProtocols)).StringVar(&c.dbProtocol)
+	c.tokenAdd.Flag("db-uri", "Address the database is reachable at").StringVar(&c.dbURI)
 
 	// "tctl tokens rm ..."
 	c.tokenDel = tokens.Command("rm", "Delete/revoke an invitation token").Alias("del")
@@ -111,11 +134,20 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
+	var labels map[string]string
+	if c.labels != "" {
+		labels, err = libclient.ParseLabelSpec(c.labels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// Generate token.
 	token, err := client.GenerateToken(context.TODO(), auth.GenerateTokenRequest{
-		Roles: roles,
-		TTL:   c.ttl,
-		Token: c.value,
+		Roles:  roles,
+		TTL:    c.ttl,
+		Token:  c.value,
+		Labels: labels,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -134,11 +166,56 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 	if len(authServers) == 0 {
-		return trace.Errorf("this cluster has no auth servers")
+		return trace.BadParameter("this cluster has no auth servers")
 	}
 
 	// Print signup message.
 	switch {
+	case roles.Include(teleport.RoleApp):
+		proxies, err := client.GetProxies()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(proxies) == 0 {
+			return trace.BadParameter("cluster has no proxies")
+		}
+		appPublicAddr := fmt.Sprintf("%v.%v", c.appName, proxies[0].GetPublicAddr())
+
+		fmt.Printf(appMessage,
+			token,
+			int(c.ttl.Minutes()),
+			strings.ToLower(roles.String()),
+			token,
+			caPin,
+			proxies[0].GetPublicAddr(),
+			c.appName,
+			c.appName,
+			c.appURI,
+			c.appURI,
+			appPublicAddr,
+			int(c.ttl.Minutes()),
+			proxies[0].GetPublicAddr(),
+			appPublicAddr,
+			appPublicAddr)
+	case roles.Include(teleport.RoleDatabase):
+		proxies, err := client.GetProxies()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(proxies) == 0 {
+			return trace.NotFound("cluster has no proxies")
+		}
+		return dbMessageTemplate.Execute(os.Stdout,
+			map[string]interface{}{
+				"token":       token,
+				"minutes":     c.ttl.Minutes(),
+				"roles":       strings.ToLower(roles.String()),
+				"ca_pin":      caPin,
+				"auth_server": proxies[0].GetPublicAddr(),
+				"db_name":     c.dbName,
+				"db_protocol": c.dbProtocol,
+				"db_uri":      c.dbURI,
+			})
 	case roles.Include(teleport.RoleTrustedCluster), roles.Include(teleport.LegacyClusterTokenType):
 		fmt.Printf(trustedClusterMessage,
 			token,
@@ -186,7 +263,7 @@ func (c *TokenCommand) List(client auth.ClientI) error {
 
 	if c.format == teleport.Text {
 		tokensView := func() string {
-			table := asciitable.MakeTable([]string{"Token", "Type", "Expiry Time (UTC)"})
+			table := asciitable.MakeTable([]string{"Token", "Type", "Labels", "Expiry Time (UTC)"})
 			now := time.Now()
 			for _, t := range tokens {
 				expiry := "never"
@@ -195,7 +272,7 @@ func (c *TokenCommand) List(client auth.ClientI) error {
 					expdur := t.Expiry().Sub(now).Round(time.Second)
 					expiry = fmt.Sprintf("%s (%s)", exptime, expdur.String())
 				}
-				table.AddRow([]string{t.GetName(), t.GetRoles().String(), expiry})
+				table.AddRow([]string{t.GetName(), t.GetRoles().String(), printMetadataLabels(t.GetMetadata().Labels), expiry})
 			}
 			return table.AsBuffer().String()
 		}

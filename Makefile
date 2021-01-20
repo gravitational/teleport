@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=5.0.0-dev
+VERSION=6.0.0-alpha.1
 
 DOCKER_IMAGE ?= quay.io/gravitational/teleport
 DOCKER_IMAGE_CI ?= quay.io/gravitational/teleport-ci
@@ -237,15 +237,15 @@ docs-test-whitespace:
 	fi
 
 #
-# Run milv in docs to detect broken links.
+# Run milv in docs to detect broken internal links.
 # milv is installed if missing.
 #
 .PHONY:docs-test-links
 docs-test-links: DOCS_FOLDERS := $(shell find . -name milv.config.yaml -exec dirname {} \;)
 docs-test-links:
 	for docs_dir in $(DOCS_FOLDERS); do \
-		echo "running milv in $${docs_dir}"; \
-		cd $${docs_dir} && milv ; cd $(PWD); \
+		echo "running milv -ignore-external in $${docs_dir}"; \
+		cd $${docs_dir} && milv -ignore-external; cd $(PWD); \
 	done
 
 #
@@ -267,9 +267,10 @@ test: $(VERSRC)
 #
 .PHONY: integration
 integration: FLAGS ?= -v -race
+integration: PACKAGES := $(shell go list ./... | grep integration)
 integration:
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
-	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" ./integration/... $(FLAGS)
+	go test -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(FLAGS)
 
 #
 # Lint the Go code.
@@ -301,6 +302,14 @@ lint-sh:
 	find . -type f -name '*.sh' | grep -v vendor | xargs \
 		shellcheck \
 		--exclude=SC2086 \
+		$(SH_LINT_FLAGS)
+
+	# lint AWS AMI scripts
+	# SC1091 prints errors when "source" directives are not followed
+	find assets/aws/files/bin -type f | xargs \
+		shellcheck \
+		--exclude=SC2086 \
+		--exclude=SC1091 \
 		$(SH_LINT_FLAGS)
 
 # This rule triggers re-generation of version.go and gitref.go if Makefile changes
@@ -395,22 +404,27 @@ buildbox-grpc:
 # standard GRPC output
 	echo $$PROTO_INCLUDE
 	find lib/ -iname *.proto | xargs clang-format -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
+	find api/ -iname *.proto | xargs clang-format -i -style='{ColumnLimit: 100, IndentWidth: 4, Language: Proto}'
 
-	cd lib/events && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
-    *.proto
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/types/events \
+		--gofast_out=plugins=grpc:api/types/events \
+		events.proto
 
-	cd lib/services && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
-    *.proto
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/types/wrappers \
+		--gofast_out=plugins=grpc:api/types/wrappers \
+		wrappers.proto
 
-	cd lib/auth/proto && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
-    *.proto
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/types \
+		--gofast_out=plugins=grpc:api/types \
+		types.proto
 
-	cd lib/wrappers && protoc -I=.:$$PROTO_INCLUDE \
-	  --gofast_out=plugins=grpc:.\
-    *.proto
+	protoc -I=.:$$PROTO_INCLUDE \
+		--proto_path=api/client/proto \
+		--gofast_out=plugins=grpc:api/client/proto \
+		authservice.proto
 
 	cd lib/multiplexer/test && protoc -I=.:$$PROTO_INCLUDE \
 	  --gofast_out=plugins=grpc:.\

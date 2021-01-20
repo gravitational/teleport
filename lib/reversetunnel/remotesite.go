@@ -26,6 +26,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
@@ -107,7 +108,7 @@ func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 		// connecting to the remote one (it is used to find the right certificate
 		// authority to verify)
 		tlsConfig.ServerName = auth.EncodeClusterName(s.srv.ClusterName)
-		clt, err := auth.NewTLSClient(auth.ClientConfig{
+		clt, err := auth.NewClient(client.Config{
 			Dialer: auth.ContextDialerFunc(s.authServerContextDialer),
 			TLS:    tlsConfig,
 		})
@@ -478,7 +479,7 @@ func (s *remoteSite) periodicUpdateCertAuthorities() {
 					s.Debugf("Remote cluster %v does not support cert authorities rotation yet.", s.domainName)
 				case trace.IsCompareFailed(err):
 					s.Infof("Remote cluster has updated certificate authorities, going to force reconnect.")
-					s.srv.RemoveSite(s.domainName)
+					s.srv.removeSite(s.domainName)
 					s.Close()
 					return
 				case trace.IsConnectionProblem(err):
@@ -506,9 +507,10 @@ func (s *remoteSite) Dial(params DialParams) (net.Conn, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// If the proxy is in recording mode use the agent to dial and build a
-	// in-memory forwarding server.
-	if services.IsRecordAtProxy(clusterConfig.GetSessionRecording()) {
+	// If the proxy is in recording mode and a SSH connection is being requested,
+	// use the agent to dial and build an in-memory forwarding server.
+	if params.ConnType == services.NodeTunnel &&
+		services.IsRecordAtProxy(clusterConfig.GetSessionRecording()) {
 		return s.dialWithAgent(params)
 	}
 	return s.DialTCP(params)
@@ -520,6 +522,7 @@ func (s *remoteSite) DialTCP(params DialParams) (net.Conn, error) {
 	conn, err := s.connThroughTunnel(&dialReq{
 		Address:  params.To.String(),
 		ServerID: params.ServerID,
+		ConnType: params.ConnType,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -550,6 +553,7 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	targetConn, err := s.connThroughTunnel(&dialReq{
 		Address:  params.To.String(),
 		ServerID: params.ServerID,
+		ConnType: params.ConnType,
 	})
 	if err != nil {
 		userAgent.Close()

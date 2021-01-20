@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/wrappers"
+	"github.com/gravitational/teleport/api/types/wrappers"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -41,7 +41,7 @@ type RuleContext interface {
 	// String returns human friendly representation of a context
 	String() string
 	// GetResource returns resource if specified in the context,
-	// if unpecified, returns error.
+	// if unspecified, returns error.
 	GetResource() (Resource, error)
 }
 
@@ -221,45 +221,6 @@ func (ctx *Context) GetIdentifier(fields []string) (interface{}, error) {
 	default:
 		return nil, trace.NotFound("%v is not defined", strings.Join(fields, "."))
 	}
-}
-
-// NewParserFn returns function that creates parser of 'where' section
-// in access rules
-type NewParserFn func(ctx RuleContext) (predicate.Parser, error)
-
-var whereParser = NewWhereParser
-var actionsParser = NewActionsParser
-
-// GetWhereParserFn returns global function that creates where parsers
-// this function is used in external tools to override and extend 'where' in rules
-func GetWhereParserFn() NewParserFn {
-	marshalerMutex.RLock()
-	defer marshalerMutex.RUnlock()
-	return whereParser
-}
-
-// SetWhereParserFn sets global function that creates where parsers
-// this function is used in external tools to override and extend 'where' in rules
-func SetWhereParserFn(fn NewParserFn) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	whereParser = fn
-}
-
-// GetActionsParserFn returns global function that creates where parsers
-// this function is used in external tools to override and extend actions in rules
-func GetActionsParserFn() NewParserFn {
-	marshalerMutex.RLock()
-	defer marshalerMutex.RUnlock()
-	return actionsParser
-}
-
-// SetActionsParserFn sets global function that creates actions  parsers
-// this function is used in external tools to override and extend actions in rules
-func SetActionsParserFn(fn NewParserFn) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	actionsParser = fn
 }
 
 // emptyResource is used when no resource is specified

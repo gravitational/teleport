@@ -65,7 +65,7 @@ GROUP ATTRIBUTE STATEMENTS
 #### Note: RegEx requires `.*`
 ![Configure APP](../../img/sso/okta/regex.png)
 
-!!! tip "tip"
+!!! tip "Tip"
 
     Notice that we have set "NameID" to the email format and mapped the groups with
     a wildcard regex in the Group Attribute statements. We have also set the "Audience"

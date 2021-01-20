@@ -129,6 +129,101 @@ deny:
     roles: ['admin']
 ```
 
+## Adding a Reason to Access Workflows
+
+Teleport 4.4.4 introduced the ability for users to request additional roles. `tctl`
+or the Access Workflows API makes it easy to dynamically approve or deny these requests.
+
+By requiring a reason along with an access request, you can provide users with a default
+unprivileged state where they must always go through the Access Workflows API in order to
+gain meaningful privilege.
+
+Teams can leverage claims (traits) provided by external identity providers both when
+determining which roles a user is allowed to request, and if a specific request
+should be approved/denied.
+
+### Example Setup
+
+**Unprivileged User**<br />
+In this example we have an employee who isn't able to access any systems. When they
+log in, they'll always need to provide a reason for access.
+
+```yaml
+kind: role
+metadata:
+  name: employee
+spec:
+  allow:
+    request:
+      # the `roles` list can now be a mixture of literals and wildcard matchers
+      roles: ['common', 'dev-*']
+      # the `claims_to_roles` mapping works the same as it does in
+      # the OIDC connector, with the added benefit that the roles being mapped to
+      # can also be matchers. the below mapping says that users with
+      # the claims `groups: admins` can request any role in the system.
+      claims_to_roles:
+        - claim: groups
+          value: admins
+          roles: ['*']
+      # Teleport can attach annotations to pending access requests. these
+      # annotations may be literals, or be variable interpolation expressions,
+      # effectively creating a means for propagating selected claims from an
+      # external identity provider to the plugin system.
+      annotations:
+        foo: ['bar']
+        groups: ['{% raw %}{{external.groups}}{% endraw %}']
+  options:
+    # the `request_access` field can be set to 'always' or 'reason' to tell
+    # tsh or the web UI to always create an access request on login. If it is
+    # set to 'reason', the user will be required to indicate *why* they are
+    # generating the access request.
+    request_access: reason
+    # the `request_prompt` field can be used to tell the user what should
+    # be supplied in the request reason field.
+    request_prompt: Please provide your ticket ID
+version: v3
+```
+
+!!! Tip "Wildcard and RegEx Tips"
+
+    Teleport RBAC offers powerful wildcard and RegEx helpers. Below are a few examples.
+
+      `dev-*` - Can request all dev clusters. e.g. dev-prod,dev-stg
+
+      `^prod.*$` - Can request all `prod.*` clusters. e.g. prod.us-east
+
+      `dev-{% raw %}{{regexp.match("us-*")}}{% endraw %}` - Can request any dev cluster in the US. e.g. dev-us-east-a, dev-us-west-b
+
+      `dev-{% raw %}{{regexp.not_match("beta")}}{% endraw %}-prod` - Can request any cluster, apart from beta cluster. e.g. Can access dev-alpha-prod, cannot access dev-beta-prod.
+
+
+**Unprivileged User Login**<br />
+
+```bash
+# Login: This will prompt the user to provide a reason in the UI.
+tsh login
+# Login: The user can provide a reason using tsh.
+tsh login --request-reason="..."
+```
+
+!!! note
+
+    Notice that the above role does not specify any logins. If a users's roles specify no logins, Teleport will now generate the user's initial SSH certificates with an invalid dummy login of the form `-teleport-nologin-<random-suffix>` (e.g. `-teleport-nologin-1e02dbfd`).
+
+**Admin Flow: Approve/Deny**<br />
+
+A number of new parameters are now available that grant the plugin or administrator greater insight into approvals/denials:
+
+```bash
+$ tctl request deny --reason='Please be more specific' --annotations=method=cli,unix-user=${USER} 28a3fb86-0230-439d-ad88-11cfcb213193
+```
+
+Because automatically generated requests always include all roles that the user is allowed to request, approvers can now specify a smaller subset of the requested roles that should actually be applied, allowing for sub-selection in cases where full escalation is not a desirable default:
+
+```bash
+$ tctl request approve --roles=role-1,role-3 --reason='Approved, but not role-2 right now' 28a3fb86-0230-439d-ad88-11cfcb213193
+```
+
 ### Other features of Approval Workflows.
 
  - Users can request multiple roles at one time. e.g `roles: ['dba','netsec','cluster-x']`

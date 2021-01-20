@@ -1,5 +1,5 @@
 /*
-Copyright 2015 Gravitational, Inc.
+Copyright 2015-2020 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,32 +27,25 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/wrappers"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
-	. "gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
-
-type RoleSuite struct {
-}
-
-var _ = Suite(&RoleSuite{})
-var _ = fmt.Printf
-
-func (s *RoleSuite) SetUpSuite(c *C) {
-	utils.InitLoggerForTests()
-}
 
 // TestConnAndSessLimits verifies that role sets correctly calculate
 // a user's MaxConnections and MaxSessions values from multiple
 // roles with different individual values.  These are tested together since
 // both values use the same resolution rules.
-func (s *RoleSuite) TestConnAndSessLimits(c *C) {
+func TestConnAndSessLimits(t *testing.T) {
+	utils.InitLoggerForTests(testing.Verbose())
 	tts := []struct {
 		desc string
 		vals []int64
@@ -75,7 +68,7 @@ func (s *RoleSuite) TestConnAndSessLimits(c *C) {
 		},
 	}
 	for ti, tt := range tts {
-		cmt := Commentf("test case %d: %s", ti, tt.desc)
+		cmt := fmt.Sprintf("test case %d: %s", ti, tt.desc)
 		var set RoleSet
 		for i, val := range tt.vals {
 			role := &RoleV3{
@@ -92,35 +85,16 @@ func (s *RoleSuite) TestConnAndSessLimits(c *C) {
 					},
 				},
 			}
-			c.Assert(role.CheckAndSetDefaults(), IsNil, cmt)
+			require.NoError(t, role.CheckAndSetDefaults(), cmt)
 			set = append(set, role)
 		}
-		c.Assert(set.MaxConnections(), Equals, tt.want, cmt)
-		c.Assert(set.MaxSessions(), Equals, tt.want, cmt)
+		require.Equal(t, tt.want, set.MaxConnections(), cmt)
+		require.Equal(t, tt.want, set.MaxSessions(), cmt)
 	}
 }
 
-func (s *RoleSuite) TestRoleExtension(c *C) {
-	type Spec struct {
-		RoleSpecV2
-		A string `json:"a"`
-	}
-	type ExtendedRole struct {
-		Spec Spec `json:"spec"`
-	}
-	in := `{"kind": "role", "metadata": {"name": "name1"}, "spec": {"a": "b"}}`
-	var role ExtendedRole
-	err := utils.UnmarshalWithSchema(GetRoleSchema(V2, `"a": {"type": "string"}`), &role, []byte(in))
-	c.Assert(err, IsNil)
-	c.Assert(role.Spec.A, Equals, "b")
-
-	// this is a bad type
-	in = `{"kind": "role", "metadata": {"name": "name1"}, "spec": {"a": 12}}`
-	err = utils.UnmarshalWithSchema(GetRoleSchema(V2, `"a": {"type": "string"}`), &role, []byte(in))
-	c.Assert(err, NotNil)
-}
-
-func (s *RoleSuite) TestRoleParse(c *C) {
+func TestRoleParse(t *testing.T) {
+	utils.InitLoggerForTests(testing.Verbose())
 	testCases := []struct {
 		name         string
 		in           string
@@ -166,7 +140,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 							   		      }
 							   		    }`,
 			error:        trace.BadParameter(""),
-			matchMessage: ".*missing resources.*",
+			matchMessage: "missing resources",
 		},
 		{
 			name: "validation error, missing verbs",
@@ -187,56 +161,7 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 							   		      }
 							   		    }`,
 			error:        trace.BadParameter(""),
-			matchMessage: ".*missing verbs.*",
-		},
-		{
-			name: "validation error, unsupported function in where",
-			in: `{
-							   		      "kind": "role",
-							   		      "version": "v3",
-							   		      "metadata": {"name": "name1"},
-							   		      "spec": {
-							                    "allow": {
-							                      "node_labels": {"a": "b"},
-							                      "namespaces": ["default"],
-							                      "rules": [
-							                        {
-							                          "resources": ["role"],
-							                          "verbs": ["read", "list"],
-							                          "where": "containz(user.spec.traits[\"groups\"], \"prod\")"
-							                        }
-							                      ]
-							                    }
-							   		      }
-							   		    }`,
-			error:        trace.BadParameter(""),
-			matchMessage: ".*unsupported function: containz.*",
-		},
-		{
-			name: "validation error, unsupported function in actions",
-			in: `{
-							   		      "kind": "role",
-							   		      "version": "v3",
-							   		      "metadata": {"name": "name1"},
-							   		      "spec": {
-							                    "allow": {
-							                      "node_labels": {"a": "b"},
-							                      "namespaces": ["default"],
-							                      "rules": [
-							                        {
-							                          "resources": ["role"],
-							                          "verbs": ["read", "list"],
-							                          "where": "contains(user.spec.traits[\"groups\"], \"prod\")",
-							                          "actions": [
-							                             "zzz(\"info\", \"log entry\")"
-							                          ]
-							                        }
-							                      ]
-							                    }
-							   		      }
-							   		    }`,
-			error:        trace.BadParameter(""),
-			matchMessage: ".*unsupported function: zzz.*",
+			matchMessage: "missing verbs",
 		},
 		{
 			name: "role with no spec still gets defaults",
@@ -256,8 +181,11 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						BPF:               defaults.EnhancedEvents(),
 					},
 					Allow: RoleConditions{
-						NodeLabels: Labels{Wildcard: []string{Wildcard}},
-						Namespaces: []string{defaults.Namespace},
+						NodeLabels:       Labels{},
+						AppLabels:        Labels{Wildcard: []string{Wildcard}},
+						KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
+						DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},
+						Namespaces:       []string{defaults.Namespace},
 					},
 					Deny: RoleConditions{
 						Namespaces: []string{defaults.Namespace},
@@ -283,6 +211,11 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 					                    },
 					                    "allow": {
 					                      "node_labels": {"a": "b", "c-d": "e"},
+					                      "app_labels": {"a": "b", "c-d": "e"},
+					                      "kubernetes_labels": {"a": "b", "c-d": "e"},
+										  "db_labels": {"a": "b", "c-d": "e"},
+										  "db_names": ["postgres"],
+										  "db_users": ["postgres"],
 					                      "namespaces": ["default"],
 					                      "rules": [
 					                        {
@@ -318,10 +251,15 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						BPF:                   defaults.EnhancedEvents(),
 					},
 					Allow: RoleConditions{
-						NodeLabels: Labels{"a": []string{"b"}, "c-d": []string{"e"}},
-						Namespaces: []string{"default"},
+						NodeLabels:       Labels{"a": []string{"b"}, "c-d": []string{"e"}},
+						AppLabels:        Labels{"a": []string{"b"}, "c-d": []string{"e"}},
+						KubernetesLabels: Labels{"a": []string{"b"}, "c-d": []string{"e"}},
+						DatabaseLabels:   Labels{"a": []string{"b"}, "c-d": []string{"e"}},
+						DatabaseNames:    []string{"postgres"},
+						DatabaseUsers:    []string{"postgres"},
+						Namespaces:       []string{"default"},
 						Rules: []Rule{
-							Rule{
+							{
 								Resources: []string{KindRole},
 								Verbs:     []string{VerbRead, VerbList},
 								Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
@@ -357,6 +295,9 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 		                    },
 		                    "allow": {
 		                      "node_labels": {"a": "b"},
+		                      "app_labels": {"a": "b"},
+		                      "kubernetes_labels": {"c": "d"},
+		                      "db_labels": {"e": "f"},
 		                      "namespaces": ["default"],
 		                      "rules": [
 		                        {
@@ -392,10 +333,13 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 						BPF:                   defaults.EnhancedEvents(),
 					},
 					Allow: RoleConditions{
-						NodeLabels: Labels{"a": []string{"b"}},
-						Namespaces: []string{"default"},
+						NodeLabels:       Labels{"a": []string{"b"}},
+						AppLabels:        Labels{"a": []string{"b"}},
+						KubernetesLabels: Labels{"c": []string{"d"}},
+						DatabaseLabels:   Labels{"e": []string{"f"}},
+						Namespaces:       []string{"default"},
 						Rules: []Rule{
-							Rule{
+							{
 								Resources: []string{KindRole},
 								Verbs:     []string{VerbRead, VerbList},
 								Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
@@ -430,7 +374,10 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 		                      "enhanced_recording": ["command", "network"]
 		                    },
 		                    "allow": {
-		                      "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]}
+		                      "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
+		                      "app_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
+		                      "kubernetes_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
+		                      "db_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]}
 		                    },
 		                    "deny": {
 		                      "logins": ["c"]
@@ -460,6 +407,21 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 							"key":  []string{"val"},
 							"key2": []string{"val2", "val3"},
 						},
+						AppLabels: Labels{
+							"a":    []string{"b"},
+							"key":  []string{"val"},
+							"key2": []string{"val2", "val3"},
+						},
+						KubernetesLabels: Labels{
+							"a":    []string{"b"},
+							"key":  []string{"val"},
+							"key2": []string{"val2", "val3"},
+						},
+						DatabaseLabels: Labels{
+							"a":    []string{"b"},
+							"key":  []string{"val"},
+							"key2": []string{"val2", "val3"},
+						},
 						Namespaces: []string{"default"},
 					},
 					Deny: RoleConditions{
@@ -471,25 +433,109 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 			error: nil,
 		},
 	}
-	for i, tc := range testCases {
-		comment := Commentf("test case %v %q", i, tc.name)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			role, err := UnmarshalRole([]byte(tc.in))
+			if tc.error != nil {
+				require.Error(t, err)
+				if tc.matchMessage != "" {
+					require.Contains(t, err.Error(), tc.matchMessage)
+				}
+			} else {
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(*role, tc.role))
 
-		role, err := UnmarshalRole([]byte(tc.in))
-		if tc.error != nil {
-			c.Assert(err, NotNil, comment)
+				err := ValidateRole(role)
+				require.NoError(t, err)
+
+				out, err := json.Marshal(role)
+				require.NoError(t, err)
+
+				role2, err := UnmarshalRole(out)
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(*role2, tc.role))
+			}
+		})
+	}
+}
+
+func TestValidateRole(t *testing.T) {
+	var tests = []struct {
+		name         string
+		spec         RoleSpecV3
+		err          error
+		matchMessage string
+	}{
+		{
+			name: "valid syntax",
+			spec: RoleSpecV3{
+				Allow: RoleConditions{
+					Logins: []string{`{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}`},
+				},
+			},
+		},
+		{
+			name: "invalid role condition login syntax",
+			spec: RoleSpecV3{
+				Allow: RoleConditions{
+					Logins: []string{"{{foo"},
+				},
+			},
+			err:          trace.BadParameter(""),
+			matchMessage: "invalid login found",
+		},
+		{
+			name: "unsupported function in actions",
+			spec: RoleSpecV3{
+				Allow: RoleConditions{
+					Logins: []string{`{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}`},
+					Rules: []Rule{
+						{
+							Resources: []string{"role"},
+							Verbs:     []string{"read", "list"},
+							Where:     "containz(user.spec.traits[\"groups\"], \"prod\")",
+						},
+					},
+				},
+			},
+			err:          trace.BadParameter(""),
+			matchMessage: "unsupported function: containz",
+		},
+		{
+			name: "unsupported function in where",
+			spec: RoleSpecV3{
+				Allow: RoleConditions{
+					Logins: []string{`{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}`},
+					Rules: []Rule{
+						{
+							Resources: []string{"role"},
+							Verbs:     []string{"read", "list"},
+							Where:     "contains(user.spec.traits[\"groups\"], \"prod\")",
+							Actions:   []string{"zzz(\"info\", \"log entry\")"},
+						},
+					},
+				},
+			},
+			err:          trace.BadParameter(""),
+			matchMessage: "unsupported function: zzz",
+		},
+	}
+
+	for _, tc := range tests {
+		err := ValidateRole(&types.RoleV3{
+			Metadata: Metadata{
+				Name:      "name1",
+				Namespace: defaults.Namespace,
+			},
+			Spec: tc.spec,
+		})
+		if tc.err != nil {
+			require.Error(t, err, tc.name)
 			if tc.matchMessage != "" {
-				c.Assert(err.Error(), Matches, tc.matchMessage)
+				require.Contains(t, err.Error(), tc.matchMessage)
 			}
 		} else {
-			c.Assert(err, IsNil, comment)
-			fixtures.DeepCompare(c, *role, tc.role)
-
-			out, err := json.Marshal(role)
-			c.Assert(err, IsNil, comment)
-
-			role2, err := UnmarshalRole(out)
-			c.Assert(err, IsNil, comment)
-			fixtures.DeepCompare(c, *role2, tc.role)
+			require.NoError(t, err, tc.name)
 		}
 	}
 }
@@ -497,20 +543,20 @@ func (s *RoleSuite) TestRoleParse(c *C) {
 // TestLabelCompatibility makes sure that labels
 // are serialized in format understood by older servers with
 // scalar labels
-func (s *RoleSuite) TestLabelCompatibility(c *C) {
+func TestLabelCompatibility(t *testing.T) {
 	labels := Labels{
 		"key": []string{"val"},
 	}
 	data, err := json.Marshal(labels)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 
 	var out map[string]string
 	err = json.Unmarshal(data, &out)
-	c.Assert(err, IsNil)
-	c.Assert(out, DeepEquals, map[string]string{"key": "val"})
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"key": "val"}, out)
 }
 
-func (s *RoleSuite) TestCheckAccess(c *C) {
+func TestCheckAccessToServer(t *testing.T) {
 	type check struct {
 		server    Server
 		hasAccess bool
@@ -560,7 +606,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 		{
 			name: "role is limited to default namespace",
 			roles: []RoleV3{
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
@@ -589,7 +635,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 		{
 			name: "role is limited to labels in default namespace",
 			roles: []RoleV3{
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
@@ -618,7 +664,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 		{
 			name: "role matches any label out of multiple labels",
 			roles: []RoleV3{
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
@@ -647,7 +693,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 		{
 			name: "node_labels with empty list value matches nothing",
 			roles: []RoleV3{
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
@@ -676,7 +722,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 		{
 			name: "one role is more permissive than another",
 			roles: []RoleV3{
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
@@ -692,7 +738,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 						},
 					},
 				},
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
@@ -721,7 +767,7 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 		{
 			name: "one role needs to access servers sharing the partially same label value",
 			roles: []RoleV3{
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: namespaceC,
@@ -749,6 +795,35 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 				{server: serverC2, login: "admin", hasAccess: true},
 			},
 		},
+		{
+			name: "no logins means no access",
+			roles: []RoleV3{
+				{
+					Metadata: Metadata{
+						Name:      "somerole",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL: Duration(20 * time.Hour),
+						},
+						Allow: RoleConditions{
+							Logins:     nil,
+							NodeLabels: Labels{Wildcard: []string{Wildcard}},
+							Namespaces: []string{Wildcard},
+						},
+					},
+				},
+			},
+			checks: []check{
+				{server: serverA, login: "root", hasAccess: false},
+				{server: serverA, login: "admin", hasAccess: false},
+				{server: serverB, login: "root", hasAccess: false},
+				{server: serverB, login: "admin", hasAccess: false},
+				{server: serverC, login: "root", hasAccess: false},
+				{server: serverC, login: "admin", hasAccess: false},
+			},
+		},
 	}
 	for i, tc := range testCases {
 
@@ -757,14 +832,276 @@ func (s *RoleSuite) TestCheckAccess(c *C) {
 			set = append(set, &tc.roles[i])
 		}
 		for j, check := range tc.checks {
-			comment := Commentf("test case %v '%v', check %v", i, tc.name, j)
+			comment := fmt.Sprintf("test case %v '%v', check %v", i, tc.name, j)
 			result := set.CheckAccessToServer(check.login, check.server)
 			if check.hasAccess {
-				c.Assert(result, IsNil, comment)
+				require.NoError(t, result, comment)
 			} else {
-				c.Assert(trace.IsAccessDenied(result), Equals, true, comment)
+				require.True(t, trace.IsAccessDenied(result), comment)
 			}
+		}
+	}
+}
 
+func TestCheckAccessToRemoteCluster(t *testing.T) {
+	type check struct {
+		rc        RemoteCluster
+		hasAccess bool
+	}
+	rcA := &RemoteClusterV3{
+		Metadata: Metadata{
+			Name: "a",
+		},
+	}
+	rcB := &RemoteClusterV3{
+		Metadata: Metadata{
+			Name:   "b",
+			Labels: map[string]string{"role": "worker", "status": "follower"},
+		},
+	}
+	rcC := &RemoteClusterV3{
+		Metadata: Metadata{
+			Name:   "c",
+			Labels: map[string]string{"role": "db", "status": "follower"},
+		},
+	}
+	testCases := []struct {
+		name   string
+		roles  []RoleV3
+		checks []check
+	}{
+		{
+			name:  "empty role set has access to nothing",
+			roles: []RoleV3{},
+			checks: []check{
+				{rc: rcA, hasAccess: false},
+				{rc: rcB, hasAccess: false},
+				{rc: rcC, hasAccess: false},
+			},
+		},
+		{
+			name: "role matches any label out of multiple labels",
+			roles: []RoleV3{
+				{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL: Duration(20 * time.Hour),
+						},
+						Allow: RoleConditions{
+							Logins:        []string{"admin"},
+							ClusterLabels: Labels{"role": []string{"worker2", "worker"}},
+							Namespaces:    []string{defaults.Namespace},
+						},
+					},
+				},
+			},
+			checks: []check{
+				{rc: rcA, hasAccess: false},
+				{rc: rcB, hasAccess: true},
+				{rc: rcC, hasAccess: false},
+			},
+		},
+		{
+			name: "wildcard matches anything",
+			roles: []RoleV3{
+				{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL: Duration(20 * time.Hour),
+						},
+						Allow: RoleConditions{
+							Logins:        []string{"admin"},
+							ClusterLabels: Labels{Wildcard: []string{Wildcard}},
+							Namespaces:    []string{defaults.Namespace},
+						},
+					},
+				},
+			},
+			checks: []check{
+				{rc: rcA, hasAccess: true},
+				{rc: rcB, hasAccess: true},
+				{rc: rcC, hasAccess: true},
+			},
+		},
+		{
+			name: "role with no labels will match clusters with no labels, but no others",
+			roles: []RoleV3{
+				{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL: Duration(20 * time.Hour),
+						},
+						Allow: RoleConditions{
+							Namespaces: []string{defaults.Namespace},
+						},
+					},
+				},
+			},
+			checks: []check{
+				{rc: rcA, hasAccess: true},
+				{rc: rcB, hasAccess: false},
+				{rc: rcC, hasAccess: false},
+			},
+		},
+		{
+			name: "any role in the set with labels in the set makes the set to match labels",
+			roles: []RoleV3{
+				{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL: Duration(20 * time.Hour),
+						},
+						Allow: RoleConditions{
+							ClusterLabels: Labels{"role": []string{"worker"}},
+							Namespaces:    []string{defaults.Namespace},
+						},
+					},
+				},
+				{
+					Metadata: Metadata{
+						Name:      "name2",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL: Duration(20 * time.Hour),
+						},
+						Allow: RoleConditions{
+							Namespaces: []string{defaults.Namespace},
+						},
+					},
+				},
+			},
+			checks: []check{
+				{rc: rcA, hasAccess: false},
+				{rc: rcB, hasAccess: true},
+				{rc: rcC, hasAccess: false},
+			},
+		},
+		{
+			name: "cluster_labels with empty list value matches nothing",
+			roles: []RoleV3{
+				{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL: Duration(20 * time.Hour),
+						},
+						Allow: RoleConditions{
+							Logins:        []string{"admin"},
+							ClusterLabels: Labels{"role": []string{}},
+							Namespaces:    []string{defaults.Namespace},
+						},
+					},
+				},
+			},
+			checks: []check{
+				{rc: rcA, hasAccess: false},
+				{rc: rcB, hasAccess: false},
+				{rc: rcC, hasAccess: false},
+			},
+		},
+		{
+			name: "one role is more permissive than another",
+			roles: []RoleV3{
+				{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL: Duration(20 * time.Hour),
+						},
+						Allow: RoleConditions{
+							Logins:        []string{"admin"},
+							ClusterLabels: Labels{"role": []string{"worker"}},
+							Namespaces:    []string{defaults.Namespace},
+						},
+					},
+				},
+				{
+					Metadata: Metadata{
+						Name:      "name2",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL: Duration(20 * time.Hour),
+						},
+						Allow: RoleConditions{
+							Logins:        []string{"root", "admin"},
+							ClusterLabels: Labels{Wildcard: []string{Wildcard}},
+							Namespaces:    []string{Wildcard},
+						},
+					},
+				},
+			},
+			checks: []check{
+				{rc: rcA, hasAccess: true},
+				{rc: rcB, hasAccess: true},
+				{rc: rcC, hasAccess: true},
+			},
+		},
+		{
+			name: "regexp label match",
+			roles: []RoleV3{
+				{
+					Metadata: Metadata{
+						Name:      "name1",
+						Namespace: defaults.Namespace,
+					},
+					Spec: RoleSpecV3{
+						Options: RoleOptions{
+							MaxSessionTTL: Duration(20 * time.Hour),
+						},
+						Allow: RoleConditions{
+							Logins:        []string{"admin"},
+							ClusterLabels: Labels{"role": []string{"^db(.*)$"}, "status": []string{"follow*"}},
+							Namespaces:    []string{defaults.Namespace},
+						},
+					},
+				},
+			},
+			checks: []check{
+				{rc: rcA, hasAccess: false},
+				{rc: rcB, hasAccess: false},
+				{rc: rcC, hasAccess: true},
+			},
+		},
+	}
+	for i, tc := range testCases {
+		var set RoleSet
+		for i := range tc.roles {
+			set = append(set, &tc.roles[i])
+		}
+		for j, check := range tc.checks {
+			comment := fmt.Sprintf("test case %v '%v', check %v", i, tc.name, j)
+			result := set.CheckAccessToRemoteCluster(check.rc)
+			if check.hasAccess {
+				require.NoError(t, result, comment)
+			} else {
+				require.True(t, trace.IsAccessDenied(result), fmt.Sprintf("%v: %v", comment, result))
+			}
 		}
 	}
 }
@@ -782,7 +1119,7 @@ func (t *testContext) Write(data []byte) (int, error) {
 	return t.buffer.Write(data)
 }
 
-func (s *RoleSuite) TestCheckRuleAccess(c *C) {
+func TestCheckRuleAccess(t *testing.T) {
 	type check struct {
 		hasAccess   bool
 		verb        string
@@ -806,7 +1143,7 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 		{
 			name: "1 - user can read session but can't list in default namespace",
 			roles: []RoleV3{
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
@@ -829,7 +1166,7 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 		{
 			name: "2 - user can read sessions in system namespace and create stuff in default namespace",
 			roles: []RoleV3{
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
@@ -843,7 +1180,7 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 						},
 					},
 				},
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name2",
 						Namespace: defaults.Namespace,
@@ -868,7 +1205,7 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 		{
 			name: "3 - deny rules override allow rules",
 			roles: []RoleV3{
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
@@ -896,7 +1233,7 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 		{
 			name: "4 - user can read sessions if trait matches",
 			roles: []RoleV3{
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
@@ -905,7 +1242,7 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 						Allow: RoleConditions{
 							Namespaces: []string{defaults.Namespace},
 							Rules: []Rule{
-								Rule{
+								{
 									Resources: []string{KindSession},
 									Verbs:     []string{VerbRead},
 									Where:     `contains(user.spec.traits["group"], "prod")`,
@@ -931,7 +1268,7 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 								},
 								Spec: UserSpecV2{
 									Traits: map[string][]string{
-										"group": []string{"dev", "prod"},
+										"group": {"dev", "prod"},
 									},
 								},
 							},
@@ -949,7 +1286,7 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 							User: &UserV2{
 								Spec: UserSpecV2{
 									Traits: map[string][]string{
-										"group": []string{"dev"},
+										"group": {"dev"},
 									},
 								},
 							},
@@ -965,7 +1302,7 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 		{
 			name: "5 - user can read role if role has label",
 			roles: []RoleV3{
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
@@ -974,7 +1311,7 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 						Allow: RoleConditions{
 							Namespaces: []string{defaults.Namespace},
 							Rules: []Rule{
-								Rule{
+								{
 									Resources: []string{KindRole},
 									Verbs:     []string{VerbRead},
 									Where:     `equals(resource.metadata.labels["team"], "dev")`,
@@ -994,7 +1331,7 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 					context: testContext{
 						buffer: &bytes.Buffer{},
 						Context: Context{
-							Resource: &RoleV2{
+							Resource: &RoleV3{
 								Metadata: Metadata{
 									Labels: map[string]string{"team": "dev"},
 								},
@@ -1011,7 +1348,7 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 		{
 			name: "More specific rule wins",
 			roles: []RoleV3{
-				RoleV3{
+				{
 					Metadata: Metadata{
 						Name:      "name1",
 						Namespace: defaults.Namespace,
@@ -1020,11 +1357,11 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 						Allow: RoleConditions{
 							Namespaces: []string{defaults.Namespace},
 							Rules: []Rule{
-								Rule{
+								{
 									Resources: []string{Wildcard},
 									Verbs:     []string{Wildcard},
 								},
-								Rule{
+								{
 									Resources: []string{KindRole},
 									Verbs:     []string{VerbRead},
 									Where:     `equals(resource.metadata.labels["team"], "dev")`,
@@ -1042,7 +1379,7 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 					context: testContext{
 						buffer: &bytes.Buffer{},
 						Context: Context{
-							Resource: &RoleV2{
+							Resource: &RoleV3{
 								Metadata: Metadata{
 									Labels: map[string]string{"team": "dev"},
 								},
@@ -1053,7 +1390,7 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 					verb:        VerbRead,
 					namespace:   defaults.Namespace,
 					hasAccess:   true,
-					matchBuffer: ".*more specific rule.*",
+					matchBuffer: "more specific rule",
 				},
 			},
 		},
@@ -1064,21 +1401,21 @@ func (s *RoleSuite) TestCheckRuleAccess(c *C) {
 			set = append(set, &tc.roles[i])
 		}
 		for j, check := range tc.checks {
-			comment := Commentf("test case %v '%v', check %v", i, tc.name, j)
+			comment := fmt.Sprintf("test case %v '%v', check %v", i, tc.name, j)
 			result := set.CheckAccessToRule(&check.context, check.namespace, check.rule, check.verb, false)
 			if check.hasAccess {
-				c.Assert(result, IsNil, comment)
+				require.NoError(t, result, comment)
 			} else {
-				c.Assert(trace.IsAccessDenied(result), Equals, true, comment)
+				require.True(t, trace.IsAccessDenied(result), comment)
 			}
 			if check.matchBuffer != "" {
-				c.Assert(check.context.buffer.String(), Matches, check.matchBuffer, comment)
+				require.Contains(t, check.context.buffer.String(), check.matchBuffer, comment)
 			}
 		}
 	}
 }
 
-func (s *RoleSuite) TestCheckRuleSorting(c *C) {
+func TestCheckRuleSorting(t *testing.T) {
 	testCases := []struct {
 		name  string
 		rules []Rule
@@ -1166,13 +1503,13 @@ func (s *RoleSuite) TestCheckRuleSorting(c *C) {
 		},
 	}
 	for i, tc := range testCases {
-		comment := Commentf("test case %v '%v'", i, tc.name)
+		comment := fmt.Sprintf("test case %v '%v'", i, tc.name)
 		out := MakeRuleSet(tc.rules)
-		c.Assert(tc.set, DeepEquals, out, comment)
+		require.Equal(t, tc.set, out, comment)
 	}
 }
 
-func (s *RoleSuite) TestApplyTraits(c *C) {
+func TestApplyTraits(t *testing.T) {
 	type rule struct {
 		inLogins      []string
 		outLogins     []string
@@ -1182,6 +1519,10 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 		outKubeGroups []string
 		inKubeUsers   []string
 		outKubeUsers  []string
+		inDBNames     []string
+		outDBNames    []string
+		inDBUsers     []string
+		outDBUsers    []string
 	}
 	var tests = []struct {
 		comment  string
@@ -1193,7 +1534,7 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 		{
 			comment: "logins substitute in allow rule",
 			inTraits: map[string][]string{
-				"foo": []string{"bar"},
+				"foo": {"bar"},
 			},
 			allow: rule{
 				inLogins:  []string{`{{external.foo}}`, "root"},
@@ -1203,7 +1544,7 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 		{
 			comment: "logins substitute in allow rule with function",
 			inTraits: map[string][]string{
-				"foo": []string{"Bar <bar@example.com>"},
+				"foo": {"Bar <bar@example.com>"},
 			},
 			allow: rule{
 				inLogins:  []string{`{{email.local(external.foo)}}`, "root"},
@@ -1213,7 +1554,7 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 		{
 			comment: "logins substitute in deny rule",
 			inTraits: map[string][]string{
-				"foo": []string{"bar"},
+				"foo": {"bar"},
 			},
 			deny: rule{
 				inLogins:  []string{`{{external.foo}}`},
@@ -1223,7 +1564,7 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 		{
 			comment: "kube group substitute in allow rule",
 			inTraits: map[string][]string{
-				"foo": []string{"bar"},
+				"foo": {"bar"},
 			},
 			allow: rule{
 				inKubeGroups:  []string{`{{external.foo}}`, "root"},
@@ -1233,7 +1574,7 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 		{
 			comment: "kube group substitute in deny rule",
 			inTraits: map[string][]string{
-				"foo": []string{"bar"},
+				"foo": {"bar"},
 			},
 			deny: rule{
 				inKubeGroups:  []string{`{{external.foo}}`, "root"},
@@ -1243,7 +1584,7 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 		{
 			comment: "kube user interpolation in allow rule",
 			inTraits: map[string][]string{
-				"foo": []string{"bar"},
+				"foo": {"bar"},
 			},
 			allow: rule{
 				inKubeUsers:  []string{`IAM#{{external.foo}};`},
@@ -1253,7 +1594,7 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 		{
 			comment: "kube users interpolation in deny rule",
 			inTraits: map[string][]string{
-				"foo": []string{"bar"},
+				"foo": {"bar"},
 			},
 			deny: rule{
 				inKubeUsers:  []string{`IAM#{{external.foo}};`},
@@ -1261,9 +1602,59 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 			},
 		},
 		{
+			comment: "database name/user external vars in allow rule",
+			inTraits: map[string][]string{
+				"foo": {"bar"},
+			},
+			allow: rule{
+				inDBNames:  []string{"{{external.foo}}", "{{external.baz}}", "postgres"},
+				outDBNames: []string{"bar", "postgres"},
+				inDBUsers:  []string{"{{external.foo}}", "{{external.baz}}", "postgres"},
+				outDBUsers: []string{"bar", "postgres"},
+			},
+		},
+		{
+			comment: "database name/user external vars in deny rule",
+			inTraits: map[string][]string{
+				"foo": {"bar"},
+			},
+			deny: rule{
+				inDBNames:  []string{"{{external.foo}}", "{{external.baz}}", "postgres"},
+				outDBNames: []string{"bar", "postgres"},
+				inDBUsers:  []string{"{{external.foo}}", "{{external.baz}}", "postgres"},
+				outDBUsers: []string{"bar", "postgres"},
+			},
+		},
+		{
+			comment: "database name/user internal vars in allow rule",
+			inTraits: map[string][]string{
+				"db_names": {"db1", "db2"},
+				"db_users": {"alice"},
+			},
+			allow: rule{
+				inDBNames:  []string{"{{internal.db_names}}", "{{internal.foo}}", "postgres"},
+				outDBNames: []string{"db1", "db2", "postgres"},
+				inDBUsers:  []string{"{{internal.db_users}}", "{{internal.foo}}", "postgres"},
+				outDBUsers: []string{"alice", "postgres"},
+			},
+		},
+		{
+			comment: "database name/user internal vars in deny rule",
+			inTraits: map[string][]string{
+				"db_names": {"db1", "db2"},
+				"db_users": {"alice"},
+			},
+			deny: rule{
+				inDBNames:  []string{"{{internal.db_names}}", "{{internal.foo}}", "postgres"},
+				outDBNames: []string{"db1", "db2", "postgres"},
+				inDBUsers:  []string{"{{internal.db_users}}", "{{internal.foo}}", "postgres"},
+				outDBUsers: []string{"alice", "postgres"},
+			},
+		},
+		{
 			comment: "no variable in logins",
 			inTraits: map[string][]string{
-				"foo": []string{"bar"},
+				"foo": {"bar"},
 			},
 			allow: rule{
 				inLogins:  []string{"root"},
@@ -1273,7 +1664,7 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 		{
 			comment: "invalid variable in logins does not get passed along",
 			inTraits: map[string][]string{
-				"foo": []string{"bar"},
+				"foo": {"bar"},
 			},
 			allow: rule{
 				inLogins: []string{`external.foo}}`},
@@ -1282,7 +1673,7 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 		{
 			comment: "invalid function call in logins does not get passed along",
 			inTraits: map[string][]string{
-				"foo": []string{"bar"},
+				"foo": {"bar"},
 			},
 			allow: rule{
 				inLogins: []string{`{{email.local(external.foo, 1)}}`},
@@ -1291,7 +1682,7 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 		{
 			comment: "invalid function call in logins does not get passed along",
 			inTraits: map[string][]string{
-				"foo": []string{"bar"},
+				"foo": {"bar"},
 			},
 			allow: rule{
 				inLogins: []string{`{{email.local()}}`},
@@ -1300,7 +1691,7 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 		{
 			comment: "invalid function call in logins does not get passed along",
 			inTraits: map[string][]string{
-				"foo": []string{"bar"},
+				"foo": {"bar"},
 			},
 			allow: rule{
 				inLogins: []string{`{{email.local(email.local)}}`, `{{email.local(email.local())}}`},
@@ -1309,7 +1700,7 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 		{
 			comment: "variable in logins, none in traits",
 			inTraits: map[string][]string{
-				"foo": []string{"bar"},
+				"foo": {"bar"},
 			},
 			allow: rule{
 				inLogins:  []string{`{{internal.bar}}`, "root"},
@@ -1319,7 +1710,7 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 		{
 			comment: "multiple variables in traits",
 			inTraits: map[string][]string{
-				"logins": []string{"bar", "baz"},
+				"logins": {"bar", "baz"},
 			},
 			allow: rule{
 				inLogins:  []string{`{{internal.logins}}`, "root"},
@@ -1329,7 +1720,7 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 		{
 			comment: "deduplicate",
 			inTraits: map[string][]string{
-				"foo": []string{"bar"},
+				"foo": {"bar"},
 			},
 			allow: rule{
 				inLogins:  []string{`{{external.foo}}`, "bar"},
@@ -1339,7 +1730,7 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 		{
 			comment: "invalid unix login",
 			inTraits: map[string][]string{
-				"foo": []string{"-foo"},
+				"foo": {"-foo"},
 			},
 			allow: rule{
 				inLogins:  []string{`{{external.foo}}`, "bar"},
@@ -1349,8 +1740,8 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 		{
 			comment: "label substitute in allow and deny rule",
 			inTraits: map[string][]string{
-				"foo":   []string{"bar"},
-				"hello": []string{"there"},
+				"foo":   {"bar"},
+				"hello": {"there"},
 			},
 			allow: rule{
 				inLabels:  Labels{`{{external.foo}}`: []string{"{{external.hello}}"}},
@@ -1365,7 +1756,7 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 		{
 			comment: "missing node variables are set to empty during substitution",
 			inTraits: map[string][]string{
-				"foo": []string{"bar"},
+				"foo": {"bar"},
 			},
 			allow: rule{
 				inLabels: Labels{
@@ -1384,7 +1775,7 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 		{
 			comment: "the first variable value is picked for label keys",
 			inTraits: map[string][]string{
-				"foo": []string{"bar", "baz"},
+				"foo": {"bar", "baz"},
 			},
 			allow: rule{
 				inLabels:  Labels{`{{external.foo}}`: []string{"value"}},
@@ -1395,7 +1786,7 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 		{
 			comment: "all values are expanded for label values",
 			inTraits: map[string][]string{
-				"foo": []string{"bar", "baz"},
+				"foo": {"bar", "baz"},
 			},
 			allow: rule{
 				inLabels:  Labels{`key`: []string{`{{external.foo}}`}},
@@ -1405,7 +1796,7 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 	}
 
 	for i, tt := range tests {
-		comment := Commentf("Test %v %v", i, tt.comment)
+		comment := fmt.Sprintf("Test %v %v", i, tt.comment)
 
 		role := &RoleV3{
 			Kind:    KindRole,
@@ -1416,97 +1807,58 @@ func (s *RoleSuite) TestApplyTraits(c *C) {
 			},
 			Spec: RoleSpecV3{
 				Allow: RoleConditions{
-					Logins:     tt.allow.inLogins,
-					NodeLabels: tt.allow.inLabels,
-					KubeGroups: tt.allow.inKubeGroups,
-					KubeUsers:  tt.allow.inKubeUsers,
+					Logins:        tt.allow.inLogins,
+					NodeLabels:    tt.allow.inLabels,
+					ClusterLabels: tt.allow.inLabels,
+					KubeGroups:    tt.allow.inKubeGroups,
+					KubeUsers:     tt.allow.inKubeUsers,
+					DatabaseNames: tt.allow.inDBNames,
+					DatabaseUsers: tt.allow.inDBUsers,
 				},
 				Deny: RoleConditions{
-					Logins:     tt.deny.inLogins,
-					NodeLabels: tt.deny.inLabels,
-					KubeGroups: tt.deny.inKubeGroups,
-					KubeUsers:  tt.deny.inKubeUsers,
+					Logins:        tt.deny.inLogins,
+					NodeLabels:    tt.deny.inLabels,
+					ClusterLabels: tt.deny.inLabels,
+					KubeGroups:    tt.deny.inKubeGroups,
+					KubeUsers:     tt.deny.inKubeUsers,
+					DatabaseNames: tt.deny.inDBNames,
+					DatabaseUsers: tt.deny.inDBUsers,
 				},
 			},
 		}
 
-		outRole := role.ApplyTraits(tt.inTraits)
-		c.Assert(outRole.GetLogins(Allow), DeepEquals, tt.allow.outLogins, comment)
-		c.Assert(outRole.GetNodeLabels(Allow), DeepEquals, tt.allow.outLabels, comment)
-		c.Assert(outRole.GetKubeGroups(Allow), DeepEquals, tt.allow.outKubeGroups, comment)
-		c.Assert(outRole.GetKubeUsers(Allow), DeepEquals, tt.allow.outKubeUsers, comment)
+		outRole := ApplyTraits(role, tt.inTraits)
+		require.Equal(t, outRole.GetLogins(Allow), tt.allow.outLogins, comment)
+		require.Equal(t, outRole.GetNodeLabels(Allow), tt.allow.outLabels, comment)
+		require.Equal(t, outRole.GetClusterLabels(Allow), tt.allow.outLabels, comment)
+		require.Equal(t, outRole.GetKubeGroups(Allow), tt.allow.outKubeGroups, comment)
+		require.Equal(t, outRole.GetKubeUsers(Allow), tt.allow.outKubeUsers, comment)
+		require.Equal(t, outRole.GetDatabaseNames(Allow), tt.allow.outDBNames, comment)
+		require.Equal(t, outRole.GetDatabaseUsers(Allow), tt.allow.outDBUsers, comment)
 
-		c.Assert(outRole.GetLogins(Deny), DeepEquals, tt.deny.outLogins, comment)
-		c.Assert(outRole.GetNodeLabels(Deny), DeepEquals, tt.deny.outLabels, comment)
-		c.Assert(outRole.GetKubeGroups(Deny), DeepEquals, tt.deny.outKubeGroups, comment)
-		c.Assert(outRole.GetKubeUsers(Deny), DeepEquals, tt.deny.outKubeUsers, comment)
-	}
-}
-
-func (s *RoleSuite) TestCheckAndSetDefaults(c *C) {
-	var tests = []struct {
-		inLogins []string
-		outError bool
-	}{
-		// 0 - invalid syntax
-		{
-			[]string{"{{foo"},
-			true,
-		},
-		// 1 - invalid syntax
-		{
-			[]string{"bar}}"},
-			true,
-		},
-		// 2 - valid syntax
-		{
-			[]string{"{{foo.bar}}"},
-			false,
-		},
-		// 3 - valid syntax
-		{
-			[]string{`{{external["http://schemas.microsoft.com/ws/2008/06/identity/claims/windowsaccountname"]}}`},
-			false,
-		},
-	}
-
-	for i, tt := range tests {
-		comment := Commentf("Test %v", i)
-
-		role := &RoleV3{
-			Kind:    KindRole,
-			Version: V3,
-			Metadata: Metadata{
-				Name:      "name1",
-				Namespace: defaults.Namespace,
-			},
-			Spec: RoleSpecV3{
-				Allow: RoleConditions{
-					Logins: tt.inLogins,
-				},
-			},
-		}
-		if tt.outError {
-			c.Assert(role.CheckAndSetDefaults(), NotNil, comment)
-		} else {
-			c.Assert(role.CheckAndSetDefaults(), IsNil, comment)
-		}
+		require.Equal(t, outRole.GetLogins(Deny), tt.deny.outLogins, comment)
+		require.Equal(t, outRole.GetNodeLabels(Deny), tt.deny.outLabels, comment)
+		require.Equal(t, outRole.GetClusterLabels(Deny), tt.deny.outLabels, comment)
+		require.Equal(t, outRole.GetKubeGroups(Deny), tt.deny.outKubeGroups, comment)
+		require.Equal(t, outRole.GetKubeUsers(Deny), tt.deny.outKubeUsers, comment)
+		require.Equal(t, outRole.GetDatabaseNames(Deny), tt.deny.outDBNames, comment)
+		require.Equal(t, outRole.GetDatabaseUsers(Deny), tt.deny.outDBUsers, comment)
 	}
 }
 
 // TestExtractFrom makes sure roles and traits are extracted from SSH and TLS
 // certificates not services.User.
-func (s *RoleSuite) TestExtractFrom(c *C) {
+func TestExtractFrom(t *testing.T) {
 	origRoles := []string{"admin"}
 	origTraits := wrappers.Traits(map[string][]string{
-		"login": []string{"foo"},
+		"login": {"foo"},
 	})
 
 	// Create a SSH certificate.
 	pubkey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(fixtures.UserCertificateStandard))
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 	cert, ok := pubkey.(*ssh.Certificate)
-	c.Assert(ok, Equals, true)
+	require.True(t, ok)
 
 	// Create a TLS identity.
 	identity := &tlsca.Identity{
@@ -1521,16 +1873,17 @@ func (s *RoleSuite) TestExtractFrom(c *C) {
 		roles:  origRoles,
 		traits: origTraits,
 	}, cert)
-	c.Assert(err, IsNil)
-	c.Assert(roles, DeepEquals, origRoles)
-	c.Assert(traits, DeepEquals, origTraits)
+	require.NoError(t, err)
+	require.Equal(t, roles, origRoles)
+	require.Equal(t, traits, origTraits)
+
 	roles, traits, err = ExtractFromIdentity(&userGetter{
 		roles:  origRoles,
 		traits: origTraits,
 	}, *identity)
-	c.Assert(err, IsNil)
-	c.Assert(roles, DeepEquals, origRoles)
-	c.Assert(traits, DeepEquals, origTraits)
+	require.NoError(t, err)
+	require.Equal(t, roles, origRoles)
+	require.Equal(t, traits, origTraits)
 
 	// The backend now returns new roles and traits, however because the roles
 	// and traits are extracted from the certificate/identity, the original
@@ -1538,35 +1891,36 @@ func (s *RoleSuite) TestExtractFrom(c *C) {
 	roles, traits, err = ExtractFromCertificate(&userGetter{
 		roles: []string{"intern"},
 		traits: wrappers.Traits(map[string][]string{
-			"login": []string{"bar"},
+			"login": {"bar"},
 		}),
 	}, cert)
-	c.Assert(err, IsNil)
-	c.Assert(roles, DeepEquals, origRoles)
-	c.Assert(traits, DeepEquals, origTraits)
+	require.NoError(t, err)
+	require.Equal(t, roles, origRoles)
+	require.Equal(t, traits, origTraits)
+
 	roles, traits, err = ExtractFromIdentity(&userGetter{
 		roles:  origRoles,
 		traits: origTraits,
 	}, *identity)
-	c.Assert(err, IsNil)
-	c.Assert(roles, DeepEquals, origRoles)
-	c.Assert(traits, DeepEquals, origTraits)
+	require.NoError(t, err)
+	require.Equal(t, roles, origRoles)
+	require.Equal(t, traits, origTraits)
 }
 
 // TestExtractFromLegacy verifies that roles and traits are fetched
 // from services.User for SSH certificates is the legacy format and TLS
 // certificates that don't contain traits.
-func (s *RoleSuite) TestExtractFromLegacy(c *C) {
+func TestExtractFromLegacy(t *testing.T) {
 	origRoles := []string{"admin"}
 	origTraits := wrappers.Traits(map[string][]string{
-		"login": []string{"foo"},
+		"login": {"foo"},
 	})
 
 	// Create a SSH certificate in the legacy format.
 	pubkey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(fixtures.UserCertificateLegacy))
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 	cert, ok := pubkey.(*ssh.Certificate)
-	c.Assert(ok, Equals, true)
+	require.True(t, ok)
 
 	// Create a TLS identity with only roles.
 	identity := &tlsca.Identity{
@@ -1580,42 +1934,42 @@ func (s *RoleSuite) TestExtractFromLegacy(c *C) {
 		roles:  origRoles,
 		traits: origTraits,
 	}, cert)
-	c.Assert(err, IsNil)
-	c.Assert(roles, DeepEquals, origRoles)
-	c.Assert(traits, DeepEquals, origTraits)
+	require.NoError(t, err)
+	require.Equal(t, roles, origRoles)
+	require.Equal(t, traits, origTraits)
 	roles, traits, err = ExtractFromIdentity(&userGetter{
 		roles:  origRoles,
 		traits: origTraits,
 	}, *identity)
-	c.Assert(err, IsNil)
-	c.Assert(roles, DeepEquals, origRoles)
-	c.Assert(traits, DeepEquals, origTraits)
+	require.NoError(t, err)
+	require.Equal(t, roles, origRoles)
+	require.Equal(t, traits, origTraits)
 
 	// The backend now returns new roles and traits, because the SSH certificate
 	// is in the old standard format and the TLS identity is missing traits.
 	newRoles := []string{"intern"}
 	newTraits := wrappers.Traits(map[string][]string{
-		"login": []string{"bar"},
+		"login": {"bar"},
 	})
 	roles, traits, err = ExtractFromCertificate(&userGetter{
 		roles:  newRoles,
 		traits: newTraits,
 	}, cert)
-	c.Assert(err, IsNil)
-	c.Assert(roles, DeepEquals, newRoles)
-	c.Assert(traits, DeepEquals, newTraits)
+	require.NoError(t, err)
+	require.Equal(t, roles, newRoles)
+	require.Equal(t, traits, newTraits)
 	roles, traits, err = ExtractFromIdentity(&userGetter{
 		roles:  newRoles,
 		traits: newTraits,
 	}, *identity)
-	c.Assert(err, IsNil)
-	c.Assert(roles, DeepEquals, newRoles)
-	c.Assert(traits, DeepEquals, newTraits)
+	require.NoError(t, err)
+	require.Equal(t, roles, newRoles)
+	require.Equal(t, traits, newTraits)
 }
 
 // TestBoolOptions makes sure that bool options (like agent forwarding and
 // port forwarding) can be disabled in a role.
-func (s *RoleSuite) TestBoolOptions(c *C) {
+func TestBoolOptions(t *testing.T) {
 	var tests = []struct {
 		inOptions           RoleOptions
 		outCanPortForward   bool
@@ -1659,8 +2013,466 @@ func (s *RoleSuite) TestBoolOptions(c *C) {
 				Options: tt.inOptions,
 			},
 		})
-		c.Assert(set.CanPortForward(), Equals, tt.outCanPortForward)
-		c.Assert(set.CanForwardAgents(), Equals, tt.outCanForwardAgents)
+		require.Equal(t, tt.outCanPortForward, set.CanPortForward())
+		require.Equal(t, tt.outCanForwardAgents, set.CanForwardAgents())
+	}
+}
+
+func TestCheckAccessToDatabase(t *testing.T) {
+	utils.InitLoggerForTests(testing.Verbose())
+	dbStage := types.NewDatabaseServerV3("stage",
+		map[string]string{"env": "stage"},
+		types.DatabaseServerSpecV3{})
+	dbProd := types.NewDatabaseServerV3("prod",
+		map[string]string{"env": "prod"},
+		types.DatabaseServerSpecV3{})
+	roleDevStage := &RoleV3{
+		Metadata: Metadata{Name: "dev-stage", Namespace: defaults.Namespace},
+		Spec: RoleSpecV3{
+			Allow: RoleConditions{
+				Namespaces:     []string{defaults.Namespace},
+				DatabaseLabels: Labels{"env": []string{"stage"}},
+				DatabaseNames:  []string{Wildcard},
+				DatabaseUsers:  []string{Wildcard},
+			},
+			Deny: RoleConditions{
+				Namespaces:     []string{defaults.Namespace},
+				DatabaseLabels: Labels{"env": []string{"stage"}},
+				DatabaseNames:  []string{"supersecret"},
+			},
+		},
+	}
+	roleDevProd := &RoleV3{
+		Metadata: Metadata{Name: "dev-prod", Namespace: defaults.Namespace},
+		Spec: RoleSpecV3{
+			Allow: RoleConditions{
+				Namespaces:     []string{defaults.Namespace},
+				DatabaseLabels: Labels{"env": []string{"prod"}},
+				DatabaseNames:  []string{"test"},
+				DatabaseUsers:  []string{"dev"},
+			},
+		},
+	}
+	// Database labels are not set in allow/deny rules on purpose to test
+	// that they're set during check and set defaults below.
+	roleDeny := &types.RoleV3{
+		Metadata: Metadata{Name: "deny", Namespace: defaults.Namespace},
+		Spec: RoleSpecV3{
+			Allow: RoleConditions{
+				Namespaces:    []string{defaults.Namespace},
+				DatabaseNames: []string{Wildcard},
+				DatabaseUsers: []string{Wildcard},
+			},
+			Deny: RoleConditions{
+				Namespaces:    []string{defaults.Namespace},
+				DatabaseNames: []string{"postgres"},
+				DatabaseUsers: []string{"postgres"},
+			},
+		},
+	}
+	require.NoError(t, roleDeny.CheckAndSetDefaults())
+	type access struct {
+		server types.DatabaseServer
+		dbName string
+		dbUser string
+		access bool
+	}
+	testCases := []struct {
+		name   string
+		roles  []*RoleV3
+		access []access
+	}{
+		{
+			name:  "developer allowed any username/database in stage database except one database",
+			roles: []*RoleV3{roleDevStage, roleDevProd},
+			access: []access{
+				{server: dbStage, dbName: "superdb", dbUser: "superuser", access: true},
+				{server: dbStage, dbName: "test", dbUser: "dev", access: true},
+				{server: dbStage, dbName: "supersecret", dbUser: "dev", access: false},
+			},
+		},
+		{
+			name:  "developer allowed only specific username/database in prod database",
+			roles: []*RoleV3{roleDevStage, roleDevProd},
+			access: []access{
+				{server: dbProd, dbName: "superdb", dbUser: "superuser", access: false},
+				{server: dbProd, dbName: "test", dbUser: "dev", access: true},
+				{server: dbProd, dbName: "superdb", dbUser: "dev", access: false},
+				{server: dbProd, dbName: "test", dbUser: "superuser", access: false},
+			},
+		},
+		{
+			name:  "deny role denies access to specific database",
+			roles: []*RoleV3{roleDeny},
+			access: []access{
+				{server: dbProd, dbName: "test", dbUser: "test", access: true},
+				{server: dbProd, dbName: "postgres", dbUser: "postgres", access: false},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var set RoleSet
+			for _, r := range tc.roles {
+				set = append(set, r)
+			}
+			for _, access := range tc.access {
+				err := set.CheckAccessToDatabase(access.server, access.dbName, access.dbUser)
+				if access.access {
+					require.NoError(t, err)
+				} else {
+					require.Error(t, err)
+					require.True(t, trace.IsAccessDenied(err))
+				}
+			}
+		})
+	}
+}
+
+func TestCheckDatabaseNamesAndUsers(t *testing.T) {
+	roleEmpty := &RoleV3{
+		Metadata: Metadata{Name: "roleA", Namespace: defaults.Namespace},
+		Spec: RoleSpecV3{
+			Options: RoleOptions{MaxSessionTTL: Duration(time.Hour)},
+			Allow: RoleConditions{
+				Namespaces: []string{defaults.Namespace},
+			},
+		},
+	}
+	roleA := &RoleV3{
+		Metadata: Metadata{Name: "roleA", Namespace: defaults.Namespace},
+		Spec: RoleSpecV3{
+			Options: RoleOptions{MaxSessionTTL: Duration(2 * time.Hour)},
+			Allow: RoleConditions{
+				Namespaces:    []string{defaults.Namespace},
+				DatabaseNames: []string{"postgres", "main"},
+				DatabaseUsers: []string{"postgres", "alice"},
+			},
+		},
+	}
+	roleB := &RoleV3{
+		Metadata: Metadata{Name: "roleB", Namespace: defaults.Namespace},
+		Spec: RoleSpecV3{
+			Options: RoleOptions{MaxSessionTTL: Duration(time.Hour)},
+			Allow: RoleConditions{
+				Namespaces:    []string{defaults.Namespace},
+				DatabaseNames: []string{"metrics"},
+				DatabaseUsers: []string{"bob"},
+			},
+			Deny: RoleConditions{
+				Namespaces:    []string{defaults.Namespace},
+				DatabaseNames: []string{"postgres"},
+				DatabaseUsers: []string{"postgres"},
+			},
+		},
+	}
+	testCases := []struct {
+		name         string
+		roles        []*RoleV3
+		ttl          time.Duration
+		overrideTTL  bool
+		namesOut     []string
+		usersOut     []string
+		accessDenied bool
+		notFound     bool
+	}{
+		{
+			name:     "single role",
+			roles:    []*RoleV3{roleA},
+			ttl:      time.Hour,
+			namesOut: []string{"postgres", "main"},
+			usersOut: []string{"postgres", "alice"},
+		},
+		{
+			name:     "combined roles",
+			roles:    []*RoleV3{roleA, roleB},
+			ttl:      time.Hour,
+			namesOut: []string{"main", "metrics"},
+			usersOut: []string{"alice", "bob"},
+		},
+		{
+			name:         "ttl doesn't match",
+			roles:        []*RoleV3{roleA},
+			ttl:          5 * time.Hour,
+			accessDenied: true,
+		},
+		{
+			name:     "empty role",
+			roles:    []*RoleV3{roleEmpty},
+			ttl:      time.Hour,
+			notFound: true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var set RoleSet
+			for _, r := range tc.roles {
+				set = append(set, r)
+			}
+			names, users, err := set.CheckDatabaseNamesAndUsers(tc.ttl, tc.overrideTTL)
+			if tc.accessDenied {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+			} else if tc.notFound {
+				require.Error(t, err)
+				require.True(t, trace.IsNotFound(err))
+			} else {
+				require.NoError(t, err)
+				require.ElementsMatch(t, tc.namesOut, names)
+				require.ElementsMatch(t, tc.usersOut, users)
+			}
+		})
+	}
+}
+
+func TestCheckAccessToDatabaseService(t *testing.T) {
+	utils.InitLoggerForTests(testing.Verbose())
+	dbNoLabels := types.NewDatabaseServerV3("test",
+		nil,
+		types.DatabaseServerSpecV3{})
+	dbStage := types.NewDatabaseServerV3("stage",
+		map[string]string{"env": "stage"},
+		types.DatabaseServerSpecV3{
+			DynamicLabels: map[string]CommandLabelV2{"arch": {Result: "x86"}},
+		})
+	dbStage2 := types.NewDatabaseServerV3("stage2",
+		map[string]string{"env": "stage"},
+		types.DatabaseServerSpecV3{
+			DynamicLabels: map[string]CommandLabelV2{"arch": {Result: "amd64"}},
+		})
+	dbProd := types.NewDatabaseServerV3("prod",
+		map[string]string{"env": "prod"},
+		types.DatabaseServerSpecV3{})
+	roleAdmin := &RoleV3{
+		Metadata: Metadata{Name: "admin", Namespace: defaults.Namespace},
+		Spec: RoleSpecV3{
+			Allow: RoleConditions{
+				Namespaces:     []string{defaults.Namespace},
+				DatabaseLabels: Labels{Wildcard: []string{Wildcard}},
+			},
+		},
+	}
+	roleDev := &RoleV3{
+		Metadata: Metadata{Name: "dev", Namespace: defaults.Namespace},
+		Spec: RoleSpecV3{
+			Allow: RoleConditions{
+				Namespaces:     []string{defaults.Namespace},
+				DatabaseLabels: Labels{"env": []string{"stage"}},
+			},
+			Deny: RoleConditions{
+				Namespaces:     []string{defaults.Namespace},
+				DatabaseLabels: Labels{"arch": []string{"amd64"}},
+			},
+		},
+	}
+	roleIntern := &RoleV3{
+		Metadata: Metadata{Name: "intern", Namespace: defaults.Namespace},
+		Spec: RoleSpecV3{
+			Allow: RoleConditions{
+				Namespaces: []string{defaults.Namespace},
+			},
+		},
+	}
+	type access struct {
+		server types.DatabaseServer
+		access bool
+	}
+	testCases := []struct {
+		name   string
+		roles  []*RoleV3
+		access []access
+	}{
+		{
+			name:  "empty role doesn't have access to any databases",
+			roles: nil,
+			access: []access{
+				{server: dbNoLabels, access: false},
+				{server: dbStage, access: false},
+				{server: dbStage2, access: false},
+				{server: dbProd, access: false},
+			},
+		},
+		{
+			name:  "intern doesn't have access to any databases",
+			roles: []*RoleV3{roleIntern},
+			access: []access{
+				{server: dbNoLabels, access: false},
+				{server: dbStage, access: false},
+				{server: dbStage2, access: false},
+				{server: dbProd, access: false},
+			},
+		},
+		{
+			name:  "developer only has access to one of stage database",
+			roles: []*RoleV3{roleDev},
+			access: []access{
+				{server: dbNoLabels, access: false},
+				{server: dbStage, access: true},
+				{server: dbStage2, access: false},
+				{server: dbProd, access: false},
+			},
+		},
+		{
+			name:  "admin has access to all databases",
+			roles: []*RoleV3{roleAdmin},
+			access: []access{
+				{server: dbNoLabels, access: true},
+				{server: dbStage, access: true},
+				{server: dbStage2, access: true},
+				{server: dbProd, access: true},
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var set RoleSet
+			for _, r := range tc.roles {
+				set = append(set, r)
+			}
+			for _, access := range tc.access {
+				err := set.CheckAccessToDatabaseServer(access.server)
+				if access.access {
+					require.NoError(t, err)
+				} else {
+					require.Error(t, err)
+					require.True(t, trace.IsAccessDenied(err))
+				}
+			}
+		})
+	}
+}
+
+func TestCheckAccessToKubernetes(t *testing.T) {
+	clusterNoLabels := &KubernetesCluster{
+		Name: "no-labels",
+	}
+	clusterWithLabels := &KubernetesCluster{
+		Name:          "no-labels",
+		StaticLabels:  map[string]string{"foo": "bar"},
+		DynamicLabels: map[string]CommandLabelV2{"baz": {Result: "qux"}},
+	}
+	wildcardRole := &RoleV3{
+		Metadata: Metadata{
+			Name:      "wildcard-labels",
+			Namespace: defaults.Namespace,
+		},
+		Spec: RoleSpecV3{
+			Allow: RoleConditions{
+				Namespaces:       []string{defaults.Namespace},
+				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
+			},
+		},
+	}
+	matchingLabelsRole := &RoleV3{
+		Metadata: Metadata{
+			Name:      "matching-labels",
+			Namespace: defaults.Namespace,
+		},
+		Spec: RoleSpecV3{
+			Allow: RoleConditions{
+				Namespaces: []string{defaults.Namespace},
+				KubernetesLabels: Labels{
+					"foo": utils.Strings{"bar"},
+					"baz": utils.Strings{"qux"},
+				},
+			},
+		},
+	}
+	noLabelsRole := &RoleV3{
+		Metadata: Metadata{
+			Name:      "no-labels",
+			Namespace: defaults.Namespace,
+		},
+		Spec: RoleSpecV3{
+			Allow: RoleConditions{
+				Namespaces: []string{defaults.Namespace},
+			},
+		},
+	}
+	mismatchingLabelsRole := &RoleV3{
+		Metadata: Metadata{
+			Name:      "mismatching-labels",
+			Namespace: defaults.Namespace,
+		},
+		Spec: RoleSpecV3{
+			Allow: RoleConditions{
+				Namespaces: []string{defaults.Namespace},
+				KubernetesLabels: Labels{
+					"qux": utils.Strings{"baz"},
+					"bar": utils.Strings{"foo"},
+				},
+			},
+		},
+	}
+	testCases := []struct {
+		name      string
+		roles     []*RoleV3
+		cluster   *KubernetesCluster
+		hasAccess bool
+	}{
+		{
+			name:      "empty role set has access to nothing",
+			roles:     nil,
+			cluster:   clusterNoLabels,
+			hasAccess: false,
+		},
+		{
+			name:      "role with no labels has access to nothing",
+			roles:     []*RoleV3{noLabelsRole},
+			cluster:   clusterNoLabels,
+			hasAccess: false,
+		},
+		{
+			name:      "role with wildcard labels matches cluster without labels",
+			roles:     []*RoleV3{wildcardRole},
+			cluster:   clusterNoLabels,
+			hasAccess: true,
+		},
+		{
+			name:      "role with wildcard labels matches cluster with labels",
+			roles:     []*RoleV3{wildcardRole},
+			cluster:   clusterWithLabels,
+			hasAccess: true,
+		},
+		{
+			name:      "role with labels does not match cluster with no labels",
+			roles:     []*RoleV3{matchingLabelsRole},
+			cluster:   clusterNoLabels,
+			hasAccess: false,
+		},
+		{
+			name:      "role with labels matches cluster with labels",
+			roles:     []*RoleV3{matchingLabelsRole},
+			cluster:   clusterWithLabels,
+			hasAccess: true,
+		},
+		{
+			name:      "role with mismatched labels does not match cluster with labels",
+			roles:     []*RoleV3{mismatchingLabelsRole},
+			cluster:   clusterWithLabels,
+			hasAccess: false,
+		},
+		{
+			name:      "one role in the roleset matches",
+			roles:     []*RoleV3{mismatchingLabelsRole, noLabelsRole, matchingLabelsRole},
+			cluster:   clusterWithLabels,
+			hasAccess: true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var set RoleSet
+			for _, r := range tc.roles {
+				set = append(set, r)
+			}
+			err := set.CheckAccessToKubernetes(defaults.Namespace, tc.cluster)
+			if tc.hasAccess {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+			}
+		})
 	}
 }
 

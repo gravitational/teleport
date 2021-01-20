@@ -16,6 +16,7 @@ limitations under the License.
 package service
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -23,25 +24,28 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
+	"github.com/gravitational/teleport/lib/utils/testlog"
 
 	"github.com/gravitational/trace"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/check.v1"
 )
 
 type ServiceTestSuite struct {
 }
 
-var _ = fmt.Printf
 var _ = check.Suite(&ServiceTestSuite{})
-var _ = testing.Verbose
 
 func (s *ServiceTestSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())
@@ -58,11 +62,13 @@ func (s *ServiceTestSuite) TestSelfSignedHTTPS(c *check.C) {
 	cfg := &Config{
 		DataDir:  c.MkDir(),
 		Hostname: "example.com",
+		Log:      utils.WrapLogger(logrus.New().WithField("test", c.TestName())),
 	}
 	err := initSelfSignedHTTPSCert(cfg)
 	c.Assert(err, check.IsNil)
-	c.Assert(fileExists(cfg.Proxy.TLSCert), check.Equals, true)
-	c.Assert(fileExists(cfg.Proxy.TLSKey), check.Equals, true)
+	c.Assert(cfg.Proxy.KeyPairs, check.HasLen, 1)
+	c.Assert(fileExists(cfg.Proxy.KeyPairs[0].Certificate), check.Equals, true)
+	c.Assert(fileExists(cfg.Proxy.KeyPairs[0].PrivateKey), check.Equals, true)
 }
 
 func TestMonitor(t *testing.T) {
@@ -166,6 +172,9 @@ func TestMonitor(t *testing.T) {
 func (s *ServiceTestSuite) TestCheckPrincipals(c *check.C) {
 	dataDir := c.MkDir()
 
+	t := testlog.NewCheckTestWrapper(c)
+	defer t.Close()
+
 	// Create a test auth server to extract the server identity (SSH and TLS
 	// certificates).
 	testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
@@ -218,7 +227,7 @@ func (s *ServiceTestSuite) TestCheckPrincipals(c *check.C) {
 		},
 	}
 	for _, tt := range tests {
-		ok := checkServerIdentity(testConnector, tt.inPrincipals, tt.inDNS)
+		ok := checkServerIdentity(testConnector, tt.inPrincipals, tt.inDNS, t.Log)
 		c.Assert(ok, check.Equals, tt.outRegenerate)
 	}
 }
@@ -228,6 +237,9 @@ func (s *ServiceTestSuite) TestCheckPrincipals(c *check.C) {
 // setup of true external loggers, but at the time of writing there isn't good
 // support for setting up fake external logging endpoints.
 func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
+	t := testlog.NewCheckTestWrapper(c)
+	defer t.Close()
+
 	tts := []struct {
 		events []string
 		isNil  bool
@@ -253,9 +265,9 @@ func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
 
 		cmt := check.Commentf("tt[%v]: %+v", i, tt)
 
-		loggers, err := initExternalLog(services.AuditConfig{
+		loggers, err := initExternalLog(context.Background(), services.AuditConfig{
 			AuditEventsURI: tt.events,
-		})
+		}, t.Log)
 
 		if tt.isErr {
 			c.Assert(err, check.NotNil, cmt)
@@ -268,6 +280,129 @@ func (s *ServiceTestSuite) TestInitExternalLog(c *check.C) {
 		} else {
 			c.Assert(loggers, check.NotNil, cmt)
 		}
+	}
+}
+
+func TestGetAdditionalPrincipals(t *testing.T) {
+	p := &TeleportProcess{
+		Config: &Config{
+			Hostname:    "global-hostname",
+			HostUUID:    "global-uuid",
+			AdvertiseIP: "1.2.3.4",
+			Proxy: ProxyConfig{
+				PublicAddrs:       utils.MustParseAddrList("proxy-public-1", "proxy-public-2"),
+				SSHPublicAddrs:    utils.MustParseAddrList("proxy-ssh-public-1", "proxy-ssh-public-2"),
+				TunnelPublicAddrs: utils.MustParseAddrList("proxy-tunnel-public-1", "proxy-tunnel-public-2"),
+				Kube: KubeProxyConfig{
+					Enabled:     true,
+					PublicAddrs: utils.MustParseAddrList("proxy-kube-public-1", "proxy-kube-public-2"),
+				},
+			},
+			Auth: AuthConfig{
+				PublicAddrs: utils.MustParseAddrList("auth-public-1", "auth-public-2"),
+			},
+			SSH: SSHConfig{
+				PublicAddrs: utils.MustParseAddrList("node-public-1", "node-public-2"),
+			},
+			Kube: KubeConfig{
+				PublicAddrs: utils.MustParseAddrList("kube-public-1", "kube-public-2"),
+			},
+		},
+	}
+	tests := []struct {
+		role           teleport.Role
+		wantPrincipals []string
+		wantDNS        []string
+	}{
+		{
+			role: teleport.RoleProxy,
+			wantPrincipals: []string{
+				"global-hostname",
+				"proxy-public-1",
+				"proxy-public-2",
+				string(teleport.PrincipalLocalhost),
+				string(teleport.PrincipalLoopbackV4),
+				string(teleport.PrincipalLoopbackV6),
+				reversetunnel.LocalKubernetes,
+				"proxy-ssh-public-1",
+				"proxy-ssh-public-2",
+				"proxy-tunnel-public-1",
+				"proxy-tunnel-public-2",
+				"proxy-kube-public-1",
+				"proxy-kube-public-2",
+			},
+			wantDNS: []string{
+				"*.proxy-public-1",
+				"*.proxy-public-2",
+				"*.proxy-kube-public-1",
+				"*.proxy-kube-public-2",
+			},
+		},
+		{
+			role: teleport.RoleAuth,
+			wantPrincipals: []string{
+				"global-hostname",
+				"auth-public-1",
+				"auth-public-2",
+			},
+			wantDNS: []string{},
+		},
+		{
+			role: teleport.RoleAdmin,
+			wantPrincipals: []string{
+				"global-hostname",
+				"auth-public-1",
+				"auth-public-2",
+			},
+			wantDNS: []string{},
+		},
+		{
+			role: teleport.RoleNode,
+			wantPrincipals: []string{
+				"global-hostname",
+				"global-uuid",
+				"node-public-1",
+				"node-public-2",
+				"1.2.3.4",
+			},
+			wantDNS: []string{},
+		},
+		{
+			role: teleport.RoleKube,
+			wantPrincipals: []string{
+				"global-hostname",
+				string(teleport.PrincipalLocalhost),
+				string(teleport.PrincipalLoopbackV4),
+				string(teleport.PrincipalLoopbackV6),
+				reversetunnel.LocalKubernetes,
+				"kube-public-1",
+				"kube-public-2",
+			},
+			wantDNS: []string{},
+		},
+		{
+			role: teleport.RoleApp,
+			wantPrincipals: []string{
+				"global-hostname",
+				"global-uuid",
+			},
+			wantDNS: []string{},
+		},
+		{
+			role: teleport.Role("unknown"),
+			wantPrincipals: []string{
+				"global-hostname",
+			},
+			wantDNS: []string{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.role.String(), func(t *testing.T) {
+			principals, dns, err := p.getAdditionalPrincipals(tt.role)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(principals, tt.wantPrincipals))
+			require.Empty(t, cmp.Diff(dns, tt.wantDNS, cmpopts.EquateEmpty()))
+		})
 	}
 }
 

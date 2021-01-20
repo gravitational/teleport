@@ -22,7 +22,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -114,15 +113,6 @@ type Identity interface {
 	// DeleteUsedTOTPToken removes the used token from the backend. This should only
 	// be used during tests.
 	DeleteUsedTOTPToken(user string) error
-
-	// UpsertWebSession updates or inserts a web session for a user and session
-	UpsertWebSession(user, sid string, session WebSession) error
-
-	// GetWebSession returns a web session state for a given user and session id
-	GetWebSession(user, sid string) (WebSession, error)
-
-	// DeleteWebSession deletes web session from the storage
-	DeleteWebSession(user, sid string) error
 
 	// UpsertPassword upserts new password and OTP token
 	UpsertPassword(user string, password []byte) error
@@ -228,6 +218,32 @@ type Identity interface {
 
 	// GetResetPasswordTokenSecrets returns token secrets
 	GetResetPasswordTokenSecrets(ctx context.Context, tokenID string) (ResetPasswordTokenSecrets, error)
+
+	// GetWebSession returns a web session state for a given user and session id
+	GetWebSession(user, sid string) (WebSession, error)
+
+	// UpsertWebSession updates or inserts a web session for a user and session
+	UpsertWebSession(user, sid string, session WebSession) error
+
+	// DeleteWebSession deletes web session from the storage
+	DeleteWebSession(user, sid string) error
+
+	// AppSession defines session features.
+	AppSession
+}
+
+// AppSession defines application session features.
+type AppSession interface {
+	// GetAppSession gets an application web session.
+	GetAppSession(context.Context, GetAppSessionRequest) (WebSession, error)
+	// GetAppSessions gets all application web sessions.
+	GetAppSessions(context.Context) ([]WebSession, error)
+	// UpsertAppSession upserts and application web session.
+	UpsertAppSession(context.Context, WebSession) error
+	// DeleteAppSession removes an application web session.
+	DeleteAppSession(context.Context, DeleteAppSessionRequest) error
+	// DeleteAllAppSessions removes all application web sessions.
+	DeleteAllAppSessions(context.Context) error
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),
@@ -240,36 +256,6 @@ func VerifyPassword(password []byte) error {
 	if len(password) > defaults.MaxPasswordLength {
 		return trace.BadParameter(
 			"password is too long, max length is %v", defaults.MaxPasswordLength)
-	}
-	return nil
-}
-
-const ExternalIdentitySchema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-     "connector_id": {"type": "string"},
-     "username": {"type": "string"}
-   }
-}`
-
-// String returns debug friendly representation of this identity
-func (i *ExternalIdentity) String() string {
-	return fmt.Sprintf("OIDCIdentity(connectorID=%v, username=%v)", i.ConnectorID, i.Username)
-}
-
-// Equals returns true if this identity equals to passed one
-func (i *ExternalIdentity) Equals(other *ExternalIdentity) bool {
-	return i.ConnectorID == other.ConnectorID && i.Username == other.Username
-}
-
-// Check returns nil if all parameters are great, err otherwise
-func (i *ExternalIdentity) Check() error {
-	if i.ConnectorID == "" {
-		return trace.BadParameter("ConnectorID: missing value")
-	}
-	if i.Username == "" {
-		return trace.BadParameter("Username: missing username")
 	}
 	return nil
 }

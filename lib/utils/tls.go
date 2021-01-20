@@ -38,7 +38,12 @@ import (
 // TLSConfig returns default TLS configuration strong defaults.
 func TLSConfig(cipherSuites []uint16) *tls.Config {
 	config := &tls.Config{}
+	SetupTLSConfig(config, cipherSuites)
+	return config
+}
 
+// SetupTLSConfig sets up cipher suites in existing TLS config
+func SetupTLSConfig(config *tls.Config, cipherSuites []uint16) {
 	// If ciphers suites were passed in, use them. Otherwise use the the
 	// Go defaults.
 	if len(cipherSuites) > 0 {
@@ -52,7 +57,6 @@ func TLSConfig(cipherSuites []uint16) *tls.Config {
 	config.SessionTicketsDisabled = false
 	config.ClientSessionCache = tls.NewLRUClientSessionCache(
 		DefaultLRUCapacity)
-	return config
 }
 
 // CreateTLSConfiguration sets up default TLS configuration

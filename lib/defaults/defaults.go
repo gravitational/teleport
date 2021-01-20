@@ -21,11 +21,14 @@ package defaults
 import (
 	"crypto/tls"
 	"fmt"
+	"net/http"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace"
+
 	"golang.org/x/crypto/ssh"
 )
 
@@ -85,7 +88,7 @@ const (
 
 	// DefaultDialTimeout is a default TCP dial timeout we set for our
 	// connection attempts
-	DefaultDialTimeout = 30 * time.Second
+	DefaultDialTimeout = defaults.DefaultDialTimeout
 
 	// HTTPMaxIdleConns is the max idle connections across all hosts.
 	HTTPMaxIdleConns = 2000
@@ -207,7 +210,7 @@ const (
 	AccountLockInterval = 20 * time.Minute
 
 	// Namespace is default namespace
-	Namespace = "default"
+	Namespace = defaults.Namespace
 
 	// AttemptTTL is TTL for login attempt
 	AttemptTTL = time.Minute * 30
@@ -278,7 +281,7 @@ var (
 
 	// ServerKeepAliveTTL is a period between server keep alives,
 	// when servers announce only presence withough sending full data
-	ServerKeepAliveTTL = 60 * time.Second
+	ServerKeepAliveTTL = defaults.ServerKeepAliveTTL
 
 	// AuthServersRefreshPeriod is a period for clients to refresh their
 	// their stored list of auth servers
@@ -302,6 +305,10 @@ var (
 	// NetworkBackoffDuration is a standard backoff on network requests
 	// usually is slow, e.g. once in 30 seconds
 	NetworkBackoffDuration = time.Second * 30
+
+	// AuditBackoffTimeout is a time out before audit logger will
+	// start loosing events
+	AuditBackoffTimeout = 5 * time.Second
 
 	// NetworkRetryDuration is a standard retry on network requests
 	// to retry quickly, e.g. once in one second
@@ -331,12 +338,12 @@ var (
 	// messages to the client. The default interval of 5 minutes (300 seconds) is
 	// set to help keep connections alive when using AWS NLBs (which have a default
 	// timeout of 350 seconds)
-	KeepAliveInterval = 5 * time.Minute
+	KeepAliveInterval = defaults.KeepAliveInterval
 
 	// KeepAliveCountMax is the number of keep-alive messages that can be sent
 	// without receiving a response from the client before the client is
 	// disconnected. The max count mirrors ClientAliveCountMax of sshd.
-	KeepAliveCountMax = 3
+	KeepAliveCountMax = defaults.KeepAliveCountMax
 
 	// DiskAlertThreshold is the disk space alerting threshold.
 	DiskAlertThreshold = 90
@@ -365,6 +372,12 @@ var (
 	// KubernetesQueueSize is kubernetes service watch queue size
 	KubernetesQueueSize = 128
 
+	// AppsQueueSize is apps service queue size.
+	AppsQueueSize = 128
+
+	// DatabasesQueueSize is db service queue size.
+	DatabasesQueueSize = 128
+
 	// CASignatureAlgorithm is the default signing algorithm to use when
 	// creating new SSH CAs.
 	CASignatureAlgorithm = ssh.SigAlgoRSASHA2512
@@ -379,6 +392,9 @@ var (
 	// connections. These pings are needed to avoid timeouts on load balancers
 	// that don't respect TCP keep-alives.
 	SPDYPingPeriod = 30 * time.Second
+
+	// AsyncBufferSize is a default buffer size for async emitters
+	AsyncBufferSize = 1024
 )
 
 // Default connection limits, they can be applied separately on any of the Teleport
@@ -407,7 +423,7 @@ const (
 	// MinCertDuration specifies minimum duration of validity of issued cert
 	MinCertDuration = time.Minute
 	// MaxCertDuration limits maximum duration of validity of issued cert
-	MaxCertDuration = 30 * time.Hour
+	MaxCertDuration = defaults.MaxCertDuration
 	// CertDuration is a default certificate duration
 	// 12 is default as it' longer than average working day (I hope so)
 	CertDuration = 12 * time.Hour
@@ -431,7 +447,21 @@ const (
 	// RoleAuthService is authentication and authorization service,
 	// the only stateful role in the system
 	RoleAuthService = "auth"
+	// RoleApp is an application proxy.
+	RoleApp = "app"
+	// RoleDatabase is a database proxy role.
+	RoleDatabase = "database"
 )
+
+const (
+	// ProtocolPostgres is the PostgreSQL database protocol.
+	ProtocolPostgres = "postgres"
+)
+
+// DatabaseProtocols is a list of all supported database protocols.
+var DatabaseProtocols = []string{
+	ProtocolPostgres,
+}
 
 const (
 	// PerfBufferPageCount is the size of the perf ring buffer in number of pages.
@@ -452,12 +482,7 @@ const (
 )
 
 // EnhancedEvents returns the default list of enhanced events.
-func EnhancedEvents() []string {
-	return []string{
-		teleport.EnhancedRecordingCommand,
-		teleport.EnhancedRecordingNetwork,
-	}
-}
+var EnhancedEvents = defaults.EnhancedEvents
 
 var (
 	// ConfigFilePath is default path to teleport config file
@@ -468,7 +493,7 @@ var (
 	DataDir = "/var/lib/teleport"
 
 	// StartRoles is default roles teleport assumes when started via 'start' command
-	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService}
+	StartRoles = []string{RoleProxy, RoleNode, RoleAuthService, RoleApp}
 
 	// ETCDPrefix is default key in ETCD clustered configurations
 	ETCDPrefix = "/teleport"
@@ -596,6 +621,15 @@ const (
 	HMACSHA196               = "hmac-sha1-96"
 )
 
+const (
+	// ApplicationTokenKeyType is the type of asymmetric key used to sign tokens.
+	// See https://tools.ietf.org/html/rfc7518#section-6.1 for possible values.
+	ApplicationTokenKeyType = "RSA"
+	// ApplicationTokenAlgorithm is the default algorithm used to sign
+	// application access tokens.
+	ApplicationTokenAlgorithm = defaults.ApplicationTokenAlgorithm
+)
+
 // WindowsOpenSSHNamedPipe is the address of the named pipe that the
 // OpenSSH agent is on.
 const WindowsOpenSSHNamedPipe = `\\.\pipe\openssh-ssh-agent`
@@ -661,4 +695,28 @@ func CheckPasswordLimiter() *limiter.Limiter {
 		panic(fmt.Sprintf("Failed to create limiter: %v.", err))
 	}
 	return limiter
+}
+
+// Transport returns a new http.RoundTripper with sensible defaults.
+func Transport() (*http.Transport, error) {
+	// Clone the default transport to pick up sensible defaults.
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return nil, trace.BadParameter("invalid transport type %T", http.DefaultTransport)
+	}
+	tr := defaultTransport.Clone()
+
+	// Increase the size of the transport's connection pool. This substantially
+	// improves the performance of Teleport under load as it reduces the number
+	// of TLS handshakes performed.
+	tr.MaxIdleConns = HTTPMaxIdleConns
+	tr.MaxIdleConnsPerHost = HTTPMaxIdleConnsPerHost
+
+	// Set IdleConnTimeout on the transport. This defines the maximum amount of
+	// time before idle connections are closed. Leaving this unset will lead to
+	// connections open forever and will cause memory leaks in a long running
+	// process.
+	tr.IdleConnTimeout = HTTPIdleTimeout
+
+	return tr, nil
 }

@@ -47,7 +47,7 @@ func (s *ServicesSuite) SetUpSuite(c *check.C) {
 func (s *ServicesSuite) SetUpTest(c *check.C) {
 	var err error
 
-	clock := clockwork.NewFakeClockAt(time.Now())
+	clock := clockwork.NewFakeClock()
 
 	s.bk, err = lite.NewWithConfig(context.TODO(), lite.Config{
 		Path:             c.MkDir(),
@@ -99,6 +99,11 @@ func (s *ServicesSuite) TestUserCACRUD(c *check.C) {
 
 func (s *ServicesSuite) TestServerCRUD(c *check.C) {
 	s.suite.ServerCRUD(c)
+}
+
+// TestAppServerCRUD tests CRUD functionality for services.App.
+func (s *ServicesSuite) TestAppServerCRUD(c *check.C) {
+	s.suite.AppServerCRUD(c)
 }
 
 func (s *ServicesSuite) TestReverseTunnelsCRUD(c *check.C) {

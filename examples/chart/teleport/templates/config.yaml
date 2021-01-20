@@ -70,11 +70,7 @@ data:
     proxy_service:
       enabled: {{ .Values.config.teleport.proxy_service.enabled }}
 {{- if .Values.ingress.enabled }}
-      {{- if .Values.ingress.tls }}
       public_addr: {{ .Values.config.public_address }}:443
-      {{- else }}
-      public_addr: {{ .Values.config.public_address }}:80
-      {{- end -}}
 {{- else }}
       public_addr: {{ .Values.config.public_address }}:{{ .Values.service.ports.proxyweb.port }}
 {{- end }}

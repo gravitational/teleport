@@ -23,8 +23,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jonboulle/clockwork"
 	check "gopkg.in/check.v1"
@@ -73,40 +75,50 @@ func (s *TLSCASuite) TestPrincipals(c *check.C) {
 }
 
 // TestKubeExtensions test ASN1 subject kubernetes extensions
-func (s *TLSCASuite) TestKubeExtensions(c *check.C) {
+func TestKubeExtensions(t *testing.T) {
+	clock := clockwork.NewFakeClock()
 	ca, err := New([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
-	expires := s.clock.Now().Add(time.Hour)
+	expires := clock.Now().Add(time.Hour)
 	identity := Identity{
 		Username: "alice@example.com",
 		Groups:   []string{"admin"},
 		// Generate a certificate restricted for
 		// use against a kubernetes endpoint, and not the API server endpoint
 		// otherwise proxies can generate certs for any user.
-		Usage:            []string{teleport.UsageKubeOnly},
-		KubernetesGroups: []string{"system:masters", "admin"},
-		KubernetesUsers:  []string{"IAM#alice@example.com"},
-		Expires:          expires,
+		Usage:             []string{teleport.UsageKubeOnly},
+		KubernetesGroups:  []string{"system:masters", "admin"},
+		KubernetesUsers:   []string{"IAM#alice@example.com"},
+		KubernetesCluster: "kube-cluster",
+		TeleportCluster:   "tele-cluster",
+		RouteToDatabase: RouteToDatabase{
+			ServiceName: "postgres-rds",
+			Protocol:    "postgres",
+			Username:    "postgres",
+		},
+		DatabaseNames: []string{"postgres", "main"},
+		DatabaseUsers: []string{"postgres", "alice"},
+		Expires:       expires,
 	}
 
 	subj, err := identity.Subject()
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	certBytes, err := ca.GenerateCertificate(CertificateRequest{
-		Clock:     s.clock,
+		Clock:     clock,
 		PublicKey: privateKey.Public(),
 		Subject:   subj,
 		NotAfter:  expires,
 	})
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 
 	cert, err := ParseCertificatePEM(certBytes)
-	c.Assert(err, check.IsNil)
+	require.NoError(t, err)
 	out, err := FromSubject(cert.Subject, cert.NotAfter)
-	c.Assert(err, check.IsNil)
-	fixtures.DeepCompare(c, out, &identity)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(out, &identity))
 }

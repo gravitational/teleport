@@ -35,6 +35,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -101,6 +102,26 @@ type CommandLineFlags struct {
 	// FIPS mode means Teleport starts in a FedRAMP/FIPS 140-2 compliant
 	// configuration.
 	FIPS bool
+
+	// AppName is the name of the application to proxy.
+	AppName string
+
+	// AppURI is the internal address of the application to proxy.
+	AppURI string
+
+	// AppPublicAddr is the public address of the application to proxy.
+	AppPublicAddr string
+
+	// DatabaseName is the name of the database to proxy.
+	DatabaseName string
+	// DatabaseProtocol is the type of the proxied database e.g. postgres or mysql.
+	DatabaseProtocol string
+	// DatabaseURI is the address to connect to the proxied database.
+	DatabaseURI string
+	// DatabaseCACertFile is the database CA cert path.
+	DatabaseCACertFile string
+	// DatabaseAWSRegion is an optional database cloud region e.g. when using AWS RDS.
+	DatabaseAWSRegion string
 }
 
 // readConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -172,6 +193,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	if fc.Kube.Enabled() {
 		cfg.Kube.Enabled = true
 	}
+	if fc.Apps.Disabled() {
+		cfg.Apps.Enabled = false
+	}
+	if fc.Databases.Disabled() {
+		cfg.Databases.Enabled = false
+	}
 	applyString(fc.NodeName, &cfg.Hostname)
 
 	// apply "advertise_ip" setting:
@@ -230,41 +257,19 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 	}
 
 	// apply logger settings
-	switch fc.Logger.Output {
-	case "":
-		break // not set
-	case "stderr", "error", "2":
-		log.SetOutput(os.Stderr)
-	case "stdout", "out", "1":
-		log.SetOutput(os.Stdout)
-	case teleport.Syslog:
-		err := utils.SwitchLoggingtoSyslog()
-		if err != nil {
-			// this error will go to stderr
-			log.Errorf("Failed to switch logging to syslog: %v.", err)
-		}
-	default:
-		// assume it's a file path:
-		logFile, err := os.Create(fc.Logger.Output)
-		if err != nil {
-			return trace.Wrap(err, "failed to create the log file")
-		}
-		log.SetOutput(logFile)
+	logger := utils.NewLogger()
+	err = applyLogConfig(fc.Logger, logger)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	switch strings.ToLower(fc.Logger.Severity) {
-	case "":
-		break // not set
-	case "info":
-		log.SetLevel(log.InfoLevel)
-	case "err", "error":
-		log.SetLevel(log.ErrorLevel)
-	case teleport.DebugLevel:
-		log.SetLevel(log.DebugLevel)
-	case "warn", "warning":
-		log.SetLevel(log.WarnLevel)
-	default:
-		return trace.BadParameter("unsupported logger severity: '%v'", fc.Logger.Severity)
-	}
+	cfg.Log = logger
+
+	// Apply logging configuration for the global logger instance
+	// DELETE this when global logger instance is no longer in use.
+	//
+	// Logging configuration has already been validated above
+	_ = applyLogConfig(fc.Logger, log.StandardLogger())
+
 	// apply cache policy for node and proxy
 	cachePolicy, err := fc.CachePolicy.Parse()
 	if err != nil {
@@ -321,8 +326,8 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 		}
 	}
 
-	// Apply configuration for "auth_service", "proxy_service", and
-	// "ssh_service" if it's enabled.
+	// Apply configuration for "auth_service", "proxy_service", "ssh_service",
+	// and "app_service" if they are enabled.
 	if fc.Auth.Enabled() {
 		err = applyAuthConfig(fc, cfg)
 		if err != nil {
@@ -346,7 +351,56 @@ func ApplyFileConfig(fc *FileConfig, cfg *service.Config) error {
 			return trace.Wrap(err)
 		}
 	}
+	if fc.Apps.Enabled() {
+		if err := applyAppsConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if fc.Databases.Enabled() {
+		if err := applyDatabasesConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
+	return nil
+}
+
+func applyLogConfig(loggerConfig Log, logger *log.Logger) error {
+	switch loggerConfig.Output {
+	case "":
+		break // not set
+	case "stderr", "error", "2":
+		logger.SetOutput(os.Stderr)
+	case "stdout", "out", "1":
+		logger.SetOutput(os.Stdout)
+	case teleport.Syslog:
+		err := utils.SwitchLoggerToSyslog(logger)
+		if err != nil {
+			// this error will go to stderr
+			log.Errorf("Failed to switch logging to syslog: %v.", err)
+		}
+	default:
+		// assume it's a file path:
+		logFile, err := os.Create(loggerConfig.Output)
+		if err != nil {
+			return trace.Wrap(err, "failed to create the log file")
+		}
+		logger.SetOutput(logFile)
+	}
+	switch strings.ToLower(loggerConfig.Severity) {
+	case "":
+		break // not set
+	case "info":
+		logger.SetLevel(log.InfoLevel)
+	case "err", "error":
+		logger.SetLevel(log.ErrorLevel)
+	case teleport.DebugLevel:
+		logger.SetLevel(log.DebugLevel)
+	case "warn", "warning":
+		logger.SetLevel(log.WarnLevel)
+	default:
+		return trace.BadParameter("unsupported logger severity: %q", loggerConfig.Severity)
+	}
 	return nil
 }
 
@@ -497,32 +551,37 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Proxy.ReverseTunnelListenAddr = *addr
 	}
 
-	if fc.Proxy.KeyFile != "" {
-		if !fileExists(fc.Proxy.KeyFile) {
-			return trace.Errorf("https key does not exist: %s", fc.Proxy.KeyFile)
-		}
-		cfg.Proxy.TLSKey = fc.Proxy.KeyFile
+	// This is the legacy format. Continue to support it forever, but ideally
+	// users now use the list format below.
+	if fc.Proxy.KeyFile != "" || fc.Proxy.CertFile != "" {
+		cfg.Proxy.KeyPairs = append(cfg.Proxy.KeyPairs, service.KeyPairPath{
+			PrivateKey:  fc.Proxy.KeyFile,
+			Certificate: fc.Proxy.CertFile,
+		})
 	}
-	if fc.Proxy.CertFile != "" {
-		if !fileExists(fc.Proxy.CertFile) {
-			return trace.Errorf("https cert does not exist: %s", fc.Proxy.CertFile)
+	for _, p := range fc.Proxy.KeyPairs {
+		// Check that the certificate exists on disk. This exists to provide the
+		// user a sensible error message.
+		if !fileExists(p.PrivateKey) {
+			return trace.Errorf("https private key does not exist: %s", p.PrivateKey)
+		}
+		if !fileExists(p.Certificate) {
+			return trace.Errorf("https cert does not exist: %s", p.Certificate)
 		}
 
-		// read in certificate chain from disk
-		certificateChainBytes, err := utils.ReadPath(fc.Proxy.CertFile)
+		// Read in certificate from disk. If Teleport finds a self signed
+		// certificate chain, log a warning, and then accept whatever certificate
+		// was passed. If the certificate is not self signed, verify the certificate
+		// chain from leaf to root with the trust store on the computer so browsers
+		// don't complain.
+		certificateChainBytes, err := utils.ReadPath(p.Certificate)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		// parse certificate chain into []*x509.Certificate
 		certificateChain, err := utils.ReadCertificateChain(certificateChainBytes)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		// if starting teleport with a self signed certificate, print a warning, and
-		// then take whatever was passed to us. otherwise verify the certificate
-		// chain from leaf to root so browsers don't complain.
 		if utils.IsSelfSigned(certificateChain) {
 			warningMessage := "Starting Teleport with a self-signed TLS certificate, this is " +
 				"not safe for production clusters. Using a self-signed certificate opens " +
@@ -535,7 +594,10 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 			}
 		}
 
-		cfg.Proxy.TLSCert = fc.Proxy.CertFile
+		cfg.Proxy.KeyPairs = append(cfg.Proxy.KeyPairs, service.KeyPairPath{
+			PrivateKey:  p.PrivateKey,
+			Certificate: p.Certificate,
+		})
 	}
 
 	// apply kubernetes proxy config, by default kube proxy is disabled
@@ -598,6 +660,12 @@ func applyProxyConfig(fc *FileConfig, cfg *service.Config) error {
 		cfg.Proxy.TunnelPublicAddrs = addrs
 	}
 
+	acme, err := fc.Proxy.ACME.Parse()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.Proxy.ACME = *acme
+
 	return nil
 
 }
@@ -642,7 +710,7 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) error {
 			if !pam.BuildHasPAM() {
 				errorMessage := "Unable to start Teleport: PAM was enabled in file configuration but this \n" +
 					"Teleport binary was built without PAM support. To continue either download a \n" +
-					"Teleport binary build with PAM support from https://gravitational.com/teleport \n" +
+					"Teleport binary build with PAM support from https://goteleport.com/teleport \n" +
 					"or disable PAM in file configuration."
 				return trace.BadParameter(errorMessage)
 			}
@@ -714,7 +782,102 @@ func applyKubeConfig(fc *FileConfig, cfg *service.Config) error {
 		log.Warning("both kubernetes_service and proxy_service are enabled, but proxy_service doesn't set kube_listen_addr; consider setting kube_listen_addr on proxy_service, to handle incoming Kubernetes requests")
 	}
 	return nil
+}
 
+// applyDatabasesConfig applies file configuration for the "db_service" section.
+func applyDatabasesConfig(fc *FileConfig, cfg *service.Config) error {
+	cfg.Databases.Enabled = true
+	for _, database := range fc.Databases.Databases {
+		staticLabels := make(map[string]string)
+		if database.StaticLabels != nil {
+			staticLabels = database.StaticLabels
+		}
+		dynamicLabels := make(services.CommandLabels)
+		if database.DynamicLabels != nil {
+			for _, v := range database.DynamicLabels {
+				dynamicLabels[v.Name] = &services.CommandLabelV2{
+					Period:  services.NewDuration(v.Period),
+					Command: v.Command,
+					Result:  "",
+				}
+			}
+		}
+		var caBytes []byte
+		var err error
+		if database.CACertFile != "" {
+			caBytes, err = ioutil.ReadFile(database.CACertFile)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		db := service.Database{
+			Name:          database.Name,
+			Description:   database.Description,
+			Protocol:      database.Protocol,
+			URI:           database.URI,
+			StaticLabels:  staticLabels,
+			DynamicLabels: dynamicLabels,
+			CACert:        caBytes,
+			AWS: service.DatabaseAWS{
+				Region: database.AWS.Region,
+			},
+		}
+		if err := db.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Databases.Databases = append(cfg.Databases.Databases, db)
+	}
+	return nil
+}
+
+// applyAppsConfig applies file configuration for the "app_service" section.
+func applyAppsConfig(fc *FileConfig, cfg *service.Config) error {
+	// Apps are enabled.
+	cfg.Apps.Enabled = true
+
+	// Enable debugging application if requested.
+	cfg.Apps.DebugApp = fc.Apps.DebugApp
+
+	// Loop over all apps and load app configuration.
+	for _, application := range fc.Apps.Apps {
+		// Parse the static labels of the application.
+		staticLabels := make(map[string]string)
+		if application.StaticLabels != nil {
+			staticLabels = application.StaticLabels
+		}
+
+		// Parse the dynamic labels of the application.
+		dynamicLabels := make(services.CommandLabels)
+		if application.DynamicLabels != nil {
+			for _, v := range application.DynamicLabels {
+				dynamicLabels[v.Name] = &services.CommandLabelV2{
+					Period:  services.NewDuration(v.Period),
+					Command: v.Command,
+				}
+			}
+		}
+
+		// Add the application to the list of proxied applications.
+		app := service.App{
+			Name:               application.Name,
+			URI:                application.URI,
+			PublicAddr:         application.PublicAddr,
+			StaticLabels:       staticLabels,
+			DynamicLabels:      dynamicLabels,
+			InsecureSkipVerify: application.InsecureSkipVerify,
+		}
+		if application.Rewrite != nil {
+			app.Rewrite = &service.Rewrite{
+				Redirect: application.Rewrite.Redirect,
+			}
+		}
+		if err := app.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Apps.Apps = append(cfg.Apps.Apps, app)
+	}
+
+	return nil
 }
 
 // parseAuthorizedKeys parses keys in the authorized_keys format and
@@ -735,14 +898,14 @@ func parseAuthorizedKeys(bytes []byte, allowedLogins []string) (services.CertAut
 	}
 
 	// create a new certificate authority
-	ca := services.NewCertAuthority(
-		services.UserCA,
-		clusterName,
-		nil,
-		[][]byte{ssh.MarshalAuthorizedKey(pubkey)},
-		nil,
-		services.CertAuthoritySpecV2_UNKNOWN,
-	)
+	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:         services.UserCA,
+		ClusterName:  clusterName,
+		SigningKeys:  nil,
+		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubkey)},
+		Roles:        nil,
+		SigningAlg:   services.CertAuthoritySpecV2_UNKNOWN,
+	})
 
 	// transform old allowed logins into roles
 	role := services.RoleForCertAuthority(ca)
@@ -776,13 +939,17 @@ func parseKnownHosts(bytes []byte, allowedLogins []string) (services.CertAuthori
 	const prefix = "*."
 	domainName := strings.TrimPrefix(options[0], prefix)
 
-	v1 := &services.CertAuthorityV1{
-		AllowedLogins: utils.CopyStrings(allowedLogins),
-		DomainName:    domainName,
-		Type:          authType,
-		CheckingKeys:  [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
-	}
-	ca, role := services.ConvertV1CertAuthority(v1)
+	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:         authType,
+		ClusterName:  domainName,
+		CheckingKeys: [][]byte{ssh.MarshalAuthorizedKey(pubKey)},
+	})
+
+	// transform old allowed logins into roles
+	role := services.RoleForCertAuthority(ca)
+	role.SetLogins(services.Allow, utils.CopyStrings(allowedLogins))
+	ca.AddRole(role.GetName())
+
 	return ca, role, nil
 }
 
@@ -933,9 +1100,73 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		// logger severity in file configuration.
 		if fileConf == nil {
 			log.SetLevel(log.DebugLevel)
+			cfg.Log.SetLevel(log.DebugLevel)
 		} else {
 			fileConf.Logger.Severity = teleport.DebugLevel
 		}
+	}
+
+	// If this process is trying to join a cluster as an application service,
+	// make sure application name and URI are provided.
+	if utils.SliceContainsStr(splitRoles(clf.Roles), defaults.RoleApp) &&
+		(clf.AppName == "" || clf.AppURI == "") {
+		return trace.BadParameter("application name (--app-name) and URI (--app-uri) flags are both required to join application proxy to the cluster")
+	}
+
+	// If application name was specified on command line, add to file
+	// configuration where it will be validated.
+	if clf.AppName != "" {
+		cfg.Apps.Enabled = true
+
+		// Parse static and dynamic labels.
+		static, dynamic, err := parseLabels(clf.Labels)
+		if err != nil {
+			return trace.BadParameter("labels invalid: %v", err)
+		}
+
+		// Create and validate application. If valid, add to list of applications.
+		app := service.App{
+			Name:          clf.AppName,
+			URI:           clf.AppURI,
+			PublicAddr:    clf.AppPublicAddr,
+			StaticLabels:  static,
+			DynamicLabels: dynamic,
+		}
+		if err := app.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Apps.Apps = append(cfg.Apps.Apps, app)
+	}
+
+	// If database name was specified on the command line, add to configuration.
+	if clf.DatabaseName != "" {
+		cfg.Databases.Enabled = true
+		staticLabels, dynamicLabels, err := parseLabels(clf.Labels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		var caBytes []byte
+		if clf.DatabaseCACertFile != "" {
+			caBytes, err = ioutil.ReadFile(clf.DatabaseCACertFile)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		db := service.Database{
+			Name:          clf.DatabaseName,
+			Protocol:      clf.DatabaseProtocol,
+			URI:           clf.DatabaseURI,
+			StaticLabels:  staticLabels,
+			DynamicLabels: dynamicLabels,
+			CACert:        caBytes,
+			AWS: service.DatabaseAWS{
+				Region: clf.DatabaseAWSRegion,
+			},
+		}
+		if err := db.Check(); err != nil {
+			return trace.Wrap(err)
+		}
+		cfg.Databases.Databases = append(cfg.Databases.Databases, db)
 	}
 
 	if err = ApplyFileConfig(fileConf, cfg); err != nil {
@@ -1010,6 +1241,8 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 		cfg.SSH.Enabled = strings.Contains(clf.Roles, defaults.RoleNode)
 		cfg.Auth.Enabled = strings.Contains(clf.Roles, defaults.RoleAuthService)
 		cfg.Proxy.Enabled = strings.Contains(clf.Roles, defaults.RoleProxy)
+		cfg.Apps.Enabled = strings.Contains(clf.Roles, defaults.RoleApp)
+		cfg.Databases.Enabled = strings.Contains(clf.Roles, defaults.RoleDatabase)
 	}
 
 	// apply --auth-server flag:
@@ -1062,7 +1295,7 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	}
 
 	// apply --labels flag
-	if err = parseLabels(clf.Labels, &cfg.SSH); err != nil {
+	if err := parseLabelsApply(clf.Labels, &cfg.SSH); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1089,33 +1322,51 @@ func Configure(clf *CommandLineFlags, cfg *service.Config) error {
 	return nil
 }
 
-// parseLabels takes the value of --labels flag and tries to correctly populate
-// sshConf.Labels and sshConf.CmdLabels
-func parseLabels(spec string, sshConf *service.SSHConfig) error {
+// parseLabels parses the labels command line flag and returns static and
+// dynamic labels.
+func parseLabels(spec string) (map[string]string, services.CommandLabels, error) {
+	// Base syntax parsing, the spec must be in the form of 'key=value,more="better"'.
+	lmap, err := client.ParseLabelSpec(spec)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	static := make(map[string]string)
+	dynamic := make(services.CommandLabels)
+
+	if len(lmap) == 0 {
+		return static, dynamic, nil
+	}
+
+	// Loop over all parsed labels and set either static or dynamic labels.
+	for key, value := range lmap {
+		dynamicLabel, err := isCmdLabelSpec(value)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		if dynamicLabel != nil {
+			dynamic[key] = dynamicLabel
+		} else {
+			static[key] = value
+		}
+	}
+
+	return static, dynamic, nil
+}
+
+// parseLabelsApply reads in the labels command line flag and tries to
+// correctly populate static and dynamic labels for the SSH service.
+func parseLabelsApply(spec string, sshConf *service.SSHConfig) error {
 	if spec == "" {
 		return nil
 	}
-	// base syntax parsing, the spec must be in the form of 'key=value,more="better"`
-	lmap, err := client.ParseLabelSpec(spec)
+
+	var err error
+	sshConf.Labels, sshConf.CmdLabels, err = parseLabels(spec)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(lmap) > 0 {
-		sshConf.CmdLabels = make(services.CommandLabels)
-		sshConf.Labels = make(map[string]string)
-	}
-	// see which labels are actually command labels:
-	for key, value := range lmap {
-		cmdLabel, err := isCmdLabelSpec(value)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if cmdLabel != nil {
-			sshConf.CmdLabels[key] = cmdLabel
-		} else {
-			sshConf.Labels[key] = value
-		}
-	}
+
 	return nil
 }
 
@@ -1194,15 +1445,22 @@ func fileExists(fp string) bool {
 
 // validateRoles makes sure that value upassed to --roles flag is valid
 func validateRoles(roles string) error {
-	for _, role := range strings.Split(roles, ",") {
+	for _, role := range splitRoles(roles) {
 		switch role {
 		case defaults.RoleAuthService,
 			defaults.RoleNode,
-			defaults.RoleProxy:
+			defaults.RoleProxy,
+			defaults.RoleApp,
+			defaults.RoleDatabase:
 			break
 		default:
 			return trace.Errorf("unknown role: '%s'", role)
 		}
 	}
 	return nil
+}
+
+// splitRoles splits in the format roles expects.
+func splitRoles(roles string) []string {
+	return strings.Split(roles, ",")
 }

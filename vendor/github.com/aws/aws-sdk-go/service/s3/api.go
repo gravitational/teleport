@@ -14,13 +14,13 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awsutil"
 	"github.com/aws/aws-sdk-go/aws/client"
 	"github.com/aws/aws-sdk-go/aws/request"
+	"github.com/aws/aws-sdk-go/internal/s3shared/arn"
 	"github.com/aws/aws-sdk-go/private/checksum"
 	"github.com/aws/aws-sdk-go/private/protocol"
 	"github.com/aws/aws-sdk-go/private/protocol/eventstream"
 	"github.com/aws/aws-sdk-go/private/protocol/eventstream/eventstreamapi"
 	"github.com/aws/aws-sdk-go/private/protocol/rest"
 	"github.com/aws/aws-sdk-go/private/protocol/restxml"
-	"github.com/aws/aws-sdk-go/service/s3/internal/arn"
 )
 
 const opAbortMultipartUpload = "AbortMultipartUpload"
@@ -75,23 +75,23 @@ func (c *S3) AbortMultipartUploadRequest(input *AbortMultipartUploadInput) (req 
 // times in order to completely free all storage consumed by all parts.
 //
 // To verify that all parts have been removed, so you don't get charged for
-// the part storage, you should call the ListParts operation and ensure that
-// the parts list is empty.
+// the part storage, you should call the ListParts (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListParts.html)
+// operation and ensure that the parts list is empty.
 //
 // For information about permissions required to use the multipart upload API,
 // see Multipart Upload API and Permissions (https://docs.aws.amazon.com/AmazonS3/latest/dev/mpuAndPermissions.html).
 //
 // The following operations are related to AbortMultipartUpload:
 //
-//    * CreateMultipartUpload
+//    * CreateMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html)
 //
-//    * UploadPart
+//    * UploadPart (https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPart.html)
 //
-//    * CompleteMultipartUpload
+//    * CompleteMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html)
 //
-//    * ListParts
+//    * ListParts (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListParts.html)
 //
-//    * ListMultipartUploads
+//    * ListMultipartUploads (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListMultipartUploads.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -173,14 +173,15 @@ func (c *S3) CompleteMultipartUploadRequest(input *CompleteMultipartUploadInput)
 // Completes a multipart upload by assembling previously uploaded parts.
 //
 // You first initiate the multipart upload and then upload all parts using the
-// UploadPart operation. After successfully uploading all relevant parts of
-// an upload, you call this operation to complete the upload. Upon receiving
-// this request, Amazon S3 concatenates all the parts in ascending order by
-// part number to create a new object. In the Complete Multipart Upload request,
-// you must provide the parts list. You must ensure that the parts list is complete.
-// This operation concatenates the parts that you provide in the list. For each
-// part in the list, you must provide the part number and the ETag value, returned
-// after that part was uploaded.
+// UploadPart (https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPart.html)
+// operation. After successfully uploading all relevant parts of an upload,
+// you call this operation to complete the upload. Upon receiving this request,
+// Amazon S3 concatenates all the parts in ascending order by part number to
+// create a new object. In the Complete Multipart Upload request, you must provide
+// the parts list. You must ensure that the parts list is complete. This operation
+// concatenates the parts that you provide in the list. For each part in the
+// list, you must provide the part number and the ETag value, returned after
+// that part was uploaded.
 //
 // Processing of a Complete Multipart Upload request could take several minutes
 // to complete. After Amazon S3 begins processing the request, it sends an HTTP
@@ -200,7 +201,7 @@ func (c *S3) CompleteMultipartUploadRequest(input *CompleteMultipartUploadInput)
 // For information about permissions required to use the multipart upload API,
 // see Multipart Upload API and Permissions (https://docs.aws.amazon.com/AmazonS3/latest/dev/mpuAndPermissions.html).
 //
-// GetBucketLifecycle has the following special errors:
+// CompleteMultipartUpload has the following special errors:
 //
 //    * Error code: EntityTooSmall Description: Your proposed upload is smaller
 //    than the minimum allowed object size. Each part must be at least 5 MB
@@ -220,15 +221,15 @@ func (c *S3) CompleteMultipartUploadRequest(input *CompleteMultipartUploadInput)
 //
 // The following operations are related to CompleteMultipartUpload:
 //
-//    * CreateMultipartUpload
+//    * CreateMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html)
 //
-//    * UploadPart
+//    * UploadPart (https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPart.html)
 //
-//    * AbortMultipartUpload
+//    * AbortMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_AbortMultipartUpload.html)
 //
-//    * ListParts
+//    * ListParts (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListParts.html)
 //
-//    * ListMultipartUploads
+//    * ListMultipartUploads (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListMultipartUploads.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -441,13 +442,13 @@ func (c *S3) CopyObjectRequest(input *CopyObjectInput) (req *request.Request, ou
 //
 // If the source object's storage class is GLACIER, you must restore a copy
 // of this object before you can use it as a source object for the copy operation.
-// For more information, see .
+// For more information, see RestoreObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_RestoreObject.html).
 //
 // The following operations are related to CopyObject:
 //
-//    * PutObject
+//    * PutObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html)
 //
-//    * GetObject
+//    * GetObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html)
 //
 // For more information, see Copying Objects (https://docs.aws.amazon.com/AmazonS3/latest/dev/CopyingObjectsExamples.html).
 //
@@ -529,20 +530,23 @@ func (c *S3) CreateBucketRequest(input *CreateBucketInput) (req *request.Request
 
 // CreateBucket API operation for Amazon Simple Storage Service.
 //
-// Creates a new bucket. To create a bucket, you must register with Amazon S3
-// and have a valid AWS Access Key ID to authenticate requests. Anonymous requests
-// are never allowed to create buckets. By creating the bucket, you become the
-// bucket owner.
+// Creates a new S3 bucket. To create a bucket, you must register with Amazon
+// S3 and have a valid AWS Access Key ID to authenticate requests. Anonymous
+// requests are never allowed to create buckets. By creating the bucket, you
+// become the bucket owner.
 //
-// Not every string is an acceptable bucket name. For information on bucket
-// naming restrictions, see Working with Amazon S3 Buckets (https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingBucket.html).
+// Not every string is an acceptable bucket name. For information about bucket
+// naming restrictions, see Working with Amazon S3 buckets (https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingBucket.html).
+//
+// If you want to create an Amazon S3 on Outposts bucket, see Create Bucket
+// (https://docs.aws.amazon.com/AmazonS3/latest/API/API_control_CreateBucket.html).
 //
 // By default, the bucket is created in the US East (N. Virginia) Region. You
 // can optionally specify a Region in the request body. You might choose a Region
 // to optimize latency, minimize costs, or address regulatory requirements.
 // For example, if you reside in Europe, you will probably find it advantageous
 // to create buckets in the Europe (Ireland) Region. For more information, see
-// How to Select a Region for Your Buckets (https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingBucket.html#access-bucket-intro).
+// Accessing a bucket (https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingBucket.html#access-bucket-intro).
 //
 // If you send your create bucket request to the s3.amazonaws.com endpoint,
 // the request goes to the us-east-1 Region. Accordingly, the signature calculations
@@ -550,7 +554,7 @@ func (c *S3) CreateBucketRequest(input *CreateBucketInput) (req *request.Request
 // constraint in the request specifies another Region where the bucket is to
 // be created. If you create a bucket in a Region other than US East (N. Virginia),
 // your application must be able to handle 307 redirect. For more information,
-// see Virtual Hosting of Buckets (https://docs.aws.amazon.com/AmazonS3/latest/dev/VirtualHosting.html).
+// see Virtual hosting of buckets (https://docs.aws.amazon.com/AmazonS3/latest/dev/VirtualHosting.html).
 //
 // When creating a bucket using this operation, you can optionally specify the
 // accounts or groups that should be granted specific permissions on the bucket.
@@ -565,7 +569,7 @@ func (c *S3) CreateBucketRequest(input *CreateBucketInput) (req *request.Request
 //    * Specify access permissions explicitly using the x-amz-grant-read, x-amz-grant-write,
 //    x-amz-grant-read-acp, x-amz-grant-write-acp, and x-amz-grant-full-control
 //    headers. These headers map to the set of permissions Amazon S3 supports
-//    in an ACL. For more information, see Access Control List (ACL) Overview
+//    in an ACL. For more information, see Access control list (ACL) overview
 //    (https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html). You
 //    specify each grantee as a type=value pair, where the type is one of the
 //    following: id – if the value specified is the canonical user ID of an
@@ -587,9 +591,9 @@ func (c *S3) CreateBucketRequest(input *CreateBucketInput) (req *request.Request
 //
 // The following operations are related to CreateBucket:
 //
-//    * PutObject
+//    * PutObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html)
 //
-//    * DeleteBucket
+//    * DeleteBucket (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucket.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -601,7 +605,7 @@ func (c *S3) CreateBucketRequest(input *CreateBucketInput) (req *request.Request
 // Returned Error Codes:
 //   * ErrCodeBucketAlreadyExists "BucketAlreadyExists"
 //   The requested bucket name is not available. The bucket namespace is shared
-//   by all users of the system. Please select a different name and try again.
+//   by all users of the system. Select a different name and try again.
 //
 //   * ErrCodeBucketAlreadyOwnedByYou "BucketAlreadyOwnedByYou"
 //   The bucket you tried to create already exists, and you own it. Amazon S3
@@ -679,8 +683,9 @@ func (c *S3) CreateMultipartUploadRequest(input *CreateMultipartUploadInput) (re
 // This operation initiates a multipart upload and returns an upload ID. This
 // upload ID is used to associate all of the parts in the specific multipart
 // upload. You specify this upload ID in each of your subsequent upload part
-// requests (see UploadPart). You also include this upload ID in the final request
-// to either complete or abort the multipart upload request.
+// requests (see UploadPart (https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPart.html)).
+// You also include this upload ID in the final request to either complete or
+// abort the multipart upload request.
 //
 // For more information about multipart uploads, see Multipart Upload Overview
 // (https://docs.aws.amazon.com/AmazonS3/latest/dev/mpuoverview.html).
@@ -713,9 +718,10 @@ func (c *S3) CreateMultipartUploadRequest(input *CreateMultipartUploadInput) (re
 // and decrypts it when you access it. You can provide your own encryption key,
 // or use AWS Key Management Service (AWS KMS) customer master keys (CMKs) or
 // Amazon S3-managed encryption keys. If you choose to provide your own encryption
-// key, the request headers you provide in UploadPart) and UploadPartCopy) requests
-// must match the headers you used in the request to initiate the upload by
-// using CreateMultipartUpload.
+// key, the request headers you provide in UploadPart (AmazonS3/latest/API/API_UploadPart.html)
+// and UploadPartCopy (https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPartCopy.html)
+// requests must match the headers you used in the request to initiate the upload
+// by using CreateMultipartUpload.
 //
 // To perform a multipart upload with encryption using an AWS KMS CMK, the requester
 // must have permission to the kms:Encrypt, kms:Decrypt, kms:ReEncrypt*, kms:GenerateDataKey*,
@@ -759,7 +765,7 @@ func (c *S3) CreateMultipartUploadRequest(input *CreateMultipartUploadInput) (re
 //    * Use encryption keys managed by Amazon S3 or customer master keys (CMKs)
 //    stored in AWS Key Management Service (AWS KMS) – If you want AWS to
 //    manage the keys used to encrypt data, specify the following headers in
-//    the request. x-amz-server-side​-encryption x-amz-server-side-encryption-aws-kms-key-id
+//    the request. x-amz-server-side-encryption x-amz-server-side-encryption-aws-kms-key-id
 //    x-amz-server-side-encryption-context If you specify x-amz-server-side-encryption:aws:kms,
 //    but don't provide x-amz-server-side-encryption-aws-kms-key-id, Amazon
 //    S3 uses the AWS managed CMK in AWS KMS to protect the data. All GET and
@@ -770,11 +776,10 @@ func (c *S3) CreateMultipartUploadRequest(input *CreateMultipartUploadInput) (re
 //
 //    * Use customer-provided encryption keys – If you want to manage your
 //    own encryption keys, provide all the following headers in the request.
-//    x-amz-server-side​-encryption​-customer-algorithm x-amz-server-side​-encryption​-customer-key
-//    x-amz-server-side​-encryption​-customer-key-MD5 For more information
-//    about server-side encryption with CMKs stored in AWS KMS (SSE-KMS), see
-//    Protecting Data Using Server-Side Encryption with CMKs stored in AWS KMS
-//    (https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingKMSEncryption.html).
+//    x-amz-server-side-encryption-customer-algorithm x-amz-server-side-encryption-customer-key
+//    x-amz-server-side-encryption-customer-key-MD5 For more information about
+//    server-side encryption with CMKs stored in AWS KMS (SSE-KMS), see Protecting
+//    Data Using Server-Side Encryption with CMKs stored in AWS KMS (https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingKMSEncryption.html).
 //
 // Access-Control-List (ACL)-Specific Request Headers
 //
@@ -815,15 +820,15 @@ func (c *S3) CreateMultipartUploadRequest(input *CreateMultipartUploadInput) (re
 //
 // The following operations are related to CreateMultipartUpload:
 //
-//    * UploadPart
+//    * UploadPart (https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPart.html)
 //
-//    * CompleteMultipartUpload
+//    * CompleteMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html)
 //
-//    * AbortMultipartUpload
+//    * AbortMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_AbortMultipartUpload.html)
 //
-//    * ListParts
+//    * ListParts (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListParts.html)
 //
-//    * ListMultipartUploads
+//    * ListMultipartUploads (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListMultipartUploads.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -898,14 +903,14 @@ func (c *S3) DeleteBucketRequest(input *DeleteBucketInput) (req *request.Request
 
 // DeleteBucket API operation for Amazon Simple Storage Service.
 //
-// Deletes the bucket. All objects (including all object versions and delete
+// Deletes the S3 bucket. All objects (including all object versions and delete
 // markers) in the bucket must be deleted before the bucket itself can be deleted.
 //
 // Related Resources
 //
-//    *
+//    * CreateBucket (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucket.html)
 //
-//    *
+//    * DeleteObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObject.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -994,11 +999,11 @@ func (c *S3) DeleteBucketAnalyticsConfigurationRequest(input *DeleteBucketAnalyt
 //
 // The following operations are related to DeleteBucketAnalyticsConfiguration:
 //
-//    *
+//    * GetBucketAnalyticsConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketAnalyticsConfiguration.html)
 //
-//    *
+//    * ListBucketAnalyticsConfigurations (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListBucketAnalyticsConfigurations.html)
 //
-//    *
+//    * PutBucketAnalyticsConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketAnalyticsConfiguration.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -1084,9 +1089,9 @@ func (c *S3) DeleteBucketCorsRequest(input *DeleteBucketCorsInput) (req *request
 //
 // Related Resources:
 //
-//    *
+//    * PutBucketCors (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketCors.html)
 //
-//    * RESTOPTIONSobject
+//    * RESTOPTIONSobject (https://docs.aws.amazon.com/AmazonS3/latest/API/RESTOPTIONSobject.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -1175,9 +1180,9 @@ func (c *S3) DeleteBucketEncryptionRequest(input *DeleteBucketEncryptionInput) (
 //
 // Related Resources
 //
-//    * PutBucketEncryption
+//    * PutBucketEncryption (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketEncryption.html)
 //
-//    * GetBucketEncryption
+//    * GetBucketEncryption (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketEncryption.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -1266,11 +1271,11 @@ func (c *S3) DeleteBucketInventoryConfigurationRequest(input *DeleteBucketInvent
 //
 // Operations related to DeleteBucketInventoryConfiguration include:
 //
-//    * GetBucketInventoryConfiguration
+//    * GetBucketInventoryConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketInventoryConfiguration.html)
 //
-//    * PutBucketInventoryConfiguration
+//    * PutBucketInventoryConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketInventoryConfiguration.html)
 //
-//    * ListBucketInventoryConfigurations
+//    * ListBucketInventoryConfigurations (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListBucketInventoryConfigurations.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -1363,9 +1368,9 @@ func (c *S3) DeleteBucketLifecycleRequest(input *DeleteBucketLifecycleInput) (re
 //
 // Related actions include:
 //
-//    * PutBucketLifecycleConfiguration
+//    * PutBucketLifecycleConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketLifecycleConfiguration.html)
 //
-//    * GetBucketLifecycleConfiguration
+//    * GetBucketLifecycleConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketLifecycleConfiguration.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -1455,11 +1460,11 @@ func (c *S3) DeleteBucketMetricsConfigurationRequest(input *DeleteBucketMetricsC
 //
 // The following operations are related to DeleteBucketMetricsConfiguration:
 //
-//    * GetBucketMetricsConfiguration
+//    * GetBucketMetricsConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketMetricsConfiguration.html)
 //
-//    * PutBucketMetricsConfiguration
+//    * PutBucketMetricsConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketMetricsConfiguration.html)
 //
-//    * ListBucketMetricsConfigurations
+//    * ListBucketMetricsConfigurations (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListBucketMetricsConfigurations.html)
 //
 //    * Monitoring Metrics with Amazon CloudWatch (https://docs.aws.amazon.com/AmazonS3/latest/dev/cloudwatch-monitoring.html)
 //
@@ -1486,6 +1491,92 @@ func (c *S3) DeleteBucketMetricsConfiguration(input *DeleteBucketMetricsConfigur
 // for more information on using Contexts.
 func (c *S3) DeleteBucketMetricsConfigurationWithContext(ctx aws.Context, input *DeleteBucketMetricsConfigurationInput, opts ...request.Option) (*DeleteBucketMetricsConfigurationOutput, error) {
 	req, out := c.DeleteBucketMetricsConfigurationRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
+const opDeleteBucketOwnershipControls = "DeleteBucketOwnershipControls"
+
+// DeleteBucketOwnershipControlsRequest generates a "aws/request.Request" representing the
+// client's request for the DeleteBucketOwnershipControls operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See DeleteBucketOwnershipControls for more information on using the DeleteBucketOwnershipControls
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//
+//    // Example sending a request using the DeleteBucketOwnershipControlsRequest method.
+//    req, resp := client.DeleteBucketOwnershipControlsRequest(params)
+//
+//    err := req.Send()
+//    if err == nil { // resp is now filled
+//        fmt.Println(resp)
+//    }
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/s3-2006-03-01/DeleteBucketOwnershipControls
+func (c *S3) DeleteBucketOwnershipControlsRequest(input *DeleteBucketOwnershipControlsInput) (req *request.Request, output *DeleteBucketOwnershipControlsOutput) {
+	op := &request.Operation{
+		Name:       opDeleteBucketOwnershipControls,
+		HTTPMethod: "DELETE",
+		HTTPPath:   "/{Bucket}?ownershipControls",
+	}
+
+	if input == nil {
+		input = &DeleteBucketOwnershipControlsInput{}
+	}
+
+	output = &DeleteBucketOwnershipControlsOutput{}
+	req = c.newRequest(op, input, output)
+	req.Handlers.Unmarshal.Swap(restxml.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
+	return
+}
+
+// DeleteBucketOwnershipControls API operation for Amazon Simple Storage Service.
+//
+// Removes OwnershipControls for an Amazon S3 bucket. To use this operation,
+// you must have the s3:PutBucketOwnershipControls permission. For more information
+// about Amazon S3 permissions, see Specifying Permissions in a Policy (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-with-s3-actions.html).
+//
+// For information about Amazon S3 Object Ownership, see Using Object Ownership
+// (https://docs.aws.amazon.com/AmazonS3/latest/dev/about-object-ownership.html).
+//
+// The following operations are related to DeleteBucketOwnershipControls:
+//
+//    * GetBucketOwnershipControls
+//
+//    * PutBucketOwnershipControls
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon Simple Storage Service's
+// API operation DeleteBucketOwnershipControls for usage and error information.
+// See also, https://docs.aws.amazon.com/goto/WebAPI/s3-2006-03-01/DeleteBucketOwnershipControls
+func (c *S3) DeleteBucketOwnershipControls(input *DeleteBucketOwnershipControlsInput) (*DeleteBucketOwnershipControlsOutput, error) {
+	req, out := c.DeleteBucketOwnershipControlsRequest(input)
+	return out, req.Send()
+}
+
+// DeleteBucketOwnershipControlsWithContext is the same as DeleteBucketOwnershipControls with the addition of
+// the ability to pass a context and additional request options.
+//
+// See DeleteBucketOwnershipControls for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *S3) DeleteBucketOwnershipControlsWithContext(ctx aws.Context, input *DeleteBucketOwnershipControlsInput, opts ...request.Option) (*DeleteBucketOwnershipControlsOutput, error) {
+	req, out := c.DeleteBucketOwnershipControlsRequest(input)
 	req.SetContext(ctx)
 	req.ApplyOptions(opts...)
 	return out, req.Send()
@@ -1556,9 +1647,9 @@ func (c *S3) DeleteBucketPolicyRequest(input *DeleteBucketPolicyInput) (req *req
 //
 // The following operations are related to DeleteBucketPolicy
 //
-//    * CreateBucket
+//    * CreateBucket (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucket.html)
 //
-//    * DeleteObject
+//    * DeleteObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObject.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -1649,9 +1740,9 @@ func (c *S3) DeleteBucketReplicationRequest(input *DeleteBucketReplicationInput)
 //
 // The following operations are related to DeleteBucketReplication:
 //
-//    * PutBucketReplication
+//    * PutBucketReplication (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketReplication.html)
 //
-//    * GetBucketReplication
+//    * GetBucketReplication (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketReplication.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -1734,9 +1825,9 @@ func (c *S3) DeleteBucketTaggingRequest(input *DeleteBucketTaggingInput) (req *r
 //
 // The following operations are related to DeleteBucketTagging:
 //
-//    * GetBucketTagging
+//    * GetBucketTagging (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketTagging.html)
 //
-//    * PutBucketTagging
+//    * PutBucketTagging (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketTagging.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -1828,9 +1919,9 @@ func (c *S3) DeleteBucketWebsiteRequest(input *DeleteBucketWebsiteInput) (req *r
 //
 // The following operations are related to DeleteBucketWebsite:
 //
-//    * GetBucketWebsite
+//    * GetBucketWebsite (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketWebsite.html)
 //
-//    * PutBucketWebsite
+//    * PutBucketWebsite (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketWebsite.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -1922,14 +2013,15 @@ func (c *S3) DeleteObjectRequest(input *DeleteObjectInput) (req *request.Request
 // To see sample requests that use versioning, see Sample Request (https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectDELETE.html#ExampleVersionObjectDelete).
 //
 // You can delete objects by explicitly calling the DELETE Object API or configure
-// its lifecycle (PutBucketLifecycle) to enable Amazon S3 to remove them for
-// you. If you want to block users or accounts from removing or deleting objects
-// from your bucket, you must deny them the s3:DeleteObject, s3:DeleteObjectVersion,
-// and s3:PutLifeCycleConfiguration actions.
+// its lifecycle (PutBucketLifecycle (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketLifecycle.html))
+// to enable Amazon S3 to remove them for you. If you want to block users or
+// accounts from removing or deleting objects from your bucket, you must deny
+// them the s3:DeleteObject, s3:DeleteObjectVersion, and s3:PutLifeCycleConfiguration
+// actions.
 //
 // The following operation is related to DeleteObject:
 //
-//    * PutObject
+//    * PutObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -2015,9 +2107,9 @@ func (c *S3) DeleteObjectTaggingRequest(input *DeleteObjectTaggingInput) (req *r
 //
 // The following operations are related to DeleteBucketMetricsConfiguration:
 //
-//    * PutObjectTagging
+//    * PutObjectTagging (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObjectTagging.html)
 //
-//    * GetObjectTagging
+//    * GetObjectTagging (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObjectTagging.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -2128,15 +2220,15 @@ func (c *S3) DeleteObjectsRequest(input *DeleteObjectsInput) (req *request.Reque
 //
 // The following operations are related to DeleteObjects:
 //
-//    * CreateMultipartUpload
+//    * CreateMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html)
 //
-//    * UploadPart
+//    * UploadPart (https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPart.html)
 //
-//    * CompleteMultipartUpload
+//    * CompleteMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html)
 //
-//    * ListParts
+//    * ListParts (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListParts.html)
 //
-//    * AbortMultipartUpload
+//    * AbortMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_AbortMultipartUpload.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -2221,11 +2313,11 @@ func (c *S3) DeletePublicAccessBlockRequest(input *DeletePublicAccessBlockInput)
 //
 //    * Using Amazon S3 Block Public Access (https://docs.aws.amazon.com/AmazonS3/latest/dev/access-control-block-public-access.html)
 //
-//    * GetPublicAccessBlock
+//    * GetPublicAccessBlock (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetPublicAccessBlock.html)
 //
-//    * PutPublicAccessBlock
+//    * PutPublicAccessBlock (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutPublicAccessBlock.html)
 //
-//    * GetBucketPolicyStatus
+//    * GetBucketPolicyStatus (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketPolicyStatus.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -2312,7 +2404,8 @@ func (c *S3) GetBucketAccelerateConfigurationRequest(input *GetBucketAccelerateC
 // in the Amazon Simple Storage Service Developer Guide.
 //
 // You set the Transfer Acceleration state of an existing bucket to Enabled
-// or Suspended by using the PutBucketAccelerateConfiguration operation.
+// or Suspended by using the PutBucketAccelerateConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketAccelerateConfiguration.html)
+// operation.
 //
 // A GET accelerate request does not return a state value for a bucket that
 // has no transfer acceleration state. A bucket has no Transfer Acceleration
@@ -2324,7 +2417,7 @@ func (c *S3) GetBucketAccelerateConfigurationRequest(input *GetBucketAccelerateC
 //
 // Related Resources
 //
-//    * PutBucketAccelerateConfiguration
+//    * PutBucketAccelerateConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketAccelerateConfiguration.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -2406,7 +2499,7 @@ func (c *S3) GetBucketAclRequest(input *GetBucketAclInput) (req *request.Request
 //
 // Related Resources
 //
-//    *
+//    * ListObjects (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjects.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -2496,11 +2589,11 @@ func (c *S3) GetBucketAnalyticsConfigurationRequest(input *GetBucketAnalyticsCon
 //
 // Related Resources
 //
-//    *
+//    * DeleteBucketAnalyticsConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketAnalyticsConfiguration.html)
 //
-//    *
+//    * ListBucketAnalyticsConfigurations (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListBucketAnalyticsConfigurations.html)
 //
-//    *
+//    * PutBucketAnalyticsConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketAnalyticsConfiguration.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -2585,9 +2678,9 @@ func (c *S3) GetBucketCorsRequest(input *GetBucketCorsInput) (req *request.Reque
 //
 // The following operations are related to GetBucketCors:
 //
-//    * PutBucketCors
+//    * PutBucketCors (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketCors.html)
 //
-//    * DeleteBucketCors
+//    * DeleteBucketCors (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketCors.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -2673,9 +2766,9 @@ func (c *S3) GetBucketEncryptionRequest(input *GetBucketEncryptionInput) (req *r
 //
 // The following operations are related to GetBucketEncryption:
 //
-//    * PutBucketEncryption
+//    * PutBucketEncryption (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketEncryption.html)
 //
-//    * DeleteBucketEncryption
+//    * DeleteBucketEncryption (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketEncryption.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -2763,11 +2856,11 @@ func (c *S3) GetBucketInventoryConfigurationRequest(input *GetBucketInventoryCon
 //
 // The following operations are related to GetBucketInventoryConfiguration:
 //
-//    * DeleteBucketInventoryConfiguration
+//    * DeleteBucketInventoryConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketInventoryConfiguration.html)
 //
-//    * ListBucketInventoryConfigurations
+//    * ListBucketInventoryConfigurations (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListBucketInventoryConfigurations.html)
 //
-//    * PutBucketInventoryConfiguration
+//    * PutBucketInventoryConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketInventoryConfiguration.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -2847,7 +2940,7 @@ func (c *S3) GetBucketLifecycleRequest(input *GetBucketLifecycleInput) (req *req
 // GetBucketLifecycle API operation for Amazon Simple Storage Service.
 //
 //
-// For an updated version of this API, see GetBucketLifecycleConfiguration.
+// For an updated version of this API, see GetBucketLifecycleConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketLifecycleConfiguration.html).
 // If you configured a bucket lifecycle using the filter element, you should
 // see the updated version of this topic. This topic is provided for backward
 // compatibility.
@@ -2869,11 +2962,11 @@ func (c *S3) GetBucketLifecycleRequest(input *GetBucketLifecycleInput) (req *req
 //
 // The following operations are related to GetBucketLifecycle:
 //
-//    * GetBucketLifecycleConfiguration
+//    * GetBucketLifecycleConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketLifecycleConfiguration.html)
 //
-//    * PutBucketLifecycle
+//    * PutBucketLifecycle (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketLifecycle.html)
 //
-//    * DeleteBucketLifecycle
+//    * DeleteBucketLifecycle (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketLifecycle.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -2956,9 +3049,9 @@ func (c *S3) GetBucketLifecycleConfigurationRequest(input *GetBucketLifecycleCon
 // an object key name prefix, one or more object tags, or a combination of both.
 // Accordingly, this section describes the latest API. The response describes
 // the new filter element that you can use to specify a filter to select a subset
-// of objects to which the rule applies. If you are still using previous version
-// of the lifecycle configuration, it works. For the earlier API description,
-// see GetBucketLifecycle.
+// of objects to which the rule applies. If you are using a previous version
+// of the lifecycle configuration, it still works. For the earlier API description,
+// see GetBucketLifecycle (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketLifecycle.html).
 //
 // Returns the lifecycle configuration information set on the bucket. For information
 // about lifecycle configuration, see Object Lifecycle Management (https://docs.aws.amazon.com/AmazonS3/latest/dev/object-lifecycle-mgmt.html).
@@ -2977,11 +3070,11 @@ func (c *S3) GetBucketLifecycleConfigurationRequest(input *GetBucketLifecycleCon
 //
 // The following operations are related to GetBucketLifecycleConfiguration:
 //
-//    * GetBucketLifecycle
+//    * GetBucketLifecycle (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketLifecycle.html)
 //
-//    * PutBucketLifecycle
+//    * PutBucketLifecycle (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketLifecycle.html)
 //
-//    * DeleteBucketLifecycle
+//    * DeleteBucketLifecycle (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketLifecycle.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -3057,15 +3150,15 @@ func (c *S3) GetBucketLocationRequest(input *GetBucketLocationInput) (req *reque
 //
 // Returns the Region the bucket resides in. You set the bucket's Region using
 // the LocationConstraint request parameter in a CreateBucket request. For more
-// information, see CreateBucket.
+// information, see CreateBucket (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucket.html).
 //
 // To use this implementation of the operation, you must be the bucket owner.
 //
 // The following operations are related to GetBucketLocation:
 //
-//    * GetObject
+//    * GetObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html)
 //
-//    * CreateBucket
+//    * CreateBucket (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucket.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -3144,9 +3237,9 @@ func (c *S3) GetBucketLoggingRequest(input *GetBucketLoggingInput) (req *request
 //
 // The following operations are related to GetBucketLogging:
 //
-//    * CreateBucket
+//    * CreateBucket (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucket.html)
 //
-//    * PutBucketLogging
+//    * PutBucketLogging (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketLogging.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -3234,11 +3327,11 @@ func (c *S3) GetBucketMetricsConfigurationRequest(input *GetBucketMetricsConfigu
 //
 // The following operations are related to GetBucketMetricsConfiguration:
 //
-//    * PutBucketMetricsConfiguration
+//    * PutBucketMetricsConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketMetricsConfiguration.html)
 //
-//    * DeleteBucketMetricsConfiguration
+//    * DeleteBucketMetricsConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketMetricsConfiguration.html)
 //
-//    * ListBucketMetricsConfigurations
+//    * ListBucketMetricsConfigurations (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListBucketMetricsConfigurations.html)
 //
 //    * Monitoring Metrics with Amazon CloudWatch (https://docs.aws.amazon.com/AmazonS3/latest/dev/cloudwatch-monitoring.html)
 //
@@ -3319,7 +3412,7 @@ func (c *S3) GetBucketNotificationRequest(input *GetBucketNotificationConfigurat
 
 // GetBucketNotification API operation for Amazon Simple Storage Service.
 //
-// No longer used, see GetBucketNotificationConfiguration.
+// No longer used, see GetBucketNotificationConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketNotificationConfiguration.html).
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -3413,7 +3506,7 @@ func (c *S3) GetBucketNotificationConfigurationRequest(input *GetBucketNotificat
 //
 // The following operation is related to GetBucketNotification:
 //
-//    * PutBucketNotification
+//    * PutBucketNotification (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketNotification.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -3438,6 +3531,91 @@ func (c *S3) GetBucketNotificationConfiguration(input *GetBucketNotificationConf
 // for more information on using Contexts.
 func (c *S3) GetBucketNotificationConfigurationWithContext(ctx aws.Context, input *GetBucketNotificationConfigurationRequest, opts ...request.Option) (*NotificationConfiguration, error) {
 	req, out := c.GetBucketNotificationConfigurationRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
+const opGetBucketOwnershipControls = "GetBucketOwnershipControls"
+
+// GetBucketOwnershipControlsRequest generates a "aws/request.Request" representing the
+// client's request for the GetBucketOwnershipControls operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See GetBucketOwnershipControls for more information on using the GetBucketOwnershipControls
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//
+//    // Example sending a request using the GetBucketOwnershipControlsRequest method.
+//    req, resp := client.GetBucketOwnershipControlsRequest(params)
+//
+//    err := req.Send()
+//    if err == nil { // resp is now filled
+//        fmt.Println(resp)
+//    }
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/s3-2006-03-01/GetBucketOwnershipControls
+func (c *S3) GetBucketOwnershipControlsRequest(input *GetBucketOwnershipControlsInput) (req *request.Request, output *GetBucketOwnershipControlsOutput) {
+	op := &request.Operation{
+		Name:       opGetBucketOwnershipControls,
+		HTTPMethod: "GET",
+		HTTPPath:   "/{Bucket}?ownershipControls",
+	}
+
+	if input == nil {
+		input = &GetBucketOwnershipControlsInput{}
+	}
+
+	output = &GetBucketOwnershipControlsOutput{}
+	req = c.newRequest(op, input, output)
+	return
+}
+
+// GetBucketOwnershipControls API operation for Amazon Simple Storage Service.
+//
+// Retrieves OwnershipControls for an Amazon S3 bucket. To use this operation,
+// you must have the s3:GetBucketOwnershipControls permission. For more information
+// about Amazon S3 permissions, see Specifying Permissions in a Policy (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-with-s3-actions.html).
+//
+// For information about Amazon S3 Object Ownership, see Using Object Ownership
+// (https://docs.aws.amazon.com/AmazonS3/latest/dev/about-object-ownership.html).
+//
+// The following operations are related to GetBucketOwnershipControls:
+//
+//    * PutBucketOwnershipControls
+//
+//    * DeleteBucketOwnershipControls
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon Simple Storage Service's
+// API operation GetBucketOwnershipControls for usage and error information.
+// See also, https://docs.aws.amazon.com/goto/WebAPI/s3-2006-03-01/GetBucketOwnershipControls
+func (c *S3) GetBucketOwnershipControls(input *GetBucketOwnershipControlsInput) (*GetBucketOwnershipControlsOutput, error) {
+	req, out := c.GetBucketOwnershipControlsRequest(input)
+	return out, req.Send()
+}
+
+// GetBucketOwnershipControlsWithContext is the same as GetBucketOwnershipControls with the addition of
+// the ability to pass a context and additional request options.
+//
+// See GetBucketOwnershipControls for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *S3) GetBucketOwnershipControlsWithContext(ctx aws.Context, input *GetBucketOwnershipControlsInput, opts ...request.Option) (*GetBucketOwnershipControlsOutput, error) {
+	req, out := c.GetBucketOwnershipControlsRequest(input)
 	req.SetContext(ctx)
 	req.ApplyOptions(opts...)
 	return out, req.Send()
@@ -3506,7 +3684,7 @@ func (c *S3) GetBucketPolicyRequest(input *GetBucketPolicyInput) (req *request.R
 //
 // The following operation is related to GetBucketPolicy:
 //
-//    * GetObject
+//    * GetObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -3592,11 +3770,11 @@ func (c *S3) GetBucketPolicyStatusRequest(input *GetBucketPolicyStatusInput) (re
 //
 //    * Using Amazon S3 Block Public Access (https://docs.aws.amazon.com/AmazonS3/latest/dev/access-control-block-public-access.html)
 //
-//    * GetPublicAccessBlock
+//    * GetPublicAccessBlock (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetPublicAccessBlock.html)
 //
-//    * PutPublicAccessBlock
+//    * PutPublicAccessBlock (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutPublicAccessBlock.html)
 //
-//    * DeletePublicAccessBlock
+//    * DeletePublicAccessBlock (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeletePublicAccessBlock.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -3687,13 +3865,14 @@ func (c *S3) GetBucketReplicationRequest(input *GetBucketReplicationInput) (req 
 // also include the DeleteMarkerReplication and Priority elements. The response
 // also returns those elements.
 //
-// For information about GetBucketReplication errors, see ReplicationErrorCodeList
+// For information about GetBucketReplication errors, see List of replication-related
+// error codes (https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#ReplicationErrorCodeList)
 //
 // The following operations are related to GetBucketReplication:
 //
-//    * PutBucketReplication
+//    * PutBucketReplication (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketReplication.html)
 //
-//    * DeleteBucketReplication
+//    * DeleteBucketReplication (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketReplication.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -3773,7 +3952,7 @@ func (c *S3) GetBucketRequestPaymentRequest(input *GetBucketRequestPaymentInput)
 //
 // The following operations are related to GetBucketRequestPayment:
 //
-//    * ListObjects
+//    * ListObjects (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjects.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -3860,9 +4039,9 @@ func (c *S3) GetBucketTaggingRequest(input *GetBucketTaggingInput) (req *request
 //
 // The following operations are related to GetBucketTagging:
 //
-//    * PutBucketTagging
+//    * PutBucketTagging (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketTagging.html)
 //
-//    * DeleteBucketTagging
+//    * DeleteBucketTagging (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketTagging.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -3946,11 +4125,11 @@ func (c *S3) GetBucketVersioningRequest(input *GetBucketVersioningInput) (req *r
 //
 // The following operations are related to GetBucketVersioning:
 //
-//    * GetObject
+//    * GetObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html)
 //
-//    * PutObject
+//    * PutObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html)
 //
-//    * DeleteObject
+//    * DeleteObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObject.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -4036,9 +4215,9 @@ func (c *S3) GetBucketWebsiteRequest(input *GetBucketWebsiteInput) (req *request
 //
 // The following operations are related to DeleteBucketWebsite:
 //
-//    * DeleteBucketWebsite
+//    * DeleteBucketWebsite (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketWebsite.html)
 //
-//    * PutBucketWebsite
+//    * PutBucketWebsite (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketWebsite.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -4132,13 +4311,14 @@ func (c *S3) GetObjectRequest(input *GetObjectInput) (req *request.Request, outp
 //
 // To distribute large files to many people, you can save bandwidth costs by
 // using BitTorrent. For more information, see Amazon S3 Torrent (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3Torrent.html).
-// For more information about returning the ACL of an object, see GetObjectAcl.
+// For more information about returning the ACL of an object, see GetObjectAcl
+// (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObjectAcl.html).
 //
 // If the object you are retrieving is stored in the GLACIER or DEEP_ARCHIVE
 // storage classes, before you can retrieve the object you must first restore
-// a copy using . Otherwise, this operation returns an InvalidObjectStateError
-// error. For information about restoring archived objects, see Restoring Archived
-// Objects (https://docs.aws.amazon.com/AmazonS3/latest/dev/restoring-objects.html).
+// a copy using RestoreObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_RestoreObject.html).
+// Otherwise, this operation returns an InvalidObjectStateError error. For information
+// about restoring archived objects, see Restoring Archived Objects (https://docs.aws.amazon.com/AmazonS3/latest/dev/restoring-objects.html).
 //
 // Encryption request headers, like x-amz-server-side-encryption, should not
 // be sent for GET requests if your object uses server-side encryption with
@@ -4150,11 +4330,11 @@ func (c *S3) GetObjectRequest(input *GetObjectInput) (req *request.Request, outp
 // encryption keys (SSE-C) when you store the object in Amazon S3, then when
 // you GET the object, you must use the following headers:
 //
-//    * x-amz-server-side​-encryption​-customer-algorithm
+//    * x-amz-server-side-encryption-customer-algorithm
 //
-//    * x-amz-server-side​-encryption​-customer-key
+//    * x-amz-server-side-encryption-customer-key
 //
-//    * x-amz-server-side​-encryption​-customer-key-MD5
+//    * x-amz-server-side-encryption-customer-key-MD5
 //
 // For more information about SSE-C, see Server-Side Encryption (Using Customer-Provided
 // Encryption Keys) (https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerSideEncryptionCustomerKeys.html).
@@ -4162,6 +4342,7 @@ func (c *S3) GetObjectRequest(input *GetObjectInput) (req *request.Request, outp
 // Assuming you have permission to read object tags (permission for the s3:GetObjectVersionTagging
 // action), the response also returns the x-amz-tagging-count header that provides
 // the count of number of tags associated with the object. You can use GetObjectTagging
+// (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObjectTagging.html)
 // to retrieve the tag set associated with an object.
 //
 // Permissions
@@ -4186,7 +4367,7 @@ func (c *S3) GetObjectRequest(input *GetObjectInput) (req *request.Request, outp
 // as if the object was deleted and includes x-amz-delete-marker: true in the
 // response.
 //
-// For more information about versioning, see PutBucketVersioning.
+// For more information about versioning, see PutBucketVersioning (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketVersioning.html).
 //
 // Overriding Response Header Values
 //
@@ -4233,9 +4414,9 @@ func (c *S3) GetObjectRequest(input *GetObjectInput) (req *request.Request, outp
 //
 // The following operations are related to GetObject:
 //
-//    * ListBuckets
+//    * ListBuckets (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListBuckets.html)
 //
-//    * GetObjectAcl
+//    * GetObjectAcl (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObjectAcl.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -4317,6 +4498,8 @@ func (c *S3) GetObjectAclRequest(input *GetObjectAclInput) (req *request.Request
 // Returns the access control list (ACL) of an object. To use this operation,
 // you must have READ_ACP access to the object.
 //
+// This action is not supported by Amazon S3 on Outposts.
+//
 // Versioning
 //
 // By default, GET returns ACL information about the current version of an object.
@@ -4324,11 +4507,11 @@ func (c *S3) GetObjectAclRequest(input *GetObjectAclInput) (req *request.Request
 //
 // The following operations are related to GetObjectAcl:
 //
-//    * GetObject
+//    * GetObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html)
 //
-//    * DeleteObject
+//    * DeleteObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObject.html)
 //
-//    * PutObject
+//    * PutObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -4409,6 +4592,8 @@ func (c *S3) GetObjectLegalHoldRequest(input *GetObjectLegalHoldInput) (req *req
 //
 // Gets an object's current Legal Hold status. For more information, see Locking
 // Objects (https://docs.aws.amazon.com/AmazonS3/latest/dev/object-lock.html).
+//
+// This action is not supported by Amazon S3 on Outposts.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -4562,6 +4747,8 @@ func (c *S3) GetObjectRetentionRequest(input *GetObjectRetentionInput) (req *req
 // Retrieves an object's retention settings. For more information, see Locking
 // Objects (https://docs.aws.amazon.com/AmazonS3/latest/dev/object-lock.html).
 //
+// This action is not supported by Amazon S3 on Outposts.
+//
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
 // the error.
@@ -4652,7 +4839,7 @@ func (c *S3) GetObjectTaggingRequest(input *GetObjectTaggingInput) (req *request
 //
 // The following operation is related to GetObjectTagging:
 //
-//    * PutObjectTagging
+//    * PutObjectTagging (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObjectTagging.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -4726,19 +4913,21 @@ func (c *S3) GetObjectTorrentRequest(input *GetObjectTorrentInput) (req *request
 
 // GetObjectTorrent API operation for Amazon Simple Storage Service.
 //
-// Return torrent files from a bucket. BitTorrent can save you bandwidth when
+// Returns torrent files from a bucket. BitTorrent can save you bandwidth when
 // you're distributing large files. For more information about BitTorrent, see
-// Amazon S3 Torrent (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3Torrent.html).
+// Using BitTorrent with Amazon S3 (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3Torrent.html).
 //
-// You can get torrent only for objects that are less than 5 GB in size and
-// that are not encrypted using server-side encryption with customer-provided
+// You can get torrent only for objects that are less than 5 GB in size, and
+// that are not encrypted using server-side encryption with a customer-provided
 // encryption key.
 //
 // To use GET, you must have READ access to the object.
 //
+// This action is not supported by Amazon S3 on Outposts.
+//
 // The following operation is related to GetObjectTorrent:
 //
-//    * GetObject
+//    * GetObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -4831,11 +5020,11 @@ func (c *S3) GetPublicAccessBlockRequest(input *GetPublicAccessBlockInput) (req 
 //
 //    * Using Amazon S3 Block Public Access (https://docs.aws.amazon.com/AmazonS3/latest/dev/access-control-block-public-access.html)
 //
-//    * PutPublicAccessBlock
+//    * PutPublicAccessBlock (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutPublicAccessBlock.html)
 //
-//    * GetPublicAccessBlock
+//    * GetPublicAccessBlock (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetPublicAccessBlock.html)
 //
-//    * DeletePublicAccessBlock
+//    * DeletePublicAccessBlock (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeletePublicAccessBlock.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -5010,11 +5199,11 @@ func (c *S3) HeadObjectRequest(input *HeadObjectInput) (req *request.Request, ou
 // encryption keys (SSE-C) when you store the object in Amazon S3, then when
 // you retrieve the metadata from the object, you must use the following headers:
 //
-//    * x-amz-server-side​-encryption​-customer-algorithm
+//    * x-amz-server-side-encryption-customer-algorithm
 //
-//    * x-amz-server-side​-encryption​-customer-key
+//    * x-amz-server-side-encryption-customer-key
 //
-//    * x-amz-server-side​-encryption​-customer-key-MD5
+//    * x-amz-server-side-encryption-customer-key-MD5
 //
 // For more information about SSE-C, see Server-Side Encryption (Using Customer-Provided
 // Encryption Keys) (https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerSideEncryptionCustomerKeys.html).
@@ -5057,7 +5246,7 @@ func (c *S3) HeadObjectRequest(input *HeadObjectInput) (req *request.Request, ou
 //
 // The following operation is related to HeadObject:
 //
-//    * GetObject
+//    * GetObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html)
 //
 // See http://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#RESTErrorResponses
 // for more information on returned errors.
@@ -5156,11 +5345,11 @@ func (c *S3) ListBucketAnalyticsConfigurationsRequest(input *ListBucketAnalytics
 //
 // The following operations are related to ListBucketAnalyticsConfigurations:
 //
-//    * GetBucketAnalyticsConfiguration
+//    * GetBucketAnalyticsConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketAnalyticsConfiguration.html)
 //
-//    * DeleteBucketAnalyticsConfiguration
+//    * DeleteBucketAnalyticsConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketAnalyticsConfiguration.html)
 //
-//    * PutBucketAnalyticsConfiguration
+//    * PutBucketAnalyticsConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketAnalyticsConfiguration.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -5256,11 +5445,11 @@ func (c *S3) ListBucketInventoryConfigurationsRequest(input *ListBucketInventory
 //
 // The following operations are related to ListBucketInventoryConfigurations:
 //
-//    * GetBucketInventoryConfiguration
+//    * GetBucketInventoryConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketInventoryConfiguration.html)
 //
-//    * DeleteBucketInventoryConfiguration
+//    * DeleteBucketInventoryConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketInventoryConfiguration.html)
 //
-//    * PutBucketInventoryConfiguration
+//    * PutBucketInventoryConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketInventoryConfiguration.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -5357,11 +5546,11 @@ func (c *S3) ListBucketMetricsConfigurationsRequest(input *ListBucketMetricsConf
 //
 // The following operations are related to ListBucketMetricsConfigurations:
 //
-//    * PutBucketMetricsConfiguration
+//    * PutBucketMetricsConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketMetricsConfiguration.html)
 //
-//    * GetBucketMetricsConfiguration
+//    * GetBucketMetricsConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketMetricsConfiguration.html)
 //
-//    * DeleteBucketMetricsConfiguration
+//    * DeleteBucketMetricsConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketMetricsConfiguration.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -5540,15 +5729,15 @@ func (c *S3) ListMultipartUploadsRequest(input *ListMultipartUploadsInput) (req 
 //
 // The following operations are related to ListMultipartUploads:
 //
-//    * CreateMultipartUpload
+//    * CreateMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html)
 //
-//    * UploadPart
+//    * UploadPart (https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPart.html)
 //
-//    * CompleteMultipartUpload
+//    * CompleteMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html)
 //
-//    * ListParts
+//    * ListParts (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListParts.html)
 //
-//    * AbortMultipartUpload
+//    * AbortMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_AbortMultipartUpload.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -5680,24 +5869,26 @@ func (c *S3) ListObjectVersionsRequest(input *ListObjectVersionsInput) (req *req
 
 // ListObjectVersions API operation for Amazon Simple Storage Service.
 //
-// Returns metadata about all of the versions of objects in a bucket. You can
-// also use request parameters as selection criteria to return metadata about
-// a subset of all the object versions.
+// Returns metadata about all versions of the objects in a bucket. You can also
+// use request parameters as selection criteria to return metadata about a subset
+// of all the object versions.
 //
 // A 200 OK response can contain valid or invalid XML. Make sure to design your
 // application to parse the contents of the response and handle it appropriately.
 //
 // To use this operation, you must have READ access to the bucket.
 //
+// This action is not supported by Amazon S3 on Outposts.
+//
 // The following operations are related to ListObjectVersions:
 //
-//    * ListObjectsV2
+//    * ListObjectsV2 (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectsV2.html)
 //
-//    * GetObject
+//    * GetObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html)
 //
-//    * PutObject
+//    * PutObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html)
 //
-//    * DeleteObject
+//    * DeleteObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObject.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -5835,21 +6026,22 @@ func (c *S3) ListObjectsRequest(input *ListObjectsInput) (req *request.Request, 
 // to design your application to parse the contents of the response and handle
 // it appropriately.
 //
-// This API has been revised. We recommend that you use the newer version, ListObjectsV2,
+// This API has been revised. We recommend that you use the newer version, ListObjectsV2
+// (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectsV2.html),
 // when developing applications. For backward compatibility, Amazon S3 continues
 // to support ListObjects.
 //
 // The following operations are related to ListObjects:
 //
-//    * ListObjectsV2
+//    * ListObjectsV2 (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectsV2.html)
 //
-//    * GetObject
+//    * GetObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html)
 //
-//    * PutObject
+//    * PutObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html)
 //
-//    * CreateBucket
+//    * CreateBucket (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucket.html)
 //
-//    * ListBuckets
+//    * ListBuckets (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListBuckets.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -6003,17 +6195,18 @@ func (c *S3) ListObjectsV2Request(input *ListObjectsV2Input) (req *request.Reque
 //
 // This section describes the latest revision of the API. We recommend that
 // you use this revised API for application development. For backward compatibility,
-// Amazon S3 continues to support the prior version of this API, ListObjects.
+// Amazon S3 continues to support the prior version of this API, ListObjects
+// (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjects.html).
 //
-// To get a list of your buckets, see ListBuckets.
+// To get a list of your buckets, see ListBuckets (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListBuckets.html).
 //
 // The following operations are related to ListObjectsV2:
 //
-//    * GetObject
+//    * GetObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html)
 //
-//    * PutObject
+//    * PutObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html)
 //
-//    * CreateBucket
+//    * CreateBucket (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucket.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -6152,14 +6345,14 @@ func (c *S3) ListPartsRequest(input *ListPartsInput) (req *request.Request, outp
 //
 // Lists the parts that have been uploaded for a specific multipart upload.
 // This operation must include the upload ID, which you obtain by sending the
-// initiate multipart upload request (see CreateMultipartUpload). This request
-// returns a maximum of 1,000 uploaded parts. The default number of parts returned
-// is 1,000 parts. You can restrict the number of parts returned by specifying
-// the max-parts request parameter. If your multipart upload consists of more
-// than 1,000 parts, the response returns an IsTruncated field with the value
-// of true, and a NextPartNumberMarker element. In subsequent ListParts requests
-// you can include the part-number-marker query string parameter and set its
-// value to the NextPartNumberMarker field value from the previous response.
+// initiate multipart upload request (see CreateMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html)).
+// This request returns a maximum of 1,000 uploaded parts. The default number
+// of parts returned is 1,000 parts. You can restrict the number of parts returned
+// by specifying the max-parts request parameter. If your multipart upload consists
+// of more than 1,000 parts, the response returns an IsTruncated field with
+// the value of true, and a NextPartNumberMarker element. In subsequent ListParts
+// requests you can include the part-number-marker query string parameter and
+// set its value to the NextPartNumberMarker field value from the previous response.
 //
 // For more information on multipart uploads, see Uploading Objects Using Multipart
 // Upload (https://docs.aws.amazon.com/AmazonS3/latest/dev/uploadobjusingmpu.html).
@@ -6169,15 +6362,15 @@ func (c *S3) ListPartsRequest(input *ListPartsInput) (req *request.Request, outp
 //
 // The following operations are related to ListParts:
 //
-//    * CreateMultipartUpload
+//    * CreateMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html)
 //
-//    * UploadPart
+//    * UploadPart (https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPart.html)
 //
-//    * CompleteMultipartUpload
+//    * CompleteMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html)
 //
-//    * AbortMultipartUpload
+//    * AbortMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_AbortMultipartUpload.html)
 //
-//    * ListMultipartUploads
+//    * ListMultipartUploads (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListMultipartUploads.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -6321,8 +6514,8 @@ func (c *S3) PutBucketAccelerateConfigurationRequest(input *PutBucketAccelerateC
 //
 //    * Suspended – Disables accelerated data transfers to the bucket.
 //
-// The GetBucketAccelerateConfiguration operation returns the transfer acceleration
-// state of a bucket.
+// The GetBucketAccelerateConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketAccelerateConfiguration.html)
+// operation returns the transfer acceleration state of a bucket.
 //
 // After setting the Transfer Acceleration state of a bucket to Enabled, it
 // might take up to thirty minutes before the data transfer rates to the bucket
@@ -6336,9 +6529,9 @@ func (c *S3) PutBucketAccelerateConfigurationRequest(input *PutBucketAccelerateC
 //
 // The following operations are related to PutBucketAccelerateConfiguration:
 //
-//    * GetBucketAccelerateConfiguration
+//    * GetBucketAccelerateConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketAccelerateConfiguration.html)
 //
-//    * CreateBucket
+//    * CreateBucket (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucket.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -6498,11 +6691,11 @@ func (c *S3) PutBucketAclRequest(input *PutBucketAclInput) (req *request.Request
 //
 // Related Resources
 //
-//    * CreateBucket
+//    * CreateBucket (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucket.html)
 //
-//    * DeleteBucket
+//    * DeleteBucket (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucket.html)
 //
-//    * GetObjectAcl
+//    * GetObjectAcl (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObjectAcl.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -6617,11 +6810,11 @@ func (c *S3) PutBucketAnalyticsConfigurationRequest(input *PutBucketAnalyticsCon
 //
 // Related Resources
 //
-//    *
+//    * GetBucketAnalyticsConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketAnalyticsConfiguration.html)
 //
-//    *
+//    * DeleteBucketAnalyticsConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketAnalyticsConfiguration.html)
 //
-//    *
+//    * ListBucketAnalyticsConfigurations (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListBucketAnalyticsConfigurations.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -6738,11 +6931,11 @@ func (c *S3) PutBucketCorsRequest(input *PutBucketCorsInput) (req *request.Reque
 //
 // Related Resources
 //
-//    * GetBucketCors
+//    * GetBucketCors (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketCors.html)
 //
-//    * DeleteBucketCors
+//    * DeleteBucketCors (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketCors.html)
 //
-//    * RESTOPTIONSobject
+//    * RESTOPTIONSobject (https://docs.aws.amazon.com/AmazonS3/latest/API/RESTOPTIONSobject.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -6841,9 +7034,9 @@ func (c *S3) PutBucketEncryptionRequest(input *PutBucketEncryptionInput) (req *r
 //
 // Related Resources
 //
-//    * GetBucketEncryption
+//    * GetBucketEncryption (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketEncryption.html)
 //
-//    * DeleteBucketEncryption
+//    * DeleteBucketEncryption (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketEncryption.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -6961,11 +7154,11 @@ func (c *S3) PutBucketInventoryConfigurationRequest(input *PutBucketInventoryCon
 //
 // Related Resources
 //
-//    * GetBucketInventoryConfiguration
+//    * GetBucketInventoryConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketInventoryConfiguration.html)
 //
-//    * DeleteBucketInventoryConfiguration
+//    * DeleteBucketInventoryConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketInventoryConfiguration.html)
 //
-//    * ListBucketInventoryConfigurations
+//    * ListBucketInventoryConfigurations (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListBucketInventoryConfigurations.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -7050,7 +7243,7 @@ func (c *S3) PutBucketLifecycleRequest(input *PutBucketLifecycleInput) (req *req
 // PutBucketLifecycle API operation for Amazon Simple Storage Service.
 //
 //
-// For an updated version of this API, see PutBucketLifecycleConfiguration.
+// For an updated version of this API, see PutBucketLifecycleConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketLifecycleConfiguration.html).
 // This version has been deprecated. Existing lifecycle configurations will
 // work. For new lifecycle configurations, use the updated API.
 //
@@ -7086,11 +7279,11 @@ func (c *S3) PutBucketLifecycleRequest(input *PutBucketLifecycleInput) (req *req
 //
 // Related Resources
 //
-//    * GetBucketLifecycle(Deprecated)
+//    * GetBucketLifecycle (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketLifecycle.html)(Deprecated)
 //
-//    * GetBucketLifecycleConfiguration
+//    * GetBucketLifecycleConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketLifecycleConfiguration.html)
 //
-//    *
+//    * RestoreObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_RestoreObject.html)
 //
 //    * By default, a resource owner—in this case, a bucket owner, which is
 //    the AWS account that created the bucket—can perform any of the operations.
@@ -7189,7 +7382,7 @@ func (c *S3) PutBucketLifecycleConfigurationRequest(input *PutBucketLifecycleCon
 // Accordingly, this section describes the latest API. The previous version
 // of the API supported filtering based only on an object key name prefix, which
 // is supported for backward compatibility. For the related API description,
-// see PutBucketLifecycle.
+// see PutBucketLifecycle (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketLifecycle.html).
 //
 // Rules
 //
@@ -7240,9 +7433,9 @@ func (c *S3) PutBucketLifecycleConfigurationRequest(input *PutBucketLifecycleCon
 //
 //    * Examples of Lifecycle Configuration (https://docs.aws.amazon.com/AmazonS3/latest/dev/lifecycle-configuration-examples.html)
 //
-//    * GetBucketLifecycleConfiguration
+//    * GetBucketLifecycleConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketLifecycleConfiguration.html)
 //
-//    * DeleteBucketLifecycle
+//    * DeleteBucketLifecycle (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketLifecycle.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -7355,18 +7548,19 @@ func (c *S3) PutBucketLoggingRequest(input *PutBucketLoggingInput) (req *request
 // For more information about server access logging, see Server Access Logging
 // (https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerLogs.html).
 //
-// For more information about creating a bucket, see CreateBucket. For more
-// information about returning the logging status of a bucket, see GetBucketLogging.
+// For more information about creating a bucket, see CreateBucket (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucket.html).
+// For more information about returning the logging status of a bucket, see
+// GetBucketLogging (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketLogging.html).
 //
 // The following operations are related to PutBucketLogging:
 //
-//    * PutObject
+//    * PutObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html)
 //
-//    * DeleteBucket
+//    * DeleteBucket (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucket.html)
 //
-//    * CreateBucket
+//    * CreateBucket (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucket.html)
 //
-//    * GetBucketLogging
+//    * GetBucketLogging (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketLogging.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -7458,11 +7652,11 @@ func (c *S3) PutBucketMetricsConfigurationRequest(input *PutBucketMetricsConfigu
 //
 // The following operations are related to PutBucketMetricsConfiguration:
 //
-//    * DeleteBucketMetricsConfiguration
+//    * DeleteBucketMetricsConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketMetricsConfiguration.html)
 //
-//    * PutBucketMetricsConfiguration
+//    * PutBucketMetricsConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketMetricsConfiguration.html)
 //
-//    * ListBucketMetricsConfigurations
+//    * ListBucketMetricsConfigurations (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListBucketMetricsConfigurations.html)
 //
 // GetBucketLifecycle has the following special error:
 //
@@ -7552,7 +7746,8 @@ func (c *S3) PutBucketNotificationRequest(input *PutBucketNotificationInput) (re
 
 // PutBucketNotification API operation for Amazon Simple Storage Service.
 //
-// No longer used, see the PutBucketNotificationConfiguration operation.
+// No longer used, see the PutBucketNotificationConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketNotificationConfiguration.html)
+// operation.
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -7679,7 +7874,7 @@ func (c *S3) PutBucketNotificationConfigurationRequest(input *PutBucketNotificat
 //
 // The following operation is related to PutBucketNotificationConfiguration:
 //
-//    * GetBucketNotificationConfiguration
+//    * GetBucketNotificationConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketNotificationConfiguration.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -7704,6 +7899,93 @@ func (c *S3) PutBucketNotificationConfiguration(input *PutBucketNotificationConf
 // for more information on using Contexts.
 func (c *S3) PutBucketNotificationConfigurationWithContext(ctx aws.Context, input *PutBucketNotificationConfigurationInput, opts ...request.Option) (*PutBucketNotificationConfigurationOutput, error) {
 	req, out := c.PutBucketNotificationConfigurationRequest(input)
+	req.SetContext(ctx)
+	req.ApplyOptions(opts...)
+	return out, req.Send()
+}
+
+const opPutBucketOwnershipControls = "PutBucketOwnershipControls"
+
+// PutBucketOwnershipControlsRequest generates a "aws/request.Request" representing the
+// client's request for the PutBucketOwnershipControls operation. The "output" return
+// value will be populated with the request's response once the request completes
+// successfully.
+//
+// Use "Send" method on the returned Request to send the API call to the service.
+// the "output" return value is not valid until after Send returns without error.
+//
+// See PutBucketOwnershipControls for more information on using the PutBucketOwnershipControls
+// API call, and error handling.
+//
+// This method is useful when you want to inject custom logic or configuration
+// into the SDK's request lifecycle. Such as custom headers, or retry logic.
+//
+//
+//    // Example sending a request using the PutBucketOwnershipControlsRequest method.
+//    req, resp := client.PutBucketOwnershipControlsRequest(params)
+//
+//    err := req.Send()
+//    if err == nil { // resp is now filled
+//        fmt.Println(resp)
+//    }
+//
+// See also, https://docs.aws.amazon.com/goto/WebAPI/s3-2006-03-01/PutBucketOwnershipControls
+func (c *S3) PutBucketOwnershipControlsRequest(input *PutBucketOwnershipControlsInput) (req *request.Request, output *PutBucketOwnershipControlsOutput) {
+	op := &request.Operation{
+		Name:       opPutBucketOwnershipControls,
+		HTTPMethod: "PUT",
+		HTTPPath:   "/{Bucket}?ownershipControls",
+	}
+
+	if input == nil {
+		input = &PutBucketOwnershipControlsInput{}
+	}
+
+	output = &PutBucketOwnershipControlsOutput{}
+	req = c.newRequest(op, input, output)
+	req.Handlers.Unmarshal.Swap(restxml.UnmarshalHandler.Name, protocol.UnmarshalDiscardBodyHandler)
+	return
+}
+
+// PutBucketOwnershipControls API operation for Amazon Simple Storage Service.
+//
+// Creates or modifies OwnershipControls for an Amazon S3 bucket. To use this
+// operation, you must have the s3:GetBucketOwnershipControls permission. For
+// more information about Amazon S3 permissions, see Specifying Permissions
+// in a Policy (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-with-s3-actions.html).
+//
+// For information about Amazon S3 Object Ownership, see Using Object Ownership
+// (https://docs.aws.amazon.com/AmazonS3/latest/dev/about-object-ownership.html).
+//
+// The following operations are related to GetBucketOwnershipControls:
+//
+//    * GetBucketOwnershipControls
+//
+//    * DeleteBucketOwnershipControls
+//
+// Returns awserr.Error for service API and SDK errors. Use runtime type assertions
+// with awserr.Error's Code and Message methods to get detailed information about
+// the error.
+//
+// See the AWS API reference guide for Amazon Simple Storage Service's
+// API operation PutBucketOwnershipControls for usage and error information.
+// See also, https://docs.aws.amazon.com/goto/WebAPI/s3-2006-03-01/PutBucketOwnershipControls
+func (c *S3) PutBucketOwnershipControls(input *PutBucketOwnershipControlsInput) (*PutBucketOwnershipControlsOutput, error) {
+	req, out := c.PutBucketOwnershipControlsRequest(input)
+	return out, req.Send()
+}
+
+// PutBucketOwnershipControlsWithContext is the same as PutBucketOwnershipControls with the addition of
+// the ability to pass a context and additional request options.
+//
+// See PutBucketOwnershipControls for details on how to use this API operation.
+//
+// The context must be non-nil and will be used for request cancellation. If
+// the context is nil a panic will occur. In the future the SDK may create
+// sub-contexts for http.Requests. See https://golang.org/pkg/context/
+// for more information on using Contexts.
+func (c *S3) PutBucketOwnershipControlsWithContext(ctx aws.Context, input *PutBucketOwnershipControlsInput, opts ...request.Option) (*PutBucketOwnershipControlsOutput, error) {
+	req, out := c.PutBucketOwnershipControlsRequest(input)
 	req.SetContext(ctx)
 	req.ApplyOptions(opts...)
 	return out, req.Send()
@@ -7777,9 +8059,9 @@ func (c *S3) PutBucketPolicyRequest(input *PutBucketPolicyInput) (req *request.R
 //
 // The following operations are related to PutBucketPolicy:
 //
-//    * CreateBucket
+//    * CreateBucket (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucket.html)
 //
-//    * DeleteBucket
+//    * DeleteBucket (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucket.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -7883,6 +8165,13 @@ func (c *S3) PutBucketReplicationRequest(input *PutBucketReplicationInput) (req 
 // When you add the Filter element in the configuration, you must also add the
 // following elements: DeleteMarkerReplication, Status, and Priority.
 //
+// The latest version of the replication configuration XML is V2. XML V2 replication
+// configurations are those that contain the Filter element for rules, and rules
+// that specify S3 Replication Time Control (S3 RTC). In XML V2 replication
+// configurations, Amazon S3 doesn't replicate delete markers. Therefore, you
+// must set the DeleteMarkerReplication element to Disabled. For backward compatibility,
+// Amazon S3 continues to support the XML V1 replication configuration.
+//
 // For information about enabling versioning on a bucket, see Using Versioning
 // (https://docs.aws.amazon.com/AmazonS3/latest/dev/Versioning.html).
 //
@@ -7901,13 +8190,14 @@ func (c *S3) PutBucketReplicationRequest(input *PutBucketReplicationInput) (req 
 // replication configuration, see Replicating Objects Created with SSE Using
 // CMKs stored in AWS KMS (https://docs.aws.amazon.com/AmazonS3/latest/dev/replication-config-for-kms-objects.html).
 //
-// For information on PutBucketReplication errors, see ReplicationErrorCodeList
+// For information on PutBucketReplication errors, see List of replication-related
+// error codes (https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#ReplicationErrorCodeList)
 //
 // The following operations are related to PutBucketReplication:
 //
-//    * GetBucketReplication
+//    * GetBucketReplication (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketReplication.html)
 //
-//    * DeleteBucketReplication
+//    * DeleteBucketReplication (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketReplication.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -7994,9 +8284,9 @@ func (c *S3) PutBucketRequestPaymentRequest(input *PutBucketRequestPaymentInput)
 //
 // The following operations are related to PutBucketRequestPayment:
 //
-//    * CreateBucket
+//    * CreateBucket (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucket.html)
 //
-//    * GetBucketRequestPayment
+//    * GetBucketRequestPayment (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketRequestPayment.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -8114,9 +8404,9 @@ func (c *S3) PutBucketTaggingRequest(input *PutBucketTaggingInput) (req *request
 //
 // The following operations are related to PutBucketTagging:
 //
-//    * GetBucketTagging
+//    * GetBucketTagging (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketTagging.html)
 //
-//    * DeleteBucketTagging
+//    * DeleteBucketTagging (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucketTagging.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -8207,7 +8497,8 @@ func (c *S3) PutBucketVersioningRequest(input *PutBucketVersioningInput) (req *r
 // added to the bucket receive the version ID null.
 //
 // If the versioning state has never been set on a bucket, it has no versioning
-// state; a GetBucketVersioning request does not return a versioning state value.
+// state; a GetBucketVersioning (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketVersioning.html)
+// request does not return a versioning state value.
 //
 // If the bucket owner enables MFA Delete in the bucket versioning configuration,
 // the bucket owner must include the x-amz-mfa request header and the Status
@@ -8224,11 +8515,11 @@ func (c *S3) PutBucketVersioningRequest(input *PutBucketVersioningInput) (req *r
 //
 // Related Resources
 //
-//    * CreateBucket
+//    * CreateBucket (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateBucket.html)
 //
-//    * DeleteBucket
+//    * DeleteBucket (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucket.html)
 //
-//    * GetBucketVersioning
+//    * GetBucketVersioning (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketVersioning.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -8487,10 +8778,11 @@ func (c *S3) PutObjectRequest(input *PutObjectInput) (req *request.Request, outp
 //
 // Storage Class Options
 //
-// By default, Amazon S3 uses the STANDARD storage class to store newly created
+// By default, Amazon S3 uses the STANDARD Storage Class to store newly created
 // objects. The STANDARD storage class provides high durability and high availability.
-// Depending on performance needs, you can specify a different storage class.
-// For more information, see Storage Classes (https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html)
+// Depending on performance needs, you can specify a different Storage Class.
+// Amazon S3 on Outposts only uses the OUTPOSTS Storage Class. For more information,
+// see Storage Classes (https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html)
 // in the Amazon S3 Service Developer Guide.
 //
 // Versioning
@@ -8503,13 +8795,14 @@ func (c *S3) PutObjectRequest(input *PutObjectInput) (req *request.Request, outp
 //
 // For more information about versioning, see Adding Objects to Versioning Enabled
 // Buckets (https://docs.aws.amazon.com/AmazonS3/latest/dev/AddingObjectstoVersioningEnabledBuckets.html).
-// For information about returning the versioning state of a bucket, see GetBucketVersioning.
+// For information about returning the versioning state of a bucket, see GetBucketVersioning
+// (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketVersioning.html).
 //
 // Related Resources
 //
-//    * CopyObject
+//    * CopyObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html)
 //
-//    * DeleteObject
+//    * DeleteObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObject.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -8588,8 +8881,12 @@ func (c *S3) PutObjectAclRequest(input *PutObjectAclInput) (req *request.Request
 // PutObjectAcl API operation for Amazon Simple Storage Service.
 //
 // Uses the acl subresource to set the access control list (ACL) permissions
-// for an object that already exists in a bucket. You must have WRITE_ACP permission
-// to set the ACL of an object.
+// for a new or existing object in an S3 bucket. You must have WRITE_ACP permission
+// to set the ACL of an object. For more information, see What permissions can
+// I grant? (https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#permissions)
+// in the Amazon Simple Storage Service Developer Guide.
+//
+// This action is not supported by Amazon S3 on Outposts.
 //
 // Depending on your application needs, you can choose to set the ACL on an
 // object using either the request body or the headers. For example, if you
@@ -8666,9 +8963,9 @@ func (c *S3) PutObjectAclRequest(input *PutObjectAclInput) (req *request.Request
 //
 // Related Resources
 //
-//    * CopyObject
+//    * CopyObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html)
 //
-//    * GetObject
+//    * GetObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -8752,6 +9049,8 @@ func (c *S3) PutObjectLegalHoldRequest(input *PutObjectLegalHoldInput) (req *req
 // PutObjectLegalHold API operation for Amazon Simple Storage Service.
 //
 // Applies a Legal Hold configuration to the specified object.
+//
+// This action is not supported by Amazon S3 on Outposts.
 //
 // Related Resources
 //
@@ -8922,6 +9221,8 @@ func (c *S3) PutObjectRetentionRequest(input *PutObjectRetentionInput) (req *req
 //
 // Places an Object Retention configuration on an object.
 //
+// This action is not supported by Amazon S3 on Outposts.
+//
 // Related Resources
 //
 //    * Locking Objects (https://docs.aws.amazon.com/AmazonS3/latest/dev/object-lock.html)
@@ -9007,7 +9308,7 @@ func (c *S3) PutObjectTaggingRequest(input *PutObjectTaggingInput) (req *request
 // A tag is a key-value pair. You can associate tags with an object by sending
 // a PUT request against the tagging subresource that is associated with the
 // object. You can retrieve tags by sending a GET request. For more information,
-// see GetObjectTagging.
+// see GetObjectTagging (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObjectTagging.html).
 //
 // For tagging-related restrictions related to characters and encodings, see
 // Tag Restrictions (https://docs.aws.amazon.com/awsaccountbilling/latest/aboutv2/allocation-tag-restrictions.html).
@@ -9039,7 +9340,7 @@ func (c *S3) PutObjectTaggingRequest(input *PutObjectTaggingInput) (req *request
 //
 // Related Resources
 //
-//    * GetObjectTagging
+//    * GetObjectTagging (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObjectTagging.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -9135,11 +9436,11 @@ func (c *S3) PutPublicAccessBlockRequest(input *PutPublicAccessBlockInput) (req 
 //
 // Related Resources
 //
-//    * GetPublicAccessBlock
+//    * GetPublicAccessBlock (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetPublicAccessBlock.html)
 //
-//    * DeletePublicAccessBlock
+//    * DeletePublicAccessBlock (https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeletePublicAccessBlock.html)
 //
-//    * GetBucketPolicyStatus
+//    * GetBucketPolicyStatus (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketPolicyStatus.html)
 //
 //    * Using Amazon S3 Block Public Access (https://docs.aws.amazon.com/AmazonS3/latest/dev/access-control-block-public-access.html)
 //
@@ -9217,7 +9518,9 @@ func (c *S3) RestoreObjectRequest(input *RestoreObjectInput) (req *request.Reque
 //
 // Restores an archived copy of an object back into Amazon S3
 //
-// This operation performs the following types of requests:
+// This action is not supported by Amazon S3 on Outposts.
+//
+// This action performs the following types of requests:
 //
 //    * select - Perform a select query on an archived object
 //
@@ -9251,7 +9554,8 @@ func (c *S3) RestoreObjectRequest(input *RestoreObjectInput) (req *request.Reque
 //    (https://docs.aws.amazon.com/AmazonS3/latest/dev/querying-glacier-archives.html)
 //    in the Amazon Simple Storage Service Developer Guide. For more information
 //    about the S3 structure in the request body, see the following: PutObject
-//    Managing Access with ACLs (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3_ACLs_UsingACLs.html)
+//    (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html) Managing
+//    Access with ACLs (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3_ACLs_UsingACLs.html)
 //    in the Amazon Simple Storage Service Developer Guide Protecting Data Using
 //    Server-Side Encryption (https://docs.aws.amazon.com/AmazonS3/latest/dev/serv-side-encryption.html)
 //    in the Amazon Simple Storage Service Developer Guide
@@ -9367,7 +9671,8 @@ func (c *S3) RestoreObjectRequest(input *RestoreObjectInput) (req *request.Reque
 // specify in a restore request. For example, if you restore an object copy
 // for 10 days, but the object is scheduled to expire in 3 days, Amazon S3 deletes
 // the object in 3 days. For more information about lifecycle configuration,
-// see PutBucketLifecycleConfiguration and Object Lifecycle Management (https://docs.aws.amazon.com/AmazonS3/latest/dev/object-lifecycle-mgmt.html)
+// see PutBucketLifecycleConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketLifecycleConfiguration.html)
+// and Object Lifecycle Management (https://docs.aws.amazon.com/AmazonS3/latest/dev/object-lifecycle-mgmt.html)
 // in Amazon Simple Storage Service Developer Guide.
 //
 // Responses
@@ -9394,9 +9699,9 @@ func (c *S3) RestoreObjectRequest(input *RestoreObjectInput) (req *request.Reque
 //
 // Related Resources
 //
-//    * PutBucketLifecycleConfiguration
+//    * PutBucketLifecycleConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketLifecycleConfiguration.html)
 //
-//    * GetBucketNotificationConfiguration
+//    * GetBucketNotificationConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketNotificationConfiguration.html)
 //
 //    * SQL Reference for Amazon S3 Select and S3 Glacier Select (https://docs.aws.amazon.com/AmazonS3/latest/dev/s3-glacier-select-sql-reference.html)
 //    in the Amazon Simple Storage Service Developer Guide
@@ -9474,7 +9779,7 @@ func (c *S3) SelectObjectContentRequest(input *SelectObjectContentInput) (req *r
 	output = &SelectObjectContentOutput{}
 	req = c.newRequest(op, input, output)
 
-	es := newSelectObjectContentEventStream()
+	es := NewSelectObjectContentEventStream()
 	req.Handlers.Unmarshal.PushBack(es.setStreamCloser)
 	output.EventStream = es
 
@@ -9494,6 +9799,8 @@ func (c *S3) SelectObjectContentRequest(input *SelectObjectContentInput) (req *r
 // object data into records, and returns only records that match the specified
 // SQL expression. You must also specify the data serialization format for the
 // response.
+//
+// This action is not supported by Amazon S3 on Outposts.
 //
 // For more information about Amazon S3 Select, see Selecting Content from Objects
 // (https://docs.aws.amazon.com/AmazonS3/latest/dev/selecting-content-from-objects.html)
@@ -9528,8 +9835,8 @@ func (c *S3) SelectObjectContentRequest(input *SelectObjectContentInput) (req *r
 //    * Server-side encryption - Amazon S3 Select supports querying objects
 //    that are protected with server-side encryption. For objects that are encrypted
 //    with customer-provided encryption keys (SSE-C), you must use HTTPS, and
-//    you must use the headers that are documented in the GetObject. For more
-//    information about SSE-C, see Server-Side Encryption (Using Customer-Provided
+//    you must use the headers that are documented in the GetObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html).
+//    For more information about SSE-C, see Server-Side Encryption (Using Customer-Provided
 //    Encryption Keys) (https://docs.aws.amazon.com/AmazonS3/latest/dev/ServerSideEncryptionCustomerKeys.html)
 //    in the Amazon Simple Storage Service Developer Guide. For objects that
 //    are encrypted with Amazon S3 managed encryption keys (SSE-S3) and customer
@@ -9543,16 +9850,18 @@ func (c *S3) SelectObjectContentRequest(input *SelectObjectContentInput) (req *r
 //
 // Given the response size is unknown, Amazon S3 Select streams the response
 // as a series of messages and includes a Transfer-Encoding header with chunked
-// as its value in the response. For more information, see RESTSelectObjectAppendix .
+// as its value in the response. For more information, see Appendix: SelectObjectContent
+// Response (https://docs.aws.amazon.com/AmazonS3/latest/API/RESTSelectObjectAppendix.html) .
 //
 // GetObject Support
 //
 // The SelectObjectContent operation does not support the following GetObject
-// functionality. For more information, see GetObject.
+// functionality. For more information, see GetObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html).
 //
 //    * Range: Although you can specify a scan range for an Amazon S3 Select
-//    request (see SelectObjectContentRequest$ScanRange in the request parameters),
-//    you cannot specify the range of bytes of an object to return.
+//    request (see SelectObjectContentRequest - ScanRange (https://docs.aws.amazon.com/AmazonS3/latest/API/API_SelectObjectContent.html#AmazonS3-SelectObjectContent-request-ScanRange)
+//    in the request parameters), you cannot specify the range of bytes of an
+//    object to return.
 //
 //    * GLACIER, DEEP_ARCHIVE and REDUCED_REDUNDANCY storage classes: You cannot
 //    specify the GLACIER, DEEP_ARCHIVE, or REDUCED_REDUNDANCY storage classes.
@@ -9561,15 +9870,16 @@ func (c *S3) SelectObjectContentRequest(input *SelectObjectContentInput) (req *r
 //
 // Special Errors
 //
-// For a list of special errors for this operation, see SelectObjectContentErrorCodeList
+// For a list of special errors for this operation, see List of SELECT Object
+// Content Error Codes (https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#SelectObjectContentErrorCodeList)
 //
 // Related Resources
 //
-//    * GetObject
+//    * GetObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html)
 //
-//    * GetBucketLifecycleConfiguration
+//    * GetBucketLifecycleConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetBucketLifecycleConfiguration.html)
 //
-//    * PutBucketLifecycleConfiguration
+//    * PutBucketLifecycleConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketLifecycleConfiguration.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -9599,7 +9909,13 @@ func (c *S3) SelectObjectContentWithContext(ctx aws.Context, input *SelectObject
 	return out, req.Send()
 }
 
+var _ awserr.Error
+
 // SelectObjectContentEventStream provides the event stream handling for the SelectObjectContent.
+//
+// For testing and mocking the event stream this type should be initialized via
+// the NewSelectObjectContentEventStream constructor function. Using the functional options
+// to pass in nested mock behavior.
 type SelectObjectContentEventStream struct {
 
 	// Reader is the EventStream reader for the SelectObjectContentEventStream
@@ -9622,11 +9938,31 @@ type SelectObjectContentEventStream struct {
 	err       *eventstreamapi.OnceError
 }
 
-func newSelectObjectContentEventStream() *SelectObjectContentEventStream {
-	return &SelectObjectContentEventStream{
+// NewSelectObjectContentEventStream initializes an SelectObjectContentEventStream.
+// This function should only be used for testing and mocking the SelectObjectContentEventStream
+// stream within your application.
+//
+// The Reader member must be set before reading events from the stream.
+//
+// The StreamCloser member should be set to the underlying io.Closer,
+// (e.g. http.Response.Body), that will be closed when the stream Close method
+// is called.
+//
+//   es := NewSelectObjectContentEventStream(func(o *SelectObjectContentEventStream{
+//       es.Reader = myMockStreamReader
+//       es.StreamCloser = myMockStreamCloser
+//   })
+func NewSelectObjectContentEventStream(opts ...func(*SelectObjectContentEventStream)) *SelectObjectContentEventStream {
+	es := &SelectObjectContentEventStream{
 		done: make(chan struct{}),
 		err:  eventstreamapi.NewOnceError(),
 	}
+
+	for _, fn := range opts {
+		fn(es)
+	}
+
+	return es
 }
 
 func (es *SelectObjectContentEventStream) setStreamCloser(r *request.Request) {
@@ -9673,6 +10009,7 @@ func (es *SelectObjectContentEventStream) waitStreamPartClose() {
 //     * ProgressEvent
 //     * RecordsEvent
 //     * StatsEvent
+//     * SelectObjectContentEventStreamUnknownEvent
 func (es *SelectObjectContentEventStream) Events() <-chan SelectObjectContentEventStreamEvent {
 	return es.Reader.Events()
 }
@@ -9789,12 +10126,13 @@ func (c *S3) UploadPartRequest(input *UploadPartInput) (req *request.Request, ou
 // In this operation, you provide part data in your request. However, you have
 // an option to specify your existing Amazon S3 object as a data source for
 // the part you are uploading. To upload a part from an existing object, you
-// use the UploadPartCopy operation.
+// use the UploadPartCopy (https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPartCopy.html)
+// operation.
 //
-// You must initiate a multipart upload (see CreateMultipartUpload) before you
-// can upload any part. In response to your initiate request, Amazon S3 returns
-// an upload ID, a unique identifier, that you must include in your upload part
-// request.
+// You must initiate a multipart upload (see CreateMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html))
+// before you can upload any part. In response to your initiate request, Amazon
+// S3 returns an upload ID, a unique identifier, that you must include in your
+// upload part request.
 //
 // Part numbers can be any number from 1 to 10,000, inclusive. A part number
 // uniquely identifies a part and also defines its position within the object
@@ -9807,6 +10145,11 @@ func (c *S3) UploadPartRequest(input *UploadPartInput) (req *request.Request, ou
 // the Content-MD5 header in the upload part request. Amazon S3 checks the part
 // data against the provided MD5 value. If they do not match, Amazon S3 returns
 // an error.
+//
+// If the upload request is signed with Signature Version 4, then AWS S3 uses
+// the x-amz-content-sha256 header as a checksum instead of Content-MD5. For
+// more information see Authenticating Requests: Using the Authorization Header
+// (AWS Signature Version 4) (https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html).
 //
 // Note: After you initiate multipart upload and upload one or more parts, you
 // must either complete or abort multipart upload in order to stop getting charged
@@ -9828,25 +10171,25 @@ func (c *S3) UploadPartRequest(input *UploadPartInput) (req *request.Request, ou
 // key, or you can use the AWS managed encryption keys. If you choose to provide
 // your own encryption key, the request headers you provide in the request must
 // match the headers you used in the request to initiate the upload by using
-// CreateMultipartUpload. For more information, go to Using Server-Side Encryption
-// (https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html)
+// CreateMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html).
+// For more information, go to Using Server-Side Encryption (https://docs.aws.amazon.com/AmazonS3/latest/dev/UsingServerSideEncryption.html)
 // in the Amazon Simple Storage Service Developer Guide.
 //
 // Server-side encryption is supported by the S3 Multipart Upload actions. Unless
 // you are using a customer-provided encryption key, you don't need to specify
 // the encryption parameters in each UploadPart request. Instead, you only need
 // to specify the server-side encryption parameters in the initial Initiate
-// Multipart request. For more information, see CreateMultipartUpload.
+// Multipart request. For more information, see CreateMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html).
 //
 // If you requested server-side encryption using a customer-provided encryption
 // key in your initiate multipart upload request, you must provide identical
 // encryption information in each part upload using the following headers.
 //
-//    * x-amz-server-side​-encryption​-customer-algorithm
+//    * x-amz-server-side-encryption-customer-algorithm
 //
-//    * x-amz-server-side​-encryption​-customer-key
+//    * x-amz-server-side-encryption-customer-key
 //
-//    * x-amz-server-side​-encryption​-customer-key-MD5
+//    * x-amz-server-side-encryption-customer-key-MD5
 //
 // Special Errors
 //
@@ -9857,15 +10200,15 @@ func (c *S3) UploadPartRequest(input *UploadPartInput) (req *request.Request, ou
 //
 // Related Resources
 //
-//    * CreateMultipartUpload
+//    * CreateMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html)
 //
-//    * CompleteMultipartUpload
+//    * CompleteMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html)
 //
-//    * AbortMultipartUpload
+//    * AbortMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_AbortMultipartUpload.html)
 //
-//    * ListParts
+//    * ListParts (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListParts.html)
 //
-//    * ListMultipartUploads
+//    * ListMultipartUploads (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListMultipartUploads.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -9949,7 +10292,8 @@ func (c *S3) UploadPartCopyRequest(input *UploadPartCopyInput) (req *request.Req
 // in the Amazon Simple Storage Service Developer Guide.
 //
 // Instead of using an existing object as part data, you might use the UploadPart
-// operation and provide data in your request.
+// (https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPart.html) operation
+// and provide data in your request.
 //
 // You must initiate a multipart upload before you can upload any part. In response
 // to your initiate request. Amazon S3 returns a unique identifier, the upload
@@ -9970,8 +10314,8 @@ func (c *S3) UploadPartCopyRequest(input *UploadPartCopyInput) (req *request.Req
 //    in the Amazon Simple Storage Service Developer Guide.
 //
 //    * For information about using server-side encryption with customer-provided
-//    encryption keys with the UploadPartCopy operation, see CopyObject and
-//    UploadPart.
+//    encryption keys with the UploadPartCopy operation, see CopyObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html)
+//    and UploadPart (https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPart.html).
 //
 // Note the following additional considerations about the request headers x-amz-copy-source-if-match,
 // x-amz-copy-source-if-none-match, x-amz-copy-source-if-unmodified-since, and
@@ -10016,17 +10360,17 @@ func (c *S3) UploadPartCopyRequest(input *UploadPartCopyInput) (req *request.Req
 //
 // Related Resources
 //
-//    * CreateMultipartUpload
+//    * CreateMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html)
 //
-//    * UploadPart
+//    * UploadPart (https://docs.aws.amazon.com/AmazonS3/latest/API/API_UploadPart.html)
 //
-//    * CompleteMultipartUpload
+//    * CompleteMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CompleteMultipartUpload.html)
 //
-//    * AbortMultipartUpload
+//    * AbortMultipartUpload (https://docs.aws.amazon.com/AmazonS3/latest/API/API_AbortMultipartUpload.html)
 //
-//    * ListParts
+//    * ListParts (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListParts.html)
 //
-//    * ListMultipartUploads
+//    * ListMultipartUploads (https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListMultipartUploads.html)
 //
 // Returns awserr.Error for service API and SDK errors. Use runtime type assertions
 // with awserr.Error's Code and Message methods to get detailed information about
@@ -10092,13 +10436,26 @@ type AbortMultipartUploadInput struct {
 	//
 	// When using this API with an access point, you must direct requests to the
 	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
-	// When using this operation using an access point through the AWS SDKs, you
+	// When using this operation with an access point through the AWS SDKs, you
 	// provide the access point ARN in place of the bucket name. For more information
 	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
 	// in the Amazon Simple Storage Service Developer Guide.
 	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// Key of the object for which the multipart upload was initiated.
 	//
@@ -10166,6 +10523,12 @@ func (s *AbortMultipartUploadInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *AbortMultipartUploadInput) SetExpectedBucketOwner(v string) *AbortMultipartUploadInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetKey sets the Key field's value.
 func (s *AbortMultipartUploadInput) SetKey(v string) *AbortMultipartUploadInput {
 	s.Key = &v
@@ -10196,6 +10559,19 @@ func (s *AbortMultipartUploadInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s AbortMultipartUploadInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type AbortMultipartUploadOutput struct {
@@ -11206,6 +11582,11 @@ type CompleteMultipartUploadInput struct {
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
 
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
+
 	// Object key for which the multipart upload was initiated.
 	//
 	// Key is a required field
@@ -11275,6 +11656,12 @@ func (s *CompleteMultipartUploadInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *CompleteMultipartUploadInput) SetExpectedBucketOwner(v string) *CompleteMultipartUploadInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetKey sets the Key field's value.
 func (s *CompleteMultipartUploadInput) SetKey(v string) *CompleteMultipartUploadInput {
 	s.Key = &v
@@ -11313,10 +11700,38 @@ func (s *CompleteMultipartUploadInput) hasEndpointARN() bool {
 	return arn.IsARN(*s.Bucket)
 }
 
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s CompleteMultipartUploadInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
 type CompleteMultipartUploadOutput struct {
 	_ struct{} `type:"structure"`
 
 	// The name of the bucket that contains the newly created object.
+	//
+	// When using this API with an access point, you must direct requests to the
+	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
+	// When using this operation with an access point through the AWS SDKs, you
+	// provide the access point ARN in place of the bucket name. For more information
+	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
+	// in the Amazon Simple Storage Service Developer Guide.
 	Bucket *string `type:"string"`
 
 	// Entity tag that identifies the newly created object's data. Objects with
@@ -11558,6 +11973,8 @@ func (s *ContinuationEvent) UnmarshalEvent(
 	return nil
 }
 
+// MarshalEvent marshals the type into an stream event value. This method
+// should only used internally within the SDK's EventStream handling.
 func (s *ContinuationEvent) MarshalEvent(pm protocol.PayloadMarshaler) (msg eventstream.Message, err error) {
 	msg.Headers.Set(eventstreamapi.MessageTypeHeader, eventstream.StringValue(eventstreamapi.EventMessageType))
 	return msg, err
@@ -11567,9 +11984,26 @@ type CopyObjectInput struct {
 	_ struct{} `locationName:"CopyObjectRequest" type:"structure"`
 
 	// The canned ACL to apply to the object.
+	//
+	// This action is not supported by Amazon S3 on Outposts.
 	ACL *string `location:"header" locationName:"x-amz-acl" type:"string" enum:"ObjectCannedACL"`
 
 	// The name of the destination bucket.
+	//
+	// When using this API with an access point, you must direct requests to the
+	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
+	// When using this operation with an access point through the AWS SDKs, you
+	// provide the access point ARN in place of the bucket name. For more information
+	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
+	// in the Amazon Simple Storage Service Developer Guide.
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
@@ -11591,8 +12025,35 @@ type CopyObjectInput struct {
 	// A standard MIME type describing the format of the object data.
 	ContentType *string `location:"header" locationName:"Content-Type" type:"string"`
 
-	// The name of the source bucket and key name of the source object, separated
-	// by a slash (/). Must be URL-encoded.
+	// Specifies the source object for the copy operation. You specify the value
+	// in one of two formats, depending on whether you want to access the source
+	// object through an access point (https://docs.aws.amazon.com/AmazonS3/latest/dev/access-points.html):
+	//
+	//    * For objects not accessed through an access point, specify the name of
+	//    the source bucket and the key of the source object, separated by a slash
+	//    (/). For example, to copy the object reports/january.pdf from the bucket
+	//    awsexamplebucket, use awsexamplebucket/reports/january.pdf. The value
+	//    must be URL encoded.
+	//
+	//    * For objects accessed through access points, specify the Amazon Resource
+	//    Name (ARN) of the object as accessed through the access point, in the
+	//    format arn:aws:s3:<Region>:<account-id>:accesspoint/<access-point-name>/object/<key>.
+	//    For example, to copy the object reports/january.pdf through access point
+	//    my-access-point owned by account 123456789012 in Region us-west-2, use
+	//    the URL encoding of arn:aws:s3:us-west-2:123456789012:accesspoint/my-access-point/object/reports/january.pdf.
+	//    The value must be URL encoded. Amazon S3 supports copy operations using
+	//    access points only when the source and destination buckets are in the
+	//    same AWS Region. Alternatively, for objects accessed through Amazon S3
+	//    on Outposts, specify the ARN of the object as accessed in the format arn:aws:s3-outposts:<Region>:<account-id>:outpost/<outpost-id>/object/<key>.
+	//    For example, to copy the object reports/january.pdf through outpost my-outpost
+	//    owned by account 123456789012 in Region us-west-2, use the URL encoding
+	//    of arn:aws:s3-outposts:us-west-2:123456789012:outpost/my-outpost/object/reports/january.pdf.
+	//    The value must be URL encoded.
+	//
+	// To copy a specific version of an object, append ?versionId=<version-id> to
+	// the value (for example, awsexamplebucket/reports/january.pdf?versionId=QUpfdndhfd8438MNFDN93jdnJFkdmqnh893).
+	// If you don't specify a version ID, Amazon S3 copies the latest version of
+	// the source object.
 	//
 	// CopySource is a required field
 	CopySource *string `location:"header" locationName:"x-amz-copy-source" type:"string" required:"true"`
@@ -11624,19 +12085,37 @@ type CopyObjectInput struct {
 	// encryption key was transmitted without error.
 	CopySourceSSECustomerKeyMD5 *string `location:"header" locationName:"x-amz-copy-source-server-side-encryption-customer-key-MD5" type:"string"`
 
+	// The account id of the expected destination bucket owner. If the destination
+	// bucket is owned by a different account, the request will fail with an HTTP
+	// 403 (Access Denied) error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
+
+	// The account id of the expected source bucket owner. If the source bucket
+	// is owned by a different account, the request will fail with an HTTP 403 (Access
+	// Denied) error.
+	ExpectedSourceBucketOwner *string `location:"header" locationName:"x-amz-source-expected-bucket-owner" type:"string"`
+
 	// The date and time at which the object is no longer cacheable.
 	Expires *time.Time `location:"header" locationName:"Expires" type:"timestamp"`
 
 	// Gives the grantee READ, READ_ACP, and WRITE_ACP permissions on the object.
+	//
+	// This action is not supported by Amazon S3 on Outposts.
 	GrantFullControl *string `location:"header" locationName:"x-amz-grant-full-control" type:"string"`
 
 	// Allows grantee to read the object data and its metadata.
+	//
+	// This action is not supported by Amazon S3 on Outposts.
 	GrantRead *string `location:"header" locationName:"x-amz-grant-read" type:"string"`
 
 	// Allows grantee to read the object ACL.
+	//
+	// This action is not supported by Amazon S3 on Outposts.
 	GrantReadACP *string `location:"header" locationName:"x-amz-grant-read-acp" type:"string"`
 
 	// Allows grantee to write the ACL for the applicable object.
+	//
+	// This action is not supported by Amazon S3 on Outposts.
 	GrantWriteACP *string `location:"header" locationName:"x-amz-grant-write-acp" type:"string"`
 
 	// The key of the destination object.
@@ -11674,7 +12153,7 @@ type CopyObjectInput struct {
 	// Specifies the customer-provided encryption key for Amazon S3 to use in encrypting
 	// data. This value is used to store the object and then it is discarded; Amazon
 	// S3 does not store the encryption key. The key must be appropriate for use
-	// with the algorithm specified in the x-amz-server-side​-encryption​-customer-algorithm
+	// with the algorithm specified in the x-amz-server-side-encryption-customer-algorithm
 	// header.
 	SSECustomerKey *string `marshal-as:"blob" location:"header" locationName:"x-amz-server-side-encryption-customer-key" type:"string" sensitive:"true"`
 
@@ -11700,7 +12179,12 @@ type CopyObjectInput struct {
 	// S3 (for example, AES256, aws:kms).
 	ServerSideEncryption *string `location:"header" locationName:"x-amz-server-side-encryption" type:"string" enum:"ServerSideEncryption"`
 
-	// The type of storage to use for the object. Defaults to 'STANDARD'.
+	// By default, Amazon S3 uses the STANDARD Storage Class to store newly created
+	// objects. The STANDARD storage class provides high durability and high availability.
+	// Depending on performance needs, you can specify a different Storage Class.
+	// Amazon S3 on Outposts only uses the OUTPOSTS Storage Class. For more information,
+	// see Storage Classes (https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html)
+	// in the Amazon S3 Service Developer Guide.
 	StorageClass *string `location:"header" locationName:"x-amz-storage-class" type:"string" enum:"StorageClass"`
 
 	// The tag-set for the object destination object this value must be used in
@@ -11857,6 +12341,18 @@ func (s *CopyObjectInput) SetCopySourceSSECustomerKeyMD5(v string) *CopyObjectIn
 	return s
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *CopyObjectInput) SetExpectedBucketOwner(v string) *CopyObjectInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
+// SetExpectedSourceBucketOwner sets the ExpectedSourceBucketOwner field's value.
+func (s *CopyObjectInput) SetExpectedSourceBucketOwner(v string) *CopyObjectInput {
+	s.ExpectedSourceBucketOwner = &v
+	return s
+}
+
 // SetExpires sets the Expires field's value.
 func (s *CopyObjectInput) SetExpires(v time.Time) *CopyObjectInput {
 	s.Expires = &v
@@ -12008,6 +12504,19 @@ func (s *CopyObjectInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s CopyObjectInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type CopyObjectOutput struct {
@@ -12367,9 +12876,26 @@ type CreateMultipartUploadInput struct {
 	_ struct{} `locationName:"CreateMultipartUploadRequest" type:"structure"`
 
 	// The canned ACL to apply to the object.
+	//
+	// This action is not supported by Amazon S3 on Outposts.
 	ACL *string `location:"header" locationName:"x-amz-acl" type:"string" enum:"ObjectCannedACL"`
 
 	// The name of the bucket to which to initiate the upload
+	//
+	// When using this API with an access point, you must direct requests to the
+	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
+	// When using this operation with an access point through the AWS SDKs, you
+	// provide the access point ARN in place of the bucket name. For more information
+	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
+	// in the Amazon Simple Storage Service Developer Guide.
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
@@ -12391,19 +12917,32 @@ type CreateMultipartUploadInput struct {
 	// A standard MIME type describing the format of the object data.
 	ContentType *string `location:"header" locationName:"Content-Type" type:"string"`
 
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
+
 	// The date and time at which the object is no longer cacheable.
 	Expires *time.Time `location:"header" locationName:"Expires" type:"timestamp"`
 
 	// Gives the grantee READ, READ_ACP, and WRITE_ACP permissions on the object.
+	//
+	// This action is not supported by Amazon S3 on Outposts.
 	GrantFullControl *string `location:"header" locationName:"x-amz-grant-full-control" type:"string"`
 
 	// Allows grantee to read the object data and its metadata.
+	//
+	// This action is not supported by Amazon S3 on Outposts.
 	GrantRead *string `location:"header" locationName:"x-amz-grant-read" type:"string"`
 
 	// Allows grantee to read the object ACL.
+	//
+	// This action is not supported by Amazon S3 on Outposts.
 	GrantReadACP *string `location:"header" locationName:"x-amz-grant-read-acp" type:"string"`
 
 	// Allows grantee to write the ACL for the applicable object.
+	//
+	// This action is not supported by Amazon S3 on Outposts.
 	GrantWriteACP *string `location:"header" locationName:"x-amz-grant-write-acp" type:"string"`
 
 	// Object key for which the multipart upload is to be initiated.
@@ -12437,7 +12976,7 @@ type CreateMultipartUploadInput struct {
 	// Specifies the customer-provided encryption key for Amazon S3 to use in encrypting
 	// data. This value is used to store the object and then it is discarded; Amazon
 	// S3 does not store the encryption key. The key must be appropriate for use
-	// with the algorithm specified in the x-amz-server-side​-encryption​-customer-algorithm
+	// with the algorithm specified in the x-amz-server-side-encryption-customer-algorithm
 	// header.
 	SSECustomerKey *string `marshal-as:"blob" location:"header" locationName:"x-amz-server-side-encryption-customer-key" type:"string" sensitive:"true"`
 
@@ -12463,7 +13002,12 @@ type CreateMultipartUploadInput struct {
 	// S3 (for example, AES256, aws:kms).
 	ServerSideEncryption *string `location:"header" locationName:"x-amz-server-side-encryption" type:"string" enum:"ServerSideEncryption"`
 
-	// The type of storage to use for the object. Defaults to 'STANDARD'.
+	// By default, Amazon S3 uses the STANDARD Storage Class to store newly created
+	// objects. The STANDARD storage class provides high durability and high availability.
+	// Depending on performance needs, you can specify a different Storage Class.
+	// Amazon S3 on Outposts only uses the OUTPOSTS Storage Class. For more information,
+	// see Storage Classes (https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html)
+	// in the Amazon S3 Service Developer Guide.
 	StorageClass *string `location:"header" locationName:"x-amz-storage-class" type:"string" enum:"StorageClass"`
 
 	// The tag-set for the object. The tag-set must be encoded as URL Query parameters.
@@ -12553,6 +13097,12 @@ func (s *CreateMultipartUploadInput) SetContentLanguage(v string) *CreateMultipa
 // SetContentType sets the ContentType field's value.
 func (s *CreateMultipartUploadInput) SetContentType(v string) *CreateMultipartUploadInput {
 	s.ContentType = &v
+	return s
+}
+
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *CreateMultipartUploadInput) SetExpectedBucketOwner(v string) *CreateMultipartUploadInput {
+	s.ExpectedBucketOwner = &v
 	return s
 }
 
@@ -12697,6 +13247,19 @@ func (s *CreateMultipartUploadInput) hasEndpointARN() bool {
 	return arn.IsARN(*s.Bucket)
 }
 
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s CreateMultipartUploadInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
 type CreateMultipartUploadOutput struct {
 	_ struct{} `type:"structure"`
 
@@ -12716,13 +13279,21 @@ type CreateMultipartUploadOutput struct {
 	// incomplete multipart uploads.
 	AbortRuleId *string `location:"header" locationName:"x-amz-abort-rule-id" type:"string"`
 
-	// Name of the bucket to which the multipart upload was initiated.
+	// The name of the bucket to which the multipart upload was initiated.
 	//
 	// When using this API with an access point, you must direct requests to the
 	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
-	// When using this operation using an access point through the AWS SDKs, you
+	// When using this operation with an access point through the AWS SDKs, you
 	// provide the access point ARN in place of the bucket name. For more information
 	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
 	// in the Amazon Simple Storage Service Developer Guide.
 	Bucket *string `locationName:"Bucket" type:"string"`
 
@@ -12955,6 +13526,11 @@ type DeleteBucketAnalyticsConfigurationInput struct {
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
 
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
+
 	// The ID that identifies the analytics configuration.
 	//
 	// Id is a required field
@@ -13003,6 +13579,12 @@ func (s *DeleteBucketAnalyticsConfigurationInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *DeleteBucketAnalyticsConfigurationInput) SetExpectedBucketOwner(v string) *DeleteBucketAnalyticsConfigurationInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetId sets the Id field's value.
 func (s *DeleteBucketAnalyticsConfigurationInput) SetId(v string) *DeleteBucketAnalyticsConfigurationInput {
 	s.Id = &v
@@ -13021,6 +13603,19 @@ func (s *DeleteBucketAnalyticsConfigurationInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s DeleteBucketAnalyticsConfigurationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type DeleteBucketAnalyticsConfigurationOutput struct {
@@ -13044,6 +13639,11 @@ type DeleteBucketCorsInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -13085,6 +13685,12 @@ func (s *DeleteBucketCorsInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *DeleteBucketCorsInput) SetExpectedBucketOwner(v string) *DeleteBucketCorsInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *DeleteBucketCorsInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -13097,6 +13703,19 @@ func (s *DeleteBucketCorsInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s DeleteBucketCorsInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type DeleteBucketCorsOutput struct {
@@ -13121,6 +13740,11 @@ type DeleteBucketEncryptionInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -13162,6 +13786,12 @@ func (s *DeleteBucketEncryptionInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *DeleteBucketEncryptionInput) SetExpectedBucketOwner(v string) *DeleteBucketEncryptionInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *DeleteBucketEncryptionInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -13174,6 +13804,19 @@ func (s *DeleteBucketEncryptionInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s DeleteBucketEncryptionInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type DeleteBucketEncryptionOutput struct {
@@ -13197,6 +13840,11 @@ type DeleteBucketInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -13238,6 +13886,12 @@ func (s *DeleteBucketInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *DeleteBucketInput) SetExpectedBucketOwner(v string) *DeleteBucketInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *DeleteBucketInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -13252,6 +13906,19 @@ func (s *DeleteBucketInput) hasEndpointARN() bool {
 	return arn.IsARN(*s.Bucket)
 }
 
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s DeleteBucketInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
 type DeleteBucketInventoryConfigurationInput struct {
 	_ struct{} `locationName:"DeleteBucketInventoryConfigurationRequest" type:"structure"`
 
@@ -13259,6 +13926,11 @@ type DeleteBucketInventoryConfigurationInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The ID used to identify the inventory configuration.
 	//
@@ -13308,6 +13980,12 @@ func (s *DeleteBucketInventoryConfigurationInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *DeleteBucketInventoryConfigurationInput) SetExpectedBucketOwner(v string) *DeleteBucketInventoryConfigurationInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetId sets the Id field's value.
 func (s *DeleteBucketInventoryConfigurationInput) SetId(v string) *DeleteBucketInventoryConfigurationInput {
 	s.Id = &v
@@ -13326,6 +14004,19 @@ func (s *DeleteBucketInventoryConfigurationInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s DeleteBucketInventoryConfigurationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type DeleteBucketInventoryConfigurationOutput struct {
@@ -13349,6 +14040,11 @@ type DeleteBucketLifecycleInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -13390,6 +14086,12 @@ func (s *DeleteBucketLifecycleInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *DeleteBucketLifecycleInput) SetExpectedBucketOwner(v string) *DeleteBucketLifecycleInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *DeleteBucketLifecycleInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -13402,6 +14104,19 @@ func (s *DeleteBucketLifecycleInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s DeleteBucketLifecycleInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type DeleteBucketLifecycleOutput struct {
@@ -13425,6 +14140,11 @@ type DeleteBucketMetricsConfigurationInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The ID used to identify the metrics configuration.
 	//
@@ -13474,6 +14194,12 @@ func (s *DeleteBucketMetricsConfigurationInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *DeleteBucketMetricsConfigurationInput) SetExpectedBucketOwner(v string) *DeleteBucketMetricsConfigurationInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetId sets the Id field's value.
 func (s *DeleteBucketMetricsConfigurationInput) SetId(v string) *DeleteBucketMetricsConfigurationInput {
 	s.Id = &v
@@ -13492,6 +14218,19 @@ func (s *DeleteBucketMetricsConfigurationInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s DeleteBucketMetricsConfigurationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type DeleteBucketMetricsConfigurationOutput struct {
@@ -13522,6 +14261,103 @@ func (s DeleteBucketOutput) GoString() string {
 	return s.String()
 }
 
+type DeleteBucketOwnershipControlsInput struct {
+	_ struct{} `locationName:"DeleteBucketOwnershipControlsRequest" type:"structure"`
+
+	// The Amazon S3 bucket whose OwnershipControls you want to delete.
+	//
+	// Bucket is a required field
+	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
+}
+
+// String returns the string representation
+func (s DeleteBucketOwnershipControlsInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s DeleteBucketOwnershipControlsInput) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *DeleteBucketOwnershipControlsInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "DeleteBucketOwnershipControlsInput"}
+	if s.Bucket == nil {
+		invalidParams.Add(request.NewErrParamRequired("Bucket"))
+	}
+	if s.Bucket != nil && len(*s.Bucket) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("Bucket", 1))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetBucket sets the Bucket field's value.
+func (s *DeleteBucketOwnershipControlsInput) SetBucket(v string) *DeleteBucketOwnershipControlsInput {
+	s.Bucket = &v
+	return s
+}
+
+func (s *DeleteBucketOwnershipControlsInput) getBucket() (v string) {
+	if s.Bucket == nil {
+		return v
+	}
+	return *s.Bucket
+}
+
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *DeleteBucketOwnershipControlsInput) SetExpectedBucketOwner(v string) *DeleteBucketOwnershipControlsInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
+func (s *DeleteBucketOwnershipControlsInput) getEndpointARN() (arn.Resource, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	return parseEndpointARN(*s.Bucket)
+}
+
+func (s *DeleteBucketOwnershipControlsInput) hasEndpointARN() bool {
+	if s.Bucket == nil {
+		return false
+	}
+	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s DeleteBucketOwnershipControlsInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
+type DeleteBucketOwnershipControlsOutput struct {
+	_ struct{} `type:"structure"`
+}
+
+// String returns the string representation
+func (s DeleteBucketOwnershipControlsOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s DeleteBucketOwnershipControlsOutput) GoString() string {
+	return s.String()
+}
+
 type DeleteBucketPolicyInput struct {
 	_ struct{} `locationName:"DeleteBucketPolicyRequest" type:"structure"`
 
@@ -13529,6 +14365,11 @@ type DeleteBucketPolicyInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -13570,6 +14411,12 @@ func (s *DeleteBucketPolicyInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *DeleteBucketPolicyInput) SetExpectedBucketOwner(v string) *DeleteBucketPolicyInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *DeleteBucketPolicyInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -13582,6 +14429,19 @@ func (s *DeleteBucketPolicyInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s DeleteBucketPolicyInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type DeleteBucketPolicyOutput struct {
@@ -13605,6 +14465,11 @@ type DeleteBucketReplicationInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -13646,6 +14511,12 @@ func (s *DeleteBucketReplicationInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *DeleteBucketReplicationInput) SetExpectedBucketOwner(v string) *DeleteBucketReplicationInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *DeleteBucketReplicationInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -13658,6 +14529,19 @@ func (s *DeleteBucketReplicationInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s DeleteBucketReplicationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type DeleteBucketReplicationOutput struct {
@@ -13681,6 +14565,11 @@ type DeleteBucketTaggingInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -13722,6 +14611,12 @@ func (s *DeleteBucketTaggingInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *DeleteBucketTaggingInput) SetExpectedBucketOwner(v string) *DeleteBucketTaggingInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *DeleteBucketTaggingInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -13734,6 +14629,19 @@ func (s *DeleteBucketTaggingInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s DeleteBucketTaggingInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type DeleteBucketTaggingOutput struct {
@@ -13757,6 +14665,11 @@ type DeleteBucketWebsiteInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -13798,6 +14711,12 @@ func (s *DeleteBucketWebsiteInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *DeleteBucketWebsiteInput) SetExpectedBucketOwner(v string) *DeleteBucketWebsiteInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *DeleteBucketWebsiteInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -13810,6 +14729,19 @@ func (s *DeleteBucketWebsiteInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s DeleteBucketWebsiteInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type DeleteBucketWebsiteOutput struct {
@@ -13931,9 +14863,17 @@ type DeleteObjectInput struct {
 	//
 	// When using this API with an access point, you must direct requests to the
 	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
-	// When using this operation using an access point through the AWS SDKs, you
+	// When using this operation with an access point through the AWS SDKs, you
 	// provide the access point ARN in place of the bucket name. For more information
 	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
 	// in the Amazon Simple Storage Service Developer Guide.
 	//
 	// Bucket is a required field
@@ -13942,6 +14882,11 @@ type DeleteObjectInput struct {
 	// Indicates whether S3 Object Lock should bypass Governance-mode restrictions
 	// to process this operation.
 	BypassGovernanceRetention *bool `location:"header" locationName:"x-amz-bypass-governance-retention" type:"boolean"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// Key name of the object to delete.
 	//
@@ -14016,6 +14961,12 @@ func (s *DeleteObjectInput) SetBypassGovernanceRetention(v bool) *DeleteObjectIn
 	return s
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *DeleteObjectInput) SetExpectedBucketOwner(v string) *DeleteObjectInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetKey sets the Key field's value.
 func (s *DeleteObjectInput) SetKey(v string) *DeleteObjectInput {
 	s.Key = &v
@@ -14052,6 +15003,19 @@ func (s *DeleteObjectInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s DeleteObjectInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type DeleteObjectOutput struct {
@@ -14105,15 +15069,28 @@ type DeleteObjectTaggingInput struct {
 	//
 	// When using this API with an access point, you must direct requests to the
 	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
-	// When using this operation using an access point through the AWS SDKs, you
+	// When using this operation with an access point through the AWS SDKs, you
 	// provide the access point ARN in place of the bucket name. For more information
 	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
 	// in the Amazon Simple Storage Service Developer Guide.
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
 
-	// Name of the tag.
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
+
+	// Name of the object key.
 	//
 	// Key is a required field
 	Key *string `location:"uri" locationName:"Key" min:"1" type:"string" required:"true"`
@@ -14167,6 +15144,12 @@ func (s *DeleteObjectTaggingInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *DeleteObjectTaggingInput) SetExpectedBucketOwner(v string) *DeleteObjectTaggingInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetKey sets the Key field's value.
 func (s *DeleteObjectTaggingInput) SetKey(v string) *DeleteObjectTaggingInput {
 	s.Key = &v
@@ -14191,6 +15174,19 @@ func (s *DeleteObjectTaggingInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s DeleteObjectTaggingInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type DeleteObjectTaggingOutput struct {
@@ -14223,9 +15219,17 @@ type DeleteObjectsInput struct {
 	//
 	// When using this API with an access point, you must direct requests to the
 	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
-	// When using this operation using an access point through the AWS SDKs, you
+	// When using this operation with an access point through the AWS SDKs, you
 	// provide the access point ARN in place of the bucket name. For more information
 	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
 	// in the Amazon Simple Storage Service Developer Guide.
 	//
 	// Bucket is a required field
@@ -14240,6 +15244,11 @@ type DeleteObjectsInput struct {
 	//
 	// Delete is a required field
 	Delete *Delete `locationName:"Delete" type:"structure" required:"true" xmlURI:"http://s3.amazonaws.com/doc/2006-03-01/"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The concatenation of the authentication device's serial number, a space,
 	// and the value that is displayed on your authentication device. Required to
@@ -14314,6 +15323,12 @@ func (s *DeleteObjectsInput) SetDelete(v *Delete) *DeleteObjectsInput {
 	return s
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *DeleteObjectsInput) SetExpectedBucketOwner(v string) *DeleteObjectsInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetMFA sets the MFA field's value.
 func (s *DeleteObjectsInput) SetMFA(v string) *DeleteObjectsInput {
 	s.MFA = &v
@@ -14338,6 +15353,19 @@ func (s *DeleteObjectsInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s DeleteObjectsInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type DeleteObjectsOutput struct {
@@ -14391,6 +15419,11 @@ type DeletePublicAccessBlockInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -14432,6 +15465,12 @@ func (s *DeletePublicAccessBlockInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *DeletePublicAccessBlockInput) SetExpectedBucketOwner(v string) *DeletePublicAccessBlockInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *DeletePublicAccessBlockInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -14444,6 +15483,19 @@ func (s *DeletePublicAccessBlockInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s DeletePublicAccessBlockInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type DeletePublicAccessBlockOutput struct {
@@ -14774,6 +15826,8 @@ func (s *EndEvent) UnmarshalEvent(
 	return nil
 }
 
+// MarshalEvent marshals the type into an stream event value. This method
+// should only used internally within the SDK's EventStream handling.
 func (s *EndEvent) MarshalEvent(pm protocol.PayloadMarshaler) (msg eventstream.Message, err error) {
 	msg.Headers.Set(eventstreamapi.MessageTypeHeader, eventstream.StringValue(eventstreamapi.EventMessageType))
 	return msg, err
@@ -15307,10 +16361,15 @@ func (s *FilterRule) SetValue(v string) *FilterRule {
 type GetBucketAccelerateConfigurationInput struct {
 	_ struct{} `locationName:"GetBucketAccelerateConfigurationRequest" type:"structure"`
 
-	// Name of the bucket for which the accelerate configuration is retrieved.
+	// The name of the bucket for which the accelerate configuration is retrieved.
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -15352,6 +16411,12 @@ func (s *GetBucketAccelerateConfigurationInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetBucketAccelerateConfigurationInput) SetExpectedBucketOwner(v string) *GetBucketAccelerateConfigurationInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *GetBucketAccelerateConfigurationInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -15364,6 +16429,19 @@ func (s *GetBucketAccelerateConfigurationInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetBucketAccelerateConfigurationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetBucketAccelerateConfigurationOutput struct {
@@ -15396,6 +16474,11 @@ type GetBucketAclInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -15437,6 +16520,12 @@ func (s *GetBucketAclInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetBucketAclInput) SetExpectedBucketOwner(v string) *GetBucketAclInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *GetBucketAclInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -15449,6 +16538,19 @@ func (s *GetBucketAclInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetBucketAclInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetBucketAclOutput struct {
@@ -15490,6 +16592,11 @@ type GetBucketAnalyticsConfigurationInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The ID that identifies the analytics configuration.
 	//
@@ -15539,6 +16646,12 @@ func (s *GetBucketAnalyticsConfigurationInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetBucketAnalyticsConfigurationInput) SetExpectedBucketOwner(v string) *GetBucketAnalyticsConfigurationInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetId sets the Id field's value.
 func (s *GetBucketAnalyticsConfigurationInput) SetId(v string) *GetBucketAnalyticsConfigurationInput {
 	s.Id = &v
@@ -15557,6 +16670,19 @@ func (s *GetBucketAnalyticsConfigurationInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetBucketAnalyticsConfigurationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetBucketAnalyticsConfigurationOutput struct {
@@ -15589,6 +16715,11 @@ type GetBucketCorsInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -15630,6 +16761,12 @@ func (s *GetBucketCorsInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetBucketCorsInput) SetExpectedBucketOwner(v string) *GetBucketCorsInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *GetBucketCorsInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -15642,6 +16779,19 @@ func (s *GetBucketCorsInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetBucketCorsInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetBucketCorsOutput struct {
@@ -15676,6 +16826,11 @@ type GetBucketEncryptionInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -15717,6 +16872,12 @@ func (s *GetBucketEncryptionInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetBucketEncryptionInput) SetExpectedBucketOwner(v string) *GetBucketEncryptionInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *GetBucketEncryptionInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -15729,6 +16890,19 @@ func (s *GetBucketEncryptionInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetBucketEncryptionInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetBucketEncryptionOutput struct {
@@ -15761,6 +16935,11 @@ type GetBucketInventoryConfigurationInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The ID used to identify the inventory configuration.
 	//
@@ -15810,6 +16989,12 @@ func (s *GetBucketInventoryConfigurationInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetBucketInventoryConfigurationInput) SetExpectedBucketOwner(v string) *GetBucketInventoryConfigurationInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetId sets the Id field's value.
 func (s *GetBucketInventoryConfigurationInput) SetId(v string) *GetBucketInventoryConfigurationInput {
 	s.Id = &v
@@ -15828,6 +17013,19 @@ func (s *GetBucketInventoryConfigurationInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetBucketInventoryConfigurationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetBucketInventoryConfigurationOutput struct {
@@ -15860,6 +17058,11 @@ type GetBucketLifecycleConfigurationInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -15901,6 +17104,12 @@ func (s *GetBucketLifecycleConfigurationInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetBucketLifecycleConfigurationInput) SetExpectedBucketOwner(v string) *GetBucketLifecycleConfigurationInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *GetBucketLifecycleConfigurationInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -15913,6 +17122,19 @@ func (s *GetBucketLifecycleConfigurationInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetBucketLifecycleConfigurationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetBucketLifecycleConfigurationOutput struct {
@@ -15945,6 +17167,11 @@ type GetBucketLifecycleInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -15986,6 +17213,12 @@ func (s *GetBucketLifecycleInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetBucketLifecycleInput) SetExpectedBucketOwner(v string) *GetBucketLifecycleInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *GetBucketLifecycleInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -15998,6 +17231,19 @@ func (s *GetBucketLifecycleInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetBucketLifecycleInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetBucketLifecycleOutput struct {
@@ -16030,6 +17276,11 @@ type GetBucketLocationInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -16071,6 +17322,12 @@ func (s *GetBucketLocationInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetBucketLocationInput) SetExpectedBucketOwner(v string) *GetBucketLocationInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *GetBucketLocationInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -16083,6 +17340,19 @@ func (s *GetBucketLocationInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetBucketLocationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetBucketLocationOutput struct {
@@ -16117,6 +17387,11 @@ type GetBucketLoggingInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -16158,6 +17433,12 @@ func (s *GetBucketLoggingInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetBucketLoggingInput) SetExpectedBucketOwner(v string) *GetBucketLoggingInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *GetBucketLoggingInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -16170,6 +17451,19 @@ func (s *GetBucketLoggingInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetBucketLoggingInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetBucketLoggingOutput struct {
@@ -16205,6 +17499,11 @@ type GetBucketMetricsConfigurationInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The ID used to identify the metrics configuration.
 	//
@@ -16254,6 +17553,12 @@ func (s *GetBucketMetricsConfigurationInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetBucketMetricsConfigurationInput) SetExpectedBucketOwner(v string) *GetBucketMetricsConfigurationInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetId sets the Id field's value.
 func (s *GetBucketMetricsConfigurationInput) SetId(v string) *GetBucketMetricsConfigurationInput {
 	s.Id = &v
@@ -16272,6 +17577,19 @@ func (s *GetBucketMetricsConfigurationInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetBucketMetricsConfigurationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetBucketMetricsConfigurationOutput struct {
@@ -16300,10 +17618,15 @@ func (s *GetBucketMetricsConfigurationOutput) SetMetricsConfiguration(v *Metrics
 type GetBucketNotificationConfigurationRequest struct {
 	_ struct{} `locationName:"GetBucketNotificationConfigurationRequest" type:"structure"`
 
-	// Name of the bucket for which to get the notification configuration.
+	// The name of the bucket for which to get the notification configuration.
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -16345,6 +17668,12 @@ func (s *GetBucketNotificationConfigurationRequest) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetBucketNotificationConfigurationRequest) SetExpectedBucketOwner(v string) *GetBucketNotificationConfigurationRequest {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *GetBucketNotificationConfigurationRequest) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -16359,6 +17688,126 @@ func (s *GetBucketNotificationConfigurationRequest) hasEndpointARN() bool {
 	return arn.IsARN(*s.Bucket)
 }
 
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetBucketNotificationConfigurationRequest) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
+type GetBucketOwnershipControlsInput struct {
+	_ struct{} `locationName:"GetBucketOwnershipControlsRequest" type:"structure"`
+
+	// The name of the Amazon S3 bucket whose OwnershipControls you want to retrieve.
+	//
+	// Bucket is a required field
+	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
+}
+
+// String returns the string representation
+func (s GetBucketOwnershipControlsInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s GetBucketOwnershipControlsInput) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *GetBucketOwnershipControlsInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "GetBucketOwnershipControlsInput"}
+	if s.Bucket == nil {
+		invalidParams.Add(request.NewErrParamRequired("Bucket"))
+	}
+	if s.Bucket != nil && len(*s.Bucket) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("Bucket", 1))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetBucket sets the Bucket field's value.
+func (s *GetBucketOwnershipControlsInput) SetBucket(v string) *GetBucketOwnershipControlsInput {
+	s.Bucket = &v
+	return s
+}
+
+func (s *GetBucketOwnershipControlsInput) getBucket() (v string) {
+	if s.Bucket == nil {
+		return v
+	}
+	return *s.Bucket
+}
+
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetBucketOwnershipControlsInput) SetExpectedBucketOwner(v string) *GetBucketOwnershipControlsInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
+func (s *GetBucketOwnershipControlsInput) getEndpointARN() (arn.Resource, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	return parseEndpointARN(*s.Bucket)
+}
+
+func (s *GetBucketOwnershipControlsInput) hasEndpointARN() bool {
+	if s.Bucket == nil {
+		return false
+	}
+	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetBucketOwnershipControlsInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
+type GetBucketOwnershipControlsOutput struct {
+	_ struct{} `type:"structure" payload:"OwnershipControls"`
+
+	// The OwnershipControls (BucketOwnerPreferred or ObjectWriter) currently in
+	// effect for this Amazon S3 bucket.
+	OwnershipControls *OwnershipControls `type:"structure"`
+}
+
+// String returns the string representation
+func (s GetBucketOwnershipControlsOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s GetBucketOwnershipControlsOutput) GoString() string {
+	return s.String()
+}
+
+// SetOwnershipControls sets the OwnershipControls field's value.
+func (s *GetBucketOwnershipControlsOutput) SetOwnershipControls(v *OwnershipControls) *GetBucketOwnershipControlsOutput {
+	s.OwnershipControls = v
+	return s
+}
+
 type GetBucketPolicyInput struct {
 	_ struct{} `locationName:"GetBucketPolicyRequest" type:"structure"`
 
@@ -16366,6 +17815,11 @@ type GetBucketPolicyInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -16407,6 +17861,12 @@ func (s *GetBucketPolicyInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetBucketPolicyInput) SetExpectedBucketOwner(v string) *GetBucketPolicyInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *GetBucketPolicyInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -16419,6 +17879,19 @@ func (s *GetBucketPolicyInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetBucketPolicyInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetBucketPolicyOutput struct {
@@ -16451,6 +17924,11 @@ type GetBucketPolicyStatusInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -16492,6 +17970,12 @@ func (s *GetBucketPolicyStatusInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetBucketPolicyStatusInput) SetExpectedBucketOwner(v string) *GetBucketPolicyStatusInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *GetBucketPolicyStatusInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -16504,6 +17988,19 @@ func (s *GetBucketPolicyStatusInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetBucketPolicyStatusInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetBucketPolicyStatusOutput struct {
@@ -16536,6 +18033,11 @@ type GetBucketReplicationInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -16577,6 +18079,12 @@ func (s *GetBucketReplicationInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetBucketReplicationInput) SetExpectedBucketOwner(v string) *GetBucketReplicationInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *GetBucketReplicationInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -16589,6 +18097,19 @@ func (s *GetBucketReplicationInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetBucketReplicationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetBucketReplicationOutput struct {
@@ -16622,6 +18143,11 @@ type GetBucketRequestPaymentInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -16663,6 +18189,12 @@ func (s *GetBucketRequestPaymentInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetBucketRequestPaymentInput) SetExpectedBucketOwner(v string) *GetBucketRequestPaymentInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *GetBucketRequestPaymentInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -16675,6 +18207,19 @@ func (s *GetBucketRequestPaymentInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetBucketRequestPaymentInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetBucketRequestPaymentOutput struct {
@@ -16707,6 +18252,11 @@ type GetBucketTaggingInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -16748,6 +18298,12 @@ func (s *GetBucketTaggingInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetBucketTaggingInput) SetExpectedBucketOwner(v string) *GetBucketTaggingInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *GetBucketTaggingInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -16760,6 +18316,19 @@ func (s *GetBucketTaggingInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetBucketTaggingInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetBucketTaggingOutput struct {
@@ -16794,6 +18363,11 @@ type GetBucketVersioningInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -16835,6 +18409,12 @@ func (s *GetBucketVersioningInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetBucketVersioningInput) SetExpectedBucketOwner(v string) *GetBucketVersioningInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *GetBucketVersioningInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -16847,6 +18427,19 @@ func (s *GetBucketVersioningInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetBucketVersioningInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetBucketVersioningOutput struct {
@@ -16890,6 +18483,11 @@ type GetBucketWebsiteInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -16931,6 +18529,12 @@ func (s *GetBucketWebsiteInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetBucketWebsiteInput) SetExpectedBucketOwner(v string) *GetBucketWebsiteInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *GetBucketWebsiteInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -16943,6 +18547,19 @@ func (s *GetBucketWebsiteInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetBucketWebsiteInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetBucketWebsiteOutput struct {
@@ -17003,13 +18620,18 @@ type GetObjectAclInput struct {
 	//
 	// When using this API with an access point, you must direct requests to the
 	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
-	// When using this operation using an access point through the AWS SDKs, you
+	// When using this operation with an access point through the AWS SDKs, you
 	// provide the access point ARN in place of the bucket name. For more information
 	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
 	// in the Amazon Simple Storage Service Developer Guide.
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The key of the object for which to get the ACL information.
 	//
@@ -17072,6 +18694,12 @@ func (s *GetObjectAclInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetObjectAclInput) SetExpectedBucketOwner(v string) *GetObjectAclInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetKey sets the Key field's value.
 func (s *GetObjectAclInput) SetKey(v string) *GetObjectAclInput {
 	s.Key = &v
@@ -17102,6 +18730,19 @@ func (s *GetObjectAclInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetObjectAclInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetObjectAclOutput struct {
@@ -17153,13 +18794,26 @@ type GetObjectInput struct {
 	//
 	// When using this API with an access point, you must direct requests to the
 	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
-	// When using this operation using an access point through the AWS SDKs, you
+	// When using this operation with an access point through the AWS SDKs, you
 	// provide the access point ARN in place of the bucket name. For more information
 	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
 	// in the Amazon Simple Storage Service Developer Guide.
 	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// Return the object only if its entity tag (ETag) is the same as the one specified,
 	// otherwise return a 412 (precondition failed).
@@ -17226,7 +18880,7 @@ type GetObjectInput struct {
 	// Specifies the customer-provided encryption key for Amazon S3 to use in encrypting
 	// data. This value is used to store the object and then it is discarded; Amazon
 	// S3 does not store the encryption key. The key must be appropriate for use
-	// with the algorithm specified in the x-amz-server-side​-encryption​-customer-algorithm
+	// with the algorithm specified in the x-amz-server-side-encryption-customer-algorithm
 	// header.
 	SSECustomerKey *string `marshal-as:"blob" location:"header" locationName:"x-amz-server-side-encryption-customer-key" type:"string" sensitive:"true"`
 
@@ -17282,6 +18936,12 @@ func (s *GetObjectInput) getBucket() (v string) {
 		return v
 	}
 	return *s.Bucket
+}
+
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetObjectInput) SetExpectedBucketOwner(v string) *GetObjectInput {
+	s.ExpectedBucketOwner = &v
+	return s
 }
 
 // SetIfMatch sets the IfMatch field's value.
@@ -17413,6 +19073,19 @@ func (s *GetObjectInput) hasEndpointARN() bool {
 	return arn.IsARN(*s.Bucket)
 }
 
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetObjectInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
 type GetObjectLegalHoldInput struct {
 	_ struct{} `locationName:"GetObjectLegalHoldRequest" type:"structure"`
 
@@ -17421,13 +19094,18 @@ type GetObjectLegalHoldInput struct {
 	//
 	// When using this API with an access point, you must direct requests to the
 	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
-	// When using this operation using an access point through the AWS SDKs, you
+	// When using this operation with an access point through the AWS SDKs, you
 	// provide the access point ARN in place of the bucket name. For more information
 	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
 	// in the Amazon Simple Storage Service Developer Guide.
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The key name for the object whose Legal Hold status you want to retrieve.
 	//
@@ -17490,6 +19168,12 @@ func (s *GetObjectLegalHoldInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetObjectLegalHoldInput) SetExpectedBucketOwner(v string) *GetObjectLegalHoldInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetKey sets the Key field's value.
 func (s *GetObjectLegalHoldInput) SetKey(v string) *GetObjectLegalHoldInput {
 	s.Key = &v
@@ -17522,6 +19206,19 @@ func (s *GetObjectLegalHoldInput) hasEndpointARN() bool {
 	return arn.IsARN(*s.Bucket)
 }
 
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetObjectLegalHoldInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
 type GetObjectLegalHoldOutput struct {
 	_ struct{} `type:"structure" payload:"LegalHold"`
 
@@ -17550,8 +19247,20 @@ type GetObjectLockConfigurationInput struct {
 
 	// The bucket whose Object Lock configuration you want to retrieve.
 	//
+	// When using this API with an access point, you must direct requests to the
+	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
+	// When using this operation with an access point through the AWS SDKs, you
+	// provide the access point ARN in place of the bucket name. For more information
+	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -17593,6 +19302,12 @@ func (s *GetObjectLockConfigurationInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetObjectLockConfigurationInput) SetExpectedBucketOwner(v string) *GetObjectLockConfigurationInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *GetObjectLockConfigurationInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -17605,6 +19320,19 @@ func (s *GetObjectLockConfigurationInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetObjectLockConfigurationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetObjectLockConfigurationOutput struct {
@@ -17959,13 +19687,18 @@ type GetObjectRetentionInput struct {
 	//
 	// When using this API with an access point, you must direct requests to the
 	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
-	// When using this operation using an access point through the AWS SDKs, you
+	// When using this operation with an access point through the AWS SDKs, you
 	// provide the access point ARN in place of the bucket name. For more information
 	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
 	// in the Amazon Simple Storage Service Developer Guide.
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The key name for the object whose retention settings you want to retrieve.
 	//
@@ -18028,6 +19761,12 @@ func (s *GetObjectRetentionInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetObjectRetentionInput) SetExpectedBucketOwner(v string) *GetObjectRetentionInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetKey sets the Key field's value.
 func (s *GetObjectRetentionInput) SetKey(v string) *GetObjectRetentionInput {
 	s.Key = &v
@@ -18060,6 +19799,19 @@ func (s *GetObjectRetentionInput) hasEndpointARN() bool {
 	return arn.IsARN(*s.Bucket)
 }
 
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetObjectRetentionInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
 type GetObjectRetentionOutput struct {
 	_ struct{} `type:"structure" payload:"Retention"`
 
@@ -18090,13 +19842,26 @@ type GetObjectTaggingInput struct {
 	//
 	// When using this API with an access point, you must direct requests to the
 	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
-	// When using this operation using an access point through the AWS SDKs, you
+	// When using this operation with an access point through the AWS SDKs, you
 	// provide the access point ARN in place of the bucket name. For more information
 	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
 	// in the Amazon Simple Storage Service Developer Guide.
 	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// Object key for which to get the tagging information.
 	//
@@ -18152,6 +19917,12 @@ func (s *GetObjectTaggingInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetObjectTaggingInput) SetExpectedBucketOwner(v string) *GetObjectTaggingInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetKey sets the Key field's value.
 func (s *GetObjectTaggingInput) SetKey(v string) *GetObjectTaggingInput {
 	s.Key = &v
@@ -18176,6 +19947,19 @@ func (s *GetObjectTaggingInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetObjectTaggingInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetObjectTaggingOutput struct {
@@ -18220,6 +20004,11 @@ type GetObjectTorrentInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The object key for which to get the information.
 	//
@@ -18279,6 +20068,12 @@ func (s *GetObjectTorrentInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetObjectTorrentInput) SetExpectedBucketOwner(v string) *GetObjectTorrentInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetKey sets the Key field's value.
 func (s *GetObjectTorrentInput) SetKey(v string) *GetObjectTorrentInput {
 	s.Key = &v
@@ -18303,6 +20098,19 @@ func (s *GetObjectTorrentInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetObjectTorrentInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetObjectTorrentOutput struct {
@@ -18346,6 +20154,11 @@ type GetPublicAccessBlockInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -18387,6 +20200,12 @@ func (s *GetPublicAccessBlockInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *GetPublicAccessBlockInput) SetExpectedBucketOwner(v string) *GetPublicAccessBlockInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *GetPublicAccessBlockInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -18399,6 +20218,19 @@ func (s *GetPublicAccessBlockInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s GetPublicAccessBlockInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type GetPublicAccessBlockOutput struct {
@@ -18615,8 +20447,28 @@ type HeadBucketInput struct {
 
 	// The bucket name.
 	//
+	// When using this API with an access point, you must direct requests to the
+	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
+	// When using this operation with an access point through the AWS SDKs, you
+	// provide the access point ARN in place of the bucket name. For more information
+	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -18658,6 +20510,12 @@ func (s *HeadBucketInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *HeadBucketInput) SetExpectedBucketOwner(v string) *HeadBucketInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *HeadBucketInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -18670,6 +20528,19 @@ func (s *HeadBucketInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s HeadBucketInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type HeadBucketOutput struct {
@@ -18691,8 +20562,28 @@ type HeadObjectInput struct {
 
 	// The name of the bucket containing the object.
 	//
+	// When using this API with an access point, you must direct requests to the
+	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
+	// When using this operation with an access point through the AWS SDKs, you
+	// provide the access point ARN in place of the bucket name. For more information
+	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// Return the object only if its entity tag (ETag) is the same as the one specified,
 	// otherwise return a 412 (precondition failed).
@@ -18722,7 +20613,8 @@ type HeadObjectInput struct {
 	PartNumber *int64 `location:"querystring" locationName:"partNumber" type:"integer"`
 
 	// Downloads the specified range bytes of an object. For more information about
-	// the HTTP Range header, see http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35.
+	// the HTTP Range header, see http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35
+	// (http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.35).
 	//
 	// Amazon S3 doesn't support retrieving multiple ranges of data per GET request.
 	Range *string `location:"header" locationName:"Range" type:"string"`
@@ -18741,7 +20633,7 @@ type HeadObjectInput struct {
 	// Specifies the customer-provided encryption key for Amazon S3 to use in encrypting
 	// data. This value is used to store the object and then it is discarded; Amazon
 	// S3 does not store the encryption key. The key must be appropriate for use
-	// with the algorithm specified in the x-amz-server-side​-encryption​-customer-algorithm
+	// with the algorithm specified in the x-amz-server-side-encryption-customer-algorithm
 	// header.
 	SSECustomerKey *string `marshal-as:"blob" location:"header" locationName:"x-amz-server-side-encryption-customer-key" type:"string" sensitive:"true"`
 
@@ -18797,6 +20689,12 @@ func (s *HeadObjectInput) getBucket() (v string) {
 		return v
 	}
 	return *s.Bucket
+}
+
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *HeadObjectInput) SetExpectedBucketOwner(v string) *HeadObjectInput {
+	s.ExpectedBucketOwner = &v
+	return s
 }
 
 // SetIfMatch sets the IfMatch field's value.
@@ -18890,6 +20788,19 @@ func (s *HeadObjectInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s HeadObjectInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type HeadObjectOutput struct {
@@ -19002,7 +20913,8 @@ type HeadObjectOutput struct {
 
 	// If the object is an archived object (an object whose storage class is GLACIER),
 	// the response includes this header if either the archive restoration is in
-	// progress (see RestoreObject or an archive copy is already restored.
+	// progress (see RestoreObject (https://docs.aws.amazon.com/AmazonS3/latest/API/API_RestoreObject.html)
+	// or an archive copy is already restored.
 	//
 	// If an archive copy is already restored, the header value indicates when Amazon
 	// S3 is scheduled to delete the object copy. For example:
@@ -20279,6 +22191,11 @@ type ListBucketAnalyticsConfigurationsInput struct {
 	// The ContinuationToken that represents a placeholder from where this request
 	// should begin.
 	ContinuationToken *string `location:"querystring" locationName:"continuation-token" type:"string"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -20326,6 +22243,12 @@ func (s *ListBucketAnalyticsConfigurationsInput) SetContinuationToken(v string) 
 	return s
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *ListBucketAnalyticsConfigurationsInput) SetExpectedBucketOwner(v string) *ListBucketAnalyticsConfigurationsInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *ListBucketAnalyticsConfigurationsInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -20338,6 +22261,19 @@ func (s *ListBucketAnalyticsConfigurationsInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s ListBucketAnalyticsConfigurationsInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type ListBucketAnalyticsConfigurationsOutput struct {
@@ -20408,6 +22344,11 @@ type ListBucketInventoryConfigurationsInput struct {
 	// response to continue the listing. The continuation token is an opaque value
 	// that Amazon S3 understands.
 	ContinuationToken *string `location:"querystring" locationName:"continuation-token" type:"string"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -20455,6 +22396,12 @@ func (s *ListBucketInventoryConfigurationsInput) SetContinuationToken(v string) 
 	return s
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *ListBucketInventoryConfigurationsInput) SetExpectedBucketOwner(v string) *ListBucketInventoryConfigurationsInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *ListBucketInventoryConfigurationsInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -20467,6 +22414,19 @@ func (s *ListBucketInventoryConfigurationsInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s ListBucketInventoryConfigurationsInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type ListBucketInventoryConfigurationsOutput struct {
@@ -20537,6 +22497,11 @@ type ListBucketMetricsConfigurationsInput struct {
 	// list response to continue the listing. The continuation token is an opaque
 	// value that Amazon S3 understands.
 	ContinuationToken *string `location:"querystring" locationName:"continuation-token" type:"string"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -20584,6 +22549,12 @@ func (s *ListBucketMetricsConfigurationsInput) SetContinuationToken(v string) *L
 	return s
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *ListBucketMetricsConfigurationsInput) SetExpectedBucketOwner(v string) *ListBucketMetricsConfigurationsInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *ListBucketMetricsConfigurationsInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -20596,6 +22567,19 @@ func (s *ListBucketMetricsConfigurationsInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s ListBucketMetricsConfigurationsInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type ListBucketMetricsConfigurationsOutput struct {
@@ -20703,13 +22687,21 @@ func (s *ListBucketsOutput) SetOwner(v *Owner) *ListBucketsOutput {
 type ListMultipartUploadsInput struct {
 	_ struct{} `locationName:"ListMultipartUploadsRequest" type:"structure"`
 
-	// Name of the bucket to which the multipart upload was initiated.
+	// The name of the bucket to which the multipart upload was initiated.
 	//
 	// When using this API with an access point, you must direct requests to the
 	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
-	// When using this operation using an access point through the AWS SDKs, you
+	// When using this operation with an access point through the AWS SDKs, you
 	// provide the access point ARN in place of the bucket name. For more information
 	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
 	// in the Amazon Simple Storage Service Developer Guide.
 	//
 	// Bucket is a required field
@@ -20732,6 +22724,11 @@ type ListMultipartUploadsInput struct {
 	// XML 1.0, you can add this parameter to request that Amazon S3 encode the
 	// keys in the response.
 	EncodingType *string `location:"querystring" locationName:"encoding-type" type:"string" enum:"EncodingType"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// Together with upload-id-marker, this parameter specifies the multipart upload
 	// after which listing should begin.
@@ -20814,6 +22811,12 @@ func (s *ListMultipartUploadsInput) SetEncodingType(v string) *ListMultipartUplo
 	return s
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *ListMultipartUploadsInput) SetExpectedBucketOwner(v string) *ListMultipartUploadsInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetKeyMarker sets the KeyMarker field's value.
 func (s *ListMultipartUploadsInput) SetKeyMarker(v string) *ListMultipartUploadsInput {
 	s.KeyMarker = &v
@@ -20852,10 +22855,23 @@ func (s *ListMultipartUploadsInput) hasEndpointARN() bool {
 	return arn.IsARN(*s.Bucket)
 }
 
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s ListMultipartUploadsInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
 type ListMultipartUploadsOutput struct {
 	_ struct{} `type:"structure"`
 
-	// Name of the bucket to which the multipart upload was initiated.
+	// The name of the bucket to which the multipart upload was initiated.
 	Bucket *string `type:"string"`
 
 	// If you specify a delimiter in the request, then the result returns each distinct
@@ -21003,13 +23019,6 @@ type ListObjectVersionsInput struct {
 
 	// The bucket name that contains the objects.
 	//
-	// When using this API with an access point, you must direct requests to the
-	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
-	// When using this operation using an access point through the AWS SDKs, you
-	// provide the access point ARN in place of the bucket name. For more information
-	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
-	// in the Amazon Simple Storage Service Developer Guide.
-	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
 
@@ -21027,6 +23036,11 @@ type ListObjectVersionsInput struct {
 	// XML 1.0, you can add this parameter to request that Amazon S3 encode the
 	// keys in the response.
 	EncodingType *string `location:"querystring" locationName:"encoding-type" type:"string" enum:"EncodingType"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// Specifies the key to start with when listing objects in a bucket.
 	KeyMarker *string `location:"querystring" locationName:"key-marker" type:"string"`
@@ -21101,6 +23115,12 @@ func (s *ListObjectVersionsInput) SetEncodingType(v string) *ListObjectVersionsI
 	return s
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *ListObjectVersionsInput) SetExpectedBucketOwner(v string) *ListObjectVersionsInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetKeyMarker sets the KeyMarker field's value.
 func (s *ListObjectVersionsInput) SetKeyMarker(v string) *ListObjectVersionsInput {
 	s.KeyMarker = &v
@@ -21137,6 +23157,19 @@ func (s *ListObjectVersionsInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s ListObjectVersionsInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type ListObjectVersionsOutput struct {
@@ -21179,7 +23212,7 @@ type ListObjectVersionsOutput struct {
 	// Specifies the maximum number of objects to return.
 	MaxKeys *int64 `type:"integer"`
 
-	// Bucket name.
+	// The bucket name.
 	Name *string `type:"string"`
 
 	// When the number of responses exceeds the value of MaxKeys, NextKeyMarker
@@ -21296,6 +23329,21 @@ type ListObjectsInput struct {
 
 	// The name of the bucket containing the objects.
 	//
+	// When using this API with an access point, you must direct requests to the
+	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
+	// When using this operation with an access point through the AWS SDKs, you
+	// provide the access point ARN in place of the bucket name. For more information
+	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
 
@@ -21309,6 +23357,11 @@ type ListObjectsInput struct {
 	// XML 1.0, you can add this parameter to request that Amazon S3 encode the
 	// keys in the response.
 	EncodingType *string `location:"querystring" locationName:"encoding-type" type:"string" enum:"EncodingType"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// Specifies the key to start with when listing objects in a bucket.
 	Marker *string `location:"querystring" locationName:"marker" type:"string"`
@@ -21378,6 +23431,12 @@ func (s *ListObjectsInput) SetEncodingType(v string) *ListObjectsInput {
 	return s
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *ListObjectsInput) SetExpectedBucketOwner(v string) *ListObjectsInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetMarker sets the Marker field's value.
 func (s *ListObjectsInput) SetMarker(v string) *ListObjectsInput {
 	s.Marker = &v
@@ -21414,6 +23473,19 @@ func (s *ListObjectsInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s ListObjectsInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type ListObjectsOutput struct {
@@ -21460,14 +23532,14 @@ type ListObjectsOutput struct {
 	// The maximum number of keys returned in the response body.
 	MaxKeys *int64 `type:"integer"`
 
-	// Bucket name.
+	// The bucket name.
 	Name *string `type:"string"`
 
 	// When response is truncated (the IsTruncated element value in the response
 	// is true), you can use the key name in this field as marker in the subsequent
 	// request to get next set of objects. Amazon S3 lists objects in alphabetical
 	// order Note: This element is returned only if you have delimiter request parameter
-	// specified. If response does not include the NextMaker and it is truncated,
+	// specified. If response does not include the NextMarker and it is truncated,
 	// you can use the value of the last Key in the response as the marker in the
 	// subsequent request to get the next set of object keys.
 	NextMarker *string `type:"string"`
@@ -21553,9 +23625,17 @@ type ListObjectsV2Input struct {
 	//
 	// When using this API with an access point, you must direct requests to the
 	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
-	// When using this operation using an access point through the AWS SDKs, you
+	// When using this operation with an access point through the AWS SDKs, you
 	// provide the access point ARN in place of the bucket name. For more information
 	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
 	// in the Amazon Simple Storage Service Developer Guide.
 	//
 	// Bucket is a required field
@@ -21571,6 +23651,11 @@ type ListObjectsV2Input struct {
 
 	// Encoding type used by Amazon S3 to encode object keys in the response.
 	EncodingType *string `location:"querystring" locationName:"encoding-type" type:"string" enum:"EncodingType"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The owner field is not present in listV2 by default, if you want to return
 	// owner field with each key in the result then set the fetch owner field to
@@ -21652,6 +23737,12 @@ func (s *ListObjectsV2Input) SetEncodingType(v string) *ListObjectsV2Input {
 	return s
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *ListObjectsV2Input) SetExpectedBucketOwner(v string) *ListObjectsV2Input {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetFetchOwner sets the FetchOwner field's value.
 func (s *ListObjectsV2Input) SetFetchOwner(v bool) *ListObjectsV2Input {
 	s.FetchOwner = &v
@@ -21694,6 +23785,19 @@ func (s *ListObjectsV2Input) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s ListObjectsV2Input) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type ListObjectsV2Output struct {
@@ -21753,13 +23857,21 @@ type ListObjectsV2Output struct {
 	// but will never contain more.
 	MaxKeys *int64 `type:"integer"`
 
-	// Bucket name.
+	// The bucket name.
 	//
 	// When using this API with an access point, you must direct requests to the
 	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
-	// When using this operation using an access point through the AWS SDKs, you
+	// When using this operation with an access point through the AWS SDKs, you
 	// provide the access point ARN in place of the bucket name. For more information
 	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
 	// in the Amazon Simple Storage Service Developer Guide.
 	Name *string `type:"string"`
 
@@ -21861,17 +23973,30 @@ func (s *ListObjectsV2Output) SetStartAfter(v string) *ListObjectsV2Output {
 type ListPartsInput struct {
 	_ struct{} `locationName:"ListPartsRequest" type:"structure"`
 
-	// Name of the bucket to which the parts are being uploaded.
+	// The name of the bucket to which the parts are being uploaded.
 	//
 	// When using this API with an access point, you must direct requests to the
 	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
-	// When using this operation using an access point through the AWS SDKs, you
+	// When using this operation with an access point through the AWS SDKs, you
 	// provide the access point ARN in place of the bucket name. For more information
 	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
 	// in the Amazon Simple Storage Service Developer Guide.
 	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// Object key for which the multipart upload was initiated.
 	//
@@ -21946,6 +24071,12 @@ func (s *ListPartsInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *ListPartsInput) SetExpectedBucketOwner(v string) *ListPartsInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetKey sets the Key field's value.
 func (s *ListPartsInput) SetKey(v string) *ListPartsInput {
 	s.Key = &v
@@ -21990,6 +24121,19 @@ func (s *ListPartsInput) hasEndpointARN() bool {
 	return arn.IsARN(*s.Bucket)
 }
 
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s ListPartsInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
 type ListPartsOutput struct {
 	_ struct{} `type:"structure"`
 
@@ -22009,7 +24153,7 @@ type ListPartsOutput struct {
 	// incomplete multipart uploads.
 	AbortRuleId *string `location:"header" locationName:"x-amz-abort-rule-id" type:"string"`
 
-	// Name of the bucket to which the multipart upload was initiated.
+	// The name of the bucket to which the multipart upload was initiated.
 	Bucket *string `type:"string"`
 
 	// Container element that identifies who initiated the multipart upload. If
@@ -22947,8 +25091,22 @@ func (s *NotificationConfigurationFilter) SetKey(v *KeyFilter) *NotificationConf
 type Object struct {
 	_ struct{} `type:"structure"`
 
-	// The entity tag is an MD5 hash of the object. ETag reflects only changes to
-	// the contents of an object, not its metadata.
+	// The entity tag is a hash of the object. The ETag reflects changes only to
+	// the contents of an object, not its metadata. The ETag may or may not be an
+	// MD5 digest of the object data. Whether or not it is depends on how the object
+	// was created and how it is encrypted as described below:
+	//
+	//    * Objects created by the PUT Object, POST Object, or Copy operation, or
+	//    through the AWS Management Console, and are encrypted by SSE-S3 or plaintext,
+	//    have ETags that are an MD5 digest of their object data.
+	//
+	//    * Objects created by the PUT Object, POST Object, or Copy operation, or
+	//    through the AWS Management Console, and are encrypted by SSE-C or SSE-KMS,
+	//    have ETags that are not an MD5 digest of their object data.
+	//
+	//    * If an object is created by either the Multipart Upload or Part Copy
+	//    operation, the ETag is not an MD5 digest, regardless of the method of
+	//    encryption.
 	ETag *string `type:"string"`
 
 	// The name that you assign to an object. You use the object key to retrieve
@@ -23373,6 +25531,101 @@ func (s *Owner) SetID(v string) *Owner {
 	return s
 }
 
+// The container element for a bucket's ownership controls.
+type OwnershipControls struct {
+	_ struct{} `type:"structure"`
+
+	// The container element for an ownership control rule.
+	//
+	// Rules is a required field
+	Rules []*OwnershipControlsRule `locationName:"Rule" type:"list" flattened:"true" required:"true"`
+}
+
+// String returns the string representation
+func (s OwnershipControls) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s OwnershipControls) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *OwnershipControls) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "OwnershipControls"}
+	if s.Rules == nil {
+		invalidParams.Add(request.NewErrParamRequired("Rules"))
+	}
+	if s.Rules != nil {
+		for i, v := range s.Rules {
+			if v == nil {
+				continue
+			}
+			if err := v.Validate(); err != nil {
+				invalidParams.AddNested(fmt.Sprintf("%s[%v]", "Rules", i), err.(request.ErrInvalidParams))
+			}
+		}
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetRules sets the Rules field's value.
+func (s *OwnershipControls) SetRules(v []*OwnershipControlsRule) *OwnershipControls {
+	s.Rules = v
+	return s
+}
+
+// The container element for an ownership control rule.
+type OwnershipControlsRule struct {
+	_ struct{} `type:"structure"`
+
+	// The container element for object ownership for a bucket's ownership controls.
+	//
+	// BucketOwnerPreferred - Objects uploaded to the bucket change ownership to
+	// the bucket owner if the objects are uploaded with the bucket-owner-full-control
+	// canned ACL.
+	//
+	// ObjectWriter - The uploading account will own the object if the object is
+	// uploaded with the bucket-owner-full-control canned ACL.
+	//
+	// ObjectOwnership is a required field
+	ObjectOwnership *string `type:"string" required:"true" enum:"ObjectOwnership"`
+}
+
+// String returns the string representation
+func (s OwnershipControlsRule) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s OwnershipControlsRule) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *OwnershipControlsRule) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "OwnershipControlsRule"}
+	if s.ObjectOwnership == nil {
+		invalidParams.Add(request.NewErrParamRequired("ObjectOwnership"))
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetObjectOwnership sets the ObjectOwnership field's value.
+func (s *OwnershipControlsRule) SetObjectOwnership(v string) *OwnershipControlsRule {
+	s.ObjectOwnership = &v
+	return s
+}
+
 // Container for Parquet.
 type ParquetInput struct {
 	_ struct{} `type:"structure"`
@@ -23548,6 +25801,8 @@ func (s *ProgressEvent) UnmarshalEvent(
 	return nil
 }
 
+// MarshalEvent marshals the type into an stream event value. This method
+// should only used internally within the SDK's EventStream handling.
 func (s *ProgressEvent) MarshalEvent(pm protocol.PayloadMarshaler) (msg eventstream.Message, err error) {
 	msg.Headers.Set(eventstreamapi.MessageTypeHeader, eventstream.StringValue(eventstreamapi.EventMessageType))
 	var buf bytes.Buffer
@@ -23648,10 +25903,15 @@ type PutBucketAccelerateConfigurationInput struct {
 	// AccelerateConfiguration is a required field
 	AccelerateConfiguration *AccelerateConfiguration `locationName:"AccelerateConfiguration" type:"structure" required:"true" xmlURI:"http://s3.amazonaws.com/doc/2006-03-01/"`
 
-	// Name of the bucket for which the accelerate configuration is set.
+	// The name of the bucket for which the accelerate configuration is set.
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -23702,6 +25962,12 @@ func (s *PutBucketAccelerateConfigurationInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutBucketAccelerateConfigurationInput) SetExpectedBucketOwner(v string) *PutBucketAccelerateConfigurationInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *PutBucketAccelerateConfigurationInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -23714,6 +25980,19 @@ func (s *PutBucketAccelerateConfigurationInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutBucketAccelerateConfigurationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type PutBucketAccelerateConfigurationOutput struct {
@@ -23743,6 +26022,11 @@ type PutBucketAclInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// Allows grantee the read, write, read ACP, and write ACP permissions on the
 	// bucket.
@@ -23817,6 +26101,12 @@ func (s *PutBucketAclInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutBucketAclInput) SetExpectedBucketOwner(v string) *PutBucketAclInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetGrantFullControl sets the GrantFullControl field's value.
 func (s *PutBucketAclInput) SetGrantFullControl(v string) *PutBucketAclInput {
 	s.GrantFullControl = &v
@@ -23861,6 +26151,19 @@ func (s *PutBucketAclInput) hasEndpointARN() bool {
 	return arn.IsARN(*s.Bucket)
 }
 
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutBucketAclInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
 type PutBucketAclOutput struct {
 	_ struct{} `type:"structure"`
 }
@@ -23887,6 +26190,11 @@ type PutBucketAnalyticsConfigurationInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The ID that identifies the analytics configuration.
 	//
@@ -23950,6 +26258,12 @@ func (s *PutBucketAnalyticsConfigurationInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutBucketAnalyticsConfigurationInput) SetExpectedBucketOwner(v string) *PutBucketAnalyticsConfigurationInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetId sets the Id field's value.
 func (s *PutBucketAnalyticsConfigurationInput) SetId(v string) *PutBucketAnalyticsConfigurationInput {
 	s.Id = &v
@@ -23968,6 +26282,19 @@ func (s *PutBucketAnalyticsConfigurationInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutBucketAnalyticsConfigurationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type PutBucketAnalyticsConfigurationOutput struct {
@@ -23999,6 +26326,11 @@ type PutBucketCorsInput struct {
 	//
 	// CORSConfiguration is a required field
 	CORSConfiguration *CORSConfiguration `locationName:"CORSConfiguration" type:"structure" required:"true" xmlURI:"http://s3.amazonaws.com/doc/2006-03-01/"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -24054,6 +26386,12 @@ func (s *PutBucketCorsInput) SetCORSConfiguration(v *CORSConfiguration) *PutBuck
 	return s
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutBucketCorsInput) SetExpectedBucketOwner(v string) *PutBucketCorsInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *PutBucketCorsInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -24066,6 +26404,19 @@ func (s *PutBucketCorsInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutBucketCorsInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type PutBucketCorsOutput struct {
@@ -24093,6 +26444,11 @@ type PutBucketEncryptionInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// Specifies the default server-side-encryption configuration.
 	//
@@ -24147,6 +26503,12 @@ func (s *PutBucketEncryptionInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutBucketEncryptionInput) SetExpectedBucketOwner(v string) *PutBucketEncryptionInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetServerSideEncryptionConfiguration sets the ServerSideEncryptionConfiguration field's value.
 func (s *PutBucketEncryptionInput) SetServerSideEncryptionConfiguration(v *ServerSideEncryptionConfiguration) *PutBucketEncryptionInput {
 	s.ServerSideEncryptionConfiguration = v
@@ -24165,6 +26527,19 @@ func (s *PutBucketEncryptionInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutBucketEncryptionInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type PutBucketEncryptionOutput struct {
@@ -24188,6 +26563,11 @@ type PutBucketInventoryConfigurationInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The ID used to identify the inventory configuration.
 	//
@@ -24250,6 +26630,12 @@ func (s *PutBucketInventoryConfigurationInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutBucketInventoryConfigurationInput) SetExpectedBucketOwner(v string) *PutBucketInventoryConfigurationInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetId sets the Id field's value.
 func (s *PutBucketInventoryConfigurationInput) SetId(v string) *PutBucketInventoryConfigurationInput {
 	s.Id = &v
@@ -24276,6 +26662,19 @@ func (s *PutBucketInventoryConfigurationInput) hasEndpointARN() bool {
 	return arn.IsARN(*s.Bucket)
 }
 
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutBucketInventoryConfigurationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
 type PutBucketInventoryConfigurationOutput struct {
 	_ struct{} `type:"structure"`
 }
@@ -24297,6 +26696,11 @@ type PutBucketLifecycleConfigurationInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// Container for lifecycle rules. You can add as many as 1,000 rules.
 	LifecycleConfiguration *BucketLifecycleConfiguration `locationName:"LifecycleConfiguration" type:"structure" xmlURI:"http://s3.amazonaws.com/doc/2006-03-01/"`
@@ -24346,6 +26750,12 @@ func (s *PutBucketLifecycleConfigurationInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutBucketLifecycleConfigurationInput) SetExpectedBucketOwner(v string) *PutBucketLifecycleConfigurationInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetLifecycleConfiguration sets the LifecycleConfiguration field's value.
 func (s *PutBucketLifecycleConfigurationInput) SetLifecycleConfiguration(v *BucketLifecycleConfiguration) *PutBucketLifecycleConfigurationInput {
 	s.LifecycleConfiguration = v
@@ -24364,6 +26774,19 @@ func (s *PutBucketLifecycleConfigurationInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutBucketLifecycleConfigurationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type PutBucketLifecycleConfigurationOutput struct {
@@ -24385,6 +26808,11 @@ type PutBucketLifecycleInput struct {
 
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// Container for lifecycle rules. You can add as many as 1000 rules.
 	LifecycleConfiguration *LifecycleConfiguration `locationName:"LifecycleConfiguration" type:"structure" xmlURI:"http://s3.amazonaws.com/doc/2006-03-01/"`
@@ -24434,6 +26862,12 @@ func (s *PutBucketLifecycleInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutBucketLifecycleInput) SetExpectedBucketOwner(v string) *PutBucketLifecycleInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetLifecycleConfiguration sets the LifecycleConfiguration field's value.
 func (s *PutBucketLifecycleInput) SetLifecycleConfiguration(v *LifecycleConfiguration) *PutBucketLifecycleInput {
 	s.LifecycleConfiguration = v
@@ -24452,6 +26886,19 @@ func (s *PutBucketLifecycleInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutBucketLifecycleInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type PutBucketLifecycleOutput struct {
@@ -24480,6 +26927,11 @@ type PutBucketLoggingInput struct {
 	//
 	// BucketLoggingStatus is a required field
 	BucketLoggingStatus *BucketLoggingStatus `locationName:"BucketLoggingStatus" type:"structure" required:"true" xmlURI:"http://s3.amazonaws.com/doc/2006-03-01/"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 }
 
 // String returns the string representation
@@ -24535,6 +26987,12 @@ func (s *PutBucketLoggingInput) SetBucketLoggingStatus(v *BucketLoggingStatus) *
 	return s
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutBucketLoggingInput) SetExpectedBucketOwner(v string) *PutBucketLoggingInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 func (s *PutBucketLoggingInput) getEndpointARN() (arn.Resource, error) {
 	if s.Bucket == nil {
 		return nil, fmt.Errorf("member Bucket is nil")
@@ -24547,6 +27005,19 @@ func (s *PutBucketLoggingInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutBucketLoggingInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type PutBucketLoggingOutput struct {
@@ -24570,6 +27041,11 @@ type PutBucketMetricsConfigurationInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The ID used to identify the metrics configuration.
 	//
@@ -24632,6 +27108,12 @@ func (s *PutBucketMetricsConfigurationInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutBucketMetricsConfigurationInput) SetExpectedBucketOwner(v string) *PutBucketMetricsConfigurationInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetId sets the Id field's value.
 func (s *PutBucketMetricsConfigurationInput) SetId(v string) *PutBucketMetricsConfigurationInput {
 	s.Id = &v
@@ -24658,6 +27140,19 @@ func (s *PutBucketMetricsConfigurationInput) hasEndpointARN() bool {
 	return arn.IsARN(*s.Bucket)
 }
 
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutBucketMetricsConfigurationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
 type PutBucketMetricsConfigurationOutput struct {
 	_ struct{} `type:"structure"`
 }
@@ -24679,6 +27174,11 @@ type PutBucketNotificationConfigurationInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// A container for specifying the notification configuration of the bucket.
 	// If this element is empty, notifications are turned off for the bucket.
@@ -24734,6 +27234,12 @@ func (s *PutBucketNotificationConfigurationInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutBucketNotificationConfigurationInput) SetExpectedBucketOwner(v string) *PutBucketNotificationConfigurationInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetNotificationConfiguration sets the NotificationConfiguration field's value.
 func (s *PutBucketNotificationConfigurationInput) SetNotificationConfiguration(v *NotificationConfiguration) *PutBucketNotificationConfigurationInput {
 	s.NotificationConfiguration = v
@@ -24752,6 +27258,19 @@ func (s *PutBucketNotificationConfigurationInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutBucketNotificationConfigurationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type PutBucketNotificationConfigurationOutput struct {
@@ -24775,6 +27294,11 @@ type PutBucketNotificationInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The container for the configuration.
 	//
@@ -24824,6 +27348,12 @@ func (s *PutBucketNotificationInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutBucketNotificationInput) SetExpectedBucketOwner(v string) *PutBucketNotificationInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetNotificationConfiguration sets the NotificationConfiguration field's value.
 func (s *PutBucketNotificationInput) SetNotificationConfiguration(v *NotificationConfigurationDeprecated) *PutBucketNotificationInput {
 	s.NotificationConfiguration = v
@@ -24844,6 +27374,19 @@ func (s *PutBucketNotificationInput) hasEndpointARN() bool {
 	return arn.IsARN(*s.Bucket)
 }
 
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutBucketNotificationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
 type PutBucketNotificationOutput struct {
 	_ struct{} `type:"structure"`
 }
@@ -24858,6 +27401,123 @@ func (s PutBucketNotificationOutput) GoString() string {
 	return s.String()
 }
 
+type PutBucketOwnershipControlsInput struct {
+	_ struct{} `locationName:"PutBucketOwnershipControlsRequest" type:"structure" payload:"OwnershipControls"`
+
+	// The name of the Amazon S3 bucket whose OwnershipControls you want to set.
+	//
+	// Bucket is a required field
+	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
+
+	// The OwnershipControls (BucketOwnerPreferred or ObjectWriter) that you want
+	// to apply to this Amazon S3 bucket.
+	//
+	// OwnershipControls is a required field
+	OwnershipControls *OwnershipControls `locationName:"OwnershipControls" type:"structure" required:"true" xmlURI:"http://s3.amazonaws.com/doc/2006-03-01/"`
+}
+
+// String returns the string representation
+func (s PutBucketOwnershipControlsInput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s PutBucketOwnershipControlsInput) GoString() string {
+	return s.String()
+}
+
+// Validate inspects the fields of the type to determine if they are valid.
+func (s *PutBucketOwnershipControlsInput) Validate() error {
+	invalidParams := request.ErrInvalidParams{Context: "PutBucketOwnershipControlsInput"}
+	if s.Bucket == nil {
+		invalidParams.Add(request.NewErrParamRequired("Bucket"))
+	}
+	if s.Bucket != nil && len(*s.Bucket) < 1 {
+		invalidParams.Add(request.NewErrParamMinLen("Bucket", 1))
+	}
+	if s.OwnershipControls == nil {
+		invalidParams.Add(request.NewErrParamRequired("OwnershipControls"))
+	}
+	if s.OwnershipControls != nil {
+		if err := s.OwnershipControls.Validate(); err != nil {
+			invalidParams.AddNested("OwnershipControls", err.(request.ErrInvalidParams))
+		}
+	}
+
+	if invalidParams.Len() > 0 {
+		return invalidParams
+	}
+	return nil
+}
+
+// SetBucket sets the Bucket field's value.
+func (s *PutBucketOwnershipControlsInput) SetBucket(v string) *PutBucketOwnershipControlsInput {
+	s.Bucket = &v
+	return s
+}
+
+func (s *PutBucketOwnershipControlsInput) getBucket() (v string) {
+	if s.Bucket == nil {
+		return v
+	}
+	return *s.Bucket
+}
+
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutBucketOwnershipControlsInput) SetExpectedBucketOwner(v string) *PutBucketOwnershipControlsInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
+// SetOwnershipControls sets the OwnershipControls field's value.
+func (s *PutBucketOwnershipControlsInput) SetOwnershipControls(v *OwnershipControls) *PutBucketOwnershipControlsInput {
+	s.OwnershipControls = v
+	return s
+}
+
+func (s *PutBucketOwnershipControlsInput) getEndpointARN() (arn.Resource, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	return parseEndpointARN(*s.Bucket)
+}
+
+func (s *PutBucketOwnershipControlsInput) hasEndpointARN() bool {
+	if s.Bucket == nil {
+		return false
+	}
+	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutBucketOwnershipControlsInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
+type PutBucketOwnershipControlsOutput struct {
+	_ struct{} `type:"structure"`
+}
+
+// String returns the string representation
+func (s PutBucketOwnershipControlsOutput) String() string {
+	return awsutil.Prettify(s)
+}
+
+// GoString returns the string representation
+func (s PutBucketOwnershipControlsOutput) GoString() string {
+	return s.String()
+}
+
 type PutBucketPolicyInput struct {
 	_ struct{} `locationName:"PutBucketPolicyRequest" type:"structure" payload:"Policy"`
 
@@ -24869,6 +27529,11 @@ type PutBucketPolicyInput struct {
 	// Set this parameter to true to confirm that you want to remove your permissions
 	// to change this bucket policy in the future.
 	ConfirmRemoveSelfBucketAccess *bool `location:"header" locationName:"x-amz-confirm-remove-self-bucket-access" type:"boolean"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The bucket policy as a JSON document.
 	//
@@ -24924,6 +27589,12 @@ func (s *PutBucketPolicyInput) SetConfirmRemoveSelfBucketAccess(v bool) *PutBuck
 	return s
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutBucketPolicyInput) SetExpectedBucketOwner(v string) *PutBucketPolicyInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetPolicy sets the Policy field's value.
 func (s *PutBucketPolicyInput) SetPolicy(v string) *PutBucketPolicyInput {
 	s.Policy = &v
@@ -24942,6 +27613,19 @@ func (s *PutBucketPolicyInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutBucketPolicyInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type PutBucketPolicyOutput struct {
@@ -24965,6 +27649,11 @@ type PutBucketReplicationInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// A container for replication rules. You can add up to 1,000 rules. The maximum
 	// size of a replication configuration is 2 MB.
@@ -25022,6 +27711,12 @@ func (s *PutBucketReplicationInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutBucketReplicationInput) SetExpectedBucketOwner(v string) *PutBucketReplicationInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetReplicationConfiguration sets the ReplicationConfiguration field's value.
 func (s *PutBucketReplicationInput) SetReplicationConfiguration(v *ReplicationConfiguration) *PutBucketReplicationInput {
 	s.ReplicationConfiguration = v
@@ -25048,6 +27743,19 @@ func (s *PutBucketReplicationInput) hasEndpointARN() bool {
 	return arn.IsARN(*s.Bucket)
 }
 
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutBucketReplicationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
 type PutBucketReplicationOutput struct {
 	_ struct{} `type:"structure"`
 }
@@ -25069,6 +27777,11 @@ type PutBucketRequestPaymentInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// Container for Payer.
 	//
@@ -25123,6 +27836,12 @@ func (s *PutBucketRequestPaymentInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutBucketRequestPaymentInput) SetExpectedBucketOwner(v string) *PutBucketRequestPaymentInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetRequestPaymentConfiguration sets the RequestPaymentConfiguration field's value.
 func (s *PutBucketRequestPaymentInput) SetRequestPaymentConfiguration(v *RequestPaymentConfiguration) *PutBucketRequestPaymentInput {
 	s.RequestPaymentConfiguration = v
@@ -25141,6 +27860,19 @@ func (s *PutBucketRequestPaymentInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutBucketRequestPaymentInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type PutBucketRequestPaymentOutput struct {
@@ -25164,6 +27896,11 @@ type PutBucketTaggingInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// Container for the TagSet and Tag elements.
 	//
@@ -25218,6 +27955,12 @@ func (s *PutBucketTaggingInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutBucketTaggingInput) SetExpectedBucketOwner(v string) *PutBucketTaggingInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetTagging sets the Tagging field's value.
 func (s *PutBucketTaggingInput) SetTagging(v *Tagging) *PutBucketTaggingInput {
 	s.Tagging = v
@@ -25236,6 +27979,19 @@ func (s *PutBucketTaggingInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutBucketTaggingInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type PutBucketTaggingOutput struct {
@@ -25259,6 +28015,11 @@ type PutBucketVersioningInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The concatenation of the authentication device's serial number, a space,
 	// and the value that is displayed on your authentication device.
@@ -25312,6 +28073,12 @@ func (s *PutBucketVersioningInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutBucketVersioningInput) SetExpectedBucketOwner(v string) *PutBucketVersioningInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetMFA sets the MFA field's value.
 func (s *PutBucketVersioningInput) SetMFA(v string) *PutBucketVersioningInput {
 	s.MFA = &v
@@ -25338,6 +28105,19 @@ func (s *PutBucketVersioningInput) hasEndpointARN() bool {
 	return arn.IsARN(*s.Bucket)
 }
 
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutBucketVersioningInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
 type PutBucketVersioningOutput struct {
 	_ struct{} `type:"structure"`
 }
@@ -25359,6 +28139,11 @@ type PutBucketWebsiteInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// Container for the request.
 	//
@@ -25413,6 +28198,12 @@ func (s *PutBucketWebsiteInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutBucketWebsiteInput) SetExpectedBucketOwner(v string) *PutBucketWebsiteInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetWebsiteConfiguration sets the WebsiteConfiguration field's value.
 func (s *PutBucketWebsiteInput) SetWebsiteConfiguration(v *WebsiteConfiguration) *PutBucketWebsiteInput {
 	s.WebsiteConfiguration = v
@@ -25431,6 +28222,19 @@ func (s *PutBucketWebsiteInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutBucketWebsiteInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type PutBucketWebsiteOutput struct {
@@ -25462,7 +28266,7 @@ type PutObjectAclInput struct {
 	//
 	// When using this API with an access point, you must direct requests to the
 	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
-	// When using this operation using an access point through the AWS SDKs, you
+	// When using this operation with an access point through the AWS SDKs, you
 	// provide the access point ARN in place of the bucket name. For more information
 	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
 	// in the Amazon Simple Storage Service Developer Guide.
@@ -25470,23 +28274,51 @@ type PutObjectAclInput struct {
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
 
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
+
 	// Allows grantee the read, write, read ACP, and write ACP permissions on the
 	// bucket.
+	//
+	// This action is not supported by Amazon S3 on Outposts.
 	GrantFullControl *string `location:"header" locationName:"x-amz-grant-full-control" type:"string"`
 
 	// Allows grantee to list the objects in the bucket.
+	//
+	// This action is not supported by Amazon S3 on Outposts.
 	GrantRead *string `location:"header" locationName:"x-amz-grant-read" type:"string"`
 
 	// Allows grantee to read the bucket ACL.
+	//
+	// This action is not supported by Amazon S3 on Outposts.
 	GrantReadACP *string `location:"header" locationName:"x-amz-grant-read-acp" type:"string"`
 
 	// Allows grantee to create, overwrite, and delete any object in the bucket.
 	GrantWrite *string `location:"header" locationName:"x-amz-grant-write" type:"string"`
 
 	// Allows grantee to write the ACL for the applicable bucket.
+	//
+	// This action is not supported by Amazon S3 on Outposts.
 	GrantWriteACP *string `location:"header" locationName:"x-amz-grant-write-acp" type:"string"`
 
 	// Key for which the PUT operation was initiated.
+	//
+	// When using this API with an access point, you must direct requests to the
+	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
+	// When using this operation with an access point through the AWS SDKs, you
+	// provide the access point ARN in place of the bucket name. For more information
+	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
+	// in the Amazon Simple Storage Service Developer Guide.
 	//
 	// Key is a required field
 	Key *string `location:"uri" locationName:"Key" min:"1" type:"string" required:"true"`
@@ -25564,6 +28396,12 @@ func (s *PutObjectAclInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutObjectAclInput) SetExpectedBucketOwner(v string) *PutObjectAclInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetGrantFullControl sets the GrantFullControl field's value.
 func (s *PutObjectAclInput) SetGrantFullControl(v string) *PutObjectAclInput {
 	s.GrantFullControl = &v
@@ -25626,6 +28464,19 @@ func (s *PutObjectAclInput) hasEndpointARN() bool {
 	return arn.IsARN(*s.Bucket)
 }
 
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutObjectAclInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
 type PutObjectAclOutput struct {
 	_ struct{} `type:"structure"`
 
@@ -25655,18 +28506,28 @@ type PutObjectInput struct {
 
 	// The canned ACL to apply to the object. For more information, see Canned ACL
 	// (https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#CannedACL).
+	//
+	// This action is not supported by Amazon S3 on Outposts.
 	ACL *string `location:"header" locationName:"x-amz-acl" type:"string" enum:"ObjectCannedACL"`
 
 	// Object data.
 	Body io.ReadSeeker `type:"blob"`
 
-	// Bucket name to which the PUT operation was initiated.
+	// The bucket name to which the PUT operation was initiated.
 	//
 	// When using this API with an access point, you must direct requests to the
 	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
-	// When using this operation using an access point through the AWS SDKs, you
+	// When using this operation with an access point through the AWS SDKs, you
 	// provide the access point ARN in place of the bucket name. For more information
 	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
 	// in the Amazon Simple Storage Service Developer Guide.
 	//
 	// Bucket is a required field
@@ -25707,20 +28568,33 @@ type PutObjectInput struct {
 	// see http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.17 (http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.17).
 	ContentType *string `location:"header" locationName:"Content-Type" type:"string"`
 
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
+
 	// The date and time at which the object is no longer cacheable. For more information,
 	// see http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.21 (http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.21).
 	Expires *time.Time `location:"header" locationName:"Expires" type:"timestamp"`
 
 	// Gives the grantee READ, READ_ACP, and WRITE_ACP permissions on the object.
+	//
+	// This action is not supported by Amazon S3 on Outposts.
 	GrantFullControl *string `location:"header" locationName:"x-amz-grant-full-control" type:"string"`
 
 	// Allows grantee to read the object data and its metadata.
+	//
+	// This action is not supported by Amazon S3 on Outposts.
 	GrantRead *string `location:"header" locationName:"x-amz-grant-read" type:"string"`
 
 	// Allows grantee to read the object ACL.
+	//
+	// This action is not supported by Amazon S3 on Outposts.
 	GrantReadACP *string `location:"header" locationName:"x-amz-grant-read-acp" type:"string"`
 
 	// Allows grantee to write the ACL for the applicable object.
+	//
+	// This action is not supported by Amazon S3 on Outposts.
 	GrantWriteACP *string `location:"header" locationName:"x-amz-grant-write-acp" type:"string"`
 
 	// Object key for which the PUT operation was initiated.
@@ -25755,7 +28629,7 @@ type PutObjectInput struct {
 	// Specifies the customer-provided encryption key for Amazon S3 to use in encrypting
 	// data. This value is used to store the object and then it is discarded; Amazon
 	// S3 does not store the encryption key. The key must be appropriate for use
-	// with the algorithm specified in the x-amz-server-side​-encryption​-customer-algorithm
+	// with the algorithm specified in the x-amz-server-side-encryption-customer-algorithm
 	// header.
 	SSECustomerKey *string `marshal-as:"blob" location:"header" locationName:"x-amz-server-side-encryption-customer-key" type:"string" sensitive:"true"`
 
@@ -25785,8 +28659,12 @@ type PutObjectInput struct {
 	// S3 (for example, AES256, aws:kms).
 	ServerSideEncryption *string `location:"header" locationName:"x-amz-server-side-encryption" type:"string" enum:"ServerSideEncryption"`
 
-	// If you don't specify, S3 Standard is the default storage class. Amazon S3
-	// supports other storage classes.
+	// By default, Amazon S3 uses the STANDARD Storage Class to store newly created
+	// objects. The STANDARD storage class provides high durability and high availability.
+	// Depending on performance needs, you can specify a different Storage Class.
+	// Amazon S3 on Outposts only uses the OUTPOSTS Storage Class. For more information,
+	// see Storage Classes (https://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html)
+	// in the Amazon S3 Service Developer Guide.
 	StorageClass *string `location:"header" locationName:"x-amz-storage-class" type:"string" enum:"StorageClass"`
 
 	// The tag-set for the object. The tag-set must be encoded as URL Query parameters.
@@ -25910,6 +28788,12 @@ func (s *PutObjectInput) SetContentMD5(v string) *PutObjectInput {
 // SetContentType sets the ContentType field's value.
 func (s *PutObjectInput) SetContentType(v string) *PutObjectInput {
 	s.ContentType = &v
+	return s
+}
+
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutObjectInput) SetExpectedBucketOwner(v string) *PutObjectInput {
+	s.ExpectedBucketOwner = &v
 	return s
 }
 
@@ -26054,6 +28938,19 @@ func (s *PutObjectInput) hasEndpointARN() bool {
 	return arn.IsARN(*s.Bucket)
 }
 
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutObjectInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
 type PutObjectLegalHoldInput struct {
 	_ struct{} `locationName:"PutObjectLegalHoldRequest" type:"structure" payload:"LegalHold"`
 
@@ -26062,13 +28959,18 @@ type PutObjectLegalHoldInput struct {
 	//
 	// When using this API with an access point, you must direct requests to the
 	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
-	// When using this operation using an access point through the AWS SDKs, you
+	// When using this operation with an access point through the AWS SDKs, you
 	// provide the access point ARN in place of the bucket name. For more information
 	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
 	// in the Amazon Simple Storage Service Developer Guide.
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The key name for the object that you want to place a Legal Hold on.
 	//
@@ -26135,6 +29037,12 @@ func (s *PutObjectLegalHoldInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutObjectLegalHoldInput) SetExpectedBucketOwner(v string) *PutObjectLegalHoldInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetKey sets the Key field's value.
 func (s *PutObjectLegalHoldInput) SetKey(v string) *PutObjectLegalHoldInput {
 	s.Key = &v
@@ -26173,6 +29081,19 @@ func (s *PutObjectLegalHoldInput) hasEndpointARN() bool {
 	return arn.IsARN(*s.Bucket)
 }
 
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutObjectLegalHoldInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
 type PutObjectLegalHoldOutput struct {
 	_ struct{} `type:"structure"`
 
@@ -26204,6 +29125,11 @@ type PutObjectLockConfigurationInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The Object Lock configuration that you want to apply to the specified bucket.
 	ObjectLockConfiguration *ObjectLockConfiguration `locationName:"ObjectLockConfiguration" type:"structure" xmlURI:"http://s3.amazonaws.com/doc/2006-03-01/"`
@@ -26258,6 +29184,12 @@ func (s *PutObjectLockConfigurationInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutObjectLockConfigurationInput) SetExpectedBucketOwner(v string) *PutObjectLockConfigurationInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetObjectLockConfiguration sets the ObjectLockConfiguration field's value.
 func (s *PutObjectLockConfigurationInput) SetObjectLockConfiguration(v *ObjectLockConfiguration) *PutObjectLockConfigurationInput {
 	s.ObjectLockConfiguration = v
@@ -26290,6 +29222,19 @@ func (s *PutObjectLockConfigurationInput) hasEndpointARN() bool {
 	return arn.IsARN(*s.Bucket)
 }
 
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutObjectLockConfigurationInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
 type PutObjectLockConfigurationOutput struct {
 	_ struct{} `type:"structure"`
 
@@ -26320,7 +29265,8 @@ type PutObjectOutput struct {
 	// Entity tag for the uploaded object.
 	ETag *string `location:"header" locationName:"ETag" type:"string"`
 
-	// If the expiration is configured for the object (see PutBucketLifecycleConfiguration),
+	// If the expiration is configured for the object (see PutBucketLifecycleConfiguration
+	// (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketLifecycleConfiguration.html)),
 	// the response includes this header. It includes the expiry-date and rule-id
 	// key-value pairs that provide information about object expiration. The value
 	// of the rule-id is URL encoded.
@@ -26433,7 +29379,7 @@ type PutObjectRetentionInput struct {
 	//
 	// When using this API with an access point, you must direct requests to the
 	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
-	// When using this operation using an access point through the AWS SDKs, you
+	// When using this operation with an access point through the AWS SDKs, you
 	// provide the access point ARN in place of the bucket name. For more information
 	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
 	// in the Amazon Simple Storage Service Developer Guide.
@@ -26443,6 +29389,11 @@ type PutObjectRetentionInput struct {
 
 	// Indicates whether this operation should bypass Governance-mode restrictions.
 	BypassGovernanceRetention *bool `location:"header" locationName:"x-amz-bypass-governance-retention" type:"boolean"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The key name for the object that you want to apply this Object Retention
 	// configuration to.
@@ -26516,6 +29467,12 @@ func (s *PutObjectRetentionInput) SetBypassGovernanceRetention(v bool) *PutObjec
 	return s
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutObjectRetentionInput) SetExpectedBucketOwner(v string) *PutObjectRetentionInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetKey sets the Key field's value.
 func (s *PutObjectRetentionInput) SetKey(v string) *PutObjectRetentionInput {
 	s.Key = &v
@@ -26554,6 +29511,19 @@ func (s *PutObjectRetentionInput) hasEndpointARN() bool {
 	return arn.IsARN(*s.Bucket)
 }
 
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutObjectRetentionInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
+}
+
 type PutObjectRetentionOutput struct {
 	_ struct{} `type:"structure"`
 
@@ -26585,15 +29555,28 @@ type PutObjectTaggingInput struct {
 	//
 	// When using this API with an access point, you must direct requests to the
 	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
-	// When using this operation using an access point through the AWS SDKs, you
+	// When using this operation with an access point through the AWS SDKs, you
 	// provide the access point ARN in place of the bucket name. For more information
 	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
 	// in the Amazon Simple Storage Service Developer Guide.
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
 
-	// Name of the tag.
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
+
+	// Name of the object key.
 	//
 	// Key is a required field
 	Key *string `location:"uri" locationName:"Key" min:"1" type:"string" required:"true"`
@@ -26660,6 +29643,12 @@ func (s *PutObjectTaggingInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutObjectTaggingInput) SetExpectedBucketOwner(v string) *PutObjectTaggingInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetKey sets the Key field's value.
 func (s *PutObjectTaggingInput) SetKey(v string) *PutObjectTaggingInput {
 	s.Key = &v
@@ -26690,6 +29679,19 @@ func (s *PutObjectTaggingInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutObjectTaggingInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type PutObjectTaggingOutput struct {
@@ -26723,6 +29725,11 @@ type PutPublicAccessBlockInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The PublicAccessBlock configuration that you want to apply to this Amazon
 	// S3 bucket. You can enable the configuration options in any combination. For
@@ -26776,6 +29783,12 @@ func (s *PutPublicAccessBlockInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *PutPublicAccessBlockInput) SetExpectedBucketOwner(v string) *PutPublicAccessBlockInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetPublicAccessBlockConfiguration sets the PublicAccessBlockConfiguration field's value.
 func (s *PutPublicAccessBlockInput) SetPublicAccessBlockConfiguration(v *PublicAccessBlockConfiguration) *PutPublicAccessBlockInput {
 	s.PublicAccessBlockConfiguration = v
@@ -26794,6 +29807,19 @@ func (s *PutPublicAccessBlockInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s PutPublicAccessBlockInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type PutPublicAccessBlockOutput struct {
@@ -26886,10 +29912,10 @@ func (s *QueueConfiguration) SetQueueArn(v string) *QueueConfiguration {
 	return s
 }
 
-// This data type is deprecated. Use QueueConfiguration for the same purposes.
-// This data type specifies the configuration for publishing messages to an
-// Amazon Simple Queue Service (Amazon SQS) queue when Amazon S3 detects specified
-// events.
+// This data type is deprecated. Use QueueConfiguration (https://docs.aws.amazon.com/AmazonS3/latest/API/API_QueueConfiguration.html)
+// for the same purposes. This data type specifies the configuration for publishing
+// messages to an Amazon Simple Queue Service (Amazon SQS) queue when Amazon
+// S3 detects specified events.
 type QueueConfigurationDeprecated struct {
 	_ struct{} `type:"structure"`
 
@@ -26984,6 +30010,8 @@ func (s *RecordsEvent) UnmarshalEvent(
 	return nil
 }
 
+// MarshalEvent marshals the type into an stream event value. This method
+// should only used internally within the SDK's EventStream handling.
 func (s *RecordsEvent) MarshalEvent(pm protocol.PayloadMarshaler) (msg eventstream.Message, err error) {
 	msg.Headers.Set(eventstreamapi.MessageTypeHeader, eventstream.StringValue(eventstreamapi.EventMessageType))
 	msg.Headers.Set(":content-type", eventstream.StringValue("application/octet-stream"))
@@ -27642,13 +30670,26 @@ type RestoreObjectInput struct {
 	//
 	// When using this API with an access point, you must direct requests to the
 	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
-	// When using this operation using an access point through the AWS SDKs, you
+	// When using this operation with an access point through the AWS SDKs, you
 	// provide the access point ARN in place of the bucket name. For more information
 	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
 	// in the Amazon Simple Storage Service Developer Guide.
 	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// Object key for which the operation was initiated.
 	//
@@ -27719,6 +30760,12 @@ func (s *RestoreObjectInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *RestoreObjectInput) SetExpectedBucketOwner(v string) *RestoreObjectInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetKey sets the Key field's value.
 func (s *RestoreObjectInput) SetKey(v string) *RestoreObjectInput {
 	s.Key = &v
@@ -27755,6 +30802,19 @@ func (s *RestoreObjectInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s RestoreObjectInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type RestoreObjectOutput struct {
@@ -27896,7 +30956,10 @@ func (s *RestoreRequest) SetType(v string) *RestoreRequest {
 	return s
 }
 
-// Specifies the redirect behavior and when a redirect is applied.
+// Specifies the redirect behavior and when a redirect is applied. For more
+// information about routing rules, see Configuring advanced conditional redirects
+// (https://docs.aws.amazon.com/AmazonS3/latest/dev/how-to-page-redirect.html#advanced-conditional-redirects)
+// in the Amazon Simple Storage Service Developer Guide.
 type RoutingRule struct {
 	_ struct{} `type:"structure"`
 
@@ -28204,6 +31267,7 @@ type SelectObjectContentEventStreamEvent interface {
 //     * ProgressEvent
 //     * RecordsEvent
 //     * StatsEvent
+//     * SelectObjectContentEventStreamUnknownEvent
 type SelectObjectContentEventStreamReader interface {
 	// Returns a channel of events as they are read from the event stream.
 	Events() <-chan SelectObjectContentEventStreamEvent
@@ -28278,6 +31342,9 @@ func (r *readSelectObjectContentEventStream) readEventStream() {
 				return
 			default:
 			}
+			if _, ok := err.(*eventstreamapi.UnknownMessageTypeError); ok {
+				continue
+			}
 			r.err.SetError(err)
 			return
 		}
@@ -28307,12 +31374,37 @@ func (u unmarshalerForSelectObjectContentEventStreamEvent) UnmarshalerForEventNa
 	case "Stats":
 		return &StatsEvent{}, nil
 	default:
-		return nil, awserr.New(
-			request.ErrCodeSerialization,
-			fmt.Sprintf("unknown event type name, %s, for SelectObjectContentEventStream", eventType),
-			nil,
-		)
+		return &SelectObjectContentEventStreamUnknownEvent{Type: eventType}, nil
 	}
+}
+
+// SelectObjectContentEventStreamUnknownEvent provides a failsafe event for the
+// SelectObjectContentEventStream group of events when an unknown event is received.
+type SelectObjectContentEventStreamUnknownEvent struct {
+	Type    string
+	Message eventstream.Message
+}
+
+// The SelectObjectContentEventStreamUnknownEvent is and event in the SelectObjectContentEventStream
+// group of events.
+func (s *SelectObjectContentEventStreamUnknownEvent) eventSelectObjectContentEventStream() {}
+
+// MarshalEvent marshals the type into an stream event value. This method
+// should only used internally within the SDK's EventStream handling.
+func (e *SelectObjectContentEventStreamUnknownEvent) MarshalEvent(pm protocol.PayloadMarshaler) (
+	msg eventstream.Message, err error,
+) {
+	return e.Message.Clone(), nil
+}
+
+// UnmarshalEvent unmarshals the EventStream Message into the SelectObjectContentEventStreamData value.
+// This method is only used internally within the SDK's EventStream handling.
+func (e *SelectObjectContentEventStreamUnknownEvent) UnmarshalEvent(
+	payloadUnmarshaler protocol.PayloadUnmarshaler,
+	msg eventstream.Message,
+) error {
+	e.Message = msg.Clone()
+	return nil
 }
 
 // Request to filter the contents of an Amazon S3 object based on a simple Structured
@@ -28329,6 +31421,11 @@ type SelectObjectContentInput struct {
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// The expression that is used to query the object.
 	//
@@ -28446,6 +31543,12 @@ func (s *SelectObjectContentInput) getBucket() (v string) {
 	return *s.Bucket
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *SelectObjectContentInput) SetExpectedBucketOwner(v string) *SelectObjectContentInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetExpression sets the Expression field's value.
 func (s *SelectObjectContentInput) SetExpression(v string) *SelectObjectContentInput {
 	s.Expression = &v
@@ -28525,6 +31628,19 @@ func (s *SelectObjectContentInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s SelectObjectContentInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type SelectObjectContentOutput struct {
@@ -28966,6 +32082,8 @@ func (s *StatsEvent) UnmarshalEvent(
 	return nil
 }
 
+// MarshalEvent marshals the type into an stream event value. This method
+// should only used internally within the SDK's EventStream handling.
 func (s *StatsEvent) MarshalEvent(pm protocol.PayloadMarshaler) (msg eventstream.Message, err error) {
 	msg.Headers.Set(eventstreamapi.MessageTypeHeader, eventstream.StringValue(eventstreamapi.EventMessageType))
 	var buf bytes.Buffer
@@ -29081,7 +32199,7 @@ func (s *StorageClassAnalysisDataExport) SetOutputSchemaVersion(v string) *Stora
 type Tag struct {
 	_ struct{} `type:"structure"`
 
-	// Name of the tag.
+	// Name of the object key.
 	//
 	// Key is a required field
 	Key *string `min:"1" type:"string" required:"true"`
@@ -29189,7 +32307,7 @@ type TargetGrant struct {
 	// Container for the person being granted permissions.
 	Grantee *Grantee `type:"structure" xmlPrefix:"xsi" xmlURI:"http://www.w3.org/2001/XMLSchema-instance"`
 
-	// Logging permissions assigned to the Grantee for the bucket.
+	// Logging permissions assigned to the grantee for the bucket.
 	Permission *string `type:"string" enum:"BucketLogsPermission"`
 }
 
@@ -29312,6 +32430,7 @@ func (s *TopicConfiguration) SetTopicArn(v string) *TopicConfiguration {
 // A container for specifying the configuration for publication of messages
 // to an Amazon Simple Notification Service (Amazon SNS) topic when Amazon S3
 // detects specified events. This data type is deprecated. Use TopicConfiguration
+// (https://docs.aws.amazon.com/AmazonS3/latest/API/API_TopicConfiguration.html)
 // instead.
 type TopicConfigurationDeprecated struct {
 	_ struct{} `type:"structure"`
@@ -29419,11 +32538,52 @@ type UploadPartCopyInput struct {
 
 	// The bucket name.
 	//
+	// When using this API with an access point, you must direct requests to the
+	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
+	// When using this operation with an access point through the AWS SDKs, you
+	// provide the access point ARN in place of the bucket name. For more information
+	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
 
-	// The name of the source bucket and key name of the source object, separated
-	// by a slash (/). Must be URL-encoded.
+	// Specifies the source object for the copy operation. You specify the value
+	// in one of two formats, depending on whether you want to access the source
+	// object through an access point (https://docs.aws.amazon.com/AmazonS3/latest/dev/access-points.html):
+	//
+	//    * For objects not accessed through an access point, specify the name of
+	//    the source bucket and key of the source object, separated by a slash (/).
+	//    For example, to copy the object reports/january.pdf from the bucket awsexamplebucket,
+	//    use awsexamplebucket/reports/january.pdf. The value must be URL encoded.
+	//
+	//    * For objects accessed through access points, specify the Amazon Resource
+	//    Name (ARN) of the object as accessed through the access point, in the
+	//    format arn:aws:s3:<Region>:<account-id>:accesspoint/<access-point-name>/object/<key>.
+	//    For example, to copy the object reports/january.pdf through access point
+	//    my-access-point owned by account 123456789012 in Region us-west-2, use
+	//    the URL encoding of arn:aws:s3:us-west-2:123456789012:accesspoint/my-access-point/object/reports/january.pdf.
+	//    The value must be URL encoded. Amazon S3 supports copy operations using
+	//    access points only when the source and destination buckets are in the
+	//    same AWS Region. Alternatively, for objects accessed through Amazon S3
+	//    on Outposts, specify the ARN of the object as accessed in the format arn:aws:s3-outposts:<Region>:<account-id>:outpost/<outpost-id>/object/<key>.
+	//    For example, to copy the object reports/january.pdf through outpost my-outpost
+	//    owned by account 123456789012 in Region us-west-2, use the URL encoding
+	//    of arn:aws:s3-outposts:us-west-2:123456789012:outpost/my-outpost/object/reports/january.pdf.
+	//    The value must be URL encoded.
+	//
+	// To copy a specific version of an object, append ?versionId=<version-id> to
+	// the value (for example, awsexamplebucket/reports/january.pdf?versionId=QUpfdndhfd8438MNFDN93jdnJFkdmqnh893).
+	// If you don't specify a version ID, Amazon S3 copies the latest version of
+	// the source object.
 	//
 	// CopySource is a required field
 	CopySource *string `location:"header" locationName:"x-amz-copy-source" type:"string" required:"true"`
@@ -29462,6 +32622,16 @@ type UploadPartCopyInput struct {
 	// encryption key was transmitted without error.
 	CopySourceSSECustomerKeyMD5 *string `location:"header" locationName:"x-amz-copy-source-server-side-encryption-customer-key-MD5" type:"string"`
 
+	// The account id of the expected destination bucket owner. If the destination
+	// bucket is owned by a different account, the request will fail with an HTTP
+	// 403 (Access Denied) error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
+
+	// The account id of the expected source bucket owner. If the source bucket
+	// is owned by a different account, the request will fail with an HTTP 403 (Access
+	// Denied) error.
+	ExpectedSourceBucketOwner *string `location:"header" locationName:"x-amz-source-expected-bucket-owner" type:"string"`
+
 	// Object key for which the multipart upload was initiated.
 	//
 	// Key is a required field
@@ -29487,7 +32657,7 @@ type UploadPartCopyInput struct {
 	// Specifies the customer-provided encryption key for Amazon S3 to use in encrypting
 	// data. This value is used to store the object and then it is discarded; Amazon
 	// S3 does not store the encryption key. The key must be appropriate for use
-	// with the algorithm specified in the x-amz-server-side​-encryption​-customer-algorithm
+	// with the algorithm specified in the x-amz-server-side-encryption-customer-algorithm
 	// header. This must be the same encryption key specified in the initiate multipart
 	// upload request.
 	SSECustomerKey *string `marshal-as:"blob" location:"header" locationName:"x-amz-server-side-encryption-customer-key" type:"string" sensitive:"true"`
@@ -29618,6 +32788,18 @@ func (s *UploadPartCopyInput) SetCopySourceSSECustomerKeyMD5(v string) *UploadPa
 	return s
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *UploadPartCopyInput) SetExpectedBucketOwner(v string) *UploadPartCopyInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
+// SetExpectedSourceBucketOwner sets the ExpectedSourceBucketOwner field's value.
+func (s *UploadPartCopyInput) SetExpectedSourceBucketOwner(v string) *UploadPartCopyInput {
+	s.ExpectedSourceBucketOwner = &v
+	return s
+}
+
 // SetKey sets the Key field's value.
 func (s *UploadPartCopyInput) SetKey(v string) *UploadPartCopyInput {
 	s.Key = &v
@@ -29679,6 +32861,19 @@ func (s *UploadPartCopyInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s UploadPartCopyInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type UploadPartCopyOutput struct {
@@ -29773,7 +32968,22 @@ type UploadPartInput struct {
 	// Object data.
 	Body io.ReadSeeker `type:"blob"`
 
-	// Name of the bucket to which the multipart upload was initiated.
+	// The name of the bucket to which the multipart upload was initiated.
+	//
+	// When using this API with an access point, you must direct requests to the
+	// access point hostname. The access point hostname takes the form AccessPointName-AccountId.s3-accesspoint.Region.amazonaws.com.
+	// When using this operation with an access point through the AWS SDKs, you
+	// provide the access point ARN in place of the bucket name. For more information
+	// about access point ARNs, see Using Access Points (https://docs.aws.amazon.com/AmazonS3/latest/dev/using-access-points.html)
+	// in the Amazon Simple Storage Service Developer Guide.
+	//
+	// When using this API with Amazon S3 on Outposts, you must direct requests
+	// to the S3 on Outposts hostname. The S3 on Outposts hostname takes the form
+	// AccessPointName-AccountId.outpostID.s3-outposts.Region.amazonaws.com. When
+	// using this operation using S3 on Outposts through the AWS SDKs, you provide
+	// the Outposts bucket ARN in place of the bucket name. For more information
+	// about S3 on Outposts ARNs, see Using S3 on Outposts (https://docs.aws.amazon.com/AmazonS3/latest/dev/S3onOutposts.html)
+	// in the Amazon Simple Storage Service Developer Guide.
 	//
 	// Bucket is a required field
 	Bucket *string `location:"uri" locationName:"Bucket" type:"string" required:"true"`
@@ -29786,6 +32996,11 @@ type UploadPartInput struct {
 	// auto-populated when using the command from the CLI. This parameter is required
 	// if object lock parameters are specified.
 	ContentMD5 *string `location:"header" locationName:"Content-MD5" type:"string"`
+
+	// The account id of the expected bucket owner. If the bucket is owned by a
+	// different account, the request will fail with an HTTP 403 (Access Denied)
+	// error.
+	ExpectedBucketOwner *string `location:"header" locationName:"x-amz-expected-bucket-owner" type:"string"`
 
 	// Object key for which the multipart upload was initiated.
 	//
@@ -29812,7 +33027,7 @@ type UploadPartInput struct {
 	// Specifies the customer-provided encryption key for Amazon S3 to use in encrypting
 	// data. This value is used to store the object and then it is discarded; Amazon
 	// S3 does not store the encryption key. The key must be appropriate for use
-	// with the algorithm specified in the x-amz-server-side​-encryption​-customer-algorithm
+	// with the algorithm specified in the x-amz-server-side-encryption-customer-algorithm
 	// header. This must be the same encryption key specified in the initiate multipart
 	// upload request.
 	SSECustomerKey *string `marshal-as:"blob" location:"header" locationName:"x-amz-server-side-encryption-customer-key" type:"string" sensitive:"true"`
@@ -29897,6 +33112,12 @@ func (s *UploadPartInput) SetContentMD5(v string) *UploadPartInput {
 	return s
 }
 
+// SetExpectedBucketOwner sets the ExpectedBucketOwner field's value.
+func (s *UploadPartInput) SetExpectedBucketOwner(v string) *UploadPartInput {
+	s.ExpectedBucketOwner = &v
+	return s
+}
+
 // SetKey sets the Key field's value.
 func (s *UploadPartInput) SetKey(v string) *UploadPartInput {
 	s.Key = &v
@@ -29958,6 +33179,19 @@ func (s *UploadPartInput) hasEndpointARN() bool {
 		return false
 	}
 	return arn.IsARN(*s.Bucket)
+}
+
+// updateArnableField updates the value of the input field that
+// takes an ARN as an input. This method is useful to backfill
+// the parsed resource name from ARN into the input member.
+// It returns a pointer to a modified copy of input and an error.
+// Note that original input is not modified.
+func (s UploadPartInput) updateArnableField(v string) (interface{}, error) {
+	if s.Bucket == nil {
+		return nil, fmt.Errorf("member Bucket is nil")
+	}
+	s.Bucket = aws.String(v)
+	return &s, nil
 }
 
 type UploadPartOutput struct {
@@ -30165,6 +33399,13 @@ const (
 	AnalyticsS3ExportFileFormatCsv = "CSV"
 )
 
+// AnalyticsS3ExportFileFormat_Values returns all elements of the AnalyticsS3ExportFileFormat enum
+func AnalyticsS3ExportFileFormat_Values() []string {
+	return []string{
+		AnalyticsS3ExportFileFormatCsv,
+	}
+}
+
 const (
 	// BucketAccelerateStatusEnabled is a BucketAccelerateStatus enum value
 	BucketAccelerateStatusEnabled = "Enabled"
@@ -30172,6 +33413,14 @@ const (
 	// BucketAccelerateStatusSuspended is a BucketAccelerateStatus enum value
 	BucketAccelerateStatusSuspended = "Suspended"
 )
+
+// BucketAccelerateStatus_Values returns all elements of the BucketAccelerateStatus enum
+func BucketAccelerateStatus_Values() []string {
+	return []string{
+		BucketAccelerateStatusEnabled,
+		BucketAccelerateStatusSuspended,
+	}
+}
 
 const (
 	// BucketCannedACLPrivate is a BucketCannedACL enum value
@@ -30187,18 +33436,31 @@ const (
 	BucketCannedACLAuthenticatedRead = "authenticated-read"
 )
 
+// BucketCannedACL_Values returns all elements of the BucketCannedACL enum
+func BucketCannedACL_Values() []string {
+	return []string{
+		BucketCannedACLPrivate,
+		BucketCannedACLPublicRead,
+		BucketCannedACLPublicReadWrite,
+		BucketCannedACLAuthenticatedRead,
+	}
+}
+
 const (
-	// BucketLocationConstraintEu is a BucketLocationConstraint enum value
-	BucketLocationConstraintEu = "EU"
+	// BucketLocationConstraintAfSouth1 is a BucketLocationConstraint enum value
+	BucketLocationConstraintAfSouth1 = "af-south-1"
 
-	// BucketLocationConstraintEuWest1 is a BucketLocationConstraint enum value
-	BucketLocationConstraintEuWest1 = "eu-west-1"
+	// BucketLocationConstraintApEast1 is a BucketLocationConstraint enum value
+	BucketLocationConstraintApEast1 = "ap-east-1"
 
-	// BucketLocationConstraintUsWest1 is a BucketLocationConstraint enum value
-	BucketLocationConstraintUsWest1 = "us-west-1"
+	// BucketLocationConstraintApNortheast1 is a BucketLocationConstraint enum value
+	BucketLocationConstraintApNortheast1 = "ap-northeast-1"
 
-	// BucketLocationConstraintUsWest2 is a BucketLocationConstraint enum value
-	BucketLocationConstraintUsWest2 = "us-west-2"
+	// BucketLocationConstraintApNortheast2 is a BucketLocationConstraint enum value
+	BucketLocationConstraintApNortheast2 = "ap-northeast-2"
+
+	// BucketLocationConstraintApNortheast3 is a BucketLocationConstraint enum value
+	BucketLocationConstraintApNortheast3 = "ap-northeast-3"
 
 	// BucketLocationConstraintApSouth1 is a BucketLocationConstraint enum value
 	BucketLocationConstraintApSouth1 = "ap-south-1"
@@ -30209,18 +33471,88 @@ const (
 	// BucketLocationConstraintApSoutheast2 is a BucketLocationConstraint enum value
 	BucketLocationConstraintApSoutheast2 = "ap-southeast-2"
 
-	// BucketLocationConstraintApNortheast1 is a BucketLocationConstraint enum value
-	BucketLocationConstraintApNortheast1 = "ap-northeast-1"
-
-	// BucketLocationConstraintSaEast1 is a BucketLocationConstraint enum value
-	BucketLocationConstraintSaEast1 = "sa-east-1"
+	// BucketLocationConstraintCaCentral1 is a BucketLocationConstraint enum value
+	BucketLocationConstraintCaCentral1 = "ca-central-1"
 
 	// BucketLocationConstraintCnNorth1 is a BucketLocationConstraint enum value
 	BucketLocationConstraintCnNorth1 = "cn-north-1"
 
+	// BucketLocationConstraintCnNorthwest1 is a BucketLocationConstraint enum value
+	BucketLocationConstraintCnNorthwest1 = "cn-northwest-1"
+
+	// BucketLocationConstraintEu is a BucketLocationConstraint enum value
+	BucketLocationConstraintEu = "EU"
+
 	// BucketLocationConstraintEuCentral1 is a BucketLocationConstraint enum value
 	BucketLocationConstraintEuCentral1 = "eu-central-1"
+
+	// BucketLocationConstraintEuNorth1 is a BucketLocationConstraint enum value
+	BucketLocationConstraintEuNorth1 = "eu-north-1"
+
+	// BucketLocationConstraintEuSouth1 is a BucketLocationConstraint enum value
+	BucketLocationConstraintEuSouth1 = "eu-south-1"
+
+	// BucketLocationConstraintEuWest1 is a BucketLocationConstraint enum value
+	BucketLocationConstraintEuWest1 = "eu-west-1"
+
+	// BucketLocationConstraintEuWest2 is a BucketLocationConstraint enum value
+	BucketLocationConstraintEuWest2 = "eu-west-2"
+
+	// BucketLocationConstraintEuWest3 is a BucketLocationConstraint enum value
+	BucketLocationConstraintEuWest3 = "eu-west-3"
+
+	// BucketLocationConstraintMeSouth1 is a BucketLocationConstraint enum value
+	BucketLocationConstraintMeSouth1 = "me-south-1"
+
+	// BucketLocationConstraintSaEast1 is a BucketLocationConstraint enum value
+	BucketLocationConstraintSaEast1 = "sa-east-1"
+
+	// BucketLocationConstraintUsEast2 is a BucketLocationConstraint enum value
+	BucketLocationConstraintUsEast2 = "us-east-2"
+
+	// BucketLocationConstraintUsGovEast1 is a BucketLocationConstraint enum value
+	BucketLocationConstraintUsGovEast1 = "us-gov-east-1"
+
+	// BucketLocationConstraintUsGovWest1 is a BucketLocationConstraint enum value
+	BucketLocationConstraintUsGovWest1 = "us-gov-west-1"
+
+	// BucketLocationConstraintUsWest1 is a BucketLocationConstraint enum value
+	BucketLocationConstraintUsWest1 = "us-west-1"
+
+	// BucketLocationConstraintUsWest2 is a BucketLocationConstraint enum value
+	BucketLocationConstraintUsWest2 = "us-west-2"
 )
+
+// BucketLocationConstraint_Values returns all elements of the BucketLocationConstraint enum
+func BucketLocationConstraint_Values() []string {
+	return []string{
+		BucketLocationConstraintAfSouth1,
+		BucketLocationConstraintApEast1,
+		BucketLocationConstraintApNortheast1,
+		BucketLocationConstraintApNortheast2,
+		BucketLocationConstraintApNortheast3,
+		BucketLocationConstraintApSouth1,
+		BucketLocationConstraintApSoutheast1,
+		BucketLocationConstraintApSoutheast2,
+		BucketLocationConstraintCaCentral1,
+		BucketLocationConstraintCnNorth1,
+		BucketLocationConstraintCnNorthwest1,
+		BucketLocationConstraintEu,
+		BucketLocationConstraintEuCentral1,
+		BucketLocationConstraintEuNorth1,
+		BucketLocationConstraintEuSouth1,
+		BucketLocationConstraintEuWest1,
+		BucketLocationConstraintEuWest2,
+		BucketLocationConstraintEuWest3,
+		BucketLocationConstraintMeSouth1,
+		BucketLocationConstraintSaEast1,
+		BucketLocationConstraintUsEast2,
+		BucketLocationConstraintUsGovEast1,
+		BucketLocationConstraintUsGovWest1,
+		BucketLocationConstraintUsWest1,
+		BucketLocationConstraintUsWest2,
+	}
+}
 
 const (
 	// BucketLogsPermissionFullControl is a BucketLogsPermission enum value
@@ -30233,6 +33565,15 @@ const (
 	BucketLogsPermissionWrite = "WRITE"
 )
 
+// BucketLogsPermission_Values returns all elements of the BucketLogsPermission enum
+func BucketLogsPermission_Values() []string {
+	return []string{
+		BucketLogsPermissionFullControl,
+		BucketLogsPermissionRead,
+		BucketLogsPermissionWrite,
+	}
+}
+
 const (
 	// BucketVersioningStatusEnabled is a BucketVersioningStatus enum value
 	BucketVersioningStatusEnabled = "Enabled"
@@ -30240,6 +33581,14 @@ const (
 	// BucketVersioningStatusSuspended is a BucketVersioningStatus enum value
 	BucketVersioningStatusSuspended = "Suspended"
 )
+
+// BucketVersioningStatus_Values returns all elements of the BucketVersioningStatus enum
+func BucketVersioningStatus_Values() []string {
+	return []string{
+		BucketVersioningStatusEnabled,
+		BucketVersioningStatusSuspended,
+	}
+}
 
 const (
 	// CompressionTypeNone is a CompressionType enum value
@@ -30252,6 +33601,15 @@ const (
 	CompressionTypeBzip2 = "BZIP2"
 )
 
+// CompressionType_Values returns all elements of the CompressionType enum
+func CompressionType_Values() []string {
+	return []string{
+		CompressionTypeNone,
+		CompressionTypeGzip,
+		CompressionTypeBzip2,
+	}
+}
+
 const (
 	// DeleteMarkerReplicationStatusEnabled is a DeleteMarkerReplicationStatus enum value
 	DeleteMarkerReplicationStatusEnabled = "Enabled"
@@ -30259,6 +33617,14 @@ const (
 	// DeleteMarkerReplicationStatusDisabled is a DeleteMarkerReplicationStatus enum value
 	DeleteMarkerReplicationStatusDisabled = "Disabled"
 )
+
+// DeleteMarkerReplicationStatus_Values returns all elements of the DeleteMarkerReplicationStatus enum
+func DeleteMarkerReplicationStatus_Values() []string {
+	return []string{
+		DeleteMarkerReplicationStatusEnabled,
+		DeleteMarkerReplicationStatusDisabled,
+	}
+}
 
 // Requests Amazon S3 to encode the object keys in the response and specifies
 // the encoding method to use. An object key may contain any Unicode character;
@@ -30270,6 +33636,13 @@ const (
 	// EncodingTypeUrl is a EncodingType enum value
 	EncodingTypeUrl = "url"
 )
+
+// EncodingType_Values returns all elements of the EncodingType enum
+func EncodingType_Values() []string {
+	return []string{
+		EncodingTypeUrl,
+	}
+}
 
 // The bucket event for which to send notifications.
 const (
@@ -30325,6 +33698,29 @@ const (
 	EventS3ReplicationOperationReplicatedAfterThreshold = "s3:Replication:OperationReplicatedAfterThreshold"
 )
 
+// Event_Values returns all elements of the Event enum
+func Event_Values() []string {
+	return []string{
+		EventS3ReducedRedundancyLostObject,
+		EventS3ObjectCreated,
+		EventS3ObjectCreatedPut,
+		EventS3ObjectCreatedPost,
+		EventS3ObjectCreatedCopy,
+		EventS3ObjectCreatedCompleteMultipartUpload,
+		EventS3ObjectRemoved,
+		EventS3ObjectRemovedDelete,
+		EventS3ObjectRemovedDeleteMarkerCreated,
+		EventS3ObjectRestore,
+		EventS3ObjectRestorePost,
+		EventS3ObjectRestoreCompleted,
+		EventS3Replication,
+		EventS3ReplicationOperationFailedReplication,
+		EventS3ReplicationOperationNotTracked,
+		EventS3ReplicationOperationMissedThreshold,
+		EventS3ReplicationOperationReplicatedAfterThreshold,
+	}
+}
+
 const (
 	// ExistingObjectReplicationStatusEnabled is a ExistingObjectReplicationStatus enum value
 	ExistingObjectReplicationStatusEnabled = "Enabled"
@@ -30332,6 +33728,14 @@ const (
 	// ExistingObjectReplicationStatusDisabled is a ExistingObjectReplicationStatus enum value
 	ExistingObjectReplicationStatusDisabled = "Disabled"
 )
+
+// ExistingObjectReplicationStatus_Values returns all elements of the ExistingObjectReplicationStatus enum
+func ExistingObjectReplicationStatus_Values() []string {
+	return []string{
+		ExistingObjectReplicationStatusEnabled,
+		ExistingObjectReplicationStatusDisabled,
+	}
+}
 
 const (
 	// ExpirationStatusEnabled is a ExpirationStatus enum value
@@ -30341,10 +33745,25 @@ const (
 	ExpirationStatusDisabled = "Disabled"
 )
 
+// ExpirationStatus_Values returns all elements of the ExpirationStatus enum
+func ExpirationStatus_Values() []string {
+	return []string{
+		ExpirationStatusEnabled,
+		ExpirationStatusDisabled,
+	}
+}
+
 const (
 	// ExpressionTypeSql is a ExpressionType enum value
 	ExpressionTypeSql = "SQL"
 )
+
+// ExpressionType_Values returns all elements of the ExpressionType enum
+func ExpressionType_Values() []string {
+	return []string{
+		ExpressionTypeSql,
+	}
+}
 
 const (
 	// FileHeaderInfoUse is a FileHeaderInfo enum value
@@ -30357,6 +33776,15 @@ const (
 	FileHeaderInfoNone = "NONE"
 )
 
+// FileHeaderInfo_Values returns all elements of the FileHeaderInfo enum
+func FileHeaderInfo_Values() []string {
+	return []string{
+		FileHeaderInfoUse,
+		FileHeaderInfoIgnore,
+		FileHeaderInfoNone,
+	}
+}
+
 const (
 	// FilterRuleNamePrefix is a FilterRuleName enum value
 	FilterRuleNamePrefix = "prefix"
@@ -30364,6 +33792,14 @@ const (
 	// FilterRuleNameSuffix is a FilterRuleName enum value
 	FilterRuleNameSuffix = "suffix"
 )
+
+// FilterRuleName_Values returns all elements of the FilterRuleName enum
+func FilterRuleName_Values() []string {
+	return []string{
+		FilterRuleNamePrefix,
+		FilterRuleNameSuffix,
+	}
+}
 
 const (
 	// InventoryFormatCsv is a InventoryFormat enum value
@@ -30376,6 +33812,15 @@ const (
 	InventoryFormatParquet = "Parquet"
 )
 
+// InventoryFormat_Values returns all elements of the InventoryFormat enum
+func InventoryFormat_Values() []string {
+	return []string{
+		InventoryFormatCsv,
+		InventoryFormatOrc,
+		InventoryFormatParquet,
+	}
+}
+
 const (
 	// InventoryFrequencyDaily is a InventoryFrequency enum value
 	InventoryFrequencyDaily = "Daily"
@@ -30384,6 +33829,14 @@ const (
 	InventoryFrequencyWeekly = "Weekly"
 )
 
+// InventoryFrequency_Values returns all elements of the InventoryFrequency enum
+func InventoryFrequency_Values() []string {
+	return []string{
+		InventoryFrequencyDaily,
+		InventoryFrequencyWeekly,
+	}
+}
+
 const (
 	// InventoryIncludedObjectVersionsAll is a InventoryIncludedObjectVersions enum value
 	InventoryIncludedObjectVersionsAll = "All"
@@ -30391,6 +33844,14 @@ const (
 	// InventoryIncludedObjectVersionsCurrent is a InventoryIncludedObjectVersions enum value
 	InventoryIncludedObjectVersionsCurrent = "Current"
 )
+
+// InventoryIncludedObjectVersions_Values returns all elements of the InventoryIncludedObjectVersions enum
+func InventoryIncludedObjectVersions_Values() []string {
+	return []string{
+		InventoryIncludedObjectVersionsAll,
+		InventoryIncludedObjectVersionsCurrent,
+	}
+}
 
 const (
 	// InventoryOptionalFieldSize is a InventoryOptionalField enum value
@@ -30427,6 +33888,23 @@ const (
 	InventoryOptionalFieldIntelligentTieringAccessTier = "IntelligentTieringAccessTier"
 )
 
+// InventoryOptionalField_Values returns all elements of the InventoryOptionalField enum
+func InventoryOptionalField_Values() []string {
+	return []string{
+		InventoryOptionalFieldSize,
+		InventoryOptionalFieldLastModifiedDate,
+		InventoryOptionalFieldStorageClass,
+		InventoryOptionalFieldEtag,
+		InventoryOptionalFieldIsMultipartUploaded,
+		InventoryOptionalFieldReplicationStatus,
+		InventoryOptionalFieldEncryptionStatus,
+		InventoryOptionalFieldObjectLockRetainUntilDate,
+		InventoryOptionalFieldObjectLockMode,
+		InventoryOptionalFieldObjectLockLegalHoldStatus,
+		InventoryOptionalFieldIntelligentTieringAccessTier,
+	}
+}
+
 const (
 	// JSONTypeDocument is a JSONType enum value
 	JSONTypeDocument = "DOCUMENT"
@@ -30434,6 +33912,14 @@ const (
 	// JSONTypeLines is a JSONType enum value
 	JSONTypeLines = "LINES"
 )
+
+// JSONType_Values returns all elements of the JSONType enum
+func JSONType_Values() []string {
+	return []string{
+		JSONTypeDocument,
+		JSONTypeLines,
+	}
+}
 
 const (
 	// MFADeleteEnabled is a MFADelete enum value
@@ -30443,6 +33929,14 @@ const (
 	MFADeleteDisabled = "Disabled"
 )
 
+// MFADelete_Values returns all elements of the MFADelete enum
+func MFADelete_Values() []string {
+	return []string{
+		MFADeleteEnabled,
+		MFADeleteDisabled,
+	}
+}
+
 const (
 	// MFADeleteStatusEnabled is a MFADeleteStatus enum value
 	MFADeleteStatusEnabled = "Enabled"
@@ -30450,6 +33944,14 @@ const (
 	// MFADeleteStatusDisabled is a MFADeleteStatus enum value
 	MFADeleteStatusDisabled = "Disabled"
 )
+
+// MFADeleteStatus_Values returns all elements of the MFADeleteStatus enum
+func MFADeleteStatus_Values() []string {
+	return []string{
+		MFADeleteStatusEnabled,
+		MFADeleteStatusDisabled,
+	}
+}
 
 const (
 	// MetadataDirectiveCopy is a MetadataDirective enum value
@@ -30459,6 +33961,14 @@ const (
 	MetadataDirectiveReplace = "REPLACE"
 )
 
+// MetadataDirective_Values returns all elements of the MetadataDirective enum
+func MetadataDirective_Values() []string {
+	return []string{
+		MetadataDirectiveCopy,
+		MetadataDirectiveReplace,
+	}
+}
+
 const (
 	// MetricsStatusEnabled is a MetricsStatus enum value
 	MetricsStatusEnabled = "Enabled"
@@ -30466,6 +33976,14 @@ const (
 	// MetricsStatusDisabled is a MetricsStatus enum value
 	MetricsStatusDisabled = "Disabled"
 )
+
+// MetricsStatus_Values returns all elements of the MetricsStatus enum
+func MetricsStatus_Values() []string {
+	return []string{
+		MetricsStatusEnabled,
+		MetricsStatusDisabled,
+	}
+}
 
 const (
 	// ObjectCannedACLPrivate is a ObjectCannedACL enum value
@@ -30490,10 +34008,30 @@ const (
 	ObjectCannedACLBucketOwnerFullControl = "bucket-owner-full-control"
 )
 
+// ObjectCannedACL_Values returns all elements of the ObjectCannedACL enum
+func ObjectCannedACL_Values() []string {
+	return []string{
+		ObjectCannedACLPrivate,
+		ObjectCannedACLPublicRead,
+		ObjectCannedACLPublicReadWrite,
+		ObjectCannedACLAuthenticatedRead,
+		ObjectCannedACLAwsExecRead,
+		ObjectCannedACLBucketOwnerRead,
+		ObjectCannedACLBucketOwnerFullControl,
+	}
+}
+
 const (
 	// ObjectLockEnabledEnabled is a ObjectLockEnabled enum value
 	ObjectLockEnabledEnabled = "Enabled"
 )
+
+// ObjectLockEnabled_Values returns all elements of the ObjectLockEnabled enum
+func ObjectLockEnabled_Values() []string {
+	return []string{
+		ObjectLockEnabledEnabled,
+	}
+}
 
 const (
 	// ObjectLockLegalHoldStatusOn is a ObjectLockLegalHoldStatus enum value
@@ -30503,6 +34041,14 @@ const (
 	ObjectLockLegalHoldStatusOff = "OFF"
 )
 
+// ObjectLockLegalHoldStatus_Values returns all elements of the ObjectLockLegalHoldStatus enum
+func ObjectLockLegalHoldStatus_Values() []string {
+	return []string{
+		ObjectLockLegalHoldStatusOn,
+		ObjectLockLegalHoldStatusOff,
+	}
+}
+
 const (
 	// ObjectLockModeGovernance is a ObjectLockMode enum value
 	ObjectLockModeGovernance = "GOVERNANCE"
@@ -30511,6 +34057,14 @@ const (
 	ObjectLockModeCompliance = "COMPLIANCE"
 )
 
+// ObjectLockMode_Values returns all elements of the ObjectLockMode enum
+func ObjectLockMode_Values() []string {
+	return []string{
+		ObjectLockModeGovernance,
+		ObjectLockModeCompliance,
+	}
+}
+
 const (
 	// ObjectLockRetentionModeGovernance is a ObjectLockRetentionMode enum value
 	ObjectLockRetentionModeGovernance = "GOVERNANCE"
@@ -30518,6 +34072,38 @@ const (
 	// ObjectLockRetentionModeCompliance is a ObjectLockRetentionMode enum value
 	ObjectLockRetentionModeCompliance = "COMPLIANCE"
 )
+
+// ObjectLockRetentionMode_Values returns all elements of the ObjectLockRetentionMode enum
+func ObjectLockRetentionMode_Values() []string {
+	return []string{
+		ObjectLockRetentionModeGovernance,
+		ObjectLockRetentionModeCompliance,
+	}
+}
+
+// The container element for object ownership for a bucket's ownership controls.
+//
+// BucketOwnerPreferred - Objects uploaded to the bucket change ownership to
+// the bucket owner if the objects are uploaded with the bucket-owner-full-control
+// canned ACL.
+//
+// ObjectWriter - The uploading account will own the object if the object is
+// uploaded with the bucket-owner-full-control canned ACL.
+const (
+	// ObjectOwnershipBucketOwnerPreferred is a ObjectOwnership enum value
+	ObjectOwnershipBucketOwnerPreferred = "BucketOwnerPreferred"
+
+	// ObjectOwnershipObjectWriter is a ObjectOwnership enum value
+	ObjectOwnershipObjectWriter = "ObjectWriter"
+)
+
+// ObjectOwnership_Values returns all elements of the ObjectOwnership enum
+func ObjectOwnership_Values() []string {
+	return []string{
+		ObjectOwnershipBucketOwnerPreferred,
+		ObjectOwnershipObjectWriter,
+	}
+}
 
 const (
 	// ObjectStorageClassStandard is a ObjectStorageClass enum value
@@ -30540,17 +34126,48 @@ const (
 
 	// ObjectStorageClassDeepArchive is a ObjectStorageClass enum value
 	ObjectStorageClassDeepArchive = "DEEP_ARCHIVE"
+
+	// ObjectStorageClassOutposts is a ObjectStorageClass enum value
+	ObjectStorageClassOutposts = "OUTPOSTS"
 )
+
+// ObjectStorageClass_Values returns all elements of the ObjectStorageClass enum
+func ObjectStorageClass_Values() []string {
+	return []string{
+		ObjectStorageClassStandard,
+		ObjectStorageClassReducedRedundancy,
+		ObjectStorageClassGlacier,
+		ObjectStorageClassStandardIa,
+		ObjectStorageClassOnezoneIa,
+		ObjectStorageClassIntelligentTiering,
+		ObjectStorageClassDeepArchive,
+		ObjectStorageClassOutposts,
+	}
+}
 
 const (
 	// ObjectVersionStorageClassStandard is a ObjectVersionStorageClass enum value
 	ObjectVersionStorageClassStandard = "STANDARD"
 )
 
+// ObjectVersionStorageClass_Values returns all elements of the ObjectVersionStorageClass enum
+func ObjectVersionStorageClass_Values() []string {
+	return []string{
+		ObjectVersionStorageClassStandard,
+	}
+}
+
 const (
 	// OwnerOverrideDestination is a OwnerOverride enum value
 	OwnerOverrideDestination = "Destination"
 )
+
+// OwnerOverride_Values returns all elements of the OwnerOverride enum
+func OwnerOverride_Values() []string {
+	return []string{
+		OwnerOverrideDestination,
+	}
+}
 
 const (
 	// PayerRequester is a Payer enum value
@@ -30559,6 +34176,14 @@ const (
 	// PayerBucketOwner is a Payer enum value
 	PayerBucketOwner = "BucketOwner"
 )
+
+// Payer_Values returns all elements of the Payer enum
+func Payer_Values() []string {
+	return []string{
+		PayerRequester,
+		PayerBucketOwner,
+	}
+}
 
 const (
 	// PermissionFullControl is a Permission enum value
@@ -30577,6 +34202,17 @@ const (
 	PermissionReadAcp = "READ_ACP"
 )
 
+// Permission_Values returns all elements of the Permission enum
+func Permission_Values() []string {
+	return []string{
+		PermissionFullControl,
+		PermissionWrite,
+		PermissionWriteAcp,
+		PermissionRead,
+		PermissionReadAcp,
+	}
+}
+
 const (
 	// ProtocolHttp is a Protocol enum value
 	ProtocolHttp = "http"
@@ -30584,6 +34220,14 @@ const (
 	// ProtocolHttps is a Protocol enum value
 	ProtocolHttps = "https"
 )
+
+// Protocol_Values returns all elements of the Protocol enum
+func Protocol_Values() []string {
+	return []string{
+		ProtocolHttp,
+		ProtocolHttps,
+	}
+}
 
 const (
 	// QuoteFieldsAlways is a QuoteFields enum value
@@ -30593,6 +34237,14 @@ const (
 	QuoteFieldsAsneeded = "ASNEEDED"
 )
 
+// QuoteFields_Values returns all elements of the QuoteFields enum
+func QuoteFields_Values() []string {
+	return []string{
+		QuoteFieldsAlways,
+		QuoteFieldsAsneeded,
+	}
+}
+
 const (
 	// ReplicationRuleStatusEnabled is a ReplicationRuleStatus enum value
 	ReplicationRuleStatusEnabled = "Enabled"
@@ -30600,6 +34252,14 @@ const (
 	// ReplicationRuleStatusDisabled is a ReplicationRuleStatus enum value
 	ReplicationRuleStatusDisabled = "Disabled"
 )
+
+// ReplicationRuleStatus_Values returns all elements of the ReplicationRuleStatus enum
+func ReplicationRuleStatus_Values() []string {
+	return []string{
+		ReplicationRuleStatusEnabled,
+		ReplicationRuleStatusDisabled,
+	}
+}
 
 const (
 	// ReplicationStatusComplete is a ReplicationStatus enum value
@@ -30615,6 +34275,16 @@ const (
 	ReplicationStatusReplica = "REPLICA"
 )
 
+// ReplicationStatus_Values returns all elements of the ReplicationStatus enum
+func ReplicationStatus_Values() []string {
+	return []string{
+		ReplicationStatusComplete,
+		ReplicationStatusPending,
+		ReplicationStatusFailed,
+		ReplicationStatusReplica,
+	}
+}
+
 const (
 	// ReplicationTimeStatusEnabled is a ReplicationTimeStatus enum value
 	ReplicationTimeStatusEnabled = "Enabled"
@@ -30623,12 +34293,27 @@ const (
 	ReplicationTimeStatusDisabled = "Disabled"
 )
 
+// ReplicationTimeStatus_Values returns all elements of the ReplicationTimeStatus enum
+func ReplicationTimeStatus_Values() []string {
+	return []string{
+		ReplicationTimeStatusEnabled,
+		ReplicationTimeStatusDisabled,
+	}
+}
+
 // If present, indicates that the requester was successfully charged for the
 // request.
 const (
 	// RequestChargedRequester is a RequestCharged enum value
 	RequestChargedRequester = "requester"
 )
+
+// RequestCharged_Values returns all elements of the RequestCharged enum
+func RequestCharged_Values() []string {
+	return []string{
+		RequestChargedRequester,
+	}
+}
 
 // Confirms that the requester knows that they will be charged for the request.
 // Bucket owners need not specify this parameter in their requests. For information
@@ -30640,10 +34325,24 @@ const (
 	RequestPayerRequester = "requester"
 )
 
+// RequestPayer_Values returns all elements of the RequestPayer enum
+func RequestPayer_Values() []string {
+	return []string{
+		RequestPayerRequester,
+	}
+}
+
 const (
 	// RestoreRequestTypeSelect is a RestoreRequestType enum value
 	RestoreRequestTypeSelect = "SELECT"
 )
+
+// RestoreRequestType_Values returns all elements of the RestoreRequestType enum
+func RestoreRequestType_Values() []string {
+	return []string{
+		RestoreRequestTypeSelect,
+	}
+}
 
 const (
 	// ServerSideEncryptionAes256 is a ServerSideEncryption enum value
@@ -30653,6 +34352,14 @@ const (
 	ServerSideEncryptionAwsKms = "aws:kms"
 )
 
+// ServerSideEncryption_Values returns all elements of the ServerSideEncryption enum
+func ServerSideEncryption_Values() []string {
+	return []string{
+		ServerSideEncryptionAes256,
+		ServerSideEncryptionAwsKms,
+	}
+}
+
 const (
 	// SseKmsEncryptedObjectsStatusEnabled is a SseKmsEncryptedObjectsStatus enum value
 	SseKmsEncryptedObjectsStatusEnabled = "Enabled"
@@ -30660,6 +34367,14 @@ const (
 	// SseKmsEncryptedObjectsStatusDisabled is a SseKmsEncryptedObjectsStatus enum value
 	SseKmsEncryptedObjectsStatusDisabled = "Disabled"
 )
+
+// SseKmsEncryptedObjectsStatus_Values returns all elements of the SseKmsEncryptedObjectsStatus enum
+func SseKmsEncryptedObjectsStatus_Values() []string {
+	return []string{
+		SseKmsEncryptedObjectsStatusEnabled,
+		SseKmsEncryptedObjectsStatusDisabled,
+	}
+}
 
 const (
 	// StorageClassStandard is a StorageClass enum value
@@ -30682,12 +34397,36 @@ const (
 
 	// StorageClassDeepArchive is a StorageClass enum value
 	StorageClassDeepArchive = "DEEP_ARCHIVE"
+
+	// StorageClassOutposts is a StorageClass enum value
+	StorageClassOutposts = "OUTPOSTS"
 )
+
+// StorageClass_Values returns all elements of the StorageClass enum
+func StorageClass_Values() []string {
+	return []string{
+		StorageClassStandard,
+		StorageClassReducedRedundancy,
+		StorageClassStandardIa,
+		StorageClassOnezoneIa,
+		StorageClassIntelligentTiering,
+		StorageClassGlacier,
+		StorageClassDeepArchive,
+		StorageClassOutposts,
+	}
+}
 
 const (
 	// StorageClassAnalysisSchemaVersionV1 is a StorageClassAnalysisSchemaVersion enum value
 	StorageClassAnalysisSchemaVersionV1 = "V_1"
 )
+
+// StorageClassAnalysisSchemaVersion_Values returns all elements of the StorageClassAnalysisSchemaVersion enum
+func StorageClassAnalysisSchemaVersion_Values() []string {
+	return []string{
+		StorageClassAnalysisSchemaVersionV1,
+	}
+}
 
 const (
 	// TaggingDirectiveCopy is a TaggingDirective enum value
@@ -30696,6 +34435,14 @@ const (
 	// TaggingDirectiveReplace is a TaggingDirective enum value
 	TaggingDirectiveReplace = "REPLACE"
 )
+
+// TaggingDirective_Values returns all elements of the TaggingDirective enum
+func TaggingDirective_Values() []string {
+	return []string{
+		TaggingDirectiveCopy,
+		TaggingDirectiveReplace,
+	}
+}
 
 const (
 	// TierStandard is a Tier enum value
@@ -30707,6 +34454,15 @@ const (
 	// TierExpedited is a Tier enum value
 	TierExpedited = "Expedited"
 )
+
+// Tier_Values returns all elements of the Tier enum
+func Tier_Values() []string {
+	return []string{
+		TierStandard,
+		TierBulk,
+		TierExpedited,
+	}
+}
 
 const (
 	// TransitionStorageClassGlacier is a TransitionStorageClass enum value
@@ -30725,6 +34481,17 @@ const (
 	TransitionStorageClassDeepArchive = "DEEP_ARCHIVE"
 )
 
+// TransitionStorageClass_Values returns all elements of the TransitionStorageClass enum
+func TransitionStorageClass_Values() []string {
+	return []string{
+		TransitionStorageClassGlacier,
+		TransitionStorageClassStandardIa,
+		TransitionStorageClassOnezoneIa,
+		TransitionStorageClassIntelligentTiering,
+		TransitionStorageClassDeepArchive,
+	}
+}
+
 const (
 	// TypeCanonicalUser is a Type enum value
 	TypeCanonicalUser = "CanonicalUser"
@@ -30735,3 +34502,12 @@ const (
 	// TypeGroup is a Type enum value
 	TypeGroup = "Group"
 )
+
+// Type_Values returns all elements of the Type enum
+func Type_Values() []string {
+	return []string{
+		TypeCanonicalUser,
+		TypeAmazonCustomerByEmail,
+		TypeGroup,
+	}
+}

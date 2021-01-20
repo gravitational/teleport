@@ -333,6 +333,24 @@ const (
 	// session has been rejected due to exceeding a session control limit.
 	SessionRejectedEvent = "session.rejected"
 
+	// AppSessionStartEvent is emitted when a user is issued an application certificate.
+	AppSessionStartEvent = "app.session.start"
+
+	// AppSessionChunkEvent is emitted at the start of a 5 minute chunk on each
+	// proxy. This chunk is used to buffer 5 minutes of audit events at a time
+	// for applications.
+	AppSessionChunkEvent = "app.session.chunk"
+
+	// AppSessionRequestEvent is an HTTP request and response.
+	AppSessionRequestEvent = "app.session.request"
+
+	// DatabaseSessionStartEvent indicates the start of a database session.
+	DatabaseSessionStartEvent = "db.session.start"
+	// DatabaseSessionEndEvent indicates the end of a database session.
+	DatabaseSessionEndEvent = "db.session.end"
+	// DatabaseSessionQueryEvent indicates a database query execution.
+	DatabaseSessionQueryEvent = "db.session.query"
+
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.
 	SessionRejectedReasonMaxConnections = "max_connections limit reached"
@@ -368,49 +386,6 @@ const (
 	V3 = 3
 )
 
-// AuditEvent represents audit event
-type AuditEvent interface {
-	// ProtoMarshaler implements efficient
-	// protobuf marshaling methods
-	ProtoMarshaler
-
-	// GetID returns unique event ID
-	GetID() string
-	// SetID sets unique event ID
-	SetID(id string)
-
-	// GetCode returns event short diagnostic code
-	GetCode() string
-	// SetCode sets unique event diagnostic code
-	SetCode(string)
-
-	// GetType returns event type
-	GetType() string
-	// SetCode sets unique type
-	SetType(string)
-
-	// GetTime returns event time
-	GetTime() time.Time
-	// SetTime sets event time
-	SetTime(time.Time)
-
-	// GetIndex gets event index - a non-unique
-	// monotonically incremented number
-	// in the event sequence
-	GetIndex() int64
-	// SetIndex sets event index
-	SetIndex(idx int64)
-}
-
-// ProtoMarshaler implements marshaler interface
-type ProtoMarshaler interface {
-	// Size returns size of the object when marshaled
-	Size() (n int)
-
-	// MarshalTo marshals the object to sized buffer
-	MarshalTo(dAtA []byte) (int, error)
-}
-
 // ServerMetadataGetter represents interface
 // that provides information about its server id
 type ServerMetadataGetter interface {
@@ -419,6 +394,9 @@ type ServerMetadataGetter interface {
 
 	// GetServerNamespace returns event server namespace
 	GetServerNamespace() string
+
+	// GetClusterName returns the originating teleport cluster name
+	GetClusterName() string
 }
 
 // ServerMetadataSetter represents interface
@@ -443,18 +421,15 @@ type SessionMetadataGetter interface {
 type SessionMetadataSetter interface {
 	// SetSessionID sets event session ID
 	SetSessionID(string)
+
+	// SetClusterName sets teleport cluster name
+	SetClusterName(string)
 }
 
 // SetCode is a shortcut that sets code for the audit event
 func SetCode(event AuditEvent, code string) AuditEvent {
 	event.SetCode(code)
 	return event
-}
-
-// Emitter creates and manages audit log streams
-type Emitter interface {
-	// Emit emits a single audit event
-	EmitAuditEvent(context.Context, AuditEvent) error
 }
 
 // Streamer creates and resumes event streams for session IDs
@@ -514,26 +489,6 @@ type MultipartUploader interface {
 	// ListUploads lists uploads that have been initiated but not completed with
 	// earlier uploads returned first
 	ListUploads(ctx context.Context) ([]StreamUpload, error)
-}
-
-// Stream is used to create continuous ordered sequence of events
-// associated with a session.
-type Stream interface {
-	// Emitter allows stream to emit audit event in the context of the event stream
-	Emitter
-	// Status returns channel broadcasting updates about the stream state:
-	// last event index that was uploaded and the upload ID
-	Status() <-chan StreamStatus
-	// Done returns channel closed when streamer is closed
-	// should be used to detect sending errors
-	Done() <-chan struct{}
-	// Complete closes the stream and marks it finalized,
-	// releases associated resources, in case of failure,
-	// closes this stream on the client side
-	Complete(ctx context.Context) error
-	// Close flushes non-uploaded flight stream data without marking
-	// the stream completed and closes the stream instance
-	Close(ctx context.Context) error
 }
 
 // StreamWriter implements io.Writer to be plugged into the multi-writer

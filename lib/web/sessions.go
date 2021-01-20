@@ -29,8 +29,9 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -41,7 +42,7 @@ import (
 	"github.com/gravitational/ttlmap"
 
 	"github.com/jonboulle/clockwork"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
 )
 
@@ -51,7 +52,7 @@ import (
 // to the auth server on every page hit
 type SessionContext struct {
 	sync.Mutex
-	*log.Entry
+	logrus.FieldLogger
 	sess      services.WebSession
 	user      string
 	clt       auth.ClientI
@@ -227,7 +228,7 @@ func (c *SessionContext) newRemoteTLSClient(cluster reversetunnel.RemoteSite) (a
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return auth.NewTLSClient(auth.ClientConfig{Dialer: clusterDialer(cluster), TLS: tlsConfig})
+	return auth.NewClient(apiclient.Config{Dialer: clusterDialer(cluster), TLS: tlsConfig})
 }
 
 // GetUser returns the authenticated teleport user
@@ -242,8 +243,8 @@ func (c *SessionContext) GetWebSession() services.WebSession {
 
 // ExtendWebSession creates a new web session for this user
 // based on the previous session
-func (c *SessionContext) ExtendWebSession() (services.WebSession, error) {
-	sess, err := c.clt.ExtendWebSession(c.user, c.sess.GetName())
+func (c *SessionContext) ExtendWebSession(accessRequestID string) (services.WebSession, error) {
+	sess, err := c.clt.ExtendWebSession(c.user, c.sess.GetName(), accessRequestID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -313,22 +314,27 @@ func (c *SessionContext) Close() error {
 }
 
 // newSessionCache returns new instance of the session cache
-func newSessionCache(proxyClient auth.ClientI, servers []utils.NetAddr, cipherSuites []uint16) (*sessionCache, error) {
-	clusterName, err := proxyClient.GetClusterName()
+func newSessionCache(config *sessionCache) (*sessionCache, error) {
+	clusterName, err := config.proxyClient.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	m, err := ttlmap.New(1024, ttlmap.CallOnExpire(closeContext))
+	if config.clock == nil {
+		config.clock = clockwork.NewRealClock()
+	}
+	m, err := ttlmap.New(1024, ttlmap.CallOnExpire(closeContext), ttlmap.Clock(config.clock))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	cache := &sessionCache{
 		clusterName:  clusterName.GetClusterName(),
-		proxyClient:  proxyClient,
+		proxyClient:  config.proxyClient,
 		contexts:     m,
-		authServers:  servers,
+		authServers:  config.authServers,
 		closer:       utils.NewCloseBroadcaster(),
-		cipherSuites: cipherSuites,
+		cipherSuites: config.cipherSuites,
+		log:          newPackageLogger(),
+		clock:        config.clock,
 	}
 	// periodically close expired and unused sessions
 	go cache.expireSessions()
@@ -338,12 +344,14 @@ func newSessionCache(proxyClient auth.ClientI, servers []utils.NetAddr, cipherSu
 // sessionCache handles web session authentication,
 // and holds in memory contexts associated with each session
 type sessionCache struct {
+	log logrus.FieldLogger
 	sync.Mutex
 	proxyClient auth.ClientI
 	contexts    *ttlmap.TTLMap
 	authServers []utils.NetAddr
 	closer      *utils.CloseBroadcaster
 	clusterName string
+	clock       clockwork.Clock
 
 	// cipherSuites is the list of supported TLS cipher suites.
 	cipherSuites []uint16
@@ -351,7 +359,7 @@ type sessionCache struct {
 
 // Close closes all allocated resources and stops goroutines
 func (s *sessionCache) Close() error {
-	log.Infof("[WEB] closing session cache")
+	s.log.Info("Closing session cache.")
 	return s.closer.Close()
 }
 
@@ -359,14 +367,14 @@ func (s *sessionCache) Close() error {
 // cache and will clean up connections
 func closeContext(key string, val interface{}) {
 	go func() {
-		log.Infof("[WEB] closing context %v", key)
+		log.Infof("Closing context %v.", key)
 		ctx, ok := val.(*SessionContext)
 		if !ok {
-			log.Warningf("warning, not valid value type %T", val)
+			log.Warnf("Invalid value type %T.", val)
 			return
 		}
 		if err := ctx.Close(); err != nil {
-			log.Infof("failed to close context: %v", err)
+			log.Warnf("Failed to close context: %v.", err)
 		}
 	}()
 }
@@ -390,7 +398,7 @@ func (s *sessionCache) clearExpiredSessions() {
 	defer s.Unlock()
 	expired := s.contexts.RemoveExpired(10)
 	if expired != 0 {
-		log.Infof("[WEB] removed %v expired sessions", expired)
+		log.Infof("Removed %v expired sessions.", expired)
 	}
 }
 
@@ -573,9 +581,10 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.RootCAs = certPool
 	tlsConfig.ServerName = auth.EncodeClusterName(s.clusterName)
+	tlsConfig.Time = s.clock.Now
 
-	userClient, err := auth.NewTLSClient(auth.ClientConfig{
-		Addrs: s.authServers,
+	userClient, err := auth.NewClient(apiclient.Config{
+		Addrs: utils.NetAddrsToStrings(s.authServers),
 		TLS:   tlsConfig,
 	})
 	if err != nil {
@@ -588,13 +597,13 @@ func (s *sessionCache) ValidateSession(user, sid string) (*SessionContext, error
 		user:      user,
 		sess:      sess,
 		parent:    s,
+		FieldLogger: log.WithFields(logrus.Fields{
+			"user": user,
+			"sess": sess.GetShortName(),
+		}),
 	}
-	c.Entry = log.WithFields(log.Fields{
-		"user": user,
-		"sess": sess.GetShortName(),
-	})
 
-	ttl := utils.ToTTL(clockwork.NewRealClock(), sess.GetBearerTokenExpiryTime())
+	ttl := utils.ToTTL(s.clock, sess.GetBearerTokenExpiryTime())
 	out, err := s.insertContext(user, sid, c, ttl)
 	if err != nil {
 		// this means that someone has just inserted the context, so

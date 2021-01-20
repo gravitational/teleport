@@ -22,7 +22,7 @@ to define policies like:
     edition of Teleport only supports [Github](../../admin-guide.md#github-oauth-20) as
     an SSO provider.
 
-<iframe width="712" height="400" src="https://www.youtube.com/embed/DG97l8WJ6oU?rel=0&modestbranding=1&widget_referrer=gravitational.com/teleport/docs" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<iframe width="712" height="400" src="https://www.youtube.com/embed/DG97l8WJ6oU?rel=0&modestbranding=1&widget_referrer=gravitational.com/teleport/docs" frameBorder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
 
 ## Prerequisites:
 
@@ -81,13 +81,13 @@ Before setting the Manage API client access capture the client ID of the service
 
 Within GSuite to access the Manage API client access go to Security -> Settings.  Navigate to Advanced Settings and open Manage API client access.  Put the client ID in the Client Name field and the below permissions in the API scopes as a single comma separated line.  Press Authorize.
 
-!!! Warning
+!!! warning
 
     Do not use the email of the service account. The configuration display will look the same but the service account will not have the domain-wide delegation required. The `client_id` field must be the unique ID number captured from the admin UI. An indicator that this is misconfigured is if you see "Client is unauthorized to retrieve access tokens using this method, or client not authorized for any of the scopes requested." in your log.
 
-!!! Note
+!!! note
 
-   The email that you set for `google_admin_email` **must** be the email address of a user that has permission to list all groups, users, and group membership in your G Suite account. This user will generally need super admin privileges.
+    The email that you set for `google_admin_email` **must** be the email address of a user that has permission to list all groups, users, and group membership in your G Suite account. This user will generally need super admin privileges.
 
 **Client Name:** For Client Name: Use the Unique ID for the service account.  [See Video for instructions](https://youtu.be/DG97l8WJ6oU?t=281).
 

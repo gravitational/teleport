@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -89,6 +90,14 @@ func printActions(rules []services.Rule) string {
 	pairs := []string{}
 	for _, rule := range rules {
 		pairs = append(pairs, fmt.Sprintf("%v:%v", strings.Join(rule.Resources, ","), strings.Join(rule.Verbs, ",")))
+	}
+	return strings.Join(pairs, ",")
+}
+
+func printMetadataLabels(labels map[string]string) string {
+	pairs := []string{}
+	for key, value := range labels {
+		pairs = append(pairs, fmt.Sprintf("%v=%v", key, value))
 	}
 	return strings.Join(pairs, ",")
 }
@@ -427,4 +436,104 @@ func (c *semaphoreCollection) writeText(w io.Writer) error {
 	}
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
+}
+
+type appCollection struct {
+	servers []services.Server
+}
+
+func (a *appCollection) resources() (r []services.Resource) {
+	for _, resource := range a.servers {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (a *appCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Application", "Host", "Public Address", "URI", "Labels"})
+	for _, server := range a.servers {
+		for _, app := range server.GetApps() {
+			t.AddRow([]string{
+				app.Name, server.GetName(), app.PublicAddr, app.URI, services.LabelsAsString(app.StaticLabels, app.DynamicLabels),
+			})
+		}
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+func (a *appCollection) writeJSON(w io.Writer) error {
+	data, err := json.MarshalIndent(a.toMarshal(), "", "    ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}
+
+func (a *appCollection) toMarshal() interface{} {
+	return a.servers
+}
+
+func (a *appCollection) writeYAML(w io.Writer) error {
+	return utils.WriteYAML(w, a.toMarshal())
+}
+
+type authPrefCollection struct {
+	authPrefs []services.AuthPreference
+}
+
+func (c *authPrefCollection) resources() (r []services.Resource) {
+	for _, resource := range c.authPrefs {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *authPrefCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Type", "Second Factor"})
+	for _, authPref := range c.authPrefs {
+		t.AddRow([]string{authPref.GetType(), authPref.GetSecondFactor()})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type dbCollection struct {
+	servers []types.DatabaseServer
+}
+
+func (c *dbCollection) resources() (r []services.Resource) {
+	for _, resource := range c.servers {
+		r = append(r, resource)
+	}
+	return r
+}
+
+func (c *dbCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name", "Protocol", "Address", "Labels"})
+	for _, server := range c.servers {
+		t.AddRow([]string{
+			server.GetName(), server.GetProtocol(), server.GetURI(), server.LabelsString(),
+		})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+func (c *dbCollection) writeJSON(w io.Writer) error {
+	data, err := json.MarshalIndent(c.toMarshal(), "", "    ")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(data)
+	return trace.Wrap(err)
+}
+
+func (c *dbCollection) toMarshal() interface{} {
+	return c.servers
+}
+
+func (c *dbCollection) writeYAML(w io.Writer) error {
+	return utils.WriteYAML(w, c.toMarshal())
 }

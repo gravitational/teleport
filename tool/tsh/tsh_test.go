@@ -42,7 +42,6 @@ import (
 
 // bootstrap check
 func TestTshMain(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
 	check.TestingT(t)
 }
 
@@ -52,8 +51,8 @@ type MainTestSuite struct{}
 var _ = check.Suite(&MainTestSuite{})
 
 func (s *MainTestSuite) SetUpSuite(c *check.C) {
-	dir := client.FullProfilePath("")
-	os.RemoveAll(dir)
+	utils.InitLoggerForTests(testing.Verbose())
+	os.RemoveAll(client.FullProfilePath(""))
 }
 
 func (s *MainTestSuite) TestMakeClient(c *check.C) {
@@ -269,7 +268,7 @@ func (s *MainTestSuite) TestIdentityRead(c *check.C) {
 	c.Assert(k, check.NotNil)
 	c.Assert(k.TLSCert, check.NotNil)
 	// generate a TLS client config
-	conf, err := k.ClientTLSConfig(nil)
+	conf, err := k.TeleportClientTLSConfig(nil)
 	c.Assert(err, check.IsNil)
 	c.Assert(conf, check.NotNil)
 	// ensure that at least root CA was successfully loaded

@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport
 
-go 1.14
+go 1.15
 
 require (
 	cloud.google.com/go/firestore v1.1.1
@@ -13,7 +13,7 @@ require (
 	github.com/alecthomas/colour v0.1.0 // indirect
 	github.com/alecthomas/repr v0.0.0-20200325044227-4184120f674c // indirect
 	github.com/armon/go-radix v1.0.0
-	github.com/aws/aws-sdk-go v1.32.7
+	github.com/aws/aws-sdk-go v1.35.19
 	github.com/beevik/etree v1.1.0
 	github.com/boombuler/barcode v0.0.0-20161226211916-fe0f26ff6d26 // indirect
 	github.com/cjbassi/drawille-go v0.1.0 // indirect
@@ -39,16 +39,18 @@ require (
 	github.com/gravitational/oxy v0.0.0-20200916204440-3eb06d921a1d
 	github.com/gravitational/reporting v0.0.0-20180907002058-ac7b85c75c4c
 	github.com/gravitational/roundtrip v1.0.0
-	github.com/gravitational/trace v1.1.6
+	github.com/gravitational/trace v1.1.13
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/iovisor/gobpf v0.0.1
+	github.com/jackc/pgconn v1.7.0
+	github.com/jackc/pgproto3/v2 v2.0.7-0.20201117225705-88b6398594fc
 	github.com/johannesboyne/gofakes3 v0.0.0-20191228161223-9aee1c78a252
-	github.com/jonboulle/clockwork v0.2.1
+	github.com/jonboulle/clockwork v0.2.2
 	github.com/json-iterator/go v1.1.10
 	github.com/julienschmidt/httprouter v1.2.0
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
-	github.com/kr/pty v1.1.1
+	github.com/kr/pty v1.1.8
 	github.com/kylelemons/godebug v0.0.0-20160406211939-eadb3ce320cb
 	github.com/mailgun/lemma v0.0.0-20160211003854-e8b0cd607f58
 	github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd // indirect
@@ -65,9 +67,8 @@ require (
 	github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4
 	github.com/prometheus/common v0.6.0
 	github.com/prometheus/procfs v0.0.4 // indirect
-	github.com/russellhaering/gosaml2 v0.0.0-20170515204909-8908227c114a
+	github.com/russellhaering/gosaml2 v0.6.0
 	github.com/russellhaering/goxmldsig v1.1.0
-	github.com/satori/go.uuid v1.1.1-0.20170321230731-5bf94b69c6b6 // indirect
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
 	github.com/sirupsen/logrus v1.6.0
@@ -91,8 +92,10 @@ require (
 	google.golang.org/appengine v1.6.6 // indirect
 	google.golang.org/genproto v0.0.0-20200806141610-86f49bd18e98
 	google.golang.org/grpc v1.27.0
-	google.golang.org/protobuf v1.25.0 // indirect
+	google.golang.org/protobuf v1.25.0
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
+	gopkg.in/ini.v1 v1.62.0
+	gopkg.in/square/go-jose.v2 v2.5.1
 	gopkg.in/yaml.v2 v2.3.0
 	gotest.tools v2.2.0+incompatible // indirect
 	k8s.io/api v0.0.0-20200821051526-051d027c14e1
@@ -103,6 +106,6 @@ require (
 
 replace (
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.3
+	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 	github.com/iovisor/gobpf => github.com/gravitational/gobpf v0.0.1
-	github.com/sirupsen/logrus => github.com/gravitational/logrus v0.10.1-0.20171120195323-8ab1e1b91d5f
 )

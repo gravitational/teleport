@@ -137,6 +137,15 @@ func (a *NetAddr) Set(s string) error {
 	return nil
 }
 
+// NetAddrsToStrings takes a list of netAddrs and returns a list of address strings.
+func NetAddrsToStrings(netAddrs []NetAddr) []string {
+	addrs := make([]string, len(netAddrs))
+	for i, addr := range netAddrs {
+		addrs[i] = addr.String()
+	}
+	return addrs
+}
+
 // ParseAddrs parses the provided slice of strings as a slice of NetAddr's.
 func ParseAddrs(addrs []string) (result []NetAddr, err error) {
 	for _, addr := range addrs {
@@ -181,6 +190,15 @@ func MustParseAddr(a string) *NetAddr {
 		panic(fmt.Sprintf("failed to parse %v: %v", a, err))
 	}
 	return addr
+}
+
+// MustParseAddrList parses the provided list of strings into a NetAddr list or panics on error
+func MustParseAddrList(aList ...string) []NetAddr {
+	addrList := make([]NetAddr, len(aList))
+	for i, a := range aList {
+		addrList[i] = *MustParseAddr(a)
+	}
+	return addrList
 }
 
 // FromAddr returns NetAddr from golang standard net.Addr

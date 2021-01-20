@@ -454,7 +454,7 @@ func (a *Server) validateTrustedCluster(validateRequest *ValidateTrustedClusterR
 	}
 
 	// validate that we generated the token
-	err = a.validateTrustedClusterToken(validateRequest.Token)
+	tokenLabels, err := a.validateTrustedClusterToken(validateRequest.Token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -471,6 +471,11 @@ func (a *Server) validateTrustedCluster(validateRequest *ValidateTrustedClusterR
 	remoteCluster, err := services.NewRemoteCluster(remoteClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if len(tokenLabels) != 0 {
+		meta := remoteCluster.GetMetadata()
+		meta.Labels = utils.CopyStringsMap(tokenLabels)
+		remoteCluster.SetMetadata(meta)
 	}
 
 	err = a.CreateRemoteCluster(remoteCluster)
@@ -508,17 +513,17 @@ func (a *Server) validateTrustedCluster(validateRequest *ValidateTrustedClusterR
 	return &validateResponse, nil
 }
 
-func (a *Server) validateTrustedClusterToken(token string) error {
-	roles, err := a.ValidateToken(token)
+func (a *Server) validateTrustedClusterToken(token string) (map[string]string, error) {
+	roles, labels, err := a.ValidateToken(token)
 	if err != nil {
-		return trace.AccessDenied("the remote server denied access: invalid cluster token")
+		return nil, trace.AccessDenied("the remote server denied access: invalid cluster token")
 	}
 
 	if !roles.Include(teleport.RoleTrustedCluster) && !roles.Include(teleport.LegacyClusterTokenType) {
-		return trace.AccessDenied("role does not match")
+		return nil, trace.AccessDenied("role does not match")
 	}
 
-	return nil
+	return labels, nil
 }
 
 func (a *Server) sendValidateRequestToProxy(host string, validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {

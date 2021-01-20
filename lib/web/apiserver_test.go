@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"encoding/base32"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -71,9 +72,11 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/jonboulle/clockwork"
 	lemma_secret "github.com/mailgun/lemma/secret"
+	"github.com/pborman/uuid"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/tstranex/u2f"
+	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
@@ -96,12 +99,10 @@ type WebSuite struct {
 	mockU2F     *mocku2f.Key
 	server      *auth.TestTLSServer
 	proxyClient *auth.Client
-	clock       clockwork.Clock
+	clock       clockwork.FakeClock
 }
 
-var _ = Suite(&WebSuite{
-	clock: clockwork.NewFakeClock(),
-})
+var _ = Suite(&WebSuite{})
 
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise it will run tests as normal.
@@ -120,7 +121,6 @@ func TestMain(m *testing.M) {
 }
 
 func (s *WebSuite) SetUpSuite(c *C) {
-	var err error
 	os.Unsetenv(teleport.DebugEnvVar)
 	utils.InitLoggerForTests(testing.Verbose())
 
@@ -128,7 +128,7 @@ func (s *WebSuite) SetUpSuite(c *C) {
 	debugAssetsPath = "../../webassets/teleport"
 	os.Setenv(teleport.DebugEnvVar, "true")
 
-	//sessionStreamPollPeriod = time.Millisecond
+	var err error
 	s.mockU2F, err = mocku2f.Create()
 	c.Assert(err, IsNil)
 	c.Assert(s.mockU2F, NotNil)
@@ -142,11 +142,12 @@ func (s *WebSuite) SetUpTest(c *C) {
 	u, err := user.Current()
 	c.Assert(err, IsNil)
 	s.user = u.Username
+	s.clock = clockwork.NewFakeClock()
 
 	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
 		ClusterName: "localhost",
 		Dir:         c.MkDir(),
-		Clock:       clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC)),
+		Clock:       s.clock,
 	})
 	c.Assert(err, IsNil)
 	s.server, err = authServer.NewTestTLSServer()
@@ -189,6 +190,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetEmitter(nodeClient),
 		regular.SetPAMConfig(&pam.Config{Enabled: false}),
 		regular.SetBPF(&bpf.NOP{}),
+		regular.SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 	s.node = node
@@ -241,6 +243,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		regular.SetEmitter(s.proxyClient),
 		regular.SetNamespace(defaults.Namespace),
 		regular.SetBPF(&bpf.NOP{}),
+		regular.SetClock(s.clock),
 	)
 	c.Assert(err, IsNil)
 
@@ -250,7 +253,11 @@ func (s *WebSuite) SetUpTest(c *C) {
 		DomainName:   s.server.ClusterName(),
 		ProxyClient:  s.proxyClient,
 		CipherSuites: utils.DefaultCipherSuites(),
-	}, SetSessionStreamPollPeriod(200*time.Millisecond))
+		AccessPoint:  s.proxyClient,
+		Context:      context.Background(),
+		HostUUID:     proxyID,
+		Emitter:      s.proxyClient,
+	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
 	c.Assert(err, IsNil)
 
 	s.webServer = httptest.NewUnstartedServer(handler)
@@ -275,6 +282,9 @@ func (s *WebSuite) SetUpTest(c *C) {
 	addr := utils.MustParseAddr(s.webServer.Listener.Addr().String())
 	handler.handler.cfg.ProxyWebAddr = *addr
 	handler.handler.cfg.ProxySSHAddr = *proxyAddr
+	_, sshPort, err := net.SplitHostPort(proxyAddr.String())
+	c.Assert(err, IsNil)
+	handler.handler.sshPort = sshPort
 }
 
 func (s *WebSuite) TearDownTest(c *C) {
@@ -305,9 +315,7 @@ func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack 
 	jar.SetCookies(s.url(), re.Cookies())
 
 	session, err := sess.response()
-	if err != nil {
-		panic(err)
-	}
+	c.Assert(err, IsNil)
 	if session.ExpiresIn < 0 {
 		c.Errorf("expected expiry time to be in the future but got %v", session.ExpiresIn)
 	}
@@ -337,11 +345,11 @@ func (s *WebSuite) authPack(c *C, user string) *authPack {
 	s.createUser(c, user, login, pass, otpSecret)
 
 	// create a valid otp token
-	validToken, err := totp.GenerateCode(otpSecret, time.Now())
+	validToken, err := totp.GenerateCode(otpSecret, s.clock.Now())
 	c.Assert(err, IsNil)
 
 	clt := s.client()
-	req := createSessionReq{
+	req := CreateSessionReq{
 		User:              user,
 		Pass:              pass,
 		SecondFactorToken: validToken,
@@ -550,7 +558,7 @@ func (s *WebSuite) TestCSRF(c *C) {
 	// create a valid login form request
 	validToken, err := totp.GenerateCode(otpSecret, time.Now())
 	c.Assert(err, IsNil)
-	loginForm := createSessionReq{
+	loginForm := CreateSessionReq{
 		User:              user,
 		Pass:              pass,
 		SecondFactorToken: validToken,
@@ -581,10 +589,10 @@ func (s *WebSuite) TestCSRF(c *C) {
 
 func (s *WebSuite) TestPasswordChange(c *C) {
 	pack := s.authPack(c, "foo")
-	fakeClock := clockwork.NewFakeClock()
-	s.server.AuthServer.AuthServer.SetClock(fakeClock)
 
-	validToken, err := totp.GenerateCode(pack.otpSecret, fakeClock.Now())
+	// invalidate the token
+	s.clock.Advance(1 * time.Minute)
+	validToken, err := totp.GenerateCode(pack.otpSecret, s.clock.Now())
 	c.Assert(err, IsNil)
 
 	req := changePasswordReq{
@@ -652,7 +660,7 @@ func (s *WebSuite) TestWebSessionsBadInput(c *C) {
 
 	clt := s.client()
 
-	reqs := []createSessionReq{
+	reqs := []CreateSessionReq{
 		// empty request
 		{},
 		// missing user
@@ -994,6 +1002,10 @@ func (s *WebSuite) TestWebsocketPingLoop(c *C) {
 	ws, err := s.makeTerminal(s.authPack(c, "foo"))
 	c.Assert(err, IsNil)
 
+	// flush out raw event (pty texts)
+	err = s.waitForRawEvent(ws, 5*time.Second)
+	c.Assert(err, IsNil)
+
 	var numPings int
 	start := time.Now()
 	for {
@@ -1247,7 +1259,7 @@ func (s *WebSuite) TestLogin(c *C) {
 	// create user
 	s.createUser(c, "user1", "root", "password", "")
 
-	loginReq, err := json.Marshal(createSessionReq{
+	loginReq, err := json.Marshal(CreateSessionReq{
 		User: "user1",
 		Pass: "password",
 	})
@@ -1332,7 +1344,9 @@ func (s *WebSuite) TestChangePasswordWithTokenOTP(c *C) {
 	secrets, err := s.server.Auth().RotateResetPasswordTokenSecrets(context.TODO(), token.GetName())
 	c.Assert(err, IsNil)
 
-	secondFactorToken, err := totp.GenerateCode(secrets.GetOTPKey(), time.Now())
+	// Advance the clock to invalidate the TOTP token
+	s.clock.Advance(1 * time.Minute)
+	secondFactorToken, err := totp.GenerateCode(secrets.GetOTPKey(), s.clock.Now())
 	c.Assert(err, IsNil)
 
 	data, err := json.Marshal(auth.ChangePasswordWithTokenRequest{
@@ -1784,6 +1798,109 @@ func (s *WebSuite) TestGetClusterDetails(c *C) {
 	// Expected empty, b/c test auth server doesn't set up
 	// heartbeat which where ServerSpecV2 version would've been set
 	c.Assert(cluster.AuthVersion, Equals, "")
+}
+
+// TestCreateAppSession verifies that an existing session to the Web UI can
+// be exchanged for a application specific session.
+func (s *WebSuite) TestCreateAppSession(c *C) {
+	pack := s.authPack(c, "foo@example.com")
+
+	// Register an application called "panel".
+	server := &services.ServerV2{
+		Kind:    services.KindAppServer,
+		Version: services.V2,
+		Metadata: services.Metadata{
+			Namespace: defaults.Namespace,
+			Name:      uuid.New(),
+		},
+		Spec: services.ServerSpecV2{
+			Version: teleport.Version,
+			Apps: []*services.App{
+				{
+					Name:       "panel",
+					PublicAddr: "panel.example.com",
+					URI:        "http://127.0.0.1:8080",
+				},
+			},
+		},
+	}
+	_, err := s.server.Auth().UpsertAppServer(context.Background(), server)
+	c.Assert(err, check.IsNil)
+
+	// Extract the session ID and bearer token for the current session.
+	rawCookie := *pack.cookies[0]
+	cookieBytes, err := hex.DecodeString(rawCookie.Value)
+	c.Assert(err, check.IsNil)
+	var sessionCookie SessionCookie
+	err = json.Unmarshal(cookieBytes, &sessionCookie)
+	c.Assert(err, check.IsNil)
+
+	var tests = []struct {
+		inComment       CommentInterface
+		inCreateRequest *CreateAppSessionRequest
+		outError        bool
+		outUsername     string
+		outParentHash   string
+	}{
+		{
+			inComment: Commentf("Valid request."),
+			inCreateRequest: &CreateAppSessionRequest{
+				FQDN:        "panel.example.com",
+				PublicAddr:  "panel.example.com",
+				ClusterName: "localhost",
+			},
+			outError:    false,
+			outUsername: "foo@example.com",
+		},
+		{
+			inComment: Commentf("Invalid application."),
+			inCreateRequest: &CreateAppSessionRequest{
+				FQDN:        "panel.example.com",
+				PublicAddr:  "invalid.example.com",
+				ClusterName: "localhost",
+			},
+			outError: true,
+		},
+		{
+			inComment: Commentf("Invalid cluster name."),
+			inCreateRequest: &CreateAppSessionRequest{
+				FQDN:        "panel.example.com",
+				PublicAddr:  "panel.example.com",
+				ClusterName: "example.com",
+			},
+			outError: true,
+		},
+		{
+			inComment: Commentf("Missing FQDN."),
+			inCreateRequest: &CreateAppSessionRequest{
+				PublicAddr:  "panel.example.com",
+				ClusterName: "localhost",
+			},
+			outError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		// Make a request to create an application session for "panel".
+		endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
+		resp, err := pack.clt.PostJSON(context.Background(), endpoint, tt.inCreateRequest)
+		c.Assert(err != nil, check.Equals, tt.outError, tt.inComment)
+		if tt.outError {
+			continue
+		}
+
+		// Unmarshal the response.
+		var response *CreateAppSessionResponse
+		c.Assert(json.Unmarshal(resp.Bytes(), &response), IsNil, tt.inComment)
+
+		// Verify that the application session was created.
+		session, err := s.server.Auth().GetAppSession(context.Background(), services.GetAppSessionRequest{
+			SessionID: response.CookieValue,
+		})
+		c.Assert(err, check.IsNil)
+		c.Assert(session.GetUser(), check.Equals, tt.outUsername)
+		c.Assert(session.GetName(), check.Equals, response.CookieValue)
+	}
 }
 
 type authProviderMock struct {

@@ -14,7 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package scp handles file uploads and downloads via scp command
+// Package scp handles file uploads and downloads via SCP command.
+// See https://web.archive.org/web/20170215184048/https://blogs.oracle.com/janp/entry/how_the_scp_protocol_works
+// for the high-level protocol overview.
+//
+// Authoritative source for the protocol is the source code for OpenSSH scp:
+// https://github.com/openssh/openssh-portable/blob/add926dd1bbe3c4db06e27cab8ab0f9a3d00a0c2/scp.c
 package scp
 
 import (
@@ -36,7 +41,7 @@ import (
 )
 
 const (
-	// OKByte is scp OK message bytes
+	// OKByte is SCP OK message bytes
 	OKByte = 0x0
 	// WarnByte tells that next goes a warning string
 	WarnByte = 0x1
@@ -62,6 +67,9 @@ type Flags struct {
 	LocalAddr string
 	// DirectoryMode indicates that a directory is being sent.
 	DirectoryMode bool
+	// PreserveAttrs preserves access and modification times
+	// from the original file
+	PreserveAttrs bool
 }
 
 // Config describes Command configuration settings
@@ -105,11 +113,13 @@ type FileSystem interface {
 	OpenFile(filePath string) (io.ReadCloser, error)
 	// CreateFile creates a new file
 	CreateFile(filePath string, length uint64) (io.WriteCloser, error)
-	// SetChmod sets file permissions
-	SetChmod(path string, mode int) error
+	// Chmod sets file permissions
+	Chmod(path string, mode int) error
+	// Chtimes sets file access and modification time
+	Chtimes(path string, atime, mtime time.Time) error
 }
 
-// FileInfo is an API that describes methods that provide file information
+// FileInfo provides access to file metadata
 type FileInfo interface {
 	// IsDir returns true if a file is a directory
 	IsDir() bool
@@ -123,6 +133,10 @@ type FileInfo interface {
 	GetModePerm() os.FileMode
 	// GetSize returns file size
 	GetSize() int64
+	// GetModTime returns file modification time
+	GetModTime() time.Time
+	// GetAccessTime returns file last access time
+	GetAccessTime() time.Time
 }
 
 // CreateDownloadCommand configures and returns a command used
@@ -164,7 +178,8 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// CreateCommand creates and returns a new Command
+// CreateCommand creates and returns a new SCP command with
+// specified configuration.
 func CreateCommand(cfg Config) (Command, error) {
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
@@ -181,6 +196,7 @@ func CreateCommand(cfg Config) (Command, error) {
 			"LocalAddr":      cfg.Flags.LocalAddr,
 			"RemoteAddr":     cfg.Flags.RemoteAddr,
 			"Target":         cfg.Flags.Target,
+			"PreserveAttrs":  cfg.Flags.PreserveAttrs,
 			"User":           cfg.User,
 			"RunOnServer":    cfg.RunOnServer,
 			"RemoteLocation": cfg.RemoteLocation,
@@ -191,7 +207,7 @@ func CreateCommand(cfg Config) (Command, error) {
 }
 
 // Command mimics behavior of SCP command line tool
-// to teleport can pretend it launches real scp behind the scenes
+// to teleport can pretend it launches real SCP behind the scenes
 type command struct {
 	Config
 	log *log.Entry
@@ -201,23 +217,22 @@ type command struct {
 // and teleport (server) side.
 func (cmd *command) Execute(ch io.ReadWriter) (err error) {
 	if cmd.Flags.Source {
-		err = cmd.serveSource(ch)
-	} else {
-		err = cmd.serveSink(ch)
+		return trace.Wrap(cmd.serveSource(ch))
 	}
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+	return trace.Wrap(cmd.serveSink(ch))
 }
 
-func (cmd *command) GetRemoteShellCmd() (string, error) {
+// GetRemoteShellCmd returns a command line to copy
+// file(s) or a directory to a remote location
+func (cmd *command) GetRemoteShellCmd() (shellCmd string, err error) {
 	if cmd.RemoteLocation == "" {
 		return "", trace.BadParameter("missing remote file location")
 	}
 
-	// "impersonate" scp to a server
-	shellCmd := "/usr/bin/scp -f"
+	// "impersonate" SCP to a server
+	// See https://docstore.mik.ua/orelly/networking_2ndEd/ssh/ch03_08.htm, section "scp1 Details"
+	// about the hidden to/from switches
+	shellCmd = "/usr/bin/scp -f"
 	if cmd.Flags.Source {
 		shellCmd = "/usr/bin/scp -t"
 	}
@@ -227,6 +242,9 @@ func (cmd *command) GetRemoteShellCmd() (string, error) {
 	}
 	if cmd.Flags.DirectoryMode {
 		shellCmd += " -d"
+	}
+	if cmd.Flags.PreserveAttrs {
+		shellCmd += " -p"
 	}
 	shellCmd += (" " + cmd.RemoteLocation)
 
@@ -248,12 +266,13 @@ func (cmd *command) serveSource(ch io.ReadWriter) (retErr error) {
 	for i := range cmd.Flags.Target {
 		fileInfo, err := cmd.FileSystem.GetFileInfo(cmd.Flags.Target[i])
 		if err != nil {
-			err := trace.Errorf("could not access local path %q: %v", cmd.Flags.Target[i], err)
-			return trace.Wrap(err)
+			return trace.Errorf("could not access local path %q: %v", cmd.Flags.Target[i], err)
 		}
 		if fileInfo.IsDir() && !cmd.Flags.Recursive {
-			err := trace.Errorf("%v is a directory, perhaps try -r flag?", fileInfo.GetName())
-			return trace.Wrap(err)
+			// Note: using any other error constructor (e.g. BadParameter)
+			// might lead to relogin attempt and a completely obscure
+			// error message
+			return trace.Errorf("%v is a directory, use -r flag to copy recursively", fileInfo.GetName())
 		}
 		fileInfos[i] = fileInfo
 	}
@@ -276,18 +295,17 @@ func (cmd *command) serveSource(ch io.ReadWriter) (retErr error) {
 		}
 	}
 
-	cmd.log.Debugf("send completed")
+	cmd.log.Debug("Send completed.")
 	return nil
 }
 
 func (cmd *command) sendDir(r *reader, ch io.ReadWriter, fileInfo FileInfo) error {
-	out := fmt.Sprintf("D%04o 0 %s\n", fileInfo.GetModePerm(), fileInfo.GetName())
-	cmd.log.Debugf("sendDir: %v", out)
-	_, err := io.WriteString(ch, out)
-	if err != nil {
-		return trace.Wrap(err)
+	if cmd.Config.Flags.PreserveAttrs {
+		if err := cmd.sendFileTimes(r, ch, fileInfo); err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	if err := r.read(); err != nil {
+	if err := cmd.sendDirMode(r, ch, fileInfo); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -323,23 +341,15 @@ func (cmd *command) sendFile(r *reader, ch io.ReadWriter, fileInfo FileInfo) err
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	defer reader.Close()
 
-	out := fmt.Sprintf("C%04o %d %s\n", fileInfo.GetModePerm(), fileInfo.GetSize(), fileInfo.GetName())
-
-	// report progress:
-	if cmd.ProgressWriter != nil {
-		statusMessage := fmt.Sprintf("-> %s (%d)", fileInfo.GetPath(), fileInfo.GetSize())
-		defer fmt.Fprintf(cmd.ProgressWriter, utils.EscapeControl(statusMessage)+"\n")
+	if cmd.Config.Flags.PreserveAttrs {
+		if err := cmd.sendFileTimes(r, ch, fileInfo); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	_, err = io.WriteString(ch, out)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := r.read(); err != nil {
+	if err := cmd.sendFileMode(r, ch, fileInfo); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -348,8 +358,13 @@ func (cmd *command) sendFile(r *reader, ch io.ReadWriter, fileInfo FileInfo) err
 		return trace.Wrap(err)
 	}
 	if n != fileInfo.GetSize() {
-		err := fmt.Errorf("short write: %v %v", n, fileInfo.GetSize())
-		return trace.Wrap(err)
+		return trace.Errorf("short write: written %v, expected %v", n, fileInfo.GetSize())
+	}
+
+	// report progress:
+	if cmd.ProgressWriter != nil {
+		statusMessage := fmt.Sprintf("-> %s (%d)", fileInfo.GetPath(), fileInfo.GetSize())
+		defer fmt.Fprintf(cmd.ProgressWriter, utils.EscapeControl(statusMessage)+"\n")
 	}
 	if err := sendOK(ch); err != nil {
 		return trace.Wrap(err)
@@ -360,18 +375,18 @@ func (cmd *command) sendFile(r *reader, ch io.ReadWriter, fileInfo FileInfo) err
 func (cmd *command) sendErr(ch io.Writer, err error) {
 	out := fmt.Sprintf("%c%s\n", byte(ErrByte), err)
 	if _, err := ch.Write([]byte(out)); err != nil {
-		log.Debugf("failed sending SCP error message to the remote side: %v", err)
+		cmd.log.Debugf("failed sending SCP error message to the remote side: %v", err)
 	}
 }
 
 // serveSink executes file uploading, when a remote server sends file(s)
-// via scp
+// via SCP
 func (cmd *command) serveSink(ch io.ReadWriter) error {
 	// Validate that if directory mode flag was sent, the target is an actual
 	// directory.
 	if cmd.Flags.DirectoryMode {
 		if len(cmd.Flags.Target) != 1 {
-			return trace.BadParameter("in directory mode, only single upload target is allowed, %v provided", len(cmd.Flags.Target))
+			return trace.BadParameter("in directory mode, only single upload target is allowed but %v provided", len(cmd.Flags.Target))
 		}
 
 		fi, err := os.Stat(cmd.Flags.Target[0])
@@ -387,7 +402,7 @@ func (cmd *command) serveSink(ch io.ReadWriter) error {
 		return trace.Wrap(err)
 	}
 	var st state
-	st.path = []string{"."}
+	st.path = localDir
 	var b = make([]byte, 1)
 	scanner := bufio.NewScanner(ch)
 	for {
@@ -421,11 +436,9 @@ func (cmd *command) serveSink(ch io.ReadWriter) error {
 }
 
 func (cmd *command) processCommand(ch io.ReadWriter, st *state, b byte, line string) error {
-	cmd.log.Debugf("[SCP] <- %v %v", string(b), line)
+	cmd.log.Debugf("<- %v %v", string(b), line)
 	switch b {
-	case WarnByte:
-		return trace.Errorf("error from sender: %q", line)
-	case ErrByte:
+	case WarnByte, ErrByte:
 		return trace.Errorf("error from sender: %q", line)
 	case 'C':
 		f, err := parseNewFile(line)
@@ -447,39 +460,43 @@ func (cmd *command) processCommand(ch io.ReadWriter, st *state, b byte, line str
 		}
 		return nil
 	case 'E':
-		return st.pop()
+		if len(st.path) == 0 {
+			return trace.Errorf("empty path")
+		}
+		return cmd.updateDirTimes(st.pop())
 	case 'T':
-		_, err := parseMtime(line)
+		stat, err := parseFileTimes(line)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		st.stat = stat
+		return nil
 	}
 	return trace.Errorf("got unrecognized command: %v", string(b))
 }
 
 func (cmd *command) receiveFile(st *state, fc newFileCmd, ch io.ReadWriter) error {
-	cmd.log.Debugf("scp.receiveFile(%v)", cmd.Flags.Target)
+	cmd.log.Debugf("scp.receiveFile(%v): %v", cmd.Flags.Target, fc.Name)
 
-	// if the dest path is a folder, we should save the file to that folder, but
-	// only if is 'recursive' is set
+	// if the destination path is a folder, we should save the file to that folder, but
+	// only if 'recursive' is set
 
 	path := cmd.Flags.Target[0]
 	if cmd.Flags.Recursive || cmd.FileSystem.IsDir(path) {
-		path = st.makePath(path, fc.Name)
+		path = st.makePath(fc.Name)
 	}
 
 	writer, err := cmd.FileSystem.CreateFile(path, fc.Length)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer writer.Close()
 
 	// report progress:
 	if cmd.ProgressWriter != nil {
 		statusMessage := fmt.Sprintf("<- %s (%d)", path, fc.Length)
 		defer fmt.Fprintf(cmd.ProgressWriter, utils.EscapeControl(statusMessage)+"\n")
 	}
-
-	defer writer.Close()
 
 	if err = sendOK(ch); err != nil {
 		return trace.Wrap(err)
@@ -495,28 +512,90 @@ func (cmd *command) receiveFile(st *state, fc newFileCmd, ch io.ReadWriter) erro
 		return trace.Errorf("unexpected file copy length: %v", n)
 	}
 
-	if err := cmd.FileSystem.SetChmod(path, int(fc.Mode)); err != nil {
+	if err := cmd.FileSystem.Chmod(path, int(fc.Mode)); err != nil {
 		return trace.Wrap(err)
 	}
+	if st.stat != nil {
+		err = cmd.FileSystem.Chtimes(path, st.stat.Atime, st.stat.Mtime)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
 
-	cmd.log.Debugf("file %v(%v) copied to %v", fc.Name, fc.Length, path)
+	cmd.log.Debugf("File %v(%v) copied to %v.", fc.Name, fc.Length, path)
 	return nil
 }
 
 func (cmd *command) receiveDir(st *state, fc newFileCmd, ch io.ReadWriter) error {
+	cmd.log.Debugf("scp.receiveDir(%v): %v", cmd.Flags.Target, fc.Name)
 	targetDir := cmd.Flags.Target[0]
 
 	// copying into an existing directory? append to it:
 	if cmd.FileSystem.IsDir(targetDir) {
-		targetDir = st.makePath(targetDir, fc.Name)
-		st.push(fc.Name)
+		targetDir = st.makePath(fc.Name)
 	}
+	st.push(fc.Name, st.stat)
 
 	err := cmd.FileSystem.MkDir(targetDir, int(fc.Mode))
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.ConvertSystemError(err)
 	}
 
+	return nil
+}
+
+func (cmd *command) sendDirMode(r *reader, ch io.Writer, fileInfo FileInfo) error {
+	out := fmt.Sprintf("D%04o 0 %s\n", fileInfo.GetModePerm(), fileInfo.GetName())
+	cmd.log.WithField("cmd", out).Debug("Send directory mode.")
+	_, err := io.WriteString(ch, out)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(r.read())
+}
+
+func (cmd *command) sendFileTimes(r *reader, ch io.Writer, fileInfo FileInfo) error {
+	// OpenSSH handles nanoseconds to a certain precision
+	// which is not sufficient to keep the exact timestamps:
+	// See these for details:
+	// https://github.com/openssh/openssh-portable/blob/279261e1ea8150c7c64ab5fe7cb4a4ea17acbb29/scp.c#L619-L621
+	// https://github.com/openssh/openssh-portable/blob/279261e1ea8150c7c64ab5fe7cb4a4ea17acbb29/scp.c#L1332
+	// https://github.com/openssh/openssh-portable/blob/279261e1ea8150c7c64ab5fe7cb4a4ea17acbb29/scp.c#L1344
+	//
+	// Se we copy its behavior and drop nanoseconds entirely
+	out := fmt.Sprintf("T%d 0 %d 0\n",
+		fileInfo.GetModTime().Unix(),
+		fileInfo.GetAccessTime().Unix(),
+	)
+	cmd.log.WithField("cmd", out).Debug("Send file times.")
+	_, err := io.WriteString(ch, out)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(r.read())
+}
+
+func (cmd *command) sendFileMode(r *reader, ch io.Writer, fileInfo FileInfo) error {
+	out := fmt.Sprintf("C%04o %d %s\n",
+		fileInfo.GetModePerm(),
+		fileInfo.GetSize(),
+		fileInfo.GetName(),
+	)
+	cmd.log.WithField("cmd", out).Debug("Send file mode.")
+	_, err := io.WriteString(ch, out)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(r.read())
+}
+
+func (cmd *command) updateDirTimes(path pathSegments) error {
+	if stat := path[len(path)-1].stat; stat != nil {
+		err := cmd.FileSystem.Chtimes(path.join(), stat.Atime, stat.Mtime)
+		if err != nil {
+			return trace.ConvertSystemError(err)
+		}
+	}
 	return nil
 }
 
@@ -558,7 +637,13 @@ type mtimeCmd struct {
 	Atime time.Time
 }
 
-func parseMtime(line string) (*mtimeCmd, error) {
+// parseFileTimes parses the input with access/modification file times:
+//
+// T<mtime.sec> <mtime.usec> <atime.sec> <atime.usec>
+//
+// Note that the leading 'T' will not be part of the input as it has already
+// been seen and removed
+func parseFileTimes(line string) (*mtimeCmd, error) {
 	parts := strings.SplitN(line, " ", 4)
 	if len(parts) != 4 {
 		return nil, trace.Errorf("broken mtime command")
@@ -585,28 +670,47 @@ func sendOK(ch io.ReadWriter) error {
 }
 
 type state struct {
-	path     []string
-	finished bool
+	path pathSegments
+	// stat optionally specifies access/modification time for the current file/directory
+	stat *mtimeCmd
 }
 
-func (st *state) push(dir string) {
-	st.path = append(st.path, dir)
-}
-
-func (st *state) pop() error {
-	if st.finished {
-		return trace.Errorf("empty path")
+func (r pathSegments) join() string {
+	path := make([]string, 0, len(r))
+	for _, s := range r {
+		path = append(path, s.dir)
 	}
+	return filepath.Join(path...)
+}
+
+var localDir = pathSegments{{dir: "."}}
+
+type pathSegments []pathSegment
+
+type pathSegment struct {
+	dir string
+	// stat optionally specifies access/modification time for the directory
+	stat *mtimeCmd
+}
+
+func (st *state) push(dir string, stat *mtimeCmd) {
+	st.path = append(st.path, pathSegment{dir: dir, stat: stat})
+}
+
+// pop removes the last segment from the current path.
+// Returns the old path as a result
+func (st *state) pop() pathSegments {
 	if len(st.path) == 0 {
-		st.finished = true // allow extra 'E' command in the end
 		return nil
 	}
+	path := st.path
 	st.path = st.path[:len(st.path)-1]
-	return nil
+	st.stat = nil
+	return path
 }
 
-func (st *state) makePath(target, filename string) string {
-	return filepath.Join(target, filepath.Join(st.path...), filename)
+func (st *state) makePath(filename string) string {
+	return filepath.Join(st.path.join(), filename)
 }
 
 func newReader(r io.Reader) *reader {
@@ -664,31 +768,41 @@ var reSCP = regexp.MustCompile(
 		`(?:[^@\[\:\]]+)` +
 		`)` +
 		// after colon, there is a path that could consist technically of
-		// any char
-		`:(?P<path>.+)`,
+		// any char including empty which stands for the implicit home directory
+		`:(?P<path>.*)`,
 )
 
-// Destination is scp destination to copy to or from
+// Destination is SCP destination to copy to or from
 type Destination struct {
 	// Login is an optional login username
 	Login string
 	// Host is a host to copy to/from
 	Host utils.NetAddr
-	// Path is a path to copy to/from
+	// Path is a path to copy to/from.
+	// An empty path name is valid, and it refers to the user's default directory (usually
+	// the user's home directory).
+	// See https://tools.ietf.org/html/draft-ietf-secsh-filexfer-09#page-14, 'File Names'
 	Path string
 }
 
 // ParseSCPDestination takes a string representing a remote resource for SCP
-// to download/upload, like "user@host:/path/to/resource.txt" and returns
-// 3 components of it
+// to download/upload, like "user@host:/path/to/resource.txt" and parses it into
+// a structured form.
+//
+// See https://tools.ietf.org/html/draft-ietf-secsh-filexfer-09#page-14, 'File Names'
+// section about details on file names.
 func ParseSCPDestination(s string) (*Destination, error) {
 	out := reSCP.FindStringSubmatch(s)
-	if len(out) == 0 {
+	if len(out) < 4 {
 		return nil, trace.BadParameter("failed to parse %q, try form user@host:/path", s)
 	}
 	addr, err := utils.ParseAddr(out[2])
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &Destination{Login: out[1], Host: *addr, Path: out[3]}, nil
+	path := out[3]
+	if path == "" {
+		path = "."
+	}
+	return &Destination{Login: out[1], Host: *addr, Path: path}, nil
 }

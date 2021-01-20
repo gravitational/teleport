@@ -1,5 +1,5 @@
 /*
-Copyright 2017-2020 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,181 +13,72 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package services
 
 import (
-	"fmt"
+	"testing"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"gopkg.in/check.v1"
+	"github.com/coreos/go-oidc/jose"
+	"github.com/stretchr/testify/require"
 )
 
-type OIDCSuite struct{}
+// Verify that an OIDC connector with no mappings produces no roles.
+func TestOIDCRoleMappingEmpty(t *testing.T) {
+	// create a connector
+	oidcConnector := NewOIDCConnector("example", OIDCConnectorSpecV2{
+		IssuerURL:    "https://www.exmaple.com",
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
+		Display:      "sign in with example.com",
+		Scope:        []string{"foo", "bar"},
+	})
 
-var _ = check.Suite(&OIDCSuite{})
-var _ = fmt.Printf
+	// create some claims
+	var claims = make(jose.Claims)
+	claims.Add("roles", "teleport-user")
+	claims.Add("email", "foo@example.com")
+	claims.Add("nickname", "foo")
+	claims.Add("full_name", "foo bar")
 
-func (s *OIDCSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests()
+	traits := OIDCClaimsToTraits(claims)
+	require.Len(t, traits, 4)
+
+	roles := TraitsToRoles(oidcConnector.GetTraitMappings(), traits)
+	require.Len(t, roles, 0)
 }
 
-func (s *OIDCSuite) TestUnmarshal(c *check.C) {
-	input := `
-      {
-        "kind": "oidc",
-        "version": "v2",
-        "metadata": {
-          "name": "google"
-        },
-        "spec": {
-          "issuer_url": "https://accounts.google.com",
-          "client_id": "id-from-google.apps.googleusercontent.com",
-          "client_secret": "secret-key-from-google",
-          "redirect_url": "https://localhost:3080/v1/webapi/oidc/callback",
-          "display": "whatever",
-          "scope": ["roles"],
-          "claims_to_roles": [{
-            "claim": "roles",
-            "value": "teleport-user",
-            "role_template": {
-              "kind": "role",
-              "version": "v2",
-              "metadata": {
-                "name": "{{index . \"email\"}}",
-                "namespace": "default"
-              },
-              "spec": {
-                "namespaces": ["default"],
-                "max_session_ttl": "90h0m0s",
-                "logins": ["{{index . \"nickname\"}}", "root"],
-                "node_labels": {
-                  "*": "*"
-                }
-              }
-            }
-          }]
-        }
-      }
-	`
+// TestOIDCRoleMapping verifies basic mapping from OIDC claims to roles.
+func TestOIDCRoleMapping(t *testing.T) {
+	// create a connector
+	oidcConnector := NewOIDCConnector("example", OIDCConnectorSpecV2{
+		IssuerURL:    "https://www.exmaple.com",
+		ClientID:     "example-client-id",
+		ClientSecret: "example-client-secret",
+		RedirectURL:  "https://localhost:3080/v1/webapi/oidc/callback",
+		Display:      "sign in with example.com",
+		Scope:        []string{"foo", "bar"},
+		ClaimsToRoles: []ClaimMapping{
+			{
+				Claim: "roles",
+				Value: "teleport-user",
+				Roles: []string{"user"},
+			},
+		},
+	})
 
-	oc, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
-	c.Assert(err, check.IsNil)
+	// create some claims
+	var claims = make(jose.Claims)
+	claims.Add("roles", "teleport-user")
+	claims.Add("email", "foo@example.com")
+	claims.Add("nickname", "foo")
+	claims.Add("full_name", "foo bar")
 
-	c.Assert(oc.GetName(), check.Equals, "google")
-	c.Assert(oc.GetIssuerURL(), check.Equals, "https://accounts.google.com")
-	c.Assert(oc.GetClientID(), check.Equals, "id-from-google.apps.googleusercontent.com")
-	c.Assert(oc.GetRedirectURL(), check.Equals, "https://localhost:3080/v1/webapi/oidc/callback")
-	c.Assert(oc.GetDisplay(), check.Equals, "whatever")
-	c.Assert(oc.GetPrompt(), check.Equals, teleport.OIDCPromptSelectAccount)
-}
+	traits := OIDCClaimsToTraits(claims)
+	require.Len(t, traits, 4)
 
-// TestUnmarshalEmptyPrompt makes sure that empty prompt value
-// that is set does not default to select_account
-func (s *OIDCSuite) TestUnmarshalEmptyPrompt(c *check.C) {
-	input := `
-      {
-        "kind": "oidc",
-        "version": "v2",
-        "metadata": {
-          "name": "google"
-        },
-        "spec": {
-          "issuer_url": "https://accounts.google.com",
-          "client_id": "id-from-google.apps.googleusercontent.com",
-          "client_secret": "secret-key-from-google",
-          "redirect_url": "https://localhost:3080/v1/webapi/oidc/callback",
-          "display": "whatever",
-          "scope": ["roles"],
-          "prompt": ""
-        }
-      }
-	`
-
-	oc, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
-	c.Assert(err, check.IsNil)
-
-	c.Assert(oc.GetName(), check.Equals, "google")
-	c.Assert(oc.GetIssuerURL(), check.Equals, "https://accounts.google.com")
-	c.Assert(oc.GetClientID(), check.Equals, "id-from-google.apps.googleusercontent.com")
-	c.Assert(oc.GetRedirectURL(), check.Equals, "https://localhost:3080/v1/webapi/oidc/callback")
-	c.Assert(oc.GetDisplay(), check.Equals, "whatever")
-	c.Assert(oc.GetPrompt(), check.Equals, "")
-}
-
-// TestUnmarshalPromptValue makes sure that prompt value is set properly
-func (s *OIDCSuite) TestUnmarshalPromptValue(c *check.C) {
-	input := `
-      {
-        "kind": "oidc",
-        "version": "v2",
-        "metadata": {
-          "name": "google"
-        },
-        "spec": {
-          "issuer_url": "https://accounts.google.com",
-          "client_id": "id-from-google.apps.googleusercontent.com",
-          "client_secret": "secret-key-from-google",
-          "redirect_url": "https://localhost:3080/v1/webapi/oidc/callback",
-          "display": "whatever",
-          "scope": ["roles"],
-          "prompt": "consent login"
-        }
-      }
-	`
-
-	oc, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
-	c.Assert(err, check.IsNil)
-
-	c.Assert(oc.GetName(), check.Equals, "google")
-	c.Assert(oc.GetIssuerURL(), check.Equals, "https://accounts.google.com")
-	c.Assert(oc.GetClientID(), check.Equals, "id-from-google.apps.googleusercontent.com")
-	c.Assert(oc.GetRedirectURL(), check.Equals, "https://localhost:3080/v1/webapi/oidc/callback")
-	c.Assert(oc.GetDisplay(), check.Equals, "whatever")
-	c.Assert(oc.GetPrompt(), check.Equals, "consent login")
-}
-
-func (s *OIDCSuite) TestUnmarshalInvalid(c *check.C) {
-	input := `
-      {
-        "kind": "oidc",
-        "version": "v2",
-        "metadata": {
-          "name": "google"
-        },
-        "spec": {
-          "issuer_url": "https://accounts.google.com",
-          "client_id": "id-from-google.apps.googleusercontent.com",
-          "client_secret": "secret-key-from-google",
-          "redirect_url": "https://localhost:3080/v1/webapi/oidc/callback",
-          "display": "whatever",
-          "scope": ["roles"],
-          "claims_to_roles": [{
-            "claim": "roles",
-            "value": "teleport-user",
-            "roles": [ "foo", "bar", "baz" ],
-            "role_template": {
-              "kind": "role",
-              "version": "v2",
-              "metadata": {
-                "name": "{{index . \"email\"}}",
-                "namespace": "default"
-              },
-              "spec": {
-                "namespaces": ["default"],
-                "max_session_ttl": "90h0m0s",
-                "logins": ["{{index . \"nickname\"}}", "root"],
-                "node_labels": {
-                  "*": "*"
-                }
-              }
-            }
-          }]
-        }
-      }
-	`
-
-	_, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
-	c.Assert(err, check.NotNil)
+	roles := TraitsToRoles(oidcConnector.GetTraitMappings(), traits)
+	require.Len(t, roles, 1)
+	require.Equal(t, "user", roles[0])
 }

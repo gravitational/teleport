@@ -20,6 +20,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -43,16 +44,26 @@ type Announcer interface {
 
 	// UpsertKubeService registers kubernetes presence, permanently if ttl is 0
 	// or for the specified duration with second resolution if it's >= 1 second
-	UpsertKubeService(s services.Server) error
+	UpsertKubeService(context.Context, services.Server) error
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
+
+	// UpsertAppServer adds an application server.
+	UpsertAppServer(context.Context, services.Server) (*services.KeepAlive, error)
+
+	// UpsertDatabaseServer registers a database proxy server.
+	UpsertDatabaseServer(context.Context, types.DatabaseServer) (*services.KeepAlive, error)
 }
 
 // ReadAccessPoint is an API interface implemented by a certificate authority (CA)
 type ReadAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
+
+	// NewWatcher returns a new event watcher.
+	NewWatcher(ctx context.Context, watch services.Watch) (services.Watcher, error)
+
 	// GetReverseTunnels returns  a list of reverse tunnels
 	GetReverseTunnels(opts ...services.MarshalOption) ([]services.ReverseTunnel, error)
 
@@ -101,8 +112,23 @@ type ReadAccessPoint interface {
 	// GetTunnelConnections returns tunnel connections for a given cluster
 	GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]services.TunnelConnection, error)
 
+	// GetAppServers gets all application servers.
+	GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]services.Server, error)
+
+	// GetAppSession gets an application web session.
+	GetAppSession(context.Context, services.GetAppSessionRequest) (services.WebSession, error)
+
+	// GetRemoteClusters returns a list of remote clusters
+	GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error)
+
+	// GetRemoteCluster returns a remote cluster by name
+	GetRemoteCluster(clusterName string) (services.RemoteCluster, error)
+
 	// GetKubeServices returns a list of kubernetes services registered in the cluster
-	GetKubeServices() ([]services.Server, error)
+	GetKubeServices(context.Context) ([]services.Server, error)
+
+	// GetDatabaseServers returns all registered database proxy servers.
+	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 }
 
 // AccessPoint is an API interface implemented by a certificate authority (CA)
@@ -245,8 +271,18 @@ func (w *Wrapper) DeleteSemaphore(ctx context.Context, filter services.Semaphore
 }
 
 // UpsertKubeService is part of auth.AccessPoint implementation
-func (w *Wrapper) UpsertKubeService(s services.Server) error {
-	return w.NoCache.UpsertKubeService(s)
+func (w *Wrapper) UpsertKubeService(ctx context.Context, s services.Server) error {
+	return w.NoCache.UpsertKubeService(ctx, s)
+}
+
+// UpsertAppServer adds an application server.
+func (w *Wrapper) UpsertAppServer(ctx context.Context, server services.Server) (*services.KeepAlive, error) {
+	return w.NoCache.UpsertAppServer(ctx, server)
+}
+
+// UpsertDatabaseServer registers a database proxy server.
+func (w *Wrapper) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*services.KeepAlive, error) {
+	return w.NoCache.UpsertDatabaseServer(ctx, server)
 }
 
 // NewCachingAcessPoint returns new caching access point using
@@ -257,3 +293,7 @@ type NewCachingAccessPoint func(clt ClientI, cacheName []string) (AccessPoint, e
 func NoCache(clt ClientI, cacheName []string) (AccessPoint, error) {
 	return clt, nil
 }
+
+// notImplementedMessage is the message to return for endpoints that are not
+// implemented. This is due to how service interfaces are used with Teleport.
+const notImplementedMessage = "not implemented: can only be called by auth locally"

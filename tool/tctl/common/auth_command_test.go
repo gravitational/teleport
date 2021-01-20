@@ -7,14 +7,17 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAuthSignKubeconfig(t *testing.T) {
@@ -38,14 +41,14 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ca := services.NewCertAuthority(
-		services.HostCA,
-		"example.com",
-		nil,
-		[][]byte{[]byte("SSH CA cert")},
-		nil,
-		services.CertAuthoritySpecV2_RSA_SHA2_512,
-	)
+	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:         services.HostCA,
+		ClusterName:  "example.com",
+		SigningKeys:  nil,
+		CheckingKeys: [][]byte{[]byte("SSH CA cert")},
+		Roles:        nil,
+		SigningAlg:   services.CertAuthoritySpecV2_RSA_SHA2_512,
+	})
 	ca.SetTLSKeyPairs([]services.TLSKeyPair{{Cert: []byte("TLS CA cert")}})
 
 	client := mockClient{
@@ -129,7 +132,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			ac: AuthCommand{
 				output:       filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat: identityfile.FormatKubernetes,
-				kubeCluster:  remoteCluster.GetMetadata().Name,
+				leafCluster:  remoteCluster.GetMetadata().Name,
 				config: &service.Config{Proxy: service.ProxyConfig{
 					Kube: service.KubeProxyConfig{
 						Enabled: false,
@@ -143,7 +146,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 			ac: AuthCommand{
 				output:       filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat: identityfile.FormatKubernetes,
-				kubeCluster:  "doesnotexist.example.com",
+				leafCluster:  "doesnotexist.example.com",
 				config: &service.Config{Proxy: service.ProxyConfig{
 					Kube: service.KubeProxyConfig{
 						Enabled: false,
@@ -194,9 +197,11 @@ type mockClient struct {
 
 	clusterName    services.ClusterName
 	userCerts      *proto.Certs
+	dbCerts        *proto.DatabaseCertResponse
 	cas            []services.CertAuthority
 	proxies        []services.Server
 	remoteClusters []services.RemoteCluster
+	kubeServices   []services.Server
 }
 
 func (c mockClient) GetClusterName(...services.MarshalOption) (services.ClusterName, error) {
@@ -213,4 +218,137 @@ func (c mockClient) GetProxies() ([]services.Server, error) {
 }
 func (c mockClient) GetRemoteClusters(opts ...services.MarshalOption) ([]services.RemoteCluster, error) {
 	return c.remoteClusters, nil
+}
+func (c mockClient) GetKubeServices(context.Context) ([]services.Server, error) {
+	return c.kubeServices, nil
+}
+func (c mockClient) GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+	return c.dbCerts, nil
+}
+
+func TestCheckKubeCluster(t *testing.T) {
+	const teleportCluster = "local-teleport"
+	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: teleportCluster,
+	})
+	require.NoError(t, err)
+	client := mockClient{
+		clusterName: clusterName,
+	}
+	tests := []struct {
+		desc               string
+		kubeCluster        string
+		leafCluster        string
+		outputFormat       identityfile.Format
+		registeredClusters []*services.KubernetesCluster
+		want               string
+		assertErr          require.ErrorAssertionFunc
+	}{
+		{
+			desc:         "non-k8s output format",
+			outputFormat: identityfile.FormatFile,
+			assertErr:    require.NoError,
+		},
+		{
+			desc:               "local cluster, valid kube cluster",
+			kubeCluster:        "foo",
+			leafCluster:        teleportCluster,
+			registeredClusters: []*services.KubernetesCluster{{Name: "foo"}},
+			outputFormat:       identityfile.FormatKubernetes,
+			want:               "foo",
+			assertErr:          require.NoError,
+		},
+		{
+			desc:               "local cluster, empty kube cluster",
+			kubeCluster:        "",
+			leafCluster:        teleportCluster,
+			registeredClusters: []*services.KubernetesCluster{{Name: "foo"}},
+			outputFormat:       identityfile.FormatKubernetes,
+			want:               "foo",
+			assertErr:          require.NoError,
+		},
+		{
+			desc:               "local cluster, empty kube cluster, no registered kube clusters",
+			kubeCluster:        "",
+			leafCluster:        teleportCluster,
+			registeredClusters: []*services.KubernetesCluster{},
+			outputFormat:       identityfile.FormatKubernetes,
+			want:               "",
+			assertErr:          require.NoError,
+		},
+		{
+			desc:               "local cluster, invalid kube cluster",
+			kubeCluster:        "bar",
+			leafCluster:        teleportCluster,
+			registeredClusters: []*services.KubernetesCluster{{Name: "foo"}},
+			outputFormat:       identityfile.FormatKubernetes,
+			assertErr:          require.Error,
+		},
+		{
+			desc:               "remote cluster, empty kube cluster",
+			kubeCluster:        "",
+			leafCluster:        "remote-teleport",
+			registeredClusters: []*services.KubernetesCluster{{Name: "foo"}},
+			outputFormat:       identityfile.FormatKubernetes,
+			want:               "",
+			assertErr:          require.NoError,
+		},
+		{
+			desc:               "remote cluster, non-empty kube cluster",
+			kubeCluster:        "bar",
+			leafCluster:        "remote-teleport",
+			registeredClusters: []*services.KubernetesCluster{{Name: "foo"}},
+			outputFormat:       identityfile.FormatKubernetes,
+			want:               "bar",
+			assertErr:          require.NoError,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			client.kubeServices = []services.Server{&services.ServerV2{
+				Spec: services.ServerSpecV2{
+					KubernetesClusters: tt.registeredClusters,
+				},
+			}}
+			a := &AuthCommand{
+				kubeCluster:  tt.kubeCluster,
+				leafCluster:  tt.leafCluster,
+				outputFormat: tt.outputFormat,
+			}
+			err := a.checkKubeCluster(client)
+			tt.assertErr(t, err)
+			require.Equal(t, tt.want, a.kubeCluster)
+		})
+	}
+}
+
+func TestGenerateDatabaseKeys(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	client := mockClient{
+		dbCerts: &proto.DatabaseCertResponse{
+			Cert: []byte("TLS cert"),
+			CACerts: [][]byte{
+				[]byte("CA cert"),
+			},
+		},
+	}
+
+	ac := AuthCommand{
+		output:       filepath.Join(tmpDir, "db"),
+		outputFormat: identityfile.FormatDatabase,
+		genHost:      "example.com",
+		genTTL:       time.Hour,
+	}
+
+	err := ac.GenerateAndSignKeys(client)
+	require.NoError(t, err)
+
+	certBytes, err := ioutil.ReadFile(ac.output + ".crt")
+	require.NoError(t, err)
+	require.Equal(t, client.dbCerts.Cert, certBytes, "certificates match")
+
+	caBytes, err := ioutil.ReadFile(ac.output + ".cas")
+	require.NoError(t, err)
+	require.Equal(t, client.dbCerts.CACerts[0], caBytes, "CA certificates match")
 }

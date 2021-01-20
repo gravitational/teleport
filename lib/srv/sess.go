@@ -126,12 +126,16 @@ func (s *SessionRegistry) Close() {
 func (s *SessionRegistry) emitSessionJoinEvent(ctx *ServerContext) {
 	sessionJoinEvent := &events.SessionJoin{
 		Metadata: events.Metadata{
-			Type: events.SessionJoinEvent,
-			Code: events.SessionJoinCode,
+			Type:        events.SessionJoinEvent,
+			Code:        events.SessionJoinCode,
+			ClusterName: ctx.ClusterName,
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
+			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 			ServerNamespace: s.srv.GetNamespace(),
+			ServerHostname:  s.srv.GetInfo().GetHostname(),
+			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 		},
 		SessionMetadata: events.SessionMetadata{
 			SessionID: string(ctx.session.id),
@@ -244,12 +248,16 @@ func (s *SessionRegistry) OpenExecSession(channel ssh.Channel, req *ssh.Request,
 func (s *SessionRegistry) emitSessionLeaveEvent(party *party) {
 	sessionLeaveEvent := &events.SessionLeave{
 		Metadata: events.Metadata{
-			Type: events.SessionLeaveEvent,
-			Code: events.SessionLeaveCode,
+			Type:        events.SessionLeaveEvent,
+			Code:        events.SessionLeaveCode,
+			ClusterName: party.ctx.ClusterName,
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        party.ctx.srv.HostUUID(),
+			ServerLabels:    party.ctx.srv.GetInfo().GetAllLabels(),
 			ServerNamespace: s.srv.GetNamespace(),
+			ServerHostname:  s.srv.GetInfo().GetHostname(),
+			ServerAddr:      party.ctx.ServerConn.LocalAddr().String(),
 		},
 		SessionMetadata: events.SessionMetadata{
 			SessionID: party.id.String(),
@@ -320,14 +328,16 @@ func (s *SessionRegistry) leaveSession(party *party) error {
 		// Emit a session.end event for this (interactive) session.
 		sessionEndEvent := &events.SessionEnd{
 			Metadata: events.Metadata{
-				Type: events.SessionEndEvent,
-				Code: events.SessionEndCode,
+				Type:        events.SessionEndEvent,
+				Code:        events.SessionEndCode,
+				ClusterName: party.ctx.ClusterName,
 			},
 			ServerMetadata: events.ServerMetadata{
 				ServerID:        party.ctx.srv.HostUUID(),
+				ServerLabels:    party.ctx.srv.GetInfo().GetAllLabels(),
 				ServerNamespace: s.srv.GetNamespace(),
 				ServerHostname:  s.srv.GetInfo().GetHostname(),
-				ServerAddr:      s.srv.GetInfo().GetAddr(),
+				ServerAddr:      party.ctx.ServerConn.LocalAddr().String(),
 			},
 			SessionMetadata: events.SessionMetadata{
 				SessionID: string(sess.id),
@@ -400,12 +410,16 @@ func (s *SessionRegistry) NotifyWinChange(params rsession.TerminalParams, ctx *S
 	// Build the resize event.
 	resizeEvent := &events.Resize{
 		Metadata: events.Metadata{
-			Type: events.ResizeEvent,
-			Code: events.TerminalResizeCode,
+			Type:        events.ResizeEvent,
+			Code:        events.TerminalResizeCode,
+			ClusterName: ctx.ClusterName,
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
+			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 			ServerNamespace: s.srv.GetNamespace(),
+			ServerHostname:  s.srv.GetInfo().GetHostname(),
+			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 		},
 		SessionMetadata: events.SessionMetadata{
 			SessionID: string(sid),
@@ -742,13 +756,15 @@ func (s *session) startInteractive(ch ssh.Channel, ctx *ServerContext) error {
 	// Emit "new session created" event for the interactive session.
 	sessionStartEvent := &events.SessionStart{
 		Metadata: events.Metadata{
-			Type: events.SessionStartEvent,
-			Code: events.SessionStartCode,
+			Type:        events.SessionStartEvent,
+			Code:        events.SessionStartCode,
+			ClusterName: ctx.ClusterName,
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
 			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 			ServerHostname:  ctx.srv.GetInfo().GetHostname(),
+			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 			ServerNamespace: ctx.srv.GetNamespace(),
 		},
 		SessionMetadata: events.SessionMetadata{
@@ -878,13 +894,15 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 	// Emit a session.start event for the exec session.
 	sessionStartEvent := &events.SessionStart{
 		Metadata: events.Metadata{
-			Type: events.SessionStartEvent,
-			Code: events.SessionStartCode,
+			Type:        events.SessionStartEvent,
+			Code:        events.SessionStartCode,
+			ClusterName: ctx.ClusterName,
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        ctx.srv.HostUUID(),
 			ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 			ServerHostname:  ctx.srv.GetInfo().GetHostname(),
+			ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 			ServerNamespace: ctx.srv.GetNamespace(),
 		},
 		SessionMetadata: events.SessionMetadata{
@@ -971,14 +989,16 @@ func (s *session) startExec(channel ssh.Channel, ctx *ServerContext) error {
 		// Emit a session.end event for this (exec) session.
 		sessionEndEvent := &events.SessionEnd{
 			Metadata: events.Metadata{
-				Type: events.SessionEndEvent,
-				Code: events.SessionEndCode,
+				Type:        events.SessionEndEvent,
+				Code:        events.SessionEndCode,
+				ClusterName: ctx.ClusterName,
 			},
 			ServerMetadata: events.ServerMetadata{
 				ServerID:        ctx.srv.HostUUID(),
+				ServerLabels:    ctx.srv.GetInfo().GetAllLabels(),
 				ServerNamespace: ctx.srv.GetNamespace(),
 				ServerHostname:  ctx.srv.GetInfo().GetHostname(),
-				ServerAddr:      ctx.srv.GetInfo().GetAddr(),
+				ServerAddr:      ctx.ServerConn.LocalAddr().String(),
 			},
 			SessionMetadata: events.SessionMetadata{
 				SessionID: string(s.id),
@@ -1041,7 +1061,7 @@ func (s *session) newStreamer(ctx *ServerContext) (events.Streamer, error) {
 	}
 	// TeeStreamer sends non-print and non disk events
 	// to the audit log in async mode, while buffering all
-	// events on disk for further upload at the end of the session
+	// events on disk for further upload at the end of the session.
 	return events.NewTeeStreamer(fileStreamer, ctx.srv), nil
 }
 

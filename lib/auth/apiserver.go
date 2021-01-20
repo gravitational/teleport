@@ -30,7 +30,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth/proto"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -140,8 +140,6 @@ func NewAPIServer(config *APIConfig) http.Handler {
 	srv.DELETE("/:version/tunnelconnections/:cluster/:conn", srv.withAuth(srv.deleteTunnelConnection))
 	srv.DELETE("/:version/tunnelconnections/:cluster", srv.withAuth(srv.deleteTunnelConnections))
 	srv.DELETE("/:version/tunnelconnections", srv.withAuth(srv.deleteAllTunnelConnections))
-	srv.POST("/:version/kube_services", srv.withAuth(srv.upsertKubeService))
-	srv.GET("/:version/kube_services", srv.withAuth(srv.getKubeServices))
 
 	// Server Credentials
 	srv.POST("/:version/server/credentials", srv.withAuth(srv.generateServerKeys))
@@ -324,7 +322,7 @@ type upsertServerRawReq struct {
 }
 
 // upsertServer is a common utility function
-func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
+func (s *APIServer) upsertServer(auth services.Presence, role teleport.Role, r *http.Request, p httprouter.Params) (interface{}, error) {
 	var req upsertServerRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -337,6 +335,8 @@ func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.Respon
 		kind = services.KindAuthServer
 	case teleport.RoleProxy:
 		kind = services.KindProxy
+	default:
+		return nil, trace.BadParameter("upsertServer with unknown role: %q", role)
 	}
 	server, err := services.GetServerMarshaler().UnmarshalServer(req.Server, kind)
 	if err != nil {
@@ -368,10 +368,6 @@ func (s *APIServer) upsertServer(auth ClientI, role teleport.Role, w http.Respon
 		if err := auth.UpsertProxy(server); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case teleport.RoleKube:
-		if err := auth.UpsertKubeService(server); err != nil {
-			return nil, trace.Wrap(err)
-		}
 	default:
 		return nil, trace.BadParameter("unknown server role %q", role)
 	}
@@ -384,7 +380,7 @@ func (s *APIServer) keepAliveNode(auth ClientI, w http.ResponseWriter, r *http.R
 	if err := httplib.ReadJSON(r, &handle); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.KeepAliveNode(r.Context(), handle); err != nil {
+	if err := auth.KeepAliveServer(r.Context(), handle); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -420,7 +416,7 @@ func (s *APIServer) upsertNodes(auth ClientI, w http.ResponseWriter, r *http.Req
 
 // upsertNode is called by remote SSH nodes when they ping back into the auth service
 func (s *APIServer) upsertNode(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return s.upsertServer(auth, teleport.RoleNode, w, r, p, version)
+	return s.upsertServer(auth, teleport.RoleNode, r, p)
 }
 
 // getNodes returns registered SSH nodes
@@ -477,7 +473,7 @@ func (s *APIServer) deleteNode(auth ClientI, w http.ResponseWriter, r *http.Requ
 
 // upsertProxy is called by remote SSH nodes when they ping back into the auth service
 func (s *APIServer) upsertProxy(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return s.upsertServer(auth, teleport.RoleProxy, w, r, p, version)
+	return s.upsertServer(auth, teleport.RoleProxy, r, p)
 }
 
 // getProxies returns registered proxies
@@ -513,7 +509,7 @@ func (s *APIServer) deleteProxy(auth ClientI, w http.ResponseWriter, r *http.Req
 
 // upsertAuthServer is called by remote Auth servers when they ping back into the auth service
 func (s *APIServer) upsertAuthServer(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return s.upsertServer(auth, teleport.RoleAuth, w, r, p, version)
+	return s.upsertServer(auth, teleport.RoleAuth, r, p)
 }
 
 // getAuthServers returns registered auth servers
@@ -602,7 +598,9 @@ func (s *APIServer) upsertTrustedCluster(auth ClientI, w http.ResponseWriter, r 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	if err := services.ValidateTrustedCluster(trustedCluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	out, err := auth.UpsertTrustedCluster(r.Context(), trustedCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -689,35 +687,11 @@ func (s *APIServer) deleteWebSession(auth ClientI, w http.ResponseWriter, r *htt
 	return message(fmt.Sprintf("session '%v' for user '%v' deleted", sid, user)), nil
 }
 
-// sessionV1 is a V1 style web session, used in legacy v1 API
-type sessionV1 struct {
-	// ID is a session ID
-	ID string `json:"id"`
-	// Username is a user this session belongs to
-	Username string `json:"username"`
-	// ExpiresAt is an optional expiry time, if set
-	// that means this web session and all derived web sessions
-	// can not continue after this time, used in OIDC use case
-	// when expiry is set by external identity provider, so user
-	// has to relogin (or later on we'd need to refresh the token)
-	ExpiresAt time.Time `json:"expires_at"`
-	// WS is a private keypair used for signing requests
-	WS services.WebSessionV1 `json:"web"`
-}
-
 func (s *APIServer) getWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	user, sid := p.ByName("user"), p.ByName("sid")
 	sess, err := auth.GetWebSessionInfo(user, sid)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if version == services.V1 {
-		return &sessionV1{
-			ID:        sess.GetName(),
-			Username:  sess.GetUser(),
-			ExpiresAt: sess.GetExpiryTime(),
-			WS:        *(sess.V1()),
-		}, nil
 	}
 	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
 }
@@ -771,7 +745,8 @@ func (s *APIServer) u2fSignRequest(auth ClientI, w http.ResponseWriter, r *http.
 }
 
 type createWebSessionReq struct {
-	PrevSessionID string `json:"prev_session_id"`
+	PrevSessionID   string `json:"prev_session_id"`
+	AccessRequestID string `json:"access_request_id"`
 }
 
 func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
@@ -781,7 +756,7 @@ func (s *APIServer) createWebSession(auth ClientI, w http.ResponseWriter, r *htt
 	}
 	user := p.ByName("user")
 	if req.PrevSessionID != "" {
-		sess, err := auth.ExtendWebSession(user, req.PrevSessionID)
+		sess, err := auth.ExtendWebSession(user, req.PrevSessionID, req.AccessRequestID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1064,6 +1039,9 @@ func (s *APIServer) upsertCertAuthority(auth ClientI, w http.ResponseWriter, r *
 	}
 	if req.TTL != 0 {
 		ca.SetTTL(s, req.TTL)
+	}
+	if err = services.ValidateCertAuthority(ca); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if err := auth.UpsertCertAuthority(ca); err != nil {
 		return nil, trace.Wrap(err)
@@ -2122,6 +2100,9 @@ func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err = services.ValidateRole(role); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	err = auth.UpsertRole(r.Context(), role)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2487,18 +2468,6 @@ func (s *APIServer) getServerID(r *http.Request) (string, error) {
 	// "192_168_1_1.<cluster-name>" so this code can't rely on it being
 	// uuid4 to account for clusters upgraded from older versions.
 	return strings.TrimSuffix(role.Username, "."+clusterName), nil
-}
-
-func (s *APIServer) upsertKubeService(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	return s.upsertServer(auth, teleport.RoleKube, w, r, p, version)
-}
-
-func (s *APIServer) getKubeServices(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
-	servers, err := auth.GetKubeServices()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return marshalServers(servers, version)
 }
 
 func message(msg string) map[string]interface{} {
