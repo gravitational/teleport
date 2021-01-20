@@ -283,6 +283,8 @@ func (r *EmptyResource) Expiry() time.Time {
 }
 
 // SetTTL sets TTL header using realtime clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
 func (r *EmptyResource) SetTTL(clock types.Clock, ttl time.Duration) {
 	r.Metadata.SetTTL(clock, ttl)
 }
