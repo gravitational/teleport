@@ -576,6 +576,6 @@ func hostCAFormat(ca services.CertAuthority, keyBytes []byte, client auth.Client
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	allowedLogins, _ := roles.CheckLoginDuration(defaults.MinCertDuration + time.Second)
+	allowedLogins, _ := roles.GetLoginsForTTL(defaults.MinCertDuration + time.Second)
 	return sshutils.MarshalAuthorizedHostsFormat(ca.GetClusterName(), keyBytes, allowedLogins)
 }

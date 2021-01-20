@@ -259,6 +259,62 @@ const (
 	Deny RoleConditionType = false
 )
 
+// ValidateRole parses validates the role, and sets default values.
+func ValidateRole(r Role) error {
+	if err := r.CheckAndSetDefaults(); err != nil {
+		return err
+	}
+
+	// if we find {{ or }} but the syntax is invalid, the role is invalid
+	for _, condition := range []RoleConditionType{Allow, Deny} {
+		for _, login := range r.GetLogins(condition) {
+			if strings.Contains(login, "{{") || strings.Contains(login, "}}") {
+				_, err := parse.NewExpression(login)
+				if err != nil {
+					return trace.BadParameter("invalid login found: %v", login)
+				}
+			}
+		}
+	}
+
+	rules := append(r.GetRules(types.Allow), r.GetRules(types.Deny)...)
+	for _, rule := range rules {
+		if err := validateRule(rule); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// validateRule parses the where and action fields to validate the rule.
+func validateRule(r Rule) error {
+	if len(r.Where) != 0 {
+		parser, err := NewWhereParser(&Context{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		_, err = parser.Parse(r.Where)
+		if err != nil {
+			return trace.BadParameter("could not parse 'where' rule: %q, error: %v", r.Where, err)
+		}
+	}
+
+	if len(r.Actions) != 0 {
+		parser, err := NewActionsParser(&Context{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for i, action := range r.Actions {
+			_, err = parser.Parse(action)
+			if err != nil {
+				return trace.BadParameter("could not parse action %v %q, error: %v", i, action, err)
+			}
+		}
+	}
+	return nil
+}
+
 // ApplyTraits applies the passed in traits to any variables within the role
 // and returns itself.
 func ApplyTraits(r Role, traits map[string][]string) Role {
@@ -1004,37 +1060,39 @@ func (set RoleSet) CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL boo
 // CheckLoginDuration checks if role set can login up to given duration and
 // returns a combined list of allowed logins.
 func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
-	logins := make(map[string]bool)
-	var matchedTTL bool
-	for _, role := range set {
-		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
-		if ttl <= maxSessionTTL && maxSessionTTL != 0 {
-			matchedTTL = true
-
-			for _, login := range role.GetLogins(Allow) {
-				logins[login] = true
-			}
-		}
-	}
+	logins, matchedTTL := set.GetLoginsForTTL(ttl)
 	if !matchedTTL {
 		return nil, trace.AccessDenied("this user cannot request a certificate for %v", ttl)
 	}
+
 	if len(logins) == 0 && !set.hasPossibleLogins() {
 		// user was deliberately configured to have no login capability,
 		// but ssh certificates must contain at least one valid principal.
 		// we add a single distinctive value which should be unique, and
 		// will never be a valid unix login (due to leading '-').
-		logins["-teleport-nologin-"+uuid.New()] = true
+		logins = []string{"-teleport-nologin-" + uuid.New()}
 	}
 
 	if len(logins) == 0 {
 		return nil, trace.AccessDenied("this user cannot create SSH sessions, has no allowed logins")
 	}
-	out := make([]string, 0, len(logins))
-	for login := range logins {
-		out = append(out, login)
+
+	return logins, nil
+}
+
+// GetLoginsForTTL collects all logins that are valid for the given TTL.  The matchedTTL
+// value indicates whether the TTL is within scope of *any* role.  This helps to distinguish
+// between TTLs which are categorically invalid, and TTLs which are theoretically valid
+// but happen to grant no logins.
+func (set RoleSet) GetLoginsForTTL(ttl time.Duration) (logins []string, matchedTTL bool) {
+	for _, role := range set {
+		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
+		if ttl <= maxSessionTTL && maxSessionTTL != 0 {
+			matchedTTL = true
+			logins = append(logins, role.GetLogins(Allow)...)
+		}
 	}
-	return out, nil
+	return utils.Deduplicate(logins), matchedTTL
 }
 
 // CheckAccessToRemoteCluster checks if a role has access to remote cluster. Deny rules are
@@ -1499,11 +1557,11 @@ func (set RoleSet) String() string {
 // namespace to the specified resource and verb.
 // silent controls whether the access violations are logged.
 func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
-	whereParser, err := GetWhereParserFn()(ctx)
+	whereParser, err := NewWhereParser(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	actionsParser, err := GetActionsParserFn()(ctx)
+	actionsParser, err := NewActionsParser(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

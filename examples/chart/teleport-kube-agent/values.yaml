@@ -22,7 +22,10 @@ insecureSkipProxyTLSVerify: false
 # If true, create & use Pod Security Policy resources
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/
 podSecurityPolicy:
-  enabled: false
+  enabled: true
+
+# Labels is a map of key values pairs about this cluster
+labels: {}
 
 ##################################################
 # Values that you shouldn't need to change.

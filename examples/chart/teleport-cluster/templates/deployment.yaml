@@ -26,14 +26,6 @@ spec:
         {{- if .Values.insecureSkipProxyTLSVerify }}
         - "--insecure"
         {{- end }}
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - all
-          readOnlyRootFilesystem: true
-          runAsNonRoot: true
-          runAsUser: 9807
         ports:
         - name: diag
           containerPort: 3000
@@ -53,21 +45,26 @@ spec:
           periodSeconds: 5 # poll health every 5s
           failureThreshold: 12 # consider agent unhealthy after 60s (12 * 5s)
         volumeMounts:
+{{- if .Values.enterprise }}
+        - mountPath: /var/lib/license
+          name: "license"
+          readOnly: true
+{{- end }}
         - mountPath: /etc/teleport
           name: "config"
-          readOnly: true
-        - mountPath: /etc/teleport-secrets
-          name: "auth-token"
           readOnly: true
         - mountPath: /var/lib/teleport
           name: "data"
       volumes:
+{{- if .Values.enterprise }}
+      - name: license
+        secret:
+          secretName: "license"
+{{- end }}
       - name: "config"
         configMap:
           name: {{ .Release.Name }}
-      - name: "auth-token"
-        secret:
-          secretName: {{ .Values.secretName }}
       - name: "data"
-        emptyDir: {}
-      serviceAccountName: {{ .Values.serviceAccountName }}
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}
+      serviceAccountName: {{ .Release.Name }}

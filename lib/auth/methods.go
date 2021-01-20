@@ -293,7 +293,7 @@ func AuthoritiesToTrustedCerts(authorities []services.CertAuthority) []TrustedCe
 		out[i] = TrustedCerts{
 			ClusterName:      ca.GetClusterName(),
 			HostCertificates: ca.GetCheckingKeys(),
-			TLSCertificates:  services.TLSCerts(ca),
+			TLSCertificates:  services.GetTLSCerts(ca),
 		}
 	}
 	return out
