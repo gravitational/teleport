@@ -29,8 +29,13 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/test"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/clientv3"
 	"gopkg.in/check.v1"
 )
@@ -117,10 +122,6 @@ func (s *EtcdSuite) TestExpiration(c *check.C) {
 	s.suite.Expiration(c)
 }
 
-func (s *EtcdSuite) TestKeepAlive(c *check.C) {
-	s.suite.KeepAlive(c)
-}
-
 func (s *EtcdSuite) TestEvents(c *check.C) {
 	s.suite.Events(c)
 }
@@ -203,6 +204,7 @@ func TestCompareAndSwapOversizedValue(t *testing.T) {
 		"etcd_max_client_msg_size_bytes": maxClientMsgSize,
 	})
 	require.NoError(t, err)
+	defer bk.Close()
 	prefix := test.MakePrefix()
 	// Explicitly exceed the message size
 	value := make([]byte, maxClientMsgSize+1)
@@ -214,6 +216,112 @@ func TestCompareAndSwapOversizedValue(t *testing.T) {
 	)
 	require.True(t, trace.IsLimitExceeded(err))
 	require.Regexp(t, ".*ResourceExhausted.*", err)
+}
+
+func TestKeepAlives(t *testing.T) {
+	bk := newBackend(t)
+	defer bk.Close()
+
+	watcher := bk.newWatcher(t, context.TODO())
+	defer watcher.Close()
+
+	expiresAt := addSeconds(bk.clock.Now(), 2)
+	item, lease := bk.addItem(t, context.TODO(), "key", "val1", expiresAt)
+
+	bk.clock.Advance(1 * time.Second)
+
+	// Move the expiration further in the future to avoid processing
+	// skew and ensure the item is available when we delete it.
+	// It does not affect the running time of the test
+	updatedAt := addSeconds(bk.clock.Now(), 60)
+	err := bk.KeepAlive(context.TODO(), lease, updatedAt)
+	require.NoError(t, err)
+
+	// Consider expiration timestamps with a skew (see below for an explanation)
+	compareExpires := cmp.FilterPath(func(p cmp.Path) bool {
+		return p.String() == "Item.Expires"
+	}, cmpopts.EquateApproxTime(1*time.Second))
+
+	// Since the backend translates absolute expiration timestamp to a TTL
+	// and collecting events takes arbitrary time, the expiration timestamps
+	// on the collected events might have a slight skew
+	events := collectEvents(t, watcher, 3)
+	require.Empty(t, cmp.Diff(events, []backend.Event{
+		{Type: backend.OpInit, Item: backend.Item{}},
+		{Type: backend.OpPut, Item: backend.Item{Key: bk.prefix("key"), Value: []byte("val1"), Expires: expiresAt}},
+		{Type: backend.OpPut, Item: backend.Item{Key: bk.prefix("key"), Value: []byte("val1"), Expires: updatedAt}},
+	}, cmpopts.IgnoreFields(backend.Item{}, "ID"), compareExpires))
+
+	err = bk.Delete(context.TODO(), item.Key)
+	require.NoError(t, err)
+
+	_, err = bk.Get(context.TODO(), item.Key)
+	require.IsType(t, trace.NotFound(""), err)
+
+	// keep alive on deleted or expired object should fail
+	err = bk.KeepAlive(context.TODO(), lease, updatedAt.Add(1*time.Second))
+	require.IsType(t, trace.NotFound(""), err)
+}
+
+func newBackend(t *testing.T) pack {
+	bk, err := New(context.Background(), backend.Params{
+		"peers":         []string{"https://127.0.0.1:2379"},
+		"prefix":        "/teleport",
+		"tls_key_file":  "../../../examples/etcd/certs/client-key.pem",
+		"tls_cert_file": "../../../examples/etcd/certs/client-cert.pem",
+		"tls_ca_file":   "../../../examples/etcd/certs/ca-cert.pem",
+		"dial_timeout":  500 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	clock := clockwork.NewFakeClock()
+	bk.clock = clock
+	return pack{
+		EtcdBackend: bk,
+		prefix:      test.MakePrefix(),
+		clock:       clock,
+	}
+}
+
+func (r pack) addItem(t *testing.T, ctx context.Context, key, value string, expires time.Time) (backend.Item, backend.Lease) {
+	item := backend.Item{
+		Key:     r.prefix(key),
+		Value:   []byte(value),
+		Expires: expires,
+	}
+	lease, err := r.Put(ctx, item)
+	require.NoError(t, err)
+	return item, *lease
+}
+
+func (r pack) newWatcher(t *testing.T, ctx context.Context) backend.Watcher {
+	watcher, err := r.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{r.prefix("")}})
+	require.NoError(t, err)
+	return watcher
+}
+
+type pack struct {
+	*EtcdBackend
+	prefix func(key string) []byte
+	clock  clockwork.FakeClock
+}
+
+func collectEvents(t *testing.T, w backend.Watcher, count int) (events []backend.Event) {
+	for i := 0; i < count; i++ {
+		select {
+		case e := <-w.Events():
+			events = append(events, e)
+		case <-w.Done():
+			t.Fatal("Watcher has unexpectedly closed.")
+		}
+	}
+	return events
+}
+
+// addSeconds adds seconds with a seconds precission
+// always rounding up to the next second,
+// because TTL engines are usually 1 second precision
+func addSeconds(now time.Time, seconds int64) time.Time {
+	return time.Unix(now.Unix()+seconds+1, 0)
 }
 
 func etcdTestEnabled() bool {
