@@ -18,10 +18,8 @@ package types
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
-
-	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/fixtures"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/check.v1"
@@ -33,10 +31,6 @@ type LicenseSuite struct {
 var _ = check.Suite(&LicenseSuite{})
 var _ = testing.Verbose
 var _ = fmt.Printf
-
-func (s *LicenseSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *LicenseSuite) TestUnmarshal(c *check.C) {
 	type testCase struct {
@@ -98,12 +92,16 @@ func (s *LicenseSuite) TestUnmarshal(c *check.C) {
 		out, err := UnmarshalLicense([]byte(tc.input))
 		if tc.err == nil {
 			c.Assert(err, check.IsNil, comment)
-			fixtures.DeepCompare(c, tc.expected, out)
+			if !reflect.DeepEqual(tc.expected, out) {
+				c.Fatalf("expected %v, but got %v", tc.expected, out)
+			}
 			data, err := MarshalLicense(out)
 			c.Assert(err, check.IsNil, comment)
 			out2, err := UnmarshalLicense(data)
 			c.Assert(err, check.IsNil, comment)
-			fixtures.DeepCompare(c, tc.expected, out2)
+			if !reflect.DeepEqual(tc.expected, out) {
+				c.Fatalf("expected %v, but got %v", tc.expected, out2)
+			}
 		} else {
 			c.Assert(err, check.FitsTypeOf, tc.err, comment)
 		}

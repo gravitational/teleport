@@ -43,6 +43,6 @@ var (
 	RoleDatabase       = types.RoleDatabase
 
 	LegacyClusterTokenType = types.LegacyClusterTokenType
-	NewRoles               = types.NewRoles
-	ParseRoles             = types.ParseRoles
+	NewRoles               = types.NewTeleportRoles
+	ParseRoles             = types.ParseTeleportRoles
 )

@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/gravitational/teleport/api/utils"
-
 	"gopkg.in/check.v1"
 )
 
@@ -32,10 +30,6 @@ var _ = fmt.Printf
 var _ = check.Suite(&WrappersSuite{})
 
 func TestWrappers(t *testing.T) { check.TestingT(t) }
-
-func (s *WrappersSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *WrappersSuite) TestUnmarshalBackwards(c *check.C) {
 	var traits Traits

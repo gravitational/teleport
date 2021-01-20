@@ -17,20 +17,12 @@ limitations under the License.
 package types
 
 import (
-	"testing"
-
-	"github.com/gravitational/teleport/api/utils"
-
 	check "gopkg.in/check.v1"
 )
 
 type GithubSuite struct{}
 
 var _ = check.Suite(&GithubSuite{})
-
-func (s *GithubSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *GithubSuite) TestUnmarshal(c *check.C) {
 	data := []byte(`{"kind": "github",

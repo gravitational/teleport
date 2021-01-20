@@ -18,7 +18,6 @@ package types
 
 import (
 	"fmt"
-	"net/url"
 	"time"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -350,12 +349,6 @@ func (o *OIDCConnectorV2) Check() error {
 	if o.Metadata.Name == constants.Local {
 		return trace.BadParameter("ID: invalid connector name %v is a reserved name", constants.Local)
 	}
-	if _, err := url.Parse(o.Spec.IssuerURL); err != nil {
-		return trace.BadParameter("IssuerURL: bad url: '%v'", o.Spec.IssuerURL)
-	}
-	if _, err := url.Parse(o.Spec.RedirectURL); err != nil {
-		return trace.BadParameter("RedirectURL: bad url: '%v'", o.Spec.RedirectURL)
-	}
 	if o.Spec.ClientID == "" {
 		return trace.BadParameter("ClientID: missing client id")
 	}
@@ -364,19 +357,6 @@ func (o *OIDCConnectorV2) Check() error {
 	for _, v := range o.Spec.ClaimsToRoles {
 		if len(v.Roles) == 0 {
 			return trace.BadParameter("add roles in claims_to_roles")
-		}
-	}
-
-	if o.Spec.GoogleServiceAccountURI != "" {
-		uri, err := utils.ParseSessionsURI(o.Spec.GoogleServiceAccountURI)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if uri.Scheme != constants.SchemeFile {
-			return trace.BadParameter("only %v:// scheme is supported for google_service_account_uri", constants.SchemeFile)
-		}
-		if o.Spec.GoogleAdminEmail == "" {
-			return trace.BadParameter("whenever google_service_account_uri is specified, google_admin_email should be set as well, read https://developers.google.com/identity/protocols/OAuth2ServiceAccount#delegatingauthority for more details")
 		}
 	}
 

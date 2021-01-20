@@ -18,15 +18,11 @@ limitations under the License.
 package utils
 
 import (
-	"io/ioutil"
 	"net/url"
-	"os"
 	"strings"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // ParseBool parses string as boolean value,
@@ -56,18 +52,4 @@ func ParseSessionsURI(in string) (*url.URL, error) {
 		u.Scheme = constants.SchemeFile
 	}
 	return u, nil
-}
-
-// InitLoggerForTests initializes the standard logger for tests with verbosity
-func InitLoggerForTests(verbose bool) {
-	logger := log.StandardLogger()
-	logger.ReplaceHooks(make(log.LevelHooks))
-	logger.SetFormatter(&trace.TextFormatter{})
-	logger.SetLevel(log.DebugLevel)
-	logger.SetOutput(os.Stderr)
-	if verbose {
-		return
-	}
-	logger.SetLevel(log.WarnLevel)
-	logger.SetOutput(ioutil.Discard)
 }

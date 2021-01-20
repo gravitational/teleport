@@ -61,11 +61,11 @@ const (
 	RoleDatabase TeleportRole = "Database"
 )
 
-// this constant exists for backwards compatibility reasons, needed to upgrade to 2.3
+// LegacyClusterTokenType exists for backwards compatibility reasons, needed to upgrade to 2.3
 const LegacyClusterTokenType TeleportRole = "Trustedcluster"
 
-// NewRoles return a list of roles from slice of strings
-func NewRoles(in []string) (TeleportRoles, error) {
+// NewTeleportRoles return a list of teleport roles from slice of strings
+func NewTeleportRoles(in []string) (TeleportRoles, error) {
 	var roles TeleportRoles
 	for _, val := range in {
 		roles = append(roles, TeleportRole(val))
@@ -73,9 +73,9 @@ func NewRoles(in []string) (TeleportRoles, error) {
 	return roles, roles.Check()
 }
 
-// ParseRoles takes a comma-separated list of roles and returns a slice
-// of roles, or an error if parsing failed
-func ParseRoles(str string) (TeleportRoles, error) {
+// ParseTeleportRoles takes a comma-separated list of roles and returns a slice
+// of teleport roles, or an error if parsing failed
+func ParseTeleportRoles(str string) (TeleportRoles, error) {
 	var roles TeleportRoles
 	for _, s := range strings.Split(str, ",") {
 		r := TeleportRole(strings.Title(strings.ToLower(strings.TrimSpace(s))))
@@ -84,7 +84,7 @@ func ParseRoles(str string) (TeleportRoles, error) {
 	return roles, roles.Check()
 }
 
-// Includes returns 'true' if a given list of roles includes a given role
+// Include returns 'true' if a given list of teleport roles includes a given role
 func (roles TeleportRoles) Include(role TeleportRole) bool {
 	for _, r := range roles {
 		if r == role {
@@ -94,7 +94,7 @@ func (roles TeleportRoles) Include(role TeleportRole) bool {
 	return false
 }
 
-// Slice returns roles as string slice
+// StringSlice returns teleport roles as string slice
 func (roles TeleportRoles) StringSlice() []string {
 	s := make([]string, 0)
 	for _, r := range roles {
@@ -103,7 +103,7 @@ func (roles TeleportRoles) StringSlice() []string {
 	return s
 }
 
-// asSet returns roles as set (map).
+// asSet returns teleport roles as set (map).
 func (roles TeleportRoles) asSet() map[TeleportRole]struct{} {
 	s := make(map[TeleportRole]struct{}, len(roles))
 	for _, r := range roles {
@@ -112,7 +112,7 @@ func (roles TeleportRoles) asSet() map[TeleportRole]struct{} {
 	return s
 }
 
-// Equals compares two sets of roles
+// Equals compares two sets of teleport roles
 func (roles TeleportRoles) Equals(other TeleportRoles) bool {
 	rs, os := roles.asSet(), other.asSet()
 	if len(rs) != len(os) {
@@ -126,7 +126,7 @@ func (roles TeleportRoles) Equals(other TeleportRoles) bool {
 	return true
 }
 
-// Check returns an error if the role set is incorrect (contains unknown roles)
+// Check returns an error if the teleport role set is incorrect (contains unknown roles)
 func (roles TeleportRoles) Check() error {
 	seen := make(map[TeleportRole]struct{})
 	for _, role := range roles {
@@ -141,12 +141,12 @@ func (roles TeleportRoles) Check() error {
 	return nil
 }
 
-// String returns comma separated string with roles
+// String returns comma separated string with teleport roles
 func (roles TeleportRoles) String() string {
 	return strings.Join(roles.StringSlice(), ",")
 }
 
-// Set sets the value of the role from string, used to integrate with CLI tools
+// Set sets the value of the teleport role from string, used to integrate with CLI tools
 func (r *TeleportRole) Set(v string) error {
 	val := TeleportRole(strings.Title(v))
 	if err := val.Check(); err != nil {
@@ -156,19 +156,19 @@ func (r *TeleportRole) Set(v string) error {
 	return nil
 }
 
-// String returns debug-friendly representation of this role.
+// String returns debug-friendly representation of this teleport role.
 func (r *TeleportRole) String() string {
-	switch string(*r) {
-	case string(RoleSignup):
+	switch *r {
+	case RoleSignup:
 		return "Password"
-	case string(RoleTrustedCluster), string(LegacyClusterTokenType):
+	case RoleTrustedCluster, LegacyClusterTokenType:
 		return "trusted_cluster"
 	default:
 		return fmt.Sprintf("%v", string(*r))
 	}
 }
 
-// Check checks if this a a valid role value, returns nil
+// Check checks if this a a valid teleport role value, returns nil
 // if it's ok, false otherwise
 func (r *TeleportRole) Check() error {
 	switch *r {

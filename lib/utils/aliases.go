@@ -59,7 +59,6 @@ var (
 
 // utils.go
 var (
-	ParseBool          = utils.ParseBool
-	ParseSessionsURI   = utils.ParseSessionsURI
-	InitLoggerForTests = utils.InitLoggerForTests
+	ParseBool        = utils.ParseBool
+	ParseSessionsURI = utils.ParseSessionsURI
 )

@@ -19,14 +19,12 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/stretchr/testify/require"
 )
 
 // TestOIDCUnmarshal tests unmarshal of OIDC connector
 func TestOIDCUnmarshal(t *testing.T) {
-	utils.InitLoggerForTests(testing.Verbose())
 	input := `
       {
         "kind": "oidc",

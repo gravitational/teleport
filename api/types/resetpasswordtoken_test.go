@@ -17,11 +17,8 @@ package types
 
 import (
 	"fmt"
-	"testing"
+	"reflect"
 	"time"
-
-	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/fixtures"
 
 	"gopkg.in/check.v1"
 )
@@ -30,10 +27,6 @@ type ResetPasswordTokenSuite struct{}
 
 var _ = check.Suite(&ResetPasswordTokenSuite{})
 var _ = fmt.Printf
-
-func (s *ResetPasswordTokenSuite) SetUpSuite(c *check.C) {
-	utils.InitLoggerForTests(testing.Verbose())
-}
 
 func (s *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {
 	created, err := time.Parse(time.RFC3339, "2020-01-14T18:52:39.523076855Z")
@@ -82,11 +75,15 @@ func (s *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {
 		comment := check.Commentf("test case %q", tc.description)
 		out, err := marshaler.Unmarshal([]byte(tc.input))
 		c.Assert(err, check.IsNil, comment)
-		fixtures.DeepCompare(c, tc.expected, out)
+		if !reflect.DeepEqual(tc.expected, out) {
+			c.Fatalf("expected %v, but got %v", tc.expected, out)
+		}
 		data, err := marshaler.Marshal(out)
 		c.Assert(err, check.IsNil, comment)
 		out2, err := marshaler.Unmarshal(data)
 		c.Assert(err, check.IsNil, comment)
-		fixtures.DeepCompare(c, tc.expected, out2)
+		if !reflect.DeepEqual(tc.expected, out2) {
+			c.Fatalf("expected %v, but got %v", tc.expected, out)
+		}
 	}
 }
