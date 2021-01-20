@@ -598,9 +598,9 @@ func GenerateSchedule(now time.Time, gracePeriod time.Duration) (*RotationSchedu
 		return nil, trace.BadParameter("invalid grace period %q, provide value > 0", gracePeriod)
 	}
 	return &RotationSchedule{
-		UpdateClients: now.UTC().Add(gracePeriod / 3).UTC(),
-		UpdateServers: now.UTC().Add((gracePeriod * 2) / 3).UTC(),
-		Standby:       now.UTC().Add(gracePeriod).UTC(),
+		UpdateClients: now.UTC().Add(gracePeriod / 3),
+		UpdateServers: now.UTC().Add((gracePeriod * 2) / 3),
+		Standby:       now.UTC().Add(gracePeriod),
 	}, nil
 }
 
