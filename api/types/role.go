@@ -28,7 +28,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
-	"github.com/vulcand/predicate"
 )
 
 // Role contains a set of permissions or settings
@@ -676,39 +675,6 @@ func (r *Rule) CheckAndSetDefaults() error {
 	}
 	if len(r.Verbs) == 0 {
 		return trace.BadParameter("missing verbs")
-	}
-	return nil
-}
-
-// MatchesWhere returns true if Where rule matches
-// Empty Where block always matches
-func (r *Rule) MatchesWhere(parser predicate.Parser) (bool, error) {
-	if r.Where == "" {
-		return true, nil
-	}
-	ifn, err := parser.Parse(r.Where)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	fn, ok := ifn.(predicate.BoolPredicate)
-	if !ok {
-		return false, trace.BadParameter("unsupported type: %T", ifn)
-	}
-	return fn(), nil
-}
-
-// ProcessActions processes actions specified for this rule
-func (r *Rule) ProcessActions(parser predicate.Parser) error {
-	for _, action := range r.Actions {
-		ifn, err := parser.Parse(action)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fn, ok := ifn.(predicate.BoolPredicate)
-		if !ok {
-			return trace.BadParameter("unsupported type: %T", ifn)
-		}
-		fn()
 	}
 	return nil
 }
