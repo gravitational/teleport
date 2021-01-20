@@ -1,5 +1,5 @@
 ---
-authors: Alexander Klizhentas (sasha@gravitational.com), Ben Arent (ben@gravitational.com)
+authors: Alexander Klizhentas (sasha@goteleport.com), Ben Arent (ben@goteleport.com)
 state: discussion
 ---
 
