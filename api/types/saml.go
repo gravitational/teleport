@@ -398,12 +398,7 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 	}
 	// Issuer and SSO can be automatically set later if EntityDescriptor is provided
 	if o.Spec.EntityDescriptorURL == "" && o.Spec.EntityDescriptor == "" {
-		if o.Spec.Issuer == "" {
-			return trace.BadParameter("no issuer or entityID set, either set issuer as a parameter or via entity_descriptor spec")
-		}
-		if o.Spec.SSO == "" {
-			return trace.BadParameter("no SSO set either explicitly or via entity_descriptor spec")
-		}
+		return trace.BadParameter("no entity_descriptor set, either provide entity_descriptor or entity_descriptor_url in spec")
 	}
 	// make sure claim mappings have either roles or a role template
 	for _, v := range o.Spec.AttributesToRoles {
