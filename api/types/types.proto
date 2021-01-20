@@ -1445,7 +1445,10 @@ message KubernetesCluster {
         [ (gogoproto.nullable) = false, (gogoproto.jsontag) = "dynamic_labels,omitempty" ];
 }
 
-// WebTokenV3 describes a web token
+// WebTokenV3 describes a web token. Web tokens are used as a transport to relay bearer tokens
+// to the client.
+// Initially bound to a web session, these have been factored out into a separate resource to
+// enable separate lifecycle management.
 message WebTokenV3 {
     option (gogoproto.goproto_stringer) = false;
     option (gogoproto.stringer) = false;

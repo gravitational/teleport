@@ -839,10 +839,11 @@ func (h *Handler) waitForWebSession(ctx context.Context, req proto.GetWebSession
 	matchEvent := func(event services.Event) (services.Resource, error) {
 		if event.Type == backend.OpPut &&
 			event.Resource.GetKind() == services.KindWebSession &&
+			event.Resource.GetSubKind() == services.KindWebSession &&
 			event.Resource.GetName() == req.SessionID {
 			return event.Resource, nil
 		}
-		return nil, trace.CompareFailed("not match")
+		return nil, trace.CompareFailed("no match")
 	}
 	_, err = local.WaitForEvent(ctx, watcher, local.EventMatcherFunc(matchEvent), h.clock)
 	if err != nil {
