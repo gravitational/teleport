@@ -189,15 +189,6 @@ type Event struct {
 	Item Item
 }
 
-func (r Item) String() string {
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "backend.Item(key=%s,value=%s,id=%v,lease=%v", r.Key, r.Value, r.ID, r.LeaseID)
-	if !r.Expires.IsZero() {
-		fmt.Fprint(&buf, ",expires=", r.Expires.String())
-	}
-	return buf.String()
-}
-
 // Item is a key value item
 type Item struct {
 	// Key is a key of the key value item

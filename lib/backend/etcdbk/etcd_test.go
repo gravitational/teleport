@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/base64"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -33,7 +34,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/etcd/clientv3"
@@ -222,11 +222,11 @@ func TestKeepAlives(t *testing.T) {
 	bk := newBackend(t)
 	defer bk.Close()
 
-	watcher := bk.newWatcher(t, context.TODO())
+	watcher := bk.newWatcher(context.TODO(), t)
 	defer watcher.Close()
 
 	expiresAt := addSeconds(bk.clock.Now(), 2)
-	item, lease := bk.addItem(t, context.TODO(), "key", "val1", expiresAt)
+	item, lease := bk.addItem(context.TODO(), t, "key", "val1", expiresAt)
 
 	bk.clock.Advance(1 * time.Second)
 
@@ -237,20 +237,15 @@ func TestKeepAlives(t *testing.T) {
 	err := bk.KeepAlive(context.TODO(), lease, updatedAt)
 	require.NoError(t, err)
 
-	// Consider expiration timestamps with a skew (see below for an explanation)
-	compareExpires := cmp.FilterPath(func(p cmp.Path) bool {
-		return p.String() == "Item.Expires"
-	}, cmpopts.EquateApproxTime(1*time.Second))
-
 	// Since the backend translates absolute expiration timestamp to a TTL
 	// and collecting events takes arbitrary time, the expiration timestamps
 	// on the collected events might have a slight skew
 	events := collectEvents(t, watcher, 3)
-	require.Empty(t, cmp.Diff(events, []backend.Event{
+	verifyEvents(t, events, []backend.Event{
 		{Type: backend.OpInit, Item: backend.Item{}},
 		{Type: backend.OpPut, Item: backend.Item{Key: bk.prefix("key"), Value: []byte("val1"), Expires: expiresAt}},
 		{Type: backend.OpPut, Item: backend.Item{Key: bk.prefix("key"), Value: []byte("val1"), Expires: updatedAt}},
-	}, cmpopts.IgnoreFields(backend.Item{}, "ID"), compareExpires))
+	})
 
 	err = bk.Delete(context.TODO(), item.Key)
 	require.NoError(t, err)
@@ -282,7 +277,7 @@ func newBackend(t *testing.T) pack {
 	}
 }
 
-func (r pack) addItem(t *testing.T, ctx context.Context, key, value string, expires time.Time) (backend.Item, backend.Lease) {
+func (r pack) addItem(ctx context.Context, t *testing.T, key, value string, expires time.Time) (backend.Item, backend.Lease) {
 	item := backend.Item{
 		Key:     r.prefix(key),
 		Value:   []byte(value),
@@ -293,7 +288,7 @@ func (r pack) addItem(t *testing.T, ctx context.Context, key, value string, expi
 	return item, *lease
 }
 
-func (r pack) newWatcher(t *testing.T, ctx context.Context) backend.Watcher {
+func (r pack) newWatcher(ctx context.Context, t *testing.T) backend.Watcher {
 	watcher, err := r.NewWatcher(ctx, backend.Watch{Prefixes: [][]byte{r.prefix("")}})
 	require.NoError(t, err)
 	return watcher
@@ -315,6 +310,51 @@ func collectEvents(t *testing.T, w backend.Watcher, count int) (events []backend
 		}
 	}
 	return events
+}
+
+func verifyEvents(t *testing.T, obtained, expected []backend.Event) {
+	verifyIDsIncreasing(t, obtained)
+	verifyIDsNoDuplicates(t, obtained)
+	verifyExpireTimestampsIncreasing(t, obtained, expected)
+}
+
+func verifyIDsIncreasing(t *testing.T, obtained []backend.Event) {
+	sorted := make([]backend.Event, len(obtained))
+	copy(sorted, obtained)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].Item.ID < sorted[j].Item.ID
+	})
+	require.Empty(t, cmp.Diff(obtained, sorted))
+}
+
+func verifyIDsNoDuplicates(t *testing.T, obtained []backend.Event) {
+	dedup := make(map[int64]struct{})
+	for _, event := range obtained {
+		dedup[event.Item.ID] = struct{}{}
+	}
+	var expectedIDs, obtainedIDs []int64
+	for id := range dedup {
+		expectedIDs = append(expectedIDs, id)
+	}
+	for _, event := range obtained {
+		obtainedIDs = append(obtainedIDs, event.Item.ID)
+	}
+	sort.Slice(expectedIDs, func(i, j int) bool {
+		return expectedIDs[i] < expectedIDs[j]
+	})
+	require.Empty(t, cmp.Diff(obtainedIDs, expectedIDs))
+}
+
+func verifyExpireTimestampsIncreasing(t *testing.T, obtained, expected []backend.Event) {
+	require.Len(t, obtained, len(expected))
+	for i := range expected {
+		if obtained[i].Item.Expires.After(expected[i].Item.Expires) {
+			t.Errorf("Expected %v >= %v",
+				obtained[i].Item.Expires,
+				expected[i].Item.Expires,
+			)
+		}
+	}
 }
 
 // addSeconds adds seconds with a seconds precission
