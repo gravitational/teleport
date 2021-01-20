@@ -96,12 +96,12 @@ func (r *RotateRequest) CheckAndSetDefaults(clock clockwork.Clock) error {
 	}
 	if r.Schedule == nil {
 		var err error
-		r.Schedule, err = services.GenerateSchedule(clock, *r.GracePeriod)
+		r.Schedule, err = services.GenerateSchedule(clock.Now(), *r.GracePeriod)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
-		if err := r.Schedule.CheckAndSetDefaults(clock); err != nil {
+		if err := r.Schedule.CheckAndSetDefaults(clock.Now()); err != nil {
 			return trace.Wrap(err)
 		}
 	}

@@ -308,8 +308,10 @@ func (o *SAMLConnectorV2) Expiry() time.Time {
 	return o.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using realtime clock
-func (o *SAMLConnectorV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (o *SAMLConnectorV2) SetTTL(clock Clock, ttl time.Duration) {
 	o.Metadata.SetTTL(clock, ttl)
 }
 
