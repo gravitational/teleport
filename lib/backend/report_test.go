@@ -33,8 +33,8 @@ func TestReporterTopRequestsLimit(t *testing.T) {
 		}
 		return int(count)
 	}
+	t.Cleanup(requests.Reset)
 
-	requests.Reset()
 	// At first, the metric should have no values.
 	require.Equal(t, 0, countTopRequests())
 
