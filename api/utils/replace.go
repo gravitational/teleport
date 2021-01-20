@@ -23,12 +23,6 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// ContainsExpansion returns true if value contains
-// expansion syntax, e.g. $1 or ${10}
-func ContainsExpansion(val string) bool {
-	return reExpansion.FindAllStringIndex(val, -1) != nil
-}
-
 // GlobToRegexp replaces glob-style standalone wildcard values
 // with real .* regexp-friendly values, does not modify regexp-compatible values,
 // quotes non-wildcard values
@@ -62,32 +56,4 @@ func ReplaceRegexp(expression string, replaceWith string, input string) (string,
 	return expr.ReplaceAllString(input, replaceWith), nil
 }
 
-// SliceMatchesRegex checks if input matches any of the expressions. The
-// match is always evaluated as a regex either an exact match or regexp.
-func SliceMatchesRegex(input string, expressions []string) (bool, error) {
-	for _, expression := range expressions {
-		if !strings.HasPrefix(expression, "^") || !strings.HasSuffix(expression, "$") {
-			// replace glob-style wildcards with regexp wildcards
-			// for plain strings, and quote all characters that could
-			// be interpreted in regular expression
-			expression = "^" + GlobToRegexp(expression) + "$"
-		}
-
-		expr, err := regexp.Compile(expression)
-		if err != nil {
-			return false, trace.BadParameter(err.Error())
-		}
-
-		// Since the expression is always surrounded by ^ and $ this is an exact
-		// match for either a a plain string (for example ^hello$) or for a regexp
-		// (for example ^hel*o$).
-		if expr.MatchString(input) {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
-
 var replaceWildcard = regexp.MustCompile(`(\\\*)`)
-var reExpansion = regexp.MustCompile(`\$[^\$]+`)

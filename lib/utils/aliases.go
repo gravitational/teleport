@@ -44,10 +44,8 @@ var (
 
 // regexp.go
 var (
-	ContainsExpansion = utils.ContainsExpansion
-	SliceMatchesRegex = utils.SliceMatchesRegex
-	ReplaceRegexp     = utils.ReplaceRegexp
-	GlobToRegexp      = utils.GlobToRegexp
+	ReplaceRegexp = utils.ReplaceRegexp
+	GlobToRegexp  = utils.GlobToRegexp
 )
 
 // time.go
