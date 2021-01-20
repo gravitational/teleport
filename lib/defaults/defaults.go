@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	"gopkg.in/square/go-jose.v2"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -627,7 +628,7 @@ const (
 	ApplicationTokenKeyType = "RSA"
 	// ApplicationTokenAlgorithm is the default algorithm used to sign
 	// application access tokens.
-	ApplicationTokenAlgorithm = defaults.ApplicationTokenAlgorithm
+	ApplicationTokenAlgorithm = jose.RS256
 )
 
 // WindowsOpenSSHNamedPipe is the address of the named pipe that the
