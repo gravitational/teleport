@@ -2017,7 +2017,7 @@ func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
 	}, true)
 	c.Assert(err, check.IsNil)
 
-	key, err := ca.JWTSigner(jwt.Config{Clock: s.clock})
+	key, err := services.GetJWTSigner(ca, s.clock)
 	c.Assert(err, check.IsNil)
 
 	var tests = []struct {
