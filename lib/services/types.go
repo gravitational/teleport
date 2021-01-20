@@ -154,7 +154,6 @@ type (
 )
 
 var (
-	NewJWTAuthority           = types.NewJWTAuthority
 	SetCertAuthorityMarshaler = types.SetCertAuthorityMarshaler
 	GetCertAuthorityMarshaler = types.GetCertAuthorityMarshaler
 	GenerateSchedule          = types.GenerateSchedule
@@ -279,31 +278,6 @@ var (
 
 	GetClaimNames      = types.GetClaimNames
 	OIDCClaimsToTraits = types.OIDCClaimsToTraits
-)
-
-// parser.go
-type (
-	RuleContext   = types.RuleContext
-	LogAction     = types.LogAction
-	Context       = types.Context
-	EmptyResource = types.EmptyResource
-)
-
-var (
-	ResourceNameExpr      = types.ResourceNameExpr
-	CertAuthorityTypeExpr = types.CertAuthorityTypeExpr
-
-	NewWhereParser     = types.NewWhereParser
-	GetStringMapValue  = types.GetStringMapValue
-	NewActionsParser   = types.NewActionsParser
-	NewLogActionFn     = types.NewLogActionFn
-	GetWhereParserFn   = types.GetWhereParserFn
-	SetWhereParserFn   = types.SetWhereParserFn
-	GetActionsParserFn = types.GetActionsParserFn
-	SetActionsParserFn = types.SetActionsParserFn
-
-	UserIdentifier     = types.UserIdentifier
-	ResourceIdentifier = types.ResourceIdentifier
 )
 
 // plugin_data.go

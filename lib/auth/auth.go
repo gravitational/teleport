@@ -1285,7 +1285,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		Key:        privateKeyPEM,
 		Cert:       hostSSHCert,
 		TLSCert:    hostTLSCert,
-		TLSCACerts: services.TLSCerts(ca),
+		TLSCACerts: services.GetTLSCerts(ca),
 		SSHCACerts: ca.GetCheckingKeys(),
 	}, nil
 }
