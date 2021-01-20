@@ -39,7 +39,7 @@ import (
 )
 
 // ValidateSAMLConnector validates the SAMLConnector and sets default values
-func ValidateSAMLConnector(sc SAMLConnector, clock clockwork.Clock) error {
+func ValidateSAMLConnector(sc SAMLConnector) error {
 	if err := sc.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -93,6 +93,10 @@ func ValidateSAMLConnector(sc SAMLConnector, clock clockwork.Clock) error {
 			Cert:       string(certPEM),
 		})
 	}
+
+	log.Debugf("[SAML] SSO: %v", sc.GetSSO())
+	log.Debugf("[SAML] Issuer: %v", sc.GetIssuer())
+	log.Debugf("[SAML] ACS: %v", sc.GetAssertionConsumerService())
 
 	return nil
 }
@@ -161,10 +165,6 @@ func GetSAMLServiceProvider(sc SAMLConnector, clock clockwork.Clock) (*saml2.SAM
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	log.Debugf("[SAML] SSO: %v", sc.GetSSO())
-	log.Debugf("[SAML] Issuer: %v", sc.GetIssuer())
-	log.Debugf("[SAML] ACS: %v", sc.GetAssertionConsumerService())
 
 	sp := &saml2.SAMLServiceProvider{
 		IdentityProviderSSOURL:         sc.GetSSO(),

@@ -418,7 +418,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 
 	connector, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(raw.Raw)
 	c.Assert(err, IsNil)
-	err = services.ValidateSAMLConnector(connector, clockwork.NewRealClock())
+	err = services.ValidateSAMLConnector(connector)
 	c.Assert(err, IsNil)
 
 	role, err := services.NewRole(connector.GetAttributesToRoles()[0].Roles[0], services.RoleSpecV3{

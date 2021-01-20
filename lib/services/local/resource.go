@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // CreateResources attempts to dynamically create the supplied resources.
@@ -377,7 +376,7 @@ func itemToOIDCConnector(item backend.Item) (services.OIDCConnector, error) {
 // itemFromSAMLConnector attempts to encode the supplied connector as an
 // instance of `backend.Item` suitable for storage.
 func itemFromSAMLConnector(connector services.SAMLConnector) (*backend.Item, error) {
-	if err := services.ValidateSAMLConnector(connector, clockwork.NewRealClock()); err != nil {
+	if err := services.ValidateSAMLConnector(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)
