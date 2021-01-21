@@ -14,10 +14,8 @@ ENV LANGUAGE="en_US.UTF-8" \
     LC_ALL="en_US.UTF-8" \
     LC_CTYPE="en_US.UTF-8"
 
-# The EPEL repo provides shellcheck.
-RUN yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
-    yum -y update && \
-    yum -y install bcc-devel curl gcc git glibc-devel make net-tools pam-devel ShellCheck tar tree zip && \
+RUN yum -y update && \
+    yum -y install bcc-devel curl gcc git glibc-devel make net-tools pam-devel tar tree zip && \
     yum -y clean all
 
 ARG UID
@@ -45,6 +43,11 @@ ENV GOPATH="/go" \
 RUN (curl -L https://github.com/golangci/golangci-lint/releases/download/v1.24.0/golangci-lint-1.24.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
      cp golangci-lint-1.24.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
      rm -r golangci-lint*)
+
+# Install shellcheck.
+RUN (curl -L https://github.com/koalaman/shellcheck/releases/download/v0.7.1/shellcheck-v0.7.1.$(go env GOOS).$(uname -m).tar.xz | tar -xJ && \
+     cp shellcheck-v0.7.1/shellcheck /bin/ && \
+     rm -r shellcheck*)
 
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/
