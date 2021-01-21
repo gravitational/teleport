@@ -38,7 +38,7 @@ type ConnectProfile struct {
 	User string
 	// Database is an optional database name.
 	Database string
-	// Insecure is whether to skip certificate validation.a
+	// Insecure is whether to skip certificate validation.
 	Insecure bool
 	// CACertPath is the CA certificate path.
 	CACertPath string
