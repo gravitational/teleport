@@ -107,5 +107,5 @@ require (
 replace (
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.0.3
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
-	github.com/iovisor/gobpf => github.com/gravitational/gobpf v0.0.1
+	github.com/iovisor/gobpf => github.com/gravitational/gobpf v0.0.2-0.20210111215708-6d954a21a7a0
 )

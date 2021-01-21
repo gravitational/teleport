@@ -15,10 +15,14 @@
 #include "_cgo_export.h"
 #include <stdio.h>
 #include <stdbool.h>
-#if __has_include(<bcc/bcc_common.h>)
-  #include <bcc/bcc_common.h>
+#ifdef __has_include
+  #if __has_include(<bcc/bcc_common.h>)
+    #include <bcc/bcc_common.h>
+  #else
+    #include <bcc/bpf_common.h>
+  #endif
 #else
-  #include <bcc/bpf_common.h>
+  #include <bcc/bcc_common.h>
 #endif
 #include <bcc/libbpf.h>
 #include <dlfcn.h>
@@ -138,7 +142,7 @@ int init_symlookup(void *handle) {
     symlookup[BPF_TABLE_NAME                 ] = dlsym(handle, "bpf_table_name");
     symlookup[BPF_UPDATE_ELEM                ] = dlsym(handle, "bpf_update_elem");
     symlookup[PERF_READER_FD                 ] = dlsym(handle, "perf_reader_fd");
-    symlookup[PERF_READER_POLL               ] = dlsym(handle, "perf_reader_poll");                    
+    symlookup[PERF_READER_POLL               ] = dlsym(handle, "perf_reader_poll");
 
     // Make sure all symbols were resolvable.
     int i;

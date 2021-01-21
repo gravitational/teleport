@@ -293,6 +293,8 @@ github.com/gravitational/go-oidc v0.0.3 h1:VKhztRfuXq5KVcAPAEagF2y9rjoNgEXvZ/5Ps
 github.com/gravitational/go-oidc v0.0.3/go.mod h1:SevmOUNdOB0aD9BAIgjptZ6oHkKxMZZgA70nwPfgU/w=
 github.com/gravitational/gobpf v0.0.1 h1:1NufkXUOOt/farCC4juGZ8FFU1qmA+2Zb4lPaVfUFoE=
 github.com/gravitational/gobpf v0.0.1/go.mod h1:464Ee3TMfw+IBUVWy7xyb4ud4nJkrU7RzE/GjhEGY+c=
+github.com/gravitational/gobpf v0.0.2-0.20210111215708-6d954a21a7a0 h1:lNnL1/89KN39HnnDBTuvQLDCFYMkQ13UGMi0kz0RWA0=
+github.com/gravitational/gobpf v0.0.2-0.20210111215708-6d954a21a7a0/go.mod h1:464Ee3TMfw+IBUVWy7xyb4ud4nJkrU7RzE/GjhEGY+c=
 github.com/gravitational/kingpin v2.1.11-0.20190130013101-742f2714c145+incompatible h1:CfyZl3nyo9K5lLqOmqvl9/IElY1UCnOWKZiQxJ8HKdA=
 github.com/gravitational/kingpin v2.1.11-0.20190130013101-742f2714c145+incompatible/go.mod h1:LWxG30M3FcrjhOn3T4zz7JmBoQJ45MWZmOXgy9Ganoc=
 github.com/gravitational/license v0.0.0-20180912170534-4f189e3bd6e3 h1:vy9WwUq3H7XCCkQzExIwxQNNTCYRGayyTHFcayL1KHg=
