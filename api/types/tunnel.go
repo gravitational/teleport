@@ -19,6 +19,7 @@ package types
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -179,33 +180,22 @@ func (r *ReverseTunnelV2) Check() error {
 	if strings.TrimSpace(r.Spec.ClusterName) == "" {
 		return trace.BadParameter("Reverse tunnel validation error: empty cluster name")
 	}
-
 	if len(r.Spec.DialAddrs) == 0 {
 		return trace.BadParameter("Invalid dial address for reverse tunnel '%v'", r.Spec.ClusterName)
 	}
-
+	for _, addr := range r.GetDialAddrs() {
+		if addr == "" {
+			return trace.BadParameter("missing parameter address")
+		}
+		if !strings.Contains(addr, "://") {
+			return nil
+		}
+		if _, err := url.Parse(addr); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
-
-// TunnelType is the type of tunnel.
-type TunnelType string
-
-const (
-	// NodeTunnel is a tunnel where the node connects to the proxy (dial back).
-	NodeTunnel TunnelType = "node"
-
-	// ProxyTunnel is a tunnel where a proxy connects to the proxy (trusted cluster).
-	ProxyTunnel TunnelType = "proxy"
-
-	// AppTunnel is a tunnel where the application proxy dials back to the proxy.
-	AppTunnel TunnelType = "app"
-
-	// KubeTunnel is a tunnel where the kubernetes service dials back to the proxy.
-	KubeTunnel TunnelType = "kube"
-
-	// DatabaseTunnel is a tunnel where a database proxy dials back to the proxy.
-	DatabaseTunnel TunnelType = "db"
-)
 
 // GetReverseTunnelSchema returns role schema with optionally injected
 // schema for extensions

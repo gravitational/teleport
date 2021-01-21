@@ -337,42 +337,6 @@ func (c *ClusterConfigV3) String() string {
 		c.Spec.SessionRecording, c.Spec.ClusterID, c.Spec.ProxyChecksHostKeys)
 }
 
-const (
-	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.
-	RecordAtNode string = "node"
-
-	// RecordAtProxy enables the recording proxy which intercepts and records
-	// all sessions.
-	RecordAtProxy string = "proxy"
-
-	// RecordOff is used to disable session recording completely.
-	RecordOff string = "off"
-
-	// RecordAtNodeSync enables the nodes to stream sessions in sync mode
-	// to the auth server
-	RecordAtNodeSync string = "node-sync"
-
-	// RecordAtProxySync enables the recording proxy which intercepts and records
-	// all sessions, streams the records synchronously
-	RecordAtProxySync string = "proxy-sync"
-)
-
-const (
-	// HostKeyCheckYes is the default. The proxy will check the host key of the
-	// target node it connects to.
-	HostKeyCheckYes string = "yes"
-
-	// HostKeyCheckNo is used to disable host key checking. This is a insecure
-	// settings which makes MITM possible with no indications, use with caution.
-	HostKeyCheckNo string = "no"
-)
-
-// ShouldUploadSessions returns whether audit config
-// instructs server to upload sessions
-func (a AuditConfig) ShouldUploadSessions() bool {
-	return a.AuditSessionsURI != ""
-}
-
 // ClusterConfigSpecSchemaTemplate is a template for ClusterConfig schema.
 const ClusterConfigSpecSchemaTemplate = `{
   "type": "object",

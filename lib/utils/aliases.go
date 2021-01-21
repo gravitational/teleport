@@ -20,6 +20,9 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
+// The following util functions have been moved to /api/utils, and are now
+// imported here for backwards compatibility.
+
 // slices.go
 var (
 	CopyByteSlice     = utils.CopyByteSlice

@@ -18,7 +18,7 @@ package teleport
 
 import "github.com/gravitational/teleport/api/types"
 
-// The following types, functions, and constants have been moved to /api/types/roles.go,
+// The following types, functions, and constants have been moved to /api/types/teleport_roles.go,
 // and are now imported here for backwards compatibility. DELETE IN 7.0.0
 
 // Role identifies the role of an SSH connection. Unlike "user roles"

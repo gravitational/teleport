@@ -26,7 +26,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// AlgSigner // TODO: refactor ssh imports to remove this alias
+// AlgSigner has been moved to /api/utils, and is now
+// imported here for backwards compatibility. DELETE IN 7.0.0
 var AlgSigner = utils.AlgSigner
 
 // NewSigner returns new ssh Signer from private key + certificate pair.  The

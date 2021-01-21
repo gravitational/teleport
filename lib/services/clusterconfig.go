@@ -63,3 +63,9 @@ func IsRecordAtProxy(mode string) bool {
 func IsRecordSync(mode string) bool {
 	return mode == RecordAtProxySync || mode == RecordAtNodeSync
 }
+
+// ShouldUploadSessions returns whether audit config
+// instructs server to upload sessions
+func ShouldUploadSessions(a AuditConfig) bool {
+	return a.AuditSessionsURI != ""
+}
