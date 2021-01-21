@@ -17,7 +17,6 @@ package types
 
 import (
 	"fmt"
-	"reflect"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -75,15 +74,11 @@ func (s *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {
 		comment := check.Commentf("test case %q", tc.description)
 		out, err := marshaler.Unmarshal([]byte(tc.input))
 		c.Assert(err, check.IsNil, comment)
-		if !reflect.DeepEqual(tc.expected, out) {
-			c.Fatalf("expected %v, but got %v", tc.expected, out)
-		}
+		c.Assert(out, check.DeepEquals, tc.expected, check.Commentf(tc.description))
 		data, err := marshaler.Marshal(out)
 		c.Assert(err, check.IsNil, comment)
 		out2, err := marshaler.Unmarshal(data)
 		c.Assert(err, check.IsNil, comment)
-		if !reflect.DeepEqual(tc.expected, out2) {
-			c.Fatalf("expected %v, but got %v", tc.expected, out)
-		}
+		c.Assert(out2, check.DeepEquals, tc.expected, check.Commentf(tc.description))
 	}
 }

@@ -493,9 +493,9 @@ func applyValueTraits(val string, traits map[string][]string) ([]string, error) 
 	return interpolated, nil
 }
 
-// score is a sorting score of the rule, the larger the score, the more
+// ruleScore is a sorting score of the rule, the larger the score, the more
 // specific the rule is
-func scoreRule(r *Rule) int {
+func ruleScore(r *Rule) int {
 	score := 0
 	// wildcard rules are less specific
 	if utils.SliceContainsStr(r.Resources, Wildcard) {
@@ -534,7 +534,7 @@ func scoreRule(r *Rule) int {
 // * Rule that has actions list is more specific than
 // rule without actions list.
 func CompareRuleScore(r *Rule, o *Rule) bool {
-	return scoreRule(r) > scoreRule(o)
+	return ruleScore(r) > ruleScore(o)
 }
 
 // RuleSet maps resource to a set of rules defined for it

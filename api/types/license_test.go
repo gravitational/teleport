@@ -18,7 +18,6 @@ package types
 
 import (
 	"fmt"
-	"reflect"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -92,16 +91,12 @@ func (s *LicenseSuite) TestUnmarshal(c *check.C) {
 		out, err := UnmarshalLicense([]byte(tc.input))
 		if tc.err == nil {
 			c.Assert(err, check.IsNil, comment)
-			if !reflect.DeepEqual(tc.expected, out) {
-				c.Fatalf("expected %v, but got %v", tc.expected, out)
-			}
+			c.Assert(out, check.DeepEquals, tc.expected, check.Commentf(tc.description))
 			data, err := MarshalLicense(out)
 			c.Assert(err, check.IsNil, comment)
 			out2, err := UnmarshalLicense(data)
 			c.Assert(err, check.IsNil, comment)
-			if !reflect.DeepEqual(tc.expected, out) {
-				c.Fatalf("expected %v, but got %v", tc.expected, out2)
-			}
+			c.Assert(out2, check.DeepEquals, tc.expected, check.Commentf(tc.description))
 		} else {
 			c.Assert(err, check.FitsTypeOf, tc.err, comment)
 		}

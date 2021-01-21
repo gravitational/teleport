@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ const (
 	RoleTrustedCluster TeleportRole = "Trusted_cluster"
 	// RoleSignup is for first time signing up users
 	RoleSignup TeleportRole = "Signup"
-	// RoleNop is used for actions that already using external authz mechanisms
+	// RoleNop is used for actions that are already using external authz mechanisms
 	// e.g. tokens or passwords
 	RoleNop TeleportRole = "Nop"
 	// RoleRemoteProxy is a role for remote SSH proxy in the cluster
