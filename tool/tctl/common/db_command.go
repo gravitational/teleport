@@ -98,7 +98,7 @@ Fill out and run this command on a node to start proxying the database:
    --auth-server={{.auth_server}} \
    --db-name={{.db_name}} \
    --db-protocol={{.db_protocol}} \
-   --db-uri={{.db_uri}} 
+   --db-uri={{.db_uri}}
 
 Please note:
 
