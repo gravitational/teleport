@@ -91,12 +91,12 @@ func (s *LicenseSuite) TestUnmarshal(c *check.C) {
 		out, err := UnmarshalLicense([]byte(tc.input))
 		if tc.err == nil {
 			c.Assert(err, check.IsNil, comment)
-			c.Assert(out, check.DeepEquals, tc.expected, check.Commentf(tc.description))
+			c.Assert(out, check.DeepEquals, tc.expected, comment)
 			data, err := MarshalLicense(out)
 			c.Assert(err, check.IsNil, comment)
 			out2, err := UnmarshalLicense(data)
 			c.Assert(err, check.IsNil, comment)
-			c.Assert(out2, check.DeepEquals, tc.expected, check.Commentf(tc.description))
+			c.Assert(out2, check.DeepEquals, tc.expected, comment)
 		} else {
 			c.Assert(err, check.FitsTypeOf, tc.err, comment)
 		}

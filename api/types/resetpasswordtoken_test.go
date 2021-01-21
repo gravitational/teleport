@@ -74,11 +74,11 @@ func (s *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {
 		comment := check.Commentf("test case %q", tc.description)
 		out, err := marshaler.Unmarshal([]byte(tc.input))
 		c.Assert(err, check.IsNil, comment)
-		c.Assert(out, check.DeepEquals, tc.expected, check.Commentf(tc.description))
+		c.Assert(out, check.DeepEquals, tc.expected, comment)
 		data, err := marshaler.Marshal(out)
 		c.Assert(err, check.IsNil, comment)
 		out2, err := marshaler.Unmarshal(data)
 		c.Assert(err, check.IsNil, comment)
-		c.Assert(out2, check.DeepEquals, tc.expected, check.Commentf(tc.description))
+		c.Assert(out2, check.DeepEquals, tc.expected, comment)
 	}
 }
