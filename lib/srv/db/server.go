@@ -239,7 +239,7 @@ func (s *Server) getServerInfoFunc(server types.DatabaseServer) func() (services
 			}
 		}
 		// Update TTL.
-		server.SetTTL(s.cfg.Clock, defaults.ServerAnnounceTTL)
+		server.SetExpiry(s.cfg.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
 		// Make sure to return a new object, because it gets cached by
 		// heartbeat and will always compare as equal otherwise.
 		return server.Copy(), nil
