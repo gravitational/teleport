@@ -38,12 +38,6 @@ The resulting output will be in the `/packages/{package-name}/dist/` folders res
 
 ### Docker Build
 
-To build all packages
-
-```
-$ make all
-```
-
 To build the Teleport community version
 
 ```
