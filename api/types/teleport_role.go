@@ -58,7 +58,7 @@ const (
 	// RoleApp is a role for a app proxy in the cluster.
 	RoleApp TeleportRole = "App"
 	// RoleDatabase is a role for a database proxy in the cluster.
-	RoleDatabase TeleportRole = "Database"
+	RoleDatabase TeleportRole = "Db"
 )
 
 // LegacyClusterTokenType exists for backwards compatibility reasons, needed to upgrade to 2.3
