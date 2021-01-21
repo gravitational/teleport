@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package session
+package common
 
 import (
 	"fmt"
@@ -26,8 +26,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// Context combines parameters for a database connection session.
-type Context struct {
+// Session combines parameters for a database connection session.
+type Session struct {
 	// ID is the unique session ID.
 	ID string
 	// Server is the database server handling the connection.
@@ -47,7 +47,7 @@ type Context struct {
 }
 
 // String returns string representation of the session parameters.
-func (c *Context) String() string {
+func (c *Session) String() string {
 	return fmt.Sprintf("db[%v] identity[%v] dbUser[%v] dbName[%v]",
 		c.Server.GetName(), c.Identity.Username, c.DatabaseUser, c.DatabaseName)
 }
