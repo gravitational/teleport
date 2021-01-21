@@ -598,6 +598,8 @@ func onLogin(cf *CLIConf) {
 			}
 
 			if cf.PrintEnvironment {
+				fmt.Printf("--> here.\n")
+				fmt.Printf("%v=%v\n", proxyEnvVar, profile.ProxyURL.Hostname())
 				fmt.Printf("%v=%v\n", clusterEnvVar, cf.SiteName)
 			}
 			onStatus(cf)
