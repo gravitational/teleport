@@ -207,7 +207,7 @@ func NewInstance(cfg InstanceConfig) *TeleInstance {
 		TTL:                 24 * time.Hour,
 	})
 	fatalIf(err)
-	tlsCA, err := tlsca.New(tlsCACert, tlsCAKey)
+	tlsCA, err := tlsca.FromKeys(tlsCACert, tlsCAKey)
 	fatalIf(err)
 	cryptoPubKey, err := sshutils.CryptoPublicKey(cfg.Pub)
 	fatalIf(err)

@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gogo/protobuf/proto"
@@ -78,8 +77,6 @@ type CertAuthority interface {
 	Signers() ([]ssh.Signer, error)
 	// String returns human readable version of the CertAuthority
 	String() string
-	// TLSCA returns first TLS certificate authority from the list of key pairs
-	TLSCA() (*tlsca.CertAuthority, error)
 	// SetTLSKeyPairs sets TLS key pairs
 	SetTLSKeyPairs(keyPairs []TLSKeyPair)
 	// GetTLSKeyPairs returns first PEM encoded TLS cert
@@ -166,14 +163,6 @@ func (ca *CertAuthorityV2) GetRotation() Rotation {
 // SetRotation sets rotation state.
 func (ca *CertAuthorityV2) SetRotation(r Rotation) {
 	ca.Spec.Rotation = &r
-}
-
-// TLSCA returns TLS certificate authority
-func (ca *CertAuthorityV2) TLSCA() (*tlsca.CertAuthority, error) {
-	if len(ca.Spec.TLSKeyPairs) == 0 {
-		return nil, trace.BadParameter("no TLS key pairs found for certificate authority")
-	}
-	return tlsca.New(ca.Spec.TLSKeyPairs[0].Cert, ca.Spec.TLSKeyPairs[0].Key)
 }
 
 // SetTLSKeyPairs sets TLS key pairs

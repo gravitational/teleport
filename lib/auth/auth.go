@@ -352,7 +352,7 @@ func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCA, err := hostCA.TLSCA()
+	tlsCA, err := tlsca.FromAuthority(hostCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -678,7 +678,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	}
 
 	// generate TLS certificate
-	tlsAuthority, err := ca.TLSCA()
+	tlsAuthority, err := tlsca.FromAuthority(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1225,7 +1225,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		}
 	}
 
-	tlsAuthority, err := ca.TLSCA()
+	tlsAuthority, err := tlsca.FromAuthority(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -1401,6 +1401,9 @@ func (s *APIServer) createSAMLConnector(auth ClientI, w http.ResponseWriter, r *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := services.ValidateSAMLConnector(connector); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	err = auth.CreateSAMLConnector(r.Context(), connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1419,6 +1422,9 @@ func (s *APIServer) upsertSAMLConnector(auth ClientI, w http.ResponseWriter, r *
 	}
 	connector, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(req.Connector)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := services.ValidateSAMLConnector(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	err = auth.UpsertSAMLConnector(r.Context(), connector)

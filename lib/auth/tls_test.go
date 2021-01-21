@@ -2475,7 +2475,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 		Type:       services.HostCA,
 	}, false)
 	c.Assert(err, check.IsNil)
-	tlsCA, err := hostCA.TLSCA()
+	tlsCA, err := tlsca.FromAuthority(hostCA)
 	c.Assert(err, check.IsNil)
 	caPin := utils.CalculateSPKI(tlsCA.Cert)
 
@@ -2560,7 +2560,7 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 		Type:       services.HostCA,
 	}, false)
 	c.Assert(err, check.IsNil)
-	tlsCA, err := hostCA.TLSCA()
+	tlsCA, err := tlsca.FromAuthority(hostCA)
 	c.Assert(err, check.IsNil)
 	tlsBytes, err := tlsca.MarshalCertificatePEM(tlsCA.Cert)
 	c.Assert(err, check.IsNil)

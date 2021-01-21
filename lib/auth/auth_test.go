@@ -988,7 +988,7 @@ func (s *AuthSuite) TestOIDCConnectorCRUDEventsEmitted(c *C) {
 func (s *AuthSuite) TestSAMLConnectorCRUDEventsEmitted(c *C) {
 	ctx := context.Background()
 	// generate a certificate that makes ParseCertificatePEM happy, copied from ca_test.go
-	ca, err := tlsca.New([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
+	ca, err := tlsca.FromKeys([]byte(fixtures.SigningCertPEM), []byte(fixtures.SigningKeyPEM))
 	c.Assert(err, IsNil)
 
 	privateKey, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
