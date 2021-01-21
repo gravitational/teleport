@@ -33,7 +33,7 @@ import (
 // Proxy proxies connections from Postgres clients to database services
 // over reverse tunnel. It runs inside Teleport proxy service.
 //
-// Implements common.DatabaseProxy.
+// Implements common.Proxy.
 type Proxy struct {
 	// TLSConfig is the proxy TLS configuration.
 	TLSConfig *tls.Config

@@ -37,7 +37,7 @@ import (
 // connections coming over reverse tunnel from the proxy and proxies
 // them between the proxy and the Postgres database instance.
 //
-// Implements common.DatabaseEngine.
+// Implements common.Engine.
 type Engine struct {
 	// Auth handles database access authentication.
 	Auth *common.Auth
