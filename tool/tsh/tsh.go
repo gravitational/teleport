@@ -202,6 +202,11 @@ type CLIConf struct {
 
 	// executablePath is the absolute path to the current executable.
 	executablePath string
+
+	// PrintEnvironment is used to print Teleport related environment variable
+	// upon login. When paired with "eval" this allows making a terminal session
+	// "sticky" to one cluster.
+	PrintEnvironment bool
 }
 
 func main() {
@@ -222,12 +227,19 @@ func main() {
 }
 
 const (
-	clusterEnvVar          = "TELEPORT_SITE"
-	clusterHelp            = "Specify the cluster to connect"
-	bindAddrEnvVar         = "TELEPORT_LOGIN_BIND_ADDR"
-	authEnvVar             = "TELEPORT_AUTH"
-	browserHelp            = "Set to 'none' to suppress browser opening on login"
+	authEnvVar     = "TELEPORT_AUTH"
+	clusterEnvVar  = "TELEPORT_CLUSTER"
+	loginEnvVar    = "TELEPORT_LOGIN"
+	bindAddrEnvVar = "TELEPORT_LOGIN_BIND_ADDR"
+	proxyEnvVar    = "TELEPORT_PROXY"
+	// legacyClusterEnvVar used the old "site" terminology for cluster name that
+	// is no longer used anymore. Retain it for backward compatability.
+	legacyClusterEnvVar    = "TELEPORT_SITE"
+	userEnvVar             = "TELEPORT_USER"
 	useLocalSSHAgentEnvVar = "TELEPORT_USE_LOCAL_SSH_AGENT"
+
+	clusterHelp = "Specify the cluster to connect"
+	browserHelp = "Set to 'none' to suppress browser opening on login"
 )
 
 // Run executes TSH client. same as main() but easier to test
@@ -237,11 +249,11 @@ func Run(args []string) {
 
 	// configure CLI argument parser:
 	app := utils.InitCLIParser("tsh", "TSH: Teleport Authentication Gateway Client").Interspersed(false)
-	app.Flag("login", "Remote host login").Short('l').Envar("TELEPORT_LOGIN").StringVar(&cf.NodeLogin)
+	app.Flag("login", "Remote host login").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
 	localUser, _ := client.Username()
-	app.Flag("proxy", "SSH proxy address").Envar("TELEPORT_PROXY").StringVar(&cf.Proxy)
+	app.Flag("proxy", "SSH proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
 	app.Flag("nocache", "do not cache cluster discovery locally").Hidden().BoolVar(&cf.NoCache)
-	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", localUser)).Envar("TELEPORT_USER").StringVar(&cf.Username)
+	app.Flag("user", fmt.Sprintf("SSH proxy user [%s]", localUser)).Envar(userEnvVar).StringVar(&cf.Username)
 	app.Flag("option", "").Short('o').Hidden().AllowDuplicate().PreAction(func(ctx *kingpin.ParseContext) error {
 		return trace.BadParameter("invalid flag, perhaps you want to use this flag as tsh ssh -o?")
 	}).String()
@@ -257,7 +269,7 @@ func Run(args []string) {
 	app.Flag("gops-addr", "Specify gops addr to listen on").Hidden().StringVar(&cf.GopsAddr)
 	app.Flag("skip-version-check", "Skip version checking between server and client.").BoolVar(&cf.SkipVersionCheck)
 	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
-	app.Flag("use-local-ssh-agent", "Load generated SSH certificates into the local ssh-agent (specified via $SSH_AUTH_SOCK). You can also set TELEPORT_USE_LOCAL_SSH_AGENT environment variable. Default is true.").
+	app.Flag("use-local-ssh-agent", fmt.Sprintf("Load generated SSH certificates into the local ssh-agent (specified via $SSH_AUTH_SOCK). You can also set %v environment variable. Default is true.", useLocalSSHAgentEnvVar)).
 		Envar(useLocalSSHAgentEnvVar).
 		Default("true").
 		BoolVar(&cf.UseLocalSSHAgent)
@@ -344,6 +356,7 @@ func Run(args []string) {
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to").StringVar(&cf.KubernetesCluster)
+	login.Flag("env", `Print session related environment variables, allows a session to be "sticky" to a terminal`).BoolVar(&cf.PrintEnvironment)
 	login.Alias(loginUsageFooter)
 
 	// logout deletes obtained session certificates in ~/.tsh
@@ -542,30 +555,34 @@ func onLogin(cf *CLIConf) {
 		utils.FatalError(err)
 	}
 
-	// client is already logged in and profile is not expired
+	// Client is already logged in and profile is not expired.
 	if profile != nil && !profile.IsExpired(clockwork.NewRealClock()) {
 		switch {
-		// in case if nothing is specified, re-fetch kube clusters and print
-		// current status
+		// In case if nothing is specified, re-fetch kube clusters and print
+		// current status.
 		case cf.Proxy == "" && cf.SiteName == "" && cf.DesiredRoles == "" && cf.IdentityFileOut == "":
+			// TODO(russjones): PrintEnvironment can be supported here.
+
 			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
 				utils.FatalError(err)
 			}
-			printProfiles(cf.Debug, profile, profiles)
+			printProfiles(cf.Debug, profile, profiles, cf.PrintEnvironment)
 			return
-		// in case if parameters match, re-fetch kube clusters and print
-		// current status
+		// In case if parameters match, re-fetch kube clusters and print
+		// current status.
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) && cf.SiteName == profile.Cluster && cf.DesiredRoles == "":
+			// TODO(russjones): PrintEnvironment can be supported here.
+
 			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
 				utils.FatalError(err)
 			}
-			printProfiles(cf.Debug, profile, profiles)
+			printProfiles(cf.Debug, profile, profiles, cf.PrintEnvironment)
 			return
-		// proxy is unspecified or the same as the currently provided proxy,
+		// Proxy is unspecified or the same as the currently provided proxy,
 		// but cluster is specified, treat this as selecting a new cluster
-		// for the same proxy
+		// for the same proxy.
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.SiteName != "":
-			// trigger reissue, preserving any active requests.
+			// Trigger reissue, preserving any active requests.
 			err = tc.ReissueUserCerts(cf.Context, client.ReissueParams{
 				AccessRequests: profile.ActiveRequests.AccessRequests,
 				RouteToCluster: cf.SiteName,
@@ -579,12 +596,19 @@ func onLogin(cf *CLIConf) {
 			if err := kubeconfig.UpdateWithClient(cf.Context, "", tc, cf.executablePath); err != nil {
 				utils.FatalError(err)
 			}
+
+			if cf.PrintEnvironment {
+				fmt.Printf("%v=%v\n", clusterEnvVar, cf.SiteName)
+			}
 			onStatus(cf)
 			return
-		// proxy is unspecified or the same as the currently provided proxy,
+		// Proxy is unspecified or the same as the currently provided proxy,
 		// but desired roles are specified, treat this as a privilege escalation
 		// request for the same login session.
 		case (cf.Proxy == "" || host(cf.Proxy) == host(profile.ProxyURL.Host)) && cf.DesiredRoles != "" && cf.IdentityFileOut == "":
+			// TODO(russjones): PrintEnvironment probably *should not* be supported
+			// here, but I think it could.
+
 			if err := executeAccessRequest(cf); err != nil {
 				utils.FatalError(err)
 			}
@@ -593,9 +617,15 @@ func onLogin(cf *CLIConf) {
 			}
 			onStatus(cf)
 			return
-		// otherwise just passthrough to standard login
+		// Otherwise just passthrough to standard login
 		default:
 		}
+	}
+
+	// The PrintEnvironment flag is not support for interactive commands because
+	// anything the user types would be evaluated by "eval".
+	if cf.PrintEnvironment {
+		utils.FatalError(trace.BadParameter("the print environment flag (--env) is not supported for interactive subcommands"))
 	}
 
 	if cf.Username == "" {
@@ -1644,59 +1674,72 @@ func onShow(cf *CLIConf) {
 	fmt.Printf("Fingerprint: %s\n", ssh.FingerprintSHA256(pub))
 }
 
+func wrappedPrint(wrap bool, format string, a ...interface{}) (n int, err error) {
+	if !wrap {
+		return fmt.Printf(format+"\n", a...)
+	}
+
+	var b strings.Builder
+	b.WriteString(`echo '`)
+	b.WriteString(fmt.Sprintf(format, a...))
+	b.WriteString(`';` + "\n")
+	return fmt.Printf(b.String())
+}
+
 // printStatus prints the status of the profile.
-func printStatus(debug bool, p *client.ProfileStatus, isActive bool) {
-	var count int
+func printStatus(debug bool, p *client.ProfileStatus, isActive bool, wrap bool) {
+	//var count int
 	var prefix string
 	if isActive {
 		prefix = "> "
 	} else {
 		prefix = "  "
 	}
-	duration := time.Until(p.ValidUntil)
-	humanDuration := "EXPIRED"
-	if duration.Nanoseconds() > 0 {
-		humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))
-	}
+	//duration := time.Until(p.ValidUntil)
+	//humanDuration := "EXPIRED"
+	//if duration.Nanoseconds() > 0 {
+	//	humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))
+	//}
 
-	fmt.Printf("%vProfile URL:        %v\n", prefix, p.ProxyURL.String())
-	fmt.Printf("  Logged in as:       %v\n", p.Username)
-	if p.Cluster != "" {
-		fmt.Printf("  Cluster:            %v\n", p.Cluster)
-	}
-	fmt.Printf("  Roles:              %v*\n", strings.Join(p.Roles, ", "))
-	if debug {
-		for k, v := range p.Traits {
-			if count == 0 {
-				fmt.Printf("  Traits:             %v: %v\n", k, v)
-			} else {
-				fmt.Printf("                      %v: %v\n", k, v)
-			}
-			count = count + 1
-		}
-	}
-	fmt.Printf("  Logins:             %v\n", strings.Join(p.Logins, ", "))
-	if p.KubeEnabled {
-		fmt.Printf("  Kubernetes:         enabled\n")
-		if p.KubeCluster != "" {
-			fmt.Printf("  Kubernetes cluster: %q\n", p.KubeCluster)
-		}
-		if len(p.KubeUsers) > 0 {
-			fmt.Printf("  Kubernetes users:   %v\n", strings.Join(p.KubeUsers, ", "))
-		}
-		if len(p.KubeGroups) > 0 {
-			fmt.Printf("  Kubernetes groups:  %v\n", strings.Join(p.KubeGroups, ", "))
-		}
-	} else {
-		fmt.Printf("  Kubernetes:         disabled\n")
-	}
-	if len(p.Databases) != 0 {
-		fmt.Printf("  Databases:          %v\n", strings.Join(p.DatabaseServices(), ", "))
-	}
-	fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanDuration)
-	fmt.Printf("  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
+	wrappedPrint(true, "%vProfile URL:        %v", prefix, p.ProxyURL.String())
+	wrappedPrint(true, "  Logged in as:       %v", p.Username)
 
-	fmt.Printf("\n")
+	//if p.Cluster != "" {
+	//	fmt.Printf("  Cluster:            %v\n", p.Cluster)
+	//}
+	//fmt.Printf("  Roles:              %v*\n", strings.Join(p.Roles, ", "))
+	//if debug {
+	//	for k, v := range p.Traits {
+	//		if count == 0 {
+	//			fmt.Printf("  Traits:             %v: %v\n", k, v)
+	//		} else {
+	//			fmt.Printf("                      %v: %v\n", k, v)
+	//		}
+	//		count = count + 1
+	//	}
+	//}
+	//fmt.Printf("  Logins:             %v\n", strings.Join(p.Logins, ", "))
+	//if p.KubeEnabled {
+	//	fmt.Printf("  Kubernetes:         enabled\n")
+	//	if p.KubeCluster != "" {
+	//		fmt.Printf("  Kubernetes cluster: %q\n", p.KubeCluster)
+	//	}
+	//	if len(p.KubeUsers) > 0 {
+	//		fmt.Printf("  Kubernetes users:   %v\n", strings.Join(p.KubeUsers, ", "))
+	//	}
+	//	if len(p.KubeGroups) > 0 {
+	//		fmt.Printf("  Kubernetes groups:  %v\n", strings.Join(p.KubeGroups, ", "))
+	//	}
+	//} else {
+	//	fmt.Printf("  Kubernetes:         disabled\n")
+	//}
+	//if len(p.Databases) != 0 {
+	//	fmt.Printf("  Databases:          %v\n", strings.Join(p.DatabaseServices(), ", "))
+	//}
+	//fmt.Printf("  Valid until:        %v [%v]\n", p.ValidUntil, humanDuration)
+	//fmt.Printf("  Extensions:         %v\n", strings.Join(p.Extensions, ", "))
+
+	//fmt.Printf("\n")
 }
 
 // onStatus command shows which proxy the user is logged into and metadata
@@ -1712,25 +1755,26 @@ func onStatus(cf *CLIConf) {
 		}
 		utils.FatalError(err)
 	}
-	printProfiles(cf.Debug, profile, profiles)
+	printProfiles(cf.Debug, profile, profiles, cf.PrintEnvironment)
 }
 
-func printProfiles(debug bool, profile *client.ProfileStatus, profiles []*client.ProfileStatus) {
+func printProfiles(debug bool, profile *client.ProfileStatus, profiles []*client.ProfileStatus, wrap bool) {
 	// Print the active profile.
 	if profile != nil {
-		printStatus(debug, profile, true)
+		printStatus(debug, profile, true, wrap)
 	}
 
 	// Print all other profiles.
 	for _, p := range profiles {
-		printStatus(debug, p, false)
+		printStatus(debug, p, false, wrap)
 	}
 
 	// If we are printing profile, add a note that even though roles are listed
 	// here, they are only available in Enterprise.
 	if profile != nil || len(profiles) > 0 {
-		fmt.Printf("\n* RBAC is only available in Teleport Enterprise\n")
-		fmt.Printf("  https://goteleport.com/teleport/docs/enterprise\n")
+		wrappedPrint(wrap, "")
+		wrappedPrint(wrap, "* RBAC is only available in Teleport Enterprise")
+		wrappedPrint(wrap, "  https://goteleport.com/teleport/docs/enterprise")
 	}
 }
 
