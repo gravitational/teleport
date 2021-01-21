@@ -28,7 +28,7 @@ To build the Teleport open source version
 $ yarn build-teleport-oss
 ```
 
-To build the Gravity open source version
+To build the Gravity community version
 
 ```
 $ yarn build-gravity-oss
@@ -44,16 +44,16 @@ To build all packages
 $ make all
 ```
 
-To build the Teleport web UI
+To build the Teleport community version
 
 ```
-$ make packages/teleport/dist
+$ make build-teleport-oss
 ```
 
-To build the Gravity web UI
+To build the Gravity comminuty version
 
 ```
-$ make packages/gravity/dist
+$ make build-gravity-oss
 ```
 
 ## Development
@@ -67,13 +67,13 @@ For example, if `https://example.com:3080/web` is the URL of your cluster UI the
 To start your local Teleport development server
 
 ```
-$ yarn start-teleport --target=https://example.com:3080/web
+$ yarn start-teleport-oss --target=https://example.com:3080/web
 ```
 
 To start your local Gravity development server
 
 ```
-$ yarn start-gravity --target=https://example.com:3080/web
+$ yarn start-gravity-oss --target=https://example.com:3080/web
 ```
 
 This service will serve your local javascript files and proxy network
