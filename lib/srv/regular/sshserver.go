@@ -732,7 +732,7 @@ func (s *Server) getServerInfo() (services.Resource, error) {
 			server.SetRotation(*rotation)
 		}
 	}
-	server.SetTTL(s.clock, defaults.ServerAnnounceTTL)
+	server.SetExpiry(s.clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
 	server.SetPublicAddr(s.proxyPublicAddr.String())
 	return server, nil
 }

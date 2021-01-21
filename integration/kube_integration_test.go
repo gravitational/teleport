@@ -1206,7 +1206,7 @@ func kubeProxyClient(cfg kubeProxyConfig) (*kubernetes.Clientset, *rest.Config, 
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-	tlsCA, err := ca.TLSCA()
+	tlsCA, err := tlsca.FromAuthority(ca)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

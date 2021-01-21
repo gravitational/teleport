@@ -27,7 +27,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // Server represents a Node, Proxy or Auth server in a Teleport cluster
@@ -151,8 +150,10 @@ func (s *ServerV2) Expiry() time.Time {
 	return s.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using realtime clock
-func (s *ServerV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (s *ServerV2) SetTTL(clock Clock, ttl time.Duration) {
 	s.Metadata.SetTTL(clock, ttl)
 }
 

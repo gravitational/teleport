@@ -1331,7 +1331,7 @@ func (process *TeleportProcess) initAuthService() error {
 			} else {
 				srv.Spec.Rotation = state.Spec.Rotation
 			}
-			srv.SetTTL(process.Clock, defaults.ServerAnnounceTTL)
+			srv.SetExpiry(process.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
 			return &srv, nil
 		},
 		KeepAlivePeriod: defaults.ServerKeepAliveTTL,
@@ -3147,7 +3147,7 @@ func validateConfig(cfg *Config) error {
 		return trace.BadParameter("auth_servers is empty")
 	}
 	for i := range cfg.Auth.Authorities {
-		if err := cfg.Auth.Authorities[i].Check(); err != nil {
+		if err := services.ValidateCertAuthority(cfg.Auth.Authorities[i]); err != nil {
 			return trace.Wrap(err)
 		}
 	}

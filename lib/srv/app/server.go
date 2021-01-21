@@ -244,7 +244,7 @@ func (s *Server) GetServerInfo() (services.Resource, error) {
 	s.server.SetApps(apps)
 
 	// Update the TTL.
-	s.server.SetTTL(s.c.Clock, defaults.ServerAnnounceTTL)
+	s.server.SetExpiry(s.c.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
 
 	// Update rotation state.
 	rotation, err := s.c.GetRotation(teleport.RoleApp)
