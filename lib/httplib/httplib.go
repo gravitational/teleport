@@ -20,7 +20,6 @@ package httplib
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -73,7 +72,7 @@ func MakeStdHandler(fn StdHandlerFunc) http.HandlerFunc {
 		if err != nil {
 			log.WithFields(log.Fields{
 				log.ErrorKey: err,
-				"url":           r.URL,
+				"url":        r.URL,
 			}).Warn("Failed to invoke std handler.")
 			trace.WriteError(w, trace.Unwrap(err))
 			return
