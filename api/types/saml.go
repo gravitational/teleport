@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // SAMLConnector specifies configuration for SAML 2.0 identity providers
