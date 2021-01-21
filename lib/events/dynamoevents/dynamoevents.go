@@ -477,6 +477,9 @@ func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlc
 // The only mandatory requirement is a date range (UTC). Results must always
 // show up sorted by date (newest first)
 func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) ([]events.EventFields, error) {
+	var lastEvaluatedKey map[string]*dynamodb.AttributeValue
+	var result = make([]map[string]*dynamodb.AttributeValue, 0)
+
 	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Filter": filter, "Limit": limit})
 	filterVals, err := url.ParseQuery(filter)
 	if err != nil {
@@ -499,20 +502,29 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	input := dynamodb.QueryInput{
-		KeyConditionExpression:    aws.String(query),
-		TableName:                 aws.String(l.Tablename),
-		ExpressionAttributeValues: attributeValues,
-		IndexName:                 aws.String(indexTimeSearch),
-	}
 	start := time.Now()
-	out, err := l.svc.Query(&input)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	for {
+		input := dynamodb.QueryInput{
+			KeyConditionExpression:    aws.String(query),
+			TableName:                 aws.String(l.Tablename),
+			ExpressionAttributeValues: attributeValues,
+			IndexName:                 aws.String(indexTimeSearch),
+			ExclusiveStartKey:         lastEvaluatedKey,
+		}
+		out, err := l.svc.Query(&input)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result = append(result, out.Items...)
+		lastEvaluatedKey = out.LastEvaluatedKey
+
+		if len(lastEvaluatedKey) == 0 {
+			break
+		}
 	}
-	g.WithFields(log.Fields{"duration": time.Since(start), "items": len(out.Items)}).Debugf("Query completed.")
+	g.WithFields(log.Fields{"duration": time.Since(start), "items": len(result)}).Debugf("Query completed.")
 	var total int
-	for _, item := range out.Items {
+	for _, item := range result {
 		var e event
 		if err := dynamodbattribute.UnmarshalMap(item, &e); err != nil {
 			return nil, trace.BadParameter("failed to unmarshal event for %v", err)
