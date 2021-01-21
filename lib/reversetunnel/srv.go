@@ -704,7 +704,7 @@ func (s *server) getTrustedCAKeysByID(id services.CertAuthID) ([]ssh.PublicKey, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return ca.Checkers()
+	return services.GetCheckers(ca)
 }
 
 func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Permissions, err error) {

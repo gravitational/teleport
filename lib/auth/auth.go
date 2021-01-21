@@ -394,7 +394,7 @@ func (a *Server) GenerateHostCert(hostPublicKey []byte, hostID, nodeName string,
 	// create and sign!
 	return a.Authority.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: caPrivateKey,
-		CASigningAlg:        ca.GetSigningAlg(),
+		CASigningAlg:        services.GetSigningAlgName(ca),
 		PublicHostKey:       hostPublicKey,
 		HostID:              hostID,
 		NodeName:            nodeName,
@@ -634,7 +634,7 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 	}
 	sshCert, err := a.Authority.GenerateUserCert(services.UserCertParams{
 		PrivateCASigningKey:   privateKey,
-		CASigningAlg:          ca.GetSigningAlg(),
+		CASigningAlg:          services.GetSigningAlgName(ca),
 		PublicUserKey:         req.publicKey,
 		Username:              req.user.GetName(),
 		AllowedLogins:         allowedLogins,
@@ -1238,7 +1238,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 	// generate hostSSH certificate
 	hostSSHCert, err := a.Authority.GenerateHostCert(services.HostCertParams{
 		PrivateCASigningKey: caPrivateKey,
-		CASigningAlg:        ca.GetSigningAlg(),
+		CASigningAlg:        services.GetSigningAlgName(ca),
 		PublicHostKey:       pubSSHKey,
 		HostID:              req.HostID,
 		NodeName:            req.NodeName,

@@ -234,7 +234,7 @@ func (a *Agent) checkHostSignature(hostport string, remote net.Addr, key ssh.Pub
 		return trace.Wrap(err, "failed to fetch remote certs")
 	}
 	for _, ca := range cas {
-		checkers, err := ca.Checkers()
+		checkers, err := services.GetCheckers(ca)
 		if err != nil {
 			return trace.BadParameter("error parsing key: %v", err)
 		}

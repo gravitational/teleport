@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"time"
 
-	"golang.org/x/crypto/ssh"
-
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
@@ -70,10 +68,6 @@ type CertAuthority interface {
 	SetCheckingKeys([][]byte) error
 	// AddRole adds a role to ca role list
 	AddRole(name string)
-	// Checkers returns public keys that can be used to check cert authorities
-	Checkers() ([]ssh.PublicKey, error)
-	// Signers returns a list of signers that could be used to sign keys
-	Signers() ([]ssh.Signer, error)
 	// String returns human readable version of the CertAuthority
 	String() string
 	// SetTLSKeyPairs sets TLS key pairs
@@ -89,9 +83,9 @@ type CertAuthority interface {
 	// SetRotation sets rotation state.
 	SetRotation(Rotation)
 	// GetSigningAlg returns the signing algorithm used by signing keys.
-	GetSigningAlg() string
+	GetSigningAlg() CertAuthoritySpecV2_SigningAlgType
 	// SetSigningAlg sets the signing algorithm used by signing keys.
-	SetSigningAlg(string)
+	SetSigningAlg(CertAuthoritySpecV2_SigningAlgType)
 	// Clone returns a copy of the cert authority object.
 	Clone() CertAuthority
 }
@@ -348,71 +342,14 @@ func (ca *CertAuthorityV2) ID() *CertAuthID {
 	return &CertAuthID{DomainName: ca.Spec.ClusterName, Type: ca.Spec.Type}
 }
 
-// Checkers returns public keys that can be used to check cert authorities
-func (ca *CertAuthorityV2) Checkers() ([]ssh.PublicKey, error) {
-	out := make([]ssh.PublicKey, 0, len(ca.Spec.CheckingKeys))
-	for _, keyBytes := range ca.Spec.CheckingKeys {
-		key, _, _, _, err := ssh.ParseAuthorizedKey(keyBytes)
-		if err != nil {
-			return nil, trace.BadParameter("invalid authority public key (len=%d): %v", len(keyBytes), err)
-		}
-		out = append(out, key)
-	}
-	return out, nil
-}
-
-// Signers returns a list of signers that could be used to sign keys.
-func (ca *CertAuthorityV2) Signers() ([]ssh.Signer, error) {
-	out := make([]ssh.Signer, 0, len(ca.Spec.SigningKeys))
-	for _, keyBytes := range ca.Spec.SigningKeys {
-		signer, err := ssh.ParsePrivateKey(keyBytes)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		signer = utils.AlgSigner(signer, ca.GetSigningAlg())
-		out = append(out, signer)
-	}
-	return out, nil
-}
-
 // GetSigningAlg returns the CA's signing algorithm type
-func (ca *CertAuthorityV2) GetSigningAlg() string {
-	switch ca.Spec.SigningAlg {
-	// UNKNOWN algorithm can come from a cluster that existed before SigningAlg
-	// field was added. Default to RSA-SHA1 to match the implicit algorithm
-	// used in those clusters.
-	case CertAuthoritySpecV2_RSA_SHA1, CertAuthoritySpecV2_UNKNOWN:
-		return ssh.SigAlgoRSA
-	case CertAuthoritySpecV2_RSA_SHA2_256:
-		return ssh.SigAlgoRSASHA2256
-	case CertAuthoritySpecV2_RSA_SHA2_512:
-		return ssh.SigAlgoRSASHA2512
-	default:
-		return ""
-	}
-}
-
-// ParseSigningAlg converts the SSH signature algorithm strings to the
-// corresponding proto enum value.
-//
-// alg should be one of ssh.SigAlgo*  If it's not one of those
-// constants, CertAuthoritySpecV2_UNKNOWN is returned.
-func ParseSigningAlg(alg string) CertAuthoritySpecV2_SigningAlgType {
-	switch alg {
-	case ssh.SigAlgoRSA:
-		return CertAuthoritySpecV2_RSA_SHA1
-	case ssh.SigAlgoRSASHA2256:
-		return CertAuthoritySpecV2_RSA_SHA2_256
-	case ssh.SigAlgoRSASHA2512:
-		return CertAuthoritySpecV2_RSA_SHA2_512
-	default:
-		return CertAuthoritySpecV2_UNKNOWN
-	}
+func (ca *CertAuthorityV2) GetSigningAlg() CertAuthoritySpecV2_SigningAlgType {
+	return ca.Spec.SigningAlg
 }
 
 // SetSigningAlg sets the CA's signing algorith type
-func (ca *CertAuthorityV2) SetSigningAlg(alg string) {
-	ca.Spec.SigningAlg = ParseSigningAlg(alg)
+func (ca *CertAuthorityV2) SetSigningAlg(alg CertAuthoritySpecV2_SigningAlgType) {
+	ca.Spec.SigningAlg = alg
 }
 
 // CheckAndSetDefaults checks and set default values for any missing fields.

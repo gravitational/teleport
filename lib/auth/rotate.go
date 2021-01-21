@@ -611,7 +611,7 @@ func startNewRotation(req rotationReq, ca services.CertAuthority) error {
 	// explicitly set in the config file. If the config file doesn't set a value,
 	// preserve the signing algorithm of the existing CA.
 	if req.caSigningAlg != nil {
-		ca.SetSigningAlg(*req.caSigningAlg)
+		services.SetSigningAlgName(ca, *req.caSigningAlg)
 	}
 
 	return nil

@@ -351,12 +351,12 @@ func (s *AuthInitSuite) TestCASigningAlg(c *C) {
 		hostCAs, err := auth.GetCertAuthorities(services.HostCA, false)
 		c.Assert(err, IsNil)
 		for _, ca := range hostCAs {
-			c.Assert(ca.GetSigningAlg(), Equals, alg)
+			c.Assert(services.GetSigningAlgName(ca), Equals, alg)
 		}
 		userCAs, err := auth.GetCertAuthorities(services.UserCA, false)
 		c.Assert(err, IsNil)
 		for _, ca := range userCAs {
-			c.Assert(ca.GetSigningAlg(), Equals, alg)
+			c.Assert(services.GetSigningAlgName(ca), Equals, alg)
 		}
 	}
 

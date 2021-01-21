@@ -409,7 +409,7 @@ func (h *AuthHandlers) authorityForCert(caType services.CertAuthType, key ssh.Pu
 	// find the one that signed our certificate
 	var ca services.CertAuthority
 	for i := range cas {
-		checkers, err := cas[i].Checkers()
+		checkers, err := services.GetCheckers(cas[i])
 		if err != nil {
 			h.Warnf("%v", err)
 			return nil, trace.Wrap(err)
