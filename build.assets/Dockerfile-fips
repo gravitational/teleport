@@ -14,9 +14,8 @@ ENV LANGUAGE="en_US.UTF-8" \
     LC_ALL="en_US.UTF-8" \
     LC_CTYPE="en_US.UTF-8"
 
-RUN yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
-    yum -y update && \
-    yum -y install bcc-devel curl gcc git glibc-devel make net-tools pam-devel ShellCheck tar tree zip && \
+RUN yum -y update && \
+    yum -y install bcc-devel curl gcc git glibc-devel make net-tools pam-devel tar tree zip && \
     yum -y clean all
 
 ARG UID
