@@ -123,7 +123,7 @@ func (a *Server) getSAMLProvider(conn services.SAMLConnector) (*saml2.SAMLServic
 	}
 	delete(a.samlProviders, conn.GetName())
 
-	serviceProvider, err := conn.GetServiceProvider(a.clock)
+	serviceProvider, err := services.GetSAMLServiceProvider(conn, a.clock)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

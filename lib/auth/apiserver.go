@@ -346,7 +346,7 @@ func (s *APIServer) upsertServer(auth services.Presence, role teleport.Role, r *
 	// on the socket, but keep the original port:
 	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), r.RemoteAddr))
 	if req.TTL != 0 {
-		server.SetTTL(s, req.TTL)
+		server.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}
 	switch role {
 	case teleport.RoleNode:
@@ -549,7 +549,7 @@ func (s *APIServer) upsertReverseTunnel(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 	if req.TTL != 0 {
-		tun.SetTTL(s, req.TTL)
+		tun.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}
 	if err := auth.UpsertReverseTunnel(tun); err != nil {
 		return nil, trace.Wrap(err)
@@ -1038,7 +1038,7 @@ func (s *APIServer) upsertCertAuthority(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 	if req.TTL != 0 {
-		ca.SetTTL(s, req.TTL)
+		ca.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}
 	if err = services.ValidateCertAuthority(ca); err != nil {
 		return nil, trace.Wrap(err)
@@ -1265,7 +1265,7 @@ func (s *APIServer) upsertOIDCConnector(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 	if req.TTL != 0 {
-		connector.SetTTL(s, req.TTL)
+		connector.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}
 	err = auth.UpsertOIDCConnector(r.Context(), connector)
 	if err != nil {
@@ -1401,6 +1401,9 @@ func (s *APIServer) createSAMLConnector(auth ClientI, w http.ResponseWriter, r *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := services.ValidateSAMLConnector(connector); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	err = auth.CreateSAMLConnector(r.Context(), connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1419,6 +1422,9 @@ func (s *APIServer) upsertSAMLConnector(auth ClientI, w http.ResponseWriter, r *
 	}
 	connector, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(req.Connector)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := services.ValidateSAMLConnector(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	err = auth.UpsertSAMLConnector(r.Context(), connector)

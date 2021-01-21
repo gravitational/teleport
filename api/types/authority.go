@@ -26,12 +26,10 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // CertAuthority is a host or user certificate authority that
@@ -79,8 +77,6 @@ type CertAuthority interface {
 	Signers() ([]ssh.Signer, error)
 	// String returns human readable version of the CertAuthority
 	String() string
-	// TLSCA returns first TLS certificate authority from the list of key pairs
-	TLSCA() (*tlsca.CertAuthority, error)
 	// SetTLSKeyPairs sets TLS key pairs
 	SetTLSKeyPairs(keyPairs []TLSKeyPair)
 	// GetTLSKeyPairs returns first PEM encoded TLS cert
@@ -169,14 +165,6 @@ func (ca *CertAuthorityV2) SetRotation(r Rotation) {
 	ca.Spec.Rotation = &r
 }
 
-// TLSCA returns TLS certificate authority
-func (ca *CertAuthorityV2) TLSCA() (*tlsca.CertAuthority, error) {
-	if len(ca.Spec.TLSKeyPairs) == 0 {
-		return nil, trace.BadParameter("no TLS key pairs found for certificate authority")
-	}
-	return tlsca.New(ca.Spec.TLSKeyPairs[0].Cert, ca.Spec.TLSKeyPairs[0].Key)
-}
-
 // SetTLSKeyPairs sets TLS key pairs
 func (ca *CertAuthorityV2) SetTLSKeyPairs(pairs []TLSKeyPair) {
 	ca.Spec.TLSKeyPairs = pairs
@@ -212,8 +200,10 @@ func (ca *CertAuthorityV2) Expiry() time.Time {
 	return ca.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using realtime clock
-func (ca *CertAuthorityV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (ca *CertAuthorityV2) SetTTL(clock Clock, ttl time.Duration) {
 	ca.Metadata.SetTTL(clock, ttl)
 }
 
@@ -543,7 +533,7 @@ func (r *Rotation) String() string {
 }
 
 // CheckAndSetDefaults checks and sets default rotation parameters.
-func (r *Rotation) CheckAndSetDefaults(clock clockwork.Clock) error {
+func (r *Rotation) CheckAndSetDefaults() error {
 	switch r.Phase {
 	case "", RotationPhaseRollback, RotationPhaseUpdateClients, RotationPhaseUpdateServers:
 	default:
@@ -592,19 +582,19 @@ func (r *Rotation) Merge(src proto.Message) {
 
 // GenerateSchedule generates schedule based on the time period, using
 // even time periods between rotation phases.
-func GenerateSchedule(clock clockwork.Clock, gracePeriod time.Duration) (*RotationSchedule, error) {
+func GenerateSchedule(now time.Time, gracePeriod time.Duration) (*RotationSchedule, error) {
 	if gracePeriod <= 0 {
 		return nil, trace.BadParameter("invalid grace period %q, provide value > 0", gracePeriod)
 	}
 	return &RotationSchedule{
-		UpdateClients: clock.Now().UTC().Add(gracePeriod / 3).UTC(),
-		UpdateServers: clock.Now().UTC().Add((gracePeriod * 2) / 3).UTC(),
-		Standby:       clock.Now().UTC().Add(gracePeriod).UTC(),
+		UpdateClients: now.UTC().Add(gracePeriod / 3),
+		UpdateServers: now.UTC().Add((gracePeriod * 2) / 3),
+		Standby:       now.UTC().Add(gracePeriod),
 	}, nil
 }
 
 // CheckAndSetDefaults checks and sets default values of the rotation schedule.
-func (s *RotationSchedule) CheckAndSetDefaults(clock clockwork.Clock) error {
+func (s *RotationSchedule) CheckAndSetDefaults(now time.Time) error {
 	if s.UpdateServers.IsZero() {
 		return trace.BadParameter("phase %q has no time switch scheduled", RotationPhaseUpdateServers)
 	}
@@ -614,10 +604,10 @@ func (s *RotationSchedule) CheckAndSetDefaults(clock clockwork.Clock) error {
 	if s.Standby.Before(s.UpdateServers) {
 		return trace.BadParameter("phase %q can not be scheduled before %q", RotationPhaseStandby, RotationPhaseUpdateServers)
 	}
-	if s.UpdateServers.Before(clock.Now()) {
+	if s.UpdateServers.Before(now) {
 		return trace.BadParameter("phase %q can not be scheduled in the past", RotationPhaseUpdateServers)
 	}
-	if s.Standby.Before(clock.Now()) {
+	if s.Standby.Before(now) {
 		return trace.BadParameter("phase %q can not be scheduled in the past", RotationPhaseStandby)
 	}
 	return nil

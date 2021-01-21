@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // WebSession stores key and value used to authenticate with SSH
@@ -126,8 +125,10 @@ func (ws *WebSessionV2) SetExpiry(expiry time.Time) {
 	ws.Metadata.SetExpiry(expiry)
 }
 
-// SetTTL Sets resource TTL
-func (ws *WebSessionV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (ws *WebSessionV2) SetTTL(clock Clock, ttl time.Duration) {
 	ws.Metadata.SetTTL(clock, ttl)
 }
 
