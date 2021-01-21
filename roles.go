@@ -57,7 +57,7 @@ const (
 	// RoleApp is a role for a app proxy in the cluster.
 	RoleApp Role = "App"
 	// RoleDatabase is a role for a database proxy in the cluster.
-	RoleDatabase Role = "Database"
+	RoleDatabase Role = "Db"
 )
 
 // this constant exists for backwards compatibility reasons, needed to upgrade to 2.3

@@ -450,7 +450,7 @@ const (
 	// RoleApp is an application proxy.
 	RoleApp = "app"
 	// RoleDatabase is a database proxy role.
-	RoleDatabase = "database"
+	RoleDatabase = "db"
 )
 
 const (
