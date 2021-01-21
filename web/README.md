@@ -22,16 +22,16 @@ Then you need download and initialize these repository dependencies.
 $ yarn install
 ```
 
-To build the Teleport web UI
+To build the Teleport open source version
 
 ```
-$ yarn build-teleport
+$ yarn build-teleport-oss
 ```
 
-To build the Gravity web UI
+To build the Gravity open source version
 
 ```
-$ yarn build-gravity
+$ yarn build-gravity-oss
 ```
 
 The resulting output will be in the `/packages/{package-name}/dist/` folders respectively.
