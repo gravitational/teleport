@@ -136,8 +136,11 @@ func databaseLogin(cf *CLIConf, tc *client.TeleportClient, db tlsca.RouteToDatab
 // access certificates for databases the current profile is logged into.
 func fetchDatabaseCreds(cf *CLIConf, tc *client.TeleportClient) error {
 	profile, err := client.StatusCurrent("", cf.Proxy)
-	if err != nil {
+	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
+	}
+	if trace.IsNotFound(err) {
+		return nil // No currently logged in profiles.
 	}
 	for _, db := range profile.Databases {
 		if err := databaseLogin(cf, tc, db, true); err != nil {

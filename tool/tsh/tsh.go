@@ -702,17 +702,18 @@ func onLogin(cf *CLIConf) {
 		}
 	}
 
+	// Update the command line flag for the proxy to make sure any advertised
+	// settings are picked up.
+	webProxyHost, _ := tc.WebProxyHostPort()
+	cf.Proxy = webProxyHost
+
 	// If the profile is already logged into any database services,
 	// refresh the creds.
 	if err := fetchDatabaseCreds(cf, tc); err != nil {
 		utils.FatalError(err)
 	}
 
-	// Print status to show information of the logged in user. Update the
-	// command line flag (used to print status) for the proxy to make sure any
-	// advertised settings are picked up.
-	webProxyHost, _ := tc.WebProxyHostPort()
-	cf.Proxy = webProxyHost
+	// Print status to show information of the logged in user.
 	onStatus(cf)
 }
 
