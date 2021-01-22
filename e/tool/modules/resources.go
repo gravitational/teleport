@@ -13,7 +13,7 @@ func init() {
 		if !ok {
 			return nil, trace.BadParameter("expected Role, got %T", r)
 		}
-		raw, err := services.GetRoleMarshaler().MarshalRole(rsc, opts...)
+		raw, err := services.MarshalRole(rsc, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -21,7 +21,7 @@ func init() {
 	})
 	// Register unmarshaler for role resources.
 	services.RegisterResourceUnmarshaler(services.KindRole, func(b []byte, opts ...services.MarshalOption) (services.Resource, error) {
-		rsc, err := services.GetRoleMarshaler().UnmarshalRole(b, opts...)
+		rsc, err := services.UnmarshalRole(b, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -34,7 +34,7 @@ func init() {
 		if !ok {
 			return nil, trace.BadParameter("expected OIDCConnector, got %T", r)
 		}
-		raw, err := services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(rsc, opts...)
+		raw, err := services.MarshalOIDCConnector(rsc, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -42,7 +42,7 @@ func init() {
 	})
 	// Register unmarshaler for oidc connector resources.
 	services.RegisterResourceUnmarshaler(services.KindOIDCConnector, func(b []byte, opts ...services.MarshalOption) (services.Resource, error) {
-		rsc, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(b, opts...)
+		rsc, err := services.UnmarshalOIDCConnector(b, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -55,7 +55,7 @@ func init() {
 		if !ok {
 			return nil, trace.BadParameter("expected SAMLConnector, got %T", r)
 		}
-		raw, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(rsc, opts...)
+		raw, err := services.MarshalSAMLConnector(rsc, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -63,7 +63,7 @@ func init() {
 	})
 	// Register unmarshaler for saml connector resources.
 	services.RegisterResourceUnmarshaler(services.KindSAMLConnector, func(b []byte, opts ...services.MarshalOption) (services.Resource, error) {
-		rsc, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(b, opts...)
+		rsc, err := services.UnmarshalSAMLConnector(b, opts...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
