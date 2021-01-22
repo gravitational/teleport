@@ -175,7 +175,7 @@ func itemToResource(item backend.Item) (services.Resource, error) {
 // itemFromUser attempts to encode the supplied user as an
 // instance of `backend.Item` suitable for storage.
 func itemFromUser(user services.User) (*backend.Item, error) {
-	if err := user.Check(); err != nil {
+	if err := services.ValidateUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.MarshalUser(user)
@@ -202,7 +202,7 @@ func itemToUser(item backend.Item) (services.User, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := user.Check(); err != nil {
+	if err := services.ValidateUser(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return user, nil

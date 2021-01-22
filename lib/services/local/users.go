@@ -107,7 +107,7 @@ func (s *IdentityService) getUsersWithSecrets() ([]services.User, error) {
 
 // CreateUser creates user if it does not exist.
 func (s *IdentityService) CreateUser(user services.User) error {
-	if err := user.Check(); err != nil {
+	if err := services.ValidateUser(user); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -145,7 +145,7 @@ func (s *IdentityService) CreateUser(user services.User) error {
 
 // UpdateUser updates an existing user.
 func (s *IdentityService) UpdateUser(ctx context.Context, user services.User) error {
-	if err := user.Check(); err != nil {
+	if err := services.ValidateUser(user); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -178,7 +178,7 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user services.User) er
 
 // UpsertUser updates parameters about user, or creates an entry if not exist.
 func (s *IdentityService) UpsertUser(user services.User) error {
-	if err := user.Check(); err != nil {
+	if err := services.ValidateUser(user); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.MarshalUser(user.WithoutSecrets().(services.User))
