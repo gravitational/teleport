@@ -178,7 +178,7 @@ func itemFromUser(user services.User) (*backend.Item, error) {
 	if err := user.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	value, err := services.GetUserMarshaler().MarshalUser(user)
+	value, err := services.MarshalUser(user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -194,7 +194,7 @@ func itemFromUser(user services.User) (*backend.Item, error) {
 // itemToUser attempts to decode the supplied `backend.Item` as
 // a user resource.
 func itemToUser(item backend.Item) (services.User, error) {
-	user, err := services.GetUserMarshaler().UnmarshalUser(
+	user, err := services.UnmarshalUser(
 		item.Value,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
@@ -214,7 +214,7 @@ func itemFromCertAuthority(ca services.CertAuthority) (*backend.Item, error) {
 	if err := services.ValidateCertAuthority(ca); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	value, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca)
+	value, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -230,7 +230,7 @@ func itemFromCertAuthority(ca services.CertAuthority) (*backend.Item, error) {
 // itemToCertAuthority attempts to decode the supplied `backend.Item` as
 // a certificate authority resource (NOTE: does not filter secrets).
 func itemToCertAuthority(item backend.Item) (services.CertAuthority, error) {
-	ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(
+	ca, err := services.UnmarshalCertAuthority(
 		item.Value,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
@@ -250,7 +250,7 @@ func itemFromTrustedCluster(tc services.TrustedCluster) (*backend.Item, error) {
 	if err := tc.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	value, err := services.GetTrustedClusterMarshaler().Marshal(tc)
+	value, err := services.MarshalTrustedCluster(tc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -266,7 +266,7 @@ func itemFromTrustedCluster(tc services.TrustedCluster) (*backend.Item, error) {
 // itemToTrustedCluster attempts to decode the supplied `backend.Item` as
 // a trusted cluster resource.
 func itemToTrustedCluster(item backend.Item) (services.TrustedCluster, error) {
-	tc, err := services.GetTrustedClusterMarshaler().Unmarshal(
+	tc, err := services.UnmarshalTrustedCluster(
 		item.Value,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
@@ -283,7 +283,7 @@ func itemFromGithubConnector(gc services.GithubConnector) (*backend.Item, error)
 	if err := gc.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	value, err := services.GetGithubConnectorMarshaler().Marshal(gc)
+	value, err := services.MarshalGithubConnector(gc)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -302,7 +302,7 @@ func itemToGithubConnector(item backend.Item) (services.GithubConnector, error) 
 	// XXX: The `GithubConnectorMarshaler` interface is an outlier in that it
 	// does not support marshal options (e.g. `WithResourceID(..)`).  Support should
 	// be added unless this is an intentional omission.
-	gc, err := services.GetGithubConnectorMarshaler().Unmarshal(item.Value)
+	gc, err := services.UnmarshalGithubConnector(item.Value)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -312,7 +312,7 @@ func itemToGithubConnector(item backend.Item) (services.GithubConnector, error) 
 // itemFromRole attempts to encode the supplied role as an
 // instance of `backend.Item` suitable for storage.
 func itemFromRole(role services.Role) (*backend.Item, error) {
-	value, err := services.GetRoleMarshaler().MarshalRole(role)
+	value, err := services.MarshalRole(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -329,7 +329,7 @@ func itemFromRole(role services.Role) (*backend.Item, error) {
 // itemToRole attempts to decode the supplied `backend.Item` as
 // a role resource.
 func itemToRole(item backend.Item) (services.Role, error) {
-	role, err := services.GetRoleMarshaler().UnmarshalRole(
+	role, err := services.UnmarshalRole(
 		item.Value,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
@@ -346,7 +346,7 @@ func itemFromOIDCConnector(connector services.OIDCConnector) (*backend.Item, err
 	if err := connector.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	value, err := services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(connector)
+	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -362,7 +362,7 @@ func itemFromOIDCConnector(connector services.OIDCConnector) (*backend.Item, err
 // itemToOIDCConnector attempts to decode the supplied `backend.Item` as
 // an oidc connector resource.
 func itemToOIDCConnector(item backend.Item) (services.OIDCConnector, error) {
-	connector, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(
+	connector, err := services.UnmarshalOIDCConnector(
 		item.Value,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),
@@ -379,7 +379,7 @@ func itemFromSAMLConnector(connector services.SAMLConnector) (*backend.Item, err
 	if err := services.ValidateSAMLConnector(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	value, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)
+	value, err := services.MarshalSAMLConnector(connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -395,7 +395,7 @@ func itemFromSAMLConnector(connector services.SAMLConnector) (*backend.Item, err
 // itemToSAMLConnector attempts to decode the supplied `backend.Item` as
 // a saml connector resource.
 func itemToSAMLConnector(item backend.Item) (services.SAMLConnector, error) {
-	connector, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(
+	connector, err := services.UnmarshalSAMLConnector(
 		item.Value,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),

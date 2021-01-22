@@ -20,8 +20,6 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/gravitational/teleport/api/utils"
-
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/types"
 	"github.com/gravitational/trace"
@@ -83,7 +81,7 @@ func (s *Struct) MarshalJSON() ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return utils.FastMarshal(m)
+	return json.Marshal(m)
 }
 
 // UnmarshalJSON unmarshals JSON from string or bool,

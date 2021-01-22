@@ -23,49 +23,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// Trust is responsible for managing certificate authorities
-// Each authority is managing some domain, e.g. example.com
-//
-// There are two type of authorities, local and remote.
-// Local authorities have both private and public keys, so they can
-// sign public keys of users and hosts
-//
-// Remote authorities have only public keys available, so they can
-// be only used to validate
-type Trust interface {
-	// CreateCertAuthority inserts a new certificate authority
-	CreateCertAuthority(ca CertAuthority) error
-
-	// UpsertCertAuthority updates or inserts a new certificate authority
-	UpsertCertAuthority(ca CertAuthority) error
-
-	// CompareAndSwapCertAuthority updates the cert authority value
-	// if existing value matches existing parameter,
-	// returns nil if succeeds, trace.CompareFailed otherwise
-	CompareAndSwapCertAuthority(new, existing CertAuthority) error
-
-	// DeleteCertAuthority deletes particular certificate authority
-	DeleteCertAuthority(id CertAuthID) error
-
-	// DeleteAllCertAuthorities deletes cert authorities of a certain type
-	DeleteAllCertAuthorities(caType CertAuthType) error
-
-	// GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
-	// controls if signing keys are loaded
-	GetCertAuthority(id CertAuthID, loadSigningKeys bool, opts ...MarshalOption) (CertAuthority, error)
-
-	// GetCertAuthorities returns a list of authorities of a given type
-	// loadSigningKeys controls whether signing keys should be loaded or not
-	GetCertAuthorities(caType CertAuthType, loadSigningKeys bool, opts ...MarshalOption) ([]CertAuthority, error)
-
-	// ActivateCertAuthority moves a CertAuthority from the deactivated list to
-	// the normal list.
-	ActivateCertAuthority(id CertAuthID) error
-
-	// DeactivateCertAuthority moves a CertAuthority from the normal list to
-	// the deactivated list.
-	DeactivateCertAuthority(id CertAuthID) error
-}
+// CertAuthType specifies certificate authority type, user or host
+type CertAuthType string
 
 const (
 	// HostCA identifies the key as a host certificate authority
@@ -78,9 +37,6 @@ const (
 	// much like a CA in terms of rotation and storage.
 	JWTSigner CertAuthType = "jwt"
 )
-
-// CertAuthType specifies certificate authority type, user or host
-type CertAuthType string
 
 // Check checks if certificate authority type value is correct
 func (c CertAuthType) Check() error {

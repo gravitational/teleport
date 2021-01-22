@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
-
 	"github.com/gravitational/trace"
 )
 
@@ -163,91 +161,4 @@ func (u ResetPasswordTokenSecretsV3) CheckAndSetDefaults() error {
 // // String represents a human readable version of the token secrets
 func (u *ResetPasswordTokenSecretsV3) String() string {
 	return fmt.Sprintf("ResetPasswordTokenSecretsV3(tokenID=%v, opt_key=%v, qr_code=%v)", u.GetName(), u.Spec.OTPKey, u.Spec.QRCode)
-}
-
-// ResetPasswordTokenSecretsSpecV3Template is a template for V3 ResetPasswordTokenSecrets JSON schema
-const ResetPasswordTokenSecretsSpecV3Template = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-    "opt_key": {
-      "type": ["string"]
-    },
-    "qr_code": {
-      "type": ["string"]
-    },
-    "created": {
-      "type": ["string"]
-    }
-  }
-}`
-
-// UnmarshalResetPasswordTokenSecrets unmarshals ResetPasswordTokenSecrets
-func UnmarshalResetPasswordTokenSecrets(bytes []byte) (ResetPasswordTokenSecrets, error) {
-	if len(bytes) == 0 {
-		return nil, trace.BadParameter("missing resource data")
-	}
-
-	schema := fmt.Sprintf(V2SchemaTemplate, MetadataSchema, ResetPasswordTokenSecretsSpecV3Template, DefaultDefinitions)
-
-	var secrets ResetPasswordTokenSecretsV3
-	err := utils.UnmarshalWithSchema(schema, &secrets, bytes)
-	if err != nil {
-		return nil, trace.BadParameter(err.Error())
-	}
-
-	return &secrets, nil
-}
-
-// MarshalResetPasswordTokenSecrets marshals role to JSON or YAML.
-func MarshalResetPasswordTokenSecrets(secrets ResetPasswordTokenSecrets, opts ...MarshalOption) ([]byte, error) {
-	return utils.FastMarshal(secrets)
-}
-
-// ResetPasswordTokenSecretsMarshaler implements marshal/unmarshal of ResetPasswordTokenSecrets implementations
-// mostly adds support for extended versions
-type ResetPasswordTokenSecretsMarshaler interface {
-	// Marshal marshals token to binary representation
-	Marshal(t ResetPasswordTokenSecrets, opts ...MarshalOption) ([]byte, error)
-	// Unmarshal unmarshals token from binary representation
-	Unmarshal(bytes []byte, opts ...MarshalOption) (ResetPasswordTokenSecrets, error)
-}
-
-type teleportResetPasswordTokenSecretsMarshaler struct{}
-
-// Unmarshal unmarshals ResetPasswordTokenSecrets
-func (t *teleportResetPasswordTokenSecretsMarshaler) Unmarshal(bytes []byte, opts ...MarshalOption) (ResetPasswordTokenSecrets, error) {
-	if len(bytes) == 0 {
-		return nil, trace.BadParameter("missing resource data")
-	}
-
-	var secrets ResetPasswordTokenSecretsV3
-	schema := fmt.Sprintf(V2SchemaTemplate, MetadataSchema, ResetPasswordTokenSecretsSpecV3Template, DefaultDefinitions)
-	err := utils.UnmarshalWithSchema(schema, &secrets, bytes)
-	if err != nil {
-		return nil, trace.BadParameter(err.Error())
-	}
-
-	return &secrets, nil
-}
-
-// Marshal marshals role to JSON or YAML.
-func (t *teleportResetPasswordTokenSecretsMarshaler) Marshal(secrets ResetPasswordTokenSecrets, opts ...MarshalOption) ([]byte, error) {
-	return utils.FastMarshal(secrets)
-}
-
-var resetPasswordTokenSecretsMarshaler ResetPasswordTokenSecretsMarshaler = &teleportResetPasswordTokenSecretsMarshaler{}
-
-// SetResetTokenSecretsMarshaler sets global ResetPasswordTokenSecrets marshaler
-func SetResetTokenSecretsMarshaler(m ResetPasswordTokenSecretsMarshaler) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	resetPasswordTokenSecretsMarshaler = m
-}
-
-// GetResetPasswordTokenSecretsMarshaler returns ResetPasswordTokenSecrets marshaler
-func GetResetPasswordTokenSecretsMarshaler() ResetPasswordTokenSecretsMarshaler {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	return resetPasswordTokenSecretsMarshaler
 }

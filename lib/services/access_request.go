@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
@@ -415,4 +416,78 @@ func ValidateAccessRequest(getter UserAndRoleGetter, req AccessRequest, opts ...
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(v.Validate(req))
+}
+
+// AccessRequestSpecSchema is JSON schema for AccessRequestSpec
+const AccessRequestSpecSchema = `{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"user": { "type": "string" },
+		"roles": {
+			"type": "array",
+			"items": { "type": "string" }
+		},
+		"state": { "type": "integer" },
+		"created": { "type": "string" },
+		"expires": { "type": "string" },
+		"request_reason": { "type": "string" },
+		"resolve_reason": { "type": "string" },
+		"resolve_annotations": { "type": "object" },
+		"system_annotations": { "type": "object" }
+	}
+}`
+
+// GetAccessRequestSchema gets the full AccessRequest JSON schema
+func GetAccessRequestSchema() string {
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, AccessRequestSpecSchema, DefaultDefinitions)
+}
+
+// UnmarshalAccessRequest unmarshals AccessRequest the f resource.
+func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (AccessRequest, error) {
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var req AccessRequestV3
+	if cfg.SkipValidation {
+		if err := utils.FastUnmarshal(data, &req); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		if err := utils.UnmarshalWithSchema(GetAccessRequestSchema(), &req, data); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if cfg.ID != 0 {
+		req.SetResourceID(cfg.ID)
+	}
+	if !cfg.Expires.IsZero() {
+		req.SetExpiry(cfg.Expires)
+	}
+	return &req, nil
+}
+
+// MarshalAccessRequest marshals the AccessRequest resource.
+func MarshalAccessRequest(req AccessRequest, opts ...MarshalOption) ([]byte, error) {
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch r := req.(type) {
+	case *AccessRequestV3:
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			cp := *r
+			cp.SetResourceID(0)
+			r = &cp
+		}
+		return utils.FastMarshal(r)
+	default:
+		return nil, trace.BadParameter("unrecognized access request type: %T", req)
+	}
 }

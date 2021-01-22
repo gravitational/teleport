@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
-
 	"github.com/gravitational/trace"
 )
 
@@ -253,82 +251,4 @@ func (d *PluginDataEntry) Equals(other *PluginDataEntry) bool {
 		}
 	}
 	return true
-}
-
-// PluginDataSpecSchema is JSON schema for PluginData
-const PluginDataSpecSchema = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"entries": { "type":"object" }
-	}
-}`
-
-// GetPluginDataSchema returns the full PluginDataSchema string
-func GetPluginDataSchema() string {
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, PluginDataSpecSchema, DefaultDefinitions)
-}
-
-// PluginDataMarshaler implements marshal/unmarshal of PluginData implementations
-type PluginDataMarshaler interface {
-	MarshalPluginData(req PluginData, opts ...MarshalOption) ([]byte, error)
-	UnmarshalPluginData(bytes []byte, opts ...MarshalOption) (PluginData, error)
-}
-
-type pluginDataMarshaler struct{}
-
-func (m *pluginDataMarshaler) MarshalPluginData(data PluginData, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch r := data.(type) {
-	case *PluginDataV3:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			cp := *r
-			cp.SetResourceID(0)
-			r = &cp
-		}
-		return utils.FastMarshal(r)
-	default:
-		return nil, trace.BadParameter("unrecognized plugin data type: %T", data)
-	}
-}
-
-func (m *pluginDataMarshaler) UnmarshalPluginData(raw []byte, opts ...MarshalOption) (PluginData, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var data PluginDataV3
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(raw, &data); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		if err := utils.UnmarshalWithSchema(GetPluginDataSchema(), &data, raw); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	if err := data.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if cfg.ID != 0 {
-		data.SetResourceID(cfg.ID)
-	}
-	if !cfg.Expires.IsZero() {
-		data.SetExpiry(cfg.Expires)
-	}
-	return &data, nil
-}
-
-var pluginDataMarshalerInstance PluginDataMarshaler = &pluginDataMarshaler{}
-
-// GetPluginDataMarshaler gets the global
-func GetPluginDataMarshaler() PluginDataMarshaler {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	return pluginDataMarshalerInstance
 }

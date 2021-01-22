@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -56,22 +55,6 @@ func NewStaticTokens(spec StaticTokensSpecV2) (StaticTokens, error) {
 	}
 
 	return &st, nil
-}
-
-// DefaultStaticTokens is used to get the default static tokens (empty list)
-// when nothing is specified in file configuration.
-func DefaultStaticTokens() StaticTokens {
-	return &StaticTokensV2{
-		Kind:    KindStaticTokens,
-		Version: V2,
-		Metadata: Metadata{
-			Name:      MetaNameStaticTokens,
-			Namespace: defaults.Namespace,
-		},
-		Spec: StaticTokensSpecV2{
-			StaticTokens: []ProvisionTokenV1{},
-		},
-	}
 }
 
 // GetVersion returns resource version
@@ -160,129 +143,4 @@ func (c *StaticTokensV2) CheckAndSetDefaults() error {
 // String represents a human readable version of static provisioning tokens.
 func (c *StaticTokensV2) String() string {
 	return fmt.Sprintf("StaticTokens(%v)", c.Spec.StaticTokens)
-}
-
-// StaticTokensSpecSchemaTemplate is a template for StaticTokens schema.
-const StaticTokensSpecSchemaTemplate = `{
-	"type": "object",
-	"additionalProperties": false,
-	"properties": {
-		"static_tokens": {
-			"type": "array",
-			"items": {
-				"type": "object",
-				"additionalProperties": false,
-				"properties": {
-					"expires": {
-						"type": "string"
-					},
-					"roles": {
-						"type": "array",
-						"items": {
-							"type": "string"
-						}
-					},
-					"token": {
-						"type": "string"
-					}
-				}
-			}
-		}%v
-  	}
-}`
-
-// GetStaticTokensSchema returns the schema with optionally injected
-// schema for extensions.
-func GetStaticTokensSchema(extensionSchema string) string {
-	var staticTokensSchema string
-	if staticTokensSchema == "" {
-		staticTokensSchema = fmt.Sprintf(StaticTokensSpecSchemaTemplate, "")
-	} else {
-		staticTokensSchema = fmt.Sprintf(StaticTokensSpecSchemaTemplate, ","+extensionSchema)
-	}
-	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, staticTokensSchema, DefaultDefinitions)
-}
-
-// StaticTokensMarshaler implements marshal/unmarshal of StaticTokens implementations
-// mostly adds support for extended versions.
-type StaticTokensMarshaler interface {
-	Marshal(c StaticTokens, opts ...MarshalOption) ([]byte, error)
-	Unmarshal(bytes []byte, opts ...MarshalOption) (StaticTokens, error)
-}
-
-type teleportStaticTokensMarshaler struct{}
-
-// Unmarshal unmarshals StaticTokens from JSON.
-func (t *teleportStaticTokensMarshaler) Unmarshal(bytes []byte, opts ...MarshalOption) (StaticTokens, error) {
-	var staticTokens StaticTokensV2
-
-	if len(bytes) == 0 {
-		return nil, trace.BadParameter("missing resource data")
-	}
-
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if cfg.SkipValidation {
-		if err := utils.FastUnmarshal(bytes, &staticTokens); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	} else {
-		err = utils.UnmarshalWithSchema(GetStaticTokensSchema(""), &staticTokens, bytes)
-		if err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-	}
-
-	err = staticTokens.CheckAndSetDefaults()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if cfg.ID != 0 {
-		staticTokens.SetResourceID(cfg.ID)
-	}
-	if !cfg.Expires.IsZero() {
-		staticTokens.SetExpiry(cfg.Expires)
-	}
-	return &staticTokens, nil
-}
-
-// Marshal marshals StaticTokens to JSON.
-func (t *teleportStaticTokensMarshaler) Marshal(c StaticTokens, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch resource := c.(type) {
-	case *StaticTokensV2:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *resource
-			copy.SetResourceID(0)
-			resource = &copy
-		}
-		return utils.FastMarshal(resource)
-	default:
-		return nil, trace.BadParameter("unrecognized resource version %T", c)
-	}
-}
-
-var staticTokensMarshaler StaticTokensMarshaler = &teleportStaticTokensMarshaler{}
-
-// SetStaticTokensMarshaler sets the marshaler.
-func SetStaticTokensMarshaler(m StaticTokensMarshaler) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	staticTokensMarshaler = m
-}
-
-// GetStaticTokensMarshaler gets the marshaler.
-func GetStaticTokensMarshaler() StaticTokensMarshaler {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	return staticTokensMarshaler
 }

@@ -668,7 +668,7 @@ func (g *GRPCServer) GetDatabaseServers(ctx context.Context, req *proto.GetDatab
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
-	var opts []types.MarshalOption
+	var opts []services.MarshalOption
 	if req.GetSkipValidation() {
 		opts = append(opts, services.SkipValidation())
 	}

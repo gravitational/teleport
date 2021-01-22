@@ -37,14 +37,6 @@ type Strings = utils.Strings
 
 var CopyStrings = utils.CopyStrings
 
-// json.go
-var (
-	FastUnmarshal       = utils.FastUnmarshal
-	FastMarshal         = utils.FastMarshal
-	UnmarshalWithSchema = utils.UnmarshalWithSchema
-	ToJSON              = utils.ToJSON
-)
-
 // regexp.go
 var (
 	ReplaceRegexp = utils.ReplaceRegexp
