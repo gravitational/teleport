@@ -22,9 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/utils"
-
-	"github.com/gravitational/trace"
 )
 
 // License defines teleport License Information
@@ -281,80 +278,4 @@ type LicenseSpecV3 struct {
 	ReportsUsage Bool `json:"usage,omitempty"`
 	// Cloud is turned on when teleport is hosted by Gravitational
 	Cloud Bool `json:"cloud,omitempty"`
-}
-
-// LicenseSpecV3Template is a template for V3 License JSON schema
-const LicenseSpecV3Template = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-		"account_id": {
-			"type": ["string"]
-		},
-		"plan_id": {
-			"type": ["string"]
-		},
-		"usage": {
-			"type": ["string", "boolean"]
-		},
-		"aws_pid": {
-			"type": ["string"]
-		},
-		"aws_account": {
-			"type": ["string"]
-		},
-		"k8s": {
-			"type": ["string", "boolean"]
-		},
-		"cloud": {
-			"type": ["string", "boolean"]
-		}
-  }
-}`
-
-// UnmarshalLicense unmarshals License from JSON or YAML
-// and validates schema
-func UnmarshalLicense(bytes []byte) (License, error) {
-	if len(bytes) == 0 {
-		return nil, trace.BadParameter("missing resource data")
-	}
-
-	schema := fmt.Sprintf(V2SchemaTemplate, MetadataSchema, LicenseSpecV3Template, DefaultDefinitions)
-
-	var license LicenseV3
-	err := utils.UnmarshalWithSchema(schema, &license, bytes)
-	if err != nil {
-		return nil, trace.BadParameter(err.Error())
-	}
-
-	if license.Version != V3 {
-		return nil, trace.BadParameter("unsupported version %v, expected version %v", license.Version, V3)
-	}
-
-	if err := license.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &license, nil
-}
-
-// MarshalLicense marshals role to JSON or YAML.
-func MarshalLicense(license License, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	switch resource := license.(type) {
-	case *LicenseV3:
-		if !cfg.PreserveResourceID {
-			// avoid modifying the original object
-			// to prevent unexpected data races
-			copy := *resource
-			copy.SetResourceID(0)
-			resource = &copy
-		}
-		return utils.FastMarshal(resource)
-	default:
-		return nil, trace.BadParameter("unrecognized resource version %T", license)
-	}
 }

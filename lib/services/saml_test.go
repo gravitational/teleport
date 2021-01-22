@@ -46,7 +46,7 @@ func (s *SAMLSuite) TestParseFromMetadata(c *check.C) {
 	err := decoder.Decode(&raw)
 	c.Assert(err, check.IsNil)
 
-	oc, err := GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(raw.Raw)
+	oc, err := UnmarshalSAMLConnector(raw.Raw)
 	c.Assert(err, check.IsNil)
 	err = ValidateSAMLConnector(oc)
 	c.Assert(err, check.IsNil)

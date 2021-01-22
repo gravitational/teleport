@@ -71,7 +71,7 @@ func (s *IdentityService) GetUsers(withSecrets bool) ([]services.User, error) {
 		if !bytes.HasSuffix(item.Key, []byte(paramsPrefix)) {
 			continue
 		}
-		u, err := services.GetUserMarshaler().UnmarshalUser(
+		u, err := services.UnmarshalUser(
 			item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -120,7 +120,7 @@ func (s *IdentityService) CreateUser(user services.User) error {
 		return trace.AlreadyExists("user %q already registered", user.GetName())
 	}
 
-	value, err := services.GetUserMarshaler().MarshalUser(user.WithoutSecrets().(services.User))
+	value, err := services.MarshalUser(user.WithoutSecrets().(services.User))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -154,7 +154,7 @@ func (s *IdentityService) UpdateUser(ctx context.Context, user services.User) er
 		return trace.Wrap(err)
 	}
 
-	value, err := services.GetUserMarshaler().MarshalUser(user.WithoutSecrets().(services.User))
+	value, err := services.MarshalUser(user.WithoutSecrets().(services.User))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -181,7 +181,7 @@ func (s *IdentityService) UpsertUser(user services.User) error {
 	if err := user.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.GetUserMarshaler().MarshalUser(user.WithoutSecrets().(services.User))
+	value, err := services.MarshalUser(user.WithoutSecrets().(services.User))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -215,7 +215,7 @@ func (s *IdentityService) GetUser(user string, withSecrets bool) (services.User,
 	if err != nil {
 		return nil, trace.NotFound("user %q is not found", user)
 	}
-	u, err := services.GetUserMarshaler().UnmarshalUser(
+	u, err := services.UnmarshalUser(
 		item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -346,11 +346,7 @@ func (s *IdentityService) UpsertPasswordHash(username string, hash []byte) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	user, err := services.GetUserMarshaler().GenerateUser(userPrototype)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = s.CreateUser(user)
+	err = s.CreateUser(userPrototype)
 	if err != nil {
 		if !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)
@@ -514,7 +510,7 @@ func (s *IdentityService) DeleteUsedTOTPToken(user string) error {
 func (s *IdentityService) UpsertWebSession(user, sid string, session services.WebSession) error {
 	session.SetUser(user)
 	session.SetName(sid)
-	value, err := services.GetWebSessionMarshaler().MarshalWebSession(session)
+	value, err := services.MarshalWebSession(session)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -591,7 +587,7 @@ func (s *IdentityService) GetWebSession(user, sid string) (services.WebSession, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(item.Value)
+	session, err := services.UnmarshalWebSession(item.Value)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -820,7 +816,7 @@ func (s *IdentityService) UpsertOIDCConnector(connector services.OIDCConnector) 
 	if err := connector.Check(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(connector)
+	value, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -859,7 +855,7 @@ func (s *IdentityService) GetOIDCConnector(name string, withSecrets bool) (servi
 		}
 		return nil, trace.Wrap(err)
 	}
-	conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(item.Value,
+	conn, err := services.UnmarshalOIDCConnector(item.Value,
 		services.WithExpires(item.Expires))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -879,7 +875,7 @@ func (s *IdentityService) GetOIDCConnectors(withSecrets bool) ([]services.OIDCCo
 	}
 	connectors := make([]services.OIDCConnector, len(result.Items))
 	for i, item := range result.Items {
-		conn, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(
+		conn, err := services.UnmarshalOIDCConnector(
 			item.Value, services.WithExpires(item.Expires))
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -934,7 +930,7 @@ func (s *IdentityService) CreateSAMLConnector(connector services.SAMLConnector) 
 	if err := services.ValidateSAMLConnector(connector); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)
+	value, err := services.MarshalSAMLConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -955,7 +951,7 @@ func (s *IdentityService) UpsertSAMLConnector(connector services.SAMLConnector) 
 	if err := services.ValidateSAMLConnector(connector); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)
+	value, err := services.MarshalSAMLConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -993,7 +989,7 @@ func (s *IdentityService) GetSAMLConnector(name string, withSecrets bool) (servi
 		}
 		return nil, trace.Wrap(err)
 	}
-	conn, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(
+	conn, err := services.UnmarshalSAMLConnector(
 		item.Value, services.WithExpires(item.Expires))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1018,7 +1014,7 @@ func (s *IdentityService) GetSAMLConnectors(withSecrets bool) ([]services.SAMLCo
 	}
 	connectors := make([]services.SAMLConnector, len(result.Items))
 	for i, item := range result.Items {
-		conn, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(
+		conn, err := services.UnmarshalSAMLConnector(
 			item.Value, services.WithExpires(item.Expires))
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1077,7 +1073,7 @@ func (s *IdentityService) CreateGithubConnector(connector services.GithubConnect
 	if err := connector.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.GetGithubConnectorMarshaler().Marshal(connector)
+	value, err := services.MarshalGithubConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1098,7 +1094,7 @@ func (s *IdentityService) UpsertGithubConnector(connector services.GithubConnect
 	if err := connector.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.GetGithubConnectorMarshaler().Marshal(connector)
+	value, err := services.MarshalGithubConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1124,7 +1120,7 @@ func (s *IdentityService) GetGithubConnectors(withSecrets bool) ([]services.Gith
 	}
 	connectors := make([]services.GithubConnector, len(result.Items))
 	for i, item := range result.Items {
-		connector, err := services.GetGithubConnectorMarshaler().Unmarshal(item.Value)
+		connector, err := services.UnmarshalGithubConnector(item.Value)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1148,7 +1144,7 @@ func (s *IdentityService) GetGithubConnector(name string, withSecrets bool) (ser
 		}
 		return nil, trace.Wrap(err)
 	}
-	connector, err := services.GetGithubConnectorMarshaler().Unmarshal(item.Value)
+	connector, err := services.UnmarshalGithubConnector(item.Value)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

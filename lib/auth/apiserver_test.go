@@ -107,7 +107,7 @@ func TestUpsertServer(t *testing.T) {
 			s := newTestServices(t)
 
 			// Create a fake HTTP request.
-			inSrv, err := services.GetServerMarshaler().MarshalServer(tt.reqServer)
+			inSrv, err := services.MarshalServer(tt.reqServer)
 			require.NoError(t, err)
 			body, err := json.Marshal(upsertServerRawReq{Server: inSrv})
 			require.NoError(t, err)

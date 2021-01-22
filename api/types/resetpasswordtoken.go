@@ -21,9 +21,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/utils"
-
-	"github.com/gravitational/trace"
 )
 
 // ResetPasswordToken represents a temporary token used to reset passwords
@@ -158,69 +155,4 @@ func (u ResetPasswordTokenV3) CheckAndSetDefaults() error {
 // // String represents a human readable version of the token
 func (u *ResetPasswordTokenV3) String() string {
 	return fmt.Sprintf("ResetPasswordTokenV3(tokenID=%v, user=%v, expires at %v)", u.GetName(), u.Spec.User, u.Expiry())
-}
-
-// ResetPasswordTokenSpecV3Template is a template for V3 ResetPasswordToken JSON schema
-const ResetPasswordTokenSpecV3Template = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-    "user": {
-      "type": ["string"]
-    },
-    "created": {
-      "type": ["string"]
-    },
-    "url": {
-      "type": ["string"]
-    }
-  }
-}`
-
-// ResetPasswordTokenMarshaler implements marshal/unmarshal of ResetPasswordToken implementations
-// mostly adds support for extended versions
-type ResetPasswordTokenMarshaler interface {
-	// Marshal marshals token to binary representation
-	Marshal(t ResetPasswordToken, opts ...MarshalOption) ([]byte, error)
-	// Unmarshal unmarshals token from binary representation
-	Unmarshal(bytes []byte, opts ...MarshalOption) (ResetPasswordToken, error)
-}
-
-type teleportResetPasswordTokenMarshaler struct{}
-
-// Unmarshal unmarshals ResetPasswordToken
-func (t *teleportResetPasswordTokenMarshaler) Unmarshal(bytes []byte, opts ...MarshalOption) (ResetPasswordToken, error) {
-	if len(bytes) == 0 {
-		return nil, trace.BadParameter("missing resource data")
-	}
-
-	var token ResetPasswordTokenV3
-	schema := fmt.Sprintf(V2SchemaTemplate, MetadataSchema, ResetPasswordTokenSpecV3Template, DefaultDefinitions)
-	err := utils.UnmarshalWithSchema(schema, &token, bytes)
-	if err != nil {
-		return nil, trace.BadParameter(err.Error())
-	}
-
-	return &token, nil
-}
-
-// Marshal marshals role to JSON or YAML.
-func (t *teleportResetPasswordTokenMarshaler) Marshal(token ResetPasswordToken, opts ...MarshalOption) ([]byte, error) {
-	return utils.FastMarshal(token)
-}
-
-var resetPasswordTokenMarshaler ResetPasswordTokenMarshaler = &teleportResetPasswordTokenMarshaler{}
-
-// SetResetTokenMarshaler sets global ResetPasswordToken marshaler
-func SetResetTokenMarshaler(m ResetPasswordTokenMarshaler) {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	resetPasswordTokenMarshaler = m
-}
-
-// GetResetPasswordTokenMarshaler returns ResetPasswordToken marshaler
-func GetResetPasswordTokenMarshaler() ResetPasswordTokenMarshaler {
-	marshalerMutex.Lock()
-	defer marshalerMutex.Unlock()
-	return resetPasswordTokenMarshaler
 }

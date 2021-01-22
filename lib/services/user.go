@@ -17,8 +17,11 @@ limitations under the License.
 package services
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -36,4 +39,166 @@ func (la *LoginAttempt) Check() error {
 		return trace.BadParameter("missing parameter time")
 	}
 	return nil
+}
+
+// UserSpecV2SchemaTemplate is JSON schema for V2 user
+const UserSpecV2SchemaTemplate = `{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"expires": {"type": "string"},
+		"roles": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"traits": {
+			"type": "object",
+			"additionalProperties": false,
+			"patternProperties": {
+				"^.+$": {
+					"type": ["array", "null"],
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"oidc_identities": {
+			"type": "array",
+			"items": %v
+		},
+		"saml_identities": {
+			"type": "array",
+			"items": %v
+		},
+		"github_identities": {
+			"type": "array",
+			"items": %v
+		},
+		"status": %v,
+		"created_by": %v,
+		"local_auth": %v%v
+	}
+}`
+
+// CreatedBySchema is JSON schema for CreatedBy
+const CreatedBySchema = `{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"connector": {
+			"additionalProperties": false,
+			"type": "object",
+			"properties": {
+			"type": {"type": "string"},
+			"id": {"type": "string"},
+			"identity": {"type": "string"}
+			}
+		},
+		"time": {"type": "string"},
+		"user": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {"name": {"type": "string"}}
+		}
+	}
+}`
+
+// ExternalIdentitySchema is JSON schema for ExternalIdentity
+const ExternalIdentitySchema = `{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"connector_id": {"type": "string"},
+		"username": {"type": "string"}
+	}
+}`
+
+// LoginStatusSchema is JSON schema for LoginStatus
+const LoginStatusSchema = `{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"is_locked": {"type": "boolean"},
+		"locked_message": {"type": "string"},
+		"locked_time": {"type": "string"},
+		"lock_expires": {"type": "string"}
+	}
+}`
+
+// GetUserSchema returns role schema with optionally injected
+// schema for extensions
+func GetUserSchema(extensionSchema string) string {
+	var userSchema string
+	if extensionSchema == "" {
+		userSchema = fmt.Sprintf(UserSpecV2SchemaTemplate, ExternalIdentitySchema, ExternalIdentitySchema, ExternalIdentitySchema, LoginStatusSchema, CreatedBySchema, LocalAuthSecretsSchema, ``)
+	} else {
+		userSchema = fmt.Sprintf(UserSpecV2SchemaTemplate, ExternalIdentitySchema, ExternalIdentitySchema, ExternalIdentitySchema, LoginStatusSchema, CreatedBySchema, LocalAuthSecretsSchema, ", "+extensionSchema)
+	}
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, userSchema, DefaultDefinitions)
+}
+
+// UnmarshalUser unmarshals the User resource.
+func UnmarshalUser(bytes []byte, opts ...MarshalOption) (User, error) {
+	var h ResourceHeader
+	err := json.Unmarshal(bytes, &h)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch h.Version {
+	case V2:
+		var u UserV2
+		if cfg.SkipValidation {
+			if err := utils.FastUnmarshal(bytes, &u); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
+		} else {
+			if err := utils.UnmarshalWithSchema(GetUserSchema(""), &u, bytes); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
+		}
+
+		if err := u.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if cfg.ID != 0 {
+			u.SetResourceID(cfg.ID)
+		}
+		if !cfg.Expires.IsZero() {
+			u.SetExpiry(cfg.Expires)
+		}
+
+		return &u, nil
+	}
+	return nil, trace.BadParameter("user resource version %v is not supported", h.Version)
+}
+
+// MarshalUser marshals the User resource.
+func MarshalUser(u User, opts ...MarshalOption) ([]byte, error) {
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch user := u.(type) {
+	case *UserV2:
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *user
+			copy.SetResourceID(0)
+			user = &copy
+		}
+		return utils.FastMarshal(user)
+	default:
+		return nil, trace.BadParameter("unrecognized user version %T", u)
+	}
 }

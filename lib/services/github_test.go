@@ -49,7 +49,7 @@ func (g *GithubSuite) TestUnmarshal(c *check.C) {
     "logins": ["admin"]
   }]
 }}`)
-	connector, err := GetGithubConnectorMarshaler().Unmarshal(data)
+	connector, err := UnmarshalGithubConnector(data)
 	c.Assert(err, check.IsNil)
 	expected := NewGithubConnector("github", GithubConnectorSpecV3{
 		ClientID:     "aaa",

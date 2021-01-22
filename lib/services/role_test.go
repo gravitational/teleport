@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 	"github.com/stretchr/testify/require"
@@ -443,7 +442,7 @@ func TestRoleParse(t *testing.T) {
 				}
 			} else {
 				require.NoError(t, err)
-				require.Empty(t, cmp.Diff(*role, tc.role))
+				require.True(t, role.Equals(&tc.role))
 
 				err := ValidateRole(role)
 				require.NoError(t, err)
@@ -453,7 +452,7 @@ func TestRoleParse(t *testing.T) {
 
 				role2, err := UnmarshalRole(out)
 				require.NoError(t, err)
-				require.Empty(t, cmp.Diff(*role2, tc.role))
+				require.True(t, role2.Equals(&tc.role))
 			}
 		})
 	}

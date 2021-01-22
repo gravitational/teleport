@@ -160,7 +160,7 @@ func (s *PresenceService) getServers(ctx context.Context, kind, prefix string) (
 	}
 	servers := make([]services.Server, len(result.Items))
 	for i, item := range result.Items {
-		server, err := services.GetServerMarshaler().UnmarshalServer(
+		server, err := services.UnmarshalServer(
 			item.Value, kind,
 			services.SkipValidation(),
 			services.WithResourceID(item.ID),
@@ -177,7 +177,7 @@ func (s *PresenceService) getServers(ctx context.Context, kind, prefix string) (
 }
 
 func (s *PresenceService) upsertServer(ctx context.Context, prefix string, server services.Server) error {
-	value, err := services.GetServerMarshaler().MarshalServer(server)
+	value, err := services.MarshalServer(server)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -217,7 +217,7 @@ func (s *PresenceService) GetNodes(namespace string, opts ...services.MarshalOpt
 	// Marshal values into a []services.Server slice.
 	servers := make([]services.Server, len(result.Items))
 	for i, item := range result.Items {
-		server, err := services.GetServerMarshaler().UnmarshalServer(
+		server, err := services.UnmarshalServer(
 			item.Value,
 			services.KindNode,
 			services.AddOptions(opts,
@@ -238,7 +238,7 @@ func (s *PresenceService) UpsertNode(server services.Server) (*services.KeepAliv
 	if server.GetNamespace() == "" {
 		return nil, trace.BadParameter("missing node namespace")
 	}
-	value, err := services.GetServerMarshaler().MarshalServer(server)
+	value, err := services.MarshalServer(server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -292,7 +292,7 @@ func (s *PresenceService) UpsertNodes(namespace string, servers []services.Serve
 
 	items := make([]backend.Item, len(servers))
 	for i, server := range servers {
-		value, err := services.GetServerMarshaler().MarshalServer(server)
+		value, err := services.MarshalServer(server)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -372,7 +372,7 @@ func (s *PresenceService) UpsertReverseTunnel(tunnel services.ReverseTunnel) err
 	if err := services.ValidateReverseTunnel(tunnel); err != nil {
 		return trace.Wrap(err)
 	}
-	value, err := services.GetReverseTunnelMarshaler().MarshalReverseTunnel(tunnel)
+	value, err := services.MarshalReverseTunnel(tunnel)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -391,7 +391,7 @@ func (s *PresenceService) GetReverseTunnel(name string, opts ...services.Marshal
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(item.Value,
+	return services.UnmarshalReverseTunnel(item.Value,
 		services.AddOptions(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
 }
 
@@ -404,7 +404,7 @@ func (s *PresenceService) GetReverseTunnels(opts ...services.MarshalOption) ([]s
 	}
 	tunnels := make([]services.ReverseTunnel, len(result.Items))
 	for i, item := range result.Items {
-		tunnel, err := services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(
+		tunnel, err := services.UnmarshalReverseTunnel(
 			item.Value, services.AddOptions(opts, services.WithResourceID(item.ID), services.WithExpires(item.Expires))...)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -427,7 +427,7 @@ func (s *PresenceService) UpsertTrustedCluster(ctx context.Context, trustedClust
 	if err := services.ValidateTrustedCluster(trustedCluster); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	value, err := services.GetTrustedClusterMarshaler().Marshal(trustedCluster)
+	value, err := services.MarshalTrustedCluster(trustedCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -452,7 +452,7 @@ func (s *PresenceService) GetTrustedCluster(name string) (services.TrustedCluste
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetTrustedClusterMarshaler().Unmarshal(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
+	return services.UnmarshalTrustedCluster(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 }
 
 // GetTrustedClusters returns all TrustedClusters in the backend.
@@ -464,7 +464,7 @@ func (s *PresenceService) GetTrustedClusters() ([]services.TrustedCluster, error
 	}
 	out := make([]services.TrustedCluster, len(result.Items))
 	for i, item := range result.Items {
-		tc, err := services.GetTrustedClusterMarshaler().Unmarshal(item.Value,
+		tc, err := services.UnmarshalTrustedCluster(item.Value,
 			services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -802,7 +802,7 @@ func (s *PresenceService) initSemaphore(ctx context.Context, key []byte, leaseID
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	value, err := services.GetSemaphoreMarshaler().Marshal(sem)
+	value, err := services.MarshalSemaphore(sem)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -825,7 +825,7 @@ func (s *PresenceService) acquireSemaphore(ctx context.Context, key []byte, leas
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sem, err := services.GetSemaphoreMarshaler().Unmarshal(item.Value)
+	sem, err := services.UnmarshalSemaphore(item.Value)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -837,7 +837,7 @@ func (s *PresenceService) acquireSemaphore(ctx context.Context, key []byte, leas
 		return nil, trace.Wrap(err)
 	}
 
-	newValue, err := services.GetSemaphoreMarshaler().Marshal(sem)
+	newValue, err := services.MarshalSemaphore(sem)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -874,7 +874,7 @@ func (s *PresenceService) KeepAliveSemaphoreLease(ctx context.Context, lease ser
 		return trace.Wrap(err)
 	}
 
-	sem, err := services.GetSemaphoreMarshaler().Unmarshal(item.Value)
+	sem, err := services.UnmarshalSemaphore(item.Value)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -885,7 +885,7 @@ func (s *PresenceService) KeepAliveSemaphoreLease(ctx context.Context, lease ser
 		return trace.Wrap(err)
 	}
 
-	newValue, err := services.GetSemaphoreMarshaler().Marshal(sem)
+	newValue, err := services.MarshalSemaphore(sem)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -922,7 +922,7 @@ func (s *PresenceService) CancelSemaphoreLease(ctx context.Context, lease servic
 		return trace.Wrap(err)
 	}
 
-	sem, err := services.GetSemaphoreMarshaler().Unmarshal(item.Value)
+	sem, err := services.UnmarshalSemaphore(item.Value)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -931,7 +931,7 @@ func (s *PresenceService) CancelSemaphoreLease(ctx context.Context, lease servic
 		return trace.Wrap(err)
 	}
 
-	newValue, err := services.GetSemaphoreMarshaler().Marshal(sem)
+	newValue, err := services.MarshalSemaphore(sem)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -985,7 +985,7 @@ func (s *PresenceService) GetSemaphores(ctx context.Context, filter services.Sem
 	sems := make([]services.Semaphore, 0, len(items))
 
 	for _, item := range items {
-		sem, err := services.GetSemaphoreMarshaler().Unmarshal(item.Value)
+		sem, err := services.UnmarshalSemaphore(item.Value)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1035,7 +1035,7 @@ func (s *PresenceService) DeleteAllKubeServices(ctx context.Context) error {
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
-func (s *PresenceService) GetDatabaseServers(ctx context.Context, namespace string, opts ...types.MarshalOption) ([]types.DatabaseServer, error) {
+func (s *PresenceService) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	if namespace == "" {
 		return nil, trace.BadParameter("missing database server namespace")
 	}
@@ -1046,7 +1046,7 @@ func (s *PresenceService) GetDatabaseServers(ctx context.Context, namespace stri
 	}
 	servers := make([]types.DatabaseServer, len(result.Items))
 	for i, item := range result.Items {
-		server, err := types.UnmarshalDatabaseServer(
+		server, err := services.UnmarshalDatabaseServer(
 			item.Value,
 			services.AddOptions(opts,
 				services.WithResourceID(item.ID),
@@ -1064,7 +1064,7 @@ func (s *PresenceService) UpsertDatabaseServer(ctx context.Context, server types
 	if err := server.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	value, err := types.MarshalDatabaseServer(server)
+	value, err := services.MarshalDatabaseServer(server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1136,7 +1136,7 @@ func (s *PresenceService) GetAppServers(ctx context.Context, namespace string, o
 	// Marshal values into a []services.Server slice.
 	servers := make([]services.Server, len(result.Items))
 	for i, item := range result.Items {
-		server, err := services.GetServerMarshaler().UnmarshalServer(
+		server, err := services.UnmarshalServer(
 			item.Value,
 			services.KindAppServer,
 			services.AddOptions(opts,
@@ -1157,7 +1157,7 @@ func (s *PresenceService) UpsertAppServer(ctx context.Context, server services.S
 		return nil, trace.Wrap(err)
 	}
 
-	value, err := services.GetServerMarshaler().MarshalServer(server)
+	value, err := services.MarshalServer(server)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

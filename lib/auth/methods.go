@@ -206,10 +206,6 @@ func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebS
 		return nil, trace.Wrap(err)
 	}
 
-	sess, err = services.GetWebSessionMarshaler().GenerateWebSession(sess)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return sess, nil
 }
 

@@ -70,7 +70,7 @@ func (s *UserSuite) TestTraits(c *check.C) {
 		data, err := json.Marshal(user)
 		c.Assert(err, check.IsNil)
 
-		_, err = GetUserMarshaler().UnmarshalUser(data)
+		_, err = UnmarshalUser(data)
 		c.Assert(err, check.IsNil)
 	}
 }

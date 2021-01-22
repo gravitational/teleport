@@ -417,7 +417,7 @@ func (c *Client) RotateExternalCertAuthority(ca services.CertAuthority) error {
 	if err := services.ValidateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}
-	data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca)
+	data, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -431,7 +431,7 @@ func (c *Client) UpsertCertAuthority(ca services.CertAuthority) error {
 	if err := services.ValidateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}
-	data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca)
+	data, err := services.MarshalCertAuthority(ca)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -463,7 +463,7 @@ func (c *Client) GetCertAuthorities(caType services.CertAuthType, loadKeys bool,
 	}
 	re := make([]services.CertAuthority, len(items))
 	for i, raw := range items {
-		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw, services.SkipValidation())
+		ca, err := services.UnmarshalCertAuthority(raw, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -484,7 +484,7 @@ func (c *Client) GetCertAuthority(id services.CertAuthID, loadSigningKeys bool, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(
+	return services.UnmarshalCertAuthority(
 		out.Bytes(), services.SkipValidation())
 }
 
@@ -632,7 +632,7 @@ func (c *Client) UpsertNodes(namespace string, servers []services.Server) error 
 		return trace.BadParameter("missing node namespace")
 	}
 
-	bytes, err := services.GetServerMarshaler().MarshalServers(servers)
+	bytes, err := services.MarshalServers(servers)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -691,7 +691,7 @@ func (c *Client) GetNodes(namespace string, opts ...services.MarshalOption) ([]s
 	}
 	re := make([]services.Server, len(items))
 	for i, raw := range items {
-		s, err := services.GetServerMarshaler().UnmarshalServer(
+		s, err := services.UnmarshalServer(
 			raw,
 			services.KindNode,
 			services.AddOptions(opts, services.SkipValidation())...)
@@ -707,7 +707,7 @@ func (c *Client) GetNodes(namespace string, opts ...services.MarshalOption) ([]s
 // UpsertReverseTunnel is used by admins to create a new reverse tunnel
 // to the remote proxy to bypass firewall restrictions
 func (c *Client) UpsertReverseTunnel(tunnel services.ReverseTunnel) error {
-	data, err := services.GetReverseTunnelMarshaler().MarshalReverseTunnel(tunnel)
+	data, err := services.MarshalReverseTunnel(tunnel)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -735,7 +735,7 @@ func (c *Client) GetReverseTunnels(opts ...services.MarshalOption) ([]services.R
 	}
 	tunnels := make([]services.ReverseTunnel, len(items))
 	for i, raw := range items {
-		tunnel, err := services.GetReverseTunnelMarshaler().UnmarshalReverseTunnel(raw, services.SkipValidation())
+		tunnel, err := services.UnmarshalReverseTunnel(raw, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -920,7 +920,7 @@ func (c *Client) CreateRemoteCluster(rc services.RemoteCluster) error {
 // UpsertAuthServer is used by auth servers to report their presence
 // to other auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertAuthServer(s services.Server) error {
-	data, err := services.GetServerMarshaler().MarshalServer(s)
+	data, err := services.MarshalServer(s)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -943,7 +943,7 @@ func (c *Client) GetAuthServers() ([]services.Server, error) {
 	}
 	re := make([]services.Server, len(items))
 	for i, raw := range items {
-		server, err := services.GetServerMarshaler().UnmarshalServer(raw, services.KindAuthServer, services.SkipValidation())
+		server, err := services.UnmarshalServer(raw, services.KindAuthServer, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -965,7 +965,7 @@ func (c *Client) DeleteAuthServer(name string) error {
 // UpsertProxy is used by proxies to report their presence
 // to other auth servers in form of hearbeat expiring after ttl period.
 func (c *Client) UpsertProxy(s services.Server) error {
-	data, err := services.GetServerMarshaler().MarshalServer(s)
+	data, err := services.MarshalServer(s)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -988,7 +988,7 @@ func (c *Client) GetProxies() ([]services.Server, error) {
 	}
 	re := make([]services.Server, len(items))
 	for i, raw := range items {
-		server, err := services.GetServerMarshaler().UnmarshalServer(raw, services.KindProxy, services.SkipValidation())
+		server, err := services.UnmarshalServer(raw, services.KindProxy, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1047,7 +1047,7 @@ func (c *Client) UpsertPassword(user string, password []byte) error {
 
 // UpsertUser user updates user entry.
 func (c *Client) UpsertUser(user services.User) error {
-	data, err := services.GetUserMarshaler().MarshalUser(user)
+	data, err := services.MarshalUser(user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1103,7 +1103,7 @@ func (c *Client) ExtendWebSession(user string, prevSessionID string, accessReque
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
+	return services.UnmarshalWebSession(out.Bytes())
 }
 
 // CreateWebSession creates a new web session for a user
@@ -1115,7 +1115,7 @@ func (c *Client) CreateWebSession(user string) (services.WebSession, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
+	return services.UnmarshalWebSession(out.Bytes())
 }
 
 // AuthenticateWebUser authenticates web user, creates and  returns web session
@@ -1128,7 +1128,7 @@ func (c *Client) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebS
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
+	return services.UnmarshalWebSession(out.Bytes())
 }
 
 // AuthenticateSSHUser authenticates SSH console user, creates and  returns a pair of signed TLS and SSH
@@ -1156,7 +1156,7 @@ func (c *Client) GetWebSessionInfo(user string, sid string) (services.WebSession
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
+	return services.UnmarshalWebSession(out.Bytes())
 }
 
 // DeleteWebSession deletes a web session for this user by id
@@ -1227,12 +1227,12 @@ func (c *Client) ChangePasswordWithToken(ctx context.Context, req ChangePassword
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetWebSessionMarshaler().UnmarshalWebSession(out.Bytes())
+	return services.UnmarshalWebSession(out.Bytes())
 }
 
 // UpsertOIDCConnector updates or creates OIDC connector
 func (c *Client) UpsertOIDCConnector(ctx context.Context, connector services.OIDCConnector) error {
-	data, err := services.GetOIDCConnectorMarshaler().MarshalOIDCConnector(connector)
+	data, err := services.MarshalOIDCConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1255,10 +1255,10 @@ func (c *Client) GetOIDCConnector(id string, withSecrets bool) (services.OIDCCon
 	if err != nil {
 		return nil, err
 	}
-	return services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(out.Bytes(), services.SkipValidation())
+	return services.UnmarshalOIDCConnector(out.Bytes(), services.SkipValidation())
 }
 
-// GetOIDCConnector gets OIDC connectors list
+// GetOIDCConnectors gets OIDC connectors list
 func (c *Client) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, error) {
 	out, err := c.Get(c.Endpoint("oidc", "connectors"),
 		url.Values{"with_secrets": []string{fmt.Sprintf("%t", withSecrets)}})
@@ -1271,7 +1271,7 @@ func (c *Client) GetOIDCConnectors(withSecrets bool) ([]services.OIDCConnector, 
 	}
 	connectors := make([]services.OIDCConnector, len(items))
 	for i, raw := range items {
-		connector, err := services.GetOIDCConnectorMarshaler().UnmarshalOIDCConnector(raw, services.SkipValidation())
+		connector, err := services.UnmarshalOIDCConnector(raw, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1324,7 +1324,7 @@ func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 		TLSCert:  rawResponse.TLSCert,
 	}
 	if len(rawResponse.Session) != 0 {
-		session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(rawResponse.Session)
+		session, err := services.UnmarshalWebSession(rawResponse.Session)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1332,7 +1332,7 @@ func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 	}
 	response.HostSigners = make([]services.CertAuthority, len(rawResponse.HostSigners))
 	for i, raw := range rawResponse.HostSigners {
-		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw)
+		ca, err := services.UnmarshalCertAuthority(raw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1341,9 +1341,9 @@ func (c *Client) ValidateOIDCAuthCallback(q url.Values) (*OIDCAuthResponse, erro
 	return &response, nil
 }
 
-// CreateOIDCConnector creates SAML connector
+// CreateSAMLConnector creates SAML connector
 func (c *Client) CreateSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
-	data, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)
+	data, err := services.MarshalSAMLConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1358,7 +1358,7 @@ func (c *Client) CreateSAMLConnector(ctx context.Context, connector services.SAM
 
 // UpsertSAMLConnector updates or creates OIDC connector
 func (c *Client) UpsertSAMLConnector(ctx context.Context, connector services.SAMLConnector) error {
-	data, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)
+	data, err := services.MarshalSAMLConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1371,7 +1371,7 @@ func (c *Client) UpsertSAMLConnector(ctx context.Context, connector services.SAM
 	return nil
 }
 
-// GetOIDCConnector returns SAML connector information by id
+// GetSAMLConnector returns SAML connector information by id
 func (c *Client) GetSAMLConnector(id string, withSecrets bool) (services.SAMLConnector, error) {
 	if id == "" {
 		return nil, trace.BadParameter("missing connector id")
@@ -1381,7 +1381,7 @@ func (c *Client) GetSAMLConnector(id string, withSecrets bool) (services.SAMLCon
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(out.Bytes(), services.SkipValidation())
+	return services.UnmarshalSAMLConnector(out.Bytes(), services.SkipValidation())
 }
 
 // GetSAMLConnectors gets SAML connectors list
@@ -1397,7 +1397,7 @@ func (c *Client) GetSAMLConnectors(withSecrets bool) ([]services.SAMLConnector, 
 	}
 	connectors := make([]services.SAMLConnector, len(items))
 	for i, raw := range items {
-		connector, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(raw, services.SkipValidation())
+		connector, err := services.UnmarshalSAMLConnector(raw, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1450,7 +1450,7 @@ func (c *Client) ValidateSAMLResponse(re string) (*SAMLAuthResponse, error) {
 		TLSCert:  rawResponse.TLSCert,
 	}
 	if len(rawResponse.Session) != 0 {
-		session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(rawResponse.Session)
+		session, err := services.UnmarshalWebSession(rawResponse.Session)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1458,7 +1458,7 @@ func (c *Client) ValidateSAMLResponse(re string) (*SAMLAuthResponse, error) {
 	}
 	response.HostSigners = make([]services.CertAuthority, len(rawResponse.HostSigners))
 	for i, raw := range rawResponse.HostSigners {
-		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw)
+		ca, err := services.UnmarshalCertAuthority(raw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1469,7 +1469,7 @@ func (c *Client) ValidateSAMLResponse(re string) (*SAMLAuthResponse, error) {
 
 // CreateGithubConnector creates a new Github connector
 func (c *Client) CreateGithubConnector(connector services.GithubConnector) error {
-	bytes, err := services.GetGithubConnectorMarshaler().Marshal(connector)
+	bytes, err := services.MarshalGithubConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1484,7 +1484,7 @@ func (c *Client) CreateGithubConnector(connector services.GithubConnector) error
 
 // UpsertGithubConnector creates or updates a Github connector
 func (c *Client) UpsertGithubConnector(ctx context.Context, connector services.GithubConnector) error {
-	bytes, err := services.GetGithubConnectorMarshaler().Marshal(connector)
+	bytes, err := services.MarshalGithubConnector(connector)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1511,7 +1511,7 @@ func (c *Client) GetGithubConnectors(withSecrets bool) ([]services.GithubConnect
 	}
 	connectors := make([]services.GithubConnector, len(items))
 	for i, raw := range items {
-		connector, err := services.GetGithubConnectorMarshaler().Unmarshal(raw)
+		connector, err := services.UnmarshalGithubConnector(raw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1528,7 +1528,7 @@ func (c *Client) GetGithubConnector(id string, withSecrets bool) (services.Githu
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetGithubConnectorMarshaler().Unmarshal(out.Bytes())
+	return services.UnmarshalGithubConnector(out.Bytes())
 }
 
 // DeleteGithubConnector deletes the specified Github connector
@@ -1573,7 +1573,7 @@ func (c *Client) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, 
 		TLSCert:  rawResponse.TLSCert,
 	}
 	if len(rawResponse.Session) != 0 {
-		session, err := services.GetWebSessionMarshaler().UnmarshalWebSession(
+		session, err := services.UnmarshalWebSession(
 			rawResponse.Session)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1582,7 +1582,7 @@ func (c *Client) ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, 
 	}
 	response.HostSigners = make([]services.CertAuthority, len(rawResponse.HostSigners))
 	for i, raw := range rawResponse.HostSigners {
-		ca, err := services.GetCertAuthorityMarshaler().UnmarshalCertAuthority(raw)
+		ca, err := services.UnmarshalCertAuthority(raw)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1788,7 +1788,7 @@ func (c *Client) GetRoles() ([]services.Role, error) {
 	}
 	roles := make([]services.Role, len(items))
 	for i, roleBytes := range items {
-		role, err := services.GetRoleMarshaler().UnmarshalRole(roleBytes, services.SkipValidation())
+		role, err := services.UnmarshalRole(roleBytes, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1804,7 +1804,7 @@ func (c *Client) CreateRole(role services.Role) error {
 
 // UpsertRole creates or updates role
 func (c *Client) UpsertRole(ctx context.Context, role services.Role) error {
-	data, err := services.GetRoleMarshaler().MarshalRole(role)
+	data, err := services.MarshalRole(role)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1821,7 +1821,7 @@ func (c *Client) GetRole(name string) (services.Role, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	role, err := services.GetRoleMarshaler().UnmarshalRole(out.Bytes(), services.SkipValidation())
+	role, err := services.UnmarshalRole(out.Bytes(), services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1841,7 +1841,7 @@ func (c *Client) GetClusterConfig(opts ...services.MarshalOption) (services.Clus
 		return nil, trace.Wrap(err)
 	}
 
-	cc, err := services.GetClusterConfigMarshaler().Unmarshal(out.Bytes(), services.SkipValidation())
+	cc, err := services.UnmarshalClusterConfig(out.Bytes(), services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1851,7 +1851,7 @@ func (c *Client) GetClusterConfig(opts ...services.MarshalOption) (services.Clus
 
 // SetClusterConfig sets cluster level configuration information.
 func (c *Client) SetClusterConfig(cc services.ClusterConfig) error {
-	data, err := services.GetClusterConfigMarshaler().Marshal(cc)
+	data, err := services.MarshalClusterConfig(cc)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1871,7 +1871,7 @@ func (c *Client) GetClusterName(opts ...services.MarshalOption) (services.Cluste
 		return nil, trace.Wrap(err)
 	}
 
-	cn, err := services.GetClusterNameMarshaler().Unmarshal(out.Bytes(), services.SkipValidation())
+	cn, err := services.UnmarshalClusterName(out.Bytes(), services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1882,7 +1882,7 @@ func (c *Client) GetClusterName(opts ...services.MarshalOption) (services.Cluste
 // SetClusterName sets cluster name once, will
 // return Already Exists error if the name is already set
 func (c *Client) SetClusterName(cn services.ClusterName) error {
-	data, err := services.GetClusterNameMarshaler().Marshal(cn)
+	data, err := services.MarshalClusterName(cn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1913,7 +1913,7 @@ func (c *Client) GetStaticTokens() (services.StaticTokens, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	st, err := services.GetStaticTokensMarshaler().Unmarshal(out.Bytes(), services.SkipValidation())
+	st, err := services.UnmarshalStaticTokens(out.Bytes(), services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1923,7 +1923,7 @@ func (c *Client) GetStaticTokens() (services.StaticTokens, error) {
 
 // SetStaticTokens sets a list of static register tokens
 func (c *Client) SetStaticTokens(st services.StaticTokens) error {
-	data, err := services.GetStaticTokensMarshaler().Marshal(st)
+	data, err := services.MarshalStaticTokens(st)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1942,7 +1942,7 @@ func (c *Client) GetAuthPreference() (services.AuthPreference, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cap, err := services.GetAuthPreferenceMarshaler().Unmarshal(out.Bytes())
+	cap, err := services.UnmarshalAuthPreference(out.Bytes())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1951,7 +1951,7 @@ func (c *Client) GetAuthPreference() (services.AuthPreference, error) {
 }
 
 func (c *Client) SetAuthPreference(cap services.AuthPreference) error {
-	data, err := services.GetAuthPreferenceMarshaler().Marshal(cap)
+	data, err := services.MarshalAuthPreference(cap)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2015,7 +2015,7 @@ func (c *Client) GetTrustedCluster(name string) (services.TrustedCluster, error)
 		return nil, trace.Wrap(err)
 	}
 
-	trustedCluster, err := services.GetTrustedClusterMarshaler().Unmarshal(out.Bytes(), services.SkipValidation())
+	trustedCluster, err := services.UnmarshalTrustedCluster(out.Bytes(), services.SkipValidation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2035,7 +2035,7 @@ func (c *Client) GetTrustedClusters() ([]services.TrustedCluster, error) {
 	}
 	trustedClusters := make([]services.TrustedCluster, len(items))
 	for i, bytes := range items {
-		trustedCluster, err := services.GetTrustedClusterMarshaler().Unmarshal(bytes, services.SkipValidation())
+		trustedCluster, err := services.UnmarshalTrustedCluster(bytes, services.SkipValidation())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2047,7 +2047,7 @@ func (c *Client) GetTrustedClusters() ([]services.TrustedCluster, error) {
 
 // UpsertTrustedCluster creates or updates a trusted cluster.
 func (c *Client) UpsertTrustedCluster(ctx context.Context, trustedCluster services.TrustedCluster) (services.TrustedCluster, error) {
-	trustedClusterBytes, err := services.GetTrustedClusterMarshaler().Marshal(trustedCluster)
+	trustedClusterBytes, err := services.MarshalTrustedCluster(trustedCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2057,7 +2057,7 @@ func (c *Client) UpsertTrustedCluster(ctx context.Context, trustedCluster servic
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return services.GetTrustedClusterMarshaler().Unmarshal(out.Bytes())
+	return services.UnmarshalTrustedCluster(out.Bytes())
 }
 
 func (c *Client) ValidateTrustedCluster(validateRequest *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {

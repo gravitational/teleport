@@ -1,5 +1,5 @@
 /*
-Copyright 2015-2019 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,10 +17,13 @@ limitations under the License.
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
 )
 
@@ -298,3 +301,243 @@ func fieldsFunc(s string, f func(rune) bool) []string {
 
 	return a
 }
+
+// marshalerMutex is a mutex for resource marshalers/unmarshalers
+var marshalerMutex sync.RWMutex
+
+// ResourceMarshaler handles marshaling of a specific resource type.
+type ResourceMarshaler func(Resource, ...MarshalOption) ([]byte, error)
+
+// ResourceUnmarshaler handles unmarshaling of a specific resource type.
+type ResourceUnmarshaler func([]byte, ...MarshalOption) (Resource, error)
+
+// resourceMarshalers holds a collection of marshalers organized by kind.
+var resourceMarshalers map[string]ResourceMarshaler = make(map[string]ResourceMarshaler)
+
+// resourceUnmarshalers holds a collection of unmarshalers organized by kind.
+var resourceUnmarshalers map[string]ResourceUnmarshaler = make(map[string]ResourceUnmarshaler)
+
+// GetResourceMarshalerKinds lists all registered resource marshalers by kind.
+func GetResourceMarshalerKinds() []string {
+	marshalerMutex.Lock()
+	defer marshalerMutex.Unlock()
+	kinds := make([]string, 0, len(resourceMarshalers))
+	for kind := range resourceMarshalers {
+		kinds = append(kinds, kind)
+	}
+	return kinds
+}
+
+// RegisterResourceMarshaler registers a marshaler for resources of a specific kind.
+func RegisterResourceMarshaler(kind string, marshaler ResourceMarshaler) {
+	marshalerMutex.Lock()
+	defer marshalerMutex.Unlock()
+	resourceMarshalers[kind] = marshaler
+}
+
+// RegisterResourceUnmarshaler registers an unmarshaler for resources of a specific kind.
+func RegisterResourceUnmarshaler(kind string, unmarshaler ResourceUnmarshaler) {
+	marshalerMutex.Lock()
+	defer marshalerMutex.Unlock()
+	resourceUnmarshalers[kind] = unmarshaler
+}
+
+func getResourceMarshaler(kind string) (ResourceMarshaler, bool) {
+	marshalerMutex.RLock()
+	defer marshalerMutex.RUnlock()
+	m, ok := resourceMarshalers[kind]
+	if !ok {
+		return nil, false
+	}
+	return m, true
+}
+
+func getResourceUnmarshaler(kind string) (ResourceUnmarshaler, bool) {
+	marshalerMutex.RLock()
+	defer marshalerMutex.RUnlock()
+	u, ok := resourceUnmarshalers[kind]
+	if !ok {
+		return nil, false
+	}
+	return u, true
+}
+
+func init() {
+	RegisterResourceMarshaler(KindUser, func(r Resource, opts ...MarshalOption) ([]byte, error) {
+		rsc, ok := r.(User)
+		if !ok {
+			return nil, trace.BadParameter("expected User, got %T", r)
+		}
+		raw, err := MarshalUser(rsc, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return raw, nil
+	})
+	RegisterResourceUnmarshaler(KindUser, func(b []byte, opts ...MarshalOption) (Resource, error) {
+		rsc, err := UnmarshalUser(b, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return rsc, nil
+	})
+
+	RegisterResourceMarshaler(KindCertAuthority, func(r Resource, opts ...MarshalOption) ([]byte, error) {
+		rsc, ok := r.(CertAuthority)
+		if !ok {
+			return nil, trace.BadParameter("expected CertAuthority, got %T", r)
+		}
+		raw, err := MarshalCertAuthority(rsc, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return raw, nil
+	})
+	RegisterResourceUnmarshaler(KindCertAuthority, func(b []byte, opts ...MarshalOption) (Resource, error) {
+		rsc, err := UnmarshalCertAuthority(b, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return rsc, nil
+	})
+
+	RegisterResourceMarshaler(KindTrustedCluster, func(r Resource, opts ...MarshalOption) ([]byte, error) {
+		rsc, ok := r.(TrustedCluster)
+		if !ok {
+			return nil, trace.BadParameter("expected TrustedCluster, got %T", r)
+		}
+		raw, err := MarshalTrustedCluster(rsc, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return raw, nil
+	})
+	RegisterResourceUnmarshaler(KindTrustedCluster, func(b []byte, opts ...MarshalOption) (Resource, error) {
+		rsc, err := UnmarshalTrustedCluster(b, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return rsc, nil
+	})
+
+	RegisterResourceMarshaler(KindGithubConnector, func(r Resource, opts ...MarshalOption) ([]byte, error) {
+		rsc, ok := r.(GithubConnector)
+		if !ok {
+			return nil, trace.BadParameter("expected GithubConnector, got %T", r)
+		}
+		raw, err := MarshalGithubConnector(rsc, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return raw, nil
+	})
+	RegisterResourceUnmarshaler(KindGithubConnector, func(b []byte, opts ...MarshalOption) (Resource, error) {
+		rsc, err := UnmarshalGithubConnector(b) // XXX: Does not support marshal options.
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return rsc, nil
+	})
+}
+
+// MarshalResource attempts to marshal a resource dynamically, returning NotImplementedError
+// if no marshaler has been registered.
+//
+// NOTE: This function only supports the subset of resources which may be imported/exported
+// by users (e.g. via `tctl get`).
+func MarshalResource(resource Resource, opts ...MarshalOption) ([]byte, error) {
+	marshal, ok := getResourceMarshaler(resource.GetKind())
+	if !ok {
+		return nil, trace.NotImplemented("cannot dynamically marshal resources of kind %q", resource.GetKind())
+	}
+	// Handle the case where `resource` was never fully unmarshaled.
+	if r, ok := resource.(*UnknownResource); ok {
+		u, err := UnmarshalResource(r.GetKind(), r.Raw, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resource = u
+	}
+	m, err := marshal(resource, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return m, nil
+}
+
+// UnmarshalResource attempts to unmarshal a resource dynamically, returning NotImplementedError
+// if no unmarshaler has been registered.
+//
+// NOTE: This function only supports the subset of resources which may be imported/exported
+// by users (e.g. via `tctl get`).
+func UnmarshalResource(kind string, raw []byte, opts ...MarshalOption) (Resource, error) {
+	unmarshal, ok := getResourceUnmarshaler(kind)
+	if !ok {
+		return nil, trace.NotImplemented("cannot dynamically unmarshal resources of kind %q", kind)
+	}
+	u, err := unmarshal(raw, opts...)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return u, nil
+}
+
+// UnknownResource is used to detect resources
+type UnknownResource struct {
+	ResourceHeader
+	// Raw is raw representation of the resource
+	Raw []byte
+}
+
+// UnmarshalJSON unmarshals header and captures raw state
+func (u *UnknownResource) UnmarshalJSON(raw []byte) error {
+	var h ResourceHeader
+	if err := json.Unmarshal(raw, &h); err != nil {
+		return trace.Wrap(err)
+	}
+	u.Raw = make([]byte, len(raw))
+	u.ResourceHeader = h
+	copy(u.Raw, raw)
+	return nil
+}
+
+const baseMetadataSchema = `{
+  "type": "object",
+  "additionalProperties": false,
+  "default": {},
+  "required": ["name"],
+  "properties": {
+	"name": {"type": "string"},
+	"namespace": {"type": "string", "default": "default"},
+	"description": {"type": "string"},
+	"expires": {"type": "string"},
+	"id": {"type": "integer"},
+	"labels": {
+	  "type": "object",
+	  "additionalProperties": false,
+	  "patternProperties": {
+  	    "%s":  { "type": "string" }
+  	  }
+    }
+  }
+}`
+
+// V2SchemaTemplate is a template JSON Schema for V2 style objects
+const V2SchemaTemplate = `{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "spec", "metadata", "version"],
+  "properties": {
+    "kind": {"type": "string"},
+    "sub_kind": {"type": "string"},
+    "version": {"type": "string", "default": "v2"},
+    "metadata": %v,
+    "spec": %v
+  }%v
+}`
+
+// MetadataSchema is a schema for resource metadata
+var MetadataSchema = fmt.Sprintf(baseMetadataSchema, constants.LabelPattern)
+
+// DefaultDefinitions the default list of JSON schema definitions which is none.
+const DefaultDefinitions = ``

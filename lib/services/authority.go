@@ -19,6 +19,8 @@ package services
 import (
 	"crypto"
 	"crypto/x509"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport"
@@ -315,4 +317,176 @@ func CertPool(ca CertAuthority) (*x509.CertPool, error) {
 		certPool.AddCert(cert)
 	}
 	return certPool, nil
+}
+
+// CertRolesSchema defines cert roles schema
+const CertRolesSchema = `{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"version": {"type": "string"},
+			"roles": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		}
+	}
+}`
+
+// MarshalCertRoles marshal roles list to OpenSSH
+func MarshalCertRoles(roles []string) (string, error) {
+	out, err := json.Marshal(CertRoles{Version: V1, Roles: roles})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return string(out), err
+}
+
+// UnmarshalCertRoles marshals roles list to OpenSSH
+func UnmarshalCertRoles(data string) ([]string, error) {
+	var certRoles CertRoles
+	if err := utils.UnmarshalWithSchema(CertRolesSchema, &certRoles, []byte(data)); err != nil {
+		return nil, trace.BadParameter(err.Error())
+	}
+	return certRoles.Roles, nil
+}
+
+// CertAuthoritySpecV2Schema is JSON schema for cert authority V2
+const CertAuthoritySpecV2Schema = `{
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["type", "cluster_name"],
+	"properties": {
+		"type": {"type": "string"},
+		"cluster_name": {"type": "string"},
+		"checking_keys": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"signing_keys": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"roles": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"tls_key_pairs":  {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"cert": {"type": "string"},
+					"key": {"type": "string"}
+				}
+			}
+		},
+		"jwt_key_pairs":  {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"public_key": {"type": "string"},
+					"private_key": {"type": "string"}
+				}
+			}
+		},
+		"signing_alg": {"type": "integer"},
+		"rotation": %v,
+		"role_map": %v
+	}
+}`
+
+// RotationSchema is a JSON validation schema of the CA rotation state object.
+const RotationSchema = `{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"state": {"type": "string"},
+		"phase": {"type": "string"},
+		"mode": {"type": "string"},
+		"current_id": {"type": "string"},
+		"started": {"type": "string"},
+		"grace_period": {"type": "string"},
+		"last_rotated": {"type": "string"},
+		"schedule": {
+			"type": "object",
+			"properties": {
+				"update_clients": {"type": "string"},
+				"update_servers": {"type": "string"},
+				"standby": {"type": "string"}
+			}
+		}
+	}
+}`
+
+// GetCertAuthoritySchema returns JSON Schema for cert authorities
+func GetCertAuthoritySchema() string {
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, fmt.Sprintf(CertAuthoritySpecV2Schema, RotationSchema, RoleMapSchema), DefaultDefinitions)
+}
+
+// UnmarshalCertAuthority unmarshals the CertAuthority frresource.
+func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (CertAuthority, error) {
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var h ResourceHeader
+	err = utils.FastUnmarshal(bytes, &h)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch h.Version {
+	case V2:
+		var ca CertAuthorityV2
+		if cfg.SkipValidation {
+			if err := utils.FastUnmarshal(bytes, &ca); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
+		} else {
+			if err := utils.UnmarshalWithSchema(GetCertAuthoritySchema(), &ca, bytes); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
+		}
+		if err := ca.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if cfg.ID != 0 {
+			ca.SetResourceID(cfg.ID)
+		}
+		return &ca, nil
+	}
+
+	return nil, trace.BadParameter("cert authority resource version %v is not supported", h.Version)
+}
+
+// MarshalCertAuthority marshalls the CertAuthority resource.
+func MarshalCertAuthority(ca CertAuthority, opts ...MarshalOption) ([]byte, error) {
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch authority := ca.(type) {
+	case *CertAuthorityV2:
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *authority
+			copy.SetResourceID(0)
+			authority = &copy
+		}
+		return utils.FastMarshal(authority)
+	default:
+		return nil, trace.BadParameter("unrecognized certificate authority version %T", ca)
+	}
 }

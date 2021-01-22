@@ -1,5 +1,5 @@
 /*
-Copyright 2016-2020 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -1668,4 +1669,210 @@ func (s SortedRoles) Less(i, j int) bool {
 // Swap swaps two roles in a list
 func (s SortedRoles) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
+}
+
+// RoleSpecV3SchemaTemplate is JSON schema for RoleSpecV3
+const RoleSpecV3SchemaTemplate = `{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+	  "max_session_ttl": { "type": "string" },
+	  "options": {
+		"type": "object",
+		"additionalProperties": false,
+		"properties": {
+		  "forward_agent": { "type": ["boolean", "string"] },
+		  "permit_x11_forwarding": { "type": ["boolean", "string"] },
+		  "max_session_ttl": { "type": "string" },
+		  "port_forwarding": { "type": ["boolean", "string"] },
+		  "cert_format": { "type": "string" },
+		  "client_idle_timeout": { "type": "string" },
+		  "disconnect_expired_cert": { "type": ["boolean", "string"] },
+		  "enhanced_recording": {
+			"type": "array",
+			"items": { "type": "string" }
+		  },
+		  "max_connections": { "type": "number" },
+		  "max_sessions": {"type": "number"},
+		  "request_access": { "type": "string" },
+		  "request_prompt": { "type": "string" }
+		}
+	  },
+	  "allow": { "$ref": "#/definitions/role_condition" },
+	  "deny": { "$ref": "#/definitions/role_condition" }%v
+	}
+  }`
+
+// RoleSpecV3SchemaDefinitions is JSON schema for RoleSpecV3 definitions
+const RoleSpecV3SchemaDefinitions = `
+	  "definitions": {
+		"role_condition": {
+		  "namespaces": {
+			"type": "array",
+			"items": { "type": "string" }
+		  },
+		  "node_labels": {
+			"type": "object",
+			"additionalProperties": false,
+			"patternProperties": {
+			  "^[a-zA-Z/.0-9_*-]+$": { "anyOf": [{"type": "string"}, { "type": "array", "items": {"type": "string"}}]}
+			}
+		  },
+		  "cluster_labels": {
+			"type": "object",
+			"additionalProperties": false,
+			"patternProperties": {
+			  "^[a-zA-Z/.0-9_*-]+$": { "anyOf": [{"type": "string"}, { "type": "array", "items": {"type": "string"}}]}
+			}
+		  },
+		  "logins": {
+			"type": "array",
+			"items": { "type": "string" }
+		  },
+		  "kubernetes_groups": {
+			"type": "array",
+			"items": { "type": "string" }
+		  },
+		  "db_labels": {
+			"type": "object",
+			"additionalProperties": false,
+			"patternProperties": {
+			  "^[a-zA-Z/.0-9_*-]+$": {"anyOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}]}
+			}
+		  },
+		  "db_names": {
+			"type": "array",
+			"items": {"type": "string"}
+		  },
+		  "db_users": {
+			"type": "array",
+			"items": {"type": "string"}
+		  },
+		  "request": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+			  "roles": {
+				"type": "array",
+				"items": { "type": "string" }
+			  },
+			  "claims_to_roles": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+				  "claim": {"type": "string"},
+				  "value": {"type": "string"},
+				  "roles": {
+					"type": "array",
+					"items": {
+					  "type": "string"
+					}
+				  }
+				}
+			  }
+			}
+		  },
+		  "rules": {
+			"type": "array",
+			"items": {
+			  "type": "object",
+			  "additionalProperties": false,
+			  "properties": {
+				"resources": {
+				  "type": "array",
+				  "items": { "type": "string" }
+				},
+				"verbs": {
+				  "type": "array",
+				  "items": { "type": "string" }
+				},
+				"where": {
+				   "type": "string"
+				},
+				"actions": {
+				  "type": "array",
+				  "items": { "type": "string" }
+				}
+			  }
+			}
+		  }
+		}
+	  }
+	`
+
+// GetRoleSchema returns role schema for the version requested with optionally
+// injected schema for extensions.
+func GetRoleSchema(version string, extensionSchema string) string {
+	schemaDefinitions := "," + RoleSpecV3SchemaDefinitions
+	schemaTemplate := RoleSpecV3SchemaTemplate
+
+	schema := fmt.Sprintf(schemaTemplate, ``)
+	if extensionSchema != "" {
+		schema = fmt.Sprintf(schemaTemplate, ","+extensionSchema)
+	}
+
+	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, schema, schemaDefinitions)
+}
+
+// UnmarshalRole unmarshals the Role resource.
+func UnmarshalRole(bytes []byte, opts ...MarshalOption) (Role, error) {
+	var h ResourceHeader
+	err := json.Unmarshal(bytes, &h)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch h.Version {
+	case V3:
+		var role RoleV3
+		if cfg.SkipValidation {
+			if err := utils.FastUnmarshal(bytes, &role); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
+		} else {
+			if err := utils.UnmarshalWithSchema(GetRoleSchema(V3, ""), &role, bytes); err != nil {
+				return nil, trace.BadParameter(err.Error())
+			}
+		}
+
+		if err := role.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if cfg.ID != 0 {
+			role.SetResourceID(cfg.ID)
+		}
+		if !cfg.Expires.IsZero() {
+			role.SetExpiry(cfg.Expires)
+		}
+		return &role, nil
+	}
+
+	return nil, trace.BadParameter("role version %q is not supported", h.Version)
+}
+
+// MarshalRole marshals the Role resource.
+func MarshalRole(r Role, opts ...MarshalOption) ([]byte, error) {
+	cfg, err := CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	switch role := r.(type) {
+	case *RoleV3:
+		if !cfg.PreserveResourceID {
+			// avoid modifying the original object
+			// to prevent unexpected data races
+			copy := *role
+			copy.SetResourceID(0)
+			role = &copy
+		}
+		return utils.FastMarshal(role)
+	default:
+		return nil, trace.BadParameter("unrecognized role version %T", r)
+	}
 }

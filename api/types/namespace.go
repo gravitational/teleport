@@ -17,11 +17,8 @@ limitations under the License.
 package types
 
 import (
-	"fmt"
 	"regexp"
 	"time"
-
-	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -110,81 +107,6 @@ func (n *Namespace) SetTTL(clock Clock, ttl time.Duration) {
 // GetMetadata returns object metadata
 func (n *Namespace) GetMetadata() Metadata {
 	return n.Metadata
-}
-
-// NamespaceSpecSchema is JSON schema for NameSpaceSpec
-const NamespaceSpecSchema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "default": {}
-}`
-
-// NamespaceSchemaTemplate is JSON schema for the Namespace resource
-const NamespaceSchemaTemplate = `{
-  "type": "object",
-  "additionalProperties": false,
-  "default": {},
-  "required": ["kind", "spec", "metadata"],
-  "properties": {
-    "kind": {"type": "string"},
-    "version": {"type": "string", "default": "v1"},
-    "metadata": %v,
-    "spec": %v
-  }
-}`
-
-// GetNamespaceSchema returns namespace schema
-func GetNamespaceSchema() string {
-	return fmt.Sprintf(NamespaceSchemaTemplate, MetadataSchema, NamespaceSpecSchema)
-}
-
-// MarshalNamespace marshals namespace to JSON
-func MarshalNamespace(resource Namespace, opts ...MarshalOption) ([]byte, error) {
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if !cfg.PreserveResourceID {
-		// avoid modifying the original object
-		// to prevent unexpected data races
-		copy := resource
-		copy.SetResourceID(0)
-		resource = copy
-	}
-	return utils.FastMarshal(resource)
-}
-
-// UnmarshalNamespace unmarshals role from JSON or YAML,
-// sets defaults and checks the schema
-func UnmarshalNamespace(data []byte, opts ...MarshalOption) (*Namespace, error) {
-	if len(data) == 0 {
-		return nil, trace.BadParameter("missing namespace data")
-	}
-
-	cfg, err := CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// always skip schema validation on namespaces unmarshal
-	// the namespace is always created by teleport now
-	var namespace Namespace
-	if err := utils.FastUnmarshal(data, &namespace); err != nil {
-		return nil, trace.BadParameter(err.Error())
-	}
-
-	if err := namespace.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if cfg.ID != 0 {
-		namespace.Metadata.ID = cfg.ID
-	}
-	if !cfg.Expires.IsZero() {
-		namespace.Metadata.Expires = &cfg.Expires
-	}
-
-	return &namespace, nil
 }
 
 // SortedNamespaces sorts namespaces

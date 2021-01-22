@@ -416,7 +416,7 @@ func (s *WebSuite) TestSAMLSuccess(c *C) {
 	err := decoder.Decode(&raw)
 	c.Assert(err, IsNil)
 
-	connector, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(raw.Raw)
+	connector, err := services.UnmarshalSAMLConnector(raw.Raw)
 	c.Assert(err, IsNil)
 	err = services.ValidateSAMLConnector(connector)
 	c.Assert(err, IsNil)
