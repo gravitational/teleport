@@ -261,7 +261,7 @@ func (s *IdentityService) upsertLocalAuthSecrets(user string, auth services.Loca
 		}
 	}
 	if auth.U2FRegistration != nil {
-		reg, err := auth.GetU2FRegistration()
+		reg, err := services.GetLocalAuthSecretsU2FRegistration(&auth)
 		if err != nil {
 			return trace.Wrap(err)
 		}

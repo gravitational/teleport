@@ -454,7 +454,7 @@ func itemToLocalAuthSecrets(items userItems) (*services.LocalAuthSecrets, error)
 		}
 		auth.U2FCounter = raw.Counter
 	}
-	if err := auth.Check(); err != nil {
+	if err := services.ValidateLocalAuthSecrets(&auth); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &auth, nil
@@ -462,7 +462,7 @@ func itemToLocalAuthSecrets(items userItems) (*services.LocalAuthSecrets, error)
 
 func itemsFromLocalAuthSecrets(user string, auth services.LocalAuthSecrets) ([]backend.Item, error) {
 	var items []backend.Item
-	if err := auth.Check(); err != nil {
+	if err := services.ValidateLocalAuthSecrets(&auth); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if len(auth.PasswordHash) > 0 {

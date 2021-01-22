@@ -44,8 +44,6 @@ type User interface {
 	GetRoles() []string
 	// String returns user
 	String() string
-	// Equals checks if user equals to another
-	Equals(other User) bool
 	// GetStatus return user login status
 	GetStatus() LoginStatus
 	// SetLocked sets login status to locked
@@ -192,41 +190,6 @@ func (u *UserV2) GetCreatedBy() CreatedBy {
 	return u.Spec.CreatedBy
 }
 
-// Equals checks if user equals to another
-func (u *UserV2) Equals(other User) bool {
-	if u.Metadata.Name != other.GetName() {
-		return false
-	}
-	otherIdentities := other.GetOIDCIdentities()
-	if len(u.Spec.OIDCIdentities) != len(otherIdentities) {
-		return false
-	}
-	for i := range u.Spec.OIDCIdentities {
-		if !u.Spec.OIDCIdentities[i].Equals(&otherIdentities[i]) {
-			return false
-		}
-	}
-	otherSAMLIdentities := other.GetSAMLIdentities()
-	if len(u.Spec.SAMLIdentities) != len(otherSAMLIdentities) {
-		return false
-	}
-	for i := range u.Spec.SAMLIdentities {
-		if !u.Spec.SAMLIdentities[i].Equals(&otherSAMLIdentities[i]) {
-			return false
-		}
-	}
-	otherGithubIdentities := other.GetGithubIdentities()
-	if len(u.Spec.GithubIdentities) != len(otherGithubIdentities) {
-		return false
-	}
-	for i := range u.Spec.GithubIdentities {
-		if !u.Spec.GithubIdentities[i].Equals(&otherGithubIdentities[i]) {
-			return false
-		}
-	}
-	return u.Spec.LocalAuth.Equals(other.GetLocalAuth())
-}
-
 // Expiry returns expiry time for temporary users. Prefer expires from
 // metadata, if it does not exist, fall back to expires in spec.
 func (u *UserV2) Expiry() time.Time {
@@ -310,11 +273,6 @@ func (u *UserV2) Check() error {
 	}
 	for _, id := range u.Spec.OIDCIdentities {
 		if err := id.Check(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	if localAuth := u.GetLocalAuth(); localAuth != nil {
-		if err := localAuth.Check(); err != nil {
 			return trace.Wrap(err)
 		}
 	}

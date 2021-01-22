@@ -117,16 +117,16 @@ func (r *ResourceSuite) runUserResourceTest(c *check.C, withSecrets bool) {
 	s := NewIdentityService(r.bk)
 	b, err := s.GetUser("bob", withSecrets)
 	c.Assert(err, check.IsNil)
-	c.Assert(bob.Equals(b), check.Equals, true, check.Commentf("dynamically inserted user does not match"))
+	c.Assert(services.UsersEquals(bob, b), check.Equals, true, check.Commentf("dynamically inserted user does not match"))
 	allUsers, err := s.GetUsers(withSecrets)
 	c.Assert(err, check.IsNil)
 	c.Assert(len(allUsers), check.Equals, 2, check.Commentf("expected exactly two users"))
 	for _, user := range allUsers {
 		switch user.GetName() {
 		case "alice":
-			c.Assert(alice.Equals(user), check.Equals, true, check.Commentf("alice does not match"))
+			c.Assert(services.UsersEquals(alice, user), check.Equals, true, check.Commentf("alice does not match"))
 		case "bob":
-			c.Assert(bob.Equals(user), check.Equals, true, check.Commentf("bob does not match"))
+			c.Assert(services.UsersEquals(bob, user), check.Equals, true, check.Commentf("bob does not match"))
 		default:
 			c.Errorf("Unexpected user %q", user.GetName())
 		}
@@ -228,7 +228,7 @@ func localAuthSecretsTestCase(c *check.C) services.LocalAuthSecrets {
 	auth.TOTPKey = base32.StdEncoding.EncodeToString([]byte("abc123"))
 	auth.U2FCounter = 7
 	reg := u2fRegTestCase(c)
-	err = auth.SetU2FRegistration(&reg)
+	err = services.SetLocalAuthSecretsU2FRegistration(&auth, &reg)
 	c.Assert(err, check.IsNil)
 	return auth
 }

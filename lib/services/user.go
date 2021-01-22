@@ -25,6 +25,54 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// ValidateUser validates the User and sets default values
+func ValidateUser(u User) error {
+	if err := u.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if localAuth := u.GetLocalAuth(); localAuth != nil {
+		if err := ValidateLocalAuthSecrets(localAuth); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// UsersEquals checks if the users are equal
+func UsersEquals(u User, other User) bool {
+	if u.GetName() != other.GetName() {
+		return false
+	}
+	otherIdentities := other.GetOIDCIdentities()
+	if len(u.GetOIDCIdentities()) != len(otherIdentities) {
+		return false
+	}
+	for i := range u.GetOIDCIdentities() {
+		if !u.GetOIDCIdentities()[i].Equals(&otherIdentities[i]) {
+			return false
+		}
+	}
+	otherSAMLIdentities := other.GetSAMLIdentities()
+	if len(u.GetSAMLIdentities()) != len(otherSAMLIdentities) {
+		return false
+	}
+	for i := range u.GetSAMLIdentities() {
+		if !u.GetSAMLIdentities()[i].Equals(&otherSAMLIdentities[i]) {
+			return false
+		}
+	}
+	otherGithubIdentities := other.GetGithubIdentities()
+	if len(u.GetGithubIdentities()) != len(otherGithubIdentities) {
+		return false
+	}
+	for i := range u.GetGithubIdentities() {
+		if !u.GetGithubIdentities()[i].Equals(&otherGithubIdentities[i]) {
+			return false
+		}
+	}
+	return LocalAuthSecretsEquals(u.GetLocalAuth(), other.GetLocalAuth())
+}
+
 // LoginAttempt represents successful or unsuccessful attempt for user to login
 type LoginAttempt struct {
 	// Time is time of the attempt
