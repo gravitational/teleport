@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -477,9 +478,6 @@ func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlc
 // The only mandatory requirement is a date range (UTC). Results must always
 // show up sorted by date (newest first)
 func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) ([]events.EventFields, error) {
-	var lastEvaluatedKey map[string]*dynamodb.AttributeValue
-	var result = make([]map[string]*dynamodb.AttributeValue, 0)
-
 	g := l.WithFields(log.Fields{"From": fromUTC, "To": toUTC, "Filter": filter, "Limit": limit})
 	filterVals, err := url.ParseQuery(filter)
 	if err != nil {
@@ -502,8 +500,10 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	start := time.Now()
-	for {
+
+	var lastEvaluatedKey map[string]*dynamodb.AttributeValue
+	var total int
+	for i := 0; i < backend.DefaultLargeLimit/100; i++ {
 		input := dynamodb.QueryInput{
 			KeyConditionExpression:    aws.String(query),
 			TableName:                 aws.String(l.Tablename),
@@ -511,46 +511,47 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) (
 			IndexName:                 aws.String(indexTimeSearch),
 			ExclusiveStartKey:         lastEvaluatedKey,
 		}
+		start := time.Now()
 		out, err := l.svc.Query(&input)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		result = append(result, out.Items...)
-		lastEvaluatedKey = out.LastEvaluatedKey
+		g.WithFields(log.Fields{"duration": time.Since(start), "items": len(out.Items)}).Debugf("Query completed.")
 
+		for _, item := range out.Items {
+			var e event
+			if err := dynamodbattribute.UnmarshalMap(item, &e); err != nil {
+				return nil, trace.BadParameter("failed to unmarshal event for %v", err)
+			}
+			var fields events.EventFields
+			data := []byte(e.Fields)
+			if err := json.Unmarshal(data, &fields); err != nil {
+				return nil, trace.BadParameter("failed to unmarshal event %v", err)
+			}
+			var accepted bool
+			for i := range eventFilter {
+				if fields.GetString(events.EventType) == eventFilter[i] {
+					accepted = true
+					break
+				}
+			}
+			if accepted || !doFilter {
+				values = append(values, fields)
+				total++
+				if limit > 0 && total >= limit {
+					break
+				}
+			}
+		}
+
+		lastEvaluatedKey = out.LastEvaluatedKey
 		if len(lastEvaluatedKey) == 0 {
-			break
+			sort.Sort(events.ByTimeAndIndex(values))
+			return values, nil
 		}
 	}
-	g.WithFields(log.Fields{"duration": time.Since(start), "items": len(result)}).Debugf("Query completed.")
-	var total int
-	for _, item := range result {
-		var e event
-		if err := dynamodbattribute.UnmarshalMap(item, &e); err != nil {
-			return nil, trace.BadParameter("failed to unmarshal event for %v", err)
-		}
-		var fields events.EventFields
-		data := []byte(e.Fields)
-		if err := json.Unmarshal(data, &fields); err != nil {
-			return nil, trace.BadParameter("failed to unmarshal event %v", err)
-		}
-		var accepted bool
-		for i := range eventFilter {
-			if fields.GetString(events.EventType) == eventFilter[i] {
-				accepted = true
-				break
-			}
-		}
-		if accepted || !doFilter {
-			values = append(values, fields)
-			total++
-			if limit > 0 && total >= limit {
-				break
-			}
-		}
-	}
-	sort.Sort(events.ByTimeAndIndex(values))
-	return values, nil
+
+	return nil, trace.BadParameter("backend entered endless loop")
 }
 
 // SearchSessionEvents returns session related events only. This is used to
