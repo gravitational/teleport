@@ -393,6 +393,6 @@ func detectProto(in []byte) (int, error) {
 	case bytes.HasPrefix(in, postgresSSLRequest), bytes.HasPrefix(in, postgresCancelRequest):
 		return ProtoPostgres, nil
 	default:
-		return ProtoUnknown, trace.BadParameter("unknown protocol prefix: %#v", in)
+		return ProtoUnknown, trace.BadParameter("multiplexer failed to detect connection protocol, first few bytes were: %#v", in)
 	}
 }

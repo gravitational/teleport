@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,12 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package pgservicefile
+package postgres
 
 import (
 	"path/filepath"
 	"strconv"
 	"testing"
+
+	"github.com/gravitational/teleport/lib/client/db/profile"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -31,16 +33,16 @@ func TestServiceFile(t *testing.T) {
 	serviceFile, err := LoadFromPath(path)
 	require.NoError(t, err)
 
-	profile := ConnectProfile{
-		Name:        "test",
-		Host:        "localhost",
-		Port:        5342,
-		User:        "postgres",
-		Database:    "postgres",
-		SSLMode:     "on",
-		SSLRootCert: "ca.pem",
-		SSLCert:     "cert.pem",
-		SSLKey:      "key.pem",
+	profile := profile.ConnectProfile{
+		Name:       "test",
+		Host:       "localhost",
+		Port:       5342,
+		User:       "postgres",
+		Database:   "postgres",
+		Insecure:   false,
+		CACertPath: "ca.pem",
+		CertPath:   "cert.pem",
+		KeyPath:    "key.pem",
 	}
 
 	err = serviceFile.Upsert(profile)
@@ -53,10 +55,10 @@ func TestServiceFile(t *testing.T) {
 		"PGPORT":        strconv.Itoa(profile.Port),
 		"PGUSER":        profile.User,
 		"PGDATABASE":    profile.Database,
-		"PGSSLMODE":     profile.SSLMode,
-		"PGSSLROOTCERT": profile.SSLRootCert,
-		"PGSSLCERT":     profile.SSLCert,
-		"PGSSLKEY":      profile.SSLKey,
+		"PGSSLMODE":     SSLModeVerifyFull,
+		"PGSSLROOTCERT": profile.CACertPath,
+		"PGSSLCERT":     profile.CertPath,
+		"PGSSLKEY":      profile.KeyPath,
 	}, env)
 
 	err = serviceFile.Delete(profile.Name)
