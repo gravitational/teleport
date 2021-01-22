@@ -2176,7 +2176,8 @@ func (a *ServerWithRoles) GetDatabaseServers(ctx context.Context, namespace stri
 	// Filter out databases the caller doesn't have access to from each server.
 	var filtered []types.DatabaseServer
 	for _, server := range servers {
-		err := a.context.Checker.CheckAccessToDatabaseServer(server)
+		err := a.context.Checker.CheckAccessToDatabase(server,
+			&services.DatabaseLabelsMatcher{Labels: server.GetAllLabels()})
 		if err != nil && !trace.IsAccessDenied(err) {
 			return nil, trace.Wrap(err)
 		} else if err == nil {

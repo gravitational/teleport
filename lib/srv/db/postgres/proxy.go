@@ -63,7 +63,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serviceConn, err := p.Service.Connect(ctx)
+	serviceConn, err := p.Service.Connect(ctx, "", "")
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -719,12 +719,9 @@ type AccessChecker interface {
 	// CheckDatabaseNamesAndUsers returns database names and users this role
 	// is allowed to use.
 	CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL bool) (names []string, users []string, err error)
-	// CheckAccessToDatabaseServer checks access to the specified database
-	// proxy service.
-	CheckAccessToDatabaseServer(server types.DatabaseServer) error
-	// CheckAccessToDatabase checks whether a user can log into a particular
-	// database as a particular user within the specified database proxy.
-	CheckAccessToDatabase(server types.DatabaseServer, dbName, dbUser string) error
+	// CheckAccessToDatabase checks whether a user has access to the provided
+	// database server.
+	CheckAccessToDatabase(server types.DatabaseServer, matchers ...Matcher) error
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -1419,95 +1416,119 @@ func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesClu
 	return trace.AccessDenied("access to kubernetes cluster denied")
 }
 
-// CheckAccessToDatabaseServer checks if this role set has access to the
-// specified database server.
-//
-// Used to filter available databases a user sees with "tsh db ls" command.
-func (set RoleSet) CheckAccessToDatabaseServer(server types.DatabaseServer) error {
-	var errs []error
-	// Check deny rules.
-	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), server.GetNamespace())
-		matchLabels, labelsMessage, err := MatchLabels(role.GetDatabaseLabels(Deny), server.GetAllLabels())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if matchNamespace && matchLabels {
-			log.WithField(trace.Component, teleport.ComponentRBAC).Debugf(
-				"Access to database %q denied, deny rule in %q matched; match(namespace=%v, label=%v).",
-				server.GetName(), role.GetName(), namespaceMessage, labelsMessage)
-			return trace.AccessDenied("access to database denied")
-		}
-	}
-	// Check allow rules.
-	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), server.GetNamespace())
-		matchLabels, labelsMessage, err := MatchLabels(role.GetDatabaseLabels(Allow), server.GetAllLabels())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if matchNamespace && matchLabels {
-			log.WithField(trace.Component, teleport.ComponentRBAC).Debugf(
-				"Access to database %q granted, allow rule in %q matched; match(namespace=%v, label=%v).",
-				server.GetName(), role.GetName(), namespaceMessage, labelsMessage)
-			return nil
-		}
-		if log.GetLevel() == log.DebugLevel {
-			deniedError := trace.AccessDenied("role=%v, match(namespace=%v, label=%v)",
-				role.GetName(), namespaceMessage, labelsMessage)
-			errs = append(errs, deniedError)
-		}
-	}
-	log.WithField(trace.Component, teleport.ComponentRBAC).Debugf(
-		"Access to database %q denied, no allow rule matched; %v.", server.GetName(), errs)
-	return trace.AccessDenied("access to database denied")
+// Matcher defines an interface for a generic role matcher.
+type Matcher interface {
+	Match(Role, RoleConditionType) (bool, error)
 }
 
-// CheckAccessToDatabase checks if this role set has access to a particular
-// database and database user within the specified database proxy.
+// Matchers defines a list of matchers.
+type Matchers []Matcher
+
+// MatchAll returns true if all matchers in the set match.
+func (m Matchers) MatchAll(role Role, condition RoleConditionType) (bool, error) {
+	for _, matcher := range m {
+		match, err := matcher.Match(role, condition)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if !match {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+// MatchAny returns true if at least one of the matchers in the set matches.
 //
-// Used as an authorization check when a user connects to a database.
-func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, dbName, dbUser string) error {
-	var errs []error
+// If the result is true, returns matcher that matched.
+func (m Matchers) MatchAny(role Role, condition RoleConditionType) (bool, Matcher, error) {
+	for _, matcher := range m {
+		match, err := matcher.Match(role, condition)
+		if err != nil {
+			return false, nil, trace.Wrap(err)
+		}
+		if match {
+			return true, matcher, nil
+		}
+	}
+	return false, nil, nil
+}
+
+// DatabaseLabelsMatcher matches database server labels.
+type DatabaseLabelsMatcher struct {
+	Labels map[string]string
+}
+
+// Match matches database server labels against provided role and condition.
+func (m *DatabaseLabelsMatcher) Match(role Role, condition RoleConditionType) (bool, error) {
+	match, _, err := MatchLabels(role.GetDatabaseLabels(condition), m.Labels)
+	return match, trace.Wrap(err)
+}
+
+// DatabaseUserMatcher matches database account name.
+type DatabaseUserMatcher struct {
+	User string
+}
+
+// Match matches database account name against provided role and condition.
+func (m *DatabaseUserMatcher) Match(role Role, condition RoleConditionType) (bool, error) {
+	match, _ := MatchDatabaseUser(role.GetDatabaseUsers(condition), m.User)
+	return match, nil
+}
+
+// DatabaseNameMatcher matches database name.
+type DatabaseNameMatcher struct {
+	Name string
+}
+
+// Match matches database name against provided role and condition.
+func (m *DatabaseNameMatcher) Match(role Role, condition RoleConditionType) (bool, error) {
+	match, _ := MatchDatabaseName(role.GetDatabaseNames(condition), m.Name)
+	return match, nil
+}
+
+// CheckAccessToDatabase checks if this role set has access to a particular database.
+//
+// The checker always checks the server namespace, other matches are supplied
+// by the caller.
+func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, matchers ...Matcher) error {
+	log := log.WithField(trace.Component, teleport.ComponentRBAC)
 	// Check deny rules.
 	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), server.GetNamespace())
-		matchLabels, labelsMessage, err := MatchLabels(role.GetDatabaseLabels(Deny), server.GetAllLabels())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		matchName, nameMessage := MatchDatabaseName(role.GetDatabaseNames(Deny), dbName)
-		matchUser, userMessage := MatchDatabaseUser(role.GetDatabaseUsers(Deny), dbUser)
-		if matchNamespace && matchLabels && (matchName || matchUser) {
-			log.WithField(trace.Component, teleport.ComponentRBAC).Debugf(
-				"Access to database %q (dbname=%v, dbuser=%v) denied, deny rule in %q matched; match(namespace=%v, label=%v, dbname=%v, dbuser=%v).",
-				server.GetName(), dbName, dbUser, role.GetName(), namespaceMessage, labelsMessage, nameMessage, userMessage)
-			return trace.AccessDenied("access to database denied")
+		matchNamespace, _ := MatchNamespace(role.GetNamespaces(Deny), server.GetNamespace())
+		// Deny rules are greedy on purpose. They will always match if
+		// at least one of the matchers returns true.
+		if matchNamespace {
+			match, matcher, err := Matchers(matchers).MatchAny(role, Deny)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if match {
+				log.Debugf("Access to database %q denied, deny rule in role %q matched; %#v.",
+					server.GetName(), role.GetName(), matcher)
+				return trace.AccessDenied("access to database denied")
+			}
 		}
 	}
 	// Check allow rules.
 	for _, role := range set {
-		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), server.GetNamespace())
-		matchLabels, labelsMessage, err := MatchLabels(role.GetDatabaseLabels(Allow), server.GetAllLabels())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		matchName, nameMessage := MatchDatabaseName(role.GetDatabaseNames(Allow), dbName)
-		matchUser, userMessage := MatchDatabaseUser(role.GetDatabaseUsers(Allow), dbUser)
-		if matchNamespace && matchLabels && matchName && matchUser {
-			log.WithField(trace.Component, teleport.ComponentRBAC).Debugf(
-				"Access to database %q (dbname=%v, dbuser=%v) granted, allow rule in %q matched; match(namespace=%v, label=%v, dbname=%v, dbuser=%v).",
-				server.GetName(), dbName, dbUser, role.GetName(), namespaceMessage, labelsMessage, nameMessage, userMessage)
-			return nil
-		}
-		if log.GetLevel() == log.DebugLevel {
-			deniedError := trace.AccessDenied("role=%v, match(namespace=%v, label=%v, dbname=%v, dbuser=%v)",
-				role.GetName(), namespaceMessage, labelsMessage, nameMessage, userMessage)
-			errs = append(errs, deniedError)
+		matchNamespace, _ := MatchNamespace(role.GetNamespaces(Allow), server.GetNamespace())
+		// Allow rules are not greedy. They will match only if all of the
+		// matchers return true.
+		if matchNamespace {
+			match, err := Matchers(matchers).MatchAll(role, Allow)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			if match {
+				log.Debugf("Access to database %q granted, allow rule in role %q matched.",
+					server.GetName(), role.GetName())
+				return nil
+			}
 		}
 	}
-	log.WithField(trace.Component, teleport.ComponentRBAC).Debugf(
-		"Access to database %q (dbname=%v, dbuser=%v) denied, no allow rule matched; %v.", server.GetName(), dbName, dbUser, errs)
+	log.Debugf("Access to database %q denied, no allow rule matched.",
+		server.GetName())
 	return trace.AccessDenied("access to database denied")
 }
 
