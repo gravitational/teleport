@@ -360,7 +360,7 @@ get_teleport_start_command() {
 # installs the teleport-provided launchd config
 install_launchd_config() {
     log "Installing Teleport launchd config to ${LAUNCHD_CONFIG_PATH}"
-    ${COPY_COMMAND} ./${TELEPORT_ARCHIVE_PATH}/examples/launchd/teleport.plist ${LAUNCHD_CONFIG_PATH}/teleport.plist
+    ${COPY_COMMAND} ./${TELEPORT_ARCHIVE_PATH}/examples/launchd/com.goteleport.teleport.plist ${LAUNCHD_CONFIG_PATH}/com.goteleport.teleport.plist
 }
 # installs the teleport-provided systemd unit
 install_systemd_unit() {
@@ -459,8 +459,8 @@ print_welcome_message() {
             log_only "To start Teleport again if you stop it, run 'sudo systemctl start teleport.service'"
         elif is_macos_host; then
             log_only "View Teleport logs in '${MACOS_STDERR_LOG}' and '${MACOS_STDOUT_LOG}'"
-            log_only "To stop Teleport, run 'sudo launchctl unload ${LAUNCHD_CONFIG_PATH}/teleport.plist'"
-            log_only "To start Teleport again if you stop it, run 'sudo launchctl load ${LAUNCHD_CONFIG_PATH}/teleport.plist'"
+            log_only "To stop Teleport, run 'sudo launchctl unload ${LAUNCHD_CONFIG_PATH}/com.goteleport.teleport.plist'"
+            log_only "To start Teleport again if you stop it, run 'sudo launchctl load ${LAUNCHD_CONFIG_PATH}/com.goteleport.teleport.plist'"
         fi
         log_only ""
         log_only "You can see this node connected in the Teleport web UI or 'tsh ls' with the name '${NODENAME}'"
@@ -486,7 +486,7 @@ start_teleport_foreground() {
 # start teleport via launchd (after installing config)
 start_teleport_launchd() {
     log "Starting Teleport via launchctl. It will automatically be started whenever the system reboots."
-    launchctl load ${LAUNCHD_CONFIG_PATH}/teleport.plist
+    launchctl load ${LAUNCHD_CONFIG_PATH}/com.goteleport.teleport.plist
     sleep ${ALIVE_CHECK_DELAY}
 }
 # start teleport via systemd (after installing unit)
