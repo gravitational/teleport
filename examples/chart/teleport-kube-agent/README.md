@@ -50,6 +50,13 @@ $ helm install teleport-kube-agent . \
 
 Set the values in the above command as appropriate for your setup.
 
+You can also optionally set labels for your Kubernetes cluster using the
+format `--set "labels.key=value"` - for example: `--set "labels.env=development,labels.region=us-west-1"`
+
+Note that due to backwards compatbility, the `labels` value **only** applies to the Teleport
+Kubernetes service. To set labels for applications or databases, use the different formats
+detailed below.
+
 ## Application access
 
 To use Teleport Application access, you will also need:
