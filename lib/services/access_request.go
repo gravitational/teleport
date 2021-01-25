@@ -40,7 +40,7 @@ func ValidateAccessRequest(ar AccessRequest) error {
 	return nil
 }
 
-// NewAccessRequest assembled an AccessRequest resource.
+// NewAccessRequest assembles an AccessRequest resource.
 func NewAccessRequest(user string, roles ...string) (AccessRequest, error) {
 	req, err := types.NewAccessRequest(uuid.New(), user, roles...)
 	if err != nil {
