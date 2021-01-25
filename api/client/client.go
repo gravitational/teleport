@@ -483,15 +483,10 @@ func (c *Client) GetKubeServices(ctx context.Context) ([]types.Server, error) {
 }
 
 // GetAppServers gets all application servers.
-func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...types.MarshalOption) ([]types.Server, error) {
-	cfg, err := types.CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func (c *Client) GetAppServers(ctx context.Context, namespace string, skipValidation bool) ([]types.Server, error) {
 	resp, err := c.grpc.GetAppServers(ctx, &proto.GetAppServersRequest{
 		Namespace:      namespace,
-		SkipValidation: cfg.SkipValidation,
+		SkipValidation: skipValidation,
 	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -624,14 +619,10 @@ func (c *Client) DeleteAllKubeServices(ctx context.Context) error {
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
-func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, opts ...types.MarshalOption) ([]types.DatabaseServer, error) {
-	cfg, err := types.CollectOptions(opts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, skipValidation bool) ([]types.DatabaseServer, error) {
 	resp, err := c.grpc.GetDatabaseServers(ctx, &proto.GetDatabaseServersRequest{
 		Namespace:      namespace,
-		SkipValidation: cfg.SkipValidation,
+		SkipValidation: skipValidation,
 	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)

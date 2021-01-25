@@ -20,7 +20,6 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 
@@ -236,51 +235,13 @@ func (m *Metadata) Merge(src proto.Message) {
 	}
 }
 
-var validLabelKey = regexp.MustCompile(constants.LabelPattern)
+// LabelPattern is a regexp that describes a valid label key
+const LabelPattern = `^[a-zA-Z/.0-9_*-]+$`
+
+var validLabelKey = regexp.MustCompile(LabelPattern)
 
 // IsValidLabelKey checks if the supplied string matches the
 // label key regexp.
 func IsValidLabelKey(s string) bool {
 	return validLabelKey.MatchString(s)
-}
-
-// MarshalConfig specifies marshalling options
-type MarshalConfig struct {
-	// Version specifies particular version we should marshal resources with
-	Version string
-
-	// SkipValidation is used to skip schema validation.
-	SkipValidation bool
-
-	// ID is a record ID to assign
-	ID int64
-
-	// PreserveResourceID preserves resource IDs in resource
-	// specs when marshaling
-	PreserveResourceID bool
-
-	// Expires is an optional expiry time
-	Expires time.Time
-}
-
-// GetVersion returns explicitly provided version or sets latest as default
-func (m *MarshalConfig) GetVersion() string {
-	if m.Version == "" {
-		return V2
-	}
-	return m.Version
-}
-
-// MarshalOption sets marshalling option
-type MarshalOption func(c *MarshalConfig) error
-
-// CollectOptions collects all options from functional arg and returns config
-func CollectOptions(opts []MarshalOption) (*MarshalConfig, error) {
-	var cfg MarshalConfig
-	for _, o := range opts {
-		if err := o(&cfg); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	return &cfg, nil
 }
