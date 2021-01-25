@@ -199,10 +199,9 @@ func deleteResource(ctx context.Context, resourceKind string, resourceName strin
 
 // getResourceByKind returns a collection of ConfigItem wrappers that contains resources of requested kind
 func getResourceByKind(kind string, client auth.ClientI) ([]ui.ConfigItem, error) {
-	if kind == "" {
-		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
-	}
 	switch kind {
+	case "":
+		return nil, trace.BadParameter("specify resource to list, e.g. 'tctl get roles'")
 	case services.KindAuthConnector:
 		oidcConnectors, err := client.GetOIDCConnectors(true)
 		if err != nil {
