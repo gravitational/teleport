@@ -308,12 +308,7 @@ var (
 type (
 	Resource            = types.Resource
 	ResourceWithSecrets = types.ResourceWithSecrets
-
-	MarshalConfig = types.MarshalConfig
-	MarshalOption = types.MarshalOption
 )
-
-var CollectOptions = types.CollectOptions
 
 var (
 	IsValidLabelKey = types.IsValidLabelKey

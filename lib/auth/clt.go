@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/trace/trail"
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
@@ -2098,6 +2100,36 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateResetPa
 		TTL:  proto.Duration(req.TTL),
 		Type: req.Type,
 	})
+}
+
+// GetAppServers gets all application servers.
+func (c *Client) GetAppServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.Server, error) {
+	cfg, err := services.CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := c.APIClient.GetAppServers(ctx, namespace, cfg.SkipValidation)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp, nil
+}
+
+// GetDatabaseServers returns all registered database proxy servers.
+func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
+	cfg, err := services.CollectOptions(opts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := c.APIClient.GetDatabaseServers(ctx, namespace, cfg.SkipValidation)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp, nil
 }
 
 // UpsertAppSession not implemented: can only be called locally.
