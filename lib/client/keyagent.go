@@ -17,7 +17,6 @@ limitations under the License.
 package client
 
 import (
-	"bufio"
 	"crypto/x509"
 	"fmt"
 	"io"
@@ -32,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/trace"
 
 	"github.com/sirupsen/logrus"
@@ -382,22 +382,17 @@ func (a *LocalKeyAgent) checkHostKey(addr string, remote net.Addr, key ssh.Publi
 // defaultHostPromptFunc is the default host key/certificates prompt.
 func (a *LocalKeyAgent) defaultHostPromptFunc(host string, key ssh.PublicKey, writer io.Writer, reader io.Reader) error {
 	var err error
-
-	userAnswer := "no"
+	ok := false
 	if !a.noHosts[host] {
-		fmt.Fprintf(writer, "The authenticity of host '%s' can't be established. "+
-			"Its public key is:\n%s\nAre you sure you want to continue (yes/no)? ",
-			host, ssh.MarshalAuthorizedKey(key))
-
-		userAnswer, err = bufio.NewReader(reader).ReadString('\n')
+		ok, err = prompt.Confirmation(writer, reader,
+			fmt.Sprintf("The authenticity of host '%s' can't be established. Its public key is:\n%s\nAre you sure you want to continue?",
+				host,
+				ssh.MarshalAuthorizedKey(key),
+			),
+		)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		userAnswer = strings.TrimSpace(strings.ToLower(userAnswer))
-	}
-	ok, err := utils.ParseBool(userAnswer)
-	if err != nil {
-		return trace.Wrap(err)
 	}
 	if !ok {
 		return trace.BadParameter("not trusted")

@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils/prompt"
 
 	"github.com/gravitational/trace"
 )
@@ -248,15 +249,14 @@ func checkOverwrite(force bool, paths ...string) error {
 	}
 
 	// File exists, prompt user whether to overwrite.
-	fmt.Fprintf(os.Stderr, "Destination file(s) %s exist. Overwrite? [y/N]: ", strings.Join(existingFiles, ", "))
-	scan := bufio.NewScanner(os.Stdin)
-	if !scan.Scan() {
-		return trace.WrapWithMessage(scan.Err(), "failed reading prompt response")
+	overwrite, err := prompt.Confirmation(os.Stderr, os.Stdin, fmt.Sprintf("Destination file(s) %s exist. Overwrite?", strings.Join(existingFiles, ", ")))
+	if err != nil {
+		return trace.Wrap(err)
 	}
-	if strings.ToLower(strings.TrimSpace(scan.Text())) == "y" {
-		return nil
+	if !overwrite {
+		return trace.Errorf("not overwriting destination files %s", strings.Join(existingFiles, ", "))
 	}
-	return trace.Errorf("not overwriting destination files %s", strings.Join(existingFiles, ", "))
+	return nil
 }
 
 // IdentityFile represents the basic components of an identity file.
