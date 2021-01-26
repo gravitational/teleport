@@ -182,7 +182,7 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 	log.Debugf("Connecting to auth servers: %v.", cfg.AuthServers)
 
 	// Try connecting to the auth server directly over TLS.
-	client, err := auth.NewClient(apiclient.Config{Addrs: utils.NetAddrsToStrings(cfg.AuthServers), TLS: clientConfig.TLS})
+	client, err := auth.NewClient(apiclient.Config{Addrs: utils.NetAddrsToStrings(cfg.AuthServers), Credentials: apiclient.TLSCreds(clientConfig.TLS)})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed direct dial to auth server: %v", err)
 	}
@@ -220,7 +220,7 @@ func connectToAuthService(ctx context.Context, cfg *service.Config, clientConfig
 				ProxyAddr:    tunAddr,
 				ClientConfig: clientConfig.SSH,
 			},
-			TLS: clientConfig.TLS,
+			Credentials: apiclient.TLSCreds(clientConfig.TLS),
 		})
 		if err != nil {
 			errs = append(errs, trace.Wrap(err, "failed dial to auth server through reverse tunnel: %v", err))

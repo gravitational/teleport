@@ -1,5 +1,5 @@
 /*
-Copyright 2018 Gravitational, Inc.
+Copyright 2018-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,12 +19,22 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/lib/auth"
+	log "github.com/sirupsen/logrus"
 )
 
 func main() {
 	log.Printf("Starting Teleport client...")
-	client, err := connectClient()
+	config := client.Config{
+		Addrs: []string{"127.0.0.1:3025"},
+		// Credentials: client.PathCreds("certs/api-admin"),
+		Credentials: client.ProfileCreds(),
+		// Credentials: client.IdentityCreds("/home/bjoerger/dev"),
+	}
+
+	client, err := auth.NewClient(config)
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}

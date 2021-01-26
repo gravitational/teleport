@@ -395,7 +395,7 @@ func (a *TestAuthServer) NewRemoteClient(identity TestIdentity, addr net.Addr, p
 	tlsConfig.ServerName = EncodeClusterName(a.ClusterName)
 	tlsConfig.Time = a.AuthServer.clock.Now
 	addrs := []string{addr.String()}
-	return NewClient(client.Config{Addrs: addrs, TLS: tlsConfig})
+	return NewClient(client.Config{Addrs: addrs, Credentials: client.TLSCreds(tlsConfig)})
 }
 
 // TestTLSServerConfig is a configuration for test TLS server
@@ -565,7 +565,7 @@ func (t *TestTLSServer) NewClientFromWebSession(sess services.WebSession) (*Clie
 	tlsConfig.Certificates = []tls.Certificate{tlsCert}
 	tlsConfig.Time = t.AuthServer.AuthServer.clock.Now
 	addrs := []string{t.Addr().String()}
-	return NewClient(client.Config{Addrs: addrs, TLS: tlsConfig})
+	return NewClient(client.Config{Addrs: addrs, Credentials: client.TLSCreds(tlsConfig)})
 }
 
 // CertPool returns cert pool that auth server represents
@@ -602,7 +602,7 @@ func (t *TestTLSServer) ClientTLSConfig(identity TestIdentity) (*tls.Config, err
 // but forces the client to be recreated
 func (t *TestTLSServer) CloneClient(clt *Client) *Client {
 	addr := []string{t.Addr().String()}
-	newClient, err := NewClient(client.Config{Addrs: addr, TLS: clt.TLSConfig()})
+	newClient, err := NewClient(client.Config{Addrs: addr, Credentials: client.TLSCreds(clt.TLSConfig())})
 	if err != nil {
 		panic(err)
 	}
@@ -616,7 +616,7 @@ func (t *TestTLSServer) NewClient(identity TestIdentity) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 	addrs := []string{t.Addr().String()}
-	return NewClient(client.Config{Addrs: addrs, TLS: tlsConfig})
+	return NewClient(client.Config{Addrs: addrs, Credentials: client.TLSCreds(tlsConfig)})
 }
 
 // Addr returns address of TLS server

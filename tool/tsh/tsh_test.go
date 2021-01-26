@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -57,9 +58,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestOIDCLogin(t *testing.T) {
-	os.RemoveAll(client.FullProfilePath(""))
+	os.RemoveAll(apiclient.FullProfilePath(""))
 
-	defer os.RemoveAll(client.FullProfilePath(""))
+	defer os.RemoveAll(apiclient.FullProfilePath(""))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -183,7 +184,7 @@ func TestOIDCLogin(t *testing.T) {
 }
 
 func TestMakeClient(t *testing.T) {
-	os.RemoveAll(client.FullProfilePath(""))
+	os.RemoveAll(apiclient.FullProfilePath(""))
 	var conf CLIConf
 
 	// empty config won't work:

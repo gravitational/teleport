@@ -20,13 +20,10 @@ package client
 import (
 	"compress/gzip"
 	"context"
-	"crypto/tls"
 	"io"
 	"net"
 	"sync/atomic"
 	"time"
-
-	"golang.org/x/net/http2"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
@@ -84,7 +81,7 @@ func NewClient(cfg Config) (*Client, error) {
 	var err error
 	if c.conn, err = grpc.Dial(constants.APIDomain,
 		dialer,
-		grpc.WithTransportCredentials(credentials.NewTLS(c.c.TLS)),
+		grpc.WithTransportCredentials(credentials.NewTLS(c.c.TLS())),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
 			Time:                c.c.KeepAlivePeriod,
 			Timeout:             c.c.KeepAlivePeriod * time.Duration(c.c.KeepAliveCount),
@@ -111,19 +108,18 @@ type Config struct {
 	// KeepAliveCount specifies the amount of missed keep alives
 	// to wait for before declaring the connection as broken
 	KeepAliveCount int
-	// TLS is the client's TLS config
-	TLS *tls.Config
+	// Credentials are used to authenticate the client's connection to the server
+	Credentials
 }
 
 // CheckAndSetDefaults checks and sets default config values
 func (c *Config) CheckAndSetDefaults() error {
+	if err := c.Credentials.CheckAndSetDefaults(); err != nil {
+		return trace.WrapWithMessage(c.Credentials.err, "Error in loading API Creds")
+	}
 	if len(c.Addrs) == 0 && c.Dialer == nil {
 		return trace.BadParameter("set parameter Addrs or Dialer")
 	}
-	if c.TLS == nil {
-		return trace.BadParameter("missing parameter TLS")
-	}
-	c.TLS = c.TLS.Clone()
 	if c.KeepAlivePeriod == 0 {
 		c.KeepAlivePeriod = defaults.ServerKeepAliveTTL
 	}
@@ -139,11 +135,6 @@ func (c *Config) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 	}
-	c.TLS.NextProtos = []string{http2.NextProtoTLS}
-	if c.TLS.ServerName == "" {
-		c.TLS.ServerName = constants.APIDomain
-	}
-
 	return nil
 }
 
