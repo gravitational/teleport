@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/dynamo"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -503,7 +502,12 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) (
 
 	var lastEvaluatedKey map[string]*dynamodb.AttributeValue
 	var total int
-	for i := 0; i < backend.DefaultLargeLimit/100; i++ {
+
+	// We iterate over the responses until we roughly hit 100MB in size. This is an arbitrary limit to prevent
+	// runaway loops.
+	// DynamoDB reponses are capped at 900KB according to their documentation.
+	const maxResponseSize = 100 * 1024
+	for responseSize := 0; responseSize < maxResponseSize; responseSize += 900 {
 		input := dynamodb.QueryInput{
 			KeyConditionExpression:    aws.String(query),
 			TableName:                 aws.String(l.Tablename),
@@ -544,6 +548,9 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) (
 			}
 		}
 
+		// AWS returns a `lastEvaluatedKey` in case the response is truncated, i.e. needs to be fetched with
+		// multiple requests. According to their documentation, the final response is signaled by not setting
+		// this value - therefore we use it as our break condition.
 		lastEvaluatedKey = out.LastEvaluatedKey
 		if len(lastEvaluatedKey) == 0 {
 			sort.Sort(events.ByTimeAndIndex(values))
@@ -551,7 +558,8 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) (
 		}
 	}
 
-	return nil, trace.BadParameter("backend entered endless loop")
+	g.Error("DynamoDB response size exceeded limit.")
+	return values, nil
 }
 
 // SearchSessionEvents returns session related events only. This is used to
