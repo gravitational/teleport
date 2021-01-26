@@ -19,7 +19,6 @@ package types
 import (
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"strings"
 	"time"
 
@@ -182,17 +181,6 @@ func (r *ReverseTunnelV2) Check() error {
 	}
 	if len(r.Spec.DialAddrs) == 0 {
 		return trace.BadParameter("Invalid dial address for reverse tunnel '%v'", r.Spec.ClusterName)
-	}
-	for _, addr := range r.GetDialAddrs() {
-		if addr == "" {
-			return trace.BadParameter("missing parameter address")
-		}
-		if !strings.Contains(addr, "://") {
-			return nil
-		}
-		if _, err := url.Parse(addr); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 	return nil
 }

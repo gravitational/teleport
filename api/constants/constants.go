@@ -18,7 +18,7 @@ limitations under the License.
 package constants
 
 const (
-	// DefaultRole is the name of the default admin role for all local users if
+	// AdminRoleName is the name of the default admin role for all local users if
 	// another role is not explicitly assigned (Enterprise only).
 	AdminRoleName = "admin"
 
@@ -28,9 +28,7 @@ const (
 
 	// APIDomain is a default domain name for Auth server API
 	APIDomain = "teleport.cluster.local"
-)
 
-const (
 	// EnhancedRecordingMinKernel is the minimum kernel version for the enhanced
 	// recording feature.
 	EnhancedRecordingMinKernel = "4.18.0"
@@ -45,9 +43,7 @@ const (
 	// EnhancedRecordingNetwork is a role option that implies network events
 	// are captured.
 	EnhancedRecordingNetwork = "network"
-)
 
-const (
 	// ConnectorOIDC means connector type OIDC
 	ConnectorOIDC = "oidc"
 
@@ -86,45 +82,35 @@ const (
 
 	// HumanDateFormatSeconds is a human readable date formatting with seconds
 	HumanDateFormatSeconds = "Jan _2 15:04:05 UTC"
-)
 
-const (
 	// MaxLeases serves as an identifying error string indicating that the
 	// semaphore system is rejecting an acquisition attempt due to max
 	// leases having already been reached.
 	MaxLeases = "err-max-leases"
-)
 
-const (
 	// ADFS is Microsoft Active Directory Federation Services
 	ADFS = "adfs"
-)
 
-const (
 	// CertificateFormatStandard is used for normal Teleport operation without any
 	// compatibility modes.
 	CertificateFormatStandard = "standard"
-)
 
-const (
 	// DurationNever is human friendly shortcut that is interpreted as a Duration of 0
 	DurationNever = "never"
-)
 
-const (
 	// OIDCPromptSelectAccount instructs the Authorization Server to
 	// prompt the End-User to select a user account.
 	OIDCPromptSelectAccount = "select_account"
-)
 
-const (
 	// KeepAliveNode is the keep alive type for SSH servers.
 	KeepAliveNode = "node"
+
 	// KeepAliveApp is the keep alive type for application server.
 	KeepAliveApp = "app"
+
 	// KeepAliveDatabase is the keep alive type for database server.
 	KeepAliveDatabase = "db"
-)
 
-// RSAKeySize is the size of the RSA key.
-const RSAKeySize = 2048
+	// RSAKeySize is the size of the RSA key.
+	RSAKeySize = 2048
+)

@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 	"gopkg.in/check.v1"
 )
@@ -80,7 +81,7 @@ func (s *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {
 		comment := check.Commentf("test case %q", tc.description)
 		out, err := marshaler.Unmarshal([]byte(tc.input))
 		c.Assert(err, check.IsNil, comment)
-		c.Assert(out, check.DeepEquals, tc.expected, comment)
+		fixtures.DeepCompare(c, tc.expected, out)
 		data, err := marshaler.Marshal(out)
 		c.Assert(err, check.IsNil, comment)
 		out2, err := marshaler.Unmarshal(data)

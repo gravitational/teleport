@@ -1088,7 +1088,7 @@ func (t *ReverseTunnel) ConvertAndValidate() (services.ReverseTunnel, error) {
 	}
 
 	out := services.NewReverseTunnel(t.DomainName, t.Addresses)
-	if err := out.Check(); err != nil {
+	if err := services.ValidateReverseTunnel(out); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return out, nil

@@ -369,7 +369,7 @@ func (s *PresenceService) DeleteAllReverseTunnels() error {
 
 // UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
 func (s *PresenceService) UpsertReverseTunnel(tunnel services.ReverseTunnel) error {
-	if err := tunnel.Check(); err != nil {
+	if err := services.ValidateReverseTunnel(tunnel); err != nil {
 		return trace.Wrap(err)
 	}
 	value, err := services.GetReverseTunnelMarshaler().MarshalReverseTunnel(tunnel)

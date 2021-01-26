@@ -347,7 +347,7 @@ func (o *OIDCConnectorV2) Check() error {
 		return trace.BadParameter("ID: missing connector name")
 	}
 	if o.Metadata.Name == constants.Local {
-		return trace.BadParameter("ID: invalid connector name %v is a reserved name", constants.Local)
+		return trace.BadParameter("ID: invalid connector name, %v is a reserved name", constants.Local)
 	}
 	if o.Spec.ClientID == "" {
 		return trace.BadParameter("ClientID: missing client id")

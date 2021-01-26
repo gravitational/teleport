@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"gopkg.in/check.v1"
@@ -96,7 +97,7 @@ func (s *LicenseSuite) TestUnmarshal(c *check.C) {
 		out, err := UnmarshalLicense([]byte(tc.input))
 		if tc.err == nil {
 			c.Assert(err, check.IsNil, comment)
-			c.Assert(out, check.DeepEquals, tc.expected, comment)
+			fixtures.DeepCompare(c, tc.expected, out)
 			data, err := MarshalLicense(out)
 			c.Assert(err, check.IsNil, comment)
 			out2, err := UnmarshalLicense(data)
