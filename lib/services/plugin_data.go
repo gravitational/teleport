@@ -37,7 +37,7 @@ func GetPluginDataSchema() string {
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, PluginDataSpecSchema, DefaultDefinitions)
 }
 
-//MarshalPluginData marshals the PluginData resource.
+//MarshalPluginData marshals the PluginData resource to JSON.
 func MarshalPluginData(data PluginData, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
@@ -58,7 +58,7 @@ func MarshalPluginData(data PluginData, opts ...MarshalOption) ([]byte, error) {
 	}
 }
 
-// UnmarshalPluginData unmarshals the PluginData resource.
+// UnmarshalPluginData unmarshals the PluginData resource from JSON.
 func UnmarshalPluginData(raw []byte, opts ...MarshalOption) (PluginData, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {

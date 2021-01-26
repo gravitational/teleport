@@ -116,7 +116,7 @@ func GetOIDCConnectorSchema() string {
 	return fmt.Sprintf(OIDCConnectorV2SchemaTemplate, MetadataSchema, OIDCConnectorSpecV2Schema)
 }
 
-// UnmarshalOIDCConnector unmarshals the OIDCConnector resource.
+// UnmarshalOIDCConnector unmarshals the OIDCConnector resource from JSON.
 func UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (OIDCConnector, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
@@ -155,7 +155,7 @@ func UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (OIDCConnector,
 	return nil, trace.BadParameter("OIDC connector resource version %v is not supported", h.Version)
 }
 
-// MarshalOIDCConnector marshals the OIDCConnector resource.
+// MarshalOIDCConnector marshals the OIDCConnector resource to JSON.
 func MarshalOIDCConnector(c OIDCConnector, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {

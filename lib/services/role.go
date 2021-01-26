@@ -1814,7 +1814,7 @@ func GetRoleSchema(version string, extensionSchema string) string {
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, schema, schemaDefinitions)
 }
 
-// UnmarshalRole unmarshals the Role resource.
+// UnmarshalRole unmarshals the Role resource from JSON.
 func UnmarshalRole(bytes []byte, opts ...MarshalOption) (Role, error) {
 	var h ResourceHeader
 	err := json.Unmarshal(bytes, &h)
@@ -1856,7 +1856,7 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (Role, error) {
 	return nil, trace.BadParameter("role version %q is not supported", h.Version)
 }
 
-// MarshalRole marshals the Role resource.
+// MarshalRole marshals the Role resource to JSON.
 func MarshalRole(r Role, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {

@@ -46,7 +46,7 @@ func GetClusterNameSchema(extensionSchema string) string {
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, clusterNameSchema, DefaultDefinitions)
 }
 
-// UnmarshalClusterName unmarshals the ClusterName resource.
+// UnmarshalClusterName unmarshals the ClusterName resource from JSON.
 func UnmarshalClusterName(bytes []byte, opts ...MarshalOption) (ClusterName, error) {
 	var clusterName ClusterNameV2
 
@@ -85,7 +85,7 @@ func UnmarshalClusterName(bytes []byte, opts ...MarshalOption) (ClusterName, err
 	return &clusterName, nil
 }
 
-// MarshalClusterName marshals the ClusterName resource.
+// MarshalClusterName marshals the ClusterName resource to JSON.
 func MarshalClusterName(c ClusterName, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {

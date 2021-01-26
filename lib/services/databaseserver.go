@@ -68,7 +68,7 @@ func GetDatabaseServerSchema() string {
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, fmt.Sprintf(DatabaseServerSpecV3Schema, RotationSchema), DefaultDefinitions)
 }
 
-// MarshalDatabaseServer marshals the DatabaseServer resource.
+// MarshalDatabaseServer marshals the DatabaseServer resource to JSON.
 func MarshalDatabaseServer(s types.DatabaseServer, opts ...MarshalOption) ([]byte, error) {
 	if err := s.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -87,7 +87,7 @@ func MarshalDatabaseServer(s types.DatabaseServer, opts ...MarshalOption) ([]byt
 	return utils.FastMarshal(server)
 }
 
-// UnmarshalDatabaseServer unmarshals the DatabaseServer resource.
+// UnmarshalDatabaseServer unmarshals the DatabaseServer resource from JSON.
 func UnmarshalDatabaseServer(data []byte, opts ...MarshalOption) (types.DatabaseServer, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing database server data")

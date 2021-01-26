@@ -82,7 +82,7 @@ func GetGithubConnectorSchema() string {
 	return fmt.Sprintf(GithubConnectorV3SchemaTemplate, MetadataSchema, GithubConnectorSpecV3Schema)
 }
 
-// UnmarshalGithubConnector unmarshals the GithubConnector resource.
+// UnmarshalGithubConnector unmarshals the GithubConnector resource from JSON.
 func UnmarshalGithubConnector(bytes []byte) (GithubConnector, error) {
 	var h ResourceHeader
 	if err := json.Unmarshal(bytes, &h); err != nil {
@@ -103,7 +103,7 @@ func UnmarshalGithubConnector(bytes []byte) (GithubConnector, error) {
 		"Github connector resource version %q is not supported", h.Version)
 }
 
-// MarshalGithubConnector marshals the GithubConnector resource.
+// MarshalGithubConnector marshals the GithubConnector resource to JSON.
 func MarshalGithubConnector(c GithubConnector, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {

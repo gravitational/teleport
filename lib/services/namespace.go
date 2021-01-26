@@ -49,7 +49,7 @@ func GetNamespaceSchema() string {
 	return fmt.Sprintf(NamespaceSchemaTemplate, MetadataSchema, NamespaceSpecSchema)
 }
 
-// MarshalNamespace marshals the Namespace resource.
+// MarshalNamespace marshals the Namespace resource to JSON.
 func MarshalNamespace(resource Namespace, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
@@ -65,7 +65,7 @@ func MarshalNamespace(resource Namespace, opts ...MarshalOption) ([]byte, error)
 	return utils.FastMarshal(resource)
 }
 
-// UnmarshalNamespace unmarshals the Namespace resource.
+// UnmarshalNamespace unmarshals the Namespace resource from JSON.
 func UnmarshalNamespace(data []byte, opts ...MarshalOption) (*Namespace, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing namespace data")

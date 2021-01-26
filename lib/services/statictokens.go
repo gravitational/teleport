@@ -81,7 +81,7 @@ func GetStaticTokensSchema(extensionSchema string) string {
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, staticTokensSchema, DefaultDefinitions)
 }
 
-// UnmarshalStaticTokens unmarshals the StaticTokens resource.
+// UnmarshalStaticTokens unmarshals the StaticTokens resource from JSON.
 func UnmarshalStaticTokens(bytes []byte, opts ...MarshalOption) (StaticTokens, error) {
 	var staticTokens StaticTokensV2
 
@@ -119,7 +119,7 @@ func UnmarshalStaticTokens(bytes []byte, opts ...MarshalOption) (StaticTokens, e
 	return &staticTokens, nil
 }
 
-// MarshalStaticTokens marshals the StaticTokens resource.
+// MarshalStaticTokens marshals the StaticTokens resource to JSON.
 func MarshalStaticTokens(c StaticTokens, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
