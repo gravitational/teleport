@@ -1321,9 +1321,9 @@ steps:
       AWS_SECRET_ACCESS_KEY:
         from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
     commands:
-    - mkdir -p /go/chart
-    # download all previously packaged chart versions from the S3 bucket
-    - aws s3 sync s3://$AWS_S3_BUCKET/ /go/chart
+      - mkdir -p /go/chart
+      # download all previously packaged chart versions from the S3 bucket
+      - aws s3 sync s3://$AWS_S3_BUCKET/ /go/chart
 
   - name: Package helm charts
     image: alpine/helm:latest
@@ -4057,6 +4057,6 @@ volumes:
 
 ---
 kind: signature
-hmac: b22112a14c6944c465bd5340fe597d013f72b3df7182d72d765f89d7cddbc3ed
+hmac: 07e098f69918f6e215d0ab8e7cef1fa88c3b4d9ebfda7dfeb1485d1f9a8090e6
 
 ...
