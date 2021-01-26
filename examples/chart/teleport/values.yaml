@@ -239,6 +239,9 @@ extraVars: {}
   # validate the certificate chain presented by the proxy
   # SSL_CERT_FILE: "/var/lib/ca-certs/ca.pem"
 
+# List of sources to populate environment variables in the container.
+envFrom: []
+
 # Add additional volumes and mounts, for example to read other log files on the host
 extraVolumes: []
   # - name: ca-certs

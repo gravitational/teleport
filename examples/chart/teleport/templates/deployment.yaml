@@ -57,6 +57,10 @@ spec:
         - name: {{ $key }}
           value: {{ $value }}
 {{- end }}
+{{- if .Values.envFrom }}
+        envFrom:
+{{ toYaml .Values.envFrom | indent 8 }}
+{{- end }}
         # See https://gravitational.com/teleport/docs/admin-guide/#ports
         ports:
 {{- range $key, $port := .Values.ports }}
