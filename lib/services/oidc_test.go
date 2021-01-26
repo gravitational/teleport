@@ -112,7 +112,7 @@ func TestOIDCUnmarshal(t *testing.T) {
       }
 	`
 
-	oc, err := GetOIDCConnectorMarshaler().UnmarshalOIDCConnector([]byte(input))
+	oc, err := UnmarshalOIDCConnector([]byte(input))
 	require.NoError(t, err)
 
 	require.Equal(t, "google", oc.GetName())
