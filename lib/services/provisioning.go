@@ -67,7 +67,7 @@ func GetProvisionTokenSchema() string {
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, ProvisionTokenSpecV2Schema, DefaultDefinitions)
 }
 
-// UnmarshalProvisionToken unmarshals the ProvisionToken resource.
+// UnmarshalProvisionToken unmarshals the ProvisionToken resource from JSON.
 func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (ProvisionToken, error) {
 	if len(data) == 0 {
 		return nil, trace.BadParameter("missing provision token data")
@@ -118,7 +118,7 @@ func UnmarshalProvisionToken(data []byte, opts ...MarshalOption) (ProvisionToken
 	return nil, trace.BadParameter("server resource version %v is not supported", h.Version)
 }
 
-// MarshalProvisionToken marshals the ProvisionToken resource.
+// MarshalProvisionToken marshals the ProvisionToken resource to JSON.
 func MarshalProvisionToken(t ProvisionToken, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {

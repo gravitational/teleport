@@ -147,7 +147,7 @@ func GetClusterConfigSchema(extensionSchema string) string {
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, clusterConfigSchema, DefaultDefinitions)
 }
 
-// UnmarshalClusterConfig unmarshals the ClusterConfig resource.
+// UnmarshalClusterConfig unmarshals the ClusterConfig resource from JSON.
 func UnmarshalClusterConfig(bytes []byte, opts ...MarshalOption) (ClusterConfig, error) {
 	var clusterConfig ClusterConfigV3
 
@@ -185,7 +185,7 @@ func UnmarshalClusterConfig(bytes []byte, opts ...MarshalOption) (ClusterConfig,
 	return &clusterConfig, nil
 }
 
-// MarshalClusterConfig marshals the ClusterConfig resource.
+// MarshalClusterConfig marshals the ClusterConfig resource to JSON.
 func MarshalClusterConfig(c ClusterConfig, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {

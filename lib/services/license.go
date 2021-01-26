@@ -52,7 +52,7 @@ const LicenseSpecV3Template = `{
   }
 }`
 
-// UnmarshalLicense unmarshals the License resource.
+// UnmarshalLicense unmarshals the License resource from JSON.
 // and validates schema
 func UnmarshalLicense(bytes []byte) (License, error) {
 	if len(bytes) == 0 {
@@ -78,7 +78,7 @@ func UnmarshalLicense(bytes []byte) (License, error) {
 	return &license, nil
 }
 
-// MarshalLicense marshals the License resource.
+// MarshalLicense marshals the License resource to JSON.
 func MarshalLicense(license License, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {

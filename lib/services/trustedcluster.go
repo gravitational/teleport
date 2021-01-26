@@ -98,7 +98,7 @@ func GetTrustedClusterSchema(extensionSchema string) string {
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, trustedClusterSchema, DefaultDefinitions)
 }
 
-// UnmarshalTrustedCluster unmarshals the TrustedCluster resource.
+// UnmarshalTrustedCluster unmarshals the TrustedCluster resource from JSON.
 func UnmarshalTrustedCluster(bytes []byte, opts ...MarshalOption) (TrustedCluster, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
@@ -134,7 +134,7 @@ func UnmarshalTrustedCluster(bytes []byte, opts ...MarshalOption) (TrustedCluste
 	return &trustedCluster, nil
 }
 
-// MarshalTrustedCluster marshals the TrustedCluster resource.
+// MarshalTrustedCluster marshals the TrustedCluster resource to JSON.
 func MarshalTrustedCluster(c TrustedCluster, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {

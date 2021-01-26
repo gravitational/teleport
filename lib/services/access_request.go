@@ -471,7 +471,7 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (AccessRequest, 
 	return &req, nil
 }
 
-// MarshalAccessRequest marshals the AccessRequest resource.
+// MarshalAccessRequest marshals the AccessRequest resource to JSON.
 func MarshalAccessRequest(req AccessRequest, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {

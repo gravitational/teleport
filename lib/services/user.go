@@ -140,7 +140,7 @@ func GetUserSchema(extensionSchema string) string {
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, userSchema, DefaultDefinitions)
 }
 
-// UnmarshalUser unmarshals the User resource.
+// UnmarshalUser unmarshals the User resource from JSON.
 func UnmarshalUser(bytes []byte, opts ...MarshalOption) (User, error) {
 	var h ResourceHeader
 	err := json.Unmarshal(bytes, &h)
@@ -181,7 +181,7 @@ func UnmarshalUser(bytes []byte, opts ...MarshalOption) (User, error) {
 	return nil, trace.BadParameter("user resource version %v is not supported", h.Version)
 }
 
-// MarshalUser marshals the User resource.
+// MarshalUser marshals the User resource to JSON.
 func MarshalUser(u User, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {

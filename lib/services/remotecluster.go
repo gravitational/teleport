@@ -52,7 +52,7 @@ func GetRemoteClusterSchema() string {
 	return fmt.Sprintf(RemoteClusterV3SchemaTemplate, MetadataSchema, RemoteClusterV3StatusSchema)
 }
 
-// UnmarshalRemoteCluster unmarshals the RemoteCluster resource.
+// UnmarshalRemoteCluster unmarshals the RemoteCluster resource from JSON.
 func UnmarshalRemoteCluster(bytes []byte, opts ...MarshalOption) (RemoteCluster, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
@@ -92,7 +92,7 @@ func UnmarshalRemoteCluster(bytes []byte, opts ...MarshalOption) (RemoteCluster,
 	return &cluster, nil
 }
 
-// MarshalRemoteCluster marshals the RemoteCluster resource.
+// MarshalRemoteCluster marshals the RemoteCluster resource to JSON.
 func MarshalRemoteCluster(c RemoteCluster, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {

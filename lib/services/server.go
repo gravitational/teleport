@@ -434,7 +434,7 @@ func UnmarshalServerResource(data []byte, kind string, cfg *MarshalConfig) (Serv
 	return nil, trace.BadParameter("server resource version %q is not supported", h.Version)
 }
 
-// UnmarshalServer unmarshals the Server resource.
+// UnmarshalServer unmarshals the Server resource from JSON.
 func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (Server, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
@@ -478,7 +478,7 @@ func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (Server, 
 	return nil, trace.BadParameter("server resource version %q is not supported", h.Version)
 }
 
-// MarshalServer marshals the Server resource.
+// MarshalServer marshals the Server resource to JSON.
 func MarshalServer(s Server, opts ...MarshalOption) ([]byte, error) {
 	if err := s.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

@@ -56,7 +56,7 @@ func ExtendWebSession(ws WebSession) (WebSession, error) {
 	return ws, nil
 }
 
-// UnmarshalWebSession unmarshals the WebSession resource.
+// UnmarshalWebSession unmarshals the WebSession resource from JSON.
 func UnmarshalWebSession(bytes []byte, opts ...MarshalOption) (WebSession, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
@@ -93,7 +93,7 @@ func UnmarshalWebSession(bytes []byte, opts ...MarshalOption) (WebSession, error
 	return nil, trace.BadParameter("web session resource version %v is not supported", h.Version)
 }
 
-// MarshalWebSession marshals the WebSession resource.
+// MarshalWebSession marshals the WebSession resource to JSON.
 func MarshalWebSession(ws WebSession, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {

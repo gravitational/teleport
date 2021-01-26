@@ -62,7 +62,7 @@ func GetReverseTunnelSchema() string {
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, ReverseTunnelSpecV2Schema, DefaultDefinitions)
 }
 
-// UnmarshalReverseTunnel unmarshals the ReverseTunnel resource.
+// UnmarshalReverseTunnel unmarshals the ReverseTunnel resource from JSON.
 func UnmarshalReverseTunnel(bytes []byte, opts ...MarshalOption) (ReverseTunnel, error) {
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing tunnel data")
@@ -103,7 +103,7 @@ func UnmarshalReverseTunnel(bytes []byte, opts ...MarshalOption) (ReverseTunnel,
 	return nil, trace.BadParameter("reverse tunnel version %v is not supported", h.Version)
 }
 
-// MarshalReverseTunnel marshals the ReverseTunnel resource.
+// MarshalReverseTunnel marshals the ReverseTunnel resource to JSON.
 func MarshalReverseTunnel(rt ReverseTunnel, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {

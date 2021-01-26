@@ -90,7 +90,7 @@ func GetAuthPreferenceSchema(extensionSchema string) string {
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, authPreferenceSchema, DefaultDefinitions)
 }
 
-// UnmarshalAuthPreference unmarshals the AuthPreference resource.
+// UnmarshalAuthPreference unmarshals the AuthPreference resource from JSON.
 func UnmarshalAuthPreference(bytes []byte, opts ...MarshalOption) (AuthPreference, error) {
 	var authPreference AuthPreferenceV2
 
@@ -122,7 +122,7 @@ func UnmarshalAuthPreference(bytes []byte, opts ...MarshalOption) (AuthPreferenc
 	return &authPreference, nil
 }
 
-// MarshalAuthPreference marshals the AuthPreference resource.
+// MarshalAuthPreference marshals the AuthPreference resource to JSON.
 func MarshalAuthPreference(c AuthPreference, opts ...MarshalOption) ([]byte, error) {
 	return json.Marshal(c)
 }

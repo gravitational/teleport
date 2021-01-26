@@ -40,7 +40,7 @@ const ResetPasswordTokenSecretsSpecV3Template = `{
 	}
   }`
 
-// UnmarshalResetPasswordTokenSecrets unmarshals the ResetPasswordTokenSecrets resource.
+// UnmarshalResetPasswordTokenSecrets unmarshals the ResetPasswordTokenSecrets resource from JSON.
 func UnmarshalResetPasswordTokenSecrets(bytes []byte, opts ...MarshalOption) (ResetPasswordTokenSecrets, error) {
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")
@@ -56,7 +56,7 @@ func UnmarshalResetPasswordTokenSecrets(bytes []byte, opts ...MarshalOption) (Re
 	return &secrets, nil
 }
 
-// MarshalResetPasswordTokenSecrets marshals the ResetPasswordTokenSecrets resource.
+// MarshalResetPasswordTokenSecrets marshals the ResetPasswordTokenSecrets resource to JSON.
 func MarshalResetPasswordTokenSecrets(secrets ResetPasswordTokenSecrets, opts ...MarshalOption) ([]byte, error) {
 	return utils.FastMarshal(secrets)
 }

@@ -242,7 +242,7 @@ func GetSemaphoreSchema() string {
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, SemaphoreSpecSchemaTemplate, DefaultDefinitions)
 }
 
-// UnmarshalSemaphore unmarshals the Semaphore resource.
+// UnmarshalSemaphore unmarshals the Semaphore resource from JSON.
 func UnmarshalSemaphore(bytes []byte, opts ...MarshalOption) (Semaphore, error) {
 	var semaphore SemaphoreV3
 
@@ -280,7 +280,7 @@ func UnmarshalSemaphore(bytes []byte, opts ...MarshalOption) (Semaphore, error) 
 	return &semaphore, nil
 }
 
-// MarshalSemaphore marshals the Semaphore resource.
+// MarshalSemaphore marshals the Semaphore resource to JSON.
 func MarshalSemaphore(c Semaphore, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
