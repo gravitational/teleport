@@ -144,7 +144,8 @@ Variable                  | Description
 `{{internal.logins}}`     | Substituted with "allowed logins" parameter used in `tctl users add [user] <allowed logins>` command. This applies only to users stored in Teleport's own local database.
 `{{external.trait_name}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). For SAML, this will be expanded with the "trait_name" assertion value. For OIDC, this will be expanded with the value of the "trait_name" claim.
 
-!!! tip "Internal vs external":
+!!! tip "Internal vs external"
+
     `internal.logins` is a special unique value which uses Teleport's own internal database, while `trait_name` in `external.trait_name` is intended to be replaced with the name of an actual SAML assertion or OIDC claim as sent by the identity provider.
 
 Both variables above are there to deliver the same benefit: they allow Teleport
@@ -218,7 +219,8 @@ spec:
       'workload': ['database', 'backup']
 ```
 
-!!! tip "Dynamic RBAC":
+!!! tip "Dynamic RBAC"
+
     Node labels can be dynamic, i.e. determined at runtime by an output
     of an executable. In this case, you can implement "permissions follow workload"
     policies (eg., any server where PostgreSQL is running becomes _automatically_

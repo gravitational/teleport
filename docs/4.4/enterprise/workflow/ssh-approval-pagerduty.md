@@ -13,6 +13,7 @@ requests as Pagerduty incidents — notifying the appropriate team, and approve
 or deny the requests via Pagerduty special action.
 
 !!! warning
+
     The Approval Workflow only works with Teleport Enterprise as it requires several roles.
 
 ## Setup
@@ -69,6 +70,7 @@ $ tctl auth sign --format=tls --user=access-plugin-pagerduty --out=auth --ttl=87
 The above sequence should result in three PEM encoded files being generated: auth.crt, auth.key, and auth.cas (certificate, private key, and CA certs respectively).  We'll reference the auth.crt, auth.key, and auth.cas files later when [configuring the plugins](#editing-the-config-file).
 
 !!! note "Certificate Lifetime"
+
      By default, [`tctl auth sign`](https://gravitational.com/teleport/docs/cli-docs/#tctl-auth-sign) produces certificates with a relatively short lifetime. For production deployments, the `--ttl` flag can be used to ensure a more practical certificate lifetime. `--ttl=8760h` exports a 1 year token
 
 ### Setting up Pagerduty API key
@@ -145,9 +147,9 @@ Save this as `teleport-pagerduty.service`.
 
 #### Example PagerDuty Request
 
-<video style="width:100%" controls>
-  <source src="../../../img/enterprise/plugins/pagerduty/pagerduty-demo.mp4" type="video/mp4">
-  <source src="../../../img/enterprise/plugins/pagerduty/pagerduty-demo.webm" type="video/webm">
+<video controls>
+  <source src="../../../img/enterprise/plugins/pagerduty/pagerduty-demo.mp4" type="video/mp4" />
+  <source src="../../../img/enterprise/plugins/pagerduty/pagerduty-demo.webm" type="video/webm" />
 Your browser does not support the video tag.
 </video>
 

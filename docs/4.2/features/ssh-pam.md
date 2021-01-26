@@ -244,7 +244,7 @@ session   required   pam_motd.so
 session   required   pam_permit.so
 ```
 
-!!! Note
+!!! note
 
       Pay attention to the inclusion of `pam_motd.so` under the `session` facility. While `pam_motd.so` is
       not required for user creation, Teleport requires at least one module to be set under both

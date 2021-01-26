@@ -201,7 +201,7 @@ Assuming approval, `tsh` will automatically manage a certificate re-issued with 
 
     Granting a role with administrative abilities could allow a user to **permanently** upgrade their privileges (e.g. if contractor was granted admin for some reason). We recommend only escalating to the next role of least privilege vs jumping directly to "Super Admin" role.
 
-     The `deny.request` block can help mitigate the risk of doing this by accident.
+    The `deny.request` block can help mitigate the risk of doing this by accident.
 
 ### Other features of Approval Workflows.
 

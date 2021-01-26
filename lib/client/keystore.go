@@ -48,6 +48,7 @@ const (
 	fileNameKnownHosts = "known_hosts"
 	fileNameTLSCerts   = "certs.pem"
 	kubeDirSuffix      = "-kube"
+	dbDirSuffix        = "-db"
 
 	// profileDirPerms is the default permissions applied to the profile
 	// directory (usually ~/.tsh)
@@ -73,6 +74,10 @@ type LocalKeyStore interface {
 
 	// DeleteKey removes a specific session key from a proxy.
 	DeleteKey(proxyHost, username string, opts ...KeyOption) error
+
+	// DeleteKeyOption deletes only secrets specified by the provided key
+	// options keeping user's SSH/TLS certificates and private key intact.
+	DeleteKeyOption(proxyHost, username string, opts ...KeyOption) error
 
 	// DeleteKeys removes all session keys from disk.
 	DeleteKeys() error
@@ -107,12 +112,18 @@ type LocalKeyStore interface {
 //    │   ├── foo-cert.pub           --> SSH certificate for proxies and nodes
 //    │   ├── foo.pub                --> Public Key
 //    │   ├── foo-x509.pem           --> TLS client certificate for Auth Server
-//    │   └── foo-kube               --> Kubernetes certs for user "foo"
-//    │       ├── root               --> Kubernetes certs for teleport cluster "root"
-//    │       │   ├── kubeA-x509.pem --> TLS cert for Kubernetes cluster "kubeA"
-//    │       │   └── kubeB-x509.pem --> TLS cert for Kubernetes cluster "kubeB"
-//    │       └── leaf               --> Kubernetes certs for teleport cluster "leaf"
-//    │           └── kubeC-x509.pem --> TLS cert for Kubernetes cluster "kubeC"
+//    │   ├── foo-kube               --> Kubernetes certs for user "foo"
+//    │   |   ├── root               --> Kubernetes certs for teleport cluster "root"
+//    │   |   │   ├── kubeA-x509.pem --> TLS cert for Kubernetes cluster "kubeA"
+//    │   |   │   └── kubeB-x509.pem --> TLS cert for Kubernetes cluster "kubeB"
+//    │   |   └── leaf               --> Kubernetes certs for teleport cluster "leaf"
+//    │   |       └── kubeC-x509.pem --> TLS cert for Kubernetes cluster "kubeC"
+//    |   └── foo-db                 --> Database access certs for user "foo"
+//    |       ├── root               --> Database access certs for cluster "root"
+//    │       │   ├── dbA-x509.pem   --> TLS cert for database service "dbA"
+//    │       │   └── dbB-x509.pem   --> TLS cert for database service "dbB"
+//    │       └── leaf               --> Database access certs for cluster "leaf"
+//    │           └── dbC-x509.pem   --> TLS cert for database service "dbC"
 //    └── two.example.com
 //        ├── certs.pem
 //        ├── bar
@@ -194,6 +205,15 @@ func (fs *FSLocalKeyStore) AddKey(host, username string, key *Key) error {
 			return trace.Wrap(err)
 		}
 	}
+	for db, cert := range key.DBTLSCerts {
+		fname := filepath.Join(username+dbDirSuffix, key.ClusterName, filepath.Clean(db)+fileExtTLSCert)
+		if err := os.MkdirAll(filepath.Join(dirPath, filepath.Dir(fname)), os.ModeDir|profileDirPerms); err != nil {
+			return trace.Wrap(err)
+		}
+		if err := writeBytes(fname, cert); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
 
@@ -213,6 +233,24 @@ func (fs *FSLocalKeyStore) DeleteKey(host, username string, opts ...KeyOption) e
 		if err = os.Remove(fn); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+	for _, o := range opts {
+		if err := o.deleteKey(dirPath, username); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// DeleteKeyOption deletes only secrets specified by the provided key options
+// keeping user's SSH/TLS certificates and private key intact.
+//
+// Useful when needing to log out of a specific service, like a particular
+// database proxy.
+func (fs *FSLocalKeyStore) DeleteKeyOption(host, username string, opts ...KeyOption) error {
+	dirPath, err := fs.dirFor(host, false)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 	for _, o := range opts {
 		if err := o.deleteKey(dirPath, username); err != nil {
@@ -284,6 +322,7 @@ func (fs *FSLocalKeyStore) GetKey(proxyHost, username string, opts ...KeyOption)
 			TLSCertificates: tlsCA,
 		}},
 		KubeTLSCerts: make(map[string][]byte),
+		DBTLSCerts:   make(map[string][]byte),
 	}
 
 	for _, o := range opts {
@@ -367,6 +406,48 @@ func (o withKubeCerts) deleteKey(dirPath, username string) error {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+// WithDBCerts returns a GetKeyOption to load database access certificates
+// from the store for a given Teleport cluster.
+func WithDBCerts(teleportClusterName, dbName string) KeyOption {
+	return withDBCerts{teleportClusterName: teleportClusterName, dbName: dbName}
+}
+
+type withDBCerts struct {
+	teleportClusterName, dbName string
+}
+
+func (o withDBCerts) getKey(dirPath, username string, key *Key) error {
+	dbDir := filepath.Join(dirPath, username+dbDirSuffix, o.teleportClusterName)
+	dbFiles, err := ioutil.ReadDir(dbDir)
+	if err != nil && !os.IsNotExist(err) {
+		return trace.Wrap(err)
+	}
+	if key.DBTLSCerts == nil {
+		key.DBTLSCerts = make(map[string][]byte)
+	}
+	for _, fi := range dbFiles {
+		data, err := ioutil.ReadFile(filepath.Join(dbDir, fi.Name()))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		dbName := strings.TrimSuffix(filepath.Base(fi.Name()), fileExtTLSCert)
+		key.DBTLSCerts[dbName] = data
+	}
+	if key.ClusterName == "" {
+		key.ClusterName = o.teleportClusterName
+	}
+	return nil
+}
+
+func (o withDBCerts) deleteKey(dirPath, username string) error {
+	// If database name is specified, remove only that cert, otherwise remove
+	// certs for all databases a user is logged into.
+	if o.dbName != "" {
+		return os.Remove(filepath.Join(dirPath, username+dbDirSuffix, o.teleportClusterName, o.dbName+fileExtTLSCert))
+	}
+	return os.RemoveAll(filepath.Join(dirPath, username+dbDirSuffix, o.teleportClusterName))
 }
 
 // SaveCerts saves trusted TLS certificates of certificate authorities

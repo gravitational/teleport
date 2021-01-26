@@ -1,8 +1,4 @@
-## Teleport Nodes
-
-**Table of Contents**
-
-[TOC]
+# Teleport Nodes
 
 ## The Node Service
 
@@ -25,6 +21,7 @@ labels. Nodes can access the list of all Nodes in their cluster via the
 [Auth Server API](teleport-auth.md#auth-api).
 
 !!! tip "Tip"
+
     In most environments we advise replacing the OpenSSH daemon `sshd`
     with the Teleport Node Service unless there are existing workflows relying
     on `ssh` or in special cases such as embedded devices that can't run
@@ -59,6 +56,7 @@ Learn more about this process in the [Auth
 Guide](teleport-auth.md#authentication-in-teleport).
 
 !!! warning "Single-Node Clusters are Clusters"
+
     Once a Node gets a signed certificate from the Node CA, the Node is considered a member of the cluster, even if that cluster has only one node.
 
 ## Connecting to Nodes
@@ -115,7 +113,7 @@ nodes if their public keys are signed by a trusted CA. A "trusted cluster" is a
 pair of public keys of the trusted CA. It can be configured via `teleport.yaml`
 file.
 
-<!--TODO: incomplete, write more on this-->
+<!-- TODO: incomplete, write more on this -->
 
 ## More Concepts
 

@@ -6,10 +6,6 @@ The Teleport client [`tsh`](cli-docs.md#tsh) and Web UI are available for **Linu
 and **Windows** operating systems. Our examples install Teleport v4.1.0 but you can
 install any version listed in our [Release History](https://gravitational.com/teleport/download/).
 
-**Table of Contents**
-
-[TOC]
-
 ## Checksums
 
 Gravitational Teleport provides a checksum from the Downloads page.  This should
@@ -32,6 +28,7 @@ $ curl https://get.gravitational.com/teleport-$version-$os-$arch-bin.tar.gz.sha2
 ## Install Pre-built Binaries
 
 !!! info "sudo"
+
     You may need to use `sudo` to run the installation commands.
 
 ### Linux
@@ -166,4 +163,4 @@ $ sudo chown $USER /var/lib/teleport
 If the build succeeds the binaries `teleport, tsh`, and `tctl` are now in the
 directory `$GOPATH/src/github.com/gravitational/teleport/build`
 
-<!--Notes on what to do if the build does not succeed, troubleshooting-->
+<!-- Notes on what to do if the build does not succeed, troubleshooting -->

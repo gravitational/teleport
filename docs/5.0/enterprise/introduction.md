@@ -22,7 +22,7 @@ The table below gives a quick overview of the benefits of Teleport Enterprise.
 !!! tip "Contact Information"
 
     If you are interested in Teleport Enterprise, please reach out to
-    `sales@gravitational.com` for more information.
+    `sales@goteleport.com` for more information.
 
 ## RBAC
 
@@ -90,7 +90,7 @@ See the [SSO for SSH](sso/ssh-sso.md) chapter for more details.
 
 !!! tip "Contact Information"
 
-    For more information about Teleport Enterprise or Gravity please reach out us to `sales@gravitational.com` or fill out the contact form on our [website](https://gravitational.com/demo).
+    For more information about Teleport Enterprise or Gravity please reach out us to `sales@goteleport.com` or fill out the contact form on our [website](https://gravitational.com/demo).
 
 
 ## FedRAMP/FIPS

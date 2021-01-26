@@ -22,7 +22,7 @@ to define policies like:
     edition of Teleport only supports [Github](../../admin-guide.md#github-oauth-20) as
     an SSO provider.
 
-<iframe width="712" height="400" src="https://www.youtube.com/embed/DG97l8WJ6oU?rel=0&modestbranding=1&widget_referrer=gravitational.com/teleport/docs" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+<iframe width="712" height="400" src="https://www.youtube.com/embed/DG97l8WJ6oU?rel=0&modestbranding=1&widget_referrer=gravitational.com/teleport/docs" frameBorder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
 
 ## Prerequisites:
 
@@ -87,7 +87,7 @@ Within GSuite to access the Manage API client access go to Security -> Settings.
 
 !!! Note
 
-   The email that you set for `google_admin_email` **must** be the email address of a user that has permission to list all groups, users, and group membership in your G Suite account. This user will generally need super admin privileges.
+    The email that you set for `google_admin_email` **must** be the email address of a user that has permission to list all groups, users, and group membership in your G Suite account. This user will generally need super admin privileges.
 
 **Client Name:** For Client Name: Use the Unique ID for the service account.  [See Video for instructions](https://youtu.be/DG97l8WJ6oU?t=281).
 

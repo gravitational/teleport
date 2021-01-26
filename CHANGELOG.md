@@ -1,5 +1,48 @@
 # Changelog
 
+## 6.0.0-alpha.2
+
+**Note:** This version is a pre-release and is not recommended for production usage.
+
+This release of Teleport contains a number of improvements and bug fixes.
+
+* Enable proxy protocol support for Teleport Kubernetes proxy service: [#5299](https://github.com/gravitational/teleport/pull/5299).
+* Update `tsh db ls` command to include connection information and add `tsh db config` command: [#5319](https://github.com/gravitational/teleport/pull/5319).
+* Fix authentication failure when logging in via CLI with Access Workflows after removing `.tsh` directory: [#5323](https://github.com/gravitational/teleport/pull/5323).
+* Rename Database Access service `database` role to `db`: [#5359](https://github.com/gravitational/teleport/pull/5359).
+* Fix `tsh login` failure when `--proxy` differs from actual proxy public address: [#5380](https://github.com/gravitational/teleport/pull/5380).
+
+## 6.0.0-alpha.1
+
+**Note:** This version is a pre-release and is not recommended for production usage.
+
+This release of Teleport introduces Database Access with PostgreSQL support.
+
+See [Database Access Preview](https://goteleport.com/teleport/docs/preview/database-access/) docs for more information.
+
+## 5.1.0
+
+This release of Teleport adds a new feature.
+
+* Support for creating and assuming Access Workflow requests from within the Web UI (first step toward full Workflow UI support: [#4937](https://github.com/gravitational/teleport/issues/4937)).
+
+## 5.0.2
+
+This release of Teleport contains a security fix.
+
+* Patch a SAML authentication bypass (see https://github.com/russellhaering/gosaml2/security/advisories/GHSA-xhqq-x44f-9fgg): [#5119](https://github.com/gravitational/teleport/pull/5119).
+
+Any Enterprise SSO users using Okta, Active Directory, OneLogin or custom SAML connectors should upgrade their auth servers to version 5.0.2 and restart Teleport. If you are unable to upgrade immediately, we suggest disabling SAML connectors for all clusters until the updates can be applied.
+
+
+## 5.0.1
+
+This release of Teleport contains multiple bug fixes.
+
+* Always set expiry times on server resource in heartbeats [#5008](https://github.com/gravitational/teleport/pull/5008)
+* Fixes streaming k8s responses (`kubectl logs -f`, `kubectl run -it`, etc) [#5009](https://github.com/gravitational/teleport/pull/5009)
+* Multiple fixes for the k8s forwarder [#5038](https://github.com/gravitational/teleport/pull/5038)
+
 ## 5.0.0
 
 Teleport 5.0 is a major release with new features, functionality, and bug fixes. Users can review [5.0 closed issues](https://github.com/gravitational/teleport/milestone/39?closed=1) on Github for details of all items.
@@ -244,6 +287,17 @@ Please follow our [standard upgrade procedure](https://goteleport.com/teleport/d
 * Optional: Consider updating `https_key_file` & `https_cert_file` to our new `https_keypairs:` format.
 * Optional: Consider migrating Kubernetes Access from `proxy_service` to `kubernetes_service` after the upgrade.
 
+### 4.4.6
+
+This release of teleport contains a security fix and a bug fix.
+
+* Patch a SAML authentication bypass (see https://github.com/russellhaering/gosaml2/security/advisories/GHSA-xhqq-x44f-9fgg): [#5120](https://github.com/gravitational/teleport/pull/5120).
+
+Any Enterprise SSO users using Okta, Active Directory, OneLogin or custom SAML connectors should upgrade their auth servers to version 4.4.6 and restart Teleport. If you are unable to upgrade immediately, we suggest disabling SAML connectors for all clusters until the updates can be applied.
+
+* Fix an issue where `tsh login` would fail with an `AccessDenied` error if
+the user was perviously logged into a leaf cluster. [#5105](https://github.com/gravitational/teleport/pull/5105)
+
 ### 4.4.5
 
 This release of Teleport contains a bug fix.
@@ -372,6 +426,20 @@ auth_service:
 #### Upgrade Notes
 
 Please follow our [standard upgrade procedure](https://gravitational.com/teleport/docs/admin-guide/#upgrading-teleport).
+
+## 4.3.9
+
+This release of Teleport contains a security fix.
+
+* Patch a SAML authentication bypass (see https://github.com/russellhaering/gosaml2/security/advisories/GHSA-xhqq-x44f-9fgg): [#5122](https://github.com/gravitational/teleport/pull/5122).
+
+Any Enterprise SSO users using Okta, Active Directory, OneLogin or custom SAML connectors should upgrade their auth servers to version 4.3.9 and restart Teleport. If you are unable to upgrade immediately, we suggest disabling SAML connectors for all clusters until the updates can be applied.
+
+## 4.3.8
+
+This release of Teleport adds support for a new build architecture.
+
+* Added automatic arm64 builds of Teleport to the download portal.
 
 ## 4.3.7
 

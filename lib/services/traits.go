@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,28 +21,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils/parse"
 
 	"github.com/gravitational/trace"
-
 	log "github.com/sirupsen/logrus"
 )
 
-// TraitMapping is a mapping that maps a trait to one or
-// more teleport roles.
-type TraitMapping struct {
-	// Trait is a teleport trait name
-	Trait string `json:"trait"`
-	// Value is trait value to match
-	Value string `json:"value"`
-	// Roles is a list of static teleport roles to map to
-	Roles []string `json:"roles,omitempty"`
-}
-
-// TraitMappingSet is a set of trait mappings
-type TraitMappingSet []TraitMapping
-
 // TraitsToRoles maps the supplied traits to a list of teleport role names.
-func (ms TraitMappingSet) TraitsToRoles(traits map[string][]string) []string {
+func TraitsToRoles(ms TraitMappingSet, traits map[string][]string) []string {
 	var roles []string
-	ms.traitsToRoles(traits, func(role string, expanded bool) {
+	traitsToRoles(ms, traits, func(role string, expanded bool) {
 		roles = append(roles, role)
 	})
 	return utils.Deduplicate(roles)
@@ -52,10 +37,10 @@ func (ms TraitMappingSet) TraitsToRoles(traits map[string][]string) []string {
 // this function directly rather than calling TraitsToRoles and then building matchers from
 // the resulting list since this function forces any roles which include substitutions to
 // be literal matchers.
-func (ms TraitMappingSet) TraitsToRoleMatchers(traits map[string][]string) ([]parse.Matcher, error) {
+func TraitsToRoleMatchers(ms TraitMappingSet, traits map[string][]string) ([]parse.Matcher, error) {
 	var matchers []parse.Matcher
 	var firstErr error
-	ms.traitsToRoles(traits, func(role string, expanded bool) {
+	traitsToRoles(ms, traits, func(role string, expanded bool) {
 		if expanded || utils.ContainsExpansion(role) {
 			// mapping process included variable expansion; we therefore
 			// "escape" normal matcher syntax and look only for exact matches.
@@ -82,8 +67,8 @@ func (ms TraitMappingSet) TraitsToRoleMatchers(traits map[string][]string) ([]pa
 	return matchers, nil
 }
 
-// TraitsToRoles maps the supplied traits to teleport role names and passes them to a collector.
-func (ms TraitMappingSet) traitsToRoles(traits map[string][]string, collect func(role string, expanded bool)) {
+// traitsToRoles maps the supplied traits to teleport role names and passes them to a collector.
+func traitsToRoles(ms TraitMappingSet, traits map[string][]string, collect func(role string, expanded bool)) {
 	for _, mapping := range ms {
 		for traitName, traitValues := range traits {
 			if traitName != mapping.Trait {
@@ -100,9 +85,9 @@ func (ms TraitMappingSet) traitsToRoles(traits map[string][]string, collect func
 						}
 						// this trait value clearly did not match, move on to another
 						continue TraitLoop
-						// skip empty replacement or empty role
 					case outRole == "":
 					case outRole != "":
+						// skip empty replacement or empty role
 						collect(outRole, outRole != role)
 					}
 				}

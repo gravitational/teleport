@@ -8,8 +8,6 @@ description: How to configure Teleport in highly available (HA) mode for AWS dep
 This guide is designed to accompany our [reference Terraform code](https://github.com/gravitational/teleport/tree/master/examples/aws/terraform/ha-autoscale-cluster#terraform-based-provisioning-example-amazon-single-ami)
 and describe how to use and administrate the resulting Teleport deployment.
 
-[TOC]
-
 ## Prerequisites
 
 Our code requires Terraform 0.12+. You can [download Terraform here](https://www.terraform.io/downloads.html). We will assume that you have
@@ -166,13 +164,14 @@ The AWS account ID which publishes these AMIs is `126027368216`. You can list th
 the example `awscli` commands below. The output is in JSON format by default.
 
 !!! tip "List Gravitational AMIs"
-    OSS AMIs<br>
+
+    OSS AMIs<br />
     `aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-oss*'`
 
-    Enterprise AMIs<br>
+    Enterprise AMIs<br />
     `aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*'`
 
-    List Enterprise FIPS 140-2 AMIs<br>
+    List Enterprise FIPS 140-2 AMIs<br />
     `aws ec2 describe-images --owners 126027368216 --filters 'Name=name,Values=gravitational-teleport-ami-ent*-fips'`
 
 
@@ -534,6 +533,7 @@ $ tsh ssh root@ip-172-31-11-69-ec2-internal
 ### LetsEncrypt
 
 !!! note
+
     You are using LetsEncrypt if your `use_acm` variable is set to `"false"`.
 
 #### Auth service
@@ -624,6 +624,7 @@ $ journalctl -u teleport-node.service
 ### ACM
 
 !!! note
+
     You are using ACM if your `use_acm` variable is set to `"true"`.
 
 When using ACM, the service name for the proxy is different (`teleport-proxy-acm.service` vs `teleport-proxy.service`).

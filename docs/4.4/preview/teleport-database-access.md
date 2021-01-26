@@ -38,6 +38,7 @@ The following diagram shows an example Database Access setup:
 ![Teleport database access diagram](../img/dbaccess.svg)
 
 !!! info
+
     Teleport Database Access is currently under active development, with a
     preview release slated for Teleport 5.1 in December 2020. The preview
     will include support for PostgreSQL, including Amazon RDS and Aurora.
@@ -108,6 +109,7 @@ First, head over to the Teleport [downloads page](https://gravitational.com/tele
 and download the latest version of Teleport.
 
 !!! warning
+
     As of this writing, no Teleport release with Database Access has been
     published yet.
 
@@ -209,9 +211,9 @@ $ psql "service=postgres-aurora user=<db-user> database=<db-name>"
 
 <!-- TODO Remove comment when ready ## Demo
 
-<video autoplay loop muted playsinline controls style="width:100%">
-  <source src="/video/dbaccessdemo.mp4" type="video/mp4">
-  <source src="/video/dbaccessdemo.webm" type="video/webm">
+<video autoPlay loop muted playsInline controls>
+  <source src="/video/dbaccessdemo.mp4" type="video/mp4" />
+  <source src="/video/dbaccessdemo.webm" type="video/webm" />
 Your browser does not support the video tag.
 </video>-->
 

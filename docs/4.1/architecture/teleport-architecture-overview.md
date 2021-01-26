@@ -1,12 +1,8 @@
-## Architecture Introduction
+# Architecture Introduction
 
 This guide is for those looking for a deeper understanding of Teleport. If you
 are looking for hands-on instructions on how to set up Teleport for your team,
 check out the [Admin Guide](../admin-guide.md)
-
-**Table of Contents**
-
-[TOC]
 
 ## Design Principles
 
@@ -76,6 +72,7 @@ The numbers correspond to the steps needed to connect a client to a node. These
 steps are explained below the diagram.
 
 !!! warning "Caution"
+
     The teleport daemon calls services "roles" in the CLI
     client. The `--roles` flag has no relationship to concept of User Roles or
     permissions.
@@ -88,6 +85,7 @@ steps are explained below the diagram.
 4. Authorize Client Access to Node
 
 !!! tip "Tip"
+
     In the diagram above we show each Teleport service separately for
     clarity, but Teleport services do not have to run on separate nodes.
     Teleport can be run as a binary on a single-node cluster with no external
@@ -104,6 +102,7 @@ steps are explained in detail below the diagram.
 ![Teleport Everything](../img/everything.svg)
 
 !!! note "Caution"
+
     The Teleport Admin tool, `tctl` , must be physically present
     on the same machine where Teleport Auth is running. Adding new nodes or
     inviting new users to the cluster is only possible using this tool.
@@ -143,7 +142,8 @@ generator. The password + 2nd factor are submitted to a proxy via HTTPS,
 therefore it is critical for a secure configuration of Teleport to install a
 proper HTTPS certificate on a proxy.
 
-!!! warning "Warning":
+!!! warning "Warning"
+
     Do not use self-signed SSL/HTTPS certificates in production!
 
 If the credentials are correct, the auth server generates and signs a new
@@ -168,7 +168,8 @@ If the node is located, the proxy establishes the connection between the client
 and the requested node. The destination node then begins recording the session,
 sending the session history to the auth server to be stored.
 
-!!! note "Note":
+!!! note "Note"
+
     Teleport may also be configured to have the session recording
     occur on the proxy, see [Audit Log](../admin-guide.md#audit-log) for more
     information.

@@ -1,8 +1,4 @@
-## The Proxy Service
-
-**Table of Contents**
-
-[TOC]
+# The Proxy Service
 
 The proxy is a stateless service which performs three main functions in a
 Teleport cluster:

@@ -82,7 +82,7 @@ types of Teleport data:
 * Cluster state
 * Cluster events
 
-See [DynamoDB Admin Guide for more information](https://gravitational.com/teleport/docs/admin-guide/#using-dynamodb)
+See [DynamoDB Admin Guide for more information](admin-guide.md#using-dynamodb)
 
 ![AWS DynamoDB Tables](img/aws/dynamodb-tables.png)
 ![Setting Streams](img/aws/setting-stream.png)
@@ -621,7 +621,7 @@ We've a few other resources for Enterprise customers such as our
 - [Running Teleport Enterprise in HA mode on AWS using Terraform](aws-terraform-guide.md)
 - [Teleport Enterprise Quickstart](enterprise/quickstart-enterprise.md)
 
-If you would like help setting up Teleport Enterprise on AWS, please mail us at [info@gravitational.com](mailto:info@gravitational.com)
+If you would like help setting up Teleport Enterprise on AWS, please mail us at [info@goteleport.com](mailto:info@goteleport.com)
 
 ## Teleport AWS Tips & Tricks
 

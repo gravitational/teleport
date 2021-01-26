@@ -123,7 +123,7 @@ func getKubeCreds(ctx context.Context, log logrus.FieldLogger, tpClusterName, ku
 			log.WithError(err).Warning("Failed to test the necessary kubernetes permissions. This teleport instance will still handle kubernetes requests towards other kubernetes clusters")
 			// We used to recommend users to set a dummy kubeconfig on root
 			// proxies to get kubernetes support working for leaf clusters:
-			// https://community.gravitational.com/t/enabling-teleport-to-act-as-a-kubernetes-proxy-for-trusted-leaf-clusters/418
+			// https://community.goteleport.com/t/enabling-teleport-to-act-as-a-kubernetes-proxy-for-trusted-leaf-clusters/418
 			//
 			// Since this is no longer necessary, recommend them to clean up
 			// via logs.

@@ -1,3 +1,8 @@
+{{- if .Values.teleportVersionOverride }}
+  {{- $_ := set . "teleportVersion" .Values.teleportVersionOverride }}
+{{- else }}
+  {{- $_ := set . "teleportVersion" .Chart.AppVersion }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -5,9 +10,6 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     app: {{ .Release.Name }}
-  annotations:
-    # ConfigMap checksum, to recreate deployment on config changes.
-    checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -15,17 +17,28 @@ spec:
       app: {{ .Release.Name }}
   template:
     metadata:
+      annotations:
+        # ConfigMap checksum, to recreate the pod on config changes.
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
       labels:
         app: {{ .Release.Name }}
     spec:
       containers:
       - name: "teleport"
-        image: "{{ .Values.image }}:{{ if .Values.teleportVersionOverride }}{{ .Values.teleportVersionOverride }}{{ else }}{{ .Chart.AppVersion }}{{ end }}"
+        image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ .teleportVersion }}"
         args:
         - "--diag-addr=0.0.0.0:3000"
         {{- if .Values.insecureSkipProxyTLSVerify }}
         - "--insecure"
         {{- end }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 9807
         ports:
         - name: diag
           containerPort: 3000

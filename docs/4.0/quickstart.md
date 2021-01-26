@@ -111,7 +111,8 @@ $ tsh --proxy=localhost --insecure login
 Notice that `tsh` client always needs `--proxy` flag because all client connections
 in Teleport must to go through a proxy, sometimes called a "bastion".
 
-!!! warning "Warning":
+!!! warning "Warning"
+
     For the purposes of this quickstart we are using the `--insecure` flag which allows
     us to skip configuring the HTTP/TLS certificate for Teleport proxy. Your browser will
     throw a warning **Your connection is not private**. Click Advanced, and **Proceed to 0.0.0.0 (unsafe)**
@@ -130,7 +131,8 @@ With a certificate in place, a user can SSH into any host behind the proxy:
 $ tsh ssh localhost
 ```
 
-!!! tip "Tip":
+!!! tip "Tip"
+
     To avoid typing "tsh ssh" a user may rename `tsh` binary to `ssh` and use the familiar syntax as in `ssh localhost`.
 
 ## Adding Nodes to Cluster
@@ -160,7 +162,8 @@ localhost     xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.1:3022
 new-node      xxxxx-xxxx-xxxx-xxxxxxx     10.0.10.2:3022
 ```
 
-!!! tip "NOTE":
+!!! tip "NOTE"
+
     Teleport also supports static pre-defined invitation tokens which can be set in the [configuration file](admin-guide.md#adding-nodes-to-the-cluster)
 
 ## Adding a node located behind NAT
@@ -265,7 +268,8 @@ Also, people can join your session via terminal assuming they have Teleport inst
 $ tsh --proxy=teleport.example.com join 7645d523-60cb-436d-b732-99c5df14b7c4
 ```
 
-!!! tip "NOTE":
+!!! tip "NOTE"
+
     For this to work, both of you must have proper user mappings allowing you access `db` under the same OS user.
 
 ## Running in Production

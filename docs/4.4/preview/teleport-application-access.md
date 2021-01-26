@@ -191,11 +191,11 @@ proxy_service:
 
 `https://[cluster-url]:3080/web/cluster/[cluster-name]/apps`
 
-<!--<video autoplay loop muted playsinline style="width:100%">
-  <source src="/video/app.mp4" type="video/mp4">
-  <source src="/video/app.webm" type="video/webm">
+<!-- <video autoPlay loop muted playsInline>
+  <source src="/video/app.mp4" type="video/mp4" />
+  <source src="/video/app.webm" type="video/webm" />
 Your browser does not support the video tag.
-</video>-->
+</video> -->
 
 ## Product Feedback
 

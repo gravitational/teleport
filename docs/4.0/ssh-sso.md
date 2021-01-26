@@ -1,4 +1,4 @@
-<h1>Single Sign-On (SSO) for SSH</h1>
+# Single Sign-On (SSO) for SSH
 
 ## Introduction
 

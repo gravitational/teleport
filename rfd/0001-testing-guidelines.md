@@ -1,6 +1,6 @@
 ---
-authors: Andrew Lytvynov (andrew@gravitational.com)
-state: draft
+authors: Andrew Lytvynov (andrew@goteleport.com)
+state: implemented
 ---
 
 # RFD 1 - Testing guidelines

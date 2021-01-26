@@ -7,9 +7,11 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/proto"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/service"
@@ -39,14 +41,14 @@ func TestAuthSignKubeconfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ca := services.NewCertAuthority(
-		services.HostCA,
-		"example.com",
-		nil,
-		[][]byte{[]byte("SSH CA cert")},
-		nil,
-		services.CertAuthoritySpecV2_RSA_SHA2_512,
-	)
+	ca := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:         services.HostCA,
+		ClusterName:  "example.com",
+		SigningKeys:  nil,
+		CheckingKeys: [][]byte{[]byte("SSH CA cert")},
+		Roles:        nil,
+		SigningAlg:   services.CertAuthoritySpecV2_RSA_SHA2_512,
+	})
 	ca.SetTLSKeyPairs([]services.TLSKeyPair{{Cert: []byte("TLS CA cert")}})
 
 	client := mockClient{
@@ -195,6 +197,7 @@ type mockClient struct {
 
 	clusterName    services.ClusterName
 	userCerts      *proto.Certs
+	dbCerts        *proto.DatabaseCertResponse
 	cas            []services.CertAuthority
 	proxies        []services.Server
 	remoteClusters []services.RemoteCluster
@@ -218,6 +221,9 @@ func (c mockClient) GetRemoteClusters(opts ...services.MarshalOption) ([]service
 }
 func (c mockClient) GetKubeServices(context.Context) ([]services.Server, error) {
 	return c.kubeServices, nil
+}
+func (c mockClient) GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
+	return c.dbCerts, nil
 }
 
 func TestCheckKubeCluster(t *testing.T) {
@@ -314,4 +320,35 @@ func TestCheckKubeCluster(t *testing.T) {
 			require.Equal(t, tt.want, a.kubeCluster)
 		})
 	}
+}
+
+func TestGenerateDatabaseKeys(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	client := mockClient{
+		dbCerts: &proto.DatabaseCertResponse{
+			Cert: []byte("TLS cert"),
+			CACerts: [][]byte{
+				[]byte("CA cert"),
+			},
+		},
+	}
+
+	ac := AuthCommand{
+		output:       filepath.Join(tmpDir, "db"),
+		outputFormat: identityfile.FormatDatabase,
+		genHost:      "example.com",
+		genTTL:       time.Hour,
+	}
+
+	err := ac.GenerateAndSignKeys(client)
+	require.NoError(t, err)
+
+	certBytes, err := ioutil.ReadFile(ac.output + ".crt")
+	require.NoError(t, err)
+	require.Equal(t, client.dbCerts.Cert, certBytes, "certificates match")
+
+	caBytes, err := ioutil.ReadFile(ac.output + ".cas")
+	require.NoError(t, err)
+	require.Equal(t, client.dbCerts.CACerts[0], caBytes, "CA certificates match")
 }

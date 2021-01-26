@@ -85,10 +85,11 @@ func (a *AgentServer) Serve() error {
 				return trace.Wrap(err, "unknown error")
 			}
 			if !neterr.Temporary() {
-				if !strings.Contains(neterr.Error(), "use of closed network connection") {
-					log.Errorf("got permanent error: %v", err)
+				if strings.Contains(neterr.Error(), "use of closed network connection") {
+					return nil
 				}
-				return err
+				log.WithError(err).Error("Got permanent error.")
+				return trace.Wrap(err)
 			}
 			if tempDelay == 0 {
 				tempDelay = 5 * time.Millisecond
@@ -98,7 +99,7 @@ func (a *AgentServer) Serve() error {
 			if max := 1 * time.Second; tempDelay > max {
 				tempDelay = max
 			}
-			log.Errorf("got temp error: %v, will sleep %v", err, tempDelay)
+			log.WithError(err).Errorf("Got temporary error (will sleep %v).", tempDelay)
 			time.Sleep(tempDelay)
 			continue
 		}
@@ -107,7 +108,7 @@ func (a *AgentServer) Serve() error {
 		// get an agent instance for serving this conn
 		instance, err := a.getAgent()
 		if err != nil {
-			log.Errorf("Failed to get agent: %v", err)
+			log.WithError(err).Error("Failed to get agent.")
 			return trace.Wrap(err)
 		}
 

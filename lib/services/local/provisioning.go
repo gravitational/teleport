@@ -43,7 +43,7 @@ func (s *ProvisioningService) UpsertToken(p services.ProvisionToken) error {
 		return trace.Wrap(err)
 	}
 	if p.Expiry().IsZero() || p.Expiry().Sub(s.Clock().Now().UTC()) < time.Second {
-		p.SetTTL(s.Clock(), defaults.ProvisioningTokenTTL)
+		p.SetExpiry(s.Clock().Now().UTC().Add(defaults.ProvisioningTokenTTL))
 	}
 	data, err := services.MarshalProvisionToken(p)
 	if err != nil {
