@@ -1465,7 +1465,7 @@ func (s *streamWithRoles) Done() <-chan struct{} {
 }
 
 // Complete closes the stream and marks it finalized
-func (s *streamWithRoles) Complete(ctx context.Context) error {
+func (s *streamWithRoles) Complete(ctx context.Context) (*events.UploadMetadata, error) {
 	return s.stream.Complete(ctx)
 }
 

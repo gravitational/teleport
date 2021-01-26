@@ -166,7 +166,23 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			}
 			// do not use stream context to give the auth server finish the upload
 			// even if the stream's context is cancelled
-			err := eventStream.Complete(auth.CloseContext())
+			sessionData, err := eventStream.Complete(auth.CloseContext())
+			h, err := auth.GetClusterName()
+			session := &events.SessionUpload{
+				Metadata: events.Metadata{
+					Type: events.SessionUploadEvent,
+					Code: events.SessionUploadCode,
+					Index:     events.SessionUploadIndex,
+					ClusterName: h.GetClusterName(),
+				},
+				SessionMetadata: events.SessionMetadata{
+					SessionID: string(sessionData.SessionID),
+				},
+				SessionURL: sessionData.URL,
+			}
+			if err := g.Emitter.EmitAuditEvent(context.TODO(), session); err != nil {
+				return trail.ToGRPC(err)
+			}
 			g.Debugf("Completed stream: %v.", err)
 			if err != nil {
 				return trail.ToGRPC(err)

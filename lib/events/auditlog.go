@@ -174,7 +174,7 @@ type AuditLogConfig struct {
 
 	// UploadHandler is a pluggable external upload handler,
 	// used to fetch sessions from external sources
-	UploadHandler UploadHandler
+	UploadHandler MultipartHandler
 
 	// ExternalLog is a pluggable external log service
 	ExternalLog IAuditLog
@@ -962,12 +962,11 @@ func (l *AuditLog) EmitAuditEvent(ctx context.Context, event AuditEvent) error {
 	var emitAuditEvent func(ctx context.Context, event AuditEvent) error
 
 	if l.ExternalLog != nil {
-        emitAuditEvent = l.ExternalLog.EmitAuditEvent
-    } else {
-        emitAuditEvent = l.localLog.EmitAuditEvent
-    } 
+		emitAuditEvent = l.ExternalLog.EmitAuditEvent
+	} else {
+		emitAuditEvent = l.localLog.EmitAuditEvent
+	}
 	err := emitAuditEvent(ctx, event)
-
 	if err != nil {
 		auditFailedEmit.Inc()
 		return trace.Wrap(err)

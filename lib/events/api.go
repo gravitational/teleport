@@ -531,6 +531,8 @@ type MultipartUploader interface {
 	// ListUploads lists uploads that have been initiated but not completed with
 	// earlier uploads returned first
 	ListUploads(ctx context.Context) ([]StreamUpload, error)
+	// GetUploadMetadata gets the upload metadata
+	GetUploadMetadata(sessionID session.ID) *UploadMetadata
 }
 
 // Stream is used to create continuous ordered sequence of events
@@ -547,10 +549,16 @@ type Stream interface {
 	// Complete closes the stream and marks it finalized,
 	// releases associated resources, in case of failure,
 	// closes this stream on the client side
-	Complete(ctx context.Context) error
+	Complete(ctx context.Context) (*UploadMetadata, error)
 	// Close flushes non-uploaded flight stream data without marking
 	// the stream completed and closes the stream instance
 	Close(ctx context.Context) error
+}
+
+// UploadMetadata contains data about the session upload
+type UploadMetadata struct {
+	URL       string
+	SessionID session.ID
 }
 
 // StreamWriter implements io.Writer to be plugged into the multi-writer
@@ -580,7 +588,7 @@ type IAuditLog interface {
 
 	// EmitAuditEvent emits audit event
 	EmitAuditEvent(context.Context, AuditEvent) error
-	
+
 	// DELETE IN: 2.7.0
 	// This method is no longer necessary as nodes and proxies >= 2.7.0
 	// use UploadSessionRecording method.

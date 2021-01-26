@@ -389,17 +389,18 @@ func (s *ProtoStream) EmitAuditEvent(ctx context.Context, event AuditEvent) erro
 }
 
 // Complete completes the upload, waits for completion and returns all allocated resources.
-func (s *ProtoStream) Complete(ctx context.Context) error {
+func (s *ProtoStream) Complete(ctx context.Context) (*UploadMetadata, error) {
+	m := s.cfg.Uploader.GetUploadMetadata(s.cfg.Upload.SessionID)
 	s.complete()
 	select {
 	// wait for all in-flight uploads to complete and stream to be completed
 	case <-s.uploadsCtx.Done():
 		s.cancel()
-		return s.getCompleteResult()
+		return m, s.getCompleteResult()
 	case <-s.cancelCtx.Done():
-		return trace.ConnectionProblem(s.cancelCtx.Err(), "emitter has been closed")
+		return m, trace.ConnectionProblem(s.cancelCtx.Err(), "emitter has been closed")
 	case <-ctx.Done():
-		return trace.ConnectionProblem(ctx.Err(), "context has cancelled before complete could succeed")
+		return m, trace.ConnectionProblem(ctx.Err(), "context has cancelled before complete could succeed")
 	}
 }
 
@@ -1273,5 +1274,9 @@ func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, wri
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
+	return nil
+}
+
+func (m *MemoryUploader) GetUploadMetadata(sessionID session.ID) *UploadMetadata {
 	return nil
 }

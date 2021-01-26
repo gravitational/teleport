@@ -216,8 +216,8 @@ func (*DiscardStream) Close(ctx context.Context) error {
 }
 
 // Complete does nothing
-func (*DiscardStream) Complete(ctx context.Context) error {
-	return nil
+func (*DiscardStream) Complete(ctx context.Context) (*UploadMetadata, error) {
+	return nil, nil
 }
 
 // EmitAuditEvent discards audit event
@@ -451,7 +451,7 @@ func (s *CheckingStream) Status() <-chan StreamStatus {
 }
 
 // Complete closes the stream and marks it finalized
-func (s *CheckingStream) Complete(ctx context.Context) error {
+func (s *CheckingStream) Complete(ctx context.Context) (*UploadMetadata, error) {
 	return s.stream.Complete(ctx)
 }
 
@@ -530,7 +530,7 @@ func (t *TeeStream) Close(ctx context.Context) error {
 }
 
 // Complete closes the stream and marks it finalized
-func (t *TeeStream) Complete(ctx context.Context) error {
+func (t *TeeStream) Complete(ctx context.Context) (*UploadMetadata, error) {
 	return t.stream.Complete(ctx)
 }
 
@@ -653,7 +653,7 @@ func (s *CallbackStream) Status() <-chan StreamStatus {
 }
 
 // Complete closes the stream and marks it finalized
-func (s *CallbackStream) Complete(ctx context.Context) error {
+func (s *CallbackStream) Complete(ctx context.Context) (*UploadMetadata, error) {
 	return s.stream.Complete(ctx)
 }
 
@@ -717,10 +717,10 @@ type ReportingStream struct {
 }
 
 // Complete closes the stream and marks it finalized
-func (s *ReportingStream) Complete(ctx context.Context) error {
-	err := s.Stream.Complete(ctx)
+func (s *ReportingStream) Complete(ctx context.Context) (*UploadMetadata, error) {
+	m, err := s.Stream.Complete(ctx)
 	if s.eventsC == nil {
-		return trace.Wrap(err)
+		return m, trace.Wrap(err)
 	}
 	select {
 	case s.eventsC <- UploadEvent{
@@ -730,5 +730,5 @@ func (s *ReportingStream) Complete(ctx context.Context) error {
 	default:
 		log.Warningf("Skip send event on a blocked channel.")
 	}
-	return trace.Wrap(err)
+	return m, trace.Wrap(err)
 }

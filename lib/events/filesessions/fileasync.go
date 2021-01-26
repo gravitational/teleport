@@ -438,25 +438,11 @@ func (u *Uploader) startUpload(fileName string) error {
 			})
 			return
 		}
-		session := &events.SessionUpload{
-			Metadata: events.Metadata{
-				Type: events.SessionUploadEvent,
-				Code: events.SessionUploadCode,
-			},
-			SessionMetadata: events.SessionMetadata{
-				SessionID: string(upload.sessionID),
-			},
-			SessionURL: u.cfg.ScanDir,
-		}
 		u.log.WithFields(log.Fields{"duration": time.Since(start), "session-id": sessionID}).Debugf("Session upload completed.")
-		if err := u.auditLog.EmitAuditEvent(u.ctx, session); err != nil {
-			return
-		}
 		u.emitEvent(events.UploadEvent{
 			SessionID: string(upload.sessionID),
 			Created:   u.cfg.Clock.Now().UTC(),
 		})
-
 	}()
 	return nil
 }
@@ -536,7 +522,8 @@ func (u *Uploader) upload(up *upload) error {
 		}
 	}
 
-	if err := stream.Complete(u.ctx); err != nil {
+	_, err = stream.Complete(u.ctx)
+	if err != nil {
 		u.log.WithError(err).Error("Failed to complete upload.")
 		return trace.Wrap(err)
 	}
