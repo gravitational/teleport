@@ -89,15 +89,52 @@ Linux ip-172-31-43-104.ec2.internal 4.19.72-25.58.amzn2.x86_64 x86_64 x86_64 x86
 
 ## 2. Install BCC Tools
 
-Run the following script to download the prerequisites to build BCC tools, building LLVM and Clang targeting BPF byte code, and then building and installing BCC tools.
+We recommend installing BCC tools using your distribution's package manager wherever possible.
 
-!!! note
+=== "Ubuntu/Debian 18.04+"
 
-    We plan to soon support installing bcc-tools from packages instead of compiling them yourself to make taking advantage of enhanced session recording easier.
+    ```sh
+    apt -y install bpfcc-tools
+    ```
 
-### Script to Install BCC Tools
+=== "CentOS/RHEL 8+"
 
-=== "Ubuntu and Debian"
+    ```sh
+    yum -y install bcc-tools
+    ```
+
+=== "Amazon Linux 2+"
+
+    **Example Script to install relevant bcc packages for Amazon 2 Linux**
+
+    Make sure the the machine is at Kernel 4.19+/5+ (```uname -r```). Run the following script, sourced from [BCC github](https://github.com/iovisor/bcc/blob/master/INSTALL.md#amazon-linux-2---binary), to enable BCC in Amazon Linux Extras, install required `kernel-devel` package for the Kernel version and install the BCC tools.
+
+    ```sh
+    #!/bin/bash
+    # Enable BCC within the Amazon Linux Extras
+    sudo amazon-linux-extras enable BCC
+    # Install the kernel-devel package for this kernel
+    sudo yum install -y kernel-devel-$(uname -r)
+    # Install BCC
+    sudo yum install -y bcc
+
+    ```
+    You should see output similar to below:
+    ```
+    Installed:
+    bcc.x86_64 0:0.10.0-1.amzn2.0.1
+
+    Dependency Installed:
+      bcc-tools.x86_64 0:0.10.0-1.amzn2.0.1  python2-bcc.x86_64 0:0.10.0-1.amzn2.0.1
+    ```
+
+=== "Ubuntu and Debian (compile from source)"
+
+    This script can be used to compile BCC tools from source on Ubuntu and Debian hosts.
+
+    !!! warning
+        We recommend this method only as a last resort if installing the `bpfcc-tools` package does not work.
+        Compiling from source can take a long time and may break if your kernel version changes.
 
     ```sh
     #!/bin/bash
@@ -120,10 +157,10 @@ Run the following script to download the prerequisites to build BCC tools, build
     sudo apt install arping iperf3 netperf git
 
     # Install BCC.
-    export MAKEFLAGS="-j16"
+    export MAKEFLAGS="-j`nproc`"
     git clone https://github.com/iovisor/bcc.git
-    (cd bcc && git checkout v0.11.0)
-    mkdir bcc/build; cd bcc/build
+    cd bcc && git checkout v0.11.0
+    mkdir build; cd build
     cmake .. -DCMAKE_INSTALL_PREFIX=/usr
     make
     sudo make install
@@ -134,9 +171,11 @@ Run the following script to download the prerequisites to build BCC tools, build
 
 === "CentOS"
 
-    **Example Script to install relevant bcc packages for CentOS**
+    This script can be used to compile BCC tools from source on CentOS and RHEL hosts.
 
-    Follow [bcc documentation](https://github.com/iovisor/bcc/blob/master/INSTALL.md#debian---source) on how to install the relevant tooling for other operating systems.
+    !!! warning
+        We recommend this method only as a last resort if installing the `bcc-tools` package does not work.
+        Compiling from source can take a long time and may break if your kernel version changes.
 
     ```sh
     #!/bin/bash
@@ -148,7 +187,7 @@ Run the following script to download the prerequisites to build BCC tools, build
       exit 1
     fi
 
-    # Create a temporary to build tooling in.
+    # Create a temporary directory to build tooling in.
     BUILD_DIR=$(mktemp -d)
     cd $BUILD_DIR
     echo "Building in $BUILD_DIR."
@@ -159,7 +198,8 @@ Run the following script to download the prerequisites to build BCC tools, build
 
     # Install development tools.
     yum groupinstall -y "Development tools"
-    yum install -y elfutils-libelf-devel cmake3 git bison flex ncurses-devel
+    yum install -y elfutils-libelf-devel cmake3 git bison flex ncurses-devel python2 python3
+    ln -sf /bin/python2 /bin/python
 
     # Download and install LLVM and Clang. Build them with BPF target.
     curl  -LO  http://releases.llvm.org/7.0.1/llvm-7.0.1.src.tar.xz
@@ -169,6 +209,8 @@ Run the following script to download the prerequisites to build BCC tools, build
 
     mkdir clang-build
     mkdir llvm-build
+
+    export MAKEFLAGS="-j`nproc`"
 
     cd llvm-build
     cmake3 -G "Unix Makefiles" -DLLVM_TARGETS_TO_BUILD="BPF;X86" \
@@ -187,7 +229,7 @@ Run the following script to download the prerequisites to build BCC tools, build
     # Install BCC.
     git clone https://github.com/iovisor/bcc.git
     cd bcc && git checkout v0.11.0
-    mkdir bcc/build; cd bcc/build
+    mkdir build; cd build
     cmake3 .. -DCMAKE_INSTALL_PREFIX=/usr
     make
     make install
@@ -195,31 +237,6 @@ Run the following script to download the prerequisites to build BCC tools, build
     # Install is done.
     rm -fr $BUILD_DIR
     echo "Install is complete, try running /usr/share/bcc/tools/execsnoop to verify install."
-    ```
-
-=== "Amazon Linux"
-
-    **Example Script to install relevant bcc packages for Amazon 2 Linux**
-
-
-    Make sure the the machine is at Kernel 4.19+/5+ (```uname -r```). Run the following script, sourced from [BCC github](https://github.com/iovisor/bcc/blob/master/INSTALL.md#amazon-linux-2---binary), to enable BCC in Amazon Linux Extras, install required kernel-devel package for the Kernel version and install the BCC tools.
-
-    ```sh
-    #!/bin/bash
-    #Enable BCC within the Amazon Linux Extras
-    sudo amazon-linux-extras enable BCC
-    #Install the kernal devel package for this kernel
-    sudo yum install -y kernel-devel-$(uname -r)
-    # Install BCC
-    sudo yum install -y bcc
-    ```
-    You should see output similar to below:
-    ```
-    Installed:
-    bcc.x86_64 0:0.10.0-1.amzn2.0.1
-
-    Dependency Installed:
-      bcc-tools.x86_64 0:0.10.0-1.amzn2.0.1  python2-bcc.x86_64 0:0.10.0-1.amzn2.0.1
     ```
 
 ## 3. Install & Configure Teleport Node
