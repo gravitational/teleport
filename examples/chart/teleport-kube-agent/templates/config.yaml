@@ -36,6 +36,9 @@ data:
       enabled: false
       {{- end }}
 
+    {{- /* specifying 'db_service' in a config file prior to Teleport 6 results in a parse error */ -}}
+    {{- if semverCompare ">=6" (.teleportVersion | toString) }}
+
     db_service:
       {{- if contains "db" (.Values.roles | toString) }}
       enabled: true
@@ -55,6 +58,7 @@ data:
       {{- else }}
       enabled: false
       {{- end }}
+    {{- end }}
 
     auth_service:
       enabled: false
