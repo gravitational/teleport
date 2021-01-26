@@ -83,6 +83,7 @@ $ helm repo add teleport https://charts.releases.teleport.dev
 helm install teleport-kube-agent teleport/teleport-kube-agent \
   --namespace teleport \
   --create-namespace \
+  --set roles=kube \
   --set proxyAddr=proxy.example.com:3080 \
   --set authToken=$JOIN_TOKEN \
   --set kubeClusterName=$KUBERNETES_CLUSTER_NAME
