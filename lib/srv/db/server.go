@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,8 +30,8 @@ import (
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
-	"github.com/gravitational/teleport/lib/srv/db/session"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -110,8 +110,8 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Server is an application server. It authenticates requests from the web
-// proxy and forwards them to internal applications.
+// Server is a database server. It accepts database client requests coming over
+// reverse tunnel from Teleport proxy and proxies them to databases.
 type Server struct {
 	// cfg is the database server configuration.
 	cfg Config
@@ -133,7 +133,7 @@ type Server struct {
 	log *logrus.Entry
 }
 
-// New returns a new application server.
+// New returns a new database server.
 func New(ctx context.Context, config Config) (*Server, error) {
 	err := config.CheckAndSetDefaults()
 	if err != nil {
@@ -239,7 +239,7 @@ func (s *Server) getServerInfoFunc(server types.DatabaseServer) func() (services
 			}
 		}
 		// Update TTL.
-		server.SetTTL(s.cfg.Clock, defaults.ServerAnnounceTTL)
+		server.SetExpiry(s.cfg.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
 		// Make sure to return a new object, because it gets cached by
 		// heartbeat and will always compare as equal otherwise.
 		return server.Copy(), nil
@@ -357,22 +357,21 @@ func (s *Server) handleConnection(ctx context.Context, conn net.Conn) error {
 	return nil
 }
 
-// DatabaseEngine defines an interface for specific database protocol engine
-// such as postgres or mysql.
-type DatabaseEngine interface {
-	// HandleConnection takes the connection from the proxy and starts
-	// proxying it to the particular database instance.
-	HandleConnection(context.Context, *session.Context, net.Conn) error
-}
-
 // dispatch returns an appropriate database engine for the session.
-func (s *Server) dispatch(sessionCtx *session.Context, streamWriter events.StreamWriter) (DatabaseEngine, error) {
+func (s *Server) dispatch(sessionCtx *common.Session, streamWriter events.StreamWriter) (common.Engine, error) {
+	auth, err := common.NewAuth(common.AuthConfig{
+		AuthClient:  s.cfg.AuthClient,
+		Credentials: s.cfg.Credentials,
+		RDSCACerts:  s.rdsCACerts,
+		Clock:       s.cfg.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	switch sessionCtx.Server.GetProtocol() {
 	case defaults.ProtocolPostgres:
 		return &postgres.Engine{
-			AuthClient:     s.cfg.AuthClient,
-			Credentials:    s.cfg.Credentials,
-			RDSCACerts:     s.rdsCACerts,
+			Auth:           auth,
 			OnSessionStart: s.emitSessionStartEventFn(streamWriter),
 			OnSessionEnd:   s.emitSessionEndEventFn(streamWriter),
 			OnQuery:        s.emitQueryEventFn(streamWriter),
@@ -384,7 +383,7 @@ func (s *Server) dispatch(sessionCtx *session.Context, streamWriter events.Strea
 		sessionCtx.Server.GetProtocol())
 }
 
-func (s *Server) authorize(ctx context.Context) (*session.Context, error) {
+func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	// Only allow local and remote identities to proxy to a database.
 	userType := ctx.Value(auth.ContextUser)
 	switch userType.(type) {
@@ -409,10 +408,12 @@ func (s *Server) authorize(ctx context.Context) (*session.Context, error) {
 	s.log.Debugf("Will connect to database %q at %v.", server.GetName(),
 		server.GetURI())
 	id := uuid.New()
-	return &session.Context{
+	return &common.Session{
 		ID:                id,
 		Server:            server,
 		Identity:          identity,
+		DatabaseUser:      identity.RouteToDatabase.Username,
+		DatabaseName:      identity.RouteToDatabase.Database,
 		Checker:           authContext.Checker,
 		StartupParameters: make(map[string]string),
 		Log: s.log.WithFields(logrus.Fields{

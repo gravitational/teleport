@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+
 	"github.com/gravitational/trace"
 )
 
@@ -210,7 +211,7 @@ func itemToUser(item backend.Item) (services.User, error) {
 // itemFromCertAuthority attempts to encode the supplied certificate authority
 // as an instance of `backend.Item` suitable for storage.
 func itemFromCertAuthority(ca services.CertAuthority) (*backend.Item, error) {
-	if err := ca.Check(); err != nil {
+	if err := services.ValidateCertAuthority(ca); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca)
@@ -237,7 +238,7 @@ func itemToCertAuthority(item backend.Item) (services.CertAuthority, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := ca.Check(); err != nil {
+	if err := services.ValidateCertAuthority(ca); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return ca, nil
@@ -375,7 +376,7 @@ func itemToOIDCConnector(item backend.Item) (services.OIDCConnector, error) {
 // itemFromSAMLConnector attempts to encode the supplied connector as an
 // instance of `backend.Item` suitable for storage.
 func itemFromSAMLConnector(connector services.SAMLConnector) (*backend.Item, error) {
-	if err := connector.CheckAndSetDefaults(); err != nil {
+	if err := services.ValidateSAMLConnector(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	value, err := services.GetSAMLConnectorMarshaler().MarshalSAMLConnector(connector)

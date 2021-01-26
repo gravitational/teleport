@@ -696,7 +696,7 @@ func (c *Cache) setTTL(r services.Resource) {
 		return
 	}
 	// set max TTL on the resources
-	r.SetTTL(c.Clock, c.PreferRecent.MaxTTL)
+	r.SetExpiry(c.Clock.Now().UTC().Add(c.PreferRecent.MaxTTL))
 }
 
 func (c *Cache) notify(ctx context.Context, event Event) {

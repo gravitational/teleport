@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // License defines teleport License Information
@@ -166,8 +165,10 @@ func (c *LicenseV3) SetExpiry(t time.Time) {
 	c.Metadata.SetExpiry(t)
 }
 
-// SetTTL sets Expires header using current clock
-func (c *LicenseV3) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (c *LicenseV3) SetTTL(clock Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
 }
 

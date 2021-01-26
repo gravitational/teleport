@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // ResetPasswordTokenSecrets contains token secrets
@@ -109,8 +108,10 @@ func (u *ResetPasswordTokenSecretsV3) SetExpiry(t time.Time) {
 	u.Metadata.SetExpiry(t)
 }
 
-// SetTTL sets Expires header using current clock
-func (u *ResetPasswordTokenSecretsV3) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (u *ResetPasswordTokenSecretsV3) SetTTL(clock Clock, ttl time.Duration) {
 	u.Metadata.SetTTL(clock, ttl)
 }
 

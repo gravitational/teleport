@@ -811,7 +811,7 @@ func (s *ServicesTestSuite) SAMLCRUD(c *check.C) {
 			},
 		},
 	}
-	err := connector.CheckAndSetDefaults()
+	err := services.ValidateSAMLConnector(connector)
 	c.Assert(err, check.IsNil)
 	err = s.WebS.UpsertSAMLConnector(connector)
 	c.Assert(err, check.IsNil)

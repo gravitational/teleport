@@ -23,7 +23,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // PluginData is used by plugins to store per-resource state.  An instance of PluginData
@@ -106,8 +105,10 @@ func (r *PluginDataV3) SetExpiry(expiry time.Time) {
 	r.Metadata.SetExpiry(expiry)
 }
 
-// SetTTL sets the resource time to live
-func (r *PluginDataV3) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (r *PluginDataV3) SetTTL(clock Clock, ttl time.Duration) {
 	r.Metadata.SetTTL(clock, ttl)
 }
 
