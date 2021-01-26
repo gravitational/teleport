@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,10 +18,6 @@ limitations under the License.
 package constants
 
 const (
-	// AdminRoleName is the name of the default admin role for all local users if
-	// another role is not explicitly assigned (Enterprise only).
-	AdminRoleName = "admin"
-
 	// DefaultImplicitRole is implicit role that gets added to all service.RoleSet
 	// objects.
 	DefaultImplicitRole = "default-implicit-role"
@@ -74,12 +70,6 @@ const (
 	// Github means authentication will happen remotely using a Github connector.
 	Github = ConnectorGithub
 
-	// JSON means JSON serialization format
-	JSON = "json"
-
-	// SchemeFile is a local disk file storage
-	SchemeFile = "file"
-
 	// HumanDateFormatSeconds is a human readable date formatting with seconds
 	HumanDateFormatSeconds = "Jan _2 15:04:05 UTC"
 
@@ -87,9 +77,6 @@ const (
 	// semaphore system is rejecting an acquisition attempt due to max
 	// leases having already been reached.
 	MaxLeases = "err-max-leases"
-
-	// ADFS is Microsoft Active Directory Federation Services
-	ADFS = "adfs"
 
 	// CertificateFormatStandard is used for normal Teleport operation without any
 	// compatibility modes.
@@ -110,7 +97,4 @@ const (
 
 	// KeepAliveDatabase is the keep alive type for database server.
 	KeepAliveDatabase = "db"
-
-	// RSAKeySize is the size of the RSA key.
-	RSAKeySize = 2048
 )

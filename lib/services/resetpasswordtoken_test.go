@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ func (r *ResetPasswordTokenSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())
 }
 
-func (s *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {
+func (r *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {
 	created, err := time.Parse(time.RFC3339, "2020-01-14T18:52:39.523076855Z")
 	c.Assert(err, check.IsNil)
 
@@ -86,6 +86,6 @@ func (s *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {
 		c.Assert(err, check.IsNil, comment)
 		out2, err := marshaler.Unmarshal(data)
 		c.Assert(err, check.IsNil, comment)
-		c.Assert(out2, check.DeepEquals, tc.expected, comment)
+		fixtures.DeepCompare(c, tc.expected, out2)
 	}
 }

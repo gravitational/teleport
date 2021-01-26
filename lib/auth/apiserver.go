@@ -548,6 +548,9 @@ func (s *APIServer) upsertReverseTunnel(auth ClientI, w http.ResponseWriter, r *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := services.ValidateReverseTunnel(tun); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if req.TTL != 0 {
 		tun.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}

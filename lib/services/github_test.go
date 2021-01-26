@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2017-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/lib/utils"
+
 	check "gopkg.in/check.v1"
 )
 
@@ -27,11 +28,11 @@ type GithubSuite struct{}
 
 var _ = check.Suite(&GithubSuite{})
 
-func (r *GithubSuite) SetUpSuite(c *check.C) {
+func (g *GithubSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())
 }
 
-func (s *GithubSuite) TestUnmarshal(c *check.C) {
+func (g *GithubSuite) TestUnmarshal(c *check.C) {
 	data := []byte(`{"kind": "github",
 "version": "v3",
 "metadata": {
@@ -66,7 +67,7 @@ func (s *GithubSuite) TestUnmarshal(c *check.C) {
 	c.Assert(expected, check.DeepEquals, connector)
 }
 
-func (s *GithubSuite) TestMapClaims(c *check.C) {
+func (g *GithubSuite) TestMapClaims(c *check.C) {
 	connector := NewGithubConnector("github", GithubConnectorSpecV3{
 		ClientID:     "aaa",
 		ClientSecret: "bbb",

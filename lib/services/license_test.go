@@ -1,5 +1,5 @@
 /*
-Copyright 2021 Gravitational, Inc.
+Copyright 2018-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
+
 	"github.com/gravitational/trace"
 	"gopkg.in/check.v1"
 )
@@ -33,11 +34,11 @@ var _ = check.Suite(&LicenseSuite{})
 var _ = testing.Verbose
 var _ = fmt.Printf
 
-func (r *LicenseSuite) SetUpSuite(c *check.C) {
+func (l *LicenseSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())
 }
 
-func (s *LicenseSuite) TestUnmarshal(c *check.C) {
+func (l *LicenseSuite) TestUnmarshal(c *check.C) {
 	type testCase struct {
 		description string
 		input       string
@@ -102,7 +103,7 @@ func (s *LicenseSuite) TestUnmarshal(c *check.C) {
 			c.Assert(err, check.IsNil, comment)
 			out2, err := UnmarshalLicense(data)
 			c.Assert(err, check.IsNil, comment)
-			c.Assert(out2, check.DeepEquals, tc.expected, comment)
+			fixtures.DeepCompare(c, tc.expected, out2)
 		} else {
 			c.Assert(err, check.FitsTypeOf, tc.err, comment)
 		}

@@ -33,13 +33,10 @@ const (
 	OIDC                       = constants.OIDC
 	SAML                       = constants.SAML
 	Github                     = constants.Github
-	JSON                       = constants.JSON
 	ConnectorOIDC              = constants.ConnectorOIDC
 	ConnectorSAML              = constants.ConnectorSAML
 	ConnectorGithub            = constants.ConnectorGithub
 	HumanDateFormatSeconds     = constants.HumanDateFormatSeconds
-	ADFS                       = constants.ADFS
-	AdminRoleName              = constants.AdminRoleName
 	DefaultImplicitRole        = constants.DefaultImplicitRole
 	APIDomain                  = constants.APIDomain
 	CertificateFormatStandard  = constants.CertificateFormatStandard
@@ -51,8 +48,6 @@ const (
 	KeepAliveNode              = constants.KeepAliveNode
 	KeepAliveApp               = constants.KeepAliveApp
 	KeepAliveDatabase          = constants.KeepAliveDatabase
-	RSAKeySize                 = constants.RSAKeySize
-	SchemeFile                 = constants.SchemeFile
 )
 
 // WebAPIVersion is a current webapi version
@@ -307,6 +302,9 @@ const (
 	// HOTP means HMAC-based One-time Password Algorithm.for Two-Factor Authentication.
 	HOTP = "hotp"
 
+	// JSON means JSON serialization format
+	JSON = "json"
+
 	// YAML means YAML serialization format
 	YAML = "yaml"
 
@@ -370,6 +368,9 @@ const (
 
 	// DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption = "disablesse"
+
+	// SchemeFile is a local disk file storage
+	SchemeFile = "file"
 
 	// SchemeStdout outputs audit log entries to stdout
 	SchemeStdout = "stdout"
@@ -442,6 +443,8 @@ const (
 const (
 	// NetIQ is an identity provider.
 	NetIQ = "netiq"
+	// ADFS is Microsoft Active Directory Federation Services
+	ADFS = "adfs"
 )
 
 const (
@@ -531,6 +534,10 @@ const SCP = "scp"
 
 // Root is *nix system administrator account name.
 const Root = "root"
+
+// AdminRoleName is the name of the default admin role for all local users if
+// another role is not explicitly assigned (Enterprise only).
+const AdminRoleName = "admin"
 
 // MinClientVersion is the minimum client version required by the server.
 const MinClientVersion = "3.0.0"
@@ -649,6 +656,9 @@ const (
 	// ChanSession is a SSH channel of type "session".
 	ChanSession = "session"
 )
+
+// RSAKeySize is the size of the RSA key.
+const RSAKeySize = 2048
 
 // A principal name for use in SSH certificates.
 type Principal string

@@ -25,9 +25,9 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport"
 
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
 
@@ -64,7 +64,7 @@ func (ks *SigningKeyStore) GetKeyPair() (*rsa.PrivateKey, []byte, error) {
 
 // GenerateSelfSignedSigningCert generates self-signed certificate used for digital signatures
 func GenerateSelfSignedSigningCert(entity pkix.Name, dnsNames []string, ttl time.Duration) ([]byte, []byte, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
+	priv, err := rsa.GenerateKey(rand.Reader, teleport.RSAKeySize)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
