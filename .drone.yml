@@ -1308,16 +1308,33 @@ steps:
       - cd /go/src/github.com/gravitational/teleport
       - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
       - git checkout ${DRONE_COMMIT}
+      - mkdir -p /go/chart
+      - cd /go/chart
+
+  - name: Download chart repo contents
+    image: amazon/aws-cli
+    environment:
+      AWS_S3_BUCKET:
+        from_secret: PRODUCTION_CHARTS_AWS_S3_BUCKET
+      AWS_ACCESS_KEY_ID:
+        from_secret: PRODUCTION_CHARTS_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: PRODUCTION_CHARTS_AWS_SECRET_ACCESS_KEY
+    commands:
+    - mkdir -p /go/chart
+    # download all previously packaged chart versions from the S3 bucket
+    - aws s3 sync s3://$AWS_S3_BUCKET/ /go/chart
 
   - name: Package helm charts
     image: alpine/helm:latest
     commands:
-      - mkdir -p /go/chart
       - cd /go/chart
       - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport
       - helm package /go/src/github.com/gravitational/teleport/examples/chart/teleport-kube-agent
       # copy index.html to root of the S3 bucket
       - cp /go/src/github.com/gravitational/teleport/examples/chart/index.html /go/chart
+      # this will index all previous versions of the charts downloaded from the S3 bucket,
+      # plus the just-packaged charts listed above
       - helm repo index /go/chart
 
   - name: Upload to S3
@@ -4040,6 +4057,6 @@ volumes:
 
 ---
 kind: signature
-hmac: a31d345fd4f889f01931451fc8226f87894abd875fdeafd0f4d46085a3c8dc88
+hmac: b22112a14c6944c465bd5340fe597d013f72b3df7182d72d765f89d7cddbc3ed
 
 ...
