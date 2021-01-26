@@ -36,6 +36,7 @@ data:
       enabled: false
       {{- end }}
 
+    {{- /* specifying 'db_service' in a config file prior to Teleport 6 results in a parse error */ -}}
     {{- if semverCompare ">=6" (.teleportVersion | toString) }}
 
     db_service:
