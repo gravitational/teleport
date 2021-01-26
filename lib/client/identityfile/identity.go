@@ -94,26 +94,17 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 	switch cfg.Format {
 	// dump user identity into a single file:
 	case FormatFile:
-		if err := checkOverwrite(cfg.OutputPath, cfg.OverwriteDestination); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		filesWritten = append(filesWritten, cfg.OutputPath)
-		f, err := os.OpenFile(cfg.OutputPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, writeFileMode)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		defer f.Close()
-
+		buf := new(bytes.Buffer)
 		// write key:
-		if err := writeWithNewline(f, cfg.Key.Priv); err != nil {
+		if err := writeWithNewline(buf, cfg.Key.Priv); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// append ssh cert:
-		if err := writeWithNewline(f, cfg.Key.Cert); err != nil {
+		if err := writeWithNewline(buf, cfg.Key.Cert); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// append tls cert:
-		if err := writeWithNewline(f, cfg.Key.TLSCert); err != nil {
+		if err := writeWithNewline(buf, cfg.Key.TLSCert); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// append trusted host certificate authorities
@@ -124,16 +115,24 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-				if err := writeWithNewline(f, []byte(data)); err != nil {
+				if err := writeWithNewline(buf, []byte(data)); err != nil {
 					return nil, trace.Wrap(err)
 				}
 			}
 			// append tls ca certificates
 			for _, cert := range ca.TLSCertificates {
-				if err := writeWithNewline(f, cert); err != nil {
+				if err := writeWithNewline(buf, cert); err != nil {
 					return nil, trace.Wrap(err)
 				}
 			}
+		}
+
+		filesWritten = append(filesWritten, cfg.OutputPath)
+		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := writeFile(cfg.OutputPath, buf.Bytes()); err != nil {
+			return nil, trace.Wrap(err)
 		}
 
 	// dump user identity into separate files:
@@ -141,13 +140,16 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		keyPath := cfg.OutputPath
 		certPath := keyPath + "-cert.pub"
 		filesWritten = append(filesWritten, keyPath, certPath)
+		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-		err = writeFile(certPath, cfg.Key.Cert, cfg.OverwriteDestination)
+		err = writeFile(certPath, cfg.Key.Cert)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = writeFile(keyPath, cfg.Key.Priv, cfg.OverwriteDestination)
+		err = writeFile(keyPath, cfg.Key.Priv)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -157,13 +159,16 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		certPath := cfg.OutputPath + ".crt"
 		casPath := cfg.OutputPath + ".cas"
 		filesWritten = append(filesWritten, keyPath, certPath, casPath)
+		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-		err = writeFile(certPath, cfg.Key.TLSCert, cfg.OverwriteDestination)
+		err = writeFile(certPath, cfg.Key.TLSCert)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		err = writeFile(keyPath, cfg.Key.Priv, cfg.OverwriteDestination)
+		err = writeFile(keyPath, cfg.Key.Priv)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -173,24 +178,24 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 				caCerts = append(caCerts, cert...)
 			}
 		}
-		err = writeFile(casPath, caCerts, cfg.OverwriteDestination)
+		err = writeFile(casPath, caCerts)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 	case FormatKubernetes:
-		if err := checkOverwrite(cfg.OutputPath, cfg.OverwriteDestination); err != nil {
+		filesWritten = append(filesWritten, cfg.OutputPath)
+		if err := checkOverwrite(cfg.OverwriteDestination, filesWritten...); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		// Clean up the existing file, if it exists.
 		//
 		// kubeconfig.Update would try to parse it and merge in new
-		// credentials, which is now what we want.
+		// credentials, which is not what we want.
 		if err := os.Remove(cfg.OutputPath); err != nil && !os.IsNotExist(err) {
 			return nil, trace.Wrap(err)
 		}
 
-		filesWritten = append(filesWritten, cfg.OutputPath)
 		if err := kubeconfig.Update(cfg.OutputPath, kubeconfig.Values{
 			TeleportClusterName: cfg.Key.ClusterName,
 			ClusterAddr:         cfg.KubeProxyAddr,
@@ -218,34 +223,32 @@ func writeWithNewline(w io.Writer, data []byte) error {
 	return nil
 }
 
-func writeFile(path string, data []byte, forceOverwrite bool) error {
-	if err := checkOverwrite(path, forceOverwrite); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := ioutil.WriteFile(path, data, writeFileMode); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
+func writeFile(path string, data []byte) error {
+	return trace.Wrap(ioutil.WriteFile(path, data, writeFileMode))
 }
 
-func checkOverwrite(path string, force bool) error {
-	// Check if destination file exists.
-	_, err := os.Stat(path)
-	if os.IsNotExist(err) {
-		// File doesn't exist, proceed.
-		return nil
+func checkOverwrite(force bool, paths ...string) error {
+	var existingFiles []string
+	// Check if destination files exists.
+	for _, path := range paths {
+		_, err := os.Stat(path)
+		if os.IsNotExist(err) {
+			// File doesn't exist, proceed.
+			continue
+		}
+		if err != nil {
+			// Something else went wrong, fail.
+			return trace.ConvertSystemError(err)
+		}
+		existingFiles = append(existingFiles, path)
 	}
-	if err != nil {
-		// Something else went wrong, fail.
-		return trace.Wrap(err)
-	}
-	if force {
-		// File exists but we're asked not to prompt, proceed.
+	if len(existingFiles) == 0 || force {
+		// Files don't exist or we're asked not to prompt, proceed.
 		return nil
 	}
 
 	// File exists, prompt user whether to overwrite.
-	fmt.Fprintf(os.Stderr, "Destination file %q exists. Overwrite it? [y/N]: ", path)
+	fmt.Fprintf(os.Stderr, "Destination file(s) %s exist. Overwrite? [y/N]: ", strings.Join(existingFiles, ", "))
 	scan := bufio.NewScanner(os.Stdin)
 	if !scan.Scan() {
 		return trace.WrapWithMessage(scan.Err(), "failed reading prompt response")
@@ -253,7 +256,7 @@ func checkOverwrite(path string, force bool) error {
 	if strings.ToLower(strings.TrimSpace(scan.Text())) == "y" {
 		return nil
 	}
-	return trace.Errorf("NOT overwriting destination file %q", path)
+	return trace.Errorf("not overwriting destination files %s", strings.Join(existingFiles, ", "))
 }
 
 // IdentityFile represents the basic components of an identity file.
