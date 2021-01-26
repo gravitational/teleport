@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
@@ -351,12 +352,12 @@ func (s *AuthInitSuite) TestCASigningAlg(c *C) {
 		hostCAs, err := auth.GetCertAuthorities(services.HostCA, false)
 		c.Assert(err, IsNil)
 		for _, ca := range hostCAs {
-			c.Assert(services.GetSigningAlgName(ca), Equals, alg)
+			c.Assert(sshutils.GetSigningAlgName(ca), Equals, alg)
 		}
 		userCAs, err := auth.GetCertAuthorities(services.UserCA, false)
 		c.Assert(err, IsNil)
 		for _, ca := range userCAs {
-			c.Assert(services.GetSigningAlgName(ca), Equals, alg)
+			c.Assert(sshutils.GetSigningAlgName(ca), Equals, alg)
 		}
 	}
 

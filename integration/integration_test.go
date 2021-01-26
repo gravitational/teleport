@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/testlog"
 
@@ -3898,11 +3899,11 @@ func (s *IntSuite) TestRotateChangeSigningAlg(c *check.C) {
 	assertSigningAlg := func(svc *service.TeleportProcess, alg string) {
 		hostCA, err := svc.GetAuthServer().GetCertAuthority(services.CertAuthID{Type: services.HostCA, DomainName: Site}, false)
 		c.Assert(err, check.IsNil)
-		c.Assert(services.GetSigningAlgName(hostCA), check.Equals, alg)
+		c.Assert(sshutils.GetSigningAlgName(hostCA), check.Equals, alg)
 
 		userCA, err := svc.GetAuthServer().GetCertAuthority(services.CertAuthID{Type: services.UserCA, DomainName: Site}, false)
 		c.Assert(err, check.IsNil)
-		c.Assert(services.GetSigningAlgName(userCA), check.Equals, alg)
+		c.Assert(sshutils.GetSigningAlgName(userCA), check.Equals, alg)
 	}
 
 	rotate := func(svc *service.TeleportProcess, mode string) *service.TeleportProcess {

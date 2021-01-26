@@ -33,7 +33,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/tstranex/u2f"
-	"golang.org/x/crypto/ssh"
 )
 
 // NewJWTAuthority creates and returns a services.CertAuthority with a new
@@ -95,10 +94,10 @@ func checkUserOrHostCA(ca CertAuthority) error {
 	if len(ca.GetTLSKeyPairs()) == 0 {
 		return trace.BadParameter("certificate authority missing TLS key pairs")
 	}
-	if _, err := GetCheckers(ca); err != nil {
+	if _, err := sshutils.GetCheckers(ca); err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := getSigners(ca); err != nil {
+	if _, err := sshutils.GetSigners(ca); err != nil {
 		return trace.Wrap(err)
 	}
 	// This is to force users to migrate
@@ -173,73 +172,6 @@ func GetTLSCerts(ca CertAuthority) [][]byte {
 		out[i] = append([]byte{}, pair.Cert...)
 	}
 	return out
-}
-
-// GetCheckers returns public keys that can be used to check cert authorities
-func GetCheckers(ca CertAuthority) ([]ssh.PublicKey, error) {
-	out := make([]ssh.PublicKey, 0, len(ca.GetCheckingKeys()))
-	for _, keyBytes := range ca.GetCheckingKeys() {
-		key, _, _, _, err := ssh.ParseAuthorizedKey(keyBytes)
-		if err != nil {
-			return nil, trace.BadParameter("invalid authority public key (len=%d): %v", len(keyBytes), err)
-		}
-		out = append(out, key)
-	}
-	return out, nil
-}
-
-// getSigners returns a list of signers that could be used to sign keys.
-func getSigners(ca CertAuthority) ([]ssh.Signer, error) {
-	out := make([]ssh.Signer, 0, len(ca.GetSigningKeys()))
-	for _, keyBytes := range ca.GetSigningKeys() {
-		signer, err := ssh.ParsePrivateKey(keyBytes)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		signer = sshutils.AlgSigner(signer, GetSigningAlgName(ca))
-		out = append(out, signer)
-	}
-	return out, nil
-}
-
-// GetSigningAlgName returns the CA's signing algorithm type
-func GetSigningAlgName(ca CertAuthority) string {
-	switch ca.GetSigningAlg() {
-	// UNKNOWN algorithm can come from a cluster that existed before SigningAlg
-	// field was added. Default to RSA-SHA1 to match the implicit algorithm
-	// used in those clusters.
-	case CertAuthoritySpecV2_RSA_SHA1, CertAuthoritySpecV2_UNKNOWN:
-		return ssh.SigAlgoRSA
-	case CertAuthoritySpecV2_RSA_SHA2_256:
-		return ssh.SigAlgoRSASHA2256
-	case CertAuthoritySpecV2_RSA_SHA2_512:
-		return ssh.SigAlgoRSASHA2512
-	default:
-		return ""
-	}
-}
-
-// SetSigningAlgName returns the CA's signing algorithm type
-func SetSigningAlgName(ca CertAuthority, alg string) {
-	ca.SetSigningAlg(ParseSigningAlg(alg))
-}
-
-// ParseSigningAlg converts the SSH signature algorithm strings to the
-// corresponding proto enum value.
-//
-// alg should be one of ssh.SigAlgo*  If it's not one of those
-// constants, CertAuthoritySpecV2_UNKNOWN is returned.
-func ParseSigningAlg(alg string) CertAuthoritySpecV2_SigningAlgType {
-	switch alg {
-	case ssh.SigAlgoRSA:
-		return CertAuthoritySpecV2_RSA_SHA1
-	case ssh.SigAlgoRSASHA2256:
-		return CertAuthoritySpecV2_RSA_SHA2_256
-	case ssh.SigAlgoRSASHA2512:
-		return CertAuthoritySpecV2_RSA_SHA2_512
-	default:
-		return CertAuthoritySpecV2_UNKNOWN
-	}
 }
 
 // HostCertParams defines all parameters needed to generate a host certificate
