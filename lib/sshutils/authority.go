@@ -67,15 +67,15 @@ func GetSigningAlgName(ca types.CertAuthority) string {
 	}
 }
 
-// SetSigningAlgName returns the CA's signing algorithm type
+// SetSigningAlgName sets the signing algorithm type for the given CA
 func SetSigningAlgName(ca types.CertAuthority, alg string) {
 	ca.SetSigningAlg(ParseSigningAlg(alg))
 }
 
-// ParseSigningAlg converts the SSH signature algorithm strings to the
+// ParseSigningAlg converts the name of the SSH signature algorithm to the
 // corresponding proto enum value.
 //
-// alg should be one of ssh.SigAlgo*  If it's not one of those
+// alg should be one of ssh.SigAlgo* constants. If it's not one of those
 // constants, types.CertAuthoritySpecV2_UNKNOWN is returned.
 func ParseSigningAlg(alg string) types.CertAuthoritySpecV2_SigningAlgType {
 	switch alg {

@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// AlgSigner wraps a provided ssh.Signer to ensure signature algorithm
+// AlgSigner wraps the provided ssh.Signer to ensure signature algorithm
 // compatibility with OpenSSH.
 //
 // Right now it allows forcing SHA-2 signatures with RSA keys, instead of the
