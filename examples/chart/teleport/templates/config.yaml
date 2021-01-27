@@ -77,7 +77,7 @@ data:
       web_listen_addr: {{ .Values.config.listen_addr }}:{{ .Values.ports.proxyweb.containerPort }}
       listen_addr:  {{ .Values.config.listen_addr }}:{{ .Values.ports.proxyssh.containerPort }}
       tunnel_listen_addr:  {{ .Values.config.listen_addr }}:{{ .Values.ports.proxytunnel.containerPort }}
-{{- if  .Values.config.teleport.proxy_service.ssh_public_addr }}
+{{- if .Values.config.teleport.proxy_service.ssh_public_addr }}
       ssh_public_addr: {{ .Values.config.teleport.proxy_service.ssh_public_addr }}:{{ .Values.service.ports.proxyssh.port }}
 {{- else }}
       ssh_public_addr: {{ .Values.config.public_address }}:{{ .Values.service.ports.proxyssh.port }}
