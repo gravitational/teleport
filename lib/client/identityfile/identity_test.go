@@ -8,20 +8,61 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
 
-func Test(t *testing.T) { check.TestingT(t) }
+func TestWrite(t *testing.T) {
+	outputDir := t.TempDir()
+	key := &client.Key{
+		Cert:        []byte("cert"),
+		TLSCert:     []byte("tls-cert"),
+		Priv:        []byte("priv"),
+		Pub:         []byte("pub"),
+		ClusterName: "foo",
+		TrustedCA: []auth.TrustedCerts{{
+			TLSCertificates: [][]byte{[]byte("ca-cert")},
+		}},
+	}
+	cfg := WriteConfig{Key: key}
 
-type IdentityfileTestSuite struct {
+	// test OpenSSH-compatible identity file creation:
+	cfg.OutputPath = filepath.Join(outputDir, "openssh")
+	cfg.Format = FormatOpenSSH
+	_, err := Write(cfg)
+	require.NoError(t, err)
+
+	// key is OK:
+	out, err := ioutil.ReadFile(cfg.OutputPath)
+	require.NoError(t, err)
+	require.Equal(t, string(out), "priv")
+
+	// cert is OK:
+	out, err = ioutil.ReadFile(cfg.OutputPath + "-cert.pub")
+	require.NoError(t, err)
+	require.Equal(t, string(out), "cert")
+
+	// test standard Teleport identity file creation:
+	cfg.OutputPath = filepath.Join(outputDir, "file")
+	cfg.Format = FormatFile
+	_, err = Write(cfg)
+	require.NoError(t, err)
+
+	// key+cert are OK:
+	out, err = ioutil.ReadFile(cfg.OutputPath)
+	require.NoError(t, err)
+	require.Equal(t, string(out), "priv\ncert\ntls-cert\nca-cert\n")
+
+	// Test kubeconfig creation.
+	cfg.OutputPath = filepath.Join(outputDir, "kubeconfig")
+	cfg.Format = FormatKubernetes
+	cfg.KubeProxyAddr = "far.away.cluster"
+	_, err = Write(cfg)
+	require.NoError(t, err)
+	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "far.away.cluster")
 }
 
-var _ = check.Suite(&IdentityfileTestSuite{})
-
-func (s *IdentityfileTestSuite) TestWrite(c *check.C) {
-	keyFilePath := c.MkDir() + "openssh"
-
-	key := client.Key{
+func TestKubeconfigOverwrite(t *testing.T) {
+	key := &client.Key{
 		Cert:        []byte("cert"),
 		TLSCert:     []byte("tls-cert"),
 		Priv:        []byte("priv"),
@@ -32,40 +73,39 @@ func (s *IdentityfileTestSuite) TestWrite(c *check.C) {
 		}},
 	}
 
-	// test OpenSSH-compatible identity file creation:
-	_, err := Write(keyFilePath, &key, FormatOpenSSH, "")
-	c.Assert(err, check.IsNil)
+	// First write an ssh key to the file.
+	cfg := WriteConfig{
+		OutputPath:           filepath.Join(t.TempDir(), "out"),
+		Format:               FormatFile,
+		Key:                  key,
+		OverwriteDestination: true,
+	}
+	_, err := Write(cfg)
+	require.NoError(t, err)
 
-	// key is OK:
-	out, err := ioutil.ReadFile(keyFilePath)
-	c.Assert(err, check.IsNil)
-	c.Assert(string(out), check.Equals, "priv")
+	// Write a kubeconfig to the same file path. It should be overwritten.
+	cfg.Format = FormatKubernetes
+	cfg.KubeProxyAddr = "far.away.cluster"
+	_, err = Write(cfg)
+	require.NoError(t, err)
+	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "far.away.cluster")
 
-	// cert is OK:
-	out, err = ioutil.ReadFile(keyFilePath + "-cert.pub")
-	c.Assert(err, check.IsNil)
-	c.Assert(string(out), check.Equals, "cert")
+	// Write a kubeconfig for a different cluster to the same file path. It
+	// should be overwritten.
+	cfg.KubeProxyAddr = "other.cluster"
+	_, err = Write(cfg)
+	require.NoError(t, err)
+	assertKubeconfigContents(t, cfg.OutputPath, key.ClusterName, "other.cluster")
+}
 
-	// test standard Teleport identity file creation:
-	keyFilePath = c.MkDir() + "file"
-	_, err = Write(keyFilePath, &key, FormatFile, "")
-	c.Assert(err, check.IsNil)
+func assertKubeconfigContents(t *testing.T, path, clusterName, serverAddr string) {
+	t.Helper()
 
-	// key+cert are OK:
-	out, err = ioutil.ReadFile(keyFilePath)
-	c.Assert(err, check.IsNil)
-	c.Assert(string(out), check.Equals, "priv\ncert\ntls-cert\nca-cert\n")
+	kc, err := kubeconfig.Load(path)
+	require.NoError(t, err)
 
-	// Test kubeconfig creation.
-	kubeconfigPath := filepath.Join(c.MkDir(), "kubeconfig")
-	_, err = Write(kubeconfigPath, &key, FormatKubernetes, "far.away.cluster")
-	c.Assert(err, check.IsNil)
-
-	// Check that kubeconfig is OK.
-	kc, err := kubeconfig.Load(kubeconfigPath)
-	c.Assert(err, check.IsNil)
-	c.Assert(len(kc.AuthInfos), check.Equals, 1)
-	c.Assert(len(kc.Clusters), check.Equals, 1)
-	c.Assert(kc.Clusters[key.ClusterName].Server, check.Equals, "far.away.cluster")
-	c.Assert(len(kc.Contexts), check.Equals, 1)
+	require.Len(t, kc.AuthInfos, 1)
+	require.Len(t, kc.Contexts, 1)
+	require.Len(t, kc.Clusters, 1)
+	require.Equal(t, kc.Clusters[clusterName].Server, serverAddr)
 }
