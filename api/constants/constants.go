@@ -40,15 +40,6 @@ const (
 	// are captured.
 	EnhancedRecordingNetwork = "network"
 
-	// ConnectorOIDC means connector type OIDC
-	ConnectorOIDC = "oidc"
-
-	// ConnectorSAML means connector type SAML
-	ConnectorSAML = "saml"
-
-	// ConnectorGithub means connector type Github
-	ConnectorGithub = "github"
-
 	// OTP means One-time Password Algorithm for Two-Factor Authentication.
 	OTP = "otp"
 
@@ -62,13 +53,13 @@ const (
 	Local = "local"
 
 	// OIDC means authentication will happen remotely using an OIDC connector.
-	OIDC = ConnectorOIDC
+	OIDC = "oidc"
 
 	// SAML means authentication will happen remotely using a SAML connector.
-	SAML = ConnectorSAML
+	SAML = "saml"
 
 	// Github means authentication will happen remotely using a Github connector.
-	Github = ConnectorGithub
+	Github = "github"
 
 	// HumanDateFormatSeconds is a human readable date formatting with seconds
 	HumanDateFormatSeconds = "Jan _2 15:04:05 UTC"

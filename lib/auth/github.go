@@ -428,7 +428,7 @@ func (a *Server) createGithubUser(p *createUserParams) (services.User, error) {
 				User: services.UserRef{Name: teleport.UserSystem},
 				Time: a.GetClock().Now().UTC(),
 				Connector: &services.ConnectorRef{
-					Type:     teleport.ConnectorGithub,
+					Type:     teleport.Github,
 					ID:       p.connectorName,
 					Identity: p.username,
 				},

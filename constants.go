@@ -33,9 +33,6 @@ const (
 	OIDC                       = constants.OIDC
 	SAML                       = constants.SAML
 	Github                     = constants.Github
-	ConnectorOIDC              = constants.ConnectorOIDC
-	ConnectorSAML              = constants.ConnectorSAML
-	ConnectorGithub            = constants.ConnectorGithub
 	HumanDateFormatSeconds     = constants.HumanDateFormatSeconds
 	DefaultImplicitRole        = constants.DefaultImplicitRole
 	APIDomain                  = constants.APIDomain
