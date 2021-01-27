@@ -232,7 +232,7 @@ func writeFile(path string, data []byte) error {
 
 func checkOverwrite(force bool, paths ...string) error {
 	var existingFiles []string
-	// Check if destination files exists.
+	// Check if the destination file exists.
 	for _, path := range paths {
 		_, err := os.Stat(path)
 		if os.IsNotExist(err) {
@@ -250,7 +250,7 @@ func checkOverwrite(force bool, paths ...string) error {
 		return nil
 	}
 
-	// File exists, prompt user whether to overwrite.
+	// Some files exist, prompt user whether to overwrite.
 	overwrite, err := prompt.Confirmation(os.Stderr, os.Stdin, fmt.Sprintf("Destination file(s) %s exist. Overwrite?", strings.Join(existingFiles, ", ")))
 	if err != nil {
 		return trace.Wrap(err)
