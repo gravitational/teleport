@@ -126,7 +126,7 @@ func TestOIDCUnmarshal(t *testing.T) {
 // TestOIDCUnmarshalEmptyPrompt makes sure that empty prompt value
 // that is set does not default to select_account
 func TestOIDCUnmarshalEmptyPrompt(t *testing.T) {
-	input := `	
+	input := `
       {	
         "kind": "oidc",	
         "version": "v2",	
@@ -158,7 +158,7 @@ func TestOIDCUnmarshalEmptyPrompt(t *testing.T) {
 
 // TestUnmarshalOIDCPromptValue makes sure that prompt value is set properly
 func TestOIDCUnmarshalPromptValue(t *testing.T) {
-	input := `	
+	input := `
       {	
         "kind": "oidc",	
         "version": "v2",	
@@ -190,7 +190,7 @@ func TestOIDCUnmarshalPromptValue(t *testing.T) {
 
 // TestOIDCUnmarshalInvalid unmarshals and fails validation of the connector
 func TestOIDCUnmarshalInvalid(t *testing.T) {
-	input := `	
+	input := `
       {	
         "kind": "oidc",	
         "version": "v2",	
