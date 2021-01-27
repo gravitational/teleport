@@ -540,18 +540,12 @@ func CompareRuleScore(r *Rule, o *Rule) bool {
 // RuleSet maps resource to a set of rules defined for it
 type RuleSet map[string][]Rule
 
-// MakeRuleSet converts slice of rules to the set of rules
+// MakeRuleSet creates a new rule set from a list
 func MakeRuleSet(rules []Rule) RuleSet {
 	set := make(RuleSet)
 	for _, rule := range rules {
 		for _, resource := range rule.Resources {
-			rules, ok := set[resource]
-			if !ok {
-				set[resource] = []Rule{rule}
-			} else {
-				rules = append(rules, rule)
-				set[resource] = rules
-			}
+			set[resource] = append(set[resource], rule)
 		}
 	}
 	for resource := range set {
@@ -613,8 +607,8 @@ func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.P
 	return false, nil
 }
 
-// matchesWhere returns true if Where rule matches
-// Empty Where block always matches
+// matchesWhere returns true if Where rule matches.
+// Empty Where block always matches.
 func matchesWhere(r *Rule, parser predicate.Parser) (bool, error) {
 	if r.Where == "" {
 		return true, nil
@@ -625,7 +619,7 @@ func matchesWhere(r *Rule, parser predicate.Parser) (bool, error) {
 	}
 	fn, ok := ifn.(predicate.BoolPredicate)
 	if !ok {
-		return false, trace.BadParameter("unsupported type: %T", ifn)
+		return false, trace.BadParameter("invalid predicate type for where expression: %v", r.Where)
 	}
 	return fn(), nil
 }
@@ -639,7 +633,7 @@ func processActions(r *Rule, parser predicate.Parser) error {
 		}
 		fn, ok := ifn.(predicate.BoolPredicate)
 		if !ok {
-			return trace.BadParameter("unsupported type: %T", ifn)
+			return trace.BadParameter("invalid predicate type for action expression: %v", action)
 		}
 		fn()
 	}

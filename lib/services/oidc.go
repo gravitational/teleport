@@ -61,8 +61,7 @@ func GetClaimNames(claims jose.Claims) []string {
 	return out
 }
 
-// OIDCClaimsToTraits converts OIDC-style claims into the standardized
-// teleport trait format.
+// OIDCClaimsToTraits converts OIDC-style claims into teleport-specific trait format
 func OIDCClaimsToTraits(claims jose.Claims) map[string][]string {
 	traits := make(map[string][]string)
 
