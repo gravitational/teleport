@@ -156,6 +156,10 @@ type CLIConf struct {
 	// IdentityFormat (used for --format flag for 'tsh login') defines which
 	// format to use with --out to store a fershly retreived certificate
 	IdentityFormat identityfile.Format
+	// IdentityOverwrite when true will overwrite any existing identity file at
+	// IdentityFileOut. When false, user will be prompted before overwriting
+	// any files.
+	IdentityOverwrite bool
 
 	// BindAddr is an address in the form of host:port to bind to
 	// during `tsh login` command
@@ -341,6 +345,7 @@ func Run(args []string) {
 		identityfile.FormatOpenSSH,
 		identityfile.FormatKubernetes,
 	)).Default(string(identityfile.DefaultFormat)).StringVar((*string)(&cf.IdentityFormat))
+	login.Flag("overwrite", "Whether to overwrite the existing identity file.").BoolVar(&cf.IdentityOverwrite)
 	login.Flag("request-roles", "Request one or more extra roles").StringVar(&cf.DesiredRoles)
 	login.Flag("request-reason", "Reason for requesting additional roles").StringVar(&cf.RequestReason)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
@@ -634,7 +639,13 @@ func onLogin(cf *CLIConf) {
 		}
 		key.TrustedCA = auth.AuthoritiesToTrustedCerts(authorities)
 
-		filesWritten, err := identityfile.Write(cf.IdentityFileOut, key, cf.IdentityFormat, tc.KubeClusterAddr())
+		filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+			OutputPath:           cf.IdentityFileOut,
+			Key:                  key,
+			Format:               cf.IdentityFormat,
+			KubeProxyAddr:        tc.KubeClusterAddr(),
+			OverwriteDestination: cf.IdentityOverwrite,
+		})
 		if err != nil {
 			utils.FatalError(err)
 		}
