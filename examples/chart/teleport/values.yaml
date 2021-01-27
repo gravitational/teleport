@@ -151,8 +151,8 @@ config:
       https_key_file: /var/lib/certs/tls.key
       https_cert_file: /var/lib/certs/tls.crt
       #Specify different address for the ssh and tunnel public address if different then the config.public_address
-#     ssh_public_addr: teleportssh.example.com
-#     tunnel_public_addr: teleporttunnel.example.com
+    # ssh_public_addr: teleportssh.example.com
+    # tunnel_public_addr: teleporttunnel.example.com
 
       # kubernetes section configures kubernetes proxy protocol support
       kubernetes:
