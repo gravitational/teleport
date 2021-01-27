@@ -503,8 +503,8 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) (
 	var lastEvaluatedKey map[string]*dynamodb.AttributeValue
 	var total int
 
-	// Because the maximum size of the dynamo db response size is 900K according to documentation.
-	// We arbitrary limit the total size to 100MB to prevent runaway loops.
+	// Because the maximum size of the dynamo db response size is 900K according to documentation,
+	// we arbitrary limit the total size to 100MB to prevent runaway loops.
 	for pageCount := 0; pageCount < 99; pageCount++ {
 		input := dynamodb.QueryInput{
 			KeyConditionExpression:    aws.String(query),
