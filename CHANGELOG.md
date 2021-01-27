@@ -1,5 +1,17 @@
 # Changelog
 
+## 5.1.1
+
+This release of Teleport contains multiple bug fixes.
+
+* Fix truncated audit log when using DynamoDB [#5381](https://github.com/gravitational/teleport/pull/5381)
+* Determine node registration method based on server port [#5347](https://github.com/gravitational/teleport/pull/5347)
+* Propagate username updates in `tsh` [#5323](https://github.com/gravitational/teleport/pull/5323)
+* Always enable proxy protocol support for Kubernetes listeners [#5299](https://github.com/gravitational/teleport/pull/5299)
+* Always register access requests against root cluster [#5226](https://github.com/gravitational/teleport/pull/5226)
+* Tweaks for Kubernetes support detection in `tsh` [#5172](https://github.com/gravitational/teleport/pull/5172)
+* Augment session events with cluster name [#4994](https://github.com/gravitational/teleport/pull/4994)
+
 ## 5.1.0
 
 This release of Teleport adds a new feature.
