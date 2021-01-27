@@ -35,6 +35,9 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -47,13 +50,12 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/wrappers"
-	"github.com/pborman/uuid"
 
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/coreos/go-oidc/oidc"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	saml2 "github.com/russellhaering/gosaml2"
 	"github.com/tstranex/u2f"
@@ -350,7 +352,7 @@ func (a *Server) GetClusterCACert() (*LocalCAResponse, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCA, err := hostCA.TLSCA()
+	tlsCA, err := tlsca.FromAuthority(hostCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -449,6 +451,18 @@ type certRequest struct {
 	appPublicAddr string
 	// appClusterName is the name of the cluster this application is in.
 	appClusterName string
+	// dbService identifies the name of the database service requests will
+	// be routed to.
+	dbService string
+	// dbProtocol specifies the protocol of the database a certificate will
+	// be issued for.
+	dbProtocol string
+	// dbUser is the optional database user which, if provided, will be used
+	// as a default username.
+	dbUser string
+	// dbName is the optional database name which, if provided, will be used
+	// as a default database.
+	dbName string
 }
 
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
@@ -505,6 +519,50 @@ func (a *Server) GenerateUserAppTestCert(publicKey []byte, username string, ttl 
 		appSessionID:   uuid.New(),
 		appPublicAddr:  publicAddr,
 		appClusterName: clusterName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return certs.tls, nil
+}
+
+// DatabaseTestCertRequest combines parameters for generating test database
+// access certificate.
+type DatabaseTestCertRequest struct {
+	// PublicKey is the public key to sign.
+	PublicKey []byte
+	// Cluster is the Teleport cluster name.
+	Cluster string
+	// Username is the Teleport username.
+	Username string
+	// RouteToDatabase contains database routing information.
+	RouteToDatabase tlsca.RouteToDatabase
+}
+
+// GenerateDatabaseTestCert generates a database access certificate for the
+// provided parameters. Used only internally in tests.
+func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, error) {
+	user, err := a.Identity.GetUser(req.Username, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker, err := services.FetchRoles(user.GetRoles(), a.Access, user.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	certs, err := a.generateUserCert(certRequest{
+		user:      user,
+		publicKey: req.PublicKey,
+		checker:   checker,
+		ttl:       time.Hour,
+		traits: wrappers.Traits(map[string][]string{
+			teleport.TraitLogins: {req.Username},
+		}),
+		routeToCluster: req.Cluster,
+		dbService:      req.RouteToDatabase.ServiceName,
+		dbProtocol:     req.RouteToDatabase.Protocol,
+		dbUser:         req.RouteToDatabase.Username,
+		dbName:         req.RouteToDatabase.Database,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -612,8 +670,15 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 			log.WithError(err).Debug("Failed setting default kubernetes cluster for user login (user did not provide a cluster); leaving KubernetesCluster extension in the TLS certificate empty")
 		}
 	}
+
+	// See which database names and users this user is allowed to use.
+	dbNames, dbUsers, err := req.checker.CheckDatabaseNamesAndUsers(sessionTTL, req.overrideRoleTTL)
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
 	// generate TLS certificate
-	tlsAuthority, err := ca.TLSCA()
+	tlsAuthority, err := tlsca.FromAuthority(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -633,6 +698,14 @@ func (a *Server) generateUserCert(req certRequest) (*certs, error) {
 			ClusterName: req.appClusterName,
 		},
 		TeleportCluster: clusterName,
+		RouteToDatabase: tlsca.RouteToDatabase{
+			ServiceName: req.dbService,
+			Protocol:    req.dbProtocol,
+			Username:    req.dbUser,
+			Database:    req.dbName,
+		},
+		DatabaseNames: dbNames,
+		DatabaseUsers: dbUsers,
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -839,20 +912,24 @@ func (a *Server) ExtendWebSession(user, prevSessionID, accessRequestID string, i
 		roles = append(roles, newRoles...)
 		roles = utils.Deduplicate(roles)
 
-		// Let session expire with access request expiry.
-		expiresAt = requestExpiry
+		// Let session expire with the shortest expiry time.
+		if expiresAt.After(requestExpiry) {
+			expiresAt = requestExpiry
+		}
 	}
 
 	sess, err := a.NewWebSession(user, roles, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	sess.SetExpiryTime(expiresAt)
 	bearerTokenTTL := utils.MinTTL(utils.ToTTL(a.clock, expiresAt), BearerTokenTTL)
 	sess.SetBearerTokenExpiryTime(a.clock.Now().UTC().Add(bearerTokenTTL))
 	if err := a.UpsertWebSession(user, sess); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	sess, err = services.GetWebSessionMarshaler().ExtendWebSession(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1148,7 +1225,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		}
 	}
 
-	tlsAuthority, err := ca.TLSCA()
+	tlsAuthority, err := tlsca.FromAuthority(ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1208,7 +1285,7 @@ func (a *Server) GenerateServerKeys(req GenerateServerKeysRequest) (*PackedKeys,
 		Key:        privateKeyPEM,
 		Cert:       hostSSHCert,
 		TLSCert:    hostTLSCert,
-		TLSCACerts: services.TLSCerts(ca),
+		TLSCACerts: services.GetTLSCerts(ca),
 		SSHCACerts: ca.GetCheckingKeys(),
 	}, nil
 }
@@ -1651,7 +1728,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params services.Acce
 		Roles:        params.Roles,
 	}
 
-	if delegator := getDelegator(ctx); delegator != "" {
+	if delegator := client.GetDelegator(ctx); delegator != "" {
 		event.Delegator = delegator
 	}
 
@@ -1668,6 +1745,14 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params services.Acce
 		log.WithError(err).Warn("Failed to emit access request update event.")
 	}
 	return trace.Wrap(err)
+}
+
+func (a *Server) GetAccessCapabilities(ctx context.Context, req services.AccessCapabilitiesRequest) (*services.AccessCapabilities, error) {
+	caps, err := services.CalculateAccessCapabilities(ctx, a, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return caps, nil
 }
 
 // calculateMaxAccessTTL determines the maximum allowable TTL for a given access request
@@ -1827,6 +1912,18 @@ func (a *Server) GetAppServers(ctx context.Context, namespace string, opts ...se
 // GetAppSession is a part of the auth.AccessPoint implementation.
 func (a *Server) GetAppSession(ctx context.Context, req services.GetAppSessionRequest) (services.WebSession, error) {
 	return a.GetCache().GetAppSession(ctx, req)
+}
+
+// GetDatabaseServers returns all registers database proxy servers.
+func (a *Server) GetDatabaseServers(ctx context.Context, namespace string, opts ...types.MarshalOption) ([]types.DatabaseServer, error) {
+	return a.GetCache().GetDatabaseServers(ctx, namespace, opts...)
+}
+
+// WithClock is a functional server option that sets the server's clock
+func WithClock(clock clockwork.Clock) func(*Server) {
+	return func(s *Server) {
+		s.clock = clock
+	}
 }
 
 // authKeepAliver is a keep aliver using auth server directly

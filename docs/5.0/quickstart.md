@@ -30,27 +30,26 @@ Take a look at the [Teleport Installation](installation.md) page to pick the mos
     # sudo dnf install teleport
     ```
 
-=== "ARM"
 
-    === "ARMv7 (32-bit)"
+=== "ARMv7 (32-bit)"
 
-        ```bash
-        curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
-        tar -xzf teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
-        cd teleport
-        sudo ./install
-        ```
+    ```bash
+    curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
+    tar -xzf teleport-v{{ teleport.version }}-linux-arm-bin.tar.gz
+    cd teleport
+    sudo ./install
+    ```
 
-    === "ARM64/ARMv8 (64-bit)"
+=== "ARMv8 (64-bit)"
 
-        ```bash
-        curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
-        tar -xzf teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
-        cd teleport
-        sudo ./install
-        Teleport binaries have been copied to /usr/local/bin
-        To configure the systemd service for Teleport take a look at examples/systemd/README.md
-        ```
+    ```bash
+    curl -O https://get.gravitational.com/teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
+    tar -xzf teleport-v{{ teleport.version }}-linux-arm64-bin.tar.gz
+    cd teleport
+    sudo ./install
+    Teleport binaries have been copied to /usr/local/bin
+    To configure the systemd service for Teleport take a look at examples/systemd/README.md
+    ```
 
 === "Linux Tarball"
 
@@ -101,10 +100,10 @@ $ sudo mv teleport.yaml /etc
 Teleport requires a secure public endpoint for the Teleport UI and for end users to connect to.
 A domain name and TLS certificates are also required. We'll use Let's Encrypt to obtain a free TLS certificate.
 
-DNS Setup:<br>
+DNS Setup:<br />
 For this setup, we'll simply use an `A` or `CNAME` record pointing to the IP/FQDN of the machine with Teleport installed.
 
-TLS Setup:<br>
+TLS Setup:<br />
 If you already have TLS certificates available you can use those. If using a new domain we recommend using `certbot`, which is free and
 simple to set up. Follow [certbot instructions](https://certbot.eff.org/) for how to obtain a certificate for your distro.
 
@@ -125,7 +124,7 @@ simple to set up. Follow [certbot instructions](https://certbot.eff.org/) for ho
         -d "teleport.example.com, *.teleport.example.com"
       ```
 
-**Update `teleport.yaml`**<br>
+**Update `teleport.yaml`**<br />
 Once you've obtained certificates from Let's Encrypt, the below commands will update Teleport's
 config file to use your newly configured domain and TLS certificates.
 
@@ -204,6 +203,7 @@ Here's a selection of compatible Two-Factor authentication apps:
     ```
 
     !!! note
+
         The Teleport package in Homebrew is not maintained by Teleport. We recommend the use of our [own Teleport packages](https://goteleport.com/teleport/download?os=macos).
 
 === "Windows - Powershell"

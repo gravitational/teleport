@@ -8,7 +8,8 @@ like:
 * Only members of "DBA" group can SSH into machines running PostgreSQL.
 * Developers must never SSH into production servers.
 
-!!! warning "Version Warning":
+!!! warning "Version Warning"
+
     This guide requires a commercial edition of Teleport. The open source
     edition of Teleport only supports [Github](admin-guide/#github-oauth-20) as
     an SSO provider.
@@ -66,7 +67,8 @@ GROUP ATTRIBUTE STATEMENTS
 
 ![Configure APP](img/okta-saml-3.png)
 
-!!! tip "Important":
+!!! tip "Important"
+
     Notice that we have set "NameID" to the email format and mappped the groups with
     a wildcard regex in the Group Attribute statements. We have also set the "Audience"
     and SSO URL to the same value.
@@ -176,11 +178,13 @@ $ tsh --proxy=proxy.example.com login
 This command will print the SSO login URL (and will try to open it
 automatically in a browser).
 
-!!! tip "Tip":
+!!! tip "Tip"
+
     Teleport can use multiple SAML connectors. In this case a connector name
     can be passed via `tsh login --auth=connector_name`
 
-!!! note "IMPORTANT":
+!!! note "IMPORTANT"
+
     Teleport only supports sending party initiated flows for SAML 2.0. This
     means you can not initiate login from your identity provider, you have to
     initiate login from either the Teleport Web UI or CLI.

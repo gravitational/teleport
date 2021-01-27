@@ -1,6 +1,6 @@
 ---
-authors: Andrew Lytvynov (andrew@gravitational.com)
-state: implementation
+authors: Andrew Lytvynov (andrew@goteleport.com)
+state: implemented
 ---
 
 # RFD 5 - Kubernetes (k8s) service enhancements

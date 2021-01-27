@@ -19,11 +19,11 @@ traditional OpenSSH for organizations that need to:
 
 === "Teleport Demo"
 
-    <iframe  width="712" height="400" src="https://www.youtube-nocookie.com/embed/DUlTAlEJr5w?rel=0&modestbranding=1" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+    <iframe  width="712" height="400" src="https://www.youtube-nocookie.com/embed/DUlTAlEJr5w?rel=0&modestbranding=1" frameBorder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
 
 === "Teleport Explainer Video"
 
-    <iframe width="712" height="400" src="https://www.youtube.com/embed/GvAD5aNcdBA?rel=0&modestbranding=1&widget_referrer=gravitational.com/teleport/docs" frameborder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+    <iframe width="712" height="400" src="https://www.youtube.com/embed/GvAD5aNcdBA?rel=0&modestbranding=1&widget_referrer=gravitational.com/teleport/docs" frameBorder="0" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowullScreen></iframe>
 
 Teleport aims to be a cloud-native SSH solution, i.e. it makes it natural to think of
 environments, not servers. Below is a list of the most popular Teleport features:
@@ -105,9 +105,9 @@ If you still have questions after reviewing our docs, you can also:
 
 * Join the [Teleport Community](https://community.gravitational.com/c/teleport) to ask questions. Our engineers are available there to help you.
 * If you want to contribute to Teleport or file a bug report/issue, you can do so by creating an issue in [Github](https://github.com/gravitational/teleport/).
-* If you are interested in [Teleport Enterprise](enterprise/introduction.md) or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://gravitational.com/teleport/) or email us at [sales@gravitational.com](mailto:sales@gravitational.com) to arrange for a POC.
+* If you are interested in [Teleport Enterprise](enterprise/introduction.md) or more responsive support during a POC, we can also create a dedicated Slack channel for you during your POC. You can [reach out to us through our website](https://gravitational.com/teleport/) or email us at [sales@goteleport.com](mailto:sales@goteleport.com) to arrange for a POC.
 
 Teleport is made by [Gravitational](https://gravitational.com/), and we hope you
 enjoy using it. If you have comments or questions, feel free to reach out
 to the Gravitational Team:
-[info@gravitational.com](mailto:info@gravitational.com).
+[info@goteleport.com](mailto:info@goteleport.com).

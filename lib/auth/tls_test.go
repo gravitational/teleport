@@ -33,11 +33,10 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/grpc"
 
-	empty "github.com/golang/protobuf/ptypes/empty"
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth/proto"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -48,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace/trail"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -56,30 +54,10 @@ import (
 	"gopkg.in/check.v1"
 )
 
-// MockAuthServiceClient stubs grpc AuthServiceClient interface.
-type mockAuthServiceClient struct {
-	proto.AuthServiceClient
-	err error
-}
-
-// newMockAuthServiceClient returns a new instace of mockAuthServiceClient
-func newMockAuthServiceClient() *mockAuthServiceClient {
-	return &mockAuthServiceClient{}
-}
-
-// DeleteUser returns a dynamically defined method.
-func (m *mockAuthServiceClient) DeleteUser(ctx context.Context, in *proto.DeleteUserRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
-	return nil, trail.ToGRPC(m.err)
-}
-
-// reset resets states to its zero values.
-func (m *mockAuthServiceClient) reset() {
-	m.err = nil
-}
-
 type TLSSuite struct {
 	dataDir string
 	server  *TestTLSServer
+	clock   clockwork.FakeClock
 }
 
 var _ = check.Suite(&TLSSuite{})
@@ -92,9 +70,11 @@ func (s *TLSSuite) SetUpSuite(c *check.C) {
 
 func (s *TLSSuite) SetUpTest(c *check.C) {
 	s.dataDir = c.MkDir()
+	s.clock = clockwork.NewFakeClock()
 
 	testAuthServer, err := NewTestAuthServer(TestAuthServerConfig{
-		Dir: s.dataDir,
+		Dir:   s.dataDir,
+		Clock: s.clock,
 	})
 	c.Assert(err, check.IsNil)
 	s.server, err = testAuthServer.NewTestTLSServer()
@@ -113,6 +93,7 @@ func (s *TLSSuite) TestRemoteBuiltinRole(c *check.C) {
 	remoteServer, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:         c.MkDir(),
 		ClusterName: "remote",
+		Clock:       s.clock,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -154,6 +135,7 @@ func (s *TLSSuite) TestAcceptedUsage(c *check.C) {
 		Dir:           c.MkDir(),
 		ClusterName:   "remote",
 		AcceptedUsage: []string{"usage:k8s"},
+		Clock:         s.clock,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -211,6 +193,7 @@ func (s *TLSSuite) TestRemoteRotation(c *check.C) {
 	remoteServer, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:         c.MkDir(),
 		ClusterName: "remote",
+		Clock:       s.clock,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -310,6 +293,7 @@ func (s *TLSSuite) TestLocalProxyPermissions(c *check.C) {
 	remoteServer, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:         c.MkDir(),
 		ClusterName: "remote",
+		Clock:       s.clock,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -345,9 +329,6 @@ func (s *TLSSuite) TestLocalProxyPermissions(c *check.C) {
 func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	var ok bool
 
-	clock := clockwork.NewFakeClockAt(time.Now().Add(-2 * time.Hour))
-	s.server.Auth().SetClock(clock)
-
 	// create proxy client
 	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
 	c.Assert(err, check.IsNil)
@@ -368,7 +349,7 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// advance rotation by clock
-	clock.Advance(gracePeriod/3 + time.Minute)
+	s.clock.Advance(gracePeriod/3 + time.Minute)
 	err = s.server.Auth().autoRotateCertAuthorities()
 	c.Assert(err, check.IsNil)
 
@@ -388,7 +369,7 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// advance rotation by clock
-	clock.Advance((gracePeriod*2)/3 + time.Minute)
+	s.clock.Advance((gracePeriod*2)/3 + time.Minute)
 	err = s.server.Auth().autoRotateCertAuthorities()
 	c.Assert(err, check.IsNil)
 
@@ -411,7 +392,7 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// complete rotation - advance rotation by clock
-	clock.Advance(gracePeriod/3 + time.Minute)
+	s.clock.Advance(gracePeriod/3 + time.Minute)
 	err = s.server.Auth().autoRotateCertAuthorities()
 	c.Assert(err, check.IsNil)
 	ca, err = s.server.Auth().GetCertAuthority(services.CertAuthID{
@@ -441,9 +422,6 @@ func (s *TLSSuite) TestAutoRotation(c *check.C) {
 func (s *TLSSuite) TestAutoFallback(c *check.C) {
 	var ok bool
 
-	clock := clockwork.NewFakeClockAt(time.Now().Add(-2 * time.Hour))
-	s.server.Auth().SetClock(clock)
-
 	// create proxy client just for test purposes
 	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
 	c.Assert(err, check.IsNil)
@@ -464,7 +442,7 @@ func (s *TLSSuite) TestAutoFallback(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// advance rotation by clock
-	clock.Advance(gracePeriod/3 + time.Minute)
+	s.clock.Advance(gracePeriod/3 + time.Minute)
 	err = s.server.Auth().autoRotateCertAuthorities()
 	c.Assert(err, check.IsNil)
 
@@ -693,9 +671,6 @@ func (s *TLSSuite) TestRollback(c *check.C) {
 // TestAppTokenRotation checks that JWT tokens can be rotated and tokens can or
 // can not be validated at the appropriate phase.
 func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
-	clock := clockwork.NewFakeClockAt(time.Now())
-	s.server.Auth().SetClock(clock)
-
 	client, err := s.server.NewClient(TestBuiltin(teleport.RoleApp))
 	c.Assert(err, check.IsNil)
 
@@ -706,7 +681,7 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 			Username: "foo",
 			Roles:    []string{"bar", "baz"},
 			URI:      "http://localhost:8080",
-			Expires:  clock.Now().Add(1 * time.Minute),
+			Expires:  s.clock.Now().Add(1 * time.Minute),
 		})
 	c.Assert(err, check.IsNil)
 
@@ -719,7 +694,7 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 	c.Assert(oldCA.GetJWTKeyPairs(), check.HasLen, 1)
 
 	// Verify that the JWT token validates with the JWT authority.
-	_, err = s.verifyJWT(clock, s.server.ClusterName(), oldCA.GetJWTKeyPairs(), oldJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), oldCA.GetJWTKeyPairs(), oldJWT)
 	c.Assert(err, check.IsNil)
 
 	// Start rotation and move to initial phase. A new CA will be added (for
@@ -743,7 +718,7 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 	c.Assert(oldCA.GetJWTKeyPairs(), check.HasLen, 2)
 
 	// Verify that the JWT token validates with the JWT authority.
-	_, err = s.verifyJWT(clock, s.server.ClusterName(), oldCA.GetJWTKeyPairs(), oldJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), oldCA.GetJWTKeyPairs(), oldJWT)
 	c.Assert(err, check.IsNil)
 
 	// Move rotation into the update client phase. In this phase, requests will
@@ -762,7 +737,7 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 			Username: "foo",
 			Roles:    []string{"bar", "baz"},
 			URI:      "http://localhost:8080",
-			Expires:  clock.Now().Add(1 * time.Minute),
+			Expires:  s.clock.Now().Add(1 * time.Minute),
 		})
 	c.Assert(err, check.IsNil)
 
@@ -776,9 +751,9 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 	c.Assert(newCA.GetRotation().Phase, check.Equals, services.RotationPhaseUpdateClients)
 
 	// Both JWT should now validate.
-	_, err = s.verifyJWT(clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), oldJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), oldJWT)
 	c.Assert(err, check.IsNil)
-	_, err = s.verifyJWT(clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), newJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), newJWT)
 	c.Assert(err, check.IsNil)
 
 	// Move rotation into update servers phase.
@@ -800,9 +775,9 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 	c.Assert(newCA.GetRotation().Phase, check.Equals, services.RotationPhaseUpdateServers)
 
 	// Both JWT should continue to validate.
-	_, err = s.verifyJWT(clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), oldJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), oldJWT)
 	c.Assert(err, check.IsNil)
-	_, err = s.verifyJWT(clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), newJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), newJWT)
 	c.Assert(err, check.IsNil)
 
 	// Complete rotation. The old CA will be removed.
@@ -824,9 +799,9 @@ func (s *TLSSuite) TestAppTokenRotation(c *check.C) {
 	c.Assert(newCA.GetRotation().Phase, check.Equals, services.RotationPhaseStandby)
 
 	// Old token should no longer validate.
-	_, err = s.verifyJWT(clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), oldJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), oldJWT)
 	c.Assert(err, check.NotNil)
-	_, err = s.verifyJWT(clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), newJWT)
+	_, err = s.verifyJWT(s.clock, s.server.ClusterName(), newCA.GetJWTKeyPairs(), newJWT)
 	c.Assert(err, check.IsNil)
 }
 
@@ -836,6 +811,7 @@ func (s *TLSSuite) TestRemoteUser(c *check.C) {
 	remoteServer, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:         c.MkDir(),
 		ClusterName: "remote",
+		Clock:       s.clock,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -947,6 +923,7 @@ func (s *TLSSuite) TestTunnelConnectionsCRUD(c *check.C) {
 
 	suite := &suite.ServicesTestSuite{
 		PresenceS: clt,
+		Clock:     clockwork.NewFakeClock(),
 	}
 	suite.TunnelConnectionsCRUD(c)
 }
@@ -1201,7 +1178,7 @@ func (s *TLSSuite) TestValidatePostSessionSlice(c *check.C) {
 			Namespace: defaults.Namespace,
 			SessionID: string(sess.ID),
 			Chunks: []*events.SessionChunk{
-				&events.SessionChunk{
+				{
 					Time:       time.Now().UTC().UnixNano(),
 					EventIndex: 0,
 					EventType:  events.SessionStartEvent,
@@ -1267,13 +1244,13 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 		Namespace: defaults.Namespace,
 		SessionID: string(sess.ID),
 		Chunks: []*events.SessionChunk{
-			&events.SessionChunk{
+			{
 				Time:       time.Now().UTC().UnixNano(),
 				EventIndex: 0,
 				EventType:  events.SessionStartEvent,
 				Data:       marshal(events.EventFields{events.EventLogin: "bob", "val": "one"}),
 			},
-			&events.SessionChunk{
+			{
 				Time:       time.Now().UTC().UnixNano(),
 				EventIndex: 1,
 				EventType:  events.SessionEndEvent,
@@ -1299,13 +1276,13 @@ func (s *TLSSuite) TestSharedSessions(c *check.C) {
 		Namespace: defaults.Namespace,
 		SessionID: string(anotherSessionID),
 		Chunks: []*events.SessionChunk{
-			&events.SessionChunk{
+			{
 				Time:       time.Now().UTC().UnixNano(),
 				EventIndex: 0,
 				EventType:  events.SessionStartEvent,
 				Data:       marshal(events.EventFields{events.EventLogin: "alice", "val": "three"}),
 			},
-			&events.SessionChunk{
+			{
 				Time:       time.Now().UTC().UnixNano(),
 				EventIndex: 1,
 				EventType:  events.SessionEndEvent,
@@ -1616,6 +1593,7 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 	_, _, _, _, err = ssh.ParseAuthorizedKey(pub)
 	c.Assert(err, check.IsNil)
 
+	// create a user with one requestable role
 	user := "user1"
 	role := "some-role"
 	_, err = CreateUserRoleAndRequestable(s.server.Auth(), user, role)
@@ -1626,6 +1604,30 @@ func (s *TLSSuite) TestAccessRequest(c *check.C) {
 	userClient, err := s.server.NewClient(testUser)
 	c.Assert(err, check.IsNil)
 
+	// Verify that user has correct requestable roles
+	caps, err := userClient.GetAccessCapabilities(context.TODO(), services.AccessCapabilitiesRequest{
+		RequestableRoles: true,
+	})
+	c.Assert(err, check.IsNil)
+	c.Assert(caps.RequestableRoles, check.DeepEquals, []string{role})
+
+	// create a user with no requestable roles
+	user2, _, err := CreateUserAndRole(s.server.Auth(), "user2", []string{"user2"})
+	c.Assert(err, check.IsNil)
+
+	testUser2 := TestUser(user2.GetName())
+	testUser2.TTL = time.Hour
+	userClient2, err := s.server.NewClient(testUser2)
+	c.Assert(err, check.IsNil)
+
+	// verify that no requestable roles are shown for user2
+	caps2, err := userClient2.GetAccessCapabilities(context.TODO(), services.AccessCapabilitiesRequest{
+		RequestableRoles: true,
+	})
+	c.Assert(err, check.IsNil)
+	c.Assert(caps2.RequestableRoles, check.HasLen, 0)
+
+	// create an allowable access request for user1
 	req, err := services.NewAccessRequest(user, role)
 	c.Assert(err, check.IsNil)
 
@@ -2006,9 +2008,6 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 // TestGenerateAppToken checks the identity of the caller and makes sure only
 // certain roles can request JWT tokens.
 func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
-	clock := clockwork.NewFakeClockAt(time.Now())
-	s.server.Auth().SetClock(clock)
-
 	authClient, err := s.server.NewClient(TestBuiltin(teleport.RoleAdmin))
 	c.Assert(err, check.IsNil)
 
@@ -2018,7 +2017,7 @@ func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
 	}, true)
 	c.Assert(err, check.IsNil)
 
-	key, err := ca.JWTSigner()
+	key, err := services.GetJWTSigner(ca, s.clock)
 	c.Assert(err, check.IsNil)
 
 	var tests = []struct {
@@ -2052,7 +2051,7 @@ func (s *TLSSuite) TestGenerateAppToken(c *check.C) {
 				Username: "foo@example.com",
 				Roles:    []string{"bar", "baz"},
 				URI:      "http://localhost:8080",
-				Expires:  clock.Now().Add(1 * time.Minute),
+				Expires:  s.clock.Now().Add(1 * time.Minute),
 			})
 		c.Assert(err != nil, check.Equals, tt.outError, tt.inComment)
 		if !tt.outError {
@@ -2193,7 +2192,7 @@ func (s *TLSSuite) TestAuthenticateWebUserOTP(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// create a valid otp token
-	validToken, err := totp.GenerateCode(otpSecret, s.server.Clock().Now())
+	validToken, err := totp.GenerateCode(otpSecret, s.clock.Now())
 	c.Assert(err, check.IsNil)
 
 	proxy, err := s.server.NewClient(TestBuiltin(teleport.RoleProxy))
@@ -2401,11 +2400,11 @@ func (s *TLSSuite) TestCipherSuites(c *check.C) {
 		tls.TLS_RSA_WITH_AES_256_CBC_SHA,
 	}
 
-	addrs := []utils.NetAddr{
-		utils.FromAddr(otherServer.Listener.Addr()),
-		utils.FromAddr(s.server.Listener.Addr()),
+	addrs := []string{
+		otherServer.Addr().String(),
+		s.server.Addr().String(),
 	}
-	client, err := NewTLSClient(ClientConfig{
+	client, err := NewClient(client.Config{
 		Addrs: addrs,
 		TLS:   tlsConfig,
 	})
@@ -2425,11 +2424,11 @@ func (s *TLSSuite) TestTLSFailover(c *check.C) {
 	tlsConfig, err := s.server.ClientTLSConfig(TestNop())
 	c.Assert(err, check.IsNil)
 
-	addrs := []utils.NetAddr{
-		utils.FromAddr(otherServer.Listener.Addr()),
-		utils.FromAddr(s.server.Listener.Addr()),
+	addrs := []string{
+		otherServer.Addr().String(),
+		s.server.Addr().String(),
 	}
-	client, err := NewTLSClient(ClientConfig{Addrs: addrs, TLS: tlsConfig})
+	client, err := NewClient(client.Config{Addrs: addrs, TLS: tlsConfig})
 	c.Assert(err, check.IsNil)
 
 	// couple of runs to get enough connections
@@ -2476,7 +2475,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 		Type:       services.HostCA,
 	}, false)
 	c.Assert(err, check.IsNil)
-	tlsCA, err := hostCA.TLSCA()
+	tlsCA, err := tlsca.FromAuthority(hostCA)
 	c.Assert(err, check.IsNil)
 	caPin := utils.CalculateSPKI(tlsCA.Cert)
 
@@ -2494,6 +2493,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		CAPin:                caPin,
+		Clock:                s.clock,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -2511,6 +2511,7 @@ func (s *TLSSuite) TestRegisterCAPin(c *check.C) {
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		CAPin:                "sha256:123",
+		Clock:                s.clock,
 	})
 	c.Assert(err, check.NotNil)
 }
@@ -2549,6 +2550,7 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 		PrivateKey:           priv,
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
+		Clock:                s.clock,
 	})
 	c.Assert(err, check.IsNil)
 
@@ -2558,7 +2560,7 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 		Type:       services.HostCA,
 	}, false)
 	c.Assert(err, check.IsNil)
-	tlsCA, err := hostCA.TLSCA()
+	tlsCA, err := tlsca.FromAuthority(hostCA)
 	c.Assert(err, check.IsNil)
 	tlsBytes, err := tlsca.MarshalCertificatePEM(tlsCA.Cert)
 	c.Assert(err, check.IsNil)
@@ -2580,6 +2582,7 @@ func (s *TLSSuite) TestRegisterCAPath(c *check.C) {
 		PublicSSHKey:         pub,
 		PublicTLSKey:         pubTLS,
 		CAPath:               caPath,
+		Clock:                s.clock,
 	})
 	c.Assert(err, check.IsNil)
 }
@@ -2912,26 +2915,6 @@ func (s *TLSSuite) TestEventsClusterConfig(c *check.C) {
 	clusterNameResource, err = s.server.Auth().ClusterConfiguration.GetClusterName()
 	c.Assert(err, check.IsNil)
 	suite.ExpectResource(c, w, 3*time.Second, clusterNameResource)
-}
-
-func (s *TLSSuite) TestAPIBackwardsCompatibilityLogic(c *check.C) {
-	clt, err := s.server.NewClient(TestAdmin())
-	c.Assert(err, check.IsNil)
-
-	grpcMock := newMockAuthServiceClient()
-	clt.grpcClient = grpcMock
-
-	// check the REST endpoint gets called
-	grpcMock.err = trace.NotImplemented("")
-	err = clt.DeleteUser(context.TODO(), "not-existing-user")
-	c.Assert(trace.IsNotFound(err), check.Equals, true)
-	grpcMock.reset()
-
-	// check that any other error than "NotImplemented" returns right away
-	grpcMock.err = trace.BadParameter("test-other-error")
-	err = clt.DeleteUser(context.TODO(), "not-existing-user")
-	c.Assert(trace.IsBadParameter(err), check.Equals, true)
-	c.Assert(err, check.ErrorMatches, `test-other-error`)
 }
 
 // verifyJWT verifies that the token was signed by one the passed in key pair.

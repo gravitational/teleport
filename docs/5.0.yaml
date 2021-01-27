@@ -1,9 +1,9 @@
-site_name: Gravitational Teleport
-site_url: https://gravitational.com/teleport/docs
+site_name: Teleport
+site_url: https://goteleport.com/teleport/docs
 repo_url: https://github.com/gravitational/teleport
-site_description: "Teleport Documentation: Remote Access via SSH and Kubernetes"
-site_author: Gravitational Inc
-copyright: Gravitational Inc, 2016-20
+site_description: "Teleport Documentation: Teleport Unified Access Plane enables engineers to quickly access any computing resource anywhere"
+site_author: Teleport
+copyright: Gravitational Inc, 2016-21
 
 # output directory:
 site_dir: ../build/docs/5.0
@@ -34,14 +34,15 @@ plugins:
           'kubernetes-ssh.md': 'kubernetes-access.md'
 extra_javascript: []
 extra:
+    # this version is used for the docs switcher, not for Teleport
     version: 5.0
     teleport:
-        version: 5.0.1
+        version: 5.1.0
         golang: 1.15
         plugin:
             version: 0.2.0
-        latest_oss_docker_image: quay.io/gravitational/teleport:5.0
-        latest_ent_docker_image: quay.io/gravitational/teleport-ent:5.0
+        latest_oss_docker_image: quay.io/gravitational/teleport:5
+        latest_ent_docker_image: quay.io/gravitational/teleport-ent:5
 nav:
     - Documentation:
         - Introduction: index.md

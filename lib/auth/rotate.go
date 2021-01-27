@@ -96,12 +96,12 @@ func (r *RotateRequest) CheckAndSetDefaults(clock clockwork.Clock) error {
 	}
 	if r.Schedule == nil {
 		var err error
-		r.Schedule, err = services.GenerateSchedule(clock, *r.GracePeriod)
+		r.Schedule, err = services.GenerateSchedule(clock.Now(), *r.GracePeriod)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
-		if err := r.Schedule.CheckAndSetDefaults(clock); err != nil {
+		if err := r.Schedule.CheckAndSetDefaults(clock.Now()); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -497,10 +497,15 @@ func startNewRotation(req rotationReq, ca services.CertAuthority) error {
 		sshPublicKey = ssh.MarshalAuthorizedKey(signer.PublicKey())
 		sshPrivateKey = req.privateKey
 
-		tlsPrivateKey, tlsPublicKey, err = tlsca.GenerateSelfSignedCAWithPrivateKey(rsaKey.(*rsa.PrivateKey), pkix.Name{
-			CommonName:   ca.GetClusterName(),
-			Organization: []string{ca.GetClusterName()},
-		}, nil, defaults.CATTL)
+		tlsPrivateKey, tlsPublicKey, err = tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+			PrivateKey: rsaKey.(*rsa.PrivateKey),
+			Entity: pkix.Name{
+				CommonName:   ca.GetClusterName(),
+				Organization: []string{ca.GetClusterName()},
+			},
+			TTL:   defaults.CATTL,
+			Clock: req.clock,
+		})
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -22,7 +22,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/gravitational/teleport/lib/defaults"
@@ -257,36 +256,6 @@ func VerifyPassword(password []byte) error {
 	if len(password) > defaults.MaxPasswordLength {
 		return trace.BadParameter(
 			"password is too long, max length is %v", defaults.MaxPasswordLength)
-	}
-	return nil
-}
-
-const ExternalIdentitySchema = `{
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-     "connector_id": {"type": "string"},
-     "username": {"type": "string"}
-   }
-}`
-
-// String returns debug friendly representation of this identity
-func (i *ExternalIdentity) String() string {
-	return fmt.Sprintf("OIDCIdentity(connectorID=%v, username=%v)", i.ConnectorID, i.Username)
-}
-
-// Equals returns true if this identity equals to passed one
-func (i *ExternalIdentity) Equals(other *ExternalIdentity) bool {
-	return i.ConnectorID == other.ConnectorID && i.Username == other.Username
-}
-
-// Check returns nil if all parameters are great, err otherwise
-func (i *ExternalIdentity) Check() error {
-	if i.ConnectorID == "" {
-		return trace.BadParameter("ConnectorID: missing value")
-	}
-	if i.Username == "" {
-		return trace.BadParameter("Username: missing username")
 	}
 	return nil
 }

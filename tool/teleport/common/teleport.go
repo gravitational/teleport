@@ -134,6 +134,21 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	start.Flag("app-public-addr",
 		"Public address of the application to proxy.").
 		StringVar(&ccf.AppPublicAddr)
+	start.Flag("db-name",
+		"Name of the proxied database.").
+		StringVar(&ccf.DatabaseName)
+	start.Flag("db-protocol",
+		fmt.Sprintf("Proxied database protocol. Supported are: %v.", defaults.DatabaseProtocols)).
+		StringVar(&ccf.DatabaseProtocol)
+	start.Flag("db-uri",
+		"Address the proxied database is reachable at.").
+		StringVar(&ccf.DatabaseURI)
+	start.Flag("db-ca-cert",
+		"Database CA certificate path.").
+		StringVar(&ccf.DatabaseCACertFile)
+	start.Flag("db-aws-region",
+		"AWS region RDS/Aurora database instance is running in.").
+		StringVar(&ccf.DatabaseAWSRegion)
 
 	// define start's usage info (we use kingpin's "alias" field for this)
 	start.Alias(usageNotes + usageExamples)
@@ -145,6 +160,7 @@ func Run(options Options) (executedCommand string, conf *service.Config) {
 	scpc.Flag("v", "verbose mode").Default("false").Short('v').BoolVar(&scpFlags.Verbose)
 	scpc.Flag("r", "recursive mode").Default("false").Short('r').BoolVar(&scpFlags.Recursive)
 	scpc.Flag("d", "directory mode").Short('d').Hidden().BoolVar(&scpFlags.DirectoryMode)
+	scpc.Flag("preserve", "preserve access and modification times").Short('p').BoolVar(&scpFlags.PreserveAttrs)
 	scpc.Flag("remote-addr", "address of the remote client").StringVar(&scpFlags.RemoteAddr)
 	scpc.Flag("local-addr", "local address which accepted the request").StringVar(&scpFlags.LocalAddr)
 	scpc.Arg("target", "").StringsVar(&scpFlags.Target)

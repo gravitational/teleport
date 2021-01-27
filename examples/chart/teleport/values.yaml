@@ -12,7 +12,7 @@ image:
   # Used if license is disabled
   communityRepository: quay.io/gravitational/teleport
   # Version of Teleport
-  tag: 5.0
+  tag: "5"
   pullPolicy: IfNotPresent
   # Optionally specify an array of imagePullSecrets.
   # Secrets must be manually created in the namespace.
@@ -52,8 +52,13 @@ config:
   # High availability configuration with proxy and auth servers. No configured SSH service.
   proxyCount: 2
   authCount: 2
-  authServiceType: ClusterIP
   auth_public_address: auth.example.com
+  authService:
+    type: ClusterIP
+    labels: {}
+    annotations: {}
+    externalTrafficPolicy: ""
+    loadBalancerSourceRanges: []
 
 # Set for proxies in high availability, single proxy and ssh service only deployments
 # auth_service_connection:
@@ -188,6 +193,7 @@ service:
   annotations: {}
   ## Ref: https://kubernetes.io/docs/tutorials/services/source-ip/#source-ip-for-services-with-typeloadbalancer
   externalTrafficPolicy: ""
+  loadBalancerSourceRanges: []
 
   ## See https://github.com/kubernetes-incubator/external-dns/blob/master/docs/tutorials/aws-sd.md#verify-that-externaldns-works-service-example
   # Set something like the below in order to instruct external-dns to create a Route53 record set for your ELB on AWS:
@@ -273,6 +279,7 @@ serviceAccount:
   # The name of the ServiceAccount to use.
   # If not set and create is true, a name is generated using the fullname template
   name:
+  annotations: {}
 
 persistence:
   enabled: false

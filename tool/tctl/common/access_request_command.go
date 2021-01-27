@@ -55,6 +55,7 @@ type AccessRequestCommand struct {
 	requestDeny    *kingpin.CmdClause
 	requestCreate  *kingpin.CmdClause
 	requestDelete  *kingpin.CmdClause
+	requestCaps    *kingpin.CmdClause
 }
 
 // Initialize allows AccessRequestCommand to plug itself into the CLI parser
@@ -86,6 +87,10 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *serv
 
 	c.requestDelete = requests.Command("rm", "Delete an access request")
 	c.requestDelete.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
+
+	c.requestCaps = requests.Command("capabilities", "Check a user's access capabilities").Alias("caps").Hidden()
+	c.requestCaps.Arg("username", "Name of target user").Required().StringVar(&c.user)
+	c.requestCaps.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
 }
 
 // TryRun takes the CLI command as an argument (like "access-request list") and executes it.
@@ -101,6 +106,8 @@ func (c *AccessRequestCommand) TryRun(cmd string, client auth.ClientI) (match bo
 		err = c.Create(client)
 	case c.requestDelete.FullCommand():
 		err = c.Delete(client)
+	case c.requestCaps.FullCommand():
+		err = c.Caps(client)
 	default:
 		return false, nil
 	}
@@ -226,6 +233,40 @@ func (c *AccessRequestCommand) Delete(client auth.ClientI) error {
 		}
 	}
 	return nil
+}
+
+func (c *AccessRequestCommand) Caps(client auth.ClientI) error {
+	caps, err := client.GetAccessCapabilities(context.TODO(), services.AccessCapabilitiesRequest{
+		User:             c.user,
+		RequestableRoles: true,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	switch c.format {
+	case teleport.Text:
+		// represent capabilities as a simple key-value table
+		table := asciitable.MakeTable([]string{"Name", "Value"})
+
+		// populate requestable roles
+		rr := "None"
+		if len(caps.RequestableRoles) > 0 {
+			rr = strings.Join(caps.RequestableRoles, ",")
+		}
+		table.AddRow([]string{"Requestable Roles", rr})
+
+		_, err := table.AsBuffer().WriteTo(os.Stdout)
+		return trace.Wrap(err)
+	case teleport.JSON:
+		out, err := json.MarshalIndent(caps, "", "  ")
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal capabilities")
+		}
+		fmt.Printf("%s\n", out)
+		return nil
+	default:
+		return trace.BadParameter("unknown format %q, must be one of [%q, %q]", c.format, teleport.Text, teleport.JSON)
+	}
 }
 
 // PrintAccessRequests prints access requests

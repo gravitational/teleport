@@ -53,6 +53,9 @@ type Key struct {
 	// KubeTLSCerts are TLS certificates (PEM-encoded) for individual
 	// kubernetes clusters. Map key is a kubernetes cluster name.
 	KubeTLSCerts map[string][]byte `json:"KubeCerts,omitempty"`
+	// DBTLSCerts are PEM-encoded TLS certificates for database access.
+	// Map key is the database service name.
+	DBTLSCerts map[string][]byte `json:"DBCerts,omitempty"`
 
 	// ProxyHost (optionally) contains the hostname of the proxy server
 	// which issued this key
@@ -77,6 +80,7 @@ func NewKey() (key *Key, err error) {
 		Priv:         priv,
 		Pub:          pub,
 		KubeTLSCerts: make(map[string][]byte),
+		DBTLSCerts:   make(map[string][]byte),
 	}, nil
 }
 
@@ -273,6 +277,18 @@ func (k *Key) KubeTLSCertificate(kubeClusterName string) (*x509.Certificate, err
 		return nil, trace.NotFound("TLS certificate for kubernetes cluster %q not found", kubeClusterName)
 	}
 	return tlsca.ParseCertificatePEM(tlsCert)
+}
+
+// DBTLSCertificates returns all parsed x509 database access certificates.
+func (k *Key) DBTLSCertificates() (certs []x509.Certificate, err error) {
+	for _, bytes := range k.DBTLSCerts {
+		cert, err := tlsca.ParseCertificatePEM(bytes)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certs = append(certs, *cert)
+	}
+	return certs, nil
 }
 
 // TeleportTLSCertValidBefore returns the time of the TLS cert expiration

@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -33,9 +34,8 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 
-	"github.com/gravitational/trace"
-
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
 )
 
 // TokenCommand implements `tctl token` group of commands
@@ -58,6 +58,13 @@ type TokenCommand struct {
 
 	// appURI is the URI (target address) of the application to add.
 	appURI string
+
+	// dbName is the database name to add.
+	dbName string
+	// dbProtocol is the database protocol.
+	dbProtocol string
+	// dbURI is the address the database is reachable at.
+	dbURI string
 
 	// ttl is how long the token will live for.
 	ttl time.Duration
@@ -91,6 +98,9 @@ func (c *TokenCommand) Initialize(app *kingpin.Application, config *service.Conf
 		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).DurationVar(&c.ttl)
 	c.tokenAdd.Flag("app-name", "Name of the application to add").Default("example-app").StringVar(&c.appName)
 	c.tokenAdd.Flag("app-uri", "URI of the application to add").Default("http://localhost:8080").StringVar(&c.appURI)
+	c.tokenAdd.Flag("db-name", "Name of the database to add").StringVar(&c.dbName)
+	c.tokenAdd.Flag("db-protocol", fmt.Sprintf("Database protocol to use. Supported are: %v", defaults.DatabaseProtocols)).StringVar(&c.dbProtocol)
+	c.tokenAdd.Flag("db-uri", "Address the database is reachable at").StringVar(&c.dbURI)
 
 	// "tctl tokens rm ..."
 	c.tokenDel = tokens.Command("rm", "Delete/revoke an invitation token").Alias("del")
@@ -187,6 +197,25 @@ func (c *TokenCommand) Add(client auth.ClientI) error {
 			proxies[0].GetPublicAddr(),
 			appPublicAddr,
 			appPublicAddr)
+	case roles.Include(teleport.RoleDatabase):
+		proxies, err := client.GetProxies()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if len(proxies) == 0 {
+			return trace.NotFound("cluster has no proxies")
+		}
+		return dbMessageTemplate.Execute(os.Stdout,
+			map[string]interface{}{
+				"token":       token,
+				"minutes":     c.ttl.Minutes(),
+				"roles":       strings.ToLower(roles.String()),
+				"ca_pin":      caPin,
+				"auth_server": proxies[0].GetPublicAddr(),
+				"db_name":     c.dbName,
+				"db_protocol": c.dbProtocol,
+				"db_uri":      c.dbURI,
+			})
 	case roles.Include(teleport.RoleTrustedCluster), roles.Include(teleport.LegacyClusterTokenType):
 		fmt.Printf(trustedClusterMessage,
 			token,

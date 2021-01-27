@@ -1,8 +1,4 @@
-## Teleport Nodes
-
-**Table of Contents**
-
-[TOC]
+# Teleport Nodes
 
 ## The Node Service
 
@@ -25,6 +21,7 @@ labels. Nodes can access the list of all Nodes in their cluster via the
 [Auth Server API](teleport-auth.md#auth-api).
 
 !!! tip "Tip"
+
     In most environments we advise replacing the OpenSSH daemon `sshd`
     with the Teleport Node Service unless there are existing workflows relying
     on `ssh` or in special cases such as embedded devices that can't run
@@ -115,7 +112,7 @@ Teleport Auth Service can allow 3rd party users or nodes to connect to cluster
 nodes if their certificates are signed by a trusted CA. A "trusted cluster" is
 a public key of the trusted CA. It can be configured via `teleport.yaml` file.
 
-<!--TODO: incomplete, write more on this-->
+<!-- TODO: incomplete, write more on this -->
 
 ## More Concepts
 

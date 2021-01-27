@@ -30,7 +30,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/auth/proto"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -346,7 +346,7 @@ func (s *APIServer) upsertServer(auth services.Presence, role teleport.Role, r *
 	// on the socket, but keep the original port:
 	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), r.RemoteAddr))
 	if req.TTL != 0 {
-		server.SetTTL(s, req.TTL)
+		server.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}
 	switch role {
 	case teleport.RoleNode:
@@ -549,7 +549,7 @@ func (s *APIServer) upsertReverseTunnel(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 	if req.TTL != 0 {
-		tun.SetTTL(s, req.TTL)
+		tun.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}
 	if err := auth.UpsertReverseTunnel(tun); err != nil {
 		return nil, trace.Wrap(err)
@@ -598,7 +598,9 @@ func (s *APIServer) upsertTrustedCluster(auth ClientI, w http.ResponseWriter, r 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
+	if err := services.ValidateTrustedCluster(trustedCluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	out, err := auth.UpsertTrustedCluster(r.Context(), trustedCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -685,35 +687,11 @@ func (s *APIServer) deleteWebSession(auth ClientI, w http.ResponseWriter, r *htt
 	return message(fmt.Sprintf("session '%v' for user '%v' deleted", sid, user)), nil
 }
 
-// sessionV1 is a V1 style web session, used in legacy v1 API
-type sessionV1 struct {
-	// ID is a session ID
-	ID string `json:"id"`
-	// Username is a user this session belongs to
-	Username string `json:"username"`
-	// ExpiresAt is an optional expiry time, if set
-	// that means this web session and all derived web sessions
-	// can not continue after this time, used in OIDC use case
-	// when expiry is set by external identity provider, so user
-	// has to relogin (or later on we'd need to refresh the token)
-	ExpiresAt time.Time `json:"expires_at"`
-	// WS is a private keypair used for signing requests
-	WS services.WebSessionV1 `json:"web"`
-}
-
 func (s *APIServer) getWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	user, sid := p.ByName("user"), p.ByName("sid")
 	sess, err := auth.GetWebSessionInfo(user, sid)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	if version == services.V1 {
-		return &sessionV1{
-			ID:        sess.GetName(),
-			Username:  sess.GetUser(),
-			ExpiresAt: sess.GetExpiryTime(),
-			WS:        *(sess.V1()),
-		}, nil
 	}
 	return rawMessage(services.GetWebSessionMarshaler().MarshalWebSession(sess, services.WithVersion(version)))
 }
@@ -1060,7 +1038,10 @@ func (s *APIServer) upsertCertAuthority(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 	if req.TTL != 0 {
-		ca.SetTTL(s, req.TTL)
+		ca.SetExpiry(s.Now().UTC().Add(req.TTL))
+	}
+	if err = services.ValidateCertAuthority(ca); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if err := auth.UpsertCertAuthority(ca); err != nil {
 		return nil, trace.Wrap(err)
@@ -1284,7 +1265,7 @@ func (s *APIServer) upsertOIDCConnector(auth ClientI, w http.ResponseWriter, r *
 		return nil, trace.Wrap(err)
 	}
 	if req.TTL != 0 {
-		connector.SetTTL(s, req.TTL)
+		connector.SetExpiry(s.Now().UTC().Add(req.TTL))
 	}
 	err = auth.UpsertOIDCConnector(r.Context(), connector)
 	if err != nil {
@@ -1420,6 +1401,9 @@ func (s *APIServer) createSAMLConnector(auth ClientI, w http.ResponseWriter, r *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := services.ValidateSAMLConnector(connector); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	err = auth.CreateSAMLConnector(r.Context(), connector)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1438,6 +1422,9 @@ func (s *APIServer) upsertSAMLConnector(auth ClientI, w http.ResponseWriter, r *
 	}
 	connector, err := services.GetSAMLConnectorMarshaler().UnmarshalSAMLConnector(req.Connector)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := services.ValidateSAMLConnector(connector); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	err = auth.UpsertSAMLConnector(r.Context(), connector)
@@ -2117,6 +2104,9 @@ func (s *APIServer) upsertRole(auth ClientI, w http.ResponseWriter, r *http.Requ
 	}
 	role, err := services.GetRoleMarshaler().UnmarshalRole(req.Role)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = services.ValidateRole(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	err = auth.UpsertRole(r.Context(), role)
