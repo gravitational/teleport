@@ -378,7 +378,7 @@ func (h *AuthHandlers) fetchRoleSet(cert *ssh.Certificate, ca services.CertAutho
 		if err != nil {
 			return nil, trace.AccessDenied("failed to parse certificate roles")
 		}
-		roleNames, err := ca.CombinedMapping().Map(roles)
+		roleNames, err := services.RoleMapRemoteToRoles(ca.CombinedMapping(), roles)
 		if err != nil {
 			return nil, trace.AccessDenied("failed to map roles")
 		}

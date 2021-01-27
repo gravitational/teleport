@@ -45,12 +45,6 @@ var (
 	ToJSON              = utils.ToJSON
 )
 
-// regexp.go
-var (
-	ReplaceRegexp = utils.ReplaceRegexp
-	GlobToRegexp  = utils.GlobToRegexp
-)
-
 // time.go
 var (
 	UTC                   = utils.UTC

@@ -17,8 +17,12 @@ limitations under the License.
 package services
 
 import (
+	"fmt"
+
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -43,5 +47,98 @@ func ValidateTrustedCluster(tc TrustedCluster) error {
 		})
 	}
 
+	if err := ValidateRoleMap(tc.GetRoleMap()); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
+}
+
+// ValidateRoleMap checks RoleMap for errors
+func ValidateRoleMap(r RoleMap) error {
+	_, err := parseRoleMap(r)
+	return trace.Wrap(err)
+}
+
+// RoleMapToString prints user friendly representation of role mapping
+func RoleMapToString(r RoleMap) string {
+	values, err := parseRoleMap(r)
+	if err != nil {
+		return fmt.Sprintf("<failed to parse: %v", err)
+	}
+	if len(values) != 0 {
+		return fmt.Sprintf("%v", values)
+	}
+	return "<empty>"
+}
+
+func parseRoleMap(r RoleMap) (map[string][]string, error) {
+	directMatch := make(map[string][]string)
+	for i := range r {
+		roleMap := r[i]
+		if roleMap.Remote == "" {
+			return nil, trace.BadParameter("missing 'remote' parameter for role_map")
+		}
+		_, err := utils.ReplaceRegexp(roleMap.Remote, "", "")
+		if trace.IsBadParameter(err) {
+			return nil, trace.BadParameter("failed to parse 'remote' parameter for role_map: %v", err.Error())
+		}
+		if len(roleMap.Local) == 0 {
+			return nil, trace.BadParameter("missing 'local' parameter for 'role_map'")
+		}
+		for _, local := range roleMap.Local {
+			if local == "" {
+				return nil, trace.BadParameter("missing 'local' property of 'role_map' entry")
+			}
+			if local == Wildcard {
+				return nil, trace.BadParameter("wildcard value is not supported for 'local' property of 'role_map' entry")
+			}
+		}
+		_, ok := directMatch[roleMap.Remote]
+		if ok {
+			return nil, trace.BadParameter("remote role '%v' match is already specified", roleMap.Remote)
+		}
+		directMatch[roleMap.Remote] = roleMap.Local
+	}
+	return directMatch, nil
+}
+
+// RoleMapRemoteToRoles maps local roles to remote roles
+func RoleMapRemoteToRoles(r RoleMap, remoteRoles []string) ([]string, error) {
+	_, err := parseRoleMap(r)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var outRoles []string
+	// when no remote roles are specified, assume that
+	// there is a single empty remote role (that should match wildcards)
+	if len(remoteRoles) == 0 {
+		remoteRoles = []string{""}
+	}
+	for _, mapping := range r {
+		expression := mapping.Remote
+		for _, remoteRole := range remoteRoles {
+			// never map default implicit role, it is always
+			// added by default
+			if remoteRole == constants.DefaultImplicitRole {
+				continue
+			}
+			for _, replacementRole := range mapping.Local {
+				replacement, err := utils.ReplaceRegexp(expression, replacementRole, remoteRole)
+				switch {
+				case err == nil:
+					// empty replacement can occur when $2 expand refers
+					// to non-existing capture group in match expression
+					if replacement != "" {
+						outRoles = append(outRoles, replacement)
+					}
+				case trace.IsNotFound(err):
+					continue
+				default:
+					return nil, trace.Wrap(err)
+				}
+			}
+		}
+	}
+	return outRoles, nil
 }
