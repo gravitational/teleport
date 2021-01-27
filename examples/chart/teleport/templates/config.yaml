@@ -97,7 +97,7 @@ data:
       # kubernetes proxy protocol support
       kubernetes:
         enabled: {{ .Values.config.teleport.proxy_service.kubernetes.enabled }}
-{{- if  .Values.config.teleport.proxy_service.kubernetes.public_addr }}        
+{{- if .Values.config.teleport.proxy_service.kubernetes.public_addr }}        
         public_addr: {{ .Values.config.teleport.proxy_service.kubernetes.public_addr }}:{{ .Values.service.ports.proxykube.port }}
 {{- else }}
         public_addr: {{ .Values.config.public_address }}:{{ .Values.service.ports.proxykube.port }}        
