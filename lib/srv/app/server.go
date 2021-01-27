@@ -228,7 +228,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 
 // GetServerInfo returns a services.Server representing the application. Used
 // in heartbeat code.
-func (s *Server) GetServerInfo() (services.Server, error) {
+func (s *Server) GetServerInfo() (services.Resource, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -244,7 +244,7 @@ func (s *Server) GetServerInfo() (services.Server, error) {
 	s.server.SetApps(apps)
 
 	// Update the TTL.
-	s.server.SetTTL(s.c.Clock, defaults.ServerAnnounceTTL)
+	s.server.SetExpiry(s.c.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
 
 	// Update rotation state.
 	rotation, err := s.c.GetRotation(teleport.RoleApp)

@@ -414,7 +414,7 @@ func (c *Client) RotateCertAuthority(req RotateRequest) error {
 // this method is used to update only public keys and certificates of the
 // the certificate authorities of trusted clusters.
 func (c *Client) RotateExternalCertAuthority(ca services.CertAuthority) error {
-	if err := ca.Check(); err != nil {
+	if err := services.ValidateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}
 	data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca)
@@ -428,7 +428,7 @@ func (c *Client) RotateExternalCertAuthority(ca services.CertAuthority) error {
 
 // UpsertCertAuthority updates or inserts new cert authority
 func (c *Client) UpsertCertAuthority(ca services.CertAuthority) error {
-	if err := ca.Check(); err != nil {
+	if err := services.ValidateCertAuthority(ca); err != nil {
 		return trace.Wrap(err)
 	}
 	data, err := services.GetCertAuthorityMarshaler().MarshalCertAuthority(ca)
@@ -2106,11 +2106,15 @@ func (c *Client) UpsertAppSession(ctx context.Context, session services.WebSessi
 }
 
 // ResumeAuditStream resumes existing audit stream.
+// This is a wrapper on the grpc endpoint and is deprecated.
+// DELETE IN 7.0.0
 func (c *Client) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (events.Stream, error) {
 	return c.APIClient.ResumeAuditStream(ctx, string(sid), uploadID)
 }
 
 // CreateAuditStream creates new audit stream.
+// This is a wrapper on the grpc endpoint and is deprecated.
+// DELETE IN 7.0.0
 func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (events.Stream, error) {
 	return c.APIClient.CreateAuditStream(ctx, string(sid))
 }
@@ -2348,4 +2352,8 @@ type ClientI interface {
 	// CreateAppSession creates an application web session. Application web
 	// sessions represent a browser session the client holds.
 	CreateAppSession(context.Context, services.CreateAppSessionRequest) (services.WebSession, error)
+
+	// GenerateDatabaseCert generates client certificate used by a database
+	// service to authenticate with the database instance.
+	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
 }

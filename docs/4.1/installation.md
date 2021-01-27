@@ -6,10 +6,6 @@ The Teleport client [`tsh`](cli-docs.md#tsh) and Web UI are available for **Linu
 and **Windows** operating systems. Our examples install Teleport v4.1.0 but you can
 install any version listed in our [Release History](https://gravitational.com/teleport/download/).
 
-**Table of Contents**
-
-[TOC]
-
 ## Checksums
 
 Gravitational Teleport provides a checksum from the Downloads page.  This should

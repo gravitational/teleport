@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // ResetPasswordToken represents a temporary token used to reset passwords
@@ -109,8 +108,10 @@ func (u *ResetPasswordTokenV3) SetExpiry(t time.Time) {
 	u.Metadata.SetExpiry(t)
 }
 
-// SetTTL sets Expires header using current clock
-func (u *ResetPasswordTokenV3) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (u *ResetPasswordTokenV3) SetTTL(clock Clock, ttl time.Duration) {
 	u.Metadata.SetTTL(clock, ttl)
 }
 

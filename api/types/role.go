@@ -19,18 +19,15 @@ package types
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/parse"
-	"github.com/gravitational/teleport/lib/wrappers"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 	"github.com/vulcand/predicate"
 )
 
@@ -100,6 +97,21 @@ type Role interface {
 	GetAccessRequestConditions(RoleConditionType) AccessRequestConditions
 	// SetAccessRequestConditions sets allow/deny conditions for access requests.
 	SetAccessRequestConditions(RoleConditionType, AccessRequestConditions)
+
+	// GetDatabaseLabels gets the map of db labels this role is allowed or denied access to.
+	GetDatabaseLabels(RoleConditionType) Labels
+	// SetDatabaseLabels sets the map of db labels this role is allowed or denied access to.
+	SetDatabaseLabels(RoleConditionType, Labels)
+
+	// GetDatabaseNames gets a list of database names this role is allowed or denied access to.
+	GetDatabaseNames(RoleConditionType) []string
+	// SetDatabasenames sets a list of database names this role is allowed or denied access to.
+	SetDatabaseNames(RoleConditionType, []string)
+
+	// GetDatabaseUsers gets a list of database users this role is allowed or denied access to.
+	GetDatabaseUsers(RoleConditionType) []string
+	// SetDatabaseUsers sets a list of database users this role is allowed or denied access to.
+	SetDatabaseUsers(RoleConditionType, []string)
 }
 
 // NewRole constructs new standard role
@@ -148,6 +160,15 @@ func (r *RoleV3) Equals(other Role) bool {
 			return false
 		}
 		if !r.GetAppLabels(condition).Equals(other.GetAppLabels(condition)) {
+			return false
+		}
+		if !r.GetDatabaseLabels(condition).Equals(other.GetDatabaseLabels(condition)) {
+			return false
+		}
+		if !utils.StringSlicesEqual(r.GetDatabaseNames(condition), other.GetDatabaseNames(condition)) {
+			return false
+		}
+		if !utils.StringSlicesEqual(r.GetDatabaseUsers(condition), other.GetDatabaseUsers(condition)) {
 			return false
 		}
 		if !RuleSlicesEqual(r.GetRules(condition), other.GetRules(condition)) {
@@ -204,8 +225,10 @@ func (r *RoleV3) Expiry() time.Time {
 	return r.Metadata.Expiry()
 }
 
-// SetTTL sets TTL header using realtime clock.
-func (r *RoleV3) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (r *RoleV3) SetTTL(clock Clock, ttl time.Duration) {
 	r.Metadata.SetTTL(clock, ttl)
 }
 
@@ -399,6 +422,57 @@ func (r *RoleV3) SetKubernetesLabels(rct RoleConditionType, labels Labels) {
 	}
 }
 
+// GetDatabaseLabels gets the map of db labels this role is allowed or denied access to.
+func (r *RoleV3) GetDatabaseLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return r.Spec.Allow.DatabaseLabels
+	}
+	return r.Spec.Deny.DatabaseLabels
+}
+
+// SetDatabaseLabels sets the map of db labels this role is allowed or denied access to.
+func (r *RoleV3) SetDatabaseLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.DatabaseLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.DatabaseLabels = labels.Clone()
+	}
+}
+
+// GetDatabaseNames gets a list of database names this role is allowed or denied access to.
+func (r *RoleV3) GetDatabaseNames(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.DatabaseNames
+	}
+	return r.Spec.Deny.DatabaseNames
+}
+
+// SetDatabaseNames sets a list of database names this role is allowed or denied access to.
+func (r *RoleV3) SetDatabaseNames(rct RoleConditionType, values []string) {
+	if rct == Allow {
+		r.Spec.Allow.DatabaseNames = values
+	} else {
+		r.Spec.Deny.DatabaseNames = values
+	}
+}
+
+// GetDatabaseUsers gets a list of database users this role is allowed or denied access to.
+func (r *RoleV3) GetDatabaseUsers(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.DatabaseUsers
+	}
+	return r.Spec.Deny.DatabaseUsers
+}
+
+// SetDatabaseUsers sets a list of database users this role is allowed or denied access to.
+func (r *RoleV3) SetDatabaseUsers(rct RoleConditionType, values []string) {
+	if rct == Allow {
+		r.Spec.Allow.DatabaseUsers = values
+	} else {
+		r.Spec.Deny.DatabaseUsers = values
+	}
+}
+
 // GetRules gets all allow or deny rules.
 func (r *RoleV3) GetRules(rct RoleConditionType) []Rule {
 	if rct == Allow {
@@ -458,8 +532,21 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		r.Spec.Allow.KubernetesLabels = Labels{Wildcard: []string{Wildcard}}
 	}
 
+	if r.Spec.Allow.DatabaseLabels == nil {
+		r.Spec.Allow.DatabaseLabels = Labels{Wildcard: []string{Wildcard}}
+	}
+
 	if r.Spec.Deny.Namespaces == nil {
 		r.Spec.Deny.Namespaces = []string{defaults.Namespace}
+	}
+
+	// Database names/users won't have any effect unless labels are also
+	// specified. Set them to wildcard in this case to prevent users from
+	// accidentally creating deny rules that won't deny anything.
+	if len(r.Spec.Deny.DatabaseNames) > 0 || len(r.Spec.Deny.DatabaseUsers) > 0 {
+		if r.Spec.Deny.DatabaseLabels == nil {
+			r.Spec.Deny.DatabaseLabels = Labels{Wildcard: []string{Wildcard}}
+		}
 	}
 
 	// Validate that enhanced recording options are all valid.
@@ -470,18 +557,6 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 			continue
 		}
 		return trace.BadParameter("found invalid option in session_recording: %v", opt)
-	}
-
-	// if we find {{ or }} but the syntax is invalid, the role is invalid
-	for _, condition := range []RoleConditionType{Allow, Deny} {
-		for _, login := range r.GetLogins(condition) {
-			if strings.Contains(login, "{{") || strings.Contains(login, "}}") {
-				_, err := parse.NewExpression(login)
-				if err != nil {
-					return trace.BadParameter("invalid login found: %v", login)
-				}
-			}
-		}
 	}
 
 	// check and correct the session ttl
@@ -506,6 +581,11 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		}
 	}
 	for key, val := range r.Spec.Allow.KubernetesLabels {
+		if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {
+			return trace.BadParameter("selector *:<val> is not supported")
+		}
+	}
+	for key, val := range r.Spec.Allow.DatabaseLabels {
 		if key == Wildcard && !(len(val) == 1 && val[0] == Wildcard) {
 			return trace.BadParameter("selector *:<val> is not supported")
 		}
@@ -561,6 +641,15 @@ func (r *RoleConditions) Equals(o RoleConditions) bool {
 	if !r.KubernetesLabels.Equals(o.KubernetesLabels) {
 		return false
 	}
+	if !r.DatabaseLabels.Equals(o.DatabaseLabels) {
+		return false
+	}
+	if !utils.StringSlicesEqual(r.DatabaseNames, o.DatabaseNames) {
+		return false
+	}
+	if !utils.StringSlicesEqual(r.DatabaseUsers, o.DatabaseUsers) {
+		return false
+	}
 	if len(r.Rules) != len(o.Rules) {
 		return false
 	}
@@ -587,28 +676,6 @@ func (r *Rule) CheckAndSetDefaults() error {
 	}
 	if len(r.Verbs) == 0 {
 		return trace.BadParameter("missing verbs")
-	}
-	if len(r.Where) != 0 {
-		parser, err := GetWhereParserFn()(&Context{})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		_, err = parser.Parse(r.Where)
-		if err != nil {
-			return trace.BadParameter("could not parse 'where' rule: %q, error: %v", r.Where, err)
-		}
-	}
-	if len(r.Actions) != 0 {
-		parser, err := GetActionsParserFn()(&Context{})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for i, action := range r.Actions {
-			_, err = parser.Parse(action)
-			if err != nil {
-				return trace.BadParameter("could not parse action %v %q, error: %v", i, action, err)
-			}
-		}
 	}
 	return nil
 }
@@ -1058,6 +1125,21 @@ const RoleSpecV3SchemaDefinitions = `
 		"kubernetes_groups": {
 		  "type": "array",
 		  "items": { "type": "string" }
+		},
+		"db_labels": {
+		  "type": "object",
+		  "additionalProperties": false,
+		  "patternProperties": {
+			"^[a-zA-Z/.0-9_*-]+$": {"anyOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}]}
+		  }
+		},
+		"db_names": {
+		  "type": "array",
+		  "items": {"type": "string"}
+		},
+		"db_users": {
+		  "type": "array",
+		  "items": {"type": "string"}
 		},
 		"request": {
 		  "type": "object",

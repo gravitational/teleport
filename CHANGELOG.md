@@ -1,5 +1,25 @@
 # Changelog
 
+## 6.0.0-alpha.2
+
+**Note:** This version is a pre-release and is not recommended for production usage.
+
+This release of Teleport contains a number of improvements and bug fixes.
+
+* Enable proxy protocol support for Teleport Kubernetes proxy service: [#5299](https://github.com/gravitational/teleport/pull/5299).
+* Update `tsh db ls` command to include connection information and add `tsh db config` command: [#5319](https://github.com/gravitational/teleport/pull/5319).
+* Fix authentication failure when logging in via CLI with Access Workflows after removing `.tsh` directory: [#5323](https://github.com/gravitational/teleport/pull/5323).
+* Rename Database Access service `database` role to `db`: [#5359](https://github.com/gravitational/teleport/pull/5359).
+* Fix `tsh login` failure when `--proxy` differs from actual proxy public address: [#5380](https://github.com/gravitational/teleport/pull/5380).
+
+## 6.0.0-alpha.1
+
+**Note:** This version is a pre-release and is not recommended for production usage.
+
+This release of Teleport introduces Database Access with PostgreSQL support.
+
+See [Database Access Preview](https://goteleport.com/teleport/docs/preview/database-access/) docs for more information.
+
 ## 5.1.0
 
 This release of Teleport adds a new feature.

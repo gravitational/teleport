@@ -72,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/app"
+	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/system"
 	"github.com/gravitational/teleport/lib/utils"
@@ -105,6 +106,10 @@ const (
 	// AppsIdentityEvent is generated when the identity of the application proxy
 	// service has been registered with the Auth Server.
 	AppsIdentityEvent = "AppsIdentity"
+
+	// DatabasesIdentityEvent is generated when the identity of the database
+	// proxy service has been registered with the auth server.
+	DatabasesIdentityEvent = "DatabasesIdentity"
 
 	// AuthTLSReady is generated when the Auth Server has initialized the
 	// TLS Mutual Auth endpoint and is ready to start accepting connections.
@@ -141,6 +146,10 @@ const (
 	// AppsReady is generated when the Teleport app proxy service is ready to
 	// start accepting connections.
 	AppsReady = "AppsReady"
+
+	// DatabasesReady is generated when the Teleport database proxy service
+	// is ready to start accepting connections.
+	DatabasesReady = "DatabasesReady"
 
 	// TeleportExitEvent is generated when the Teleport process begins closing
 	// all listening sockets and exiting.
@@ -726,6 +735,13 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentApp), process.log)
 	}
 
+	if cfg.Databases.Enabled {
+		process.initDatabases()
+		serviceStarted = true
+	} else {
+		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDatabase), process.log)
+	}
+
 	process.RegisterFunc("common.rotate", process.periodicSyncRotationState)
 
 	if !serviceStarted {
@@ -1292,7 +1308,7 @@ func (process *TeleportProcess) initAuthService() error {
 		Context:   process.ExitContext(),
 		Component: teleport.ComponentAuth,
 		Announcer: authServer,
-		GetServerInfo: func() (services.Server, error) {
+		GetServerInfo: func() (services.Resource, error) {
 			srv := services.ServerV2{
 				Kind:    services.KindAuthServer,
 				Version: services.V2,
@@ -1315,7 +1331,7 @@ func (process *TeleportProcess) initAuthService() error {
 			} else {
 				srv.Spec.Rotation = state.Spec.Rotation
 			}
-			srv.SetTTL(process.Clock, defaults.ServerAnnounceTTL)
+			srv.SetExpiry(process.Clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
 			return &srv, nil
 		},
 		KeepAlivePeriod: defaults.ServerKeepAliveTTL,
@@ -2169,6 +2185,7 @@ type proxyListeners struct {
 	web           net.Listener
 	reverseTunnel net.Listener
 	kube          net.Listener
+	db            net.Listener
 }
 
 func (l *proxyListeners) Close() {
@@ -2183,6 +2200,9 @@ func (l *proxyListeners) Close() {
 	}
 	if l.kube != nil {
 		l.kube.Close()
+	}
+	if l.db != nil {
+		l.db.Close()
 	}
 }
 
@@ -2217,6 +2237,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			Listener:            listener,
 			DisableTLS:          cfg.Proxy.DisableWebService,
 			DisableSSH:          cfg.Proxy.DisableReverseTunnel,
+			DisableDB:           cfg.Proxy.DisableDatabaseProxy,
 			ID:                  teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
 		})
 		if err != nil {
@@ -2224,6 +2245,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			return nil, trace.Wrap(err)
 		}
 		listeners.web = listeners.mux.TLS()
+		listeners.db = listeners.mux.DB()
 		listeners.reverseTunnel = listeners.mux.SSH()
 		go listeners.mux.Serve()
 		return &listeners, nil
@@ -2238,6 +2260,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			Listener:            listener,
 			DisableTLS:          false,
 			DisableSSH:          true,
+			DisableDB:           cfg.Proxy.DisableDatabaseProxy,
 			ID:                  teleport.Component(teleport.ComponentProxy, "web", process.id),
 		})
 		if err != nil {
@@ -2245,6 +2268,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			return nil, trace.Wrap(err)
 		}
 		listeners.web = listeners.mux.TLS()
+		listeners.db = listeners.mux.DB()
 		listeners.reverseTunnel, err = process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 		if err != nil {
 			listener.Close()
@@ -2254,7 +2278,7 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 		go listeners.mux.Serve()
 		return &listeners, nil
 	default:
-		process.log.Debugf("Proxy and reverse tunnel are listening on separate ports.")
+		process.log.Debug("Setup Proxy: Proxy and reverse tunnel are listening on separate ports.")
 		if !cfg.Proxy.DisableReverseTunnel {
 			listeners.reverseTunnel, err = process.importOrCreateListener(listenerProxyTunnel, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 			if err != nil {
@@ -2263,10 +2287,34 @@ func (process *TeleportProcess) setupProxyListeners() (*proxyListeners, error) {
 			}
 		}
 		if !cfg.Proxy.DisableWebService {
-			listeners.web, err = process.importOrCreateListener(listenerProxyWeb, cfg.Proxy.WebAddr.Addr)
+			listener, err := process.importOrCreateListener(listenerProxyWeb, cfg.Proxy.WebAddr.Addr)
 			if err != nil {
 				listeners.Close()
 				return nil, trace.Wrap(err)
+			}
+			// Unless database proxy is explicitly disabled (which is currently
+			// only done by tests and not exposed via file config), the web
+			// listener is multiplexing both web and db client connections.
+			if !cfg.Proxy.DisableDatabaseProxy {
+				process.log.Debug("Setup Proxy: Multiplexing web and database proxy on the same port.")
+				listeners.mux, err = multiplexer.New(multiplexer.Config{
+					EnableProxyProtocol: cfg.Proxy.EnableProxyProtocol,
+					Listener:            listener,
+					DisableTLS:          false, // Web service is enabled or we wouldn't have gotten here.
+					DisableSSH:          true,  // Reverse tunnel is on a separate listener created above.
+					DisableDB:           false, // Database proxy is enabled or we wouldn't have gotten here.
+					ID:                  teleport.Component(teleport.ComponentProxy, "web", process.id),
+				})
+				if err != nil {
+					listener.Close()
+					listeners.Close()
+					return nil, trace.Wrap(err)
+				}
+				listeners.web = listeners.mux.TLS()
+				listeners.db = listeners.mux.DB()
+				go listeners.mux.Serve()
+			} else {
+				listeners.web = listener
 			}
 		}
 		return &listeners, nil
@@ -2621,6 +2669,40 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			err := kubeServer.Serve(listeners.kube)
 			if err != nil && err != http.ErrServerClosed {
 				log.Warningf("Kube TLS server exited with error: %v.", err)
+			}
+			return nil
+		})
+	}
+
+	// Start the database proxy server that will be accepting connections from
+	// the database clients (such as psql or mysql), authenticating them, and
+	// then routing them to a respective database server over the reverse tunnel
+	// framework.
+	if listeners.db != nil && !process.Config.Proxy.DisableReverseTunnel {
+		authorizer, err := auth.NewAuthorizer(conn.Client, conn.Client, conn.Client)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		tlsConfig, err := conn.ServerIdentity.TLSConfig(cfg.CipherSuites)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		dbProxyServer, err := db.NewProxyServer(process.ExitContext(),
+			db.ProxyServerConfig{
+				AuthClient:  conn.Client,
+				AccessPoint: accessPoint,
+				Authorizer:  authorizer,
+				Tunnel:      tsrv,
+				TLSConfig:   tlsConfig,
+			})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		process.RegisterCriticalFunc("proxy.db", func() error {
+			log := logrus.WithField(trace.Component, teleport.Component(teleport.ComponentDatabase))
+			log.Infof("Starting Database proxy server on %v.", cfg.Proxy.WebAddr.Addr)
+			if err := dbProxyServer.Serve(listeners.db); err != nil {
+				log.WithError(err).Warn("Database proxy server exited with error.")
 			}
 			return nil
 		})
@@ -3048,9 +3130,9 @@ func (process *TeleportProcess) Close() error {
 }
 
 func validateConfig(cfg *Config) error {
-	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.Proxy.Enabled && !cfg.Kube.Enabled && !cfg.Apps.Enabled {
+	if !cfg.Auth.Enabled && !cfg.SSH.Enabled && !cfg.Proxy.Enabled && !cfg.Kube.Enabled && !cfg.Apps.Enabled && !cfg.Databases.Enabled {
 		return trace.BadParameter(
-			"config: supply at least one of Auth, SSH, Proxy, or App roles")
+			"config: supply at least one of Auth, SSH, Proxy, App or Database roles")
 	}
 
 	if cfg.DataDir == "" {
@@ -3065,7 +3147,7 @@ func validateConfig(cfg *Config) error {
 		return trace.BadParameter("auth_servers is empty")
 	}
 	for i := range cfg.Auth.Authorities {
-		if err := cfg.Auth.Authorities[i].Check(); err != nil {
+		if err := services.ValidateCertAuthority(cfg.Auth.Authorities[i]); err != nil {
 			return trace.Wrap(err)
 		}
 	}

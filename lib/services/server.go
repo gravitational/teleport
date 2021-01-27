@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 
@@ -36,6 +37,21 @@ const (
 	// Different means that some fields are different
 	Different = iota
 )
+
+// Compare compares two provided resources.
+func Compare(a, b Resource) int {
+	if serverA, ok := a.(Server); ok {
+		if serverB, ok := b.(Server); ok {
+			return CompareServers(serverA, serverB)
+		}
+	}
+	if dbA, ok := a.(types.DatabaseServer); ok {
+		if dbB, ok := b.(types.DatabaseServer); ok {
+			return CompareDatabaseServers(dbA, dbB)
+		}
+	}
+	return Different
+}
 
 // CompareServers returns difference between two server
 // objects, Equal (0) if identical, OnlyTimestampsDifferent(1) if only timestamps differ, Different(2) otherwise
@@ -77,8 +93,8 @@ func CompareServers(a, b Server) int {
 	if a.GetTeleportVersion() != b.GetTeleportVersion() {
 		return Different
 	}
-	// If this server is proxying applications, compare the applications to
-	// make sure they match.
+
+	// If this server is proxying applications, compare them to make sure they match.
 	if a.GetKind() == KindAppServer {
 		return CompareApps(a.GetApps(), b.GetApps())
 	}
@@ -123,6 +139,43 @@ func CompareApps(a []*App, b []*App) int {
 				return Different
 			}
 		}
+	}
+	return Equal
+}
+
+// CompareDatabaseServers returns whether the two provided database servers
+// are equal or different.
+func CompareDatabaseServers(a, b types.DatabaseServer) int {
+	if a.GetKind() != b.GetKind() {
+		return Different
+	}
+	if a.GetName() != b.GetName() {
+		return Different
+	}
+	if a.GetNamespace() != b.GetNamespace() {
+		return Different
+	}
+	if a.GetTeleportVersion() != b.GetTeleportVersion() {
+		return Different
+	}
+	r := a.GetRotation()
+	if !r.Matches(b.GetRotation()) {
+		return Different
+	}
+	if !utils.StringMapsEqual(a.GetStaticLabels(), b.GetStaticLabels()) {
+		return Different
+	}
+	if !CmdLabelMapsEqual(a.GetDynamicLabels(), b.GetDynamicLabels()) {
+		return Different
+	}
+	if !a.Expiry().Equal(b.Expiry()) {
+		return OnlyTimestampsDifferent
+	}
+	if a.GetProtocol() != b.GetProtocol() {
+		return Different
+	}
+	if a.GetURI() != b.GetURI() {
+		return Different
 	}
 	return Equal
 }

@@ -26,12 +26,13 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
-	"github.com/gravitational/teleport/lib/wrappers"
 
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
@@ -82,6 +83,7 @@ var DefaultImplicitRules = []Rule{
 	NewRule(KindAppServer, RO()),
 	NewRule(KindRemoteCluster, RO()),
 	NewRule(KindKubeService, RO()),
+	NewRule(types.KindDatabaseServer, RO()),
 }
 
 // DefaultCertAuthorityRules provides access the minimal set of resources
@@ -136,6 +138,9 @@ func NewAdminRole() Role {
 				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
 				AppLabels:        Labels{Wildcard: []string{Wildcard}},
 				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
+				DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},
+				DatabaseNames:    []string{teleport.TraitInternalDBNamesVariable},
+				DatabaseUsers:    []string{teleport.TraitInternalDBUsersVariable},
 				Rules:            adminRules,
 			},
 		},
@@ -194,6 +199,7 @@ func RoleForUser(u User) Role {
 				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
 				AppLabels:        Labels{Wildcard: []string{Wildcard}},
 				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
+				DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},
 				Rules:            CopyRulesSlice(AdminUserRules),
 			},
 		},
@@ -218,6 +224,7 @@ func RoleForCertAuthority(ca CertAuthority) Role {
 				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
 				AppLabels:        Labels{Wildcard: []string{Wildcard}},
 				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
+				DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},
 				Rules:            CopyRulesSlice(DefaultCertAuthorityRules),
 			},
 		},
@@ -251,6 +258,62 @@ const (
 	// Deny is the set of conditions that prevent access.
 	Deny RoleConditionType = false
 )
+
+// ValidateRole parses validates the role, and sets default values.
+func ValidateRole(r Role) error {
+	if err := r.CheckAndSetDefaults(); err != nil {
+		return err
+	}
+
+	// if we find {{ or }} but the syntax is invalid, the role is invalid
+	for _, condition := range []RoleConditionType{Allow, Deny} {
+		for _, login := range r.GetLogins(condition) {
+			if strings.Contains(login, "{{") || strings.Contains(login, "}}") {
+				_, err := parse.NewExpression(login)
+				if err != nil {
+					return trace.BadParameter("invalid login found: %v", login)
+				}
+			}
+		}
+	}
+
+	rules := append(r.GetRules(types.Allow), r.GetRules(types.Deny)...)
+	for _, rule := range rules {
+		if err := validateRule(rule); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// validateRule parses the where and action fields to validate the rule.
+func validateRule(r Rule) error {
+	if len(r.Where) != 0 {
+		parser, err := NewWhereParser(&Context{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		_, err = parser.Parse(r.Where)
+		if err != nil {
+			return trace.BadParameter("could not parse 'where' rule: %q, error: %v", r.Where, err)
+		}
+	}
+
+	if len(r.Actions) != 0 {
+		parser, err := NewActionsParser(&Context{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		for i, action := range r.Actions {
+			_, err = parser.Parse(action)
+			if err != nil {
+				return trace.BadParameter("could not parse action %v %q, error: %v", i, action, err)
+			}
+		}
+	}
+	return nil
+}
 
 // ApplyTraits applies the passed in traits to any variables within the role
 // and returns itself.
@@ -311,6 +374,36 @@ func ApplyTraits(r Role, traits map[string][]string) Role {
 			outKubeUsers = append(outKubeUsers, variableValues...)
 		}
 		r.SetKubeUsers(condition, utils.Deduplicate(outKubeUsers))
+
+		// apply templates to database names
+		inDbNames := r.GetDatabaseNames(condition)
+		var outDbNames []string
+		for _, name := range inDbNames {
+			variableValues, err := applyValueTraits(name, traits)
+			if err != nil {
+				if !trace.IsNotFound(err) {
+					log.Debugf("Skipping database name %q: %v.", name, err)
+				}
+				continue
+			}
+			outDbNames = append(outDbNames, variableValues...)
+		}
+		r.SetDatabaseNames(condition, utils.Deduplicate(outDbNames))
+
+		// apply templates to database users
+		inDbUsers := r.GetDatabaseUsers(condition)
+		var outDbUsers []string
+		for _, user := range inDbUsers {
+			variableValues, err := applyValueTraits(user, traits)
+			if err != nil {
+				if !trace.IsNotFound(err) {
+					log.Debugf("Skipping database user %q: %v.", user, err)
+				}
+				continue
+			}
+			outDbUsers = append(outDbUsers, variableValues...)
+		}
+		r.SetDatabaseUsers(condition, utils.Deduplicate(outDbUsers))
 
 		// apply templates to node labels
 		inLabels := r.GetNodeLabels(condition)
@@ -382,7 +475,9 @@ func applyValueTraits(val string, traits map[string][]string) ([]string, error) 
 	// For internal traits, only internal.logins, internal.kubernetes_users and
 	// internal.kubernetes_groups are supported at the moment.
 	if variable.Namespace() == teleport.TraitInternalPrefix {
-		if variable.Name() != teleport.TraitLogins && variable.Name() != teleport.TraitKubeGroups && variable.Name() != teleport.TraitKubeUsers {
+		switch variable.Name() {
+		case teleport.TraitLogins, teleport.TraitKubeGroups, teleport.TraitKubeUsers, teleport.TraitDBNames, teleport.TraitDBUsers:
+		default:
 			return nil, trace.BadParameter("unsupported variable %q", variable.Name())
 		}
 	}
@@ -548,6 +643,16 @@ type AccessChecker interface {
 
 	// CheckAccessToKubernetes checks access to a kubernetes cluster.
 	CheckAccessToKubernetes(string, *KubernetesCluster) error
+
+	// CheckDatabaseNamesAndUsers returns database names and users this role
+	// is allowed to use.
+	CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL bool) (names []string, users []string, err error)
+	// CheckAccessToDatabaseServer checks access to the specified database
+	// proxy service.
+	CheckAccessToDatabaseServer(server types.DatabaseServer) error
+	// CheckAccessToDatabase checks whether a user can log into a particular
+	// database as a particular user within the specified database proxy.
+	CheckAccessToDatabase(server types.DatabaseServer, dbName, dbUser string) error
 }
 
 // FromSpec returns new RoleSet created from spec
@@ -729,6 +834,26 @@ func MatchLogin(selectors []string, login string) (bool, string) {
 	return false, fmt.Sprintf("no match, role selectors %v, login: %v", selectors, login)
 }
 
+// MatchDatabaseName returns true if provided database name matches selectors.
+func MatchDatabaseName(selectors []string, name string) (bool, string) {
+	for _, n := range selectors {
+		if n == name || n == Wildcard {
+			return true, "matched"
+		}
+	}
+	return false, fmt.Sprintf("no match, role selectors %v, database name: %v", selectors, name)
+}
+
+// MatchDatabaseUser returns true if provided database user matches selectors.
+func MatchDatabaseUser(selectors []string, user string) (bool, string) {
+	for _, u := range selectors {
+		if u == user || u == Wildcard {
+			return true, "matched"
+		}
+	}
+	return false, fmt.Sprintf("no match, role selectors %v, database user: %v", selectors, user)
+}
+
 // MatchLabels matches selector against target. Empty selector matches
 // nothing, wildcard matches everything.
 func MatchLabels(selector Labels, target map[string]string) (bool, string, error) {
@@ -897,40 +1022,77 @@ func (set RoleSet) CheckKubeGroupsAndUsers(ttl time.Duration, overrideTTL bool) 
 	return utils.StringsSliceFromSet(groups), utils.StringsSliceFromSet(users), nil
 }
 
-// CheckLoginDuration checks if role set can login up to given duration and
-// returns a combined list of allowed logins.
-func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
-	logins := make(map[string]bool)
+// CheckDatabaseNamesAndUsers checks if the role has any allowed database
+// names or users.
+func (set RoleSet) CheckDatabaseNamesAndUsers(ttl time.Duration, overrideTTL bool) ([]string, []string, error) {
+	names := make(map[string]struct{})
+	users := make(map[string]struct{})
 	var matchedTTL bool
 	for _, role := range set {
 		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
-		if ttl <= maxSessionTTL && maxSessionTTL != 0 {
+		if overrideTTL || (ttl <= maxSessionTTL && maxSessionTTL != 0) {
 			matchedTTL = true
-
-			for _, login := range role.GetLogins(Allow) {
-				logins[login] = true
+			for _, name := range role.GetDatabaseNames(Allow) {
+				names[name] = struct{}{}
+			}
+			for _, user := range role.GetDatabaseUsers(Allow) {
+				users[user] = struct{}{}
 			}
 		}
 	}
+	for _, role := range set {
+		for _, name := range role.GetDatabaseNames(Deny) {
+			delete(names, name)
+		}
+		for _, user := range role.GetDatabaseUsers(Deny) {
+			delete(users, user)
+		}
+	}
+	if !matchedTTL {
+		return nil, nil, trace.AccessDenied("this user cannot request database access for %v", ttl)
+	}
+	if len(names) == 0 && len(users) == 0 {
+		return nil, nil, trace.NotFound("this user cannot request database access, has no assigned database names or users")
+	}
+	return utils.StringsSliceFromSet(names), utils.StringsSliceFromSet(users), nil
+}
+
+// CheckLoginDuration checks if role set can login up to given duration and
+// returns a combined list of allowed logins.
+func (set RoleSet) CheckLoginDuration(ttl time.Duration) ([]string, error) {
+	logins, matchedTTL := set.GetLoginsForTTL(ttl)
 	if !matchedTTL {
 		return nil, trace.AccessDenied("this user cannot request a certificate for %v", ttl)
 	}
+
 	if len(logins) == 0 && !set.hasPossibleLogins() {
 		// user was deliberately configured to have no login capability,
 		// but ssh certificates must contain at least one valid principal.
 		// we add a single distinctive value which should be unique, and
 		// will never be a valid unix login (due to leading '-').
-		logins["-teleport-nologin-"+uuid.New()] = true
+		logins = []string{"-teleport-nologin-" + uuid.New()}
 	}
 
 	if len(logins) == 0 {
 		return nil, trace.AccessDenied("this user cannot create SSH sessions, has no allowed logins")
 	}
-	out := make([]string, 0, len(logins))
-	for login := range logins {
-		out = append(out, login)
+
+	return logins, nil
+}
+
+// GetLoginsForTTL collects all logins that are valid for the given TTL.  The matchedTTL
+// value indicates whether the TTL is within scope of *any* role.  This helps to distinguish
+// between TTLs which are categorically invalid, and TTLs which are theoretically valid
+// but happen to grant no logins.
+func (set RoleSet) GetLoginsForTTL(ttl time.Duration) (logins []string, matchedTTL bool) {
+	for _, role := range set {
+		maxSessionTTL := role.GetOptions().MaxSessionTTL.Value()
+		if ttl <= maxSessionTTL && maxSessionTTL != 0 {
+			matchedTTL = true
+			logins = append(logins, role.GetLogins(Allow)...)
+		}
 	}
-	return out, nil
+	return utils.Deduplicate(logins), matchedTTL
 }
 
 // CheckAccessToRemoteCluster checks if a role has access to remote cluster. Deny rules are
@@ -1185,6 +1347,98 @@ func (set RoleSet) CheckAccessToKubernetes(namespace string, kube *KubernetesClu
 	return trace.AccessDenied("access to kubernetes cluster denied")
 }
 
+// CheckAccessToDatabaseServer checks if this role set has access to the
+// specified database server.
+//
+// Used to filter available databases a user sees with "tsh db ls" command.
+func (set RoleSet) CheckAccessToDatabaseServer(server types.DatabaseServer) error {
+	var errs []error
+	// Check deny rules.
+	for _, role := range set {
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), server.GetNamespace())
+		matchLabels, labelsMessage, err := MatchLabels(role.GetDatabaseLabels(Deny), server.GetAllLabels())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matchNamespace && matchLabels {
+			log.WithField(trace.Component, teleport.ComponentRBAC).Debugf(
+				"Access to database %q denied, deny rule in %q matched; match(namespace=%v, label=%v).",
+				server.GetName(), role.GetName(), namespaceMessage, labelsMessage)
+			return trace.AccessDenied("access to database denied")
+		}
+	}
+	// Check allow rules.
+	for _, role := range set {
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), server.GetNamespace())
+		matchLabels, labelsMessage, err := MatchLabels(role.GetDatabaseLabels(Allow), server.GetAllLabels())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if matchNamespace && matchLabels {
+			log.WithField(trace.Component, teleport.ComponentRBAC).Debugf(
+				"Access to database %q granted, allow rule in %q matched; match(namespace=%v, label=%v).",
+				server.GetName(), role.GetName(), namespaceMessage, labelsMessage)
+			return nil
+		}
+		if log.GetLevel() == log.DebugLevel {
+			deniedError := trace.AccessDenied("role=%v, match(namespace=%v, label=%v)",
+				role.GetName(), namespaceMessage, labelsMessage)
+			errs = append(errs, deniedError)
+		}
+	}
+	log.WithField(trace.Component, teleport.ComponentRBAC).Debugf(
+		"Access to database %q denied, no allow rule matched; %v.", server.GetName(), errs)
+	return trace.AccessDenied("access to database denied")
+}
+
+// CheckAccessToDatabase checks if this role set has access to a particular
+// database and database user within the specified database proxy.
+//
+// Used as an authorization check when a user connects to a database.
+func (set RoleSet) CheckAccessToDatabase(server types.DatabaseServer, dbName, dbUser string) error {
+	var errs []error
+	// Check deny rules.
+	for _, role := range set {
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Deny), server.GetNamespace())
+		matchLabels, labelsMessage, err := MatchLabels(role.GetDatabaseLabels(Deny), server.GetAllLabels())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		matchName, nameMessage := MatchDatabaseName(role.GetDatabaseNames(Deny), dbName)
+		matchUser, userMessage := MatchDatabaseUser(role.GetDatabaseUsers(Deny), dbUser)
+		if matchNamespace && matchLabels && (matchName || matchUser) {
+			log.WithField(trace.Component, teleport.ComponentRBAC).Debugf(
+				"Access to database %q (dbname=%v, dbuser=%v) denied, deny rule in %q matched; match(namespace=%v, label=%v, dbname=%v, dbuser=%v).",
+				server.GetName(), dbName, dbUser, role.GetName(), namespaceMessage, labelsMessage, nameMessage, userMessage)
+			return trace.AccessDenied("access to database denied")
+		}
+	}
+	// Check allow rules.
+	for _, role := range set {
+		matchNamespace, namespaceMessage := MatchNamespace(role.GetNamespaces(Allow), server.GetNamespace())
+		matchLabels, labelsMessage, err := MatchLabels(role.GetDatabaseLabels(Allow), server.GetAllLabels())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		matchName, nameMessage := MatchDatabaseName(role.GetDatabaseNames(Allow), dbName)
+		matchUser, userMessage := MatchDatabaseUser(role.GetDatabaseUsers(Allow), dbUser)
+		if matchNamespace && matchLabels && matchName && matchUser {
+			log.WithField(trace.Component, teleport.ComponentRBAC).Debugf(
+				"Access to database %q (dbname=%v, dbuser=%v) granted, allow rule in %q matched; match(namespace=%v, label=%v, dbname=%v, dbuser=%v).",
+				server.GetName(), dbName, dbUser, role.GetName(), namespaceMessage, labelsMessage, nameMessage, userMessage)
+			return nil
+		}
+		if log.GetLevel() == log.DebugLevel {
+			deniedError := trace.AccessDenied("role=%v, match(namespace=%v, label=%v, dbname=%v, dbuser=%v)",
+				role.GetName(), namespaceMessage, labelsMessage, nameMessage, userMessage)
+			errs = append(errs, deniedError)
+		}
+	}
+	log.WithField(trace.Component, teleport.ComponentRBAC).Debugf(
+		"Access to database %q (dbname=%v, dbuser=%v) denied, no allow rule matched; %v.", server.GetName(), dbName, dbUser, errs)
+	return trace.AccessDenied("access to database denied")
+}
+
 // CanForwardAgents returns true if role set allows forwarding agents.
 func (set RoleSet) CanForwardAgents() bool {
 	for _, role := range set {
@@ -1303,11 +1557,11 @@ func (set RoleSet) String() string {
 // namespace to the specified resource and verb.
 // silent controls whether the access violations are logged.
 func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource string, verb string, silent bool) error {
-	whereParser, err := GetWhereParserFn()(ctx)
+	whereParser, err := NewWhereParser(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	actionsParser, err := GetActionsParserFn()(ctx)
+	actionsParser, err := NewActionsParser(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

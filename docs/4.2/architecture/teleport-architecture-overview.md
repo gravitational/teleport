@@ -4,10 +4,6 @@ This guide is for those looking for a deeper understanding of Teleport. If you
 are looking for hands-on instructions on how to set up Teleport for your team,
 check out the [Admin Guide](../admin-guide.md)
 
-**Table of Contents**
-
-[TOC]
-
 ## Design Principles
 
 Teleport was designed in accordance with the following principles:

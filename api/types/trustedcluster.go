@@ -22,11 +22,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 // TrustedCluster holds information needed for a cluster that can not be directly
@@ -134,19 +132,6 @@ func (c *TrustedClusterV2) CheckAndSetDefaults() error {
 	if len(c.Spec.Roles) != 0 && len(c.Spec.RoleMap) != 0 {
 		return trace.BadParameter("should set either 'roles' or 'role_map', not both")
 	}
-	// we are not mentioning Roles parameter because we are deprecating it
-	if len(c.Spec.Roles) == 0 && len(c.Spec.RoleMap) == 0 {
-		if err := modules.GetModules().EmptyRolesHandler(); err != nil {
-			return trace.Wrap(err)
-		}
-		// OSS teleport uses 'admin' by default:
-		c.Spec.RoleMap = RoleMap{
-			RoleMapping{
-				Remote: teleport.AdminRoleName,
-				Local:  []string{teleport.AdminRoleName},
-			},
-		}
-	}
 	// Imply that by default proxy listens on the same port for
 	// web and reverse tunnel connections
 	if c.Spec.ReverseTunnelAddress == "" {
@@ -222,8 +207,10 @@ func (c *TrustedClusterV2) Expiry() time.Time {
 	return c.Metadata.Expiry()
 }
 
-// SetTTL sets Expires header using realtime clock
-func (c *TrustedClusterV2) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+// SetTTL sets Expires header using the provided clock.
+// Use SetExpiry instead.
+// DELETE IN 7.0.0
+func (c *TrustedClusterV2) SetTTL(clock Clock, ttl time.Duration) {
 	c.Metadata.SetTTL(clock, ttl)
 }
 

@@ -720,7 +720,7 @@ func (s *Server) GetInfo() services.Server {
 	}
 }
 
-func (s *Server) getServerInfo() (services.Server, error) {
+func (s *Server) getServerInfo() (services.Resource, error) {
 	server := s.GetInfo()
 	if s.getRotation != nil {
 		rotation, err := s.getRotation(s.getRole())
@@ -732,7 +732,7 @@ func (s *Server) getServerInfo() (services.Server, error) {
 			server.SetRotation(*rotation)
 		}
 	}
-	server.SetTTL(s.clock, defaults.ServerAnnounceTTL)
+	server.SetExpiry(s.clock.Now().UTC().Add(defaults.ServerAnnounceTTL))
 	server.SetPublicAddr(s.proxyPublicAddr.String())
 	return server, nil
 }
