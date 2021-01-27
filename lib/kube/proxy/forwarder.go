@@ -581,13 +581,14 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	//
 	// We assume that users won't register two identically-named clusters with
 	// mis-matched labels. If they do, expect weirdness.
+	clusterNotFound := trace.AccessDenied("kubernetes cluster %q not found", actx.kubeCluster)
 	for _, s := range servers {
 		for _, ks := range s.GetKubernetesClusters() {
 			if ks.Name != actx.kubeCluster {
 				continue
 			}
 			if err := actx.Checker.CheckAccessToKubernetes(s.GetNamespace(), ks, actx.Identity.GetIdentity().MFAVerified); err != nil {
-				return trace.Wrap(err)
+				return clusterNotFound
 			}
 			return nil
 		}
@@ -596,7 +597,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		f.log.WithField("auth_context", actx.String()).Debug("Skipping authorization for proxy-based kubernetes cluster,")
 		return nil
 	}
-	return trace.AccessDenied("kubernetes cluster %q not found", actx.kubeCluster)
+	return clusterNotFound
 }
 
 // newStreamer returns sync or async streamer based on the configuration
