@@ -265,14 +265,27 @@ func TestInvalidDir(t *testing.T) {
 	for _, tt := range testCases {
 		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			scp, in, out, _ := newCmd("scp", "-v", "-r", "-f", tt.inDirName)
-			rw := &readWriter{out, in}
+			t.Parallel()
+
+			scp, stdin, stdout, stderr := newCmd("scp", "-v", "-r", "-f", tt.inDirName)
+			rw := &readWriter{r: stdout, w: stdin}
+
+			doneC := make(chan struct{})
+			// Service stderr
+			go func() {
+				io.Copy(ioutil.Discard, stderr)
+				close(doneC)
+			}()
 
 			err := scp.Start()
 			require.NoError(t, err)
 
 			err = cmd.Execute(rw)
 			require.Regexp(t, tt.err, err)
+
+			stdin.Close()
+			<-doneC
+			scp.Wait()
 		})
 	}
 }
@@ -365,26 +378,26 @@ func TestSCPParsing(t *testing.T) {
 }
 
 func runSCP(cmd Command, args ...string) error {
-	scp, in, out, _ := newCmd("scp", args...)
-	rw := &readWriter{out, in}
+	scp, stdin, stdout, _ := newCmd("scp", args...)
+	rw := &readWriter{r: stdout, w: stdin}
 
 	errCh := make(chan error, 1)
 
 	go func() {
+		defer close(errCh)
 		if err := scp.Start(); err != nil {
-			errCh <- trace.Wrap(err)
+			errCh <- err
 			return
 		}
 		if err := cmd.Execute(rw); err != nil {
-			errCh <- trace.Wrap(err)
+			errCh <- err
 			return
 		}
-		in.Close()
+		stdin.Close()
 		if err := scp.Wait(); err != nil {
-			errCh <- trace.Wrap(err)
+			errCh <- err
 			return
 		}
-		close(errCh)
 	}()
 
 	select {

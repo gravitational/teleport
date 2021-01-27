@@ -403,10 +403,10 @@ func (cmd *command) serveSink(ch io.ReadWriter) error {
 	}
 	var st state
 	st.path = localDir
-	var b = make([]byte, 1)
+	var b [1]byte
 	scanner := bufio.NewScanner(ch)
 	for {
-		n, err := ch.Read(b)
+		n, err := ch.Read(b[:])
 		if err != nil {
 			if err == io.EOF {
 				return nil
