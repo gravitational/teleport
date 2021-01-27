@@ -61,6 +61,9 @@ const (
 	DefaultFormat = FormatFile
 )
 
+// KnownFormats is a list of all above formats.
+var KnownFormats = []Format{FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase}
+
 const (
 	// The files created by Write will have these permissions.
 	writeFileMode = 0600
@@ -206,8 +209,7 @@ func Write(cfg WriteConfig) (filesWritten []string, err error) {
 		}
 
 	default:
-		return nil, trace.BadParameter("unsupported identity format: %q, use one of %q, %q, %q, %q or %q",
-			cfg.Format, FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase)
+		return nil, trace.BadParameter("unsupported identity format: %q, use one of %q", cfg.Format, KnownFormats)
 	}
 	return filesWritten, nil
 }
