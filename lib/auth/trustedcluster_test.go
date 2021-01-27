@@ -85,18 +85,22 @@ func TestRemoteClusterStatus(t *testing.T) {
 	require.Empty(t, cmp.Diff(rc, gotRC))
 }
 
-func newTestAuthServer(t *testing.T) *Server {
+func newTestAuthServer(t *testing.T, name ...string) *Server {
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
 	t.Cleanup(func() { bk.Close() })
 
+	clusterName := "me.localhost"
+	if len(name) != 0 {
+		clusterName = name[0]
+	}
 	// Create a cluster with minimal viable config.
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
+	clusterNameRes, err := services.NewClusterName(services.ClusterNameSpecV2{
+		ClusterName: clusterName,
 	})
 	require.NoError(t, err)
 	authConfig := &InitConfig{
-		ClusterName:            clusterName,
+		ClusterName:            clusterNameRes,
 		Backend:                bk,
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,

@@ -82,6 +82,7 @@ Same as above, but using JSON output:
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	rc.CreateHandlers = map[ResourceKind]ResourceCreateHandler{
 		services.KindUser:            rc.createUser,
+		services.KindRole:            rc.createRole,
 		services.KindTrustedCluster:  rc.createTrustedCluster,
 		services.KindGithubConnector: rc.createGithubConnector,
 		services.KindCertAuthority:   rc.createCertAuthority,
@@ -338,6 +339,33 @@ func (rc *ResourceCommand) createGithubConnector(client auth.ClientI, raw servic
 	return nil
 }
 
+// createConnector implements 'tctl create role.yaml' command
+func (rc *ResourceCommand) createRole(client auth.ClientI, raw services.UnknownResource) error {
+	ctx := context.TODO()
+	role, err := services.UnmarshalRole(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	err = role.CheckAndSetDefaults()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	roleName := role.GetName()
+	_, err = client.GetRole(roleName)
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	roleExists := (err == nil)
+	if roleExists && !rc.IsForced() {
+		return trace.AlreadyExists("role '%s' already exists", roleName)
+	}
+	if err := client.UpsertRole(ctx, role); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("role '%s' has been %s\n", roleName, UpsertVerb(roleExists, rc.IsForced()))
+	return nil
+}
+
 // createUser implements 'tctl create user.yaml' command.
 func (rc *ResourceCommand) createUser(client auth.ClientI, raw services.UnknownResource) error {
 	user, err := services.UnmarshalUser(raw.Raw)
@@ -394,6 +422,11 @@ func (rc *ResourceCommand) Delete(client auth.ClientI) (err error) {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("user %q has been deleted\n", rc.ref.Name)
+	case services.KindRole:
+		if err = client.DeleteRole(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("role %q has been deleted\n", rc.ref.Name)
 	case services.KindSAMLConnector:
 		if err = client.DeleteSAMLConnector(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
