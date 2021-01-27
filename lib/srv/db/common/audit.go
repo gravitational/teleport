@@ -57,11 +57,12 @@ func NewAudit(config AuditConfig) (*Audit, error) {
 }
 
 // OnSessionStart emits an audit event when database session starts.
-func (a *Audit) OnSessionStart(ctx context.Context, session Session, err error) error {
+func (a *Audit) OnSessionStart(ctx context.Context, session Session, sessionErr error) error {
 	event := &events.DatabaseSessionStart{
 		Metadata: events.Metadata{
-			Type: libevents.DatabaseSessionStartEvent,
-			Code: libevents.DatabaseSessionStartCode,
+			Type:        libevents.DatabaseSessionStartEvent,
+			Code:        libevents.DatabaseSessionStartCode,
+			ClusterName: session.ClusterName,
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        session.Server.GetHostID(),
@@ -84,23 +85,30 @@ func (a *Audit) OnSessionStart(ctx context.Context, session Session, err error) 
 			DatabaseUser:     session.DatabaseUser,
 		},
 	}
-	if err != nil {
+	// If the database session wasn't started successfully, emit
+	// a failure event with error details.
+	if sessionErr != nil {
 		event.Metadata.Code = libevents.DatabaseSessionStartFailureCode
 		event.Status = events.Status{
 			Success:     false,
-			Error:       trace.Unwrap(err).Error(),
-			UserMessage: err.Error(),
+			Error:       trace.Unwrap(sessionErr).Error(),
+			UserMessage: sessionErr.Error(),
 		}
 	}
-	return a.cfg.StreamWriter.EmitAuditEvent(ctx, event)
+	err := a.cfg.StreamWriter.EmitAuditEvent(ctx, event)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // OnSessionEnd emits an audit event when database session ends.
 func (a *Audit) OnSessionEnd(ctx context.Context, session Session) error {
-	return a.cfg.StreamWriter.EmitAuditEvent(ctx, &events.DatabaseSessionEnd{
+	err := a.cfg.StreamWriter.EmitAuditEvent(ctx, &events.DatabaseSessionEnd{
 		Metadata: events.Metadata{
-			Type: libevents.DatabaseSessionEndEvent,
-			Code: libevents.DatabaseSessionEndCode,
+			Type:        libevents.DatabaseSessionEndEvent,
+			Code:        libevents.DatabaseSessionEndCode,
+			ClusterName: session.ClusterName,
 		},
 		UserMetadata: events.UserMetadata{
 			User: session.Identity.Username,
@@ -116,14 +124,19 @@ func (a *Audit) OnSessionEnd(ctx context.Context, session Session) error {
 			DatabaseUser:     session.DatabaseUser,
 		},
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // OnQuery emits an audit event when a database query is executed.
 func (a *Audit) OnQuery(ctx context.Context, session Session, query string) error {
-	return a.cfg.StreamWriter.EmitAuditEvent(ctx, &events.DatabaseSessionQuery{
+	err := a.cfg.StreamWriter.EmitAuditEvent(ctx, &events.DatabaseSessionQuery{
 		Metadata: events.Metadata{
-			Type: libevents.DatabaseSessionQueryEvent,
-			Code: libevents.DatabaseSessionQueryCode,
+			Type:        libevents.DatabaseSessionQueryEvent,
+			Code:        libevents.DatabaseSessionQueryCode,
+			ClusterName: session.ClusterName,
 		},
 		UserMetadata: events.UserMetadata{
 			User: session.Identity.Username,
@@ -140,4 +153,8 @@ func (a *Audit) OnQuery(ctx context.Context, session Session, query string) erro
 		},
 		DatabaseQuery: query,
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }

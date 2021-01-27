@@ -415,6 +415,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	id := uuid.New()
 	return &common.Session{
 		ID:                id,
+		ClusterName:       identity.RouteToCluster,
 		Server:            server,
 		Identity:          identity,
 		DatabaseUser:      identity.RouteToDatabase.Username,
