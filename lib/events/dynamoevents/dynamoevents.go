@@ -160,6 +160,10 @@ const (
 	// of the events by time
 	indexTimeSearch = "timesearch"
 
+	// maxPageSizeKbs is the maximum size (900KB) of dynamo db response
+	// according to documentation.
+	maxPageSizeKbs = 900
+
 	// DefaultReadCapacityUnits specifies default value for read capacity units
 	DefaultReadCapacityUnits = 10
 
@@ -503,11 +507,11 @@ func (l *Log) SearchEvents(fromUTC, toUTC time.Time, filter string, limit int) (
 	var lastEvaluatedKey map[string]*dynamodb.AttributeValue
 	var total int
 
-	// We iterate over the responses until we roughly hit 100MB in size. This is an arbitrary limit to prevent
-	// runaway loops.
-	// DynamoDB reponses are capped at 900KB according to their documentation.
-	const maxResponseSize = 100 * 1024
-	for responseSize := 0; responseSize < maxResponseSize; responseSize += 900 {
+	// We iterate over the responses until we roughly hit ~90MB in size.
+	// This is an arbitrary limit to prevent runaway loops.
+	const maxResponseSizeKbs = maxPageSizeKbs * 100
+
+	for responseSize := 0; responseSize < maxResponseSizeKbs; responseSize += maxPageSizeKbs {
 		input := dynamodb.QueryInput{
 			KeyConditionExpression:    aws.String(query),
 			TableName:                 aws.String(l.Tablename),
