@@ -966,7 +966,7 @@ func executeAccessRequest(cf *CLIConf) error {
 	}
 	req, err := services.NewAccessRequest(cf.Username, roles...)
 	if err != nil {
-		return trace.Wrap(err)
+		trace.Wrap(err)
 	}
 	req.SetRequestReason(cf.RequestReason)
 	fmt.Fprintf(os.Stderr, "Seeking request approval... (id: %s)\n", req.GetName())

@@ -1096,7 +1096,7 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 				}
 				return nil, trace.AccessDenied("access-request %q is awaiting approval", reqID)
 			}
-			if err := services.ValidateAccessRequest(a.authServer, accessReq); err != nil {
+			if err := services.ValidateAccessRequestForUser(a.authServer, accessReq); err != nil {
 				return nil, trace.Wrap(err)
 			}
 			aexp := accessReq.GetAccessExpiry()

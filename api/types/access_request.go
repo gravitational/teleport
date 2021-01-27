@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/pborman/uuid"
 )
 
 // AccessRequest is a request for temporarily granted roles
@@ -74,24 +73,15 @@ type AccessRequest interface {
 	Equals(AccessRequest) bool
 }
 
-// NewAccessRequest assembled an AccessRequest resource.
-func NewAccessRequest(user string, roles ...string) (AccessRequest, error) {
-	req := AccessRequestV3{
-		Kind:    KindAccessRequest,
-		Version: V3,
-		Metadata: Metadata{
-			Name: uuid.New(),
-		},
+// NewAccessRequest assembles an AccessRequest resource for client usages.
+func NewAccessRequest(user string, roles ...string) AccessRequest {
+	return &AccessRequestV3{
 		Spec: AccessRequestSpecV3{
 			User:  user,
 			Roles: roles,
 			State: RequestState_PENDING,
 		},
 	}
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &req, nil
 }
 
 // GetUser gets User
@@ -186,41 +176,21 @@ func (r *AccessRequestV3) SetSystemAnnotations(annotations map[string][]string) 
 	r.Spec.SystemAnnotations = annotations
 }
 
-// CheckAndSetDefaults validates set values and sets default values
+// CheckAndSetDefaults checks required values and sets default values
 func (r *AccessRequestV3) CheckAndSetDefaults() error {
-	if err := r.Metadata.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	if r.GetState().IsNone() {
-		if err := r.SetState(RequestState_PENDING); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	if err := r.Check(); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
+	r.Kind = KindAccessRequest
+	r.Version = V3
 
-// Check validates AccessRequest values
-func (r *AccessRequestV3) Check() error {
-	if r.Kind == "" {
-		return trace.BadParameter("access request kind not set")
-	}
-	if r.Version == "" {
-		return trace.BadParameter("access request version not set")
-	}
-	if r.GetName() == "" {
-		return trace.BadParameter("access request id not set")
-	}
-	if uuid.Parse(r.GetName()) == nil {
-		return trace.BadParameter("invalid access request id %q", r.GetName())
-	}
 	if r.GetUser() == "" {
 		return trace.BadParameter("access request user name not set")
 	}
 	if len(r.GetRoles()) < 1 {
 		return trace.BadParameter("access request does not specify any roles")
+	}
+	if r.GetState().IsNone() {
+		if err := r.SetState(RequestState_PENDING); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	if r.GetState().IsPending() {
 		if r.GetResolveReason() != "" {
@@ -230,7 +200,9 @@ func (r *AccessRequestV3) Check() error {
 			return trace.BadParameter("pending requests cannot include resolve annotations")
 		}
 	}
-	return nil
+
+	err := r.Metadata.CheckAndSetDefaults()
+	return trace.Wrap(err)
 }
 
 // GetKind gets Kind

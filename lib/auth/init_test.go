@@ -179,9 +179,7 @@ func (s *AuthInitSuite) TestAuthPreference(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
-	})
+	clusterName, err := services.NewClusterName("me.localhost")
 	c.Assert(err, IsNil)
 	staticTokens, err := services.NewStaticTokens(services.StaticTokensSpecV2{
 		StaticTokens: []services.ProvisionTokenV1{},
@@ -217,9 +215,7 @@ func (s *AuthInitSuite) TestClusterID(c *C) {
 	bk, err := lite.New(context.TODO(), backend.Params{"path": c.MkDir()})
 	c.Assert(err, IsNil)
 
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
-	})
+	clusterName, err := services.NewClusterName("me.localhost")
 	c.Assert(err, IsNil)
 
 	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
@@ -271,9 +267,7 @@ func (s *AuthInitSuite) TestClusterName(c *C) {
 	bk, err := lite.New(context.TODO(), backend.Params{"path": c.MkDir()})
 	c.Assert(err, IsNil)
 
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
-	})
+	clusterName, err := services.NewClusterName("me.localhost")
 	c.Assert(err, IsNil)
 
 	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
@@ -297,9 +291,7 @@ func (s *AuthInitSuite) TestClusterName(c *C) {
 
 	// Start the auth server with a different cluster name. The auth server
 	// should start, but with the original name.
-	clusterName, err = services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "dev.localhost",
-	})
+	clusterName, err = services.NewClusterName("dev.localhost")
 	c.Assert(err, IsNil)
 
 	authServer, err = Init(InitConfig{
@@ -325,9 +317,7 @@ func (s *AuthInitSuite) TestCASigningAlg(c *C) {
 	bk, err := lite.New(context.TODO(), backend.Params{"path": c.MkDir()})
 	c.Assert(err, IsNil)
 
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
-	})
+	clusterName, err := services.NewClusterName("me.localhost")
 	c.Assert(err, IsNil)
 
 	authPreference, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{

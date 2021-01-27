@@ -685,9 +685,7 @@ func (c ClusterName) Parse() (services.ClusterName, error) {
 	if string(c) == "" {
 		return nil, nil
 	}
-	return services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: string(c),
-	})
+	return services.NewClusterName(string(c))
 }
 
 type StaticTokens []StaticToken

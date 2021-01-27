@@ -19,9 +19,19 @@ package services
 import (
 	"fmt"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
+
+// NewClusterName assembles a validated ClusterName resource
+func NewClusterName(clusterName string) (types.ClusterName, error) {
+	cn := types.NewClusterName(clusterName)
+	if err := cn.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cn, nil
+}
 
 // ClusterNameSpecSchemaTemplate is a template for ClusterName schema.
 const ClusterNameSpecSchemaTemplate = `{

@@ -54,9 +54,7 @@ func (s *SAMLSuite) SetUpSuite(c *check.C) {
 	})
 	c.Assert(err, check.IsNil)
 
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
-	})
+	clusterName, err := services.NewClusterName("me.localhost")
 	c.Assert(err, check.IsNil)
 
 	authConfig := &InitConfig{

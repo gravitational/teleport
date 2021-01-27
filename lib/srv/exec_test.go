@@ -85,12 +85,9 @@ func (s *ExecSuite) SetUpSuite(c *check.C) {
 	bk, err := lite.NewWithConfig(context.TODO(), lite.Config{Path: c.MkDir()})
 	c.Assert(err, check.IsNil)
 
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "localhost",
-	})
+	clusterName, err := services.NewClusterName("localhost")
 	c.Assert(err, check.IsNil)
 
-	c.Assert(err, check.IsNil)
 	s.a, err = auth.NewServer(&auth.InitConfig{
 		Backend:     bk,
 		Authority:   authority.New(),

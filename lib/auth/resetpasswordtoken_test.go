@@ -53,9 +53,7 @@ func (s *ResetPasswordTokenTest) SetUpTest(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// set cluster name
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
-	})
+	clusterName, err := services.NewClusterName("me.localhost")
 	c.Assert(err, check.IsNil)
 	authConfig := &InitConfig{
 		ClusterName:            clusterName,

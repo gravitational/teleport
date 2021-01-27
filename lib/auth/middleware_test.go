@@ -40,9 +40,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 	)
 	s := newTestServices(t)
 	// Set up local cluster name in the backend.
-	cn, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: localClusterName,
-	})
+	cn, err := services.NewClusterName(localClusterName)
 	require.NoError(t, err)
 	require.NoError(t, s.UpsertClusterName(cn))
 

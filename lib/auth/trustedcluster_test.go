@@ -98,9 +98,7 @@ func newTestAuthServer(t *testing.T) *Server {
 	t.Cleanup(func() { bk.Close() })
 
 	// Create a cluster with minimal viable config.
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
-	})
+	clusterName, err := services.NewClusterName("me.localhost")
 	require.NoError(t, err)
 	authConfig := &InitConfig{
 		ClusterName:            clusterName,

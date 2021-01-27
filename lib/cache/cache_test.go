@@ -844,9 +844,7 @@ func (s *CacheSuite) TestClusterConfig(c *check.C) {
 	fixtures.DeepCompare(c, clusterConfig, out)
 
 	// update cluster name resource metadata
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "example.com",
-	})
+	clusterName, err := services.NewClusterName("example.com")
 	c.Assert(err, check.IsNil)
 	err = p.clusterConfigS.SetClusterName(clusterName)
 	c.Assert(err, check.IsNil)

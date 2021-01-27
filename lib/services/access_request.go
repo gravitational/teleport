@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
 
@@ -27,6 +28,26 @@ import (
 
 	"github.com/pborman/uuid"
 )
+
+// ValidateAccessRequest validates required values and sets default values.
+func ValidateAccessRequest(r types.AccessRequest) error {
+	if id := r.GetName(); id == "" {
+		r.SetName(uuid.New())
+	} else if uuid.Parse(id) == nil {
+		return trace.BadParameter("invalid access request id %q", id)
+	}
+	err := r.CheckAndSetDefaults()
+	return trace.Wrap(err)
+}
+
+// NewAccessRequest assembles a validated AccessRequest rsource.
+func NewAccessRequest(user string, roles ...string) (types.AccessRequest, error) {
+	req := types.NewAccessRequest(user, roles...)
+	if err := ValidateAccessRequest(req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return req, nil
+}
 
 // RequestIDs is a collection of IDs for privilege escalation requests.
 type RequestIDs struct {
@@ -406,11 +427,11 @@ func ApplySystemAnnotations(annotate bool) ValidateRequestOption {
 	}
 }
 
-// ValidateAccessRequest validates an access request against the associated users's
+// ValidateAccessRequestForUser validates an access request against the associated users's
 // *statically assigned* roles. If expandRoles is true, it will also expand wildcard
 // requests, setting their role list to include all roles the user is allowed to request.
 // Expansion should be performed before an access request is initially placed in the backend.
-func ValidateAccessRequest(getter UserAndRoleGetter, req AccessRequest, opts ...ValidateRequestOption) error {
+func ValidateAccessRequestForUser(getter UserAndRoleGetter, req AccessRequest, opts ...ValidateRequestOption) error {
 	v, err := NewRequestValidator(getter, req.GetUser(), opts...)
 	if err != nil {
 		return trace.Wrap(err)
@@ -458,9 +479,6 @@ func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (AccessRequest, 
 		if err := utils.UnmarshalWithSchema(GetAccessRequestSchema(), &req, data); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	}
-	if err := req.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
 	}
 	if cfg.ID != 0 {
 		req.SetResourceID(cfg.ID)

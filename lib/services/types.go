@@ -124,8 +124,6 @@ type (
 )
 
 var (
-	NewAccessRequest = types.NewAccessRequest
-
 	RequestStrategyOptional = types.RequestStrategyOptional
 	RequestStrategyReason   = types.RequestStrategyReason
 	RequestStrategyAlways   = types.RequestStrategyAlways
@@ -186,10 +184,6 @@ var (
 
 // clustername.go
 type ClusterName = types.ClusterName
-
-var (
-	NewClusterName = types.NewClusterName
-)
 
 // duration.go
 type Duration = types.Duration

@@ -1120,9 +1120,7 @@ func (s *ServicesTestSuite) ClusterConfig(c *check.C, opts ...Option) {
 	_, err = s.ConfigS.GetClusterConfig()
 	fixtures.ExpectNotFound(c, err)
 
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "example.com",
-	})
+	clusterName, err := services.NewClusterName("example.com")
 	c.Assert(err, check.IsNil)
 
 	err = s.ConfigS.SetClusterName(clusterName)
@@ -1687,9 +1685,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(c *check.C) {
 				Kind: services.KindClusterName,
 			},
 			crud: func() services.Resource {
-				clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-					ClusterName: "example.com",
-				})
+				clusterName, err := services.NewClusterName("example.com")
 				c.Assert(err, check.IsNil)
 
 				err = s.ConfigS.SetClusterName(clusterName)

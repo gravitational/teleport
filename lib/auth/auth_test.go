@@ -72,9 +72,7 @@ func (s *AuthSuite) SetUpTest(c *C) {
 	s.bk, err = lite.NewWithConfig(context.TODO(), lite.Config{Path: s.dataDir})
 	c.Assert(err, IsNil)
 
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "me.localhost",
-	})
+	clusterName, err := services.NewClusterName("me.localhost")
 	c.Assert(err, IsNil)
 	authConfig := &InitConfig{
 		ClusterName:            clusterName,
@@ -762,9 +760,7 @@ func (s *AuthSuite) TestUpdateConfig(c *C) {
 
 	// try and set cluster name, this should fail because you can only set the
 	// cluster name once
-	clusterName, err := services.NewClusterName(services.ClusterNameSpecV2{
-		ClusterName: "foo.localhost",
-	})
+	clusterName, err := services.NewClusterName("foo.localhost")
 	c.Assert(err, IsNil)
 	// use same backend but start a new auth server with different config.
 	authConfig := &InitConfig{
