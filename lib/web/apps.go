@@ -91,20 +91,26 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
+	// Get an auth client connected with the user's identity.
+	authClient, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Get a reverse tunnel proxy aware of the user's permissions.
+	proxy, err := h.ProxyWithRoles(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Use the information the caller provided to attempt to resolve to an
 	// application running within either the root or leaf cluster.
-	result, err := h.validateAppSessionRequest(r.Context(), req)
+	result, err := h.validateAppSessionRequest(r.Context(), authClient, proxy, req)
 	if err != nil {
 		return nil, trace.Wrap(err, "Unable to resolve FQDN: %v", req.FQDN)
 	}
 
 	h.log.Debugf("Creating application web session for %v in %v.", result.PublicAddr, result.ClusterName)
-
-	// Get an auth client connected with the users identity.
-	authClient, err := ctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	// Create an application web session.
 	//
@@ -216,10 +222,10 @@ func (h *Handler) waitForAppSession(ctx context.Context, sessionID string) error
 	return trace.Wrap(err)
 }
 
-func (h *Handler) validateAppSessionRequest(ctx context.Context, req *CreateAppSessionRequest) (*validateAppSessionResult, error) {
+func (h *Handler) validateAppSessionRequest(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, req *CreateAppSessionRequest) (*validateAppSessionResult, error) {
 	// To safely redirect a user to the app URL, the FQDN should be always
 	// resolved. This is to prevent open redirects.
-	app, server, clusterName, err := h.resolveFQDN(ctx, req.FQDN)
+	app, server, clusterName, err := h.resolveFQDN(ctx, clt, proxy, req.FQDN)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -228,7 +234,7 @@ func (h *Handler) validateAppSessionRequest(ctx context.Context, req *CreateAppS
 	// from the application launcher in the Web UI) then directly exactly resolve the
 	// application that the caller is requesting. If it does not, do best effort FQDN resolution.
 	if req.PublicAddr != "" && req.ClusterName != "" {
-		app, server, clusterName, err = h.resolveDirect(ctx, req.PublicAddr, req.ClusterName)
+		app, server, clusterName, err = h.resolveDirect(ctx, proxy, req.PublicAddr, req.ClusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -256,8 +262,8 @@ type validateAppSessionResult struct {
 
 // resolveDirect takes a public address and cluster name and exactly resolves
 // the application and the server on which it is running.
-func (h *Handler) resolveDirect(ctx context.Context, publicAddr string, clusterName string) (*services.App, services.Server, string, error) {
-	clusterClient, err := h.cfg.Proxy.GetSite(clusterName)
+func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnel.Tunnel, publicAddr string, clusterName string) (*services.App, services.Server, string, error) {
+	clusterClient, err := proxy.GetSite(clusterName)
 	if err != nil {
 		return nil, nil, "", trace.Wrap(err)
 	}
@@ -277,6 +283,6 @@ func (h *Handler) resolveDirect(ctx context.Context, publicAddr string, clusterN
 
 // resolveFQDN makes a best effort attempt to resolve FQDN to an application
 // running a root or leaf cluster.
-func (h *Handler) resolveFQDN(ctx context.Context, fqdn string) (*services.App, services.Server, string, error) {
-	return app.ResolveFQDN(ctx, h.cfg.ProxyClient, h.cfg.Proxy, h.auth.clusterName, fqdn)
+func (h *Handler) resolveFQDN(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, fqdn string) (*services.App, services.Server, string, error) {
+	return app.ResolveFQDN(ctx, clt, proxy, h.auth.clusterName, fqdn)
 }
