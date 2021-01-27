@@ -22,7 +22,6 @@ import (
 	"path/filepath"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
@@ -91,99 +90,4 @@ func (s *Server) newStreamer(ctx context.Context, sessionID string, clusterConfi
 		return nil, trace.Wrap(err)
 	}
 	return libevents.NewTeeStreamer(fileStreamer, s.cfg.StreamEmitter), nil
-}
-
-// emitSessionStartEventFn returns function that uses the provided emitter to
-// emit an audit event when database session starts.
-func (s *Server) emitSessionStartEventFn(streamWriter libevents.StreamWriter) func(common.Session, error) error {
-	return func(session common.Session, err error) error {
-		event := &events.DatabaseSessionStart{
-			Metadata: events.Metadata{
-				Type: libevents.DatabaseSessionStartEvent,
-				Code: libevents.DatabaseSessionStartCode,
-			},
-			ServerMetadata: events.ServerMetadata{
-				ServerID:        session.Server.GetHostID(),
-				ServerNamespace: defaults.Namespace,
-			},
-			UserMetadata: events.UserMetadata{
-				User: session.Identity.Username,
-			},
-			SessionMetadata: events.SessionMetadata{
-				SessionID: session.ID,
-			},
-			Status: events.Status{
-				Success: true,
-			},
-			DatabaseMetadata: events.DatabaseMetadata{
-				DatabaseService:  session.Server.GetName(),
-				DatabaseProtocol: session.Server.GetProtocol(),
-				DatabaseURI:      session.Server.GetURI(),
-				DatabaseName:     session.DatabaseName,
-				DatabaseUser:     session.DatabaseUser,
-			},
-		}
-		if err != nil {
-			event.Metadata.Code = libevents.DatabaseSessionStartFailureCode
-			event.Status = events.Status{
-				Success:     false,
-				Error:       trace.Unwrap(err).Error(),
-				UserMessage: err.Error(),
-			}
-		}
-		return streamWriter.EmitAuditEvent(s.closeContext, event)
-	}
-}
-
-// emitSessionEndEventFn returns function that uses the provided emitter to
-// emit an audit event when database session ends.
-func (s *Server) emitSessionEndEventFn(streamWriter libevents.StreamWriter) func(common.Session) error {
-	return func(session common.Session) error {
-		return streamWriter.EmitAuditEvent(s.closeContext, &events.DatabaseSessionEnd{
-			Metadata: events.Metadata{
-				Type: libevents.DatabaseSessionEndEvent,
-				Code: libevents.DatabaseSessionEndCode,
-			},
-			UserMetadata: events.UserMetadata{
-				User: session.Identity.Username,
-			},
-			SessionMetadata: events.SessionMetadata{
-				SessionID: session.ID,
-			},
-			DatabaseMetadata: events.DatabaseMetadata{
-				DatabaseService:  session.Server.GetName(),
-				DatabaseProtocol: session.Server.GetProtocol(),
-				DatabaseURI:      session.Server.GetURI(),
-				DatabaseName:     session.DatabaseName,
-				DatabaseUser:     session.DatabaseUser,
-			},
-		})
-	}
-}
-
-// emitQueryEventFn returns function that uses the provided emitter to emit
-// an audit event when a database query is executed.
-func (s *Server) emitQueryEventFn(streamWriter libevents.StreamWriter) func(common.Session, string) error {
-	return func(session common.Session, query string) error {
-		return streamWriter.EmitAuditEvent(s.closeContext, &events.DatabaseSessionQuery{
-			Metadata: events.Metadata{
-				Type: libevents.DatabaseSessionQueryEvent,
-				Code: libevents.DatabaseSessionQueryCode,
-			},
-			UserMetadata: events.UserMetadata{
-				User: session.Identity.Username,
-			},
-			SessionMetadata: events.SessionMetadata{
-				SessionID: session.ID,
-			},
-			DatabaseMetadata: events.DatabaseMetadata{
-				DatabaseService:  session.Server.GetName(),
-				DatabaseProtocol: session.Server.GetProtocol(),
-				DatabaseURI:      session.Server.GetURI(),
-				DatabaseName:     session.DatabaseName,
-				DatabaseUser:     session.DatabaseUser,
-			},
-			DatabaseQuery: query,
-		})
-	}
 }

@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 
 	"github.com/jackc/pgconn"
@@ -41,14 +40,10 @@ import (
 type Engine struct {
 	// Auth handles database access authentication.
 	Auth *common.Auth
-	// StreamWriter is the async audit logger.
-	StreamWriter events.StreamWriter
-	// OnSessionStart is called upon successful connection to the database.
-	OnSessionStart func(common.Session, error) error
-	// OnSessionEnd is called upon disconnection from the database.
-	OnSessionEnd func(common.Session) error
-	// OnQuery is called when an SQL query is executed on the connection.
-	OnQuery func(common.Session, string) error
+	// Audit emits database access audit events.
+	Audit *common.Audit
+	// Context is the database server close context.
+	Context context.Context
 	// Clock is the clock interface.
 	Clock clockwork.Clock
 	// Log is used for logging.
@@ -114,12 +109,12 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 	// At this point Postgres client should be ready to start sending
 	// messages: this is where psql prompt appears on the other side.
-	err = e.OnSessionStart(*sessionCtx, nil)
+	err = e.Audit.OnSessionStart(e.Context, *sessionCtx, nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
-		err := e.OnSessionEnd(*sessionCtx)
+		err := e.Audit.OnSessionEnd(e.Context, *sessionCtx)
 		if err != nil {
 			e.Log.WithError(err).Error("Failed to emit audit event.")
 		}
@@ -185,7 +180,7 @@ func (e *Engine) checkAccess(sessionCtx *common.Session) error {
 	err := sessionCtx.Checker.CheckAccessToDatabase(sessionCtx.Server,
 		sessionCtx.DatabaseName, sessionCtx.DatabaseUser)
 	if err != nil {
-		if err := e.OnSessionStart(*sessionCtx, err); err != nil {
+		if err := e.Audit.OnSessionStart(e.Context, *sessionCtx, err); err != nil {
 			e.Log.WithError(err).Error("Failed to emit audit event.")
 		}
 		return trace.Wrap(err)
@@ -267,7 +262,7 @@ func (e *Engine) receiveFromClient(client *pgproto3.Backend, server *pgproto3.Fr
 		log.Debugf("Received client message: %#v.", message)
 		switch msg := message.(type) {
 		case *pgproto3.Query:
-			err := e.OnQuery(*sessionCtx, msg.String)
+			err := e.Audit.OnQuery(e.Context, *sessionCtx, msg.String)
 			if err != nil {
 				log.WithError(err).Error("Failed to emit audit event.")
 			}
