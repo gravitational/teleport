@@ -214,7 +214,7 @@ func UnmarshalUser(bytes []byte, opts ...MarshalOption) (User, error) {
 			}
 		}
 
-		if err := u.CheckAndSetDefaults(); err != nil {
+		if err := ValidateUser(&u); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if cfg.ID != 0 {
