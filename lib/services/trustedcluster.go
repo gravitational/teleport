@@ -47,17 +47,11 @@ func ValidateTrustedCluster(tc TrustedCluster) error {
 		})
 	}
 
-	if err := ValidateRoleMap(tc.GetRoleMap()); err != nil {
+	if _, err := parseRoleMap(tc.GetRoleMap()); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
-}
-
-// ValidateRoleMap checks RoleMap for errors
-func ValidateRoleMap(r RoleMap) error {
-	_, err := parseRoleMap(r)
-	return trace.Wrap(err)
 }
 
 // RoleMapToString prints user friendly representation of role mapping
@@ -103,8 +97,8 @@ func parseRoleMap(r RoleMap) (map[string][]string, error) {
 	return directMatch, nil
 }
 
-// RoleMapRemoteToRoles maps local roles to remote roles
-func RoleMapRemoteToRoles(r RoleMap, remoteRoles []string) ([]string, error) {
+// MapRoles maps local roles to remote roles
+func MapRoles(r RoleMap, remoteRoles []string) ([]string, error) {
 	_, err := parseRoleMap(r)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -72,7 +72,7 @@ func (s *RoleMapSuite) TestRoleParsing(c *check.C) {
 
 	for i, tc := range testCases {
 		comment := check.Commentf("test case '%v'", i)
-		err := ValidateRoleMap(tc.roleMap)
+		_, err := parseRoleMap(tc.roleMap)
 		if tc.err != nil {
 			c.Assert(err, check.NotNil, comment)
 			c.Assert(err, check.FitsTypeOf, tc.err)
@@ -191,7 +191,7 @@ func (s *RoleMapSuite) TestRoleMap(c *check.C) {
 
 	for _, tc := range testCases {
 		comment := check.Commentf("test case '%v'", tc.name)
-		local, err := RoleMapRemoteToRoles(tc.roleMap, tc.remote)
+		local, err := MapRoles(tc.roleMap, tc.remote)
 		if tc.err != nil {
 			c.Assert(err, check.NotNil, comment)
 			c.Assert(err, check.FitsTypeOf, tc.err)
