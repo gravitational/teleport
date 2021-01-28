@@ -365,6 +365,9 @@ func (g *GRPCServer) CreateAccessRequest(ctx context.Context, req *services.Acce
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
+	if err := services.ValidateAccessRequest(req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
 	if err := auth.ServerWithRoles.CreateAccessRequest(ctx, req); err != nil {
 		return nil, trail.ToGRPC(err)
 	}

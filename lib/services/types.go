@@ -124,8 +124,6 @@ type (
 )
 
 var (
-	NewAccessRequest = types.NewAccessRequest
-
 	RequestStrategyOptional = types.RequestStrategyOptional
 	RequestStrategyReason   = types.RequestStrategyReason
 	RequestStrategyAlways   = types.RequestStrategyAlways

@@ -41,7 +41,7 @@ func NewDynamicAccessService(backend backend.Backend) *DynamicAccessService {
 
 // CreateAccessRequest stores a new access request.
 func (s *DynamicAccessService) CreateAccessRequest(ctx context.Context, req services.AccessRequest) error {
-	if err := req.CheckAndSetDefaults(); err != nil {
+	if err := services.ValidateAccessRequest(req); err != nil {
 		return trace.Wrap(err)
 	}
 	item, err := itemFromAccessRequest(req)
@@ -199,7 +199,7 @@ func (s *DynamicAccessService) DeleteAllAccessRequests(ctx context.Context) erro
 }
 
 func (s *DynamicAccessService) UpsertAccessRequest(ctx context.Context, req services.AccessRequest) error {
-	if err := req.CheckAndSetDefaults(); err != nil {
+	if err := services.ValidateAccessRequest(req); err != nil {
 		return trace.Wrap(err)
 	}
 	item, err := itemFromAccessRequest(req)
