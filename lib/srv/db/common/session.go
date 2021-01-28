@@ -30,6 +30,8 @@ import (
 type Session struct {
 	// ID is the unique session ID.
 	ID string
+	// ClusterName is the cluster the database service is a part of.
+	ClusterName string
 	// Server is the database server handling the connection.
 	Server types.DatabaseServer
 	// Identity is the identity of the connecting Teleport user.
