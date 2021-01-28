@@ -19,7 +19,6 @@ package local
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -99,36 +98,13 @@ func (s *IdentityService) DeleteAllAppSessions(ctx context.Context) error {
 	return nil
 }
 
-// GetWebSession returns a web session state for the given user and session id
-func (s *IdentityService) GetWebSession(user, sessionID string) (types.WebSession, error) {
-	return s.WebSessions().Get(context.TODO(), proto.GetWebSessionRequest{
-		User:      user,
-		SessionID: sessionID,
-	})
-}
-
-// UpsertWebSession updates or inserts a web session for the user and the session ID
-func (s *IdentityService) UpsertWebSession(user, sessionID string, session types.WebSession) error {
-	session.SetUser(user)
-	session.SetName(sessionID)
-	return s.WebSessions().Upsert(context.TODO(), session)
-}
-
-// DeleteWebSession deletes web session from the storage.
-func (s *IdentityService) DeleteWebSession(user, sessionID string) error {
-	return trace.Wrap(s.WebSessions().Delete(context.TODO(), proto.DeleteWebSessionRequest{
-		User:      user,
-		SessionID: sessionID,
-	}))
-}
-
 // WebSessions returns the web sessions manager.
-func (s *IdentityService) WebSessions() services.WebSessionInterface {
+func (s *IdentityService) WebSessions() types.WebSessionInterface {
 	return &webSessions{backend: s.Backend, log: s.log}
 }
 
 // Get returns the web session state described with req.
-func (r *webSessions) Get(ctx context.Context, req proto.GetWebSessionRequest) (types.WebSession, error) {
+func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
 	if err := req.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -191,7 +167,7 @@ func (r *webSessions) Upsert(ctx context.Context, session types.WebSession) erro
 }
 
 // Delete deletes the web session specified with req from the storage.
-func (r *webSessions) Delete(ctx context.Context, req proto.DeleteWebSessionRequest) error {
+func (r *webSessions) Delete(ctx context.Context, req types.DeleteWebSessionRequest) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -236,12 +212,12 @@ type webSessions struct {
 }
 
 // WebTokens returns the web token manager.
-func (s *IdentityService) WebTokens() services.WebTokenInterface {
+func (s *IdentityService) WebTokens() types.WebTokenInterface {
 	return &webTokens{backend: s.Backend, log: s.log}
 }
 
 // Get returns the web token described with req.
-func (r *webTokens) Get(ctx context.Context, req proto.GetWebTokenRequest) (types.WebToken, error) {
+func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
 	if err := req.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -293,7 +269,7 @@ func (r *webTokens) Upsert(ctx context.Context, token types.WebToken) error {
 }
 
 // Delete deletes the web token specified with req from the storage.
-func (r *webTokens) Delete(ctx context.Context, req proto.DeleteWebTokenRequest) error {
+func (r *webTokens) Delete(ctx context.Context, req types.DeleteWebTokenRequest) error {
 	if err := req.Check(); err != nil {
 		return trace.Wrap(err)
 	}

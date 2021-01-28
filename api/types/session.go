@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -26,6 +27,30 @@ import (
 
 	"github.com/gravitational/trace"
 )
+
+// WebSessionsGetter provides access to web sessions
+type WebSessionsGetter interface {
+	// WebSessions returns the web session manager
+	WebSessions() WebSessionInterface
+}
+
+// WebSessionInterface defines interface to regular web sessions
+type WebSessionInterface interface {
+	// Get returns a web session state for the given request.
+	Get(ctx context.Context, req GetWebSessionRequest) (WebSession, error)
+
+	// List gets all regular web sessions.
+	List(context.Context) ([]WebSession, error)
+
+	// Upsert updates existing or inserts a new web session.
+	Upsert(ctx context.Context, session WebSession) error
+
+	// Delete deletes the web session described by req.
+	Delete(ctx context.Context, req DeleteWebSessionRequest) error
+
+	// DeleteAll removes all web sessions.
+	DeleteAll(context.Context) error
+}
 
 // WebSession stores key and value used to authenticate with SSH
 // notes on behalf of user
@@ -78,10 +103,10 @@ func NewWebSession(name string, kind string, subkind string, spec WebSessionSpec
 		Metadata: Metadata{
 			Name:      name,
 			Namespace: defaults.Namespace,
+			Expires:   &spec.Expires,
 		},
 		Spec: spec,
 	}
-	session.Metadata.SetExpiry(spec.Expires)
 	return session
 }
 
@@ -413,18 +438,42 @@ func GetWebSessionMarshaler() WebSessionMarshaler {
 }
 
 // NewWebToken returns a new web token with the given value and spec
-func NewWebToken(spec WebTokenSpecV3) WebToken {
+func NewWebToken(expires time.Time, spec WebTokenSpecV3) WebToken {
 	token := &WebTokenV3{
 		Kind:    KindWebToken,
 		Version: V3,
 		Metadata: Metadata{
 			Name:      spec.Token,
 			Namespace: defaults.Namespace,
+			Expires:   &expires,
 		},
 		Spec: spec,
 	}
-	token.Metadata.SetExpiry(spec.Expires)
 	return token
+}
+
+// WebTokensGetter provides access to web tokens
+type WebTokensGetter interface {
+	// WebTokens returns the tokens manager
+	WebTokens() WebTokenInterface
+}
+
+// WebTokenInterface defines interface for managing web tokens
+type WebTokenInterface interface {
+	// Get returns a token specified by the request.
+	Get(ctx context.Context, req GetWebTokenRequest) (WebToken, error)
+
+	// List gets all web tokens.
+	List(context.Context) ([]WebToken, error)
+
+	// Upsert updates existing or inserts a new web token.
+	Upsert(ctx context.Context, token WebToken) error
+
+	// Delete deletes the web token described by req.
+	Delete(ctx context.Context, req DeleteWebTokenRequest) error
+
+	// DeleteAll removes all web tokens.
+	DeleteAll(context.Context) error
 }
 
 // WebToken is a time-limited unique token bound to a user's session
@@ -494,7 +543,7 @@ func (r *WebTokenV3) SetResourceID(id int64) {
 }
 
 // SetTTL sets the token resource TTL (time-to-live) value
-func (r *WebTokenV3) SetTTL(clock clockwork.Clock, ttl time.Duration) {
+func (r *WebTokenV3) SetTTL(clock Clock, ttl time.Duration) {
 	r.Metadata.SetTTL(clock, ttl)
 }
 
@@ -520,12 +569,15 @@ func (r *WebTokenV3) SetUser(user string) {
 
 // Expiry returns the token absolute expiration time
 func (r *WebTokenV3) Expiry() time.Time {
-	return r.Spec.Expires
+	if r.Metadata.Expires == nil {
+		return time.Time{}
+	}
+	return *r.Metadata.Expires
 }
 
 // SetExpiry sets the token absolute expiration time
 func (r *WebTokenV3) SetExpiry(t time.Time) {
-	r.Spec.Expires = t
+	r.Metadata.Expires = &t
 }
 
 // CheckAndSetDefaults validates this token value and sets defaults
@@ -574,7 +626,7 @@ func MarshalWebToken(token WebToken, opts ...MarshalOption) ([]byte, error) {
 	}
 }
 
-// UnmarshalWebToken interprets web token from on-disk byte format
+// UnmarshalWebToken interprets bytes as JSON-encoded web token value
 func UnmarshalWebToken(bytes []byte, opts ...MarshalOption) (WebToken, error) {
 	config, err := CollectOptions(opts)
 	if err != nil {
@@ -591,7 +643,6 @@ func UnmarshalWebToken(bytes []byte, opts ...MarshalOption) (WebToken, error) {
 		if err := utils.UnmarshalWithSchema(GetWebTokenSchema(), &token, bytes); err != nil {
 			return nil, trace.BadParameter("invalid web token: %v", err.Error())
 		}
-		utils.UTC(&token.Spec.Expires)
 		if err := token.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -601,6 +652,7 @@ func UnmarshalWebToken(bytes []byte, opts ...MarshalOption) (WebToken, error) {
 		if !config.Expires.IsZero() {
 			token.Metadata.SetExpiry(config.Expires)
 		}
+		utils.UTC(token.Metadata.Expires)
 		return &token, nil
 	}
 	return nil, trace.BadParameter("web token resource version %v is not supported", hdr.Version)
@@ -615,24 +667,23 @@ func GetWebTokenSchema() string {
 const WebTokenSpecV3Schema = `{
   "type": "object",
   "additionalProperties": false,
-  "required": ["token", "user", "expires"],
+  "required": ["token", "user"],
   "properties": {
     "user": {"type": "string"},
-    "token": {"type": "string"},
-    "expires": {"type": "string"}
+    "token": {"type": "string"}
   }
 }`
 
 // CheckAndSetDefaults validates the request and sets defaults.
 func (r *NewWebSessionRequest) CheckAndSetDefaults() error {
 	if r.User == "" {
-		return trace.BadParameter("user name is required")
+		return trace.BadParameter("user name required")
 	}
 	if len(r.Roles) == 0 {
-		return trace.BadParameter("roles is required")
+		return trace.BadParameter("roles required")
 	}
 	if len(r.Traits) == 0 {
-		return trace.BadParameter("traits is required")
+		return trace.BadParameter("traits required")
 	}
 	if r.SessionTTL == 0 {
 		r.SessionTTL = defaults.CertDuration
@@ -652,4 +703,42 @@ type NewWebSessionRequest struct {
 	// SessionTTL optionally specifies the session time-to-live.
 	// If left unspecified, the default certificate duration is used.
 	SessionTTL time.Duration
+}
+
+// Check validates the request.
+func (r *GetWebSessionRequest) Check() error {
+	if r.User == "" {
+		return trace.BadParameter("user name missing")
+	}
+	if r.SessionID == "" {
+		return trace.BadParameter("session ID missing")
+	}
+	return nil
+}
+
+// Check validates the request.
+func (r *DeleteWebSessionRequest) Check() error {
+	if r.SessionID == "" {
+		return trace.BadParameter("session ID missing")
+	}
+	return nil
+}
+
+// Check validates the request.
+func (r *GetWebTokenRequest) Check() error {
+	if r.User == "" {
+		return trace.BadParameter("user name missing")
+	}
+	if r.Token == "" {
+		return trace.BadParameter("token missing")
+	}
+	return nil
+}
+
+// Check validates the request.
+func (r *DeleteWebTokenRequest) Check() error {
+	if r.Token == "" {
+		return trace.BadParameter("token missing")
+	}
+	return nil
 }

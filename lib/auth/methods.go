@@ -23,7 +23,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/events"
@@ -169,9 +168,8 @@ func (s *Server) authenticateUser(req AuthenticateUserRequest) error {
 }
 
 // AuthenticateWebUser authenticates web user, creates and returns a web session
-// in case authentication is successful. In case existing session id
-// is used to authenticate, returns the session associated with the existing session id
-// instead of creating a new one
+// if authentication is successful. In case the existing session ID is used to authenticate,
+// returns the existing session instead of creating a new one
 func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebSession, error) {
 	clusterConfig, err := s.GetClusterConfig()
 	if err != nil {
@@ -188,7 +186,7 @@ func (s *Server) AuthenticateWebUser(req AuthenticateUserRequest) (services.WebS
 	}
 
 	if req.Session != nil {
-		session, err := s.GetWebSession(context.TODO(), proto.GetWebSessionRequest{
+		session, err := s.GetWebSession(context.TODO(), types.GetWebSessionRequest{
 			User:      req.Username,
 			SessionID: req.Session.ID,
 		})

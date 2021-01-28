@@ -74,8 +74,8 @@ type testPack struct {
 	dynamicAccessS services.DynamicAccess
 	presenceS      services.Presence
 	appSessionS    services.AppSession
-	webSessionS    services.WebSessionInterface
-	webTokenS      services.WebTokenInterface
+	webSessionS    types.WebSessionInterface
+	webTokenS      types.WebTokenInterface
 }
 
 func (t *testPack) Close() {

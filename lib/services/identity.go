@@ -24,7 +24,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -221,15 +220,8 @@ type Identity interface {
 	// GetResetPasswordTokenSecrets returns token secrets
 	GetResetPasswordTokenSecrets(ctx context.Context, tokenID string) (ResetPasswordTokenSecrets, error)
 
-	// GetWebSession returns a web session state for a given user and session id
-	GetWebSession(user, sid string) (WebSession, error)
-	// UpsertWebSession updates or inserts a web session for a user and session
-	UpsertWebSession(user, sid string, session WebSession) error
-	// DeleteWebSession deletes web session from the storage
-	DeleteWebSession(user, sid string) error
-
-	WebSessionsGetter
-	WebTokensGetter
+	types.WebSessionsGetter
+	types.WebTokensGetter
 
 	// AppSession defines application session features.
 	AppSession
@@ -247,54 +239,6 @@ type AppSession interface {
 	DeleteAppSession(context.Context, DeleteAppSessionRequest) error
 	// DeleteAllAppSessions removes all application web sessions.
 	DeleteAllAppSessions(context.Context) error
-}
-
-// WebTokensGetter provides access to web tokens
-type WebTokensGetter interface {
-	// WebTokens returns the tokens manager
-	WebTokens() WebTokenInterface
-}
-
-// WebTokenInterface defines interface for managing web tokens
-type WebTokenInterface interface {
-	// Get returns a token specified by the request.
-	Get(ctx context.Context, req proto.GetWebTokenRequest) (types.WebToken, error)
-
-	// List gets all web tokens.
-	List(context.Context) ([]types.WebToken, error)
-
-	// Upsert updates existing or inserts a new web token.
-	Upsert(ctx context.Context, token types.WebToken) error
-
-	// Delete deletes the web token described by req.
-	Delete(ctx context.Context, req proto.DeleteWebTokenRequest) error
-
-	// DeleteAll removes all web tokens.
-	DeleteAll(context.Context) error
-}
-
-// WebSessionsGetter provides access to web sessions
-type WebSessionsGetter interface {
-	// WebSessions returns the web session manager
-	WebSessions() WebSessionInterface
-}
-
-// WebSessionInterface defines interface to regular web sessions
-type WebSessionInterface interface {
-	// Get returns a web session state for the given request.
-	Get(ctx context.Context, req proto.GetWebSessionRequest) (WebSession, error)
-
-	// List gets all regular web sessions.
-	List(context.Context) ([]WebSession, error)
-
-	// Upsert updates existing or inserts a new web session.
-	Upsert(ctx context.Context, session WebSession) error
-
-	// Delete deletes the web session described by req.
-	Delete(ctx context.Context, req proto.DeleteWebSessionRequest) error
-
-	// DeleteAll removes all web sessions.
-	DeleteAll(context.Context) error
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),

@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -683,7 +684,7 @@ func (s *APIServer) deleteToken(auth ClientI, w http.ResponseWriter, r *http.Req
 
 func (s *APIServer) deleteWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	user, sessionID := p.ByName("user"), p.ByName("sid")
-	err := auth.WebSessions().Delete(r.Context(), proto.DeleteWebSessionRequest{
+	err := auth.WebSessions().Delete(r.Context(), types.DeleteWebSessionRequest{
 		User:      user,
 		SessionID: sessionID,
 	})
@@ -695,7 +696,7 @@ func (s *APIServer) deleteWebSession(auth ClientI, w http.ResponseWriter, r *htt
 
 func (s *APIServer) getWebSession(auth ClientI, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (interface{}, error) {
 	user, sid := p.ByName("user"), p.ByName("sid")
-	sess, err := auth.GetWebSessionInfo(user, sid)
+	sess, err := auth.GetWebSessionInfo(r.Context(), user, sid)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

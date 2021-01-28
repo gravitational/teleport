@@ -19,9 +19,7 @@ package client
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -31,17 +29,17 @@ import (
 
 // GetWebSession returns the web session for the specified request.
 // Implements ReadAccessPoint
-func (c *Client) GetWebSession(ctx context.Context, req proto.GetWebSessionRequest) (services.WebSession, error) {
+func (c *Client) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
 	return c.WebSessions().Get(ctx, req)
 }
 
 // WebSessions returns the web sessions controller
-func (c *Client) WebSessions() services.WebSessionInterface {
+func (c *Client) WebSessions() types.WebSessionInterface {
 	return &webSessions{c: c}
 }
 
 // Get returns the web session for the specified request
-func (r *webSessions) Get(ctx context.Context, req proto.GetWebSessionRequest) (services.WebSession, error) {
+func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
 	resp, err := r.c.grpc.GetWebSession(ctx, &req)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -50,12 +48,12 @@ func (r *webSessions) Get(ctx context.Context, req proto.GetWebSessionRequest) (
 }
 
 // List returns the list of all web sessions
-func (r *webSessions) List(ctx context.Context) ([]services.WebSession, error) {
+func (r *webSessions) List(ctx context.Context) ([]types.WebSession, error) {
 	resp, err := r.c.grpc.GetWebSessions(ctx, &empty.Empty{})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
-	out := make([]services.WebSession, 0, len(resp.Sessions))
+	out := make([]types.WebSession, 0, len(resp.Sessions))
 	for _, session := range resp.Sessions {
 		out = append(out, session)
 	}
@@ -63,12 +61,12 @@ func (r *webSessions) List(ctx context.Context) ([]services.WebSession, error) {
 }
 
 // Upsert not implemented: can only be called locally.
-func (r *webSessions) Upsert(ctx context.Context, session services.WebSession) error {
+func (r *webSessions) Upsert(ctx context.Context, session types.WebSession) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
 // Delete deletes the web session specified with the request
-func (r *webSessions) Delete(ctx context.Context, req proto.DeleteWebSessionRequest) error {
+func (r *webSessions) Delete(ctx context.Context, req types.DeleteWebSessionRequest) error {
 	_, err := r.c.grpc.DeleteWebSession(ctx, &req)
 	if err != nil {
 		return trail.FromGRPC(err)
@@ -91,17 +89,17 @@ type webSessions struct {
 
 // GetWebToken returns the web token for the specified request.
 // Implements ReadAccessPoint
-func (c *Client) GetWebToken(ctx context.Context, req proto.GetWebTokenRequest) (types.WebToken, error) {
+func (c *Client) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
 	return c.WebTokens().Get(ctx, req)
 }
 
 // WebTokens returns the web tokens controller
-func (c *Client) WebTokens() services.WebTokenInterface {
+func (c *Client) WebTokens() types.WebTokenInterface {
 	return &webTokens{c: c}
 }
 
 // Get returns the web token for the specified request
-func (r *webTokens) Get(ctx context.Context, req proto.GetWebTokenRequest) (types.WebToken, error) {
+func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
 	resp, err := r.c.grpc.GetWebToken(ctx, &req)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
@@ -128,7 +126,7 @@ func (r *webTokens) Upsert(ctx context.Context, token types.WebToken) error {
 }
 
 // Delete deletes the web token specified with the request
-func (r *webTokens) Delete(ctx context.Context, req proto.DeleteWebTokenRequest) error {
+func (r *webTokens) Delete(ctx context.Context, req types.DeleteWebTokenRequest) error {
 	_, err := r.c.grpc.DeleteWebToken(ctx, &req)
 	if err != nil {
 		return trail.FromGRPC(err)

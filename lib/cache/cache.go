@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -278,8 +277,8 @@ type Cache struct {
 	dynamicAccessCache services.DynamicAccessExt
 	presenceCache      services.Presence
 	appSessionCache    services.AppSession
-	webSessionCache    services.WebSessionInterface
-	webTokenCache      services.WebTokenInterface
+	webSessionCache    types.WebSessionInterface
+	webTokenCache      types.WebTokenInterface
 	eventsFanout       *services.Fanout
 
 	// closed indicates that the cache has been closed
@@ -362,8 +361,8 @@ type readGuard struct {
 	dynamicAccess services.DynamicAccess
 	presence      services.Presence
 	appSession    services.AppSession
-	webSession    services.WebSessionInterface
-	webToken      services.WebTokenInterface
+	webSession    types.WebSessionInterface
+	webToken      types.WebTokenInterface
 	release       func()
 	released      bool
 }
@@ -412,9 +411,9 @@ type Config struct {
 	// AppSession holds application sessions.
 	AppSession services.AppSession
 	// WebSession holds regular web sessions.
-	WebSession services.WebSessionInterface
+	WebSession types.WebSessionInterface
 	// WebToken holds web tokens.
-	WebToken services.WebTokenInterface
+	WebToken types.WebTokenInterface
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// RetryPeriod is a period between cache retries on failures
@@ -1231,7 +1230,7 @@ func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts .
 }
 
 // GetWebSession gets a regular web session.
-func (c *Cache) GetWebSession(ctx context.Context, req proto.GetWebSessionRequest) (types.WebSession, error) {
+func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1241,7 +1240,7 @@ func (c *Cache) GetWebSession(ctx context.Context, req proto.GetWebSessionReques
 }
 
 // GetWebToken gets a web token.
-func (c *Cache) GetWebToken(ctx context.Context, req proto.GetWebTokenRequest) (types.WebToken, error) {
+func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
 	rg, err := c.read()
 	if err != nil {
 		return nil, trace.Wrap(err)

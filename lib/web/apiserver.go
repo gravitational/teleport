@@ -36,7 +36,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
@@ -139,6 +139,9 @@ type Config struct {
 
 	// Context is used to signal process exit.
 	Context context.Context
+
+	// StaticFS specifies the HTTP file system to use.
+	StaticFS http.FileSystem
 }
 
 type RewritingHandler struct {
@@ -315,11 +318,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		staticFS  http.FileSystem
 	)
 	if !cfg.DisableUI {
-		staticFS, err = NewStaticFileSystem(isDebugMode())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		index, err := staticFS.Open("/index.html")
+		index, err := cfg.StaticFS.Open("/index.html")
 		if err != nil {
 			h.log.WithError(err).Error("Failed to open index file.")
 			return nil, trace.Wrap(err)
@@ -1252,7 +1251,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 	// Block and wait a few seconds for the session that was created to show up
 	// in the cache. If this request is not blocked here, it can get stuck in a
 	// racy session creation loop.
-	err = h.waitForWebSession(r.Context(), proto.GetWebSessionRequest{
+	err = h.waitForWebSession(r.Context(), types.GetWebSessionRequest{
 		User:      req.User,
 		SessionID: webSession.GetName(),
 	})
@@ -2259,7 +2258,7 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 			return nil, trace.AccessDenied("need auth")
 		}
 		if err := ctx.validateBearerToken(r.Context(), creds.Password); err != nil {
-			logger.Warn("Request failed: bad bearer token.")
+			logger.WithError(err).Warn("Request failed: bad bearer token.")
 			return nil, trace.AccessDenied("bad bearer token")
 		}
 	}
