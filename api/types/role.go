@@ -524,6 +524,10 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 		}
 	}
 
+	if r.Spec.Allow.ClusterLabels == nil {
+		r.Spec.Allow.ClusterLabels = Labels{Wildcard: []string{Wildcard}}
+	}
+
 	if r.Spec.Allow.AppLabels == nil {
 		r.Spec.Allow.AppLabels = Labels{Wildcard: []string{Wildcard}}
 	}

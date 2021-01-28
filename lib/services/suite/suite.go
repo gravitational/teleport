@@ -676,6 +676,7 @@ func (s *ServicesTestSuite) RolesCRUD(c *check.C) {
 			Allow: services.RoleConditions{
 				Logins:           []string{"root", "bob"},
 				NodeLabels:       services.Labels{services.Wildcard: []string{services.Wildcard}},
+				ClusterLabels:    services.Labels{services.Wildcard: []string{services.Wildcard}},
 				AppLabels:        services.Labels{services.Wildcard: []string{services.Wildcard}},
 				KubernetesLabels: services.Labels{services.Wildcard: []string{services.Wildcard}},
 				DatabaseLabels:   services.Labels{services.Wildcard: []string{services.Wildcard}},

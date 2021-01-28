@@ -136,6 +136,7 @@ func NewAdminRole() Role {
 			Allow: RoleConditions{
 				Namespaces:       []string{defaults.Namespace},
 				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
+				ClusterLabels:    Labels{Wildcard: []string{Wildcard}},
 				AppLabels:        Labels{Wildcard: []string{Wildcard}},
 				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
 				DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},
@@ -197,6 +198,7 @@ func RoleForUser(u User) Role {
 			Allow: RoleConditions{
 				Namespaces:       []string{defaults.Namespace},
 				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
+				ClusterLabels:    Labels{Wildcard: []string{Wildcard}},
 				AppLabels:        Labels{Wildcard: []string{Wildcard}},
 				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
 				DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},
@@ -222,6 +224,7 @@ func RoleForCertAuthority(ca CertAuthority) Role {
 			Allow: RoleConditions{
 				Namespaces:       []string{defaults.Namespace},
 				NodeLabels:       Labels{Wildcard: []string{Wildcard}},
+				ClusterLabels:    Labels{Wildcard: []string{Wildcard}},
 				AppLabels:        Labels{Wildcard: []string{Wildcard}},
 				KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
 				DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},

@@ -182,6 +182,7 @@ func TestRoleParse(t *testing.T) {
 					},
 					Allow: RoleConditions{
 						NodeLabels:       Labels{},
+						ClusterLabels:    Labels{Wildcard: []string{Wildcard}},
 						AppLabels:        Labels{Wildcard: []string{Wildcard}},
 						KubernetesLabels: Labels{Wildcard: []string{Wildcard}},
 						DatabaseLabels:   Labels{Wildcard: []string{Wildcard}},
@@ -211,6 +212,7 @@ func TestRoleParse(t *testing.T) {
 					                    },
 					                    "allow": {
 					                      "node_labels": {"a": "b", "c-d": "e"},
+					                      "cluster_labels": {"a": "b", "c-d": "e"},
 					                      "app_labels": {"a": "b", "c-d": "e"},
 					                      "kubernetes_labels": {"a": "b", "c-d": "e"},
 										  "db_labels": {"a": "b", "c-d": "e"},
@@ -252,6 +254,7 @@ func TestRoleParse(t *testing.T) {
 					},
 					Allow: RoleConditions{
 						NodeLabels:       Labels{"a": []string{"b"}, "c-d": []string{"e"}},
+						ClusterLabels:    Labels{"a": []string{"b"}, "c-d": []string{"e"}},
 						AppLabels:        Labels{"a": []string{"b"}, "c-d": []string{"e"}},
 						KubernetesLabels: Labels{"a": []string{"b"}, "c-d": []string{"e"}},
 						DatabaseLabels:   Labels{"a": []string{"b"}, "c-d": []string{"e"}},
@@ -295,6 +298,7 @@ func TestRoleParse(t *testing.T) {
 		                    },
 		                    "allow": {
 		                      "node_labels": {"a": "b"},
+		                      "cluster_labels": {"a": "b"},
 		                      "app_labels": {"a": "b"},
 		                      "kubernetes_labels": {"c": "d"},
 		                      "db_labels": {"e": "f"},
@@ -334,6 +338,7 @@ func TestRoleParse(t *testing.T) {
 					},
 					Allow: RoleConditions{
 						NodeLabels:       Labels{"a": []string{"b"}},
+						ClusterLabels:    Labels{"a": []string{"b"}},
 						AppLabels:        Labels{"a": []string{"b"}},
 						KubernetesLabels: Labels{"c": []string{"d"}},
 						DatabaseLabels:   Labels{"e": []string{"f"}},
@@ -375,6 +380,7 @@ func TestRoleParse(t *testing.T) {
 		                    },
 		                    "allow": {
 		                      "node_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
+		                      "cluster_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
 		                      "app_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
 		                      "kubernetes_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]},
 		                      "db_labels": {"a": "b", "key": ["val"], "key2": ["val2", "val3"]}
@@ -403,6 +409,11 @@ func TestRoleParse(t *testing.T) {
 					},
 					Allow: RoleConditions{
 						NodeLabels: Labels{
+							"a":    []string{"b"},
+							"key":  []string{"val"},
+							"key2": []string{"val2", "val3"},
+						},
+						ClusterLabels: Labels{
 							"a":    []string{"b"},
 							"key":  []string{"val"},
 							"key2": []string{"val2", "val3"},
