@@ -98,7 +98,7 @@ data:
       kubernetes:
         enabled: {{ .Values.config.teleport.proxy_service.kubernetes.enabled }}
 {{- if .Values.config.teleport.proxy_service.kubernetes.public_addr }}
-        public_addr: {{ .Values.config.teleport.proxy_service.kubernetes.public_addr }}{{ if not (contains ":" .Values.config.teleport.proxy_service.kubernetes.public_addr )}}:{{.Values.service.ports.proxykube.port }}{{ end }}
+        public_addr: {{ .Values.config.teleport.proxy_service.kubernetes.public_addr }}{{ if not (contains ":" .Values.config.teleport.proxy_service.kubernetes.public_addr) }}:{{ .Values.service.ports.proxykube.port }}{{ end }}
 {{- else }}
         public_addr: {{ .Values.config.public_address }}:{{ .Values.service.ports.proxykube.port }}
 {{- end }}
