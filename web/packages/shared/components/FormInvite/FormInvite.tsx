@@ -164,7 +164,9 @@ type Props = {
 
 function ErrorMessage({ message = '' }) {
   // quick fix: check if error text has U2F substring
-  const showU2fErrorLink = message.indexOf('U2F') !== -1;
+  const browserSupported = !message.includes('does not support U2F');
+  const showU2fErrorLink = browserSupported && message.includes('U2F');
+
   return (
     <Alerts.Danger>
       <div>

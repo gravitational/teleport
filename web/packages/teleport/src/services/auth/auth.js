@@ -21,6 +21,16 @@ import cfg from 'teleport/config';
 import makePasswordToken from './makePasswordToken';
 
 const auth = {
+  u2fBrowserSupported() {
+    if (window.u2f) {
+      return null;
+    }
+
+    return new Error(
+      'this browser does not support U2F required for hardware tokens, please try Chrome or Firefox instead'
+    );
+  },
+
   login(userId, password, token) {
     const data = {
       user: userId,
@@ -32,6 +42,11 @@ const auth = {
   },
 
   loginWithU2f(name, password) {
+    const err = this.u2fBrowserSupported();
+    if (err) {
+      return Promise.reject(err);
+    }
+
     const data = {
       user: name,
       pass: password,
@@ -72,6 +87,11 @@ const auth = {
   },
 
   resetPasswordWithU2f(tokenId, password) {
+    const err = this.u2fBrowserSupported();
+    if (err) {
+      return Promise.reject(err);
+    }
+
     return auth._getU2FRegisterRes(tokenId).then(u2fRes => {
       return auth._resetPassword(tokenId, password, null, u2fRes);
     });

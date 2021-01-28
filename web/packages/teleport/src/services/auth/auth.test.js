@@ -37,6 +37,20 @@ describe('services/auth', () => {
   const password = 'sample_pass';
   const email = 'user@example.com';
 
+  test('undefined u2f object returns error', async () => {
+    global.u2f = undefined;
+
+    expect.assertions(2);
+
+    await auth.loginWithU2f(email, password).catch(err => {
+      expect(err.message).toContain('does not support U2F');
+    });
+
+    await auth.resetPasswordWithU2f('any', password).catch(err => {
+      expect(err.message).toContain('does not support U2F');
+    });
+  });
+
   test('login()', async () => {
     jest.spyOn(api, 'post').mockImplementation(() => Promise.resolve());
 
