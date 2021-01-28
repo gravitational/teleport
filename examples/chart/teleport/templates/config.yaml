@@ -83,7 +83,7 @@ data:
       ssh_public_addr: {{ .Values.config.public_address }}:{{ .Values.service.ports.proxyssh.port }}
 {{- end }}
 {{- if .Values.config.teleport.proxy_service.tunnel_public_addr }}
-      tunnel_public_addr: {{ .Values.config.teleport.proxy_service.tunnel_public_addr }}{{ if not (contains ":" .Values.config.teleport.proxy_service.tunnel_public_addr )}}:{{.Values.service.ports.proxytunnel.port }}{{ end }}
+      tunnel_public_addr: {{ .Values.config.teleport.proxy_service.tunnel_public_addr }}{{ if not (contains ":" .Values.config.teleport.proxy_service.tunnel_public_addr) }}:{{ .Values.service.ports.proxytunnel.port }}{{ end }}
 {{- else }}
       tunnel_public_addr: {{ .Values.config.public_address }}:{{ .Values.service.ports.proxytunnel.port }}
 {{- end }}
