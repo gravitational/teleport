@@ -14,7 +14,7 @@ import (
 func main() {
 	modules.SetModules(nil)
 	commands := []common.CLICommand{
-		&UserCommandE{},
+		&common.UserCommand{},
 		&common.NodeCommand{},
 		&common.TokenCommand{},
 		&common.AuthCommand{},

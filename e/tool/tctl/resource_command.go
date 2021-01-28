@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2017-2021 Gravitational, Inc.
 This file implements the enterprise version of `tctl create` or `tctl rm` subcommands
 
 */
@@ -18,7 +18,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// implements common.CLICommand interface
+// ResourceCommandE implements common.CLICommand interface
 type ResourceCommandE struct {
 	// OSS implementation of 'tctl users'
 	base common.ResourceCommand
@@ -31,7 +31,6 @@ func (cmd *ResourceCommandE) Initialize(app *kingpin.Application, cfg *service.C
 	cmd.base.Initialize(app, cfg)
 
 	// plug our enterprise resource creators:
-	cmd.base.CreateHandlers[common.ResourceKind(services.KindRole)] = cmd.createRole
 	cmd.base.CreateHandlers[common.ResourceKind(services.KindOIDCConnector)] = cmd.createConnector
 	cmd.base.CreateHandlers[common.ResourceKind(services.KindSAMLConnector)] = cmd.createConnector
 }
@@ -39,47 +38,7 @@ func (cmd *ResourceCommandE) Initialize(app *kingpin.Application, cfg *service.C
 // TryRun is executed after the CLI parsing is done. The command must
 // determine if selectedCommand belongs to it and return match=true
 func (cmd *ResourceCommandE) TryRun(selectedCommand string, c auth.ClientI) (match bool, err error) {
-	ctx := context.TODO()
-	ref := cmd.base.GetRef()
-
-	// implement 'tctl rm role/xxx' (OSS lacks this)
-	if cmd.base.IsDeleteSubcommand(selectedCommand) && ref.Kind == services.KindRole {
-		if err := c.DeleteRole(ctx, ref.Name); err != nil {
-			return true, trace.Wrap(err)
-		}
-		fmt.Printf("role %s has been deleted\n", ref.Name)
-		return true, nil
-	}
-
-	// call the OSS implementation:
 	return cmd.base.TryRun(selectedCommand, c)
-}
-
-// createConnector implements 'tctl create role.yaml' command
-func (cmd *ResourceCommandE) createRole(client auth.ClientI, raw services.UnknownResource) error {
-	ctx := context.TODO()
-	role, err := services.UnmarshalRole(raw.Raw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	err = role.CheckAndSetDefaults()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	roleName := role.GetName()
-	_, err = client.GetRole(roleName)
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
-	}
-	roleExists := (err == nil)
-	if roleExists && !cmd.base.IsForced() {
-		return trace.AlreadyExists("role '%s' already exists", roleName)
-	}
-	if err := client.UpsertRole(ctx, role); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Printf("role '%s' has been %s\n", roleName, common.UpsertVerb(roleExists, cmd.base.IsForced()))
-	return nil
 }
 
 // createConnector implements 'tctl create connector.yaml' command

@@ -7,9 +7,8 @@ import (
 	"runtime"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
 )
 
 func init() {
@@ -19,67 +18,37 @@ func init() {
 
 // SetModules installs modules that provide custom behavior for the
 // enterprise compared to the open-source version
-func SetModules(license services.License) {
+func SetModules(license types.License) {
 	modules.SetModules(&enterpriseModules{license: license})
 }
 
 // enterpriseModules implements pluggable enterprise teleport logic
 type enterpriseModules struct {
-	license services.License
+	license types.License
 }
 
-// EmptyRolesHandler is called when a new trusted cluster with empty roles
-// is created, for enterprise it returns an error as roles are mandatory
-func (p *enterpriseModules) EmptyRolesHandler() error {
-	return trace.BadParameter("missing 'role_map' parameter")
+// Features returns supported features
+func (p *enterpriseModules) Features() modules.Features {
+	return modules.Features{
+		Kubernetes:              p.license.GetSupportsKubernetes().Value(),
+		DB:                      true,
+		App:                     true,
+		OIDC:                    true,
+		SAML:                    true,
+		AccessControls:          true,
+		AdvancedAccessWorkflows: true,
+	}
 }
 
-// SupportsKubernetes returns true if this cluster supports kubernetes
-func (p *enterpriseModules) SupportsKubernetes() bool {
-	return p.license.GetSupportsKubernetes().Value()
-}
-
-// DefaultKubeUsers returns default kuberentes users for a new admin role
-func (p *enterpriseModules) DefaultKubeUsers() []string {
-	return []string{teleport.TraitInternalKubeUsersVariable}
-}
-
-// DefaultKubeGroups returns default kuberentes groups for a new admin role
-func (p *enterpriseModules) DefaultKubeGroups() []string {
-	return []string{teleport.TraitInternalKubeGroupsVariable}
-}
-
-// DefaultAllowedLogins returns allowed logins for a new admin role, for
-// enterprise it includes "root" as well
-func (p *enterpriseModules) DefaultAllowedLogins() []string {
-	return []string{teleport.TraitInternalLoginsVariable, teleport.Root}
+// BuildType returns build type (OSS or Enterprise)
+func (p *enterpriseModules) BuildType() string {
+	return modules.BuildEnterprise
 }
 
 // PrintVersion prints the Teleport version. For enterprise it includes
 // "Enterprise" in the output.
 func (p *enterpriseModules) PrintVersion() {
 	fmt.Printf("Teleport Enterprise v%s git:%s %s\n", teleport.Version, teleport.Gitref, runtime.Version())
-}
-
-// RolesFromLogins returns roles for external user based on the logins
-// extracted from the connector
-//
-// For Enterprise edition "logins" are used as role names
-func (p *enterpriseModules) RolesFromLogins(logins []string) []string {
-	return logins
-}
-
-// TraitsFromLogins returns traits for external user based on the logins
-// extracted from the connector
-//
-// For Enterprise edition "logins" are used as role names so the "logins" trait
-// maps to the username (passed at login) instead.
-func (p *enterpriseModules) TraitsFromLogins(user string, _, kubeGroups, kubeUsers []string) map[string][]string {
-	return map[string][]string{
-		teleport.TraitLogins:     []string{user},
-		teleport.TraitKubeGroups: kubeGroups,
-		teleport.TraitKubeUsers:  kubeUsers,
-	}
 }
 
 // IsBoringBinary checks if the binary was compiled with BoringCrypto.
@@ -89,13 +58,4 @@ func (p *enterpriseModules) IsBoringBinary() bool {
 	// dev.boringcrypto branch of Go.
 	hash := sha256.New()
 	return reflect.TypeOf(hash).Elem().PkgPath() == "crypto/internal/boring"
-}
-
-// DELETE IN: 5.1.0
-//
-// ExtendAdminUserRules returns true if the "AdminUserRules" set should be
-// extended with additional rules to allow user and token management. Only
-// needed until 5.1 when user and token management will be added to OSS.
-func (p *enterpriseModules) ExtendAdminUserRules() bool {
-	return true
 }
