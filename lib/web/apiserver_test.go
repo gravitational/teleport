@@ -44,7 +44,7 @@ import (
 	"golang.org/x/text/encoding/unicode"
 
 	"github.com/gravitational/teleport"
-	apiproto "github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/u2f"
@@ -72,11 +72,14 @@ import (
 
 	"github.com/beevik/etree"
 	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
 	lemma_secret "github.com/mailgun/lemma/secret"
 	"github.com/pborman/uuid"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"github.com/tstranex/u2f"
 	. "gopkg.in/check.v1"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
@@ -124,18 +127,10 @@ func (s *WebSuite) SetUpSuite(c *C) {
 	os.Unsetenv(teleport.DebugEnvVar)
 	utils.InitLoggerForTests(testing.Verbose())
 
-	// configure tests to use static assets from webassets/teleport:
-	debugAssetsPath = "../../webassets/teleport"
-	os.Setenv(teleport.DebugEnvVar, "true")
-
 	var err error
 	s.mockU2F, err = mocku2f.Create()
 	c.Assert(err, IsNil)
 	c.Assert(s.mockU2F, NotNil)
-}
-
-func (s *WebSuite) TearDownSuite(c *C) {
-	os.Unsetenv(teleport.DebugEnvVar)
 }
 
 func (s *WebSuite) SetUpTest(c *C) {
@@ -247,6 +242,8 @@ func (s *WebSuite) SetUpTest(c *C) {
 	)
 	c.Assert(err, IsNil)
 
+	fs, err := NewDebugFileSystem("../../webassets/teleport")
+	c.Assert(err, IsNil)
 	handler, err := NewHandler(Config{
 		Proxy:        revTunServer,
 		AuthServers:  utils.FromAddr(s.server.Addr()),
@@ -257,6 +254,7 @@ func (s *WebSuite) SetUpTest(c *C) {
 		Context:      context.Background(),
 		HostUUID:     proxyID,
 		Emitter:      s.proxyClient,
+		StaticFS:     fs,
 	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(s.clock))
 	c.Assert(err, IsNil)
 
@@ -302,28 +300,6 @@ type authPack struct {
 	session   *CreateSessionResponse
 	clt       *client.WebClient
 	cookies   []*http.Cookie
-}
-
-func (s *WebSuite) authPackFromResponse(c *C, re *roundtrip.Response) *authPack {
-	var sess *CreateSessionResponse
-	c.Assert(json.Unmarshal(re.Bytes(), &sess), IsNil)
-
-	jar, err := cookiejar.New(nil)
-	c.Assert(err, IsNil)
-
-	clt := s.client(roundtrip.BearerAuth(sess.Token), roundtrip.CookieJar(jar))
-	jar.SetCookies(s.url(), re.Cookies())
-
-	session, err := sess.response()
-	c.Assert(err, IsNil)
-	if session.ExpiresIn < 0 {
-		c.Errorf("expected expiry time to be in the future but got %v", session.ExpiresIn)
-	}
-	return &authPack{
-		session: session,
-		clt:     clt,
-		cookies: re.Cookies(),
-	}
 }
 
 // authPack returns new authenticated package consisting of created valid
@@ -607,67 +583,6 @@ func (s *WebSuite) TestPasswordChange(c *C) {
 
 	_, err = pack.clt.PutJSON(context.Background(), pack.clt.Endpoint("webapi", "users", "password"), req)
 	c.Assert(err, IsNil)
-}
-
-func (s *WebSuite) TestWebSessionsRenew(c *C) {
-	// Login to implicitly create a new web session
-	pack := s.authPack(c, "foo")
-
-	delta := 1 * time.Minute
-	// Advance the time before renewing the session.
-	// This will allow the new session to have a more plausible
-	// expiration
-	s.clock.Advance(auth.BearerTokenTTL - delta)
-
-	// make sure we can use client to make authenticated requests
-	// before we issue this request, we will recover session id and bearer token
-	//
-	prevSessionCookie := *pack.cookies[0]
-	prevBearerToken := pack.session.Token
-	re, err := pack.clt.PostJSON(context.Background(), pack.clt.Endpoint("webapi", "sessions", "renew"), nil)
-	c.Assert(err, IsNil)
-
-	newPack := s.authPackFromResponse(c, re)
-
-	// new session is functioning
-	_, err = newPack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
-	c.Assert(err, IsNil)
-
-	sessionCookie := *newPack.cookies[0]
-	bearerToken := newPack.session.Token
-	c.Assert(bearerToken, Not(Equals), "")
-	c.Assert(bearerToken, Not(Equals), prevBearerToken)
-	prevSessionID := decodeSessionCookie(c, prevSessionCookie.Value)
-	activeSessionID := decodeSessionCookie(c, sessionCookie.Value)
-	c.Assert(prevSessionID, Not(Equals), activeSessionID)
-
-	// old session is still valid too (until it expires)
-	jar, err := cookiejar.New(nil)
-	c.Assert(err, IsNil)
-	oldClt := s.client(roundtrip.BearerAuth(prevBearerToken), roundtrip.CookieJar(jar))
-	jar.SetCookies(s.url(), []*http.Cookie{&prevSessionCookie})
-	_, err = oldClt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
-	c.Assert(err, IsNil)
-
-	// now expire the old session and make sure it has been removed
-	s.clock.Advance(delta)
-
-	_, err = s.proxyClient.GetWebSession(context.TODO(), apiproto.GetWebSessionRequest{
-		User:      "foo",
-		SessionID: prevSessionID,
-	})
-	c.Assert(err, ErrorMatches, "key.*not found$")
-
-	// now delete session
-	_, err = newPack.clt.Delete(
-		context.Background(),
-		pack.clt.Endpoint("webapi", "sessions"))
-	c.Assert(err, IsNil)
-
-	// subsequent requests trying to use this session will fail
-	_, err = newPack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
-	c.Assert(err, NotNil)
-	c.Assert(trace.IsAccessDenied(err), Equals, true)
 }
 
 func (s *WebSuite) TestWebSessionsBadInput(c *C) {
@@ -1933,6 +1848,70 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 	}
 }
 
+func TestWebSessionsRenew(t *testing.T) {
+	// Login to implicitly create a new web session
+	env := newWebPack(t)
+	pack := env.authPack(t, "foo")
+
+	delta := 1 * time.Minute
+	// Advance the time before renewing the session.
+	// This will allow the new session to have a more plausible
+	// expiration
+	env.clock.Advance(auth.BearerTokenTTL - delta)
+
+	// make sure we can use client to make authenticated requests
+	// before we issue this request, we will recover session id and bearer token
+	//
+	prevSessionCookie := *pack.cookies[0]
+	prevBearerToken := pack.session.Token
+	resp, err := pack.clt.PostJSON(context.TODO(), pack.clt.Endpoint("webapi", "sessions", "renew"), nil)
+	require.NoError(t, err)
+
+	newPack := env.authPackFromResponse(t, resp)
+
+	// new session is functioning
+	_, err = newPack.clt.Get(context.TODO(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	require.NoError(t, err)
+
+	sessionCookie := *newPack.cookies[0]
+	bearerToken := newPack.session.Token
+	require.NotEmpty(t, bearerToken)
+	require.NotEmpty(t, cmp.Diff(bearerToken, prevBearerToken))
+
+	prevSessionID := decodeSessionCookie(t, prevSessionCookie.Value)
+	activeSessionID := decodeSessionCookie(t, sessionCookie.Value)
+	require.NotEmpty(t, cmp.Diff(prevSessionID, activeSessionID))
+
+	// old session is still valid too (until it expires)
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+
+	oldClt := env.client(t, roundtrip.BearerAuth(prevBearerToken), roundtrip.CookieJar(jar))
+	jar.SetCookies(&env.webServerURL, []*http.Cookie{&prevSessionCookie})
+	_, err = oldClt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	require.NoError(t, err)
+
+	// now expire the old session and make sure it has been removed
+	env.clock.Advance(delta)
+
+	ws, err := env.proxyClient.GetWebSession(context.TODO(), types.GetWebSessionRequest{
+		User:      "foo",
+		SessionID: prevSessionID,
+	})
+	t.Logf("Web session that should not be: %v.\n", ws)
+	require.Regexp(t, "^key.*not found$", err.Error())
+
+	// now delete session
+	_, err = newPack.clt.Delete(
+		context.Background(),
+		pack.clt.Endpoint("webapi", "sessions"))
+	require.NoError(t, err)
+
+	// subsequent requests trying to use this session will fail
+	_, err = newPack.clt.Get(context.Background(), pack.clt.Endpoint("webapi", "sites"), url.Values{})
+	require.True(t, trace.IsAccessDenied(err))
+}
+
 type authProviderMock struct {
 	server services.ServerV2
 }
@@ -2176,17 +2155,328 @@ func newTerminalHandler() TerminalHandler {
 	}
 }
 
-func decodeSessionCookie(c *C, value string) (sessionID string) {
+func decodeSessionCookie(t *testing.T, value string) (sessionID string) {
 	sessionBytes, err := hex.DecodeString(value)
-	c.Assert(err, IsNil)
+	require.NoError(t, err)
 	var cookie struct {
 		User      string `json:"user"`
 		SessionID string `json:"sid"`
 	}
-	c.Assert(json.Unmarshal(sessionBytes, &cookie), IsNil)
+	require.NoError(t, json.Unmarshal(sessionBytes, &cookie))
 	return cookie.SessionID
 }
 
 func (r CreateSessionResponse) response() (*CreateSessionResponse, error) {
 	return &CreateSessionResponse{Type: r.Type, Token: r.Token, ExpiresIn: r.ExpiresIn}, nil
+}
+
+func newWebPack(t *testing.T) *webPack {
+	clock := clockwork.NewFakeClock()
+
+	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		ClusterName: "localhost",
+		Dir:         t.TempDir(),
+		Clock:       clock,
+	})
+	require.NoError(t, err)
+
+	server, err := authServer.NewTestTLSServer()
+	require.NoError(t, err)
+
+	// start node
+	certs, err := server.Auth().GenerateServerKeys(auth.GenerateServerKeysRequest{
+		HostID:   hostID,
+		NodeName: server.ClusterName(),
+		Roles:    teleport.Roles{teleport.RoleNode},
+	})
+	require.NoError(t, err)
+
+	signer, err := sshutils.NewSigner(certs.Key, certs.Cert)
+	require.NoError(t, err)
+
+	const nodeID = "node"
+	nodeClient, err := server.NewClient(auth.TestIdentity{
+		I: auth.BuiltinRole{
+			Role:     teleport.RoleNode,
+			Username: nodeID,
+		},
+	})
+	require.NoError(t, err)
+
+	// create SSH service:
+	nodeDataDir := t.TempDir()
+	node, err := regular.New(
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+		server.ClusterName(),
+		[]ssh.Signer{signer},
+		nodeClient,
+		nodeDataDir,
+		"",
+		utils.NetAddr{},
+		regular.SetUUID(nodeID),
+		regular.SetNamespace(defaults.Namespace),
+		regular.SetShell("/bin/sh"),
+		regular.SetSessionServer(nodeClient),
+		regular.SetEmitter(nodeClient),
+		regular.SetPAMConfig(&pam.Config{Enabled: false}),
+		regular.SetBPF(&bpf.NOP{}),
+		regular.SetClock(clock),
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, node.Start())
+	require.NoError(t, auth.CreateUploaderDir(nodeDataDir))
+
+	// create reverse tunnel service:
+	const proxyID = "proxy"
+	proxyClient, err := server.NewClient(auth.TestIdentity{
+		I: auth.BuiltinRole{
+			Role:     teleport.RoleProxy,
+			Username: proxyID,
+		},
+	})
+	require.NoError(t, err)
+
+	revTunListener, err := net.Listen("tcp", fmt.Sprintf("%v:0", server.ClusterName()))
+	require.NoError(t, err)
+
+	revTunServer, err := reversetunnel.NewServer(reversetunnel.Config{
+		ID:                    node.ID(),
+		Listener:              revTunListener,
+		ClientTLS:             proxyClient.TLSConfig(),
+		ClusterName:           server.ClusterName(),
+		HostSigners:           []ssh.Signer{signer},
+		LocalAuthClient:       proxyClient,
+		LocalAccessPoint:      proxyClient,
+		Emitter:               proxyClient,
+		NewCachingAccessPoint: auth.NoCache,
+		DirectClusters:        []reversetunnel.DirectCluster{{Name: server.ClusterName(), Client: proxyClient}},
+		DataDir:               t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	// proxy server:
+	proxy, err := regular.New(
+		utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+		server.ClusterName(),
+		[]ssh.Signer{signer},
+		proxyClient,
+		t.TempDir(),
+		"",
+		utils.NetAddr{},
+		regular.SetUUID(proxyID),
+		regular.SetProxyMode(revTunServer),
+		regular.SetSessionServer(proxyClient),
+		regular.SetEmitter(proxyClient),
+		regular.SetNamespace(defaults.Namespace),
+		regular.SetBPF(&bpf.NOP{}),
+		regular.SetClock(clock),
+	)
+	require.NoError(t, err)
+
+	fs, err := NewDebugFileSystem("../../webassets/teleport")
+	require.NoError(t, err)
+	handler, err := NewHandler(Config{
+		Proxy:        revTunServer,
+		AuthServers:  utils.FromAddr(server.Addr()),
+		DomainName:   server.ClusterName(),
+		ProxyClient:  proxyClient,
+		CipherSuites: utils.DefaultCipherSuites(),
+		AccessPoint:  proxyClient,
+		Context:      context.Background(),
+		HostUUID:     proxyID,
+		Emitter:      proxyClient,
+		StaticFS:     fs,
+	}, SetSessionStreamPollPeriod(200*time.Millisecond), SetClock(clock))
+	if err != nil {
+		t.Logf(trace.DebugReport(err))
+	}
+	require.NoError(t, err)
+
+	webServer := httptest.NewUnstartedServer(handler)
+	webServer.StartTLS()
+	require.NoError(t, proxy.Start())
+
+	// Wait for proxy to fully register before starting the test.
+	for start := time.Now(); ; {
+		proxies, err := proxyClient.GetProxies()
+		require.NoError(t, err)
+		if len(proxies) != 0 {
+			break
+		}
+		if time.Since(start) > 5*time.Second {
+			t.Fatal("Proxy didn't register within 5s after startup.")
+		}
+	}
+
+	proxyAddr := utils.MustParseAddr(proxy.Addr())
+	addr := utils.MustParseAddr(webServer.Listener.Addr().String())
+	handler.handler.cfg.ProxyWebAddr = *addr
+	handler.handler.cfg.ProxySSHAddr = *proxyAddr
+	_, sshPort, err := net.SplitHostPort(proxyAddr.String())
+	require.NoError(t, err)
+	handler.handler.sshPort = sshPort
+
+	url, err := url.Parse("https://" + webServer.Listener.Addr().String())
+	require.NoError(t, err)
+
+	return &webPack{
+		proxy:        proxy,
+		proxyClient:  proxyClient,
+		webServer:    webServer,
+		proxyTunnel:  revTunServer,
+		node:         node,
+		srvID:        node.ID(),
+		server:       server,
+		clock:        clock,
+		webServerURL: *url,
+	}
+}
+
+// webPack represents the state of a single web test.
+// It replicates most of the WebSuite and serves to gradually
+// transition the test suite to use the testing package
+// directly.
+type webPack struct {
+	node         *regular.Server
+	proxy        *regular.Server
+	proxyTunnel  reversetunnel.Server
+	srvID        string
+	webServer    *httptest.Server
+	server       *auth.TestTLSServer
+	proxyClient  *auth.Client
+	clock        clockwork.FakeClock
+	webServerURL url.URL
+}
+
+// authPack returns new authenticated package consisting of created valid
+// user, otp token, created web session and authenticated client.
+func (r *webPack) authPack(t *testing.T, user string) *authPack {
+	const (
+		login     = "user"
+		pass      = "abc123"
+		rawSecret = "def456"
+	)
+	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
+
+	ap, err := services.NewAuthPreference(services.AuthPreferenceSpecV2{
+		Type:         teleport.Local,
+		SecondFactor: teleport.OTP,
+	})
+	require.NoError(t, err)
+
+	err = r.server.Auth().SetAuthPreference(ap)
+	require.NoError(t, err)
+
+	r.createUser(context.TODO(), t, user, login, pass, otpSecret)
+
+	// create a valid otp token
+	validToken, err := totp.GenerateCode(otpSecret, r.clock.Now())
+	require.NoError(t, err)
+
+	clt := r.client(t)
+	req := CreateSessionReq{
+		User:              user,
+		Pass:              pass,
+		SecondFactorToken: validToken,
+	}
+
+	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
+	resp := r.login(t, clt, csrfToken, csrfToken, req)
+
+	var rawSession *CreateSessionResponse
+	require.NoError(t, json.Unmarshal(resp.Bytes(), &rawSession))
+
+	session, err := rawSession.response()
+	require.NoError(t, err)
+
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+
+	clt = r.client(t, roundtrip.BearerAuth(session.Token), roundtrip.CookieJar(jar))
+	jar.SetCookies(&r.webServerURL, resp.Cookies())
+
+	return &authPack{
+		otpSecret: otpSecret,
+		user:      user,
+		login:     login,
+		session:   session,
+		clt:       clt,
+		cookies:   resp.Cookies(),
+	}
+}
+
+func (r *webPack) authPackFromResponse(t *testing.T, httpResp *roundtrip.Response) *authPack {
+	var resp *CreateSessionResponse
+	require.NoError(t, json.Unmarshal(httpResp.Bytes(), &resp))
+
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+
+	clt := r.client(t, roundtrip.BearerAuth(resp.Token), roundtrip.CookieJar(jar))
+	jar.SetCookies(&r.webServerURL, httpResp.Cookies())
+
+	session, err := resp.response()
+	require.NoError(t, err)
+	if session.ExpiresIn < 0 {
+		t.Errorf("Expected expiry time to be in the future but got %v", session.ExpiresIn)
+	}
+	return &authPack{
+		session: session,
+		clt:     clt,
+		cookies: httpResp.Cookies(),
+	}
+}
+
+func (r *webPack) createUser(ctx context.Context, t *testing.T, user, login, pass, otpSecret string) {
+	teleUser, err := services.NewUser(user)
+	require.NoError(t, err)
+
+	role := services.RoleForUser(teleUser)
+	role.SetLogins(services.Allow, []string{login})
+	options := role.GetOptions()
+	options.ForwardAgent = services.NewBool(true)
+	role.SetOptions(options)
+	err = r.server.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	teleUser.AddRole(role.GetName())
+	teleUser.SetCreatedBy(services.CreatedBy{
+		User: services.UserRef{Name: "some-auth-user"},
+	})
+
+	err = r.server.Auth().CreateUser(ctx, teleUser)
+	require.NoError(t, err)
+
+	err = r.server.Auth().UpsertPassword(user, []byte(pass))
+	require.NoError(t, err)
+
+	err = r.server.Auth().UpsertTOTP(user, otpSecret)
+	require.NoError(t, err)
+}
+
+func (r *webPack) login(t *testing.T, clt *client.WebClient, cookieToken, reqToken string, reqData interface{}) *roundtrip.Response {
+	resp, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
+		data, err := json.Marshal(reqData)
+		if err != nil {
+			return nil, err
+		}
+		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions"), bytes.NewBuffer(data))
+		if err != nil {
+			return nil, err
+		}
+		addCSRFCookieToReq(req, cookieToken)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set(csrf.HeaderName, reqToken)
+		return clt.HTTPClient().Do(req)
+	}))
+	require.NoError(t, err)
+	return resp
+}
+
+func (r *webPack) client(t *testing.T, opts ...roundtrip.ClientParam) *client.WebClient {
+	opts = append(opts, roundtrip.HTTPClient(client.NewInsecureWebClient()))
+	clt, err := client.NewWebClient(r.webServerURL.String(), opts...)
+	require.NoError(t, err)
+	return clt
 }

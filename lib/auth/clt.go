@@ -1155,9 +1155,9 @@ func (c *Client) AuthenticateSSHUser(req AuthenticateSSHRequest) (*SSHLoginRespo
 
 // GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
 // it is valid, or error otherwise.
-func (c *Client) GetWebSessionInfo(user string, sid string) (services.WebSession, error) {
+func (c *Client) GetWebSessionInfo(ctx context.Context, user, sessionID string) (services.WebSession, error) {
 	out, err := c.Get(
-		c.Endpoint("users", user, "web", "sessions", sid), url.Values{})
+		c.Endpoint("users", user, "web", "sessions", sessionID), url.Values{})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2158,14 +2158,12 @@ func (c *Client) CreateAuditStream(ctx context.Context, sid session.ID) (events.
 type WebService interface {
 	// GetWebSessionInfo checks if a web sesion is valid, returns session id in case if
 	// it is valid, or error otherwise.
-	GetWebSessionInfo(user, sessionID string) (types.WebSession, error)
+	GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error)
 	// ExtendWebSession creates a new web session for a user based on another
 	// valid web session
 	ExtendWebSession(user, prevSessionID, accessRequestID string) (types.WebSession, error)
 	// CreateWebSession creates a new web session for a user
 	CreateWebSession(user string) (types.WebSession, error)
-	// DeleteWebSession deletes a web session for this user by id
-	DeleteWebSession(user, sessionID string) error
 
 	// AppSession defines application session features.
 	services.AppSession
@@ -2352,8 +2350,8 @@ type ClientI interface {
 	services.ClusterConfiguration
 	services.Events
 
-	services.WebSessionsGetter
-	services.WebTokensGetter
+	types.WebSessionsGetter
+	types.WebTokensGetter
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (services.KeepAliver, error)
@@ -2404,9 +2402,9 @@ type ClientI interface {
 
 	// GetWebSession queries the existing web session described with req.
 	// Implements ReadAccessPoint.
-	GetWebSession(ctx context.Context, req proto.GetWebSessionRequest) (types.WebSession, error)
+	GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error)
 
 	// GetWebToken queries the existing web token described with req.
 	// Implements ReadAccessPoint.
-	GetWebToken(ctx context.Context, req proto.GetWebTokenRequest) (types.WebToken, error)
+	GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error)
 }

@@ -803,35 +803,27 @@ func (a *ServerWithRoles) ExtendWebSession(user, prevSessionID, accessRequestID 
 // GetWebSessionInfo returns the web session for the given user specified with sid.
 // The session is stripped of any authentication details.
 // Implements auth.WebUIService
-func (a *ServerWithRoles) GetWebSessionInfo(user string, sid string) (services.WebSession, error) {
+func (a *ServerWithRoles) GetWebSessionInfo(ctx context.Context, user, sessionID string) (services.WebSession, error) {
 	if err := a.currentUserAction(user); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return a.authServer.GetWebSessionInfo(user, sid)
-}
-
-// DeleteWebSession deletes the web session specified with sid for the given user
-func (a *ServerWithRoles) DeleteWebSession(user string, sid string) error {
-	if err := a.currentUserAction(user); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteWebSession(user, sid)
+	return a.authServer.GetWebSessionInfo(ctx, user, sessionID)
 }
 
 // GetWebSession returns the web session specified with req.
 // Implements auth.ReadAccessPoint.
-func (a *ServerWithRoles) GetWebSession(ctx context.Context, req proto.GetWebSessionRequest) (types.WebSession, error) {
+func (a *ServerWithRoles) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
 	return a.WebSessions().Get(ctx, req)
 }
 
 // WebSessions returns the web session manager.
 // Implements services.WebSessionsGetter.
-func (a *ServerWithRoles) WebSessions() services.WebSessionInterface {
+func (a *ServerWithRoles) WebSessions() types.WebSessionInterface {
 	return &webSessionsWithRoles{c: a, ws: a.authServer.WebSessions()}
 }
 
 // Get returns the web session specified with req.
-func (r *webSessionsWithRoles) Get(ctx context.Context, req proto.GetWebSessionRequest) (types.WebSession, error) {
+func (r *webSessionsWithRoles) Get(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
 	if err := r.c.currentUserAction(req.User); err != nil {
 		if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
@@ -859,7 +851,7 @@ func (*webSessionsWithRoles) Upsert(ctx context.Context, session services.WebSes
 }
 
 // Delete removes the web session specified with req.
-func (r *webSessionsWithRoles) Delete(ctx context.Context, req proto.DeleteWebSessionRequest) error {
+func (r *webSessionsWithRoles) Delete(ctx context.Context, req types.DeleteWebSessionRequest) error {
 	if err := r.c.currentUserAction(req.User); err != nil {
 		if err := r.c.action(defaults.Namespace, services.KindWebSession, services.VerbDelete); err != nil {
 			return trace.Wrap(err)
@@ -881,23 +873,23 @@ func (r *webSessionsWithRoles) DeleteAll(ctx context.Context) error {
 
 // GetWebToken returns the web token specified with req.
 // Implements auth.ReadAccessPoint.
-func (a *ServerWithRoles) GetWebToken(ctx context.Context, req proto.GetWebTokenRequest) (types.WebToken, error) {
+func (a *ServerWithRoles) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
 	return a.WebTokens().Get(ctx, req)
 }
 
 type webSessionsWithRoles struct {
 	c  accessChecker
-	ws services.WebSessionInterface
+	ws types.WebSessionInterface
 }
 
 // WebTokens returns the web token manager.
 // Implements services.WebTokensGetter.
-func (a *ServerWithRoles) WebTokens() services.WebTokenInterface {
+func (a *ServerWithRoles) WebTokens() types.WebTokenInterface {
 	return &webTokensWithRoles{c: a, t: a.authServer.WebTokens()}
 }
 
 // Get returns the web token specified with req.
-func (r *webTokensWithRoles) Get(ctx context.Context, req proto.GetWebTokenRequest) (types.WebToken, error) {
+func (r *webTokensWithRoles) Get(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
 	if err := r.c.currentUserAction(req.User); err != nil {
 		if err := r.c.action(defaults.Namespace, services.KindWebToken, services.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
@@ -922,7 +914,7 @@ func (*webTokensWithRoles) Upsert(ctx context.Context, session types.WebToken) e
 }
 
 // Delete removes the web token specified with req.
-func (r *webTokensWithRoles) Delete(ctx context.Context, req proto.DeleteWebTokenRequest) error {
+func (r *webTokensWithRoles) Delete(ctx context.Context, req types.DeleteWebTokenRequest) error {
 	if err := r.c.currentUserAction(req.User); err != nil {
 		if err := r.c.action(defaults.Namespace, services.KindWebToken, services.VerbDelete); err != nil {
 			return trace.Wrap(err)
@@ -944,7 +936,7 @@ func (r *webTokensWithRoles) DeleteAll(ctx context.Context) error {
 
 type webTokensWithRoles struct {
 	c accessChecker
-	t services.WebTokenInterface
+	t types.WebTokenInterface
 }
 
 type accessChecker interface {

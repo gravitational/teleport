@@ -28,7 +28,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -148,15 +148,18 @@ func (s *AuthSuite) TestSessions(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ws, NotNil)
 
-	out, err := s.a.GetWebSessionInfo(user, ws.GetName())
+	out, err := s.a.GetWebSessionInfo(context.TODO(), user, ws.GetName())
 	c.Assert(err, IsNil)
 	ws.SetPriv(nil)
 	fixtures.DeepCompare(c, ws, out)
 
-	err = s.a.DeleteWebSession(user, ws.GetName())
+	err = s.a.WebSessions().Delete(context.TODO(), types.DeleteWebSessionRequest{
+		User:      user,
+		SessionID: ws.GetName(),
+	})
 	c.Assert(err, IsNil)
 
-	_, err = s.a.GetWebSession(context.TODO(), proto.GetWebSessionRequest{
+	_, err = s.a.GetWebSession(context.TODO(), types.GetWebSessionRequest{
 		User:      user,
 		SessionID: ws.GetName(),
 	})

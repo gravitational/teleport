@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,8 +18,6 @@ package proto
 
 import (
 	"github.com/gravitational/teleport/api/types"
-
-	"github.com/gravitational/trace"
 )
 
 // FromWatchKind converts the watch kind value between internal
@@ -44,42 +42,4 @@ func ToWatchKind(wk WatchKind) types.WatchKind {
 		LoadSecrets: wk.LoadSecrets,
 		Filter:      wk.Filter,
 	}
-}
-
-// Check validates the request.
-func (r *GetWebSessionRequest) Check() error {
-	if r.User == "" {
-		return trace.BadParameter("user name missing")
-	}
-	if r.SessionID == "" {
-		return trace.BadParameter("session ID missing")
-	}
-	return nil
-}
-
-// Check validates the request.
-func (r *DeleteWebSessionRequest) Check() error {
-	if r.SessionID == "" {
-		return trace.BadParameter("session ID missing")
-	}
-	return nil
-}
-
-// Check validates the request.
-func (r *GetWebTokenRequest) Check() error {
-	if r.User == "" {
-		return trace.BadParameter("user name missing")
-	}
-	if r.Token == "" {
-		return trace.BadParameter("token missing")
-	}
-	return nil
-}
-
-// Check validates the request.
-func (r *DeleteWebTokenRequest) Check() error {
-	if r.Token == "" {
-		return trace.BadParameter("token missing")
-	}
-	return nil
 }
