@@ -59,6 +59,14 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentNode,
 })
 
+// Used for setting up reverse tunnels
+type remoteForwardChannelData struct {
+	DestAddr   string
+	DestPort   uint32
+	OriginAddr string
+	OriginPort uint32
+}
+
 // Server implements SSH server that uses configuration backend and
 // certificate-based authentication
 type Server struct {
@@ -802,14 +810,23 @@ func (s *Server) serveAgent(ctx *srv.ServerContext) error {
 // req.Reply(false, nil).
 //
 // For more details: https://tools.ietf.org/html/rfc4254.html#page-4
-func (s *Server) HandleRequest(r *ssh.Request) {
+func (s *Server) HandleRequest(r *ssh.Request, ccx *sshutils.ConnectionContext) {
 	switch r.Type {
 	case teleport.KeepAliveReqType:
+		log.Debugf("Handling keepalive %+v", r)
 		s.handleKeepAlive(r)
 	case teleport.RecordingProxyReqType:
+		log.Debugf("Recording proxy %v", r)
 		s.handleRecordingProxy(r)
 	case teleport.VersionRequest:
+		log.Debugf("Version Request %v", r)
 		s.handleVersionRequest(r)
+	case teleport.TCPIPForwardRequest:
+		log.Debugf("tcpip-forward request %v", r)
+		s.handleTCPIPForwardRequest(r, ccx)
+	case teleport.CancelTCPIPForwardRequest:
+		log.Debugf("cancel-tcpip-forward request %v", r)
+		s.handleCancelTCPIPForwardRequest(r)
 	default:
 		if r.WantReply {
 			if err := r.Reply(false, nil); err != nil {
@@ -914,6 +931,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 
 	channelType := nch.ChannelType()
 	if s.proxyMode {
+		log.Debugf("handling new channel in proxy mode: %v", channelType)
 		switch channelType {
 		// Channels of type "direct-tcpip", for proxies, it's equivalent
 		// of teleport proxy: subsystem
@@ -951,6 +969,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	}
 
 	switch channelType {
+
 	// Channels of type "session" handle requests that are involved in running
 	// commands on a server, subsystem requests, and agent forwarding.
 	case teleport.ChanSession:
@@ -1441,6 +1460,85 @@ func (s *Server) handleVersionRequest(req *ssh.Request) {
 	err := req.Reply(true, []byte(teleport.Version))
 	if err != nil {
 		log.Debugf("Failed to reply to version request: %v.", err)
+	}
+}
+
+// handleTCPIPForwardRequest handles reverse port forwarding requests.
+func (s *Server) handleTCPIPForwardRequest(req *ssh.Request, ccx *sshutils.ConnectionContext) {
+	log.Debugf("Handling tcpip-forward request: %v", req)
+
+	// parse the incoming tcpip-forward request
+	parsedHost, err := sshutils.ParseForwardTCPIPReq(req.Payload)
+	if err != nil {
+		log.Debugf("Failed to parse tcpip-forward request: %v", err)
+	}
+	log.Debugf("parse results: %v", parsedHost)
+
+	ln, err := net.Listen("tcp", fmt.Sprintf("%v:%v", s.addr.Host(), parsedHost.Port))
+	if err != nil {
+		log.Debugf("error starting server side listener: %v", err)
+	}
+
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				// TODO: log accept failure
+				break
+			}
+
+			payload := ssh.Marshal(&remoteForwardChannelData{
+				DestAddr:   parsedHost.Host,
+				DestPort:   parsedHost.Port,
+				OriginAddr: parsedHost.Host,
+				OriginPort: parsedHost.Port,
+			})
+
+			go func() {
+				ch, _, err := ccx.ServerConn.OpenChannel(teleport.ChanTCPIPForward, payload)
+				if err != nil {
+					// TODO: log failure to open channel
+					log.Println(err)
+					c.Close()
+					return
+				}
+
+				go func() {
+					defer ch.Close()
+					defer c.Close()
+					io.Copy(ch, c)
+				}()
+
+				go func() {
+					defer ch.Close()
+					defer c.Close()
+					io.Copy(c, ch)
+				}()
+			}()
+		}
+	}()
+
+	// set port to p
+	var p struct {
+		Port uint32
+	}
+
+	// respond to request with true
+	err = req.Reply(true, ssh.Marshal(&p))
+	if err != nil {
+		log.Debugf("Failed to reply to tcpip-forward request: %v.", err)
+	}
+
+}
+
+/// handleDirectTCPIPRequest handles port forwarding requests.
+func (s *Server) handleCancelTCPIPForwardRequest(req *ssh.Request) {
+	log.Debugf("Handling cancel-tcpip-forward request: %v", req)
+	//respond to request with true
+	err := req.Reply(true, nil)
+
+	if err != nil {
+		log.Debugf("Failed to reply to cancel-tcpip-forward request: %v.", err)
 	}
 }
 

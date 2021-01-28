@@ -96,6 +96,8 @@ type CLIConf struct {
 	RecursiveCopy bool
 	// -L flag for ssh. Local port forwarding like 'ssh -L 80:remote.host:80 -L 443:remote.host:443'
 	LocalForwardPorts []string
+	// -R flag for ssh. Remote port forwarding like 'ssh -R 80:remote.host:80 -R 443:remote.host:443'
+	RemoteForwardPorts []string
 	// DynamicForwardedPorts is port forwarding using SOCKS5. It is similar to
 	// "ssh -D 8080 example.com".
 	DynamicForwardedPorts []string
@@ -279,6 +281,7 @@ func Run(args []string) {
 	ssh.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	ssh.Flag("forward-agent", "Forward agent to target node").Short('A').BoolVar(&cf.ForwardAgent)
 	ssh.Flag("forward", "Forward localhost connections to remote server").Short('L').StringsVar(&cf.LocalForwardPorts)
+	ssh.Flag("remote", "Remote Forward remote connections to local client").Short('R').StringsVar(&cf.RemoteForwardPorts)
 	ssh.Flag("dynamic-forward", "Forward localhost connections to remote server using SOCKS5").Short('D').StringsVar(&cf.DynamicForwardedPorts)
 	ssh.Flag("local", "Execute command on localhost after connecting to SSH node").Default("false").BoolVar(&cf.LocalExec)
 	ssh.Flag("tty", "Allocate TTY").Short('t').BoolVar(&cf.Interactive)
@@ -1417,6 +1420,11 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 		return nil, err
 	}
 
+	rPorts, err := client.ParsePortRemoteForwardSpec(cf.RemoteForwardPorts)
+	if err != nil {
+		return nil, err
+	}
+
 	dPorts, err := client.ParseDynamicPortForwardSpec(cf.DynamicForwardedPorts)
 	if err != nil {
 		return nil, err
@@ -1521,6 +1529,9 @@ func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, erro
 	}
 	if len(fPorts) > 0 {
 		c.LocalForwardPorts = fPorts
+	}
+	if len(rPorts) > 0 {
+		c.RemoteForwardPorts = rPorts
 	}
 	if len(dPorts) > 0 {
 		c.DynamicForwardedPorts = dPorts

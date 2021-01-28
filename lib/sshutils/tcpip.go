@@ -28,6 +28,20 @@ type DirectTCPIPReq struct {
 	OrigPort uint32
 }
 
+type ForwardTCPIPReq struct {
+	Host string
+	Port uint32
+}
+
+func ParseForwardTCPIPReq(data []byte) (*ForwardTCPIPReq, error) {
+	var r ForwardTCPIPReq
+	if err := ssh.Unmarshal(data, &r); err != nil {
+		log.Infof("failed to parse Forward TCP IP request: %v", err)
+		return nil, err
+	}
+	return &r, nil
+}
+
 func ParseDirectTCPIPReq(data []byte) (*DirectTCPIPReq, error) {
 	var r DirectTCPIPReq
 	if err := ssh.Unmarshal(data, &r); err != nil {

@@ -585,6 +585,14 @@ const (
 	// VersionRequest is sent by clients to server requesting the Teleport
 	// version they are running.
 	VersionRequest = "x-teleport-version"
+
+	// TCPIPForwardRequest is sent by clients to server requesting that
+	// the server set up reverse tunneling to the client
+	TCPIPForwardRequest = "tcpip-forward"
+
+	// CancelTCPIPForward is sent by the client to cancel reverse tunneling
+	// set up by TCPIPForwardRequest
+	CancelTCPIPForwardRequest = "cancel-tcpip-forward"
 )
 
 const (
@@ -690,6 +698,9 @@ const (
 
 	// ChanSession is a SSH channel of type "session".
 	ChanSession = "session"
+
+	// ChanTCPIPForward is a SSH channel of type "forwarded-tcpip".
+	ChanTCPIPForward = "forwarded-tcpip"
 )
 
 // RSAKeySize is the size of the RSA key.
