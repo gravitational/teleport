@@ -157,7 +157,7 @@ config:
       # kubernetes section configures kubernetes proxy protocol support
       kubernetes:
         enabled: yes
-        # Specify different address for the k8s public address if different then the config.public_address
+        # Specify a different hostname for the k8s public address (if different to config.public_address)
       # public_addr: teleportkubernetes.example.com
         
 
