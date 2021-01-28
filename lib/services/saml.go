@@ -291,7 +291,7 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (SAMLConnector,
 			}
 		}
 
-		if err := c.CheckAndSetDefaults(); err != nil {
+		if err := ValidateSAMLConnector(&c); err != nil {
 			return nil, trace.Wrap(err)
 		}
 

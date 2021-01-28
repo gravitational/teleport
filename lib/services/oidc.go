@@ -140,7 +140,7 @@ func UnmarshalOIDCConnector(bytes []byte, opts ...MarshalOption) (OIDCConnector,
 			}
 		}
 
-		if err := c.CheckAndSetDefaults(); err != nil {
+		if err := ValidateOIDCConnector(&c); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if cfg.ID != 0 {

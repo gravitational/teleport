@@ -209,8 +209,7 @@ func UnmarshalTrustedCluster(bytes []byte, opts ...MarshalOption) (TrustedCluste
 		}
 	}
 
-	err = trustedCluster.CheckAndSetDefaults()
-	if err != nil {
+	if err = ValidateTrustedCluster(&trustedCluster); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if cfg.ID != 0 {

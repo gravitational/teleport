@@ -89,7 +89,7 @@ func UnmarshalReverseTunnel(bytes []byte, opts ...MarshalOption) (ReverseTunnel,
 				return nil, trace.BadParameter(err.Error())
 			}
 		}
-		if err := r.CheckAndSetDefaults(); err != nil {
+		if err := ValidateReverseTunnel(&r); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if cfg.ID != 0 {

@@ -1840,7 +1840,7 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (Role, error) {
 			}
 		}
 
-		if err := role.CheckAndSetDefaults(); err != nil {
+		if err := ValidateRole(&role); err != nil {
 			return nil, trace.Wrap(err)
 		}
 

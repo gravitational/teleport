@@ -457,7 +457,7 @@ func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (CertAuthority,
 				return nil, trace.BadParameter(err.Error())
 			}
 		}
-		if err := ca.CheckAndSetDefaults(); err != nil {
+		if err := ValidateCertAuthority(&ca); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if cfg.ID != 0 {
