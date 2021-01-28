@@ -2460,9 +2460,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if len(cfg.Proxy.Kube.PublicAddrs) > 0 {
 			proxySettings.Kube.PublicAddr = cfg.Proxy.Kube.PublicAddrs[0].String()
 		}
-		fs, err := newHTTPFileSystem()
-		if err != nil {
-			return trace.Wrap(err)
+		var fs http.FileSystem
+		if !process.Config.Proxy.DisableWebInterface {
+			fs, err = newHTTPFileSystem()
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 		webHandler, err = web.NewHandler(
 			web.Config{
@@ -3316,7 +3319,7 @@ func findPublicAddr(authClient auth.AccessPoint, a App) (string, error) {
 	return fmt.Sprintf("%v.%v", a.Name, cn.GetClusterName()), nil
 }
 
-// newHTTPFileSystem creates a new HTPT file system for the web handler.
+// newHTTPFileSystem creates a new HTTP file system for the web handler.
 // It uses external configuration to make the decision
 func newHTTPFileSystem() (http.FileSystem, error) {
 	if !isDebugMode() {
