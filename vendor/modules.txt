@@ -310,7 +310,6 @@ github.com/julienschmidt/httprouter
 github.com/kardianos/osext
 # github.com/konsorten/go-windows-terminal-sequences v1.0.3
 github.com/konsorten/go-windows-terminal-sequences
-# github.com/kr/pty v1.1.1
 # github.com/kr/pty v1.1.8
 ## explicit
 github.com/kr/pty
@@ -401,8 +400,6 @@ github.com/russellhaering/goxmldsig/etreeutils
 github.com/russellhaering/goxmldsig/types
 # github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46
 github.com/ryszard/goskiplist/skiplist
-# github.com/satori/go.uuid v1.2.0
-github.com/satori/go.uuid
 # github.com/sergi/go-diff v1.1.0
 ## explicit
 # github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500

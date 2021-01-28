@@ -28,6 +28,7 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -36,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/tstranex/u2f"
 	"gopkg.in/check.v1"
 )
 

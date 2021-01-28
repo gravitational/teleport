@@ -32,6 +32,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
@@ -43,7 +44,6 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
-	"github.com/tstranex/u2f"
 )
 
 // SessionContext is a context associated with users'
@@ -421,11 +421,11 @@ func (s *sessionCache) AuthWithoutOTP(user, pass string) (services.WebSession, e
 	})
 }
 
-func (s *sessionCache) GetU2FSignRequest(user, pass string) (*u2f.SignRequest, error) {
+func (s *sessionCache) GetU2FSignRequest(user, pass string) (*u2f.AuthenticateChallenge, error) {
 	return s.proxyClient.GetU2FSignRequest(user, []byte(pass))
 }
 
-func (s *sessionCache) AuthWithU2FSignResponse(user string, response *u2f.SignResponse) (services.WebSession, error) {
+func (s *sessionCache) AuthWithU2FSignResponse(user string, response *u2f.AuthenticateChallengeResponse) (services.WebSession, error) {
 	return s.proxyClient.AuthenticateWebUser(auth.AuthenticateUserRequest{
 		Username: user,
 		U2F: &auth.U2FSignResponseCreds{
@@ -489,7 +489,7 @@ func (s *sessionCache) Ping(ctx context.Context) (proto.PingResponse, error) {
 	return s.proxyClient.Ping(ctx)
 }
 
-func (s *sessionCache) GetUserInviteU2FRegisterRequest(token string) (*u2f.RegisterRequest, error) {
+func (s *sessionCache) GetUserInviteU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error) {
 	return s.proxyClient.GetSignupU2FRegisterRequest(token)
 }
 
