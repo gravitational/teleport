@@ -111,8 +111,6 @@ type Config struct {
 	DomainName string
 	// ProxyClient is a client that authenticated as proxy
 	ProxyClient auth.ClientI
-	// DisableUI allows to turn off serving web based UI
-	DisableUI bool
 	// ProxySSHAddr points to the SSH address of the proxy
 	ProxySSHAddr utils.NetAddr
 	// ProxyWebAddr points to the web (HTTPS) address of the proxy
@@ -140,7 +138,11 @@ type Config struct {
 	// Context is used to signal process exit.
 	Context context.Context
 
-	// StaticFS specifies the HTTP file system to use.
+	// TODO(dmitri): whether UI is enabled can be deduced
+	// from whether the HTTP filesystem has been set
+	// DisableUI allows to turn off serving web based UI
+	DisableUI bool
+	// StaticFS optionally specifies the HTTP file system to use.
 	StaticFS http.FileSystem
 }
 
