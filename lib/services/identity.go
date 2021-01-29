@@ -24,12 +24,12 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 
 	"github.com/gokyle/hotp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/tstranex/u2f"
 	"golang.org/x/crypto/ssh"
 )
 
