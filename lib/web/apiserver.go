@@ -138,11 +138,8 @@ type Config struct {
 	// Context is used to signal process exit.
 	Context context.Context
 
-	// TODO(dmitri): whether UI is enabled can be deduced
-	// from whether the HTTP filesystem has been set
-	// DisableUI allows to turn off serving web based UI
-	DisableUI bool
 	// StaticFS optionally specifies the HTTP file system to use.
+	// Enables web UI if set.
 	StaticFS http.FileSystem
 }
 
@@ -315,11 +312,8 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 	h.POST("/webapi/host/credentials", httplib.MakeHandler(h.hostCredentials))
 
 	// if Web UI is enabled, check the assets dir:
-	var (
-		indexPage *template.Template
-		staticFS  http.FileSystem
-	)
-	if !cfg.DisableUI {
+	var indexPage *template.Template
+	if cfg.StaticFS != nil {
 		index, err := cfg.StaticFS.Open("/index.html")
 		if err != nil {
 			h.log.WithError(err).Error("Failed to open index file.")
@@ -346,7 +340,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		}
 
 		// request is going to the web UI
-		if cfg.DisableUI {
+		if cfg.StaticFS == nil {
 			w.WriteHeader(http.StatusNotImplemented)
 			return
 		}
@@ -360,7 +354,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*RewritingHandler, error) {
 		// serve Web UI:
 		if strings.HasPrefix(r.URL.Path, "/web/app") {
 			httplib.SetStaticFileHeaders(w.Header())
-			http.StripPrefix("/web", http.FileServer(staticFS)).ServeHTTP(w, r)
+			http.StripPrefix("/web", http.FileServer(cfg.StaticFS)).ServeHTTP(w, r)
 		} else if strings.HasPrefix(r.URL.Path, "/web/") || r.URL.Path == "/web" {
 			csrfToken, err := csrf.AddCSRFProtection(w, r)
 			if err != nil {

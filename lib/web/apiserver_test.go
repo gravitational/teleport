@@ -1851,6 +1851,7 @@ func (s *WebSuite) TestCreateAppSession(c *C) {
 func TestWebSessionsRenew(t *testing.T) {
 	// Login to implicitly create a new web session
 	env := newWebPack(t)
+	defer env.close(t)
 	pack := env.authPack(t, "foo")
 
 	delta := 1 * time.Minute
@@ -2347,6 +2348,14 @@ type webPack struct {
 	proxyClient  *auth.Client
 	clock        clockwork.FakeClock
 	webServerURL url.URL
+}
+
+func (r *webPack) close(t *testing.T) {
+	require.NoError(t, r.node.Close())
+	require.NoError(t, r.server.Close())
+	r.webServer.Close()
+	r.proxy.Close()
+	r.proxyTunnel.Close()
 }
 
 // authPack returns new authenticated package consisting of created valid
