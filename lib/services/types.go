@@ -162,6 +162,9 @@ var (
 	RotationPhaseRollback      = types.RotationPhaseRollback
 	RotationModeManual         = types.RotationModeManual
 	RotationModeAuto           = types.RotationModeAuto
+
+	RotatePhases    = types.RotatePhases
+	RemoveCASecrets = types.RemoveCASecrets
 )
 
 // clusterconfig.go
