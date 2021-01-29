@@ -24,8 +24,8 @@ import "github.com/gravitational/teleport/api/types"
 // Role identifies the role of an SSH connection. Unlike "user roles"
 // introduced as part of RBAC in Teleport 1.4+ these are built-in roles used
 // for different Teleport components when connecting to each other.
-type Role = types.TeleportRole
-type Roles = types.TeleportRoles
+type Role = types.SystemRole
+type Roles = types.SystemRoles
 
 var (
 	RoleAuth           = types.RoleAuth
