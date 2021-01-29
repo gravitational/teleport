@@ -1428,7 +1428,7 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	_, err = nopClient.GenerateUserCert(pub, user1.GetName(), time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, check.NotNil)
 	fixtures.ExpectAccessDenied(c, err)
-	c.Assert(err, check.ErrorMatches, "this request can be only executed by an admin")
+	c.Assert(err, check.ErrorMatches, "access denied")
 
 	// Users don't match
 	userClient2, err := s.server.NewClient(TestUser(user2.GetName()))
@@ -1437,7 +1437,7 @@ func (s *TLSSuite) TestGenerateCerts(c *check.C) {
 	_, err = userClient2.GenerateUserCert(pub, user1.GetName(), time.Hour, teleport.CertificateFormatStandard)
 	c.Assert(err, check.NotNil)
 	fixtures.ExpectAccessDenied(c, err)
-	c.Assert(err, check.ErrorMatches, "this request can be only executed by an admin")
+	c.Assert(err, check.ErrorMatches, "access denied")
 
 	// Admin should be allowed to generate certs with TTL longer than max.
 	adminClient, err := s.server.NewClient(TestAdmin())
