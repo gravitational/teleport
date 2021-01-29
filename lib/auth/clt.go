@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -45,7 +46,6 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/tstranex/u2f"
 )
 
 const (
@@ -1073,7 +1073,7 @@ func (c *Client) CheckPassword(user string, password []byte, otpToken string) er
 }
 
 // GetU2FSignRequest generates request for user trying to authenticate with U2F token
-func (c *Client) GetU2FSignRequest(user string, password []byte) (*u2f.SignRequest, error) {
+func (c *Client) GetU2FSignRequest(user string, password []byte) (*u2f.AuthenticateChallenge, error) {
 	out, err := c.PostJSON(
 		c.Endpoint("u2f", "users", user, "sign"),
 		signInReq{
@@ -1083,7 +1083,7 @@ func (c *Client) GetU2FSignRequest(user string, password []byte) (*u2f.SignReque
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var signRequest *u2f.SignRequest
+	var signRequest *u2f.AuthenticateChallenge
 	if err := json.Unmarshal(out.Bytes(), &signRequest); err != nil {
 		return nil, err
 	}
@@ -1209,12 +1209,12 @@ func (c *Client) GenerateHostCert(
 }
 
 // GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite tokenx
-func (c *Client) GetSignupU2FRegisterRequest(token string) (u2fRegisterRequest *u2f.RegisterRequest, e error) {
+func (c *Client) GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error) {
 	out, err := c.Get(c.Endpoint("u2f", "signuptokens", token), url.Values{})
 	if err != nil {
 		return nil, err
 	}
-	var u2fRegReq u2f.RegisterRequest
+	var u2fRegReq u2f.RegisterChallenge
 	if err := json.Unmarshal(out.Bytes(), &u2fRegReq); err != nil {
 		return nil, err
 	}
@@ -2196,10 +2196,10 @@ type IdentityService interface {
 	ValidateGithubAuthCallback(q url.Values) (*GithubAuthResponse, error)
 
 	// GetU2FSignRequest generates request for user trying to authenticate with U2F token
-	GetU2FSignRequest(user string, password []byte) (*u2f.SignRequest, error)
+	GetU2FSignRequest(user string, password []byte) (*u2f.AuthenticateChallenge, error)
 
 	// GetSignupU2FRegisterRequest generates sign request for user trying to sign up with invite token
-	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterRequest, error)
+	GetSignupU2FRegisterRequest(token string) (*u2f.RegisterChallenge, error)
 
 	// GetUser returns user by name
 	GetUser(name string, withSecrets bool) (services.User, error)
