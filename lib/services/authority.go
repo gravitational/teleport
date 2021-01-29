@@ -434,7 +434,7 @@ func GetCertAuthoritySchema() string {
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, fmt.Sprintf(CertAuthoritySpecV2Schema, RotationSchema, RoleMapSchema), DefaultDefinitions)
 }
 
-// UnmarshalCertAuthority unmarshals the CertAuthority frresource.
+// UnmarshalCertAuthority unmarshals the CertAuthority resource to JSON.
 func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (CertAuthority, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
@@ -469,7 +469,7 @@ func UnmarshalCertAuthority(bytes []byte, opts ...MarshalOption) (CertAuthority,
 	return nil, trace.BadParameter("cert authority resource version %v is not supported", h.Version)
 }
 
-// MarshalCertAuthority marshalls the CertAuthority resource.
+// MarshalCertAuthority marshals the CertAuthority resource to JSON.
 func MarshalCertAuthority(ca CertAuthority, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {

@@ -443,7 +443,7 @@ func GetAccessRequestSchema() string {
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, AccessRequestSpecSchema, DefaultDefinitions)
 }
 
-// UnmarshalAccessRequest unmarshals AccessRequest the f resource.
+// UnmarshalAccessRequest unmarshals the AccessRequest resource from JSON.
 func UnmarshalAccessRequest(data []byte, opts ...MarshalOption) (AccessRequest, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {

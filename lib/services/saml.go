@@ -267,7 +267,7 @@ func GetSAMLConnectorSchema() string {
 	return fmt.Sprintf(SAMLConnectorV2SchemaTemplate, MetadataSchema, SAMLConnectorSpecV2Schema)
 }
 
-// UnmarshalSAMLConnector unmarshals the SAMLConnector resource
+// UnmarshalSAMLConnector unmarshals the SAMLConnector resource from JSON.
 func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (SAMLConnector, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
@@ -308,7 +308,7 @@ func UnmarshalSAMLConnector(bytes []byte, opts ...MarshalOption) (SAMLConnector,
 	return nil, trace.BadParameter("SAML connector resource version %v is not supported", h.Version)
 }
 
-// MarshalSAMLConnector marshals the SAMLConnector resource
+// MarshalSAMLConnector marshals the SAMLConnector resource to JSON.
 func MarshalSAMLConnector(c SAMLConnector, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {

@@ -53,7 +53,6 @@ const LicenseSpecV3Template = `{
 }`
 
 // UnmarshalLicense unmarshals the License resource from JSON.
-// and validates schema
 func UnmarshalLicense(bytes []byte) (License, error) {
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing resource data")

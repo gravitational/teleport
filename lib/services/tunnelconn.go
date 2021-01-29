@@ -72,7 +72,7 @@ func GetTunnelConnectionSchema() string {
 	return fmt.Sprintf(V2SchemaTemplate, MetadataSchema, TunnelConnectionSpecV2Schema, DefaultDefinitions)
 }
 
-// UnmarshalTunnelConnection unmarshals reverse tunnel from JSON or YAML,
+// UnmarshalTunnelConnection unmarshals TunnelConnection resource from JSON or YAML,
 // sets defaults and checks the schema
 func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (TunnelConnection, error) {
 	if len(data) == 0 {
@@ -115,7 +115,7 @@ func UnmarshalTunnelConnection(data []byte, opts ...MarshalOption) (TunnelConnec
 	return nil, trace.BadParameter("reverse tunnel version %v is not supported", h.Version)
 }
 
-// MarshalTunnelConnection marshals tunnel connection
+// MarshalTunnelConnection marshals the TunnelConnection resource to JSON.
 func MarshalTunnelConnection(rt TunnelConnection, opts ...MarshalOption) ([]byte, error) {
 	cfg, err := CollectOptions(opts)
 	if err != nil {
