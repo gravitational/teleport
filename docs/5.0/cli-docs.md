@@ -600,7 +600,7 @@ Reset local user account password and any associated second factor with expiring
 # tctl users reset jeff 
 User stevenexample has been reset. Share this URL with the user to complete password reset, link is valid for 8h0m0s:
 https://teleport.example.com:3080/web/reset/8a4a40bec3a31a28db44fa64c0c70ca3
-# Resets jeff password, two factor token.  Jeff populates the password and confirms token with link. 
+# Resets jeff's password and any associated second factor.  Jeff populates the password and confirms token with link. 
 ```
 
 ## tctl request ls
