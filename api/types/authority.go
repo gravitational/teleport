@@ -23,10 +23,9 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
@@ -370,7 +369,7 @@ func (ca *CertAuthorityV2) Signers() ([]ssh.Signer, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		signer = sshutils.AlgSigner(signer, ca.GetSigningAlg())
+		signer = utils.AlgSigner(signer, ca.GetSigningAlg())
 		out = append(out, signer)
 	}
 	return out, nil
@@ -491,7 +490,7 @@ func (r *Rotation) LastRotatedDescription() string {
 	if r.LastRotated.IsZero() {
 		return "never updated"
 	}
-	return fmt.Sprintf("last rotated %v", r.LastRotated.Format(teleport.HumanDateFormatSeconds))
+	return fmt.Sprintf("last rotated %v", r.LastRotated.Format(constants.HumanDateFormatSeconds))
 }
 
 // PhaseDescription returns human friendly description of a current rotation phase.
@@ -519,13 +518,13 @@ func (r *Rotation) String() string {
 		if r.LastRotated.IsZero() {
 			return "never updated"
 		}
-		return fmt.Sprintf("rotated %v", r.LastRotated.Format(teleport.HumanDateFormatSeconds))
+		return fmt.Sprintf("rotated %v", r.LastRotated.Format(constants.HumanDateFormatSeconds))
 	case RotationStateInProgress:
 		return fmt.Sprintf("%v (mode: %v, started: %v, ending: %v)",
 			r.PhaseDescription(),
 			r.Mode,
-			r.Started.Format(teleport.HumanDateFormatSeconds),
-			r.Started.Add(r.GracePeriod.Duration()).Format(teleport.HumanDateFormatSeconds),
+			r.Started.Format(constants.HumanDateFormatSeconds),
+			r.Started.Add(r.GracePeriod.Duration()).Format(constants.HumanDateFormatSeconds),
 		)
 	default:
 		return "unknown"

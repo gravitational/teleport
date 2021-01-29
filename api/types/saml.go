@@ -20,9 +20,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gravitational/trace"
 )
@@ -385,8 +385,8 @@ func (o *SAMLConnectorV2) CheckAndSetDefaults() error {
 	if err := o.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if o.Metadata.Name == teleport.Local {
-		return trace.BadParameter("ID: invalid connector name %v is a reserved name", teleport.Local)
+	if o.Metadata.Name == constants.Local {
+		return trace.BadParameter("ID: invalid connector name, %v is a reserved name", constants.Local)
 	}
 	if o.Spec.AssertionConsumerService == "" {
 		return trace.BadParameter("missing acs - assertion consumer service parameter, set service URL that will receive POST requests from SAML")

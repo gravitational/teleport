@@ -21,14 +21,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/api/utils"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
-	"github.com/vulcand/predicate"
 )
 
 // Role contains a set of permissions or settings
@@ -501,7 +500,7 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 
 	// Make sure all fields have defaults.
 	if r.Spec.Options.CertificateFormat == "" {
-		r.Spec.Options.CertificateFormat = teleport.CertificateFormatStandard
+		r.Spec.Options.CertificateFormat = constants.CertificateFormatStandard
 	}
 	if r.Spec.Options.MaxSessionTTL.Value() == 0 {
 		r.Spec.Options.MaxSessionTTL = NewDuration(defaults.MaxCertDuration)
@@ -551,9 +550,9 @@ func (r *RoleV3) CheckAndSetDefaults() error {
 
 	// Validate that enhanced recording options are all valid.
 	for _, opt := range r.Spec.Options.BPF {
-		if opt == teleport.EnhancedRecordingCommand ||
-			opt == teleport.EnhancedRecordingDisk ||
-			opt == teleport.EnhancedRecordingNetwork {
+		if opt == constants.EnhancedRecordingCommand ||
+			opt == constants.EnhancedRecordingDisk ||
+			opt == constants.EnhancedRecordingNetwork {
 			continue
 		}
 		return trace.BadParameter("found invalid option in session_recording: %v", opt)
@@ -676,83 +675,6 @@ func (r *Rule) CheckAndSetDefaults() error {
 	}
 	if len(r.Verbs) == 0 {
 		return trace.BadParameter("missing verbs")
-	}
-	return nil
-}
-
-// score is a sorting score of the rule, the larger the score, the more
-// specific the rule is
-func (r *Rule) score() int {
-	score := 0
-	// wildcard rules are less specific
-	if utils.SliceContainsStr(r.Resources, Wildcard) {
-		score -= 4
-	} else if len(r.Resources) == 1 {
-		// rules that match specific resource are more specific than
-		// fields that match several resources
-		score += 2
-	}
-	// rules that have wildcard verbs are less specific
-	if utils.SliceContainsStr(r.Verbs, Wildcard) {
-		score -= 2
-	}
-	// rules that supply 'where' or 'actions' are more specific
-	// having 'where' or 'actions' is more important than
-	// whether the rules are wildcard or not, so here we have +8 vs
-	// -4 and -2 score penalty for wildcards in resources and verbs
-	if len(r.Where) > 0 {
-		score += 8
-	}
-	// rules featuring actions are more specific
-	if len(r.Actions) > 0 {
-		score += 8
-	}
-	return score
-}
-
-// IsMoreSpecificThan returns true if the rule is more specific than the other.
-//
-// * nRule matching wildcard resource is less specific
-// than same rule matching specific resource.
-// * Rule that has wildcard verbs is less specific
-// than the same rules matching specific verb.
-// * Rule that has where section is more specific
-// than the same rule without where section.
-// * Rule that has actions list is more specific than
-// rule without actions list.
-func (r *Rule) IsMoreSpecificThan(o Rule) bool {
-	return r.score() > o.score()
-}
-
-// MatchesWhere returns true if Where rule matches
-// Empty Where block always matches
-func (r *Rule) MatchesWhere(parser predicate.Parser) (bool, error) {
-	if r.Where == "" {
-		return true, nil
-	}
-	ifn, err := parser.Parse(r.Where)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	fn, ok := ifn.(predicate.BoolPredicate)
-	if !ok {
-		return false, trace.BadParameter("unsupported type: %T", ifn)
-	}
-	return fn(), nil
-}
-
-// ProcessActions processes actions specified for this rule
-func (r *Rule) ProcessActions(parser predicate.Parser) error {
-	for _, action := range r.Actions {
-		ifn, err := parser.Parse(action)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fn, ok := ifn.(predicate.BoolPredicate)
-		if !ok {
-			return trace.BadParameter("unsupported type: %T", ifn)
-		}
-		fn()
 	}
 	return nil
 }

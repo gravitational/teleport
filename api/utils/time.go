@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Gravitational, Inc.
+Copyright 2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,15 +16,28 @@ limitations under the License.
 
 package utils
 
-// StringMapsEqual returns true if two strings maps are equal
-func StringMapsEqual(a, b map[string]string) bool {
-	if len(a) != len(b) {
-		return false
+import (
+	"time"
+)
+
+// UTC converts time to UTC timezone
+func UTC(t *time.Time) {
+	if t == nil {
+		return
 	}
-	for key := range a {
-		if a[key] != b[key] {
-			return false
-		}
+
+	if t.IsZero() {
+		// to fix issue with timezones for tests
+		*t = time.Time{}
+		return
 	}
-	return true
+	*t = t.UTC()
+}
+
+// HumanTimeFormatString is a human readable date formatting
+const HumanTimeFormatString = "Mon Jan _2 15:04 UTC"
+
+// HumanTimeFormat formats time as recognized by humans
+func HumanTimeFormat(d time.Time) string {
+	return d.Format(HumanTimeFormatString)
 }

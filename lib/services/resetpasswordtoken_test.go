@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2020-2021 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package types
+package services
 
 import (
 	"fmt"
@@ -22,7 +22,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/utils"
-
 	"gopkg.in/check.v1"
 )
 
@@ -31,11 +30,11 @@ type ResetPasswordTokenSuite struct{}
 var _ = check.Suite(&ResetPasswordTokenSuite{})
 var _ = fmt.Printf
 
-func (s *ResetPasswordTokenSuite) SetUpSuite(c *check.C) {
+func (r *ResetPasswordTokenSuite) SetUpSuite(c *check.C) {
 	utils.InitLoggerForTests(testing.Verbose())
 }
 
-func (s *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {
+func (r *ResetPasswordTokenSuite) TestUnmarshal(c *check.C) {
 	created, err := time.Parse(time.RFC3339, "2020-01-14T18:52:39.523076855Z")
 	c.Assert(err, check.IsNil)
 
