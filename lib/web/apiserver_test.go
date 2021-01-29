@@ -79,7 +79,6 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"github.com/tstranex/u2f"
 	. "gopkg.in/check.v1"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
