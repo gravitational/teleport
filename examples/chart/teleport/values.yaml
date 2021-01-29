@@ -21,6 +21,11 @@ image:
   # - name: myRegistryKeySecretName
 
 labels: {}
+# Additional init containers
+extraInitContainers: ""
+
+# Additional sidecar containers, e. g. for updating teleport config when configMap changes are detected
+extraContainers: ""
 
 # Teleport Proxy configuration
 proxy:

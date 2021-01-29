@@ -157,6 +157,12 @@ spec:
 {{- end }}
     spec:
       automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
+      {{- if .Values.extraInitContainers }}
+      initContainers:
+      {{- with .Values.extraInitContainers }}
+      {{- tpl . $ | nindent 6 }}
+      {{- end }}
+      {{- end }}
       containers:
       - name: {{ .Chart.Name }}
 {{- if .Values.license.enabled }}
@@ -197,6 +203,10 @@ spec:
 {{- if .Values.extraAuthVolumeMounts }}
 {{ toYaml .Values.extraAuthVolumeMounts | indent 8 }}
 {{- end }}
+      {{- with .Values.extraContainers }}
+      {{- tpl . $ | nindent 6 }}
+      {{- end }}
+
       volumes:
 {{- if .Values.license.enabled }}
       - name: {{ template "teleport.fullname" . }}-license
