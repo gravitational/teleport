@@ -343,7 +343,7 @@ func MarshalCertRoles(roles []string) (string, error) {
 	return string(out), err
 }
 
-// UnmarshalCertRoles marshals roles list to OpenSSH
+// UnmarshalCertRoles marshals roles list to OpenSSH format
 func UnmarshalCertRoles(data string) ([]string, error) {
 	var certRoles CertRoles
 	if err := utils.UnmarshalWithSchema(CertRolesSchema, &certRoles, []byte(data)); err != nil {
