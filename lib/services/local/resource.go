@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 
@@ -161,6 +162,8 @@ func itemToResource(item backend.Item) (services.Resource, error) {
 		rsc, err = itemToOIDCConnector(item)
 	case services.KindSAMLConnector:
 		rsc, err = itemToSAMLConnector(item)
+	case types.KindMFADevice:
+		rsc, err = itemToMFADevice(item)
 	case "":
 		return nil, trace.BadParameter("item %q is not a resource (missing field 'kind')", string(item.Key))
 	default:
@@ -406,6 +409,12 @@ func itemToSAMLConnector(item backend.Item) (services.SAMLConnector, error) {
 	return connector, nil
 }
 
+func itemToMFADevice(item backend.Item) (*types.MFADevice, error) {
+	var d types.MFADevice
+	err := json.Unmarshal(item.Value, &d)
+	return &d, trace.Wrap(err)
+}
+
 // userFromUserItems is an extended variant of itemToUser which can be used
 // with the `userItems` collector to include additional backend.Item values
 // such as password hash or u2f registration.
@@ -433,11 +442,27 @@ func itemToLocalAuthSecrets(items userItems) (*services.LocalAuthSecrets, error)
 	if items.pwd != nil {
 		auth.PasswordHash = items.pwd.Value
 	}
+	for _, mfa := range items.mfa {
+		var d types.MFADevice
+		if err := json.Unmarshal(mfa.Value, &d); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		auth.MFA = append(auth.MFA, &d)
+	}
+
+	// DELETE IN 7.0: these items are migrated to items.mfa on 6.0 first
+	// startup.
+	//
+	// Delete starts here...
 	if items.totp != nil {
 		auth.TOTPKey = string(items.totp.Value)
 	}
 	if items.u2fRegistration != nil {
-		var raw u2fRegistration
+		var raw struct {
+			Raw              []byte `json:"raw"`
+			KeyHandle        []byte `json:"keyhandle"`
+			MarshalledPubKey []byte `json:"marshalled_pubkey"`
+		}
 		if err := json.Unmarshal(items.u2fRegistration.Value, &raw); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -448,12 +473,15 @@ func itemToLocalAuthSecrets(items userItems) (*services.LocalAuthSecrets, error)
 		}
 	}
 	if items.u2fCounter != nil {
-		var raw u2fRegistrationCounter
+		var raw struct {
+			Counter uint32 `json:"counter"`
+		}
 		if err := json.Unmarshal(items.u2fCounter.Value, &raw); err != nil {
 			return nil, trace.Wrap(err)
 		}
 		auth.U2FCounter = raw.Counter
 	}
+	// ... delete ends here.
 	if err := services.ValidateLocalAuthSecrets(&auth); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -472,40 +500,15 @@ func itemsFromLocalAuthSecrets(user string, auth services.LocalAuthSecrets) ([]b
 		}
 		items = append(items, item)
 	}
-	if len(auth.TOTPKey) > 0 {
-		item := backend.Item{
-			Key:   backend.Key(webPrefix, usersPrefix, user, totpPrefix),
-			Value: []byte(auth.TOTPKey),
-		}
-		items = append(items, item)
-	}
-	if auth.U2FRegistration != nil {
-		value, err := json.Marshal(u2fRegistration{
-			Raw:              auth.U2FRegistration.Raw,
-			KeyHandle:        auth.U2FRegistration.KeyHandle,
-			MarshalledPubKey: auth.U2FRegistration.PubKey,
-		})
+	for _, mfa := range auth.MFA {
+		value, err := json.Marshal(mfa)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		item := backend.Item{
-			Key:   backend.Key(webPrefix, usersPrefix, user, u2fRegistrationPrefix),
+		items = append(items, backend.Item{
+			Key:   backend.Key(webPrefix, usersPrefix, user, mfaDevicePrefix, mfa.Id),
 			Value: value,
-		}
-		items = append(items, item)
-	}
-	if auth.U2FCounter > 0 {
-		value, err := json.Marshal(u2fRegistrationCounter{
-			Counter: auth.U2FCounter,
 		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		item := backend.Item{
-			Key:   backend.Key(webPrefix, usersPrefix, user, u2fRegistrationCounterPrefix),
-			Value: value,
-		}
-		items = append(items, item)
 	}
 	return items, nil
 }
@@ -523,22 +526,11 @@ func splitUsernameAndSuffix(key string) (name string, suffix string, err error) 
 		return "", "", trace.BadParameter("expected format '%s/<name>/<suffix>', got '%s'", fullUsersPrefix, key)
 	}
 	key = strings.TrimPrefix(key, fullUsersPrefix)
-	idx := strings.LastIndex(key, "/")
+	idx := strings.Index(key, "/")
 	if idx < 1 || idx >= len(key) {
 		return "", "", trace.BadParameter("expected format <name>/<suffix>, got %q", key)
 	}
 	return key[:idx], key[idx+1:], nil
-}
-
-// trimToSuffix trims a key-like value upto and including the last `/` character.
-// If no `/` exists, the full value is returned.  If `/` is the last character, an
-// empty string is returned.
-func trimToSuffix(keyLike string) (suffix string) {
-	idx := strings.LastIndex(keyLike, "/")
-	if idx < 0 {
-		return keyLike
-	}
-	return keyLike[idx+1:]
 }
 
 // collectUserItems handles the case where multiple items pertain to the same user resource.
@@ -570,8 +562,11 @@ func collectUserItems(items []backend.Item) (users map[string]userItems, rem []b
 
 // userItems is a collector for item types related to a single user resource.
 type userItems struct {
-	params          *backend.Item
-	pwd             *backend.Item
+	params *backend.Item
+	pwd    *backend.Item
+	mfa    []*backend.Item
+
+	// Deprecated fields, only used for migration on auth server startup.
 	totp            *backend.Item
 	u2fRegistration *backend.Item
 	u2fCounter      *backend.Item
@@ -584,34 +579,37 @@ func (u *userItems) Set(suffix string, item backend.Item) (ok bool) {
 		u.params = &item
 	case pwdPrefix:
 		u.pwd = &item
+
+	// DELETE IN 7.0: these items are migrated to mfaDevicePrefix on 6.0 first
+	// startup.
+	//
+	// Delete starts here...
 	case totpPrefix:
 		u.totp = &item
 	case u2fRegistrationPrefix:
 		u.u2fRegistration = &item
 	case u2fRegistrationCounterPrefix:
 		u.u2fCounter = &item
+	// ... delete ends here.
+
 	default:
-		return false
+		if strings.HasPrefix(suffix, mfaDevicePrefix) {
+			u.mfa = append(u.mfa, &item)
+		} else {
+			return false
+		}
 	}
 	return true
 }
 
-func (u *userItems) slots() [5]*backend.Item {
-	return [5]*backend.Item{
-		u.params,
-		u.pwd,
-		u.totp,
-		u.u2fRegistration,
-		u.u2fCounter,
-	}
-}
-
 func (u *userItems) Len() int {
 	var l int
-	for _, s := range u.slots() {
-		if s != nil {
-			l++
-		}
+	if u.params != nil {
+		l++
 	}
+	if u.pwd != nil {
+		l++
+	}
+	l += len(u.mfa)
 	return l
 }

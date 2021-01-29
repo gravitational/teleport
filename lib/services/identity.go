@@ -24,6 +24,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/u2f"
 	"github.com/gravitational/teleport/lib/defaults"
 
@@ -97,22 +98,12 @@ type Identity interface {
 	// Deprecated: HOTP use is deprecated, use GetTOTP instead.
 	GetHOTP(user string) (*hotp.HOTP, error)
 
-	// UpsertTOTP upserts TOTP secret key for a user that can be used to generate and validate tokens.
-	UpsertTOTP(user string, secretKey string) error
-
-	// GetTOTP returns the secret key used by the TOTP algorithm to validate tokens.
-	GetTOTP(user string) (string, error)
-
 	// UpsertUsedTOTPToken upserts a TOTP token to the backend so it can't be used again
 	// during the 30 second window it's valid.
 	UpsertUsedTOTPToken(user string, otpToken string) error
 
 	// GetUsedTOTPToken returns the last successfully used TOTP token.
 	GetUsedTOTPToken(user string) (string, error)
-
-	// DeleteUsedTOTPToken removes the used token from the backend. This should only
-	// be used during tests.
-	DeleteUsedTOTPToken(user string) error
 
 	// UpsertPassword upserts new password and OTP token
 	UpsertPassword(user string, password []byte) error
@@ -123,23 +114,20 @@ type Identity interface {
 	// GetU2FRegisterChallenge returns a U2F challenge for a new user corresponding to the token
 	GetU2FRegisterChallenge(token string) (*u2f.Challenge, error)
 
-	// UpsertU2FRegistration upserts a U2F registration from a valid register response
-	UpsertU2FRegistration(user string, u2fReg *u2f.Registration) error
-
-	// GetU2FRegistration returns a U2F registration from a valid register response
-	GetU2FRegistration(user string) (*u2f.Registration, error)
-
 	// UpsertU2FSignChallenge upserts a U2F sign (auth) challenge
 	UpsertU2FSignChallenge(user string, u2fChallenge *u2f.Challenge) error
 
 	// GetU2FSignChallenge returns a U2F sign (auth) challenge
 	GetU2FSignChallenge(user string) (*u2f.Challenge, error)
 
-	// UpsertU2FRegistrationCounter upserts a counter associated with a U2F registration
-	UpsertU2FRegistrationCounter(user string, counter uint32) error
+	// UpsertMFADevice upserts an MFA device for the user.
+	UpsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error
 
-	// GetU2FRegistrationCounter returns a counter associated with a U2F registration
-	GetU2FRegistrationCounter(user string) (uint32, error)
+	// GetMFADevices gets all MFA devices for the user.
+	GetMFADevices(ctx context.Context, user string) ([]*types.MFADevice, error)
+
+	// DeleteMFADevice deletes an MFA device for the user by ID.
+	DeleteMFADevice(ctx context.Context, user, id string) error
 
 	// UpsertOIDCConnector upserts OIDC Connector
 	UpsertOIDCConnector(connector OIDCConnector) error
