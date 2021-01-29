@@ -172,7 +172,6 @@ var (
 	RemoveCASecrets    = types.RemoveCASecrets
 	MarshalCertRoles   = types.MarshalCertRoles
 	UnmarshalCertRoles = types.UnmarshalCertRoles
-	ParseSigningAlg    = types.ParseSigningAlg
 	RotationSchema     = types.RotationSchema
 )
 
