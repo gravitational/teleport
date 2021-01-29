@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/pborman/uuid"
 	"github.com/sirupsen/logrus"
-	"github.com/tstranex/u2f"
 )
 
 // IdentityService is responsible for managing web users and currently

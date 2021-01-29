@@ -341,10 +341,12 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 	if err == nil {
 		return false
 	}
-	c.log.WithError(err).Warn("Failed to query web session.")
 	expiry := c.session.Expiry()
 	if expiry.IsZero() {
 		return false
+	}
+	if !trace.IsNotFound(err) {
+		c.log.WithError(err).Debug("Failed to query web session.")
 	}
 	// Give the session some time to linger so existing users of the context
 	// have successfully disposed of them.
@@ -352,9 +354,13 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 	// cached site clients.
 	// This is a cheaper way to avoid race without introducing object
 	// reference counters.
-	// TODO(dmitri): this leaks the implementation detail about the session TTL
-	return c.parent.clock.Since(expiry) > 2*auth.BearerTokenTTL
+	return c.parent.clock.Since(expiry) > cachedSessionLingeringThreshold
 }
+
+// cachedSessionLingeringThreshold specifies the maximum amount of time the session cache
+// will hold onto a session before removing it. This period allows all outstanding references
+// to disappear without fear of racing with the removal
+const cachedSessionLingeringThreshold = 2 * time.Minute
 
 type sessionCacheOptions struct {
 	proxyClient  auth.ClientI

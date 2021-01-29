@@ -59,7 +59,6 @@ import (
 	"github.com/pborman/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	saml2 "github.com/russellhaering/gosaml2"
-	"github.com/tstranex/u2f"
 	"golang.org/x/crypto/ssh"
 )
 
