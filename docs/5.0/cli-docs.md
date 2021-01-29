@@ -579,6 +579,30 @@ tctl users rm sally,tim
 # Removes users sally and tim
 ```
 
+## tctl users reset
+
+Reset local user account password and two factor with expiring link to populate vaues. **Usage**: `tctl users reset <account>`
+
+### Arguments
+
+* `<account>` - Teleport Local DB User
+
+### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description
+|------|---------|----------------|----------------------------|
+| `--ttl` | 8h | relative duration like 5s, 2m, or 3h | Set expiration time for token, default is 8h0m0s, maximum is 24h0m0s
+
+
+### Examples
+
+``` bsh
+# tctl users reset jeff 
+User stevenexample has been reset. Share this URL with the user to complete password reset, link is valid for 8h0m0s:
+https://teleport.example.com:3080/web/reset/8a4a40bec3a31a28db44fa64c0c70ca3
+# Resets jeff password, two factor token.  Jeff populates the password and confirms token with link. 
+```
+
 ## tctl request ls
 
 List of open requests **Usage**: `tctl request ls`
