@@ -540,6 +540,26 @@ func CompareRuleScore(r *Rule, o *Rule) bool {
 // RuleSet maps resource to a set of rules defined for it
 type RuleSet map[string][]Rule
 
+// MakeRuleSet creates a new rule set from a list
+func MakeRuleSet(rules []Rule) RuleSet {
+	set := make(RuleSet)
+	for _, rule := range rules {
+		for _, resource := range rule.Resources {
+			set[resource] = append(set[resource], rule)
+		}
+	}
+	for resource := range set {
+		rules := set[resource]
+		// sort rules by most specific rule, the rule that has actions
+		// is more specific than the one that has no actions
+		sort.Slice(rules, func(i, j int) bool {
+			return CompareRuleScore(&rules[i], &rules[j])
+		})
+		set[resource] = rules
+	}
+	return set
+}
+
 // Match tests if the resource name and verb are in a given list of rules.
 // More specific rules will be matched first. See Rule.IsMoreSpecificThan
 // for exact specs on whether the rule is more or less specific.
@@ -558,12 +578,12 @@ func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.P
 	// the most specific rule should win
 	rules := set[resource]
 	for _, rule := range rules {
-		match, err := rule.MatchesWhere(whereParser)
+		match, err := matchesWhere(&rule, whereParser)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
 		if match && (rule.HasVerb(Wildcard) || rule.HasVerb(verb)) {
-			if err := rule.ProcessActions(actionsParser); err != nil {
+			if err := processActions(&rule, actionsParser); err != nil {
 				return true, trace.Wrap(err)
 			}
 			return true, nil
@@ -572,12 +592,12 @@ func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.P
 
 	// check for wildcard resource matcher
 	for _, rule := range set[Wildcard] {
-		match, err := rule.MatchesWhere(whereParser)
+		match, err := matchesWhere(&rule, whereParser)
 		if err != nil {
 			return false, trace.Wrap(err)
 		}
 		if match && (rule.HasVerb(Wildcard) || rule.HasVerb(verb)) {
-			if err := rule.ProcessActions(actionsParser); err != nil {
+			if err := processActions(&rule, actionsParser); err != nil {
 				return true, trace.Wrap(err)
 			}
 			return true, nil
@@ -587,6 +607,39 @@ func (set RuleSet) Match(whereParser predicate.Parser, actionsParser predicate.P
 	return false, nil
 }
 
+// matchesWhere returns true if Where rule matches.
+// Empty Where block always matches.
+func matchesWhere(r *Rule, parser predicate.Parser) (bool, error) {
+	if r.Where == "" {
+		return true, nil
+	}
+	ifn, err := parser.Parse(r.Where)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	fn, ok := ifn.(predicate.BoolPredicate)
+	if !ok {
+		return false, trace.BadParameter("invalid predicate type for where expression: %v", r.Where)
+	}
+	return fn(), nil
+}
+
+// processActions processes actions specified for this rule
+func processActions(r *Rule, parser predicate.Parser) error {
+	for _, action := range r.Actions {
+		ifn, err := parser.Parse(action)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fn, ok := ifn.(predicate.BoolPredicate)
+		if !ok {
+			return trace.BadParameter("invalid predicate type for action expression: %v", action)
+		}
+		fn()
+	}
+	return nil
+}
+
 // Slice returns slice from a set
 func (set RuleSet) Slice() []Rule {
 	var out []Rule
@@ -594,32 +647,6 @@ func (set RuleSet) Slice() []Rule {
 		out = append(out, rules...)
 	}
 	return out
-}
-
-// MakeRuleSet converts slice of rules to the set of rules
-func MakeRuleSet(rules []Rule) RuleSet {
-	set := make(RuleSet)
-	for _, rule := range rules {
-		for _, resource := range rule.Resources {
-			rules, ok := set[resource]
-			if !ok {
-				set[resource] = []Rule{rule}
-			} else {
-				rules = append(rules, rule)
-				set[resource] = rules
-			}
-		}
-	}
-	for resource := range set {
-		rules := set[resource]
-		// sort rules by most specific rule, the rule that has actions
-		// is more specific than the one that has no actions
-		sort.Slice(rules, func(i, j int) bool {
-			return CompareRuleScore(&rules[i], &rules[j])
-		})
-		set[resource] = rules
-	}
-	return set
 }
 
 // AccessChecker interface implements access checks for given role or role set
