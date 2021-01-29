@@ -20,7 +20,11 @@ package trace
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"os"
+	"reflect"
 	"regexp"
+	"runtime"
 	rundebug "runtime/debug"
 	"sort"
 	"strconv"
@@ -28,8 +32,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-
-	"runtime"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 const (
@@ -50,6 +53,16 @@ const (
 	DefaultLevelPadding = 4
 )
 
+// IsTerminal checks whether writer is a terminal
+func IsTerminal(w io.Writer) bool {
+	switch v := w.(type) {
+	case *os.File:
+		return terminal.IsTerminal(int(v.Fd()))
+	default:
+		return false
+	}
+}
+
 // TextFormatter is logrus-compatible formatter and adds
 // file and line details to every logged entry.
 type TextFormatter struct {
@@ -59,6 +72,11 @@ type TextFormatter struct {
 	// ComponentPadding is a padding to pick when displaying
 	// and formatting component field, defaults to DefaultComponentPadding
 	ComponentPadding int
+	// EnableColors enables colored output
+	EnableColors bool
+	// FormatCaller is a function to return (part) of source file path for output.
+	// Defaults to filePathAndLine() if unspecified
+	FormatCaller func() (caller string)
 }
 
 // Format implements logrus.Formatter interface and adds file and line
@@ -69,31 +87,37 @@ func (tf *TextFormatter) Format(e *log.Entry) (data []byte, err error) {
 			return
 		}
 	}()
-	var file string
-	if frameNo := findFrame(); frameNo != -1 {
-		t := newTrace(frameNo, nil)
-		file = t.Loc()
+
+	formatCaller := tf.FormatCaller
+	if formatCaller == nil {
+		formatCaller = formatCallerWithPathAndLine
 	}
 
+	caller := formatCaller()
 	w := &writer{}
 
 	// time
 	if !tf.DisableTimestamp {
-		w.writeField(e.Time.Format(time.RFC3339))
+		w.writeField(e.Time.Format(time.RFC3339), noColor)
 	}
 
 	// level
-	w.writeField(strings.ToUpper(padMax(e.Level.String(), DefaultLevelPadding)))
+	color := noColor
+	if tf.EnableColors {
+		switch e.Level {
+		case log.DebugLevel:
+			color = gray
+		case log.WarnLevel:
+			color = yellow
+		case log.ErrorLevel, log.FatalLevel, log.PanicLevel:
+			color = red
+		default:
+			color = blue
+		}
+	}
+	w.writeField(strings.ToUpper(padMax(e.Level.String(), DefaultLevelPadding)), color)
 
-	// component, always output
-	componentI, ok := e.Data[Component]
-	if !ok {
-		componentI = ""
-	}
-	component, ok := componentI.(string)
-	if !ok {
-		component = fmt.Sprintf("%v", componentI)
-	}
+	// always output the component field if available
 	padding := DefaultComponentPadding
 	if tf.ComponentPadding != 0 {
 		padding = tf.ComponentPadding
@@ -101,8 +125,10 @@ func (tf *TextFormatter) Format(e *log.Entry) (data []byte, err error) {
 	if w.Len() > 0 {
 		w.WriteByte(' ')
 	}
-	if component != "" {
-		component = fmt.Sprintf("[%v]", component)
+	value := e.Data[Component]
+	var component string
+	if reflect.ValueOf(value).IsValid() {
+		component = fmt.Sprintf("[%v]", value)
 	}
 	component = strings.ToUpper(padMax(component, padding))
 	if component[len(component)-1] != ' ' {
@@ -112,7 +138,7 @@ func (tf *TextFormatter) Format(e *log.Entry) (data []byte, err error) {
 
 	// message
 	if e.Message != "" {
-		w.writeField(e.Message)
+		w.writeField(e.Message, noColor)
 	}
 
 	// rest of the fields
@@ -120,9 +146,9 @@ func (tf *TextFormatter) Format(e *log.Entry) (data []byte, err error) {
 		w.writeMap(e.Data)
 	}
 
-	// file, if present, always last
-	if file != "" {
-		w.writeField(file)
+	// caller, if present, always last
+	if caller != "" {
+		w.writeField(caller, noColor)
 	}
 
 	w.WriteByte('\n')
@@ -138,8 +164,8 @@ type JSONFormatter struct {
 
 // Format implements logrus.Formatter interface
 func (j *JSONFormatter) Format(e *log.Entry) ([]byte, error) {
-	if frameNo := findFrame(); frameNo != -1 {
-		t := newTrace(frameNo, nil)
+	if cursor := findFrame(); cursor != nil {
+		t := newTraceFromFrames(*cursor, nil)
 		new := e.WithFields(log.Fields{
 			FileField:     t.Loc(),
 			FunctionField: t.FuncName(),
@@ -149,44 +175,89 @@ func (j *JSONFormatter) Format(e *log.Entry) ([]byte, error) {
 		new.Message = e.Message
 		e = new
 	}
-	return (&j.JSONFormatter).Format(e)
+	return j.JSONFormatter.Format(e)
 }
 
-var r = regexp.MustCompile(`github\.com/(S|s)irupsen/logrus`)
+// formatCallerWithPathAndLine formats the caller in the form path/segment:<line number>
+// for output in the log
+func formatCallerWithPathAndLine() (path string) {
+	if cursor := findFrame(); cursor != nil {
+		t := newTraceFromFrames(*cursor, nil)
+		return t.Loc()
+	}
+	return ""
+}
 
-func findFrame() int {
-	for i := 3; i < 10; i++ {
-		_, file, _, ok := runtime.Caller(i)
-		if !ok {
-			return -1
-		}
-		if !r.MatchString(file) {
-			return i
+var frameIgnorePattern = regexp.MustCompile(`github\.com/(S|s)irupsen/logrus`)
+
+// findFrames positions the stack pointer to the first
+// function that does not match the frameIngorePattern
+// and returns the rest of the stack frames
+func findFrame() *frameCursor {
+	var buf [32]uintptr
+	// Skip enough frames to start at user code.
+	// This number is a mere hint to the following loop
+	// to start as close to user code as possible and getting it right is not mandatory.
+	// The skip count might need to get updated if the call to findFrame is
+	// moved up/down the call stack
+	n := runtime.Callers(4, buf[:])
+	pcs := buf[:n]
+	frames := runtime.CallersFrames(pcs)
+	for i := 0; i < n; i++ {
+		frame, _ := frames.Next()
+		if !frameIgnorePattern.MatchString(frame.File) {
+			return &frameCursor{
+				current: &frame,
+				rest:    frames,
+				n:       n,
+			}
 		}
 	}
-	return -1
+	return nil
 }
+
+const (
+	noColor = -1
+	red     = 31
+	yellow  = 33
+	blue    = 36
+	gray    = 37
+)
 
 type writer struct {
 	bytes.Buffer
 }
 
-func (w *writer) writeField(value interface{}) {
+func (w *writer) writeField(value interface{}, color int) {
 	if w.Len() > 0 {
 		w.WriteByte(' ')
 	}
-	w.writeValue(value)
+	w.writeValue(value, color)
 }
 
-func (w *writer) writeValue(value interface{}) {
-	stringVal, ok := value.(string)
-	if !ok {
-		stringVal = fmt.Sprint(value)
+func (w *writer) writeValue(value interface{}, color int) {
+	var s string
+	switch v := value.(type) {
+	case string:
+		s = v
+		if needsQuoting(s) {
+			s = fmt.Sprintf("%q", v)
+		}
+	default:
+		s = fmt.Sprintf("%v", v)
 	}
-	if !needsQuoting(stringVal) {
-		w.WriteString(stringVal)
-	} else {
-		w.WriteString(fmt.Sprintf("%q", stringVal))
+	if color != noColor {
+		s = fmt.Sprintf("\x1b[%dm%s\x1b[0m", color, s)
+	}
+	w.WriteString(s)
+}
+
+func (w *writer) writeError(value interface{}) {
+	switch err := value.(type) {
+	case Error:
+		w.WriteString(fmt.Sprintf("[%v]", err.DebugReport()))
+	default:
+		w.WriteString(fmt.Sprintf("[%v]", value))
 	}
 }
 
@@ -196,7 +267,11 @@ func (w *writer) writeKeyValue(key string, value interface{}) {
 	}
 	w.WriteString(key)
 	w.WriteByte(':')
-	w.writeValue(value)
+	if key == log.ErrorKey {
+		w.writeError(value)
+		return
+	}
+	w.writeValue(value, noColor)
 }
 
 func (w *writer) writeMap(m map[string]interface{}) {
@@ -212,11 +287,11 @@ func (w *writer) writeMap(m map[string]interface{}) {
 		if key == Component {
 			continue
 		}
-		switch val := m[key].(type) {
+		switch value := m[key].(type) {
 		case log.Fields:
-			w.writeMap(val)
+			w.writeMap(value)
 		default:
-			w.writeKeyValue(key, val)
+			w.writeKeyValue(key, value)
 		}
 	}
 }

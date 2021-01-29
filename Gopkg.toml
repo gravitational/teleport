@@ -138,7 +138,7 @@ ignored = ["github.com/Sirupsen/logrus"]
 
 [[constraint]]
   name = "github.com/gravitational/trace"
-  version = "1.1.5"
+  version = "v1.1.14"
 
 [[constraint]]
   name = "github.com/coreos/go-oidc"

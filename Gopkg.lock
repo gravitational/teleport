@@ -331,6 +331,17 @@
   revision = "52bc17adf63c0807b5e5b5d91350703630f621c7"
 
 [[projects]]
+  digest = "1:637144c8995935a3a02d03ade2d1374abeac2a47fdafb798a05642d3e19ff86c"
+  name = "github.com/gravitational/license"
+  packages = [
+    ".",
+    "constants",
+  ]
+  pruneopts = "NUT"
+  revision = "4f189e3bd6e3fa5dee7522341fae24342c6b35cd"
+  version = "0.0.6"
+
+[[projects]]
   digest = "1:9f8b10110aeb7160b903de8bc72e11df95302b090d8a5d345a07144415d3bd35"
   name = "github.com/gravitational/oxy"
   packages = [
@@ -344,6 +355,18 @@
   version = "1.0.2"
 
 [[projects]]
+  digest = "1:9886b8d44d98b6521bbec88954396cd6ca85f2247946bbd568b1c00a8b7bf6c1"
+  name = "github.com/gravitational/reporting"
+  packages = [
+    ".",
+    "client",
+    "types",
+  ]
+  pruneopts = "NUT"
+  revision = "ac7b85c75c4ccc89f7891be4612bc2a8e4238640"
+  version = "0.0.6"
+
+[[projects]]
   digest = "1:1920655c8439bf875819f7d8db882b089f3ca6cb9b3c9ca6413bc2ec2217ea82"
   name = "github.com/gravitational/roundtrip"
   packages = ["."]
@@ -352,12 +375,12 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:d92cabdc7cfe96302f98b2fac7b0f1107ef9ab066708d45d6feaca39aeb4f6f3"
+  digest = "1:74d20a8a11dcbaa076b41d37a43ca0275c899c8eb3d9b098baef46986d5e31dd"
   name = "github.com/gravitational/trace"
   packages = ["."]
   pruneopts = "NUT"
-  revision = "3318e711adee0b3f48d3399ebf5aaddf329a2b4f"
-  version = "1.1.5"
+  revision = "bbab4b868a4a8a002ffc76d005d53996506ef059"
+  version = "v1.1.14"
 
 [[projects]]
   digest = "1:869f0a997dcde348e34e5e11c619054fd29351a71fef4781c86cd2b82fbdd646"
@@ -1086,10 +1109,13 @@
     "github.com/gravitational/configure/jsonschema",
     "github.com/gravitational/form",
     "github.com/gravitational/kingpin",
+    "github.com/gravitational/license",
     "github.com/gravitational/oxy/connlimit",
     "github.com/gravitational/oxy/forward",
     "github.com/gravitational/oxy/ratelimit",
     "github.com/gravitational/oxy/utils",
+    "github.com/gravitational/reporting/client",
+    "github.com/gravitational/reporting/types",
     "github.com/gravitational/roundtrip",
     "github.com/gravitational/trace",
     "github.com/gravitational/ttlmap",
