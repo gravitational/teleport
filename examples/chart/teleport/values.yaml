@@ -150,10 +150,16 @@ config:
       # Used if  proxy.tls.usetlssecret is set to true, otherwise the values are not included in teleport.yaml
       https_key_file: /var/lib/certs/tls.key
       https_cert_file: /var/lib/certs/tls.crt
+      # Specify a different hostname for the ssh and tunnel public address (if different to config.public_address)
+      # ssh_public_addr: teleportssh.example.com
+      # tunnel_public_addr: teleporttunnel.example.com
 
       # kubernetes section configures kubernetes proxy protocol support
       kubernetes:
         enabled: yes
+        # Specify a different hostname for the k8s public address (if different to config.public_address)
+        # public_addr: teleportkubernetes.example.com
+        
 
 # Alternatively you can provide your teleport configuration under teleportConfig with static text. No variable substitution.
 otherConfig:
@@ -350,4 +356,3 @@ tolerations: []
 #   operator: "Equal"
 #   value: "teleport"
 #   effect: "NoSchedule"
-

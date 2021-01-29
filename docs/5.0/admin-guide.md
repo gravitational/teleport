@@ -1794,8 +1794,9 @@ work with any 5.0.3 component and 6.1.0 component will work with any 6.7.0 compo
   means you must not attempt to upgrade from 5.x.x straight to 7.x.x. You must
   upgrade to 6.x.x first.
 
-* Teleport clients [`tsh`](cli-docs.md#tsh) for users and [`tctl`](cli-docs.md#tctl) for admins
-  may not be compatible with different versions of the `teleport` service.
+* The above applies to both clients and servers. For example, a 6.x.x proxy is
+  compatible with 5.x.x nodes and 5.x.x `tsh`. But we don't guarantee that a
+  7.x.x `tsh` will work with a 5.x.x proxy.
 
 As an extra precaution you might want to backup your application prior to upgrading. We provide more instructions in [Backup before upgrading](#backup-before-upgrading).
 
