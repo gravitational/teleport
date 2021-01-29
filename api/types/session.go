@@ -96,7 +96,7 @@ type WebSession interface {
 
 // NewWebSession returns new instance of the web session based on the V2 spec
 func NewWebSession(name string, kind string, subkind string, spec WebSessionSpecV2) WebSession {
-	session := &WebSessionV2{
+	return &WebSessionV2{
 		Kind:    kind,
 		SubKind: subkind,
 		Version: V2,
@@ -107,7 +107,6 @@ func NewWebSession(name string, kind string, subkind string, spec WebSessionSpec
 		},
 		Spec: spec,
 	}
-	return session
 }
 
 // GetKind gets resource Kind
@@ -437,9 +436,9 @@ func GetWebSessionMarshaler() WebSessionMarshaler {
 	return webSessionMarshaler
 }
 
-// NewWebToken returns a new web token with the given value and spec
+// NewWebToken returns a new web token with the given expiration and spec
 func NewWebToken(expires time.Time, spec WebTokenSpecV3) WebToken {
-	token := &WebTokenV3{
+	return &WebTokenV3{
 		Kind:    KindWebToken,
 		Version: V3,
 		Metadata: Metadata{
@@ -449,7 +448,6 @@ func NewWebToken(expires time.Time, spec WebTokenSpecV3) WebToken {
 		},
 		Spec: spec,
 	}
-	return token
 }
 
 // WebTokensGetter provides access to web tokens
