@@ -581,7 +581,7 @@ tctl users rm sally,tim
 
 ## tctl users reset
 
-Reset local user account password and two factor with expiring link to populate vaues. **Usage**: `tctl users reset <account>`
+Reset local user account password and any associated second factor with expiring link to populate values. **Usage**: `tctl users reset <account>`
 
 ### Arguments
 
